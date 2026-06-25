@@ -1,0 +1,63 @@
+{
+    "ibkr": {
+        "host": "127.0.0.1",
+        "port": 4002,
+        "client_id": 1
+    },
+    "symbols": [
+        {
+            "name": "SPX",
+            "type": "index",
+            "exchange": "CBOE",
+            "currency": "USD"
+        },
+        {
+            "name": "DJI",
+            "type": "index",
+            "exchange": "DJ",
+            "currency": "USD"
+        },
+        {
+            "name": "IXIC",
+            "type": "index",
+            "exchange": "NASDAQ",
+            "currency": "USD"
+        },
+        {
+            "name": "VIX",
+            "type": "index",
+            "exchange": "CBOE",
+            "currency": "USD"
+        },
+        {
+            "name": "AAPL",
+            "type": "stock",
+            "exchange": "SMART",
+            "currency": "USD"
+        },
+        {
+            "name": "TSLA",
+            "type": "stock",
+            "exchange": "SMART",
+            "currency": "USD"
+        },
+        {
+            "name": "MSFT",
+            "type": "stock",
+            "exchange": "SMART",
+            "currency": "USD"
+        }
+    ],
+    "output": {
+        "dir": "data",
+        "format": "csv",
+        "encoding": "utf-8"
+    },
+    "fetch": {
+        "bar_size": "1 day",
+        "duration": "2 Y",
+        "what_to_show": "TRADES",
+        "use_rth": true,
+        "request_delay_seconds": 15
+    }
+}
