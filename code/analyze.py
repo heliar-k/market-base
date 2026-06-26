@@ -1,0 +1,253 @@
+#!/usr/bin/env python3
+"""
+K线技术分析脚本 — 读取本地 CSV 并输出完整技术分析报告。
+
+用法:
+    python code/analyze.py                          # 分析 data/MSFT.csv
+    python code/analyze.py data/AAPL.csv            # 分析指定文件
+    python code/analyze.py data/MSFT.csv --no-print # 仅输出最新行 JSON
+"""
+
+import argparse
+import json
+import sys
+from pathlib import Path
+
+import pandas as pd
+import numpy as np
+
+# 允许从项目根目录 import code.indicators
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
+from code.indicators import load_data, compute_all_indicators
+
+
+def analyze(df: pd.DataFrame, symbol: str) -> dict:
+    """从带指标的 DataFrame 提取诊断结果。"""
+    last = df.iloc[-1]
+    cl = last["close"]
+
+    # ── 均线 ──
+    ma_signals = {}
+    for p in [5, 10, 20, 60, 120]:
+        col = f"MA{p}"
+        if col in df.columns and pd.notna(last.get(col)):
+            ma_signals[f"MA{p}"] = "above" if cl > last[col] else "below"
+
+    # ── RSI ──
+    rsi = last.get("RSI")
+    rsi = float(rsi) if pd.notna(rsi) else None
+
+    # ── MACD ──
+    macd = last.get("MACD")
+    macd_signal = last.get("MACD_signal")
+    macd_hist = last.get("MACD_hist")
+    macd_status = "golden_cross" if (pd.notna(macd) and pd.notna(macd_signal) and macd > macd_signal) else "dead_cross"
+
+    # ── 布林带 ──
+    bb_upper = last.get("BB_upper")
+    bb_lower = last.get("BB_lower")
+    bb_mid = last.get("BB_mid")
+    bb_pos = None
+    if pd.notna(bb_upper) and pd.notna(bb_lower) and (bb_upper - bb_lower) > 0:
+        bb_pos = (cl - bb_lower) / (bb_upper - bb_lower) * 100
+
+    # ── ATR ──
+    atr = last.get("ATR")
+    atr = float(atr) if pd.notna(atr) else None
+
+    # ── 成交量 ──
+    vol_ratio = last.get("vol_ratio") if pd.notna(last.get("vol_ratio")) else None
+
+    # ── 近期涨跌 ──
+    changes = {}
+    for days, label in [(5, "5d"), (21, "1m"), (63, "3m"), (126, "6m"), (252, "1y")]:
+        if len(df) >= days:
+            chg = (cl - df["close"].iloc[-days]) / df["close"].iloc[-days] * 100
+            changes[label] = round(chg, 2)
+
+    # ── 关键价位 (90日) ──
+    recent = df.tail(90)
+    resistance = float(recent["high"].max())
+    support = float(recent["low"].min())
+
+    # ── 综合评分 ──
+    scores = []
+    ma5 = last.get("MA5")
+    ma20 = last.get("MA20")
+    ma60 = last.get("MA60")
+    if pd.notna(ma5) and pd.notna(ma20) and pd.notna(ma60):
+        if ma5 > ma20 > ma60:
+            scores.append(("MA_bullish", 2))
+        elif ma5 < ma20 < ma60:
+            scores.append(("MA_bearish", -2))
+        else:
+            scores.append(("MA_mixed", 0))
+    if pd.notna(ma60):
+        scores.append(("price_vs_MA60_bull" if cl > ma60 else "price_vs_MA60_bear", 1 if cl > ma60 else -1))
+
+    # RSI 评分
+    if rsi is not None:
+        if rsi < 30:
+            scores.append(("RSI_oversold(反弹机会)", 1))
+        elif rsi > 70:
+            scores.append(("RSI_overbought(回调风险)", -1))
+        elif rsi < 40:
+            scores.append(("RSI_偏弱", 0))
+        elif rsi > 60:
+            scores.append(("RSI_偏强", 0))
+        else:
+            scores.append(("RSI_neutral", 0))
+
+    # MACD 评分
+    if pd.notna(macd) and pd.notna(macd_signal) and pd.notna(macd_hist):
+        if macd > macd_signal:
+            scores.append(("MACD_金叉", 1))
+        else:
+            scores.append(("MACD_死叉", -1))
+        # 柱状图方向（与前一日比较）
+        prev_hist = df["MACD_hist"].iloc[-2] if len(df) >= 2 else None
+        if prev_hist is not None and pd.notna(prev_hist):
+            if abs(macd_hist) > abs(prev_hist):
+                scores.append(("MACD_hist_expanding", 1 if macd_hist > 0 else -1))
+            else:
+                scores.append(("MACD_hist_contracting", 0))
+
+    total = sum(s for _, s in scores)
+    rsi_detail = "oversold" if rsi and rsi < 30 else ("overbought" if rsi and rsi > 70 else "neutral")
+
+    return {
+        "symbol": symbol,
+        "last_price": round(cl, 2),
+        "last_date": str(df.index[-1].date()),
+        "total_days": len(df),
+        "ma_signals": ma_signals,
+        "RSI": round(rsi, 1) if rsi else None,
+        "RSI_detail": rsi_detail,
+        "MACD": round(float(macd), 3) if pd.notna(macd) else None,
+        "MACD_signal": round(float(macd_signal), 3) if pd.notna(macd_signal) else None,
+        "MACD_hist": round(float(macd_hist), 3) if pd.notna(macd_hist) else None,
+        "MACD_status": macd_status,
+        "BB_upper": round(float(bb_upper), 2) if pd.notna(bb_upper) else None,
+        "BB_lower": round(float(bb_lower), 2) if pd.notna(bb_lower) else None,
+        "BB_mid": round(float(bb_mid), 2) if pd.notna(bb_mid) else None,
+        "BB_position": round(bb_pos, 0) if bb_pos is not None else None,
+        "ATR": round(atr, 2) if atr else None,
+        "vol_ratio": round(float(vol_ratio), 2) if vol_ratio else None,
+        "changes": changes,
+        "resistance_90d": resistance,
+        "support_90d": support,
+        "scores": [{"label": l, "value": v} for l, v in scores],
+        "total_score": total,
+    }
+
+
+def print_report(result: dict) -> None:
+    """格式化打印分析报告。"""
+    cl = result["last_price"]
+    print("=" * 70)
+    print(f"{result['symbol']} K线技术分析")
+    print(f"数据: {result['total_days']} 天  |  最新: {result['last_date']}  |  收盘: ${cl:.2f}")
+    print("=" * 70)
+
+    # 均线
+    print("\n🏷️  均线系统")
+    for p in [5, 10, 20, 60, 120]:
+        sig = result["ma_signals"].get(f"MA{p}")
+        if sig:
+            icon = "🟢 站上" if sig == "above" else "🔴 跌破"
+            # 从 df 取实际值（这里用 result 中的 last 行）
+            print(f"  MA{p:>4d}: {icon}")
+
+    # RSI
+    rsi = result["RSI"]
+    if rsi is not None:
+        labels = {70: "超买", 30: "超卖"}
+        detail = result["RSI_detail"]
+        print(f"\n📐 RSI(14): {rsi:.1f}  [{detail}]")
+
+    # MACD
+    if result["MACD"] is not None:
+        print(f"\n📊 MACD")
+        print(f"  MACD:     {result['MACD']:.3f}")
+        print(f"  Signal:   {result['MACD_signal']:.3f}")
+        print(f"  Hist:     {result['MACD_hist']:.3f}")
+        zh = "金叉" if result["MACD_status"] == "golden_cross" else "死叉"
+        print(f"  状态: {zh}")
+
+    # 布林带
+    if result["BB_mid"] is not None:
+        print(f"\n📏 布林带 (20, 2σ)")
+        print(f"  上轨: ${result['BB_upper']:.2f}")
+        print(f"  中轨: ${result['BB_mid']:.2f}")
+        print(f"  下轨: ${result['BB_lower']:.2f}")
+        print(f"  位置: {result['BB_position']:.0f}% (0=下轨, 100=上轨)")
+
+    # ATR
+    if result["ATR"] is not None:
+        print(f"\n📐 ATR(14): ${result['ATR']:.2f}  |  波动率: {result['ATR']/cl*100:.1f}%")
+
+    # 成交量
+    if result["vol_ratio"] is not None:
+        print(f"\n📦 量比: {result['vol_ratio']:.2f}x")
+
+    # 涨跌幅
+    if result["changes"]:
+        print(f"\n📅 阶段涨跌")
+        labels = {"5d": "5日", "1m": "1月", "3m": "3月", "6m": "半年", "1y": "年"}
+        for k, v in result["changes"].items():
+            emoji = "🟢" if v >= 0 else "🔴"
+            print(f"  {labels.get(k, k):6s}: {emoji} {v:+.2f}%")
+
+    # 关键价位
+    print(f"\n📍 90天关键价位")
+    print(f"  阻力: ${result['resistance_90d']:.2f}")
+    print(f"  支撑: ${result['support_90d']:.2f}")
+    print(f"  距阻力: {(result['resistance_90d'] - cl) / cl * 100:.1f}%")
+    print(f"  距支撑: {(cl - result['support_90d']) / cl * 100:.1f}%")
+
+    # 评分
+    print(f"\n{'=' * 70}")
+    print("🧠 综合评判")
+    for s in result["scores"]:
+        icon = "✅" if s["value"] > 0 else ("❌" if s["value"] < 0 else "➖")
+        print(f"  {icon} {s['label']} ({s['value']:+d})")
+    print(f"\n  综合评分: {result['total_score']:+d}")
+
+    ts = result["total_score"]
+    if ts >= 3:
+        verdict = "偏多"
+    elif ts >= 0:
+        verdict = "中性偏多"
+    elif ts >= -2:
+        verdict = "中性偏空"
+    else:
+        verdict = "偏空"
+    print(f"  判断: {verdict}")
+
+
+def main():
+    parser = argparse.ArgumentParser(description="K线技术分析")
+    parser.add_argument("csv", nargs="?", default="data/MSFT.csv", help="CSV 文件路径")
+    parser.add_argument("--json", action="store_true", help="输出 JSON")
+    parser.add_argument("--no-print", action="store_true", help="不打印报告")
+    args = parser.parse_args()
+
+    csv_path = Path(args.csv)
+    if not csv_path.exists():
+        print(f"错误: 文件不存在 {csv_path}", file=sys.stderr)
+        sys.exit(1)
+
+    symbol = csv_path.stem.upper()
+    df = load_data(str(csv_path))
+    df = compute_all_indicators(df)
+    result = analyze(df, symbol)
+
+    if args.json:
+        print(json.dumps(result, indent=2, ensure_ascii=False, default=str))
+    elif not args.no_print:
+        print_report(result)
+
+
+if __name__ == "__main__":
+    main()
