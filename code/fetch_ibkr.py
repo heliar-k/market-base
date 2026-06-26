@@ -126,22 +126,19 @@ def fetch_single(ib: IB, contract, sym_name: str, cfg_fetch: dict, last_date: st
 
         log.info(f"[{sym_name}] 第 {i+1} 次请求返回 {len(bars)} 条，起始日期: {bars[0].date}")
 
-        # 过滤掉已有数据
+        # 过滤掉已有数据，只保留新数据（date > last_date）
         if last_date:
-            last_dt = datetime.strptime(last_date, "%Y%m%d-%H:%M:%S")
-            bars = [b for b in bars if b.date <= last_dt]
-            if not bars:
+            last_dt = datetime.strptime(last_date, "%Y%m%d-%H:%M:%S").date()
+            new_bars = [b for b in bars if b.date > last_dt]
+            if not new_bars:
                 log.info(f"[{sym_name}] 均已是最新数据，无需增量")
                 break
-
-        all_bars.append(bars)
-
-        # 如果第一批数据已经早于已有数据，停止
-        earliest = bars[0].date
-        if last_date:
-            last_dt = datetime.strptime(last_date, "%Y%m%d-%H:%M:%S")
-            if earliest <= last_dt:
+            all_bars.append(new_bars)
+            # 如果原始批次最早数据已覆盖到已有数据，停止
+            if bars[0].date <= last_dt:
                 break
+        else:
+            all_bars.append(bars)
 
         # 用最早一条的日期作为下次请求的终点
         end_dt = earliest.strftime("%Y%m%d-%H:%M:%S")
