@@ -19,11 +19,13 @@ IBKR 日线 K 线数据拉取脚本
     uv run python code/fetch_ibkr.py --symbols SPX,AAPL  # 只拉取指定品种
     uv run python code/fetch_ibkr.py --days 365           # 拉取最近 365 天
     uv run python code/fetch_ibkr.py --dry-run            # 仅检查连接，不实际拉取
+    uv run python code/fetch_ibkr.py --client-id 12345    # 指定 clientId（默认随机 100-9999）
 """
 
 import argparse
 import json
 import logging
+import random
 import sys
 import time
 from datetime import datetime, timedelta
@@ -141,7 +143,7 @@ def fetch_single(ib: IB, contract, sym_name: str, cfg_fetch: dict, last_date: st
             all_bars.append(bars)
 
         # 用最早一条的日期作为下次请求的终点
-        end_dt = earliest.strftime("%Y%m%d-%H:%M:%S")
+        end_dt = bars[0].date.strftime("%Y%m%d-%H:%M:%S")
         time.sleep(delay)
 
     # 展开并去重
@@ -198,6 +200,7 @@ def main():
     parser.add_argument("--symbols", help="逗号分隔的品种名称，如 SPX,AAPL（不指定则拉全部）")
     parser.add_argument("--days", type=int, help="拉取最近 N 天数据（覆盖配置中的 duration）")
     parser.add_argument("--dry-run", action="store_true", help="仅检查连接，不拉取数据")
+    parser.add_argument("--client-id", type=int, help="指定 clientId（默认随机生成）")
     args = parser.parse_args()
 
     # 加载配置
@@ -228,13 +231,15 @@ def main():
     log.info(f"待拉取品种: {[s['name'] for s in symbols]}")
     log.info(f"TWS 地址: {cfg_ibkr['host']}:{cfg_ibkr['port']}")
 
-    # 连接 IB
+    # 连接 IB，client_id 优先级: CLI > config > 随机
+    client_id = args.client_id or cfg_ibkr.get("client_id") or random.randint(100, 9999)
+    log.info(f"使用 clientId: {client_id}")
     ib = IB()
     try:
         ib.connect(
             cfg_ibkr["host"],
             cfg_ibkr["port"],
-            clientId=cfg_ibkr.get("client_id", 1),
+            clientId=client_id,
             timeout=10,
         )
     except (ConnectionRefusedError, TimeoutError):
