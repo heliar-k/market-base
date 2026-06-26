@@ -59,6 +59,81 @@ def analyze(df: pd.DataFrame, symbol: str) -> dict:
     # ── 成交量 ──
     vol_ratio = last.get("vol_ratio") if pd.notna(last.get("vol_ratio")) else None
 
+    # ── ADX/DMI ──
+    adx = last.get("ADX")
+    adx = float(adx) if pd.notna(adx) else None
+    dmp = last.get("DMP")
+    dmp = float(dmp) if pd.notna(dmp) else None
+    dmn = last.get("DMN")
+    dmn = float(dmn) if pd.notna(dmn) else None
+    adx_trend = None
+    if adx is not None:
+        if adx > 25:
+            adx_trend = "trending" if dmp is not None and dmn is not None else "strong"
+        elif adx < 20:
+            adx_trend = "ranging"
+        else:
+            adx_trend = "weak_trend"
+
+    # ── Stochastic ──
+    stoch_k = last.get("STOCH_k")
+    stoch_k = float(stoch_k) if pd.notna(stoch_k) else None
+    stoch_d = last.get("STOCH_d")
+    stoch_d = float(stoch_d) if pd.notna(stoch_d) else None
+    stoch_detail = None
+    if stoch_k is not None and stoch_d is not None:
+        if stoch_k < 20 and stoch_d < 20:
+            stoch_detail = "oversold"
+        elif stoch_k > 80 and stoch_d > 80:
+            stoch_detail = "overbought"
+        else:
+            stoch_detail = "neutral"
+
+    # ── SuperTrend ──
+    supert_dir = last.get("SUPERT_dir")
+    supert_dir = int(supert_dir) if pd.notna(supert_dir) else None
+    supert_long = last.get("SUPERT_long_stop")
+    supert_long = float(supert_long) if pd.notna(supert_long) else None
+    supert_short = last.get("SUPERT_short_stop")
+    supert_short = float(supert_short) if pd.notna(supert_short) else None
+
+    # ── OBV 背离检测 ──
+    obv = last.get("OBV")
+    obv = float(obv) if pd.notna(obv) else None
+    obv_divergence = None
+    if obv is not None and len(df) >= 20:
+        # 20日价格高点 vs OBV 高点
+        recent_20 = df.tail(20)
+        price_20h = recent_20["close"].max()
+        obv_20h = recent_20["OBV"].max()
+        idx_price = recent_20["close"].idxmax()
+        idx_obv = recent_20["OBV"].idxmax()
+        if idx_price > idx_obv and price_20h > recent_20["close"].iloc[-10:].max() * 0.99:
+            obv_divergence = "bearish_divergence"
+        # 20日价格低点 vs OBV 低点
+        price_20l = recent_20["close"].min()
+        obv_20l = recent_20["OBV"].min()
+        idx_price_l = recent_20["close"].idxmin()
+        idx_obv_l = recent_20["OBV"].idxmin()
+        if idx_price_l > idx_obv_l and price_20l < recent_20["close"].iloc[-10:].min() * 1.01:
+            obv_divergence = "bullish_divergence"
+
+    # ── CCI ──
+    cci = last.get("CCI")
+    cci = float(cci) if pd.notna(cci) else None
+    cci_detail = None
+    if cci is not None:
+        if cci > 200:
+            cci_detail = "extreme_overbought"
+        elif cci > 100:
+            cci_detail = "overbought"
+        elif cci < -200:
+            cci_detail = "extreme_oversold"
+        elif cci < -100:
+            cci_detail = "oversold"
+        else:
+            cci_detail = "normal"
+
     # ── 近期涨跌 ──
     changes = {}
     for days, label in [(5, "5d"), (21, "1m"), (63, "3m"), (126, "6m"), (252, "1y")]:
@@ -105,13 +180,51 @@ def analyze(df: pd.DataFrame, symbol: str) -> dict:
             scores.append(("MACD_金叉", 1))
         else:
             scores.append(("MACD_死叉", -1))
-        # 柱状图方向（与前一日比较）
         prev_hist = df["MACD_hist"].iloc[-2] if len(df) >= 2 else None
         if prev_hist is not None and pd.notna(prev_hist):
             if abs(macd_hist) > abs(prev_hist):
                 scores.append(("MACD_hist_expanding", 1 if macd_hist > 0 else -1))
             else:
                 scores.append(("MACD_hist_contracting", 0))
+
+    # ADX/DMI 评分
+    if adx is not None and dmp is not None and dmn is not None:
+        if adx > 25:
+            scores.append(("ADX_趋势市", 1 if dmp > dmn else -1))
+        elif adx < 20:
+            scores.append(("ADX_震荡市(均线类信号可靠性低)", -1))
+
+    # Stochastic 评分
+    if stoch_k is not None and stoch_d is not None:
+        if stoch_k < 20:
+            scores.append(("Stoch_超卖", 1))
+        elif stoch_k > 80:
+            scores.append(("Stoch_超买", -1))
+        if stoch_k > stoch_d:
+            scores.append(("Stoch_%K>%D", 1))
+        else:
+            scores.append(("Stoch_%K<%D", -1))
+
+    # SuperTrend 评分
+    if supert_dir is not None:
+        scores.append(("SuperTrend_多头" if supert_dir == 1 else "SuperTrend_空头", 1 if supert_dir == 1 else -1))
+
+    # OBV 背离评分
+    if obv_divergence == "bullish_divergence":
+        scores.append(("OBV_底背离(反转预警)", 2))
+    elif obv_divergence == "bearish_divergence":
+        scores.append(("OBV_顶背离(反转预警)", -2))
+
+    # CCI 评分
+    if cci is not None:
+        if cci < -200:
+            scores.append(("CCI_极度超卖(反转机会)", 2))
+        elif cci < -100:
+            scores.append(("CCI_超卖", 1))
+        elif cci > 200:
+            scores.append(("CCI_极度超买(反转风险)", -2))
+        elif cci > 100:
+            scores.append(("CCI_超买", -1))
 
     total = sum(s for _, s in scores)
     rsi_detail = "oversold" if rsi and rsi < 30 else ("overbought" if rsi and rsi > 70 else "neutral")
@@ -134,6 +247,21 @@ def analyze(df: pd.DataFrame, symbol: str) -> dict:
         "BB_position": round(bb_pos, 0) if bb_pos is not None else None,
         "ATR": round(atr, 2) if atr else None,
         "vol_ratio": round(float(vol_ratio), 2) if vol_ratio else None,
+        # 新增指标
+        "ADX": round(adx, 1) if adx else None,
+        "DMP": round(dmp, 1) if dmp else None,
+        "DMN": round(dmn, 1) if dmn else None,
+        "ADX_trend": adx_trend,
+        "STOCH_k": round(stoch_k, 1) if stoch_k else None,
+        "STOCH_d": round(stoch_d, 1) if stoch_d else None,
+        "STOCH_detail": stoch_detail,
+        "SUPERT_dir": supert_dir,
+        "SUPERT_long_stop": round(supert_long, 2) if supert_long else None,
+        "SUPERT_short_stop": round(supert_short, 2) if supert_short else None,
+        "OBV_divergence": obv_divergence,
+        "CCI": round(cci, 1) if cci else None,
+        "CCI_detail": cci_detail,
+        # 原有
         "changes": changes,
         "resistance_90d": resistance,
         "support_90d": support,
@@ -191,6 +319,37 @@ def print_report(result: dict) -> None:
     if result["vol_ratio"] is not None:
         print(f"\n📦 量比: {result['vol_ratio']:.2f}x")
 
+    # ── 新增指标 ──
+    # ADX
+    if result["ADX"] is not None:
+        trend_cn = {"trending": "趋势市", "ranging": "震荡市", "weak_trend": "弱趋势"}
+        print(f"\n📐 ADX(14): {result['ADX']:.1f}  |  DI+: {result['DMP']:.1f}  DI-: {result['DMN']:.1f}  [{trend_cn.get(result['ADX_trend'], 'N/A')}]")
+
+    # Stochastic
+    if result["STOCH_k"] is not None:
+        detail_cn = {"oversold": "超卖", "overbought": "超买", "neutral": "中性"}
+        print(f"\n🎯 Stochastic(14,3,3): %K={result['STOCH_k']:.1f}  %D={result['STOCH_d']:.1f}  [{detail_cn.get(result['STOCH_detail'], 'N/A')}]")
+
+    # SuperTrend
+    if result["SUPERT_dir"] is not None:
+        dir_str = "🟢 多头" if result["SUPERT_dir"] == 1 else "🔴 空头"
+        stop_str = ""
+        if result["SUPERT_dir"] == 1 and result["SUPERT_long_stop"] is not None:
+            stop_str = f"  |  多头止损: ${result['SUPERT_long_stop']:.2f}"
+        elif result["SUPERT_dir"] == -1 and result["SUPERT_short_stop"] is not None:
+            stop_str = f"  |  空头止损: ${result['SUPERT_short_stop']:.2f}"
+        print(f"\n📌 SuperTrend(10,3): {dir_str}{stop_str}")
+
+    # OBV
+    if result["OBV_divergence"] is not None:
+        div_cn = {"bearish_divergence": "⚠️ 顶背离(看空反转预警)", "bullish_divergence": "✨ 底背离(看多反转预警)"}
+        print(f"\n📊 OBV 背离检测: {div_cn.get(result['OBV_divergence'], 'N/A')}")
+
+    # CCI
+    if result["CCI"] is not None:
+        detail_cn = {"extreme_overbought": "极度超买", "overbought": "超买", "extreme_oversold": "极度超卖", "oversold": "超卖", "normal": "正常"}
+        print(f"\n📏 CCI(20): {result['CCI']:.1f}  [{detail_cn.get(result['CCI_detail'], 'N/A')}]")
+
     # 涨跌幅
     if result["changes"]:
         print(f"\n📅 阶段涨跌")
@@ -215,14 +374,18 @@ def print_report(result: dict) -> None:
     print(f"\n  综合评分: {result['total_score']:+d}")
 
     ts = result["total_score"]
-    if ts >= 3:
+    if ts >= 5:
+        verdict = "强烈偏多"
+    elif ts >= 2:
         verdict = "偏多"
     elif ts >= 0:
         verdict = "中性偏多"
-    elif ts >= -2:
+    elif ts >= -3:
         verdict = "中性偏空"
-    else:
+    elif ts >= -6:
         verdict = "偏空"
+    else:
+        verdict = "强烈偏空"
     print(f"  判断: {verdict}")
 
 

@@ -116,10 +116,122 @@ def add_volume_ma(df: pd.DataFrame, period: int = 20) -> pd.DataFrame:
     return df
 
 
+# ══════════════════════════════════════════════════════════════════════════
+# 新增指标 (基于 pandas-ta-classic)
+# ══════════════════════════════════════════════════════════════════════════
+
+import pandas_ta_classic as ta
+
+
+def add_adx(
+    df: pd.DataFrame,
+    period: int = 14,
+    drift: int = 1,
+) -> pd.DataFrame:
+    """
+    计算 ADX/DMI 趋势强度指标。
+    生成列: ADX, DMP (DI+), DMN (DI-)
+    - ADX > 25: 趋势市; ADX < 20: 震荡市
+    - DMP > DMN: 多头占优; DMN > DMP: 空头占优
+    """
+    result = ta.adx(df["high"], df["low"], df["close"], length=period, drift=drift)
+    if result is not None:
+        for col in result.columns:
+            df[col] = result[col]
+        # 短别名便于引用
+        df["ADX"] = result[f"ADX_{period}"]
+        df["DMP"] = result[f"DMP_{period}"]
+        df["DMN"] = result[f"DMN_{period}"]
+    return df
+
+
+def add_stochastic(
+    df: pd.DataFrame,
+    k_period: int = 14,
+    d_period: int = 3,
+    smooth: int = 3,
+) -> pd.DataFrame:
+    """
+    计算慢速随机指标 (Stochastic)。
+    生成列: STOCH_k (%K), STOCH_d (%D)
+    - %K/%D < 20: 超卖; %K/%D > 80: 超买
+    - %K 上穿 %D: 金叉; %K 下穿 %D: 死叉
+    """
+    result = ta.stoch(df["high"], df["low"], df["close"], k=k_period, d=d_period, smooth_k=smooth)
+    if result is not None:
+        for col in result.columns:
+            df[col] = result[col]
+        df["STOCH_k"] = result[f"STOCHk_{k_period}_{d_period}_{smooth}"]
+        df["STOCH_d"] = result[f"STOCHd_{k_period}_{d_period}_{smooth}"]
+    return df
+
+
+def add_supertrend(
+    df: pd.DataFrame,
+    period: int = 10,
+    multiplier: float = 3.0,
+) -> pd.DataFrame:
+    """
+    计算 SuperTrend 指标。
+    生成列:
+    - SUPERT: 趋势值
+    - SUPERT_dir: 方向 (1=多头, -1=空头)
+    - SUPERT_long_stop: 多头止损线（牛市有效，价格下方）
+    - SUPERT_short_stop: 空头止损线（熊市有效，价格上方）
+    """
+    result = ta.supertrend(df["high"], df["low"], df["close"], length=period, multiplier=multiplier)
+    if result is not None:
+        mstr = f"{multiplier:.1f}"
+        for col in result.columns:
+            df[col] = result[col]
+        df["SUPERT"] = result[f"SUPERT_{period}_{mstr}"]
+        df["SUPERT_dir"] = result[f"SUPERTd_{period}_{mstr}"]
+        df["SUPERT_long_stop"] = result[f"SUPERTl_{period}_{mstr}"]   # 多头止损/支撑
+        df["SUPERT_short_stop"] = result[f"SUPERTs_{period}_{mstr}"]  # 空头止损/阻力
+    return df
+
+
+def add_obv(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    计算能量潮指标 (On-Balance Volume)。
+    生成列: OBV
+    - 价格新高但 OBV 不跟 → 量价背离 → 反转预警
+    """
+    result = ta.obv(df["close"], df["volume"])
+    if result is not None:
+        df["OBV"] = result
+    return df
+
+
+def add_cci(
+    df: pd.DataFrame,
+    period: int = 20,
+    constant: float = 0.015,
+) -> pd.DataFrame:
+    """
+    计算商品通道指数 (CCI)。
+    生成列: CCI
+    - CCI > +100: 异常强势; CCI < -100: 异常弱势
+    - CCI 返回 ±100 区间: 回归正常
+    """
+    result = ta.cci(df["high"], df["low"], df["close"], length=period, c=constant)
+    if result is not None:
+        df["CCI"] = result
+    return df
+
+
 # ── 综合 ────────────────────────────────────────────────────────────────
 
-def compute_all_indicators(df: pd.DataFrame) -> pd.DataFrame:
-    """一键计算所有常用指标，原地修改并返回 DataFrame。"""
+def compute_all_indicators(
+    df: pd.DataFrame,
+    extended: bool = True,
+) -> pd.DataFrame:
+    """
+    一键计算所有常用指标，原地修改并返回 DataFrame。
+
+    参数:
+        extended: 是否启用 pandas-ta 扩展指标 (ADX, Stochastic, SuperTrend, OBV, CCI)
+    """
     add_ma(df)
     add_ema(df)
     add_rsi(df)
@@ -127,4 +239,12 @@ def compute_all_indicators(df: pd.DataFrame) -> pd.DataFrame:
     add_bollinger(df)
     add_atr(df)
     add_volume_ma(df)
+
+    if extended:
+        add_adx(df)
+        add_stochastic(df)
+        add_supertrend(df)
+        add_obv(df)
+        add_cci(df)
+
     return df
