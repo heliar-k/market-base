@@ -25,21 +25,22 @@ def load_data(path: str) -> pd.DataFrame:
 
 # ── 均线 ────────────────────────────────────────────────────────────────
 
+def _merge_ta_columns(df: pd.DataFrame, result, aliases: dict[str, str]) -> None:
+    """将 pandas-ta 结果列合并到 df，并按 aliases 创建短别名列。"""
+    if result is None:
+        return
+    for col in result.columns:
+        df[col] = result[col]
+    for alias, source in aliases.items():
+        df[alias] = result[source]
+
+
 def add_ma(df: pd.DataFrame, periods: list[int] | None = None) -> pd.DataFrame:
-    """计算简单移动均线 (SMA)。默认 [5, 10, 20, 60, 120, 250]。"""
+    """计算简单移动均线 (SMA)。默认 [5, 10, 20, 60, 120]。"""
     if periods is None:
-        periods = [5, 10, 20, 60, 120, 250]
+        periods = [5, 10, 20, 60, 120]
     for p in periods:
         df[f"MA{p}"] = ta.sma(df["close"], length=p)
-    return df
-
-
-def add_ema(df: pd.DataFrame, periods: list[int] | None = None) -> pd.DataFrame:
-    """计算指数移动均线 (EMA)。默认 [12, 26, 50, 144, 169]。"""
-    if periods is None:
-        periods = [12, 26, 50, 144, 169]
-    for p in periods:
-        df[f"EMA{p}"] = ta.ema(df["close"], length=p)
     return df
 
 
@@ -60,13 +61,11 @@ def add_macd(
     signal: int = 9,
 ) -> pd.DataFrame:
     """计算 MACD、信号线、柱状图。"""
-    result = ta.macd(df["close"], fast=fast, slow=slow, signal=signal)
-    if result is not None:
-        for col in result.columns:
-            df[col] = result[col]
-        df["MACD"] = result[f"MACD_{fast}_{slow}_{signal}"]
-        df["MACD_hist"] = result[f"MACDh_{fast}_{slow}_{signal}"]
-        df["MACD_signal"] = result[f"MACDs_{fast}_{slow}_{signal}"]
+    _merge_ta_columns(df, ta.macd(df["close"], fast=fast, slow=slow, signal=signal), {
+        "MACD": f"MACD_{fast}_{slow}_{signal}",
+        "MACD_hist": f"MACDh_{fast}_{slow}_{signal}",
+        "MACD_signal": f"MACDs_{fast}_{slow}_{signal}",
+    })
     return df
 
 
@@ -78,14 +77,12 @@ def add_bollinger(
     std_multiplier: float = 2.0,
 ) -> pd.DataFrame:
     """计算布林带 (中轨/上轨/下轨)。"""
-    result = ta.bbands(df["close"], length=period, std=std_multiplier)
-    if result is not None:
-        mstr = f"{std_multiplier:.1f}"
-        for col in result.columns:
-            df[col] = result[col]
-        df["BB_lower"] = result[f"BBL_{period}_{mstr}"]
-        df["BB_mid"] = result[f"BBM_{period}_{mstr}"]
-        df["BB_upper"] = result[f"BBU_{period}_{mstr}"]
+    mstr = f"{std_multiplier:.1f}"
+    _merge_ta_columns(df, ta.bbands(df["close"], length=period, std=std_multiplier), {
+        "BB_lower": f"BBL_{period}_{mstr}",
+        "BB_mid": f"BBM_{period}_{mstr}",
+        "BB_upper": f"BBU_{period}_{mstr}",
+    })
     return df
 
 
@@ -122,14 +119,11 @@ def add_adx(
     - ADX > 25: 趋势市; ADX < 20: 震荡市
     - DMP > DMN: 多头占优; DMN > DMP: 空头占优
     """
-    result = ta.adx(df["high"], df["low"], df["close"], length=period, drift=drift)
-    if result is not None:
-        for col in result.columns:
-            df[col] = result[col]
-        # 短别名便于引用
-        df["ADX"] = result[f"ADX_{period}"]
-        df["DMP"] = result[f"DMP_{period}"]
-        df["DMN"] = result[f"DMN_{period}"]
+    _merge_ta_columns(df, ta.adx(df["high"], df["low"], df["close"], length=period, drift=drift), {
+        "ADX": f"ADX_{period}",
+        "DMP": f"DMP_{period}",
+        "DMN": f"DMN_{period}",
+    })
     return df
 
 
@@ -145,12 +139,10 @@ def add_stochastic(
     - %K/%D < 20: 超卖; %K/%D > 80: 超买
     - %K 上穿 %D: 金叉; %K 下穿 %D: 死叉
     """
-    result = ta.stoch(df["high"], df["low"], df["close"], k=k_period, d=d_period, smooth_k=smooth)
-    if result is not None:
-        for col in result.columns:
-            df[col] = result[col]
-        df["STOCH_k"] = result[f"STOCHk_{k_period}_{d_period}_{smooth}"]
-        df["STOCH_d"] = result[f"STOCHd_{k_period}_{d_period}_{smooth}"]
+    _merge_ta_columns(df, ta.stoch(df["high"], df["low"], df["close"], k=k_period, d=d_period, smooth_k=smooth), {
+        "STOCH_k": f"STOCHk_{k_period}_{d_period}_{smooth}",
+        "STOCH_d": f"STOCHd_{k_period}_{d_period}_{smooth}",
+    })
     return df
 
 
@@ -167,15 +159,13 @@ def add_supertrend(
     - SUPERT_long_stop: 多头止损线（牛市有效，价格下方）
     - SUPERT_short_stop: 空头止损线（熊市有效，价格上方）
     """
-    result = ta.supertrend(df["high"], df["low"], df["close"], length=period, multiplier=multiplier)
-    if result is not None:
-        mstr = f"{multiplier:.1f}"
-        for col in result.columns:
-            df[col] = result[col]
-        df["SUPERT"] = result[f"SUPERT_{period}_{mstr}"]
-        df["SUPERT_dir"] = result[f"SUPERTd_{period}_{mstr}"]
-        df["SUPERT_long_stop"] = result[f"SUPERTl_{period}_{mstr}"]   # 多头止损/支撑
-        df["SUPERT_short_stop"] = result[f"SUPERTs_{period}_{mstr}"]  # 空头止损/阻力
+    mstr = f"{multiplier:.1f}"
+    _merge_ta_columns(df, ta.supertrend(df["high"], df["low"], df["close"], length=period, multiplier=multiplier), {
+        "SUPERT": f"SUPERT_{period}_{mstr}",
+        "SUPERT_dir": f"SUPERTd_{period}_{mstr}",
+        "SUPERT_long_stop": f"SUPERTl_{period}_{mstr}",
+        "SUPERT_short_stop": f"SUPERTs_{period}_{mstr}",
+    })
     return df
 
 
@@ -267,31 +257,21 @@ def add_cdl_patterns(df: pd.DataFrame) -> pd.DataFrame:
 
 # ── 综合 ────────────────────────────────────────────────────────────────
 
-def compute_all_indicators(
-    df: pd.DataFrame,
-    extended: bool = True,
-) -> pd.DataFrame:
+def compute_all_indicators(df: pd.DataFrame) -> pd.DataFrame:
     """
     一键计算所有常用指标，原地修改并返回 DataFrame。
-
-    参数:
-        extended: 是否启用 pandas-ta 扩展指标
     """
     add_ma(df)
-    add_ema(df)
     add_rsi(df)
     add_macd(df)
     add_bollinger(df)
     add_atr(df)
     add_volume_ma(df)
-
-    if extended:
-        add_adx(df)
-        add_stochastic(df)
-        add_supertrend(df)
-        add_obv(df)
-        add_cci(df)
-        add_mfi(df)
-        add_cdl_patterns(df)
-
+    add_adx(df)
+    add_stochastic(df)
+    add_supertrend(df)
+    add_obv(df)
+    add_cci(df)
+    add_mfi(df)
+    add_cdl_patterns(df)
     return df

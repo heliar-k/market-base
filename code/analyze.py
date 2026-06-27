@@ -3,21 +3,17 @@
 K线技术分析脚本 — 读取本地 CSV 并输出完整技术分析报告。
 
 用法:
-    python code/analyze.py                          # 分析 data/MSFT.csv
-    python code/analyze.py data/AAPL.csv            # 分析指定文件
-    python code/analyze.py data/MSFT.csv --no-print # 仅输出最新行 JSON
+    python -m code.analyze                            # 分析 data/MSFT.csv
+    python -m code.analyze data/AAPL.csv              # 分析指定文件
+    python -m code.analyze data/MSFT.csv --no-print   # 仅输出最新行 JSON
 """
 
 import argparse
 import json
-import sys
 from pathlib import Path
 
 import pandas as pd
 import numpy as np
-
-# 允许从项目根目录 import code.indicators
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from code.indicators import load_data, compute_all_indicators
 
