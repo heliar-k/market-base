@@ -14,7 +14,6 @@ import warnings
 from pathlib import Path
 
 import pandas as pd
-import numpy as np
 from rich.console import Console
 from rich.table import Table
 from rich.panel import Panel
@@ -22,7 +21,7 @@ from rich.rule import Rule
 from rich.text import Text
 from rich import box
 
-from code.indicators import load_data, compute_all_indicators
+from indicators import load_data, compute_all_indicators
 
 # 抑制 pandas 逐列 insert 的性能警告（不影响正确性）
 warnings.filterwarnings("ignore", message=".*frame\\.insert.*")
@@ -53,7 +52,11 @@ def analyze(df: pd.DataFrame, symbol: str) -> dict:
     macd = last.get("MACD")
     macd_signal = last.get("MACD_signal")
     macd_hist = last.get("MACD_hist")
-    macd_status = "golden_cross" if (pd.notna(macd) and pd.notna(macd_signal) and macd > macd_signal) else "dead_cross"
+    macd_status = (
+        "golden_cross"
+        if (pd.notna(macd) and pd.notna(macd_signal) and macd > macd_signal)
+        else "dead_cross"
+    )
 
     # ── 布林带 ──
     bb_upper = last.get("BB_upper")
@@ -119,14 +122,20 @@ def analyze(df: pd.DataFrame, symbol: str) -> dict:
         obv_20h = recent_20["OBV"].max()
         idx_price = recent_20["close"].idxmax()
         idx_obv = recent_20["OBV"].idxmax()
-        if idx_price > idx_obv and price_20h > recent_20["close"].iloc[-10:].max() * 0.99:
+        if (
+            idx_price > idx_obv
+            and price_20h > recent_20["close"].iloc[-10:].max() * 0.99
+        ):
             obv_divergence = "bearish_divergence"
         # 20日价格低点 vs OBV 低点
         price_20l = recent_20["close"].min()
         obv_20l = recent_20["OBV"].min()
         idx_price_l = recent_20["close"].idxmin()
         idx_obv_l = recent_20["OBV"].idxmin()
-        if idx_price_l > idx_obv_l and price_20l < recent_20["close"].iloc[-10:].min() * 1.01:
+        if (
+            idx_price_l > idx_obv_l
+            and price_20l < recent_20["close"].iloc[-10:].min() * 1.01
+        ):
             obv_divergence = "bullish_divergence"
 
     # ── CCI ──
@@ -178,7 +187,9 @@ def analyze(df: pd.DataFrame, symbol: str) -> dict:
         else:
             scores.append(("MA交织", 0))
     if pd.notna(ma60):
-        scores.append(("价格站上MA60" if cl > ma60 else "价格跌破MA60", 1 if cl > ma60 else -1))
+        scores.append(
+            ("价格站上MA60" if cl > ma60 else "价格跌破MA60", 1 if cl > ma60 else -1)
+        )
 
     # RSI 评分
     if rsi is not None:
@@ -226,7 +237,12 @@ def analyze(df: pd.DataFrame, symbol: str) -> dict:
 
     # SuperTrend 评分
     if supert_dir is not None:
-        scores.append(("SuperTrend多头" if supert_dir == 1 else "SuperTrend空头", 1 if supert_dir == 1 else -1))
+        scores.append(
+            (
+                "SuperTrend多头" if supert_dir == 1 else "SuperTrend空头",
+                1 if supert_dir == 1 else -1,
+            )
+        )
 
     # OBV 背离评分
     if obv_divergence == "bullish_divergence":
@@ -267,7 +283,11 @@ def analyze(df: pd.DataFrame, symbol: str) -> dict:
             scores.append((f"K线{name}(看空)", -1))
 
     total = sum(s for _, s in scores)
-    rsi_detail = "oversold" if rsi and rsi < 30 else ("overbought" if rsi and rsi > 70 else "neutral")
+    rsi_detail = (
+        "oversold"
+        if rsi and rsi < 30
+        else ("overbought" if rsi and rsi > 70 else "neutral")
+    )
 
     return {
         "symbol": symbol,
@@ -361,7 +381,9 @@ def print_report(result: dict) -> None:
     _section("趋势指标")
 
     # 均线表格
-    ma_table = Table(box=box.SIMPLE, show_header=True, header_style="bold", expand=False)
+    ma_table = Table(
+        box=box.SIMPLE, show_header=True, header_style="bold", expand=False
+    )
     ma_table.add_column("均线", style="dim", width=8)
     ma_table.add_column("价格", justify="right", width=12)
     ma_table.add_column("方向", justify="center", width=6)
@@ -372,14 +394,27 @@ def print_report(result: dict) -> None:
         ma_v = ma_vals.get(f"MA{p}")
         if sig and ma_v is not None:
             pct = (cl - ma_v) / ma_v * 100
-            direction = f"[{BULL}]▲ 站上[/{BULL}]" if sig == "above" else f"[{BEAR}]▼ 跌破[/{BEAR}]"
-            pct_str = f"[{BULL}]+{pct:.1f}%[/{BULL}]" if pct >= 0 else f"[{BEAR}]{pct:.1f}%[/{BEAR}]"
+            direction = (
+                f"[{BULL}]▲ 站上[/{BULL}]"
+                if sig == "above"
+                else f"[{BEAR}]▼ 跌破[/{BEAR}]"
+            )
+            pct_str = (
+                f"[{BULL}]+{pct:.1f}%[/{BULL}]"
+                if pct >= 0
+                else f"[{BEAR}]{pct:.1f}%[/{BEAR}]"
+            )
             ma_table.add_row(f"MA{p}", f"${ma_v:,.2f}", direction, pct_str)
     console.print(ma_table)
 
     # ADX
     if result["ADX"] is not None:
-        trend_cn = {"trending": "趋势市", "ranging": "震荡市", "weak_trend": "弱趋势", "strong": "强势"}
+        trend_cn = {
+            "trending": "趋势市",
+            "ranging": "震荡市",
+            "weak_trend": "弱趋势",
+            "strong": "强势",
+        }
         adx, dmp, dmn = result["ADX"], result["DMP"], result["DMN"]
         dir_color = BULL if dmp > dmn else (BEAR if dmn > dmp else "")
         dir_str = "多头占优" if dmp > dmn else ("空头占优" if dmn > dmp else "势均力敌")
@@ -396,8 +431,16 @@ def print_report(result: dict) -> None:
 
     # SuperTrend
     if result["SUPERT_dir"] is not None:
-        st_dir = f"[{BULL}]多头[/{BULL}]" if result["SUPERT_dir"] == 1 else f"[{BEAR}]空头[/{BEAR}]"
-        st_price = result.get("SUPERT_long_stop") if result["SUPERT_dir"] == 1 else result.get("SUPERT_short_stop")
+        st_dir = (
+            f"[{BULL}]多头[/{BULL}]"
+            if result["SUPERT_dir"] == 1
+            else f"[{BEAR}]空头[/{BEAR}]"
+        )
+        st_price = (
+            result.get("SUPERT_long_stop")
+            if result["SUPERT_dir"] == 1
+            else result.get("SUPERT_short_stop")
+        )
         st_str = f"  止损: ${st_price:,.2f}" if st_price else ""
         console.print(f"  [bold]SuperTrend(10,3)[/bold] {st_dir}{st_str}")
 
@@ -410,17 +453,32 @@ def print_report(result: dict) -> None:
 
     if result["RSI"] is not None:
         rsi = result["RSI"]
-        rsi_lvl = "超买" if rsi > 70 else ("超卖" if rsi < 30 else ("偏强" if rsi >= 60 else ("偏弱" if rsi <= 40 else "中性")))
+        rsi_lvl = (
+            "超买"
+            if rsi > 70
+            else (
+                "超卖"
+                if rsi < 30
+                else ("偏强" if rsi >= 60 else ("偏弱" if rsi <= 40 else "中性"))
+            )
+        )
         c = BEAR if rsi > 70 else (BULL if rsi < 30 else "")
         v = f"[{c}]{rsi:.1f} {rsi_lvl}[/{c}]" if c else f"{rsi:.1f} {rsi_lvl}"
         mom_t.add_row("RSI(14)", v)
 
     if result["STOCH_k"] is not None:
         sk, sd = result["STOCH_k"], result["STOCH_d"]
-        stoch_lvl = {"oversold": f"[{BULL}]超卖[/{BULL}]", "overbought": f"[{BEAR}]超买[/{BEAR}]", "neutral": "中性"}.get(result["STOCH_detail"], "")
+        stoch_lvl = {
+            "oversold": f"[{BULL}]超卖[/{BULL}]",
+            "overbought": f"[{BEAR}]超买[/{BEAR}]",
+            "neutral": "中性",
+        }.get(result["STOCH_detail"], "")
         ac = BULL if sk > sd else BEAR
         arrow = "↑" if sk > sd else "↓"
-        mom_t.add_row("Stoch(14,3,3)", f"%K={sk:.1f}  %D={sd:.1f}  [{ac}]{arrow}[/{ac}] {stoch_lvl}")
+        mom_t.add_row(
+            "Stoch(14,3,3)",
+            f"%K={sk:.1f}  %D={sd:.1f}  [{ac}]{arrow}[/{ac}] {stoch_lvl}",
+        )
 
     if result["MACD"] is not None:
         macd_status = "金叉" if result["MACD_status"] == "golden_cross" else "死叉"
@@ -428,14 +486,21 @@ def print_report(result: dict) -> None:
         hist = result["MACD_hist"]
         hc = BULL if hist > 0 else BEAR
         ha = "▲" if hist > 0 else "▼"
-        mom_t.add_row("MACD", f"DIF={result['MACD']:.3f}  DEA={result['MACD_signal']:.3f}  "
-                      f"Hist: [{hc}]{ha} {hist:.3f}[/{hc}]  [{mc}]{macd_status}[/{mc}]")
+        mom_t.add_row(
+            "MACD",
+            f"DIF={result['MACD']:.3f}  DEA={result['MACD_signal']:.3f}  "
+            f"Hist: [{hc}]{ha} {hist:.3f}[/{hc}]  [{mc}]{macd_status}[/{mc}]",
+        )
 
     if result["CCI"] is not None:
         cci = result["CCI"]
-        cci_lvl = {"extreme_overbought": f"[{BEAR}]极度超买[/{BEAR}]", "overbought": f"[{BEAR}]超买[/{BEAR}]",
-                    "extreme_oversold": f"[{BULL}]极度超卖[/{BULL}]", "oversold": f"[{BULL}]超卖[/{BULL}]",
-                    "normal": "正常"}.get(result["CCI_detail"], "")
+        cci_lvl = {
+            "extreme_overbought": f"[{BEAR}]极度超买[/{BEAR}]",
+            "overbought": f"[{BEAR}]超买[/{BEAR}]",
+            "extreme_oversold": f"[{BULL}]极度超卖[/{BULL}]",
+            "oversold": f"[{BULL}]超卖[/{BULL}]",
+            "normal": "正常",
+        }.get(result["CCI_detail"], "")
         cc = BEAR if cci > 100 else (BULL if cci < -100 else "")
         v = f"[{cc}]{cci:.1f}[/{cc}]" if cc else f"{cci:.1f}"
         mom_t.add_row("CCI(20)", f"{v}  [{cci_lvl}]")
@@ -451,11 +516,17 @@ def print_report(result: dict) -> None:
 
     if result["BB_mid"] is not None:
         bb_pos = result["BB_position"]
-        bb_lvl = "[dim]偏弱[/dim]" if bb_pos < 30 else ("[bold]偏强[/bold]" if bb_pos > 70 else "中性")
-        vol_t.add_row("布林带(20,2σ)",
-                      f"上 [{BEAR}]${result['BB_upper']:,.2f}[/{BEAR}]  "
-                      f"中 [dim]${result['BB_mid']:,.2f}[/dim]  "
-                      f"下 [{BULL}]${result['BB_lower']:,.2f}[/{BULL}]")
+        bb_lvl = (
+            "[dim]偏弱[/dim]"
+            if bb_pos < 30
+            else ("[bold]偏强[/bold]" if bb_pos > 70 else "中性")
+        )
+        vol_t.add_row(
+            "布林带(20,2σ)",
+            f"上 [{BEAR}]${result['BB_upper']:,.2f}[/{BEAR}]  "
+            f"中 [dim]${result['BB_mid']:,.2f}[/dim]  "
+            f"下 [{BULL}]${result['BB_lower']:,.2f}[/{BULL}]",
+        )
         vol_t.add_row("  价格位置", f"{bb_pos:.0f}% [{bb_lvl}]  (0=下轨, 100=上轨)")
 
     if result["ATR"] is not None:
@@ -464,7 +535,11 @@ def print_report(result: dict) -> None:
 
     if result["MFI"] is not None:
         mfi = result["MFI"]
-        mfi_lvl = f"[{BEAR}]超买[/{BEAR}]" if mfi > 80 else (f"[{BULL}]超卖[/{BULL}]" if mfi < 20 else "中性")
+        mfi_lvl = (
+            f"[{BEAR}]超买[/{BEAR}]"
+            if mfi > 80
+            else (f"[{BULL}]超卖[/{BULL}]" if mfi < 20 else "中性")
+        )
         mc = BEAR if mfi > 80 else (BULL if mfi < 20 else "")
         v = f"[{mc}]{mfi:.1f}[/{mc}]" if mc else f"{mfi:.1f}"
         vol_t.add_row("MFI(14)", f"{v}  [{mfi_lvl}]")
@@ -479,23 +554,34 @@ def print_report(result: dict) -> None:
     console.print(vol_t)
 
     if result["OBV_divergence"] is not None:
-        div_text = {"bearish_divergence": f"[{BEAR}]⚠ 顶背离 — 价格新高但量能不跟[/{BEAR}]",
-                    "bullish_divergence": f"[{BULL}]✨ 底背离 — 价格新低但量能企稳[/{BULL}]"}
+        div_text = {
+            "bearish_divergence": f"[{BEAR}]⚠ 顶背离 — 价格新高但量能不跟[/{BEAR}]",
+            "bullish_divergence": f"[{BULL}]✨ 底背离 — 价格新低但量能企稳[/{BULL}]",
+        }
         console.print(f"  {div_text.get(result['OBV_divergence'], 'N/A')}")
 
     # ── 蜡烛形态 ──
     if result["cdl_bullish"] or result["cdl_bearish"]:
         _section("K线形态")
         if result["cdl_bullish"]:
-            console.print(f"  [{BULL}]看多:[/{BULL}] {', '.join(result['cdl_bullish'])}")
+            console.print(
+                f"  [{BULL}]看多:[/{BULL}] {', '.join(result['cdl_bullish'])}"
+            )
         if result["cdl_bearish"]:
-            console.print(f"  [{BEAR}]看空:[/{BEAR}] {', '.join(result['cdl_bearish'])}")
+            console.print(
+                f"  [{BEAR}]看空:[/{BEAR}] {', '.join(result['cdl_bearish'])}"
+            )
 
     # ── 阶段涨跌 ──
     if result["changes"]:
         _section("阶段涨跌")
         labels = {"5d": "5日", "1m": "1月", "3m": "3月", "6m": "半年", "1y": "年度"}
-        chg_table = Table(box=box.SIMPLE_HEAVY, show_header=True, header_style="bold dim", padding=(0, 2))
+        chg_table = Table(
+            box=box.SIMPLE_HEAVY,
+            show_header=True,
+            header_style="bold dim",
+            padding=(0, 2),
+        )
         headers = []
         values = []
         for k, v in result["changes"].items():
@@ -509,12 +595,18 @@ def print_report(result: dict) -> None:
     # ── 关键价位 ──
     _section("关键价位 (90日)")
     res, sup = result["resistance_90d"], result["support_90d"]
-    srz = Table(box=box.SIMPLE_HEAVY, show_header=True, header_style="bold dim", padding=(0, 2))
+    srz = Table(
+        box=box.SIMPLE_HEAVY, show_header=True, header_style="bold dim", padding=(0, 2)
+    )
     srz.add_column("类型")
     srz.add_column("价位", justify="right")
     srz.add_column("距当前", justify="right")
-    srz.add_row("阻力", f"[{BEAR}]${res:,.2f}[/{BEAR}]", f"{(res - cl) / cl * 100:+.1f}%")
-    srz.add_row("支撑", f"[{BULL}]${sup:,.2f}[/{BULL}]", f"{(sup - cl) / cl * 100:+.1f}%")
+    srz.add_row(
+        "阻力", f"[{BEAR}]${res:,.2f}[/{BEAR}]", f"{(res - cl) / cl * 100:+.1f}%"
+    )
+    srz.add_row(
+        "支撑", f"[{BULL}]${sup:,.2f}[/{BULL}]", f"{(sup - cl) / cl * 100:+.1f}%"
+    )
     console.print(srz)
 
     # ── 评分明细 ──
@@ -526,7 +618,11 @@ def print_report(result: dict) -> None:
         "形态": ["K线"],
     }
     for cat, prefixes in groups.items():
-        items = [s for s in result["scores"] if any(s["label"].startswith(p) for p in prefixes)]
+        items = [
+            s
+            for s in result["scores"]
+            if any(s["label"].startswith(p) for p in prefixes)
+        ]
         if not items:
             continue
         parts = []
