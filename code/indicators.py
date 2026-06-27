@@ -220,6 +220,63 @@ def add_cci(
     return df
 
 
+def add_mfi(
+    df: pd.DataFrame,
+    period: int = 14,
+) -> pd.DataFrame:
+    """
+    计算资金流量指数 (MFI)，成交量加权的 RSI。
+    生成列: MFI
+    - MFI > 80: 超买（资金过度流入），MFI < 20: 超卖（资金过度流出）
+    - 与 RSI 方向不一致 → 量价背离 → 天然反证信号
+    """
+    result = ta.mfi(df["high"], df["low"], df["close"], df["volume"], length=period)
+    if result is not None:
+        df["MFI"] = result
+    return df
+
+
+# ── 蜡烛形态 ────────────────────────────────────────────────────────────
+
+# 关键反转形态
+CDL_BULLISH = {
+    "CDL_HAMMER": "锤子线",
+    "CDL_INVERTEDHAMMER": "倒锤子",
+    "CDL_ENGULFING": "看涨吞没",
+    "CDL_MORNINGSTAR": "晨星",
+    "CDL_PIERCING": "刺透形态",
+    "CDL_DOJI": "十字星",
+}
+CDL_BEARISH = {
+    "CDL_SHOOTINGSTAR": "射击之星",
+    "CDL_HANGINGMAN": "吊颈线",
+    "CDL_EVENINGSTAR": "黄昏之星",
+    "CDL_DARKCLOUDCOVER": "乌云盖顶",
+    "CDL_BELTHOLD": "捉腰带线",
+}
+
+
+def add_cdl_patterns(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    识别 62 种 K 线形态（pandas-ta 原生，无需 TA-Lib）。
+    生成列: CDL_* (62 列)，并在 df.attrs 存储最新行命中的反转形态。
+    """
+    result = ta.cdl_pattern(df["open"], df["high"], df["low"], df["close"], name="all")
+    if result is not None:
+        for col in result.columns:
+            df[col] = result[col]
+
+        # 提取最新行命中的反转形态
+        last = df.iloc[-1]
+        bullish_hits = [CDL_BULLISH[col] for col in CDL_BULLISH
+                        if col in df.columns and last.get(col, 0) != 0]
+        bearish_hits = [CDL_BEARISH[col] for col in CDL_BEARISH
+                        if col in df.columns and last.get(col, 0) != 0]
+        df.attrs["cdl_bullish"] = bullish_hits
+        df.attrs["cdl_bearish"] = bearish_hits
+    return df
+
+
 # ── 综合 ────────────────────────────────────────────────────────────────
 
 def compute_all_indicators(
@@ -230,7 +287,7 @@ def compute_all_indicators(
     一键计算所有常用指标，原地修改并返回 DataFrame。
 
     参数:
-        extended: 是否启用 pandas-ta 扩展指标 (ADX, Stochastic, SuperTrend, OBV, CCI)
+        extended: 是否启用 pandas-ta 扩展指标
     """
     add_ma(df)
     add_ema(df)
@@ -246,5 +303,7 @@ def compute_all_indicators(
         add_supertrend(df)
         add_obv(df)
         add_cci(df)
+        add_mfi(df)
+        add_cdl_patterns(df)
 
     return df

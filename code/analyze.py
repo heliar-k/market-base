@@ -134,6 +134,14 @@ def analyze(df: pd.DataFrame, symbol: str) -> dict:
         else:
             cci_detail = "normal"
 
+    # ── MFI ──
+    mfi = last.get("MFI")
+    mfi = float(mfi) if pd.notna(mfi) else None
+
+    # ── 蜡烛形态 ──
+    cdl_bullish = df.attrs.get("cdl_bullish", [])
+    cdl_bearish = df.attrs.get("cdl_bearish", [])
+
     # ── 近期涨跌 ──
     changes = {}
     for days, label in [(5, "5d"), (21, "1m"), (63, "3m"), (126, "6m"), (252, "1y")]:
@@ -226,6 +234,27 @@ def analyze(df: pd.DataFrame, symbol: str) -> dict:
         elif cci > 100:
             scores.append(("CCI_超买", -1))
 
+    # MFI 评分
+    if mfi is not None:
+        if mfi < 20:
+            scores.append(("MFI_超卖(资金流出衰竭)", 1))
+        elif mfi > 80:
+            scores.append(("MFI_超买(资金流入衰竭)", -1))
+        # MFI vs RSI 背离检测（反证信号）
+        if rsi is not None:
+            if rsi < 30 and mfi > rsi + 15:
+                scores.append(("RSI超卖_MFI未确认(量价背离)", -1))
+            elif rsi > 70 and mfi < rsi - 15:
+                scores.append(("RSI超买_MFI未确认(量价背离)", 1))
+
+    # 蜡烛形态评分
+    if cdl_bullish:
+        for name in cdl_bullish:
+            scores.append((f"K线_{name}(看多)", 1))
+    if cdl_bearish:
+        for name in cdl_bearish:
+            scores.append((f"K线_{name}(看空)", -1))
+
     total = sum(s for _, s in scores)
     rsi_detail = "oversold" if rsi and rsi < 30 else ("overbought" if rsi and rsi > 70 else "neutral")
 
@@ -261,6 +290,9 @@ def analyze(df: pd.DataFrame, symbol: str) -> dict:
         "OBV_divergence": obv_divergence,
         "CCI": round(cci, 1) if cci else None,
         "CCI_detail": cci_detail,
+        "MFI": round(mfi, 1) if mfi else None,
+        "cdl_bullish": cdl_bullish,
+        "cdl_bearish": cdl_bearish,
         # 原有
         "changes": changes,
         "resistance_90d": resistance,
@@ -349,6 +381,17 @@ def print_report(result: dict) -> None:
     if result["CCI"] is not None:
         detail_cn = {"extreme_overbought": "极度超买", "overbought": "超买", "extreme_oversold": "极度超卖", "oversold": "超卖", "normal": "正常"}
         print(f"\n📏 CCI(20): {result['CCI']:.1f}  [{detail_cn.get(result['CCI_detail'], 'N/A')}]")
+
+    # MFI
+    if result["MFI"] is not None:
+        mfi_label = "超买" if result["MFI"] > 80 else ("超卖" if result["MFI"] < 20 else "中性")
+        print(f"\n💰 MFI(14): {result['MFI']:.1f}  [{mfi_label}]")
+
+    # 蜡烛形态
+    if result["cdl_bullish"]:
+        print(f"\n🕯️  K线反转信号(看多): {', '.join(result['cdl_bullish'])}")
+    if result["cdl_bearish"]:
+        print(f"\n🕯️  K线反转信号(看空): {', '.join(result['cdl_bearish'])}")
 
     # 涨跌幅
     if result["changes"]:
