@@ -13,14 +13,16 @@
         {
             "name": "DJI",
             "type": "index",
-            "exchange": "DJ",
-            "currency": "USD"
+            "exchange": "CME",
+            "currency": "USD",
+            "symbol": "INDU"
         },
         {
             "name": "IXIC",
             "type": "index",
             "exchange": "NASDAQ",
-            "currency": "USD"
+            "currency": "USD",
+            "symbol": "COMP"
         },
         {
             "name": "VIX",

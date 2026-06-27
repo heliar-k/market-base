@@ -60,13 +60,15 @@ def load_config(path: str = "config_ibkr.json") -> dict:
 def make_contract(sym: dict):
     """
     根据配置创建 IB 合约。
-    指数: Index(name, exchange, currency)
-    股票: Stock(name, exchange, currency)
+    若配置中有 symbol 字段，则用作合约代码（如 DJI -> INDU）。
+    指数: Index(symbol, exchange, currency)
+    股票: Stock(symbol, exchange, currency)
     """
+    symbol = sym.get("symbol", sym["name"])
     if sym["type"] == "index":
-        return Index(sym["name"], sym["exchange"], sym["currency"])
+        return Index(symbol, sym["exchange"], sym["currency"])
     elif sym["type"] == "stock":
-        return Stock(sym["name"], sym["exchange"], sym["currency"])
+        return Stock(symbol, sym["exchange"], sym["currency"])
     else:
         raise ValueError(f"不支持的品种类型: {sym['type']}")
 
