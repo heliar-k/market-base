@@ -12,3 +12,6 @@ dependencies = [
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "W"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["code"]
