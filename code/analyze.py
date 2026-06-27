@@ -10,12 +10,24 @@ K线技术分析脚本 — 读取本地 CSV 并输出完整技术分析报告。
 
 import argparse
 import json
+import warnings
 from pathlib import Path
 
 import pandas as pd
 import numpy as np
+from rich.console import Console
+from rich.table import Table
+from rich.panel import Panel
+from rich.rule import Rule
+from rich.text import Text
+from rich import box
 
 from code.indicators import load_data, compute_all_indicators
+
+# 抑制 pandas 逐列 insert 的性能警告（不影响正确性）
+warnings.filterwarnings("ignore", message=".*frame\\.insert.*")
+
+console = Console()
 
 
 def analyze(df: pd.DataFrame, symbol: str) -> dict:
@@ -25,10 +37,13 @@ def analyze(df: pd.DataFrame, symbol: str) -> dict:
 
     # ── 均线 ──
     ma_signals = {}
+    ma_values = {}
     for p in [5, 10, 20, 60, 120]:
         col = f"MA{p}"
         if col in df.columns and pd.notna(last.get(col)):
-            ma_signals[f"MA{p}"] = "above" if cl > last[col] else "below"
+            ma_val = float(last[col])
+            ma_signals[f"MA{p}"] = "above" if cl > ma_val else "below"
+            ma_values[f"MA{p}"] = round(ma_val, 2)
 
     # ── RSI ──
     rsi = last.get("RSI")
@@ -157,99 +172,99 @@ def analyze(df: pd.DataFrame, symbol: str) -> dict:
     ma60 = last.get("MA60")
     if pd.notna(ma5) and pd.notna(ma20) and pd.notna(ma60):
         if ma5 > ma20 > ma60:
-            scores.append(("MA_bullish", 2))
+            scores.append(("MA多头排列", 2))
         elif ma5 < ma20 < ma60:
-            scores.append(("MA_bearish", -2))
+            scores.append(("MA空头排列", -2))
         else:
-            scores.append(("MA_mixed", 0))
+            scores.append(("MA交织", 0))
     if pd.notna(ma60):
-        scores.append(("price_vs_MA60_bull" if cl > ma60 else "price_vs_MA60_bear", 1 if cl > ma60 else -1))
+        scores.append(("价格站上MA60" if cl > ma60 else "价格跌破MA60", 1 if cl > ma60 else -1))
 
     # RSI 评分
     if rsi is not None:
         if rsi < 30:
-            scores.append(("RSI_oversold(反弹机会)", 1))
+            scores.append(("RSI超卖", 1))
         elif rsi > 70:
-            scores.append(("RSI_overbought(回调风险)", -1))
+            scores.append(("RSI超买", -1))
         elif rsi < 40:
-            scores.append(("RSI_偏弱", 0))
+            scores.append(("RSI偏弱", 0))
         elif rsi > 60:
-            scores.append(("RSI_偏强", 0))
+            scores.append(("RSI偏强", 0))
         else:
-            scores.append(("RSI_neutral", 0))
+            scores.append(("RSI中性", 0))
 
     # MACD 评分
     if pd.notna(macd) and pd.notna(macd_signal) and pd.notna(macd_hist):
         if macd > macd_signal:
-            scores.append(("MACD_金叉", 1))
+            scores.append(("MACD金叉", 1))
         else:
-            scores.append(("MACD_死叉", -1))
+            scores.append(("MACD死叉", -1))
         prev_hist = df["MACD_hist"].iloc[-2] if len(df) >= 2 else None
         if prev_hist is not None and pd.notna(prev_hist):
             if abs(macd_hist) > abs(prev_hist):
-                scores.append(("MACD_hist_expanding", 1 if macd_hist > 0 else -1))
+                scores.append(("MACD动能放大", 1 if macd_hist > 0 else -1))
             else:
-                scores.append(("MACD_hist_contracting", 0))
+                scores.append(("MACD动能收缩", 0))
 
     # ADX/DMI 评分
     if adx is not None and dmp is not None and dmn is not None:
         if adx > 25:
-            scores.append(("ADX_趋势市", 1 if dmp > dmn else -1))
+            scores.append(("ADX趋势市", 1 if dmp > dmn else -1))
         elif adx < 20:
-            scores.append(("ADX_震荡市(均线类信号可靠性低)", -1))
+            scores.append(("ADX震荡市", -1))
 
     # Stochastic 评分
     if stoch_k is not None and stoch_d is not None:
         if stoch_k < 20:
-            scores.append(("Stoch_超卖", 1))
+            scores.append(("Stoch超卖", 1))
         elif stoch_k > 80:
-            scores.append(("Stoch_超买", -1))
+            scores.append(("Stoch超买", -1))
         if stoch_k > stoch_d:
-            scores.append(("Stoch_%K>%D", 1))
+            scores.append(("Stoch金叉(%K>%D)", 1))
         else:
-            scores.append(("Stoch_%K<%D", -1))
+            scores.append(("Stoch死叉(%K<%D)", -1))
 
     # SuperTrend 评分
     if supert_dir is not None:
-        scores.append(("SuperTrend_多头" if supert_dir == 1 else "SuperTrend_空头", 1 if supert_dir == 1 else -1))
+        scores.append(("SuperTrend多头" if supert_dir == 1 else "SuperTrend空头", 1 if supert_dir == 1 else -1))
 
     # OBV 背离评分
     if obv_divergence == "bullish_divergence":
-        scores.append(("OBV_底背离(反转预警)", 2))
+        scores.append(("OBV底背离", 2))
     elif obv_divergence == "bearish_divergence":
-        scores.append(("OBV_顶背离(反转预警)", -2))
+        scores.append(("OBV顶背离", -2))
 
     # CCI 评分
     if cci is not None:
         if cci < -200:
-            scores.append(("CCI_极度超卖(反转机会)", 2))
+            scores.append(("CCI极度超卖", 2))
         elif cci < -100:
-            scores.append(("CCI_超卖", 1))
+            scores.append(("CCI超卖", 1))
         elif cci > 200:
-            scores.append(("CCI_极度超买(反转风险)", -2))
+            scores.append(("CCI极度超买", -2))
         elif cci > 100:
-            scores.append(("CCI_超买", -1))
+            scores.append(("CCI超买", -1))
 
     # MFI 评分
     if mfi is not None:
         if mfi < 20:
-            scores.append(("MFI_超卖(资金流出衰竭)", 1))
+            scores.append(("MFI超卖", 1))
         elif mfi > 80:
-            scores.append(("MFI_超买(资金流入衰竭)", -1))
+            scores.append(("MFI超买", -1))
         # MFI vs RSI 背离检测（反证信号）
         if rsi is not None:
             if rsi < 30 and mfi > rsi + 15:
-                scores.append(("RSI超卖_MFI未确认(量价背离)", -1))
+                scores.append(("量价背离(RSI超卖)", -1))
             elif rsi > 70 and mfi < rsi - 15:
-                scores.append(("RSI超买_MFI未确认(量价背离)", 1))
+                scores.append(("量价背离(RSI超买)", 1))
 
     # 蜡烛形态评分
     if cdl_bullish:
         for name in cdl_bullish:
-            scores.append((f"K线_{name}(看多)", 1))
+            scores.append((f"K线{name}(看多)", 1))
     if cdl_bearish:
         for name in cdl_bearish:
-            scores.append((f"K线_{name}(看空)", -1))
+            scores.append((f"K线{name}(看空)", -1))
 
     total = sum(s for _, s in scores)
     rsi_detail = "oversold" if rsi and rsi < 30 else ("overbought" if rsi and rsi > 70 else "neutral")
@@ -260,6 +275,7 @@ def analyze(df: pd.DataFrame, symbol: str) -> dict:
         "last_date": str(df.index[-1].date()),
         "total_days": len(df),
         "ma_signals": ma_signals,
+        "ma_values": ma_values,
         "RSI": round(rsi, 1) if rsi else None,
         "RSI_detail": rsi_detail,
         "MACD": round(float(macd), 3) if pd.notna(macd) else None,
@@ -299,133 +315,224 @@ def analyze(df: pd.DataFrame, symbol: str) -> dict:
 
 
 def print_report(result: dict) -> None:
-    """格式化打印分析报告。"""
+    """使用 Rich 格式化打印分析报告。"""
     cl = result["last_price"]
-    print("=" * 70)
-    print(f"{result['symbol']} K线技术分析")
-    print(f"数据: {result['total_days']} 天  |  最新: {result['last_date']}  |  收盘: ${cl:.2f}")
-    print("=" * 70)
+    total = result["total_score"]
+    ma_vals = result.get("ma_values", {})
 
-    # 均线
-    print("\n🏷️  均线系统")
+    # ── 顶部面板 ──
+    if total >= 5:
+        verdict, vstyle = "强烈偏多 🚀", "bold green"
+    elif total >= 2:
+        verdict, vstyle = "偏多 📈", "green"
+    elif total >= 0:
+        verdict, vstyle = "中性偏多 ➡️", "yellow"
+    elif total >= -3:
+        verdict, vstyle = "中性偏空 ⬅️", "yellow"
+    elif total >= -6:
+        verdict, vstyle = "偏空 📉", "red"
+    else:
+        verdict, vstyle = "强烈偏空 💥", "bold red"
+
+    header = Text.assemble(
+        (f"{result['symbol']}", "bold cyan"),
+        "  技术分析报告\n",
+        (f"{result['last_date']}", "dim"),
+        f"  收盘: ",
+        (f"${cl:,.2f}", "bold"),
+        f"  |  {result['total_days']} 天数据\n",
+        f"综合评分: ",
+        (f"{total:+d}", vstyle),
+        f"  →  ",
+        (verdict, vstyle),
+    )
+    console.print(Panel(header, expand=False))
+
+    # ═══ 工具函数 ═══
+    def _section(title: str) -> None:
+        console.print(Rule(f"[bold cyan]{title}[/bold cyan]", style="dim"))
+
+    # ── 趋势指标 ──
+    _section("趋势指标")
+
+    # 均线表格
+    ma_table = Table(box=box.SIMPLE, show_header=True, header_style="bold", expand=False)
+    ma_table.add_column("均线", style="dim", width=8)
+    ma_table.add_column("价格", justify="right", width=12)
+    ma_table.add_column("方向", justify="center", width=6)
+    ma_table.add_column("偏离", justify="right", width=10)
+
     for p in [5, 10, 20, 60, 120]:
         sig = result["ma_signals"].get(f"MA{p}")
-        if sig:
-            icon = "🟢 站上" if sig == "above" else "🔴 跌破"
-            # 从 df 取实际值（这里用 result 中的 last 行）
-            print(f"  MA{p:>4d}: {icon}")
+        ma_v = ma_vals.get(f"MA{p}")
+        if sig and ma_v is not None:
+            pct = (cl - ma_v) / ma_v * 100
+            direction = "[green]▲ 站上[/green]" if sig == "above" else "[red]▼ 跌破[/red]"
+            pct_str = f"[green]+{pct:.1f}%[/green]" if pct >= 0 else f"[red]{pct:.1f}%[/red]"
+            ma_table.add_row(f"MA{p}", f"${ma_v:,.2f}", direction, pct_str)
+    console.print(ma_table)
 
-    # RSI
-    rsi = result["RSI"]
-    if rsi is not None:
-        labels = {70: "超买", 30: "超卖"}
-        detail = result["RSI_detail"]
-        print(f"\n📐 RSI(14): {rsi:.1f}  [{detail}]")
-
-    # MACD
-    if result["MACD"] is not None:
-        print(f"\n📊 MACD")
-        print(f"  MACD:     {result['MACD']:.3f}")
-        print(f"  Signal:   {result['MACD_signal']:.3f}")
-        print(f"  Hist:     {result['MACD_hist']:.3f}")
-        zh = "金叉" if result["MACD_status"] == "golden_cross" else "死叉"
-        print(f"  状态: {zh}")
-
-    # 布林带
-    if result["BB_mid"] is not None:
-        print(f"\n📏 布林带 (20, 2σ)")
-        print(f"  上轨: ${result['BB_upper']:.2f}")
-        print(f"  中轨: ${result['BB_mid']:.2f}")
-        print(f"  下轨: ${result['BB_lower']:.2f}")
-        print(f"  位置: {result['BB_position']:.0f}% (0=下轨, 100=上轨)")
-
-    # ATR
-    if result["ATR"] is not None:
-        print(f"\n📐 ATR(14): ${result['ATR']:.2f}  |  波动率: {result['ATR']/cl*100:.1f}%")
-
-    # 成交量
-    if result["vol_ratio"] is not None:
-        print(f"\n📦 量比: {result['vol_ratio']:.2f}x")
-
-    # ── 新增指标 ──
     # ADX
     if result["ADX"] is not None:
-        trend_cn = {"trending": "趋势市", "ranging": "震荡市", "weak_trend": "弱趋势"}
-        print(f"\n📐 ADX(14): {result['ADX']:.1f}  |  DI+: {result['DMP']:.1f}  DI-: {result['DMN']:.1f}  [{trend_cn.get(result['ADX_trend'], 'N/A')}]")
-
-    # Stochastic
-    if result["STOCH_k"] is not None:
-        detail_cn = {"oversold": "超卖", "overbought": "超买", "neutral": "中性"}
-        print(f"\n🎯 Stochastic(14,3,3): %K={result['STOCH_k']:.1f}  %D={result['STOCH_d']:.1f}  [{detail_cn.get(result['STOCH_detail'], 'N/A')}]")
+        trend_cn = {"trending": "趋势市", "ranging": "震荡市", "weak_trend": "弱趋势", "strong": "强势"}
+        adx, dmp, dmn = result["ADX"], result["DMP"], result["DMN"]
+        dir_color = "green" if dmp > dmn else ("red" if dmn > dmp else "")
+        dir_str = "多头占优" if dmp > dmn else ("空头占优" if dmn > dmp else "势均力敌")
+        if dir_color:
+            console.print(
+                f"  [bold]ADX(14)[/bold] {adx:.1f} [{trend_cn.get(result['ADX_trend'], 'N/A')}]  |  "
+                f"[{dir_color}]DI+ {dmp:.1f}  DI- {dmn:.1f}  {dir_str}[/{dir_color}]"
+            )
+        else:
+            console.print(
+                f"  [bold]ADX(14)[/bold] {adx:.1f} [{trend_cn.get(result['ADX_trend'], 'N/A')}]  |  "
+                f"DI+ {dmp:.1f}  DI- {dmn:.1f}  {dir_str}"
+            )
 
     # SuperTrend
     if result["SUPERT_dir"] is not None:
-        dir_str = "🟢 多头" if result["SUPERT_dir"] == 1 else "🔴 空头"
-        stop_str = ""
-        if result["SUPERT_dir"] == 1 and result["SUPERT_long_stop"] is not None:
-            stop_str = f"  |  多头止损: ${result['SUPERT_long_stop']:.2f}"
-        elif result["SUPERT_dir"] == -1 and result["SUPERT_short_stop"] is not None:
-            stop_str = f"  |  空头止损: ${result['SUPERT_short_stop']:.2f}"
-        print(f"\n📌 SuperTrend(10,3): {dir_str}{stop_str}")
+        st_dir = "[green]多头[/green]" if result["SUPERT_dir"] == 1 else "[red]空头[/red]"
+        st_price = result.get("SUPERT_long_stop") if result["SUPERT_dir"] == 1 else result.get("SUPERT_short_stop")
+        st_str = f"  止损: ${st_price:,.2f}" if st_price else ""
+        console.print(f"  [bold]SuperTrend(10,3)[/bold] {st_dir}{st_str}")
 
-    # OBV
-    if result["OBV_divergence"] is not None:
-        div_cn = {"bearish_divergence": "⚠️ 顶背离(看空反转预警)", "bullish_divergence": "✨ 底背离(看多反转预警)"}
-        print(f"\n📊 OBV 背离检测: {div_cn.get(result['OBV_divergence'], 'N/A')}")
+    # ── 动量指标 ──
+    _section("动量指标")
 
-    # CCI
+    if result["RSI"] is not None:
+        rsi = result["RSI"]
+        rsi_lvl = "超买" if rsi > 70 else ("超卖" if rsi < 30 else ("偏强" if rsi >= 60 else ("偏弱" if rsi <= 40 else "中性")))
+        rsi_color = "red" if rsi > 70 else ("green" if rsi < 30 else "")
+        rsi_str = f"[{rsi_color}]{rsi:.1f} {rsi_lvl}[/{rsi_color}]" if rsi_color else f"{rsi:.1f} {rsi_lvl}"
+        console.print(f"  [bold]RSI(14)[/bold]        {rsi_str}")
+
+    if result["STOCH_k"] is not None:
+        sk, sd = result["STOCH_k"], result["STOCH_d"]
+        stoch_lvl = {"oversold": "超卖", "overbought": "超买", "neutral": "中性"}.get(result["STOCH_detail"], "")
+        arrow = "↑" if sk > sd else "↓"
+        arrow_color = "green" if sk > sd else "red"
+        console.print(f"  [bold]Stoch(14,3,3)[/bold]   %K={sk:.1f}  %D={sd:.1f}  "
+                      f"[{arrow_color}]{arrow}[/{arrow_color}] {stoch_lvl}")
+
+    if result["MACD"] is not None:
+        hist = result["MACD_hist"]
+        macd_status = "金叉" if result["MACD_status"] == "golden_cross" else "死叉"
+        macd_color = "green" if result["MACD_status"] == "golden_cross" else "red"
+        hist_arrow = "▲" if hist > 0 else "▼"
+        hist_color = "green" if hist > 0 else "red"
+        console.print(f"  [bold]MACD[/bold]            DIF={result['MACD']:.3f}  DEA={result['MACD_signal']:.3f}  "
+                      f"Hist: [{hist_color}]{hist_arrow} {hist:.3f}[/{hist_color}]  "
+                      f"[{macd_color}]{macd_status}[/{macd_color}]")
+
     if result["CCI"] is not None:
-        detail_cn = {"extreme_overbought": "极度超买", "overbought": "超买", "extreme_oversold": "极度超卖", "oversold": "超卖", "normal": "正常"}
-        print(f"\n📏 CCI(20): {result['CCI']:.1f}  [{detail_cn.get(result['CCI_detail'], 'N/A')}]")
+        cci = result["CCI"]
+        cci_lvl = {"extreme_overbought": "极度超买", "overbought": "超买",
+                    "extreme_oversold": "极度超卖", "oversold": "超卖", "normal": "正常"}.get(result["CCI_detail"], "")
+        cci_color = "red" if cci > 100 else ("green" if cci < -100 else "")
+        cci_str = f"[{cci_color}]{cci:.1f}[/{cci_color}]" if cci_color else f"{cci:.1f}"
+        console.print(f"  [bold]CCI(20)[/bold]         {cci_str}  [{cci_lvl}]")
 
-    # MFI
+    # ── 波动与量价 ──
+    _section("波动与量价")
+
+    if result["BB_mid"] is not None:
+        bb_pos = result["BB_position"]
+        bb_lvl = "偏弱" if bb_pos < 30 else ("偏强" if bb_pos > 70 else "中性")
+        console.print(
+            f"  [bold]布林带(20,2σ)[/bold]  "
+            f"上 [red]${result['BB_upper']:,.2f}[/red]  "
+            f"中 [dim]${result['BB_mid']:,.2f}[/dim]  "
+            f"下 [green]${result['BB_lower']:,.2f}[/green]"
+        )
+        console.print(f"    价格位置: {bb_pos:.0f}% [{bb_lvl}]  ←  0%=下轨, 100%=上轨")
+
+    if result["ATR"] is not None:
+        atr_pct = result["ATR"] / cl * 100
+        console.print(f"  [bold]ATR(14)[/bold] ${result['ATR']:,.2f}  日波动率: {atr_pct:.1f}%")
+
     if result["MFI"] is not None:
-        mfi_label = "超买" if result["MFI"] > 80 else ("超卖" if result["MFI"] < 20 else "中性")
-        print(f"\n💰 MFI(14): {result['MFI']:.1f}  [{mfi_label}]")
+        mfi = result["MFI"]
+        mfi_lvl = "超买" if mfi > 80 else ("超卖" if mfi < 20 else "中性")
+        mfi_color = "red" if mfi > 80 else ("green" if mfi < 20 else "")
+        console.print(f"  [bold]MFI(14)[/bold] [{mfi_color}]{mfi:.1f}[/{mfi_color}] [{mfi_lvl}]" if mfi_color else f"  [bold]MFI(14)[/bold] {mfi:.1f} [{mfi_lvl}]")
 
-    # 蜡烛形态
-    if result["cdl_bullish"]:
-        print(f"\n🕯️  K线反转信号(看多): {', '.join(result['cdl_bullish'])}")
-    if result["cdl_bearish"]:
-        print(f"\n🕯️  K线反转信号(看空): {', '.join(result['cdl_bearish'])}")
+    if result["vol_ratio"] is not None:
+        vr = result["vol_ratio"]
+        vr_str = "放量" if vr > 1.5 else ("缩量" if vr < 0.5 else "正常")
+        vr_color = "red" if vr > 1.5 else ("green" if vr < 0.5 else "")
+        console.print(f"  [bold]量比[/bold] [{vr_color}]{vr:.2f}x [{vr_str}][/{vr_color}]" if vr_color else f"  [bold]量比[/bold] {vr:.2f}x [{vr_str}]")
 
-    # 涨跌幅
+    if result["OBV_divergence"] is not None:
+        div_text = {"bearish_divergence": "[red]⚠ 顶背离 — 价格新高但量能不跟[/red]",
+                    "bullish_divergence": "[green]✨ 底背离 — 价格新低但量能企稳[/green]"}
+        console.print(f"  {div_text.get(result['OBV_divergence'], 'N/A')}")
+
+    # ── 蜡烛形态 ──
+    if result["cdl_bullish"] or result["cdl_bearish"]:
+        _section("K线形态")
+        if result["cdl_bullish"]:
+            console.print(f"  [green]看多:[/green] {', '.join(result['cdl_bullish'])}")
+        if result["cdl_bearish"]:
+            console.print(f"  [red]看空:[/red] {', '.join(result['cdl_bearish'])}")
+
+    # ── 阶段表现 ──
     if result["changes"]:
-        print(f"\n📅 阶段涨跌")
-        labels = {"5d": "5日", "1m": "1月", "3m": "3月", "6m": "半年", "1y": "年"}
+        _section("阶段涨跌")
+        labels = {"5d": "5日", "1m": "1月", "3m": "3月", "6m": "半年", "1y": "年度"}
+        chg_table = Table(box=box.SIMPLE, show_header=False, expand=False)
+        for _ in labels:
+            chg_table.add_column("", justify="center", width=10)
+        row = []
         for k, v in result["changes"].items():
-            emoji = "🟢" if v >= 0 else "🔴"
-            print(f"  {labels.get(k, k):6s}: {emoji} {v:+.2f}%")
+            color = "green" if v >= 0 else "red"
+            arrow = "▲" if v >= 0 else "▼"
+            row.append(f"[bold]{labels[k]}[/bold]\n[{color}]{arrow}{v:+.2f}%[/{color}]")
+        chg_table.add_row(*row)
+        console.print(chg_table)
 
-    # 关键价位
-    print(f"\n📍 90天关键价位")
-    print(f"  阻力: ${result['resistance_90d']:.2f}")
-    print(f"  支撑: ${result['support_90d']:.2f}")
-    print(f"  距阻力: {(result['resistance_90d'] - cl) / cl * 100:.1f}%")
-    print(f"  距支撑: {(cl - result['support_90d']) / cl * 100:.1f}%")
+    # ── 关键价位 ──
+    _section("关键价位 (90日)")
+    res, sup = result["resistance_90d"], result["support_90d"]
+    level_table = Table(box=box.SIMPLE, show_header=False, expand=False, padding=(0, 1))
+    level_table.add_column("", style="bold", width=6)
+    level_table.add_column("price", justify="right", width=12)
+    level_table.add_column("dist", width=18)
+    level_table.add_column("", style="bold", width=6)
+    level_table.add_column("price", justify="right", width=12)
+    level_table.add_column("dist", width=18)
+    level_table.add_row(
+        "阻力", f"[red]${res:,.2f}[/red]", f"距当前 {(res - cl) / cl * 100:+.1f}%",
+        "支撑", f"[green]${sup:,.2f}[/green]", f"距当前 {(sup - cl) / cl * 100:+.1f}%",
+    )
+    console.print(level_table)
 
-    # 评分
-    print(f"\n{'=' * 70}")
-    print("🧠 综合评判")
-    for s in result["scores"]:
-        icon = "✅" if s["value"] > 0 else ("❌" if s["value"] < 0 else "➖")
-        print(f"  {icon} {s['label']} ({s['value']:+d})")
-    print(f"\n  综合评分: {result['total_score']:+d}")
+    # ── 评分明细 ──
+    _section("评分明细")
+    groups = {
+        "趋势": ["MA多头", "MA空头", "MA交织", "价格", "SuperTrend", "ADX"],
+        "动量": ["RSI", "MACD", "Stoch", "CCI"],
+        "量价": ["MFI", "OBV", "量价"],
+        "形态": ["K线"],
+    }
+    for cat, prefixes in groups.items():
+        items = [s for s in result["scores"] if any(s["label"].startswith(p) for p in prefixes)]
+        if not items:
+            continue
+        parts = []
+        for s in items:
+            if s["value"] > 0:
+                icon, color = "+", "green"
+            elif s["value"] < 0:
+                icon, color = "-", "red"
+            else:
+                icon, color = "○", "dim"
+            parts.append(f"[{color}]{icon}{s['label']} ({s['value']:+d})[/]")
+        console.print(f"  [bold dim]{cat}[/]  {'  |  '.join(parts)}")
 
-    ts = result["total_score"]
-    if ts >= 5:
-        verdict = "强烈偏多"
-    elif ts >= 2:
-        verdict = "偏多"
-    elif ts >= 0:
-        verdict = "中性偏多"
-    elif ts >= -3:
-        verdict = "中性偏空"
-    elif ts >= -6:
-        verdict = "偏空"
-    else:
-        verdict = "强烈偏空"
-    print(f"  判断: {verdict}")
+    # ── 底部结论 ──
+    console.print(Rule(style="dim"))
+    console.print(f"  [bold]总分: {total:+d}  →  [{vstyle}]{verdict}[/]")
+    console.print()
 
 
 def main():
