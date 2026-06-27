@@ -285,9 +285,9 @@ def main():
         ib.disconnect()
         return
 
-    # 输出目录
-    output_dir = project_root / cfg_output["dir"]
-    output_dir.mkdir(parents=True, exist_ok=True)
+    # 输出目录（基础路径）
+    base_dir = project_root / cfg_output["dir"]
+    base_dir.mkdir(parents=True, exist_ok=True)
 
     # 逐品种拉取
     total_new = 0
@@ -302,6 +302,11 @@ def main():
         except Exception as e:
             log.error(f"[{name}] 合约创建失败: {e}")
             continue
+
+        # 按品种类型分目录: stock → data/stocks, index → data/indices
+        subdir = "stocks" if sym["type"] == "stock" else "indices"
+        output_dir = base_dir / subdir
+        output_dir.mkdir(parents=True, exist_ok=True)
 
         # 检查本地已有数据
         filepath = output_dir / f"{name}.csv"

@@ -58,6 +58,18 @@
       "type": "index",
       "exchange": "RUSSELL",
       "currency": "USD"
+    },
+    {
+      "name": "SPY",
+      "type": "stock",
+      "exchange": "SMART",
+      "currency": "USD"
+    },
+    {
+      "name": "QQQ",
+      "type": "stock",
+      "exchange": "SMART",
+      "currency": "USD"
     }
   ],
   "output": {
