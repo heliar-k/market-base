@@ -9,3 +9,6 @@ dependencies = [
     "pandas-ta-classic>=0.6.52",
     "rich>=15.0.0",
 ]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "W"]
