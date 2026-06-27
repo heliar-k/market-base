@@ -11,6 +11,7 @@
 
 import pandas as pd
 import numpy as np
+import pandas_ta_classic as ta
 
 
 def load_data(path: str) -> pd.DataFrame:
@@ -29,7 +30,7 @@ def add_ma(df: pd.DataFrame, periods: list[int] | None = None) -> pd.DataFrame:
     if periods is None:
         periods = [5, 10, 20, 60, 120, 250]
     for p in periods:
-        df[f"MA{p}"] = df["close"].rolling(p).mean()
+        df[f"MA{p}"] = ta.sma(df["close"], length=p)
     return df
 
 
@@ -38,26 +39,15 @@ def add_ema(df: pd.DataFrame, periods: list[int] | None = None) -> pd.DataFrame:
     if periods is None:
         periods = [12, 26, 50, 144, 169]
     for p in periods:
-        df[f"EMA{p}"] = df["close"].ewm(span=p, adjust=False).mean()
+        df[f"EMA{p}"] = ta.ema(df["close"], length=p)
     return df
 
 
 # ── RSI ─────────────────────────────────────────────────────────────────
 
 def add_rsi(df: pd.DataFrame, period: int = 14) -> pd.DataFrame:
-    """计算相对强弱指数 RSI。"""
-    delta = df["close"].diff()
-    gain = delta.where(delta > 0, 0.0)
-    loss = (-delta).where(delta < 0, 0.0)
-
-    # Wilder's smoothing (等效于 EMA 但使用 alpha=1/period)
-    avg_gain = gain.ewm(alpha=1 / period, min_periods=period).mean()
-    avg_loss = loss.ewm(alpha=1 / period, min_periods=period).mean()
-
-    rs = avg_gain / avg_loss.replace(0, np.nan)  # 避免除零
-    df["RSI"] = 100 - (100 / (1 + rs))
-    # 修复: 价格完全不变时 (gain=loss=0) RSI 应为 50
-    df["RSI"] = df["RSI"].fillna(50.0)
+    """计算相对强弱指数 RSI（Wilder's smoothing）。"""
+    df["RSI"] = ta.rsi(df["close"], length=period)
     return df
 
 
@@ -70,11 +60,13 @@ def add_macd(
     signal: int = 9,
 ) -> pd.DataFrame:
     """计算 MACD、信号线、柱状图。"""
-    ema_fast = df["close"].ewm(span=fast, adjust=False).mean()
-    ema_slow = df["close"].ewm(span=slow, adjust=False).mean()
-    df["MACD"] = ema_fast - ema_slow
-    df["MACD_signal"] = df["MACD"].ewm(span=signal, adjust=False).mean()
-    df["MACD_hist"] = df["MACD"] - df["MACD_signal"]
+    result = ta.macd(df["close"], fast=fast, slow=slow, signal=signal)
+    if result is not None:
+        for col in result.columns:
+            df[col] = result[col]
+        df["MACD"] = result[f"MACD_{fast}_{slow}_{signal}"]
+        df["MACD_hist"] = result[f"MACDh_{fast}_{slow}_{signal}"]
+        df["MACD_signal"] = result[f"MACDs_{fast}_{slow}_{signal}"]
     return df
 
 
@@ -86,24 +78,22 @@ def add_bollinger(
     std_multiplier: float = 2.0,
 ) -> pd.DataFrame:
     """计算布林带 (中轨/上轨/下轨)。"""
-    mid = df["close"].rolling(period).mean()
-    std = df["close"].rolling(period).std()
-    df["BB_mid"] = mid
-    df["BB_upper"] = mid + std_multiplier * std
-    df["BB_lower"] = mid - std_multiplier * std
+    result = ta.bbands(df["close"], length=period, std=std_multiplier)
+    if result is not None:
+        mstr = f"{std_multiplier:.1f}"
+        for col in result.columns:
+            df[col] = result[col]
+        df["BB_lower"] = result[f"BBL_{period}_{mstr}"]
+        df["BB_mid"] = result[f"BBM_{period}_{mstr}"]
+        df["BB_upper"] = result[f"BBU_{period}_{mstr}"]
     return df
 
 
 # ── ATR (平均真实波幅) ──────────────────────────────────────────────────
 
 def add_atr(df: pd.DataFrame, period: int = 14) -> pd.DataFrame:
-    """计算平均真实波幅 ATR。"""
-    high, low, close = df["high"], df["low"], df["close"]
-    tr1 = high - low
-    tr2 = (high - close.shift()).abs()
-    tr3 = (low - close.shift()).abs()
-    tr = pd.concat([tr1, tr2, tr3], axis=1).max(axis=1)
-    df["ATR"] = tr.ewm(alpha=1 / period, min_periods=period).mean()
+    """计算平均真实波幅 ATR（Wilder's smoothing）。"""
+    df["ATR"] = ta.atr(df["high"], df["low"], df["close"], length=period)
     return df
 
 
@@ -111,16 +101,14 @@ def add_atr(df: pd.DataFrame, period: int = 14) -> pd.DataFrame:
 
 def add_volume_ma(df: pd.DataFrame, period: int = 20) -> pd.DataFrame:
     """成交量均线 + 量比。"""
-    df["vol_MA20"] = df["volume"].rolling(period).mean()
-    df["vol_ratio"] = df["volume"] / df["vol_MA20"].replace(0, np.nan)
+    df[f"vol_MA{period}"] = df["volume"].rolling(period).mean()
+    df["vol_ratio"] = df["volume"] / df[f"vol_MA{period}"].replace(0, np.nan)
     return df
 
 
 # ══════════════════════════════════════════════════════════════════════════
-# 新增指标 (基于 pandas-ta-classic)
+# 扩展指标 (基于 pandas-ta-classic)
 # ══════════════════════════════════════════════════════════════════════════
-
-import pandas_ta_classic as ta
 
 
 def add_adx(
