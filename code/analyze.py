@@ -10,18 +10,18 @@ K线技术分析脚本 — 读取本地 CSV 并输出完整技术分析报告。
 
 import argparse
 import json
+import sys
 import warnings
 from pathlib import Path
 
 import pandas as pd
+from indicators import compute_all_indicators, load_data
+from rich import box
 from rich.console import Console
-from rich.table import Table
 from rich.panel import Panel
 from rich.rule import Rule
+from rich.table import Table
 from rich.text import Text
-from rich import box
-
-from indicators import load_data, compute_all_indicators
 
 # 抑制 pandas 逐列 insert 的性能警告（不影响正确性）
 warnings.filterwarnings("ignore", message=".*frame\\.insert.*")
@@ -119,7 +119,6 @@ def analyze(df: pd.DataFrame, symbol: str) -> dict:
         # 20日价格高点 vs OBV 高点
         recent_20 = df.tail(20)
         price_20h = recent_20["close"].max()
-        obv_20h = recent_20["OBV"].max()
         idx_price = recent_20["close"].idxmax()
         idx_obv = recent_20["OBV"].idxmax()
         if (
@@ -129,7 +128,6 @@ def analyze(df: pd.DataFrame, symbol: str) -> dict:
             obv_divergence = "bearish_divergence"
         # 20日价格低点 vs OBV 低点
         price_20l = recent_20["close"].min()
-        obv_20l = recent_20["OBV"].min()
         idx_price_l = recent_20["close"].idxmin()
         idx_obv_l = recent_20["OBV"].idxmin()
         if (
@@ -329,7 +327,7 @@ def analyze(df: pd.DataFrame, symbol: str) -> dict:
         "changes": changes,
         "resistance_90d": resistance,
         "support_90d": support,
-        "scores": [{"label": l, "value": v} for l, v in scores],
+        "scores": [{"label": lb, "value": v} for lb, v in scores],
         "total_score": total,
     }
 
@@ -358,12 +356,12 @@ def print_report(result: dict) -> None:
         (f"{result['symbol']}", "bold cyan"),
         "  技术分析报告\n",
         (f"{result['last_date']}", "dim"),
-        f"  收盘: ",
+        "  收盘: ",
         (f"${cl:,.2f}", "bold"),
         f"  |  {result['total_days']} 天数据\n",
-        f"综合评分: ",
+        "综合评分: ",
         (f"{total:+d}", vstyle),
-        f"  →  ",
+        "  →  ",
         (verdict, vstyle),
     )
     console.print(Panel(header, expand=False))
@@ -418,16 +416,15 @@ def print_report(result: dict) -> None:
         adx, dmp, dmn = result["ADX"], result["DMP"], result["DMN"]
         dir_color = BULL if dmp > dmn else (BEAR if dmn > dmp else "")
         dir_str = "多头占优" if dmp > dmn else ("空头占优" if dmn > dmp else "势均力敌")
+        trend_lbl = trend_cn.get(result["ADX_trend"], "N/A")
+        adx_line = f"  [bold]ADX(14)[/bold] {adx:.1f} [{trend_lbl}]  |  "
         if dir_color:
             console.print(
-                f"  [bold]ADX(14)[/bold] {adx:.1f} [{trend_cn.get(result['ADX_trend'], 'N/A')}]  |  "
-                f"[{dir_color}]DI+ {dmp:.1f}  DI- {dmn:.1f}  {dir_str}[/{dir_color}]"
+                adx_line
+                + f"[{dir_color}]DI+ {dmp:.1f}  DI- {dmn:.1f}  {dir_str}[/{dir_color}]"
             )
         else:
-            console.print(
-                f"  [bold]ADX(14)[/bold] {adx:.1f} [{trend_cn.get(result['ADX_trend'], 'N/A')}]  |  "
-                f"DI+ {dmp:.1f}  DI- {dmn:.1f}  {dir_str}"
-            )
+            console.print(adx_line + f"DI+ {dmp:.1f}  DI- {dmn:.1f}  {dir_str}")
 
     # SuperTrend
     if result["SUPERT_dir"] is not None:
@@ -582,7 +579,6 @@ def print_report(result: dict) -> None:
             header_style="bold dim",
             padding=(0, 2),
         )
-        headers = []
         values = []
         for k, v in result["changes"].items():
             chg_table.add_column(labels.get(k, k), justify="center")

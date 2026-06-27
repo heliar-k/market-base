@@ -1,75 +1,75 @@
 {
-    "ibkr": {
-        "host": "127.0.0.1",
-        "port": 4002
+  "ibkr": {
+    "host": "127.0.0.1",
+    "port": 4002
+  },
+  "symbols": [
+    {
+      "name": "SPX",
+      "type": "index",
+      "exchange": "CBOE",
+      "currency": "USD"
     },
-    "symbols": [
-        {
-            "name": "SPX",
-            "type": "index",
-            "exchange": "CBOE",
-            "currency": "USD"
-        },
-        {
-            "name": "IXIC",
-            "type": "index",
-            "exchange": "NASDAQ",
-            "currency": "USD",
-            "symbol": "COMP"
-        },
-        {
-            "name": "VIX",
-            "type": "index",
-            "exchange": "CBOE",
-            "currency": "USD"
-        },
-        {
-            "name": "AAPL",
-            "type": "stock",
-            "exchange": "SMART",
-            "currency": "USD"
-        },
-        {
-            "name": "TSLA",
-            "type": "stock",
-            "exchange": "SMART",
-            "currency": "USD"
-        },
-        {
-            "name": "MSFT",
-            "type": "stock",
-            "exchange": "SMART",
-            "currency": "USD"
-        },
-        {
-            "name": "MU",
-            "type": "stock",
-            "exchange": "SMART",
-            "currency": "USD"
-        },
-        {
-            "name": "TSM",
-            "type": "stock",
-            "exchange": "SMART",
-            "currency": "USD"
-        },
-        {
-            "name": "RUT",
-            "type": "index",
-            "exchange": "RUSSELL",
-            "currency": "USD"
-        }
-    ],
-    "output": {
-        "dir": "data",
-        "format": "csv",
-        "encoding": "utf-8"
+    {
+      "name": "IXIC",
+      "type": "index",
+      "exchange": "NASDAQ",
+      "currency": "USD",
+      "symbol": "COMP"
     },
-    "fetch": {
-        "bar_size": "1 day",
-        "duration": "2 Y",
-        "what_to_show": "TRADES",
-        "use_rth": true,
-        "request_delay_seconds": 15
+    {
+      "name": "VIX",
+      "type": "index",
+      "exchange": "CBOE",
+      "currency": "USD"
+    },
+    {
+      "name": "AAPL",
+      "type": "stock",
+      "exchange": "SMART",
+      "currency": "USD"
+    },
+    {
+      "name": "TSLA",
+      "type": "stock",
+      "exchange": "SMART",
+      "currency": "USD"
+    },
+    {
+      "name": "MSFT",
+      "type": "stock",
+      "exchange": "SMART",
+      "currency": "USD"
+    },
+    {
+      "name": "MU",
+      "type": "stock",
+      "exchange": "SMART",
+      "currency": "USD"
+    },
+    {
+      "name": "TSM",
+      "type": "stock",
+      "exchange": "SMART",
+      "currency": "USD"
+    },
+    {
+      "name": "RUT",
+      "type": "index",
+      "exchange": "RUSSELL",
+      "currency": "USD"
     }
+  ],
+  "output": {
+    "dir": "data",
+    "format": "csv",
+    "encoding": "utf-8"
+  },
+  "fetch": {
+    "bar_size": "1 day",
+    "duration": "2 Y",
+    "what_to_show": "TRADES",
+    "use_rth": true,
+    "request_delay_seconds": 15
+  }
 }

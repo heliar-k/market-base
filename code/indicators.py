@@ -9,8 +9,8 @@
     print(df[["close", "MA5", "MA20", "RSI", "MACD"]].tail())
 """
 
-import pandas as pd
 import numpy as np
+import pandas as pd
 import pandas_ta_classic as ta
 
 
@@ -24,6 +24,7 @@ def load_data(path: str) -> pd.DataFrame:
 
 
 # ── 均线 ────────────────────────────────────────────────────────────────
+
 
 def _merge_ta_columns(df: pd.DataFrame, result, aliases: dict[str, str]) -> None:
     """将 pandas-ta 结果列合并到 df，并按 aliases 创建短别名列。"""
@@ -46,6 +47,7 @@ def add_ma(df: pd.DataFrame, periods: list[int] | None = None) -> pd.DataFrame:
 
 # ── RSI ─────────────────────────────────────────────────────────────────
 
+
 def add_rsi(df: pd.DataFrame, period: int = 14) -> pd.DataFrame:
     """计算相对强弱指数 RSI（Wilder's smoothing）。"""
     df["RSI"] = ta.rsi(df["close"], length=period)
@@ -54,6 +56,7 @@ def add_rsi(df: pd.DataFrame, period: int = 14) -> pd.DataFrame:
 
 # ── MACD ────────────────────────────────────────────────────────────────
 
+
 def add_macd(
     df: pd.DataFrame,
     fast: int = 12,
@@ -61,15 +64,20 @@ def add_macd(
     signal: int = 9,
 ) -> pd.DataFrame:
     """计算 MACD、信号线、柱状图。"""
-    _merge_ta_columns(df, ta.macd(df["close"], fast=fast, slow=slow, signal=signal), {
-        "MACD": f"MACD_{fast}_{slow}_{signal}",
-        "MACD_hist": f"MACDh_{fast}_{slow}_{signal}",
-        "MACD_signal": f"MACDs_{fast}_{slow}_{signal}",
-    })
+    _merge_ta_columns(
+        df,
+        ta.macd(df["close"], fast=fast, slow=slow, signal=signal),
+        {
+            "MACD": f"MACD_{fast}_{slow}_{signal}",
+            "MACD_hist": f"MACDh_{fast}_{slow}_{signal}",
+            "MACD_signal": f"MACDs_{fast}_{slow}_{signal}",
+        },
+    )
     return df
 
 
 # ── 布林带 ──────────────────────────────────────────────────────────────
+
 
 def add_bollinger(
     df: pd.DataFrame,
@@ -78,15 +86,20 @@ def add_bollinger(
 ) -> pd.DataFrame:
     """计算布林带 (中轨/上轨/下轨)。"""
     mstr = f"{std_multiplier:.1f}"
-    _merge_ta_columns(df, ta.bbands(df["close"], length=period, std=std_multiplier), {
-        "BB_lower": f"BBL_{period}_{mstr}",
-        "BB_mid": f"BBM_{period}_{mstr}",
-        "BB_upper": f"BBU_{period}_{mstr}",
-    })
+    _merge_ta_columns(
+        df,
+        ta.bbands(df["close"], length=period, std=std_multiplier),
+        {
+            "BB_lower": f"BBL_{period}_{mstr}",
+            "BB_mid": f"BBM_{period}_{mstr}",
+            "BB_upper": f"BBU_{period}_{mstr}",
+        },
+    )
     return df
 
 
 # ── ATR (平均真实波幅) ──────────────────────────────────────────────────
+
 
 def add_atr(df: pd.DataFrame, period: int = 14) -> pd.DataFrame:
     """计算平均真实波幅 ATR（Wilder's smoothing）。"""
@@ -95,6 +108,7 @@ def add_atr(df: pd.DataFrame, period: int = 14) -> pd.DataFrame:
 
 
 # ── 成交量均线 ──────────────────────────────────────────────────────────
+
 
 def add_volume_ma(df: pd.DataFrame, period: int = 20) -> pd.DataFrame:
     """成交量均线 + 量比。"""
@@ -119,11 +133,15 @@ def add_adx(
     - ADX > 25: 趋势市; ADX < 20: 震荡市
     - DMP > DMN: 多头占优; DMN > DMP: 空头占优
     """
-    _merge_ta_columns(df, ta.adx(df["high"], df["low"], df["close"], length=period, drift=drift), {
-        "ADX": f"ADX_{period}",
-        "DMP": f"DMP_{period}",
-        "DMN": f"DMN_{period}",
-    })
+    _merge_ta_columns(
+        df,
+        ta.adx(df["high"], df["low"], df["close"], length=period, drift=drift),
+        {
+            "ADX": f"ADX_{period}",
+            "DMP": f"DMP_{period}",
+            "DMN": f"DMN_{period}",
+        },
+    )
     return df
 
 
@@ -139,10 +157,16 @@ def add_stochastic(
     - %K/%D < 20: 超卖; %K/%D > 80: 超买
     - %K 上穿 %D: 金叉; %K 下穿 %D: 死叉
     """
-    _merge_ta_columns(df, ta.stoch(df["high"], df["low"], df["close"], k=k_period, d=d_period, smooth_k=smooth), {
-        "STOCH_k": f"STOCHk_{k_period}_{d_period}_{smooth}",
-        "STOCH_d": f"STOCHd_{k_period}_{d_period}_{smooth}",
-    })
+    _merge_ta_columns(
+        df,
+        ta.stoch(
+            df["high"], df["low"], df["close"], k=k_period, d=d_period, smooth_k=smooth
+        ),
+        {
+            "STOCH_k": f"STOCHk_{k_period}_{d_period}_{smooth}",
+            "STOCH_d": f"STOCHd_{k_period}_{d_period}_{smooth}",
+        },
+    )
     return df
 
 
@@ -160,12 +184,18 @@ def add_supertrend(
     - SUPERT_short_stop: 空头止损线（熊市有效，价格上方）
     """
     mstr = f"{multiplier:.1f}"
-    _merge_ta_columns(df, ta.supertrend(df["high"], df["low"], df["close"], length=period, multiplier=multiplier), {
-        "SUPERT": f"SUPERT_{period}_{mstr}",
-        "SUPERT_dir": f"SUPERTd_{period}_{mstr}",
-        "SUPERT_long_stop": f"SUPERTl_{period}_{mstr}",
-        "SUPERT_short_stop": f"SUPERTs_{period}_{mstr}",
-    })
+    _merge_ta_columns(
+        df,
+        ta.supertrend(
+            df["high"], df["low"], df["close"], length=period, multiplier=multiplier
+        ),
+        {
+            "SUPERT": f"SUPERT_{period}_{mstr}",
+            "SUPERT_dir": f"SUPERTd_{period}_{mstr}",
+            "SUPERT_long_stop": f"SUPERTl_{period}_{mstr}",
+            "SUPERT_short_stop": f"SUPERTs_{period}_{mstr}",
+        },
+    )
     return df
 
 
@@ -246,16 +276,23 @@ def add_cdl_patterns(df: pd.DataFrame) -> pd.DataFrame:
 
         # 提取最新行命中的反转形态
         last = df.iloc[-1]
-        bullish_hits = [CDL_BULLISH[col] for col in CDL_BULLISH
-                        if col in df.columns and last.get(col, 0) != 0]
-        bearish_hits = [CDL_BEARISH[col] for col in CDL_BEARISH
-                        if col in df.columns and last.get(col, 0) != 0]
+        bullish_hits = [
+            CDL_BULLISH[col]
+            for col in CDL_BULLISH
+            if col in df.columns and last.get(col, 0) != 0
+        ]
+        bearish_hits = [
+            CDL_BEARISH[col]
+            for col in CDL_BEARISH
+            if col in df.columns and last.get(col, 0) != 0
+        ]
         df.attrs["cdl_bullish"] = bullish_hits
         df.attrs["cdl_bearish"] = bearish_hits
     return df
 
 
 # ── 综合 ────────────────────────────────────────────────────────────────
+
 
 def compute_all_indicators(df: pd.DataFrame) -> pd.DataFrame:
     """

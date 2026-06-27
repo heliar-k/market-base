@@ -10,7 +10,6 @@ repos:
         args: [--autofix, --no-sort-keys]
       - id: check-added-large-files
       - id: check-ast
-      - id: check-csv
 
   - repo: https://github.com/astral-sh/ruff-pre-commit
     rev: v0.11.6
@@ -18,9 +17,3 @@ repos:
       - id: ruff
         args: [--fix, --exit-non-zero-on-fix]
       - id: ruff-format
-
-  - repo: https://github.com/asottile/pyupgrade
-    rev: v3.19.1
-    hooks:
-      - id: pyupgrade
-        args: [--py313-plus]

@@ -15,11 +15,13 @@ IBKR 日线 K 线数据拉取脚本
     3. 已订阅对应产品的市场数据
 
 用法:
-    uv run python code/fetch_ibkr.py                     # 拉取 config_ibkr.json 中配置的所有品种
+    uv run python code/fetch_ibkr.py
+                         # 拉取 config_ibkr.json 中配置的所有品种
     uv run python code/fetch_ibkr.py --symbols SPX,AAPL  # 只拉取指定品种
     uv run python code/fetch_ibkr.py --days 365           # 拉取最近 365 天
     uv run python code/fetch_ibkr.py --dry-run            # 仅检查连接，不实际拉取
-    uv run python code/fetch_ibkr.py --client-id 12345    # 指定 clientId（默认随机 100-9999）
+    uv run python code/fetch_ibkr.py --client-id 12345
+                         # 指定 clientId（默认随机 100-9999）
 """
 
 import argparse
@@ -28,7 +30,7 @@ import logging
 import random
 import sys
 import time
-from datetime import datetime, timedelta
+from datetime import datetime
 from pathlib import Path
 
 import pandas as pd
@@ -99,7 +101,13 @@ def get_last_date(df: pd.DataFrame) -> str | None:
 # ---------------------------------------------------------------------------
 # 核心拉取逻辑
 # ---------------------------------------------------------------------------
-def fetch_single(ib: IB, contract, sym_name: str, cfg_fetch: dict, last_date: str | None) -> list:
+def fetch_single(
+    ib: IB,
+    contract,
+    sym_name: str,
+    cfg_fetch: dict,
+    last_date: str | None,
+) -> list:
     """
     拉取单个品种的历史日线。
     每次请求最多约 1 年日线，超过则分多次请求。
@@ -121,14 +129,17 @@ def fetch_single(ib: IB, contract, sym_name: str, cfg_fetch: dict, last_date: st
                 formatDate=1,  # yyyyMMdd
             )
         except Exception as e:
-            log.error(f"[{sym_name}] 第 {i+1} 次请求失败: {e}")
+            log.error(f"[{sym_name}] 第 {i + 1} 次请求失败: {e}")
             break
 
         if not bars:
-            log.info(f"[{sym_name}] 第 {i+1} 次请求返回 0 条，停止")
+            log.info(f"[{sym_name}] 第 {i + 1} 次请求返回 0 条，停止")
             break
 
-        log.info(f"[{sym_name}] 第 {i+1} 次请求返回 {len(bars)} 条，起始日期: {bars[0].date}")
+        log.info(
+            f"[{sym_name}] 第 {i + 1} 次请求返回 {len(bars)} 条，"
+            f"起始日期: {bars[0].date}"
+        )
 
         # 过滤掉已有数据，只保留新数据（date > last_date）
         if last_date:
@@ -159,17 +170,24 @@ def bars_to_dataframe(bars: list) -> pd.DataFrame:
     df = util.df(bars)
     df["date"] = pd.to_datetime(df["date"])
     df.set_index("date", inplace=True)
-    df.rename(columns={
-        "open": "open",
-        "high": "high",
-        "low": "low",
-        "close": "close",
-        "volume": "volume",
-        "average": "wap",
-        "barCount": "count",
-    }, inplace=True)
+    df.rename(
+        columns={
+            "open": "open",
+            "high": "high",
+            "low": "low",
+            "close": "close",
+            "volume": "volume",
+            "average": "wap",
+            "barCount": "count",
+        },
+        inplace=True,
+    )
     # 保留需要的列
-    cols = [c for c in ["open", "high", "low", "close", "volume", "wap", "count"] if c in df.columns]
+    cols = [
+        c
+        for c in ["open", "high", "low", "close", "volume", "wap", "count"]
+        if c in df.columns
+    ]
     return df[cols].sort_index()
 
 
@@ -199,8 +217,12 @@ def save_data(df: pd.DataFrame, filepath: Path, cfg_output: dict):
 def main():
     parser = argparse.ArgumentParser(description="IBKR 日线 K 线数据拉取")
     parser.add_argument("--config", default="config_ibkr.json", help="配置文件路径")
-    parser.add_argument("--symbols", help="逗号分隔的品种名称，如 SPX,AAPL（不指定则拉全部）")
-    parser.add_argument("--days", type=int, help="拉取最近 N 天数据（覆盖配置中的 duration）")
+    parser.add_argument(
+        "--symbols", help="逗号分隔的品种名称，如 SPX,AAPL（不指定则拉全部）"
+    )
+    parser.add_argument(
+        "--days", type=int, help="拉取最近 N 天数据（覆盖配置中的 duration）"
+    )
     parser.add_argument("--dry-run", action="store_true", help="仅检查连接，不拉取数据")
     parser.add_argument("--client-id", type=int, help="指定 clientId（默认随机生成）")
     args = parser.parse_args()
@@ -246,8 +268,8 @@ def main():
         )
     except (ConnectionRefusedError, TimeoutError):
         log.error("无法连接到 TWS/IB Gateway，请确认已启动并开启 API 端口")
-        log.error(f"  TWS 纸交易端口: 7497，实盘端口: 7496")
-        log.error(f"  IB Gateway 纸交易端口: 4002，实盘端口: 4001")
+        log.error("  TWS 纸交易端口: 7497，实盘端口: 7496")
+        log.error("  IB Gateway 纸交易端口: 4002，实盘端口: 4001")
         sys.exit(1)
     except OSError as e:
         log.error(f"连接超时: {e}")
