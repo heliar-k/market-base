@@ -11,13 +11,6 @@
             "currency": "USD"
         },
         {
-            "name": "DJI",
-            "type": "index",
-            "exchange": "CME",
-            "currency": "USD",
-            "symbol": "INDU"
-        },
-        {
             "name": "IXIC",
             "type": "index",
             "exchange": "NASDAQ",
@@ -58,6 +51,12 @@
             "name": "TSM",
             "type": "stock",
             "exchange": "SMART",
+            "currency": "USD"
+        },
+        {
+            "name": "RUT",
+            "type": "index",
+            "exchange": "RUSSELL",
             "currency": "USD"
         }
     ],
