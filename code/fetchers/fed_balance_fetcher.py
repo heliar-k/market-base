@@ -83,11 +83,8 @@ def compute_net_liquidity() -> list[DataPoint]:
                 nl_dp.mark_ok()
             else:
                 raise ValueError("WALCL unavailable")
-        except Exception:
-            # Fallback: approximate Fed total assets (~6.7T range as of 2026)
-            nl_dp.value = round(6700000.0 - rrp_millions - tga_dp.value, 2)
-            nl_dp.as_of = tga_dp.as_of or rrp_dp.as_of
-            nl_dp.mark_warn("Using approximate Fed total assets (~6.7T)")
+        except Exception as e:
+            nl_dp.mark_error(f"WALCL fetch failed: {e}")
     else:
         nl_dp.mark_error("RRP or TGA data missing")
     results.append(nl_dp)

@@ -25,10 +25,6 @@ if _env_path.exists():
 class Config:
     """Pipeline configuration."""
 
-    # Data directories
-    data_dir: Path = ROOT / "data"
-    raw_dir: Path = ROOT / "data" / "raw"
-
     # API keys
     fred_api_key: str = field(default_factory=lambda: os.getenv("FRED_API_KEY", ""))
 
@@ -100,18 +96,6 @@ class Config:
             "WALCL": "WALCL",
         }
     )
-
-    # --- U.S. Treasury yield curve ---
-    TREASURY_URL: str = (
-        "https://home.treasury.gov/resource-center/data-chart-center/"
-        "interest-rates/daily-treasury-rates.csv/all/2026"
-    )
-
-    # --- Fed H.4.1 release ---
-    FED_H41_URL: str = "https://www.federalreserve.gov/releases/h41/current/"
-
-    # --- CBOE data ---
-    CBOE_VIX_URL: str = "https://www.cboe.com/us/indices/market_data/download_csv/?filename=vixcurrent.csv"
 
     def validate(self):
         """Check required config is present."""

@@ -157,21 +157,8 @@ def _parse_atom_feed(root: ET.Element) -> list[DataPoint]:
         as_of = "unknown"
 
     # Map Atom XML element names to metric names
-    atom_tag_map = {
-        "BC_1MONTH": "DGS1MO",
-        "BC_3MONTH": "DGS3MO",
-        "BC_6MONTH": "DGS6MO",
-        "BC_1YEAR": "DGS1",
-        "BC_2YEAR": "DGS2",
-        "BC_3YEAR": "DGS3",
-        "BC_5YEAR": "DGS5",
-        "BC_7YEAR": "DGS7",
-        "BC_10YEAR": "DGS10",
-        "BC_20YEAR": "DGS20",
-        "BC_30YEAR": "DGS30",
-    }
-
-    for xml_tag, metric_name in atom_tag_map.items():
+    # (same mapping as XML_TAG_MAP at module level)
+    for xml_tag, metric_name in XML_TAG_MAP.items():
         dp = DataPoint(
             metric=metric_name,
             source="U.S. Treasury Daily Yield Curve / Atom feed",
