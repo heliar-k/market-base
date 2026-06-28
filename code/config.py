@@ -75,10 +75,17 @@ FRED_SERIES = {
 # ── 商品期货（IBKR 拉取）──
 # {symbol: (name, exchange)}
 COMMODITY_FUTURES = {
+    # 商品
     "GC": ("Gold", "COMEX"),
     "CL": ("WTI", "NYMEX"),
+    "NG": ("NatGas", "NYMEX"),
     "SI": ("Silver", "COMEX"),
     "HG": ("Copper", "COMEX"),
+    # 股指
+    "ES": ("SPX", "CME"),
+    "NQ": ("Nasdaq", "CME"),
+    "YM": ("Dow", "CBOT"),
+    "RTY": ("Russell", "CME"),
 }
 
 YF_TICKERS = {

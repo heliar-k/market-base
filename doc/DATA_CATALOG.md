@@ -163,18 +163,30 @@ VIX 不在此文件（已在 FRED fred_series.csv），避免重复。
 
 ---
 
-## 7. 商品期货 — `data/commodities/{SYMBOL}.csv`
+## 7. 期货 — `data/commodities/{SYMBOL}/{SYMBOL}_{YYYYMM}.csv`
 
-4 个国际商品期货，来源 IBKR，自动查找主力合约（最近月）。每日 `./bin/fetch_commodities` 更新。
+9 个期货品种，来源 IBKR，自动拉取全部未过期合约。每日 `./bin/fetch_commodities` 更新。
 
-| 文件 | 品种 | 交易所 | 说明 |
-|------|------|--------|------|
-| `GC.csv` | Gold | COMEX | 黄金期货 |
-| `CL.csv` | WTI Crude | NYMEX | 西德克萨斯原油 |
-| `SI.csv` | Silver | COMEX | 白银期货 |
-| `HG.csv` | Copper | COMEX | 铜期货 |
+### 商品期货
 
-列格式同股票/指数 OHLCV（date/open/high/low/close/volume/average/barCount）。
+| Symbol | 品种 | 交易所 |
+|--------|------|--------|
+| `GC` | Gold | COMEX |
+| `CL` | WTI Crude | NYMEX |
+| `NG` | Natural Gas | NYMEX |
+| `SI` | Silver | COMEX |
+| `HG` | Copper | COMEX |
+
+### 股指期货
+
+| Symbol | 品种 | 交易所 |
+|--------|------|--------|
+| `ES` | S&P 500 E-mini | CME |
+| `NQ` | Nasdaq-100 E-mini | CME |
+| `YM` | Dow E-mini | CBOT |
+| `RTY` | Russell 2000 E-mini | CME |
+
+每个合约月一个 CSV，OHLCV 格式同股票/指数。
 
 ### Grid CSV 列格式
 
