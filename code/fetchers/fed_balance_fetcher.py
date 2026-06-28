@@ -1,92 +1,165 @@
 """
-Fetch Fed H.4.1 data: Reverse Repo (RRP), Treasury General Account (TGA),
-Reserve Balances, and compute Net Liquidity.
+Compute derived Fed liquidity metrics from FRED data.
 
-Data comes from FRED series (already in fred_fetcher).
-This module computes derived metrics: net_liquidity, SOFR-IORB spread.
+Reads from data/fred/fred_series.csv (already fetched by fred_fetcher),
+computes derived indicators: SOFR-IORB spread and Net Liquidity.
+
+Units:
+  - FRED RRPONTSYD: Billions of USD → converted to millions here
+  - FRED WTREGEN, WRESBAL, WALCL: Millions of USD
+  - All output in millions for consistency
 """
 
 import logging
 
-from ..quality import DataPoint
-from .fred_fetcher import fetch_single_fred
+import pandas as pd
+
+from ..quality import DataPoint, QAStatus
 
 logger = logging.getLogger(__name__)
 
 
+def _read_latest_fred() -> dict:
+    """Read the latest row from data/fred/fred_series.csv."""
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parent.parent.parent
+    csv_path = root / "data" / "fred" / "fred_series.csv"
+
+    if not csv_path.exists():
+        logger.error("fred_series.csv not found — run ./bin/fetch_fred first")
+        return {}
+
+    df = pd.read_csv(csv_path, index_col="date", parse_dates=True)
+    if df.empty:
+        logger.error("fred_series.csv is empty")
+        return {}
+
+    latest = df.iloc[-1]
+    return {
+        col: float(latest[col]) if pd.notna(latest[col]) else None for col in df.columns
+    }
+
+
 def compute_net_liquidity() -> list[DataPoint]:
     """
-    Compute net liquidity and related metrics.
-    Net Liquidity ≈ Total Fed Assets - RRP - TGA
-
-    IMPORTANT: FRED series units differ:
-      - WALCL, WTREGEN, WRESBAL: Millions of USD
-      - RRPONTSYD: Billions of USD (must convert to millions)
-      - SOFR, IORB: Percent
+    Compute net liquidity and related metrics from FRED CSV.
+    Net Liquidity = WALCL - RRP - TGA (millions of USD)
     """
     results = []
+    row = _read_latest_fred()
 
-    # Fetch data from FRED
-    rrp_dp = fetch_single_fred("RRP", "RRPONTSYD")
-    tga_dp = fetch_single_fred("TGA", "WTREGEN")
-    reserves_dp = fetch_single_fred("RESERVES", "WRESBAL")
-    sofr_dp = fetch_single_fred("SOFR", "SOFR")
-    iorb_dp = fetch_single_fred("IORB", "IORB")
+    if not row:
+        # All failed
+        for metric in [
+            "RRP",
+            "TGA",
+            "RESERVES",
+            "SOFR",
+            "IORB",
+            "SOFR_IORB_SPREAD",
+            "NET_LIQUIDITY",
+        ]:
+            dp = DataPoint(
+                metric=metric,
+                source="Fed H.4.1 via FRED",
+                formula="fred_series.csv",
+            )
+            dp.mark_error("FRED data not available")
+            results.append(dp)
+        return results
 
-    # --- Unit normalization: RRPONTSYD is in Billions, convert to Millions ---
-    if rrp_dp.value is not None:
-        rrp_millions = rrp_dp.value * 1000.0
+    # --- RRP: normalize billions → millions ---
+    rrp_b = row.get("RRPONTSYD")
+    if rrp_b is not None:
+        rrp_m = rrp_b * 1000.0
+        rrp_dp = DataPoint(
+            metric="RRP",
+            source="FRED / RRPONTSYD",
+            formula="RRPONTSYD (billions) * 1000 = millions",
+            value=round(rrp_m, 2),
+        )
+        rrp_dp.mark_ok()
     else:
-        rrp_millions = None
+        rrp_m = None
+        rrp_dp = DataPoint(
+            metric="RRP",
+            source="FRED / RRPONTSYD",
+            formula="RRPONTSYD (billions) * 1000 = millions",
+        )
+        rrp_dp.mark_error("RRPONTSYD missing")
+    results.append(rrp_dp)
 
-    # Store the normalized RRP in millions
-    rrp_dp.metric = "RRP"
-    rrp_dp.formula = "RRPONTSYD (billions) * 1000 = millions"
-    if rrp_dp.value is not None:
-        rrp_dp.value = round(rrp_millions, 2)
+    # --- TGA ---
+    tga = row.get("WTREGEN")
+    tga_dp = DataPoint(
+        metric="TGA",
+        source="FRED / WTREGEN",
+        formula="WTREGEN (millions of USD)",
+        value=round(tga, 2) if tga else None,
+    )
+    tga_dp.mark_ok() if tga else tga_dp.mark_error("WTREGEN missing")
+    results.append(tga_dp)
 
-    tga_dp.metric = "TGA"
-    reserves_dp.metric = "RESERVES"
-    sofr_dp.metric = "SOFR"
-    iorb_dp.metric = "IORB"
+    # --- RESERVES ---
+    res = row.get("WRESBAL")
+    res_dp = DataPoint(
+        metric="RESERVES",
+        source="FRED / WRESBAL",
+        formula="WRESBAL (millions of USD)",
+        value=round(res, 2) if res else None,
+    )
+    res_dp.mark_ok() if res else res_dp.mark_error("WRESBAL missing")
+    results.append(res_dp)
 
-    results.extend([rrp_dp, tga_dp, reserves_dp, sofr_dp, iorb_dp])
+    # --- SOFR ---
+    sofr = row.get("SOFR")
+    sofr_dp = DataPoint(
+        metric="SOFR",
+        source="FRED / SOFR",
+        formula="SOFR (%)",
+        value=round(sofr, 4) if sofr else None,
+    )
+    sofr_dp.mark_ok() if sofr else sofr_dp.mark_error("SOFR missing")
+    results.append(sofr_dp)
 
-    # Compute SOFR-IORB spread (bp)
+    # --- IORB ---
+    iorb = row.get("IORB")
+    iorb_dp = DataPoint(
+        metric="IORB",
+        source="FRED / IORB",
+        formula="IORB (%)",
+        value=round(iorb, 4) if iorb else None,
+    )
+    iorb_dp.mark_ok() if iorb else iorb_dp.mark_error("IORB missing")
+    results.append(iorb_dp)
+
+    # --- SOFR-IORB spread (bp) ---
     spread_dp = DataPoint(
         metric="SOFR_IORB_SPREAD",
         source="FRED / SOFR - IORB",
-        formula="SOFR - IORB; bp = (SOFR - IORB) * 100",
+        formula="(SOFR - IORB) * 100; bp",
     )
-    if sofr_dp.value is not None and iorb_dp.value is not None:
-        spread_bp = (sofr_dp.value - iorb_dp.value) * 100
-        spread_dp.value = round(spread_bp, 2)
-        spread_dp.as_of = sofr_dp.as_of or iorb_dp.as_of
+    if sofr is not None and iorb is not None:
+        spread_dp.value = round((sofr - iorb) * 100, 2)
         spread_dp.mark_ok()
     else:
-        spread_dp.mark_warn("SOFR or IORB data missing")
+        spread_dp.mark_error("SOFR or IORB missing")
     results.append(spread_dp)
 
-    # Compute Net Liquidity (all in millions of USD)
+    # --- Net Liquidity (millions of USD) ---
+    walcl = row.get("WALCL")
     nl_dp = DataPoint(
         metric="NET_LIQUIDITY",
         source="Fed H.4.1 via FRED",
         formula="WALCL - RRP - TGA (millions of USD)",
     )
-    if rrp_millions is not None and tga_dp.value is not None:
-        try:
-            ta_dp = fetch_single_fred("WALCL", "WALCL")
-            if ta_dp.value is not None:
-                nl = ta_dp.value - rrp_millions - tga_dp.value
-                nl_dp.value = round(nl, 2)
-                nl_dp.as_of = tga_dp.as_of or rrp_dp.as_of
-                nl_dp.mark_ok()
-            else:
-                raise ValueError("WALCL unavailable")
-        except Exception as e:
-            nl_dp.mark_error(f"WALCL fetch failed: {e}")
+    if rrp_m is not None and tga is not None and walcl is not None:
+        nl = walcl - rrp_m - tga
+        nl_dp.value = round(nl, 2)
+        nl_dp.mark_ok()
     else:
-        nl_dp.mark_error("RRP or TGA data missing")
+        nl_dp.mark_error("WALCL, RRP or TGA missing")
     results.append(nl_dp)
 
     return results
@@ -99,7 +172,7 @@ if __name__ == "__main__":
 
     results = compute_net_liquidity()
     names = [r.metric for r in results]
-    ok = sum(1 for r in results if r.qa_status.value == "ok")
+    ok = sum(1 for r in results if r.qa_status == QAStatus.OK)
     print(f"Fed Balance: {ok}/{len(results)} OK → {names}")
 
     root = Path(__file__).resolve().parent.parent.parent

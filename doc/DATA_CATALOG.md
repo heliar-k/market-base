@@ -78,41 +78,21 @@
 
 ---
 
-## 2. 国债收益率 — `data/treasury/treasury_yields.csv`
+## 2. 波动率 — `data/cboe/volatility.csv`
 
-11 个期限，来源美国财政部日频 XML。每日 `./bin/fetch_treasury` 更新。
-
-| 列名 | 说明 |
-|------|------|
-| `DGS1MO` | 1 月期 |
-| `DGS3MO` | 3 月期 |
-| `DGS6MO` | 6 月期 |
-| `DGS1` | 1 年期 |
-| `DGS2` | 2 年期 |
-| `DGS3` | 3 年期 |
-| `DGS5` | 5 年期 |
-| `DGS7` | 7 年期 |
-| `DGS10` | 10 年期 |
-| `DGS20` | 20 年期 |
-| `DGS30` | 30 年期 |
-
----
-
-## 3. 波动率 — `data/cboe/volatility.csv`
-
-来源 CBOE CDN + FRED。每日 `./bin/fetch_cboe` 更新。
+来源 CBOE CDN。每日 `./bin/fetch_cboe` 更新。
+VIX 不在此文件（已在 FRED fred_series.csv），避免重复。
 
 | 列名 | 说明 |
 |------|------|
-| `VIX` | CBOE 标普 500 波动率指数 |
 | `OVX` | CBOE 原油波动率指数 |
-| `VIX_TERM_SLOPE` | VIX 期限结构斜率（VIX - VIX9D，bp） |
+| `VIX_TERM_SLOPE` | VIX 期限结构斜率（VIX - VIX9D），正=contango，负=backwardation |
 
 ---
 
-## 4. 流动性 — `data/fed_balance/liquidity.csv`
+## 3. 流动性 — `data/fed_balance/liquidity.csv`
 
-来源 FRED，包含派生的净流动性指标。每日 `./bin/fetch_fed_balance` 更新。
+读取 FRED CSV 计算派生指标，不重复请求 API。每日 `./bin/fetch_fed_balance` 更新。
 
 | 列名 | 说明 | 单位 |
 |------|------|------|
@@ -126,7 +106,7 @@
 
 ---
 
-## 5. 股票日线 — `data/stocks/{SYMBOL}.csv`
+## 4. 股票日线 — `data/stocks/{SYMBOL}.csv`
 
 10 只股票，来源 IBKR。每日 `./bin/fetch_ibkr` 更新。
 
@@ -159,7 +139,7 @@
 
 ---
 
-## 6. 指数日线 — `data/indices/{SYMBOL}.csv`
+## 5. 指数日线 — `data/indices/{SYMBOL}.csv`
 
 4 个指数，来源 IBKR。格式同上 OHLCV。
 
@@ -172,7 +152,7 @@
 
 ---
 
-## 7. 期权链 — `data/options/`
+## 6. 期权链 — `data/options/`
 
 10 只品种的期权链参数。
 
@@ -197,22 +177,22 @@
 ```python
 import pandas as pd
 
-# 宏观指标
+# 宏观指标（含国债收益率、通胀预期、流动性）
 macro = pd.read_csv('data/fred/fred_series.csv', index_col='date', parse_dates=True)
 # 算 5Y BEI
 macro['BEI_5Y'] = (macro['DGS5'] - macro['DFII5']) * 100
-
-# 国债收益率
-tsy = pd.read_csv('data/treasury/treasury_yields.csv', index_col='date', parse_dates=True)
 # 算 2s10s 利差
-tsy['2s10s'] = tsy['DGS10'] - tsy['DGS2']
+macro['2s10s'] = macro['DGS10'] - macro['DGS2']
 
-# 流动性
+# 流动性（派生指标）
 liq = pd.read_csv('data/fed_balance/liquidity.csv', index_col='date', parse_dates=True)
+
+# 波动率
+vol = pd.read_csv('data/cboe/volatility.csv', index_col='date', parse_dates=True)
 
 # 股票 K 线
 aapl = pd.read_csv('data/stocks/AAPL.csv', index_col='date', parse_dates=True)
 
-# 波动率
-vol = pd.read_csv('data/cboe/volatility.csv', index_col='date', parse_dates=True)
+# 指数日线
+spx = pd.read_csv('data/indices/SPX.csv', index_col='date', parse_dates=True)
 ```
