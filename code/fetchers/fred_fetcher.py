@@ -1,0 +1,68 @@
+"""
+Fetch economic indicators from FRED API.
+Requires FRED_API_KEY in .env file.
+"""
+
+import logging
+
+from fredapi import Fred
+
+from ..config import config
+from ..quality import DataPoint, QAStatus
+
+logger = logging.getLogger(__name__)
+
+
+def _get_fred() -> Fred:
+    if not config.fred_api_key:
+        raise ValueError("FRED_API_KEY not configured")
+    return Fred(api_key=config.fred_api_key)
+
+
+def fetch_all_fred() -> list[DataPoint]:
+    """Fetch all configured FRED series. Returns list of DataPoints."""
+    fred = _get_fred()
+    results = []
+    for name, series_id in config.FRED_SERIES.items():
+        logger.info(f"Fetching {name} ({series_id})...")
+        dp = DataPoint(
+            metric=name,
+            source=f"FRED / {series_id}",
+            formula="time_series.value; most recent non-null observation",
+        )
+        try:
+            series = fred.get_series(series_id)
+            # Get the most recent non-null value
+            valid = series.dropna()
+            if valid.empty:
+                dp.mark_error("No valid data in series")
+                results.append(dp)
+                continue
+            dp.value = round(float(valid.iloc[-1]), 6)
+            dp.as_of = valid.index[-1].strftime("%Y-%m-%d")
+            dp.mark_ok()
+        except Exception as e:
+            dp.mark_error(str(e))
+        status = "✓" if dp.qa_status == QAStatus.OK else "✗"
+        logger.info(f"  {status} {name}: {dp.value} (as_of={dp.as_of})")
+        results.append(dp)
+    return results
+
+
+def fetch_single_fred(name: str, series_id: str) -> DataPoint:
+    """Fetch a single FRED series by name + ID."""
+    fred = _get_fred()
+    dp = DataPoint(
+        metric=name,
+        source=f"FRED / {series_id}",
+        formula="time_series.value",
+    )
+    try:
+        series = fred.get_series(series_id)
+        valid = series.dropna()
+        dp.value = round(float(valid.iloc[-1]), 6)
+        dp.as_of = valid.index[-1].strftime("%Y-%m-%d")
+        dp.mark_ok()
+    except Exception as e:
+        dp.mark_error(str(e))
+    return dp

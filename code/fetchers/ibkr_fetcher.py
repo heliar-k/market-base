@@ -15,13 +15,12 @@ IBKR 日线 K 线数据拉取脚本
     3. 已订阅对应产品的市场数据
 
 用法:
-    uv run python code/fetch_ibkr.py
+    uv run python code/fetchers/ibkr_fetcher.py
                          # 拉取 config_ibkr.json 中配置的所有品种
-    uv run python code/fetch_ibkr.py --symbols SPX,AAPL  # 只拉取指定品种
-    uv run python code/fetch_ibkr.py --days 365           # 拉取最近 365 天
-    uv run python code/fetch_ibkr.py --dry-run            # 仅检查连接，不实际拉取
-    uv run python code/fetch_ibkr.py --client-id 12345
-                         # 指定 clientId（默认随机 100-9999）
+    uv run python code/fetchers/ibkr_fetcher.py --symbols SPX,AAPL
+    uv run python code/fetchers/ibkr_fetcher.py --days 365
+    uv run python code/fetchers/ibkr_fetcher.py --dry-run
+    uv run python code/fetchers/ibkr_fetcher.py --client-id 12345
 """
 
 import argparse
@@ -228,14 +227,14 @@ def main():
     args = parser.parse_args()
 
     # 加载配置
-    script_dir = Path(__file__).resolve().parent
-    config = load_config(script_dir / args.config)
+    script_dir = Path(__file__).resolve().parent  # code/fetchers/
+    config = load_config(script_dir.parent / args.config)  # code/config_ibkr.json
     cfg_ibkr = config["ibkr"]
     cfg_fetch = config["fetch"]
     cfg_output = config["output"]
 
-    # 输出目录相对于项目根目录（script_dir 的上一级）
-    project_root = script_dir.parent
+    # 输出目录相对于项目根目录（script_dir.parent 是 code/，.parent 是项目根）
+    project_root = script_dir.parent.parent
 
     # 覆盖 duration
     if args.days:

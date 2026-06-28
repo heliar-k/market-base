@@ -10,9 +10,9 @@ IBKR 期权链参数拉取脚本
     data/options/{SYMBOL}_grid.csv     - 展开的到期日×行权价网格（便于后续分析）
 
 用法:
-    uv run python code/fetch_options_chain.py              # 拉取全部股票
-    uv run python code/fetch_options_chain.py --symbols AAPL,TSLA  # 指定品种
-    uv run python code/fetch_options_chain.py --dry-run     # 仅测试连接
+    uv run python code/fetchers/options_fetcher.py
+    uv run python code/fetchers/options_fetcher.py --symbols AAPL,TSLA
+    uv run python code/fetchers/options_fetcher.py --dry-run
 """
 
 import argparse
@@ -139,9 +139,9 @@ def main():
     parser.add_argument("--dry-run", action="store_true", help="仅测试连接")
     args = parser.parse_args()
 
-    script_dir = Path(__file__).resolve().parent
-    project_root = script_dir.parent
-    config_path = script_dir / args.config
+    script_dir = Path(__file__).resolve().parent  # code/fetchers/
+    project_root = script_dir.parent.parent  # K线分析/
+    config_path = script_dir.parent / args.config  # code/config_ibkr.json
     config = load_config(config_path)
 
     # 只取股票品种
