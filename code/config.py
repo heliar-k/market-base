@@ -72,6 +72,15 @@ FRED_SERIES = {
     "EXPINF_10Y": "EXPINF10YR",
 }
 
+# ── 商品期货（IBKR 拉取）──
+# {symbol: (name, exchange)}
+COMMODITY_FUTURES = {
+    "GC": ("Gold", "COMEX"),
+    "CL": ("WTI", "NYMEX"),
+    "SI": ("Silver", "COMEX"),
+    "HG": ("Copper", "COMEX"),
+}
+
 YF_TICKERS = {
     "SPX": "^GSPC",
     "NDX": "^NDX",
@@ -148,6 +157,7 @@ class Config:
     fred_series: dict = field(default_factory=lambda: dict(FRED_SERIES))
     yf_tickers: dict = field(default_factory=lambda: dict(YF_TICKERS))
     ibkr_symbols: list[dict] = field(default_factory=lambda: list(IBKR_SYMBOLS))
+    commodity_futures: dict = field(default_factory=lambda: dict(COMMODITY_FUTURES))
 
     # ── 子配置 ──
     ibkr: IbkrConfig = field(default_factory=IbkrConfig)

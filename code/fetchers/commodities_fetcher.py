@@ -24,14 +24,6 @@ from ..config import config
 
 log = logging.getLogger(__name__)
 
-# ── 商品期货配置 ──
-COMMODITY_FUTURES = {
-    "GC": ("Gold", "COMEX"),
-    "CL": ("WTI", "NYMEX"),
-    "SI": ("Silver", "COMEX"),
-    "HG": ("Copper", "COMEX"),
-}
-
 OUTPUT_DIR = Path("data/commodities")
 BAR_SIZE = config.ibkr.bar_size
 DURATION = config.ibkr.duration
@@ -225,7 +217,7 @@ def fetch_all_commodities(
 
     targets = {
         sym: (name, ex)
-        for sym, (name, ex) in COMMODITY_FUTURES.items()
+        for sym, (name, ex) in config.COMMODITY_FUTURES.items()
         if symbols is None or sym in symbols
     }
 
