@@ -194,3 +194,17 @@ def _parse_date_mdy(raw: str) -> str:
         return raw
     logger.warning(f"Unknown date format: {raw}")
     return raw
+
+
+if __name__ == "__main__":
+    from pathlib import Path
+
+    from ._io import save_daily_csv
+
+    results = fetch_treasury_yields()
+    ok = sum(1 for r in results if r.qa_status.value in ("ok", "warn"))
+    print(f"Treasury: {ok}/{len(results)} fetched")
+
+    root = Path(__file__).resolve().parent.parent.parent
+    save_daily_csv(root / "data" / "treasury" / "treasury_yields.csv", results)
+    print("  → data/treasury/treasury_yields.csv")

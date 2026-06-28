@@ -57,3 +57,19 @@ def fetch_single_fred(name: str, series_id: str) -> DataPoint:
     """Fetch a single FRED series by name + ID."""
     fred = _get_fred()
     return _fetch_one_fred(fred, name, series_id)
+
+
+if __name__ == "__main__":
+    from pathlib import Path
+
+    from ._io import save_daily_csv
+
+    config.validate()
+    results = fetch_all_fred()
+    ok = sum(1 for r in results if r.qa_status == QAStatus.OK)
+    print(f"FRED: {ok}/{len(results)} OK")
+
+    # 保存到 data/fred/fred_series.csv
+    root = Path(__file__).resolve().parent.parent.parent
+    save_daily_csv(root / "data" / "fred" / "fred_series.csv", results)
+    print("  → data/fred/fred_series.csv")

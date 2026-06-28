@@ -1,0 +1,6 @@
+#!/bin/bash
+# yfinance 资产价格（SPX/NDX/黄金/原油/BTC 等 14 个品种）
+# 需要 SOCKS5 代理: socks5://127.0.0.1:7890
+set -euo pipefail
+cd "$(dirname "$0")/.."
+exec uv run python -m code.fetchers.yfinance_fetcher "$@"

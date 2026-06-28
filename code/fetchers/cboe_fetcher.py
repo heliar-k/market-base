@@ -167,3 +167,20 @@ def compute_vix_term_structure() -> list[DataPoint]:
         f"(VIX={vix_dp.value}, VIX9D={vix9d_dp.value})"
     )
     return results
+
+
+if __name__ == "__main__":
+    from pathlib import Path
+
+    from ._io import save_daily_csv
+
+    vol_results = fetch_cboe_volatility()
+    ts_results = compute_vix_term_structure()
+    all_results = vol_results + ts_results
+
+    ok = sum(1 for r in all_results if r.qa_status.value in ("ok", "warn"))
+    print(f"CBOE: {ok}/{len(all_results)} fetched")
+
+    root = Path(__file__).resolve().parent.parent.parent
+    save_daily_csv(root / "data" / "cboe" / "volatility.csv", all_results)
+    print("  → data/cboe/volatility.csv")

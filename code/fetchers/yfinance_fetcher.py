@@ -53,3 +53,17 @@ def fetch_all_assets() -> list[DataPoint]:
         status = "✓" if dp.qa_status == QAStatus.OK else "✗"
         logger.info(f"  {status} {name}: {dp.value} (as_of={dp.as_of})")
     return results
+
+
+if __name__ == "__main__":
+    from pathlib import Path
+
+    from ._io import save_daily_csv
+
+    results = fetch_all_assets()
+    ok = sum(1 for r in results if r.qa_status == QAStatus.OK)
+    print(f"yfinance: {ok}/{len(results)} OK")
+
+    root = Path(__file__).resolve().parent.parent.parent
+    save_daily_csv(root / "data" / "yfinance" / "asset_prices.csv", results)
+    print("  → data/yfinance/asset_prices.csv")

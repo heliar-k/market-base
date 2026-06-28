@@ -90,3 +90,18 @@ def compute_net_liquidity() -> list[DataPoint]:
     results.append(nl_dp)
 
     return results
+
+
+if __name__ == "__main__":
+    from pathlib import Path
+
+    from ._io import save_daily_csv
+
+    results = compute_net_liquidity()
+    names = [r.metric for r in results]
+    ok = sum(1 for r in results if r.qa_status.value == "ok")
+    print(f"Fed Balance: {ok}/{len(results)} OK → {names}")
+
+    root = Path(__file__).resolve().parent.parent.parent
+    save_daily_csv(root / "data" / "fed_balance" / "liquidity.csv", results)
+    print("  → data/fed_balance/liquidity.csv")
