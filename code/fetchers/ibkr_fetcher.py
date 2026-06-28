@@ -15,11 +15,10 @@ IBKR 日线 K 线数据拉取脚本
     3. 已订阅对应产品的市场数据
 
 用法:
-    uv run python code/fetchers/ibkr_fetcher.py
-    uv run python code/fetchers/ibkr_fetcher.py --symbols SPX,AAPL
-    uv run python code/fetchers/ibkr_fetcher.py --days 365
-    uv run python code/fetchers/ibkr_fetcher.py --dry-run
-    uv run python code/fetchers/ibkr_fetcher.py --client-id 12345
+    ./bin/fetch_ibkr
+    ./bin/fetch_ibkr --symbols SPX,AAPL
+    ./bin/fetch_ibkr --days 365
+    ./bin/fetch_ibkr --dry-run
 """
 
 import argparse
@@ -33,9 +32,7 @@ from pathlib import Path
 import pandas as pd
 from ib_insync import IB, Index, Stock, util
 
-# 支持直接执行时找到 code/ 下的兄弟模块
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-from config import config
+from ..config import config
 
 # ---------------------------------------------------------------------------
 # 日志
