@@ -46,7 +46,7 @@ def _fetch_ticker(ticker: str, name: str) -> DataPoint:
 def fetch_all_assets() -> list[DataPoint]:
     """Fetch all configured yfinance tickers. Returns list of DataPoints."""
     results = []
-    for name, ticker in config.YF_TICKERS.items():
+    for name, ticker in config.yf_tickers.items():
         logger.info(f"Fetching {name} ({ticker})...")
         dp = _fetch_ticker(ticker, name)
         results.append(dp)

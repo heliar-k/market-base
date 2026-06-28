@@ -15,16 +15,14 @@ IBKR 日线 K 线数据拉取脚本
     3. 已订阅对应产品的市场数据
 
 用法:
-    uv run python code/fetchers/ibkr_fetcher.py
-                         # 拉取 config_ibkr.json 中配置的所有品种
-    uv run python code/fetchers/ibkr_fetcher.py --symbols SPX,AAPL
-    uv run python code/fetchers/ibkr_fetcher.py --days 365
-    uv run python code/fetchers/ibkr_fetcher.py --dry-run
-    uv run python code/fetchers/ibkr_fetcher.py --client-id 12345
+    uv run python -m code.fetchers.ibkr_fetcher
+    uv run python -m code.fetchers.ibkr_fetcher --symbols SPX,AAPL
+    uv run python -m code.fetchers.ibkr_fetcher --days 365
+    uv run python -m code.fetchers.ibkr_fetcher --dry-run
+    uv run python -m code.fetchers.ibkr_fetcher --client-id 12345
 """
 
 import argparse
-import json
 import logging
 import random
 import sys
@@ -34,6 +32,8 @@ from pathlib import Path
 
 import pandas as pd
 from ib_insync import IB, Index, Stock, util
+
+from ..config import config
 
 # ---------------------------------------------------------------------------
 # 日志
@@ -49,15 +49,6 @@ log = logging.getLogger("ibkr_fetch")
 # ---------------------------------------------------------------------------
 # 工具函数
 # ---------------------------------------------------------------------------
-def load_config(path: str = "config_ibkr.json") -> dict:
-    """加载配置文件"""
-    config_path = Path(path)
-    if not config_path.exists():
-        raise FileNotFoundError(f"配置文件不存在: {config_path}")
-    with open(config_path, "r", encoding="utf-8") as f:
-        return json.load(f)
-
-
 def make_contract(sym: dict):
     """
     根据配置创建 IB 合约。
@@ -104,8 +95,9 @@ def fetch_single(
     ib: IB,
     contract,
     sym_name: str,
-    cfg_fetch: dict,
+    ibkr_cfg,
     last_date: str | None,
+    duration_override: str | None = None,
 ) -> list:
     """
     拉取单个品种的历史日线。
@@ -114,17 +106,18 @@ def fetch_single(
     all_bars = []
     end_dt = ""  # 空字符串 = 当前时间
     max_iterations = 5  # 防止无限循环
-    delay = cfg_fetch.get("request_delay_seconds", 15)
+    delay = ibkr_cfg.request_delay_seconds
+    duration = duration_override or ibkr_cfg.duration
 
     for i in range(max_iterations):
         try:
             bars = ib.reqHistoricalData(
                 contract,
                 endDateTime=end_dt,
-                durationStr=cfg_fetch["duration"],
-                barSizeSetting=cfg_fetch["bar_size"],
-                whatToShow=cfg_fetch["what_to_show"],
-                useRTH=cfg_fetch.get("use_rth", True),
+                durationStr=duration,
+                barSizeSetting=ibkr_cfg.bar_size,
+                whatToShow=ibkr_cfg.what_to_show,
+                useRTH=ibkr_cfg.use_rth,
                 formatDate=1,  # yyyyMMdd
             )
         except Exception as e:
@@ -190,7 +183,7 @@ def bars_to_dataframe(bars: list) -> pd.DataFrame:
     return df[cols].sort_index()
 
 
-def save_data(df: pd.DataFrame, filepath: Path, cfg_output: dict):
+def save_data(df: pd.DataFrame, filepath: Path, encoding: str = "utf-8"):
     """保存到 CSV，自动合并已有数据"""
     existing = load_existing_data(filepath)
 
@@ -206,7 +199,7 @@ def save_data(df: pd.DataFrame, filepath: Path, cfg_output: dict):
         return
 
     filepath.parent.mkdir(parents=True, exist_ok=True)
-    combined.to_csv(filepath, encoding=cfg_output.get("encoding", "utf-8"))
+    combined.to_csv(filepath, encoding=encoding)
     log.info(f"已保存: {filepath} ({len(combined)} 条)")
 
 
@@ -215,7 +208,6 @@ def save_data(df: pd.DataFrame, filepath: Path, cfg_output: dict):
 # ---------------------------------------------------------------------------
 def main():
     parser = argparse.ArgumentParser(description="IBKR 日线 K 线数据拉取")
-    parser.add_argument("--config", default="config_ibkr.json", help="配置文件路径")
     parser.add_argument(
         "--symbols", help="逗号分隔的品种名称，如 SPX,AAPL（不指定则拉全部）"
     )
@@ -226,22 +218,11 @@ def main():
     parser.add_argument("--client-id", type=int, help="指定 clientId（默认随机生成）")
     args = parser.parse_args()
 
-    # 加载配置
-    script_dir = Path(__file__).resolve().parent  # code/fetchers/
-    config = load_config(script_dir.parent / args.config)  # code/config_ibkr.json
-    cfg_ibkr = config["ibkr"]
-    cfg_fetch = config["fetch"]
-    cfg_output = config["output"]
-
-    # 输出目录相对于项目根目录（script_dir.parent 是 code/，.parent 是项目根）
-    project_root = script_dir.parent.parent
-
-    # 覆盖 duration
-    if args.days:
-        cfg_fetch["duration"] = f"{args.days} D"
+    ibkr_cfg = config.ibkr
+    duration_override = f"{args.days} D" if args.days else None
 
     # 筛选品种
-    all_symbols = config["symbols"]
+    all_symbols = config.ibkr_symbols
     if args.symbols:
         requested = set(s.strip().upper() for s in args.symbols.split(","))
         symbols = [s for s in all_symbols if s["name"] in requested]
@@ -252,19 +233,14 @@ def main():
         symbols = all_symbols
 
     log.info(f"待拉取品种: {[s['name'] for s in symbols]}")
-    log.info(f"TWS 地址: {cfg_ibkr['host']}:{cfg_ibkr['port']}")
+    log.info(f"TWS 地址: {ibkr_cfg.host}:{ibkr_cfg.port}")
 
-    # 连接 IB，client_id 优先级: CLI > config > 随机
-    client_id = args.client_id or cfg_ibkr.get("client_id") or random.randint(100, 9999)
+    # 连接 IB
+    client_id = args.client_id or random.randint(100, 9999)
     log.info(f"使用 clientId: {client_id}")
     ib = IB()
     try:
-        ib.connect(
-            cfg_ibkr["host"],
-            cfg_ibkr["port"],
-            clientId=client_id,
-            timeout=10,
-        )
+        ib.connect(ibkr_cfg.host, ibkr_cfg.port, clientId=client_id, timeout=10)
     except (ConnectionRefusedError, TimeoutError):
         log.error("无法连接到 TWS/IB Gateway，请确认已启动并开启 API 端口")
         log.error("  TWS 纸交易端口: 7497，实盘端口: 7496")
@@ -284,8 +260,10 @@ def main():
         ib.disconnect()
         return
 
-    # 输出目录（基础路径）
-    base_dir = project_root / cfg_output["dir"]
+    # 输出目录
+    script_dir = Path(__file__).resolve().parent  # code/fetchers/
+    project_root = script_dir.parent.parent  # K线分析/
+    base_dir = project_root / ibkr_cfg.output_dir
     base_dir.mkdir(parents=True, exist_ok=True)
 
     # 逐品种拉取
@@ -317,29 +295,32 @@ def main():
 
         # 拉取
         try:
-            bars = fetch_single(ib, contract, name, cfg_fetch, last_date)
+            bars = fetch_single(
+                ib,
+                contract,
+                name,
+                ibkr_cfg,
+                last_date,
+                duration_override,
+            )
         except Exception as e:
             log.error(f"[{name}] 拉取失败: {e}")
             continue
 
         if bars:
             df = bars_to_dataframe(bars)
-            # 如果已有数据，只保留更新的
             if not existing.empty and not df.empty:
                 df = df[df.index > existing.index.max()]
-            save_data(df, filepath, cfg_output)
+            save_data(df, filepath, ibkr_cfg.output_encoding)
             new_count = len(df)
             total_new += new_count
             log.info(f"[{name}] 新增 {new_count} 条")
         else:
             log.info(f"[{name}] 无新数据")
 
-        # 请求间隔
-        delay = cfg_fetch.get("request_delay_seconds", 15)
-        log.info(f"  等待 {delay}s 以避免请求限流...")
-        time.sleep(delay)
+        log.info(f"  等待 {ibkr_cfg.request_delay_seconds}s 以避免请求限流...")
+        time.sleep(ibkr_cfg.request_delay_seconds)
 
-    # 断开
     ib.disconnect()
     log.info(f"全部完成！本次共新增 {total_new} 条记录")
 

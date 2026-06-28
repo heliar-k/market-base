@@ -44,7 +44,7 @@ def fetch_all_fred() -> list[DataPoint]:
     """Fetch all configured FRED series. Returns list of DataPoints."""
     fred = _get_fred()
     results = []
-    for name, series_id in config.FRED_SERIES.items():
+    for name, series_id in config.fred_series.items():
         logger.info(f"Fetching {name} ({series_id})...")
         dp = _fetch_one_fred(fred, name, series_id)
         status = "✓" if dp.qa_status == QAStatus.OK else "✗"

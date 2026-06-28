@@ -10,9 +10,9 @@ IBKR 期权链参数拉取脚本
     data/options/{SYMBOL}_grid.csv     - 展开的到期日×行权价网格（便于后续分析）
 
 用法:
-    uv run python code/fetchers/options_fetcher.py
-    uv run python code/fetchers/options_fetcher.py --symbols AAPL,TSLA
-    uv run python code/fetchers/options_fetcher.py --dry-run
+    uv run python -m code.fetchers.options_fetcher
+    uv run python -m code.fetchers.options_fetcher --symbols AAPL,TSLA
+    uv run python -m code.fetchers.options_fetcher --dry-run
 """
 
 import argparse
@@ -24,6 +24,8 @@ from datetime import datetime
 from pathlib import Path
 
 from ib_insync import IB, Stock
+
+from ..config import config
 
 logging.basicConfig(
     level=logging.INFO,
@@ -44,13 +46,6 @@ def connect_ib(host="127.0.0.1", port=4002, client_id=None):
     except Exception as e:
         log.error(f"连接失败: {e}")
         sys.exit(1)
-
-
-def load_config(config_path: Path) -> dict:
-    if not config_path.exists():
-        raise FileNotFoundError(f"配置文件不存在: {config_path}")
-    with open(config_path, "r", encoding="utf-8") as f:
-        return json.load(f)
 
 
 def fetch_chain(ib: IB, sym_name: str) -> list[dict] | None:
@@ -124,7 +119,6 @@ def save_chain_csv(sym_name: str, chains: list[dict], output_dir: Path):
                 for strike in chain["strikes"]:
                     writer.writerow([exchange, exp, strike, multiplier, trading_class])
 
-    # 统计行数
     with open(filepath, "r") as f:
         rows = sum(1 for _ in f) - 1
     log.info(f"  📊 已保存 {filepath} ({rows} 行)")
@@ -132,20 +126,21 @@ def save_chain_csv(sym_name: str, chains: list[dict], output_dir: Path):
 
 def main():
     parser = argparse.ArgumentParser(description="IBKR 期权链参数拉取")
-    parser.add_argument("--config", default="config_ibkr.json", help="配置文件")
     parser.add_argument("--symbols", help="逗号分隔，不指定则拉取全部股票")
-    parser.add_argument("--host", default="127.0.0.1")
-    parser.add_argument("--port", type=int, default=4002)
+    parser.add_argument(
+        "--host", default=None, help=f"覆盖配置 (默认: {config.ibkr.host})"
+    )
+    parser.add_argument(
+        "--port", type=int, default=None, help=f"覆盖配置 (默认: {config.ibkr.port})"
+    )
     parser.add_argument("--dry-run", action="store_true", help="仅测试连接")
     args = parser.parse_args()
 
-    script_dir = Path(__file__).resolve().parent  # code/fetchers/
-    project_root = script_dir.parent.parent  # K线分析/
-    config_path = script_dir.parent / args.config  # code/config_ibkr.json
-    config = load_config(config_path)
+    host = args.host or config.ibkr.host
+    port = args.port or config.ibkr.port
 
     # 只取股票品种
-    all_stocks = [s for s in config["symbols"] if s["type"] == "stock"]
+    all_stocks = [s for s in config.ibkr_symbols if s["type"] == "stock"]
     if args.symbols:
         requested = set(s.strip().upper() for s in args.symbols.split(","))
         stocks = [s for s in all_stocks if s["name"] in requested]
@@ -157,13 +152,15 @@ def main():
 
     log.info(f"待拉取股票期权链: {[s['name'] for s in stocks]}")
 
-    ib = connect_ib(args.host, args.port)
+    ib = connect_ib(host, port)
 
     if args.dry_run:
         log.info("--dry-run 模式，退出")
         ib.disconnect()
         return
 
+    script_dir = Path(__file__).resolve().parent  # code/fetchers/
+    project_root = script_dir.parent.parent  # K线分析/
     output_dir = project_root / "data" / "options"
     output_dir.mkdir(parents=True, exist_ok=True)
 
@@ -178,13 +175,9 @@ def main():
             failed.append(name)
             continue
 
-        # 只保留主流交易所的完整链（去重）
-        # 优先选到期日和行权价最多的那条
         best = max(chains, key=lambda c: c["num_expirations"] + c["num_strikes"])
 
-        # 保存完整链 JSON
         save_chain_json(name, chains, output_dir)
-        # 保存网格 CSV
         save_chain_csv(name, chains, output_dir)
 
         log.info(
