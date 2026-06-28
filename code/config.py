@@ -64,6 +64,12 @@ FRED_SERIES = {
     "IORB": "IORB",
     # ── 美联储资产负债表 ──
     "WALCL": "WALCL",
+    # ── 通胀预期（非 TIPS 来源）──
+    "MICH": "MICH",
+    "EXPINF_1Y": "EXPINF1YR",
+    "EXPINF_2Y": "EXPINF2YR",
+    "EXPINF_5Y": "EXPINF5YR",
+    "EXPINF_10Y": "EXPINF10YR",
 }
 
 YF_TICKERS = {
