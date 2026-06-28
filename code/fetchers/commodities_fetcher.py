@@ -1,9 +1,11 @@
 """
 Fetch commodity futures OHLCV data from IBKR.
-Auto-detects front-month contracts via reqContractDetails.
+默认拉取所有未过期合约（整条期货曲线），
+--front-month 仅拉取最近月。
 
 用法:
-    ./bin/fetch_commodities
+    ./bin/fetch_commodities                    # 全部未过期合约
+    ./bin/fetch_commodities --front-month      # 仅主力合约
     ./bin/fetch_commodities --dry-run
     ./bin/fetch_commodities --symbols GC,SI
 """
@@ -51,11 +53,13 @@ def _connect(client_id: int | None = None) -> IB:
     return ib
 
 
-def _resolve_front_month(ib: IB, symbol: str, exchange: str) -> Future:
+def _resolve_all_contracts(
+    ib: IB, symbol: str, exchange: str, max_contracts: int = 24
+) -> list[Future]:
     """
-    自动找到指定商品期货的主力合约（最近月）。
-    通过 reqContractDetails 获取所有可用合约，
-    过滤出未过期合约，返回到期日最近的一个。
+    获取指定品种所有未过期合约，按到期日升序排列。
+    同月多个合约（如标准+迷你）仅保留第一个。
+    max_contracts 限制最大数量（WTI 月月有合约，避免太多）。
     """
     today = datetime.now().strftime("%Y%m%d")
     c = Future(symbol, exchange=exchange, currency="USD")
@@ -65,37 +69,32 @@ def _resolve_front_month(ib: IB, symbol: str, exchange: str) -> Future:
         raise ValueError(f"{symbol}: 未找到任何合约 @ {exchange}")
 
     active = [d for d in details if d.contract.lastTradeDateOrContractMonth >= today]
+
     if not active:
-        # 全部过期，取最新过期的一个（可能刚到期还有最后数据）
-        active = details
-        log.warning("%s: 所有合约已过期，使用最近到期的一个", symbol)
+        log.warning("%s: 所有合约已过期", symbol)
+        return []
 
     active.sort(key=lambda d: d.contract.lastTradeDateOrContractMonth)
-    contract = active[0].contract
-    log.info(
-        "  %s 主力: %s conId=%s expiry=%s",
-        symbol,
-        contract.localSymbol,
-        contract.conId,
-        contract.lastTradeDateOrContractMonth,
-    )
-    return contract
+
+    # 去重：同月只保留第一个
+    seen_months: set[str] = set()
+    deduped: list[Future] = []
+    for d in active:
+        month = _expiry_to_month(d.contract.lastTradeDateOrContractMonth)
+        if month not in seen_months:
+            seen_months.add(month)
+            deduped.append(d.contract)
+
+    return deduped[:max_contracts]
 
 
-def fetch_one_commodity(
-    ib: IB, symbol: str, name: str, exchange: str
-) -> pd.DataFrame | None:
-    """
-    拉取单只商品期货的日线 OHLCV 数据。
-    返回 DataFrame（columns: date/open/high/low/close/volume/
-    average/barCount），失败返回 None。
-    """
-    try:
-        contract = _resolve_front_month(ib, symbol, exchange)
-    except Exception as e:
-        log.error("  %s (%s): 合约解析失败 — %s", name, symbol, e)
-        return None
+def _expiry_to_month(expiry: str) -> str:
+    """将 YYYYMMDD 到期日转为 YYYYMM 合约月份。"""
+    return expiry[:6]
 
+
+def _fetch_bars(ib: IB, contract: Future) -> pd.DataFrame | None:
+    """拉取单个合约的日线 OHLCV。"""
     try:
         bars = ib.reqHistoricalData(
             contract,
@@ -107,7 +106,6 @@ def fetch_one_commodity(
             formatDate=1,
         )
         if not bars:
-            log.warning("  %s (%s): 无数据返回", name, symbol)
             return None
 
         df = util.df(bars)
@@ -124,24 +122,18 @@ def fetch_one_commodity(
             }
         )
         df["date"] = df["date"].astype(str)
-        log.info(
-            "  %s: %s bars, %s → %s",
-            name,
-            len(df),
-            df["date"].iloc[0],
-            df["date"].iloc[-1],
-        )
         return df
 
     except Exception as e:
-        log.error("  %s (%s): 数据拉取失败 — %s", name, symbol, e)
+        log.warning("    拉取失败: %s", e)
         return None
 
 
-def _save_csv(df: pd.DataFrame, symbol: str) -> None:
-    """保存/更新 CSV 文件（增量合并，按 date 去重）。"""
-    OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
-    path = OUTPUT_DIR / f"{symbol}.csv"
+def _save_csv(df: pd.DataFrame, symbol: str, month: str) -> None:
+    """保存增量 CSV，按 date 去重。"""
+    subdir = OUTPUT_DIR / symbol
+    subdir.mkdir(parents=True, exist_ok=True)
+    path = subdir / f"{symbol}_{month}.csv"
 
     if path.exists():
         existing = pd.read_csv(path, dtype={"date": str})
@@ -153,22 +145,77 @@ def _save_csv(df: pd.DataFrame, symbol: str) -> None:
         combined = df
 
     combined.to_csv(path, index=False, encoding=config.ibkr.output_encoding)
-    log.info("  → %s", path)
+    log.info("    → %s", path)
+
+
+def fetch_commodity_contracts(
+    ib: IB,
+    symbol: str,
+    name: str,
+    exchange: str,
+    front_month_only: bool = False,
+) -> None:
+    """
+    拉取单只品种的全部（或仅主力）合约数据并保存。
+
+    Args:
+        front_month_only: True 仅拉最近月合约
+    """
+    try:
+        contracts = _resolve_all_contracts(ib, symbol, exchange)
+    except Exception as e:
+        log.error("  %s (%s): 合约搜索失败 — %s", name, symbol, e)
+        return
+
+    if not contracts:
+        log.warning("  %s (%s): 无活跃合约", name, symbol)
+        return
+
+    target = contracts[:1] if front_month_only else contracts
+    mode = "主力" if front_month_only else f"全部 {len(target)} 个"
+    log.info(
+        "拉取 %s (%s @ %s) — %s合约",
+        name,
+        symbol,
+        exchange,
+        mode,
+    )
+
+    for i, contract in enumerate(target):
+        month = _expiry_to_month(contract.lastTradeDateOrContractMonth)
+        local = contract.localSymbol
+        log.info(
+            "  [%d/%d] %s expiry=%s conId=%s",
+            i + 1,
+            len(target),
+            local,
+            contract.lastTradeDateOrContractMonth,
+            contract.conId,
+        )
+
+        df = _fetch_bars(ib, contract)
+        if df is not None:
+            _save_csv(df, symbol, month)
+            log.info(
+                "      %s bars, %s → %s",
+                len(df),
+                df["date"].iloc[0],
+                df["date"].iloc[-1],
+            )
+        else:
+            log.warning("      无数据")
+
+        if i < len(target) - 1:
+            time.sleep(REQUEST_DELAY)
 
 
 def fetch_all_commodities(
     symbols: list[str] | None = None,
     dry_run: bool = False,
+    front_month_only: bool = False,
     client_id: int | None = None,
 ) -> None:
-    """
-    拉取指定（或全部）商品期货数据并保存。
-
-    Args:
-        symbols: 要拉取的品种列表，None 表示全部
-        dry_run: True 则仅连接检查，不拉取数据
-        client_id: TWS/IBGW clientId
-    """
+    """拉取所有配置的商品期货数据。"""
     ib = _connect(client_id)
 
     if dry_run:
@@ -183,10 +230,7 @@ def fetch_all_commodities(
     }
 
     for symbol, (name, exchange) in targets.items():
-        log.info("拉取 %s (%s @ %s)...", name, symbol, exchange)
-        df = fetch_one_commodity(ib, symbol, name, exchange)
-        if df is not None:
-            _save_csv(df, symbol)
+        fetch_commodity_contracts(ib, symbol, name, exchange, front_month_only)
         time.sleep(REQUEST_DELAY)
 
     ib.disconnect()
@@ -200,6 +244,11 @@ if __name__ == "__main__":
         type=str,
         default=None,
         help="逗号分隔的品种代码，如 GC,CL,SI,HG",
+    )
+    parser.add_argument(
+        "--front-month",
+        action="store_true",
+        help="仅拉取主力合约（最近月），默认拉全部未过期合约",
     )
     parser.add_argument(
         "--dry-run",
@@ -225,5 +274,6 @@ if __name__ == "__main__":
     fetch_all_commodities(
         symbols=symbol_list,
         dry_run=args.dry_run,
+        front_month_only=args.front_month,
         client_id=args.client_id,
     )
