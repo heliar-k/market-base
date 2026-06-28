@@ -1,13 +1,16 @@
 """
 Fetch economic indicators from FRED API.
-Requires FRED_API_KEY in .env file.
+数据按分类写入 data/fred/{category}/{category}.csv。
+
+用法:
+    ./bin/fetch_fred
 """
 
 import logging
 
 from fredapi import Fred
 
-from ..config import config
+from ..config import FRED_SERIES_FLAT, config
 from ..quality import DataPoint, QAStatus
 
 logger = logging.getLogger(__name__)
@@ -41,10 +44,10 @@ def _fetch_one_fred(fred: Fred, name: str, series_id: str) -> DataPoint:
 
 
 def fetch_all_fred() -> list[DataPoint]:
-    """Fetch all configured FRED series. Returns list of DataPoints."""
+    """Fetch all configured FRED series. Returns flat list of DataPoints."""
     fred = _get_fred()
     results = []
-    for name, series_id in config.fred_series.items():
+    for name, series_id in FRED_SERIES_FLAT.items():
         logger.info(f"Fetching {name} ({series_id})...")
         dp = _fetch_one_fred(fred, name, series_id)
         status = "✓" if dp.qa_status == QAStatus.OK else "✗"
@@ -69,7 +72,12 @@ if __name__ == "__main__":
     ok = sum(1 for r in results if r.qa_status == QAStatus.OK)
     print(f"FRED: {ok}/{len(results)} OK")
 
-    # 保存到 data/fred/fred_series.csv
+    # 按分类写入独立 CSV
     root = Path(__file__).resolve().parent.parent.parent
-    save_daily_csv(root / "data" / "fred" / "fred_series.csv", results)
-    print("  → data/fred/fred_series.csv")
+    for category, series in config.fred_series.items():
+        cat_names = set(series.keys())
+        cat_results = [r for r in results if r.metric in cat_names]
+        if cat_results:
+            path = root / "data" / "fred" / category / f"{category}.csv"
+            save_daily_csv(path, cat_results)
+            print(f"  → data/fred/{category}/{category}.csv ({len(cat_results)} 系列)")

@@ -4,77 +4,32 @@
 
 ---
 
-## 1. 宏观指标 — `data/fred/fred_series.csv`
+## 1. 宏观指标 — `data/fred/{category}/` （9 分类）
 
-34 个系列，来源 FRED API。每日 `./bin/fetch_fred` 更新。
+9 个分类、46 个系列，来源 FRED API。每日 `./bin/fetch_fred` 更新。
 
-### 波动率
-| 列名 | FRED ID | 说明 | 单位 |
-|------|---------|------|------|
-| `VIX` | VIXCLS | CBOE 波动率指数 | 点 |
-| `HY_OAS` | BAMLH0A0HYM2 | 高收益债 OAS 利差 | % |
-| `IG_OAS` | BAMLC0A0CM | 投资级债 OAS 利差 | % |
+| 分类 | 路径 | 系列 | 内容 |
+|------|------|------|------|
+| `volatility` | `data/fred/volatility/volatility.csv` | 3 | VIX / HY_OAS / IG_OAS |
+| `inflation` | `data/fred/inflation/inflation.csv` | 11 | CPI / PCE / 核心CPI / BEI / 通胀预期 |
+| `labor` | `data/fred/labor/labor.csv` | 3 | 失业率 / 非农 / 首申失业金 |
+| `growth` | `data/fred/growth/growth.csv` | 2 | 实际GDP / 工业产出 |
+| `rates` | `data/fred/rates/rates.csv` | 14 | 联邦基金利率 / SOFR / IORB / 国债全期限 |
+| `tips` | `data/fred/tips/tips.csv` | 5 | 5Y-30Y TIPS 实际收益率 |
+| `liquidity` | `data/fred/liquidity/liquidity.csv` | 5 | NFCI / 准备金 / RRP / TGA / 联储总资产 |
+| `sentiment` | `data/fred/sentiment/sentiment.csv` | 2 | 消费者信心 / 金融压力指数 |
+| `fx` | `data/fred/fx/fx.csv` | 1 | 贸易加权美元指数 |
 
-### 通胀预期（市场定价，TIPS 推算）
-| 列名 | FRED ID | 说明 |
-|------|---------|------|
-| `T5YIE` | T5YIE | 5 年盈亏平衡通胀率 |
-| `T10YIE` | T10YIE | 10 年盈亏平衡通胀率 |
-| `T5YIFR` | T5YIFR | 5Y5Y 远期通胀预期 |
-
-### TIPS 实际收益率（用于自行计算 BEI）
-| 列名 | FRED ID | 说明 |
-|------|---------|------|
-| `DFII5` | DFII5 | 5 年 TIPS 实际收益率 |
-| `DFII7` | DFII7 | 7 年 TIPS 实际收益率 |
-| `DFII10` | DFII10 | 10 年 TIPS 实际收益率 |
-| `DFII20` | DFII20 | 20 年 TIPS 实际收益率 |
-| `DFII30` | DFII30 | 30 年 TIPS 实际收益率 |
-
-> **BEI 计算公式**: `BEI_10Y = (DGS10 - DFII10) * 100`（单位 bp）
-
-### 通胀预期（模型/调查，非 TIPS）
-| 列名 | FRED ID | 说明 |
-|------|---------|------|
-| `MICH` | MICH | 密歇根大学消费者 1Y 通胀预期（调查） |
-| `EXPINF_1Y` | EXPINF1YR | 克利夫兰联储 1Y 通胀预期（模型） |
-| `EXPINF_2Y` | EXPINF2YR | 克利夫兰联储 2Y 通胀预期（模型） |
-| `EXPINF_5Y` | EXPINF5YR | 克利夫兰联储 5Y 通胀预期（模型） |
-| `EXPINF_10Y` | EXPINF10YR | 克利夫兰联储 10Y 通胀预期（模型） |
-
-### 名义国债收益率曲线
-| 列名 | FRED ID | 说明 |
-|------|---------|------|
-| `DGS1MO` | DGS1MO | 1 月期国债 |
-| `DGS3MO` | DGS3MO | 3 月期国债 |
-| `DGS6MO` | DGS6MO | 6 月期国债 |
-| `DGS1` | DGS1 | 1 年期国债 |
-| `DGS2` | DGS2 | 2 年期国债 |
-| `DGS3` | DGS3 | 3 年期国债 |
-| `DGS5` | DGS5 | 5 年期国债 |
-| `DGS7` | DGS7 | 7 年期国债 |
-| `DGS10` | DGS10 | 10 年期国债 |
-| `DGS20` | DGS20 | 20 年期国债 |
-| `DGS30` | DGS30 | 30 年期国债 |
-
-### 金融状况
-| 列名 | FRED ID | 说明 |
-|------|---------|------|
-| `NFCI` | NFCI | 芝加哥联储全国金融状况指数 |
-
-### 美联储流动性
-| 列名 | FRED ID | 说明 | 单位 |
-|------|---------|------|------|
-| `RRPONTSYD` | RRPONTSYD | 隔夜逆回购（RRP） | 十亿美元 |
-| `WTREGEN` | WTREGEN | 财政部一般账户（TGA） | 百万美元 |
-| `WRESBAL` | WRESBAL | 准备金余额 | 百万美元 |
-| `WALCL` | WALCL | 美联储总资产 | 百万美元 |
-
-### 政策利率
-| 列名 | FRED ID | 说明 |
-|------|---------|------|
-| `SOFR` | SOFR | 担保隔夜融资利率 |
-| `IORB` | IORB | 准备金余额利率 |
+### 列名速查
+`volatility`: VIX, HY_OAS, IG_OAS
+`inflation`: CPI, PCE, CORE_CPI, T5YIE, T10YIE, T5YIFR, MICH, EXPINF_1Y, EXPINF_2Y, EXPINF_5Y, EXPINF_10Y
+`labor`: UNRATE, PAYEMS, ICSA
+`growth`: GDP, INDPRO
+`rates`: FEDFUNDS, SOFR, IORB, DGS1MO, DGS3MO, DGS6MO, DGS1, DGS2, DGS3, DGS5, DGS7, DGS10, DGS20, DGS30
+`tips`: DFII5, DFII7, DFII10, DFII20, DFII30
+`liquidity`: NFCI, RRPONTSYD, WTREGEN, WRESBAL, WALCL
+`sentiment`: UMCSENT, STLFSI4
+`fx`: DXY
 
 ---
 
@@ -204,8 +159,17 @@ VIX 不在此文件（已在 FRED fred_series.csv），避免重复。
 ```python
 import pandas as pd
 
-# 宏观指标（含国债收益率、通胀预期、流动性）
-macro = pd.read_csv('data/fred/fred_series.csv', index_col='date', parse_dates=True)
+# 按分类读 FRED 数据
+rates = pd.read_csv('data/fred/rates/rates.csv', index_col='date', parse_dates=True)
+infl = pd.read_csv('data/fred/inflation/inflation.csv', index_col='date', parse_dates=True)
+labor = pd.read_csv('data/fred/labor/labor.csv', index_col='date', parse_dates=True)
+
+# 或合并所需的分类
+macro = pd.concat([
+    pd.read_csv(f'data/fred/{c}/{c}.csv', index_col='date', parse_dates=True)
+    for c in ['rates', 'tips', 'inflation', 'liquidity']
+], axis=1)
+
 # 算 5Y BEI
 macro['BEI_5Y'] = (macro['DGS5'] - macro['DFII5']) * 100
 # 算 2s10s 利差

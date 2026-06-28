@@ -25,51 +25,76 @@ if _env_path.exists():
 # 数据资产定义（模块级常量，一目了然）
 # ═══════════════════════════════════════════════════════════════════════════════
 
+# {category: {metric: series_id}}
 FRED_SERIES = {
-    # ── 波动率 ──
-    "VIX": "VIXCLS",
-    # ── 信用利差 ──
-    "HY_OAS": "BAMLH0A0HYM2",
-    "IG_OAS": "BAMLC0A0CM",
-    # ── 通胀预期 / BEI ──
-    "T10YIE": "T10YIE",
-    "T5YIE": "T5YIE",
-    "T5YIFR": "T5YIFR",
-    # ── TIPS 实际收益率（全期限，用于 BEI 计算）──
-    "DFII5": "DFII5",
-    "DFII7": "DFII7",
-    "DFII10": "DFII10",
-    "DFII20": "DFII20",
-    "DFII30": "DFII30",
-    # ── 金融状况 ──
-    "NFCI": "NFCI",
-    # ── 流动性 ──
-    "RRPONTSYD": "RRPONTSYD",
-    "WTREGEN": "WTREGEN",
-    "WRESBAL": "WRESBAL",
-    # ── 名义国债收益率曲线（全期限）──
-    "DGS1MO": "DGS1MO",
-    "DGS3MO": "DGS3MO",
-    "DGS6MO": "DGS6MO",
-    "DGS1": "DGS1",
-    "DGS2": "DGS2",
-    "DGS3": "DGS3",
-    "DGS5": "DGS5",
-    "DGS7": "DGS7",
-    "DGS10": "DGS10",
-    "DGS20": "DGS20",
-    "DGS30": "DGS30",
-    # ── 政策利率 ──
-    "SOFR": "SOFR",
-    "IORB": "IORB",
-    # ── 美联储资产负债表 ──
-    "WALCL": "WALCL",
-    # ── 通胀预期（非 TIPS 来源）──
-    "MICH": "MICH",
-    "EXPINF_1Y": "EXPINF1YR",
-    "EXPINF_2Y": "EXPINF2YR",
-    "EXPINF_5Y": "EXPINF5YR",
-    "EXPINF_10Y": "EXPINF10YR",
+    "volatility": {
+        "VIX": "VIXCLS",
+        "HY_OAS": "BAMLH0A0HYM2",
+        "IG_OAS": "BAMLC0A0CM",
+    },
+    "inflation": {
+        "CPI": "CPIAUCSL",
+        "PCE": "PCEPI",
+        "CORE_CPI": "CPILFESL",
+        "T5YIE": "T5YIE",
+        "T10YIE": "T10YIE",
+        "T5YIFR": "T5YIFR",
+        "MICH": "MICH",
+        "EXPINF_1Y": "EXPINF1YR",
+        "EXPINF_2Y": "EXPINF2YR",
+        "EXPINF_5Y": "EXPINF5YR",
+        "EXPINF_10Y": "EXPINF10YR",
+    },
+    "labor": {
+        "UNRATE": "UNRATE",
+        "PAYEMS": "PAYEMS",
+        "ICSA": "ICSA",
+    },
+    "growth": {
+        "GDP": "GDPC1",
+        "INDPRO": "INDPRO",
+    },
+    "rates": {
+        "FEDFUNDS": "FEDFUNDS",
+        "SOFR": "SOFR",
+        "IORB": "IORB",
+        "DGS1MO": "DGS1MO",
+        "DGS3MO": "DGS3MO",
+        "DGS6MO": "DGS6MO",
+        "DGS1": "DGS1",
+        "DGS2": "DGS2",
+        "DGS3": "DGS3",
+        "DGS5": "DGS5",
+        "DGS7": "DGS7",
+        "DGS10": "DGS10",
+        "DGS20": "DGS20",
+        "DGS30": "DGS30",
+    },
+    "tips": {
+        "DFII5": "DFII5",
+        "DFII7": "DFII7",
+        "DFII10": "DFII10",
+        "DFII20": "DFII20",
+        "DFII30": "DFII30",
+    },
+    "liquidity": {
+        "NFCI": "NFCI",
+        "RRPONTSYD": "RRPONTSYD",
+        "WTREGEN": "WTREGEN",
+        "WRESBAL": "WRESBAL",
+        "WALCL": "WALCL",
+    },
+    "sentiment": {
+        "UMCSENT": "UMCSENT",
+        "STLFSI4": "STLFSI4",
+    },
+    "fx": {
+        "DXY": "DTWEXBGS",
+    },
+}
+
+FRED_SERIES_FLAT = {
+    metric: sid for category in FRED_SERIES.values() for metric, sid in category.items()
 }
 
 # ── 商品期货（IBKR 拉取）──

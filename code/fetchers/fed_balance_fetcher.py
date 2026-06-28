@@ -1,7 +1,7 @@
 """
 Compute derived Fed liquidity metrics from FRED data.
 
-Reads from data/fred/fred_series.csv (already fetched by fred_fetcher),
+Reads from data/fred/liquidity/ and data/fred/rates/ (fetched by fred_fetcher),
 computes derived indicators: SOFR-IORB spread and Net Liquidity.
 
 Units:
@@ -20,25 +20,26 @@ logger = logging.getLogger(__name__)
 
 
 def _read_latest_fred() -> dict:
-    """Read the latest row from data/fred/fred_series.csv."""
+    """Read latest rows from category CSVs, merge into flat dict."""
     from pathlib import Path
 
     root = Path(__file__).resolve().parent.parent.parent
-    csv_path = root / "data" / "fred" / "fred_series.csv"
+    base = root / "data" / "fred"
+    result: dict[str, float | None] = {}
 
-    if not csv_path.exists():
-        logger.error("fred_series.csv not found — run ./bin/fetch_fred first")
-        return {}
+    for category in ("liquidity", "rates"):
+        csv_path = base / category / f"{category}.csv"
+        if not csv_path.exists():
+            logger.warning("%s not found — run ./bin/fetch_fred first", csv_path)
+            continue
+        df = pd.read_csv(csv_path, index_col="date", parse_dates=True)
+        if df.empty:
+            continue
+        latest = df.iloc[-1]
+        for col in df.columns:
+            result[col] = float(latest[col]) if pd.notna(latest[col]) else None
 
-    df = pd.read_csv(csv_path, index_col="date", parse_dates=True)
-    if df.empty:
-        logger.error("fred_series.csv is empty")
-        return {}
-
-    latest = df.iloc[-1]
-    return {
-        col: float(latest[col]) if pd.notna(latest[col]) else None for col in df.columns
-    }
+    return result
 
 
 def compute_net_liquidity() -> list[DataPoint]:
