@@ -10,9 +10,9 @@ IBKR 期权链参数拉取脚本
     data/options/{SYMBOL}_grid.csv     - 展开的到期日×行权价网格（便于后续分析）
 
 用法:
-    uv run python -m code.fetchers.options_fetcher
-    uv run python -m code.fetchers.options_fetcher --symbols AAPL,TSLA
-    uv run python -m code.fetchers.options_fetcher --dry-run
+    uv run python code/fetchers/options_fetcher.py
+    uv run python code/fetchers/options_fetcher.py --symbols AAPL,TSLA
+    uv run python code/fetchers/options_fetcher.py --dry-run
 """
 
 import argparse
@@ -25,7 +25,9 @@ from pathlib import Path
 
 from ib_insync import IB, Stock
 
-from ..config import config
+# 支持直接执行时找到 code/ 下的兄弟模块
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from config import config
 
 logging.basicConfig(
     level=logging.INFO,
