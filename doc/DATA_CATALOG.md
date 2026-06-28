@@ -161,6 +161,21 @@ VIX 不在此文件（已在 FRED fred_series.csv），避免重复。
 | `{SYMBOL}_chain.json` | 完整参数（到期日、行权价、交易所） |
 | `{SYMBOL}_grid.csv` | 到期日 × 行权价格网 |
 
+---
+
+## 7. 商品期货 — `data/commodities/{SYMBOL}.csv`
+
+4 个国际商品期货，来源 IBKR，自动查找主力合约（最近月）。每日 `./bin/fetch_commodities` 更新。
+
+| 文件 | 品种 | 交易所 | 说明 |
+|------|------|--------|------|
+| `GC.csv` | Gold | COMEX | 黄金期货 |
+| `CL.csv` | WTI Crude | NYMEX | 西德克萨斯原油 |
+| `SI.csv` | Silver | COMEX | 白银期货 |
+| `HG.csv` | Copper | COMEX | 铜期货 |
+
+列格式同股票/指数 OHLCV（date/open/high/low/close/volume/average/barCount）。
+
 ### Grid CSV 列格式
 
 | 列名 | 说明 |
