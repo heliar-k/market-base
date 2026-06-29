@@ -7,7 +7,7 @@ import csv
 from datetime import datetime
 from pathlib import Path
 
-from ..quality import DataPoint, QAStatus
+from .quality import DataPoint, QAStatus
 
 
 def save_daily_csv(

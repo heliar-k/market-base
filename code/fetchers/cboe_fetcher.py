@@ -14,7 +14,7 @@ from io import StringIO
 import pandas as pd
 import requests
 
-from ..quality import DataPoint
+from .quality import DataPoint
 
 logger = logging.getLogger(__name__)
 

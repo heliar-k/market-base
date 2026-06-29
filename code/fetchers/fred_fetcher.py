@@ -11,7 +11,7 @@ import logging
 from fredapi import Fred
 
 from ..config import FRED_SERIES_FLAT, config
-from ..quality import DataPoint, QAStatus
+from .quality import DataPoint, QAStatus
 
 logger = logging.getLogger(__name__)
 

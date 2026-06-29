@@ -7,7 +7,7 @@ import logging
 import os
 
 from ..config import config
-from ..quality import DataPoint, QAStatus
+from .quality import DataPoint, QAStatus
 
 logger = logging.getLogger(__name__)
 

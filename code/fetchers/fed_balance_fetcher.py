@@ -14,7 +14,7 @@ import logging
 
 import pandas as pd
 
-from ..quality import DataPoint, QAStatus
+from .quality import DataPoint, QAStatus
 
 logger = logging.getLogger(__name__)
 
