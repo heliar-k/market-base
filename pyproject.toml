@@ -7,15 +7,19 @@ dependencies = [
     "ib-insync>=0.9.86",
     "pandas>=3.0.3",
     "pandas-ta-classic>=0.6.52",
+    "pyarrow>=17.0.0",
     "rich>=15.0.0",
     "fredapi>=0.5.1",
     "requests>=2.31.0",
     "yfinance>=0.2.40",
+    "textual>=8.2.8",
+    "textual-plotext>=1.0.1",
 ]
 
 [dependency-groups]
 dev = [
     "pytest>=8.0",
+    "pytest-asyncio>=1.4.0",
 ]
 
 [tool.ruff.lint]
@@ -29,3 +33,4 @@ testpaths = ["tests"]
 python_files = ["test_*.py"]
 addopts = ["-q", "--import-mode=importlib"]
 pythonpath = ["."]
+asyncio_mode = "auto"
