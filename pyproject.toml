@@ -13,8 +13,19 @@ dependencies = [
     "yfinance>=0.2.40",
 ]
 
+[dependency-groups]
+dev = [
+    "pytest>=8.0",
+]
+
 [tool.ruff.lint]
 select = ["E", "F", "I", "W"]
 
 [tool.ruff.lint.isort]
-known-first-party = ["code"]
+known-first-party = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+addopts = ["-q", "--import-mode=importlib"]
+pythonpath = ["."]

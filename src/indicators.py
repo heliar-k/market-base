@@ -2,7 +2,7 @@
 技术指标计算模块 — 从本地 CSV 读取 OHLCV 数据并计算常用指标。
 
 用法:
-    from code.indicators import load_data, compute_all_indicators
+    from src.indicators import load_data, compute_all_indicators
 
     df = load_data("data/MSFT.csv")
     df = compute_all_indicators(df)
@@ -264,6 +264,31 @@ CDL_BEARISH = {
 }
 
 
+def detect_cdl_hits(df: pd.DataFrame, as_of=None) -> tuple[list[str], list[str]]:
+    """检测指定行命中的反转蜡烛形态，返回 (看多形态名, 看空形态名)。
+
+    as_of=None → 用最后一行；as_of 为日期则查该行的 CDL_* 列。
+    CDL 列无未来函数（每行仅依赖该日及之前 K 线），故直接按行查询即可，
+    无需截断 df。
+    """
+    if as_of is not None:
+        as_of = pd.Timestamp(as_of)
+        row = df.loc[as_of]
+    else:
+        row = df.iloc[-1]
+    bullish_hits = [
+        CDL_BULLISH[col]
+        for col in CDL_BULLISH
+        if col in df.columns and row.get(col, 0) != 0
+    ]
+    bearish_hits = [
+        CDL_BEARISH[col]
+        for col in CDL_BEARISH
+        if col in df.columns and row.get(col, 0) != 0
+    ]
+    return bullish_hits, bearish_hits
+
+
 def add_cdl_patterns(df: pd.DataFrame) -> pd.DataFrame:
     """
     识别 62 种 K 线形态（pandas-ta 原生，无需 TA-Lib）。
@@ -274,18 +299,8 @@ def add_cdl_patterns(df: pd.DataFrame) -> pd.DataFrame:
         for col in result.columns:
             df[col] = result[col]
 
-        # 提取最新行命中的反转形态
-        last = df.iloc[-1]
-        bullish_hits = [
-            CDL_BULLISH[col]
-            for col in CDL_BULLISH
-            if col in df.columns and last.get(col, 0) != 0
-        ]
-        bearish_hits = [
-            CDL_BEARISH[col]
-            for col in CDL_BEARISH
-            if col in df.columns and last.get(col, 0) != 0
-        ]
+        # 最新行命中存入 attrs（保持原行为）
+        bullish_hits, bearish_hits = detect_cdl_hits(df)
         df.attrs["cdl_bullish"] = bullish_hits
         df.attrs["cdl_bearish"] = bearish_hits
     return df

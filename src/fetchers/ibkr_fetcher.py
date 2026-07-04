@@ -260,7 +260,7 @@ def main():
         return
 
     # 输出目录
-    script_dir = Path(__file__).resolve().parent  # code/fetchers/
+    script_dir = Path(__file__).resolve().parent  # src/fetchers/
     project_root = script_dir.parent.parent  # K线分析/
     base_dir = project_root / ibkr_cfg.output_dir
     base_dir.mkdir(parents=True, exist_ok=True)

@@ -159,7 +159,7 @@ def main():
         ib.disconnect()
         return
 
-    script_dir = Path(__file__).resolve().parent  # code/fetchers/
+    script_dir = Path(__file__).resolve().parent  # src/fetchers/
     project_root = script_dir.parent.parent  # K线分析/
     output_dir = project_root / "data" / "options"
     output_dir.mkdir(parents=True, exist_ok=True)

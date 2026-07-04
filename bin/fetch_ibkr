@@ -3,4 +3,4 @@
 # 调用 code/fetchers/ibkr_fetcher.py
 set -euo pipefail
 cd "$(dirname "$0")/.."
-exec uv run python -m code.fetchers.ibkr_fetcher "$@"
+exec uv run python -m src.fetchers.ibkr_fetcher "$@"

@@ -4,7 +4,7 @@
 
 ---
 
-> **uv 项目** — 所有 Python 脚本必须用 `uv run` 执行，如 `uv run python -m code.analyze`、`uv run python code/compute_gex.py`。不要直接用 `python`。
+> **uv 项目** — 所有 Python 脚本必须用 `uv run` 执行，如 `uv run python -m src.analyze`、`uv run python src/compute_gex.py`。不要直接用 `python`。
 > 数据拉取脚本在 `bin/` 下有 shell 包装（内部已用 `uv run`），直接执行 `./bin/fetch_*` 即可。
 
 ## 项目结构
@@ -78,17 +78,17 @@ K线分析/
 ./bin/fetch_options                 # 期权链参数
 
 # 分析（code/ 下的 Python 脚本需要用 uv run 执行）
-uv run python -m code.analyze                        # 分析 data/MSFT.csv（默认）
-uv run python -m code.analyze data/AAPL.csv          # 指定文件
-uv run python -m code.analyze data/AAPL.csv --json   # JSON 输出
+uv run python -m src.analyze                        # 分析 data/MSFT.csv（默认）
+uv run python -m src.analyze data/AAPL.csv          # 指定文件
+uv run python -m src.analyze data/AAPL.csv --json   # JSON 输出
 
 # GEX 计算
-uv run python code/compute_gex.py                        # AAPL（默认）
-uv run python code/compute_gex.py --symbol TSLA          # 指定品种
-uv run python code/compute_gex.py --expirations 6        # 6 个到期月
+uv run python src/compute_gex.py                        # AAPL（默认）
+uv run python src/compute_gex.py --symbol TSLA          # 指定品种
+uv run python src/compute_gex.py --expirations 6        # 6 个到期月
 
 # cron（每个交易日美股收盘后，北京时间 05:00）
-# 0 5 * * 1-5 cd /Users/guankai/Documents/K线分析 && bash code/run_fetch.sh >> logs/cron.log 2>&1
+# 0 5 * * 1-5 cd /Users/guankai/Documents/K线分析 && bash src/run_fetch.sh >> logs/cron.log 2>&1
 ```
 
 ---
@@ -98,8 +98,8 @@ uv run python code/compute_gex.py --expirations 6        # 6 个到期月
 ### 1. 数据层 vs 分析层分离
 - **fetchers/** 只负责拉取数据、写入 CSV，**不**包含分析逻辑
 - **indicators.py / analyze.py** 只负责读取本地 CSV、计算指标、输出报告
-- 新增 fetcher → 在 `code/fetchers/` 下新建文件，实现 `fetch_*() -> list[DataPoint]`
-- 新增指标 → 在 `code/indicators.py` 里加 `add_*()` 函数，并在 `compute_all_indicators()` 注册
+- 新增 fetcher → 在 `src/fetchers/` 下新建文件，实现 `fetch_*() -> list[DataPoint]`
+- 新增指标 → 在 `src/indicators.py` 里加 `add_*()` 函数，并在 `compute_all_indicators()` 注册
 
 ### 2. 增量 CSV 模式
 - 所有数据以日频增量 CSV 存储，`date` 列为首列（ISO 格式）
@@ -109,10 +109,10 @@ uv run python code/compute_gex.py --expirations 6        # 6 个到期月
 ### 3. 数据质量追踪
 - 每个指标拉取返回 `DataPoint`（含 value / as_of / source / qa_status）
 - 失败的数据点用 `mark_error()` 标记，不写入 CSV，不影响已有数据
-- 见 `code/fetchers/quality.py`
+- 见 `src/fetchers/quality.py`
 
 ### 4. 统一配置
-- `code/config.py` 是唯一配置入口：FRED 系列、IBKR 品种、yfinance 标的
+- `src/config.py` 是唯一配置入口：FRED 系列、IBKR 品种、yfinance 标的
 - `.env` 管理密钥（`FRED_API_KEY`），`config.py` 自动加载
 - ib-insync TWS 端口用纸交易模式 `4002`（实盘 `4001`）
 
@@ -131,7 +131,7 @@ uv run python code/compute_gex.py --expirations 6        # 6 个到期月
 - **语言**: 注释和文档用中文（面向中文用户），代码标识符用英文
 - **格式化**: ruff (select E/F/I/W) + ruff-format，`pre-commit` 自动执行
 - **类型提示**: 所有函数签名带类型注解，用 `|` 替代 `Optional`（Python 3.10+）
-- **import**: 先标准库 → 第三方 → `code.*`（`isort` 自动处理）
+- **import**: 先标准库 → 第三方 → `src.*`（`isort` 自动处理）
 - **测试**: 无正式测试框架。非平凡逻辑留一个 `if __name__ == "__main__":` 自测块
 
 ---
@@ -155,7 +155,7 @@ uv run python code/compute_gex.py --expirations 6        # 6 个到期月
 ### 数据质量
 
 ```python
-from code.fetchers.quality import DataPoint, QAStatus
+from src.fetchers.quality import DataPoint, QAStatus
 
 dp = DataPoint(metric="CPI", source="FRED / CPIAUCSL", formula="YoY %")
 dp.value = 3.2
@@ -167,7 +167,7 @@ dp.mark_error("API timeout")  # QAStatus.ERROR
 ### 指标计算
 
 ```python
-from code.indicators import load_data, compute_all_indicators
+from src.indicators import load_data, compute_all_indicators
 
 df = load_data("data/AAPL.csv")
 df = compute_all_indicators(df)  # 返回带所有指标列的 DataFrame
@@ -180,7 +180,7 @@ df = compute_all_indicators(df)  # 返回带所有指标列的 DataFrame
 ### 配置扩展
 
 ```python
-# 在 code/config.py 中：
+# 在 src/config.py 中：
 # - FRED_SERIES: 新增分类 {category: {metric: series_id}}
 # - YF_TICKERS: 新增 yfinance 标的
 # - IBKR_SYMBOLS: 新增 IBKR 品种
@@ -207,7 +207,7 @@ thinking: medium
 
 1. 确定品种名（从用户输入提取，如 AAPL、MSFT、SPX）
 2. 检查 `data/stocks/{SYMBOL}.csv` 或 `data/indices/{SYMBOL}.csv` 是否存在
-3. 运行 `uv run python -m code.analyze data/{type}/{SYMBOL}.csv`
+3. 运行 `uv run python -m src.analyze data/{type}/{SYMBOL}.csv`
 4. 如果文件不存在，提示用户先用 `./bin/fetch_ibkr --symbols {SYMBOL}` 拉取
 5. 返回分析结果，解读关键指标信号
 ```
@@ -247,7 +247,7 @@ tools: read, bash, edit, write
 thinking: low
 ---
 
-1. 读 `code/config.py` 了解当前配置结构
+1. 读 `src/config.py` 了解当前配置结构
 2. 确定修改范围：
    - FRED 系列 → 修改 `FRED_SERIES` 字典，按分类添加
    - IBKR 品种 → 修改 `IBKR_SYMBOLS` 列表
@@ -262,7 +262,7 @@ thinking: low
 
 运行 GEX 计算，分析期权墙和 Gamma Flip 点。
 
-> 必须用 `uv run python code/compute_gex.py` 执行。
+> 必须用 `uv run python src/compute_gex.py` 执行。
 
 ```yaml
 ---
@@ -274,7 +274,7 @@ thinking: medium
 
 1. 确认品种（默认 AAPL）
 2. 检查 TWS/IB Gateway 是否运行在 localhost:4002
-3. 运行 `uv run python code/compute_gex.py --symbol {SYMBOL}`
+3. 运行 `uv run python src/compute_gex.py --symbol {SYMBOL}`
 4. 解读结果：
    - 最大正 GEX 行权价 = dealer 做多 gamma → 支撑位
    - 最大负 GEX 行权价 = dealer 做空 gamma → 阻力位

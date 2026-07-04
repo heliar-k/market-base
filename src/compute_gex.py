@@ -313,7 +313,8 @@ def print_wall(wall, spot, top_n=10):
     print(f"  期权墙 (Options Wall)  —  Spot: ${spot:.2f}")
     print(f"{'=' * 70}")
     print(
-        f"{'行权价':>8}  {'Call GEX':>14}  {'Put GEX':>14}  {'Total GEX':>14}  {'OI':>10}  {'IV':>7}"
+        f"{'行权价':>8}  {'Call GEX':>14}  {'Put GEX':>14}"
+        f"  {'Total GEX':>14}  {'OI':>10}  {'IV':>7}"
     )
     print(f"{'-' * 70}")
 
