@@ -12,7 +12,6 @@ let rsiSeries, rsiUpper, rsiLower;
 let macdHistSeries, macdLineSeries, macdSignalSeries;
 let crosshairDate = null;
 let debounceTimer = null;
-const symbolPrices = {}; // ponytail: cache { price, change } per symbol
 const MA_COLORS = { MA5:'#00bcd4', MA10:'#2196f3', MA20:'#ff9800', MA60:'#9c27b0', MA120:'#9e9e9e' };
 const BB_COLOR = '#78909c';
 
@@ -88,61 +87,39 @@ function initDiagToggle() {
 }
 
 // ── symbols sidebar ────────────────────────────────────────────────────────
+const ETF_LIKE = new Set(['SPY', 'QQQ']); // grouped with indices even though type=stock
+
 async function loadSymbols() {
   const res = await fetch('/api/symbols');
   const symbols = await res.json();
   const list = document.getElementById('symbol-list');
   list.innerHTML = '';
-  symbols.forEach(s => {
-    const div = document.createElement('div');
-    div.className = 'symbol-quote';
-    div.dataset.name = s.name;
-    div.innerHTML = `
-      <span class="sym-name">${s.name}</span>
-      <span class="sym-price" data-price="${s.name}">--</span>
-      <span class="sym-change" data-change="${s.name}">--</span>`;
-    div.addEventListener('click', () => selectSymbol(s.name));
-    list.appendChild(div);
-  });
-  // ponytail: fire-and-forget price fetch for sidebar quotes
-  loadSidebarPrices(symbols.map(s => s.name));
-}
 
-async function loadSidebarPrices(names) {
-  await Promise.all(names.map(async name => {
-    try {
-      const res = await fetch(`/api/kline/${name}?days=2`);
-      const data = await res.json();
-      if (data.length >= 2) {
-        const last = data[data.length - 1];
-        const prev = data[data.length - 2];
-        const chg = ((last.close - prev.close) / prev.close * 100);
-        symbolPrices[name] = { price: last.close, change: chg };
-        updateSidebarQuote(name);
-      } else if (data.length === 1) {
-        symbolPrices[name] = { price: data[0].close, change: 0 };
-        updateSidebarQuote(name);
-      }
-    } catch(e) { /* skip failed symbols */ }
-  }));
-}
+  const indices = symbols.filter(s => s.type === 'index' || ETF_LIKE.has(s.name));
+  const stocks   = symbols.filter(s => s.type === 'stock' && !ETF_LIKE.has(s.name));
 
-function updateSidebarQuote(name) {
-  const info = symbolPrices[name];
-  if (!info) return;
-  const priceEl = document.querySelector(`[data-price="${name}"]`);
-  const chgEl = document.querySelector(`[data-change="${name}"]`);
-  if (priceEl) priceEl.textContent = info.price.toFixed(2);
-  if (chgEl) {
-    const up = info.change >= 0;
-    chgEl.textContent = `${up ? '+' : ''}${info.change.toFixed(1)}%`;
-    chgEl.className = 'sym-change ' + (up ? 'up' : 'down');
-  }
+  const addSection = (title, items) => {
+    const hdr = document.createElement('div');
+    hdr.className = 'sidebar-section-header';
+    hdr.textContent = title;
+    list.appendChild(hdr);
+    items.forEach(s => {
+      const row = document.createElement('div');
+      row.className = 'sidebar-row';
+      row.dataset.name = s.name;
+      row.textContent = s.name;
+      row.addEventListener('click', () => selectSymbol(s.name));
+      list.appendChild(row);
+    });
+  };
+
+  addSection('指数 & ETF', indices);
+  addSection('个股', stocks);
 }
 
 async function selectSymbol(name) {
   currentSymbol = name;
-  document.querySelectorAll('.symbol-quote').forEach(el => {
+  document.querySelectorAll('.sidebar-row').forEach(el => {
     el.classList.toggle('active', el.dataset.name === name);
   });
   document.getElementById('status-symbol').textContent = name;
@@ -153,13 +130,6 @@ async function selectSymbol(name) {
   if (klineData.length > 0) {
     document.getElementById('status-range').textContent =
       `${klineData[0].date} → ${klineData[klineData.length-1].date}`;
-  }
-  // ponytail: cache current symbol price for sidebar
-  if (klineData.length >= 2) {
-    const last = klineData[klineData.length - 1];
-    const prev = klineData[klineData.length - 2];
-    symbolPrices[name] = { price: last.close, change: ((last.close - prev.close) / prev.close * 100) };
-    updateSidebarQuote(name);
   }
   updateInfoBar();
   renderCharts();
