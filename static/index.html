@@ -4,758 +4,86 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>K线分析</title>
+<link rel="stylesheet" href="/css/app.css">
 <script src="https://unpkg.com/lightweight-charts@4.2.2/dist/lightweight-charts.standalone.production.js"></script>
-<style>
-*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-body { font-family: system-ui, -apple-system, sans-serif; background: #f5f6f8; color: #1a1a2e; height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
-
-/* ── layout ─────────────────────────────────────────────── */
-.app { display: flex; flex: 1; min-height: 0; }
-.sidebar { width: 280px; background: #fff; border-right: 1px solid #e1e4e8; display: flex; flex-direction: row; flex-shrink: 0; }
-.center { flex: 1; display: flex; flex-direction: column; min-width: 0; padding: 12px; gap: 8px; overflow-y: auto; }
-.status-bar { height: 28px; background: #fff; border-top: 1px solid #e1e4e8; display: flex; align-items: center; padding: 0 16px; font-size: 12px; color: #666; gap: 16px; flex-shrink: 0; }
-
-/* ── sidebar ────────────────────────────────────────────── */
-.sidebar-tabs { display: flex; flex-direction: column; width: 32px; border-right: 1px solid #e1e4e8; flex-shrink: 0; }
-.sidebar-tab { flex: 1; display: flex; align-items: center; justify-content: center; cursor: pointer; color: #999; font-size: 12px; font-weight: 500; writing-mode: vertical-rl; text-orientation: mixed; padding: 12px 6px; transition: all .2s; user-select: none; border-right: 2px solid transparent; margin-right: -2px; position: relative; z-index: 1; }
-.sidebar-tab:hover { color: #1a73e8; background: #f8f9fb; }
-.sidebar-tab.active { color: #1a73e8; font-weight: 600; background: #e8f0fe; border-right-color: #1a73e8; }
-.sidebar-content { flex: 1; overflow-y: auto; padding: 4px 0; }
-.symbol-item { display: flex; align-items: center; justify-content: space-between; padding: 8px 16px; cursor: pointer; transition: background .15s; font-size: 14px; }
-.symbol-item:hover { background: #f0f2f5; }
-.symbol-item.active { background: #e8f0fe; color: #1a73e8; font-weight: 600; }
-.type-badge { font-size: 10px; padding: 2px 6px; border-radius: 4px; background: #e1e4e8; color: #555; }
-.type-badge.stock { background: #e8f5e9; color: #2e7d32; }
-.type-badge.index { background: #e3f2fd; color: #1565c0; }
-
-/* ── controls ───────────────────────────────────────────── */
-.controls { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
-.controls label { font-size: 12px; display: flex; align-items: center; gap: 3px; cursor: pointer; padding: 4px 8px; border-radius: 4px; border: 1px solid #e1e4e8; background: #fff; transition: background .15s; user-select: none; }
-.controls label:hover { background: #f0f2f5; }
-.controls input[type="checkbox"] { accent-color: #1a73e8; }
-
-/* ── chart containers ───────────────────────────────────── */
-.chart-card { background: #fff; border-radius: 8px; border: 1px solid #e1e4e8; overflow: hidden; }
-#macro-chart-card { overflow-y: auto; max-height: calc(100vh - 60px); }
-#main-chart { height: 500px; }
-#rsi-chart { height: 200px; }
-#macd-chart { height: 200px; }
-
-/* ── diagnosis panel ────────────────────────────────────── */
-.panel { width: 320px; background: #fff; border-left: 1px solid #e1e4e8; flex-shrink: 0; padding: 16px; transition: width .3s ease; overflow-y: auto; overflow-x: hidden; position: relative; }
-.panel.collapsed { width: 36px; padding: 16px 8px; overflow-y: hidden; }
-.panel-header { font-size: 16px; font-weight: 600; margin-bottom: 16px; padding-bottom: 12px; border-bottom: 1px solid #e1e4e8; cursor: pointer; user-select: none; white-space: nowrap; overflow: hidden; }
-.panel-header .toggle-icon { font-size: 14px; color: #999; transition: transform .3s; display: inline-block; }
-.panel.collapsed .toggle-icon { transform: rotate(180deg); }
-.panel.collapsed .panel-header { border-bottom: none; margin-bottom: 0; writing-mode: vertical-rl; text-orientation: mixed; font-size: 13px; padding-bottom: 0; display: flex; align-items: center; gap: 6px; }
-.panel.collapsed #diag-content { display: none; }
-.diag-section { margin-bottom: 16px; }
-.diag-section h4 { font-size: 12px; color: #666; margin-bottom: 6px; text-transform: uppercase; letter-spacing: .5px; }
-.score-bar { height: 8px; background: #e1e4e8; border-radius: 4px; overflow: hidden; margin: 8px 0; }
-.score-fill { height: 100%; border-radius: 4px; transition: width .3s; }
-.score-text { font-size: 24px; font-weight: 700; }
-.diag-row { display: flex; justify-content: space-between; padding: 4px 0; font-size: 13px; }
-.diag-label { color: #666; }
-.diag-value { font-weight: 500; }
-.up { color: #26a69a; }
-.down { color: #ef5350; }
-.neutral { color: #666; }
-.tag { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 11px; margin: 2px; }
-.tag-bull { background: #e8f5e9; color: #2e7d32; }
-.tag-bear { background: #ffebee; color: #c62828; }
-.cdl-list { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
-
-/* ── loading ────────────────────────────────────────────── */
-.loading { display: flex; align-items: center; justify-content: center; height: 100%; color: #999; font-size: 14px; }
-/* ── macro toolbar ─────────────────────────────────────────── */
-.macro-toolbar { display: flex; gap: 6px; padding: 8px 12px; border-bottom: 1px solid #e1e4e8; flex-wrap: wrap; position: sticky; top: 0; background: #fff; z-index: 10; }
-.macro-range-btn { padding: 4px 12px; border: 1px solid #d1d5db; border-radius: 4px; background: #fff; font-size: 12px; cursor: pointer; transition: all .15s; color: #666; }
-.macro-range-btn:hover { background: #f0f2f5; }
-.macro-range-btn.active { background: #1a73e8; color: #fff; border-color: #1a73e8; }
-
-/* ── macro sections ────────────────────────────────────────── */
-.macro-grid { display: flex; flex-direction: column; gap: 12px; }
-.macro-section { border: 1px solid #e1e4e8; border-radius: 8px; overflow: hidden; background: #fff; }
-.macro-section-header { display: flex; align-items: center; padding: 10px 16px; cursor: pointer; font-size: 14px; font-weight: 500; background: #fafbfc; transition: background .15s; }
-.macro-section-header:hover { background: #f0f2f5; }
-.macro-expand { margin-right: 6px; font-size: 10px; color: #999; transition: transform .2s; display: inline-block; }
-.macro-section.open .macro-expand { transform: rotate(90deg); }
-.macro-cat-name { flex: 1; }
-.macro-cat-count { font-size: 11px; color: #999; margin-left: 8px; }
-.macro-section-body { display: none; }
-.macro-section.open .macro-section-body { display: block; }
-.macro-series-charts { display: flex; flex-direction: column; gap: 12px; padding: 12px; }
-.macro-series-chart-wrap { }
-.macro-series-label { font-size: 12px; font-weight: 500; margin-bottom: 4px; padding-left: 4px; }
-.macro-series-chart { border-radius: 4px; overflow: hidden; }
-.tech-only {} /* ponytail: marker class for mode-toggle targeting */
-</style>
 </head>
 <body>
-<div class="app">
-  <!-- Left sidebar -->
+
+<!-- Tab bar -->
+<nav class="tab-bar">
+  <button class="tab-btn" data-tab="dashboard">仪表盘</button>
+  <button class="tab-btn" data-tab="tech">技术</button>
+  <button class="tab-btn" data-tab="macro">宏观</button>
+  <button class="tab-btn" data-tab="correlation">关联</button>
+  <button class="tab-btn" data-tab="liquidity">流动性</button>
+  <button class="tab-btn" data-tab="stock">个股</button>
+</nav>
+
+<div class="app" data-view="dashboard">
+  <!-- Left sidebar (tech only) -->
   <div class="sidebar">
-    <div class="sidebar-tabs">
-      <div class="sidebar-tab active" data-mode="tech">技术</div>
-      <div class="sidebar-tab" data-mode="macro">宏观</div>
-    </div>
-    <div class="sidebar-content" id="sidebar-content">
+    <div class="sidebar-content">
       <div class="symbol-list" id="symbol-list"><div class="loading">加载中…</div></div>
     </div>
   </div>
 
   <!-- Center -->
   <div class="center">
-    <div class="controls tech-only" id="controls">
-      <label><input type="checkbox" data-ma="MA5"> <span style="color:#00bcd4">MA5</span></label>
-      <label><input type="checkbox" data-ma="MA10"> <span style="color:#2196f3">MA10</span></label>
-      <label><input type="checkbox" data-ma="MA20"> <span style="color:#ff9800">MA20</span></label>
-      <label><input type="checkbox" data-ma="MA60"> <span style="color:#9c27b0">MA60</span></label>
-      <label><input type="checkbox" data-ma="MA120"> <span style="color:#9e9e9e">MA120</span></label>
-      <label><input type="checkbox" data-ma="BB"> <span style="color:#78909c">BB</span></label>
-      <label><input type="checkbox" data-ma="ST"> <span style="color:#e91e63">SuperTrend</span></label>
+    <!-- Dashboard -->
+    <div class="dashboard-view placeholder">
+      <div class="placeholder-icon">📊</div>
+      <div class="placeholder-text">仪表盘 · 即将上线</div>
     </div>
-    <div class="chart-card tech-only"><div id="main-chart"></div></div>
-    <div class="chart-card tech-only"><div id="rsi-chart"></div></div>
-    <div class="chart-card tech-only"><div id="macd-chart"></div></div>
-    <div class="chart-card" id="macro-chart-card" style="display:none"><div class="loading">加载中…</div></div>
+
+    <!-- Tech view -->
+    <div class="tech-view" style="flex-direction:column;gap:8px;flex:1">
+      <div class="controls" id="controls">
+        <label><input type="checkbox" data-ma="MA5"> <span style="color:#00bcd4">MA5</span></label>
+        <label><input type="checkbox" data-ma="MA10"> <span style="color:#2196f3">MA10</span></label>
+        <label><input type="checkbox" data-ma="MA20"> <span style="color:#ff9800">MA20</span></label>
+        <label><input type="checkbox" data-ma="MA60"> <span style="color:#9c27b0">MA60</span></label>
+        <label><input type="checkbox" data-ma="MA120"> <span style="color:#9e9e9e">MA120</span></label>
+        <label><input type="checkbox" data-ma="BB"> <span style="color:#78909c">BB</span></label>
+        <label><input type="checkbox" data-ma="ST"> <span style="color:#e91e63">SuperTrend</span></label>
+      </div>
+      <div class="chart-card"><div id="main-chart"></div></div>
+      <div class="chart-card"><div id="rsi-chart"></div></div>
+      <div class="chart-card"><div id="macd-chart"></div></div>
+    </div>
+
+    <!-- Macro view -->
+    <div class="macro-view" style="flex:1;flex-direction:column">
+      <div class="chart-card" id="macro-chart-card" style="flex:1;display:flex;flex-direction:column"><div class="loading">加载中…</div></div>
+    </div>
+
+    <!-- Placeholder views -->
+    <div class="placeholder-view placeholder" data-placeholder="correlation">
+      <div class="placeholder-icon">🔗</div>
+      <div class="placeholder-text">关联分析 · 即将上线</div>
+    </div>
+    <div class="placeholder-view placeholder" data-placeholder="liquidity">
+      <div class="placeholder-icon">💧</div>
+      <div class="placeholder-text">流动性 · 即将上线</div>
+    </div>
+    <div class="placeholder-view placeholder" data-placeholder="stock">
+      <div class="placeholder-icon">📈</div>
+      <div class="placeholder-text">个股 · 即将上线</div>
+    </div>
   </div>
 
-  <!-- Right panel -->
+  <!-- Right panel (tech only) -->
   <div class="panel collapsed" id="diag-panel">
     <div class="panel-header" id="diag-header">诊断分析 <span class="toggle-icon">◀</span></div>
     <div id="diag-content"><div class="loading">请选择标的</div></div>
   </div>
 </div>
+
 <div class="status-bar">
   <span id="status-symbol">—</span>
   <span id="status-range"></span>
   <span id="status-count"></span>
 </div>
 
-<script>
-// ── state ────────────────────────────────────────────────────────────────────
-let currentSymbol = null;
-let klineData = null;
-let mainChart, rsiChart, macdChart;
-let candleSeries, volumeSeries;
-let maSeries = {};       // key → LineSeries
-let rsiSeries, rsiUpper, rsiLower;
-let macdHistSeries, macdLineSeries, macdSignalSeries;
-let crosshairDate = null;
-let debounceTimer = null;
-const MA_COLORS = { MA5:'#00bcd4', MA10:'#2196f3', MA20:'#ff9800', MA60:'#9c27b0', MA120:'#9e9e9e' };
-const BB_COLOR = '#78909c';
-
-// ── init ─────────────────────────────────────────────────────────────────────
-(async () => {
-  await loadSymbols();
-  initCharts();
-  initControls();
-  initKeyboard();
-  initDiagToggle();
-})();
-
-// ── diagnosis toggle ─────────────────────────────────────────────────────────
-function initDiagToggle() {
-  const panel = document.getElementById('diag-panel');
-  const header = document.getElementById('diag-header');
-  header.addEventListener('click', () => panel.classList.toggle('collapsed'));
-}
-
-// ── symbols sidebar ──────────────────────────────────────────────────────────
-async function loadSymbols() {
-  const res = await fetch('/api/symbols');
-  const symbols = await res.json();
-  const list = document.getElementById('symbol-list');
-  list.innerHTML = '';
-  symbols.forEach(s => {
-    const div = document.createElement('div');
-    div.className = 'symbol-item';
-    div.dataset.name = s.name;
-    const typeLabel = s.type === 'stock' ? '股票' : '指数';
-    div.innerHTML = `<span>${s.name}</span><span class="type-badge ${s.type}">${typeLabel}</span>`;
-    div.addEventListener('click', () => selectSymbol(s.name));
-    list.appendChild(div);
-  });
-}
-
-async function selectSymbol(name) {
-  currentSymbol = name;
-  document.querySelectorAll('.symbol-item').forEach(el => {
-    el.classList.toggle('active', el.dataset.name === name);
-  });
-  document.getElementById('status-symbol').textContent = name;
-
-  // fetch kline
-  const res = await fetch(`/api/kline/${name}`);
-  klineData = await res.json();
-  document.getElementById('status-count').textContent = `${klineData.length} 条数据`;
-  if (klineData.length > 0) {
-    document.getElementById('status-range').textContent =
-      `${klineData[0].date} → ${klineData[klineData.length-1].date}`;
-  }
-  renderCharts();
-  fetchDiag();
-}
-
-// ── charts ───────────────────────────────────────────────────────────────────
-const CHART_OPTS = {
-  layout: { background: { type: 'solid', color: '#fff' }, textColor: '#333', fontSize: 12 },
-  grid: { vertLines: { color: '#f0f0f0' }, horzLines: { color: '#f0f0f0' } },
-  crosshair: { mode: 1 },
-  rightPriceScale: { borderColor: '#e1e4e8', visible: true, autoScale: true, scaleMargins: { top: 0.1, bottom: 0.1 } },
-  leftPriceScale: { visible: false },
-  timeScale: { borderColor: '#e1e4e8', timeVisible: false },
-  handleScroll: { vertTouchDrag: true, mouseWheel: true },
-  handleScale: { axisPressedMouseMove: true, mouseWheel: true },
-};
-
-function initCharts() {
-  mainChart = LightweightCharts.createChart(document.getElementById('main-chart'), { ...CHART_OPTS, height: 500 });
-  mainChart.priceScale('right').applyOptions({ autoScale: true, scaleMargins: { top: 0.1, bottom: 0.25 } });
-  candleSeries = mainChart.addCandlestickSeries({
-    upColor: '#26a69a', downColor: '#ef5350', borderUpColor: '#26a69a', borderDownColor: '#ef5350',
-    wickUpColor: '#26a69a', wickDownColor: '#ef5350',
-    priceFormat: { type: 'price', precision: 2, minMove: 0.01 },
-  });
-  volumeSeries = mainChart.addHistogramSeries({
-    priceFormat: { type: 'volume' }, priceScaleId: 'vol',
-    color: '#90caf9',
-  });
-  mainChart.priceScale('vol').applyOptions({ scaleMargins: { top: 0.85, bottom: 0 }, visible: true });
-
-  rsiChart = LightweightCharts.createChart(document.getElementById('rsi-chart'), { ...CHART_OPTS, height: 200 });
-  rsiChart.priceScale('right').applyOptions({ minimum: 0, maximum: 100 });
-  rsiSeries = rsiChart.addLineSeries({ color: '#7c4dff', lineWidth: 1.5 });
-  rsiUpper = rsiChart.addLineSeries({ color: '#ef5350', lineWidth: 1, lineStyle: 2, priceLineVisible: false, lastValueVisible: false });
-  rsiLower = rsiChart.addLineSeries({ color: '#26a69a', lineWidth: 1, lineStyle: 2, priceLineVisible: false, lastValueVisible: false });
-
-  macdChart = LightweightCharts.createChart(document.getElementById('macd-chart'), { ...CHART_OPTS, height: 200 });
-  macdHistSeries = macdChart.addHistogramSeries({ priceFormat: { type: 'price', precision: 2 } });
-  macdLineSeries = macdChart.addLineSeries({ color: '#2196f3', lineWidth: 1.5 });
-  macdSignalSeries = macdChart.addLineSeries({ color: '#ff9800', lineWidth: 1.5 });
-
-  // sync time scales
-  const syncFrom = (src, targets) => {
-    src.timeScale().subscribeVisibleLogicalRangeChange(range => {
-      if (!range) return;
-      targets.forEach(t => t.timeScale().setVisibleLogicalRange(range));
-    });
-  };
-  syncFrom(mainChart, [rsiChart, macdChart]);
-  syncFrom(rsiChart, [mainChart, macdChart]);
-  syncFrom(macdChart, [mainChart, rsiChart]);
-
-  // crosshair sync → diag
-  mainChart.subscribeCrosshairMove(param => {
-    if (!param || !param.time) { crosshairDate = null; return; }
-    crosshairDate = param.time;
-    syncCrosshairToChart(rsiChart, param);
-    syncCrosshairToChart(macdChart, param);
-    debouncedDiag();
-  });
-}
-
-function syncCrosshairToChart(chart, param) {
-  // lightweight-charts doesn't have a public crosshair sync API,
-  // so we just set the crosshair position programmatically
-  chart.setCrosshairPosition(NaN, NaN, param.time);
-}
-
-function renderCharts() {
-  if (!klineData || !klineData.length) return;
-  const candles = klineData.map(d => ({ time: d.date, open: d.open, high: d.high, low: d.low, close: d.close }));
-  const volumes = klineData.map(d => ({
-    time: d.date,
-    value: d.volume ?? 0,
-    color: d.close >= d.open ? 'rgba(38,166,154,0.3)' : 'rgba(239,83,80,0.3)',
-  }));
-  candleSeries.setData(candles);
-  volumeSeries.setData(volumes);
-
-  // RSI
-  const rsi = klineData.filter(d => d.RSI != null).map(d => ({ time: d.date, value: d.RSI }));
-  rsiSeries.setData(rsi);
-  if (rsi.length) {
-    const times = rsi.map(d => d.time);
-    rsiUpper.setData(times.map(t => ({ time: t, value: 70 })));
-    rsiLower.setData(times.map(t => ({ time: t, value: 30 })));
-  }
-
-  // MACD
-  const hist = klineData.filter(d => d.MACD_hist != null).map(d => ({
-    time: d.date, value: d.MACD_hist,
-    color: d.MACD_hist >= 0 ? '#26a69a' : '#ef5350',
-  }));
-  const macdLine = klineData.filter(d => d.MACD != null).map(d => ({ time: d.date, value: d.MACD }));
-  const signalLine = klineData.filter(d => d.MACD_signal != null).map(d => ({ time: d.date, value: d.MACD_signal }));
-  macdHistSeries.setData(hist);
-  macdLineSeries.setData(macdLine);
-  macdSignalSeries.setData(signalLine);
-
-  // refresh active overlays
-  refreshOverlays();
-  mainChart.timeScale().fitContent();
-}
-
-// ── overlays ─────────────────────────────────────────────────────────────────
-function initControls() {
-  document.querySelectorAll('#controls input[type="checkbox"]').forEach(cb => {
-    cb.addEventListener('change', refreshOverlays);
-  });
-}
-
-function refreshOverlays() {
-  if (!klineData) return;
-  // remove all existing overlay series
-  Object.values(maSeries).forEach(s => { try { mainChart.removeSeries(s); } catch(e){} });
-  maSeries = {};
-
-  const active = [...document.querySelectorAll('#controls input[type="checkbox"]:checked')].map(c => c.dataset.ma);
-
-  active.forEach(key => {
-    if (key === 'BB') {
-      const upper = klineData.filter(d => d.BB_upper != null).map(d => ({ time: d.date, value: d.BB_upper }));
-      const lower = klineData.filter(d => d.BB_lower != null).map(d => ({ time: d.date, value: d.BB_lower }));
-      const mid = klineData.filter(d => d.BB_mid != null).map(d => ({ time: d.date, value: d.BB_mid }));
-      maSeries['BB_upper'] = addLine(mainChart, upper, BB_COLOR, 1, 2);
-      maSeries['BB_lower'] = addLine(mainChart, lower, BB_COLOR, 1, 2);
-      maSeries['BB_mid'] = addLine(mainChart, mid, BB_COLOR, 1, 0);
-    } else if (key === 'ST') {
-      const stUp = klineData.filter(d => d.SUPERT_dir === 1 && d.SUPERT != null).map(d => ({ time: d.date, value: d.SUPERT }));
-      const stDn = klineData.filter(d => d.SUPERT_dir === -1 && d.SUPERT != null).map(d => ({ time: d.date, value: d.SUPERT }));
-      maSeries['ST_up'] = addLine(mainChart, stUp, '#26a69a', 2, 0);
-      maSeries['ST_dn'] = addLine(mainChart, stDn, '#ef5350', 2, 0);
-    } else {
-      const col = key; // MA5, MA10, etc.
-      const data = klineData.filter(d => d[col] != null).map(d => ({ time: d.date, value: d[col] }));
-      maSeries[key] = addLine(mainChart, data, MA_COLORS[key] || '#333', 1.5, 0);
-    }
-  });
-}
-
-function addLine(chart, data, color, width, style, showLabels) {
-  const s = chart.addLineSeries({
-    color, lineWidth: width, lineStyle: style,
-    priceLineVisible: !!showLabels,
-    lastValueVisible: !!showLabels,
-    crosshairMarkerVisible: !!showLabels,
-  });
-  s.setData(data);
-  return s;
-}
-
-// ── macro chart tooltip ──────────────────────────────────────────────────────
-function initMacroTooltip(chart, containerId) {
-  const container = document.getElementById(containerId);
-  let tooltip = document.getElementById('macro-tooltip-' + containerId) || (() => {
-    const d = document.createElement('div');
-    d.id = 'macro-tooltip-' + containerId;
-    d.style.cssText = 'position:absolute;display:none;background:rgba(0,0,0,0.8);color:#fff;padding:8px 12px;border-radius:6px;font-size:12px;z-index:100;pointer-events:none;white-space:nowrap';
-    container.appendChild(d);
-    return d;
-  })();
-
-  chart.subscribeCrosshairMove(param => {
-    if (!param.point || !param.time || !param.seriesData || param.seriesData.size === 0) {
-      tooltip.style.display = 'none';
-      return;
-    }
-    let html = `<div style="color:#aaa;margin-bottom:4px">${param.time}</div>`;
-    param.seriesData.forEach((sp, series) => {
-      const name = series._macroName || '';
-      const label = MACRO_LABELS[name] || '';
-      const val = sp.value != null ? (typeof sp.value === 'number' ? sp.value.toFixed(2) : sp.value) : '-';
-      html += `<div style="color:${sp.color || '#fff'}">${name}${label ? ` <span style="color:#aaa;font-size:11px">${label}</span>` : ''}: <b>${val}</b></div>`;
-    });
-    tooltip.innerHTML = html;
-    tooltip.style.display = 'block';
-    const x = param.point.x + 12;
-    const y = Math.max(param.point.y - 12, 0);
-    tooltip.style.left = Math.min(x, container.offsetWidth - 160) + 'px';
-    tooltip.style.top = y + 'px';
-  });
-}
-
-// ── diagnosis ────────────────────────────────────────────────────────────────
-function debouncedDiag() {
-  clearTimeout(debounceTimer);
-  debounceTimer = setTimeout(fetchDiag, 200);
-}
-
-async function fetchDiag() {
-  if (!currentSymbol) return;
-  let url = `/api/diag/${currentSymbol}`;
-  if (crosshairDate) url += `?as_of=${crosshairDate}`;
-  try {
-    const res = await fetch(url);
-    const d = await res.json();
-    renderDiag(d);
-  } catch(e) {
-    document.getElementById('diag-content').innerHTML = `<div class="loading">加载失败</div>`;
-  }
-}
-
-function renderDiag(d) {
-  const el = document.getElementById('diag-content');
-  // auto-expand panel when new data arrives
-  document.getElementById('diag-panel').classList.remove('collapsed');
-  const maxScore = 20;
-  const pct = Math.max(0, Math.min(100, ((d.total_score + maxScore) / (2 * maxScore)) * 100));
-  const scoreColor = d.total_score > 5 ? '#26a69a' : d.total_score < -5 ? '#ef5350' : '#ff9800';
-
-  let html = `
-    <div class="diag-section">
-      <div style="display:flex;align-items:baseline;gap:12px">
-        <span class="score-text" style="color:${scoreColor}">${d.total_score > 0 ? '+' : ''}${d.total_score}</span>
-        <span style="color:#666;font-size:13px">${d.last_date}</span>
-      </div>
-      <div class="score-bar"><div class="score-fill" style="width:${pct}%;background:${scoreColor}"></div></div>
-      <div style="font-size:20px;font-weight:600">¥${d.last_price?.toFixed(2) ?? '—'}</div>
-    </div>
-
-    <div class="diag-section">
-      <h4>均线</h4>
-      ${Object.entries(d.ma_signals || {}).map(([k, v]) => `
-        <div class="diag-row">
-          <span class="diag-label">${k}</span>
-          <span class="diag-value">
-            ${(d.ma_values?.[k] ?? '—')}
-            <span class="${v === 'above' ? 'up' : 'down'}">${v === 'above' ? '↑' : '↓'}</span>
-          </span>
-        </div>
-      `).join('')}
-    </div>
-
-    <div class="diag-section">
-      <h4>RSI</h4>
-      <div class="diag-row">
-        <span class="diag-label">RSI(14)</span>
-        <span class="diag-value ${d.RSI < 30 ? 'up' : d.RSI > 70 ? 'down' : 'neutral'}">${d.RSI?.toFixed(1) ?? '—'} (${d.RSI_detail || ''})</span>
-      </div>
-    </div>
-
-    <div class="diag-section">
-      <h4>MACD</h4>
-      <div class="diag-row"><span class="diag-label">MACD</span><span class="diag-value">${d.MACD?.toFixed(3) ?? '—'}</span></div>
-      <div class="diag-row"><span class="diag-label">Signal</span><span class="diag-value">${d.MACD_signal?.toFixed(3) ?? '—'}</span></div>
-      <div class="diag-row"><span class="diag-label">Histogram</span><span class="diag-value">${d.MACD_hist?.toFixed(3) ?? '—'}</span></div>
-      <div class="diag-row">
-        <span class="diag-label">状态</span>
-        <span class="diag-value ${d.MACD_status === 'golden_cross' ? 'up' : 'down'}">
-          ${d.MACD_status === 'golden_cross' ? '✦ 金叉' : '✦ 死叉'}
-        </span>
-      </div>
-    </div>
-
-    <div class="diag-section">
-      <h4>ADX / DMI</h4>
-      <div class="diag-row"><span class="diag-label">ADX</span><span class="diag-value">${d.ADX?.toFixed(1) ?? '—'} (${d.ADX_trend || ''})</span></div>
-      <div class="diag-row"><span class="diag-label">+DI</span><span class="diag-value up">${d.DMP?.toFixed(1) ?? '—'}</span></div>
-      <div class="diag-row"><span class="diag-label">-DI</span><span class="diag-value down">${d.DMN?.toFixed(1) ?? '—'}</span></div>
-    </div>
-
-    <div class="diag-section">
-      <h4>布林带</h4>
-      <div class="diag-row"><span class="diag-label">Upper</span><span class="diag-value">${d.BB_upper?.toFixed(2) ?? '—'}</span></div>
-      <div class="diag-row"><span class="diag-label">Mid</span><span class="diag-value">${d.BB_mid?.toFixed(2) ?? '—'}</span></div>
-      <div class="diag-row"><span class="diag-label">Lower</span><span class="diag-value">${d.BB_lower?.toFixed(2) ?? '—'}</span></div>
-      <div class="diag-row"><span class="diag-label">位置</span><span class="diag-value">${d.BB_position != null ? d.BB_position.toFixed(1) + '%' : '—'}</span></div>
-    </div>
-
-    <div class="diag-section">
-      <h4>支撑 / 阻力</h4>
-      <div class="diag-row"><span class="diag-label">阻力 (90d)</span><span class="diag-value down">${d.resistance_90d?.toFixed(2) ?? '—'}</span></div>
-      <div class="diag-row"><span class="diag-label">支撑 (90d)</span><span class="diag-value up">${d.support_90d?.toFixed(2) ?? '—'}</span></div>
-    </div>
-
-    <div class="diag-section">
-      <h4>其它指标</h4>
-      <div class="diag-row"><span class="diag-label">ATR</span><span class="diag-value">${d.ATR?.toFixed(2) ?? '—'}</span></div>
-      <div class="diag-row"><span class="diag-label">量比</span><span class="diag-value">${d.vol_ratio?.toFixed(2) ?? '—'}</span></div>
-      <div class="diag-row"><span class="diag-label">Stoch K/D</span><span class="diag-value">${d.STOCH_k?.toFixed(1) ?? '—'} / ${d.STOCH_d?.toFixed(1) ?? '—'}</span></div>
-      <div class="diag-row"><span class="diag-label">CCI</span><span class="diag-value">${d.CCI?.toFixed(1) ?? '—'} (${d.CCI_detail || ''})</span></div>
-      <div class="diag-row"><span class="diag-label">MFI</span><span class="diag-value">${d.MFI?.toFixed(1) ?? '—'}</span></div>
-      <div class="diag-row"><span class="diag-label">OBV 背离</span><span class="diag-value">${d.OBV_divergence || '无'}</span></div>
-    </div>
-
-    <div class="diag-section">
-      <h4>涨跌幅</h4>
-      ${Object.entries(d.changes || {}).map(([k, v]) => `
-        <div class="diag-row">
-          <span class="diag-label">${k}</span>
-          <span class="diag-value ${v >= 0 ? 'up' : 'down'}">${v >= 0 ? '+' : ''}${(v * 100).toFixed(2)}%</span>
-        </div>
-      `).join('')}
-    </div>
-
-    <div class="diag-section">
-      <h4>K线形态</h4>
-      <div class="cdl-list">
-        ${(d.cdl_bullish || []).map(n => `<span class="tag tag-bull">${n}</span>`).join('')}
-        ${(d.cdl_bearish || []).map(n => `<span class="tag tag-bear">${n}</span>`).join('')}
-        ${!(d.cdl_bullish?.length || d.cdl_bearish?.length) ? '<span style="color:#999;font-size:12px">无信号</span>' : ''}
-      </div>
-    </div>
-
-    <div class="diag-section">
-      <h4>评分明细</h4>
-      ${(d.scores || []).map(s => `
-        <div class="diag-row">
-          <span class="diag-label">${s.label}</span>
-          <span class="diag-value ${s.value > 0 ? 'up' : s.value < 0 ? 'down' : 'neutral'}">${s.value > 0 ? '+' : ''}${s.value}</span>
-        </div>
-      `).join('')}
-    </div>
-  `;
-  el.innerHTML = html;
-}
-
-// ── keyboard ─────────────────────────────────────────────────────────────────
-function initKeyboard() {
-  document.addEventListener('keydown', e => {
-    if (!klineData || !klineData.length) return;
-    if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
-      e.preventDefault();
-      const ts = mainChart.timeScale();
-      const range = ts.getVisibleLogicalRange();
-      if (!range) return;
-      // find current crosshair position or center
-      const totalBars = klineData.length;
-      let idx = crosshairDate ? klineData.findIndex(d => d.date === crosshairDate) : Math.floor(totalBars / 2);
-      idx += e.key === 'ArrowRight' ? 1 : -1;
-      idx = Math.max(0, Math.min(totalBars - 1, idx));
-      crosshairDate = klineData[idx].date;
-      mainChart.setCrosshairPosition(klineData[idx].close, idx, candleSeries);
-      debouncedDiag();
-    }
-  });
-}
-
-// ── macro mode (section-based) ────────────────────────────────────────────────
-const MACRO_COLORS = ['#2196f3','#ff9800','#4caf50','#e91e63','#9c27b0','#00bcd4','#ff5722','#607d8b','#795548','#3f51b5'];
-let currentMode = 'tech';
-let macroCategories = null;
-let macroCache = {};
-let macroCharts = {};
-let macroChartSeries = {};
-const MACRO_LABELS = {
-  // volatility
-  VIX: '波动率指数（恐慌指数）', HY_OAS: '高收益债信用利差', IG_OAS: '投资级债信用利差',
-  // inflation
-  CPI: '消费者物价指数', PCE: '个人消费支出价格指数', CORE_CPI: '核心消费者物价指数',
-  T5YIE: '5年期通胀预期', T10YIE: '10年期通胀预期', T5YIFR: '5年期远期通胀率',
-  MICH: '密歇根通胀预期', EXPINF_1Y: '1年期通胀预期', EXPINF_2Y: '2年期通胀预期',
-  EXPINF_5Y: '5年期通胀预期', EXPINF_10Y: '10年期通胀预期',
-  // labor
-  UNRATE: '失业率', PAYEMS: '非农就业人数', ICSA: '初请失业金人数',
-  // growth
-  GDP: '国内生产总值(GDP)', INDPRO: '工业生产指数',
-  // rates
-  FEDFUNDS: '联邦基金利率', SOFR: '担保隔夜融资利率', IORB: '准备金余额利率',
-  DGS1MO: '1月期国债收益率', DGS3MO: '3月期国债收益率', DGS6MO: '6月期国债收益率',
-  DGS1: '1年期国债收益率', DGS2: '2年期国债收益率', DGS3: '3年期国债收益率',
-  DGS5: '5年期国债收益率', DGS7: '7年期国债收益率', DGS10: '10年期国债收益率',
-  DGS20: '20年期国债收益率', DGS30: '30年期国债收益率',
-  SPREAD_2S10S: '2s10s利差', SOFR_IORB_SPREAD_BP: 'SOFR-IORB利差(bp)',
-  // tips
-  DFII5: '5年期TIPS收益率', DFII7: '7年期TIPS收益率', DFII10: '10年期TIPS收益率',
-  DFII20: '20年期TIPS收益率', DFII30: '30年期TIPS收益率',
-  BEI_5Y: '5年期盈亏平衡通胀率', BEI_10Y: '10年期盈亏平衡通胀率',
-  // liquidity
-  NFCI: '金融状况指数', RRPONTSYD: '隔夜逆回购规模', WTREGEN: '财政部一般账户余额',
-  WRESBAL: '准备金余额', WALCL: '美联储总资产', NET_LIQUIDITY: '净流动性',
-  // sentiment
-  UMCSENT: '密歇根消费者信心指数', STLFSI4: '金融压力指数',
-  // fx
-  DXY: '美元指数',
-};
-let macroDateRange = '10y';
-const MACRO_DATE_RANGES = [
-  { label: '1M', value: '1m', months: 1 },
-  { label: '3M', value: '3m', months: 3 },
-  { label: '6M', value: '6m', months: 6 },
-  { label: '1Y', value: '1y', months: 12 },
-  { label: '2Y', value: '2y', months: 24 },
-  { label: '3Y', value: '3y', months: 36 },
-  { label: '5Y', value: '5y', months: 60 },
-  { label: '10Y', value: '10y', months: 120 },
-  { label: '30Y', value: '30y', months: 360 },
-  { label: 'All', value: 'all', months: 0 },
-];
-
-// tab click handlers
-document.querySelectorAll('.sidebar-tab').forEach(tab => {
-  tab.addEventListener('click', () => switchMode(tab.dataset.mode));
-});
-
-function switchMode(mode) {
-  if (currentMode === mode) return;
-  currentMode = mode;
-  document.querySelectorAll('.sidebar-tab').forEach(t => t.classList.toggle('active', t.dataset.mode === mode));
-  const sidebar = document.getElementById('sidebar-content');
-  if (mode === 'macro') {
-    document.querySelector('.sidebar').style.display = 'none';
-    document.querySelectorAll('.tech-only').forEach(el => el.style.display = 'none');
-    document.getElementById('macro-chart-card').style.display = '';
-    loadMacroCategories();
-    updateStatus();
-  } else {
-    document.querySelector('.sidebar').style.display = '';
-    sidebar.innerHTML = '<div class="symbol-list" id="symbol-list"><div class="loading">加载中…</div></div>';
-    document.querySelectorAll('.tech-only').forEach(el => el.style.display = '');
-    document.getElementById('macro-chart-card').style.display = 'none';
-    macroCharts = {};
-    macroChartSeries = {};
-    loadSymbols();
-    updateStatus();
-  }
-}
-
-async function loadMacroCategories() {
-  const res = await fetch('/api/macro/categories');
-  macroCategories = await res.json();
-  renderMacroSections();
-}
-
-function applyDateFilter(data, range) {
-  if (range === 'all' || !data || data.length === 0) return data;
-  const rangeInfo = MACRO_DATE_RANGES.find(r => r.value === range);
-  if (!rangeInfo || !rangeInfo.months) return data;
-  const cutoff = new Date();
-  cutoff.setMonth(cutoff.getMonth() - rangeInfo.months);
-  const cutoffStr = cutoff.toISOString().slice(0, 10);
-  return data.filter(d => d.date >= cutoffStr);
-}
-
-function setMacroDateRange(range) {
-  if (macroDateRange === range) return;
-  macroDateRange = range;
-  document.querySelectorAll('.macro-range-btn').forEach(b => b.classList.toggle('active', b.dataset.range === range));
-  macroCategories.forEach(cat => {
-    const section = document.querySelector(`.macro-section-header[data-cat="${cat.name}"]`)?.closest('.macro-section');
-    if (section && section.classList.contains('open')) {
-      if (!macroCache[cat.name]) return;
-      const chartsContainer = document.getElementById('macro-charts-' + cat.name);
-      if (!chartsContainer) return;
-      // clear existing chart references
-      delete macroCharts[cat.name];
-      delete macroChartSeries[cat.name];
-      chartsContainer.innerHTML = '';
-      renderMacroCategoryCharts(cat.name, cat.series);
-    }
-  });
-}
-
-function renderMacroSections() {
-  const container = document.getElementById('macro-chart-card');
-  container.innerHTML = '';
-
-  // date range toolbar
-  const toolbar = document.createElement('div');
-  toolbar.className = 'macro-toolbar';
-  toolbar.innerHTML = MACRO_DATE_RANGES.map(r =>
-    `<button class="macro-range-btn${r.value === macroDateRange ? ' active' : ''}" data-range="${r.value}">${r.label}</button>`
-  ).join('');
-  toolbar.querySelectorAll('.macro-range-btn').forEach(btn => {
-    btn.addEventListener('click', () => setMacroDateRange(btn.dataset.range));
-  });
-  container.appendChild(toolbar);
-
-  const grid = document.createElement('div');
-  grid.className = 'macro-grid';
-  macroCategories.forEach(cat => {
-    const section = document.createElement('div');
-    section.className = 'macro-section collapsed';
-    section.innerHTML = `<div class="macro-section-header" data-cat="${cat.name}"><span class="macro-expand">▶</span><span class="macro-cat-name">${cat.name === 'fx' ? 'FX' : cat.name.charAt(0).toUpperCase() + cat.name.slice(1)}</span><span class="macro-cat-count">${cat.series.length} 项</span></div><div class="macro-section-body"><div class="macro-series-charts" id="macro-charts-${cat.name}"></div></div>`;
-    section.querySelector('.macro-section-header').addEventListener('click', () => toggleMacroSection(cat.name, cat.series, section));
-    grid.appendChild(section);
-  });
-  container.appendChild(grid);
-}
-
-async function toggleMacroSection(name, seriesKeys, section) {
-  const isOpen = section.classList.contains('open');
-  if (isOpen) {
-    section.classList.remove('open');
-    section.classList.add('collapsed');
-    return;
-  }
-  section.classList.remove('collapsed');
-  section.classList.add('open');
-
-  if (!macroCache[name]) {
-    const res = await fetch(`/api/macro/${name}`);
-    macroCache[name] = await res.json();
-  }
-
-  const chartsContainer = document.getElementById('macro-charts-' + name);
-  if (chartsContainer.children.length > 0) return; // already rendered
-
-  renderMacroCategoryCharts(name, seriesKeys);
-}
-
-function renderMacroCategoryCharts(name, seriesKeys) {
-  const chartsContainer = document.getElementById('macro-charts-' + name);
-  if (!macroCharts[name]) macroCharts[name] = {};
-  if (!macroChartSeries[name]) macroChartSeries[name] = {};
-
-  seriesKeys.forEach((key, idx) => {
-    const rawData = macroCache[name].filter(d => d[key] != null);
-    const data = applyDateFilter(rawData, macroDateRange).map(d => ({ time: d.date, value: d[key] }));
-    if (data.length === 0) return;
-
-    const color = MACRO_COLORS[idx % MACRO_COLORS.length];
-    const chartWrap = document.createElement('div');
-    chartWrap.className = 'macro-series-chart-wrap';
-    chartWrap.innerHTML = `<div class="macro-series-label" style="color:${color}">${key}</div><div class="macro-series-chart" id="macro-chart-${name}-${key}" style="height:180px;position:relative"></div>`;
-    chartsContainer.appendChild(chartWrap);
-
-    const chartEl = chartWrap.querySelector('.macro-series-chart');
-    const chart = LightweightCharts.createChart(chartEl, { ...CHART_OPTS, height: 180 });
-    initMacroTooltip(chart, 'macro-chart-' + name + '-' + key);
-    const s = addLine(chart, data, color, 1.5, 0, true);
-    s._macroName = key;
-    macroCharts[name][key] = chart;
-    macroChartSeries[name][key] = s;
-  });
-
-  // sync time scales across all charts in this section
-  const charts = Object.values(macroCharts[name]);
-  let syncing = false;
-  charts.forEach(chart => {
-    chart.timeScale().subscribeVisibleTimeRangeChange(() => {
-      if (syncing) return;
-      syncing = true;
-      const range = chart.timeScale().getVisibleRange();
-      charts.forEach(other => {
-        if (other !== chart) other.timeScale().setVisibleRange(range);
-      });
-      syncing = false;
-    });
-  });
-}
-
-function updateStatus() {
-  const symEl = document.getElementById('status-symbol');
-  const rangeEl = document.getElementById('status-range');
-  const countEl = document.getElementById('status-count');
-  if (currentMode === 'macro') {
-    symEl.textContent = '宏观';
-    countEl.textContent = macroCategories ? `${macroCategories.length} 分类` : '';
-    rangeEl.textContent = '';
-  } else {
-    symEl.textContent = currentSymbol || '—';
-    if (klineData && klineData.length) {
-      countEl.textContent = `${klineData.length} 条数据`;
-      rangeEl.textContent = `${klineData[0].date} → ${klineData[klineData.length-1].date}`;
-    } else {
-      countEl.textContent = '';
-      rangeEl.textContent = '';
-    }
-  }
-}
-</script>
+<script type="module" src="/js/app.js"></script>
 </body>
 </html>
