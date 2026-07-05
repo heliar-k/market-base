@@ -12,11 +12,13 @@ let rsiSeries, rsiUpper, rsiLower;
 let macdHistSeries, macdLineSeries, macdSignalSeries;
 let crosshairDate = null;
 let debounceTimer = null;
+const symbolPrices = {}; // ponytail: cache { price, change } per symbol
 const MA_COLORS = { MA5:'#00bcd4', MA10:'#2196f3', MA20:'#ff9800', MA60:'#9c27b0', MA120:'#9e9e9e' };
 const BB_COLOR = '#78909c';
 
 // ── init ───────────────────────────────────────────────────────────────────
 export function initTechView() {
+  insertInfoBar();
   initCharts();
   initControls();
   initKeyboard();
@@ -24,11 +26,65 @@ export function initTechView() {
   loadSymbols();
 }
 
+// ── info bar ───────────────────────────────────────────────────────────────
+function insertInfoBar() {
+  const techView = document.querySelector('.tech-view');
+  const bar = document.createElement('div');
+  bar.className = 'tech-info-bar';
+  bar.id = 'tech-info-bar';
+  bar.innerHTML = `
+    <span class="tech-symbol" id="info-symbol">--</span>
+    <span class="tech-price" id="info-price">--</span>
+    <span class="tech-change" id="info-change">--</span>
+    <span class="tech-ohlc" id="info-ohlc">--</span>`;
+  techView.insertBefore(bar, techView.firstChild);
+}
+
+function fmtVolume(v) {
+  if (v == null) return '--';
+  if (v >= 1e9) return (v / 1e9).toFixed(1) + 'B';
+  if (v >= 1e6) return (v / 1e6).toFixed(1) + 'M';
+  if (v >= 1e3) return (v / 1e3).toFixed(1) + 'K';
+  return String(v);
+}
+
+function updateInfoBar() {
+  const sym = document.getElementById('info-symbol');
+  const price = document.getElementById('info-price');
+  const change = document.getElementById('info-change');
+  const ohlc = document.getElementById('info-ohlc');
+  if (!klineData || !klineData.length) {
+    sym.textContent = currentSymbol || '--';
+    price.textContent = '--';
+    change.textContent = '--';
+    change.className = 'tech-change';
+    ohlc.textContent = '--';
+    return;
+  }
+  const last = klineData[klineData.length - 1];
+  const prev = klineData.length > 1 ? klineData[klineData.length - 2] : null;
+  const chg = prev ? ((last.close - prev.close) / prev.close * 100) : 0;
+  const up = chg >= 0;
+  sym.textContent = currentSymbol;
+  price.textContent = last.close.toFixed(2);
+  change.textContent = `${up ? '▲' : '▼'} ${up ? '+' : ''}${chg.toFixed(2)}%`;
+  change.className = 'tech-change ' + (up ? 'up' : 'down');
+  ohlc.textContent = `O:${last.open.toFixed(2)} H:${last.high.toFixed(2)} L:${last.low.toFixed(2)} V:${fmtVolume(last.volume)}`;
+}
+
 // ── diagnosis toggle ───────────────────────────────────────────────────────
 function initDiagToggle() {
   const panel = document.getElementById('diag-panel');
   const header = document.getElementById('diag-header');
-  header.addEventListener('click', () => panel.classList.toggle('collapsed'));
+  header.addEventListener('click', () => {
+    panel.classList.toggle('collapsed');
+    // wait for CSS transition (0.3s) then force chart resize
+    setTimeout(() => {
+      if (mainChart) mainChart.applyOptions({ width: document.getElementById('main-chart').clientWidth });
+      if (rsiChart) rsiChart.applyOptions({ width: document.getElementById('rsi-chart').clientWidth });
+      if (macdChart) macdChart.applyOptions({ width: document.getElementById('macd-chart').clientWidth });
+    }, 350);
+  });
 }
 
 // ── symbols sidebar ────────────────────────────────────────────────────────
@@ -39,18 +95,54 @@ async function loadSymbols() {
   list.innerHTML = '';
   symbols.forEach(s => {
     const div = document.createElement('div');
-    div.className = 'symbol-item';
+    div.className = 'symbol-quote';
     div.dataset.name = s.name;
-    const typeLabel = s.type === 'stock' ? '股票' : '指数';
-    div.innerHTML = `<span>${s.name}</span><span class="type-badge ${s.type}">${typeLabel}</span>`;
+    div.innerHTML = `
+      <span class="sym-name">${s.name}</span>
+      <span class="sym-price" data-price="${s.name}">--</span>
+      <span class="sym-change" data-change="${s.name}">--</span>`;
     div.addEventListener('click', () => selectSymbol(s.name));
     list.appendChild(div);
   });
+  // ponytail: fire-and-forget price fetch for sidebar quotes
+  loadSidebarPrices(symbols.map(s => s.name));
+}
+
+async function loadSidebarPrices(names) {
+  await Promise.all(names.map(async name => {
+    try {
+      const res = await fetch(`/api/kline/${name}?days=2`);
+      const data = await res.json();
+      if (data.length >= 2) {
+        const last = data[data.length - 1];
+        const prev = data[data.length - 2];
+        const chg = ((last.close - prev.close) / prev.close * 100);
+        symbolPrices[name] = { price: last.close, change: chg };
+        updateSidebarQuote(name);
+      } else if (data.length === 1) {
+        symbolPrices[name] = { price: data[0].close, change: 0 };
+        updateSidebarQuote(name);
+      }
+    } catch(e) { /* skip failed symbols */ }
+  }));
+}
+
+function updateSidebarQuote(name) {
+  const info = symbolPrices[name];
+  if (!info) return;
+  const priceEl = document.querySelector(`[data-price="${name}"]`);
+  const chgEl = document.querySelector(`[data-change="${name}"]`);
+  if (priceEl) priceEl.textContent = info.price.toFixed(2);
+  if (chgEl) {
+    const up = info.change >= 0;
+    chgEl.textContent = `${up ? '+' : ''}${info.change.toFixed(1)}%`;
+    chgEl.className = 'sym-change ' + (up ? 'up' : 'down');
+  }
 }
 
 async function selectSymbol(name) {
   currentSymbol = name;
-  document.querySelectorAll('.symbol-item').forEach(el => {
+  document.querySelectorAll('.symbol-quote').forEach(el => {
     el.classList.toggle('active', el.dataset.name === name);
   });
   document.getElementById('status-symbol').textContent = name;
@@ -62,13 +154,27 @@ async function selectSymbol(name) {
     document.getElementById('status-range').textContent =
       `${klineData[0].date} → ${klineData[klineData.length-1].date}`;
   }
+  // ponytail: cache current symbol price for sidebar
+  if (klineData.length >= 2) {
+    const last = klineData[klineData.length - 1];
+    const prev = klineData[klineData.length - 2];
+    symbolPrices[name] = { price: last.close, change: ((last.close - prev.close) / prev.close * 100) };
+    updateSidebarQuote(name);
+  }
+  updateInfoBar();
   renderCharts();
   fetchDiag();
 }
 
 // ── charts ─────────────────────────────────────────────────────────────────
+let _chartContainers = []; // ResizeObserver targets
+
 function initCharts() {
-  mainChart = LightweightCharts.createChart(document.getElementById('main-chart'), { ...CHART_OPTS, height: 500 });
+  const mainEl = document.getElementById('main-chart');
+  const rsiEl  = document.getElementById('rsi-chart');
+  const macdEl = document.getElementById('macd-chart');
+
+  mainChart = LightweightCharts.createChart(mainEl, { ...CHART_OPTS, width: mainEl.clientWidth, height: mainEl.clientHeight });
   mainChart.priceScale('right').applyOptions({ autoScale: true, scaleMargins: { top: 0.1, bottom: 0.25 } });
   candleSeries = mainChart.addCandlestickSeries({
     upColor: '#26a69a', downColor: '#ef5350', borderUpColor: '#26a69a', borderDownColor: '#ef5350',
@@ -81,16 +187,36 @@ function initCharts() {
   });
   mainChart.priceScale('vol').applyOptions({ scaleMargins: { top: 0.85, bottom: 0 }, visible: true });
 
-  rsiChart = LightweightCharts.createChart(document.getElementById('rsi-chart'), { ...CHART_OPTS, height: 200 });
+  rsiChart = LightweightCharts.createChart(rsiEl, { ...CHART_OPTS, width: rsiEl.clientWidth, height: rsiEl.clientHeight });
   rsiChart.priceScale('right').applyOptions({ minimum: 0, maximum: 100 });
   rsiSeries = rsiChart.addLineSeries({ color: '#7c4dff', lineWidth: 1.5 });
   rsiUpper = rsiChart.addLineSeries({ color: '#ef5350', lineWidth: 1, lineStyle: 2, priceLineVisible: false, lastValueVisible: false });
   rsiLower = rsiChart.addLineSeries({ color: '#26a69a', lineWidth: 1, lineStyle: 2, priceLineVisible: false, lastValueVisible: false });
 
-  macdChart = LightweightCharts.createChart(document.getElementById('macd-chart'), { ...CHART_OPTS, height: 200 });
+  macdChart = LightweightCharts.createChart(macdEl, { ...CHART_OPTS, width: macdEl.clientWidth, height: macdEl.clientHeight });
   macdHistSeries = macdChart.addHistogramSeries({ priceFormat: { type: 'price', precision: 2 } });
   macdLineSeries = macdChart.addLineSeries({ color: '#2196f3', lineWidth: 1.5 });
   macdSignalSeries = macdChart.addLineSeries({ color: '#ff9800', lineWidth: 1.5 });
+
+  // resize observer — auto-adapt when container size changes (panel toggle, window resize)
+  _chartContainers.forEach(ro => ro?.disconnect());
+  _chartContainers = [];
+  const charts = [
+    { el: mainEl, chart: mainChart },
+    { el: rsiEl, chart: rsiChart },
+    { el: macdEl, chart: macdChart },
+  ];
+  charts.forEach(({ el, chart }) => {
+    const ro = new ResizeObserver(entries => {
+      for (const e of entries) {
+        const w = e.contentRect.width;
+        const h = e.contentRect.height;
+        if (w > 0 && h > 0) chart.applyOptions({ width: w, height: h });
+      }
+    });
+    ro.observe(el);
+    _chartContainers.push(ro);
+  });
 
   // sync time scales
   const syncFrom = (src, targets) => {

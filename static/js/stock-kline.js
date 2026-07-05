@@ -218,6 +218,7 @@ function initCharts() {
   allCharts.length = 0;
   allCharts.push(mainChart, volumeChart, macdChart, rsiChart);
   syncTimeScales();
+  syncCrosshairs();
 }
 
 function destroyCharts() {
@@ -327,6 +328,23 @@ function syncTimeScales() {
       syncing = true;
       allCharts.forEach(t => {
         if (t !== src) t.timeScale().setVisibleLogicalRange(range);
+      });
+      syncing = false;
+    });
+  });
+}
+
+// ── crosshair sync ─────────────────────────────────────────────────────────
+// ponytail: uses NaN price + time; works because all charts share the same time scale
+function syncCrosshairs() {
+  let syncing = false;
+  allCharts.forEach(chart => {
+    chart.subscribeCrosshairMove(param => {
+      if (syncing) return;
+      if (!param || !param.time) return;
+      syncing = true;
+      allCharts.forEach(other => {
+        if (other !== chart) other.setCrosshairPosition(NaN, NaN, param.time);
       });
       syncing = false;
     });
