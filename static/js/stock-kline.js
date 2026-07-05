@@ -161,7 +161,10 @@ function initCharts() {
   // Main candlestick + volume overlay
   mainChart = LightweightCharts.createChart(
     document.getElementById('stock-main-chart'),
-    { ...CHART_OPTS, height: 420 }
+    { ...CHART_OPTS, height: 420,
+      handleScroll: { vertTouchDrag: true, mouseWheel: false },
+      handleScale: { axisPressedMouseMove: true, mouseWheel: false },
+    }
   );
   mainChart.priceScale('right').applyOptions({
     autoScale: true, scaleMargins: { top: 0.05, bottom: 0.2 }
@@ -185,13 +188,19 @@ function initCharts() {
   // Volume chart (separate for clarity)
   volumeChart = LightweightCharts.createChart(
     document.getElementById('stock-volume-chart'),
-    { ...CHART_OPTS, height: 140 }
+    { ...CHART_OPTS, height: 140,
+      handleScroll: { vertTouchDrag: true, mouseWheel: false },
+      handleScale: { axisPressedMouseMove: true, mouseWheel: false },
+    }
   );
 
   // MACD chart
   macdChart = LightweightCharts.createChart(
     document.getElementById('stock-macd-chart'),
-    { ...CHART_OPTS, height: 160 }
+    { ...CHART_OPTS, height: 160,
+      handleScroll: { vertTouchDrag: true, mouseWheel: false },
+      handleScale: { axisPressedMouseMove: true, mouseWheel: false },
+    }
   );
   macdHistSeries = macdChart.addHistogramSeries({
     priceFormat: { type: 'price', precision: 3 },
@@ -202,7 +211,10 @@ function initCharts() {
   // RSI chart
   rsiChart = LightweightCharts.createChart(
     document.getElementById('stock-rsi-chart'),
-    { ...CHART_OPTS, height: 140 }
+    { ...CHART_OPTS, height: 140,
+      handleScroll: { vertTouchDrag: true, mouseWheel: false },
+      handleScale: { axisPressedMouseMove: true, mouseWheel: false },
+    }
   );
   rsiChart.priceScale('right').applyOptions({ minimum: 0, maximum: 100 });
   rsiSeries = rsiChart.addLineSeries({ color: '#4caf50', lineWidth: 1.5 });
