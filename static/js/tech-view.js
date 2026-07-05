@@ -303,7 +303,6 @@ async function fetchDiag() {
 
 function renderDiag(d) {
   const el = document.getElementById('diag-content');
-  document.getElementById('diag-panel').classList.remove('collapsed');
   const maxScore = 20;
   const pct = Math.max(0, Math.min(100, ((d.total_score + maxScore) / (2 * maxScore)) * 100));
   const scoreColor = d.total_score > 5 ? '#26a69a' : d.total_score < -5 ? '#ef5350' : '#ff9800';
