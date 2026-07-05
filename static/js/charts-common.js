@@ -7,8 +7,8 @@ export const CHART_OPTS = {
   rightPriceScale: { borderColor: '#e1e4e8', visible: true, autoScale: true, scaleMargins: { top: 0.1, bottom: 0.1 } },
   leftPriceScale: { visible: false },
   timeScale: { borderColor: '#e1e4e8', timeVisible: false },
-  handleScroll: { vertTouchDrag: true, mouseWheel: true },
-  handleScale: { axisPressedMouseMove: true, mouseWheel: true },
+  handleScroll: { vertTouchDrag: true, mouseWheel: false },
+  handleScale: { axisPressedMouseMove: true, mouseWheel: false },
 };
 
 export function addLine(chart, data, color, width, style, showLabels) {
