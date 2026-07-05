@@ -1,12 +1,15 @@
-// tech-view.js — K-line charts, sidebar, diagnosis, overlays
+// tech-view.js — K-line charts, sidebar, diagnosis, overlays + volume + range
 
 import { CHART_OPTS, addLine } from './charts-common.js';
 
 // ── state ──────────────────────────────────────────────────────────────────
 let currentSymbol = null;
-let klineData = null;
-let mainChart, rsiChart, macdChart;
-let candleSeries, volumeSeries;
+let klineData = null;       // full dataset from API
+let filteredData = null;    // after range filter
+let currentDays = 365;
+let mainChart, volumeChart, rsiChart, macdChart;
+let candleSeries, volumeOverlaySeries;
+let volChartSeries;
 let maSeries = {};
 let rsiSeries, rsiUpper, rsiLower;
 let macdHistSeries, macdLineSeries, macdSignalSeries;
@@ -48,11 +51,12 @@ function fmtVolume(v) {
 }
 
 function updateInfoBar() {
+  const data = filteredData || klineData;
   const sym = document.getElementById('info-symbol');
   const price = document.getElementById('info-price');
   const change = document.getElementById('info-change');
   const ohlc = document.getElementById('info-ohlc');
-  if (!klineData || !klineData.length) {
+  if (!data || !data.length) {
     sym.textContent = currentSymbol || '--';
     price.textContent = '--';
     change.textContent = '--';
@@ -60,8 +64,8 @@ function updateInfoBar() {
     ohlc.textContent = '--';
     return;
   }
-  const last = klineData[klineData.length - 1];
-  const prev = klineData.length > 1 ? klineData[klineData.length - 2] : null;
+  const last = data[data.length - 1];
+  const prev = data.length > 1 ? data[data.length - 2] : null;
   const chg = prev ? ((last.close - prev.close) / prev.close * 100) : 0;
   const up = chg >= 0;
   sym.textContent = currentSymbol;
@@ -79,9 +83,11 @@ function initDiagToggle() {
     panel.classList.toggle('collapsed');
     // wait for CSS transition (0.3s) then force chart resize
     setTimeout(() => {
-      if (mainChart) mainChart.applyOptions({ width: document.getElementById('main-chart').clientWidth });
-      if (rsiChart) rsiChart.applyOptions({ width: document.getElementById('rsi-chart').clientWidth });
-      if (macdChart) macdChart.applyOptions({ width: document.getElementById('macd-chart').clientWidth });
+      const charts = [mainChart, volumeChart, rsiChart, macdChart];
+      const ids = ['main-chart', 'volume-chart', 'rsi-chart', 'macd-chart'];
+      charts.forEach((c, i) => {
+        if (c) c.applyOptions({ width: document.getElementById(ids[i]).clientWidth });
+      });
     }, 350);
   });
 }
@@ -117,7 +123,7 @@ async function loadSymbols() {
   addSection('个股', stocks);
 }
 
-async function selectSymbol(name) {
+export async function selectSymbol(name) {
   currentSymbol = name;
   document.querySelectorAll('.sidebar-row').forEach(el => {
     el.classList.toggle('active', el.dataset.name === name);
@@ -126,36 +132,66 @@ async function selectSymbol(name) {
 
   const res = await fetch(`/api/kline/${name}`);
   klineData = await res.json();
-  document.getElementById('status-count').textContent = `${klineData.length} 条数据`;
-  if (klineData.length > 0) {
-    document.getElementById('status-range').textContent =
-      `${klineData[0].date} → ${klineData[klineData.length-1].date}`;
-  }
+  applyRangeFilter();
   updateInfoBar();
   renderCharts();
   fetchDiag();
+}
+
+// ── range filter ───────────────────────────────────────────────────────────
+function applyRangeFilter() {
+  if (!klineData || !klineData.length) { filteredData = klineData; return; }
+  if (currentDays === 0) {
+    filteredData = klineData;
+  } else {
+    filteredData = klineData.slice(-currentDays);
+  }
+  document.getElementById('status-count').textContent = `${filteredData.length} 条数据`;
+  if (filteredData.length > 0) {
+    document.getElementById('status-range').textContent =
+      `${filteredData[0].date} → ${filteredData[filteredData.length-1].date}`;
+  }
+}
+
+function initRangeControls() {
+  document.querySelectorAll('.range-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.range-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      currentDays = Number(btn.dataset.range);
+      applyRangeFilter();
+      updateInfoBar();
+      renderCharts();
+    });
+  });
 }
 
 // ── charts ─────────────────────────────────────────────────────────────────
 let _chartContainers = []; // ResizeObserver targets
 
 function initCharts() {
-  const mainEl = document.getElementById('main-chart');
-  const rsiEl  = document.getElementById('rsi-chart');
-  const macdEl = document.getElementById('macd-chart');
+  const mainEl   = document.getElementById('main-chart');
+  const volEl    = document.getElementById('volume-chart');
+  const rsiEl    = document.getElementById('rsi-chart');
+  const macdEl   = document.getElementById('macd-chart');
 
   mainChart = LightweightCharts.createChart(mainEl, { ...CHART_OPTS, width: mainEl.clientWidth, height: mainEl.clientHeight });
-  mainChart.priceScale('right').applyOptions({ autoScale: true, scaleMargins: { top: 0.1, bottom: 0.25 } });
+  mainChart.priceScale('right').applyOptions({ autoScale: true, scaleMargins: { top: 0.1, bottom: 0.15 } });
   candleSeries = mainChart.addCandlestickSeries({
     upColor: '#26a69a', downColor: '#ef5350', borderUpColor: '#26a69a', borderDownColor: '#ef5350',
     wickUpColor: '#26a69a', wickDownColor: '#ef5350',
     priceFormat: { type: 'price', precision: 2, minMove: 0.01 },
   });
-  volumeSeries = mainChart.addHistogramSeries({
+  // ponytail: thin volume overlay on main chart for quick visual reference
+  volumeOverlaySeries = mainChart.addHistogramSeries({
     priceFormat: { type: 'volume' }, priceScaleId: 'vol',
     color: '#90caf9',
   });
   mainChart.priceScale('vol').applyOptions({ scaleMargins: { top: 0.85, bottom: 0 }, visible: true });
+
+  // Separate volume chart
+  volumeChart = LightweightCharts.createChart(volEl, { ...CHART_OPTS, width: volEl.clientWidth, height: volEl.clientHeight });
+  volChartSeries = volumeChart.addHistogramSeries({ priceFormat: { type: 'volume' } });
 
   rsiChart = LightweightCharts.createChart(rsiEl, { ...CHART_OPTS, width: rsiEl.clientWidth, height: rsiEl.clientHeight });
   rsiChart.priceScale('right').applyOptions({ minimum: 0, maximum: 100 });
@@ -173,6 +209,7 @@ function initCharts() {
   _chartContainers = [];
   const charts = [
     { el: mainEl, chart: mainChart },
+    { el: volEl, chart: volumeChart },
     { el: rsiEl, chart: rsiChart },
     { el: macdEl, chart: macdChart },
   ];
@@ -188,23 +225,21 @@ function initCharts() {
     _chartContainers.push(ro);
   });
 
-  // sync time scales
+  // sync time scales across all 4 charts
+  const allCharts = [mainChart, volumeChart, rsiChart, macdChart];
   const syncFrom = (src, targets) => {
     src.timeScale().subscribeVisibleLogicalRangeChange(range => {
       if (!range) return;
       targets.forEach(t => t.timeScale().setVisibleLogicalRange(range));
     });
   };
-  syncFrom(mainChart, [rsiChart, macdChart]);
-  syncFrom(rsiChart, [mainChart, macdChart]);
-  syncFrom(macdChart, [mainChart, rsiChart]);
+  allCharts.forEach(src => syncFrom(src, allCharts.filter(t => t !== src)));
 
   // crosshair sync → diag
   mainChart.subscribeCrosshairMove(param => {
     if (!param || !param.time) { crosshairDate = null; return; }
     crosshairDate = param.time;
-    syncCrosshairToChart(rsiChart, param);
-    syncCrosshairToChart(macdChart, param);
+    [volumeChart, rsiChart, macdChart].forEach(c => syncCrosshairToChart(c, param));
     debouncedDiag();
   });
 }
@@ -214,18 +249,27 @@ function syncCrosshairToChart(chart, param) {
 }
 
 function renderCharts() {
-  if (!klineData || !klineData.length) return;
-  const candles = klineData.map(d => ({ time: d.date, open: d.open, high: d.high, low: d.low, close: d.close }));
-  const volumes = klineData.map(d => ({
+  const data = filteredData;
+  if (!data || !data.length) return;
+  const candles = data.map(d => ({ time: d.date, open: d.open, high: d.high, low: d.low, close: d.close }));
+  const volumes = data.map(d => ({
     time: d.date,
     value: d.volume ?? 0,
     color: d.close >= d.open ? 'rgba(38,166,154,0.3)' : 'rgba(239,83,80,0.3)',
   }));
   candleSeries.setData(candles);
-  volumeSeries.setData(volumes);
+  volumeOverlaySeries.setData(volumes);
+
+  // Separate volume chart — more opaque colors for clarity
+  const volBars = data.map(d => ({
+    time: d.date,
+    value: d.volume ?? 0,
+    color: d.close >= d.open ? 'rgba(38,166,154,0.6)' : 'rgba(239,83,80,0.6)',
+  }));
+  volChartSeries.setData(volBars);
 
   // RSI
-  const rsi = klineData.filter(d => d.RSI != null).map(d => ({ time: d.date, value: d.RSI }));
+  const rsi = data.filter(d => d.RSI != null).map(d => ({ time: d.date, value: d.RSI }));
   rsiSeries.setData(rsi);
   if (rsi.length) {
     const times = rsi.map(d => d.time);
@@ -234,12 +278,12 @@ function renderCharts() {
   }
 
   // MACD
-  const hist = klineData.filter(d => d.MACD_hist != null).map(d => ({
+  const hist = data.filter(d => d.MACD_hist != null).map(d => ({
     time: d.date, value: d.MACD_hist,
     color: d.MACD_hist >= 0 ? '#26a69a' : '#ef5350',
   }));
-  const macdLine = klineData.filter(d => d.MACD != null).map(d => ({ time: d.date, value: d.MACD }));
-  const signalLine = klineData.filter(d => d.MACD_signal != null).map(d => ({ time: d.date, value: d.MACD_signal }));
+  const macdLine = data.filter(d => d.MACD != null).map(d => ({ time: d.date, value: d.MACD }));
+  const signalLine = data.filter(d => d.MACD_signal != null).map(d => ({ time: d.date, value: d.MACD_signal }));
   macdHistSeries.setData(hist);
   macdLineSeries.setData(macdLine);
   macdSignalSeries.setData(signalLine);
@@ -253,10 +297,12 @@ function initControls() {
   document.querySelectorAll('#controls input[type="checkbox"]').forEach(cb => {
     cb.addEventListener('change', refreshOverlays);
   });
+  initRangeControls();
 }
 
 function refreshOverlays() {
-  if (!klineData) return;
+  const data = filteredData;
+  if (!data) return;
   Object.values(maSeries).forEach(s => { try { mainChart.removeSeries(s); } catch(e){} });
   maSeries = {};
 
@@ -264,20 +310,20 @@ function refreshOverlays() {
 
   active.forEach(key => {
     if (key === 'BB') {
-      const upper = klineData.filter(d => d.BB_upper != null).map(d => ({ time: d.date, value: d.BB_upper }));
-      const lower = klineData.filter(d => d.BB_lower != null).map(d => ({ time: d.date, value: d.BB_lower }));
-      const mid = klineData.filter(d => d.BB_mid != null).map(d => ({ time: d.date, value: d.BB_mid }));
+      const upper = data.filter(d => d.BB_upper != null).map(d => ({ time: d.date, value: d.BB_upper }));
+      const lower = data.filter(d => d.BB_lower != null).map(d => ({ time: d.date, value: d.BB_lower }));
+      const mid = data.filter(d => d.BB_mid != null).map(d => ({ time: d.date, value: d.BB_mid }));
       maSeries['BB_upper'] = addLine(mainChart, upper, BB_COLOR, 1, 2);
       maSeries['BB_lower'] = addLine(mainChart, lower, BB_COLOR, 1, 2);
       maSeries['BB_mid'] = addLine(mainChart, mid, BB_COLOR, 1, 0);
     } else if (key === 'ST') {
-      const stUp = klineData.filter(d => d.SUPERT_dir === 1 && d.SUPERT != null).map(d => ({ time: d.date, value: d.SUPERT }));
-      const stDn = klineData.filter(d => d.SUPERT_dir === -1 && d.SUPERT != null).map(d => ({ time: d.date, value: d.SUPERT }));
+      const stUp = data.filter(d => d.SUPERT_dir === 1 && d.SUPERT != null).map(d => ({ time: d.date, value: d.SUPERT }));
+      const stDn = data.filter(d => d.SUPERT_dir === -1 && d.SUPERT != null).map(d => ({ time: d.date, value: d.SUPERT }));
       maSeries['ST_up'] = addLine(mainChart, stUp, '#26a69a', 2, 0);
       maSeries['ST_dn'] = addLine(mainChart, stDn, '#ef5350', 2, 0);
     } else {
-      const data = klineData.filter(d => d[key] != null).map(d => ({ time: d.date, value: d[key] }));
-      maSeries[key] = addLine(mainChart, data, MA_COLORS[key] || '#333', 1.5, 0);
+      const d2 = data.filter(d => d[key] != null).map(d => ({ time: d.date, value: d[key] }));
+      maSeries[key] = addLine(mainChart, d2, MA_COLORS[key] || '#333', 1.5, 0);
     }
   });
 }
@@ -417,18 +463,19 @@ function renderDiag(d) {
 // ── keyboard ───────────────────────────────────────────────────────────────
 function initKeyboard() {
   document.addEventListener('keydown', e => {
-    if (!klineData || !klineData.length) return;
+    const data = filteredData;
+    if (!data || !data.length) return;
     if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
       e.preventDefault();
       const ts = mainChart.timeScale();
       const range = ts.getVisibleLogicalRange();
       if (!range) return;
-      const totalBars = klineData.length;
-      let idx = crosshairDate ? klineData.findIndex(d => d.date === crosshairDate) : Math.floor(totalBars / 2);
+      const totalBars = data.length;
+      let idx = crosshairDate ? data.findIndex(d => d.date === crosshairDate) : Math.floor(totalBars / 2);
       idx += e.key === 'ArrowRight' ? 1 : -1;
       idx = Math.max(0, Math.min(totalBars - 1, idx));
-      crosshairDate = klineData[idx].date;
-      mainChart.setCrosshairPosition(klineData[idx].close, idx, candleSeries);
+      crosshairDate = data[idx].date;
+      mainChart.setCrosshairPosition(data[idx].close, idx, candleSeries);
       debouncedDiag();
     }
   });
@@ -437,10 +484,11 @@ function initKeyboard() {
 // ── status ─────────────────────────────────────────────────────────────────
 export function updateStatus() {
   document.getElementById('status-symbol').textContent = currentSymbol || '—';
-  if (klineData && klineData.length) {
-    document.getElementById('status-count').textContent = `${klineData.length} 条数据`;
+  const data = filteredData || klineData;
+  if (data && data.length) {
+    document.getElementById('status-count').textContent = `${data.length} 条数据`;
     document.getElementById('status-range').textContent =
-      `${klineData[0].date} → ${klineData[klineData.length-1].date}`;
+      `${data[0].date} → ${data[data.length-1].date}`;
   } else {
     document.getElementById('status-count').textContent = '';
     document.getElementById('status-range').textContent = '';

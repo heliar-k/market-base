@@ -291,7 +291,6 @@ function renderWatchlist() {
     row.addEventListener('click', () => {
       const sym = row.dataset.goStock;
       window.dispatchEvent(new CustomEvent('go-stock', { detail: sym }));
-      switchTo('stock');
     });
   });
 }

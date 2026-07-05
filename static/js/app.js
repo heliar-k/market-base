@@ -1,11 +1,10 @@
 // app.js — entry point: tab routing + global init
 
 import { initDashboard, refresh as dashRefresh, cleanup as dashCleanup, updateStatus as dashStatus } from './dashboard.js';
-import { initTechView, updateStatus as techStatus } from './tech-view.js';
+import { initTechView, selectSymbol as techSelectSymbol, updateStatus as techStatus } from './tech-view.js';
 import { initMacroView, updateStatus as macroStatus } from './macro-view.js';
 import { initCorrelationView, updateStatus as correlationStatus } from './cross-correlation.js';
 import { initLiquidityView, updateStatus as liquidityStatus } from './liquidity-heatmap.js';
-import { initStockView, updateStatus as stockStatus, cleanup as stockCleanup } from './stock-kline.js';
 
 // ponytail: shared state — only what cross-module consumers need
 export const state = {
@@ -21,17 +20,12 @@ const views = {
   macro:        { label: '宏观',   init: initMacroView,      status: macroStatus },
   correlation:  { label: '关联',   init: initCorrelationView, status: correlationStatus },
   liquidity:    { label: '流动性', init: initLiquidityView,   status: liquidityStatus },
-  stock:        { label: '个股',   init: initStockView,      status: stockStatus, cleanup: stockCleanup },
 };
 
 function switchTab(tab) {
   const prev = state.currentTab;
 
   // Cleanup previous view if needed
-  if (prev === 'stock' && tab !== 'stock') {
-    stockCleanup();
-    inited['stock'] = false;
-  }
   if (prev === 'dashboard' && tab !== 'dashboard') {
     dashCleanup();
     inited['dashboard'] = false;
@@ -64,9 +58,10 @@ document.querySelectorAll('.tab-btn').forEach(btn =>
 // Cross-module tab switching (dashboard mini-charts, watchlist clicks)
 window.addEventListener('switch-tab', e => switchTab(e.detail));
 
-// Auto-select stock when jumping from dashboard watchlist
+// ponytail: go-stock now redirects to tech view with symbol pre-selected
 window.addEventListener('go-stock', e => {
-  window._pendingStockSymbol = e.detail;
+  switchTab('tech');
+  if (e.detail) techSelectSymbol(e.detail);
 });
 
 switchTab('dashboard');
