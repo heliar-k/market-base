@@ -21,13 +21,13 @@ body { font-family: system-ui, -apple-system, sans-serif; background: #f5f6f8; c
 .status-bar { height: 28px; background: #fff; border-top: 1px solid #e1e4e8; display: flex; align-items: center; padding: 0 16px; font-size: 12px; color: #666; gap: 16px; flex-shrink: 0; }
 
 /* ── view switching ─────────────────────────────────────── */
-.tech-view, .macro-view, .dashboard-view, .correlation-view, .placeholder-view { display: none; }
+.tech-view, .macro-view, .dashboard-view, .correlation-view, .liquidity-view, .placeholder-view { display: none; }
 [data-view="dashboard"] .dashboard-view { display: flex; }
 [data-view="tech"] .tech-view { display: flex; }
 [data-view="tech"] .sidebar { display: flex; }
 [data-view="macro"] .macro-view { display: flex; }
 [data-view="correlation"] .correlation-view { display: flex; }
-[data-view="liquidity"] .placeholder-view[data-placeholder="liquidity"] { display: flex; }
+[data-view="liquidity"] .liquidity-view { display: flex; }
 [data-view="stock"] .placeholder-view[data-placeholder="stock"] { display: flex; }
 
 /* ── placeholder ────────────────────────────────────────── */
@@ -125,3 +125,21 @@ body { font-family: system-ui, -apple-system, sans-serif; background: #f5f6f8; c
 .correlation-add-btn { padding: 4px 8px; border: 1px dashed #d1d5db; border-radius: 4px; background: #fff; font-size: 12px; cursor: pointer; color: #666; }
 .correlation-add-btn:hover { background: #f0f2f5; border-color: #1a73e8; color: #1a73e8; }
 #correlation-chart { flex: 1; min-height: 400px; position: relative; }
+
+/* ── liquidity view ─────────────────────────────────────── */
+.liq-root { display: flex; flex-direction: column; overflow-y: auto; max-height: calc(100vh - 60px); }
+.liq-summary { display: flex; flex-wrap: wrap; gap: 8px; padding: 12px; }
+.liq-card {
+  flex: 1 1 140px; min-width: 130px; max-width: 220px;
+  padding: 12px; border: 1px solid #e1e4e8; border-radius: 8px;
+  background: #fafbfc; cursor: pointer; transition: all .15s;
+}
+.liq-card:hover { border-color: #1a73e8; box-shadow: 0 1px 4px rgba(26,115,232,.12); }
+.liq-card.highlighted { border-color: #1a73e8; background: #e8f0fe; }
+.liq-card-wide { flex: 2 1 280px; max-width: 460px; }
+.liq-card-label { font-size: 12px; color: #666; margin-bottom: 4px; font-weight: 500; }
+.liq-card-value { font-size: 20px; font-weight: 700; margin-bottom: 6px; }
+.liq-card-changes { font-size: 12px; display: flex; gap: 12px; }
+.liq-charts { display: flex; flex-direction: column; gap: 12px; padding: 0 12px 12px; }
+.liq-chart-section { border: 1px solid #e1e4e8; border-radius: 8px; padding: 12px; background: #fff; }
+.liq-chart-title { font-size: 13px; font-weight: 600; margin-bottom: 8px; color: #333; }

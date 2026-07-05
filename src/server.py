@@ -214,11 +214,15 @@ def get_macro_correlate(
         if not csv_path.exists():
             raise HTTPException(404, f"No data for category {cat}")
         df = pd.read_csv(csv_path, index_col="date", parse_dates=True)
+        if "RRPONTSYD" in df.columns:
+            df["RRPONTSYD"] = df["RRPONTSYD"] * 1000
         # Also load cross-category partners (e.g. tips for BEI)
         for partner in cross_category_partners(cat):
             p_csv = ROOT / "data" / "fred" / partner / f"{partner}.csv"
             if p_csv.exists():
                 p_df = pd.read_csv(p_csv, index_col="date", parse_dates=True)
+                if "RRPONTSYD" in p_df.columns:
+                    p_df["RRPONTSYD"] = p_df["RRPONTSYD"] * 1000
                 df = df.join(p_df, how="outer")
         dfs.append(df)
 
@@ -263,11 +267,16 @@ def get_macro(category: str):
     if not csv_path.exists():
         raise HTTPException(404, f"No macro data for {category}")
     df = pd.read_csv(csv_path, index_col="date", parse_dates=True)
+    # ponytail: RRPONTSYD is in billions on FRED, others in millions — normalize
+    if "RRPONTSYD" in df.columns:
+        df["RRPONTSYD"] = df["RRPONTSYD"] * 1000
     # join partner categories for cross-category derived series
     for partner in cross_category_partners(category):
         p_csv = ROOT / "data" / "fred" / partner / f"{partner}.csv"
         if p_csv.exists():
             p_df = pd.read_csv(p_csv, index_col="date", parse_dates=True)
+            if "RRPONTSYD" in p_df.columns:
+                p_df["RRPONTSYD"] = p_df["RRPONTSYD"] * 1000
             df = df.join(p_df, how="left")
     df = derive_macro(df)
     df = df.reset_index()
@@ -303,6 +312,121 @@ def get_macro_term(category: str):
             "values": values,
         }
     )
+
+
+# ── liquidity endpoints ──────────────────────────────────────────────────────
+
+_LIQ_KEYS = ["WALCL", "RRPONTSYD", "WRESBAL", "WTREGEN", "NET_LIQUIDITY"]
+
+
+def _liq_pct(current: float, past: float) -> float | None:
+    if past is None or past == 0 or current is None:
+        return None
+    return round((current - past) / abs(past), 4)
+
+
+def _liq_latest(s: pd.Series) -> float | None:
+    v = s.dropna()
+    return float(v.iloc[-1]) if len(v) > 0 else None
+
+
+def _liq_summary(df: pd.DataFrame, key: str) -> dict:
+    s = df[key] if key in df.columns else pd.Series(dtype=float)
+    latest = _liq_latest(s)
+    if latest is None:
+        return {"latest_value": None, "change_1m": None, "change_1y": None}
+    now = s.dropna().index[-1]
+    m1 = _liq_latest(s.loc[: now - pd.DateOffset(months=1)])
+    y1 = _liq_latest(s.loc[: now - pd.DateOffset(years=1)])
+    return {"latest_value": latest, "change_1m": _liq_pct(latest, m1), "change_1y": _liq_pct(latest, y1)}
+
+
+@app.get("/api/liquidity/overview")
+def get_liquidity_overview(range: str = Query("all")):
+    csv_path = ROOT / "data" / "fred" / "liquidity" / "liquidity.csv"
+    if not csv_path.exists():
+        raise HTTPException(404, "No liquidity data")
+    df = pd.read_csv(csv_path, index_col="date", parse_dates=True)
+    # ponytail: RRPONTSYD is in billions on FRED, others in millions — normalize before derive
+    if "RRPONTSYD" in df.columns:
+        df["RRPONTSYD"] = df["RRPONTSYD"] * 1000
+    df = derive_macro(df)
+
+    cutoff = None
+    if range != "all":
+        months = {"1m": 1, "3m": 3, "6m": 6, "1y": 12, "2y": 24, "3y": 36, "5y": 60, "10y": 120, "30y": 360}.get(range, 0)
+        if months:
+            cutoff = pd.Timestamp.now() - pd.DateOffset(months=months)
+
+    summary = {}
+    labels = {"WALCL": "美联储总资产", "RRPONTSYD": "隔夜逆回购", "WRESBAL": "准备金余额", "WTREGEN": "TGA余额", "NET_LIQUIDITY": "净流动性"}
+    for key in _LIQ_KEYS:
+        summary[key] = {**_liq_summary(df, key), "label": labels.get(key, key)}
+
+    filtered = df.loc[cutoff:] if cutoff is not None else df
+    filtered = filtered.reset_index()
+    filtered["date"] = filtered["date"].dt.strftime("%Y-%m-%d")
+
+    series = {}
+    for key in _LIQ_KEYS + ["NFCI"]:
+        if key in filtered.columns:
+            series[key] = _sanitize(filtered[["date", key]].rename(columns={key: "value"}).to_dict(orient="records"))
+
+    # Pre-compute stacked cumulative for area chart (WRESBAL → +WTREGEN → +RRPONTSYD)
+    stack_keys = ["WRESBAL", "WTREGEN", "RRPONTSYD"]
+    cum = pd.DataFrame(index=filtered.index)
+    running = pd.Series(0.0, index=filtered.index)
+    for sk in stack_keys:
+        col = filtered[sk] if sk in filtered.columns else pd.Series(0.0, index=filtered.index)
+        running = running.add(col.fillna(0))
+        cum[sk] = running
+    stacked = {}
+    for sk in stack_keys:
+        stacked[sk] = _sanitize(
+            filtered[["date"]].assign(value=cum[sk]).to_dict(orient="records")
+        )
+
+    return _sanitize({"summary": summary, "series": series, "stacked": stacked})
+
+
+@app.get("/api/liquidity/compare-spx")
+def get_liquidity_compare_spx(range: str = Query("5y")):
+    csv_path = ROOT / "data" / "fred" / "liquidity" / "liquidity.csv"
+    if not csv_path.exists():
+        raise HTTPException(404, "No liquidity data")
+    df = pd.read_csv(csv_path, index_col="date", parse_dates=True)
+    if "RRPONTSYD" in df.columns:
+        df["RRPONTSYD"] = df["RRPONTSYD"] * 1000
+    df = derive_macro(df)
+
+    cutoff = None
+    if range != "all":
+        months = {"1m": 1, "3m": 3, "6m": 6, "1y": 12, "2y": 24, "3y": 36, "5y": 60, "10y": 120, "30y": 360}.get(range, 60)
+        if months:
+            cutoff = pd.Timestamp.now() - pd.DateOffset(months=months)
+
+    filtered = df.loc[cutoff:] if cutoff is not None else df
+    filtered = filtered.reset_index()
+    filtered["date"] = filtered["date"].dt.strftime("%Y-%m-%d")
+
+    result: dict[str, Any] = {}
+    if "NET_LIQUIDITY" in filtered.columns:
+        result["NET_LIQUIDITY"] = _sanitize(
+            filtered[["date", "NET_LIQUIDITY"]].rename(columns={"NET_LIQUIDITY": "value"}).to_dict(orient="records")
+        )
+
+    # Try SPX from yfinance data
+    spx_path = ROOT / "data" / "indices" / "SPX.csv"
+    if spx_path.exists():
+        spx = pd.read_csv(spx_path, index_col="date", parse_dates=True)
+        if cutoff is not None:
+            spx = spx.loc[cutoff:]
+        spx = spx.reset_index()
+        spx["date"] = spx["date"].dt.strftime("%Y-%m-%d")
+        close_col = "close" if "close" in spx.columns else spx.columns[1]
+        result["SPX"] = _sanitize(spx[["date", close_col]].rename(columns={close_col: "value"}).to_dict(orient="records"))
+
+    return result
 
 
 # ── static files (must be last) ─────────────────────────────────────────────

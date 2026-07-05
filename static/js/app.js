@@ -3,6 +3,7 @@
 import { initTechView, updateStatus as techStatus } from './tech-view.js';
 import { initMacroView, updateStatus as macroStatus } from './macro-view.js';
 import { initCorrelationView, updateStatus as correlationStatus } from './cross-correlation.js';
+import { initLiquidityView, updateStatus as liquidityStatus } from './liquidity-heatmap.js';
 
 // ponytail: shared state — only what cross-module consumers need
 export const state = {
@@ -17,7 +18,7 @@ const views = {
   tech:      { label: '技术',  init: initTechView,  status: techStatus },
   macro:     { label: '宏观',  init: initMacroView, status: macroStatus },
   correlation: { label: '关联', init: initCorrelationView, status: correlationStatus },
-  liquidity:   { label: '流动性' },
+  liquidity:   { label: '流动性', init: initLiquidityView, status: liquidityStatus },
   stock:       { label: '个股' },
 };
 
