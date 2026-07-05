@@ -66,7 +66,7 @@ body { font-family: system-ui, -apple-system, sans-serif; background: #f5f6f8; c
 .dash-mini-wrap { display: flex; flex-direction: column; gap: 4px; border-radius: 6px; padding: 4px; transition: background .15s; }
 .dash-mini-wrap:hover { background: #f0f4ff; }
 .dash-mini-label { font-size: 11px; color: #888; font-weight: 500; }
-.dash-mini-chart { height: 120px; position: relative; }
+.dash-mini-chart { height: 120px; position: relative; width: 100%; }
 
 /* watchlist */
 .dash-watchlist { display: flex; flex-direction: column; }

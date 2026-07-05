@@ -218,7 +218,7 @@ function renderStatCard(id, result, key, cnLabel, precision = 2, suffix = '', mo
 }
 
 // Mini chart — liquidity uses {series: {KEY: [{date,value}]}}, macro uses flat array
-function renderMiniChart(containerId, result, key, color) {
+async function renderMiniChart(containerId, result, key, color) {
   const container = document.getElementById(containerId);
   if (!container) return;
 
@@ -244,6 +244,9 @@ function renderMiniChart(containerId, result, key, color) {
     return;
   }
 
+  // ensure container has been laid out before grabbing clientWidth
+  await new Promise(r => requestAnimationFrame(r));
+
   const chart = LightweightCharts.createChart(container, {
     layout: { background: { type: 'solid', color: '#fff' }, textColor: 'transparent' },
     grid: { vertLines: { visible: false }, horzLines: { visible: false } },
@@ -252,7 +255,7 @@ function renderMiniChart(containerId, result, key, color) {
     leftPriceScale: { visible: false },
     timeScale: { visible: false, borderColor: 'transparent' },
     handleScroll: false, handleScale: false,
-    height: 120, width: container.clientWidth,
+    height: 120, width: container.clientWidth || 300,
   });
   miniCharts.push(chart);
   const s = chart.addLineSeries({
