@@ -20,7 +20,15 @@ class KlineApp(App):
     """K线分析 TUI 主应用。"""
 
     CSS = """
-    Screen { background: $surface; }
+    Screen { background: #0d1117; }
+    * { scrollbar-color: #30363d; scrollbar-color-active: #484f58; }
+    ListView { background: #161b22; }
+    ListView > ListItem { padding: 0 1; color: #8b949e; }
+    ListView > ListItem.--highlight { background: #1f6feb; color: #ffffff; }
+    Tree { background: #161b22; }
+    Tree > .tree--label { color: #8b949e; }
+    Tree > .tree--guides { color: #30363d; }
+    Tree > .tree--guides-hover { color: #58a6ff; }
     """
 
     # priority=True 让 Tab 优先于默认的焦点遍历，由 App 统一处理为切模式

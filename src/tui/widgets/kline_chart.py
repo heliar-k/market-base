@@ -25,6 +25,22 @@ _DATE_FMT = "%d/%m/%Y"
 # 终端渲染分辨率有限，主图默认只展示最近 N 根 K 线（过多会挤压成糊）。
 _DEFAULT_WINDOW = 200
 
+# ── 统一色板 ──
+_CLR_UP = "green"  # 阳线绿色
+_CLR_DOWN = "red"  # 阴线红色
+_CLR_VLINE = "gray"  # 回看光标线
+_CLR_HLINE = "gray"  # 副图参考线（70/30 等）
+_CLR_MA = {5: "cyan", 10: "blue", 20: "magenta", 60: "yellow", 120: "white"}
+_CLR_BB = {"BB上": "yellow", "BB中": "white", "BB下": "yellow"}
+_CLR_SUPERTREND = "green"
+_CLR_MACD = "cyan"
+_CLR_MACD_SIGNAL = "magenta"
+_CLR_STOCH_K = "cyan"
+_CLR_STOCH_D = "magenta"
+_CLR_RSI = "cyan"
+_CLR_CCI = "cyan"
+_CLR_MFI = "cyan"
+
 
 def visible_window(
     dates: list[pd.Timestamp],
@@ -135,6 +151,7 @@ class KlineChart(Vertical):
     def _draw_main(self) -> None:
         plt = self._main.plt
         plt.clear_data()
+        plt.theme("pro")  # 专业暗色主题
         win = self._current_window()
         sub = self.df.iloc[win]
         dates = [d.strftime(_DATE_FMT) for d in sub.index]
@@ -146,15 +163,26 @@ class KlineChart(Vertical):
                 "High": sub["high"].tolist(),
                 "Low": sub["low"].tolist(),
             },
+            colors=(_CLR_UP, _CLR_DOWN),
         )
         # 叠加层
         overlays = set(self.tech_view.overlays.active_overlays())
         for ma in (5, 10, 20, 60):
             col = f"MA{ma}"
             if col in sub.columns and f"MA{ma}" in overlays:
-                plt.plot(dates, _clean(sub[col]), label=f"MA{ma}")
+                plt.plot(
+                    dates,
+                    _clean(sub[col]),
+                    label=f"MA{ma}",
+                    color=_CLR_MA.get(ma, "white"),
+                )
         if "MA120" in overlays and "MA120" in sub.columns:
-            plt.plot(dates, _clean(sub["MA120"]), label="MA120")
+            plt.plot(
+                dates,
+                _clean(sub["MA120"]),
+                label="MA120",
+                color=_CLR_MA.get(120, "white"),
+            )
         if "BB" in overlays:
             for col, lab in (
                 ("BB_upper", "BB上"),
@@ -162,14 +190,24 @@ class KlineChart(Vertical):
                 ("BB_lower", "BB下"),
             ):
                 if col in sub.columns:
-                    plt.plot(dates, _clean(sub[col]), label=lab)
+                    plt.plot(
+                        dates,
+                        _clean(sub[col]),
+                        label=lab,
+                        color=_CLR_BB.get(lab, "white"),
+                    )
         if "SuperTrend" in overlays and "SUPERT" in sub.columns:
-            plt.plot(dates, _clean(sub["SUPERT"]), label="SuperTrend")
+            plt.plot(
+                dates,
+                _clean(sub["SUPERT"]),
+                label="SuperTrend",
+                color=_CLR_SUPERTREND,
+            )
         plt.title(f"K线 (主图) | {self._symbol_label()}")
         # cursor vline
         cur = self.tech_view.cursor.current()
         if cur is not None:
-            plt.vline(cur.strftime(_DATE_FMT), color="red")
+            plt.vline(cur.strftime(_DATE_FMT), color=_CLR_VLINE)
         self._main.refresh()
 
     def _symbol_label(self) -> str:
@@ -183,43 +221,59 @@ class KlineChart(Vertical):
             return
         plt = plot.plt
         plt.clear_data()
+        plt.theme("pro")
         win = self._current_window()
         sub = self.df.iloc[win]
         dates = [d.strftime(_DATE_FMT) for d in sub.index]
         if indicator == "RSI":
             plt.title("RSI")
             if "RSI" in sub.columns:
-                plt.plot(dates, _clean(sub["RSI"]), label="RSI")
-            plt.hline(70, color="yellow")
-            plt.hline(30, color="yellow")
+                plt.plot(dates, _clean(sub["RSI"]), label="RSI", color=_CLR_RSI)
+            plt.hline(70, color=_CLR_HLINE)
+            plt.hline(30, color=_CLR_HLINE)
         elif indicator == "MACD":
             plt.title("MACD")
             if "MACD_hist" in sub.columns:
                 plt.bar(dates, _clean(sub["MACD_hist"]), label="hist")
             if "MACD" in sub.columns:
-                plt.plot(dates, _clean(sub["MACD"]), label="MACD")
+                plt.plot(dates, _clean(sub["MACD"]), label="MACD", color=_CLR_MACD)
             if "MACD_signal" in sub.columns:
-                plt.plot(dates, _clean(sub["MACD_signal"]), label="signal")
+                plt.plot(
+                    dates,
+                    _clean(sub["MACD_signal"]),
+                    label="signal",
+                    color=_CLR_MACD_SIGNAL,
+                )
         elif indicator == "Stoch":
             plt.title("Stoch")
             if "STOCH_k" in sub.columns:
-                plt.plot(dates, _clean(sub["STOCH_k"]), label="%K")
+                plt.plot(
+                    dates,
+                    _clean(sub["STOCH_k"]),
+                    label="%K",
+                    color=_CLR_STOCH_K,
+                )
             if "STOCH_d" in sub.columns:
-                plt.plot(dates, _clean(sub["STOCH_d"]), label="%D")
-            plt.hline(80, color="yellow")
-            plt.hline(20, color="yellow")
+                plt.plot(
+                    dates,
+                    _clean(sub["STOCH_d"]),
+                    label="%D",
+                    color=_CLR_STOCH_D,
+                )
+            plt.hline(80, color=_CLR_HLINE)
+            plt.hline(20, color=_CLR_HLINE)
         elif indicator == "CCI":
             plt.title("CCI")
             if "CCI" in sub.columns:
-                plt.plot(dates, _clean(sub["CCI"]), label="CCI")
-            plt.hline(100, color="yellow")
-            plt.hline(-100, color="yellow")
+                plt.plot(dates, _clean(sub["CCI"]), label="CCI", color=_CLR_CCI)
+            plt.hline(100, color=_CLR_HLINE)
+            plt.hline(-100, color=_CLR_HLINE)
         elif indicator == "MFI":
             plt.title("MFI")
             if "MFI" in sub.columns:
-                plt.plot(dates, _clean(sub["MFI"]), label="MFI")
-            plt.hline(80, color="yellow")
-            plt.hline(20, color="yellow")
+                plt.plot(dates, _clean(sub["MFI"]), label="MFI", color=_CLR_MFI)
+            plt.hline(80, color=_CLR_HLINE)
+            plt.hline(20, color=_CLR_HLINE)
         plot.refresh()
 
     # ── 窗口管理 ────────────────────────────────────────────────────────

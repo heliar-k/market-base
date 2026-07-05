@@ -116,6 +116,7 @@ class MacroChart(Vertical):
             return
         plt = self._ts.plt
         plt.clear_data()
+        plt.theme("pro")
         overlaid = self.macro_view.overlaid_series
         dates = [d.strftime(_DATE_FMT) for d in self.df.index]
         drew_any = False
@@ -146,6 +147,7 @@ class MacroChart(Vertical):
         )
         plt = self._term.plt
         plt.clear_data()
+        plt.theme("pro")
         labels = [_TERM_LABELS.get(s, s) for s in series_list]
         if cur is not None and cur in self.df.index:
             row = self.df.loc[cur]

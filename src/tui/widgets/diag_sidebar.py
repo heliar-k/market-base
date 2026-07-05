@@ -26,86 +26,147 @@ def _fmt(v: object) -> str:
     return str(v)
 
 
+def _score_bar(score: int, max_score: int = 12) -> str:
+    """用色块表示评分强度。"""
+    if score >= 6:
+        color = "#3fb950"  # green
+        bar = "█" * min(score, max_score)
+    elif score >= 3:
+        color = "#d2991d"  # yellow
+        bar = "█" * score + "░" * (max_score - score)
+    elif score > 0:
+        color = "#f85149"  # red
+        bar = "█" * score + "░" * (max_score - score)
+    elif score == 0:
+        color = "#8b949e"
+        bar = "░" * max_score
+    else:
+        color = "#f85149"
+        bar = "█" * min(abs(score), max_score)
+    return f"[{color}]{bar}[/]"
+
+
+def _sign(v: float) -> str:
+    """数值符号着色：正绿负红。"""
+    if v > 0:
+        return f"[#3fb950]+{v}[/]"
+    elif v < 0:
+        return f"[#f85149]{v}[/]"
+    return "[#8b949e]0[/]"
+
+
 def _format_diagnosis(r: dict) -> str:
-    """把 analyze dict 渲染成多行文本。"""
+    """把 analyze dict 渲染成 Rich markup 多行文本。"""
     lines: list[str] = []
     sym = r.get("symbol", "?")
-    lines.append(f"{sym}  ${_fmt(r.get('last_price'))}  {r.get('last_date', '?')}")
-    lines.append("")
+    price = r.get("last_price")
+    price_str = _fmt(price)
+    last_date = r.get("last_date", "?")
 
-    # 综合评分
+    # ── 标题行 ──
+    lines.append(
+        f"[bold #58a6ff]{sym}[/]  [bold #c9d1d9]${price_str}[/]  [dim]{last_date}[/]"
+    )
+    lines.append("[dim]" + "─" * 32 + "[/]")
+
+    # ── 综合评分 ──
     total = r.get("total_score", 0)
-    lines.append(f"综合评分: {total:+d}")
+    bar = _score_bar(total)
+    lines.append(f"[bold]综合评分:[/] {_sign(total)}  {bar}")
     scores = r.get("scores") or []
     if scores:
-        # 只列有非零分的信号，最多 8 条，避免刷屏
         nonzero = [s for s in scores if s.get("value")]
         for s in nonzero[:8]:
             v = s.get("value", 0)
-            mark = "▲" if v > 0 else "▼"
-            lines.append(f"  {mark} {s.get('label', '')} ({v:+d})")
+            mark = "[#3fb950]▲[/]" if v > 0 else "[#f85149]▼[/]"
+            lines.append(f"  {mark} [dim]{s.get('label', '')}[/] ({_sign(v)})")
     lines.append("")
 
-    # 均线方向
+    # ── 均线方向 ──
     ma_signals = r.get("ma_signals") or {}
     if ma_signals:
-        ma_parts = [
-            f"MA{p}:{'上' if ma_signals.get(f'MA{p}') == 'above' else '下'}"
-            for p in (5, 10, 20, 60, 120)
-            if f"MA{p}" in ma_signals
-        ]
-        lines.append("均线: " + " ".join(ma_parts))
+        ma_parts = []
+        for p in (5, 10, 20, 60, 120):
+            key = f"MA{p}"
+            if key in ma_signals:
+                direction = ma_signals[key]
+                if direction == "above":
+                    ma_parts.append(f"[#3fb950]MA{p}↑[/]")
+                else:
+                    ma_parts.append(f"[#f85149]MA{p}↓[/]")
+        lines.append("[bold]均线:[/] " + " ".join(ma_parts))
     lines.append("")
 
-    # RSI / MACD
+    # ── RSI / MACD ──
     rsi = r.get("RSI")
-    lines.append(f"RSI: {_fmt(rsi)} ({r.get('RSI_detail', '—')})")
+    rsi_str = _fmt(rsi)
+    rsi_detail = r.get("RSI_detail", "—")
+    # RSI 着色：超买红，超卖绿
+    if isinstance(rsi, (int, float)):
+        if rsi >= 70:
+            rsi_color = "#f85149"
+        elif rsi <= 30:
+            rsi_color = "#3fb950"
+        else:
+            rsi_color = "#c9d1d9"
+        lines.append(f"[bold]RSI:[/] [{rsi_color}]{rsi_str}[/] [dim]({rsi_detail})[/]")
+    else:
+        lines.append(f"[bold]RSI:[/] {rsi_str} [dim]({rsi_detail})[/]")
+
     macd_status = r.get("MACD_status")
-    macd_mark = (
-        "金叉"
-        if macd_status == "golden_cross"
-        else "死叉"
-        if macd_status == "dead_cross"
-        else "—"
-    )
+    if macd_status == "golden_cross":
+        macd_mark = "[#3fb950]金叉 ↑[/]"
+    elif macd_status == "dead_cross":
+        macd_mark = "[#f85149]死叉 ↓[/]"
+    else:
+        macd_mark = "[dim]—[/]"
     lines.append(
-        f"MACD: {_fmt(r.get('MACD'))} | sig {_fmt(r.get('MACD_signal'))} | {macd_mark}"
+        f"[bold]MACD:[/] {_fmt(r.get('MACD'))} "
+        f"[dim]| sig {_fmt(r.get('MACD_signal'))} |[/] {macd_mark}"
     )
     lines.append("")
 
-    # ADX 趋势
+    # ── ADX 趋势 ──
     adx = r.get("ADX")
     adx_trend = r.get("ADX_trend", "—")
-    lines.append(f"ADX: {_fmt(adx)} ({adx_trend})")
+    if isinstance(adx, (int, float)) and adx >= 25:
+        trend_color = "#3fb950" if adx_trend in ("bullish", "uptrend") else "#f85149"
+        lines.append(
+            f"[bold]ADX:[/] [{trend_color}]{_fmt(adx)}[/] [dim]({adx_trend})[/]"
+        )
+    else:
+        lines.append(f"[bold]ADX:[/] {_fmt(adx)} [dim]({adx_trend})[/]")
     lines.append("")
 
-    # Stoch / CCI / MFI（精简）
+    # ── Stoch / CCI / MFI ──
     stoch = r.get("STOCH_detail")
     if stoch:
         lines.append(
-            f"Stoch: %K {_fmt(r.get('STOCH_k'))} %D {_fmt(r.get('STOCH_d'))} ({stoch})"
+            f"[bold]Stoch:[/] %K {_fmt(r.get('STOCH_k'))} "
+            f"%D {_fmt(r.get('STOCH_d'))} [dim]({stoch})[/]"
         )
     cci_detail = r.get("CCI_detail")
     if cci_detail:
-        lines.append(f"CCI: {_fmt(r.get('CCI'))} ({cci_detail})")
+        lines.append(f"[bold]CCI:[/] {_fmt(r.get('CCI'))} [dim]({cci_detail})[/]")
     mfi = r.get("MFI")
     if mfi is not None:
-        lines.append(f"MFI: {_fmt(mfi)}")
+        lines.append(f"[bold]MFI:[/] {_fmt(mfi)}")
     lines.append("")
 
-    # 形态命中
+    # ── K线形态 ──
     bull = r.get("cdl_bullish") or []
     bear = r.get("cdl_bearish") or []
     if bull or bear:
-        lines.append("K线形态:")
+        lines.append("[bold]K线形态:[/]")
         if bull:
-            lines.append("  ▲ " + ", ".join(bull[:5]))
+            lines.append("  [#3fb950]▲[/] " + ", ".join(bull[:5]))
         if bear:
-            lines.append("  ▼ " + ", ".join(bear[:5]))
+            lines.append("  [#f85149]▼[/] " + ", ".join(bear[:5]))
         lines.append("")
 
-    # 关键价位
-    lines.append(f"支撑(90d): {_fmt(r.get('support_90d'))}")
-    lines.append(f"阻力(90d): {_fmt(r.get('resistance_90d'))}")
+    # ── 关键价位 ──
+    lines.append("[dim]" + "─" * 32 + "[/]")
+    lines.append(f"[bold]支撑(90d):[/] [#3fb950]{_fmt(r.get('support_90d'))}[/]")
+    lines.append(f"[bold]阻力(90d):[/] [#f85149]{_fmt(r.get('resistance_90d'))}[/]")
 
     return "\n".join(lines)

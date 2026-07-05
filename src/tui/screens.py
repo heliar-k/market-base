@@ -41,9 +41,23 @@ class StatusBar(Static):
 
     def render_text(self, mode: str) -> None:
         if mode == Mode.MACRO:
-            self.update("MACRO | 空格 toggle叠加 | ←→期限光标 | Tab切模式 | q退出")
+            self.update(
+                "[bold]MACRO[/]  │  [dim]空格[/]叠加  [dim]←→[/]期限光标  "
+                "[dim]Tab[/]切模式  [dim]q[/]退出"
+            )
         else:
-            self.update("TECH | ←→回看 | 1/2切副图 | b/m/s 切叠加 | Tab切模式 | q退出")
+            self.update(
+                "[bold]TECH[/]  │  [dim]←→[/]回看  [dim]1/2[/]副图  "
+                "[dim]b/m/s[/]叠加  [dim]Tab[/]切模式  [dim]q[/]退出"
+            )
+
+
+class PanelHeader(Static):
+    """面板标题栏：带背景色的标题行。"""
+
+    def __init__(self, title: str, id: str | None = None) -> None:  # noqa: A002
+        super().__init__(f"[bold]{title}[/]", id=id)
+        self.add_class("panel-header")
 
 
 class TechListView(ListView):
@@ -85,19 +99,80 @@ class MainScreen(Container):
     """
 
     CSS = """
-    MainScreen { layout: vertical; }
-    #body { height: 1fr; }
-    #sidebar { width: 24; border-right: solid $primary; overflow: auto; }
-    #content { padding: 0 1; }
-    #diag { width: 36; border-left: solid $primary; overflow: auto; padding: 0 1; }
-    #statusbar { height: 1; background: $boost; dock: bottom; }
-    /* K线图三层：主图占大头，两副图等高 */
+    MainScreen {
+        layout: vertical;
+        background: #0d1117;
+    }
+
+    #body {
+        height: 1fr;
+    }
+
+    /* ── 侧栏面板 ── */
+    #sidebar-container {
+        width: 24;
+        layout: vertical;
+        background: #161b22;
+        border-right: solid #21262d;
+    }
+    #sidebar {
+        height: 1fr;
+        overflow: auto;
+    }
+
+    /* ── 内容区 ── */
+    #content {
+        background: #0d1117;
+    }
+    #content-text {
+        padding: 1 2;
+        color: #484f58;
+        text-style: italic;
+    }
+
+    /* ── 诊断面板 ── */
+    #diag-container {
+        width: 36;
+        layout: vertical;
+        background: #161b22;
+        border-left: solid #21262d;
+    }
+    #diag {
+        height: 1fr;
+        overflow: auto;
+    }
+    #diag-text {
+        padding: 0 1;
+        color: #c9d1d9;
+    }
+
+    /* ── 面板标题栏 ── */
+    .panel-header {
+        height: 1;
+        background: #21262d;
+        color: #58a6ff;
+        padding: 0 1;
+        text-style: bold;
+    }
+
+    /* ── 状态栏 ── */
+    #statusbar {
+        height: 1;
+        background: #161b22;
+        color: #8b949e;
+        padding: 0 1;
+        dock: bottom;
+        border-top: solid #21262d;
+    }
+
+    /* ── K 线图三层 ── */
     KlineChart { height: 1fr; }
     KlineChart > PlotextPlot { width: 1fr; }
     KlineChart > #kline-main { height: 3fr; }
     KlineChart > #kline-sub1 { height: 1fr; }
     KlineChart > #kline-sub2 { height: 1fr; }
-    /* 宏观图：时序折线占大头，期限结构快照在下（仅 rates/tips 显示） */
+
+    /* ── 宏观图 ── */
     MacroChart { height: 1fr; }
     MacroChart > PlotextPlot { width: 1fr; }
     MacroChart > #macro-ts { height: 2fr; }
@@ -118,9 +193,13 @@ class MainScreen(Container):
 
     def compose(self) -> ComposeResult:
         with Horizontal(id="body"):
-            yield Container(TechListView(), id="sidebar")
+            with Container(id="sidebar-container"):
+                yield PanelHeader("📊 标的列表", id="sidebar-header")
+                yield Container(TechListView(), id="sidebar")
             yield Container(Static("选择标的以加载", id="content-text"), id="content")
-            yield Container(DiagSidebar("等待诊断", id="diag-text"), id="diag")
+            with Container(id="diag-container"):
+                yield PanelHeader("📋 诊断分析", id="diag-header")
+                yield Container(DiagSidebar("等待诊断", id="diag-text"), id="diag")
         yield StatusBar("TECH | ←→回看 | Tab切模式 | q退出", id="statusbar")
 
     # ── 模式切换：swap 侧栏 widget ──────────────────────────────────────
@@ -129,9 +208,13 @@ class MainScreen(Container):
         sidebar = self.query_one("#sidebar", Container)
         for child in list(sidebar.children):
             await child.remove()
+        # 更新标题
+        header = self.query_one("#sidebar-header", PanelHeader)
         if self.state.mode == Mode.TECH:
+            header.update("[bold]📊 标的列表[/]")
             await sidebar.mount(TechListView())
         else:
+            header.update("[bold]🌐 宏观数据[/]")
             await sidebar.mount(MacroTree())
         self.query_one("#statusbar", StatusBar).render_text(self.state.mode)
         await self.refresh_content()

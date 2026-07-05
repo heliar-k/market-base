@@ -147,6 +147,10 @@ YF_TICKERS = {
     "TLT": "TLT",
     "HYG": "HYG",
     "LQD": "LQD",
+    # ── 算力拥挤度观察（IBKR 不可用时备用）──
+    "SOX": "^SOX",
+    "005930": "005930.KS",
+    "000660": "000660.KS",
 }
 
 IBKR_SYMBOLS = [
@@ -171,6 +175,22 @@ IBKR_SYMBOLS = [
     {"name": "META", "type": "stock", "exchange": "SMART", "currency": "USD"},
     {"name": "AMZN", "type": "stock", "exchange": "SMART", "currency": "USD"},
     {"name": "NVDA", "type": "stock", "exchange": "SMART", "currency": "USD"},
+    # ── 算力拥挤度观察（利文斯顿框架）──
+    {"name": "SOX", "type": "index", "exchange": "PHLX", "currency": "USD"},
+    {
+        "name": "005930",
+        "type": "stock",
+        "exchange": "KSE",
+        "currency": "KRW",
+        "symbol": "005930",
+    },
+    {
+        "name": "000660",
+        "type": "stock",
+        "exchange": "KSE",
+        "currency": "KRW",
+        "symbol": "000660",
+    },
 ]
 
 
