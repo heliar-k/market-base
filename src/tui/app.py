@@ -35,6 +35,7 @@ class KlineApp(App):
         Binding("b", "toggle_bb", "布林带", priority=True),
         Binding("m", "toggle_ma120", "MA120", priority=True),
         Binding("s", "toggle_supertrend", "SuperTrend", priority=True),
+        Binding("space", "toggle_macro_series", "叠加系列", priority=True),
         ("q", "quit", "退出"),
     ]
 
@@ -64,10 +65,14 @@ class KlineApp(App):
     def action_lookback_left(self) -> None:
         if self._is_tech():
             self._screen().move_cursor("left")
+        else:
+            self._screen().move_term_cursor("left")
 
     def action_lookback_right(self) -> None:
         if self._is_tech():
             self._screen().move_cursor("right")
+        else:
+            self._screen().move_term_cursor("right")
 
     def action_cycle_subplot1(self) -> None:
         if self._is_tech():
@@ -88,6 +93,11 @@ class KlineApp(App):
     def action_toggle_supertrend(self) -> None:
         if self._is_tech():
             self._screen().toggle_overlay("s")
+
+    def action_toggle_macro_series(self) -> None:
+        """空格 toggle 当前选中宏观系列到叠加集合（仅 MACRO 模式）。"""
+        if not self._is_tech():
+            self._screen().toggle_macro_series()
 
     # ── 键盘：ListView / Tree 原生 ↑↓ 导航；Enter 选中 ──────────────────
     @on(ListView.Selected)

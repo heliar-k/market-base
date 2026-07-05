@@ -25,10 +25,12 @@ from textual.widgets import ListItem, ListView, Static, Tree
 
 from src.analyze import analyze
 from src.cache import load_or_compute
-from src.config import IBKR_SYMBOLS
-from src.tui.state import Mode, TechView, TuiState
+from src.config import FRED_SERIES, IBKR_SYMBOLS
+from src.macro import derive_macro
+from src.tui.state import MacroView, Mode, TechView, TuiState
 from src.tui.widgets.diag_sidebar import DiagSidebar
 from src.tui.widgets.kline_chart import KlineChart
+from src.tui.widgets.macro_chart import MacroChart
 
 # 回看侧栏 analyze 防抖延迟（决策点5）：连续按 ← 时只在停顿后刷新诊断。
 _DEBOUNCE_SECONDS = 0.05
@@ -39,7 +41,7 @@ class StatusBar(Static):
 
     def render_text(self, mode: str) -> None:
         if mode == Mode.MACRO:
-            self.update("MACRO | 选分类→系列(待实现绘图) | Tab切模式 | q退出")
+            self.update("MACRO | 空格 toggle叠加 | ←→期限光标 | Tab切模式 | q退出")
         else:
             self.update("TECH | ←→回看 | 1/2切副图 | b/m/s 切叠加 | Tab切模式 | q退出")
 
@@ -54,16 +56,19 @@ class TechListView(ListView):
 
 
 class MacroTree(Tree):
-    """宏观模式侧栏：两级树 分类→系列。"""
+    """宏观模式侧栏：两级树 分类→系列（原始 + 派生）。"""
 
     def __init__(self) -> None:
-        from src.config import FRED_SERIES
+        from src.macro import derived_series_for_category
 
         super().__init__("FRED", id="macro-tree")
         for category, series_map in FRED_SERIES.items():
             node = self.root.add(category, allow_expand=True)
             for metric in series_map:
                 node.add_leaf(metric)
+            # 派生系列作为附加叶子（输入列同分类可得时）
+            for derived in derived_series_for_category(category):
+                node.add_leaf(derived)
 
 
 class MainScreen(Container):
@@ -86,15 +91,23 @@ class MainScreen(Container):
     KlineChart > #kline-main { height: 3fr; }
     KlineChart > #kline-sub1 { height: 1fr; }
     KlineChart > #kline-sub2 { height: 1fr; }
+    /* 宏观图：时序折线占大头，期限结构快照在下（仅 rates/tips 显示） */
+    MacroChart { height: 1fr; }
+    MacroChart > PlotextPlot { width: 1fr; }
+    MacroChart > #macro-ts { height: 2fr; }
+    MacroChart > #macro-term { height: 1fr; }
     """
 
     def __init__(self) -> None:
         super().__init__()
         self.state = TuiState()
         self.tech_view = TechView()
+        self.macro_view = MacroView()
         self.content_text = ""  # 宏观模式/无数据时的可观测文本
         self._current_df: pd.DataFrame | None = None  # 当前加载的 df（带指标）
         self._current_symbol: str | None = None
+        self._macro_df: pd.DataFrame | None = None  # 宏观当前分类 df（带派生列）
+        self._macro_category_loaded: str | None = None  # 已加载到 macro_view 的分类
         self._debounce_timer = None  # 侧栏防抖定时器
 
     def compose(self) -> ComposeResult:
@@ -130,10 +143,11 @@ class MainScreen(Container):
             return
         if self.state.mode == Mode.MACRO:
             category, series = sel
-            self.content_text = f"{category} / {series}"
-            placeholder.display = True
-            placeholder.update(self.content_text)
-            self._set_chart_visible(False)
+            # 分类变化 → 重置叠加集合 + 期限光标，并（重新）加载数据
+            if category != self.macro_view.category:
+                self._macro_df = None
+                self._macro_category_loaded = None
+            self._load_macro_worker(category)
             return
         # 技术分析：Worker 化加载
         self._load_tech_worker(sel)
@@ -259,3 +273,71 @@ class MainScreen(Container):
                 sub = "stocks" if kind == "stock" else "indices"
                 return Path("data") / sub / f"{symbol}.csv"
         return None
+
+    @staticmethod
+    def _fred_csv_path_for(category: str) -> Path:
+        """FRED 分类 CSV 路径：data/fred/{category}/{category}.csv。"""
+        return Path("data") / "fred" / category / f"{category}.csv"
+
+    # ── 宏观：Worker 化加载 FRED CSV + derive_macro ────────────────────
+    @work(thread=True, exclusive=True, name="macro-load")
+    def _load_macro_worker(self, category: str) -> None:
+        """后台读 FRED CSV + 调 derive_macro 追加派生列，完成后挂载/重画 MacroChart。"""
+        csv_path = self._fred_csv_path_for(category)
+        self.app.call_from_thread(
+            self.query_one("#content-text", Static).update, f"{category} 加载中..."
+        )
+        if not csv_path.exists():
+            self.app.call_from_thread(self._show_macro_no_data, category)
+            return
+        df = pd.read_csv(csv_path, index_col="date", parse_dates=True)
+        df = derive_macro(df)
+        self.app.call_from_thread(self._on_macro_loaded, category, df)
+
+    def _show_macro_no_data(self, category: str) -> None:
+        msg = f"{category}：无数据，请先 ./bin/fetch_fred"
+        self.content_text = msg
+        self._macro_df = None
+        placeholder = self.query_one("#content-text", Static)
+        placeholder.display = True
+        placeholder.update(msg)
+        chart = self._macro_chart_or_none()
+        if chart is not None:
+            chart.display = False
+
+    def _macro_chart_or_none(self) -> MacroChart | None:
+        content = self.query_one("#content", Container)
+        return content.query_one(MacroChart) if content.query(MacroChart) else None
+
+    def _on_macro_loaded(self, category: str, df: pd.DataFrame) -> None:
+        """宏观 df 就绪：分类变化时重置状态 + 挂载/更新 MacroChart。"""
+        self._macro_df = df
+        self._macro_category_loaded = category
+        if category != self.macro_view.category:
+            self.macro_view.on_category_changed(category, list(df.index))
+        # 挂载 MacroChart（或复用已有）
+        content = self.query_one("#content", Container)
+        chart = self._macro_chart_or_none()
+        if chart is None:
+            chart = MacroChart(self.macro_view)
+            placeholder = self.query_one("#content-text", Static)
+            placeholder.display = False
+            content.mount(chart)
+        chart.display = True
+        chart.update_data(df, category, set(self.macro_view.overlaid_series))
+
+    # ── 宏观：空格 toggle 叠加 + ←→ 期限光标 ────────────────────────────
+    def toggle_macro_series(self) -> None:
+        """空格 toggle 当前选中系列到叠加集合，重画时序折线。"""
+        if self.state.macro_series is None or self._macro_df is None:
+            return
+        self.macro_view.toggle_series(self.state.macro_series)
+        chart = self._macro_chart_or_none()
+        if chart is not None:
+            chart.redraw()
+
+    def move_term_cursor(self, direction: str) -> None:
+        """←/→ 移期限结构快照日期（仅 rates/tips），重画期限图。"""
+        chart = self._macro_chart_or_none()
+        if chart is not None:
+            chart.move_term_cursor(direction)

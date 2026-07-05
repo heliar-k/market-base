@@ -7,7 +7,7 @@
 import pandas as pd
 import pytest
 
-from src.macro import derive_macro
+from src.macro import DERIVED_INPUTS, derive_macro, derived_series_for_category
 
 
 def test_derive_macro_empty_df_returns_unchanged():
@@ -160,3 +160,36 @@ def test_derive_macro_all_inputs_all_derived():
     assert out["BEI_5Y"].iloc[0] == 250.0
     assert out["BEI_10Y"].iloc[0] == 270.0
     assert out["SOFR_IORB_SPREAD_BP"].iloc[0] == pytest.approx(-10.0)
+
+
+# ──────────────────────────────────────────────────────────────────────
+# derived_series_for_category：UI 用的派生系列归属查询
+# ──────────────────────────────────────────────────────────────────────
+
+
+def test_derived_series_for_rates_has_spread_and_sofr_iorb() -> None:
+    """rates 分类含 DGS2/DGS10/SOFR/IORB → 派生 SPREAD_2S10S + SOFR_IORB_SPREAD_BP。"""
+    out = derived_series_for_category("rates")
+    assert "SPREAD_2S10S" in out
+    assert "SOFR_IORB_SPREAD_BP" in out
+
+
+def test_derived_series_for_liquidity_has_net_liquidity() -> None:
+    """liquidity 分类含 WALCL/RRPONTSYD/WTREGEN → 派生 NET_LIQUIDITY。"""
+    assert "NET_LIQUIDITY" in derived_series_for_category("liquidity")
+
+
+def test_derived_series_for_tips_empty() -> None:
+    """tips 只有 DFII 系列，无 DGS → 不生成任何派生（BEI 需跨分类）。"""
+    assert derived_series_for_category("tips") == []
+
+
+def test_derived_inputs_matches_derive_functions() -> None:
+    """DERIVED_INPUTS 的键覆盖全部 5 个派生指标。"""
+    assert set(DERIVED_INPUTS.keys()) == {
+        "SPREAD_2S10S",
+        "NET_LIQUIDITY",
+        "BEI_5Y",
+        "BEI_10Y",
+        "SOFR_IORB_SPREAD_BP",
+    }

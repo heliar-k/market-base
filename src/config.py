@@ -97,6 +97,25 @@ FRED_SERIES_FLAT = {
     metric: sid for category in FRED_SERIES.values() for metric, sid in category.items()
 }
 
+# ── 期限结构分类：哪些 FRED 分类有收益率曲线 + 期限顺序（短→长）──
+# 仅 rates（名义国债）/ tips（通胀保值国债）有意义。其它分类只走时序折线。
+TERM_SERIES = {
+    "rates": [
+        "DGS1MO",
+        "DGS3MO",
+        "DGS6MO",
+        "DGS1",
+        "DGS2",
+        "DGS3",
+        "DGS5",
+        "DGS7",
+        "DGS10",
+        "DGS20",
+        "DGS30",
+    ],
+    "tips": ["DFII5", "DFII7", "DFII10", "DFII20", "DFII30"],
+}
+
 # ── 商品期货（IBKR 拉取）──
 # {symbol: (name, exchange)}
 COMMODITY_FUTURES = {

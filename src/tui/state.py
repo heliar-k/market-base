@@ -137,6 +137,39 @@ class OverlayToggles:
 
 
 @dataclass
+class MacroView:
+    """宏观视图状态：选中分类 + 叠加系列集合 + 期限结构光标。纯逻辑。
+
+    - overlaid_series：空格 toggle 加入/移出的系列名集合（时序折线叠加层）。
+    - term_cursor：仅 rates/tips 有期限结构时才建（复用 LookbackCursor），
+      ←→ 移动“期限结构快照的日期”。其它分类为 None。
+    """
+
+    category: str | None = None
+    overlaid_series: set[str] = field(default_factory=set)
+    term_cursor: LookbackCursor | None = None
+
+    def toggle_series(self, series: str) -> None:
+        """空格 toggle：系列在集合里则移除，不在则加入。"""
+        if series in self.overlaid_series:
+            self.overlaid_series.discard(series)
+        else:
+            self.overlaid_series.add(series)
+
+    def on_category_changed(self, category: str, dates: list[pd.Timestamp]) -> None:
+        """切分类：更新 category + 清空叠加集合 + 重建 term_cursor（仅期限分类）。"""
+        self.category = category
+        self.overlaid_series.clear()
+        # ponytail: 复用 LookbackCursor，仅 rates/tips 建；其它分类不画期限结构。
+        from src.config import TERM_SERIES
+
+        if category in TERM_SERIES:
+            self.term_cursor = LookbackCursor(dates=dates)
+        else:
+            self.term_cursor = None
+
+
+@dataclass
 class TuiState:
     """TUI 状态机：当前模式 + 各模式选中态。
 
