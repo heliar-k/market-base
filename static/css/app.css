@@ -30,6 +30,75 @@ body { font-family: system-ui, -apple-system, sans-serif; background: #f5f6f8; c
 [data-view="liquidity"] .liquidity-view { display: flex; }
 [data-view="stock"] .stock-view { display: flex; }
 
+/* ── dashboard ────────────────────────────────────────────── */
+.dashboard-view {
+  display: none; flex-direction: column; gap: 12px;
+  overflow-y: auto; max-height: calc(100vh - 80px); padding: 4px;
+}
+.dash-top {
+  display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px;
+}
+.dash-stat {
+  background: #fff; border-radius: 8px; border: 1px solid #e1e4e8;
+  padding: 16px; display: flex; flex-direction: column; gap: 4px;
+  transition: border-color .15s;
+}
+.dash-stat:hover { border-color: #1a73e8; box-shadow: 0 1px 4px rgba(26,115,232,.1); }
+.dash-stat-value { font-size: 28px; font-weight: 700; line-height: 1.2; color: #1a1a2e; }
+.dash-stat-label { font-size: 14px; font-weight: 600; color: #444; }
+.dash-stat-desc  { font-size: 12px; color: #888; }
+.dash-stat-change { font-size: 12px; margin-top: 4px; }
+
+.dash-grid {
+  display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px;
+}
+.dash-card {
+  background: #fff; border-radius: 8px; border: 1px solid #e1e4e8;
+  padding: 16px; display: flex; flex-direction: column; gap: 8px;
+}
+.dash-card-title {
+  font-size: 13px; font-weight: 600; color: #555;
+  border-bottom: 1px solid #f0f0f0; padding-bottom: 8px;
+}
+
+/* macro overview mini-charts */
+.dash-mini-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.dash-mini-wrap { display: flex; flex-direction: column; gap: 4px; border-radius: 6px; padding: 4px; transition: background .15s; }
+.dash-mini-wrap:hover { background: #f0f4ff; }
+.dash-mini-label { font-size: 11px; color: #888; font-weight: 500; }
+.dash-mini-chart { height: 120px; position: relative; }
+
+/* watchlist */
+.dash-watchlist { display: flex; flex-direction: column; }
+.dash-watch-row {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 8px 4px; border-bottom: 1px solid #f0f0f0;
+  font-size: 13px; cursor: pointer; transition: background .15s;
+}
+.dash-watch-row:hover { background: #f8f9fb; }
+.dash-watch-row:last-child { border-bottom: none; }
+.dash-watch-sym { font-weight: 600; min-width: 50px; }
+.dash-watch-price { color: #333; }
+
+/* liquidity snapshot */
+.dash-liq-body { display: flex; flex-direction: column; gap: 4px; }
+.dash-liq-row {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 8px 4px; border-bottom: 1px solid #f0f0f0; font-size: 13px;
+}
+.dash-liq-row:last-child { border-bottom: none; }
+.dash-liq-label { color: #444; font-weight: 500; }
+.dash-liq-label small { font-weight: 400; color: #888; margin-left: 4px; font-size: 11px; }
+.dash-liq-value { font-weight: 700; font-size: 14px; }
+
+/* indices panel */
+.dash-indices { display: flex; flex-direction: column; gap: 4px; }
+.dash-idx-row {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 8px 4px; border-bottom: 1px solid #f0f0f0; font-size: 13px;
+}
+.dash-idx-row:last-child { border-bottom: none; }
+
 /* ── placeholder ────────────────────────────────────────── */
 .placeholder {
   flex: 1; display: flex; flex-direction: column;

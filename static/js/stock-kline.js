@@ -41,6 +41,12 @@ export async function initStockView() {
 
   await loadStockList();
   initCharts();
+  // ponytail: auto-select stock when jumping from dashboard watchlist
+  const pending = window._pendingStockSymbol;
+  if (pending && STOCK_LIST.includes(pending)) {
+    currentSymbol = pending;
+    window._pendingStockSymbol = null;
+  }
   await selectStock(currentSymbol);
 }
 
