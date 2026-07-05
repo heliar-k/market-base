@@ -1,9 +1,21 @@
 """共享测试夹具。"""
 
+import shutil
 from pathlib import Path
 
 import pandas as pd
 import pytest
+
+# TUI 冒烟测试会调 load_or_compute 写真实 data/cache/；测试后清理避免污染工作区。
+_CACHE_DIR = Path("data/cache")
+
+
+@pytest.fixture(autouse=True)
+def _clean_test_cache():
+    """每个测试后清 data/cache/（测试可重建的缓存，非用户数据）。"""
+    yield
+    if _CACHE_DIR.exists():
+        shutil.rmtree(_CACHE_DIR)
 
 
 @pytest.fixture

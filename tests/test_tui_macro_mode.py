@@ -12,10 +12,20 @@ from pathlib import Path
 import pytest
 
 from src.tui.app import KlineApp
+from src.tui.screens import MacroTree
 from src.tui.widgets.macro_chart import MacroChart
 
 RATES_CSV = Path("data/fred/rates/rates.csv")
 VOL_CSV = Path("data/fred/volatility/volatility.csv")
+TIPS_CSV = Path("data/fred/tips/tips.csv")
+
+
+def _tree_leaf_labels(tree: MacroTree) -> dict[str, list[str]]:
+    """返回 {category: [leaf labels]}，用于断言 Tree 结构。"""
+    out: dict[str, list[str]] = {}
+    for cat_node in tree.root.children:
+        out[str(cat_node.label)] = [str(n.label) for n in cat_node.children]
+    return out
 
 
 def _skip_if_no_fred() -> None:
@@ -124,3 +134,54 @@ async def test_switching_category_resets_overlay() -> None:
         for _ in range(20):
             await pilot.pause()
         assert screen.macro_view.overlaid_series == set()
+
+
+# ──────────────────────────────────────────────────────────────────────
+# BEI 跨分类派生：Tree 叶子 + 加载合并 + 空格叠加端到端
+# ──────────────────────────────────────────────────────────────────────
+
+
+def test_macro_tree_has_bei_under_rates() -> None:
+    """MacroTree 的 rates 分类下有 BEI_5Y/BEI_10Y 叶子。"""
+    tree = MacroTree()
+    leaves = _tree_leaf_labels(tree)
+    assert "BEI_5Y" in leaves["rates"]
+    assert "BEI_10Y" in leaves["rates"]
+
+
+def test_macro_tree_has_bei_under_tips() -> None:
+    """MacroTree 的 tips 分类下也有 BEI_5Y/BEI_10Y 叶子（BEI 横跨两者）。"""
+    tree = MacroTree()
+    leaves = _tree_leaf_labels(tree)
+    assert "BEI_5Y" in leaves["tips"]
+    assert "BEI_10Y" in leaves["tips"]
+
+
+def test_macro_tree_volatility_no_bei() -> None:
+    """volatility 分类下无 BEI 叶子（不参与跨分类派生）。"""
+    tree = MacroTree()
+    leaves = _tree_leaf_labels(tree)
+    assert "BEI_5Y" not in leaves["volatility"]
+    assert "BEI_10Y" not in leaves["volatility"]
+
+
+async def test_bei_overlay_drawn_end_to_end() -> None:
+    """端到端：选 rates/BEI_5Y 空格叠加后，加载合并 rates+tips。
+
+    BEI_5Y 列应就绪且出现在 overlaid。
+    需 rates+tips 两个真实 CSV（BEI 跨分类）。缺则 skip。
+    """
+    if not RATES_CSV.exists() or not TIPS_CSV.exists():
+        pytest.skip("无 FRED rates/tips 数据")
+    app = KlineApp()
+    async with app.run_test() as pilot:
+        await _select_macro(app, pilot, "rates", "BEI_5Y")
+        screen = app.query_one("MainScreen")
+        await pilot.press("space")
+        await pilot.pause()
+        # BEI_5Y 加入叠加集
+        assert "BEI_5Y" in screen.macro_view.overlaid_series
+        # 加载流程合并了 tips，BEI_5Y 列应在 df 里
+        chart = app.query_one(MacroChart)
+        assert chart.df is not None
+        assert "BEI_5Y" in chart.df.columns

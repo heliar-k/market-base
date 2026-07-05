@@ -7,7 +7,13 @@
 import pandas as pd
 import pytest
 
-from src.macro import DERIVED_INPUTS, derive_macro, derived_series_for_category
+from src.macro import (
+    DERIVED_INPUTS,
+    cross_category_partners,
+    cross_category_series_for,
+    derive_macro,
+    derived_series_for_category,
+)
 
 
 def test_derive_macro_empty_df_returns_unchanged():
@@ -193,3 +199,84 @@ def test_derived_inputs_matches_derive_functions() -> None:
         "BEI_10Y",
         "SOFR_IORB_SPREAD_BP",
     }
+
+
+# ──────────────────────────────────────────────────────────────────────
+# cross_category_series_for / cross_category_partners：跨分类派生（BEI）归属查询
+# BEI 需 rates 的 DGS + tips 的 DFII，横跨两个分类，故 rates 和 tips 都应列出 BEI。
+# ──────────────────────────────────────────────────────────────────────
+
+
+def test_cross_category_series_for_rates_has_bei() -> None:
+    """rates 分类可参与跨分类派生 BEI_5Y/BEI_10Y（DGS5/DGS10 在 rates）。"""
+    out = cross_category_series_for("rates")
+    assert "BEI_5Y" in out
+    assert "BEI_10Y" in out
+
+
+def test_cross_category_series_for_tips_has_bei() -> None:
+    """tips 分类同样可参与跨分类派生 BEI_5Y/BEI_10Y（DFII5/DFII10 在 tips）。"""
+    out = cross_category_series_for("tips")
+    assert "BEI_5Y" in out
+    assert "BEI_10Y" in out
+
+
+def test_cross_category_series_for_volatility_empty() -> None:
+    """volatility 无跨分类派生 → 返回空。"""
+    assert cross_category_series_for("volatility") == []
+
+
+def test_cross_category_series_for_liquidity_empty() -> None:
+    """liquidity 的 NET_LIQUIDITY 是单分类派生，不在跨分类返回。
+
+    单分类派生已在 derived_series_for_category 返回。
+    """
+    assert cross_category_series_for("liquidity") == []
+
+
+def test_cross_category_partners_rates_is_tips() -> None:
+    """rates 的跨分类伙伴 = tips（合并 tips CSV 才能算 BEI）。"""
+    assert cross_category_partners("rates") == ["tips"]
+
+
+def test_cross_category_partners_tips_is_rates() -> None:
+    """tips 的跨分类伙伴 = rates。"""
+    assert cross_category_partners("tips") == ["rates"]
+
+
+def test_cross_category_partners_volatility_empty() -> None:
+    """volatility 无跨分类伙伴。"""
+    assert cross_category_partners("volatility") == []
+
+
+def test_merge_rates_tips_then_derive_has_bei() -> None:
+    """合成 rates+tips df，按 date 合并后调 derive_macro，BEI 列生成且值正确。
+
+    模拟宏观加载流程的合并步骤：主分类(rates) left join 伙伴(tips)。
+    """
+    idx = pd.date_range("2024-01-01", periods=2)
+    rates = pd.DataFrame({"DGS5": [4.0, 4.2], "DGS10": [4.5, 4.6]}, index=idx)
+    tips = pd.DataFrame({"DFII5": [1.5, 1.6], "DFII10": [1.8, 1.9]}, index=idx)
+    merged = rates.join(tips, how="left")
+    out = derive_macro(merged)
+    assert "BEI_5Y" in out.columns
+    assert "BEI_10Y" in out.columns
+    assert out["BEI_5Y"].tolist() == [250.0, 260.0]
+    assert out["BEI_10Y"].tolist() == [270.0, 270.0]
+
+
+def test_merge_rates_tips_misaligned_dates_bei_nan_where_missing() -> None:
+    """日期错位时，缺数据行的 BEI 为 NaN（不报错），有数据行正常计算。"""
+    rates = pd.DataFrame(
+        {"DGS5": [4.0, 4.2], "DGS10": [4.5, 4.6]},
+        index=pd.date_range("2024-01-01", periods=2),
+    )
+    tips = pd.DataFrame(
+        {"DFII5": [1.5], "DFII10": [1.8]},
+        index=pd.to_datetime(["2024-01-01"]),
+    )
+    merged = rates.join(tips, how="left")
+    out = derive_macro(merged)
+    # 第 1 行两者齐备 → 有值；第 2 行缺 DFII → NaN
+    assert out["BEI_5Y"].iloc[0] == 250.0
+    assert pd.isna(out["BEI_5Y"].iloc[1])

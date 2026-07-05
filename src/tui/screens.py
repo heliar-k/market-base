@@ -56,18 +56,24 @@ class TechListView(ListView):
 
 
 class MacroTree(Tree):
-    """宏观模式侧栏：两级树 分类→系列（原始 + 派生）。"""
+    """宏观模式侧栏：两级树 分类→系列（原始 + 同分类派生 + 跨分类派生）。"""
 
     def __init__(self) -> None:
-        from src.macro import derived_series_for_category
+        from src.macro import (
+            cross_category_series_for,
+            derived_series_for_category,
+        )
 
         super().__init__("FRED", id="macro-tree")
         for category, series_map in FRED_SERIES.items():
             node = self.root.add(category, allow_expand=True)
             for metric in series_map:
                 node.add_leaf(metric)
-            # 派生系列作为附加叶子（输入列同分类可得时）
+            # 同分类派生系列（输入列都在本分类）
             for derived in derived_series_for_category(category):
+                node.add_leaf(derived)
+            # 跨分类派生系列（如 BEI 横跨 rates+tips，两分类下都列出）
+            for derived in cross_category_series_for(category):
                 node.add_leaf(derived)
 
 
@@ -282,7 +288,12 @@ class MainScreen(Container):
     # ── 宏观：Worker 化加载 FRED CSV + derive_macro ────────────────────
     @work(thread=True, exclusive=True, name="macro-load")
     def _load_macro_worker(self, category: str) -> None:
-        """后台读 FRED CSV + 调 derive_macro 追加派生列，完成后挂载/重画 MacroChart。"""
+        """后台读 FRED CSV + 合并跨分类伙伴 + derive_macro 追加派生列。
+
+        BEI 等跨分类派生需 rates+tips 同时在场：按 date left-join 伙伴分类 CSV。
+        """
+        from src.macro import cross_category_partners
+
         csv_path = self._fred_csv_path_for(category)
         self.app.call_from_thread(
             self.query_one("#content-text", Static).update, f"{category} 加载中..."
@@ -291,6 +302,14 @@ class MainScreen(Container):
             self.app.call_from_thread(self._show_macro_no_data, category)
             return
         df = pd.read_csv(csv_path, index_col="date", parse_dates=True)
+        # 合并跨分类伙伴 CSV（按 date left-join），让 BEI 等跨分类派生可算
+        for partner in cross_category_partners(category):
+            partner_csv = self._fred_csv_path_for(partner)
+            if partner_csv.exists():
+                partner_df = pd.read_csv(
+                    partner_csv, index_col="date", parse_dates=True
+                )
+                df = df.join(partner_df, how="left")
         df = derive_macro(df)
         self.app.call_from_thread(self._on_macro_loaded, category, df)
 

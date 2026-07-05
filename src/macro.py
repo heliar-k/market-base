@@ -76,6 +76,7 @@ def derived_series_for_category(category: str) -> list[str]:
     """返回某 FRED 分类加载后可能生成的派生系列名（输入列都在该分类内时）。
 
     按 FRED_SERIES 的分类归属判断输入列是否同分类可得。
+    跨分类派生（如 BEI 需 rates+tips）不在此返回——见 cross_category_series_for。
     """
     from src.config import FRED_SERIES
 
@@ -85,6 +86,53 @@ def derived_series_for_category(category: str) -> list[str]:
         if set(inputs).issubset(cat_metrics):
             out.append(derived)
     return out
+
+
+def cross_category_series_for(category: str) -> list[str]:
+    """返回某分类可参与但输入列跨多分类的派生系列名（BEI 横跨 rates+tips）。
+
+    判断条件：该分类贡献 ≥1 输入列，但非全部输入列都在该分类内
+    （否则属单分类派生，已由 derived_series_for_category 返回）。
+    """
+    from src.config import FRED_SERIES
+
+    cat_metrics = set(FRED_SERIES.get(category, {}).keys())
+    out: list[str] = []
+    for derived, inputs in DERIVED_INPUTS.items():
+        inputs_set = set(inputs)
+        contributes = bool(inputs_set & cat_metrics)
+        all_in_cat = inputs_set.issubset(cat_metrics)
+        if contributes and not all_in_cat:
+            out.append(derived)
+    return out
+
+
+def cross_category_partners(category: str) -> list[str]:
+    """返回需与 category 合并 CSV 才能算出跨分类派生的其它分类名。
+
+    扫描 cross_category_series_for(category) 里每个派生系的输入列，
+    收集不在 category 内的输入列所属的其它分类。去重保序。
+    """
+    from src.config import FRED_SERIES
+
+    # metric → category 反查表
+    metric_to_cat: dict[str, str] = {}
+    for cat, series_map in FRED_SERIES.items():
+        for metric in series_map:
+            metric_to_cat[metric] = cat
+
+    cat_metrics = set(FRED_SERIES.get(category, {}).keys())
+    partners: list[str] = []
+    seen: set[str] = set()
+    for derived in cross_category_series_for(category):
+        for metric in DERIVED_INPUTS[derived]:
+            if metric in cat_metrics:
+                continue  # 本分类自己的输入列
+            partner = metric_to_cat.get(metric)
+            if partner is not None and partner not in seen and partner != category:
+                seen.add(partner)
+                partners.append(partner)
+    return partners
 
 
 def derive_macro(df: pd.DataFrame) -> pd.DataFrame:
