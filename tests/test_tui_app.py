@@ -4,6 +4,7 @@
 asyncio_mode=auto（见 pyproject），无需逐个加 @pytest.mark.asyncio。
 """
 
+import pytest
 from textual.widgets import ListView
 
 from src.tui.app import KlineApp
@@ -62,16 +63,25 @@ async def test_tab_back_to_tech_restores_listview_and_selection() -> None:
 
 
 async def test_select_tech_loads_price_into_content() -> None:
-    """TECH 模式选中标的后，内容区显示最新价 + 日期（走 load_or_compute）。"""
+    """TECH 模式选中标的后，Worker 加载完成，内容区出现 KlineChart。
+
+    加载现在是 Worker 化（后台线程），需 pilot.pause 等待完成。
+    """
     from pathlib import Path
 
+    from src.tui.widgets.kline_chart import KlineChart
+
     if not Path("data/stocks/AAPL.csv").exists():
-        return  # 无数据时跳过，不强制
+        pytest.skip("无 AAPL 数据")
     app = KlineApp()
-    async with app.run_test():
+    async with app.run_test() as pilot:
         screen = app.query_one("MainScreen")
         screen.state.select_tech("AAPL")
         await screen.refresh_content()
-        rendered = screen.content_text
-        assert rendered.startswith("AAPL $")
-        assert "20" in rendered  # 年份片段
+        # Worker 在后台线程加载，需多次 pause 给它时间
+        for _ in range(10):
+            await pilot.pause()
+        # KlineChart widget 出现（不再只是 Static 价格文本）
+        chart = app.query_one(KlineChart)
+        assert chart.df is not None
+        assert chart.df.iloc[-1]["close"] > 0

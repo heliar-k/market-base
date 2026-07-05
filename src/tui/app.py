@@ -1,8 +1,8 @@
 """KlineApp — K线分析 TUI 主入口。
 
 双模式（技术分析 / 宏观）+ 三栏布局 + Tab 切模式。
-骨架阶段：只跑通"选标的→加载缓存→显示标的名和最新价"最小链路。
-画 K 线 / 回看交互 / 宏观图表渲染留给后续步骤。
+技术分析模式：K 线图三层（主图 candlestick+叠加 + 2 副图）+ 键盘 ←→ 回看 +
+侧栏诊断（Worker 化加载 + 50ms 防抖刷新）。宏观模式图表渲染待后续步骤。
 """
 
 from __future__ import annotations
@@ -24,9 +24,17 @@ class KlineApp(App):
     """
 
     # priority=True 让 Tab 优先于默认的焦点遍历，由 App 统一处理为切模式
+    # 技术分析模式：←/→ 回看，1/2 切副图，b/m/s 切叠加层；只在 TECH 模式生效
     BINDINGS = [
         Binding("tab", "cycle_mode", "切模式", priority=True),
         Binding("shift+tab", "cycle_mode", "切模式", priority=True),
+        Binding("left", "lookback_left", "回看←", priority=True),
+        Binding("right", "lookback_right", "回看→", priority=True),
+        Binding("1", "cycle_subplot1", "副图1", priority=True),
+        Binding("2", "cycle_subplot2", "副图2", priority=True),
+        Binding("b", "toggle_bb", "布林带", priority=True),
+        Binding("m", "toggle_ma120", "MA120", priority=True),
+        Binding("s", "toggle_supertrend", "SuperTrend", priority=True),
         ("q", "quit", "退出"),
     ]
 
@@ -45,6 +53,41 @@ class KlineApp(App):
 
     async def _swap(self) -> None:
         await self.query_one(MainScreen).swap_sidebar()
+
+    # ── 键盘：技术分析回看 / 副图 / 叠加层（仅 TECH 模式生效）──────────────
+    def _screen(self) -> MainScreen:
+        return self.query_one(MainScreen)
+
+    def _is_tech(self) -> bool:
+        return self._screen().state.mode == Mode.TECH
+
+    def action_lookback_left(self) -> None:
+        if self._is_tech():
+            self._screen().move_cursor("left")
+
+    def action_lookback_right(self) -> None:
+        if self._is_tech():
+            self._screen().move_cursor("right")
+
+    def action_cycle_subplot1(self) -> None:
+        if self._is_tech():
+            self._screen().cycle_subplot(1)
+
+    def action_cycle_subplot2(self) -> None:
+        if self._is_tech():
+            self._screen().cycle_subplot(2)
+
+    def action_toggle_bb(self) -> None:
+        if self._is_tech():
+            self._screen().toggle_overlay("b")
+
+    def action_toggle_ma120(self) -> None:
+        if self._is_tech():
+            self._screen().toggle_overlay("m")
+
+    def action_toggle_supertrend(self) -> None:
+        if self._is_tech():
+            self._screen().toggle_overlay("s")
 
     # ── 键盘：ListView / Tree 原生 ↑↓ 导航；Enter 选中 ──────────────────
     @on(ListView.Selected)
