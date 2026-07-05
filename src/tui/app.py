@@ -2,7 +2,7 @@
 
 双模式（技术分析 / 宏观）+ 三栏布局 + Tab 切模式。
 技术分析模式：K 线图三层（主图 candlestick+叠加 + 2 副图）+ 键盘 ←→ 回看 +
-侧栏诊断（Worker 化加载 + 50ms 防抖刷新）。宏观模式图表渲染待后续步骤。
+侧栏诊断（Worker 化加载 + 50ms 防抖刷新）。双模式均已实现。
 """
 
 from __future__ import annotations

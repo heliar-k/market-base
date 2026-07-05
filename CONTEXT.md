@@ -10,6 +10,6 @@
 
 ## 指标
 
-- **派生指标（derived metric）**：由两个或多个原始系列运算而成，非 CSV 现成列。如 2s10s 利差（DGS10−DGS2）、净流动性（WALCL−RRP−TGA）、BEI（DGS5−DFII5）。定义集中于 `code/macro.py`，不进 fetchers 也不进 `indicators.py`。
+- **派生指标（derived metric）**：由两个或多个原始系列运算而成，非 CSV 现成列。如 2s10s 利差（DGS10−DGS2）、净流动性（WALCL−RRP−TGA）、BEI（DGS5−DFII5）。定义集中于 `src/macro.py`，不进 fetchers 也不进 `indicators.py`。
 - **期限结构（term structure）**：某一时点、按期限（1mo→30y）排列的收益率曲线。仅对 rates/tips 分类有意义。
 - **时序折线**：以时间为 x 轴的单/多系列折线图。派生指标作为可选系列并入此类，不单独成图。

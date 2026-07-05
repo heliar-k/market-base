@@ -296,8 +296,10 @@ def add_cdl_patterns(df: pd.DataFrame) -> pd.DataFrame:
     """
     result = ta.cdl_pattern(df["open"], df["high"], df["low"], df["close"], name="all")
     if result is not None:
-        for col in result.columns:
-            df[col] = result[col]
+        # 一次性合并 CDL 列，避免逐列 insert 导致碎片化（PerformanceWarning）
+        saved_attrs = df.attrs
+        df = pd.concat([df, result], axis=1)
+        df.attrs = saved_attrs
 
         # 最新行命中存入 attrs（保持原行为）
         bullish_hits, bearish_hits = detect_cdl_hits(df)
@@ -325,5 +327,5 @@ def compute_all_indicators(df: pd.DataFrame) -> pd.DataFrame:
     add_obv(df)
     add_cci(df)
     add_mfi(df)
-    add_cdl_patterns(df)
+    df = add_cdl_patterns(df)
     return df

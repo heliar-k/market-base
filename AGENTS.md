@@ -1,6 +1,6 @@
 # K线分析 — 项目指南
 
-金融数据管道 + 技术分析工具箱。每日自动拉取美股/指数/宏观/期权/期货数据，支持 K 线技术指标计算、GEX 分析、Rich CLI 报告。
+金融数据管道 + 技术分析工具箱。每日自动拉取美股/指数/宏观/期权/期货数据，支持 K 线技术指标计算、GEX 分析、TUI 双模式应用（技术分析 + 宏观）。
 
 ---
 
@@ -17,24 +17,36 @@ K线分析/
 ├── .env                          ← FRED_API_KEY（不提交 git）
 ├── .gitignore
 ├──
-├── code/                         ← Python 源码
+├── src/                         ← Python 源码
 │   ├── config.py                 ← 统一配置（FRED 系列、IBKR 品种、yfinance 标的）
 │   ├── indicators.py             ← 技术指标计算（MA/RSI/MACD/Bollinger/ADX/Stoch/SuperTrend 等）
-│   ├── analyze.py                ← Rich CLI 分析报告 + 综合评分系统
+│   ├── analyze.py                ← 技术分析诊断引擎（analyze + detect_cdl_hits），CLI 输出 JSON
 │   ├── compute_gex.py            ← Gamma Exposure 与期权墙计算（IBKR + yfinance）
-│   ├── run_fetch.sh              ← cron 包装脚本
+│   ├── cache.py                  ← 指标缓存层（parquet + mtime 失效，TUI 加速）
+│   ├── macro.py                  ← 宏观派生指标（2s10s / 净流动性 / BEI / SOFR-IORB）
+│   ├── run_fetch.sh              ← 每日全量数据拉取 cron 入口（依次调用所有 ./bin/fetch_*）
 │   ├── __init__.py
-│   └── fetchers/
-│       ├── __init__.py
-│       ├── quality.py            ← DataPoint / QAStatus 数据质量追踪
-│       ├── _io.py                ← 日频增量 CSV 保存工具
-│       ├── ibkr_fetcher.py       ← IBKR 日线 OHLCV（股票 + 指数）
-│       ├── fred_fetcher.py       ← FRED API 宏观指标（46 个系列，9 分类）
-│       ├── yfinance_fetcher.py   ← yfinance 资产价格（需 SOCKS5 代理）
-│       ├── cboe_fetcher.py       ← CBOE 波动率（OVX、VIX 期限结构）
-│       ├── fed_balance_fetcher.py← 联储流动性派生指标（净流动性 = WALCL - RRP - TGA）
-│       ├── commodities_fetcher.py← IBKR 商品期货日线（9 个品种，整条曲线）
-│       └── options_fetcher.py    ← IBKR 期权链参数
+│   ├── fetchers/
+│   │   ├── __init__.py
+│   │   ├── quality.py            ← DataPoint / QAStatus 数据质量追踪
+│   │   ├── _io.py                ← 日频增量 CSV 保存工具
+│   │   ├── ibkr_fetcher.py       ← IBKR 日线 OHLCV（股票 + 指数）
+│   │   ├── fred_fetcher.py       ← FRED API 宏观指标（46 个系列，9 分类）
+│   │   ├── yfinance_fetcher.py   ← yfinance 资产价格（需 SOCKS5 代理）
+│   │   ├── cboe_fetcher.py       ← CBOE 波动率（OVX、VIX 期限结构）
+│   │   ├── fed_balance_fetcher.py← 联储流动性派生指标（净流动性 = WALCL - RRP - TGA）
+│   │   ├── commodities_fetcher.py← IBKR 商品期货日线（9 个品种，整条曲线）
+│   │   └── options_fetcher.py    ← IBKR 期权链参数
+│   └── tui/                      ← TUI 应用（Textual 双模式）
+│       ├── app.py                ← KlineApp 主入口（技术分析 / 宏观双模式 + Tab 切换）
+│       ├── state.py              ← TUI 状态管理（模式、当前标的、回看光标）
+│       ├── screens.py            ← 屏幕组装（三栏布局 + 模式切换）
+│       └── widgets/              ← 可复用组件（kline_chart / diag_sidebar / macro_chart）
+│
+├── tests/                        ← pytest 测试套件（124 个测试，tmp_path 隔离 + autouse 清缓存）
+│
+├── docs/adr/                     ← 架构决策记录（0001 回看交互、0002 重命名 code→src）
+│
 │
 ├── bin/                          ← 可执行入口
 │   ├── fetch_ibkr
@@ -53,9 +65,11 @@ K线分析/
 │   ├── indices/{SYMBOL}.csv            ← 4 个指数日线 OHLCV
 │   ├── options/{SYMBOL}_chain.json     ← 期权链参数
 │   ├── options/{SYMBOL}_grid.csv       ← 到期日×行权价网格
-│   └── commodities/{SYMBOL}/{SYMBOL}_{YYYYMM}.csv  ← 期货日线
+│   ├── commodities/{SYMBOL}/{SYMBOL}_{YYYYMM}.csv  ← 期货日线
+│   └── cache/{SYMBOL}_indicators.parquet ← 指标缓存（派生产物，mtime 失效）
 │
 └── doc/
+    ├── README.md                 ← 项目说明
     ├── DATA_CATALOG.md           ← 数据目录文档
     └── TUI_K线分析工具_技术调研.md ← Textual TUI 选型调研
 ```
@@ -77,10 +91,16 @@ K线分析/
 ./bin/fetch_commodities --front-month  # 仅主力合约
 ./bin/fetch_options                 # 期权链参数
 
-# 分析（code/ 下的 Python 脚本需要用 uv run 执行）
+# 分析（src/ 下的 Python 脚本需要用 uv run 执行）
 uv run python -m src.analyze                        # 分析 data/MSFT.csv（默认）
 uv run python -m src.analyze data/AAPL.csv          # 指定文件
 uv run python -m src.analyze data/AAPL.csv --json   # JSON 输出
+
+# TUI（双模式应用）
+uv run python -m src.tui.app                        # 启动 TUI（技术分析 + 宏观双模式）
+
+# 测试
+uv run pytest                                       # 全量测试（124 个）
 
 # GEX 计算
 uv run python src/compute_gex.py                        # AAPL（默认）
@@ -132,7 +152,7 @@ uv run python src/compute_gex.py --expirations 6        # 6 个到期月
 - **格式化**: ruff (select E/F/I/W) + ruff-format，`pre-commit` 自动执行
 - **类型提示**: 所有函数签名带类型注解，用 `|` 替代 `Optional`（Python 3.10+）
 - **import**: 先标准库 → 第三方 → `src.*`（`isort` 自动处理）
-- **测试**: 无正式测试框架。非平凡逻辑留一个 `if __name__ == "__main__":` 自测块
+- **测试**: pytest 测试套件（`tests/`，124 个测试），用 `tmp_path` 隔离 + autouse fixture 清理缓存。运行 `uv run pytest`
 
 ---
 
