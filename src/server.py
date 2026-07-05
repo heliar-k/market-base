@@ -68,17 +68,70 @@ def get_symbols():
 
 
 @app.get("/api/kline/{symbol}")
-def get_kline(symbol: str, as_of: str | None = Query(None)):
+def get_kline(
+    symbol: str,
+    as_of: str | None = Query(None),
+    interval: str = Query("1d"),
+    days: int = Query(0),
+):
     csv = _csv_path(symbol)
     if not csv.exists():
         raise HTTPException(404, f"No data for {symbol}")
     df = load_or_compute(symbol, csv)
     if as_of:
         df = df.loc[: pd.Timestamp(as_of)]
+    if interval != "1d":
+        df = _resample_ohlcv(df, interval)
+    if days > 0:
+        df = df.tail(days)
     df = df.reset_index()  # date index → column
     df["date"] = df["date"].dt.strftime("%Y-%m-%d")
     records = df.to_dict(orient="records")
     return _sanitize(records)
+
+
+# ── stock endpoints ──────────────────────────────────────────────────────────
+
+_STOCKS_DIR = ROOT / "data" / "stocks"
+
+
+@app.get("/api/stocks")
+def get_stocks():
+    stocks = sorted(p.stem for p in _STOCKS_DIR.glob("*.csv"))
+    return {"stocks": stocks}
+
+
+@app.get("/api/kline/{symbol}/indicators")
+def get_kline_indicators(symbol: str, days: int = Query(365)):
+    csv = _csv_path(symbol)
+    if not csv.exists():
+        raise HTTPException(404, f"No data for {symbol}")
+    df = load_or_compute(symbol, csv)
+    if days > 0:
+        df = df.tail(days)
+    df = df.reset_index()
+    df["date"] = df["date"].dt.strftime("%Y-%m-%d")
+    # Map internal column names → spec names
+    _COL_MAP = {
+        "MA5": "MA5", "MA20": "MA20", "MA60": "MA60", "MA120": "MA120",
+        "BB_upper": "BB_Upper", "BB_mid": "BB_Mid", "BB_lower": "BB_Lower",
+        "MACD": "MACD", "MACD_signal": "MACD_Signal", "MACD_hist": "MACD_Hist",
+        "RSI": "RSI", "volume": "volume",
+    }
+    out = df[["date", "close"]].copy()
+    for src, dst in _COL_MAP.items():
+        out[dst] = df[src] if src in df.columns else pd.NA
+    return _sanitize({"symbol": symbol, "data": out.to_dict(orient="records")})
+
+
+def _resample_ohlcv(df: pd.DataFrame, interval: str) -> pd.DataFrame:
+    rule = {"1wk": "W-FRI", "1mo": "ME"}.get(interval)
+    if not rule:
+        return df
+    resampled = df.resample(rule).agg({
+        "open": "first", "high": "max", "low": "min", "close": "last", "volume": "sum",
+    }).dropna()
+    return resampled
 
 
 @app.get("/api/diag/{symbol}")
