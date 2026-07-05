@@ -231,7 +231,9 @@ async function renderMiniChart(containerId, result, key, color) {
   const val = result.value;
   if (val?.series?.[key]) {
     // Liquidity format: {series: {NET_LIQUIDITY: [{date, value}, ...]}}
-    seriesData = val.series[key].filter(d => d.value != null);
+    seriesData = val.series[key]
+      .filter(d => d.value != null)
+      .map(d => ({ time: d.date, value: d.value }));
   } else if (Array.isArray(val)) {
     // Macro format: [{date, KEY, ...}, ...]
     seriesData = val
