@@ -140,6 +140,7 @@ function renderMacroCategoryCharts(name, seriesKeys) {
     s._seriesName = key;
     macroCharts[name][key] = chart;
     macroChartSeries[name][key] = s;
+    chart.timeScale().fitContent();
   });
 
   // sync time scales across all charts in this section
