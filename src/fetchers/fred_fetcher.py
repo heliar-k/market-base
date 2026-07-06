@@ -62,22 +62,64 @@ def fetch_single_fred(name: str, series_id: str) -> DataPoint:
     return _fetch_one_fred(fred, name, series_id)
 
 
+def fetch_all_fred_backfill() -> dict[str, "pd.DataFrame"]:
+    """回填模式：每个分类返回完整历史 DataFrame，列=指标名，index=日期。"""
+    import pandas as pd
+
+    fred = _get_fred()
+    result = {}
+    for cat, series_map in config.fred_series.items():
+        dfs = []
+        for metric, series_id in series_map.items():
+            try:
+                s = fred.get_series(series_id)
+                s = s.dropna()
+                if s.empty:
+                    logger.warning(f"  {metric}({series_id}): 无数据，跳过")
+                    continue
+                df = pd.DataFrame({metric: s})
+                dfs.append(df)
+                logger.info(f"  {metric}({series_id}): {len(s)} 条 ({s.index[0].strftime('%Y-%m-%d')} → {s.index[-1].strftime('%Y-%m-%d')})")
+            except Exception as e:
+                logger.warning(f"  {metric}({series_id}): 拉取失败 → {e}")
+        if dfs:
+            combined = dfs[0] if len(dfs) == 1 else pd.concat(dfs, axis=1)
+            result[cat] = combined.sort_index()
+    return result
+
+
 if __name__ == "__main__":
+    import argparse
     from pathlib import Path
 
     from ._io import save_daily_csv
 
-    config.validate()
-    results = fetch_all_fred()
-    ok = sum(1 for r in results if r.qa_status == QAStatus.OK)
-    print(f"FRED: {ok}/{len(results)} OK")
+    parser = argparse.ArgumentParser(description="FRED 数据拉取")
+    parser.add_argument("--backfill", action="store_true", help="回填完整历史时间序列（覆盖现有 CSV）")
+    args = parser.parse_args()
 
-    # 按分类写入独立 CSV
+    config.validate()
     root = Path(__file__).resolve().parent.parent.parent
-    for category, series in config.fred_series.items():
-        cat_names = set(series.keys())
-        cat_results = [r for r in results if r.metric in cat_names]
-        if cat_results:
-            path = root / "data" / "fred" / category / f"{category}.csv"
-            save_daily_csv(path, cat_results)
-            print(f"  → data/fred/{category}/{category}.csv ({len(cat_results)} 系列)")
+
+    if args.backfill:
+        print("FRED 回填模式：拉取全部历史时间序列...")
+        backfill_data = fetch_all_fred_backfill()
+        for cat, df in backfill_data.items():
+            path = root / "data" / "fred" / cat / f"{cat}.csv"
+            path.parent.mkdir(parents=True, exist_ok=True)
+            df.to_csv(path, index_label="date")
+            print(f"  → {path} ({len(df.columns)} 指标 × {len(df)} 行)")
+        print(f"完成 {len(backfill_data)} 个分类的回填")
+    else:
+        results = fetch_all_fred()
+        ok = sum(1 for r in results if r.qa_status == QAStatus.OK)
+        print(f"FRED: {ok}/{len(results)} OK")
+
+        # 按分类写入独立 CSV（每日追加一行）
+        for category, series in config.fred_series.items():
+            cat_names = set(series.keys())
+            cat_results = [r for r in results if r.metric in cat_names]
+            if cat_results:
+                path = root / "data" / "fred" / category / f"{category}.csv"
+                save_daily_csv(path, cat_results)
+                print(f"  → data/fred/{category}/{category}.csv ({len(cat_results)} 系列)")
