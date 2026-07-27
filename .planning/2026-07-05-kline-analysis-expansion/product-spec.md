@@ -464,7 +464,7 @@ Dashboard 加载
 GET /api/macro/correlate
   Query: series=CPI,PCE,FEDFUNDS,DGS10&normalize=raw|pct|zscore
   Returns: [{date, CPI, PCE, FEDFUNDS, DGS10, ...}]
-  
+
   实现：遍历 series 列表，从各 FRED 分类 CSV 提取列，按日期 outer join，
   归一化处理，返回合并后的 DataFrame。
 ```
@@ -511,7 +511,7 @@ GET /api/liquidity/overview
 GET /api/liquidity/compare-spx
   Query: normalize=true
   Returns: [{date, NET_LIQUIDITY, SPX}]
-  
+
   实现：合并 liquidity.csv 和 indices/SPX.csv，可选归一化
 ```
 
@@ -536,7 +536,7 @@ GET /api/watchlist
     { symbol, name, type, lastPrice, changePct, volume, updatedAt },
     ...
   ]
-  
+
 POST /api/watchlist
   Body: { symbols: ["AAPL", "NVDA", "TSLA"] }
   保存自选股到 watchlist.json

@@ -15,7 +15,7 @@ from fastapi.staticfiles import StaticFiles
 
 from src.analyze import analyze
 from src.cache import load_or_compute
-from src.config import FRED_SERIES, FRED_SERIES_FLAT, IBKR_SYMBOLS, ROOT, TERM_SERIES
+from src.config import FRED_SERIES, IBKR_SYMBOLS, ROOT, TERM_SERIES
 from src.macro import cross_category_partners, derive_macro
 
 app = FastAPI(title="K-line Analysis Web")
@@ -113,10 +113,18 @@ def get_kline_indicators(symbol: str, days: int = Query(365)):
     df["date"] = df["date"].dt.strftime("%Y-%m-%d")
     # Map internal column names → spec names
     _COL_MAP = {
-        "MA5": "MA5", "MA20": "MA20", "MA60": "MA60", "MA120": "MA120",
-        "BB_upper": "BB_Upper", "BB_mid": "BB_Mid", "BB_lower": "BB_Lower",
-        "MACD": "MACD", "MACD_signal": "MACD_Signal", "MACD_hist": "MACD_Hist",
-        "RSI": "RSI", "volume": "volume",
+        "MA5": "MA5",
+        "MA20": "MA20",
+        "MA60": "MA60",
+        "MA120": "MA120",
+        "BB_upper": "BB_Upper",
+        "BB_mid": "BB_Mid",
+        "BB_lower": "BB_Lower",
+        "MACD": "MACD",
+        "MACD_signal": "MACD_Signal",
+        "MACD_hist": "MACD_Hist",
+        "RSI": "RSI",
+        "volume": "volume",
     }
     out = df[["date", "close"]].copy()
     for src, dst in _COL_MAP.items():
@@ -128,9 +136,19 @@ def _resample_ohlcv(df: pd.DataFrame, interval: str) -> pd.DataFrame:
     rule = {"1wk": "W-FRI", "1mo": "ME"}.get(interval)
     if not rule:
         return df
-    resampled = df.resample(rule).agg({
-        "open": "first", "high": "max", "low": "min", "close": "last", "volume": "sum",
-    }).dropna()
+    resampled = (
+        df.resample(rule)
+        .agg(
+            {
+                "open": "first",
+                "high": "max",
+                "low": "min",
+                "close": "last",
+                "volume": "sum",
+            }
+        )
+        .dropna()
+    )
     return resampled
 
 
@@ -163,25 +181,56 @@ _DERIVED_CATS = {
 
 # 中文标签（与前端 MACRO_LABELS 保持同步）
 _MACRO_LABELS = {
-    "VIX": "波动率指数（恐慌指数）", "HY_OAS": "高收益债信用利差", "IG_OAS": "投资级债信用利差",
-    "CPI": "消费者物价指数", "PCE": "个人消费支出价格指数", "CORE_CPI": "核心消费者物价指数",
-    "T5YIE": "5年期通胀预期", "T10YIE": "10年期通胀预期", "T5YIFR": "5年期远期通胀率",
-    "MICH": "密歇根通胀预期", "EXPINF_1Y": "1年期通胀预期", "EXPINF_2Y": "2年期通胀预期",
-    "EXPINF_5Y": "5年期通胀预期", "EXPINF_10Y": "10年期通胀预期",
-    "UNRATE": "失业率", "PAYEMS": "非农就业人数", "ICSA": "初请失业金人数",
-    "GDP": "国内生产总值(GDP)", "INDPRO": "工业生产指数",
-    "FEDFUNDS": "联邦基金利率", "SOFR": "担保隔夜融资利率", "IORB": "准备金余额利率",
-    "DGS1MO": "1月期国债收益率", "DGS3MO": "3月期国债收益率", "DGS6MO": "6月期国债收益率",
-    "DGS1": "1年期国债收益率", "DGS2": "2年期国债收益率", "DGS3": "3年期国债收益率",
-    "DGS5": "5年期国债收益率", "DGS7": "7年期国债收益率", "DGS10": "10年期国债收益率",
-    "DGS20": "20年期国债收益率", "DGS30": "30年期国债收益率",
-    "SPREAD_2S10S": "2s10s利差", "SOFR_IORB_SPREAD_BP": "SOFR-IORB利差(bp)",
-    "DFII5": "5年期TIPS收益率", "DFII7": "7年期TIPS收益率", "DFII10": "10年期TIPS收益率",
-    "DFII20": "20年期TIPS收益率", "DFII30": "30年期TIPS收益率",
-    "BEI_5Y": "5年期盈亏平衡通胀率", "BEI_10Y": "10年期盈亏平衡通胀率",
-    "NFCI": "金融状况指数", "RRPONTSYD": "隔夜逆回购规模", "WTREGEN": "财政部一般账户余额",
-    "WRESBAL": "准备金余额", "WALCL": "美联储总资产", "NET_LIQUIDITY": "净流动性",
-    "UMCSENT": "密歇根消费者信心指数", "STLFSI4": "金融压力指数",
+    "VIX": "波动率指数（恐慌指数）",
+    "HY_OAS": "高收益债信用利差",
+    "IG_OAS": "投资级债信用利差",
+    "CPI": "消费者物价指数",
+    "PCE": "个人消费支出价格指数",
+    "CORE_CPI": "核心消费者物价指数",
+    "T5YIE": "5年期通胀预期",
+    "T10YIE": "10年期通胀预期",
+    "T5YIFR": "5年期远期通胀率",
+    "MICH": "密歇根通胀预期",
+    "EXPINF_1Y": "1年期通胀预期",
+    "EXPINF_2Y": "2年期通胀预期",
+    "EXPINF_5Y": "5年期通胀预期",
+    "EXPINF_10Y": "10年期通胀预期",
+    "UNRATE": "失业率",
+    "PAYEMS": "非农就业人数",
+    "ICSA": "初请失业金人数",
+    "GDP": "国内生产总值(GDP)",
+    "INDPRO": "工业生产指数",
+    "FEDFUNDS": "联邦基金利率",
+    "SOFR": "担保隔夜融资利率",
+    "IORB": "准备金余额利率",
+    "DGS1MO": "1月期国债收益率",
+    "DGS3MO": "3月期国债收益率",
+    "DGS6MO": "6月期国债收益率",
+    "DGS1": "1年期国债收益率",
+    "DGS2": "2年期国债收益率",
+    "DGS3": "3年期国债收益率",
+    "DGS5": "5年期国债收益率",
+    "DGS7": "7年期国债收益率",
+    "DGS10": "10年期国债收益率",
+    "DGS20": "20年期国债收益率",
+    "DGS30": "30年期国债收益率",
+    "SPREAD_2S10S": "2s10s利差",
+    "SOFR_IORB_SPREAD_BP": "SOFR-IORB利差(bp)",
+    "DFII5": "5年期TIPS收益率",
+    "DFII7": "7年期TIPS收益率",
+    "DFII10": "10年期TIPS收益率",
+    "DFII20": "20年期TIPS收益率",
+    "DFII30": "30年期TIPS收益率",
+    "BEI_5Y": "5年期盈亏平衡通胀率",
+    "BEI_10Y": "10年期盈亏平衡通胀率",
+    "NFCI": "金融状况指数",
+    "RRPONTSYD": "隔夜逆回购规模",
+    "WTREGEN": "财政部一般账户余额",
+    "WRESBAL": "准备金余额",
+    "WALCL": "美联储总资产",
+    "NET_LIQUIDITY": "净流动性",
+    "UMCSENT": "密歇根消费者信心指数",
+    "STLFSI4": "金融压力指数",
     "DXY": "美元指数",
 }
 
@@ -306,7 +355,9 @@ def get_macro_correlate(
             "category": cat,
             "label": _MACRO_LABELS.get(name, name),
             "data": _sanitize(
-                merged[["date", name]].rename(columns={name: "value"}).to_dict(orient="records")
+                merged[["date", name]]
+                .rename(columns={name: "value"})
+                .to_dict(orient="records")
             ),
         }
 
@@ -391,7 +442,11 @@ def _liq_summary(df: pd.DataFrame, key: str) -> dict:
     now = s.dropna().index[-1]
     m1 = _liq_latest(s.loc[: now - pd.DateOffset(months=1)])
     y1 = _liq_latest(s.loc[: now - pd.DateOffset(years=1)])
-    return {"latest_value": latest, "change_1m": _liq_pct(latest, m1), "change_1y": _liq_pct(latest, y1)}
+    return {
+        "latest_value": latest,
+        "change_1m": _liq_pct(latest, m1),
+        "change_1y": _liq_pct(latest, y1),
+    }
 
 
 @app.get("/api/liquidity/overview")
@@ -400,19 +455,36 @@ def get_liquidity_overview(range: str = Query("all")):
     if not csv_path.exists():
         raise HTTPException(404, "No liquidity data")
     df = pd.read_csv(csv_path, index_col="date", parse_dates=True)
-    # ponytail: RRPONTSYD is in billions on FRED, others in millions — normalize before derive
+    # ponytail: RRPONTSYD is in billions on FRED, others in millions
+    # normalize before derive
     if "RRPONTSYD" in df.columns:
         df["RRPONTSYD"] = df["RRPONTSYD"] * 1000
     df = derive_macro(df)
 
     cutoff = None
     if range != "all":
-        months = {"1m": 1, "3m": 3, "6m": 6, "1y": 12, "2y": 24, "3y": 36, "5y": 60, "10y": 120, "30y": 360}.get(range, 0)
+        months = {
+            "1m": 1,
+            "3m": 3,
+            "6m": 6,
+            "1y": 12,
+            "2y": 24,
+            "3y": 36,
+            "5y": 60,
+            "10y": 120,
+            "30y": 360,
+        }.get(range, 0)
         if months:
             cutoff = pd.Timestamp.now() - pd.DateOffset(months=months)
 
     summary = {}
-    labels = {"WALCL": "美联储总资产", "RRPONTSYD": "隔夜逆回购", "WRESBAL": "准备金余额", "WTREGEN": "TGA余额", "NET_LIQUIDITY": "净流动性"}
+    labels = {
+        "WALCL": "美联储总资产",
+        "RRPONTSYD": "隔夜逆回购",
+        "WRESBAL": "准备金余额",
+        "WTREGEN": "TGA余额",
+        "NET_LIQUIDITY": "净流动性",
+    }
     for key in _LIQ_KEYS:
         summary[key] = {**_liq_summary(df, key), "label": labels.get(key, key)}
 
@@ -423,14 +495,22 @@ def get_liquidity_overview(range: str = Query("all")):
     series = {}
     for key in _LIQ_KEYS + ["NFCI"]:
         if key in filtered.columns:
-            series[key] = _sanitize(filtered[["date", key]].rename(columns={key: "value"}).to_dict(orient="records"))
+            series[key] = _sanitize(
+                filtered[["date", key]]
+                .rename(columns={key: "value"})
+                .to_dict(orient="records")
+            )
 
     # Pre-compute stacked cumulative for area chart (WRESBAL → +WTREGEN → +RRPONTSYD)
     stack_keys = ["WRESBAL", "WTREGEN", "RRPONTSYD"]
     cum = pd.DataFrame(index=filtered.index)
     running = pd.Series(0.0, index=filtered.index)
     for sk in stack_keys:
-        col = filtered[sk] if sk in filtered.columns else pd.Series(0.0, index=filtered.index)
+        col = (
+            filtered[sk]
+            if sk in filtered.columns
+            else pd.Series(0.0, index=filtered.index)
+        )
         running = running.add(col.fillna(0))
         cum[sk] = running
     stacked = {}
@@ -454,7 +534,17 @@ def get_liquidity_compare_spx(range: str = Query("5y")):
 
     cutoff = None
     if range != "all":
-        months = {"1m": 1, "3m": 3, "6m": 6, "1y": 12, "2y": 24, "3y": 36, "5y": 60, "10y": 120, "30y": 360}.get(range, 60)
+        months = {
+            "1m": 1,
+            "3m": 3,
+            "6m": 6,
+            "1y": 12,
+            "2y": 24,
+            "3y": 36,
+            "5y": 60,
+            "10y": 120,
+            "30y": 360,
+        }.get(range, 60)
         if months:
             cutoff = pd.Timestamp.now() - pd.DateOffset(months=months)
 
@@ -465,7 +555,9 @@ def get_liquidity_compare_spx(range: str = Query("5y")):
     result: dict[str, Any] = {}
     if "NET_LIQUIDITY" in filtered.columns:
         result["NET_LIQUIDITY"] = _sanitize(
-            filtered[["date", "NET_LIQUIDITY"]].rename(columns={"NET_LIQUIDITY": "value"}).to_dict(orient="records")
+            filtered[["date", "NET_LIQUIDITY"]]
+            .rename(columns={"NET_LIQUIDITY": "value"})
+            .to_dict(orient="records")
         )
 
     # Try SPX from yfinance data
@@ -477,7 +569,11 @@ def get_liquidity_compare_spx(range: str = Query("5y")):
         spx = spx.reset_index()
         spx["date"] = spx["date"].dt.strftime("%Y-%m-%d")
         close_col = "close" if "close" in spx.columns else spx.columns[1]
-        result["SPX"] = _sanitize(spx[["date", close_col]].rename(columns={close_col: "value"}).to_dict(orient="records"))
+        result["SPX"] = _sanitize(
+            spx[["date", close_col]]
+            .rename(columns={close_col: "value"})
+            .to_dict(orient="records")
+        )
 
     return result
 

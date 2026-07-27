@@ -62,7 +62,7 @@ def fetch_single_fred(name: str, series_id: str) -> DataPoint:
     return _fetch_one_fred(fred, name, series_id)
 
 
-def fetch_all_fred_backfill() -> dict[str, "pd.DataFrame"]:
+def fetch_all_fred_backfill() -> dict[str, "DataFrame"]:  # noqa: F821
     """回填模式：每个分类返回完整历史 DataFrame，列=指标名，index=日期。"""
     import pandas as pd
 
@@ -79,7 +79,11 @@ def fetch_all_fred_backfill() -> dict[str, "pd.DataFrame"]:
                     continue
                 df = pd.DataFrame({metric: s})
                 dfs.append(df)
-                logger.info(f"  {metric}({series_id}): {len(s)} 条 ({s.index[0].strftime('%Y-%m-%d')} → {s.index[-1].strftime('%Y-%m-%d')})")
+                logger.info(
+                    f"  {metric}({series_id}): {len(s)} 条"
+                    f" ({s.index[0].strftime('%Y-%m-%d')} →"
+                    f" {s.index[-1].strftime('%Y-%m-%d')})"
+                )
             except Exception as e:
                 logger.warning(f"  {metric}({series_id}): 拉取失败 → {e}")
         if dfs:
@@ -95,7 +99,9 @@ if __name__ == "__main__":
     from ._io import save_daily_csv
 
     parser = argparse.ArgumentParser(description="FRED 数据拉取")
-    parser.add_argument("--backfill", action="store_true", help="回填完整历史时间序列（覆盖现有 CSV）")
+    parser.add_argument(
+        "--backfill", action="store_true", help="回填完整历史时间序列（覆盖现有 CSV）"
+    )
     args = parser.parse_args()
 
     config.validate()
@@ -122,4 +128,6 @@ if __name__ == "__main__":
             if cat_results:
                 path = root / "data" / "fred" / category / f"{category}.csv"
                 save_daily_csv(path, cat_results)
-                print(f"  → data/fred/{category}/{category}.csv ({len(cat_results)} 系列)")
+                print(
+                    f"  → data/fred/{category}/{category}.csv ({len(cat_results)} 系列)"
+                )

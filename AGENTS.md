@@ -102,9 +102,12 @@ uv run python -m src.tui.app                        # 启动 TUI（技术分析 
 # 测试
 uv run pytest                                       # 全量测试（124 个）
 
-# GEX 计算
+# GEX 计算（IBKR 优先，拿不到 Greeks 自动降级 yfinance）
 uv run python src/compute_gex.py                        # AAPL（默认）
-uv run python src/compute_gex.py --symbol TSLA          # 指定品种
+uv run python src/compute_gex.py --symbol TSM          # 指定品种
+
+# 保护结构报价（put / 价差 / 领口成本对比）
+uv run python src/hedge_planner.py --symbol TSM
 uv run python src/compute_gex.py --expirations 6        # 6 个到期月
 
 # cron（每个交易日美股收盘后，北京时间 05:00）

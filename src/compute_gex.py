@@ -51,7 +51,7 @@ def connect_ib(host="127.0.0.1", port=4002):
         return ib
     except Exception as e:
         log.error(f"IB 连接失败: {e}")
-        sys.exit(1)
+        return None
 
 
 def get_spot(ib, symbol):
@@ -132,6 +132,7 @@ def fetch_options_greeks(ib, symbol, expirations, strikes, batch_size=3):
     log.info(f"共 {total} 个候选合约，批量={batch_size}/次（跳过 qualify 直发行情）")
 
     results = []
+    empty_streak = 0
     for i in range(0, total, batch_size):
         batch = contracts[i : i + batch_size]
         tickers = []
@@ -172,6 +173,15 @@ def fetch_options_greeks(ib, symbol, expirations, strikes, batch_size=3):
                 f"{last['right']} ${last['strike']:.0f} {last['expiration']} "
                 f"gamma={'✓' if has_g else '✗'} ({pct:.0f}%)"
             )
+
+        # 连续 3 批无任何 gamma → IBKR 行情不可用，不必等完全部合约
+        if any(r["gamma"] is not None for r in results[-batch_size:]):
+            empty_streak = 0
+        else:
+            empty_streak += 1
+            if empty_streak >= 3:
+                log.warning("连续 3 批无 Greeks 返回，IBKR 行情不可用，提前中止")
+                break
 
     df = pd.DataFrame(results)
     # 过滤无效行（bid=nan 且 no gamma = 合约不存在）
@@ -237,6 +247,40 @@ def fetch_oi_yfinance(symbol, expirations, proxy="socks5://127.0.0.1:7890"):
         log.info(f"yfinance 返回 {len(df)} 条，总 OI={oi_total:,}")
     else:
         log.warning("yfinance 无数据")
+    return df
+
+
+def greeks_from_yf(oi_df, spot, r=0.04):
+    """IBKR Greeks 不可用时的降级路径：用 yfinance IV 反推 BS gamma。
+
+    gamma = φ(d1) / (S·σ·√T)；惯例 call > 0、put < 0（与 compute_gex 一致）。
+    """
+    from math import exp, pi, sqrt
+    from math import log as ln
+
+    today = datetime.now().date()
+    rows = []
+    for _, row in oi_df.iterrows():
+        iv = row["impliedVolatility"]
+        if not iv or iv <= 0:
+            continue
+        t = (datetime.strptime(row["expiration"], "%Y%m%d").date() - today).days / 365
+        if t <= 0:
+            continue
+        sig_t = iv * sqrt(t)
+        d1 = (ln(spot / row["strike"]) + (r + iv * iv / 2) * t) / sig_t
+        gamma = exp(-d1 * d1 / 2) / sqrt(2 * pi) / (spot * sig_t)
+        rows.append(
+            {
+                "expiration": row["expiration"],
+                "strike": row["strike"],
+                "right": row["right"],
+                "gamma": gamma if row["right"] == "C" else -gamma,
+                "iv": iv,
+            }
+        )
+    df = pd.DataFrame(rows)
+    log.info(f"BS gamma 计算完成: {len(df)} 条")
     return df
 
 
@@ -398,49 +442,73 @@ def main():
         "--no-yfinance", action="store_true", help="不拉取 yfinance OI（仅 IBKR 数据）"
     )
     parser.add_argument("--output", help="输出 CSV 文件路径")
+    parser.add_argument(
+        "--spot", type=float, default=None, help="手动指定标的价格（跳过历史数据查询）"
+    )
     args = parser.parse_args()
 
     symbol = args.symbol.upper()
 
-    # === Step 1: IBKR 数据 ===
+    # === Step 1: 期权链与现价（IBKR 优先，yfinance 兜底） ===
     log.info(f"{'=' * 50}")
     log.info(f"GEX 计算: {symbol}")
     log.info(f"{'=' * 50}")
 
-    ib = connect_ib()
+    spot = args.spot
+    expirations = []
+    greeks_df = pd.DataFrame()
 
-    spot = get_spot(ib, symbol)
-    if not spot:
-        log.error("无法获取标的价格")
+    ib = connect_ib()
+    if ib:
+        spot = spot or get_spot(ib, symbol)
+        if spot:
+            chain = get_option_chain_params(ib, symbol)
+            expirations, strikes = filter_options(
+                chain, spot, args.expirations, args.strike_pct
+            )
+            if expirations:
+                log.info(
+                    f"行权价范围: ${strikes[0]:.0f} ~ ${strikes[-1]:.0f}"
+                    f" ({len(strikes)} 个)"
+                )
+                greeks_df = fetch_options_greeks(ib, symbol, expirations, strikes)
+        else:
+            log.warning("IBKR 无法获取标的价格")
         ib.disconnect()
+
+    # IBKR 连不上 / 数据拿不到 → 缺的部分用 yfinance 补齐
+    if (spot is None or not expirations or greeks_df.empty) and not args.no_yfinance:
+        import yfinance as yf
+
+        os.environ.setdefault("HTTPS_PROXY", "socks5://127.0.0.1:7890")
+        os.environ.setdefault("HTTP_PROXY", "socks5://127.0.0.1:7890")
+
+        ticker = yf.Ticker(symbol)
+        if not expirations:
+            expirations = [
+                e.replace("-", "") for e in ticker.options[: args.expirations]
+            ]
+        if spot is None:
+            spot = float(ticker.fast_info.last_price)
+
+    if spot is None or not expirations:
+        log.error("无可用标的价格或期权到期日")
         sys.exit(1)
     log.info(f"{symbol} spot: ${spot:.2f}")
-
-    chain = get_option_chain_params(ib, symbol)
-    expirations, strikes = filter_options(
-        chain, spot, args.expirations, args.strike_pct
-    )
-
-    if not expirations or not strikes:
-        log.error("无可用期权")
-        ib.disconnect()
-        sys.exit(1)
-
     log.info(f"到期日: {expirations}")
-    log.info(f"行权价范围: ${strikes[0]:.0f} ~ ${strikes[-1]:.0f} ({len(strikes)} 个)")
-
-    greeks_df = fetch_options_greeks(ib, symbol, expirations, strikes)
-
-    ib.disconnect()
-
-    if greeks_df.empty:
-        log.error("未获取到任何 Greeks 数据")
-        sys.exit(1)
 
     # === Step 2: yfinance OI ===
     oi_df = pd.DataFrame()
     if not args.no_yfinance:
         oi_df = fetch_oi_yfinance(symbol, expirations)
+
+    # IBKR Greeks 不可用 → 降级：用 yfinance IV 反推 BS gamma
+    if greeks_df.empty:
+        if oi_df.empty:
+            log.error("未获取到任何 Greeks 数据")
+            sys.exit(1)
+        log.warning("IBKR Greeks 为空，用 yfinance IV 计算 BS gamma")
+        greeks_df = greeks_from_yf(oi_df, spot)
 
     # === Step 3: 计算 GEX ===
     contract_df, wall_df = compute_gex(greeks_df, oi_df, spot)
