@@ -163,6 +163,51 @@ def analyze(df: pd.DataFrame, symbol: str, as_of=None) -> dict:
     # ── 蜡烛形态（按 as_of 查命中，避免全量 attrs 的未来污染） ──
     cdl_bullish, cdl_bearish = detect_cdl_hits(df, as_of)
 
+    # ── SMC (Smart Money Concepts) ──
+    smc_structure = last.get("SMC_structure")
+    smc_structure = int(smc_structure) if pd.notna(smc_structure) else None
+    smc_pd_zone = last.get("SMC_pd_zone", None)
+    smc_premium = last.get("SMC_premium")
+    smc_premium = float(smc_premium) if pd.notna(smc_premium) else None
+    smc_equilibrium = last.get("SMC_equilibrium")
+    smc_equilibrium = float(smc_equilibrium) if pd.notna(smc_equilibrium) else None
+    smc_discount = last.get("SMC_discount")
+    smc_discount = float(smc_discount) if pd.notna(smc_discount) else None
+
+    # 最近 5 天内的 BOS/CHoCH 信号
+    recent_5 = df.tail(5)
+    smc_recent_bos = int(recent_5["SMC_BOS"].sum()) if "SMC_BOS" in df.columns else 0
+    smc_recent_choch = (
+        int(recent_5["SMC_CHoCH"].sum()) if "SMC_CHoCH" in df.columns else 0
+    )
+
+    # 最近的 FVG（最近 10 天）
+    recent_10 = df.tail(10)
+    smc_recent_fvg = (
+        int(recent_10["SMC_FVG"].abs().sum()) if "SMC_FVG" in df.columns else 0
+    )
+
+    # 最近的 Order Block（最近 10 天）
+    smc_recent_ob = (
+        int(recent_10["SMC_OB"].abs().sum()) if "SMC_OB" in df.columns else 0
+    )
+
+    # Liquidity Sweep
+    smc_sweep = last.get("SMC_sweep")
+    smc_sweep = int(smc_sweep) if pd.notna(smc_sweep) else None
+    smc_sweep_level = last.get("SMC_sweep_level")
+    smc_sweep_level = float(smc_sweep_level) if pd.notna(smc_sweep_level) else None
+    smc_recent_sweep = (
+        int(recent_10["SMC_sweep"].abs().sum()) if "SMC_sweep" in df.columns else 0
+    )
+
+    # MTF (多时间框架)
+    smc_weekly_structure = last.get("SMC_weekly_structure")
+    smc_weekly_structure = (
+        int(smc_weekly_structure) if pd.notna(smc_weekly_structure) else None
+    )
+    smc_htf_bias = last.get("SMC_htf_bias", None)
+
     # ── 近期涨跌 ──
     changes = {}
     for days, label in [(5, "5d"), (21, "1m"), (63, "3m"), (126, "6m"), (252, "1y")]:
@@ -283,6 +328,46 @@ def analyze(df: pd.DataFrame, symbol: str, as_of=None) -> dict:
         for name in cdl_bearish:
             scores.append((f"K线{name}(看空)", -1))
 
+    # SMC 评分
+    if smc_structure is not None:
+        if smc_structure == 1:
+            scores.append(("SMC结构多头", 1))
+        elif smc_structure == -1:
+            scores.append(("SMC结构空头", -1))
+    if smc_recent_bos > 0:
+        scores.append(("SMC近期BOS(多)", 1))
+    elif smc_recent_bos < 0:
+        scores.append(("SMC近期BOS(空)", -1))
+    if smc_recent_choch > 0:
+        scores.append(("SMC近期CHoCH(反转多)", 2))
+    elif smc_recent_choch < 0:
+        scores.append(("SMC近期CHoCH(反转空)", -2))
+    if smc_pd_zone == "premium":
+        scores.append(("SMC溢价区", -1))
+    elif smc_pd_zone == "discount":
+        scores.append(("SMC折价区", 1))
+
+    # Liquidity Sweep 评分
+    if smc_recent_sweep > 0:
+        # 最近的 sweep 方向
+        last_sweeps = df[df["SMC_sweep"] != 0].tail(3)
+        if not last_sweeps.empty:
+            latest = int(last_sweeps["SMC_sweep"].iloc[-1])
+            if latest == 1:
+                scores.append(("SMC流动性扫荡(下方吸筹)", 1))
+            else:
+                scores.append(("SMC流动性扫荡(上方分发)", -1))
+
+    # MTF 评分
+    if smc_htf_bias == "strong_bullish":
+        scores.append(("SMC多时间框架强多", 2))
+    elif smc_htf_bias == "strong_bearish":
+        scores.append(("SMC多时间框架强空", -2))
+    elif smc_htf_bias == "weak_bullish":
+        scores.append(("SMC多时间框架弱多(周线回调)", 0))
+    elif smc_htf_bias == "weak_bearish":
+        scores.append(("SMC多时间框架弱空(周线反弹)", 0))
+
     total = sum(s for _, s in scores)
     rsi_detail = (
         "oversold"
@@ -324,6 +409,21 @@ def analyze(df: pd.DataFrame, symbol: str, as_of=None) -> dict:
         "CCI": round(cci, 1) if cci else None,
         "CCI_detail": cci_detail,
         "MFI": round(mfi, 1) if mfi else None,
+        # SMC
+        "SMC_structure": smc_structure,
+        "SMC_pd_zone": smc_pd_zone,
+        "SMC_premium": round(smc_premium, 2) if smc_premium else None,
+        "SMC_equilibrium": round(smc_equilibrium, 2) if smc_equilibrium else None,
+        "SMC_discount": round(smc_discount, 2) if smc_discount else None,
+        "SMC_recent_BOS": smc_recent_bos,
+        "SMC_recent_CHoCH": smc_recent_choch,
+        "SMC_recent_FVG": smc_recent_fvg,
+        "SMC_recent_OB": smc_recent_ob,
+        "SMC_sweep": smc_sweep,
+        "SMC_sweep_level": round(smc_sweep_level, 2) if smc_sweep_level else None,
+        "SMC_recent_sweep": smc_recent_sweep,
+        "SMC_weekly_structure": smc_weekly_structure,
+        "SMC_htf_bias": smc_htf_bias,
         "cdl_bullish": cdl_bullish,
         "cdl_bearish": cdl_bearish,
         # 原有
