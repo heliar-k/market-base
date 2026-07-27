@@ -217,7 +217,7 @@ def fetch_all_commodities(
 
     targets = {
         sym: (name, ex)
-        for sym, (name, ex) in config.COMMODITY_FUTURES.items()
+        for sym, (name, ex) in config.commodity_futures.items()
         if symbols is None or sym in symbols
     }
 
