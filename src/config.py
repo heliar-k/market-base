@@ -166,6 +166,10 @@ IBKR_SYMBOLS = [
     {"name": "AAPL", "type": "stock", "exchange": "SMART", "currency": "USD"},
     {"name": "TSLA", "type": "stock", "exchange": "SMART", "currency": "USD"},
     {"name": "MSFT", "type": "stock", "exchange": "SMART", "currency": "USD"},
+    {"name": "MCD", "type": "stock", "exchange": "SMART", "currency": "USD"},
+    {"name": "LLY", "type": "stock", "exchange": "SMART", "currency": "USD"},
+    {"name": "UNH", "type": "stock", "exchange": "SMART", "currency": "USD"},
+    {"name": "KO", "type": "stock", "exchange": "SMART", "currency": "USD"},
     {"name": "MU", "type": "stock", "exchange": "SMART", "currency": "USD"},
     {"name": "TSM", "type": "stock", "exchange": "SMART", "currency": "USD"},
     {"name": "RUT", "type": "index", "exchange": "RUSSELL", "currency": "USD"},
@@ -175,6 +179,9 @@ IBKR_SYMBOLS = [
     {"name": "META", "type": "stock", "exchange": "SMART", "currency": "USD"},
     {"name": "AMZN", "type": "stock", "exchange": "SMART", "currency": "USD"},
     {"name": "NVDA", "type": "stock", "exchange": "SMART", "currency": "USD"},
+    {"name": "CRCL", "type": "stock", "exchange": "SMART", "currency": "USD"},
+    {"name": "HOOD", "type": "stock", "exchange": "SMART", "currency": "USD"},
+    {"name": "COIN", "type": "stock", "exchange": "SMART", "currency": "USD"},
     # ── 算力拥挤度观察（利文斯顿框架）──
     {"name": "SOX", "type": "index", "exchange": "PHLX", "currency": "USD"},
     {
