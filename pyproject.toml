@@ -1,7 +1,7 @@
 [project]
-name = "timsun-data"
+name = "ticker-toolkit"
 version = "0.1.0"
-description = "Add your description here"
+description = "Financial data pipeline + technical analysis toolbox — stocks, indices, macro, options, futures with TUI"
 requires-python = ">=3.13,<3.14"
 dependencies = [
     "ib-insync>=0.9.86",

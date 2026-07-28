@@ -1,4 +1,4 @@
-"""KlineApp — K线分析 TUI 主入口。
+"""KlineApp — ticker-toolkit TUI 主入口。
 
 双模式（技术分析 / 宏观）+ 三栏布局 + Tab 切模式。
 技术分析模式：K 线图三层（主图 candlestick+叠加 + 2 副图）+ 键盘 ←→ 回看 +
@@ -17,7 +17,7 @@ from src.tui.state import Mode
 
 
 class KlineApp(App):
-    """K线分析 TUI 主应用。"""
+    """ticker-toolkit TUI 主应用。"""
 
     CSS = """
     Screen { background: #0d1117; }
@@ -51,7 +51,7 @@ class KlineApp(App):
         yield MainScreen()
 
     def on_mount(self) -> None:
-        self.title = "K线分析"
+        self.title = "ticker-toolkit"
 
     # ── 键盘：Tab / shift+Tab 切模式 ────────────────────────────────────
     def action_cycle_mode(self) -> None:

@@ -1,6 +1,6 @@
 # 项目领域模型 (CONTEXT.md)
 
-本文档是 K线分析项目的领域术语表（ubiquitous language）。只记录领域概念，不含实现细节。实现决策见 `docs/adr/`。
+本文档是 ticker-toolkit 项目的领域术语表（ubiquitous language）。只记录领域概念，不含实现细节。实现决策见 `docs/adr/`。
 
 ## TUI
 

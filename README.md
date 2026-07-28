@@ -1,4 +1,4 @@
-# K线分析
+# ticker-toolkit
 
 金融数据管道 + 技术分析工具箱。每日自动拉取美股/指数/宏观/期权/期货数据，支持 K 线技术指标计算、GEX 分析、交互式 TUI 报告。
 
@@ -154,5 +154,5 @@ uv run ruff check src/ tests/               # lint
 
 ```bash
 # 每个交易日美股收盘后（北京时间 05:00）
-0 5 * * 1-5 cd /path/to/K线分析 && bash src/run_fetch.sh >> logs/cron.log 2>&1
+0 5 * * 1-5 cd /path/to/ticker-toolkit && bash src/run_fetch.sh >> logs/cron.log 2>&1
 ```

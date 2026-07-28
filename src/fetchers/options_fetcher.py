@@ -160,7 +160,7 @@ def main():
         return
 
     script_dir = Path(__file__).resolve().parent  # src/fetchers/
-    project_root = script_dir.parent.parent  # K线分析/
+    project_root = script_dir.parent.parent  # ticker-toolkit/
     output_dir = project_root / "data" / "options"
     output_dir.mkdir(parents=True, exist_ok=True)
 

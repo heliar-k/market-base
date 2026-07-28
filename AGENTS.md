@@ -1,4 +1,4 @@
-# K线分析 — 项目指南
+# ticker-toolkit — 项目指南
 
 金融数据管道 + 技术分析工具箱。每日自动拉取美股/指数/宏观/期权/期货数据，支持 K 线技术指标计算、GEX 分析、TUI 双模式应用（技术分析 + 宏观）。
 
@@ -10,7 +10,7 @@
 ## 项目结构
 
 ```
-K线分析/
+ticker-toolkit/
 ├── AGENTS.md                     ← 本项目文件
 ├── pyproject.toml                ← uv 项目配置（>=Python 3.13）
 ├── .pre-commit-config.yaml       ← ruff + pre-commit hooks

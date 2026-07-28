@@ -5,7 +5,7 @@
 # 要单独拉某个品种请直接用 ./bin/fetch_xxx。
 #
 # crontab 示例（每个交易日美股收盘后执行，北京时间 05:00）:
-#   0 5 * * 1-5 cd /Users/guankai/Documents/K线分析 && bash src/run_fetch.sh >> logs/cron.log 2>&1
+#   0 5 * * 1-5 cd /Users/guankai/Documents/ticker-toolkit && bash src/run_fetch.sh >> logs/cron.log 2>&1
 
 PROJECT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$PROJECT_DIR"
