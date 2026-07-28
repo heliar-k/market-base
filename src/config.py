@@ -164,6 +164,13 @@ IBKR_SYMBOLS = [
     },
     {"name": "VIX", "type": "index", "exchange": "CBOE", "currency": "USD"},
     {"name": "AAPL", "type": "stock", "exchange": "SMART", "currency": "USD"},
+    {
+        "name": "BRK.B",
+        "type": "stock",
+        "exchange": "SMART",
+        "currency": "USD",
+        "symbol": "BRK B",
+    },
     {"name": "TSLA", "type": "stock", "exchange": "SMART", "currency": "USD"},
     {"name": "MSFT", "type": "stock", "exchange": "SMART", "currency": "USD"},
     {"name": "MCD", "type": "stock", "exchange": "SMART", "currency": "USD"},
