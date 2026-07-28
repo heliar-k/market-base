@@ -116,6 +116,9 @@ uv run python src/compute_gex.py --symbol MSFT --reuse-greeks               # �
 # 保护结构报价（put / 价差 / 领口成本对比）
 uv run python src/hedge_planner.py --symbol TSM
 
+# Sell Put 选点位（期权墙 + 技术面交叉；默认复用当日 GEX 数据，--fetch 强制重拉）
+uv run python src/sell_put.py --symbol TSM
+
 # cron（每个交易日美股收盘后，北京时间 05:00）
 # 0 5 * * 1-5 cd /Users/guankai/Documents/K线分析 && bash src/run_fetch.sh >> logs/cron.log 2>&1
 ```
