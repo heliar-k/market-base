@@ -77,14 +77,19 @@ def fetch_quotes(ticker: yf.Ticker, exp: str) -> dict[tuple[float, str], Quote]:
     for right, df in [("P", chain.puts), ("C", chain.calls)]:
         for _, row in df.iterrows():
             bid, ask = float(row["bid"]), float(row["ask"])
-            if bid <= 0:  # 无真实买盘的合约跳过
-                continue
+            if bid <= 0:
+                # ponytail: Yahoo 多数合约无盘口，用 lastPrice（昨收）近似成本
+                last = float(row.get("lastPrice", 0) or 0)
+                if last <= 0:
+                    continue
+                bid = ask = last
+            raw_oi = row.get("openInterest", 0)
             q = Quote(
                 strike=float(row["strike"]),
                 right=right,
                 bid=bid,
                 ask=ask,
-                oi=int(row.get("openInterest", 0) or 0),
+                oi=0 if raw_oi != raw_oi else int(raw_oi),  # NaN 不自等
             )
             quotes[(q.strike, right)] = q
     return quotes

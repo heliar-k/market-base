@@ -234,25 +234,49 @@ def main():
     log.info(f"待拉取品种: {[s['name'] for s in symbols]}")
     log.info(f"TWS 地址: {ibkr_cfg.host}:{ibkr_cfg.port}")
 
-    # 连接 IB
+    # 连接 IB — 依次尝试 4002 (paper) → 4001 (live/readonly)
     client_id = args.client_id or random.randint(100, 9999)
     log.info(f"使用 clientId: {client_id}")
     ib = IB()
-    try:
-        ib.connect(ibkr_cfg.host, ibkr_cfg.port, clientId=client_id, timeout=10)
-    except (ConnectionRefusedError, TimeoutError):
+    ports_to_try = [4002, 4001]
+    connected_port = None
+    for port in ports_to_try:
+        readonly = port == 4001
+        try:
+            log.info(
+                "尝试 %s:%d (readonly=%s) ...",
+                ibkr_cfg.host,
+                port,
+                readonly,
+            )
+            ib.connect(
+                ibkr_cfg.host,
+                port,
+                clientId=client_id,
+                timeout=10,
+                readonly=readonly,
+            )
+            log.info("连接成功！端口 %d, readonly=%s", port, readonly)
+            connected_port = port
+            break
+        except (ConnectionRefusedError, TimeoutError):
+            log.warning("端口 %d 不可用", port)
+            ib.disconnect()
+        except OSError as e:
+            log.warning("端口 %d 连接失败: %s", port, e)
+            ib.disconnect()
+        except Exception as e:
+            log.warning("端口 %d 连接失败: %s", port, e)
+            ib.disconnect()
+
+    if not connected_port:
         log.error("无法连接到 TWS/IB Gateway，请确认已启动并开启 API 端口")
         log.error("  TWS 纸交易端口: 7497，实盘端口: 7496")
         log.error("  IB Gateway 纸交易端口: 4002，实盘端口: 4001")
         sys.exit(1)
-    except OSError as e:
-        log.error(f"连接超时: {e}")
-        sys.exit(1)
-    except Exception as e:
-        log.error(f"连接失败: {e}")
-        sys.exit(1)
 
-    log.info("连接成功！")
+    # 实盘流控更宽松，缩短跨品种延迟
+    inter_symbol_delay = 3 if connected_port == 4001 else ibkr_cfg.request_delay_seconds
 
     if args.dry_run:
         log.info("--dry-run 模式，仅检查连接，退出")
@@ -292,6 +316,11 @@ def main():
         if last_date:
             log.info(f"  已有 {len(existing)} 条本地数据，最新: {last_date}")
 
+        # 跨品种延迟（实盘 3s，paper 15s）
+        if inter_symbol_delay:
+            log.info(f"  等待 {inter_symbol_delay}s ...")
+            time.sleep(inter_symbol_delay)
+
         # 拉取
         try:
             bars = fetch_single(
@@ -316,9 +345,6 @@ def main():
             log.info(f"[{name}] 新增 {new_count} 条")
         else:
             log.info(f"[{name}] 无新数据")
-
-        log.info(f"  等待 {ibkr_cfg.request_delay_seconds}s 以避免请求限流...")
-        time.sleep(ibkr_cfg.request_delay_seconds)
 
     ib.disconnect()
     log.info(f"全部完成！本次共新增 {total_new} 条记录")

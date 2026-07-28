@@ -46,7 +46,8 @@ def connect_ib(host="127.0.0.1", port=4002):
     ib = IB()
     client_id = random.randint(100, 9999)
     try:
-        ib.connect(host, port, clientId=client_id, timeout=10)
+        # 脚本只做数据读取，显式声明只读会话，避免 TWS 按完整权限处理
+        ib.connect(host, port, clientId=client_id, timeout=10, readonly=True)
         log.info(f"已连接 IB Gateway (clientId={client_id})")
         return ib
     except Exception as e:
@@ -155,7 +156,8 @@ def fetch_options_greeks(ib, symbol, expirations, strikes, batch_size=3):
                 "last": t.last if not (t.last != t.last) else None,
                 "volume": t.volume if not (t.volume != t.volume) else None,
                 "delta": g.delta if g else None,
-                "gamma": g.gamma if g else None,
+                # TWS gamma 恒非负；统一为项目惯例 call + / put -（同 greeks_from_yf）
+                "gamma": (-g.gamma if right == "P" else g.gamma) if g else None,
                 "theta": g.theta if g else None,
                 "vega": g.vega if g else None,
                 "iv": g.impliedVol if g else None,
@@ -443,6 +445,20 @@ def main():
     )
     parser.add_argument("--output", help="输出 CSV 文件路径")
     parser.add_argument(
+        "--port", type=int, default=4002, help="IBKR 端口（4001 实盘 / 4002 模拟）"
+    )
+    parser.add_argument(
+        "--batch-size",
+        type=int,
+        default=3,
+        help="行情批量订阅数（模拟账户 3-5，实盘可 50）",
+    )
+    parser.add_argument(
+        "--reuse-greeks",
+        action="store_true",
+        help="复用当日 Greeks 快照（data/gex/），跳过 IBKR，只拉新鲜 OI",
+    )
+    parser.add_argument(
         "--spot", type=float, default=None, help="手动指定标的价格（跳过历史数据查询）"
     )
     args = parser.parse_args()
@@ -458,7 +474,16 @@ def main():
     expirations = []
     greeks_df = pd.DataFrame()
 
-    ib = connect_ib()
+    if args.reuse_greeks:
+        cache = Path(f"data/gex/{symbol}_greeks_{datetime.now():%Y%m%d}.csv")
+        if cache.exists():
+            greeks_df = pd.read_csv(cache, dtype={"expiration": str})
+            expirations = sorted(greeks_df["expiration"].unique())
+            log.info(f"复用 Greeks 快照: {cache}（{len(greeks_df)} 行）")
+        else:
+            log.warning(f"快照不存在: {cache}，回退实时拉取")
+
+    ib = None if not greeks_df.empty else connect_ib(port=args.port)
     if ib:
         spot = spot or get_spot(ib, symbol)
         if spot:
@@ -471,7 +496,13 @@ def main():
                     f"行权价范围: ${strikes[0]:.0f} ~ ${strikes[-1]:.0f}"
                     f" ({len(strikes)} 个)"
                 )
-                greeks_df = fetch_options_greeks(ib, symbol, expirations, strikes)
+                greeks_df = fetch_options_greeks(
+                    ib, symbol, expirations, strikes, batch_size=args.batch_size
+                )
+                if not greeks_df.empty:
+                    snap = Path(f"data/gex/{symbol}_greeks_{datetime.now():%Y%m%d}.csv")
+                    greeks_df.to_csv(snap, index=False)
+                    log.info(f"已保存 Greeks 快照: {snap}")
         else:
             log.warning("IBKR 无法获取标的价格")
         ib.disconnect()

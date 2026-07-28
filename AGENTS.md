@@ -66,6 +66,8 @@ ticker-toolkit/
 │   ├── options/{SYMBOL}_chain.json     ← 期权链参数
 │   ├── options/{SYMBOL}_grid.csv       ← 到期日×行权价网格
 │   ├── commodities/{SYMBOL}/{SYMBOL}_{YYYYMM}.csv  ← 期货日线
+│   ├── gex/{SYMBOL}_greeks_YYYYMMDD.csv  ← Greeks 当日快照（--reuse-greeks 复用）
+│   ├── gex/{SYMBOL}_gex_YYYYMMDD_HHMM.csv ← GEX 逐合约明细（每次运行留存）
 │   └── cache/{SYMBOL}_indicators.parquet ← 指标缓存（派生产物，mtime 失效）
 │
 └── doc/
@@ -105,10 +107,14 @@ uv run pytest                                       # 全量测试（124 个）
 # GEX 计算（IBKR 优先，拿不到 Greeks 自动降级 yfinance）
 uv run python src/compute_gex.py                        # AAPL（默认）
 uv run python src/compute_gex.py --symbol TSM          # 指定品种
+uv run python src/compute_gex.py --expirations 6        # 6 个到期月
+
+# GEX 常用组合：实盘 4001（自动 readonly）+ 大批量 + 当日快照复用
+uv run python src/compute_gex.py --symbol MSFT --port 4001 --batch-size 50  # 首次拉取（~35s），存当日 Greeks 快照
+uv run python src/compute_gex.py --symbol MSFT --reuse-greeks               # 当天重跑（~3s），只刷 OI；spot 动 1%+ 需重新拉快照
 
 # 保护结构报价（put / 价差 / 领口成本对比）
 uv run python src/hedge_planner.py --symbol TSM
-uv run python src/compute_gex.py --expirations 6        # 6 个到期月
 
 # cron（每个交易日美股收盘后，北京时间 05:00）
 # 0 5 * * 1-5 cd /Users/guankai/Documents/K线分析 && bash src/run_fetch.sh >> logs/cron.log 2>&1
@@ -143,8 +149,11 @@ uv run python src/compute_gex.py --expirations 6        # 6 个到期月
 - `https_proxy=socks5://127.0.0.1:7890` 在 `.env` 中配置
 - 代理必须在导入 yfinance **之前**设置环境变量（`yfinance_fetcher.py` 在 import 前设置）
 
-### 6. IBKR 限制
-- 纸交易账户同时订阅数有限（~3-5），GEX 计算用小批量串行方式
+### 6. IBKR 端口与限制
+- 端口：`4002` = 模拟账户（默认，行情订阅数有限 ~3-5，GEX 用 `--batch-size 3` 小批量串行）；`4001` = 实盘只读（`connect_ib` 自动带 `readonly=True`，可 `--batch-size 50`）
+- `ibkr_fetcher.py` 连接时依次尝试 4002 → 4001（4001 按只读连接）
+- Greeks 当日快照：`data/gex/{SYMBOL}_greeks_YYYYMMDD.csv`，`--reuse-greeks` 复用后只拉 yfinance OI；gamma 贴近墙位对 spot 敏感，spot 动 1%+ 要重拉
+- gamma 符号惯例：call 正 / put 负（IBKR modelGreeks 恒非负，`fetch_options_greeks` 里统一翻转，与 `greeks_from_yf` 一致）
 - 每次请求后 `sleep(15s)` 避免限流（配置在 `config.ibkr.request_delay_seconds`）
 
 ---
@@ -296,8 +305,8 @@ thinking: medium
 ---
 
 1. 确认品种（默认 AAPL）
-2. 检查 TWS/IB Gateway 是否运行在 localhost:4002
-3. 运行 `uv run python src/compute_gex.py --symbol {SYMBOL}`
+2. 检查 TWS/IB Gateway 端口：4001（实盘只读，快）或 4002（模拟，慢）
+3. 运行 `uv run python src/compute_gex.py --symbol {SYMBOL} --port 4001 --batch-size 50`；当天重跑加 `--reuse-greeks`
 4. 解读结果：
    - 最大正 GEX 行权价 = dealer 做多 gamma → 支撑位
    - 最大负 GEX 行权价 = dealer 做空 gamma → 阻力位
