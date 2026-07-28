@@ -21,9 +21,6 @@ from pathlib import Path
 
 import pandas as pd
 
-sys.path.insert(
-    0, str(Path(__file__).resolve().parent.parent)
-)  # 允许直接 python src/sell_put.py
 from src.indicators import compute_all_indicators, load_data
 
 
@@ -65,15 +62,6 @@ def ensure_gex_data(symbol: str, args: argparse.Namespace) -> Path:
     return csv
 
 
-def spot_of(symbol: str) -> float:
-    """从股票日线取最新收盘价作为 spot 参考。"""
-    for kind in ("stocks", "indices"):
-        p = Path(f"data/{kind}/{symbol}.csv")
-        if p.exists():
-            return float(pd.read_csv(p)["close"].iloc[-1])
-    sys.exit(f"无 {symbol} 日线数据，先 ./bin/fetch_ibkr --symbols {symbol}")
-
-
 def analyze_puts(df: pd.DataFrame, spot: float, atr: float) -> pd.DataFrame:
     """spot 以下 put 按行权价聚合，附最优到期日的报价/收益指标。"""
     p = df[(df.right == "P") & (df.strike < spot) & (df.openInterest > 0)].copy()
@@ -109,20 +97,20 @@ def analyze_puts(df: pd.DataFrame, spot: float, atr: float) -> pd.DataFrame:
     )
 
 
-def report(symbol: str, cands: pd.DataFrame, spot: float) -> None:
+def report(symbol: str, cands: pd.DataFrame, spot: float, tech: pd.DataFrame) -> None:
     """技术面 + 候选点位报告。"""
-    df = compute_all_indicators(load_data(f"data/stocks/{symbol}.csv"))
-    r = df.iloc[-1]
+    latest = tech.iloc[-1]
     print(f"\n{'=' * 66}")
     print(f"  {symbol} Sell Put 分析  —  Spot: ${spot:.2f}")
     print(f"{'=' * 66}")
     print(
-        f"技术面: close={r.close:.2f} MA20={r.MA20:.1f} MA60={r.MA60:.1f} "
-        f"MA120={r.MA120:.1f} RSI={r.RSI:.0f} ATR={r.ATR:.1f}"
+        f"技术面: close={latest.close:.2f} "
+        f"MA20={latest.MA20:.1f} MA60={latest.MA60:.1f} "
+        f"MA120={latest.MA120:.1f} RSI={latest.RSI:.0f} ATR={latest.ATR:.1f}"
     )
-    lo30, lo90 = df.close.tail(30).min(), df.close.tail(90).min()
+    lo30, lo90 = tech.close.tail(30).min(), tech.close.tail(90).min()
     print(f"近30日最低: {lo30:.1f}  近90日最低: {lo90:.1f}")
-    if r.close < r.MA20 and r.close < r.MA60:
+    if latest.close < latest.MA20 and latest.close < latest.MA60:
         print("⚠️  破位中（跌破 MA20/60）：减仓或等企稳，put 墙不是底")
 
     wi = cands.OI_total.idxmax()  # put 墙位置（最大 OI）
@@ -162,10 +150,17 @@ def main() -> None:
     args = ap.parse_args()
     symbol = args.symbol.upper()
 
-    df = pd.read_csv(ensure_gex_data(symbol, args), dtype={"expiration": str})
-    spot = spot_of(symbol)
-    tech = compute_all_indicators(load_data(f"data/stocks/{symbol}.csv"))
-    report(symbol, analyze_puts(df, spot, float(tech.iloc[-1].ATR)), spot)
+    # 加载技术面数据（stocks 或 indices）
+    for kind in ("stocks", "indices"):
+        data_path = Path(f"data/{kind}/{symbol}.csv")
+        if data_path.exists():
+            break
+    else:
+        sys.exit(f"无 {symbol} 日线数据，先 ./bin/fetch_ibkr --symbols {symbol}")
+    tech = compute_all_indicators(load_data(str(data_path)))
+    spot = float(tech["close"].iloc[-1])
+    gex = pd.read_csv(ensure_gex_data(symbol, args), dtype={"expiration": str})
+    report(symbol, analyze_puts(gex, spot, float(tech.iloc[-1].ATR)), spot, tech)
 
 
 if __name__ == "__main__":
