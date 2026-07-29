@@ -17,6 +17,8 @@ mkdir -p logs
 FETCHERS=(
     bin/fetch_fred
     bin/fetch_cboe
+    bin/fetch_shapiro
+    bin/fetch_sce
     bin/fetch_yfinance
     bin/fetch_commodities
     bin/fetch_ibkr

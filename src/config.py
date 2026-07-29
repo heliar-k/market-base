@@ -131,6 +131,7 @@ FRED_SERIES = {
         "INDPRO": "INDPRO",
         "REAL_PCE": "PCEC96",
         "CAPU": "TCU",
+        "DGORDER": "DGORDER",
     },
     "rates": {
         "FEDFUNDS": "FEDFUNDS",

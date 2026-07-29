@@ -13,7 +13,7 @@
 | `volatility` | `data/fred/volatility/volatility.csv` | 3 | VIX / HY_OAS / IG_OAS |
 | `inflation` | `data/fred/inflation/inflation.csv` | 19 | CPI / PCE / 核心 / CPI细分 / Super-core / BEI / 通胀预期 |
 | `labor` | `data/fred/labor/labor.csv` | 3 | 失业率 / 非农 / 首申失业金 |
-| `growth` | `data/fred/growth/growth.csv` | 4 | 实际GDP / 工业产出 / 实际PCE / 产能利用率 |
+| `growth` | `data/fred/growth/growth.csv` | 5 | 实际GDP / 工业产出 / 实际PCE / 产能利用率 / 制造业新订单 |
 | `rates` | `data/fred/rates/rates.csv` | 14 | 联邦基金利率 / SOFR / IORB / 国债全期限 |
 | `tips` | `data/fred/tips/tips.csv` | 5 | 5Y-30Y TIPS 实际收益率 |
 | `liquidity` | `data/fred/liquidity/liquidity.csv` | 5 | NFCI / 准备金 / RRP / TGA / 联储总资产 |
@@ -27,7 +27,7 @@
 `volatility`: VIX, HY_OAS, IG_OAS
 `inflation`: CPI, PCE, CORE_CPI, CORE_PCE, CPI_SHELTER, CPI_FOOD, CPI_ENERGY, CORE_SERVICES, CORE_GOODS, SUPERCORE_PCE, SUPERCORE_PCE_REAL, T5YIE, T10YIE, T5YIFR, MICH, EXPINF_1Y, EXPINF_2Y, EXPINF_5Y, EXPINF_10Y
 `labor`: UNRATE, PAYEMS, ICSA
-`growth`: GDP, INDPRO, REAL_PCE, CAPU
+`growth`: GDP, INDPRO, REAL_PCE, CAPU, DGORDER
 `rates`: FEDFUNDS, SOFR, IORB, DGS1MO, DGS3MO, DGS6MO, DGS1, DGS2, DGS3, DGS5, DGS7, DGS10, DGS20, DGS30
 `tips`: DFII5, DFII7, DFII10, DFII20, DFII30
 `liquidity`: NFCI, RRPONTSYD, WTREGEN, WRESBAL, WALCL
@@ -162,6 +162,36 @@ FRED liquidity 分类的原始系列（由 `./bin/fetch_fred` 一并拉取）。
 
 ---
 
+## 8. Shapiro 供给/需求 PCE 通胀分解 — `data/shapiro/shapiro.csv`
+
+来源 FRBSF（旧金山联储 Shapiro 分解）。每月 PCE 发布后几天更新，`./bin/fetch_shapiro`。
+4 个 chart CSV（headline/core × monthly年化/yoy），各拆出 supply/demand/ambiguous 贡献（pp）。
+
+| 列名 | 说明 |
+|------|------|
+| `SHAPIRO_{HEADLINE|CORE}_{MOM|YOY}_SUPPLY` | 供给驱动贡献（pp） |
+| `SHAPIRO_{HEADLINE|CORE}_{MOM|YOY}_DEMAND` | 需求驱动贡献（pp） |
+| `SHAPIRO_{HEADLINE|CORE}_{MOM|YOY}_AMBIG` | 模糊类贡献（pp） |
+
+> MOM = 年化月度贡献（最及时但噪声大）；YOY = 同比贡献（趋势）。
+> 三项之和 ≡ 对应 PCE 通胀率。Demand 高 = 需求拉动，Supply 高 = 供给冲击。
+
+---
+
+## 9. NY Fed SCE 通胀预期 — `data/sce/sce.csv`
+
+来源 NY Fed Survey of Consumer Expectations。每月第二个周一发布，`./bin/fetch_sce`。
+全量 Excel 45 个 sheet，此处取 1Y/3Y 通胀预期中位数。
+
+| 列名 | 说明 |
+|------|------|
+| `SCE_INFL_1Y_MEDIAN` | 1 年期通胀预期中位数（%） |
+| `SCE_INFL_3Y_MEDIAN` | 3 年期通胀预期中位数（%） |
+
+> Excel 另含劳动力/房价/信贷/消费等 40+ sheet，按需在 `sce_fetcher.py` 扩展。
+
+---
+
 ## 速查：怎么用
 
 ```python
@@ -190,6 +220,12 @@ liq = derive_macro(liq_raw)[['NET_LIQUIDITY']]
 
 # 波动率
 vol = pd.read_csv('data/cboe/volatility.csv', index_col='date', parse_dates=True)
+
+# Shapiro 供给/需求分解
+shapiro = pd.read_csv('data/shapiro/shapiro.csv', index_col='date', parse_dates=True)
+
+# NY Fed SCE 通胀预期
+sce = pd.read_csv('data/sce/sce.csv', index_col='date', parse_dates=True)
 
 # 股票 K 线
 aapl = pd.read_csv('data/stocks/AAPL.csv', index_col='date', parse_dates=True)

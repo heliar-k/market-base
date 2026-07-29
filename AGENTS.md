@@ -160,7 +160,7 @@ uv run python src/sell_put.py --symbol TSM
 ## 编码约定
 
 - **语言**: 注释和文档用中文（面向中文用户），代码标识符用英文
-- **格式化**: ruff (select E/F/I/W) + ruff-format，`pre-commit` 自动执行
+- **格式化**: ruff (select E/F/I/W) + ruff-format，`pre-commit` 在 git commit 时自动执行（`ruff --fix` + `ruff-format` 自动修并重新暂存）。**写完代码无需手动跑 ruff/pre-commit**，只验证功能正确性（代码能跑）即可；E501（行太长）不会被自动修，commit 被拦时再手动改
 - **类型提示**: 所有函数签名带类型注解，用 `|` 替代 `Optional`（Python 3.10+）
 - **import**: 先标准库 → 第三方 → `src.*`（`isort` 自动处理）
 - **测试**: pytest 测试套件（`tests/`，124 个测试），用 `tmp_path` 隔离 + autouse fixture 清理缓存。运行 `uv run pytest`
