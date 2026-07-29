@@ -196,6 +196,42 @@ FRED liquidity 分类的原始系列（由 `./bin/fetch_fred` 一并拉取）。
 
 ---
 
+## 10. 国债拍卖 — `data/treasury/`
+
+来源 US Treasury Fiscal Data API（免费，无需认证）。`./bin/fetch_treasury` 拉取拍卖结果和未来日历，每次全量覆盖。
+
+### auction_results.csv（拍卖结果，~11,000 条历史，全量覆盖）
+
+| 列名 | 说明 |
+|------|------|
+| `security_type` | 券种：Bill / Note / Bond / TIPS / FRN |
+| `security_term` | 期限：4-Week / 13-Week / 2-Year / 10-Year / 30-Year 等 |
+| `offering_amt` | 发行额（USD） |
+| `bid_to_cover_ratio` | 投标倍数（>2.5x 需求良好，<2.0x 警戒） |
+| `high_yield` | 中标利率（%） |
+| `avg_med_yield` | 中位投标利率（%），用于计算 Tail |
+| `indirect_pct` | 间接投标人占比（%）= 外国官方 + 国际机构，反映海外需求 |
+| `tail_bp` | 拍卖 Tail（bp）= (high_yield − avg_med_yield) × 100，正=弱于预期 |
+| `indirect_bidder_accepted` | 间接投标人接受额（原始值） |
+| `total_accepted` | 总接受额（原始值） |
+| `reopening` | 是否重开 |
+| `cusip` | CUSIP 代码 |
+| `issue_date` | 发行日 |
+| `maturity_date` | 到期日 |
+
+### upcoming_auctions.csv（未来拍卖日历，~93 条，全量覆盖）
+
+| 列名 | 说明 |
+|------|------|
+| `security_type` | 券种 |
+| `security_term` | 期限 |
+| `offering_amt` | 计划发行额（USD） |
+| `reopening` | 是否重开 |
+| `cusip` | CUSIP 代码 |
+| `issue_date` | 发行日 |
+
+---
+
 ## 速查：怎么用
 
 ```python
@@ -236,4 +272,8 @@ aapl = pd.read_csv('data/stocks/AAPL.csv', index_col='date', parse_dates=True)
 
 # 指数日线
 spx = pd.read_csv('data/indices/SPX.csv', index_col='date', parse_dates=True)
+
+# 国债拍卖
+auction_results = pd.read_csv('data/treasury/auction_results.csv', index_col='auction_date', parse_dates=True)
+upcoming = pd.read_csv('data/treasury/upcoming_auctions.csv', index_col='auction_date', parse_dates=True)
 ```

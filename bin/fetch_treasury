@@ -1,0 +1,5 @@
+#!/bin/bash
+# 国债拍卖数据（历史结果 + 未来日历，全量覆盖）
+set -euo pipefail
+cd "$(dirname "$0")/.."
+exec uv run python -m src.fetchers.treasury_fetcher "$@"
