@@ -105,7 +105,7 @@ uv run python -m src.analyze data/AAPL.csv --json   # JSON 输出
 uv run python -m src.tui.app                        # 启动 TUI（技术分析 + 宏观双模式）
 
 # 测试
-uv run pytest                                       # 全量测试（157 个）
+uv run python -m pytest                            # 全量测试（157 个）
 
 # GEX 计算（IBKR 优先，拿不到 Greeks 自动降级 yfinance）
 uv run python src/compute_gex.py                        # AAPL（默认）
@@ -179,7 +179,7 @@ uv run python src/sell_put.py --symbol TSM
 - **格式化**: ruff (select E/F/I/W) + ruff-format，`pre-commit` 在 git commit 时自动执行（`ruff --fix` + `ruff-format` 自动修并重新暂存）。**写完代码无需手动跑 ruff/pre-commit**，只验证功能正确性（代码能跑）即可；E501（行太长）不会被自动修，commit 被拦时再手动改
 - **类型提示**: 所有函数签名带类型注解，用 `|` 替代 `Optional`（Python 3.10+）
 - **import**: 先标准库 → 第三方 → `src.*`（`isort` 自动处理）
-- **测试**: pytest 测试套件（`tests/`，157 个测试），用 `tmp_path` 隔离 + autouse fixture 清理缓存。运行 `uv run pytest`
+- **测试**: pytest 测试套件（`tests/`，157 个测试），用 `tmp_path` 隔离 + autouse fixture 清理缓存。运行 `uv run python -m pytest`
 
 ---
 
