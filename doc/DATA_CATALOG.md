@@ -4,34 +4,38 @@
 
 ---
 
-## 1. 宏观指标 — `data/fred/{category}/` （10 分类）
+## 1. 宏观指标 — `data/fred/{category}/` （12 分类）
 
-10 个分类、56 个系列，来源 FRED API。每日 `./bin/fetch_fred` 更新。
+12 个分类、65 个系列，来源 FRED API。每日 `./bin/fetch_fred` 更新。
 
 | 分类 | 路径 | 系列 | 内容 |
 |------|------|------|------|
 | `volatility` | `data/fred/volatility/volatility.csv` | 3 | VIX / HY_OAS / IG_OAS |
-| `inflation` | `data/fred/inflation/inflation.csv` | 17 | CPI / PCE / 核心 / CPI细分 / BEI / 通胀预期 |
+| `inflation` | `data/fred/inflation/inflation.csv` | 19 | CPI / PCE / 核心 / CPI细分 / Super-core / BEI / 通胀预期 |
 | `labor` | `data/fred/labor/labor.csv` | 3 | 失业率 / 非农 / 首申失业金 |
-| `growth` | `data/fred/growth/growth.csv` | 2 | 实际GDP / 工业产出 |
+| `growth` | `data/fred/growth/growth.csv` | 4 | 实际GDP / 工业产出 / 实际PCE / 产能利用率 |
 | `rates` | `data/fred/rates/rates.csv` | 14 | 联邦基金利率 / SOFR / IORB / 国债全期限 |
 | `tips` | `data/fred/tips/tips.csv` | 5 | 5Y-30Y TIPS 实际收益率 |
 | `liquidity` | `data/fred/liquidity/liquidity.csv` | 5 | NFCI / 准备金 / RRP / TGA / 联储总资产 |
 | `sentiment` | `data/fred/sentiment/sentiment.csv` | 2 | 消费者信心 / 金融压力指数 |
 | `fx` | `data/fred/fx/fx.csv` | 1 | 贸易加权美元指数 |
 | `producer_prices` | `data/fred/producer_prices/producer_prices.csv` | 4 | PPI Final Demand / 核心PPI / 分项 |
+| `consumption` | `data/fred/consumption/consumption.csv` | 1 | 个人储蓄率 |
+| `labor_market` | `data/fred/labor_market/labor_market.csv` | 4 | JOLTS 职位空缺/离职率 + 失业人数 + ECI 工资 |
 
 ### 列名速查
 `volatility`: VIX, HY_OAS, IG_OAS
-`inflation`: CPI, PCE, CORE_CPI, CORE_PCE, CPI_SHELTER, CPI_FOOD, CPI_ENERGY, CORE_SERVICES, CORE_GOODS, T5YIE, T10YIE, T5YIFR, MICH, EXPINF_1Y, EXPINF_2Y, EXPINF_5Y, EXPINF_10Y
+`inflation`: CPI, PCE, CORE_CPI, CORE_PCE, CPI_SHELTER, CPI_FOOD, CPI_ENERGY, CORE_SERVICES, CORE_GOODS, SUPERCORE_PCE, SUPERCORE_PCE_REAL, T5YIE, T10YIE, T5YIFR, MICH, EXPINF_1Y, EXPINF_2Y, EXPINF_5Y, EXPINF_10Y
 `labor`: UNRATE, PAYEMS, ICSA
-`growth`: GDP, INDPRO
+`growth`: GDP, INDPRO, REAL_PCE, CAPU
 `rates`: FEDFUNDS, SOFR, IORB, DGS1MO, DGS3MO, DGS6MO, DGS1, DGS2, DGS3, DGS5, DGS7, DGS10, DGS20, DGS30
 `tips`: DFII5, DFII7, DFII10, DFII20, DFII30
 `liquidity`: NFCI, RRPONTSYD, WTREGEN, WRESBAL, WALCL
 `sentiment`: UMCSENT, STLFSI4
 `fx`: DXY
 `producer_prices`: PPI_FD, CORE_PPI, PPI_GOODS, PPI_SERVICES
+`consumption`: PSAVERT
+`labor_market`: JOLTS_OPEN, JOLTS_QUITS, UNEMPLOY, ECI_WAGES
 
 ---
 

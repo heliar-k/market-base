@@ -118,6 +118,8 @@ FRED_SERIES = {
         "EXPINF_2Y": "EXPINF2YR",
         "EXPINF_5Y": "EXPINF5YR",
         "EXPINF_10Y": "EXPINF10YR",
+        "SUPERCORE_PCE": "IA001260M",
+        "SUPERCORE_PCE_REAL": "LB001260M",
     },
     "labor": {
         "UNRATE": "UNRATE",
@@ -127,6 +129,8 @@ FRED_SERIES = {
     "growth": {
         "GDP": "GDPC1",
         "INDPRO": "INDPRO",
+        "REAL_PCE": "PCEC96",
+        "CAPU": "TCU",
     },
     "rates": {
         "FEDFUNDS": "FEDFUNDS",
@@ -164,6 +168,15 @@ FRED_SERIES = {
     },
     "fx": {
         "DXY": "DTWEXBGS",
+    },
+    "consumption": {
+        "PSAVERT": "PSAVERT",
+    },
+    "labor_market": {
+        "JOLTS_OPEN": "JTSJOL",
+        "JOLTS_QUITS": "JTSQUR",
+        "UNEMPLOY": "UNEMPLOY",
+        "ECI_WAGES": "ECIWAG",
     },
     "producer_prices": {
         "PPI_FD": "PPIFIS",
