@@ -296,7 +296,7 @@ if __name__ == "__main__":
     # FOMC 概率表 — 每日快照
     fomc_path = out_dir / "fomc_probabilities.csv"
     today_str = datetime.now().strftime("%Y-%m-%d")
-    fomc_df["date"] = today_str
+    fomc_df.insert(0, "date", today_str)
 
     if args.backfill or not fomc_path.exists():
         fomc_df.to_csv(fomc_path, index=False)
@@ -310,7 +310,7 @@ if __name__ == "__main__":
 
     # ZQ 合约快照
     zq_path = out_dir / "zq_futures.csv"
-    zq_df["date"] = today_str
+    zq_df.insert(0, "date", today_str)
     if args.backfill or not zq_path.exists():
         zq_df.to_csv(zq_path, index=False)
         print(f"ZQ 合约 --backfill: → {zq_path}")
