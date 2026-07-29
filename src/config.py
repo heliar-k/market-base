@@ -6,6 +6,7 @@
 import os
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import NamedTuple
 
 ROOT = Path(__file__).resolve().parent.parent
 
@@ -222,6 +223,35 @@ TERM_SERIES = {
     ],
     "tips": ["DFII5", "DFII7", "DFII10", "DFII20", "DFII30"],
 }
+
+# ── FOMC 会议日历（每年 8 次，联邦储备委员会公布）──
+
+
+class FomcMeeting(NamedTuple):
+    year: int
+    month: int
+    start_day: int
+    end_day: int
+
+
+FOMC_MEETINGS: list[FomcMeeting] = [
+    FomcMeeting(2025, 1, 28, 29),
+    FomcMeeting(2025, 3, 18, 19),
+    FomcMeeting(2025, 5, 6, 7),
+    FomcMeeting(2025, 6, 17, 18),
+    FomcMeeting(2025, 7, 29, 30),
+    FomcMeeting(2025, 9, 16, 17),
+    FomcMeeting(2025, 10, 28, 29),
+    FomcMeeting(2025, 12, 9, 10),
+    FomcMeeting(2026, 1, 27, 28),
+    FomcMeeting(2026, 3, 17, 18),
+    FomcMeeting(2026, 4, 28, 29),
+    FomcMeeting(2026, 6, 16, 17),
+    FomcMeeting(2026, 7, 28, 29),
+    FomcMeeting(2026, 9, 15, 16),
+    FomcMeeting(2026, 10, 27, 28),
+    FomcMeeting(2026, 12, 8, 9),
+]
 
 # ── 商品期货（IBKR 拉取）──
 COMMODITY_FUTURES = {

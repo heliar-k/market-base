@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import math
+from datetime import date
 from pathlib import Path
 from typing import Any
 
@@ -15,7 +16,13 @@ from fastapi.staticfiles import StaticFiles
 
 from src.analyze import analyze
 from src.cache import load_or_compute
-from src.config import FRED_SERIES, IBKR_SYMBOLS, ROOT, TERM_SERIES
+from src.config import (
+    FOMC_MEETINGS,
+    FRED_SERIES,
+    IBKR_SYMBOLS,
+    ROOT,
+    TERM_SERIES,
+)
 from src.macro import cross_category_partners, derive_macro
 
 app = FastAPI(title="K-line Analysis Web")
@@ -307,6 +314,77 @@ def get_macro_presets():
             },
         ]
     }
+
+
+# ── FOMC calendar ────────────────────────────────────────────────────────────
+
+
+@app.get("/api/fomc/calendar")
+def get_fomc_calendar() -> dict:
+    """返回当前利率区间、下次 FOMC 会议日期、及目标利率上下界。"""
+    today = date.today()
+    current_meeting = None
+    next_meeting = None
+    for m in sorted(FOMC_MEETINGS):
+        meeting_end = date(m.year, m.month, m.end_day)
+        if meeting_end < today:
+            current_meeting = m
+        elif next_meeting is None:
+            next_meeting = m
+
+    # 从 rates CSV 中查找 current meeting 对应的目标利率
+    target_lower = None
+    target_upper = None
+    if current_meeting:
+        rates_csv = ROOT / "data" / "fred" / "rates" / "rates.csv"
+        if rates_csv.exists():
+            df = pd.read_csv(rates_csv, index_col="date", parse_dates=True)
+            meeting_date = pd.Timestamp(
+                year=current_meeting.year,
+                month=current_meeting.month,
+                day=current_meeting.end_day,
+            )
+            # 找 meeting 结束后最近的非空目标利率
+            if meeting_date in df.index:
+                row = df.loc[meeting_date]
+                if pd.notna(row.get("DFEDTARL")):
+                    target_lower = float(row["DFEDTARL"])
+                if pd.notna(row.get("DFEDTARU")):
+                    target_upper = float(row["DFEDTARU"])
+            if target_lower is None or target_upper is None:
+                # fallback: 向后查找最近的非空值
+                after = df.loc[meeting_date:].dropna(subset=["DFEDTARL", "DFEDTARU"])
+                if not after.empty:
+                    r = after.iloc[0]
+                    target_lower = target_lower or float(r["DFEDTARL"])
+                    target_upper = target_upper or float(r["DFEDTARU"])
+
+    return _sanitize(
+        {
+            "current": (
+                {
+                    "year": current_meeting.year,
+                    "month": current_meeting.month,
+                    "start_day": current_meeting.start_day,
+                    "end_day": current_meeting.end_day,
+                }
+                if current_meeting
+                else None
+            ),
+            "next": (
+                {
+                    "year": next_meeting.year,
+                    "month": next_meeting.month,
+                    "start_day": next_meeting.start_day,
+                    "end_day": next_meeting.end_day,
+                }
+                if next_meeting
+                else None
+            ),
+            "target_lower": target_lower,
+            "target_upper": target_upper,
+        }
+    )
 
 
 @app.get("/api/macro/correlate")

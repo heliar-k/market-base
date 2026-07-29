@@ -3,6 +3,13 @@
 import { registerMacroTheme } from './echarts-theme.js';
 import { MACRO_COLORS, MACRO_LABELS, MACRO_DATE_RANGES, applyDateFilter } from './macro-common.js';
 
+// ── corridor chart config ───────────────────────────────────────────────────
+const CORRIDOR_KEYS = ['FEDFUNDS', 'DFEDTARL', 'DFEDTARU', 'SOFR', 'OBFR', 'IORB'];
+const CORRIDOR_COLORS = {
+  DFEDTARL: '#ef5350', DFEDTARU: '#ef5350',
+  FEDFUNDS: '#1a73e8', SOFR: '#ff9800', OBFR: '#4caf50', IORB: '#9c27b0',
+};
+
 // ── state ──────────────────────────────────────────────────────────────────
 let macroCategories = null;
 let macroCache = {};
@@ -63,6 +70,14 @@ function renderMacroSections() {
 
   const grid = document.createElement('div');
   grid.className = 'macro-grid';
+
+  // ── 利率走廊专用区块（在分类列表上方）──
+  const corridorSection = document.createElement('div');
+  corridorSection.className = 'macro-section collapsed';
+  corridorSection.innerHTML = `<div class="macro-section-header"><span class="macro-expand">▶</span><span class="macro-cat-name">利率走廊</span><span class="macro-cat-count">Fed Funds Corridor</span></div><div class="macro-section-body"><div class="macro-series-charts" id="macro-charts-corridor"></div></div>`;
+  corridorSection.querySelector('.macro-section-header').addEventListener('click', () => toggleCorridorSection(corridorSection));
+  grid.appendChild(corridorSection);
+
   macroCategories.forEach(cat => {
     const section = document.createElement('div');
     section.className = 'macro-section collapsed';
@@ -77,6 +92,169 @@ function catNameLabel(name) {
   if (name === 'fx') return 'FX';
   return name.charAt(0).toUpperCase() + name.slice(1);
 }
+
+// ── corridor section ─────────────────────────────────────────────────────────
+
+let corridorCache = null;
+
+function initCorridorChart(el, title, yAxisOpts, series) {
+  const ec = echarts.init(el, 'macro', { renderer: 'canvas' });
+  const opts = {
+    title: { text: title, left: 12, top: 8, textStyle: { fontSize: 13, fontWeight: 'bold' } },
+    legend: { show: true, top: 4, right: 8, textStyle: { fontSize: 10 } },
+    grid: { left: '3%', right: '4%', bottom: 48, top: 52, containLabel: true },
+    xAxis: { type: 'time', boundaryGap: false },
+    tooltip: { trigger: 'axis', axisPointer: { type: 'cross' } },
+    dataZoom: [{ type: 'inside' }, { type: 'slider', bottom: 8, height: 20 }],
+    series,
+  };
+  if (Array.isArray(yAxisOpts)) {
+    opts.yAxis = yAxisOpts;
+  } else {
+    opts.yAxis = { type: 'value', scale: true, ...yAxisOpts };
+  }
+  ec.setOption(opts);
+  return ec;
+}
+
+async function toggleCorridorSection(section) {
+  const isOpen = section.classList.contains('open');
+  if (isOpen) {
+    section.classList.remove('open');
+    section.classList.add('collapsed');
+    return;
+  }
+  section.classList.remove('collapsed');
+  section.classList.add('open');
+
+  const container = document.getElementById('macro-charts-corridor');
+  if (container.children.length > 0) return;
+
+  if (!corridorCache) {
+    const [fcRes, ratesRes] = await Promise.all([
+      fetch('/api/fomc/calendar'),
+      fetch('/api/macro/rates'),
+    ]);
+    corridorCache = {
+      fomc: await fcRes.json(),
+      rates: applyDateFilter(await ratesRes.json(), macroDateRange),
+    };
+  }
+
+  renderCorridorDashboard(container);
+}
+
+function renderCorridorDashboard(container) {
+  const { fomc, rates } = corridorCache;
+  if (!rates || rates.length === 0) return;
+
+  const targetLower = fomc.target_lower ?? '—';
+  const targetUpper = fomc.target_upper ?? '—';
+  const targetStr = targetLower !== '—' ? `${targetLower.toFixed(2)}% – ${targetUpper.toFixed(2)}%` : '—';
+
+  // ── 目标区间卡片（数据来自 FOMC API）──
+  const card = document.createElement('div');
+  card.className = 'corridor-target-card';
+  card.innerHTML = `
+    <div class="corridor-target-range">
+      <span class="corridor-target-label">FOMC 目标区间</span>
+      <span class="corridor-target-value">${targetStr}</span>
+    </div>
+    <div class="corridor-next-meeting">
+      <span class="corridor-next-label">下次会议</span>
+      <span class="corridor-next-value">${fomc.next ? `${fomc.next.year}-${String(fomc.next.month).padStart(2,'0')}-${String(fomc.next.start_day).padStart(2,'0')} / ${String(fomc.next.end_day).padStart(2,'0')}` : '—'}</span>
+    </div>
+  `;
+  container.appendChild(card);
+
+  // ── 短期利率走廊图 ──
+  const ch1 = appendChart(container, 340);
+  const ec1 = initCorridorChart(ch1, '短期利率走廊',
+    { axisLabel: { formatter: '{value}%' } },
+    CORRIDOR_KEYS.map(key => ({
+      name: MACRO_LABELS[key] || key,
+      type: 'line',
+      data: rates.map(d => [d.date, d[key]]),
+      lineStyle: { width: key === 'FEDFUNDS' ? 2 : 1.2, type: key === 'DFEDTARL' || key === 'DFEDTARU' ? 'dashed' : 'solid' },
+      itemStyle: { color: CORRIDOR_COLORS[key] || MACRO_COLORS[0] },
+      showSymbol: false, emphasis: { focus: 'series' },
+    }))
+  );
+  macroChartInstances['corridor-main'] = { chart: ec1, observer: observe(ec1, ch1) };
+
+  // ── 联邦基金有效利率（5 年）──
+  const ch2 = appendChart(container, 280);
+  const ec2 = initCorridorChart(ch2, '联邦基金有效利率',
+    { axisLabel: { formatter: '{value}%' } },
+    [{
+      name: MACRO_LABELS['FEDFUNDS'] || 'FEDFUNDS',
+      type: 'line',
+      data: rates.map(d => [d.date, d.FEDFUNDS]),
+      lineStyle: { width: 2, color: '#1a73e8' },
+      itemStyle: { color: '#1a73e8' },
+      showSymbol: false, emphasis: { focus: 'series' },
+      markLine: {
+        silent: true, symbol: 'none',
+        lineStyle: { type: 'dashed', color: '#ef5350', width: 1 },
+        data: [{ yAxis: fomc.target_lower, label: { formatter: '下限 {c}%', fontSize: 10 } },
+               { yAxis: fomc.target_upper, label: { formatter: '上限 {c}%', fontSize: 10 } }],
+      },
+    }]
+  );
+  macroChartInstances['corridor-fedfunds'] = { chart: ec2, observer: observe(ec2, ch2) };
+
+  // ── SOFR 分位数走廊图 ──
+  const ch3 = appendChart(container, 300);
+  const ec3 = initCorridorChart(ch3, 'SOFR 利率走廊（分位数）',
+    { axisLabel: { formatter: '{value}%' } },
+    [
+      { name: 'SOFR 99th', type: 'line', data: rates.map(d => [d.date, d.SOFR99]), lineStyle: { width: 0.5, color: '#546e7a' }, showSymbol: false, emphasis: { focus: 'series' } },
+      { name: 'SOFR 75th', type: 'line', data: rates.map(d => [d.date, d.SOFR75]), lineStyle: { width: 0.5, color: '#78909c' }, showSymbol: false, emphasis: { focus: 'series' }, areaStyle: { color: 'rgba(144,164,174,0.06)' } },
+      { name: 'SOFR', type: 'line', data: rates.map(d => [d.date, d.SOFR]), lineStyle: { width: 1.8, color: '#ff9800' }, showSymbol: false, emphasis: { focus: 'series' } },
+      { name: 'SOFR 25th', type: 'line', data: rates.map(d => [d.date, d.SOFR25]), lineStyle: { width: 0.5, color: '#78909c' }, showSymbol: false, emphasis: { focus: 'series' }, areaStyle: { color: 'rgba(144,164,174,0.06)' } },
+      { name: 'SOFR 1st', type: 'line', data: rates.map(d => [d.date, d.SOFR1]), lineStyle: { width: 0.5, color: '#546e7a' }, showSymbol: false, emphasis: { focus: 'series' } },
+    ]
+  );
+  macroChartInstances['corridor-sofr-pctl'] = { chart: ec3, observer: observe(ec3, ch3) };
+
+  // ── SOFR 成交量（柱状图）──
+  const ch4 = appendChart(container, 260);
+  const ec4 = initCorridorChart(ch4, 'SOFR 每日成交量',
+    [{ type: 'value', name: '十亿美元', scale: true }],
+    [
+      { name: 'SOFR Volume', type: 'bar', data: rates.map(d => [d.date, d.SOFRVOL]), itemStyle: { color: 'rgba(26,115,232,0.3)' } },
+    ]
+  );
+  macroChartInstances['corridor-sofr-vol'] = { chart: ec4, observer: observe(ec4, ch4) };
+
+  // ── 近期数据表 ──
+  const table = document.createElement('div');
+  table.className = 'corridor-table-wrap';
+  table.innerHTML = buildCorridorTable(rates);
+  container.appendChild(table);
+}
+
+function appendChart(container, height) {
+  const el = document.createElement('div');
+  el.className = 'corridor-chart';
+  el.style.cssText = `height:${height}px;width:100%`;
+  container.appendChild(el);
+  return el;
+}
+
+// ── 近期数据表 ──
+function buildCorridorTable(data) {
+  const rows = data.slice(-30).reverse();
+  const header = ['日期', 'FEDFUNDS', '下限', '上限', 'SOFR', 'OBFR', 'IORB', '成交量(B)'];
+  const keys = ['date', 'FEDFUNDS', 'DFEDTARL', 'DFEDTARU', 'SOFR', 'OBFR', 'IORB', 'SOFRVOL'];
+  const thead = `<tr>${header.map(h => `<th>${h}</th>`).join('')}</tr>`;
+  const tbody = rows.map(r =>
+    `<tr>${keys.map(k => `<td>${r[k] != null ? (k === 'date' ? r[k] : typeof r[k] === 'number' ? r[k].toFixed(2) : r[k]) : '—'}</td>`).join('')}</tr>`
+  ).join('');
+  return `<table class="corridor-table"><thead>${thead}</thead><tbody>${tbody}</tbody></table>`;
+}
+
+// ── corridor section end ────────────────────────────────────────────────────
 
 async function toggleMacroSection(name, seriesKeys, section) {
   const isOpen = section.classList.contains('open');
@@ -193,6 +371,23 @@ function setMacroDateRange(range) {
   document.querySelectorAll('.macro-range-btn').forEach(b => b.classList.toggle('active', b.dataset.range === range));
 
   disposeAllCharts();
+
+  // 保存 fomc 引用再清 cache，避免日期切换丢失会议数据
+  const savedFomc = corridorCache?.fomc;
+  corridorCache = null;
+
+  // refresh corridor section if open
+  const corridorChartsEl = document.getElementById('macro-charts-corridor');
+  if (corridorChartsEl) {
+    const corrSection = corridorChartsEl.closest('.macro-section');
+    if (corrSection && corrSection.classList.contains('open')) {
+      corridorChartsEl.innerHTML = '';
+      fetch('/api/macro/rates').then(r => r.json()).then(data => {
+        corridorCache = { fomc: savedFomc, rates: applyDateFilter(data, macroDateRange) };
+        renderCorridorDashboard(corridorChartsEl);
+      });
+    }
+  }
 
   macroCategories.forEach(cat => {
     const sections = document.querySelectorAll(`.macro-section-header[data-cat="${cat.name}"]`);
