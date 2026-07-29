@@ -13,6 +13,7 @@ Fetch commodity futures OHLCV data from IBKR.
 import argparse
 import logging
 import random
+import sys
 import time
 from datetime import datetime
 from pathlib import Path
@@ -32,17 +33,33 @@ USE_RTH = config.ibkr.use_rth
 REQUEST_DELAY = config.ibkr.request_delay_seconds
 
 
-def _connect(client_id: int | None = None) -> IB:
-    """连接 IB Gateway/TWS，返回 IB 实例。"""
+def _connect(client_id: int | None = None) -> tuple[IB, int]:
+    """连接 IB Gateway/TWS，返回 (IB 实例, 连接的端口号)。尝试 4002→4001 回退。"""
     host = config.ibkr.host
-    port = config.ibkr.port
     if client_id is None:
         client_id = random.randint(100, 9999)
 
     ib = IB()
-    ib.connect(host, port, clientId=client_id)
-    log.info("已连接 %s:%s (clientId=%s)", host, port, client_id)
-    return ib
+    ports_to_try = [4002, 4001]
+    for port in ports_to_try:
+        readonly = port == 4001
+        try:
+            log.info(
+                "尝试 %s:%d (readonly=%s, clientId=%s) ...",
+                host,
+                port,
+                readonly,
+                client_id,
+            )
+            ib.connect(host, port, clientId=client_id, timeout=10, readonly=readonly)
+            log.info("已连接 %s:%d (readonly=%s)", host, port, readonly)
+            return ib, port
+        except (ConnectionRefusedError, TimeoutError, OSError) as e:
+            log.warning("端口 %d 不可用: %s", port, e)
+            ib.disconnect()
+
+    log.error("无法连接到 TWS/IB Gateway，请确认已启动并开启 API 端口")
+    sys.exit(1)
 
 
 def _resolve_all_contracts(
@@ -208,7 +225,7 @@ def fetch_all_commodities(
     client_id: int | None = None,
 ) -> None:
     """拉取所有配置的商品期货数据。"""
-    ib = _connect(client_id)
+    ib, connected_port = _connect(client_id)
 
     if dry_run:
         log.info("--dry-run 模式，退出")
@@ -221,9 +238,12 @@ def fetch_all_commodities(
         if symbols is None or sym in symbols
     }
 
+    # 实盘流控更宽松
+    inter_commodity_delay = 3 if connected_port == 4001 else REQUEST_DELAY
+
     for symbol, (name, exchange) in targets.items():
         fetch_commodity_contracts(ib, symbol, name, exchange, front_month_only)
-        time.sleep(REQUEST_DELAY)
+        time.sleep(inter_commodity_delay)
 
     ib.disconnect()
     log.info("完成")
