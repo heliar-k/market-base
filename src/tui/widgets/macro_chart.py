@@ -159,7 +159,10 @@ class MacroChart(Vertical):
             ys = [None] * len(series_list)
         # plotext 跳过 None；用整数 x 保证标签顺序对齐
         xs = list(range(len(series_list)))
-        plt.plot(xs, ys, label=str(cur.date()) if cur is not None else "?")
+        # 全 None 行（非交易日/假日，DGS 系列无数据）不调 plot：
+        # plotext 画空序列的图例 marker 会抛 IndexError，留空图 + 标题即可
+        if any(v is not None for v in ys):
+            plt.plot(xs, ys, label=str(cur.date()) if cur is not None else "?")
         plt.xticks(xs, labels)
         plt.title(
             f"期限结构 | {self._category} | {cur.date() if cur is not None else '—'}"
@@ -216,3 +219,26 @@ if __name__ == "__main__":
         mv.term_cursor.current().date(),
     )
     print("TERM_SERIES rates 点数:", len(TERM_SERIES["rates"]))
+
+    # 回归：全 None 行（假日 DGS 无数据）不崩——plotext 画空序列图例会 IndexError
+    all_none_row = pd.DataFrame(
+        {s: [float("nan")] for s in TERM_SERIES["rates"]},
+        index=pd.to_datetime(["2024-01-04"]),
+    )
+
+    mv2 = MacroView()
+    mv2.on_category_changed("rates", list(all_none_row.index))
+    chart = MacroChart(mv2)
+    chart.df = all_none_row
+    chart._category = "rates"
+    # 直接验证 plotext build 不抛（复现 27x12 下的崩溃点）
+    from textual_plotext.plot import Plot as _P
+
+    plt = _P()
+    plt.theme("pro")
+    chart._term = type(
+        "T", (), {"plt": plt, "display": True, "refresh": lambda self: None}
+    )()
+    chart.macro_view = mv2
+    chart._draw_term_structure()  # 全 None 行不应崩
+    print("全 None 行渲染自检 OK")
