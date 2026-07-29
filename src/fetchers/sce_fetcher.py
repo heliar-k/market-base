@@ -26,10 +26,12 @@ SCE_URL = (
 _SHEET = "Inflation expectations"
 # 表头在第 4 行（0-indexed row 3）；列名 2026-07-29 核实
 _HEADER_ROW = 3
-# 1Y/3Y 中位数：用子串匹配，容忍大小写/空格差异；
+# 1Y/3Y/5Y 中位数：用子串匹配，容忍大小写/空格差异；
 # 'expected inflation' 排除 'Median point prediction ...' 列（那是点预测中位数）
 _1Y_KEYS = ["median", "one-year", "expected inflation"]
 _3Y_KEYS = ["median", "three-year", "expected inflation"]
+_5Y_KEYS = ["median", "five-year", "expected inflation"]
+_5Y_SHEET = "Five-year ahead Infl Exp"
 
 
 def fetch_sce() -> pd.DataFrame:
@@ -49,6 +51,20 @@ def fetch_sce() -> pd.DataFrame:
     df["SCE_INFL_1Y_MEDIAN"] = df[col_1y].astype(float)
     df["SCE_INFL_3Y_MEDIAN"] = df[col_3y].astype(float)
     result = df[["date", "SCE_INFL_1Y_MEDIAN", "SCE_INFL_3Y_MEDIAN"]].set_index("date")
+
+    # 5Y 在单独 sheet，从 2022-01 开始
+    df5 = pd.read_excel(
+        io.BytesIO(resp.content), sheet_name=_5Y_SHEET, header=_HEADER_ROW
+    )
+    mask5 = df5.iloc[:, 0].notna()
+    df5 = df5[mask5].copy()
+    col_5y = _find_col(df5.columns, _5Y_KEYS)
+    if col_5y:
+        df5["date"] = df5.iloc[:, 0].astype(str).apply(_parse_yyyymm)
+        df5["SCE_INFL_5Y_MEDIAN"] = df5[col_5y].astype(float)
+        df5 = df5[["date", "SCE_INFL_5Y_MEDIAN"]].set_index("date")
+        result = result.join(df5, how="left")
+
     logger.info(f"  SCE: {len(result)} 条 ({result.index[0]} → {result.index[-1]})")
     return result
 
