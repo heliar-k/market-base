@@ -1,4 +1,4 @@
-// dashboard.js — 综合仪表盘首页
+import { registerMacroTheme } from './echarts-theme.js';
 
 // ponytail: default watchlist, CRUD later
 const WATCHLIST = ['AAPL', 'NVDA', 'SPY', 'QQQ', 'TSLA'];
@@ -8,6 +8,7 @@ let miniCharts = [];
 
 // ── public API ──────────────────────────────────────────────
 export async function initDashboard() {
+  registerMacroTheme();
   const root = document.querySelector('.dashboard-view');
   root.classList.remove('placeholder');
   root.innerHTML = '';
@@ -26,7 +27,7 @@ export async function initDashboard() {
 }
 
 export function cleanup() {
-  miniCharts.forEach(c => { try { c.remove(); } catch (e) { /* ignore */ } });
+  miniCharts.forEach(c => { try { c.dispose(); } catch (e) { /* ignore */ } });
   miniCharts = [];
 }
 
@@ -129,7 +130,7 @@ async function refreshCards() {
 
 async function refreshMiniCharts() {
   // ponytail: clear all mini charts once before re-rendering both
-  miniCharts.forEach(c => { try { c.remove(); } catch (e) { /* ignore */ } });
+  miniCharts.forEach(c => { try { c.dispose(); } catch (e) { /* ignore */ } });
   miniCharts = [];
   const [liq, rates] = await Promise.allSettled([
     fetchJSON('/api/liquidity/overview?range=1y'),
@@ -217,7 +218,7 @@ function renderStatCard(id, result, key, cnLabel, precision = 2, suffix = '', mo
     </div>`;
 }
 
-// Mini chart — liquidity uses {series: {KEY: [{date,value}]}}, macro uses flat array
+// Mini chart — ECharts sparkline (no axis labels, no interactivity)
 async function renderMiniChart(containerId, result, key, color) {
   const container = document.getElementById(containerId);
   if (!container) return;
@@ -230,15 +231,13 @@ async function renderMiniChart(containerId, result, key, color) {
   let seriesData = null;
   const val = result.value;
   if (val?.series?.[key]) {
-    // Liquidity format: {series: {NET_LIQUIDITY: [{date, value}, ...]}}
     seriesData = val.series[key]
       .filter(d => d.value != null)
-      .map(d => ({ time: d.date, value: d.value }));
+      .map(d => [d.date, d.value]);
   } else if (Array.isArray(val)) {
-    // Macro format: [{date, KEY, ...}, ...]
     seriesData = val
       .filter(d => d[key] != null)
-      .map(d => ({ time: d.date, value: d[key] }));
+      .map(d => [d.date, d[key]]);
   }
 
   if (!seriesData || seriesData.length < 2) {
@@ -246,26 +245,20 @@ async function renderMiniChart(containerId, result, key, color) {
     return;
   }
 
-  // ensure container has been laid out before grabbing clientWidth
-  await new Promise(r => requestAnimationFrame(r));
-
-  const chart = LightweightCharts.createChart(container, {
-    layout: { background: { type: 'solid', color: '#fff' }, textColor: 'transparent' },
-    grid: { vertLines: { visible: false }, horzLines: { visible: false } },
-    crosshair: { mode: 2 },
-    rightPriceScale: { visible: false, autoScale: true },
-    leftPriceScale: { visible: false },
-    timeScale: { visible: false, borderColor: 'transparent' },
-    handleScroll: false, handleScale: false,
-    height: 120, width: container.clientWidth || 300,
-  });
+  container.innerHTML = '';
+  const chart = echarts.init(container, 'macro', { renderer: 'canvas' });
   miniCharts.push(chart);
-  const s = chart.addLineSeries({
-    color, lineWidth: 2, priceLineVisible: false,
-    lastValueVisible: false, crosshairMarkerVisible: false,
+  chart.setOption({
+    grid: { left: 0, right: 0, top: 4, bottom: 0 },
+    xAxis: { type: 'time', show: false, boundaryGap: false },
+    yAxis: { type: 'value', show: false, scale: true },
+    series: [{
+      type: 'line', data: seriesData, lineStyle: { color, width: 1.5 },
+      showSymbol: false, silent: true,
+    }],
+    tooltip: { show: false },
   });
-  s.setData(seriesData);
-  chart.timeScale().fitContent();
+  new ResizeObserver(() => chart.resize()).observe(container);
 }
 
 function renderWatchlist() {

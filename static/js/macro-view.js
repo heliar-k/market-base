@@ -1,57 +1,42 @@
-// macro-view.js — macro panel: categories, charts, date filtering
+// macro-view.js — macro panel with ECharts
 
-import { CHART_OPTS, addLine, initTooltip } from './charts-common.js';
+import { registerMacroTheme } from './echarts-theme.js';
+import { MACRO_COLORS, MACRO_LABELS, MACRO_DATE_RANGES, applyDateFilter } from './macro-common.js';
 
 // ── state ──────────────────────────────────────────────────────────────────
 let macroCategories = null;
 let macroCache = {};
-let macroCharts = {};
-let macroChartSeries = {};
+let macroChartInstances = {}; // name → { chart, observer }
 let macroDateRange = '10y';
 
-const MACRO_COLORS = ['#2196f3','#ff9800','#4caf50','#e91e63','#9c27b0','#00bcd4','#ff5722','#607d8b','#795548','#3f51b5'];
-
-const MACRO_LABELS = {
-  VIX: '波动率指数（恐慌指数）', HY_OAS: '高收益债信用利差', IG_OAS: '投资级债信用利差',
-  CPI: '消费者物价指数', PCE: '个人消费支出价格指数', CORE_CPI: '核心消费者物价指数',
-  T5YIE: '5年期通胀预期', T10YIE: '10年期通胀预期', T5YIFR: '5年期远期通胀率',
-  MICH: '密歇根通胀预期', EXPINF_1Y: '1年期通胀预期', EXPINF_2Y: '2年期通胀预期',
-  EXPINF_5Y: '5年期通胀预期', EXPINF_10Y: '10年期通胀预期',
-  UNRATE: '失业率', PAYEMS: '非农就业人数', ICSA: '初请失业金人数',
-  GDP: '国内生产总值(GDP)', INDPRO: '工业生产指数',
-  FEDFUNDS: '联邦基金利率', SOFR: '担保隔夜融资利率', IORB: '准备金余额利率',
-  DGS1MO: '1月期国债收益率', DGS3MO: '3月期国债收益率', DGS6MO: '6月期国债收益率',
-  DGS1: '1年期国债收益率', DGS2: '2年期国债收益率', DGS3: '3年期国债收益率',
-  DGS5: '5年期国债收益率', DGS7: '7年期国债收益率', DGS10: '10年期国债收益率',
-  DGS20: '20年期国债收益率', DGS30: '30年期国债收益率',
-  SPREAD_2S10S: '2s10s利差', SPREAD_3M10S: '3m10s利差', SPREAD_5S30S: '5s30s利差',
-  SOFR_IORB_SPREAD_BP: 'SOFR-IORB利差(bp)',
-  DFII5: '5年期TIPS收益率', DFII7: '7年期TIPS收益率', DFII10: '10年期TIPS收益率',
-  DFII20: '20年期TIPS收益率', DFII30: '30年期TIPS收益率',
-  BEI_5Y: '5年期盈亏平衡通胀率', BEI_7Y: '7年期盈亏平衡通胀率',
-  BEI_10Y: '10年期盈亏平衡通胀率', BEI_20Y: '20年期盈亏平衡通胀率',
-  BEI_30Y: '30年期盈亏平衡通胀率',
-  NFCI: '金融状况指数', RRPONTSYD: '隔夜逆回购规模', WTREGEN: '财政部一般账户余额',
-  WRESBAL: '准备金余额', WALCL: '美联储总资产', NET_LIQUIDITY: '净流动性',
-  UMCSENT: '密歇根消费者信心指数', STLFSI4: '金融压力指数',
-  DXY: '美元指数',
+const TERM_SERIES_LABELS = {
+  'rates': { DGS1MO: '1M', DGS3MO: '3M', DGS6MO: '6M', DGS1: '1Y', DGS2: '2Y',
+             DGS3: '3Y', DGS5: '5Y', DGS7: '7Y', DGS10: '10Y', DGS20: '20Y', DGS30: '30Y' },
+  'tips': { DFII5: '5Y', DFII7: '7Y', DFII10: '10Y', DFII20: '20Y', DFII30: '30Y' },
 };
 
-const MACRO_DATE_RANGES = [
-  { label: '1M', value: '1m', months: 1 },
-  { label: '3M', value: '3m', months: 3 },
-  { label: '6M', value: '6m', months: 6 },
-  { label: '1Y', value: '1y', months: 12 },
-  { label: '2Y', value: '2y', months: 24 },
-  { label: '3Y', value: '3y', months: 36 },
-  { label: '5Y', value: '5y', months: 60 },
-  { label: '10Y', value: '10y', months: 120 },
-  { label: '30Y', value: '30y', months: 360 },
-  { label: 'All', value: 'all', months: 0 },
-];
+// ── helpers ────────────────────────────────────────────────────────────────
+function disposeChart(name) {
+  const entry = macroChartInstances[name];
+  if (!entry) return;
+  if (entry.observer) entry.observer.disconnect();
+  entry.chart.dispose();
+  delete macroChartInstances[name];
+}
+
+function disposeAllCharts() {
+  Object.keys(macroChartInstances).forEach(disposeChart);
+}
+
+function observe(chart, el) {
+  const observer = new ResizeObserver(() => chart.resize());
+  observer.observe(el);
+  return observer;
+}
 
 // ── init ───────────────────────────────────────────────────────────────────
 export function initMacroView() {
+  registerMacroTheme();
   loadMacroCategories();
 }
 
@@ -59,17 +44,6 @@ async function loadMacroCategories() {
   const res = await fetch('/api/macro/categories');
   macroCategories = await res.json();
   renderMacroSections();
-}
-
-// ── date filter ────────────────────────────────────────────────────────────
-function applyDateFilter(data, range) {
-  if (range === 'all' || !data || data.length === 0) return data;
-  const rangeInfo = MACRO_DATE_RANGES.find(r => r.value === range);
-  if (!rangeInfo || !rangeInfo.months) return data;
-  const cutoff = new Date();
-  cutoff.setMonth(cutoff.getMonth() - rangeInfo.months);
-  const cutoffStr = cutoff.toISOString().slice(0, 10);
-  return data.filter(d => d.date >= cutoffStr);
 }
 
 // ── render ─────────────────────────────────────────────────────────────────
@@ -92,11 +66,16 @@ function renderMacroSections() {
   macroCategories.forEach(cat => {
     const section = document.createElement('div');
     section.className = 'macro-section collapsed';
-    section.innerHTML = `<div class="macro-section-header" data-cat="${cat.name}"><span class="macro-expand">▶</span><span class="macro-cat-name">${cat.name === 'fx' ? 'FX' : cat.name.charAt(0).toUpperCase() + cat.name.slice(1)}</span><span class="macro-cat-count">${cat.series.length} 项</span></div><div class="macro-section-body"><div class="macro-series-charts" id="macro-charts-${cat.name}"></div></div>`;
+    section.innerHTML = `<div class="macro-section-header" data-cat="${cat.name}"><span class="macro-expand">▶</span><span class="macro-cat-name">${catNameLabel(cat.name)}</span><span class="macro-cat-count">${cat.series.length} 项</span></div><div class="macro-section-body"><div class="macro-series-charts" id="macro-charts-${cat.name}"></div></div>`;
     section.querySelector('.macro-section-header').addEventListener('click', () => toggleMacroSection(cat.name, cat.series, section));
     grid.appendChild(section);
   });
   container.appendChild(grid);
+}
+
+function catNameLabel(name) {
+  if (name === 'fx') return 'FX';
+  return name.charAt(0).toUpperCase() + name.slice(1);
 }
 
 async function toggleMacroSection(name, seriesKeys, section) {
@@ -117,66 +96,120 @@ async function toggleMacroSection(name, seriesKeys, section) {
   const chartsContainer = document.getElementById('macro-charts-' + name);
   if (chartsContainer.children.length > 0) return;
 
-  renderMacroCategoryCharts(name, seriesKeys);
+  if (name === 'rates' || name === 'tips') {
+    renderTermCategory(name, seriesKeys, chartsContainer);
+  } else {
+    renderStandardCategory(name, seriesKeys, chartsContainer);
+  }
 }
 
-function renderMacroCategoryCharts(name, seriesKeys) {
-  const chartsContainer = document.getElementById('macro-charts-' + name);
-  if (!macroCharts[name]) macroCharts[name] = {};
-  if (!macroChartSeries[name]) macroChartSeries[name] = {};
+// ── standard category: multi-series line chart in one ECharts instance ─────
+function renderStandardCategory(name, seriesKeys, container) {
+  const rawData = macroCache[name];
+  if (!rawData || rawData.length === 0) return;
 
-  seriesKeys.forEach((key, idx) => {
-    const rawData = macroCache[name].filter(d => d[key] != null);
-    const data = applyDateFilter(rawData, macroDateRange).map(d => ({ time: d.date, value: d[key] }));
-    if (data.length === 0) return;
+  const data = applyDateFilter(rawData, macroDateRange);
+  const activeKeys = seriesKeys.filter(k => data.some(d => d[k] != null));
+  if (activeKeys.length === 0) return;
 
-    const color = MACRO_COLORS[idx % MACRO_COLORS.length];
-    const chartWrap = document.createElement('div');
-    chartWrap.className = 'macro-series-chart-wrap';
-    chartWrap.innerHTML = `<div class="macro-series-label" style="color:${color}">${key}</div><div class="macro-series-chart" id="macro-chart-${name}-${key}" style="height:180px;position:relative"></div>`;
-    chartsContainer.appendChild(chartWrap);
+  const chartWrap = document.createElement('div');
+  chartWrap.className = 'macro-series-chart';
+  chartWrap.id = `macro-ec-${name}`;
+  chartWrap.style.cssText = 'height:360px;width:100%';
+  container.appendChild(chartWrap);
 
-    const chartEl = chartWrap.querySelector('.macro-series-chart');
-    const chart = LightweightCharts.createChart(chartEl, { ...CHART_OPTS, height: 180 });
-    initTooltip(chart, 'macro-chart-' + name + '-' + key, MACRO_LABELS);
-    const s = addLine(chart, data, color, 1.5, 0, true);
-    s._seriesName = key;
-    macroCharts[name][key] = chart;
-    macroChartSeries[name][key] = s;
-    chart.timeScale().fitContent();
+  const series = activeKeys.map((key, idx) => ({
+    name: MACRO_LABELS[key] || key,
+    type: 'line',
+    data: data.map(d => [d.date, d[key]]),
+    lineStyle: { width: 1.5 },
+    itemStyle: { color: MACRO_COLORS[idx % MACRO_COLORS.length] },
+    showSymbol: false,
+    emphasis: { focus: 'series' },
+  }));
+
+  const chart = echarts.init(chartWrap, 'macro', { renderer: 'canvas' });
+  chart.setOption({
+    legend: { show: activeKeys.length > 1, top: 4, right: 8 },
+    grid: { left: '3%', right: '4%', bottom: 56, top: activeKeys.length > 1 ? 40 : 16, containLabel: true },
+    xAxis: { type: 'time', boundaryGap: false },
+    yAxis: { type: 'value', scale: true, splitNumber: 4 },
+    tooltip: { trigger: 'axis', axisPointer: { type: 'cross' } },
+    dataZoom: [{ type: 'inside' }, { type: 'slider', bottom: 8, height: 20 }],
+    series,
   });
 
-  // sync time scales across all charts in this section
-  const charts = Object.values(macroCharts[name]);
-  let syncing = false;
-  charts.forEach(chart => {
-    chart.timeScale().subscribeVisibleTimeRangeChange(() => {
-      if (syncing) return;
-      syncing = true;
-      const range = chart.timeScale().getVisibleRange();
-      charts.forEach(other => {
-        if (other !== chart) other.timeScale().setVisibleRange(range);
-      });
-      syncing = false;
-    });
-  });
+  macroChartInstances[name] = { chart, observer: observe(chart, chartWrap) };
 }
 
+// ── term structure category (rates/tips): line chart ───────────────────────
+function renderTermCategory(name, seriesKeys, container) {
+  const rawData = macroCache[name];
+  if (!rawData || rawData.length === 0) return;
+
+  const termLabels = TERM_SERIES_LABELS[name] || {};
+  const data = applyDateFilter(rawData, macroDateRange);
+
+  const latest = data[data.length - 1];
+  const activeKeys = seriesKeys.filter(k => latest && latest[k] != null);
+  if (activeKeys.length === 0) return;
+
+  const termData = activeKeys.map(k => {
+    const label = termLabels[k] || k;
+    return [label, latest[k]];
+  });
+
+  const chartWrap = document.createElement('div');
+  chartWrap.className = 'macro-series-chart';
+  chartWrap.id = `macro-ec-${name}`;
+  chartWrap.style.cssText = 'height:360px;width:100%';
+  container.appendChild(chartWrap);
+
+  const chart = echarts.init(chartWrap, 'macro', { renderer: 'canvas' });
+  chart.setOption({
+    title: { text: '期限结构快照 (' + latest.date + ')', left: 8, top: 4 },
+    grid: { left: '3%', right: '4%', bottom: 24, top: 52, containLabel: true },
+    xAxis: { type: 'category', data: termData.map(d => d[0]), boundaryGap: false },
+    yAxis: { type: 'value', scale: true, splitNumber: 5, axisLabel: { formatter: '{value}%' } },
+    tooltip: { trigger: 'axis', axisPointer: { type: 'cross' }, valueFormatter: v => v != null ? v.toFixed(2) + '%' : '-' },
+    series: [{
+      name: name === 'rates' ? '名义收益率' : 'TIPS 实际利率',
+      type: 'line',
+      data: termData.map(d => d[1]),
+      lineStyle: { color: '#1a73e8', width: 2 },
+      itemStyle: { color: '#1a73e8' },
+      symbol: 'circle', symbolSize: 6,
+      label: { show: true, position: 'top', fontSize: 10, formatter: p => p.value != null ? p.value.toFixed(2) + '%' : '' },
+    }],
+  });
+
+  macroChartInstances[name] = { chart, observer: observe(chart, chartWrap) };
+}
+
+// ── date range toggle ──────────────────────────────────────────────────────
 function setMacroDateRange(range) {
   if (macroDateRange === range) return;
   macroDateRange = range;
   document.querySelectorAll('.macro-range-btn').forEach(b => b.classList.toggle('active', b.dataset.range === range));
+
+  disposeAllCharts();
+
   macroCategories.forEach(cat => {
-    const section = document.querySelector(`.macro-section-header[data-cat="${cat.name}"]`)?.closest('.macro-section');
-    if (section && section.classList.contains('open')) {
-      if (!macroCache[cat.name]) return;
-      const chartsContainer = document.getElementById('macro-charts-' + cat.name);
-      if (!chartsContainer) return;
-      delete macroCharts[cat.name];
-      delete macroChartSeries[cat.name];
-      chartsContainer.innerHTML = '';
-      renderMacroCategoryCharts(cat.name, cat.series);
-    }
+    const sections = document.querySelectorAll(`.macro-section-header[data-cat="${cat.name}"]`);
+    sections.forEach(header => {
+      const section = header.closest('.macro-section');
+      if (section && section.classList.contains('open')) {
+        const chartsContainer = document.getElementById('macro-charts-' + cat.name);
+        if (chartsContainer) {
+          chartsContainer.innerHTML = '';
+          if (cat.name === 'rates' || cat.name === 'tips') {
+            renderTermCategory(cat.name, cat.series, chartsContainer);
+          } else {
+            renderStandardCategory(cat.name, cat.series, chartsContainer);
+          }
+        }
+      }
+    });
   });
 }
 
