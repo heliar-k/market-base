@@ -45,6 +45,12 @@ def test_derive_macro_2s10s_spread():
         # 2s10s：缺任一输入列则不生成
         (["DGS10"], "SPREAD_2S10S"),
         (["DGS2"], "SPREAD_2S10S"),
+        # 3m10s：缺任一输入列则不生成
+        (["DGS10"], "SPREAD_3M10S"),
+        (["DGS3MO"], "SPREAD_3M10S"),
+        # 5s30s：缺任一输入列则不生成
+        (["DGS30"], "SPREAD_5S30S"),
+        (["DGS5"], "SPREAD_5S30S"),
         # NET_LIQUIDITY：缺任一输入列则不生成
         (["WALCL", "RRPONTSYD"], "NET_LIQUIDITY"),
         (["WALCL", "WTREGEN"], "NET_LIQUIDITY"),
@@ -52,9 +58,18 @@ def test_derive_macro_2s10s_spread():
         # BEI_5Y：缺任一输入列则不生成
         (["DGS5"], "BEI_5Y"),
         (["DFII5"], "BEI_5Y"),
+        # BEI_7Y：缺任一输入列则不生成
+        (["DGS7"], "BEI_7Y"),
+        (["DFII7"], "BEI_7Y"),
         # BEI_10Y：缺任一输入列则不生成
         (["DGS10"], "BEI_10Y"),
         (["DFII10"], "BEI_10Y"),
+        # BEI_20Y：缺任一输入列则不生成
+        (["DGS20"], "BEI_20Y"),
+        (["DFII20"], "BEI_20Y"),
+        # BEI_30Y：缺任一输入列则不生成
+        (["DGS30"], "BEI_30Y"),
+        (["DFII30"], "BEI_30Y"),
         # SOFR_IORB_SPREAD_BP：缺任一输入列则不生成
         (["SOFR"], "SOFR_IORB_SPREAD_BP"),
         (["IORB"], "SOFR_IORB_SPREAD_BP"),
@@ -68,6 +83,28 @@ def test_derive_macro_skips_when_input_missing(cols, expected_derived):
     )
     out = derive_macro(df)
     assert expected_derived not in out.columns
+
+
+def test_derive_macro_3m10s_spread():
+    """含 DGS10/DGS3MO 时生成 SPREAD_3M10S = DGS10 − DGS3MO（百分点）。"""
+    df = pd.DataFrame(
+        {"DGS10": [4.5, 4.6], "DGS3MO": [3.7, 3.8]},
+        index=pd.date_range("2024-01-01", periods=2),
+    )
+    out = derive_macro(df)
+    assert "SPREAD_3M10S" in out.columns
+    assert out["SPREAD_3M10S"].tolist() == pytest.approx([0.8, 0.8])
+
+
+def test_derive_macro_5s30s_spread():
+    """含 DGS30/DGS5 时生成 SPREAD_5S30S = DGS30 − DGS5（百分点）。"""
+    df = pd.DataFrame(
+        {"DGS30": [5.0, 4.9], "DGS5": [4.0, 4.2]},
+        index=pd.date_range("2024-01-01", periods=2),
+    )
+    out = derive_macro(df)
+    assert "SPREAD_5S30S" in out.columns
+    assert out["SPREAD_5S30S"].tolist() == pytest.approx([1.0, 0.7])
 
 
 def test_derive_macro_net_liquidity():
@@ -107,6 +144,24 @@ def test_derive_macro_bei_5y():
         check_names=False,
     )
 
+    assert "BEI_5Y" in out.columns
+    pd.testing.assert_series_equal(
+        out["BEI_5Y"],
+        pd.Series([250.0, 260.0], index=df.index, name="BEI_5Y"),
+        check_names=False,
+    )
+
+
+def test_derive_macro_bei_7y():
+    """含 DGS7/DFII7 时生成 BEI_7Y = (DGS7 − DFII7) × 100（bp）。"""
+    df = pd.DataFrame(
+        {"DGS7": [4.3, 4.4], "DFII7": [1.9, 2.0]},
+        index=pd.date_range("2024-01-01", periods=2),
+    )
+    out = derive_macro(df)
+    assert "BEI_7Y" in out.columns
+    assert out["BEI_7Y"].tolist() == pytest.approx([240.0, 240.0])
+
 
 def test_derive_macro_bei_10y():
     """含 DGS10/DFII10 时生成 BEI_10Y = (DGS10 − DFII10) × 100（bp）。"""
@@ -121,6 +176,35 @@ def test_derive_macro_bei_10y():
         pd.Series([270.0, 270.0], index=df.index, name="BEI_10Y"),
         check_names=False,
     )
+
+    assert "BEI_10Y" in out.columns
+    pd.testing.assert_series_equal(
+        out["BEI_10Y"],
+        pd.Series([270.0, 270.0], index=df.index, name="BEI_10Y"),
+        check_names=False,
+    )
+
+
+def test_derive_macro_bei_20y():
+    """含 DGS20/DFII20 时生成 BEI_20Y = (DGS20 − DFII20) × 100（bp）。"""
+    df = pd.DataFrame(
+        {"DGS20": [5.0, 5.1], "DFII20": [2.2, 2.3]},
+        index=pd.date_range("2024-01-01", periods=2),
+    )
+    out = derive_macro(df)
+    assert "BEI_20Y" in out.columns
+    assert out["BEI_20Y"].tolist() == pytest.approx([280.0, 280.0])
+
+
+def test_derive_macro_bei_30y():
+    """含 DGS30/DFII30 时生成 BEI_30Y = (DGS30 − DFII30) × 100（bp）。"""
+    df = pd.DataFrame(
+        {"DGS30": [5.2, 5.3], "DFII30": [2.0, 2.1]},
+        index=pd.date_range("2024-01-01", periods=2),
+    )
+    out = derive_macro(df)
+    assert "BEI_30Y" in out.columns
+    assert out["BEI_30Y"].tolist() == pytest.approx([320.0, 320.0])
 
 
 def test_derive_macro_sofr_iorb_spread_bp():
@@ -141,18 +225,25 @@ def test_derive_macro_overwrites_existing_derived_column():
         index=pd.date_range("2024-01-01", periods=1),
     )
     out = derive_macro(df)
-    assert out["SPREAD_2S10S"].iloc[0] == 0.5
+    assert out["SPREAD_2S10S"].iloc[0] == pytest.approx(0.5)
 
 
 def test_derive_macro_all_inputs_all_derived():
-    """综合：传入含全部原始列的 df，全部 5 个派生列生成且值正确。"""
+    """综合：传入含全部原始列的 df，全部 10 个派生列生成且值正确。"""
     df = pd.DataFrame(
         {
             "DGS2": [3.5],
+            "DGS3MO": [3.7],
             "DGS5": [4.0],
+            "DGS7": [4.3],
             "DGS10": [4.5],
+            "DGS20": [5.0],
+            "DGS30": [5.2],
             "DFII5": [1.5],
+            "DFII7": [1.9],
             "DFII10": [1.8],
+            "DFII20": [2.2],
+            "DFII30": [2.0],
             "SOFR": [5.3],
             "IORB": [5.4],
             "WALCL": [6_747_378],
@@ -164,16 +255,26 @@ def test_derive_macro_all_inputs_all_derived():
     out = derive_macro(df)
     for col in [
         "SPREAD_2S10S",
+        "SPREAD_3M10S",
+        "SPREAD_5S30S",
         "NET_LIQUIDITY",
         "BEI_5Y",
+        "BEI_7Y",
         "BEI_10Y",
+        "BEI_20Y",
+        "BEI_30Y",
         "SOFR_IORB_SPREAD_BP",
     ]:
         assert col in out.columns
-    assert out["SPREAD_2S10S"].iloc[0] == 1.0
+    assert out["SPREAD_2S10S"].iloc[0] == pytest.approx(1.0)
+    assert out["SPREAD_3M10S"].iloc[0] == pytest.approx(0.8)
+    assert out["SPREAD_5S30S"].iloc[0] == pytest.approx(1.2)
     assert out["NET_LIQUIDITY"].iloc[0] == 5_916_375.0
-    assert out["BEI_5Y"].iloc[0] == 250.0
-    assert out["BEI_10Y"].iloc[0] == 270.0
+    assert out["BEI_5Y"].iloc[0] == pytest.approx(250.0)
+    assert out["BEI_7Y"].iloc[0] == pytest.approx(240.0)
+    assert out["BEI_10Y"].iloc[0] == pytest.approx(270.0)
+    assert out["BEI_20Y"].iloc[0] == pytest.approx(280.0)
+    assert out["BEI_30Y"].iloc[0] == pytest.approx(320.0)
     assert out["SOFR_IORB_SPREAD_BP"].iloc[0] == pytest.approx(-10.0)
 
 
@@ -182,10 +283,13 @@ def test_derive_macro_all_inputs_all_derived():
 # ──────────────────────────────────────────────────────────────────────
 
 
-def test_derived_series_for_rates_has_spread_and_sofr_iorb() -> None:
-    """rates 分类含 DGS2/DGS10/SOFR/IORB → 派生 SPREAD_2S10S + SOFR_IORB_SPREAD_BP。"""
+def test_derived_series_for_rates_has_spreads_and_sofr_iorb() -> None:
+    """rates 分类含 DGS2/DGS3MO/DGS5/DGS10/DGS30/SOFR/IORB →
+    派生 SPREAD_2S10S/3M10S/5S30S + SOFR_IORB_SPREAD_BP。"""
     out = derived_series_for_category("rates")
     assert "SPREAD_2S10S" in out
+    assert "SPREAD_3M10S" in out
+    assert "SPREAD_5S30S" in out
     assert "SOFR_IORB_SPREAD_BP" in out
 
 
@@ -203,9 +307,14 @@ def test_derived_inputs_matches_derive_functions() -> None:
     """DERIVED_INPUTS 的键覆盖全部 5 个派生指标。"""
     assert set(DERIVED_INPUTS.keys()) == {
         "SPREAD_2S10S",
+        "SPREAD_3M10S",
+        "SPREAD_5S30S",
         "NET_LIQUIDITY",
         "BEI_5Y",
+        "BEI_7Y",
         "BEI_10Y",
+        "BEI_20Y",
+        "BEI_30Y",
         "SOFR_IORB_SPREAD_BP",
     }
 
@@ -217,17 +326,17 @@ def test_derived_inputs_matches_derive_functions() -> None:
 
 
 def test_cross_category_series_for_rates_has_bei() -> None:
-    """rates 分类可参与跨分类派生 BEI_5Y/BEI_10Y（DGS5/DGS10 在 rates）。"""
+    """rates 分类可参与跨分类派生 BEI（DGS 在 rates）。"""
     out = cross_category_series_for("rates")
-    assert "BEI_5Y" in out
-    assert "BEI_10Y" in out
+    for bei in ["BEI_5Y", "BEI_7Y", "BEI_10Y", "BEI_20Y", "BEI_30Y"]:
+        assert bei in out
 
 
 def test_cross_category_series_for_tips_has_bei() -> None:
-    """tips 分类同样可参与跨分类派生 BEI_5Y/BEI_10Y（DFII5/DFII10 在 tips）。"""
+    """tips 分类同样可参与跨分类派生 BEI（DFII 在 tips）。"""
     out = cross_category_series_for("tips")
-    assert "BEI_5Y" in out
-    assert "BEI_10Y" in out
+    for bei in ["BEI_5Y", "BEI_7Y", "BEI_10Y", "BEI_20Y", "BEI_30Y"]:
+        assert bei in out
 
 
 def test_cross_category_series_for_volatility_empty() -> None:
@@ -264,14 +373,35 @@ def test_merge_rates_tips_then_derive_has_bei() -> None:
     模拟宏观加载流程的合并步骤：主分类(rates) left join 伙伴(tips)。
     """
     idx = pd.date_range("2024-01-01", periods=2)
-    rates = pd.DataFrame({"DGS5": [4.0, 4.2], "DGS10": [4.5, 4.6]}, index=idx)
-    tips = pd.DataFrame({"DFII5": [1.5, 1.6], "DFII10": [1.8, 1.9]}, index=idx)
+    rates = pd.DataFrame(
+        {
+            "DGS5": [4.0, 4.2],
+            "DGS7": [4.3, 4.4],
+            "DGS10": [4.5, 4.6],
+            "DGS20": [5.0, 5.1],
+            "DGS30": [5.2, 5.3],
+        },
+        index=idx,
+    )
+    tips = pd.DataFrame(
+        {
+            "DFII5": [1.5, 1.6],
+            "DFII7": [1.9, 2.0],
+            "DFII10": [1.8, 1.9],
+            "DFII20": [2.2, 2.3],
+            "DFII30": [2.0, 2.1],
+        },
+        index=idx,
+    )
     merged = rates.join(tips, how="left")
     out = derive_macro(merged)
-    assert "BEI_5Y" in out.columns
-    assert "BEI_10Y" in out.columns
-    assert out["BEI_5Y"].tolist() == [250.0, 260.0]
-    assert out["BEI_10Y"].tolist() == [270.0, 270.0]
+    for bei in ["BEI_5Y", "BEI_7Y", "BEI_10Y", "BEI_20Y", "BEI_30Y"]:
+        assert bei in out.columns
+    assert out["BEI_5Y"].tolist() == pytest.approx([250.0, 260.0])
+    assert out["BEI_7Y"].tolist() == pytest.approx([240.0, 240.0])
+    assert out["BEI_10Y"].tolist() == pytest.approx([270.0, 270.0])
+    assert out["BEI_20Y"].tolist() == pytest.approx([280.0, 280.0])
+    assert out["BEI_30Y"].tolist() == pytest.approx([320.0, 320.0])
 
 
 def test_merge_rates_tips_misaligned_dates_bei_nan_where_missing() -> None:
@@ -287,5 +417,5 @@ def test_merge_rates_tips_misaligned_dates_bei_nan_where_missing() -> None:
     merged = rates.join(tips, how="left")
     out = derive_macro(merged)
     # 第 1 行两者齐备 → 有值；第 2 行缺 DFII → NaN
-    assert out["BEI_5Y"].iloc[0] == 250.0
+    assert out["BEI_5Y"].iloc[0] == pytest.approx(250.0)
     assert pd.isna(out["BEI_5Y"].iloc[1])

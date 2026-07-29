@@ -173,9 +173,14 @@ for _cat, _series in FRED_SERIES.items():
 # 派生指标 → 所需原始列的源分类
 _DERIVED_CATS = {
     "SPREAD_2S10S": ["rates"],
+    "SPREAD_3M10S": ["rates"],
+    "SPREAD_5S30S": ["rates"],
     "NET_LIQUIDITY": ["liquidity"],
     "BEI_5Y": ["rates", "tips"],
+    "BEI_7Y": ["rates", "tips"],
     "BEI_10Y": ["rates", "tips"],
+    "BEI_20Y": ["rates", "tips"],
+    "BEI_30Y": ["rates", "tips"],
     "SOFR_IORB_SPREAD_BP": ["rates"],
 }
 
@@ -215,6 +220,8 @@ _MACRO_LABELS = {
     "DGS20": "20年期国债收益率",
     "DGS30": "30年期国债收益率",
     "SPREAD_2S10S": "2s10s利差",
+    "SPREAD_3M10S": "3m10s利差",
+    "SPREAD_5S30S": "5s30s利差",
     "SOFR_IORB_SPREAD_BP": "SOFR-IORB利差(bp)",
     "DFII5": "5年期TIPS收益率",
     "DFII7": "7年期TIPS收益率",
@@ -222,7 +229,10 @@ _MACRO_LABELS = {
     "DFII20": "20年期TIPS收益率",
     "DFII30": "30年期TIPS收益率",
     "BEI_5Y": "5年期盈亏平衡通胀率",
+    "BEI_7Y": "7年期盈亏平衡通胀率",
     "BEI_10Y": "10年期盈亏平衡通胀率",
+    "BEI_20Y": "20年期盈亏平衡通胀率",
+    "BEI_30Y": "30年期盈亏平衡通胀率",
     "NFCI": "金融状况指数",
     "RRPONTSYD": "隔夜逆回购规模",
     "WTREGEN": "财政部一般账户余额",

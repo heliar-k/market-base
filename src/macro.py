@@ -6,9 +6,14 @@
 
 派生指标清单（公式 / 单位 / 数据源列名）：
   - SPREAD_2S10S        = DGS10 − DGS2                 （百分点，国债收益率曲线斜率）
+  - SPREAD_3M10S        = DGS10 − DGS3MO               （百分点，3 月期-10 年期利差）
+  - SPREAD_5S30S        = DGS30 − DGS5                 （百分点，5 年期-30 年期利差）
   - NET_LIQUIDITY       = WALCL − RRPONTSYD×1000 − WTREGEN（百万美元，联储净流动性）
   - BEI_5Y              = (DGS5 − DFII5) × 100         （bp，5 年期盈亏平衡通胀率）
+  - BEI_7Y              = (DGS7 − DFII7) × 100         （bp，7 年期盈亏平衡通胀率）
   - BEI_10Y             = (DGS10 − DFII10) × 100       （bp，10 年期盈亏平衡通胀率）
+  - BEI_20Y             = (DGS20 − DFII20) × 100       （bp，20 年期盈亏平衡通胀率）
+  - BEI_30Y             = (DGS30 − DFII30) × 100       （bp，30 年期盈亏平衡通胀率）
   - SOFR_IORB_SPREAD_BP = (SOFR − IORB) × 100          （bp，融资-准备金利率利差）
 
 设计原则：
@@ -24,6 +29,20 @@ def _spread_2s10s(df: pd.DataFrame) -> pd.Series | None:
     if not {"DGS10", "DGS2"}.issubset(df.columns):
         return None
     return df["DGS10"] - df["DGS2"]
+
+
+def _spread_3m10s(df: pd.DataFrame) -> pd.Series | None:
+    """3m10s 利差 = DGS10 − DGS3MO（百分点）。"""
+    if not {"DGS10", "DGS3MO"}.issubset(df.columns):
+        return None
+    return df["DGS10"] - df["DGS3MO"]
+
+
+def _spread_5s30s(df: pd.DataFrame) -> pd.Series | None:
+    """5s30s 利差 = DGS30 − DGS5（百分点）。"""
+    if not {"DGS30", "DGS5"}.issubset(df.columns):
+        return None
+    return df["DGS30"] - df["DGS5"]
 
 
 def _net_liquidity(df: pd.DataFrame) -> pd.Series | None:
@@ -45,11 +64,32 @@ def _bei_5y(df: pd.DataFrame) -> pd.Series | None:
     return (df["DGS5"] - df["DFII5"]) * 100
 
 
+def _bei_7y(df: pd.DataFrame) -> pd.Series | None:
+    """7 年期盈亏平衡通胀率 = (DGS7 − DFII7) × 100（bp）。"""
+    if not {"DGS7", "DFII7"}.issubset(df.columns):
+        return None
+    return (df["DGS7"] - df["DFII7"]) * 100
+
+
 def _bei_10y(df: pd.DataFrame) -> pd.Series | None:
     """10 年期盈亏平衡通胀率 = (DGS10 − DFII10) × 100（bp）。"""
     if not {"DGS10", "DFII10"}.issubset(df.columns):
         return None
     return (df["DGS10"] - df["DFII10"]) * 100
+
+
+def _bei_20y(df: pd.DataFrame) -> pd.Series | None:
+    """20 年期盈亏平衡通胀率 = (DGS20 − DFII20) × 100（bp）。"""
+    if not {"DGS20", "DFII20"}.issubset(df.columns):
+        return None
+    return (df["DGS20"] - df["DFII20"]) * 100
+
+
+def _bei_30y(df: pd.DataFrame) -> pd.Series | None:
+    """30 年期盈亏平衡通胀率 = (DGS30 − DFII30) × 100（bp）。"""
+    if not {"DGS30", "DFII30"}.issubset(df.columns):
+        return None
+    return (df["DGS30"] - df["DFII30"]) * 100
 
 
 def _sofr_iorb_spread_bp(df: pd.DataFrame) -> pd.Series | None:
@@ -65,9 +105,14 @@ def _sofr_iorb_spread_bp(df: pd.DataFrame) -> pd.Series | None:
 # 故按分类加载时不会生成——这里仍列出输入要求，UI 按实际 df 列决定是否画。
 DERIVED_INPUTS = {
     "SPREAD_2S10S": ("DGS10", "DGS2"),
+    "SPREAD_3M10S": ("DGS10", "DGS3MO"),
+    "SPREAD_5S30S": ("DGS30", "DGS5"),
     "NET_LIQUIDITY": ("WALCL", "RRPONTSYD", "WTREGEN"),
     "BEI_5Y": ("DGS5", "DFII5"),
+    "BEI_7Y": ("DGS7", "DFII7"),
     "BEI_10Y": ("DGS10", "DFII10"),
+    "BEI_20Y": ("DGS20", "DFII20"),
+    "BEI_30Y": ("DGS30", "DFII30"),
     "SOFR_IORB_SPREAD_BP": ("SOFR", "IORB"),
 }
 
@@ -143,9 +188,14 @@ def derive_macro(df: pd.DataFrame) -> pd.DataFrame:
     out = df.copy()
     derivations = (
         ("SPREAD_2S10S", _spread_2s10s),
+        ("SPREAD_3M10S", _spread_3m10s),
+        ("SPREAD_5S30S", _spread_5s30s),
         ("NET_LIQUIDITY", _net_liquidity),
         ("BEI_5Y", _bei_5y),
+        ("BEI_7Y", _bei_7y),
         ("BEI_10Y", _bei_10y),
+        ("BEI_20Y", _bei_20y),
+        ("BEI_30Y", _bei_30y),
         ("SOFR_IORB_SPREAD_BP", _sofr_iorb_spread_bp),
     )
     for col, fn in derivations:
