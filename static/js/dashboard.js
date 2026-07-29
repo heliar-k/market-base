@@ -1,4 +1,4 @@
-import { registerMacroTheme } from './echarts-theme.js';
+import { registerMacroTheme, reThemeECharts } from './echarts-theme.js';
 
 // ponytail: default watchlist, CRUD later
 const WATCHLIST = ['AAPL', 'NVDA', 'SPY', 'QQQ', 'TSLA'];
@@ -9,6 +9,7 @@ let miniCharts = [];
 // ── public API ──────────────────────────────────────────────
 export async function initDashboard() {
   registerMacroTheme();
+  window.addEventListener('theme-changed', onDashThemeChanged);
   const root = document.querySelector('.dashboard-view');
   root.classList.remove('placeholder');
   root.innerHTML = '';
@@ -29,6 +30,16 @@ export async function initDashboard() {
 export function cleanup() {
   miniCharts.forEach(c => { try { c.dispose(); } catch (e) { /* ignore */ } });
   miniCharts = [];
+  window.removeEventListener('theme-changed', onDashThemeChanged);
+}
+
+function onDashThemeChanged() {
+  miniCharts = miniCharts.map(c => {
+    const dom = c.getDom();
+    if (!dom || !dom.isConnected) return c;
+    const opts = c.getOption();
+    return reThemeECharts(c, dom, opts);
+  });
 }
 
 export function refresh() {
@@ -54,6 +65,8 @@ function buildTopRow() {
     const card = el('div', 'dash-stat');
     card.id = 'ds-' + id;
     card.innerHTML = loadingHTML();
+    card.style.cursor = 'pointer';
+    card.addEventListener('click', () => switchTo('macro'));
     row.appendChild(card);
   }
   return row;

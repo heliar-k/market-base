@@ -6,7 +6,22 @@ import { initMacroView, updateStatus as macroStatus } from './macro-view.js';
 import { initCorrelationView, updateStatus as correlationStatus } from './cross-correlation.js';
 import { initLiquidityView, updateStatus as liquidityStatus } from './liquidity-heatmap.js';
 
-// ponytail: shared state — only what cross-module consumers need
+// ── dark mode ──────────────────────────────────────────────────────────────
+const DARK_KEY = 'ticker-toolkit-dark';
+function applyTheme(dark) {
+  document.body.classList.toggle('dark', dark);
+  document.getElementById('theme-toggle').textContent = dark ? '☀️' : '🌙';
+  localStorage.setItem(DARK_KEY, dark ? '1' : '0');
+  window.dispatchEvent(new CustomEvent('theme-changed', { detail: { dark } }));
+}
+const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+const stored = localStorage.getItem(DARK_KEY);
+applyTheme(stored !== null ? stored === '1' : prefersDark);
+document.getElementById('theme-toggle').addEventListener('click', () => {
+  applyTheme(!document.body.classList.contains('dark'));
+});
+
+// ── shared state ───────────────────────────────────────────────────────────
 export const state = {
   currentTab: 'dashboard',
   symbols: null,
@@ -50,6 +65,7 @@ function switchTab(tab) {
     document.getElementById('status-range').textContent = '';
     document.getElementById('status-count').textContent = '';
   }
+  document.getElementById('status-refresh').textContent = '更新: ' + new Date().toLocaleTimeString('zh-CN');
 }
 
 document.querySelectorAll('.tab-btn').forEach(btn =>

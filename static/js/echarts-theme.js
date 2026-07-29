@@ -1,76 +1,58 @@
 // echarts-theme.js — ECharts shared theme & utilities
-// Design tokens read from CSS custom properties, matching timsun.net's approach
 
 export function registerMacroTheme() {
   if (typeof echarts === 'undefined') return;
 
-  const rootStyle = getComputedStyle(document.documentElement);
-  const bg = rootStyle.getPropertyValue('--chart-bg') || '#ffffff';
-  const textPrimary = '#1a1a2e';
-  const textSecondary = '#666666';
-  const textMuted = '#999999';
-  const borderColor = '#e1e4e8';
-  const borderSubtle = '#f0f0f0';
-  const brand = '#1a73e8';
-  const positive = '#26a69a';
-  const negative = '#ef5350';
+  echarts.registerTheme('macro', buildTheme(false));
+  echarts.registerTheme('macroDark', buildTheme(true));
+}
 
-  echarts.registerTheme('macro', {
+function buildTheme(dark) {
+  const t = dark
+    ? { textPrimary: '#c9d1d9', textSecondary: '#8b949e', textMuted: '#484f58',
+        borderColor: '#30363d', borderSubtle: '#21262d', bg: '#161b22' }
+    : { textPrimary: '#1a1a2e', textSecondary: '#666666', textMuted: '#999999',
+        borderColor: '#e1e4e8', borderSubtle: '#f0f0f0', bg: '#ffffff' };
+
+  return {
     backgroundColor: 'transparent',
-    textStyle: {
-      color: textSecondary,
-      fontFamily: "system-ui, -apple-system, sans-serif",
-      fontSize: 12,
-    },
-    title: {
-      textStyle: { color: textPrimary, fontSize: 14, fontWeight: 600 },
-      subtextStyle: { color: textMuted, fontSize: 11 },
-    },
-    legend: {
-      textStyle: { color: textSecondary, fontSize: 11 },
-      itemWidth: 14, itemHeight: 8,
-    },
+    textStyle: { color: t.textSecondary, fontFamily: "system-ui, -apple-system, sans-serif", fontSize: 12 },
+    title: { textStyle: { color: t.textPrimary, fontSize: 14, fontWeight: 600 }, subtextStyle: { color: t.textMuted, fontSize: 11 } },
+    legend: { textStyle: { color: t.textSecondary, fontSize: 11 }, itemWidth: 14, itemHeight: 8 },
     tooltip: {
-      backgroundColor: '#fff',
-      borderColor: borderColor,
-      borderWidth: 1,
-      textStyle: {
-        color: textPrimary,
-        fontSize: 12,
-        fontFamily: "'SF Mono', ui-monospace, monospace",
-      },
+      backgroundColor: t.bg, borderColor: t.borderColor, borderWidth: 1,
+      textStyle: { color: t.textPrimary, fontSize: 12, fontFamily: "'SF Mono', ui-monospace, monospace" },
       extraCssText: 'border-radius: 6px; box-shadow: 0 2px 8px rgba(0,0,0,0.12);',
     },
     categoryAxis: {
-      axisLine: { lineStyle: { color: borderColor } },
-      axisTick: { lineStyle: { color: borderColor } },
-      axisLabel: { color: textMuted, fontSize: 10 },
-      splitLine: { lineStyle: { color: borderSubtle } },
+      axisLine: { lineStyle: { color: t.borderColor } }, axisTick: { lineStyle: { color: t.borderColor } },
+      axisLabel: { color: t.textMuted, fontSize: 10 }, splitLine: { lineStyle: { color: t.borderSubtle } },
     },
     valueAxis: {
-      axisLine: { show: false },
-      axisTick: { show: false },
-      axisLabel: { color: textMuted, fontSize: 10 },
-      splitLine: { lineStyle: { color: borderSubtle } },
+      axisLine: { show: false }, axisTick: { show: false },
+      axisLabel: { color: t.textMuted, fontSize: 10 }, splitLine: { lineStyle: { color: t.borderSubtle } },
     },
     timeAxis: {
-      axisLine: { lineStyle: { color: borderColor } },
-      axisTick: { lineStyle: { color: borderColor } },
-      axisLabel: { color: textMuted, fontSize: 10 },
-      splitLine: { lineStyle: { color: borderSubtle } },
+      axisLine: { lineStyle: { color: t.borderColor } }, axisTick: { lineStyle: { color: t.borderColor } },
+      axisLabel: { color: t.textMuted, fontSize: 10 }, splitLine: { lineStyle: { color: t.borderSubtle } },
     },
     logAxis: {
-      axisLabel: { color: textMuted, fontSize: 10 },
-      splitLine: { lineStyle: { color: borderSubtle } },
+      axisLabel: { color: t.textMuted, fontSize: 10 }, splitLine: { lineStyle: { color: t.borderSubtle } },
     },
     grid: { left: '3%', right: '4%', bottom: '3%', top: 48, containLabel: true },
-    color: [brand, '#ff9800', positive, negative, '#9c27b0', '#00bcd4', '#ff5722', '#607d8b'],
-    line: {
-      lineStyle: { width: 2 },
-      symbol: 'none',
-    },
-    bar: {
-      itemStyle: { borderRadius: [2, 2, 0, 0] },
-    },
-  });
+    color: ['#1a73e8', '#ff9800', '#26a69a', '#ef5350', '#9c27b0', '#00bcd4', '#ff5722', '#607d8b'],
+    line: { lineStyle: { width: 2 }, symbol: 'none' },
+    bar: { itemStyle: { borderRadius: [2, 2, 0, 0] } },
+  };
+}
+
+/** Re-render an existing ECharts instance with the current dark/light theme.
+ *  Disposes old chart and re-inits with same options — state (zoom) is lost
+ *  but this is the only reliable way to change ECharts theme without full re-init. */
+export function reThemeECharts(chart, dom, opts) {
+  const dark = document.body.classList.contains('dark');
+  chart.dispose();
+  const next = echarts.init(dom, dark ? 'macroDark' : 'macro');
+  next.setOption(opts);
+  return next;
 }

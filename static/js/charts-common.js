@@ -11,6 +11,15 @@ export const CHART_OPTS = {
   handleScale: { axisPressedMouseMove: true, mouseWheel: false },
 };
 
+export function darkChartOpts() {
+  return {
+    layout: { background: { type: 'solid', color: '#161b22' }, textColor: '#c9d1d9', fontSize: 12 },
+    grid: { vertLines: { color: '#21262d' }, horzLines: { color: '#21262d' } },
+    rightPriceScale: { borderColor: '#30363d' },
+    timeScale: { borderColor: '#30363d' },
+  };
+}
+
 export function addLine(chart, data, color, width, style, showLabels) {
   const s = chart.addLineSeries({
     color, lineWidth: width, lineStyle: style,

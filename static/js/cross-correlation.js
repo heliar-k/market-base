@@ -1,6 +1,6 @@
 // cross-correlation.js — cross-period correlation overlay chart (ECharts)
 
-import { registerMacroTheme } from './echarts-theme.js';
+import { registerMacroTheme, reThemeECharts } from './echarts-theme.js';
 import { MACRO_COLORS, MACRO_LABELS, MACRO_DATE_RANGES, applyDateFilter } from './macro-common.js';
 
 // ── state ──────────────────────────────────────────────────────────────────
@@ -26,6 +26,7 @@ const ALL_INDICATORS = {
 // ── init ───────────────────────────────────────────────────────────────────
 export async function initCorrelationView() {
   registerMacroTheme();
+  window.addEventListener('theme-changed', onCorrThemeChanged);
   try {
     const res = await fetch('/api/macro/presets');
     const json = await res.json();
@@ -37,8 +38,16 @@ export async function initCorrelationView() {
   if (presets.length) loadPreset(presets[0]);
 }
 
-// ── UI ─────────────────────────────────────────────────────────────────────
-function renderUI() {
+function onCorrThemeChanged() {
+  if (!corrChart) return;
+  const dom = corrChart.getDom();
+  if (!dom || !dom.isConnected) return;
+  if (corrObserver) corrObserver.disconnect();
+  const opts = corrChart.getOption();
+  corrChart = reThemeECharts(corrChart, dom, opts);
+  corrObserver = new ResizeObserver(() => corrChart.resize());
+  corrObserver.observe(dom);
+}
   const card = document.getElementById('correlation-card');
   card.innerHTML = '';
 

@@ -1,15 +1,14 @@
 // tech-view.js — K-line charts, sidebar, diagnosis, overlays + volume + range
 
-import { CHART_OPTS, addLine } from './charts-common.js';
+import { CHART_OPTS, darkChartOpts, addLine } from './charts-common.js';
 
 // ── state ──────────────────────────────────────────────────────────────────
 let currentSymbol = null;
 let klineData = null;       // full dataset from API
 let filteredData = null;    // after range filter
 let currentDays = 365;
-let mainChart, volumeChart, rsiChart, macdChart;
+let mainChart, rsiChart, macdChart;
 let candleSeries, volumeOverlaySeries;
-let volChartSeries;
 let maSeries = {};
 let rsiSeries, rsiUpper, rsiLower;
 let macdHistSeries, macdLineSeries, macdSignalSeries;
@@ -65,8 +64,7 @@ function updateInfoBar() {
     return;
   }
   const last = data[data.length - 1];
-  const prev = data.length > 1 ? data[data.length - 2] : null;
-  const chg = prev ? ((last.close - prev.close) / prev.close * 100) : 0;
+  const chg = ((last.close - last.open) / last.open * 100);
   const up = chg >= 0;
   sym.textContent = currentSymbol;
   price.textContent = last.close.toFixed(2);
@@ -83,8 +81,8 @@ function initDiagToggle() {
     panel.classList.toggle('collapsed');
     // wait for CSS transition (0.3s) then force chart resize
     setTimeout(() => {
-      const charts = [mainChart, volumeChart, rsiChart, macdChart];
-      const ids = ['main-chart', 'volume-chart', 'rsi-chart', 'macd-chart'];
+      const charts = [mainChart, rsiChart, macdChart];
+      const ids = ['main-chart', 'rsi-chart', 'macd-chart'];
       charts.forEach((c, i) => {
         if (c) c.applyOptions({ width: document.getElementById(ids[i]).clientWidth });
       });
@@ -113,7 +111,14 @@ async function loadSymbols() {
       const row = document.createElement('div');
       row.className = 'sidebar-row';
       row.dataset.name = s.name;
-      row.textContent = s.name;
+      const nameSpan = document.createElement('span');
+      nameSpan.className = 'sidebar-row-name';
+      nameSpan.textContent = s.name;
+      row.appendChild(nameSpan);
+      const priceSpan = document.createElement('span');
+      priceSpan.className = 'sidebar-row-price';
+      priceSpan.textContent = '--';
+      row.appendChild(priceSpan);
       row.addEventListener('click', () => selectSymbol(s.name));
       list.appendChild(row);
     });
@@ -121,6 +126,29 @@ async function loadSymbols() {
 
   addSection('指数 & ETF', indices);
   addSection('个股', stocks);
+
+  fetchSidebarPrices(symbols);
+}
+
+async function fetchSidebarPrices(symbols) {
+  const results = await Promise.allSettled(
+    symbols.map(s => fetch(`/api/kline/${s.name}?days=2`).then(r => r.json()))
+  );
+  symbols.forEach((s, i) => {
+    const priceEl = document.querySelector(`.sidebar-row[data-name="${s.name}"] .sidebar-row-price`);
+    if (!priceEl) return;
+    const r = results[i];
+    if (r.status === 'rejected' || !Array.isArray(r.value) || r.value.length < 2) {
+      priceEl.textContent = '--';
+      return;
+    }
+    const data = r.value;
+    const last = data[data.length - 1];
+    const prev = data[data.length - 2];
+    const chg = ((last.close - prev.close) / prev.close) * 100;
+    const up = chg >= 0;
+    priceEl.innerHTML = `${last.close.toFixed(2)} <span class="${up ? 'up' : 'down'}">${up ? '+' : ''}${chg.toFixed(1)}%</span>`;
+  });
 }
 
 export async function selectSymbol(name) {
@@ -171,7 +199,6 @@ let _chartContainers = []; // ResizeObserver targets
 
 function initCharts() {
   const mainEl   = document.getElementById('main-chart');
-  const volEl    = document.getElementById('volume-chart');
   const rsiEl    = document.getElementById('rsi-chart');
   const macdEl   = document.getElementById('macd-chart');
 
@@ -189,10 +216,6 @@ function initCharts() {
   });
   mainChart.priceScale('vol').applyOptions({ scaleMargins: { top: 0.85, bottom: 0 }, visible: true });
 
-  // Separate volume chart
-  volumeChart = LightweightCharts.createChart(volEl, { ...CHART_OPTS, width: volEl.clientWidth, height: volEl.clientHeight });
-  volChartSeries = volumeChart.addHistogramSeries({ priceFormat: { type: 'volume' } });
-
   rsiChart = LightweightCharts.createChart(rsiEl, { ...CHART_OPTS, width: rsiEl.clientWidth, height: rsiEl.clientHeight });
   rsiChart.priceScale('right').applyOptions({ minimum: 0, maximum: 100 });
   rsiSeries = rsiChart.addLineSeries({ color: '#7c4dff', lineWidth: 1.5 });
@@ -209,7 +232,6 @@ function initCharts() {
   _chartContainers = [];
   const charts = [
     { el: mainEl, chart: mainChart },
-    { el: volEl, chart: volumeChart },
     { el: rsiEl, chart: rsiChart },
     { el: macdEl, chart: macdChart },
   ];
@@ -225,8 +247,19 @@ function initCharts() {
     _chartContainers.push(ro);
   });
 
+  // 主题热切换
+  window.addEventListener('theme-changed', e => {
+    const darkOpts = darkChartOpts();
+    [mainChart, rsiChart, macdChart].forEach(c => c.applyOptions(darkOpts));
+  });
+  // 应用初始主题
+  if (document.body.classList.contains('dark')) {
+    const darkOpts = darkChartOpts();
+    [mainChart, rsiChart, macdChart].forEach(c => c.applyOptions(darkOpts));
+  }
+
   // sync time scales across all 4 charts
-  const allCharts = [mainChart, volumeChart, rsiChart, macdChart];
+  const allCharts = [mainChart, rsiChart, macdChart];
   const syncFrom = (src, targets) => {
     src.timeScale().subscribeVisibleLogicalRangeChange(range => {
       if (!range) return;
@@ -239,7 +272,7 @@ function initCharts() {
   mainChart.subscribeCrosshairMove(param => {
     if (!param || !param.time) { crosshairDate = null; return; }
     crosshairDate = param.time;
-    [volumeChart, rsiChart, macdChart].forEach(c => syncCrosshairToChart(c, param));
+    [rsiChart, macdChart].forEach(c => syncCrosshairToChart(c, param));
     debouncedDiag();
   });
 }
@@ -261,13 +294,6 @@ function renderCharts() {
   volumeOverlaySeries.setData(volumes);
 
   // Separate volume chart — more opaque colors for clarity
-  const volBars = data.map(d => ({
-    time: d.date,
-    value: d.volume ?? 0,
-    color: d.close >= d.open ? 'rgba(38,166,154,0.6)' : 'rgba(239,83,80,0.6)',
-  }));
-  volChartSeries.setData(volBars);
-
   // RSI
   const rsi = data.filter(d => d.RSI != null).map(d => ({ time: d.date, value: d.RSI }));
   rsiSeries.setData(rsi);

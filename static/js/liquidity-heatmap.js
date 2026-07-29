@@ -1,6 +1,6 @@
 // liquidity-heatmap.js — liquidity overview with ECharts
 
-import { registerMacroTheme } from './echarts-theme.js';
+import { registerMacroTheme, reThemeECharts } from './echarts-theme.js';
 import { MACRO_DATE_RANGES } from './macro-common.js';
 
 // ── state ──────────────────────────────────────────────────────────────────
@@ -23,8 +23,22 @@ const LABELS = {
 // ── init ───────────────────────────────────────────────────────────────────
 export function initLiquidityView() {
   registerMacroTheme();
+  window.addEventListener('theme-changed', onLiqThemeChanged);
   renderShell();
   loadAndRender();
+}
+
+function onLiqThemeChanged() {
+  Object.entries(charts).forEach(([key, chart]) => {
+    const dom = chart.getDom();
+    if (!dom || !dom.isConnected) return;
+    if (chartObservers[key]) chartObservers[key].disconnect();
+    const opts = chart.getOption();
+    const next = reThemeECharts(chart, dom, opts);
+    charts[key] = next;
+    chartObservers[key] = new ResizeObserver(() => next.resize());
+    chartObservers[key].observe(dom);
+  });
 }
 
 function renderShell() {

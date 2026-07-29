@@ -1,6 +1,6 @@
 // macro-view.js — macro panel with ECharts
 
-import { registerMacroTheme } from './echarts-theme.js';
+import { registerMacroTheme, reThemeECharts } from './echarts-theme.js';
 import { MACRO_COLORS, MACRO_LABELS, MACRO_DATE_RANGES, applyDateFilter } from './macro-common.js';
 
 // ── corridor chart config ───────────────────────────────────────────────────
@@ -45,6 +45,17 @@ function observe(chart, el) {
 export function initMacroView() {
   registerMacroTheme();
   loadMacroCategories();
+  window.addEventListener('theme-changed', onThemeChanged);
+}
+
+function onThemeChanged() {
+  Object.entries(macroChartInstances).forEach(([name, entry]) => {
+    const dom = entry.chart.getDom();
+    const opts = entry.chart.getOption();
+    entry.observer.disconnect();
+    const next = reThemeECharts(entry.chart, dom, opts);
+    macroChartInstances[name] = { chart: next, observer: observe(next, dom) };
+  });
 }
 
 async function loadMacroCategories() {
@@ -86,6 +97,8 @@ function renderMacroSections() {
     grid.appendChild(section);
   });
   container.appendChild(grid);
+  // 首次加载自动展开利率走廊
+  setTimeout(() => toggleCorridorSection(corridorSection), 50);
 }
 
 function catNameLabel(name) {
@@ -370,17 +383,16 @@ function setMacroDateRange(range) {
   macroDateRange = range;
   document.querySelectorAll('.macro-range-btn').forEach(b => b.classList.toggle('active', b.dataset.range === range));
 
-  disposeAllCharts();
-
-  // 保存 fomc 引用再清 cache，避免日期切换丢失会议数据
+  // 保存 fomc 引用再清 corridor cache，避免日期切换丢失会议数据
   const savedFomc = corridorCache?.fomc;
   corridorCache = null;
 
-  // refresh corridor section if open
+  // 走廊 section 若已展开则仅 dispose 走廊图表，不动其他 section
   const corridorChartsEl = document.getElementById('macro-charts-corridor');
   if (corridorChartsEl) {
     const corrSection = corridorChartsEl.closest('.macro-section');
     if (corrSection && corrSection.classList.contains('open')) {
+      ['corridor-main', 'corridor-fedfunds', 'corridor-sofr-pctl', 'corridor-sofr-vol'].forEach(disposeChart);
       corridorChartsEl.innerHTML = '';
       fetch('/api/macro/rates').then(r => r.json()).then(data => {
         corridorCache = { fomc: savedFomc, rates: applyDateFilter(data, macroDateRange) };
@@ -389,11 +401,15 @@ function setMacroDateRange(range) {
     }
   }
 
+  // 仅重渲染已展开的分类 section；折叠的不动
+  const openNames = new Set();
   macroCategories.forEach(cat => {
     const sections = document.querySelectorAll(`.macro-section-header[data-cat="${cat.name}"]`);
     sections.forEach(header => {
       const section = header.closest('.macro-section');
       if (section && section.classList.contains('open')) {
+        openNames.add(cat.name);
+        disposeChart(cat.name);
         const chartsContainer = document.getElementById('macro-charts-' + cat.name);
         if (chartsContainer) {
           chartsContainer.innerHTML = '';
@@ -406,6 +422,11 @@ function setMacroDateRange(range) {
       }
     });
   });
+
+  // 清掉折叠 section 的缓存，下次展开时重新拉取；已展开的保留
+  macroCache = Object.fromEntries(
+    Object.entries(macroCache).filter(([k]) => openNames.has(k))
+  );
 }
 
 // ── status ─────────────────────────────────────────────────────────────────
