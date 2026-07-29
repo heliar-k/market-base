@@ -6,7 +6,7 @@
 
 派生指标清单（公式 / 单位 / 数据源列名）：
   - SPREAD_2S10S        = DGS10 − DGS2                 （百分点，国债收益率曲线斜率）
-  - NET_LIQUIDITY       = WALCL − RRPONTSYD − WTREGEN  （百万美元，联储净流动性）
+  - NET_LIQUIDITY       = WALCL − RRPONTSYD×1000 − WTREGEN（百万美元，联储净流动性）
   - BEI_5Y              = (DGS5 − DFII5) × 100         （bp，5 年期盈亏平衡通胀率）
   - BEI_10Y             = (DGS10 − DFII10) × 100       （bp，10 年期盈亏平衡通胀率）
   - SOFR_IORB_SPREAD_BP = (SOFR − IORB) × 100          （bp，融资-准备金利率利差）
@@ -27,15 +27,15 @@ def _spread_2s10s(df: pd.DataFrame) -> pd.Series | None:
 
 
 def _net_liquidity(df: pd.DataFrame) -> pd.Series | None:
-    """净流动性 = WALCL − RRPONTSYD − WTREGEN（百万美元，联储净流动性）。
+    """净流动性 = WALCL − RRPONTSYD×1000 − WTREGEN（百万美元，联储净流动性）。
 
-    RRPONTSYD（隔夜逆回购）、WTREGEN（财政部一般账户 TGA）、WALCL（联储总资产）
-    均为 FRED liquidity 分类的原始系列，单位百万美元。
+    RRPONTSYD（隔夜逆回购）在 FRED 单位为**十亿美元**，WALCL（联储总资产）、
+    WTREGEN（财政部一般账户 TGA）为百万美元——这里把 RRP×1000 统一到百万美元。
     """
     cols = {"WALCL", "RRPONTSYD", "WTREGEN"}
     if not cols.issubset(df.columns):
         return None
-    return df["WALCL"] - df["RRPONTSYD"] - df["WTREGEN"]
+    return df["WALCL"] - df["RRPONTSYD"] * 1000 - df["WTREGEN"]
 
 
 def _bei_5y(df: pd.DataFrame) -> pd.Series | None:

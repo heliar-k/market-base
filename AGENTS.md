@@ -34,7 +34,6 @@ ticker-toolkit/
 │   │   ├── fred_fetcher.py       ← FRED API 宏观指标（46 个系列，9 分类）
 │   │   ├── yfinance_fetcher.py   ← yfinance 资产价格（需 SOCKS5 代理）
 │   │   ├── cboe_fetcher.py       ← CBOE 波动率（OVX、VIX 期限结构）
-│   │   ├── fed_balance_fetcher.py← 联储流动性派生指标（净流动性 = WALCL - RRP - TGA）
 │   │   ├── commodities_fetcher.py← IBKR 商品期货日线（9 个品种，整条曲线）
 │   │   └── options_fetcher.py    ← IBKR 期权链参数
 │   └── tui/                      ← TUI 应用（Textual 双模式）
@@ -53,13 +52,11 @@ ticker-toolkit/
 │   ├── fetch_fred
 │   ├── fetch_yfinance
 │   ├── fetch_cboe
-│   ├── fetch_fed_balance
 │   ├── fetch_commodities
 │   └── fetch_options
 │
 ├── data/                         ← 数据存储（增量 CSV / JSON）
 │   ├── fred/{category}/{category}.csv  ← 9 分类 FRED 数据
-│   ├── fed_balance/liquidity.csv       ← 流动性派生指标
 │   ├── cboe/volatility.csv             ← CBOE 波动率（OVX, VIX_TERM_SLOPE）
 │   ├── stocks/{SYMBOL}.csv             ← 10 只股票日线 OHLCV
 │   ├── indices/{SYMBOL}.csv            ← 4 个指数日线 OHLCV
@@ -87,7 +84,6 @@ ticker-toolkit/
 ./bin/fetch_ibkr --days 365         # 拉取近 365 天
 ./bin/fetch_fred                    # 全部 46 个 FRED 系列
 ./bin/fetch_cboe                    # CBOE 波动率
-./bin/fetch_fed_balance             # 联储流动性
 ./bin/fetch_yfinance                # yfinance 资产价格
 ./bin/fetch_commodities             # 全部期货（整条曲线）
 ./bin/fetch_commodities --front-month  # 仅主力合约

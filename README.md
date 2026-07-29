@@ -29,7 +29,6 @@ HTTPS_PROXY=socks5://127.0.0.1:7890   # yfinance 需代理
 ./bin/fetch_ibkr          # 股票 + 指数日线（需 TWS/IB Gateway 跑在 4002）
 ./bin/fetch_fred          # 46 个 FRED 宏观系列
 ./bin/fetch_cboe          # CBOE 波动率（OVX、VIX 期限结构）
-./bin/fetch_fed_balance   # 联储流动性派生指标
 ./bin/fetch_yfinance      # yfinance 资产价格（需代理）
 ./bin/fetch_commodities   # 期货日线（整条曲线）
 ./bin/fetch_options       # 期权链参数

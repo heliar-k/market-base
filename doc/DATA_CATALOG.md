@@ -45,19 +45,21 @@ VIX 不在此文件（已在 FRED fred_series.csv），避免重复。
 
 ---
 
-## 3. 流动性 — `data/fed_balance/liquidity.csv`
+## 3. 流动性原始系列 — `data/fred/liquidity/liquidity.csv`
 
-读取 FRED CSV 计算派生指标，不重复请求 API。每日 `./bin/fetch_fed_balance` 更新。
+FRED liquidity 分类的原始系列（由 `./bin/fetch_fred` 一并拉取）。派生指标
+`NET_LIQUIDITY = WALCL − RRPONTSYD×1000 − WTREGEN` 由 `src.macro.derive_macro()`
+现算，不落盘。
 
 | 列名 | 说明 | 单位 |
 |------|------|------|
-| `RRP` | 隔夜逆回购 | 百万美元 |
-| `TGA` | 财政部一般账户 | 百万美元 |
-| `RESERVES` | 准备金余额 | 百万美元 |
-| `SOFR` | SOFR 利率 | % |
-| `IORB` | IORB 利率 | % |
-| `SOFR_IORB_SPREAD` | SOFR - IORB 利差 | bp |
-| `NET_LIQUIDITY` | 净流动性 = WALCL - RRP - TGA | 百万美元 |
+| `NFCI` | 金融状况指数 | 指数 |
+| `RRPONTSYD` | 隔夜逆回购 | 十亿美元 |
+| `WTREGEN` | 财政部一般账户 (TGA) | 百万美元 |
+| `WRESBAL` | 准备金余额 | 百万美元 |
+| `WALCL` | 联储总资产 | 百万美元 |
+
+> 派生 `NET_LIQUIDITY` 见 `src/macro.py`；RRP 单位十亿美元，计算时 ×1000 统一到百万。
 
 ---
 
@@ -175,8 +177,10 @@ macro['BEI_5Y'] = (macro['DGS5'] - macro['DFII5']) * 100
 # 算 2s10s 利差
 macro['2s10s'] = macro['DGS10'] - macro['DGS2']
 
-# 流动性（派生指标）
-liq = pd.read_csv('data/fed_balance/liquidity.csv', index_col='date', parse_dates=True)
+# 流动性派生指标（由 derive_macro 现算，不落盘）
+liq_raw = pd.read_csv('data/fred/liquidity/liquidity.csv', index_col='date', parse_dates=True)
+from src.macro import derive_macro
+liq = derive_macro(liq_raw)[['NET_LIQUIDITY']]
 
 # 波动率
 vol = pd.read_csv('data/cboe/volatility.csv', index_col='date', parse_dates=True)

@@ -1,6 +1,6 @@
 #!/bin/bash
 # 每日全量数据拉取 cron 入口
-# 依次调用 bin/fetch_* 拉取 IBKR/FRED/CBOE/联储流动性/yfinance/期货/期权数据。
+# 依次调用 bin/fetch_* 拉取 IBKR/FRED/CBOE/yfinance/期货/期权数据。
 # 单个 fetch 失败不阻断后续——IBKR/options 依赖 TWS 可能失败，不应拖垮纯 API 拉取。
 # 要单独拉某个品种请直接用 ./bin/fetch_xxx。
 #
@@ -17,7 +17,6 @@ mkdir -p logs
 FETCHERS=(
     bin/fetch_fred
     bin/fetch_cboe
-    bin/fetch_fed_balance
     bin/fetch_yfinance
     bin/fetch_commodities
     bin/fetch_ibkr

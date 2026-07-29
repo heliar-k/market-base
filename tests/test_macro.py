@@ -73,15 +73,24 @@ def test_derive_macro_skips_when_input_missing(cols, expected_derived):
 def test_derive_macro_net_liquidity():
     """含 WALCL/RRPONTSYD/WTREGEN 时生成 NET_LIQUIDITY。
 
-    NET_LIQUIDITY = WALCL − RRPONTSYD − WTREGEN（百万美元）。
+    NET_LIQUIDITY = WALCL − RRPONTSYD×1000 − WTREGEN（百万美元）。
+    注意 RRPONTSYD 在 FRED 单位为十亿美元，这里用真实量级数据确保 ×1000 被执行
+    （否则 RRP~1.4 billions 会被当百万误减，结果几乎不变、掩盖 bug）。
     """
     df = pd.DataFrame(
-        {"WALCL": [8000, 8100], "RRPONTSYD": [500, 400], "WTREGEN": [700, 750]},
+        {
+            "WALCL": [6_747_378, 6_800_000],  # 联储总资产，百万美元
+            "RRPONTSYD": [1.38, 2.0],  # 逆回购，十亿美元
+            "WTREGEN": [829_623, 840_000],  # TGA，百万美元
+        },
         index=pd.date_range("2024-01-01", periods=2),
     )
     out = derive_macro(df)
     assert "NET_LIQUIDITY" in out.columns
-    assert out["NET_LIQUIDITY"].tolist() == [6800, 6950]
+    # WALCL - RRP×1000 - TGA (单位均百万美元)
+    # 6_747_378 - 1.38*1000 - 829_623 = 5_916_375
+    # 6_800_000 - 2*1000 - 840_000 = 5_958_000
+    assert out["NET_LIQUIDITY"].tolist() == [5_916_375.0, 5_958_000.0]
 
 
 def test_derive_macro_bei_5y():
@@ -146,9 +155,9 @@ def test_derive_macro_all_inputs_all_derived():
             "DFII10": [1.8],
             "SOFR": [5.3],
             "IORB": [5.4],
-            "WALCL": [8000],
-            "RRPONTSYD": [500],
-            "WTREGEN": [700],
+            "WALCL": [6_747_378],
+            "RRPONTSYD": [1.38],
+            "WTREGEN": [829_623],
         },
         index=pd.date_range("2024-01-01", periods=1),
     )
@@ -162,7 +171,7 @@ def test_derive_macro_all_inputs_all_derived():
     ]:
         assert col in out.columns
     assert out["SPREAD_2S10S"].iloc[0] == 1.0
-    assert out["NET_LIQUIDITY"].iloc[0] == 6800.0
+    assert out["NET_LIQUIDITY"].iloc[0] == 5_916_375.0
     assert out["BEI_5Y"].iloc[0] == 250.0
     assert out["BEI_10Y"].iloc[0] == 270.0
     assert out["SOFR_IORB_SPREAD_BP"].iloc[0] == pytest.approx(-10.0)
