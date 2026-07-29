@@ -7,6 +7,8 @@ import csv
 from datetime import datetime
 from pathlib import Path
 
+import pandas as pd
+
 from .quality import DataPoint, QAStatus
 
 
@@ -67,3 +69,25 @@ def _load_rows(filepath: Path) -> list[dict]:
         return []
     with open(filepath, encoding="utf-8") as f:
         return list(csv.DictReader(f))
+
+
+def upsert_timeseries(filepath: Path, df: pd.DataFrame) -> None:
+    """将完整时间序列 DataFrame upsert 进 CSV（index=观测日期）。
+
+    同日期行以新数据覆盖旧值，新日期追加；列取并集，新数据缺失处保留旧值。
+    与 save_daily_csv（拉取日快照）不同：此处 date 是观测日，适合月频/日频时间序列。
+    """
+    filepath.parent.mkdir(parents=True, exist_ok=True)
+    new = df.copy()
+    new.index = new.index.astype(str)
+
+    if filepath.exists():
+        old = pd.read_csv(filepath, index_col=0)
+        old.index = old.index.astype(str)
+        # new 优先：new 的非空值覆盖 old，new 为空处保留 old
+        combined = new.combine_first(old)
+    else:
+        combined = new
+
+    combined = combined.sort_index()
+    combined.to_csv(filepath, index_label="date")

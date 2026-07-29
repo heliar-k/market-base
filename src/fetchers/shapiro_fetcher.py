@@ -1,10 +1,12 @@
 """
 Fetch FRBSF Shapiro 供给/需求 PCE 通胀分解。
 4 个 chart CSV（headline/core × monthly/yoy），拆出 supply/demand/ambiguous 贡献。
-写入 data/shapiro/shapiro.csv。
+写入 data/shapiro/shapiro.csv（观测日为 key，全量 upsert）。
 
 数据源: FRBSF — Supply- and Demand-Driven PCE Inflation（下载链接见 SHAPIRO_URLS）
 每月 PCE 发布后几天更新。Excel 全量（分品类明细）暂不拉，4 个 chart CSV 已够追踪用。
+
+每次运行都拉源全量历史并 upsert：忘记运行几个月，下次跑自动补齐缺失月份。
 """
 
 import io
@@ -13,8 +15,6 @@ import re
 
 import pandas as pd
 import requests
-
-from .quality import DataPoint, QAStatus
 
 logger = logging.getLogger(__name__)
 
@@ -38,63 +38,39 @@ SHAPIRO_URLS = {
     ),
 }
 
-# CSV 列名（4 个文件结构一致，2026-07-29 核实）
-_COL_SUPPLY = "Supply-driven Inflation"
-_COL_DEMAND = "Demand-driven Inflation"
-_COL_AMBIG = "Ambiguous"
+# 源 CSV 列名 → 输出列名（4 个文件结构一致）
+_COL_MAP = {
+    "Supply-driven Inflation": "SUPPLY",
+    "Demand-driven Inflation": "DEMAND",
+    "Ambiguous": "AMBIG",
+}
 
 
-def fetch_shapiro() -> list[DataPoint]:
-    """下载 4 个 Shapiro CSV，提取最新月的 supply/demand/ambiguous 贡献。"""
-    results = []
+def fetch_shapiro() -> pd.DataFrame:
+    """下载 4 个 Shapiro CSV，合并为全量时间序列（index=观测月）。
+
+    单个 CSV 拉取失败时跳过该组列并告警，不影响其余 CSV 的 upsert。
+    """
+    dfs = []
     for key, url in SHAPIRO_URLS.items():
-        results.extend(_fetch_one(key, url))
-    return results
-
-
-def _fetch_one(key: str, url: str) -> list[DataPoint]:
-    """单个 CSV → 3 个 DataPoint（supply/demand/ambiguous）。"""
-    base = f"SHAPIRO_{key}"  # e.g. SHAPIRO_HEADLINE_YOY
-    dps = [
-        DataPoint(
-            metric=f"{base}_SUPPLY",
-            source="FRBSF / Shapiro decomposition",
-            formula="supply-driven contribution to PCE inflation (pp)",
-        ),
-        DataPoint(
-            metric=f"{base}_DEMAND",
-            source="FRBSF / Shapiro decomposition",
-            formula="demand-driven contribution to PCE inflation (pp)",
-        ),
-        DataPoint(
-            metric=f"{base}_AMBIG",
-            source="FRBSF / Shapiro decomposition",
-            formula="ambiguous contribution to PCE inflation (pp)",
-        ),
-    ]
-    try:
-        resp = requests.get(url, timeout=30)
-        resp.raise_for_status()
-        df = pd.read_csv(io.StringIO(resp.text))
-        if df.empty:
-            raise ValueError("empty CSV")
-        latest = df.iloc[-1]
-        as_of = _parse_month(str(latest["time_month"]))
-        dps[0].value = round(float(latest[_COL_SUPPLY]), 4)
-        dps[1].value = round(float(latest[_COL_DEMAND]), 4)
-        dps[2].value = round(float(latest[_COL_AMBIG]), 4)
-        for dp in dps:
-            dp.as_of = as_of
-            dp.mark_ok()
-        logger.info(
-            f"  Shapiro {key}: as_of={as_of} "
-            f"supply={dps[0].value} demand={dps[1].value} ambigu={dps[2].value}"
-        )
-    except Exception as e:
-        for dp in dps:
-            dp.mark_error(str(e))
-        logger.warning(f"Shapiro {key} failed: {e}")
-    return dps
+        try:
+            resp = requests.get(url, timeout=30)
+            resp.raise_for_status()
+            df = pd.read_csv(io.StringIO(resp.text))
+            df["date"] = df["time_month"].apply(_parse_month)
+            df = df.rename(columns=_COL_MAP)
+            keep = ["date"] + list(_COL_MAP.values())
+            df = df[keep].set_index("date")
+            df.columns = [f"SHAPIRO_{key}_{c}" for c in df.columns]
+            dfs.append(df)
+            logger.info(
+                f"  Shapiro {key}: {len(df)} 条 ({df.index[0]} → {df.index[-1]})"
+            )
+        except Exception as e:
+            logger.warning(f"Shapiro {key} 拉取失败，跳过: {e}")
+    if not dfs:
+        return pd.DataFrame()
+    return pd.concat(dfs, axis=1).sort_index()
 
 
 def _parse_month(raw: str) -> str:
@@ -106,14 +82,32 @@ def _parse_month(raw: str) -> str:
 
 
 if __name__ == "__main__":
+    import argparse
     from pathlib import Path
 
-    from ._io import save_daily_csv
+    from ._io import upsert_timeseries
 
-    results = fetch_shapiro()
-    ok = sum(1 for r in results if r.qa_status == QAStatus.OK)
-    print(f"Shapiro: {ok}/{len(results)} OK")
+    parser = argparse.ArgumentParser(description="FRBSF Shapiro 供需通胀分解")
+    parser.add_argument(
+        "--backfill",
+        action="store_true",
+        help="全量覆盖（清旧格式 junk，干净重来）；默认为 upsert",
+    )
+    args = parser.parse_args()
 
     root = Path(__file__).resolve().parent.parent.parent
-    save_daily_csv(root / "data" / "shapiro" / "shapiro.csv", results)
-    print("  → data/shapiro/shapiro.csv")
+    path = root / "data" / "shapiro" / "shapiro.csv"
+
+    df = fetch_shapiro()
+    if df.empty:
+        print("Shapiro: 全部源拉取失败，无数据写入")
+        raise SystemExit(1)
+
+    if args.backfill:
+        df.to_csv(path, index_label="date")
+        print(
+            f"Shapiro --backfill 覆盖: → {path} ({len(df.columns)} 指标 × {len(df)} 行)"
+        )
+    else:
+        upsert_timeseries(path, df)
+        print(f"Shapiro upsert: → {path} ({len(df.columns)} 指标 × {len(df)} 行)")

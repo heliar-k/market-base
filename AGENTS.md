@@ -29,7 +29,7 @@ ticker-toolkit/
 │   ├── fetchers/
 │   │   ├── __init__.py
 │   │   ├── quality.py            ← DataPoint / QAStatus 数据质量追踪
-│   │   ├── _io.py                ← 日频增量 CSV 保存工具
+│   │   ├── _io.py                ← CSV 保存工具（save_daily_csv 快照 + upsert_timeseries 全量）
 │   │   ├── ibkr_fetcher.py       ← IBKR 日线 OHLCV（股票 + 指数）
 │   │   ├── fred_fetcher.py       ← FRED API 宏观指标（46 个系列，9 分类）
 │   │   ├── yfinance_fetcher.py   ← yfinance 资产价格（需 SOCKS5 代理）
@@ -42,7 +42,7 @@ ticker-toolkit/
 │       ├── screens.py            ← 屏幕组装（三栏布局 + 模式切换）
 │       └── widgets/              ← 可复用组件（kline_chart / diag_sidebar / macro_chart）
 │
-├── tests/                        ← pytest 测试套件（124 个测试，tmp_path 隔离 + autouse 清缓存）
+├── tests/                        ← pytest 测试套件（157 个测试，tmp_path 隔离 + autouse 清缓存）
 │
 ├── docs/adr/                     ← 架构决策记录（0001 回看交互、0002 重命名 code→src）
 │
@@ -52,12 +52,16 @@ ticker-toolkit/
 │   ├── fetch_fred
 │   ├── fetch_yfinance
 │   ├── fetch_cboe
+│   ├── fetch_shapiro
+│   ├── fetch_sce
 │   ├── fetch_commodities
 │   └── fetch_options
 │
 ├── data/                         ← 数据存储（增量 CSV / JSON）
-│   ├── fred/{category}/{category}.csv  ← 9 分类 FRED 数据
-│   ├── cboe/volatility.csv             ← CBOE 波动率（OVX, VIX_TERM_SLOPE）
+│   ├── fred/{category}/{category}.csv  ← 12 分类 FRED 数据（观测日 upsert）
+│   ├── cboe/volatility.csv             ← CBOE 波动率（OVX, VIX9D, VIX, VIX_TERM_SLOPE）
+│   ├── shapiro/shapiro.csv             ← Shapiro 供需 PCE 分解（观测日 upsert）
+│   ├── sce/sce.csv                     ← NY Fed SCE 通胀预期（观测日 upsert）
 │   ├── stocks/{SYMBOL}.csv             ← 10 只股票日线 OHLCV
 │   ├── indices/{SYMBOL}.csv            ← 4 个指数日线 OHLCV
 │   ├── options/{SYMBOL}_chain.json     ← 期权链参数
@@ -82,8 +86,11 @@ ticker-toolkit/
 ./bin/fetch_ibkr                    # 全部股票 + 指数日线
 ./bin/fetch_ibkr --symbols SPX,AAPL # 指定品种
 ./bin/fetch_ibkr --days 365         # 拉取近 365 天
-./bin/fetch_fred                    # 全部 46 个 FRED 系列
-./bin/fetch_cboe                    # CBOE 波动率
+./bin/fetch_fred                    # 全部 FRED 系列（默认 upsert，漏跑自动补）
+./bin/fetch_fred --backfill         # 全量覆盖（清旧格式 junk）
+./bin/fetch_cboe                    # CBOE 波动率（OVX/VIX9D/VIX/期限结构）
+./bin/fetch_shapiro                 # Shapiro 供需 PCE 分解
+./bin/fetch_sce                     # NY Fed SCE 通胀预期
 ./bin/fetch_yfinance                # yfinance 资产价格
 ./bin/fetch_commodities             # 全部期货（整条曲线）
 ./bin/fetch_commodities --front-month  # 仅主力合约
@@ -98,7 +105,7 @@ uv run python -m src.analyze data/AAPL.csv --json   # JSON 输出
 uv run python -m src.tui.app                        # 启动 TUI（技术分析 + 宏观双模式）
 
 # 测试
-uv run pytest                                       # 全量测试（124 个）
+uv run pytest                                       # 全量测试（157 个）
 
 # GEX 计算（IBKR 优先，拿不到 Greeks 自动降级 yfinance）
 uv run python src/compute_gex.py                        # AAPL（默认）
@@ -126,12 +133,21 @@ uv run python src/sell_put.py --symbol TSM
 ### 1. 数据层 vs 分析层分离
 - **fetchers/** 只负责拉取数据、写入 CSV，**不**包含分析逻辑
 - **indicators.py / analyze.py** 只负责读取本地 CSV、计算指标、输出报告
-- 新增 fetcher → 在 `src/fetchers/` 下新建文件，实现 `fetch_*() -> list[DataPoint]`
+- 新增 fetcher → 在 `src/fetchers/` 下新建文件；宏观 fetcher 实现 `fetch_*() -> DataFrame`（全量 upsert），其余按需用 DataPoint
 - 新增指标 → 在 `src/indicators.py` 里加 `add_*()` 函数，并在 `compute_all_indicators()` 注册
 
-### 2. 增量 CSV 模式
-- 所有数据以日频增量 CSV 存储，`date` 列为首列（ISO 格式）
+### 2. CSV 存储模式（双轨）
+
+**宏观时间序列**（FRED / Shapiro / SCE / CBOE）— 观测日为 key，全量 upsert：
+- `_io.py` 的 `upsert_timeseries()` 按观测日合并：同日新值覆盖旧值，新日追加，缺失保留旧值
+- 每次 `./bin/fetch_*` 都拉源全量历史并 upsert → **忘记运行自动补漏**，无需检测逻辑
+- `--backfill` 全量覆盖（清旧格式 junk）；默认即 upsert
+- 源本就是全量历史，upsert 零额外拉取成本
+
+**日频快照**（yfinance 资产价格）— 拉取日为 key，每日追加：
 - `_io.py` 的 `save_daily_csv()` 负责去重写入：同日期行会被覆盖
+
+- 所有 CSV `date` 列为首列（ISO 格式）
 - 读数据的标准模式：`pd.read_csv(path, index_col='date', parse_dates=True)`
 
 ### 3. 数据质量追踪
@@ -163,7 +179,7 @@ uv run python src/sell_put.py --symbol TSM
 - **格式化**: ruff (select E/F/I/W) + ruff-format，`pre-commit` 在 git commit 时自动执行（`ruff --fix` + `ruff-format` 自动修并重新暂存）。**写完代码无需手动跑 ruff/pre-commit**，只验证功能正确性（代码能跑）即可；E501（行太长）不会被自动修，commit 被拦时再手动改
 - **类型提示**: 所有函数签名带类型注解，用 `|` 替代 `Optional`（Python 3.10+）
 - **import**: 先标准库 → 第三方 → `src.*`（`isort` 自动处理）
-- **测试**: pytest 测试套件（`tests/`，124 个测试），用 `tmp_path` 隔离 + autouse fixture 清理缓存。运行 `uv run pytest`
+- **测试**: pytest 测试套件（`tests/`，157 个测试），用 `tmp_path` 隔离 + autouse fixture 清理缓存。运行 `uv run pytest`
 
 ---
 
@@ -171,7 +187,7 @@ uv run python src/sell_put.py --symbol TSM
 
 | 场景 | 技能 | 说明 |
 |------|------|------|
-| 新 fetcher | `python-patterns` | 数据管道通常用 DataPoint + save_daily_csv 模式 |
+| 新 fetcher | `python-patterns` | 宏观 fetcher 用 upsert_timeseries 全量模式 |
 | 调试 bug | `diagnosing-bugs` | 定位数据不更新、指标计算错误等问题 |
 | 查 yfinance 用法 | `find-docs` | 获取 yfinance / pandas / ib_insync 的 API 文档 |
 | 指标代码审查 | `ponytail-review` | 检查是否过度抽象、引入不必要依赖 |

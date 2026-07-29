@@ -1,12 +1,14 @@
 # 数据目录 (DATA CATALOG)
 
-所有数据以日频增量 CSV 存储，`date` 列统一为首列（ISO 格式），`pd.read_csv(path, index_col='date', parse_dates=True)` 直接可用。
+所有数据以 CSV 存储，`date` 列统一为首列（ISO 格式），`pd.read_csv(path, index_col='date', parse_dates=True)` 直接可用。
+
+宏观时间序列（FRED / Shapiro / SCE / CBOE）以**观测日**为 key，每次 `./bin/fetch_*` 拉源全量历史并 upsert（同日新值覆盖旧值，新日追加）→ 忘记运行自动补漏。股票/指数/期货以交易日为 key 增量追加。
 
 ---
 
 ## 1. 宏观指标 — `data/fred/{category}/` （12 分类）
 
-12 个分类、65 个系列，来源 FRED API。每日 `./bin/fetch_fred` 更新。
+12 个分类、65 个系列，来源 FRED API。每次 `./bin/fetch_fred` 拉全量历史并 upsert（漏跑自动补）；`--backfill` 全量覆盖。
 
 | 分类 | 路径 | 系列 | 内容 |
 |------|------|------|------|
@@ -41,12 +43,14 @@
 
 ## 2. 波动率 — `data/cboe/volatility.csv`
 
-来源 CBOE CDN。每日 `./bin/fetch_cboe` 更新。
-VIX 不在此文件（已在 FRED fred_series.csv），避免重复。
+来源 CBOE CDN。每次 `./bin/fetch_cboe` 拉全量历史并 upsert（漏跑自动补）；`--backfill` 全量覆盖。
+VIX9D/VIX 全量序列一并落盘，使 VIX_TERM_SLOPE 可复算审计。
 
 | 列名 | 说明 |
 |------|------|
 | `OVX` | CBOE 原油波动率指数 |
+| `VIX9D` | 9 天 VIX |
+| `VIX` | 30 天 VIX（CBOE 原始序列；FRED VIXCLS 也有） |
 | `VIX_TERM_SLOPE` | VIX 期限结构斜率（VIX - VIX9D），正=contango，负=backwardation |
 
 ---
@@ -164,7 +168,7 @@ FRED liquidity 分类的原始系列（由 `./bin/fetch_fred` 一并拉取）。
 
 ## 8. Shapiro 供给/需求 PCE 通胀分解 — `data/shapiro/shapiro.csv`
 
-来源 FRBSF（旧金山联储 Shapiro 分解）。每月 PCE 发布后几天更新，`./bin/fetch_shapiro`。
+来源 FRBSF（旧金山联储 Shapiro 分解）。每月 PCE 发布后几天更新，`./bin/fetch_shapiro` 拉全量历史并 upsert（漏跑自动补）；`--backfill` 全量覆盖。
 4 个 chart CSV（headline/core × monthly年化/yoy），各拆出 supply/demand/ambiguous 贡献（pp）。
 
 | 列名 | 说明 |
@@ -180,7 +184,7 @@ FRED liquidity 分类的原始系列（由 `./bin/fetch_fred` 一并拉取）。
 
 ## 9. NY Fed SCE 通胀预期 — `data/sce/sce.csv`
 
-来源 NY Fed Survey of Consumer Expectations。每月第二个周一发布，`./bin/fetch_sce`。
+来源 NY Fed Survey of Consumer Expectations。每月第二个周一发布，`./bin/fetch_sce` 拉全量历史并 upsert（漏跑自动补）；`--backfill` 全量覆盖。
 全量 Excel 45 个 sheet，此处取 1Y/3Y 通胀预期中位数。
 
 | 列名 | 说明 |

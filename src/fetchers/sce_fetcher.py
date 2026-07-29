@@ -1,10 +1,13 @@
 """
 Fetch NY Fed Survey of Consumer Expectations (SCE) — 1Y/3Y 通胀预期中位数。
-下载全量 Excel，读 'Inflation expectations' sheet，写入 data/sce/sce.csv。
+下载全量 Excel，读 'Inflation expectations' sheet，
+写入 data/sce/sce.csv（观测日为 key，全量 upsert）。
 
 数据源: https://www.newyorkfed.org/microeconomics/sce
 每月第二个周一发布。Excel 含 45 个 sheet（通胀/劳动力/房价/信贷等全套），
 此处只取追踪所需的 1Y/3Y 通胀预期中位数；其余 sheet 按需扩展。
+
+每次运行都拉源全量历史并 upsert：忘记运行几个月，下次跑自动补齐缺失月份。
 """
 
 import io
@@ -13,8 +16,6 @@ import re
 
 import pandas as pd
 import requests
-
-from .quality import DataPoint, QAStatus
 
 logger = logging.getLogger(__name__)
 
@@ -31,48 +32,25 @@ _1Y_KEYS = ["median", "one-year", "expected inflation"]
 _3Y_KEYS = ["median", "three-year", "expected inflation"]
 
 
-def fetch_sce() -> list[DataPoint]:
-    """下载 SCE Excel，提取最新月 1Y/3Y 通胀预期中位数。"""
-    dps = [
-        DataPoint(
-            metric="SCE_INFL_1Y_MEDIAN",
-            source="NY Fed SCE / Inflation expectations",
-            formula="median 1-year ahead expected inflation (%)",
-        ),
-        DataPoint(
-            metric="SCE_INFL_3Y_MEDIAN",
-            source="NY Fed SCE / Inflation expectations",
-            formula="median 3-year ahead expected inflation (%)",
-        ),
-    ]
-    try:
-        resp = requests.get(SCE_URL, timeout=60)
-        resp.raise_for_status()
-        df = pd.read_excel(
-            io.BytesIO(resp.content), sheet_name=_SHEET, header=_HEADER_ROW
-        )
-        # 日期列无表头（NaN），按位置取第 0 列；去掉日期为空的行
-        mask = df.iloc[:, 0].notna()
-        df = df[mask]
-        latest = df.iloc[-1]
+def fetch_sce() -> pd.DataFrame:
+    """下载 SCE Excel，返回全量时间序列（index=观测月，列=1Y/3Y 中位数）。"""
+    resp = requests.get(SCE_URL, timeout=60)
+    resp.raise_for_status()
+    df = pd.read_excel(io.BytesIO(resp.content), sheet_name=_SHEET, header=_HEADER_ROW)
+    mask = df.iloc[:, 0].notna()
+    df = df[mask].copy()
 
-        col_1y = _find_col(df.columns, _1Y_KEYS)
-        col_3y = _find_col(df.columns, _3Y_KEYS)
-        if not col_1y or not col_3y:
-            raise ValueError(f"找不到 1Y/3Y 中位数列；现有列: {list(df.columns)}")
+    col_1y = _find_col(df.columns, _1Y_KEYS)
+    col_3y = _find_col(df.columns, _3Y_KEYS)
+    if not col_1y or not col_3y:
+        raise ValueError(f"找不到 1Y/3Y 中位数列；现有列: {list(df.columns)}")
 
-        as_of = _parse_yyyymm(str(latest.iloc[0]))
-        dps[0].value = round(float(latest[col_1y]), 4)
-        dps[1].value = round(float(latest[col_3y]), 4)
-        for dp in dps:
-            dp.as_of = as_of
-            dp.mark_ok()
-        logger.info(f"  SCE: as_of={as_of} 1Y={dps[0].value} 3Y={dps[1].value}")
-    except Exception as e:
-        for dp in dps:
-            dp.mark_error(str(e))
-        logger.warning(f"SCE failed: {e}")
-    return dps
+    df["date"] = df.iloc[:, 0].astype(str).apply(_parse_yyyymm)
+    df["SCE_INFL_1Y_MEDIAN"] = df[col_1y].astype(float)
+    df["SCE_INFL_3Y_MEDIAN"] = df[col_3y].astype(float)
+    result = df[["date", "SCE_INFL_1Y_MEDIAN", "SCE_INFL_3Y_MEDIAN"]].set_index("date")
+    logger.info(f"  SCE: {len(result)} 条 ({result.index[0]} → {result.index[-1]})")
+    return result
 
 
 def _find_col(columns, keys: list[str]) -> str:
@@ -94,14 +72,27 @@ def _parse_yyyymm(raw: str) -> str:
 
 
 if __name__ == "__main__":
+    import argparse
     from pathlib import Path
 
-    from ._io import save_daily_csv
+    from ._io import upsert_timeseries
 
-    results = fetch_sce()
-    ok = sum(1 for r in results if r.qa_status == QAStatus.OK)
-    print(f"SCE: {ok}/{len(results)} OK")
+    parser = argparse.ArgumentParser(description="NY Fed SCE 通胀预期")
+    parser.add_argument(
+        "--backfill",
+        action="store_true",
+        help="全量覆盖（清旧格式 junk，干净重来）；默认为 upsert",
+    )
+    args = parser.parse_args()
 
     root = Path(__file__).resolve().parent.parent.parent
-    save_daily_csv(root / "data" / "sce" / "sce.csv", results)
-    print("  → data/sce/sce.csv")
+    path = root / "data" / "sce" / "sce.csv"
+
+    df = fetch_sce()
+
+    if args.backfill:
+        df.to_csv(path, index_label="date")
+        print(f"SCE --backfill 覆盖: → {path} ({len(df.columns)} 指标 × {len(df)} 行)")
+    else:
+        upsert_timeseries(path, df)
+        print(f"SCE upsert: → {path} ({len(df.columns)} 指标 × {len(df)} 行)")
