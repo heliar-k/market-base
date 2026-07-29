@@ -15,14 +15,12 @@
 
 import argparse
 import logging
-import os
 from dataclasses import dataclass
 from datetime import date
 
-# 代理必须在 import yfinance 之前设置（与 yfinance_fetcher.py 同一约定）
-os.environ.setdefault("HTTPS_PROXY", "socks5://127.0.0.1:7890")
-os.environ.setdefault("HTTP_PROXY", "socks5://127.0.0.1:7890")
+from src.fetchers.yfinance_fetcher import ensure_yf_proxy
 
+ensure_yf_proxy()
 import yfinance as yf  # noqa: E402
 
 logging.basicConfig(level=logging.INFO, format="%(message)s")

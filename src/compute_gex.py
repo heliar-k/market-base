@@ -21,7 +21,6 @@ GEX = Σ gamma_i × OI_i × spot × 100   (所有期权合约)
 
 import argparse
 import logging
-import os
 import random
 import sys
 from datetime import datetime
@@ -204,12 +203,10 @@ def fetch_oi_yfinance(symbol, expirations, proxy="socks5://127.0.0.1:7890"):
     从 yfinance 获取期权 OI。
     返回 DataFrame: [expiration, strike, right, openInterest, volume, impliedVolatility]
     """
-    import yfinance as yf
+    from src.fetchers.yfinance_fetcher import ensure_yf_proxy
 
-    # 设置代理
-    if proxy:
-        os.environ["HTTPS_PROXY"] = proxy
-        os.environ["HTTP_PROXY"] = proxy
+    ensure_yf_proxy()
+    import yfinance as yf  # noqa: E402
 
     log.info(f"从 yfinance 拉取 {symbol} OI...")
 
@@ -509,10 +506,10 @@ def main():
 
     # IBKR 连不上 / 数据拿不到 → 缺的部分用 yfinance 补齐
     if (spot is None or not expirations or greeks_df.empty) and not args.no_yfinance:
-        import yfinance as yf
+        from src.fetchers.yfinance_fetcher import ensure_yf_proxy
 
-        os.environ.setdefault("HTTPS_PROXY", "socks5://127.0.0.1:7890")
-        os.environ.setdefault("HTTP_PROXY", "socks5://127.0.0.1:7890")
+        ensure_yf_proxy()
+        import yfinance as yf  # noqa: E402
 
         ticker = yf.Ticker(symbol)
         if not expirations:

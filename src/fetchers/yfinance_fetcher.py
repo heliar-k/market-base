@@ -1,6 +1,11 @@
 """
 Fetch core asset prices via yfinance.
 Needs SOCKS5 proxy: socks5://127.0.0.1:7890
+
+其他模块用到 yfinance 时，先调 ensure_yf_proxy() 做代理设置 + 可达性检测：
+    from src.fetchers.yfinance_fetcher import ensure_yf_proxy
+    ensure_yf_proxy()
+    import yfinance as yf
 """
 
 import logging
@@ -13,13 +18,44 @@ from .quality import DataPoint, QAStatus
 
 logger = logging.getLogger(__name__)
 
-# CRITICAL: Set proxy env vars BEFORE importing yfinance (it reads them at import time)
-if config.https_proxy:
-    os.environ["HTTPS_PROXY"] = config.https_proxy
-if config.http_proxy:
-    os.environ["HTTP_PROXY"] = config.http_proxy
+# ── 代理设置：必须在 import yfinance 前执行 ──────────────────────────────
+# ponytail: .env 没配代理时兜底用项目默认值
+_PROXY_URL = config.https_proxy or "socks5://127.0.0.1:7890"
+os.environ.setdefault("HTTPS_PROXY", _PROXY_URL)
+os.environ.setdefault("HTTP_PROXY", _PROXY_URL)
 
 import yfinance as yf  # noqa: E402
+
+
+def ensure_yf_proxy(timeout: float = 3.0) -> None:
+    """设置 yfinance 代理环境变量 + TCP 可达性检测。
+
+    在 import yfinance 之前调用。代理不可达时抛出 ConnectionError。
+    已在模块级别设置过代理，此函数主要做可达性检测（幂等，可多次调用）。
+    """
+    from urllib.parse import urlparse
+
+    os.environ.setdefault("HTTPS_PROXY", _PROXY_URL)
+    os.environ.setdefault("HTTP_PROXY", _PROXY_URL)
+
+    u = urlparse(_PROXY_URL)
+    host, port = u.hostname, u.port
+    if not host or not port:
+        return
+
+    try:
+        import socket
+
+        s = socket.socket()
+        s.settimeout(timeout)
+        s.connect((host, port))
+        s.close()
+    except OSError:
+        raise ConnectionError(
+            f"代理 {host}:{port} 不可达。\n"
+            f"  macOS: 检查 Clash/V2Ray/Surge 是否运行。\n"
+            f"  或修改 .env 中的 HTTPS_PROXY 为正确地址。"
+        ) from None
 
 
 def fetch_ohlcv(ticker: str, period: str = "2y") -> pd.DataFrame:
