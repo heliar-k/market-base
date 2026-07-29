@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>利率预期 — FOMC FedWatch</title>
+<link rel="stylesheet" href="/css/app.css">
+<script src="https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js"></script>
+<style>
+  .re-root {
+    max-width: 960px; margin: 0 auto; padding: 20px 16px;
+    display: flex; flex-direction: column; gap: 16px;
+  }
+  .re-header {
+    display: flex; justify-content: space-between; align-items: baseline;
+    flex-wrap: wrap; gap: 8px;
+  }
+  .re-header h1 { font-size: 20px; font-weight: 700; }
+  .re-header .re-as-of { font-size: 13px; color: var(--text-dim); }
+  .re-back { color: var(--accent); text-decoration: none; font-size: 13px; }
+  .re-back:hover { text-decoration: underline; }
+
+  .re-corridor {
+    display: flex; gap: 24px; padding: 16px 20px;
+    background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+    border-radius: 8px; color: #fff; flex-wrap: wrap;
+  }
+  .re-corridor-label { font-size: 11px; text-transform: uppercase; letter-spacing: .5px; opacity: .7; }
+  .re-corridor-value { font-size: 22px; font-weight: 700; margin-top: 4px; }
+
+  .re-table-wrap {
+    border: 1px solid var(--border); border-radius: 8px;
+    overflow: hidden; background: var(--surface);
+  }
+  .re-table {
+    width: 100%; border-collapse: collapse; font-size: 13px;
+    font-variant-numeric: tabular-nums;
+  }
+  .re-table th {
+    position: sticky; top: 0; background: var(--surface-alt);
+    color: var(--text-secondary); font-weight: 600;
+    padding: 8px 12px; text-align: right; border-bottom: 1px solid var(--border);
+  }
+  .re-table th:first-child, .re-table td:first-child { text-align: left; }
+  .re-table td {
+    padding: 8px 12px; text-align: right; border-bottom: 1px solid var(--border-light);
+  }
+  .re-table tbody tr:hover { background: var(--surface-hover); }
+  .re-table .re-bar-cell { min-width: 200px; }
+  .re-table .re-bar-wrap {
+    display: flex; height: 20px; border-radius: 4px; overflow: hidden; gap: 1px;
+  }
+  .re-table .re-bar-cut { background: #26a69a; }
+  .re-table .re-bar-hold { background: #78909c; }
+  .re-table .re-bar-hike { background: #ef5350; }
+
+  .re-expectation {
+    font-size: 12px; font-weight: 600; padding: 2px 8px; border-radius: 4px;
+  }
+  .re-expectation.cut { background: #e8f5e9; color: #2e7d32; }
+  .re-expectation.hike { background: #ffebee; color: #c62828; }
+  .re-expectation.hold { background: #eceff1; color: #546e7a; }
+
+  .re-chart { height: 300px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); }
+
+  .re-loading { text-align: center; padding: 60px 20px; color: var(--text-dim); font-size: 14px; }
+  .re-error { text-align: center; padding: 40px 20px; color: #ef5350; }
+
+  .re-explain {
+    font-size: 12px; color: var(--text-dim); line-height: 1.6;
+    padding: 12px 16px; background: var(--surface); border: 1px solid var(--border); border-radius: 8px;
+  }
+</style>
+</head>
+<body>
+<div class="re-root">
+  <div class="re-header">
+    <h1>FOMC 利率预期</h1>
+    <div>
+      <a class="re-back" href="/">← 返回仪表盘</a>
+      <span class="re-as-of" id="re-as-of" style="margin-left:12px"></span>
+    </div>
+  </div>
+
+  <div class="re-corridor" id="re-corridor">
+    <div>
+      <div class="re-corridor-label">当前目标利率区间</div>
+      <div class="re-corridor-value" id="re-target-range">—</div>
+    </div>
+    <div>
+      <div class="re-corridor-label">下次 FOMC 会议</div>
+      <div class="re-corridor-value" id="re-next-meeting">—</div>
+    </div>
+  </div>
+
+  <div class="re-chart" id="re-prob-chart"></div>
+
+  <div class="re-table-wrap">
+    <table class="re-table">
+      <thead>
+        <tr>
+          <th>会议日期</th>
+          <th>合约</th>
+          <th>隐含利率</th>
+          <th>会议后利率</th>
+          <th>概率分布</th>
+          <th>降息</th>
+          <th>维持</th>
+          <th>加息</th>
+          <th>预期</th>
+        </tr>
+      </thead>
+      <tbody id="re-tbody"></tbody>
+    </table>
+  </div>
+
+  <div class="re-explain">
+    数据基于 ZQ 30 天联邦基金期货结算价反推，采用 CME FedWatch 方法论近似。
+    每日北京时间凌晨更新。目标利率来自 FRED DFEDTARL/DFEDTARU。
+  </div>
+</div>
+
+<script>
+// ── theme ──
+const isDark = () => document.body.classList.contains('dark');
+
+function echartsTheme() {
+  const dark = isDark();
+  return {
+    textStyle: { color: dark ? '#8b949e' : '#666' },
+    legend: { textStyle: { color: dark ? '#8b949e' : '#666' } },
+  };
+}
+
+// ── load ──
+async function load() {
+  const el = document.getElementById('re-tbody');
+  el.innerHTML = '<tr><td colspan="9" class="re-loading">加载中…</td></tr>';
+
+  try {
+    const [reRes, fomcRes] = await Promise.all([
+      fetch('/api/rate-expectations'),
+      fetch('/api/fomc/calendar'),
+    ]);
+    if (!reRes.ok) throw new Error((await reRes.json()).detail || '数据不可用');
+    const re = await reRes.json();
+    const fomc = fomcRes.ok ? await fomcRes.json() : null;
+
+    document.getElementById('re-as-of').textContent = '数据截止: ' + re.as_of;
+
+    // corridor
+    if (fomc && fomc.target_lower != null) {
+      document.getElementById('re-target-range').textContent =
+        fomc.target_lower.toFixed(2) + '% – ' + fomc.target_upper.toFixed(2) + '%';
+    }
+    if (fomc && fomc.next) {
+      const m = fomc.next;
+      document.getElementById('re-next-meeting').textContent =
+        m.year + '-' + String(m.month).padStart(2,'0') + '-' + String(m.end_day).padStart(2,'0');
+    }
+
+    renderTable(re.meetings);
+    renderChart(re.meetings);
+  } catch (e) {
+    el.innerHTML = '<tr><td colspan="9" class="re-error">' + e.message + '</td></tr>';
+  }
+}
+
+function renderTable(meetings) {
+  const fmtPct = (v) => (v * 100).toFixed(1) + '%';
+  const el = document.getElementById('re-tbody');
+  el.innerHTML = meetings.map(m => {
+    const cutW = (m.prob_cut * 100).toFixed(1);
+    const holdW = (m.prob_hold * 100).toFixed(1);
+    const hikeW = (m.prob_hike * 100).toFixed(1);
+    const label = m.expectation;
+    const cls = label === '降息' ? 'cut' : label === '加息' ? 'hike' : 'hold';
+    return `<tr>
+      <td>${m.meeting_date}</td>
+      <td>${m.contract}</td>
+      <td>${m.implied_rate.toFixed(3)}%</td>
+      <td>${m.post_meeting_rate.toFixed(3)}%</td>
+      <td class="re-bar-cell">
+        <div class="re-bar-wrap">
+          <div class="re-bar-cut" style="width:${cutW}%"></div>
+          <div class="re-bar-hold" style="width:${holdW}%"></div>
+          <div class="re-bar-hike" style="width:${hikeW}%"></div>
+        </div>
+      </td>
+      <td>${fmtPct(m.prob_cut)}</td>
+      <td>${fmtPct(m.prob_hold)}</td>
+      <td>${fmtPct(m.prob_hike)}</td>
+      <td><span class="re-expectation ${cls}">${label}</span></td>
+    </tr>`;
+  }).join('');
+}
+
+function renderChart(meetings) {
+  const dom = document.getElementById('re-prob-chart');
+  const chart = echarts.init(dom, null, { renderer: 'canvas' });
+  const theme = echartsTheme();
+
+  const dark = isDark();
+  chart.setOption({
+    tooltip: {
+      trigger: 'axis',
+      axisPointer: { type: 'shadow' },
+      formatter: (params) => {
+        let s = '<b>' + params[0].axisValue + '</b>';
+        params.forEach(p => {
+          s += '<br/>' + p.marker + ' ' + p.seriesName + ': ' + (p.value * 100).toFixed(1) + '%';
+        });
+        return s;
+      },
+    },
+    legend: {
+      bottom: 0,
+      data: ['降息', '维持', '加息'],
+      ...theme.legend,
+    },
+    grid: { left: 60, right: 20, top: 20, bottom: 40 },
+    xAxis: {
+      type: 'category',
+      data: meetings.map(m => m.meeting_date),
+      axisLabel: { ...theme.textStyle, fontSize: 11 },
+    },
+    yAxis: {
+      type: 'value',
+      max: 1,
+      axisLabel: { formatter: (v) => (v * 100) + '%', ...theme.textStyle },
+      splitLine: { lineStyle: { color: dark ? '#30363d' : '#e1e4e8' } },
+    },
+    series: [
+      {
+        name: '降息', type: 'bar', stack: 'total',
+        data: meetings.map(m => m.prob_cut),
+        itemStyle: { color: '#26a69a' }, barWidth: '40%',
+      },
+      {
+        name: '维持', type: 'bar', stack: 'total',
+        data: meetings.map(m => m.prob_hold),
+        itemStyle: { color: '#78909c' },
+      },
+      {
+        name: '加息', type: 'bar', stack: 'total',
+        data: meetings.map(m => m.prob_hike),
+        itemStyle: { color: '#ef5350' },
+      },
+    ],
+  });
+
+  new ResizeObserver(() => chart.resize()).observe(dom);
+
+  // theme sync
+  window.addEventListener('theme-changed', () => {
+    chart.setOption({
+      textStyle: { color: isDark() ? '#8b949e' : '#666' },
+      legend: { textStyle: { color: isDark() ? '#8b949e' : '#666' } },
+      xAxis: { axisLabel: { color: isDark() ? '#8b949e' : '#666' } },
+      yAxis: { splitLine: { lineStyle: { color: isDark() ? '#30363d' : '#e1e4e8' } } },
+    });
+  });
+}
+
+// theme toggle
+const saved = localStorage.getItem('theme');
+if (saved === 'dark') document.body.classList.add('dark');
+document.addEventListener('keydown', (e) => {
+  if (e.key === 't' && e.metaKey) {
+    document.body.classList.toggle('dark');
+    localStorage.setItem('theme', document.body.classList.contains('dark') ? 'dark' : 'light');
+    window.dispatchEvent(new Event('theme-changed'));
+  }
+});
+
+load();
+</script>
+</body>
+</html>

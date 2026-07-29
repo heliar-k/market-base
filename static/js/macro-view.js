@@ -177,6 +177,9 @@ function renderCorridorDashboard(container) {
       <span class="corridor-next-label">下次会议</span>
       <span class="corridor-next-value">${fomc.next ? `${fomc.next.year}-${String(fomc.next.month).padStart(2,'0')}-${String(fomc.next.start_day).padStart(2,'0')} / ${String(fomc.next.end_day).padStart(2,'0')}` : '—'}</span>
     </div>
+    <div style="margin-left:auto;display:flex;align-items:flex-end">
+      <a href="/rates/expectations" style="color:#58a6ff;font-size:13px;text-decoration:none;white-space:nowrap">利率预期 →</a>
+    </div>
   `;
   container.appendChild(card);
 

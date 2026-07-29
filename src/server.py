@@ -674,6 +674,57 @@ def get_liquidity_compare_spx(range: str = Query("5y")):
     return result
 
 
+# ── rate expectations ────────────────────────────────────────────────────────
+
+
+@app.get("/api/rate-expectations")
+def get_rate_expectations() -> dict:
+    csv_path = ROOT / "data" / "rate_expectations" / "fomc_probabilities.csv"
+    if not csv_path.exists():
+        raise HTTPException(
+            404, "No rate expectations data yet. Run ./bin/fetch_rate_expectations"
+        )
+    df = pd.read_csv(csv_path, index_col="date", parse_dates=True)
+
+    # range cols → normalized rows
+    range_cols = [c for c in df.columns if c.startswith("range_")]
+
+    latest_date = df.index.max()
+    latest = df.loc[latest_date]
+
+    meetings = []
+    for _, row in latest.iterrows():
+        probs = []
+        for c in range_cols:
+            lo, hi = c.replace("range_", "").split("-")
+            p = row.get(c, 0.0)
+            if pd.notna(p) and float(p) > 0:
+                probs.append(
+                    {"lo": float(lo), "hi": float(hi), "prob": round(float(p), 4)}
+                )
+
+        meetings.append(
+            {
+                "meeting_date": row["meeting_date"].strftime("%Y-%m-%d"),
+                "contract": row["contract"],
+                "implied_rate": float(row["implied_rate"]),
+                "post_meeting_rate": float(row["post_meeting_rate"]),
+                "prob_cut": float(row["prob_cut"]),
+                "prob_hold": float(row["prob_hold"]),
+                "prob_hike": float(row["prob_hike"]),
+                "expectation": row["expectation"],
+                "probs": probs,
+            }
+        )
+
+    return _sanitize(
+        {
+            "as_of": latest_date.strftime("%Y-%m-%d"),
+            "meetings": meetings,
+        }
+    )
+
+
 # ── static files (must be last) ─────────────────────────────────────────────
 
 _static = ROOT / "static"
