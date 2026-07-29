@@ -110,9 +110,9 @@ class KlineApp(App):
     # ── 键盘：ListView / Tree 原生 ↑↓ 导航；Enter 选中 ──────────────────
     @on(ListView.Selected)
     def _on_tech_selected(self, event: ListView.Selected) -> None:
-        # id 形如 "tech-AAPL"
-        item_id = event.item.id or ""
-        symbol = item_id.split("-", 1)[1] if "-" in item_id else ""
+        # 标的名取自 ListItem 内 Static 的文本，避免用品种名当 DOM id
+        # （BRK.B 含点违反 Textual 标识符规则）
+        symbol = str(event.item.children[0].renderable) if event.item.children else ""
         if not symbol:
             return
         screen = self.query_one(MainScreen)

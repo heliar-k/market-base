@@ -64,9 +64,7 @@ class TechListView(ListView):
     """技术分析模式侧栏：平铺所有 IBKR 标的。"""
 
     def __init__(self) -> None:
-        super().__init__(
-            *[ListItem(Static(s["name"]), id=f"tech-{s['name']}") for s in IBKR_SYMBOLS]
-        )
+        super().__init__(*[ListItem(Static(s["name"])) for s in IBKR_SYMBOLS])
 
 
 class MacroTree(Tree):
