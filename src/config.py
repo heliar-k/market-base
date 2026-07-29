@@ -25,6 +25,74 @@ if _env_path.exists():
 # 数据资产定义（模块级常量，一目了然）
 # ═══════════════════════════════════════════════════════════════════════════════
 
+
+@dataclass
+class SymbolConfig:
+    """单品种 OHLCV 拉取配置。"""
+
+    name: str  # 品种代码，也是数据文件名
+    exchange: str  # IBKR 交易所
+    currency: str = "USD"
+    ibkr_symbol: str | None = None  # IBKR 合约代码（默认同 name）
+    yf_ticker: str | None = None  # yfinance 回退 ticker
+
+
+# ── 股票 ──
+STOCKS: list[SymbolConfig] = [
+    SymbolConfig(name="AAPL", exchange="SMART"),
+    SymbolConfig(name="BRK.B", exchange="SMART", ibkr_symbol="BRK B"),
+    SymbolConfig(name="TSLA", exchange="SMART"),
+    SymbolConfig(name="MSFT", exchange="SMART"),
+    SymbolConfig(name="MCD", exchange="SMART"),
+    SymbolConfig(name="LLY", exchange="SMART"),
+    SymbolConfig(name="UNH", exchange="SMART"),
+    SymbolConfig(name="KO", exchange="SMART"),
+    SymbolConfig(name="MU", exchange="SMART"),
+    SymbolConfig(name="TSM", exchange="SMART"),
+    SymbolConfig(name="SPY", exchange="SMART"),
+    SymbolConfig(name="QQQ", exchange="SMART"),
+    SymbolConfig(name="GOOG", exchange="SMART"),
+    SymbolConfig(name="META", exchange="SMART"),
+    SymbolConfig(name="AMZN", exchange="SMART"),
+    SymbolConfig(name="NVDA", exchange="SMART"),
+    SymbolConfig(name="CRCL", exchange="SMART"),
+    SymbolConfig(name="HOOD", exchange="SMART"),
+    SymbolConfig(name="COIN", exchange="SMART"),
+    # ── 算力拥挤度观察（IBKR 不可用时 yfinance 回退）──
+    SymbolConfig(name="005930", exchange="KSE", currency="KRW", yf_ticker="005930.KS"),
+    SymbolConfig(name="000660", exchange="KSE", currency="KRW", yf_ticker="000660.KS"),
+]
+
+# ── 指数 ──
+INDICES: list[SymbolConfig] = [
+    SymbolConfig(name="SPX", exchange="CBOE"),
+    SymbolConfig(name="IXIC", exchange="NASDAQ", ibkr_symbol="COMP"),
+    SymbolConfig(name="VIX", exchange="CBOE"),
+    SymbolConfig(name="RUT", exchange="RUSSELL"),
+    SymbolConfig(name="SOX", exchange="PHLX"),
+]
+
+
+def _to_legacy_dict(sc: SymbolConfig, kind: str) -> dict:
+    """将 SymbolConfig 转为 ibkr_fetcher 兼容的 dict 格式。"""
+    d: dict = {
+        "name": sc.name,
+        "type": kind,
+        "exchange": sc.exchange,
+        "currency": sc.currency,
+    }
+    if sc.ibkr_symbol:
+        d["symbol"] = sc.ibkr_symbol
+    if sc.yf_ticker:
+        d["yf_ticker"] = sc.yf_ticker
+    return d
+
+
+# 向后兼容：ibkr_fetcher / server / tui 使用的合并列表（自动派生）
+IBKR_SYMBOLS: list[dict] = [_to_legacy_dict(s, "stock") for s in STOCKS] + [
+    _to_legacy_dict(s, "index") for s in INDICES
+]
+
 # {category: {metric: series_id}}
 FRED_SERIES = {
     "volatility": {
@@ -98,7 +166,6 @@ FRED_SERIES_FLAT = {
 }
 
 # ── 期限结构分类：哪些 FRED 分类有收益率曲线 + 期限顺序（短→长）──
-# 仅 rates（名义国债）/ tips（通胀保值国债）有意义。其它分类只走时序折线。
 TERM_SERIES = {
     "rates": [
         "DGS1MO",
@@ -117,21 +184,19 @@ TERM_SERIES = {
 }
 
 # ── 商品期货（IBKR 拉取）──
-# {symbol: (name, exchange)}
 COMMODITY_FUTURES = {
-    # 商品
     "GC": ("Gold", "COMEX"),
     "CL": ("WTI", "NYMEX"),
     "NG": ("NatGas", "NYMEX"),
     "SI": ("Silver", "COMEX"),
     "HG": ("Copper", "COMEX"),
-    # 股指
     "ES": ("SPX", "CME"),
     "NQ": ("Nasdaq", "CME"),
     "YM": ("Dow", "CBOT"),
     "RTY": ("Russell", "CME"),
 }
 
+# ── yfinance 单品价格快照（独立于 OHLCV 管线）──
 YF_TICKERS = {
     "SPX": "^GSPC",
     "NDX": "^NDX",
@@ -147,65 +212,10 @@ YF_TICKERS = {
     "TLT": "TLT",
     "HYG": "HYG",
     "LQD": "LQD",
-    # ── 算力拥挤度观察（IBKR 不可用时备用）──
     "SOX": "^SOX",
     "005930": "005930.KS",
     "000660": "000660.KS",
 }
-
-IBKR_SYMBOLS = [
-    {"name": "SPX", "type": "index", "exchange": "CBOE", "currency": "USD"},
-    {
-        "name": "IXIC",
-        "type": "index",
-        "exchange": "NASDAQ",
-        "currency": "USD",
-        "symbol": "COMP",
-    },
-    {"name": "VIX", "type": "index", "exchange": "CBOE", "currency": "USD"},
-    {"name": "AAPL", "type": "stock", "exchange": "SMART", "currency": "USD"},
-    {
-        "name": "BRK.B",
-        "type": "stock",
-        "exchange": "SMART",
-        "currency": "USD",
-        "symbol": "BRK B",
-    },
-    {"name": "TSLA", "type": "stock", "exchange": "SMART", "currency": "USD"},
-    {"name": "MSFT", "type": "stock", "exchange": "SMART", "currency": "USD"},
-    {"name": "MCD", "type": "stock", "exchange": "SMART", "currency": "USD"},
-    {"name": "LLY", "type": "stock", "exchange": "SMART", "currency": "USD"},
-    {"name": "UNH", "type": "stock", "exchange": "SMART", "currency": "USD"},
-    {"name": "KO", "type": "stock", "exchange": "SMART", "currency": "USD"},
-    {"name": "MU", "type": "stock", "exchange": "SMART", "currency": "USD"},
-    {"name": "TSM", "type": "stock", "exchange": "SMART", "currency": "USD"},
-    {"name": "RUT", "type": "index", "exchange": "RUSSELL", "currency": "USD"},
-    {"name": "SPY", "type": "stock", "exchange": "SMART", "currency": "USD"},
-    {"name": "QQQ", "type": "stock", "exchange": "SMART", "currency": "USD"},
-    {"name": "GOOG", "type": "stock", "exchange": "SMART", "currency": "USD"},
-    {"name": "META", "type": "stock", "exchange": "SMART", "currency": "USD"},
-    {"name": "AMZN", "type": "stock", "exchange": "SMART", "currency": "USD"},
-    {"name": "NVDA", "type": "stock", "exchange": "SMART", "currency": "USD"},
-    {"name": "CRCL", "type": "stock", "exchange": "SMART", "currency": "USD"},
-    {"name": "HOOD", "type": "stock", "exchange": "SMART", "currency": "USD"},
-    {"name": "COIN", "type": "stock", "exchange": "SMART", "currency": "USD"},
-    # ── 算力拥挤度观察（利文斯顿框架）──
-    {"name": "SOX", "type": "index", "exchange": "PHLX", "currency": "USD"},
-    {
-        "name": "005930",
-        "type": "stock",
-        "exchange": "KSE",
-        "currency": "KRW",
-        "symbol": "005930",
-    },
-    {
-        "name": "000660",
-        "type": "stock",
-        "exchange": "KSE",
-        "currency": "KRW",
-        "symbol": "000660",
-    },
-]
 
 
 # ═══════════════════════════════════════════════════════════════════════════════

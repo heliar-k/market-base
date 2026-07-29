@@ -1,0 +1,6 @@
+#!/bin/bash
+# 统一股票数据拉取 — IBKR 优先，yfinance 回退
+# 编排层: src/fetchers/stock_fetcher.py
+set -euo pipefail
+cd "$(dirname "$0")/.."
+exec uv run python -m src.fetchers.stock_fetcher "$@"

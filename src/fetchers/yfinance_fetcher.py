@@ -6,6 +6,8 @@ Needs SOCKS5 proxy: socks5://127.0.0.1:7890
 import logging
 import os
 
+import pandas as pd
+
 from ..config import config
 from .quality import DataPoint, QAStatus
 
@@ -18,6 +20,32 @@ if config.http_proxy:
     os.environ["HTTP_PROXY"] = config.http_proxy
 
 import yfinance as yf  # noqa: E402
+
+
+def fetch_ohlcv(ticker: str, period: str = "2y") -> pd.DataFrame:
+    """拉取 OHLCV 日线，返回 DataFrame，列: open/high/low/close/volume。
+
+    用于 IBKR 不可用时的回退。index 为 date (datetime)。
+    """
+    logger.info(f"[yfinance fallback] 拉取 {ticker} OHLCV (period={period})...")
+    t = yf.Ticker(ticker)
+    df = t.history(period=period)
+    if df.empty:
+        return pd.DataFrame()
+    # 统一列名与 ibkr_fetcher 一致
+    df.index = pd.to_datetime(df.index).tz_localize(None)
+    df.index.name = "date"
+    df = df.rename(
+        columns={
+            "Open": "open",
+            "High": "high",
+            "Low": "low",
+            "Close": "close",
+            "Volume": "volume",
+        }
+    )
+    keep = [c for c in ["open", "high", "low", "close", "volume"] if c in df.columns]
+    return df[keep].sort_index()
 
 
 def _fetch_ticker(ticker: str, name: str) -> DataPoint:
