@@ -4,14 +4,14 @@
 
 ---
 
-## 1. 宏观指标 — `data/fred/{category}/` （9 分类）
+## 1. 宏观指标 — `data/fred/{category}/` （10 分类）
 
-9 个分类、46 个系列，来源 FRED API。每日 `./bin/fetch_fred` 更新。
+10 个分类、56 个系列，来源 FRED API。每日 `./bin/fetch_fred` 更新。
 
 | 分类 | 路径 | 系列 | 内容 |
 |------|------|------|------|
 | `volatility` | `data/fred/volatility/volatility.csv` | 3 | VIX / HY_OAS / IG_OAS |
-| `inflation` | `data/fred/inflation/inflation.csv` | 11 | CPI / PCE / 核心CPI / BEI / 通胀预期 |
+| `inflation` | `data/fred/inflation/inflation.csv` | 17 | CPI / PCE / 核心 / CPI细分 / BEI / 通胀预期 |
 | `labor` | `data/fred/labor/labor.csv` | 3 | 失业率 / 非农 / 首申失业金 |
 | `growth` | `data/fred/growth/growth.csv` | 2 | 实际GDP / 工业产出 |
 | `rates` | `data/fred/rates/rates.csv` | 14 | 联邦基金利率 / SOFR / IORB / 国债全期限 |
@@ -19,10 +19,11 @@
 | `liquidity` | `data/fred/liquidity/liquidity.csv` | 5 | NFCI / 准备金 / RRP / TGA / 联储总资产 |
 | `sentiment` | `data/fred/sentiment/sentiment.csv` | 2 | 消费者信心 / 金融压力指数 |
 | `fx` | `data/fred/fx/fx.csv` | 1 | 贸易加权美元指数 |
+| `producer_prices` | `data/fred/producer_prices/producer_prices.csv` | 4 | PPI Final Demand / 核心PPI / 分项 |
 
 ### 列名速查
 `volatility`: VIX, HY_OAS, IG_OAS
-`inflation`: CPI, PCE, CORE_CPI, T5YIE, T10YIE, T5YIFR, MICH, EXPINF_1Y, EXPINF_2Y, EXPINF_5Y, EXPINF_10Y
+`inflation`: CPI, PCE, CORE_CPI, CORE_PCE, CPI_SHELTER, CPI_FOOD, CPI_ENERGY, CORE_SERVICES, CORE_GOODS, T5YIE, T10YIE, T5YIFR, MICH, EXPINF_1Y, EXPINF_2Y, EXPINF_5Y, EXPINF_10Y
 `labor`: UNRATE, PAYEMS, ICSA
 `growth`: GDP, INDPRO
 `rates`: FEDFUNDS, SOFR, IORB, DGS1MO, DGS3MO, DGS6MO, DGS1, DGS2, DGS3, DGS5, DGS7, DGS10, DGS20, DGS30
@@ -30,6 +31,7 @@
 `liquidity`: NFCI, RRPONTSYD, WTREGEN, WRESBAL, WALCL
 `sentiment`: UMCSENT, STLFSI4
 `fx`: DXY
+`producer_prices`: PPI_FD, CORE_PPI, PPI_GOODS, PPI_SERVICES
 
 ---
 

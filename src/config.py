@@ -104,6 +104,12 @@ FRED_SERIES = {
         "CPI": "CPIAUCSL",
         "PCE": "PCEPI",
         "CORE_CPI": "CPILFESL",
+        "CORE_PCE": "PCEPILFE",
+        "CPI_SHELTER": "CPIHOSSL",
+        "CPI_FOOD": "CPIUFDSL",
+        "CPI_ENERGY": "CPIENGSL",
+        "CORE_SERVICES": "CUSR0000SASLE",
+        "CORE_GOODS": "CUSR0000SACL1E",
         "T5YIE": "T5YIE",
         "T10YIE": "T10YIE",
         "T5YIFR": "T5YIFR",
@@ -158,6 +164,12 @@ FRED_SERIES = {
     },
     "fx": {
         "DXY": "DTWEXBGS",
+    },
+    "producer_prices": {
+        "PPI_FD": "PPIFIS",
+        "CORE_PPI": "PPICOR",
+        "PPI_GOODS": "WPSFD4111",
+        "PPI_SERVICES": "WPSFD4211",
     },
 }
 
