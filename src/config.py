@@ -170,6 +170,12 @@ FRED_SERIES = {
     "fx": {
         "DXY": "DTWEXBGS",
     },
+    "credit": {
+        "AAA": "AAA",
+        "BAA": "BAA",
+        "AAA10Y": "AAA10Y",
+        "BAA10Y": "BAA10Y",
+    },
     "consumption": {
         "PSAVERT": "PSAVERT",
     },
