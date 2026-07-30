@@ -14,15 +14,18 @@
 """
 
 import argparse
-import os
 import subprocess
 import sys
 from datetime import datetime
 from pathlib import Path
 
 import pandas as pd
+import yfinance as yf
 
+from src.fetchers.yfinance_fetcher import ensure_yf_proxy
 from src.indicators import compute_all_indicators, load_data
+
+ensure_yf_proxy()
 
 
 def latest_gex_csv(symbol: str) -> Path | None:
@@ -46,7 +49,8 @@ def ensure_gex_data(symbol: str, args: argparse.Namespace) -> Path:
         "uv",
         "run",
         "python",
-        "src/compute_gex.py",
+        "-m",
+        "src.compute_gex",
         "--symbol",
         symbol,
         "--port",
@@ -65,9 +69,6 @@ def ensure_gex_data(symbol: str, args: argparse.Namespace) -> Path:
 
 def _yf_option_chain(symbol: str) -> pd.DataFrame:
     """用 yfinance 获取全部到期日的 put 链（主数据源）。"""
-    os.environ.setdefault("https_proxy", "socks5://127.0.0.1:7890")
-    import yfinance as yf
-
     tk = yf.Ticker(symbol)
     rows: list[dict] = []
     for yf_date in tk.options:
@@ -92,6 +93,14 @@ def _yf_option_chain(symbol: str) -> pd.DataFrame:
         except Exception:
             continue
     return pd.DataFrame(rows)
+
+
+def _yf_spot(symbol: str) -> float | None:
+    """用 yfinance 获取实时报价，失败返回 None。"""
+    try:
+        return float(yf.Ticker(symbol).fast_info.last_price)
+    except Exception:
+        return None
 
 
 def analyze_puts(
@@ -195,7 +204,7 @@ def report(
     print("### 当前状态\n")
     print("| 指标 | 数值 |")
     print("|------|------|")
-    print(f"| **现价** | ${latest.close:.2f} |")
+    print(f"| **现价** | ${spot:.2f} |")
     print(f"| MA20 | ${latest.MA20:.1f} |")
     print(f"| MA60 | ${latest.MA60:.1f} |")
     print(f"| MA120 | ${latest.MA120:.1f} |")
@@ -324,7 +333,13 @@ def main() -> None:
     else:
         sys.exit(f"无 {symbol} 日线数据，先 ./bin/fetch_ibkr --symbols {symbol}")
     tech = compute_all_indicators(load_data(str(data_path)))
-    spot = float(tech["close"].iloc[-1])
+    csv_close = float(tech["close"].iloc[-1])
+    live_spot = _yf_spot(symbol)
+    if live_spot and abs(live_spot - csv_close) / csv_close > 0.005:
+        spot = live_spot
+        print(f"⚠️ CSV 收盘 ${csv_close:.2f} → 实时 ${live_spot:.2f}，用实时价\n")
+    else:
+        spot = live_spot or csv_close
     gex_raw = pd.read_csv(ensure_gex_data(symbol, args), dtype={"expiration": str})
     cands = analyze_puts(gex_raw, spot, float(tech.iloc[-1].ATR), symbol)
     report(symbol, cands, spot, tech, gex_raw)
