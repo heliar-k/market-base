@@ -5,6 +5,7 @@
 ---
 
 > **uv 项目** — 所有 Python 脚本必须用 `uv run` 执行，如 `uv run python -m src.analyze`、`uv run python src/compute_gex.py`。不要直接用 `python`。
+> **可安装包** — pyproject.toml 已配置 build-system（hatchling），`uv run` 自动 editable install，`import src.*` 在直接跑脚本 / `-m` / 任意 cwd 下均可用。**禁止** `sys.path.insert` / PYTHONPATH 等路径 hack（import 报错先检查是否用 `uv run`）。
 > 数据拉取脚本在 `bin/` 下有 shell 包装（内部已用 `uv run`），直接执行 `./bin/fetch_*` 即可。
 
 ## 项目结构
@@ -115,6 +116,7 @@ uv run python src/compute_gex.py --expirations 6        # 6 个到期月
 # GEX 常用组合：实盘 4001（自动 readonly）+ 大批量 + 当日快照复用
 uv run python src/compute_gex.py --symbol MSFT --port 4001 --batch-size 50  # 首次拉取（~35s），存当日 Greeks 快照
 uv run python src/compute_gex.py --symbol MSFT --reuse-greeks               # 当天重跑（~3s），只刷 OI；spot 动 1%+ 需重新拉快照
+# 盘前时段 IBKR 不推期权行情（Error 10091）→ 自动降级 yfinance IV 反推 BS gamma（OI 真实、结果可用，精度低于 IBKR）
 
 # 保护结构报价（put / 价差 / 领口成本对比）
 uv run python src/hedge_planner.py --symbol TSM
