@@ -133,7 +133,7 @@ FRED liquidity 分类的原始系列（由 `./bin/fetch_fred` 一并拉取）。
 
 ## 7. 期货 — `data/commodities/{SYMBOL}/{SYMBOL}_{YYYYMM}.csv`
 
-9 个期货品种，来源 IBKR，自动拉取全部未过期合约。每日 `./bin/fetch_commodities` 更新。
+10 个期货品种，来源 IBKR，自动拉取全部未过期合约。每日 `./bin/fetch_commodities` 更新。
 
 ### 商品期货
 
@@ -153,6 +153,12 @@ FRED liquidity 分类的原始系列（由 `./bin/fetch_fred` 一并拉取）。
 | `NQ` | Nasdaq-100 E-mini | CME |
 | `YM` | Dow E-mini | CBOT |
 | `RTY` | Russell 2000 E-mini | CME |
+
+### 利率期货
+
+| Symbol | 品种 | 交易所 |
+|--------|------|--------|
+| `ZQ` | 30-Day Fed Funds | CBOT |
 
 每个合约月一个 CSV，OHLCV 格式同股票/指数。
 

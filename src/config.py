@@ -265,6 +265,7 @@ COMMODITY_FUTURES = {
     "NQ": ("Nasdaq", "CME"),
     "YM": ("Dow", "CBOT"),
     "RTY": ("Russell", "CME"),
+    "ZQ": ("FedFunds", "CBOT"),
 }
 
 # ── yfinance 单品价格快照（独立于 OHLCV 管线）──

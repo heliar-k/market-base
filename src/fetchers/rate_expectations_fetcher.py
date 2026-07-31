@@ -1,6 +1,7 @@
 """
 Fetch Fed Funds futures-implied FOMC rate expectations.
-数据源: ZQ 30-Day Fed Funds Futures (yfinance) → CME FedWatch 方法论近似。
+数据源: ZQ 30-Day Fed Funds Futures（IBKR 本地 CSV，
+经 ./bin/fetch_commodities --symbols ZQ 拉取）→ CME FedWatch 方法论近似。
 
 输出:
   data/rate_expectations/fomc_probabilities.csv  — 每日快照，一行一 FOMC 会议
@@ -21,34 +22,35 @@ from ..config import FOMC_MEETINGS, ROOT
 
 logger = logging.getLogger(__name__)
 
-# ── yfinance proxy: must be set before import ──────────────────────────────
-from .yfinance_fetcher import ensure_yf_proxy  # noqa: E402 (must be before yf import)
-
-ensure_yf_proxy()
-import yfinance as yf  # noqa: E402
-
-# ── ZQ month codes ──────────────────────────────────────────────────────────
-_ZQ_CODES: dict[int, str] = {
-    1: "F",
-    2: "G",
-    3: "H",
-    4: "J",
-    5: "K",
-    6: "M",
-    7: "N",
-    8: "Q",
-    9: "U",
-    10: "V",
-    11: "X",
-    12: "Z",
-}
 _STEP = 0.25  # Fed 利率步长
 
 
-def _zq_ticker(meeting_year: int, meeting_month: int) -> str:
-    """合约月份 = FOMC 会议所在月；ticker 格式 ZQ{month_code}{2-digit year}.CBT."""
-    code = _ZQ_CODES[meeting_month]
-    return f"ZQ{code}{str(meeting_year)[-2:]}.CBT"
+def _zq_label(meeting_year: int, meeting_month: int) -> str:
+    """ZQ 合约标签，与 commodities 文件名一致：ZQ_{YYYYMM}。"""
+    return f"ZQ_{meeting_year}{meeting_month:02d}"
+
+
+def _read_zq_close(meeting_year: int, meeting_month: int) -> tuple[float, str] | None:
+    """从 commodities 本地 CSV 读取 ZQ 合约最新收盘价（= 日结算价）。
+
+    Returns (settlement, as_of_date) 或 None（文件不存在/无数据）。
+    """
+    path = (
+        ROOT
+        / "data"
+        / "commodities"
+        / "ZQ"
+        / f"ZQ_{meeting_year}{meeting_month:02d}.csv"
+    )
+    if not path.exists():
+        logger.warning(f"ZQ {meeting_year}-{meeting_month:02d}: 无本地数据 {path}")
+        logger.warning("  请先运行: ./bin/fetch_commodities --symbols ZQ")
+        return None
+    df = pd.read_csv(path, dtype={"date": str})
+    if df.empty:
+        return None
+    last = df.iloc[-1]
+    return float(last["close"]), str(last["date"])
 
 
 def _days_in_month(year: int, month: int) -> int:
@@ -134,46 +136,6 @@ def _expectation_label(current_lo: float, current_hi: float, probs: dict) -> str
     return "维持"
 
 
-def _fetch_zq_settlements(
-    tickers: list[str],
-) -> dict[str, float]:
-    """逐合约拉取 ZQ 最新结算价（逐条 1s 间隔避免限流）。
-
-    yf.download 批量接口对 ZQ 期货极易触发 YFRateLimitError，
-    逐合约 Ticker.history() + 间隔更稳定。
-    """
-    import time
-
-    result: dict[str, float] = {}
-    for tkr in tickers:
-        for attempt in range(3):
-            try:
-                t = yf.Ticker(tkr)
-                hist = t.history(period="5d")
-                if hist.empty:
-                    logger.warning(f"ZQ {tkr}: 无数据（可能已到期退市）")
-                    break
-                settle = float(hist["Close"].iloc[-1])
-                result[tkr] = settle
-                logger.info(
-                    f"  {tkr}: settle={settle:.4f} → implied={100 - settle:.4f}%"
-                )
-                break
-            except Exception as e:
-                err = str(e)
-                if "rate" in err.lower() or "limit" in err.lower():
-                    wait = 2**attempt
-                    logger.warning(f"{tkr} 限流，{wait}s 后重试…")
-                    time.sleep(wait)
-                else:
-                    logger.warning(f"ZQ {tkr}: {e}")
-                    break
-        else:
-            logger.warning(f"ZQ {tkr}: 3 次重试后仍失败")
-        time.sleep(1)  # 合约间 1s 间隔
-    return result
-
-
 def fetch_rate_expectations() -> tuple[pd.DataFrame, pd.DataFrame]:
     """拉取 ZQ 期货并计算 FOMC 概率。
 
@@ -192,21 +154,22 @@ def fetch_rate_expectations() -> tuple[pd.DataFrame, pd.DataFrame]:
         logger.warning("无未来 FOMC 会议")
         return pd.DataFrame(), pd.DataFrame()
 
-    # ── 拉取 ZQ 合约 ──
-    tickers = [_zq_ticker(m.year, m.month) for m in future]
-    settlements = _fetch_zq_settlements(tickers)
-
-    # ── 逐会议计算 ──
+    # ── 逐会议读取 ZQ 本地收盘 + 计算 ──
     rows: list[dict] = []
     zq_rows: list[dict] = []
 
     prev_post_rate = _range_midpoint(current_lo, current_hi)
 
     for meeting in future:
-        tkr = _zq_ticker(meeting.year, meeting.month)
-        settle = settlements.get(tkr)
-        if settle is None:
+        contract = _zq_label(meeting.year, meeting.month)
+        result = _read_zq_close(meeting.year, meeting.month)
+        if result is None:
             continue
+        settle, as_of = result
+        logger.info(
+            f"  {contract}: settle={settle:.4f} (as of {as_of})"
+            f" → implied={100 - settle:.4f}%"
+        )
 
         implied = round(100.0 - settle, 4)
         total_days = _days_in_month(meeting.year, meeting.month)
@@ -234,7 +197,7 @@ def fetch_rate_expectations() -> tuple[pd.DataFrame, pd.DataFrame]:
                 "meeting_date": (
                     f"{meeting.year}-{meeting.month:02d}-{meeting.end_day:02d}"
                 ),
-                "contract": tkr,
+                "contract": contract,
                 "settlement": settle,
                 "implied_rate": implied,
                 "post_meeting_rate": post_rate,
@@ -252,7 +215,7 @@ def fetch_rate_expectations() -> tuple[pd.DataFrame, pd.DataFrame]:
 
         zq_rows.append(
             {
-                "contract": tkr,
+                "contract": contract,
                 "month": f"{meeting.year}-{meeting.month:02d}",
                 "settlement": settle,
                 "implied_rate": implied,
@@ -287,7 +250,9 @@ if __name__ == "__main__":
     fomc_df, zq_df = fetch_rate_expectations()
 
     if fomc_df.empty:
-        print("无数据：所有 ZQ 合约拉取失败")
+        print(
+            "无数据：未读到 ZQ 本地数据，请先运行 ./bin/fetch_commodities --symbols ZQ"
+        )
         raise SystemExit(1)
 
     out_dir = ROOT / "data" / "rate_expectations"
