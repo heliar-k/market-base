@@ -37,11 +37,6 @@ from ..config import config
 # ---------------------------------------------------------------------------
 # 日志
 # ---------------------------------------------------------------------------
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s [%(levelname)s] %(message)s",
-    datefmt="%Y-%m-%d %H:%M:%S",
-)
 log = logging.getLogger("ibkr_fetch")
 
 
@@ -87,6 +82,41 @@ def get_last_date(df: pd.DataFrame) -> str | None:
     return str(last)
 
 
+def port_delay(connected_port: int | None) -> int:
+    """请求间隔（秒）：实盘 4001 日线无硬性 pacing，1s 安全；模拟盘用配置值。"""
+    if connected_port == 4001:
+        return 1
+    return config.ibkr.request_delay_seconds
+
+
+def connect_ib(client_id: int | None = None) -> tuple[IB, int]:
+    """连接 IB Gateway/TWS，依次尝试 4002 (paper) → 4001 (live/readonly)。
+    返回 (ib, connected_port)；全部失败则 sys.exit(1)。"""
+    ibkr_cfg = config.ibkr
+    if client_id is None:
+        client_id = random.randint(100, 9999)
+    ib = IB()
+    for port in [4002, 4001]:
+        readonly = port == 4001
+        try:
+            log.info("尝试 %s:%d (readonly=%s) ...", ibkr_cfg.host, port, readonly)
+            ib.connect(
+                ibkr_cfg.host, port, clientId=client_id, timeout=10, readonly=readonly
+            )
+            log.info("连接成功！端口 %d, readonly=%s", port, readonly)
+            return ib, port
+        except (ConnectionRefusedError, TimeoutError, OSError):
+            log.warning("端口 %d 不可用", port)
+            ib.disconnect()
+        except Exception as e:
+            log.warning("端口 %d 连接失败: %s", port, e)
+            ib.disconnect()
+    log.error("无法连接到 TWS/IB Gateway，请确认已启动并开启 API 端口")
+    log.error("  TWS 纸交易端口: 7497，实盘端口: 7496")
+    log.error("  IB Gateway 纸交易端口: 4002，实盘端口: 4001")
+    sys.exit(1)
+
+
 # ---------------------------------------------------------------------------
 # 核心拉取逻辑
 # ---------------------------------------------------------------------------
@@ -106,8 +136,7 @@ def fetch_single(
     all_bars = []
     end_dt = ""  # 空字符串 = 当前时间
     max_iterations = 5  # 防止无限循环
-    # 实盘 4001 日线无硬性 pacing（仅软限流），1s 间隔安全
-    delay = 1 if connected_port == 4001 else ibkr_cfg.request_delay_seconds
+    delay = port_delay(connected_port)
     duration = duration_override or ibkr_cfg.duration
 
     for i in range(max_iterations):
@@ -239,46 +268,9 @@ def main():
     # 连接 IB — 依次尝试 4002 (paper) → 4001 (live/readonly)
     client_id = args.client_id or random.randint(100, 9999)
     log.info(f"使用 clientId: {client_id}")
-    ib = IB()
-    ports_to_try = [4002, 4001]
-    connected_port = None
-    for port in ports_to_try:
-        readonly = port == 4001
-        try:
-            log.info(
-                "尝试 %s:%d (readonly=%s) ...",
-                ibkr_cfg.host,
-                port,
-                readonly,
-            )
-            ib.connect(
-                ibkr_cfg.host,
-                port,
-                clientId=client_id,
-                timeout=10,
-                readonly=readonly,
-            )
-            log.info("连接成功！端口 %d, readonly=%s", port, readonly)
-            connected_port = port
-            break
-        except (ConnectionRefusedError, TimeoutError):
-            log.warning("端口 %d 不可用", port)
-            ib.disconnect()
-        except OSError as e:
-            log.warning("端口 %d 连接失败: %s", port, e)
-            ib.disconnect()
-        except Exception as e:
-            log.warning("端口 %d 连接失败: %s", port, e)
-            ib.disconnect()
+    ib, connected_port = connect_ib(client_id)
 
-    if not connected_port:
-        log.error("无法连接到 TWS/IB Gateway，请确认已启动并开启 API 端口")
-        log.error("  TWS 纸交易端口: 7497，实盘端口: 7496")
-        log.error("  IB Gateway 纸交易端口: 4002，实盘端口: 4001")
-        sys.exit(1)
-
-    # 实盘日线无硬性 pacing（仅软限流），1s 间隔安全
-    inter_symbol_delay = 1 if connected_port == 4001 else ibkr_cfg.request_delay_seconds
+    inter_symbol_delay = port_delay(connected_port)
 
     if args.dry_run:
         log.info("--dry-run 模式，仅检查连接，退出")
@@ -354,4 +346,9 @@ def main():
 
 
 if __name__ == "__main__":
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s [%(levelname)s] %(message)s",
+        datefmt="%Y-%m-%d %H:%M:%S",
+    )
     main()

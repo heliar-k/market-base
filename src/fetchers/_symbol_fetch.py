@@ -15,41 +15,17 @@ from ..config import _to_legacy_dict as _to_ibkr_dict
 from ..config import config
 from .ibkr_fetcher import (
     bars_to_dataframe,
+    connect_ib,
     fetch_single,
     get_last_date,
     load_existing_data,
     make_contract,
+    port_delay,
     save_data,
 )
 from .yfinance_fetcher import fetch_ohlcv
 
 log = logging.getLogger("symbol_fetch")
-
-
-def _connect_ib(client_id: int) -> tuple[IB, int]:
-    """连接 IBKR，依次尝试 4002 → 4001。返回 (ib, port)。"""
-    ibkr_cfg = config.ibkr
-    ib = IB()
-    for port in [4002, 4001]:
-        readonly = port == 4001
-        try:
-            log.info("尝试 %s:%d (readonly=%s) ...", ibkr_cfg.host, port, readonly)
-            ib.connect(
-                ibkr_cfg.host, port, clientId=client_id, timeout=10, readonly=readonly
-            )
-            log.info("连接成功！端口 %d, readonly=%s", port, readonly)
-            return ib, port
-        except (ConnectionRefusedError, TimeoutError, OSError):
-            log.warning("端口 %d 不可用", port)
-            ib.disconnect()
-        except Exception as e:
-            log.warning("端口 %d 连接失败: %s", port, e)
-            ib.disconnect()
-
-    log.error("无法连接到 TWS/IB Gateway，请确认已启动并开启 API 端口")
-    log.error("  TWS 纸交易端口: 7497，实盘端口: 7496")
-    log.error("  IB Gateway 纸交易端口: 4002，实盘端口: 4001")
-    sys.exit(1)
 
 
 def _try_ibkr(
@@ -123,8 +99,8 @@ def run(symbol_configs, kind: str, args) -> None:
     client_id = getattr(args, "client_id", None) or random.randint(100, 9999)
     log.info(f"使用 clientId: {client_id}")
 
-    ib, connected_port = _connect_ib(client_id)
-    inter_symbol_delay = 3 if connected_port == 4001 else ibkr_cfg.request_delay_seconds
+    ib, connected_port = connect_ib(client_id)
+    inter_symbol_delay = port_delay(connected_port)
 
     if getattr(args, "dry_run", False):
         log.info("--dry-run 模式，仅检查连接，退出")

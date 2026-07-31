@@ -12,8 +12,6 @@ Fetch commodity futures OHLCV data from IBKR.
 
 import argparse
 import logging
-import random
-import sys
 import time
 from datetime import datetime
 from pathlib import Path
@@ -22,6 +20,7 @@ import pandas as pd
 from ib_insync import IB, Future, util
 
 from ..config import config
+from .ibkr_fetcher import connect_ib, port_delay
 
 log = logging.getLogger(__name__)
 
@@ -30,36 +29,6 @@ BAR_SIZE = config.ibkr.bar_size
 DURATION = config.ibkr.duration
 WHAT_TO_SHOW = config.ibkr.what_to_show
 USE_RTH = config.ibkr.use_rth
-REQUEST_DELAY = config.ibkr.request_delay_seconds
-
-
-def _connect(client_id: int | None = None) -> tuple[IB, int]:
-    """连接 IB Gateway/TWS，返回 (IB 实例, 连接的端口号)。尝试 4002→4001 回退。"""
-    host = config.ibkr.host
-    if client_id is None:
-        client_id = random.randint(100, 9999)
-
-    ib = IB()
-    ports_to_try = [4002, 4001]
-    for port in ports_to_try:
-        readonly = port == 4001
-        try:
-            log.info(
-                "尝试 %s:%d (readonly=%s, clientId=%s) ...",
-                host,
-                port,
-                readonly,
-                client_id,
-            )
-            ib.connect(host, port, clientId=client_id, timeout=10, readonly=readonly)
-            log.info("已连接 %s:%d (readonly=%s)", host, port, readonly)
-            return ib, port
-        except (ConnectionRefusedError, TimeoutError, OSError) as e:
-            log.warning("端口 %d 不可用: %s", port, e)
-            ib.disconnect()
-
-    log.error("无法连接到 TWS/IB Gateway，请确认已启动并开启 API 端口")
-    sys.exit(1)
 
 
 def _resolve_all_contracts(
@@ -163,12 +132,14 @@ def fetch_commodity_contracts(
     name: str,
     exchange: str,
     front_month_only: bool = False,
+    connected_port: int | None = None,
 ) -> None:
     """
     拉取单只品种的全部（或仅主力）合约数据并保存。
 
     Args:
         front_month_only: True 仅拉最近月合约
+        connected_port: 已连接的 IBKR 端口（决定请求间隔）
     """
     try:
         contracts = _resolve_all_contracts(ib, symbol, exchange)
@@ -215,7 +186,7 @@ def fetch_commodity_contracts(
             log.warning("      无数据")
 
         if i < len(target) - 1:
-            time.sleep(REQUEST_DELAY)
+            time.sleep(port_delay(connected_port))
 
 
 def fetch_all_commodities(
@@ -225,7 +196,7 @@ def fetch_all_commodities(
     client_id: int | None = None,
 ) -> None:
     """拉取所有配置的商品期货数据。"""
-    ib, connected_port = _connect(client_id)
+    ib, connected_port = connect_ib(client_id)
 
     if dry_run:
         log.info("--dry-run 模式，退出")
@@ -238,11 +209,12 @@ def fetch_all_commodities(
         if symbols is None or sym in symbols
     }
 
-    # 实盘流控更宽松
-    inter_commodity_delay = 3 if connected_port == 4001 else REQUEST_DELAY
+    inter_commodity_delay = port_delay(connected_port)
 
     for symbol, (name, exchange) in targets.items():
-        fetch_commodity_contracts(ib, symbol, name, exchange, front_month_only)
+        fetch_commodity_contracts(
+            ib, symbol, name, exchange, front_month_only, connected_port
+        )
         time.sleep(inter_commodity_delay)
 
     ib.disconnect()
