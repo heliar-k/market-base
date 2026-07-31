@@ -59,6 +59,7 @@ STOCKS: list[SymbolConfig] = [
     SymbolConfig(name="CRCL", exchange="SMART"),
     SymbolConfig(name="HOOD", exchange="SMART"),
     SymbolConfig(name="COIN", exchange="SMART"),
+    SymbolConfig(name="SNDK", exchange="SMART"),
     # ── 算力拥挤度观察（IBKR 不可用时 yfinance 回退）──
     SymbolConfig(name="005930", exchange="KSE", currency="KRW", yf_ticker="005930.KS"),
     SymbolConfig(name="000660", exchange="KSE", currency="KRW", yf_ticker="000660.KS"),

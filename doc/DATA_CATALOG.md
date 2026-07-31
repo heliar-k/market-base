@@ -75,7 +75,7 @@ FRED liquidity 分类的原始系列（由 `./bin/fetch_fred` 一并拉取）。
 
 ## 4. 股票日线 — `data/stocks/{SYMBOL}.csv`
 
-10 只股票，来源 IBKR。每日 `./bin/fetch_ibkr` 更新。
+20 只股票，来源 IBKR。每日 `./bin/fetch_ibkr` 更新。
 
 | 文件 | 品种 |
 |------|------|
@@ -87,6 +87,7 @@ FRED liquidity 分类的原始系列（由 `./bin/fetch_fred` 一并拉取）。
 | `MU.csv` | Micron |
 | `NVDA.csv` | NVIDIA |
 | `QQQ.csv` | Invesco QQQ ETF |
+| `SNDK.csv` | SanDisk (闪迪) |
 | `SPY.csv` | SPDR S&P 500 ETF |
 | `TSLA.csv` | Tesla |
 | `TSM.csv` | TSMC (台积电) |

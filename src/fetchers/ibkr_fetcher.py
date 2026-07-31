@@ -97,6 +97,7 @@ def fetch_single(
     ibkr_cfg,
     last_date: str | None,
     duration_override: str | None = None,
+    connected_port: int | None = None,
 ) -> list:
     """
     拉取单个品种的历史日线。
@@ -105,7 +106,8 @@ def fetch_single(
     all_bars = []
     end_dt = ""  # 空字符串 = 当前时间
     max_iterations = 5  # 防止无限循环
-    delay = ibkr_cfg.request_delay_seconds
+    # 实盘 4001 日线无硬性 pacing（仅软限流），1s 间隔安全
+    delay = 1 if connected_port == 4001 else ibkr_cfg.request_delay_seconds
     duration = duration_override or ibkr_cfg.duration
 
     for i in range(max_iterations):
@@ -275,8 +277,8 @@ def main():
         log.error("  IB Gateway 纸交易端口: 4002，实盘端口: 4001")
         sys.exit(1)
 
-    # 实盘流控更宽松，缩短跨品种延迟
-    inter_symbol_delay = 3 if connected_port == 4001 else ibkr_cfg.request_delay_seconds
+    # 实盘日线无硬性 pacing（仅软限流），1s 间隔安全
+    inter_symbol_delay = 1 if connected_port == 4001 else ibkr_cfg.request_delay_seconds
 
     if args.dry_run:
         log.info("--dry-run 模式，仅检查连接，退出")
@@ -330,6 +332,7 @@ def main():
                 ibkr_cfg,
                 last_date,
                 duration_override,
+                connected_port=connected_port,
             )
         except Exception as e:
             log.error(f"[{name}] 拉取失败: {e}")
