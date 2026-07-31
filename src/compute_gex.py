@@ -531,7 +531,8 @@ def main():
         oi_df = fetch_oi_yfinance(symbol, expirations)
 
     # IBKR Greeks 不可用 → 降级：用 yfinance IV 反推 BS gamma
-    if greeks_df.empty:
+    # 注意：IBKR 可能返回全 NaN gamma 的非空表（如盘前无行情），按有效 gamma 判断
+    if greeks_df.empty or greeks_df["gamma"].isna().all():
         if oi_df.empty:
             log.error("未获取到任何 Greeks 数据")
             sys.exit(1)
