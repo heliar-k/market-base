@@ -240,7 +240,7 @@ FRED liquidity 分类的原始系列（由 `./bin/fetch_fred` 一并拉取）。
 | 加密 | BTC |
 | 商品 | WTI、Brent、Gold、Silver、Copper |
 | 债券 ETF | TLT、HYG、LQD |
-| 韩股 | 005930（三星）、000660（SK 海力士） |
+| 韩股 | SAMSUNG（三星电子）、SKHYNIX（SK 海力士）——纯数字 KRX 代码用可读名，yf_ticker 保留 005930.KS/000660.KS |
 
 | 列名 | 说明 |
 |------|------|
