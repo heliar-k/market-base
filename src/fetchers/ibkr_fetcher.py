@@ -284,7 +284,8 @@ def resample_weekly(symbols: list[str] | None = None) -> None:
             )
             .dropna()
         )
-        out = base_dir / "bars" / "1w" / f"{name}.csv"
+        # 与分钟线一致：{NAME}_1w.csv 放在资产类型目录下
+        out = base_dir / subdir / f"{name}_1w.csv"
         out.parent.mkdir(parents=True, exist_ok=True)
         weekly.to_csv(out, encoding=config.ibkr.output_encoding)
         log.info(f"[{name}] 已生成周线: {out} ({len(weekly)} 条)")
@@ -317,6 +318,7 @@ def main():
         "15m": "15 mins",
         "1h": "1 hour",
         "4h": "4 hours",
+        "1w": "1 week",  # 仅占位，1w 分支提前 return，不连 IBKR
     }[args.bar_size]
 
     # 筛选品种
@@ -377,16 +379,14 @@ def main():
             log.error(f"[{name}] 合约创建失败: {e}")
             continue
 
-        # 输出目录: 日线 → data/stocks|indices，分钟线 → data/bars/{bar_size}
-        if args.bar_size == "1d":
-            subdir = "stocks" if sym["type"] == "stock" else "indices"
-        else:
-            subdir = Path("bars") / args.bar_size
+        # 输出目录统一按资产类型: 日线 → {NAME}.csv，其他周期 → {NAME}_{bar}.csv
+        subdir = "stocks" if sym["type"] == "stock" else "indices"
         output_dir = base_dir / subdir
         output_dir.mkdir(parents=True, exist_ok=True)
+        suffix = "" if args.bar_size == "1d" else f"_{args.bar_size}"
 
         # 检查本地已有数据
-        filepath = output_dir / f"{name}.csv"
+        filepath = output_dir / f"{name}{suffix}.csv"
         filepath = filepath.resolve()
         existing = load_existing_data(filepath)
         last_date = get_last_date(existing)

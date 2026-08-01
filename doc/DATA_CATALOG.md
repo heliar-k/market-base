@@ -228,17 +228,18 @@ FRED liquidity 分类的原始系列（由 `./bin/fetch_fred` 一并拉取）。
 
 ### upcoming_auctions.csv（未来拍卖日历，~93 条，全量覆盖）
 
-## 10b. 多周期 K 线 — `data/bars/{周期}/{SYMBOL}.csv`
+## 10b. 多周期 K 线 — 同目录后缀式 `{NAME}_{周期}.csv`
 
-派生数据（不入库，`./bin/fetch_ibkr` 时重建）：
+与日线同目录（`data/stocks/` / `data/indices/`），周期为文件名后缀：
 
-| 周期 | 来源 | 说明 |
+| 文件 | 来源 | 说明 |
 |---|---|---|
-| `5m` / `15m` / `1h` / `4h` | IBKR 分钟线（需 TWS） | 含 UTC 时间戳，深度受 IBKR 限制（实测 5m 可拉 ~1.5 年） |
-| `1w` | 本地日线重采样（W-FRI，无需 TWS） | `open/high/low/close/volume`，周五截止 |
+| `AAPL_5m.csv` / `_15m` / `_1h` / `_4h` | IBKR 分钟线（需 TWS） | 含 UTC 时间戳，深度受 IBKR 限制（实测 5m 可拉 ~1.5 年） |
+| `AAPL_1w.csv` | 本地日线重采样（W-FRI，无需 TWS） | `open/high/low/close/volume`，周五截止 |
+| `AAPL.csv` | 日线（无后缀，保持兼容） | TUI/analyze 读取路径不变 |
 
 ```bash
-./bin/fetch_ibkr --bar-size 5m --symbols AAPL   # 分钟线
+./bin/fetch_ibkr --bar-size 5m --symbols AAPL   # 分钟线（增量，只补新 bar）
 ./bin/fetch_ibkr --bar-size 1w                  # 周线（全部品种，无需 TWS）
 ```
 
