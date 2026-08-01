@@ -228,6 +228,20 @@ FRED liquidity 分类的原始系列（由 `./bin/fetch_fred` 一并拉取）。
 
 ### upcoming_auctions.csv（未来拍卖日历，~93 条，全量覆盖）
 
+## 11. yfinance 资产价格快照 — `data/yfinance/asset_prices.csv`
+
+拉取日为 key 的日频快照（每日一行，同日期覆盖），GitHub Actions 每日自动拉取。
+需要 SOCKS5 代理（本地）；Actions 无代理环境用 `YF_NO_PROXY=1` 直连。
+
+| 类别 | 品种 |
+|---|---|
+| 指数 | SPX、NDX、RUT、DJI、SOX、N225（日经）、KOSPI、NIFTY、SSE（上证）、SZSE（深证） |
+| 汇率 | DXY、USDJPY（美元兑日元）、USDCNY（美元兑人民币） |
+| 加密 | BTC |
+| 商品 | WTI、Brent、Gold、Silver、Copper |
+| 债券 ETF | TLT、HYG、LQD |
+| 韩股 | 005930（三星）、000660（SK 海力士） |
+
 | 列名 | 说明 |
 |------|------|
 | `security_type` | 券种 |

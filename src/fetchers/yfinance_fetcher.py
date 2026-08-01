@@ -101,8 +101,13 @@ def _fetch_ticker(ticker: str, name: str) -> DataPoint:
         if hist.empty:
             dp.mark_error("No data returned from yfinance")
             return dp
-        close = hist["Close"].iloc[-1]
-        ts = hist.index[-1].to_pydatetime()
+        # 最后一行可能为 NaN（亚洲指数数据延迟/时区错位）→ 取最近有效收盘
+        close_series = hist["Close"].dropna()
+        if close_series.empty:
+            dp.mark_error("No valid close in yfinance data")
+            return dp
+        close = close_series.iloc[-1]
+        ts = hist.loc[close_series.index[-1]].name
         dp.value = round(float(close), 4)
         dp.as_of = ts.strftime("%Y-%m-%d")
         dp.mark_ok()

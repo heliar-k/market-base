@@ -285,6 +285,13 @@ YF_TICKERS = {
     "HYG": "HYG",
     "LQD": "LQD",
     "SOX": "^SOX",
+    "N225": "^N225",
+    "KOSPI": "^KS11",
+    "NIFTY": "^NSEI",
+    "SSE": "000001.SS",
+    "SZSE": "399001.SZ",
+    "USDJPY": "JPY=X",  # 1 美元兑日元
+    "USDCNY": "CNY=X",  # 1 美元兑人民币
     "005930": "005930.KS",
     "000660": "000660.KS",
 }
