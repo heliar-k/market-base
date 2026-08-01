@@ -9,6 +9,7 @@ repos:
       - id: pretty-format-json
         args: [--autofix, --no-sort-keys]
       - id: check-added-large-files
+        args: [--maxkb=10240]  # 分钟线 CSV 单品种可达数 MB，放宽到 10MB
       - id: check-ast
 
   - repo: https://github.com/astral-sh/ruff-pre-commit

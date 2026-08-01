@@ -251,6 +251,7 @@ FRED liquidity 分类的原始系列（由 `./bin/fetch_fred` 一并拉取）。
 |---|---|
 | 指数 | SPX、NDX、RUT、DJI、SOX、N225（日经）、KOSPI、NIFTY、SSE（上证）、SZSE（深证） |
 | 汇率 | DXY、USDJPY（美元兑日元）、USDCNY（美元兑人民币） |
+| 波动率 | MOVE（美林国债期权波动率，债市 VIX） |
 | 加密 | BTC |
 | 商品 | WTI、Brent、Gold、Silver、Copper |
 | 债券 ETF | TLT、HYG、LQD |

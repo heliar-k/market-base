@@ -276,6 +276,7 @@ YF_TICKERS = {
     "RUT": "^RUT",
     "DJI": "^DJI",
     "DXY": "DX-Y.NYB",
+    "MOVE": "^MOVE",  # 美林国债期权波动率指数（债市 VIX）
     "BTC": "BTC-USD",
     "WTI": "CL=F",
     "Brent": "BZ=F",
