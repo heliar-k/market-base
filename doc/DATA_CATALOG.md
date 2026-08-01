@@ -228,6 +228,20 @@ FRED liquidity 分类的原始系列（由 `./bin/fetch_fred` 一并拉取）。
 
 ### upcoming_auctions.csv（未来拍卖日历，~93 条，全量覆盖）
 
+## 10b. 多周期 K 线 — `data/bars/{周期}/{SYMBOL}.csv`
+
+派生数据（不入库，`./bin/fetch_ibkr` 时重建）：
+
+| 周期 | 来源 | 说明 |
+|---|---|---|
+| `5m` / `15m` / `1h` / `4h` | IBKR 分钟线（需 TWS） | 含 UTC 时间戳，深度受 IBKR 限制（实测 5m 可拉 ~1.5 年） |
+| `1w` | 本地日线重采样（W-FRI，无需 TWS） | `open/high/low/close/volume`，周五截止 |
+
+```bash
+./bin/fetch_ibkr --bar-size 5m --symbols AAPL   # 分钟线
+./bin/fetch_ibkr --bar-size 1w                  # 周线（全部品种，无需 TWS）
+```
+
 ## 11. yfinance 资产价格快照 — `data/yfinance/asset_prices.csv`
 
 拉取日为 key 的日频快照（每日一行，同日期覆盖），GitHub Actions 每日自动拉取。

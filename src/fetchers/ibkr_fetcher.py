@@ -128,16 +128,20 @@ def fetch_single(
     last_date: str | None,
     duration_override: str | None = None,
     connected_port: int | None = None,
+    bar_size: str | None = None,
 ) -> list:
     """
-    拉取单个品种的历史日线。
-    每次请求最多约 1 年日线，超过则分多次请求。
+    拉取单个品种的历史 K 线（日线/分钟线）。
+    每次请求最多约 1000 条，超过则分多次请求回溯。
     """
     all_bars = []
     end_dt = ""  # 空字符串 = 当前时间
-    max_iterations = 5  # 防止无限循环
+    max_iterations = 10  # 防止无限循环
     delay = port_delay(connected_port)
+    bar_size = bar_size or ibkr_cfg.bar_size
     duration = duration_override or ibkr_cfg.duration
+    # 分钟线必须带时间戳（formatDate=2），日线用 yyyyMMdd 即可
+    format_date = 1 if bar_size == "1 day" else 2
 
     for i in range(max_iterations):
         try:
@@ -145,10 +149,10 @@ def fetch_single(
                 contract,
                 endDateTime=end_dt,
                 durationStr=duration,
-                barSizeSetting=ibkr_cfg.bar_size,
+                barSizeSetting=bar_size,
                 whatToShow=ibkr_cfg.what_to_show,
                 useRTH=ibkr_cfg.use_rth,
-                formatDate=1,  # yyyyMMdd
+                formatDate=format_date,  # 2 = yyyyMMdd HH:mm:ss（分钟线必需）
             )
         except Exception as e:
             log.error(f"[{sym_name}] 第 {i + 1} 次请求失败: {e}")
@@ -165,7 +169,8 @@ def fetch_single(
 
         # 过滤掉已有数据，只保留新数据（date > last_date）
         if last_date:
-            last_dt = datetime.strptime(last_date, "%Y%m%d-%H:%M:%S").date()
+            # 完整时间戳比较（日线 bar 为当日零点，分钟线为精确时间）
+            last_dt = datetime.strptime(last_date, "%Y%m%d-%H:%M:%S")
             new_bars = [b for b in bars if b.date > last_dt]
             if not new_bars:
                 log.info(f"[{sym_name}] 均已是最新数据，无需增量")
@@ -236,23 +241,87 @@ def save_data(df: pd.DataFrame, filepath: Path, encoding: str = "utf-8"):
 # ---------------------------------------------------------------------------
 # 入口
 # ---------------------------------------------------------------------------
+# 分钟线历史深度受 IBKR 限制（超长需多次回溯，保守值即可）
+BAR_MAX_DURATION = {
+    "5m": "60 D",
+    "15m": "90 D",
+    "1h": "120 D",
+    "4h": "180 D",
+}
+
+
+def resample_weekly(symbols: list[str] | None = None) -> None:
+    """从已有日线 CSV 重采样周线（周五截止），无需连接 IBKR。"""
+    script_dir = Path(__file__).resolve().parent
+    project_root = script_dir.parent.parent
+    base_dir = project_root / config.ibkr.output_dir
+    if symbols:
+        wanted = set(s.upper() for s in symbols)
+    else:
+        wanted = None
+    for sym in config.ibkr_symbols:
+        name = sym["name"]
+        if wanted and name not in wanted:
+            continue
+        subdir = "stocks" if sym["type"] == "stock" else "indices"
+        src = base_dir / subdir / f"{name}.csv"
+        if not src.exists():
+            log.warning(f"[{name}] 无日线数据 {src}，跳过")
+            continue
+        df = load_existing_data(src)
+        if df.empty:
+            continue
+        weekly = (
+            df.resample("W-FRI")
+            .agg(
+                {
+                    "open": "first",
+                    "high": "max",
+                    "low": "min",
+                    "close": "last",
+                    "volume": "sum",
+                }
+            )
+            .dropna()
+        )
+        out = base_dir / "bars" / "1w" / f"{name}.csv"
+        out.parent.mkdir(parents=True, exist_ok=True)
+        weekly.to_csv(out, encoding=config.ibkr.output_encoding)
+        log.info(f"[{name}] 已生成周线: {out} ({len(weekly)} 条)")
+
+
 def main():
-    parser = argparse.ArgumentParser(description="IBKR 日线 K 线数据拉取")
+    parser = argparse.ArgumentParser(
+        description="IBKR K 线数据拉取（日线/分钟线/周线）"
+    )
     parser.add_argument(
         "--symbols", help="逗号分隔的品种名称，如 SPX,AAPL（不指定则拉全部）"
     )
     parser.add_argument(
         "--days", type=int, help="拉取最近 N 天数据（覆盖配置中的 duration）"
     )
+    parser.add_argument(
+        "--bar-size",
+        choices=["1d", "5m", "15m", "1h", "4h", "1w"],
+        default="1d",
+        help="K 线周期；1w 从本地日线重采样生成（无需 TWS），其余需 IBKR",
+    )
     parser.add_argument("--dry-run", action="store_true", help="仅检查连接，不拉取数据")
     parser.add_argument("--client-id", type=int, help="指定 clientId（默认随机生成）")
     args = parser.parse_args()
 
     ibkr_cfg = config.ibkr
-    duration_override = f"{args.days} D" if args.days else None
+    bar_size = {
+        "1d": "1 day",
+        "5m": "5 mins",
+        "15m": "15 mins",
+        "1h": "1 hour",
+        "4h": "4 hours",
+    }[args.bar_size]
 
     # 筛选品种
     all_symbols = config.ibkr_symbols
+    requested = None
     if args.symbols:
         requested = set(s.strip().upper() for s in args.symbols.split(","))
         symbols = [s for s in all_symbols if s["name"] in requested]
@@ -262,7 +331,18 @@ def main():
     else:
         symbols = all_symbols
 
+    # 周线：纯本地重采样，不连 IBKR
+    if args.bar_size == "1w":
+        resample_weekly(list(requested) if requested else None)
+        return
+
+    duration_override = (
+        f"{args.days} D" if args.days else BAR_MAX_DURATION.get(args.bar_size)
+    )
     log.info(f"待拉取品种: {[s['name'] for s in symbols]}")
+    log.info(
+        f"K 线周期: {bar_size}，duration: {duration_override or ibkr_cfg.duration}"
+    )
     log.info(f"TWS 地址: {ibkr_cfg.host}:{ibkr_cfg.port}")
 
     # 连接 IB — 依次尝试 4002 (paper) → 4001 (live/readonly)
@@ -297,8 +377,11 @@ def main():
             log.error(f"[{name}] 合约创建失败: {e}")
             continue
 
-        # 按品种类型分目录: stock → data/stocks, index → data/indices
-        subdir = "stocks" if sym["type"] == "stock" else "indices"
+        # 输出目录: 日线 → data/stocks|indices，分钟线 → data/bars/{bar_size}
+        if args.bar_size == "1d":
+            subdir = "stocks" if sym["type"] == "stock" else "indices"
+        else:
+            subdir = Path("bars") / args.bar_size
         output_dir = base_dir / subdir
         output_dir.mkdir(parents=True, exist_ok=True)
 
@@ -325,6 +408,7 @@ def main():
                 last_date,
                 duration_override,
                 connected_port=connected_port,
+                bar_size=bar_size,
             )
         except Exception as e:
             log.error(f"[{name}] 拉取失败: {e}")

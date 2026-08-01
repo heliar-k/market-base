@@ -19,3 +19,5 @@ TAGS
 # TUI 指标缓存（parquet 派生产物）
 data/cache/
 data/gex/
+# 分钟线/周线 K 线（高频派生数据，体积大，fetch 时重建，不入库）
+data/bars/
