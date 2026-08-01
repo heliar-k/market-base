@@ -1,10 +1,14 @@
 #!/bin/bash
-# 每日全量数据拉取 cron 入口
-# 依次调用 bin/fetch_* 拉取 IBKR/FRED/CBOE/yfinance/期货/期权数据。
-# 单个 fetch 失败不阻断后续——IBKR/options 依赖 TWS 可能失败，不应拖垮纯 API 拉取。
-# 要单独拉某个品种请直接用 ./bin/fetch_xxx。
+# 每日全量数据拉取 cron 入口（本地）
 #
-# crontab 示例（每个交易日美股收盘后执行，北京时间 05:00）:
+# ⚠️ 分工（2026-08 起）：不依赖 IBKR 的纯 API 数据源（fred/cboe/shapiro/sce/
+# treasury/yfinance）已由 GitHub Actions daily-fetch 每日北京时间 05:00 自动拉取
+# 并 commit + push，本地 git pull 即得——不需要跑本脚本。
+# 本脚本仅当需要拉取 IBKR 依赖数据（ibkr/options/commodities/指数/韩股等）时
+# 手动执行，执行前先启动 TWS 或 IB Gateway（4001 实盘 / 4002 模拟）。
+#
+# 手动触发 Actions：gh workflow run daily-fetch.yml
+# 历史 crontab 示例（已过时，勿用）:
 #   0 5 * * 1-5 cd /Users/guankai/Documents/ticker-toolkit && bash src/run_fetch.sh >> logs/cron.log 2>&1
 
 PROJECT_DIR="$(cd "$(dirname "$0")/.." && pwd)"

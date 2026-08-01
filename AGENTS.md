@@ -82,6 +82,18 @@ ticker-toolkit/
 
 ## 常用命令
 
+### 数据更新方式（重要）
+
+**每日自动（无需本地操作）**：GitHub Actions `daily-fetch` workflow 每个交易日
+北京时间 05:00 自动拉取**不依赖 IBKR/TWS** 的数据源并 commit + push，本地 `git pull` 即得：
+`fred` / `cboe` / `shapiro` / `sce` / `treasury` / `yfinance`（17 品种资产快照）。
+
+**本地手动（先启动 TWS 或 IB Gateway，端口 4001 实盘 / 4002 模拟）**：只有依赖 IBKR 的才需要本地跑：
+`ibkr` / `options` / `commodities` / `index` / `stock` / `rate_expectations`（ZQ 期货来自 commodities）。
+
+> 别一上来就全部本地拉取——纯 API 部分 Actions 已经跑过了，本地只补 IBKR 部分。
+> 手动触发 Actions：`gh workflow run daily-fetch.yml` 或 GitHub Actions 页面点 Run workflow。
+
 ```bash
 # 数据拉取（bin/ 下的 shell 脚本内部已用 uv run，直接执行即可）
 ./bin/fetch_ibkr                    # 全部股票 + 指数日线
