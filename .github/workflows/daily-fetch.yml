@@ -1,0 +1,49 @@
+name: daily-fetch
+
+# 每日自动拉取不依赖 IBKR 的数据源（美股收盘后，北京 05:00 = UTC 21:00）
+# 产出自动 commit + push，本地 pull 即得最新数据。
+# 依赖 IBKR 的 fetchers（ibkr/options/commodities/index/stock/rate_expectations）
+# 不在 Actions 跑——需要 TWS 实盘连接，仍由本地 cron 负责。
+
+on:
+  schedule:
+    - cron: "0 21 * * 1-5"   # 周一~五 UTC 21:00（北京周二~六 05:00，覆盖周一~五美股收盘）
+  workflow_dispatch: {}       # 支持手动触发
+
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install deps
+        run: uv sync
+
+      - name: Fetch non-IBKR data sources
+        env:
+          FRED_API_KEY: ${{ secrets.FRED_API_KEY }}
+          YF_NO_PROXY: "1"        # Actions 无 socks5 代理，yfinance 直连
+        run: |
+          set +e  # 单个失败不阻断
+          for f in fetch_fred fetch_cboe fetch_shapiro fetch_sce fetch_treasury fetch_yfinance; do
+            echo "===== START $f ====="
+            bash "bin/$f" || echo "===== FAIL  $f ====="
+          done
+
+      - name: Commit and push updates
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add data/
+          if git diff --cached --quiet; then
+            echo "no data changes, skip commit"
+          else
+            git commit -m "data: daily auto-fetch ($(date -u +%F))"
+            git push
+          fi

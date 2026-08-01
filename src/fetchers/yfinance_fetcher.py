@@ -19,8 +19,12 @@ from .quality import DataPoint, QAStatus
 logger = logging.getLogger(__name__)
 
 # ── 代理设置：必须在 import yfinance 前执行 ──────────────────────────────
-# ponytail: .env 没配代理时兜底用项目默认值
-_PROXY_URL = config.https_proxy or "socks5://127.0.0.1:7890"
+# YF_NO_PROXY=1（GitHub Actions 无代理环境）：跳过代理设置，直连 Yahoo。
+# 兜底：.env 没配代理时用项目默认值
+if os.environ.get("YF_NO_PROXY"):
+    _PROXY_URL = ""
+else:
+    _PROXY_URL = config.https_proxy or "socks5://127.0.0.1:7890"
 os.environ.setdefault("HTTPS_PROXY", _PROXY_URL)
 os.environ.setdefault("HTTP_PROXY", _PROXY_URL)
 
