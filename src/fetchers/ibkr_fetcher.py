@@ -33,6 +33,7 @@ import pandas as pd
 from ib_insync import IB, Index, Stock, util
 
 from ..config import config
+from .yfinance_fetcher import yf_minute_bars  # noqa: E402 模块级代理已设置
 
 # ---------------------------------------------------------------------------
 # 日志
@@ -250,40 +251,29 @@ BAR_MAX_DURATION = {
 }
 
 
-def _yf_minute_bars(ticker: str, bar_size: str) -> pd.DataFrame:
-    """yfinance 分钟线回退（IBKR 无权限品种如韩股 KSE）。
-
-    Returns 与 bars_to_dataframe 同构的 DataFrame（open/high/low/close/volume，
-    index 为带时区 datetime）。
-    """
-    # 代理必须先于 import yfinance（直连会被 Yahoo 限流）
-    from src.fetchers.yfinance_fetcher import ensure_yf_proxy
-
-    try:
-        ensure_yf_proxy()
-    except ConnectionError as e:
-        log.warning(f"yfinance 代理不可达，跳过回退: {e}")
-        return pd.DataFrame()
-    import yfinance as yf
-
-    interval = {"5m": "5m", "15m": "15m", "1h": "60m", "4h": "4h"}[bar_size]
-    period = {"5m": "60d", "15m": "60d", "1h": "730d", "4h": "730d"}[bar_size]
-    h = yf.Ticker(ticker).history(period=period, interval=interval)
-    if h.empty:
-        return pd.DataFrame()
-    df = h.rename(
-        columns={
-            "Open": "open",
-            "High": "high",
-            "Low": "low",
-            "Close": "close",
-            "Volume": "volume",
-        }
-    )
-    df.index = pd.to_datetime(df.index)
-    df.index.name = "date"
-    keep = [c for c in ["open", "high", "low", "close", "volume"] if c in df.columns]
-    return df[keep]
+def yf_only_fetch(symbols: list, bar_size: str) -> None:
+    """仅 yfinance 拉取（--yf-only，无需 TWS；韩股等 IBKR 无权限品种）。"""
+    script_dir = Path(__file__).resolve().parent
+    project_root = script_dir.parent.parent
+    base_dir = project_root / config.ibkr.output_dir
+    total = 0
+    for sym in symbols:
+        if not sym.get("yf_ticker"):
+            log.info(f"[{sym['name']}] 无 yf_ticker，跳过")
+            continue
+        subdir = "stocks" if sym["type"] == "stock" else "indices"
+        filepath = base_dir / subdir / f"{sym['name']}_{bar_size}.csv"
+        existing = load_existing_data(filepath)
+        df = yf_minute_bars(sym["yf_ticker"], bar_size)
+        if not existing.empty and not df.empty:
+            df = df[df.index > existing.index.max()]
+        if df.empty:
+            log.info(f"[{sym['name']}] 无新数据")
+            continue
+        save_data(df, filepath, config.ibkr.output_encoding)
+        total += len(df)
+        log.info(f"[{sym['name']}] 新增 {len(df)} 条")
+    log.info(f"yf-only 完成，共新增 {total} 条")
 
 
 def resample_weekly(symbols: list[str] | None = None) -> None:
@@ -343,6 +333,11 @@ def main():
         default="1d",
         help="K 线周期；1w 从本地日线重采样生成（无需 TWS），其余需 IBKR",
     )
+    parser.add_argument(
+        "--yf-only",
+        action="store_true",
+        help="仅 yfinance 拉取（无需 TWS，韩股等 IBKR 无权限品种）",
+    )
     parser.add_argument("--dry-run", action="store_true", help="仅检查连接，不拉取数据")
     parser.add_argument("--client-id", type=int, help="指定 clientId（默认随机生成）")
     args = parser.parse_args()
@@ -372,6 +367,11 @@ def main():
     # 周线：纯本地重采样，不连 IBKR
     if args.bar_size == "1w":
         resample_weekly(list(requested) if requested else None)
+        return
+
+    # yf-only：仅 yfinance，不连 IBKR
+    if args.yf_only:
+        yf_only_fetch(symbols, args.bar_size)
         return
 
     duration_override = (
@@ -461,7 +461,7 @@ def main():
         elif sym.get("yf_ticker"):
             # IBKR 无权限（如韩股 KSE）→ yfinance 回退
             log.warning(f"[{name}] IBKR 无数据，回退 yfinance {sym['yf_ticker']}")
-            df = _yf_minute_bars(sym["yf_ticker"], args.bar_size)
+            df = yf_minute_bars(sym["yf_ticker"], args.bar_size)
             if not existing.empty and not df.empty:
                 df = df[df.index > existing.index.max()]
             if df.empty:

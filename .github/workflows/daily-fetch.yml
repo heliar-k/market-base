@@ -37,6 +37,15 @@ jobs:
             bash "bin/$f" || echo "===== FAIL  $f ====="
           done
 
+      - name: Fetch KR stock minute bars (yfinance, no TWS)
+        env:
+          YF_NO_PROXY: "1"
+        run: |
+          set +e
+          for bs in 5m 15m 1h 4h; do
+            uv run python -m src.fetchers.ibkr_fetcher --bar-size $bs --yf-only --symbols SAMSUNG,SKHYNIX
+          done
+
       - name: Commit and push updates
         run: |
           git config user.name "github-actions[bot]"

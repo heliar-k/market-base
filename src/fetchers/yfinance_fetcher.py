@@ -88,6 +88,32 @@ def fetch_ohlcv(ticker: str, period: str = "2y") -> pd.DataFrame:
     return df[keep].sort_index()
 
 
+def yf_minute_bars(ticker: str, interval: str) -> pd.DataFrame:
+    """yfinance 分钟线 OHLCV（韩股等 IBKR 无权限品种的回退源）。
+
+    interval: "5m" | "15m" | "1h" | "4h"（深度：5m/15m 60 天，1h/4h 2 年）
+    Returns 与 ibkr bars_to_dataframe 同构（open/high/low/close/volume，
+    index 为带时区 datetime）。模块级代理已设置，无需额外处理。
+    """
+    period = {"5m": "60d", "15m": "60d", "1h": "730d", "4h": "730d"}[interval]
+    h = yf.Ticker(ticker).history(period=period, interval=interval)
+    if h.empty:
+        return pd.DataFrame()
+    df = h.rename(
+        columns={
+            "Open": "open",
+            "High": "high",
+            "Low": "low",
+            "Close": "close",
+            "Volume": "volume",
+        }
+    )
+    df.index = pd.to_datetime(df.index)
+    df.index.name = "date"
+    keep = [c for c in ["open", "high", "low", "close", "volume"] if c in df.columns]
+    return df[keep]
+
+
 def _fetch_ticker(ticker: str, name: str) -> DataPoint:
     """Fetch a single yfinance ticker and return a DataPoint."""
     dp = DataPoint(
