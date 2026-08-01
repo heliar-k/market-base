@@ -256,6 +256,14 @@ def _yf_minute_bars(ticker: str, bar_size: str) -> pd.DataFrame:
     Returns 与 bars_to_dataframe 同构的 DataFrame（open/high/low/close/volume，
     index 为带时区 datetime）。
     """
+    # 代理必须先于 import yfinance（直连会被 Yahoo 限流）
+    from src.fetchers.yfinance_fetcher import ensure_yf_proxy
+
+    try:
+        ensure_yf_proxy()
+    except ConnectionError as e:
+        log.warning(f"yfinance 代理不可达，跳过回退: {e}")
+        return pd.DataFrame()
     import yfinance as yf
 
     interval = {"5m": "5m", "15m": "15m", "1h": "60m", "4h": "4h"}[bar_size]
