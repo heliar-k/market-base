@@ -21,6 +21,7 @@ jobs:
       - uses: astral-sh/setup-uv@v9.0.0
         with:
           python-version: "3.13"
+          enable-cache: false  # uv.lock 不入库，缓存永远无法命中 → 关闭避免警告
 
       - name: Install deps
         run: uv sync
