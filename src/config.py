@@ -62,8 +62,20 @@ STOCKS: list[SymbolConfig] = [
     SymbolConfig(name="SNDK", exchange="SMART"),
     # ── 算力拥挤度观察（IBKR 不可用时 yfinance 回退）──
     # 韩股/中概等纯数字代码用可读名（SAMSUNG/SKHYNIX），yf_ticker 保留原始代码
-    SymbolConfig(name="SAMSUNG", exchange="KSE", currency="KRW", yf_ticker="005930.KS"),
-    SymbolConfig(name="SKHYNIX", exchange="KSE", currency="KRW", yf_ticker="000660.KS"),
+    SymbolConfig(
+        name="SAMSUNG",
+        exchange="KSE",
+        currency="KRW",
+        ibkr_symbol="005930",
+        yf_ticker="005930.KS",
+    ),
+    SymbolConfig(
+        name="SKHYNIX",
+        exchange="KSE",
+        currency="KRW",
+        ibkr_symbol="000660",
+        yf_ticker="000660.KS",
+    ),
 ]
 
 # ── 指数 ──

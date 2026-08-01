@@ -250,6 +250,34 @@ BAR_MAX_DURATION = {
 }
 
 
+def _yf_minute_bars(ticker: str, bar_size: str) -> pd.DataFrame:
+    """yfinance 分钟线回退（IBKR 无权限品种如韩股 KSE）。
+
+    Returns 与 bars_to_dataframe 同构的 DataFrame（open/high/low/close/volume，
+    index 为带时区 datetime）。
+    """
+    import yfinance as yf
+
+    interval = {"5m": "5m", "15m": "15m", "1h": "60m", "4h": "4h"}[bar_size]
+    period = {"5m": "60d", "15m": "60d", "1h": "730d", "4h": "730d"}[bar_size]
+    h = yf.Ticker(ticker).history(period=period, interval=interval)
+    if h.empty:
+        return pd.DataFrame()
+    df = h.rename(
+        columns={
+            "Open": "open",
+            "High": "high",
+            "Low": "low",
+            "Close": "close",
+            "Volume": "volume",
+        }
+    )
+    df.index = pd.to_datetime(df.index)
+    df.index.name = "date"
+    keep = [c for c in ["open", "high", "low", "close", "volume"] if c in df.columns]
+    return df[keep]
+
+
 def resample_weekly(symbols: list[str] | None = None) -> None:
     """从已有日线 CSV 重采样周线（周五截止），无需连接 IBKR。"""
     script_dir = Path(__file__).resolve().parent
@@ -422,6 +450,18 @@ def main():
             new_count = len(df)
             total_new += new_count
             log.info(f"[{name}] 新增 {new_count} 条")
+        elif sym.get("yf_ticker"):
+            # IBKR 无权限（如韩股 KSE）→ yfinance 回退
+            log.warning(f"[{name}] IBKR 无数据，回退 yfinance {sym['yf_ticker']}")
+            df = _yf_minute_bars(sym["yf_ticker"], args.bar_size)
+            if not existing.empty and not df.empty:
+                df = df[df.index > existing.index.max()]
+            if df.empty:
+                log.warning(f"[{name}] yfinance 回退也无新数据")
+            else:
+                save_data(df, filepath, ibkr_cfg.output_encoding)
+                total_new += len(df)
+                log.info(f"[{name}] yfinance 回退新增 {len(df)} 条")
         else:
             log.info(f"[{name}] 无新数据")
 
