@@ -184,6 +184,7 @@ FRED_SERIES = {
         "RRPONTSYD": "RRPONTSYD",
         "WTREGEN": "WTREGEN",
         "WRESBAL": "WRESBAL",
+        "WRBWFRBL": "WRBWFRBL",
         "WALCL": "WALCL",
         "TREAST": "TREAST",
         "WSHOMCB": "WSHOMCB",
