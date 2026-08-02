@@ -128,6 +128,23 @@ FRED liquidity 分类的原始系列（由 `./bin/fetch_fred` 一并拉取）。
 
 ---
 
+## 3c. CFETS 外汇掉期点 — `data/fred/liquidity/cfets_swap_points.csv`
+
+来源中国外汇交易中心 CFETS 外汇掉期曲线（官方、免费、无 key），由 `./bin/fetch_cfets` 拉取：
+每日观测日 upsert（交易日 16:30 发布，17:00 可查；当天重跑同日期覆盖）。
+
+| 列名 | 说明 | 单位 |
+|------|------|------|
+| `{PAIR}_{TENOR}`（EURUSD/USDJPY/GBPUSD/AUDUSD/USDHKD × 1W/1M/3M/6M/1Y） | 外汇掉期点 | pips（1 pip = 0.0001） |
+
+> 掉期点 = 远期汇率 − 即期汇率（以 pip 计），负值表示外币相对美元贴水。
+> 覆盖 5 个外币对（timsun global-dollar 页面的 USD/JPY、EUR/USD、GBP/USD 在内）；
+> USD/CNH（离岸）与 USD/CHF 不在 CFETS 范围（页面亦标注“暂未覆盖”）。
+> 注意：本 fetcher 绕过本地 SOCKS5 代理直连（chinamoney TLS 为 legacy renegotiation，
+> 走代理握手失败），Actions 环境不受影响。
+
+---
+
 ## 4. 股票日线 — `data/stocks/{SYMBOL}.csv`
 
 20 只股票，来源 IBKR。每日 `./bin/fetch_ibkr` 更新。
