@@ -186,7 +186,7 @@ FRED_SERIES = {
         "WRESBAL": "WRESBAL",
         "WALCL": "WALCL",
         "TREAST": "TREAST",
-        "MORTGAGE": "MORTGAGE",
+        "WSHOMCB": "WSHOMCB",
     },
     "sentiment": {
         "UMCSENT": "UMCSENT",
