@@ -188,6 +188,7 @@ FRED_SERIES = {
         "WALCL": "WALCL",
         "TREAST": "TREAST",
         "WSHOMCB": "WSHOMCB",
+        "SWPT": "SWPT",
     },
     "sentiment": {
         "UMCSENT": "UMCSENT",
