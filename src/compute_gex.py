@@ -32,6 +32,7 @@ from src.fetchers.ibkr_fetcher import (
     connect_ib,
     get_option_chain_params,
 )
+from src.pricing import aggregate_wall, fetch_yf_chain
 
 logging.basicConfig(
     level=logging.INFO,
@@ -176,59 +177,8 @@ def fetch_options_greeks(ib, symbol, expirations, strikes, batch_size=3):
 
 
 # ============================================================================
-# 2. yfinance OI 获取
+# 2. yfinance 降级（BS gamma 反推）
 # ============================================================================
-def fetch_oi_yfinance(symbol, expirations, proxy="socks5://127.0.0.1:7890"):
-    """
-    从 yfinance 获取期权 OI。
-    返回 DataFrame: [expiration, strike, right, openInterest, volume, impliedVolatility]
-    """
-    from src.fetchers.yfinance_fetcher import ensure_yf_proxy
-
-    ensure_yf_proxy()
-    import yfinance as yf  # noqa: E402
-
-    log.info(f"从 yfinance 拉取 {symbol} OI...")
-
-    ticker = yf.Ticker(symbol)
-    results = []
-    for exp in expirations:
-        # yfinance 需要的日期格式: YYYY-MM-DD
-        exp_fmt = f"{exp[:4]}-{exp[4:6]}-{exp[6:8]}"
-        try:
-            chain = ticker.option_chain(exp_fmt)
-            for right, df in [("C", chain.calls), ("P", chain.puts)]:
-                for _, row in df.iterrows():
-                    oi = row.get("openInterest", 0)
-                    if pd.isna(oi):
-                        oi = 0
-                    vol = row.get("volume", 0)
-                    if pd.isna(vol):
-                        vol = 0
-                    results.append(
-                        {
-                            "expiration": exp,
-                            "strike": float(row["strike"]),
-                            "right": right,
-                            "openInterest": int(oi),
-                            "volume": int(vol),
-                            "impliedVolatility": float(
-                                row.get("impliedVolatility", 0) or 0
-                            ),
-                        }
-                    )
-        except Exception as e:
-            log.warning(f"  yfinance {exp_fmt} 失败: {e}")
-
-    df = pd.DataFrame(results)
-    if not df.empty:
-        oi_total = df["openInterest"].sum()
-        log.info(f"yfinance 返回 {len(df)} 条，总 OI={oi_total:,}")
-    else:
-        log.warning("yfinance 无数据")
-    return df
-
-
 def greeks_from_yf(oi_df, spot, r=0.04):
     """IBKR Greeks 不可用时的降级路径：用 yfinance IV 反推 BS gamma。
 
@@ -300,19 +250,7 @@ def compute_gex(greeks_df, oi_df, spot):
     merged["gex"] = merged["gamma"] * merged["openInterest"] * spot * 100
 
     # 按行权价聚合（期权墙）
-    wall = (
-        merged.groupby("strike")
-        .agg(
-            call_gex=("gex", lambda x: x[merged.loc[x.index, "right"] == "C"].sum()),
-            put_gex=("gex", lambda x: x[merged.loc[x.index, "right"] == "P"].sum()),
-            total_gex=("gex", "sum"),
-            total_oi=("openInterest", "sum"),
-            avg_iv=("iv", "mean"),
-        )
-        .reset_index()
-    )
-
-    wall["abs_gex"] = wall["total_gex"].abs()
+    wall = aggregate_wall(merged)
 
     # 找关键水平
     if not wall.empty:
@@ -514,7 +452,19 @@ def main():
     # === Step 2: yfinance OI ===
     oi_df = pd.DataFrame()
     if not args.no_yfinance:
-        oi_df = fetch_oi_yfinance(symbol, expirations)
+        oi_df = fetch_yf_chain(symbol, expirations)[
+            [
+                "expiration",
+                "strike",
+                "right",
+                "openInterest",
+                "volume",
+                "impliedVolatility",
+            ]
+        ]
+        # 消费侧规整：volume/IV NaN → 0（greeks_from_yf 跳过 iv<=0 的行）
+        oi_df["volume"] = oi_df["volume"].fillna(0).astype(int)
+        oi_df["impliedVolatility"] = oi_df["impliedVolatility"].fillna(0)
 
     # IBKR Greeks 不可用 → 降级：用 yfinance IV 反推 BS gamma
     # 注意：IBKR 可能返回全 NaN gamma 的非空表（如盘前无行情），按有效 gamma 判断

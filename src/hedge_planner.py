@@ -19,6 +19,7 @@ from dataclasses import dataclass
 from datetime import date
 
 from src.fetchers.yfinance_fetcher import ensure_yf_proxy
+from src.pricing import fetch_yf_chain
 
 ensure_yf_proxy()
 import yfinance as yf  # noqa: E402
@@ -68,28 +69,28 @@ class Quote:
         return (self.bid + self.ask) / 2
 
 
-def fetch_quotes(ticker: yf.Ticker, exp: str) -> dict[tuple[float, str], Quote]:
-    """拉一个到期日的全部报价，返回 {(strike, right): Quote}"""
-    chain = ticker.option_chain(exp)
+def fetch_quotes(symbol: str, exp: str) -> dict[tuple[float, str], Quote]:
+    """拉一个到期日的全部报价，返回 {(strike, right): Quote}。
+
+    bid/ask 无效时用 lastPrice（昨收）近似成本（Yahoo 多数合约无盘口）。
+    """
     quotes = {}
-    for right, df in [("P", chain.puts), ("C", chain.calls)]:
-        for _, row in df.iterrows():
-            bid, ask = float(row["bid"]), float(row["ask"])
-            if bid <= 0:
-                # ponytail: Yahoo 多数合约无盘口，用 lastPrice（昨收）近似成本
-                last = float(row.get("lastPrice", 0) or 0)
-                if last <= 0:
-                    continue
-                bid = ask = last
-            raw_oi = row.get("openInterest", 0)
-            q = Quote(
-                strike=float(row["strike"]),
-                right=right,
-                bid=bid,
-                ask=ask,
-                oi=0 if raw_oi != raw_oi else int(raw_oi),  # NaN 不自等
-            )
-            quotes[(q.strike, right)] = q
+    for _, row in fetch_yf_chain(symbol, [exp]).iterrows():
+        bid, ask = float(row["bid"]), float(row["ask"])
+        if bid <= 0:
+            # ponytail: Yahoo 多数合约无盘口，用 lastPrice（昨收）近似成本
+            last = float(row["last"] or 0)
+            if last <= 0:
+                continue
+            bid = ask = last
+        q = Quote(
+            strike=float(row["strike"]),
+            right=row["right"],
+            bid=bid,
+            ask=ask,
+            oi=int(row["openInterest"]),  # 共享层已把 NaN 归 0
+        )
+        quotes[(q.strike, q.right)] = q
     return quotes
 
 
@@ -215,7 +216,7 @@ def main():
     log.info(f"到期日: {exps}")
 
     for exp in exps:
-        quotes = fetch_quotes(ticker, exp)
+        quotes = fetch_quotes(symbol, exp)
         if not quotes:
             log.warning(f"{exp} 无报价，跳过")
             continue

@@ -24,6 +24,7 @@ import yfinance as yf
 
 from src.fetchers.yfinance_fetcher import ensure_yf_proxy
 from src.indicators import compute_all_indicators, load_data
+from src.pricing import aggregate_wall, fetch_yf_chain
 
 ensure_yf_proxy()
 
@@ -67,34 +68,6 @@ def ensure_gex_data(symbol: str, args: argparse.Namespace) -> Path:
     return csv
 
 
-def _yf_option_chain(symbol: str) -> pd.DataFrame:
-    """用 yfinance 获取全部到期日的 put 链（主数据源）。"""
-    tk = yf.Ticker(symbol)
-    rows: list[dict] = []
-    for yf_date in tk.options:
-        dte = (pd.to_datetime(yf_date) - pd.Timestamp.now()).days
-        if dte < 0:
-            continue
-        try:
-            for _, r in tk.option_chain(yf_date).puts.iterrows():
-                rows.append(
-                    {
-                        "expiration": yf_date.replace("-", ""),
-                        "dte": dte,
-                        "strike": r["strike"],
-                        "bid": r.get("bid", None),
-                        "ask": r.get("ask", None),
-                        "impliedVolatility": r.get("impliedVolatility", None),
-                        "openInterest": r.get("openInterest", 0),
-                        "delta": None,
-                        "source": "yf",
-                    }
-                )
-        except Exception:
-            continue
-    return pd.DataFrame(rows)
-
-
 def _yf_spot(symbol: str) -> float | None:
     """用 yfinance 获取实时报价，失败返回 None。"""
     try:
@@ -113,10 +86,6 @@ def analyze_puts(
     p = gex[(gex.right == "P") & (gex.strike < spot) & (gex.openInterest > 0)].copy()
     if p.empty:
         sys.exit("spot 以下无 OI>0 的 put")
-    p["dte"] = (
-        pd.to_datetime(p.expiration, format="%Y%m%d") - pd.Timestamp.now()
-    ).dt.days
-    p = p[p["dte"] > 0]
 
     has_ba = "bid" in p.columns and "ask" in p.columns
     if has_ba:
@@ -126,10 +95,15 @@ def analyze_puts(
         ibkr_ok = False
 
     if not ibkr_ok:
-        # yfinance 做主数据源，IBKR greeks 为辅
-        yfdf = _yf_option_chain(symbol)
+        # yfinance 做主数据源，IBKR greeks 为辅（只拉 gex 里已有的到期日）
+        yfdf = fetch_yf_chain(symbol, list(p["expiration"].unique()))
         if not yfdf.empty:
-            yfdf = yfdf[(yfdf.strike < spot) & (yfdf.openInterest > 0)].copy()
+            yfdf = yfdf[
+                (yfdf.right == "P")  # 原 _yf_option_chain 只拉 puts
+                & (yfdf.strike < spot)
+                & (yfdf.openInterest > 0)
+            ].copy()
+            yfdf["delta"] = None
             # 补充 IBKR delta（如果有的话）
             if "delta" in gex.columns:
                 ib = gex[(gex.right == "P") & gex["delta"].notna()]
@@ -148,6 +122,12 @@ def analyze_puts(
 
     if p.empty:
         sys.exit("无可用的期权报价")
+
+    # dte 统一后置计算（yf / IBKR 两来源同口径）
+    p["dte"] = (
+        pd.to_datetime(p.expiration, format="%Y%m%d") - pd.Timestamp.now()
+    ).dt.days
+    p = p[p["dte"] > 0]
 
     dist = (spot - p.strike) / spot
     yld = p.mid / p.strike
@@ -225,18 +205,16 @@ def report(
     # ── GEX 期权墙（OTM put，按行权价聚合）──
     otm = gex[gex.strike < spot]
     if not otm.empty:
-        call_gex = otm[otm.right == "C"].groupby("strike")["gex"].sum()
-        put_gex = otm[otm.right == "P"].groupby("strike")["gex"].sum()
-        oi = otm.groupby("strike")["openInterest"].sum()
-        wall = pd.DataFrame(
-            {"call_gex": call_gex, "put_gex": put_gex, "oi": oi}
-        ).fillna(0)
-        wall["total_gex"] = wall["call_gex"] + wall["put_gex"]
+        wall_full = aggregate_wall(otm)
         wall = (
-            wall.sort_values("oi", ascending=False).head(5).sort_index().reset_index()
+            wall_full.sort_values("total_oi", ascending=False)
+            .head(5)
+            .sort_values("strike")
+            .reset_index(drop=True)
         )
         net_gex = gex["gex"].sum()
-        put_wall = oi.idxmax()
+        # 注意：total_oi 是 RangeIndex，idxmax 取位置后必须回查 strike 列
+        put_wall = wall_full.loc[wall_full["total_oi"].idxmax(), "strike"]
 
         print("\n### GEX 期权墙\n")
         print("| 行权价 | Call GEX | Put GEX | Total GEX | OI |")
@@ -244,7 +222,7 @@ def report(
         for _, r in wall.iterrows():
             print(
                 f"| ${r['strike']:.0f} | ${r['call_gex']:,.0f} | ${r['put_gex']:,.0f} "
-                f"| ${r['total_gex']:,.0f} | {r['oi']:,.0f} |"
+                f"| ${r['total_gex']:,.0f} | {r['total_oi']:,.0f} |"
             )
         direction = "做空" if net_gex < 0 else "做多"
         effect = "波动可能放大" if net_gex < 0 else "市场趋于稳定"
