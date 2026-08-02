@@ -165,23 +165,20 @@ class KlineChart(Vertical):
             },
             colors=(_CLR_UP, _CLR_DOWN),
         )
-        # 叠加层
+        # 叠加层：MA 项从 overlays 派生（与 OverlayToggles 同源，不硬枚举）
+        # isdigit 守卫防未来 overlay 项（如 "MACD"）误入 MA 分支
         overlays = set(self.tech_view.overlays.active_overlays())
-        for ma in (5, 10, 20, 60):
-            col = f"MA{ma}"
-            if col in sub.columns and f"MA{ma}" in overlays:
-                plt.plot(
-                    dates,
-                    _clean(sub[col]),
-                    label=f"MA{ma}",
-                    color=_CLR_MA.get(ma, "white"),
-                )
-        if "MA120" in overlays and "MA120" in sub.columns:
+        for col in sorted(
+            (c for c in overlays if c.startswith("MA") and c[2:].isdigit()),
+            key=lambda c: int(c[2:]),
+        ):
+            if col not in sub.columns:
+                continue
             plt.plot(
                 dates,
-                _clean(sub["MA120"]),
-                label="MA120",
-                color=_CLR_MA.get(120, "white"),
+                _clean(sub[col]),
+                label=col,
+                color=_CLR_MA.get(int(col[2:]), "white"),
             )
         if "BB" in overlays:
             for col, lab in (

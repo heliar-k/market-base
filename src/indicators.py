@@ -13,6 +13,62 @@ import numpy as np
 import pandas as pd
 import pandas_ta_classic as ta
 
+# ── 指标注册表（消费方契约层）────────────────────────────────────────────
+# 所有 add_* 产出的别名列权威清单（analyze / TUI 只消费这些列）。
+# 新增指标列必须在此注册，否则 tests/test_indicator_registry.py 报红。
+# CDL_* 由 ta 库动态命名（62 种），按前缀约定不进注册表。
+
+MA_PERIODS = (5, 10, 20, 60, 120)
+
+INDICATOR_COLUMNS: frozenset[str] = frozenset(
+    {
+        *(f"MA{p}" for p in MA_PERIODS),
+        "RSI",
+        "MACD",
+        "MACD_hist",
+        "MACD_signal",
+        "BB_lower",
+        "BB_mid",
+        "BB_upper",
+        "ATR",
+        "vol_MA20",
+        "vol_ratio",
+        "ADX",
+        "DMP",
+        "DMN",
+        "STOCH_k",
+        "STOCH_d",
+        "SUPERT",
+        "SUPERT_dir",
+        "SUPERT_long_stop",
+        "SUPERT_short_stop",
+        "OBV",
+        "CCI",
+        "MFI",
+        "SMC_swing_high",
+        "SMC_swing_low",
+        "SMC_FVG",
+        "SMC_FVG_top",
+        "SMC_FVG_bottom",
+        "SMC_BOS",
+        "SMC_CHoCH",
+        "SMC_structure",
+        "SMC_OB",
+        "SMC_OB_top",
+        "SMC_OB_bottom",
+        "SMC_premium",
+        "SMC_equilibrium",
+        "SMC_discount",
+        "SMC_pd_zone",
+        "SMC_sweep",
+        "SMC_sweep_level",
+        "SMC_htf_bias",
+        "SMC_weekly_structure",
+        "SMC_weekly_swing_high",
+        "SMC_weekly_swing_low",
+    }
+)
+
 
 def load_data(path: str) -> pd.DataFrame:
     """读取 CSV 文件，返回标准化的 OHLCV DataFrame。"""
@@ -37,9 +93,9 @@ def _merge_ta_columns(df: pd.DataFrame, result, aliases: dict[str, str]) -> None
 
 
 def add_ma(df: pd.DataFrame, periods: list[int] | None = None) -> pd.DataFrame:
-    """计算简单移动均线 (SMA)。默认 [5, 10, 20, 60, 120]。"""
+    """计算简单移动均线 (SMA)。默认 MA_PERIODS。"""
     if periods is None:
-        periods = [5, 10, 20, 60, 120]
+        periods = list(MA_PERIODS)
     for p in periods:
         df[f"MA{p}"] = ta.sma(df["close"], length=p)
     return df
