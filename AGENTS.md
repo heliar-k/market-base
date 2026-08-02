@@ -72,10 +72,11 @@ ticker-toolkit/
 │   ├── gex/{SYMBOL}_gex_YYYYMMDD_HHMM.csv ← GEX 逐合约明细（每次运行留存）
 │   └── cache/{SYMBOL}_indicators.parquet ← 指标缓存（派生产物，mtime 失效）
 │
-└── doc/
-    ├── README.md                 ← 项目说明
+└── docs/
     ├── DATA_CATALOG.md           ← 数据目录文档
-    └── TUI_K线分析工具_技术调研.md ← Textual TUI 选型调研
+    ├── TUI_K线分析工具_技术调研.md ← Textual TUI 选型调研
+    ├── web-refactor-plan.md      ← Web 重构计划
+    └── adr/                      ← 架构决策记录（0001 回看交互、0002 重命名 code→src）
 ```
 
 ---
@@ -315,7 +316,7 @@ thinking: low
    - yfinance 标的 → 修改 `YF_TICKERS` 字典
    - 期货品种 → 修改 `COMMODITY_FUTURES` 字典
    - 运行参数 → 修改 `IbkrConfig` / `Config` dataclass
-3. 同步更新 `doc/DATA_CATALOG.md` 中的表格
+3. 同步更新 `docs/DATA_CATALOG.md` 中的表格
 4. 新增品种时确保数据目录存在
 ```
 

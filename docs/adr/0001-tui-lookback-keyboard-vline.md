@@ -7,7 +7,7 @@
 
 TUI 的核心特性是"可回看"——光标移到任意历史 K 线，侧栏显示那天的完整诊断（指标数值 + 评分信号）。
 
-调研文档（`doc/TUI_K线分析工具_技术调研.md`）推荐 `textual-plotext` 的 `PlotextPlot`，并乐观暗示鼠标交互可用。但 `PlotextPlot` 将 plotext 画布渲染为静态图，**不暴露数据坐标系**：只能拿到 Textual 的 `MouseMove` 事件给出的终端 (row, col) 坐标。从终端坐标反推"第几根 K 线"需要逆向 plotext 的内部布局（边距随终端宽度漂移、画布会自动抽样压缩），脆弱且 resize 后易失效。
+调研文档（`docs/TUI_K线分析工具_技术调研.md`）推荐 `textual-plotext` 的 `PlotextPlot`，并乐观暗示鼠标交互可用。但 `PlotextPlot` 将 plotext 画布渲染为静态图，**不暴露数据坐标系**：只能拿到 Textual 的 `MouseMove` 事件给出的终端 (row, col) 坐标。从终端坐标反推"第几根 K 线"需要逆向 plotext 的内部布局（边距随终端宽度漂移、画布会自动抽样压缩），脆弱且 resize 后易失效。
 
 此外终端 K 线密度高（~200 根挤在 80 列，单根不到半字符宽），鼠标精度无法对准单根 K 线。
 
