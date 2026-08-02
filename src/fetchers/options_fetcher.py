@@ -18,14 +18,14 @@ IBKR 期权链参数拉取脚本
 import argparse
 import json
 import logging
-import random
 import sys
 from datetime import datetime
 from pathlib import Path
 
-from ib_insync import IB, Stock
+from ib_insync import IB
 
-from ..config import config
+from ..config import ROOT, config
+from .ibkr_fetcher import IBKRConnectionError, connect_ib, get_option_chain_params
 
 logging.basicConfig(
     level=logging.INFO,
@@ -35,33 +35,10 @@ logging.basicConfig(
 log = logging.getLogger("options_chain")
 
 
-def connect_ib(host="127.0.0.1", port=4002, client_id=None):
-    if client_id is None:
-        client_id = random.randint(100, 9999)
-    ib = IB()
-    try:
-        ib.connect(host, port, clientId=client_id, timeout=10)
-        log.info(f"已连接 {host}:{port} (clientId={client_id})")
-        return ib
-    except Exception as e:
-        log.error(f"连接失败: {e}")
-        sys.exit(1)
-
-
 def fetch_chain(ib: IB, sym_name: str) -> list[dict] | None:
     """拉取单只股票的期权链参数，返回各交易所的链数据"""
-    contract = Stock(sym_name, "SMART", "USD")
     try:
-        ib.qualifyContracts(contract)
-        log.info(f"  合约: {contract}")
-    except Exception as e:
-        log.error(f"  ❌ 合约验证失败: {e}")
-        return None
-
-    try:
-        chains = ib.reqSecDefOptParams(
-            contract.symbol, "", contract.secType, contract.conId
-        )
+        chains = get_option_chain_params(ib, sym_name)
     except Exception as e:
         log.error(f"  ❌ 期权链查询失败: {e}")
         return None
@@ -128,16 +105,10 @@ def main():
     parser = argparse.ArgumentParser(description="IBKR 期权链参数拉取")
     parser.add_argument("--symbols", help="逗号分隔，不指定则拉取全部股票")
     parser.add_argument(
-        "--host", default=None, help=f"覆盖配置 (默认: {config.ibkr.host})"
-    )
-    parser.add_argument(
         "--port", type=int, default=None, help=f"覆盖配置 (默认: {config.ibkr.port})"
     )
     parser.add_argument("--dry-run", action="store_true", help="仅测试连接")
     args = parser.parse_args()
-
-    host = args.host or config.ibkr.host
-    port = args.port or config.ibkr.port
 
     # 只取股票品种
     all_stocks = [s for s in config.ibkr_symbols if s["type"] == "stock"]
@@ -152,16 +123,17 @@ def main():
 
     log.info(f"待拉取股票期权链: {[s['name'] for s in stocks]}")
 
-    ib = connect_ib(host, port)
+    try:
+        ib, _ = connect_ib(ports=(args.port,)) if args.port else connect_ib()
+    except IBKRConnectionError:
+        sys.exit(1)
 
     if args.dry_run:
         log.info("--dry-run 模式，退出")
         ib.disconnect()
         return
 
-    script_dir = Path(__file__).resolve().parent  # src/fetchers/
-    project_root = script_dir.parent.parent  # ticker-toolkit/
-    output_dir = project_root / "data" / "options"
+    output_dir = ROOT / "data" / "options"
     output_dir.mkdir(parents=True, exist_ok=True)
 
     success = []

@@ -105,8 +105,8 @@ def _normalize_date(raw: str) -> str:
 
 if __name__ == "__main__":
     import argparse
-    from pathlib import Path
 
+    from ..config import ROOT
     from ._io import upsert_timeseries
 
     parser = argparse.ArgumentParser(description="CBOE 波动率数据拉取")
@@ -117,17 +117,13 @@ if __name__ == "__main__":
     )
     args = parser.parse_args()
 
-    root = Path(__file__).resolve().parent.parent.parent
-    path = root / "data" / "cboe" / "volatility.csv"
+    path = ROOT / "data" / "cboe" / "volatility.csv"
 
     df = fetch_cboe_volatility()
     if df.empty:
         print("CBOE: 全部源拉取失败，无数据写入")
         raise SystemExit(1)
 
-    if args.backfill:
-        df.to_csv(path, index_label="date")
-        print(f"CBOE --backfill 覆盖: → {path} ({len(df.columns)} 指标 × {len(df)} 行)")
-    else:
-        upsert_timeseries(path, df)
-        print(f"CBOE upsert: → {path} ({len(df.columns)} 指标 × {len(df)} 行)")
+    upsert_timeseries(path, df, backfill=args.backfill)
+    mode = "backfill 覆盖" if args.backfill else "upsert"
+    print(f"CBOE {mode}: → {path} ({len(df.columns)} 指标 × {len(df)} 行)")

@@ -11,17 +11,17 @@ from pathlib import Path
 
 from ib_insync import IB
 
+from ..config import ROOT, config
 from ..config import _to_legacy_dict as _to_ibkr_dict
-from ..config import config
+from ._io import load_timeseries, upsert_timeseries
 from .ibkr_fetcher import (
+    IBKRConnectionError,
     bars_to_dataframe,
     connect_ib,
     fetch_single,
     get_last_date,
-    load_existing_data,
     make_contract,
     port_delay,
-    save_data,
 )
 from .yfinance_fetcher import fetch_ohlcv
 
@@ -53,7 +53,7 @@ def _try_ibkr(
         return None
 
 
-def _try_yfinance(sym, filepath: Path, existing, encoding: str) -> int:
+def _try_yfinance(sym, filepath: Path, existing) -> int:
     """yfinance 回退。返回新增条数。"""
     if not sym.yf_ticker:
         return 0
@@ -72,7 +72,7 @@ def _try_yfinance(sym, filepath: Path, existing, encoding: str) -> int:
             log.info(f"[{name}] yfinance 数据均已是最新")
             return 0
 
-        save_data(df, filepath, encoding)
+        upsert_timeseries(filepath, df)
         log.info(f"[{name}] yfinance 回退成功，新增 {len(df)} 条")
         return len(df)
     except Exception as e:
@@ -99,7 +99,10 @@ def run(symbol_configs, kind: str, args) -> None:
     client_id = getattr(args, "client_id", None) or random.randint(100, 9999)
     log.info(f"使用 clientId: {client_id}")
 
-    ib, connected_port = connect_ib(client_id)
+    try:
+        ib, connected_port = connect_ib(client_id)
+    except IBKRConnectionError:
+        sys.exit(1)
     inter_symbol_delay = port_delay(connected_port)
 
     if getattr(args, "dry_run", False):
@@ -107,9 +110,7 @@ def run(symbol_configs, kind: str, args) -> None:
         ib.disconnect()
         return
 
-    script_dir = Path(__file__).resolve().parent
-    project_root = script_dir.parent.parent
-    base_dir = project_root / ibkr_cfg.output_dir
+    base_dir = ROOT / ibkr_cfg.output_dir
     subdir = "stocks" if kind == "stock" else "indices"
     output_dir = base_dir / subdir
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -120,7 +121,7 @@ def run(symbol_configs, kind: str, args) -> None:
         log.info(f"--- 开始拉取 {name} ---")
 
         filepath = (output_dir / f"{name}.csv").resolve()
-        existing = load_existing_data(filepath)
+        existing = load_timeseries(filepath)
         last_date = get_last_date(existing)
         if last_date:
             log.info(f"  已有 {len(existing)} 条本地数据，最新: {last_date}")
@@ -137,14 +138,14 @@ def run(symbol_configs, kind: str, args) -> None:
             if not existing.empty and not df.empty:
                 df = df[df.index > existing.index.max()]
             if not df.empty:
-                save_data(df, filepath, ibkr_cfg.output_encoding)
+                upsert_timeseries(filepath, df)
                 n = len(df)
                 total_new += n
                 log.info(f"[{name}] 新增 {n} 条")
             else:
                 log.info(f"[{name}] 无新数据")
         else:
-            n = _try_yfinance(sym, filepath, existing, ibkr_cfg.output_encoding)
+            n = _try_yfinance(sym, filepath, existing)
             total_new += n
 
     ib.disconnect()

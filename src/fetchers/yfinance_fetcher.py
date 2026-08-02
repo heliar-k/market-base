@@ -13,7 +13,7 @@ import os
 
 import pandas as pd
 
-from ..config import config
+from ..config import ROOT, config
 from .quality import DataPoint, QAStatus
 
 logger = logging.getLogger(__name__)
@@ -155,14 +155,11 @@ def fetch_all_assets() -> list[DataPoint]:
 
 
 if __name__ == "__main__":
-    from pathlib import Path
-
     from ._io import save_daily_csv
 
     results = fetch_all_assets()
     ok = sum(1 for r in results if r.qa_status == QAStatus.OK)
     print(f"yfinance: {ok}/{len(results)} OK")
 
-    root = Path(__file__).resolve().parent.parent.parent
-    save_daily_csv(root / "data" / "yfinance" / "asset_prices.csv", results)
+    save_daily_csv(ROOT / "data" / "yfinance" / "asset_prices.csv", results)
     print("  → data/yfinance/asset_prices.csv")

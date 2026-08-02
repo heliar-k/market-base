@@ -21,12 +21,17 @@ GEX = Σ gamma_i × OI_i × spot × 100   (所有期权合约)
 
 import argparse
 import logging
-import random
 import sys
 from datetime import datetime
 from pathlib import Path
 
 import pandas as pd
+
+from src.fetchers.ibkr_fetcher import (
+    IBKRConnectionError,
+    connect_ib,
+    get_option_chain_params,
+)
 
 logging.basicConfig(
     level=logging.INFO,
@@ -39,21 +44,6 @@ log = logging.getLogger("gex")
 # ============================================================================
 # 1. IBKR 数据获取
 # ============================================================================
-def connect_ib(host="127.0.0.1", port=4002):
-    from ib_insync import IB
-
-    ib = IB()
-    client_id = random.randint(100, 9999)
-    try:
-        # 脚本只做数据读取，显式声明只读会话，避免 TWS 按完整权限处理
-        ib.connect(host, port, clientId=client_id, timeout=10, readonly=True)
-        log.info(f"已连接 IB Gateway (clientId={client_id})")
-        return ib
-    except Exception as e:
-        log.error(f"IB 连接失败: {e}")
-        return None
-
-
 def get_spot(ib, symbol):
     """获取标的最近收盘价"""
     from ib_insync import Stock
@@ -62,16 +52,6 @@ def get_spot(ib, symbol):
     ib.qualifyContracts(stock)
     bars = ib.reqHistoricalData(stock, "", "3 D", "1 day", "TRADES", True, 1)
     return bars[-1].close if bars else None
-
-
-def get_option_chain_params(ib, symbol):
-    """获取期权链到期日和行权价"""
-    from ib_insync import Stock
-
-    stock = Stock(symbol, "SMART", "USD")
-    ib.qualifyContracts(stock)
-    chains = ib.reqSecDefOptParams(stock.symbol, "", stock.secType, stock.conId)
-    return max(chains, key=lambda c: len(c.expirations) + len(c.strikes))
 
 
 def filter_options(chain, spot, max_expirations=4, strike_pct=0.12):
@@ -480,11 +460,17 @@ def main():
         else:
             log.warning(f"快照不存在: {cache}，回退实时拉取")
 
-    ib = None if not greeks_df.empty else connect_ib(port=args.port)
+    ib = None
+    if greeks_df.empty:
+        try:
+            ib, _ = connect_ib(ports=(args.port,))
+        except IBKRConnectionError:
+            log.warning("IBKR 连接失败，降级 yfinance")
     if ib:
         spot = spot or get_spot(ib, symbol)
         if spot:
-            chain = get_option_chain_params(ib, symbol)
+            chains = get_option_chain_params(ib, symbol)
+            chain = max(chains, key=lambda c: len(c.expirations) + len(c.strikes))
             expirations, strikes = filter_options(
                 chain, spot, args.expirations, args.strike_pct
             )

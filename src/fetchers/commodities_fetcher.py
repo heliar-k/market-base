@@ -12,19 +12,20 @@ Fetch commodity futures OHLCV data from IBKR.
 
 import argparse
 import logging
+import sys
 import time
 from datetime import datetime
-from pathlib import Path
 
 import pandas as pd
 from ib_insync import IB, Future, util
 
-from ..config import config
-from .ibkr_fetcher import connect_ib, port_delay
+from ..config import ROOT, config
+from ._io import upsert_timeseries
+from .ibkr_fetcher import IBKRConnectionError, connect_ib, port_delay
 
 log = logging.getLogger(__name__)
 
-OUTPUT_DIR = Path("data/commodities")
+OUTPUT_DIR = ROOT / "data" / "commodities"
 BAR_SIZE = config.ibkr.bar_size
 DURATION = config.ibkr.duration
 WHAT_TO_SHOW = config.ibkr.what_to_show
@@ -87,19 +88,8 @@ def _fetch_bars(ib: IB, contract: Future) -> pd.DataFrame | None:
             return None
 
         df = util.df(bars)
-        df = df.rename(
-            columns={
-                "date": "date",
-                "open": "open",
-                "high": "high",
-                "low": "low",
-                "close": "close",
-                "volume": "volume",
-                "average": "average",
-                "barCount": "barCount",
-            }
-        )
-        df["date"] = df["date"].astype(str)
+        df = df.rename(columns={"average": "wap", "barCount": "count"})
+        df = df.set_index("date")
         return df
 
     except Exception as e:
@@ -108,21 +98,9 @@ def _fetch_bars(ib: IB, contract: Future) -> pd.DataFrame | None:
 
 
 def _save_csv(df: pd.DataFrame, symbol: str, month: str) -> None:
-    """保存增量 CSV，按 date 去重。"""
-    subdir = OUTPUT_DIR / symbol
-    subdir.mkdir(parents=True, exist_ok=True)
-    path = subdir / f"{symbol}_{month}.csv"
-
-    if path.exists():
-        existing = pd.read_csv(path, dtype={"date": str})
-        combined = pd.concat([existing, df], ignore_index=True).drop_duplicates(
-            subset=["date"], keep="last"
-        )
-        combined = combined.sort_values("date")
-    else:
-        combined = df
-
-    combined.to_csv(path, index=False, encoding=config.ibkr.output_encoding)
+    """保存增量 CSV（日期索引 upsert，与 stocks/indices 同格式）。"""
+    path = OUTPUT_DIR / symbol / f"{symbol}_{month}.csv"
+    upsert_timeseries(path, df)
     log.info("    → %s", path)
 
 
@@ -179,8 +157,8 @@ def fetch_commodity_contracts(
             log.info(
                 "      %s bars, %s → %s",
                 len(df),
-                df["date"].iloc[0],
-                df["date"].iloc[-1],
+                df.index[0],
+                df.index[-1],
             )
         else:
             log.warning("      无数据")
@@ -196,7 +174,10 @@ def fetch_all_commodities(
     client_id: int | None = None,
 ) -> None:
     """拉取所有配置的商品期货数据。"""
-    ib, connected_port = connect_ib(client_id)
+    try:
+        ib, connected_port = connect_ib(client_id)
+    except IBKRConnectionError:
+        sys.exit(1)
 
     if dry_run:
         log.info("--dry-run 模式，退出")

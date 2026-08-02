@@ -71,23 +71,39 @@ def _load_rows(filepath: Path) -> list[dict]:
         return list(csv.DictReader(f))
 
 
-def upsert_timeseries(filepath: Path, df: pd.DataFrame) -> None:
+def load_timeseries(filepath: Path) -> pd.DataFrame:
+    """统一读法：date 列解析为索引；文件不存在、空文件或损坏返回空 DataFrame。"""
+    if not filepath.exists():
+        return pd.DataFrame()
+    try:
+        df = pd.read_csv(filepath, parse_dates=["date"])
+    except Exception:
+        return pd.DataFrame()  # 损坏 CSV 视为无数据，调用方重新拉取
+    if df.empty:
+        return pd.DataFrame()
+    return df.set_index("date")
+
+
+def upsert_timeseries(filepath: Path, df: pd.DataFrame, backfill: bool = False) -> None:
     """将完整时间序列 DataFrame upsert 进 CSV（index=观测日期）。
 
     同日期行以新数据覆盖旧值，新日期追加；列取并集，新数据缺失处保留旧值。
+    backfill=True 时全量覆盖（清旧格式 junk），否则为 upsert。
     与 save_daily_csv（拉取日快照）不同：此处 date 是观测日，适合月频/日频时间序列。
     """
     filepath.parent.mkdir(parents=True, exist_ok=True)
+    if df.empty:
+        return  # 空数据不写文件（与旧 save_data 一致）
     new = df.copy()
     new.index = new.index.astype(str)
 
-    if filepath.exists():
+    if backfill or not filepath.exists():
+        combined = new
+    else:
         old = pd.read_csv(filepath, index_col=0)
         old.index = old.index.astype(str)
         # new 优先：new 的非空值覆盖 old，new 为空处保留 old
         combined = new.combine_first(old)
-    else:
-        combined = new
 
     combined = combined.sort_index()
     combined.to_csv(filepath, index_label="date")

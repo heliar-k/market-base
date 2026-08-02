@@ -102,8 +102,8 @@ FRED liquidity 分类的原始系列（由 `./bin/fetch_fred` 一并拉取）。
 | `low` | 最低价 |
 | `close` | 收盘价 |
 | `volume` | 成交量 |
-| `average` | 均价（VWAP） |
-| `barCount` | 日内棒数 |
+| `wap` | 均价（VWAP，旧称 `average`） |
+| `count` | 日内棒数（旧称 `barCount`） |
 
 ---
 

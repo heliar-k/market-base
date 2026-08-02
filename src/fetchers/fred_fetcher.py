@@ -59,8 +59,8 @@ def fetch_all_fred() -> dict[str, "object"]:
 
 if __name__ == "__main__":
     import argparse
-    from pathlib import Path
 
+    from ..config import ROOT
     from ._io import upsert_timeseries
 
     parser = argparse.ArgumentParser(description="FRED 数据拉取")
@@ -72,16 +72,12 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     config.validate()
-    root = Path(__file__).resolve().parent.parent.parent
+    root = ROOT
 
     print("FRED: 拉取全部系列全量历史...")
     backfill_data = fetch_all_fred()
     for cat, df in backfill_data.items():
         path = root / "data" / "fred" / cat / f"{cat}.csv"
-        path.parent.mkdir(parents=True, exist_ok=True)
-        if args.backfill:
-            df.to_csv(path, index_label="date")
-        else:
-            upsert_timeseries(path, df)
+        upsert_timeseries(path, df, backfill=args.backfill)
         print(f"  → data/fred/{cat}/{cat}.csv ({len(df.columns)} 指标 × {len(df)} 行)")
     print(f"完成 {len(backfill_data)} 个分类")

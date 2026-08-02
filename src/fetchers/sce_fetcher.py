@@ -89,8 +89,8 @@ def _parse_yyyymm(raw: str) -> str:
 
 if __name__ == "__main__":
     import argparse
-    from pathlib import Path
 
+    from ..config import ROOT
     from ._io import upsert_timeseries
 
     parser = argparse.ArgumentParser(description="NY Fed SCE 通胀预期")
@@ -101,14 +101,10 @@ if __name__ == "__main__":
     )
     args = parser.parse_args()
 
-    root = Path(__file__).resolve().parent.parent.parent
-    path = root / "data" / "sce" / "sce.csv"
+    path = ROOT / "data" / "sce" / "sce.csv"
 
     df = fetch_sce()
 
-    if args.backfill:
-        df.to_csv(path, index_label="date")
-        print(f"SCE --backfill 覆盖: → {path} ({len(df.columns)} 指标 × {len(df)} 行)")
-    else:
-        upsert_timeseries(path, df)
-        print(f"SCE upsert: → {path} ({len(df.columns)} 指标 × {len(df)} 行)")
+    upsert_timeseries(path, df, backfill=args.backfill)
+    mode = "backfill 覆盖" if args.backfill else "upsert"
+    print(f"SCE {mode}: → {path} ({len(df.columns)} 指标 × {len(df)} 行)")

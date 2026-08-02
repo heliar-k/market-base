@@ -83,8 +83,8 @@ def _parse_month(raw: str) -> str:
 
 if __name__ == "__main__":
     import argparse
-    from pathlib import Path
 
+    from ..config import ROOT
     from ._io import upsert_timeseries
 
     parser = argparse.ArgumentParser(description="FRBSF Shapiro 供需通胀分解")
@@ -95,19 +95,13 @@ if __name__ == "__main__":
     )
     args = parser.parse_args()
 
-    root = Path(__file__).resolve().parent.parent.parent
-    path = root / "data" / "shapiro" / "shapiro.csv"
+    path = ROOT / "data" / "shapiro" / "shapiro.csv"
 
     df = fetch_shapiro()
     if df.empty:
         print("Shapiro: 全部源拉取失败，无数据写入")
         raise SystemExit(1)
 
-    if args.backfill:
-        df.to_csv(path, index_label="date")
-        print(
-            f"Shapiro --backfill 覆盖: → {path} ({len(df.columns)} 指标 × {len(df)} 行)"
-        )
-    else:
-        upsert_timeseries(path, df)
-        print(f"Shapiro upsert: → {path} ({len(df.columns)} 指标 × {len(df)} 行)")
+    upsert_timeseries(path, df, backfill=args.backfill)
+    mode = "backfill 覆盖" if args.backfill else "upsert"
+    print(f"Shapiro {mode}: → {path} ({len(df.columns)} 指标 × {len(df)} 行)")

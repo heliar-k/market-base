@@ -130,10 +130,9 @@ def _endpoint_name(url: str) -> str:
 
 
 if __name__ == "__main__":
-    from pathlib import Path
+    from ..config import ROOT
 
-    root = Path(__file__).resolve().parent.parent.parent
-    out_dir = root / "data" / "treasury"
+    out_dir = ROOT / "data" / "treasury"
     out_dir.mkdir(parents=True, exist_ok=True)
 
     # ── 拍卖结果 ──

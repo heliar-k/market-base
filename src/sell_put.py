@@ -10,7 +10,7 @@
 用法:
     uv run python src/sell_put.py --symbol TSM                # 有当日数据就直接用
     uv run python src/sell_put.py --symbol TSM --fetch        # 强制重新拉取
-    uv run python src/sell_put.py --symbol TSM --port 4001 --batch-size 50
+    uv run python src/sell_put.py --symbol TSM --port 4002 --batch-size 50
 """
 
 import argparse
@@ -320,7 +320,7 @@ def main() -> None:
     ap.add_argument(
         "--fetch", action="store_true", help="强制重新拉取（默认复用当日 CSV）"
     )
-    ap.add_argument("--port", type=int, default=4001)
+    ap.add_argument("--port", type=int, default=4002)
     ap.add_argument("--batch-size", type=int, default=50)
     args = ap.parse_args()
     symbol = args.symbol.upper()

@@ -258,33 +258,20 @@ if __name__ == "__main__":
     out_dir = ROOT / "data" / "rate_expectations"
     out_dir.mkdir(parents=True, exist_ok=True)
 
-    # FOMC 概率表 — 每日快照
+    from ._io import upsert_timeseries
+
+    # FOMC 概率表 — 每日快照（date=today 索引，同日覆盖）
     fomc_path = out_dir / "fomc_probabilities.csv"
     today_str = datetime.now().strftime("%Y-%m-%d")
     fomc_df.insert(0, "date", today_str)
+    upsert_timeseries(fomc_path, fomc_df.set_index("date"), backfill=args.backfill)
+    print(f"FOMC 概率 {'backfill' if args.backfill else 'upsert'}: → {fomc_path}")
 
-    if args.backfill or not fomc_path.exists():
-        fomc_df.to_csv(fomc_path, index=False)
-        print(f"FOMC 概率 --backfill: → {fomc_path}")
-    else:
-        existing = pd.read_csv(fomc_path)
-        existing = existing[existing["date"] != today_str]
-        combined = pd.concat([existing, fomc_df], ignore_index=True)
-        combined.to_csv(fomc_path, index=False)
-        print(f"FOMC 概率 upsert: → {fomc_path}")
-
-    # ZQ 合约快照
+    # ZQ 合约快照 — 每日快照（date=today 索引，同日覆盖）
     zq_path = out_dir / "zq_futures.csv"
     zq_df.insert(0, "date", today_str)
-    if args.backfill or not zq_path.exists():
-        zq_df.to_csv(zq_path, index=False)
-        print(f"ZQ 合约 --backfill: → {zq_path}")
-    else:
-        existing = pd.read_csv(zq_path)
-        existing = existing[existing["date"] != today_str]
-        combined = pd.concat([existing, zq_df], ignore_index=True)
-        combined.to_csv(zq_path, index=False)
-        print(f"ZQ 合约 upsert: → {zq_path}")
+    upsert_timeseries(zq_path, zq_df.set_index("date"), backfill=args.backfill)
+    print(f"ZQ 合约 {'backfill' if args.backfill else 'upsert'}: → {zq_path}")
 
     # ── 打印摘要 ──
     print()

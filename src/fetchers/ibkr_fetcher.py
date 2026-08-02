@@ -27,12 +27,12 @@ import random
 import sys
 import time
 from datetime import datetime
-from pathlib import Path
 
 import pandas as pd
 from ib_insync import IB, Index, Stock, util
 
-from ..config import config
+from ..config import ROOT, config
+from ._io import load_timeseries, upsert_timeseries
 from .yfinance_fetcher import yf_minute_bars  # noqa: E402 模块级代理已设置
 
 # ---------------------------------------------------------------------------
@@ -60,19 +60,6 @@ def make_contract(sym: dict):
         raise ValueError(f"不支持的品种类型: {sym['type']}")
 
 
-def load_existing_data(filepath: Path) -> pd.DataFrame:
-    """加载已有的本地数据文件"""
-    if not filepath.exists():
-        return pd.DataFrame()
-    try:
-        df = pd.read_csv(filepath, parse_dates=["date"])
-        df.set_index("date", inplace=True)
-        return df
-    except Exception as e:
-        log.warning(f"读取已有数据失败 {filepath}: {e}，将重新拉取")
-        return pd.DataFrame()
-
-
 def get_last_date(df: pd.DataFrame) -> str | None:
     """返回已有数据的最新日期（用于增量拉取）"""
     if df.empty:
@@ -90,14 +77,24 @@ def port_delay(connected_port: int | None) -> int:
     return config.ibkr.request_delay_seconds
 
 
-def connect_ib(client_id: int | None = None) -> tuple[IB, int]:
-    """连接 IB Gateway/TWS，依次尝试 4002 (paper) → 4001 (live/readonly)。
-    返回 (ib, connected_port)；全部失败则 sys.exit(1)。"""
+class IBKRConnectionError(Exception):
+    """无法连接 TWS/IB Gateway（所有候选端口均失败）。"""
+
+
+def connect_ib(
+    client_id: int | None = None,
+    ports: tuple[int, ...] = (4002, 4001),
+) -> tuple[IB, int]:
+    """连接 IB Gateway/TWS，依次尝试 ports（默认 4002 paper → 4001 live/readonly）。
+
+    返回 (ib, connected_port)；全部失败 raise IBKRConnectionError。
+    readonly 约定：port == 4001 自动只读连接。
+    """
     ibkr_cfg = config.ibkr
     if client_id is None:
         client_id = random.randint(100, 9999)
     ib = IB()
-    for port in [4002, 4001]:
+    for port in ports:
         readonly = port == 4001
         try:
             log.info("尝试 %s:%d (readonly=%s) ...", ibkr_cfg.host, port, readonly)
@@ -115,7 +112,14 @@ def connect_ib(client_id: int | None = None) -> tuple[IB, int]:
     log.error("无法连接到 TWS/IB Gateway，请确认已启动并开启 API 端口")
     log.error("  TWS 纸交易端口: 7497，实盘端口: 7496")
     log.error("  IB Gateway 纸交易端口: 4002，实盘端口: 4001")
-    sys.exit(1)
+    raise IBKRConnectionError("无法连接到 TWS/IB Gateway（已尝试端口 %s）" % (ports,))
+
+
+def get_option_chain_params(ib: IB, symbol: str) -> list:
+    """获取股票期权链参数（全部交易所的链），options_fetcher / compute_gex 共用。"""
+    stock = Stock(symbol, "SMART", "USD")
+    ib.qualifyContracts(stock)
+    return ib.reqSecDefOptParams(stock.symbol, "", stock.secType, stock.conId)
 
 
 # ---------------------------------------------------------------------------
@@ -219,26 +223,6 @@ def bars_to_dataframe(bars: list) -> pd.DataFrame:
     return df[cols].sort_index()
 
 
-def save_data(df: pd.DataFrame, filepath: Path, encoding: str = "utf-8"):
-    """保存到 CSV，自动合并已有数据"""
-    existing = load_existing_data(filepath)
-
-    if not df.empty:
-        combined = pd.concat([existing, df])
-        combined = combined[~combined.index.duplicated(keep="last")]
-        combined.sort_index(inplace=True)
-    else:
-        combined = existing
-
-    if combined.empty:
-        log.warning(f"无数据可保存: {filepath}")
-        return
-
-    filepath.parent.mkdir(parents=True, exist_ok=True)
-    combined.to_csv(filepath, encoding=encoding)
-    log.info(f"已保存: {filepath} ({len(combined)} 条)")
-
-
 # ---------------------------------------------------------------------------
 # 入口
 # ---------------------------------------------------------------------------
@@ -253,9 +237,7 @@ BAR_MAX_DURATION = {
 
 def yf_only_fetch(symbols: list, bar_size: str) -> None:
     """仅 yfinance 拉取（--yf-only，无需 TWS；韩股等 IBKR 无权限品种）。"""
-    script_dir = Path(__file__).resolve().parent
-    project_root = script_dir.parent.parent
-    base_dir = project_root / config.ibkr.output_dir
+    base_dir = ROOT / config.ibkr.output_dir
     total = 0
     for sym in symbols:
         if not sym.get("yf_ticker"):
@@ -263,14 +245,14 @@ def yf_only_fetch(symbols: list, bar_size: str) -> None:
             continue
         subdir = "stocks" if sym["type"] == "stock" else "indices"
         filepath = base_dir / subdir / f"{sym['name']}_{bar_size}.csv"
-        existing = load_existing_data(filepath)
+        existing = load_timeseries(filepath)
         df = yf_minute_bars(sym["yf_ticker"], bar_size)
         if not existing.empty and not df.empty:
             df = df[df.index > existing.index.max()]
         if df.empty:
             log.info(f"[{sym['name']}] 无新数据")
             continue
-        save_data(df, filepath, config.ibkr.output_encoding)
+        upsert_timeseries(filepath, df)
         total += len(df)
         log.info(f"[{sym['name']}] 新增 {len(df)} 条")
     log.info(f"yf-only 完成，共新增 {total} 条")
@@ -278,9 +260,7 @@ def yf_only_fetch(symbols: list, bar_size: str) -> None:
 
 def resample_weekly(symbols: list[str] | None = None) -> None:
     """从已有日线 CSV 重采样周线（周五截止），无需连接 IBKR。"""
-    script_dir = Path(__file__).resolve().parent
-    project_root = script_dir.parent.parent
-    base_dir = project_root / config.ibkr.output_dir
+    base_dir = ROOT / config.ibkr.output_dir
     if symbols:
         wanted = set(s.upper() for s in symbols)
     else:
@@ -294,7 +274,7 @@ def resample_weekly(symbols: list[str] | None = None) -> None:
         if not src.exists():
             log.warning(f"[{name}] 无日线数据 {src}，跳过")
             continue
-        df = load_existing_data(src)
+        df = load_timeseries(src)
         if df.empty:
             continue
         weekly = (
@@ -386,7 +366,10 @@ def main():
     # 连接 IB — 依次尝试 4002 (paper) → 4001 (live/readonly)
     client_id = args.client_id or random.randint(100, 9999)
     log.info(f"使用 clientId: {client_id}")
-    ib, connected_port = connect_ib(client_id)
+    try:
+        ib, connected_port = connect_ib(client_id)
+    except IBKRConnectionError:
+        sys.exit(1)
 
     inter_symbol_delay = port_delay(connected_port)
 
@@ -396,9 +379,7 @@ def main():
         return
 
     # 输出目录
-    script_dir = Path(__file__).resolve().parent  # src/fetchers/
-    project_root = script_dir.parent.parent  # ticker-toolkit/
-    base_dir = project_root / ibkr_cfg.output_dir
+    base_dir = ROOT / ibkr_cfg.output_dir
     base_dir.mkdir(parents=True, exist_ok=True)
 
     # 逐品种拉取
@@ -424,7 +405,7 @@ def main():
         # 检查本地已有数据
         filepath = output_dir / f"{name}{suffix}.csv"
         filepath = filepath.resolve()
-        existing = load_existing_data(filepath)
+        existing = load_timeseries(filepath)
         last_date = get_last_date(existing)
         if last_date:
             log.info(f"  已有 {len(existing)} 条本地数据，最新: {last_date}")
@@ -454,7 +435,7 @@ def main():
             df = bars_to_dataframe(bars)
             if not existing.empty and not df.empty:
                 df = df[df.index > existing.index.max()]
-            save_data(df, filepath, ibkr_cfg.output_encoding)
+            upsert_timeseries(filepath, df)
             new_count = len(df)
             total_new += new_count
             log.info(f"[{name}] 新增 {new_count} 条")
@@ -467,7 +448,7 @@ def main():
             if df.empty:
                 log.warning(f"[{name}] yfinance 回退也无新数据")
             else:
-                save_data(df, filepath, ibkr_cfg.output_encoding)
+                upsert_timeseries(filepath, df)
                 total_new += len(df)
                 log.info(f"[{name}] yfinance 回退新增 {len(df)} 条")
         else:
