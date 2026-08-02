@@ -238,6 +238,36 @@ TERM_SERIES = {
     "tips": ["DFII5", "DFII7", "DFII10", "DFII20", "DFII30"],
 }
 
+
+# 期限品种展示信息（FRED 系列名 → 长名 + 短标签），server / TUI 共用，勿另起映射。
+# 长名供宏观快照/下拉列表（如“10年期国债收益率”），短标签供期限结构 x 轴（如“10y”）。
+class TermInfo(NamedTuple):
+    name: str  # 长名（中文描述）
+    short: str  # 短标签（期限结构 x 轴）
+
+
+TERM_INFO: dict[str, TermInfo] = {
+    "DGS1MO": TermInfo("1月期国债收益率", "1mo"),
+    "DGS3MO": TermInfo("3月期国债收益率", "3mo"),
+    "DGS6MO": TermInfo("6月期国债收益率", "6mo"),
+    "DGS1": TermInfo("1年期国债收益率", "1y"),
+    "DGS2": TermInfo("2年期国债收益率", "2y"),
+    "DGS3": TermInfo("3年期国债收益率", "3y"),
+    "DGS5": TermInfo("5年期国债收益率", "5y"),
+    "DGS7": TermInfo("7年期国债收益率", "7y"),
+    "DGS10": TermInfo("10年期国债收益率", "10y"),
+    "DGS20": TermInfo("20年期国债收益率", "20y"),
+    "DGS30": TermInfo("30年期国债收益率", "30y"),
+    "DFII5": TermInfo("5年期TIPS收益率", "5y"),
+    "DFII7": TermInfo("7年期TIPS收益率", "7y"),
+    "DFII10": TermInfo("10年期TIPS收益率", "10y"),
+    "DFII20": TermInfo("20年期TIPS收益率", "20y"),
+    "DFII30": TermInfo("30年期TIPS收益率", "30y"),
+}
+
+# 当前 FOMC 目标区间兜底值（本地 FRED 数据缺失时用于 ZQ 概率计算）。
+FED_TARGET_RANGE_FALLBACK: tuple[float, float] = (3.50, 3.75)
+
 # ── FOMC 会议日历（每年 8 次，联邦储备委员会公布）──
 
 

@@ -23,30 +23,11 @@ from textual.app import ComposeResult
 from textual.containers import Vertical
 from textual_plotext import PlotextPlot
 
-from src.config import TERM_SERIES
+from src.config import TERM_INFO, TERM_SERIES
 from src.tui.state import MacroView
 
 # plotext 默认按 %d/%m/%Y 解析字符串日期；与 KlineChart 保持一致。
 _DATE_FMT = "%d/%m/%Y"
-# 期限结构 x 轴标签（FRED 系列名 → 人话期限），按 TERM_SERIES 顺序。
-_TERM_LABELS = {
-    "DGS1MO": "1mo",
-    "DGS3MO": "3mo",
-    "DGS6MO": "6mo",
-    "DGS1": "1y",
-    "DGS2": "2y",
-    "DGS3": "3y",
-    "DGS5": "5y",
-    "DGS7": "7y",
-    "DGS10": "10y",
-    "DGS20": "20y",
-    "DGS30": "30y",
-    "DFII5": "5y",
-    "DFII7": "7y",
-    "DFII10": "10y",
-    "DFII20": "20y",
-    "DFII30": "30y",
-}
 
 
 def _clean(series: pd.Series) -> list:
@@ -148,7 +129,7 @@ class MacroChart(Vertical):
         plt = self._term.plt
         plt.clear_data()
         plt.theme("pro")
-        labels = [_TERM_LABELS.get(s, s) for s in series_list]
+        labels = [TERM_INFO[s].short for s in series_list]
         if cur is not None and cur in self.df.index:
             row = self.df.loc[cur]
             ys = [

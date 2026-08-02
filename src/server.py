@@ -21,6 +21,7 @@ from src.config import (
     FRED_SERIES,
     IBKR_SYMBOLS,
     ROOT,
+    TERM_INFO,
     TERM_SERIES,
 )
 from src.macro import (
@@ -181,7 +182,8 @@ def get_diag(symbol: str, as_of: str | None = Query(None)):
 # 派生指标 → 所需原始列的源分类
 # （macro.categories_for 从 DERIVED_INPUTS + FRED_SERIES 派生）
 
-# 中文标签（与前端 MACRO_LABELS 保持同步）
+# 中文标签（与前端 MACRO_LABELS 保持同步）。
+# 期限品种（DGS*/DFII*）的长名/短标签统一在 config.TERM_INFO，此处不再重复维护。
 _MACRO_LABELS = {
     "VIX": "波动率指数（恐慌指数）",
     "HY_OAS": "高收益债信用利差",
@@ -213,26 +215,10 @@ _MACRO_LABELS = {
     "SOFRVOL": "SOFR 日成交量",
     "OBFR": "隔夜银行融资利率",
     "IORB": "准备金余额利率",
-    "DGS1MO": "1月期国债收益率",
-    "DGS3MO": "3月期国债收益率",
-    "DGS6MO": "6月期国债收益率",
-    "DGS1": "1年期国债收益率",
-    "DGS2": "2年期国债收益率",
-    "DGS3": "3年期国债收益率",
-    "DGS5": "5年期国债收益率",
-    "DGS7": "7年期国债收益率",
-    "DGS10": "10年期国债收益率",
-    "DGS20": "20年期国债收益率",
-    "DGS30": "30年期国债收益率",
     "SPREAD_2S10S": "2s10s利差",
     "SPREAD_3M10S": "3m10s利差",
     "SPREAD_5S30S": "5s30s利差",
     "SOFR_IORB_SPREAD_BP": "SOFR-IORB利差(bp)",
-    "DFII5": "5年期TIPS收益率",
-    "DFII7": "7年期TIPS收益率",
-    "DFII10": "10年期TIPS收益率",
-    "DFII20": "20年期TIPS收益率",
-    "DFII30": "30年期TIPS收益率",
     "BEI_5Y": "5年期盈亏平衡通胀率",
     "BEI_7Y": "7年期盈亏平衡通胀率",
     "BEI_10Y": "10年期盈亏平衡通胀率",
@@ -248,6 +234,8 @@ _MACRO_LABELS = {
     "STLFSI4": "金融压力指数",
     "DXY": "美元指数",
 }
+# 期限品种的长名合并进同一查找表（单一数据源在 config.TERM_INFO）
+_MACRO_LABELS.update({k: v.name for k, v in TERM_INFO.items()})
 
 
 @app.get("/api/macro/categories")
@@ -460,12 +448,8 @@ def get_macro_term(category: str):
         raise HTTPException(404, "No term columns found")
     last = df.iloc[-1]
 
-    # friendly labels: DGS1MO→1mo, DGS1→1y, DFII5→5y, etc.
-    def _label(s: str) -> str:
-        suffix = s.replace("DGS", "").replace("DFII", "")
-        return suffix.lower().replace("mo", "mo").replace("MO", "mo")
-
-    labels = [_label(t) for t in available]
+    # 期限标签统一走 config.TERM_INFO（与 TUI 共用）
+    labels = [TERM_INFO[t].short for t in available]
     values = [float(last[t]) if pd.notna(last[t]) else None for t in available]
     return _sanitize(
         {

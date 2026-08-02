@@ -18,7 +18,7 @@ from datetime import datetime
 
 import pandas as pd
 
-from ..config import FOMC_MEETINGS, ROOT
+from ..config import FED_TARGET_RANGE_FALLBACK, FOMC_MEETINGS, ROOT
 
 logger = logging.getLogger(__name__)
 
@@ -68,20 +68,19 @@ def _current_target_range() -> tuple[float, float]:
             if not latest.empty:
                 r = latest.iloc[-1]
                 return float(r["DFEDTARL"]), float(r["DFEDTARU"])
-    # ponytail: 硬编码兜底，FRED 数据就绪后自动覆盖
-    return 3.50, 3.75
+    # ponytail: 硬编码兜底，FRED 数据就绪后自动覆盖；
+    # 常量位置: config.FED_TARGET_RANGE_FALLBACK
+    lo, hi = FED_TARGET_RANGE_FALLBACK
+    logger.warning(
+        f"FRED 目标区间缺失（data/fred/rates/rates.csv），"
+        f"使用硬编码兜底 {lo:.2f}-{hi:.2f}；"
+        "调息后需更新 config.FED_TARGET_RANGE_FALLBACK，否则概率将错位"
+    )
+    return FED_TARGET_RANGE_FALLBACK
 
 
 def _range_midpoint(lo: float, hi: float) -> float:
     return (lo + hi) / 2
-
-
-def _closest_range(r: float) -> tuple[float, float]:
-    """给定隐含利率 r，找到最近的 25bp 目标区间。"""
-    lo = round(r / _STEP) * _STEP
-    if lo > r:
-        lo -= _STEP
-    return lo, lo + _STEP
 
 
 def _calc_probabilities(
@@ -138,6 +137,9 @@ def _expectation_label(current_lo: float, current_hi: float, probs: dict) -> str
 
 def fetch_rate_expectations() -> tuple[pd.DataFrame, pd.DataFrame]:
     """拉取 ZQ 期货并计算 FOMC 概率。
+
+    使用注意：post-meeting 隐含利率取自 ZQ 结算价，
+    `days_after=3` 采样对结算噪声敏感，概率结果 ±5pp 内波动属正常。
 
     Returns:
       (fomc_df, zq_df) — FOMC 概率表 + ZQ 合约快照表
