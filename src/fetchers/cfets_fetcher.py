@@ -49,12 +49,16 @@ def fetch_swap_points() -> pd.DataFrame:
     session.mount("https://", _LegacyTLSAdapter())
 
     points: dict[str, float] = {}
+    obs_dates: set[str] = set()
     for pair in PAIRS:
         resp = session.post(
             f"{BASE}/fx-sw-curv-{pair}.json", data={"t": "1"}, timeout=30
         )
         resp.raise_for_status()
         data = resp.json().get("data", {})
+        show_date = data.get("showDateCN") or data.get("nowDate")
+        if show_date:
+            obs_dates.add(str(show_date)[:10])
         for rec in data.get("voArray", []):
             tenor = rec.get("tenor")
             if tenor in TENORS:
@@ -63,7 +67,10 @@ def fetch_swap_points() -> pd.DataFrame:
     if not points:
         return pd.DataFrame()
 
-    obs_date = datetime.now().strftime("%Y-%m-%d")
+    # 用 API 自带的数据日期（周末/节假日时与运行日不同），避免错位
+    obs_date = (
+        sorted(obs_dates)[-1] if obs_dates else datetime.now().strftime("%Y-%m-%d")
+    )
     return pd.DataFrame([points], index=[obs_date])
 
 
