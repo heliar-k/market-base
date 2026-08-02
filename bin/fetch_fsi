@@ -1,0 +1,5 @@
+#!/bin/bash
+# OFR 金融压力指数（financialresearch.gov 官方 CSV）
+set -euo pipefail
+cd "$(dirname "$0")/.."
+exec uv run python -m src.fetchers.fsi_fetcher "$@"

@@ -35,6 +35,8 @@ ticker-toolkit/
 │   │   ├── fred_fetcher.py       ← FRED API 宏观指标（46 个系列，9 分类）
 │   │   ├── yfinance_fetcher.py   ← yfinance 资产价格（需 SOCKS5 代理）
 │   │   ├── cboe_fetcher.py       ← CBOE 波动率（OVX、VIX 期限结构）
+│   │   ├── fsi_fetcher.py        ← OFR 金融压力指数（官方 CSV 全量）
+│   │   ├── srf_fetcher.py        ← SRF 使用量（NY Fed Markets API）
 │   │   ├── commodities_fetcher.py← IBKR 商品期货日线（9 个品种，整条曲线）
 │   │   └── options_fetcher.py    ← IBKR 期权链参数
 │   └── tui/                      ← TUI 应用（Textual 双模式）
@@ -55,6 +57,8 @@ ticker-toolkit/
 │   ├── fetch_cboe
 │   ├── fetch_shapiro
 │   ├── fetch_sce
+│   ├── fetch_fsi
+│   ├── fetch_srf
 │   ├── fetch_commodities
 │   └── fetch_options
 │
@@ -62,6 +66,8 @@ ticker-toolkit/
 │   ├── fred/{category}/{category}.csv  ← 12 分类 FRED 数据（观测日 upsert）
 │   ├── cboe/volatility.csv             ← CBOE 波动率（OVX, VIX9D, VIX, VIX_TERM_SLOPE）
 │   ├── shapiro/shapiro.csv             ← Shapiro 供需 PCE 分解（观测日 upsert）
+│   ├── ofr/fsi.csv                     ← OFR 金融压力指数（观测日 upsert）
+│   ├── fred/liquidity/srf.csv          ← SRF 使用量（观测日 upsert）
 │   ├── sce/sce.csv                     ← NY Fed SCE 通胀预期（观测日 upsert）
 │   ├── stocks/{SYMBOL}.csv             ← 10 只股票日线 OHLCV
 │   ├── indices/{SYMBOL}.csv            ← 4 个指数日线 OHLCV
@@ -87,7 +93,7 @@ ticker-toolkit/
 
 **每日自动（无需本地操作）**：GitHub Actions `daily-fetch` workflow 每个交易日
 北京时间 05:00 自动拉取**不依赖 IBKR/TWS** 的数据源并 commit + push，本地 `git pull` 即得：
-`fred` / `cboe` / `shapiro` / `sce` / `treasury` / `yfinance`（17 品种资产快照）。
+`fred` / `cboe` / `ofr` / `srf` / `shapiro` / `sce` / `treasury` / `yfinance`（17 品种资产快照）。
 
 **本地手动（先启动 TWS 或 IB Gateway，端口 4001 实盘 / 4002 模拟）**：只有依赖 IBKR 的才需要本地跑：
 `ibkr` / `options` / `commodities` / `index` / `stock` / `rate_expectations`（ZQ 期货来自 commodities）。
@@ -105,6 +111,8 @@ ticker-toolkit/
 ./bin/fetch_cboe                    # CBOE 波动率（OVX/VIX9D/VIX/期限结构）
 ./bin/fetch_shapiro                 # Shapiro 供需 PCE 分解
 ./bin/fetch_sce                     # NY Fed SCE 通胀预期
+./bin/fetch_fsi                     # OFR 金融压力指数
+./bin/fetch_srf                     # SRF 使用量
 ./bin/fetch_yfinance                # yfinance 资产价格
 ./bin/fetch_commodities             # 全部期货（整条曲线）
 ./bin/fetch_commodities --front-month  # 仅主力合约

@@ -20,6 +20,8 @@ mkdir -p logs
 # bin/ 下全部 fetch_* 脚本，按依赖轻→重排序：纯 API 优先，TWS 依赖放后
 FETCHERS=(
     bin/fetch_fred
+    bin/fetch_fsi
+    bin/fetch_srf
     bin/fetch_cboe
     bin/fetch_shapiro
     bin/fetch_sce

@@ -2,7 +2,7 @@
 
 所有数据以 CSV 存储，`date` 列统一为首列（ISO 格式），`pd.read_csv(path, index_col='date', parse_dates=True)` 直接可用。
 
-宏观时间序列（FRED / Shapiro / SCE / CBOE）以**观测日**为 key，每次 `./bin/fetch_*` 拉源全量历史并 upsert（同日新值覆盖旧值，新日追加）→ 忘记运行自动补漏。股票/指数/期货以交易日为 key 增量追加。
+宏观时间序列（FRED / Shapiro / SCE / CBOE / OFR / NY Fed Markets）以**观测日**为 key，每次 `./bin/fetch_*` 拉源全量历史并 upsert（同日新值覆盖旧值，新日追加）→ 忘记运行自动补漏。股票/指数/期货以交易日为 key 增量追加。
 
 ---
 
@@ -55,6 +55,21 @@ VIX9D/VIX 全量序列一并落盘，使 VIX_TERM_SLOPE 可复算审计。
 
 ---
 
+## 2b. 金融压力 — `data/ofr/fsi.csv`
+
+来源 OFR（美国财政部金融研究办公室）官方 CSV，日频、2000 年至今全历史，发布滞后 2 个工作日。
+每次 `./bin/fetch_fsi` 拉全量历史并 upsert（漏跑自动补）。
+
+| 列名 | 说明 |
+|------|------|
+| `OFR_FSI` | OFR 金融压力指数（正=高于常态压力） |
+| `CREDIT` / `EQUITY_VALUATION` / `SAFE_ASSETS` / `FUNDING` / `VOLATILITY` | 五个成分分项 |
+| `US` / `OTHER_ADVANCED` / `EMERGING_MARKETS` | 分区域贡献 |
+
+---
+
+---
+
 ## 3. 流动性原始系列 — `data/fred/liquidity/liquidity.csv`
 
 FRED liquidity 分类的原始系列（由 `./bin/fetch_fred` 一并拉取）。派生指标
@@ -70,6 +85,22 @@ FRED liquidity 分类的原始系列（由 `./bin/fetch_fred` 一并拉取）。
 | `WALCL` | 联储总资产 | 百万美元 |
 
 > 派生 `NET_LIQUIDITY` 见 `src/macro.py`；RRP 单位十亿美元，计算时 ×1000 统一到百万。
+
+---
+
+## 3a. SRF 使用量 — `data/fred/liquidity/srf.csv`
+
+来源 NY Fed Markets API（官方、免费、无 key），由 `./bin/fetch_srf` 拉取：首次全历史，之后每日增量 5 天 upsert。
+
+| 列名 | 说明 | 单位 |
+|------|------|------|
+| `SRF_USAGE` | Standing Repo Facility 日度使用量 | 十亿美元 |
+
+> **披露限制**（2026-08 验证）：SRF 单独使用量仅在 2021-07-29（上线）~ 2025-12-10 期间以
+> Multiple Price 拍卖独立披露，此段精确（如 2025-10-31 = 50.35B，与 Reuters 一致）。
+> 2025-12-11 起 SRF 与 POMO 同为 Full Allotment 格式、不再拆分 → `SRF_USAGE` 记 0，
+> 但单日 Full Allotment 使用 >1B 时 fetcher 会告警（如 2025-12-31 年末 74.6B，可能含 SRF）。
+> SVE（Small Value Exercise 测试操作）不计入。
 
 ---
 
