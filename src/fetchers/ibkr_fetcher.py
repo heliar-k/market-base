@@ -33,7 +33,7 @@ from ib_insync import IB, Index, Stock, util
 
 from ..config import ROOT, config
 from ._io import load_timeseries, upsert_timeseries
-from .yfinance_fetcher import yf_minute_bars  # noqa: E402 模块级代理已设置
+from .yfinance_fetcher import yf_minute_bars
 
 # ---------------------------------------------------------------------------
 # 日志

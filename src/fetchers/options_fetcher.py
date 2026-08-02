@@ -27,11 +27,6 @@ from ib_insync import IB
 from ..config import ROOT, config
 from .ibkr_fetcher import IBKRConnectionError, connect_ib, get_option_chain_params
 
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s [%(levelname)s] %(message)s",
-    datefmt="%H:%M:%S",
-)
 log = logging.getLogger("options_chain")
 
 
@@ -102,6 +97,11 @@ def save_chain_csv(sym_name: str, chains: list[dict], output_dir: Path):
 
 
 def main():
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s [%(levelname)s] %(message)s",
+        datefmt="%H:%M:%S",
+    )
     parser = argparse.ArgumentParser(description="IBKR 期权链参数拉取")
     parser.add_argument("--symbols", help="逗号分隔，不指定则拉取全部股票")
     parser.add_argument(

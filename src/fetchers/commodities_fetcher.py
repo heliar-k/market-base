@@ -26,10 +26,6 @@ from .ibkr_fetcher import IBKRConnectionError, connect_ib, port_delay
 log = logging.getLogger(__name__)
 
 OUTPUT_DIR = ROOT / "data" / "commodities"
-BAR_SIZE = config.ibkr.bar_size
-DURATION = config.ibkr.duration
-WHAT_TO_SHOW = config.ibkr.what_to_show
-USE_RTH = config.ibkr.use_rth
 
 
 def _resolve_all_contracts(
@@ -73,15 +69,15 @@ def _expiry_to_month(expiry: str) -> str:
 
 
 def _fetch_bars(ib: IB, contract: Future) -> pd.DataFrame | None:
-    """拉取单个合约的日线 OHLCV。"""
+    """拉取单个合约的日线 OHLCV（参数每次直读 config，不冻结）。"""
     try:
         bars = ib.reqHistoricalData(
             contract,
             endDateTime="",
-            durationStr=DURATION,
-            barSizeSetting=BAR_SIZE,
-            whatToShow=WHAT_TO_SHOW,
-            useRTH=USE_RTH,
+            durationStr=config.ibkr.duration,
+            barSizeSetting=config.ibkr.bar_size,
+            whatToShow=config.ibkr.what_to_show,
+            useRTH=config.ibkr.use_rth,
             formatDate=1,
         )
         if not bars:

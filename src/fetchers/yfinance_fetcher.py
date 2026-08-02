@@ -18,24 +18,22 @@ from .quality import DataPoint, QAStatus
 
 logger = logging.getLogger(__name__)
 
-# ── 代理设置：必须在 import yfinance 前执行 ──────────────────────────────
+# ── 代理 URL（纯计算，无副作用）─────────────────────────────────────────
 # YF_NO_PROXY=1（GitHub Actions 无代理环境）：跳过代理设置，直连 Yahoo。
-# 兜底：.env 没配代理时用项目默认值
+# 兜底：.env 没配代理时用项目默认值。
+# env 写入与 TCP 探测收敛在 ensure_yf_proxy()；yfinance 在函数内惰性 import。
 if os.environ.get("YF_NO_PROXY"):
     _PROXY_URL = ""
 else:
     _PROXY_URL = config.https_proxy or "socks5://127.0.0.1:7890"
-os.environ.setdefault("HTTPS_PROXY", _PROXY_URL)
-os.environ.setdefault("HTTP_PROXY", _PROXY_URL)
-
-import yfinance as yf  # noqa: E402
 
 
 def ensure_yf_proxy(timeout: float = 3.0) -> None:
     """设置 yfinance 代理环境变量 + TCP 可达性检测。
 
     在 import yfinance 之前调用。代理不可达时抛出 ConnectionError。
-    已在模块级别设置过代理，此函数主要做可达性检测（幂等，可多次调用）。
+    import 模块本身零副作用（不写 env、不 import yfinance）；
+    调用方约定：ensure_yf_proxy() → import yfinance（惰性）。
     """
     from urllib.parse import urlparse
 
@@ -68,6 +66,9 @@ def fetch_ohlcv(ticker: str, period: str = "2y") -> pd.DataFrame:
     用于 IBKR 不可用时的回退。index 为 date (datetime)。
     """
     logger.info(f"[yfinance fallback] 拉取 {ticker} OHLCV (period={period})...")
+    ensure_yf_proxy()
+    import yfinance as yf
+
     t = yf.Ticker(ticker)
     df = t.history(period=period)
     if df.empty:
@@ -93,9 +94,12 @@ def yf_minute_bars(ticker: str, interval: str) -> pd.DataFrame:
 
     interval: "5m" | "15m" | "1h" | "4h"（深度：5m/15m 60 天，1h/4h 2 年）
     Returns 与 ibkr bars_to_dataframe 同构（open/high/low/close/volume，
-    index 为带时区 datetime）。模块级代理已设置，无需额外处理。
+    index 为带时区 datetime）。调用方需先 ensure_yf_proxy()。
     """
     period = {"5m": "60d", "15m": "60d", "1h": "730d", "4h": "730d"}[interval]
+    ensure_yf_proxy()
+    import yfinance as yf
+
     h = yf.Ticker(ticker).history(period=period, interval=interval)
     if h.empty:
         return pd.DataFrame()
@@ -122,6 +126,9 @@ def _fetch_ticker(ticker: str, name: str) -> DataPoint:
         formula="asset_prices.close, daily close",
     )
     try:
+        ensure_yf_proxy()
+        import yfinance as yf
+
         t = yf.Ticker(ticker)
         hist = t.history(period="5d")
         if hist.empty:
