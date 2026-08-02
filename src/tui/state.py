@@ -35,15 +35,22 @@ class LookbackCursor:
             return self.dates[-1]
         return self.cursor_date
 
+    def move(self, direction: str) -> None:
+        """按方向字符串分派（left/right），无效方向不动。唯一分派点。"""
+        if direction == "left":
+            self.move_left()
+        elif direction == "right":
+            self.move_right()
+
     def move_left(self, steps: int = 1) -> None:
         """往前移 steps 根，不越过 dates[0]。"""
         if not self.dates:
             return
-        idx = self._index() - steps
+        idx = self.index() - steps
         self.cursor_date = self.dates[max(idx, 0)]
 
-    def _index(self) -> int:
-        """当前光标在 dates 中的索引。"""
+    def index(self) -> int:
+        """当前光标在 dates 中的索引（空 dates 返回 -1）。"""
         cur = self.current()
         return self.dates.index(cur) if cur is not None else len(self.dates) - 1
 
@@ -51,7 +58,7 @@ class LookbackCursor:
         """往后移 steps 根，不越过 dates[-1]。"""
         if not self.dates:
             return
-        idx = self._index() + steps
+        idx = self.index() + steps
         self.cursor_date = self.dates[min(idx, len(self.dates) - 1)]
 
     def reset_to_end(self) -> None:
@@ -60,11 +67,11 @@ class LookbackCursor:
 
     def at_start(self) -> bool:
         """是否在第一根。"""
-        return bool(self.dates) and self._index() == 0
+        return bool(self.dates) and self.index() == 0
 
     def at_end(self) -> bool:
         """是否在最后一根。"""
-        return bool(self.dates) and self._index() == len(self.dates) - 1
+        return bool(self.dates) and self.index() == len(self.dates) - 1
 
 
 @dataclass

@@ -174,12 +174,7 @@ class MacroChart(Vertical):
         """←/→ 移期限结构快照日期，重画期限图。仅 rates/tips 有效。"""
         if self.macro_view.term_cursor is None:
             return
-        if direction == "left":
-            self.macro_view.term_cursor.move_left()
-        elif direction == "right":
-            self.macro_view.term_cursor.move_right()
-        else:
-            return
+        self.macro_view.term_cursor.move(direction)
         self._draw_term_structure()
 
 

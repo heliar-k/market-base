@@ -10,6 +10,49 @@ from src.tui.state import LookbackCursor, OverlayToggles, SubplotSlots, TechView
 # ---------- LookbackCursor ----------
 
 
+def _dates(n: int = 5) -> list[pd.Timestamp]:
+    return list(pd.date_range("2024-01-01", periods=n, freq="D"))
+
+
+# ---------- C6: move(direction) 分派 + index() ----------
+
+
+def test_move_direction_dispatch() -> None:
+    """move() 按方向字符串分派，无效方向不动（唯一分派点）。"""
+    dates = _dates()
+    c = LookbackCursor(dates=dates)
+    c.move("left")
+    assert c.current() == dates[-2]
+    c.move("right")
+    assert c.current() == dates[-1]
+    c.move("up")  # 无效方向：不移动
+    assert c.current() == dates[-1]
+
+
+def test_move_direction_on_empty_dates() -> None:
+    c = LookbackCursor(dates=[])
+    c.move("left")
+    assert c.current() is None
+
+
+def test_index_public() -> None:
+    """index() = 当前光标在 dates 中的位置（初始 = 最后一根）。"""
+    dates = _dates()
+    c = LookbackCursor(dates=dates)
+    assert c.index() == len(dates) - 1
+    c.move_left(2)
+    assert c.index() == len(dates) - 3
+    c.move_right(1)
+    assert c.index() == len(dates) - 2
+
+
+def test_index_empty_dates() -> None:
+    assert LookbackCursor(dates=[]).index() == -1
+
+
+# ---------- LookbackCursor ----------
+
+
 def test_cursor_defaults_to_last_date() -> None:
     """构造后光标默认停在最后一根 K 线。"""
     dates = list(pd.date_range("2024-01-01", periods=20))

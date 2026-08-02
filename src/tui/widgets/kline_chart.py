@@ -280,11 +280,7 @@ class KlineChart(Vertical):
         if df is None or df.empty:
             return slice(0, 0)
         dates = list(df.index)
-        cur = self.tech_view.cursor.current()
-        if cur is None:
-            idx = len(dates) - 1
-        else:
-            idx = dates.index(cur)
+        idx = self.tech_view.cursor.index()
         win = visible_window(dates, idx)
         self._window = win
         return win
@@ -295,10 +291,5 @@ class KlineChart(Vertical):
 
         决策点5：vline 实时跟手重画（轻），侧栏 analyze 防抖 50ms（由 screen 负责）。
         """
-        if direction == "left":
-            self.tech_view.cursor.move_left()
-        elif direction == "right":
-            self.tech_view.cursor.move_right()
-        else:
-            return
+        self.tech_view.cursor.move(direction)
         self.redraw()
