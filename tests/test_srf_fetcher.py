@@ -96,9 +96,8 @@ def test_sve_excluded(monkeypatch):
     assert fetch_srf_usage("2026-02-18", "2026-02-18").empty
 
 
-def test_post_switch_multiple_price_not_counted(monkeypatch):
-    """2026-02-18 后 SRF 改 Full Allotment 披露，Multiple Price 不再出现；
-    若出现也不计入（防误报），Full Allotment 大额时告警。"""
+def test_post_switch_full_allotment_counted(monkeypatch):
+    """2025-12-11 起 SRF 改 Full Allotment，每日两场（25 早场 + 26/27）均计入。"""
     payload = {
         "repo": {
             "operations": [
@@ -109,4 +108,38 @@ def test_post_switch_multiple_price_not_counted(monkeypatch):
     }
     monkeypatch.setattr("src.fetchers.srf_fetcher.requests.get", _fake_get(payload))
 
-    assert fetch_srf_usage("2026-07-31", "2026-07-31").empty
+    df = fetch_srf_usage("2026-07-31", "2026-07-31")
+    assert df.loc["2026-07-31", "SRF_USAGE"] == 2.5
+
+
+def test_sve_10h30_switch_style_excluded(monkeypatch):
+    """切换前的 SVE 测试场（releaseTime=10:30，note 可能为空）不计入。"""
+    payload = {
+        "repo": {
+            "operations": [
+                {
+                    "operationId": "RP 030823 1",
+                    "operationType": "Repo",
+                    "operationMethod": "Multiple Price",
+                    "operationDate": "2023-03-08",
+                    "releaseTime": "10:30",
+                    "totalAmtAccepted": 56_000_000,
+                    "note": "",
+                },
+                {
+                    "operationId": "RP 030823 2",
+                    "operationType": "Repo",
+                    "operationMethod": "Multiple Price",
+                    "operationDate": "2023-03-08",
+                    "releaseTime": "13:30",
+                    "totalAmtAccepted": 0,
+                    "note": "",
+                },
+            ]
+        }
+    }
+    monkeypatch.setattr("src.fetchers.srf_fetcher.requests.get", _fake_get(payload))
+
+    df = fetch_srf_usage("2023-03-08", "2023-03-08")
+    assert df.loc["2023-03-08", "SRF_USAGE"] == 0.0  # 10:30 场被排除
+    assert df.index.tolist() == ["2023-03-08"]

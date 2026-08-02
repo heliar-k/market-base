@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+# 拉取 Treasury 公开市场操作明细（POMO/RMP）→ data/fred/liquidity/tsy_operations.csv
+set -euo pipefail
+cd "$(dirname "$0")/.."
+uv run python -m src.fetchers.tsy_fetcher "$@"

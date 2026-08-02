@@ -96,11 +96,35 @@ FRED liquidity 分类的原始系列（由 `./bin/fetch_fred` 一并拉取）。
 |------|------|------|
 | `SRF_USAGE` | Standing Repo Facility 日度使用量 | 十亿美元 |
 
-> **披露限制**（2026-08 验证）：SRF 单独使用量仅在 2021-07-29（上线）~ 2025-12-10 期间以
-> Multiple Price 拍卖独立披露，此段精确（如 2025-10-31 = 50.35B，与 Reuters 一致）。
-> 2025-12-11 起 SRF 与 POMO 同为 Full Allotment 格式、不再拆分 → `SRF_USAGE` 记 0，
-> 但单日 Full Allotment 使用 >1B 时 fetcher 会告警（如 2025-12-31 年末 74.6B，可能含 SRF）。
-> SVE（Small Value Exercise 测试操作）不计入。
+> **识别规则**（2026-08 验证）：
+> - 2021-07-29（上线）~ 2025-12-10：SRF 以 Multiple Price 拍卖运行，每日 13:30 一场，
+>   此段精确（如 2025-10-31 = 50.35B，与 Reuters 一致）。排除 10:30 场（SVE 测试）。
+> - 2025-12-11 起：SRF 改为 Full Allotment，每日固定两场（08:15 早场 + 13:30 下午场），
+>   operationType=Repo + Full Allotment 即 SRF（POMO/RMP 国债购买在另一套 API，不混淆）。
+>   与 FRED `RPONTTLD`（全部 repo 总和）逐日交叉验证零超限。
+> - SVE（Small Value Exercise 测试操作：切换前 10:30 场 / 切换后编号 99）不计入。
+
+---
+
+## 3b. Treasury 公开市场操作明细 — `data/fred/liquidity/tsy_operations.csv`
+
+来源 NY Fed Markets API `/api/tsy/{purchases,sales}/results/details/last/300.json`
+（官方、免费、无 key），由 `./bin/fetch_tsy` 拉取：每次全量覆盖写（最近 300 笔，约 5 年）。
+
+| 列名 | 说明 | 单位 |
+|------|------|------|
+| `operation_id` | 操作 ID | — |
+| `date` | 操作日 | — |
+| `settlement_date` | 结算日 | — |
+| `operation_type` | Outright Bill/Coupon/TIPS/FRN Purchase/Sale | — |
+| `is_rmp` | 2025-12-12（RMP 启动）后的 Bill Purchase = Reserve Management Purchases | bool |
+| `maturity_start/end` | 到期范围 | — |
+| `submitted_b/accepted_b` | 提交额 / 接受额 | 十亿美元 |
+| `accept_ratio` | 接受比（接受/提交） | % |
+| `note` | 备注 | — |
+
+> RMP 为技术性操作（补充银行准备金，每月约 $40B 国库券购买），非 QE；识别口径与
+> timsun.net 一致（截至 2026-06-09 为 40 笔 / $283.84B，交叉验证吻合）。
 
 ---
 
