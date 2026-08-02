@@ -2,8 +2,6 @@
 
 行为优先级：
 6. detect_cdl_hits(df, as_of) 返回 as_of 那天命中的形态（非最后一行）
-7. detect_cdl_hits(df) 无 as_of 与原 add_cdl_patterns 存 attrs 的行为一致
-8. add_cdl_patterns 改造后 attrs 仍被正确设置
 """
 
 import pandas as pd
@@ -11,43 +9,6 @@ import pytest
 
 from src.analyze import analyze
 from src.indicators import compute_all_indicators, detect_cdl_hits
-
-# ═══ 行为 7：无 as_of 与原 attrs 行为一致 ═══
-
-
-def test_detect_cdl_hits_without_as_of_matches_attrs(real_aapl_csv):
-    """无 as_of 时 detect_cdl_hits 返回值与 add_cdl_patterns 存的 attrs 一致。"""
-    if real_aapl_csv is None:
-        pytest.skip("需要 data/stocks/AAPL.csv")
-    df = (
-        pd.read_csv(real_aapl_csv, parse_dates=["date"])
-        .sort_values("date")
-        .set_index("date")
-    )
-    df.columns = df.columns.str.lower()
-    df = compute_all_indicators(df)
-
-    bull, bear = detect_cdl_hits(df)
-    assert bull == df.attrs["cdl_bullish"]
-    assert bear == df.attrs["cdl_bearish"]
-
-
-# ═══ 行为 8：add_cdl_patterns 改造后 attrs 仍被设置 ═══
-
-
-def test_add_cdl_patterns_still_sets_attrs(sample_ohlcv_df):
-    """改造后 add_cdl_patterns 仍把命中写入 attrs（原行为不破）。"""
-    df = compute_all_indicators(sample_ohlcv_df.copy())
-    # attrs 应被设置（哪怕是空列表）
-    assert "cdl_bullish" in df.attrs
-    assert "cdl_bearish" in df.attrs
-    assert isinstance(df.attrs["cdl_bullish"], list)
-    assert isinstance(df.attrs["cdl_bearish"], list)
-    # 与直接调 detect_cdl_hits 一致
-    bull, bear = detect_cdl_hits(df)
-    assert df.attrs["cdl_bullish"] == bull
-    assert df.attrs["cdl_bearish"] == bear
-
 
 # ═══ 行为 6：as_of 决定命中行 ═══
 

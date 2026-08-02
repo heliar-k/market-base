@@ -132,12 +132,12 @@ def _fetch_ticker(ticker: str, name: str) -> DataPoint:
         t = yf.Ticker(ticker)
         hist = t.history(period="5d")
         if hist.empty:
-            dp.mark_error("No data returned from yfinance")
+            dp.mark_error()
             return dp
         # 最后一行可能为 NaN（亚洲指数数据延迟/时区错位）→ 取最近有效收盘
         close_series = hist["Close"].dropna()
         if close_series.empty:
-            dp.mark_error("No valid close in yfinance data")
+            dp.mark_error()
             return dp
         close = close_series.iloc[-1]
         ts = hist.loc[close_series.index[-1]].name
@@ -145,7 +145,8 @@ def _fetch_ticker(ticker: str, name: str) -> DataPoint:
         dp.as_of = ts.strftime("%Y-%m-%d")
         dp.mark_ok()
     except Exception as e:
-        dp.mark_error(str(e))
+        logger.info(f"  ✗ {name}: {e}")
+        dp.mark_error()
     return dp
 
 

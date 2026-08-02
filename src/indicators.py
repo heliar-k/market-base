@@ -348,19 +348,11 @@ def detect_cdl_hits(df: pd.DataFrame, as_of=None) -> tuple[list[str], list[str]]
 def add_cdl_patterns(df: pd.DataFrame) -> pd.DataFrame:
     """
     识别 62 种 K 线形态（pandas-ta 原生，无需 TA-Lib）。
-    生成列: CDL_* (62 列)，并在 df.attrs 存储最新行命中的反转形态。
+    生成列: CDL_* (62 列)。命中查询用 detect_cdl_hits(df, as_of)（可回看）。
     """
     result = ta.cdl_pattern(df["open"], df["high"], df["low"], df["close"], name="all")
     if result is not None:
-        # 一次性合并 CDL 列，避免逐列 insert 导致碎片化（PerformanceWarning）
-        saved_attrs = df.attrs
         df = pd.concat([df, result], axis=1)
-        df.attrs = saved_attrs
-
-        # 最新行命中存入 attrs（保持原行为）
-        bullish_hits, bearish_hits = detect_cdl_hits(df)
-        df.attrs["cdl_bullish"] = bullish_hits
-        df.attrs["cdl_bearish"] = bearish_hits
     return df
 
 
