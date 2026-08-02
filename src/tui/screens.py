@@ -26,7 +26,6 @@ from textual.widgets import ListItem, ListView, Static, Tree
 from src.analyze import analyze
 from src.cache import load_or_compute
 from src.config import FRED_SERIES, IBKR_SYMBOLS
-from src.macro import derive_macro
 from src.tui.state import MacroView, Mode, TechView, TuiState
 from src.tui.widgets.diag_sidebar import DiagSidebar
 from src.tui.widgets.kline_chart import KlineChart
@@ -361,37 +360,20 @@ class MainScreen(Container):
                 return Path("data") / sub / f"{symbol}.csv"
         return None
 
-    @staticmethod
-    def _fred_csv_path_for(category: str) -> Path:
-        """FRED 分类 CSV 路径：data/fred/{category}/{category}.csv。"""
-        return Path("data") / "fred" / category / f"{category}.csv"
-
-    # ── 宏观：Worker 化加载 FRED CSV + derive_macro ────────────────────
+    # ── 宏观：Worker 化加载 FRED 分类（macro.load_macro_category）─────────
     @work(thread=True, exclusive=True, name="macro-load")
     def _load_macro_worker(self, category: str) -> None:
-        """后台读 FRED CSV + 合并跨分类伙伴 + derive_macro 追加派生列。
+        """后台加载 FRED 分类：伙伴合并 + 派生列（含单位归一化）由 loader 负责。"""
+        from src.macro import load_macro_category
 
-        BEI 等跨分类派生需 rates+tips 同时在场：按 date left-join 伙伴分类 CSV。
-        """
-        from src.macro import cross_category_partners
-
-        csv_path = self._fred_csv_path_for(category)
         self.app.call_from_thread(
             self.query_one("#content-text", Static).update, f"{category} 加载中..."
         )
-        if not csv_path.exists():
+        try:
+            df = load_macro_category(category)
+        except FileNotFoundError:
             self.app.call_from_thread(self._show_macro_no_data, category)
             return
-        df = pd.read_csv(csv_path, index_col="date", parse_dates=True)
-        # 合并跨分类伙伴 CSV（按 date left-join），让 BEI 等跨分类派生可算
-        for partner in cross_category_partners(category):
-            partner_csv = self._fred_csv_path_for(partner)
-            if partner_csv.exists():
-                partner_df = pd.read_csv(
-                    partner_csv, index_col="date", parse_dates=True
-                )
-                df = df.join(partner_df, how="left")
-        df = derive_macro(df)
         self.app.call_from_thread(self._on_macro_loaded, category, df)
 
     def _show_macro_no_data(self, category: str) -> None:

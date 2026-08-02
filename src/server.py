@@ -23,7 +23,14 @@ from src.config import (
     ROOT,
     TERM_SERIES,
 )
-from src.macro import cross_category_partners, derive_macro
+from src.macro import (
+    DERIVED_INPUTS,
+    categories_for,
+    load_macro_categories,
+    load_macro_category,
+    read_macro_category,
+    rrp_in_millions,
+)
 
 app = FastAPI(title="K-line Analysis Web")
 
@@ -171,25 +178,8 @@ def get_diag(symbol: str, as_of: str | None = Query(None)):
 
 # ── macro endpoints ──────────────────────────────────────────────────────────
 
-# 指标 → 分类反查
-_METRIC_TO_CAT: dict[str, str] = {}
-for _cat, _series in FRED_SERIES.items():
-    for _metric in _series:
-        _METRIC_TO_CAT[_metric] = _cat
-
 # 派生指标 → 所需原始列的源分类
-_DERIVED_CATS = {
-    "SPREAD_2S10S": ["rates"],
-    "SPREAD_3M10S": ["rates"],
-    "SPREAD_5S30S": ["rates"],
-    "NET_LIQUIDITY": ["liquidity"],
-    "BEI_5Y": ["rates", "tips"],
-    "BEI_7Y": ["rates", "tips"],
-    "BEI_10Y": ["rates", "tips"],
-    "BEI_20Y": ["rates", "tips"],
-    "BEI_30Y": ["rates", "tips"],
-    "SOFR_IORB_SPREAD_BP": ["rates"],
-}
+# （macro.categories_for 从 DERIVED_INPUTS + FRED_SERIES 派生）
 
 # 中文标签（与前端 MACRO_LABELS 保持同步）
 _MACRO_LABELS = {
@@ -336,9 +326,11 @@ def get_fomc_calendar() -> dict:
     target_lower = None
     target_upper = None
     if current_meeting:
-        rates_csv = ROOT / "data" / "fred" / "rates" / "rates.csv"
-        if rates_csv.exists():
-            df = pd.read_csv(rates_csv, index_col="date", parse_dates=True)
+        try:
+            df = read_macro_category("rates")
+        except FileNotFoundError:
+            df = None
+        if df is not None:
             meeting_date = pd.Timestamp(
                 year=current_meeting.year,
                 month=current_meeting.month,
@@ -395,48 +387,27 @@ def get_macro_correlate(
     if not names:
         raise HTTPException(400, "No indicators specified")
 
-    # Collect all categories needed (raw + derived input deps)
+    # 收集所需分类（原始 + 派生输入列归属）
     cats_needed: set[str] = set()
     for name in names:
-        if name in _DERIVED_CATS:
-            cats_needed.update(_DERIVED_CATS[name])
-        elif name in _METRIC_TO_CAT:
-            cats_needed.add(_METRIC_TO_CAT[name])
-        else:
+        cats = categories_for(name)
+        if cats is None:
             raise HTTPException(404, f"Unknown indicator: {name}")
+        cats_needed.update(cats)
 
-    # Load & merge CSVs
-    dfs: list[pd.DataFrame] = []
-    for cat in cats_needed:
-        csv_path = ROOT / "data" / "fred" / cat / f"{cat}.csv"
-        if not csv_path.exists():
-            raise HTTPException(404, f"No data for category {cat}")
-        df = pd.read_csv(csv_path, index_col="date", parse_dates=True)
-        if "RRPONTSYD" in df.columns:
-            df["RRPONTSYD"] = df["RRPONTSYD"] * 1000
-        # Also load cross-category partners (e.g. tips for BEI)
-        for partner in cross_category_partners(cat):
-            p_csv = ROOT / "data" / "fred" / partner / f"{partner}.csv"
-            if p_csv.exists():
-                p_df = pd.read_csv(p_csv, index_col="date", parse_dates=True)
-                if "RRPONTSYD" in p_df.columns:
-                    p_df["RRPONTSYD"] = p_df["RRPONTSYD"] * 1000
-                df = df.join(p_df, how="outer")
-        dfs.append(df)
+    # 加载所需分类并集（伙伴分类自动并入，outer join 合并后一次派生）
+    try:
+        merged = load_macro_categories(cats_needed)
+    except FileNotFoundError:
+        raise HTTPException(404, "No data for requested categories")
 
-    # Outer-join all category DataFrames
-    merged = dfs[0]
-    for df in dfs[1:]:
-        merged = merged.join(df, how="outer")
-    merged.sort_index(inplace=True)
-
-    # Compute derived indicators
-    merged = derive_macro(merged)
-
-    # Validate all requested indicators exist after derivation
+    # 校验请求的指标都已在派生后存在
     for name in names:
         if name not in merged.columns:
             raise HTTPException(404, f"Indicator {name} not available in data")
+
+    # 显示层单位统一（RRP 十亿→百万，与旧响应一致；不影响派生列）
+    merged = rrp_in_millions(merged)
 
     # Build response
     merged = merged.reset_index()
@@ -444,9 +415,11 @@ def get_macro_correlate(
 
     result: dict[str, Any] = {}
     for name in names:
-        cat = _DERIVED_CATS.get(name, [_METRIC_TO_CAT.get(name, "derived")])[0]
-        if name in _DERIVED_CATS:
-            cat = "derived"
+        cat = (
+            "derived"
+            if name in DERIVED_INPUTS
+            else (categories_for(name) or ["derived"])[0]
+        )
         result[name] = {
             "category": cat,
             "label": _MACRO_LABELS.get(name, name),
@@ -463,22 +436,11 @@ def get_macro_correlate(
 
 @app.get("/api/macro/{category}")
 def get_macro(category: str):
-    csv_path = ROOT / "data" / "fred" / category / f"{category}.csv"
-    if not csv_path.exists():
+    try:
+        df = load_macro_category(category)
+    except FileNotFoundError:
         raise HTTPException(404, f"No macro data for {category}")
-    df = pd.read_csv(csv_path, index_col="date", parse_dates=True)
-    # ponytail: RRPONTSYD is in billions on FRED, others in millions — normalize
-    if "RRPONTSYD" in df.columns:
-        df["RRPONTSYD"] = df["RRPONTSYD"] * 1000
-    # join partner categories for cross-category derived series
-    for partner in cross_category_partners(category):
-        p_csv = ROOT / "data" / "fred" / partner / f"{partner}.csv"
-        if p_csv.exists():
-            p_df = pd.read_csv(p_csv, index_col="date", parse_dates=True)
-            if "RRPONTSYD" in p_df.columns:
-                p_df["RRPONTSYD"] = p_df["RRPONTSYD"] * 1000
-            df = df.join(p_df, how="left")
-    df = derive_macro(df)
+    df = rrp_in_millions(df)
     df = df.reset_index()
     df["date"] = df["date"].dt.strftime("%Y-%m-%d")
     return _sanitize(df.to_dict(orient="records"))
@@ -488,10 +450,10 @@ def get_macro(category: str):
 def get_macro_term(category: str):
     if category not in TERM_SERIES:
         raise HTTPException(404, f"No term structure for {category}")
-    csv_path = ROOT / "data" / "fred" / category / f"{category}.csv"
-    if not csv_path.exists():
+    try:
+        df = read_macro_category(category)
+    except FileNotFoundError:
         raise HTTPException(404, f"No macro data for {category}")
-    df = pd.read_csv(csv_path, index_col="date", parse_dates=True)
     terms = TERM_SERIES[category]
     available = [t for t in terms if t in df.columns]
     if not available:
@@ -547,15 +509,12 @@ def _liq_summary(df: pd.DataFrame, key: str) -> dict:
 
 @app.get("/api/liquidity/overview")
 def get_liquidity_overview(range: str = Query("all")):
-    csv_path = ROOT / "data" / "fred" / "liquidity" / "liquidity.csv"
-    if not csv_path.exists():
+    try:
+        df = load_macro_category("liquidity")
+    except FileNotFoundError:
         raise HTTPException(404, "No liquidity data")
-    df = pd.read_csv(csv_path, index_col="date", parse_dates=True)
-    # ponytail: RRPONTSYD is in billions on FRED, others in millions
-    # normalize before derive
-    if "RRPONTSYD" in df.columns:
-        df["RRPONTSYD"] = df["RRPONTSYD"] * 1000
-    df = derive_macro(df)
+    # 显示层单位统一：RRP 十亿→百万，与 WRESBAL/WTREGEN 同图（stacked）同单位
+    df = rrp_in_millions(df)
 
     cutoff = None
     if range != "all":
@@ -620,13 +579,10 @@ def get_liquidity_overview(range: str = Query("all")):
 
 @app.get("/api/liquidity/compare-spx")
 def get_liquidity_compare_spx(range: str = Query("5y")):
-    csv_path = ROOT / "data" / "fred" / "liquidity" / "liquidity.csv"
-    if not csv_path.exists():
+    try:
+        df = load_macro_category("liquidity")
+    except FileNotFoundError:
         raise HTTPException(404, "No liquidity data")
-    df = pd.read_csv(csv_path, index_col="date", parse_dates=True)
-    if "RRPONTSYD" in df.columns:
-        df["RRPONTSYD"] = df["RRPONTSYD"] * 1000
-    df = derive_macro(df)
 
     cutoff = None
     if range != "all":

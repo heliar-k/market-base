@@ -1,8 +1,10 @@
 """
 宏观派生指标计算模块 — 从原始 FRED 系列派生时序指标。
 
-本模块是纯计算层：接收含原始 FRED 列的 DataFrame，返回追加了派生列的 DataFrame。
-不碰 IO，不读 CSV（由调用方负责）。
+本模块拥有 FRED 分类的**加载管线**：读分类 CSV → 合并跨分类伙伴 →
+derive_macro 追加派生列。
+派生公式 / 单位换算（如 RRPONTSYD×1000）/ 伙伴归属都以本模块为权威定义，
+调用方（TUI / server / CLI）只调 read/load_* 三个入口，不得自行读 CSV 或预乘原始列。
 
 派生指标清单（公式 / 单位 / 数据源列名）：
   - SPREAD_2S10S        = DGS10 − DGS2                 （百分点，国债收益率曲线斜率）
@@ -20,6 +22,8 @@
   - 派生列只在所有输入列都存在时才计算，缺列则跳过（不报错）。
   - 派生列覆盖同名已存在列（本模块是权威定义）。
 """
+
+from pathlib import Path
 
 import pandas as pd
 
@@ -203,3 +207,90 @@ def derive_macro(df: pd.DataFrame) -> pd.DataFrame:
         if series is not None:
             out[col] = series
     return out
+
+
+# ── FRED 分类加载管线 ────────────────────────────────────────────────────────
+
+
+def _fred_csv_path(category: str) -> Path:
+    """FRED 分类 CSV 路径（以 config.ROOT 为准）。"""
+    from src.config import ROOT
+
+    return ROOT / "data" / "fred" / category / f"{category}.csv"
+
+
+def read_macro_category(category: str) -> pd.DataFrame:
+    """读取某 FRED 分类的原始 CSV（date 索引，原始单位，不派生）。
+
+    CSV 缺失抛 FileNotFoundError，由调用方决定 404 / 占位提示。
+    """
+    path = _fred_csv_path(category)
+    if not path.exists():
+        raise FileNotFoundError(f"FRED 分类 {category} 无数据: {path}")
+    return pd.read_csv(path, index_col="date", parse_dates=True)
+
+
+def load_macro_category(category: str) -> pd.DataFrame:
+    """加载单分类：原始列 + 跨分类伙伴(left join) + 派生列。
+
+    单位归一化（如 RRPONTSYD×1000）只在 derive_macro 的公式内做一次，
+    调用方不得预乘原始列——否则净流动性会错 1000 倍（历史 bug）。
+    """
+    df = read_macro_category(category)
+    for partner in cross_category_partners(category):
+        if _fred_csv_path(partner).exists():
+            df = df.join(read_macro_category(partner), how="left")
+    return derive_macro(df)
+
+
+def load_macro_categories(categories: set[str]) -> pd.DataFrame:
+    """加载多分类：所需分类 + 伙伴分类的并集，outer join 合并后一次派生。
+
+    请求的分类缺失抛 FileNotFoundError；伙伴分类缺失则跳过（与单分类一致）。
+    先并集再合并原始帧，避免逐分类 join 伙伴后列重复产生 _x/_y 后缀
+    （BEI 等跨分类指标在旧实现里因此直接 404）。
+    """
+    cats = set(categories)
+    if not cats:
+        return pd.DataFrame()
+    partners: set[str] = set()
+    for cat in list(cats):
+        partners.update(cross_category_partners(cat))
+    frames = [read_macro_category(cat) for cat in sorted(cats)]
+    for partner in sorted(partners - cats):
+        if _fred_csv_path(partner).exists():
+            frames.append(read_macro_category(partner))
+    merged = frames[0]
+    for df in frames[1:]:
+        merged = merged.join(df, how="outer")
+    merged.sort_index(inplace=True)
+    return derive_macro(merged)
+
+
+def rrp_in_millions(df: pd.DataFrame) -> pd.DataFrame:
+    """RRPONTSYD 十亿美元 → 百万美元（显示层统一单位用）。
+
+    derive_macro 的 NET_LIQUIDITY 公式内部已做同样的换算，调用方不得对
+    derive 后的结果再乘——本函数只用于把 RRP 系列与 WALCL/WTREGEN 等
+    百万单位系列同图展示（stacked / 卡片）的显示层。
+    """
+    out = df.copy()
+    if "RRPONTSYD" in out.columns:
+        out["RRPONTSYD"] = out["RRPONTSYD"] * 1000
+    return out
+
+
+def categories_for(name: str) -> list[str] | None:
+    """返回计算某指标（原始或派生）所需加载的 FRED 分类；未知指标返回 None。
+
+    派生指标按 DERIVED_INPUTS 反查输入列归属，原始指标按其所在分类。
+    取代 server 旧的手写 _DERIVED_CATS / _METRIC_TO_CAT（同一知识的第四份拷贝）。
+    """
+    from src.config import FRED_SERIES
+
+    inputs = set(DERIVED_INPUTS.get(name, (name,)))
+    out: list[str] = []
+    for cat, series_map in FRED_SERIES.items():
+        if inputs & set(series_map):
+            out.append(cat)
+    return out or None
