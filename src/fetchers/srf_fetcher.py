@@ -4,16 +4,21 @@
 
 数据源: NY Fed Markets API /api/rp/results/search.json（官方、免费、无 key）
 
-识别规则与已知限制（2026-08 验证）：
-- 2021-07-29（SRF 上线）~ 2025-12-10：SRF 以 Multiple Price 拍卖运行 ——
-  operationType=Repo 且 operationMethod=Multiple Price 即可精确识别
-  （2025-10-31 两次 SRF 操作 20.35+30.0B = Reuters 报道的 50.35B）。
-- 2025-12-11 起：SRF 与 POMO 同为 Full Allotment 格式，API 不再区分
-  （FRED RPONTTLD 同日起等于 Full Allotment 总和、且 2025-10-31 的
-  RPONTTLD=50.35B 已含 SRF）。SRF 单独使用量自此无官方来源，timsun 页面
-  同样显示 0。→ 本 fetcher 2025-12-11 后 SRF_USAGE 记 0；若单日 Full
-  Allotment 使用 >1B（可能含 SRF），告警提示人工核对。SVE（Small Value
-  Exercise，测试操作）不计入使用量。
+识别规则（2026-08 验证）：
+- 2021-07-29（SRF 上线）~ 2025-12-10：SRF 以 Multiple Price 拍卖运行，每日
+  13:30 一场 —— operationType=Repo 且 operationMethod=Multiple Price 即可识别
+  （2025-10-31 两次 SRF 操作 20.35+30.0B = Reuters 报道的 50.35B）。排除
+  10:30 场（编号 1，SVE 测试：note 含 "small value exercise" 或 releaseTime
+  =10:30；2023-03-08 / 2024-09-24 的 SVE note 为空，仅靠 note 会漏）。
+- 2025-12-11 起：SRF 改为 Full Allotment，每日固定两场 —— 25 号操作
+  （08:15 早场）+ 26/27 号操作（13:30 下午场），operationType=Repo 且
+  operationMethod=Full Allotment 即 SRF。SVE 测试操作（operationId 编号 99，
+  note 含 "Small Value Exercise"）不计入；POMO/RMP 国债购买是 Outright
+  Purchase，在另一套 API，不在此出现。
+- 交叉验证：FRED RPONTTLD（全部 repo 总和）与当日所有 SRF 场次接受额
+  之和逐日吻合（2025-12-15: 16.801B、2025-12-31: 74.6B、2026-07-30:
+  0.008B 等；切换前 3 个 SVE 日子 2022-04-11 / 2023-03-08 / 2024-09-24 的
+  10:30 场也不在 RPONTTLD 内）。
 
 SRF_USAGE = 当日所有 SRF 操作 totalAmtAccepted 之和（十亿美元）。
 
@@ -33,9 +38,9 @@ SRF_START = "2021-07-01"  # SRF 2021-07-29 上线，往前多拉几天做缓冲
 INCREMENTAL_DAYS = 5  # 覆盖一整周的工作日
 
 
-SRF_METHOD_SWITCH = "2025-12-10"  # 此日（含）前 SRF 为 Multiple Price；之后不再单独披露
-# 切换后 Full Allotment 单日使用超过该值（十亿美元）时告警（可能含 SRF）
-WARN_THRESHOLD_B = 1.0
+SRF_METHOD_SWITCH = (
+    "2025-12-10"  # 此日（含）前 SRF 为 Multiple Price 拍卖；之后为 Full Allotment
+)
 
 
 def fetch_srf_usage(start: str, end: str) -> pd.DataFrame:
@@ -55,19 +60,16 @@ def fetch_srf_usage(start: str, end: str) -> pd.DataFrame:
         day = op.get("operationDate")
         amt = op.get("totalAmtAccepted") or 0
         method = op.get("operationMethod")
+        release = op.get("releaseTime", "")
+        note = op.get("note", "") or ""
+        if "small value exercise" in note.lower() or release == "10:30":
+            # SVE 测试场（切换前 10:30 场 / 切换后编号 99），不计入
+            continue
         if method == "Multiple Price" and day <= SRF_METHOD_SWITCH:
-            if "Small Value Exercise" not in op.get("note", ""):  # SVE 为测试，不计
-                by_day[day] = by_day.get(day, 0) + amt / 1e9
-        elif (
-            method == "Full Allotment"
-            and day > SRF_METHOD_SWITCH
-            and amt / 1e9 > WARN_THRESHOLD_B
-        ):
-            # 2025-12-11 后 SRF 与 POMO 同为 Full Allotment，无法拆分；大额使用时告警
-            logger.warning(
-                f"{day} {op.get('operationId')}: Full Allotment 使用 {amt / 1e9:.1f}B"
-                f"（{SRF_METHOD_SWITCH} 后 SRF 不再单独披露，可能含 SRF，需人工核对）"
-            )
+            by_day[day] = by_day.get(day, 0) + amt / 1e9
+        elif method == "Full Allotment" and day > SRF_METHOD_SWITCH:
+            # 2025-12-11 起每日两场 SRF 均为 Full Allotment，全部计入
+            by_day[day] = by_day.get(day, 0) + amt / 1e9
     if not by_day:
         return pd.DataFrame()
     return pd.DataFrame({"SRF_USAGE": by_day}).sort_index()
