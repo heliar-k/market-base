@@ -7,22 +7,18 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Test CME endpoints
+      - name: Test CME quotes + Yahoo
         run: |
-          set -x
-          echo "=== 1. settle prices zip (20260731) ==="
-          curl -s -o /tmp/settle.zip -w "HTTP %{http_code} %{size_download}B\n" \
-            "https://www.cmegroup.com/services/files/settle_prices_20260731.zip" || echo "curl failed"
-          ls -la /tmp/settle.zip 2>/dev/null
-
-          echo "=== 2. CME quotes API (CNH futures) ==="
-          curl -s -o /tmp/cme_cnh.json -w "HTTP %{http_code} %{size_download}B\n" \
+          echo "=== CME quotes API (CNH) ==="
+          curl -s -m 30 -o /tmp/cme_cnh.json -w "HTTP %{http_code} %{size_download}B\n" \
             "https://www.cmegroup.com/CmeWS/mvc/Quotes/Future/CNH/G" \
-            -H "User-Agent: Mozilla/5.0" || echo "curl failed"
-          head -c 300 /tmp/cme_cnh.json 2>/dev/null
-
-          echo "=== 3. CME quotes API (6S CHF futures) ==="
-          curl -s -o /tmp/cme_6s.json -w "HTTP %{http_code} %{size_download}B\n" \
-            "https://www.cmegroup.com/CmeWS/mvc/Quotes/Future/6S/G" \
-            -H "User-Agent: Mozilla/5.0" || echo "curl failed"
-          head -c 300 /tmp/cme_6s.json 2>/dev/null
+            -H "User-Agent: Mozilla/5.0" || echo "CME failed"
+          echo "=== Yahoo chart API (CNH=F) ==="
+          curl -s -m 30 -o /tmp/yf.json -w "HTTP %{http_code} %{size_download}B\n" \
+            "https://query1.finance.yahoo.com/v8/finance/chart/CNH%3DF?range=5d&interval=1d" \
+            -H "User-Agent: Mozilla/5.0" || echo "Yahoo failed"
+          echo "=== CME body ==="
+          head -c 200 /tmp/cme_cnh.json 2>/dev/null || true
+          echo ""
+          echo "=== Yahoo body ==="
+          head -c 200 /tmp/yf.json 2>/dev/null || true
