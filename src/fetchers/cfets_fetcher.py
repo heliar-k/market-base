@@ -1,4 +1,4 @@
-"""Fetch FX swap points from CFETS (chinamoney) + Yahoo CME futures.
+"""Fetch FX swap points from CFETS (chinamoney) + Barchart + Yahoo CME futures.
 
 写入 data/fred/liquidity/cfets_swap_points.csv（观测日为 key，upsert）。
 
@@ -6,17 +6,25 @@
 - 外汇掉期曲线（外币对）: /r/cms/www/chinamoney/data/fx/fx-sw-curv-{PAIR}.json
   覆盖 EUR.USD / USD.JPY / GBP.USD / AUD.USD / USD.HKD（每日 16:30 发布，17:00 可查）
 
-数据源 2: Yahoo Finance chart API（CME 期货主连，真实市场报价）
-- USD/CNH、USD/CHF 不在 CFETS 覆盖范围，用 CME 期货主连推近月掉期点：
-  掉期点 = (F − S) × 10000，F = 主连期货价（约 1M 到期），S = 即期。
-  仅近月单点（Yahoo 不提供具体月份合约）。
+数据源 2: Barchart 远期点曲线（USDCNH / USDCHF 全期限，免费匿名，无 key）
+- CFETS 不覆盖这两个货币对，但 Barchart 的 forward-rates 页面有完整曲线：
+  ON/TN/SN/1W/2W/3W/1M~11M/1Y/2Y/3Y（4Y+ 常为 N/A）。
+- 两步匿名请求：GET 页面种 cookie（laravel_session/XSRF-TOKEN）→ 带 X-XSRF-TOKEN
+  调 core-api `quotes/get?lists=forex.forwardCurves(^PAIR)`，取 bid/ask 中值。
+  ⚠️ 数据质量标注：① 延迟报价（非实时）；② 非官方清算曲线，仅市场报价；
+  ③ 4Y+ 期限可能 N/A（自动跳过）；④ 页面依赖的 core-api 若改版需同步更新。
 
-列名 {PAIR}_{TENOR}（如 USDJPY_3M），单位 = 掉期点（pips，1 pip = 0.0001）。
-USDC NH_NEAR / USDCHF_NEAR 为 Yahoo CME 近月掉期点（来源标注 NEAR）。
+数据源 3: Yahoo Finance chart API（CME 期货主连）——仅作 Barchart 失败时的降级
+- 掉期点 = (F − S) × 10000，F = 主连期货价（约 1M 到期），S = 即期。仅近月单点。
+
+列名 {PAIR}_{TENOR}（如 USDJPY_3M、USDCNH_1M），单位 = 掉期点（pips，1 pip = 0.0001）。
+USDCNH_NEAR / USDCHF_NEAR 为近月掉期点（优先 Barchart 1M，降级 Yahoo CME）。
 """
 
 import json
 import logging
+import re
+import urllib.parse
 import urllib.request
 from datetime import datetime
 
@@ -28,6 +36,15 @@ logger = logging.getLogger(__name__)
 BASE = "https://www.chinamoney.org.cn/r/cms/www/chinamoney/data/fx"
 PAIRS = ["EUR.USD", "USD.JPY", "GBP.USD", "AUD.USD", "USD.HKD"]
 TENORS = ["1W", "1M", "3M", "6M", "1Y"]
+
+# Barchart：CFETS 不覆盖的货币对 → 全期限远期点（免费匿名）
+BARCHART_PAIRS = ["USDCNH", "USDCHF"]
+BARCHART_PAGE = "https://www.barchart.com/forex/quotes/%5E{PAIR}/forward-rates"
+BARCHART_API = (
+    "https://www.barchart.com/proxies/core-api/v1/quotes/get"
+    "?lists=forex.forwardCurves(%5E{PAIR})&fields=symbolName,bidPrice,askPrice,tradeTime"
+)
+_TENOR_RE = re.compile(r"(Overnight|Tomorrow|Spot|(\d+)-(Week|Month|Year)) Forward$")
 
 YAHOO_URL = (
     "https://query1.finance.yahoo.com/v8/finance/chart/{sym}?range=5d&interval=1d"
@@ -50,6 +67,53 @@ class _LegacyTLSAdapter(requests.adapters.HTTPAdapter):
         ctx.options |= getattr(ssl, "OP_LEGACY_SERVER_CONNECT", 0)
         kwargs["ssl_context"] = ctx
         super().init_poolmanager(*args, **kwargs)
+
+
+def _tenor_from_name(symbol_name: str) -> str | None:
+    """ "USD/CNH 1-Month Forward" → "1M"; 解析失败返回 None。"""
+    m = _TENOR_RE.search(symbol_name)
+    if not m:
+        return None
+    if m.group(1) == "Overnight":
+        return "ON"
+    if m.group(1) == "Tomorrow":
+        return "TN"
+    if m.group(1) == "Spot":
+        return "SN"
+    return f"{m.group(2)}{m.group(3)[0]}"  # 1-Week→1W, 3-Month→3M, 2-Year→2Y
+
+
+def _fetch_barchart_curves(pair: str) -> dict[str, float] | None:
+    """Barchart 远期点曲线 → {TENOR: mid_pips}（bid/ask 中值，N/A 跳过）。
+
+    两步匿名请求：GET 页面种 cookie → 带 XSRF token 调 core-api。
+    """
+    page_url = BARCHART_PAGE.format(PAIR=pair)
+    session = requests.Session()
+    session.headers.update({"User-Agent": "Mozilla/5.0"})
+    session.get(page_url, timeout=20)  # 种 laravel_session / XSRF-TOKEN
+    xsrf = session.cookies.get("XSRF-TOKEN")
+    if not xsrf:
+        return None
+    resp = session.get(
+        BARCHART_API.format(PAIR=pair),
+        headers={
+            "Accept": "application/json",
+            "X-XSRF-TOKEN": urllib.parse.unquote(xsrf),
+            "Referer": page_url,
+        },
+        timeout=20,
+    )
+    resp.raise_for_status()
+    curves: dict[str, float] = {}
+    for rec in resp.json().get("data", []):
+        tenor = _tenor_from_name(rec.get("symbolName", ""))
+        bid, ask = rec.get("bidPrice"), rec.get("askPrice")
+        if not tenor or bid in (None, "N/A") or ask in (None, "N/A"):
+            continue
+        mid = (float(str(bid).replace(",", "")) + float(str(ask).replace(",", ""))) / 2
+        curves[tenor] = round(mid, 1)
+    return curves or None
 
 
 def _fetch_yahoo_near(pair_cfg: tuple) -> float | None:
@@ -107,8 +171,21 @@ def fetch_swap_points() -> pd.DataFrame:
     if not points:
         return pd.DataFrame()
 
-    # Yahoo CME 近月（USD/CNH、USD/CHF，CFETS 不覆盖）；失败不影响 CFETS 数据
+    # Barchart 远期点曲线（USDCNH / USDCHF 全期限，CFETS 不覆盖）；失败不影响 CFETS
+    for pair in BARCHART_PAIRS:
+        try:
+            curves = _fetch_barchart_curves(pair)
+            if curves:
+                points.update({f"{pair}_{t}": v for t, v in curves.items()})
+                if f"{pair}_NEAR" not in points and curves.get("1M") is not None:
+                    points[f"{pair}_NEAR"] = curves["1M"]
+        except Exception as e:
+            logger.warning("Barchart %s 拉取失败: %s", pair, e)
+
+    # Yahoo CME 近月（仅 Barchart 失败时兜底，避免覆盖全期限 1M）
     for cfg in YAHOO_PAIRS:
+        if cfg[2] in points:
+            continue  # Barchart 已有近月点
         try:
             near = _fetch_yahoo_near(cfg)
             if near is not None:

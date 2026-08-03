@@ -138,16 +138,19 @@ FRED liquidity 分类的原始系列（由 `./bin/fetch_fred` 一并拉取）。
 
 | 列名 | 说明 | 单位 |
 |------|------|------|
-| `{PAIR}_{TENOR}`（EURUSD/USDJPY/GBPUSD/AUDUSD/USDHKD × 1W/1M/3M/6M/1Y） | 外汇掉期点 | pips（1 pip = 0.0001） |
+| `{PAIR}_{TENOR}`（EURUSD/USDJPY/GBPUSD/AUDUSD/USDHKD × 1W/1M/3M/6M/1Y） | 外汇掉期点（CFETS） | pips（1 pip = 0.0001） |
+| `USDCNH_/USDCHF_{TENOR}`（ON/TN/SN/1W/2W/3W/1M~11M/1Y/2Y/3Y，4Y+ 多为 N/A） | 外汇掉期点（Barchart 远期点曲线 bid/ask 中值） | 同上 |
+| `USDCNH_NEAR` / `USDCHF_NEAR` | 近月掉期点（优先 Barchart 1M，Barchart 失败时降级 Yahoo CME 主连） | 同上 |
 
 > 掉期点 = 远期汇率 − 即期汇率（以 pip 计），负值表示外币相对美元贴水。
 > 覆盖 5 个外币对（timsun global-dollar 页面的 USD/JPY、EUR/USD、GBP/USD 在内）。
-> 另有 2 列来自 Yahoo CME 期货主连（`USDCNH_NEAR` / `USDCHF_NEAR`，近月掉期点）：
-> USD/CNH、USD/CHF 不在 CFETS 覆盖范围（页面亦标注“暂未覆盖”），用 CME 期货主连
-> 推近月掉期点 = (F − S) × 10000，仅近月单点（Yahoo 不提供具体月份合约）。
-> 验证：CME 官网 API 本地与 GitHub Actions 均被屏蔽（403/000），Yahoo 为唯一可行源。
+> USD/CNH、USD/CHF 不在 CFETS 覆盖范围（页面亦标注“暂未覆盖”），改用 Barchart
+> forward-rates 页面的全期限远期点曲线（匿名两步请求：页面种 cookie → core-api 带
+> XSRF token，`quotes/get?lists=forex.forwardCurves(^PAIR)`），延迟报价；数值与
+> investing.com 远期点页面对拍一致（差异 <1%）。
+> Yahoo CME 期货主连（`CNH=F` / `6S=F`）仅作 Barchart 失败时的降级，近月单点。
 > 注意：本 fetcher 对 chinamoney 绕过本地 SOCKS5 代理直连（TLS legacy renegotiation
-> 走代理握手失败），Yahoo 部分走代理（本地）/直连（Actions），互不影响。
+> 走代理握手失败），Barchart/Yahoo 部分走代理（本地）/直连（Actions），互不影响。
 
 ---
 

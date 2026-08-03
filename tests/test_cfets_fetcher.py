@@ -108,3 +108,76 @@ def test_yahoo_near_swap_points(monkeypatch):
     assert cnh is not None and abs(cnh - (6.7335 - 6.7482) * 10000) < 0.01
     chf = _fetch_yahoo_near(YAHOO_PAIRS[1])
     assert chf is not None and abs(chf - (1 / 1.2447 - 0.8071) * 10000) < 0.01
+
+
+def test_tenor_from_name():
+    """symbolName → TENOR：Overnight/1-Week/3-Month/2-Year 映射。"""
+    from src.fetchers.cfets_fetcher import _tenor_from_name
+
+    assert _tenor_from_name("USD/CNH Overnight Forward") == "ON"
+    assert _tenor_from_name("USD/CNH Tomorrow Forward") == "TN"
+    assert _tenor_from_name("USD/CNH Spot Forward") == "SN"
+    assert _tenor_from_name("USD/CNH 1-Week Forward") == "1W"
+    assert _tenor_from_name("USD/CNH 1-Month Forward") == "1M"
+    assert _tenor_from_name("USD/CHF 3-Year Forward") == "3Y"
+    assert _tenor_from_name("USD/CHF 10-Year Forward") == "10Y"
+    assert _tenor_from_name("weird name") is None
+
+
+def test_fetch_barchart_curves(monkeypatch):
+    """Barchart 远期点曲线：bid/ask 中值、千分位逗号、N/A 跳过。"""
+    from src.fetchers.cfets_fetcher import _fetch_barchart_curves
+
+    recs = [
+        {
+            "symbolName": "USD/CNH 1-Month Forward",
+            "bidPrice": "-158.5700",
+            "askPrice": "-156.4300",
+        },
+        {
+            "symbolName": "USD/CNH 6-Month Forward",
+            "bidPrice": "-1,039.9600",
+            "askPrice": "-1,035.4100",
+        },
+        {"symbolName": "USD/CNH 4-Year Forward", "bidPrice": "N/A", "askPrice": "N/A"},
+    ]
+
+    class _FakeResp:
+        def __init__(self, payload):
+            self._payload = payload
+
+        def raise_for_status(self):
+            pass
+
+        def json(self):
+            return self._payload
+
+    class _FakeSession:
+        headers: dict = {}
+
+        def __init__(self):
+            self.cookies = type("C", (), {"get": lambda self, k: "xsrf-token-value"})()
+
+        def get(self, url, *a, **k):
+            if "core-api" in url:
+                return _FakeResp({"data": recs})
+            return _FakeResp({})
+
+    monkeypatch.setattr("src.fetchers.cfets_fetcher.requests.Session", _FakeSession)
+
+    curves = _fetch_barchart_curves("USDCNH")
+    assert curves == {"1M": -157.5, "6M": -1037.7}  # 4Y N/A 跳过
+
+    monkeypatch.setattr(  # 无 XSRF cookie → None
+        "src.fetchers.cfets_fetcher.requests.Session",
+        lambda: type(
+            "S",
+            (),
+            {
+                "headers": {},
+                "get": lambda self, *a, **k: None,
+                "cookies": type("C", (), {"get": lambda self, k: None})(),
+            },
+        )(),
+    )
+    assert _fetch_barchart_curves("USDCNH") is None
