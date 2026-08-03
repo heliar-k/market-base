@@ -31,7 +31,7 @@ from datetime import datetime
 import pandas as pd
 import requests
 
-from .barchart_client import core_get
+from .barchart_client import core_get, to_float
 
 logger = logging.getLogger(__name__)
 
@@ -109,7 +109,7 @@ def _fetch_barchart_curves(pair: str) -> dict[str, float] | None:
         bid, ask = rec.get("bidPrice"), rec.get("askPrice")
         if not tenor or bid in (None, "N/A") or ask in (None, "N/A"):
             continue
-        mid = (float(str(bid).replace(",", "")) + float(str(ask).replace(",", ""))) / 2
+        mid = (to_float(bid) + to_float(ask)) / 2
         curves[tenor] = round(mid, 1)
     return curves or None
 
