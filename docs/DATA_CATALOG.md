@@ -453,3 +453,37 @@ upcoming = pd.read_csv('data/treasury/upcoming_auctions.csv', index_col='auction
 验证指标确认度、交易含义、失效条件。**LLM 预留**：`generate_analysis()` 内
 `_llm_generate()` 为替换点，实现后置 `_LLM_ENABLED = True` 即切换，
 API 响应 `generator` 字段标记 `rules` / `llm`，前端无感。
+
+---
+
+## 14. 美联储鹰鸽面板（Web，复刻 timsun.net/fed）
+
+`./bin/fetch_fed` 拉取 federalreserve.gov（直连，不受 SOCKS5 代理影响），
+`uv run python -m src.server` 后访问 `http://localhost:8000/fed/`，共 4 页：
+
+| 页面 | 路由 | 数据源 |
+|------|------|--------|
+| 美联储（入口） | `/fed/` | 鹰鸽指示器 + 下次 FOMC 倒计时 + 最新声明/演讲 |
+| FOMC 声明 | `/fed/statements.html` | `data/fed/statements.csv`（声明/纪要/SEP/贴现率纪要） |
+| 官员演讲 | `/fed/speeches.html` | `data/fed/speeches.csv`（近 2 年） |
+| 鹰鸽追踪 | `/fed/hawkish-dovish.html` | 立场时间线 + 官员最新立场表 |
+
+### 数据文件
+
+- `data/fed/statements.csv` — `id, date, kind, title, url, body`，kind ∈
+  statement / minutes / sep / discount / other，声明自 2020 年起
+- `data/fed/speeches.csv` — `id, date, speaker, title, url, body`，近 2 个自然年
+- 增量：按 URL 去重，本地已有则跳过（列表页每年 1 请求，正文页首次全量后不再抓）
+
+### API 端点
+
+- `GET /api/fed/overview` — 鹰鸽指示器 + 声明/演讲列表（含评分）+ 官员立场 + 时间线
+- `GET /api/fomc/calendar` — 下次 FOMC 会议日期 + 目标利率区间（已有）
+
+### 鹰鸽评分（`src/fed_analysis.py`）
+
+关键词短语词表对英文正文打分（-5 极鸽 ~ +5 极鹰）：动作词（加息/降息决议）
+权重最高且声明 > 演讲（演讲中"提及降息"≠"倾向降息"），通胀/就业/语气词次之，
+反对票方向计入内部压力。**LLM 预留**：`generate_fed_analysis()` 内
+`_llm_generate()` 为替换点，实现后置 `_LLM_ENABLED = True` 即切换，
+API 响应 `generator` 字段标记 `rules` / `llm`，前端无感。

@@ -24,6 +24,7 @@ from src.config import (
     TERM_INFO,
     TERM_SERIES,
 )
+from src.fed_analysis import generate_fed_analysis
 from src.macro import (
     DERIVED_INPUTS,
     categories_for,
@@ -667,6 +668,18 @@ def get_rate_expectations() -> dict:
             "meetings": meetings,
         }
     )
+
+
+# ── fed hub（复刻 timsun.net/fed）────────────────────────────────────────────
+
+
+@app.get("/api/fed/overview")
+def get_fed_overview() -> dict:
+    """美联储鹰鸽面板：指示器 + 声明/演讲列表 + 官员立场 + 时间线。"""
+    out = generate_fed_analysis()
+    if "error" in out:
+        raise HTTPException(404, out["error"])
+    return _sanitize(out)
 
 
 # ── rates hub（复刻 timsun.net/rates）───────────────────────────────────────

@@ -177,7 +177,8 @@ function renderCorridorDashboard(container) {
       <span class="corridor-next-label">下次会议</span>
       <span class="corridor-next-value">${fomc.next ? `${fomc.next.year}-${String(fomc.next.month).padStart(2,'0')}-${String(fomc.next.start_day).padStart(2,'0')} / ${String(fomc.next.end_day).padStart(2,'0')}` : '—'}</span>
     </div>
-    <div style="margin-left:auto;display:flex;align-items:flex-end">
+    <div style="margin-left:auto;display:flex;align-items:flex-end;gap:12px">
+      <a href="/fed/" style="color:#58a6ff;font-size:13px;text-decoration:none;white-space:nowrap">美联储 →</a>
       <a href="/rates/" style="color:#58a6ff;font-size:13px;text-decoration:none;white-space:nowrap">利率专题 →</a>
     </div>
   `;

@@ -43,6 +43,7 @@ ticker-toolkit/
 │   │   ├── barchart_futures_fetcher.py ← Barchart 期货期限结构（10 品种全合约，IBKR 替代源）
 │   │   ├── barchart_options_fetcher.py ← Barchart 期权链（真实 gamma，GEX 降级源）
 │   │   ├── cot_fetcher.py        ← CFTC COT 持仓报告（官方 disaggregated + TFF）
+│   │   ├── fed_fetcher.py        ← FOMC 声明 + 官员演讲（federalreserve.gov，增量）
 │   │   ├── commodities_fetcher.py← IBKR 商品期货日线（9 个品种，整条曲线）
 │   │   └── options_fetcher.py    ← IBKR 期权链参数
 │   └── tui/                      ← TUI 应用（Textual 双模式）
@@ -69,6 +70,7 @@ ticker-toolkit/
 │   ├── fetch_options
 │   ├── fetch_barchart_futures
 │   ├── fetch_cot
+│   ├── fetch_fed                      ← FOMC 声明 + 官员演讲（增量，Actions 每日）
 │   ├── fetch_treasury                  ← 国债拍卖（Treasury Fiscal Data API）
 │   ├── fetch_bgcr                      ← BGCR 利率（NY Fed Markets API，FRED 无此系列）
 │   └── fetch_cgb                       ← 中国国债收益率 10Y/30Y（chinamoney，FRED 无）
@@ -95,9 +97,13 @@ ticker-toolkit/
 │   ├── treasury/auction_results.csv       ← 国债拍卖结果全量（~11k 场，覆盖写）
 │   ├── treasury/upcoming_auctions.csv     ← 未来拍卖日历（覆盖写）
 │   ├── rate_expectations/                 ← FOMC 概率 + ZQ 快照（每日）
+│   ├── fed/                                ← FOMC 声明 + 官员演讲（federalreserve.gov）
+│   │   ├── statements.csv                  ← 声明/纪要/SEP（kind 分类，2020 起，纪要 2021 起）
+│   │   └── speeches.csv                    ← 官员演讲（近 2 年）
 │   └── cache/{SYMBOL}_indicators.parquet ← 指标缓存（派生产物，mtime 失效）
 │
 ├── static/                       ← Web 前端（FastAPI 静态目录）
+│   ├── fed/                         ← 美联储鹰鸽专题页（timsun.net/fed 复刻，4 页）
 │   ├── index.html                ← 主仪表盘 SPA
 │   ├── js/                       ← 前端 JS（echarts-theme / rates-common 等）
 │   └── rates/                    ← 利率专题页（timsun.net/rates 复刻，6 页）
@@ -118,7 +124,7 @@ ticker-toolkit/
 **每日自动（无需本地操作）**：GitHub Actions `daily-fetch` workflow 每个交易日
 北京时间 05:00 自动拉取**不依赖 IBKR/TWS** 的数据源并 commit + push，本地 `git pull` 即得：
 `fred` / `cboe` / `ofr` / `srf` / `tsy` / `cfets` / `shapiro` / `sce` / `treasury` / `yfinance`（17 品种资产快照）
-`barchart_futures` / `cot` / `rate_expectations`（Barchart 期货曲线、CFTC COT、FOMC 概率）。
+`barchart_futures` / `cot` / `rate_expectations` / `fed`（Barchart 期货曲线、CFTC COT、FOMC 概率、FOMC 声明+演讲）。
 
 **本地手动（先启动 TWS 或 IB Gateway，端口 4001 实盘 / 4002 模拟）**：只有依赖 IBKR 的才需要本地跑：
 `ibkr` / `options` / `commodities` / `index` / `stock` / `rate_expectations`（ZQ 期货来自 commodities）。
@@ -142,6 +148,7 @@ ticker-toolkit/
 ./bin/fetch_cfets                   # CFETS 外汇掉期点（5 外币对 × 5 期限 + Barchart USDCNH/USDCHF 全期限）
 ./bin/fetch_barchart_futures        # Barchart 期货期限结构（10 品种全合约，免费匿名）
 ./bin/fetch_cot                     # CFTC COT 持仓报告（周频）
+./bin/fetch_fed                     # FOMC 声明 + 官员演讲（增量，首次自动全量）
 ./bin/fetch_treasury                # 国债拍卖结果 + 未来日历（全量覆盖）
 ./bin/fetch_bgcr                     # BGCR 利率（NY Fed，FRED 无；合并进 rates.csv）
 ./bin/fetch_cgb                      # 中国国债收益率 10Y/30Y（chinamoney 实时曲线）

@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>美联储 — US Macro</title>
+<link rel="stylesheet" href="/css/app.css">
+<link rel="stylesheet" href="/css/fed.css">
+</head>
+<body>
+<div class="re-root">
+  <div class="re-header">
+    <h1>美联储</h1>
+    <span class="re-as-of" id="re-as-of"></span>
+  </div>
+
+  <div class="re-nav">
+    <a href="/fed/statements.html">FOMC 声明</a>
+    <a href="/fed/speeches.html">官员演讲</a>
+    <a href="/fed/hawkish-dovish.html">鹰鸽追踪</a>
+    <a href="/rates/">利率</a>
+    <a href="/">← 仪表盘</a>
+  </div>
+
+  <div id="re-cards"></div>
+  <div id="re-latest"></div>
+  <div class="re-gen" id="re-gen"></div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js"></script>
+<script src="/js/rates-common.js"></script>
+<script>
+function badge(label) {
+  const cls = /鹰/.test(label) ? 'hawk' : (/鸽/.test(label) ? 'dove' : 'mid');
+  return `<span class="fed-badge ${cls}">${label}</span>`;
+}
+
+function docCard(d, href) {
+  const el = document.createElement('div');
+  el.className = 'fed-doc';
+  el.innerHTML = `
+    <div class="fed-doc-head">
+      <span class="fed-doc-meta">${d.date}</span>${badge(d.label)}
+      <a class="fed-doc-title" href="${href}" target="_blank">${d.title}</a>
+    </div>
+    <div class="fed-doc-excerpt">${d.excerpt}</div>`;
+  return el;
+}
+
+async function load() {
+  const [data, cal] = await Promise.all([
+    R.get('/api/fed/overview'),
+    R.get('/api/fomc/calendar'),
+  ]);
+  const ind = data.indicator;
+  document.getElementById('re-as-of').textContent =
+    `数据截至 ${data.statements[0]?.date.slice(0,4)}-${data.statements[0]?.date.slice(4,6)}-${data.statements[0]?.date.slice(6)}`;
+  document.getElementById('re-gen').textContent =
+    `鹰鸽评分：${data.generator === 'llm' ? 'LLM' : '规则引擎（LLM 预留）'}`;
+
+  // 下次 FOMC 会议倒计时
+  const nx = cal.next;
+  // 最新声明：取 kind==statement 的第一条（SEP 发布日的顶条是预测公告，非声明）
+  const latestStmt = data.statements.find(s => s.kind === 'statement');
+  let days = '—';
+  if (nx) {
+    const target = new Date(nx.year, nx.month - 1, nx.start_day);
+    days = Math.ceil((target - new Date()) / 86400000);
+  }
+  const nextTxt = nx ? `${nx.month} 月 ${nx.start_day}-${nx.end_day} 日` : '—';
+
+  // ── 统计卡：鹰鸽指示器 + 下次会议 + 最新声明/演讲 ──
+  document.getElementById('re-cards').replaceChildren(R.cards([
+    { label: '鹰鸽指示器', value: `${ind.score > 0 ? '+' : ''}${ind.score} / 5`, sub: `${ind.label}（最近 ${ind.sample} 条）`, accent: true },
+    { label: '下次 FOMC', value: days > 0 ? `${days} 天` : '会议中', sub: nextTxt },
+    { label: '目标利率', value: R.fmtPct(cal.target_lower) + '–' + R.fmtPct(cal.target_upper), sub: '联邦基金目标区间' },
+    { label: '最新声明', value: latestStmt?.label, sub: latestStmt?.date, },
+    { label: '最新演讲', value: data.speeches[0]?.label, sub: data.speeches[0]?.speaker, },
+  ]));
+
+  // ── 最新声明 + 最近演讲 ──
+  const root = document.getElementById('re-latest');
+  root.innerHTML = '';
+  const stmt = document.createElement('div');
+  stmt.className = 're-section';
+  stmt.innerHTML = '<h2>最新 FOMC 声明 <a href="/fed/statements.html" style="font-size:12px;font-weight:400;color:var(--accent);text-decoration:none">查看全部 →</a></h2>';
+  if (latestStmt) stmt.appendChild(docCard(latestStmt, latestStmt.url));
+  root.appendChild(stmt);
+
+  const sp = document.createElement('div');
+  sp.className = 're-section';
+  sp.innerHTML = '<h2>最近官员演讲 <a href="/fed/speeches.html" style="font-size:12px;font-weight:400;color:var(--accent);text-decoration:none">查看全部 →</a></h2>';
+  for (const d of data.speeches.slice(0, 5)) sp.appendChild(docCard(d, d.url));
+  root.appendChild(sp);
+}
+
+load().catch(e => R.fail(['re-cards', 're-latest'], e));
+</script>
+</body>
+</html>
