@@ -1,18 +1,16 @@
 """Barchart 期货期限结构 fetcher 单元测试。"""
 
-from src.fetchers.barchart_futures_fetcher import (
-    _to_float,
-    fetch_futures_curves,
-)
+from src.fetchers.barchart_client import to_float
+from src.fetchers.barchart_futures_fetcher import fetch_futures_curves
 
 
 def test_to_float_cleans_barchart_numbers():
     """'9,108.25s' → 9108.25；N/A → None；空 → None。"""
-    assert _to_float("9,108.25s") == 9108.25
-    assert _to_float("-1,039.9600") == -1039.96
-    assert _to_float("95.1050s") == 95.105
-    assert _to_float("N/A") is None
-    assert _to_float(None) is None
+    assert to_float("9,108.25s") == 9108.25
+    assert to_float("-1,039.9600") == -1039.96
+    assert to_float("95.1050s") == 95.105
+    assert to_float("N/A") is None
+    assert to_float(None) is None
 
 
 def test_fetch_futures_curves(monkeypatch):

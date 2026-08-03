@@ -33,16 +33,17 @@ from ._io import upsert_timeseries
 logger = logging.getLogger(__name__)
 
 # 品种 → (CFTC 市场名正则, 报告类型)；YM(道指) 不在 CFTC COT 报告中（2024-26 均无）
+# 正则以 " - "（市场名 - 交易所）锚定，避免前缀误匹配（如 E-MINI S&P 500 MIDCAP）
 COT_MARKETS: dict[str, tuple[str, str]] = {
     "GC": (r"^GOLD - COMMODITY EXCHANGE", "disagg"),
     "SI": (r"^SILVER - COMMODITY EXCHANGE", "disagg"),
     "HG": (r"^COPPER- #1", "disagg"),
     "CL": (r"^(CRUDE OIL, LIGHT SWEET-WTI - NEW YORK|WTI-PHYSICAL)", "disagg"),
     "NG": (r"^HENRY HUB - NEW YORK", "disagg"),
-    "ES": (r"^E-MINI S&P 500", "fin"),
-    "NQ": (r"^(E-MINI )?NASDAQ-100", "fin"),
-    "RTY": (r"^(E-)?MINI RUSSELL 2000|^RUSSELL E-MINI", "fin"),
-    "ZQ": (r"^(30-DAY )?FED FUNDS", "fin"),
+    "ES": (r"^E-MINI S&P 500 - ", "fin"),
+    "NQ": (r"^(E-MINI )?NASDAQ-100( Consolidated)? - ", "fin"),
+    "RTY": (r"^(E-)?MINI RUSSELL 2000 - |^RUSSELL E-MINI - ", "fin"),
+    "ZQ": (r"^(30-DAY )?FED FUNDS - ", "fin"),
 }
 URL = "https://www.cftc.gov/files/dea/history/fut_{type}_txt_{year}.zip"
 
@@ -145,6 +146,6 @@ if __name__ == "__main__":
     path = ROOT / "data" / "cot" / "cot.csv"
     upsert_timeseries(path, df, backfill=args.backfill)
     latest = df.index[-1]
-    n_markets = len(df.columns) // len(_METRICS["disagg"])
+    n_markets = len({c.split("_")[0] for c in df.columns})
     print(f"COT → {path}（{len(df)} 个报告日, {n_markets} 个品种, 最新 {latest}）")
     print(f"样例: {df.iloc[-1].dropna().head(8).to_dict()}")

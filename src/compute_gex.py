@@ -449,33 +449,31 @@ def main():
     log.info(f"{symbol} spot: ${spot:.2f}")
     log.info(f"到期日: {expirations}")
 
-    # === Step 2: OI（Barchart 优先——gamma + OI 同源；yfinance 兜底） ===
+    # === Step 2: OI（Barchart 优先——真实 gamma + OI 同源；yfinance 兜底） ===
     oi_df = pd.DataFrame()
-    if not args.no_yfinance:
-        if greeks_df.empty or greeks_df["gamma"].isna().all():
-            from src.fetchers.barchart_options_fetcher import fetch_barchart_chain
+    if greeks_df.empty or greeks_df["gamma"].isna().all():
+        # Barchart 降级源（非 yfinance，不受 --no-yfinance 限制）
+        from src.fetchers.barchart_options_fetcher import fetch_barchart_chain
 
-            try:
-                bc = fetch_barchart_chain(symbol, expirations)
-            except Exception as e:
-                log.warning("Barchart 期权链拉取失败: %s", e)
-                bc = pd.DataFrame()
-            if not bc.empty:
-                log.info(f"Barchart 期权链: {len(bc)} 条（真实市场 gamma + OI）")
-                greeks_df = bc[["expiration", "strike", "right", "gamma", "iv"]]
-                oi_df = bc.rename(columns={"iv": "impliedVolatility"})[
-                    [
-                        "expiration",
-                        "strike",
-                        "right",
-                        "openInterest",
-                        "volume",
-                        "impliedVolatility",
-                    ]
-                ]
-
-        if oi_df.empty:
-            oi_df = fetch_yf_chain(symbol, expirations)[
+        try:
+            bc = fetch_barchart_chain(symbol, expirations)
+        except Exception as e:
+            log.warning("Barchart 期权链拉取失败: %s", e)
+            bc = pd.DataFrame()
+        if not bc.empty:
+            # 与 IBKR 路径的 filter_options(strike_pct) 对齐：只保留现货附近行权价
+            if args.strike_pct:
+                lo = spot * (1 - args.strike_pct)
+                hi = spot * (1 + args.strike_pct)
+                n_before = len(bc)
+                bc = bc[(bc["strike"] >= lo) & (bc["strike"] <= hi)]
+                log.info(
+                    f"Barchart 行权价过滤 ±{args.strike_pct:.0%}: "
+                    f"{n_before} → {len(bc)} 条"
+                )
+            log.info(f"Barchart 期权链: {len(bc)} 条（真实市场 gamma + OI）")
+            greeks_df = bc[["expiration", "strike", "right", "gamma", "iv"]]
+            oi_df = bc.rename(columns={"iv": "impliedVolatility"})[
                 [
                     "expiration",
                     "strike",
@@ -485,6 +483,18 @@ def main():
                     "impliedVolatility",
                 ]
             ]
+
+    if not args.no_yfinance and oi_df.empty:
+        oi_df = fetch_yf_chain(symbol, expirations)[
+            [
+                "expiration",
+                "strike",
+                "right",
+                "openInterest",
+                "volume",
+                "impliedVolatility",
+            ]
+        ]
         # 消费侧规整：volume/IV NaN → 0（greeks_from_yf 跳过 iv<=0 的行）
         oi_df["volume"] = oi_df["volume"].fillna(0).astype(int)
         oi_df["impliedVolatility"] = oi_df["impliedVolatility"].fillna(0)

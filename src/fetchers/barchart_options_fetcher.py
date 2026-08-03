@@ -8,36 +8,17 @@ compute_gex 降级链：IBKR → Barchart（真实市场 gamma + OI 同源）→
 """
 
 import logging
-import re
 
 import pandas as pd
-import requests
 
-from .barchart_client import UA
+from .barchart_client import core_get, to_float
 
 logger = logging.getLogger(__name__)
-
-CHAIN_API = "https://www.barchart.com/proxies/core-api/v1/options/chain"
-META_CSRF_RE = re.compile(r'name="csrf-token" content="([^"]+)"')
 
 FIELDS = (
     "strikePrice,lastPrice,volume,openInterest,volatility,"
     "gamma,expirationDate,optionType"
 )
-_NUM_RE = re.compile(r"-?[\d,]+\.?\d*")
-_PCT_RE = re.compile(r"-?[\d.]+")
-
-
-def _to_float(v: str | None) -> float | None:
-    """'5,966' → 5966.0；'28.39%' → 0.2839；N/A/空 → None。"""
-    if v is None or v == "N/A":
-        return None
-    s = str(v).strip()
-    if s.endswith("%"):
-        m = _PCT_RE.search(s)
-        return float(m.group()) / 100 if m else None
-    m = _NUM_RE.search(s)
-    return float(m.group().replace(",", "")) if m else None
 
 
 def _exp_to_yyyymmdd(exp: str) -> str:
@@ -50,31 +31,18 @@ def _exp_to_yyyymmdd(exp: str) -> str:
     return exp.replace("-", "")
 
 
-def _chain_get(params: dict) -> dict:
+def _chain_get(symbol: str, params: dict) -> dict:
     """调 options/chain：GET 页面取 meta csrf-token → X-CSRF-TOKEN header。
 
-    options/chain 与外汇/期货的 quotes/get 认证不同：后者用 cookie XSRF-TOKEN，
-    前者要求页面 <meta name=csrf-token>（X-CSRF-TOKEN），因此不复用 core_get。
+    options/chain 与外汇/期货的 quotes/get 认证不同（meta csrf-token 而非
+    cookie XSRF-TOKEN），经 core_get(auth="csrf") 复用同一会话流程。
     """
-    page = "https://www.barchart.com/stocks/quotes/AAPL/options"
-    session = requests.Session()
-    session.headers.update({"User-Agent": UA})
-    html = session.get(page, timeout=20).text
-    m = META_CSRF_RE.search(html)
-    if not m:
-        raise RuntimeError("Barchart options 页面未找到 csrf-token meta")
-    resp = session.get(
-        CHAIN_API,
-        params=params,
-        headers={
-            "Accept": "application/json",
-            "X-CSRF-TOKEN": m.group(1),
-            "Referer": page,
-        },
-        timeout=20,
+    return core_get(
+        params,
+        referer=f"https://www.barchart.com/stocks/quotes/{symbol}/options",
+        auth="csrf",
+        endpoint="options/chain",
     )
-    resp.raise_for_status()
-    return resp.json()
 
 
 def fetch_barchart_chain(symbol: str, expirations: list[str]) -> pd.DataFrame:
@@ -93,22 +61,24 @@ def fetch_barchart_chain(symbol: str, expirations: list[str]) -> pd.DataFrame:
         exp_mmdd = f"{exp[0:4]}-{exp[4:6]}-{exp[6:8]}"  # YYYYMMDD → YYYY-MM-DD
         try:
             data = _chain_get(
+                symbol,
                 {
                     "symbol": symbol,
                     "expirationDate": exp_mmdd,
                     "fields": FIELDS,
                     "raw": "1",
-                }
+                },
             )
         except Exception as e:
             logger.warning("Barchart %s %s 期权链拉取失败: %s", symbol, exp, e)
             continue
+        n_before = len(rows)
         for rec in data.get("data", []):
             right = rec.get("optionType")
-            gamma = _to_float(rec.get("gamma"))
-            iv = _to_float(rec.get("volatility"))
-            strike = _to_float(rec.get("strikePrice"))
-            oi = _to_float(rec.get("openInterest"))
+            gamma = to_float(rec.get("gamma"))
+            iv = to_float(rec.get("volatility"))
+            strike = to_float(rec.get("strikePrice"))
+            oi = to_float(rec.get("openInterest"))
             if not right or gamma is None or iv is None or strike is None:
                 continue
             rows.append(
@@ -120,10 +90,10 @@ def fetch_barchart_chain(symbol: str, expirations: list[str]) -> pd.DataFrame:
                     "gamma": gamma if right == "Call" else -gamma,
                     "iv": iv,
                     "openInterest": oi or 0,
-                    "volume": _to_float(rec.get("volume")) or 0,
+                    "volume": to_float(rec.get("volume")) or 0,
                 }
             )
-        logger.info("Barchart %s %s: %d 条合约", symbol, exp_mmdd, len(rows))
+        logger.info("Barchart %s %s: %d 条合约", symbol, exp_mmdd, len(rows) - n_before)
     return pd.DataFrame(rows)
 
 

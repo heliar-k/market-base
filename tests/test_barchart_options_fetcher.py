@@ -1,18 +1,18 @@
 """Barchart 期权链 fetcher 单元测试。"""
 
+from src.fetchers.barchart_client import to_float
 from src.fetchers.barchart_options_fetcher import (
     _exp_to_yyyymmdd,
-    _to_float,
     fetch_barchart_chain,
 )
 
 
 def test_to_float_cleans_values():
     """千分位、百分比、N/A 清洗。"""
-    assert _to_float("5,966") == 5966.0
-    assert _to_float("28.39%") == 0.2839
-    assert _to_float("N/A") is None
-    assert _to_float(None) is None
+    assert to_float("5,966") == 5966.0
+    assert to_float("28.39%") == 0.2839
+    assert to_float("N/A") is None
+    assert to_float(None) is None
 
 
 def test_exp_to_yyyymmdd():
@@ -49,7 +49,7 @@ def test_fetch_barchart_chain(monkeypatch):
 
     monkeypatch.setattr(
         "src.fetchers.barchart_options_fetcher._chain_get",
-        lambda params: payload,
+        lambda symbol, params: payload,
     )
 
     df = fetch_barchart_chain("AAPL", ["20260821"])

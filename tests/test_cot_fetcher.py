@@ -50,14 +50,8 @@ def test_fetch_cot_merges_by_symbol(monkeypatch):
         with zipfile.ZipFile(buf, "w") as zf:
             zf.writestr("f.txt", _fake_year_csv(markets))
         buf.seek(0)
-        return (
-            pd.read_csv(zipfile.ZipFile(buf).open(zf.namelist()[0]))
-            if False
-            else _parse(zipfile.ZipFile(buf))
-        )
-
-    def _parse(zf):
-        return pd.read_csv(zf.open(zf.namelist()[0]))
+        with zipfile.ZipFile(buf) as zf:
+            return pd.read_csv(zf.open(zf.namelist()[0]))
 
     monkeypatch.setattr("src.fetchers.cot_fetcher._download_year", fake_download_year)
 

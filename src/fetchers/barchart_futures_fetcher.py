@@ -16,14 +16,13 @@ IBKR commodities 依赖本地 TWS（Actions 拉不了），Barchart 提供全合
 
 import argparse
 import logging
-import re
 from datetime import datetime
 
 import pandas as pd
 
 from ..config import COMMODITY_FUTURES, ROOT
 from ._io import upsert_timeseries
-from .barchart_client import core_get
+from .barchart_client import core_get, to_float
 
 logger = logging.getLogger(__name__)
 
@@ -34,15 +33,6 @@ FIELDS = (
     "symbol,contractName,contractExpirationDate,lastPrice,"
     "priceChange,highPrice,lowPrice,volume,tradeTime"
 )
-_NUM_RE = re.compile(r"-?[\d,]+\.?\d*")
-
-
-def _to_float(v: str | None) -> float | None:
-    """清洗 Barchart 数值：'9,108.25s' → 9108.25；N/A/空 → None。"""
-    if v is None or v == "N/A":
-        return None
-    m = _NUM_RE.search(str(v))
-    return float(m.group().replace(",", "")) if m else None
 
 
 def fetch_futures_curves(symbols: list[str] | None = None) -> pd.DataFrame:
@@ -67,7 +57,7 @@ def fetch_futures_curves(symbols: list[str] | None = None) -> pd.DataFrame:
             logger.warning("Barchart %s 曲线拉取失败: %s", root, e)
             continue
         for rec in data.get("data", []):
-            price = _to_float(rec.get("lastPrice"))
+            price = to_float(rec.get("lastPrice"))
             if price is not None:
                 row[rec.get("symbol")] = price
         logger.info(

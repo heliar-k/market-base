@@ -25,6 +25,7 @@ import json
 import logging
 import re
 import urllib.request
+from dataclasses import dataclass
 from datetime import datetime
 
 import pandas as pd
@@ -46,10 +47,19 @@ _TENOR_RE = re.compile(r"(Overnight|Tomorrow|Spot|(\d+)-(Week|Month|Year)) Forwa
 YAHOO_URL = (
     "https://query1.finance.yahoo.com/v8/finance/chart/{sym}?range=5d&interval=1d"
 )
-# (期货符号, 即期符号, 输出列名, 期货报价方向)
+
+
+@dataclass(frozen=True)
+class YahooPair:
+    future: str  # CME 期货主连符号
+    spot: str  # 即期符号
+    column: str  # 输出列名
+    direction: float  # 期货报价方向：1.0=USD/外币，-1.0=外币/USD（取倒数）
+
+
 YAHOO_PAIRS = [
-    ("CNH=F", "USDCNH=X", "USDCNH_NEAR", 1.0),  # 期货 USD/CNH，直接换算
-    ("6S=F", "CHF=X", "USDCHF_NEAR", -1.0),  # 期货 CHF/USD，需取倒数
+    YahooPair("CNH=F", "USDCNH=X", "USDCNH_NEAR", 1.0),  # 期货 USD/CNH，直接换算
+    YahooPair("6S=F", "CHF=X", "USDCHF_NEAR", -1.0),  # 期货 CHF/USD，需取倒数
 ]
 
 
@@ -104,12 +114,17 @@ def _fetch_barchart_curves(pair: str) -> dict[str, float] | None:
     return curves or None
 
 
-def _fetch_yahoo_near(pair_cfg: tuple) -> float | None:
+def _fetch_yahoo_near(pair_cfg: YahooPair) -> float | None:
     """从 Yahoo chart API 拉主连期货 + 即期，推近月掉期点（pips）。
 
     走 .env 的 HTTPS_PROXY（本地）；Actions 无代理时 urllib 自动直连。
     """
-    fut_sym, spot_sym, _, direction = pair_cfg
+    fut_sym, spot_sym, _, direction = (
+        pair_cfg.future,
+        pair_cfg.spot,
+        pair_cfg.column,
+        pair_cfg.direction,
+    )
 
     def _get(sym: str) -> float | None:
         url = YAHOO_URL.format(sym=sym)
@@ -172,14 +187,14 @@ def fetch_swap_points() -> pd.DataFrame:
 
     # Yahoo CME 近月（仅 Barchart 失败时兜底，避免覆盖全期限 1M）
     for cfg in YAHOO_PAIRS:
-        if cfg[2] in points:
+        if cfg.column in points:
             continue  # Barchart 已有近月点
         try:
             near = _fetch_yahoo_near(cfg)
             if near is not None:
-                points[cfg[2]] = round(near, 1)
+                points[cfg.column] = round(near, 1)
         except Exception as e:
-            logger.warning("Yahoo %s 拉取失败: %s", cfg[2], e)
+            logger.warning("Yahoo %s 拉取失败: %s", cfg.column, e)
 
     # 用 API 自带的数据日期（周末/节假日时与运行日不同），避免错位
     obs_date = (
