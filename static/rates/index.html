@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>利率 — US Macro</title>
+<link rel="stylesheet" href="/css/app.css">
+<script src="https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js"></script>
+<style>
+  .re-root { max-width: 960px; margin: 0 auto; padding: 20px 16px; display: flex; flex-direction: column; gap: 16px; }
+  .re-header { display: flex; justify-content: space-between; align-items: baseline; flex-wrap: wrap; gap: 8px; }
+  .re-header h1 { font-size: 20px; font-weight: 700; }
+  .re-as-of { font-size: 13px; color: var(--text-dim); }
+  .re-nav { display: flex; gap: 8px; flex-wrap: wrap; }
+  .re-nav a { color: var(--accent); text-decoration: none; font-size: 13px; padding: 4px 10px; border: 1px solid var(--btn-border); border-radius: 4px; }
+  .re-nav a:hover { background: var(--surface-hover); }
+  .re-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 12px; }
+  .re-card { padding: 14px 18px; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; }
+  .re-card-accent { background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); color: #fff; }
+  .re-card-accent .re-corridor-label { color: rgba(255,255,255,.7); }
+  .re-corridor-label { font-size: 11px; text-transform: uppercase; letter-spacing: .5px; opacity: .7; }
+  .re-corridor-value { font-size: 22px; font-weight: 700; margin-top: 4px; font-variant-numeric: tabular-nums; }
+  .re-card-sub { font-size: 11px; opacity: .7; margin-top: 4px; }
+  .re-section { border: 1px solid var(--border); border-radius: 8px; background: var(--surface); padding: 14px 18px; }
+  .re-section h2 { font-size: 14px; font-weight: 700; margin-bottom: 8px; color: var(--text); }
+  .re-section p { font-size: 13px; line-height: 1.7; color: var(--text-secondary); }
+  .re-gen { font-size: 11px; color: var(--text-dim); text-align: right; }
+  .re-loading { text-align: center; padding: 60px 20px; color: var(--text-dim); font-size: 14px; }
+  .re-error { text-align: center; padding: 40px 20px; color: #ef5350; }
+</style>
+</head>
+<body>
+<div class="re-root">
+  <div class="re-header">
+    <h1>利率</h1>
+    <span class="re-as-of" id="re-as-of"></span>
+  </div>
+
+  <div class="re-nav">
+    <a href="/rates/fed-funds.html">联邦基金利率</a>
+    <a href="/rates/yield-curve.html">收益率曲线</a>
+    <a href="/rates/auctions.html">国债拍卖</a>
+    <a href="/rates/real-rates.html">实际利率</a>
+    <a href="/rates/expectations/">利率预期</a>
+    <a href="/">← 仪表盘</a>
+  </div>
+
+  <div id="re-cards"></div>
+  <div id="re-sections"></div>
+  <div class="re-gen" id="re-gen"></div>
+</div>
+
+<script src="/js/rates-common.js"></script>
+<script>
+async function load() {
+  // 并行请求：研判 + EFFR（统计卡），一次渲染
+  const [data, ff] = await Promise.all([
+    R.get('/api/rates/analysis'),
+    R.get('/api/rates/fed-funds'),
+  ]);
+  document.getElementById('re-as-of').textContent = `数据截至 ${data.overview.as_of}`;
+  document.getElementById('re-gen').textContent =
+    `研判生成：${data.generator === 'llm' ? 'LLM' : '规则引擎（LLM 预留）'}`;
+
+  // ── 统计卡：EFFR / 2Y / 10Y / 30Y / 2s10s / 10Y 实际利率 ──
+  const t = Object.fromEntries(data.yield_curve.tenors.map(x => [x.tenor, x.current]));
+  const s = data.yield_curve.spreads;
+  const d10 = data.yield_curve.tips.find(x => x.tenor === '10Y');
+  document.getElementById('re-cards').replaceChildren(R.cards([
+    { label: '联邦基金有效利率', value: R.fmtPct(ff.latest.effr?.value), sub: ff.latest.effr?.as_of, accent: true },
+    { label: '2Y', value: R.fmtPct(t['2Y']), sub: '国债收益率' },
+    { label: '10Y', value: R.fmtPct(t['10Y']), sub: '国债收益率' },
+    { label: '30Y', value: R.fmtPct(t['30Y']), sub: '国债收益率' },
+    { label: '10Y-2Y', value: R.fmtBp(s['2s10s']), sub: '利差 bp' },
+    { label: '10Y 实际利率', value: R.fmtPct(d10?.real), sub: 'TIPS' },
+  ]));
+
+  // ── 四段研判 ──
+  const root = document.getElementById('re-sections');
+  root.innerHTML = '';
+  for (const sec of data.overview.sections) {
+    const div = document.createElement('div');
+    div.className = 're-section';
+    div.innerHTML = `<h2>${sec.title}</h2><p></p>`;
+    div.querySelector('p').textContent = sec.body;
+    root.appendChild(div);
+  }
+}
+
+load().catch(e => R.fail(['re-cards', 're-sections'], e));
+</script>
+</body>
+</html>

@@ -26,6 +26,7 @@ RESULTS_COLUMNS = [
     "offering_amt",
     "bid_to_cover_ratio",
     "high_yield",
+    "high_discnt_rate",
     "avg_med_yield",
     "indirect_bidder_accepted",
     "total_accepted",
@@ -74,6 +75,10 @@ def fetch_auction_results() -> pd.DataFrame:
     avg_yield = pd.to_numeric(df["avg_med_yield"], errors="coerce")
     df["tail_bp"] = ((high_yield - avg_yield) * 100).round(1)
 
+    # Bill 用贴现率（high_discnt_rate），Note/Bond 用收益率（high_yield）
+    discnt = pd.to_numeric(df["high_discnt_rate"], errors="coerce")
+    df["high_rate"] = high_yield.where(df["security_type"] != "Bill", discnt)
+
     return df
 
 
@@ -105,7 +110,10 @@ def _fetch_all_pages(url: str, columns: list[str], sort_field: str) -> list[dict
             "page[number]": page,
             "sort": f"-{sort_field}",
         }
-        resp = requests.get(url, params=params, timeout=60)
+        # 官方 API 直连：proxies=None 覆盖 .env 的 SOCKS5 代理（同 cfets 模式）
+        resp = requests.get(
+            url, params=params, timeout=60, proxies={"http": None, "https": None}
+        )
         resp.raise_for_status()
         body = resp.json()
         data = body.get("data", [])

@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>联邦基金利率 — US Macro</title>
+<link rel="stylesheet" href="/css/app.css">
+<script src="https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js"></script>
+<style>
+  .re-root { max-width: 960px; margin: 0 auto; padding: 20px 16px; display: flex; flex-direction: column; gap: 16px; }
+  .re-header { display: flex; justify-content: space-between; align-items: baseline; flex-wrap: wrap; gap: 8px; }
+  .re-header h1 { font-size: 20px; font-weight: 700; }
+  .re-as-of { font-size: 13px; color: var(--text-dim); }
+  .re-nav { display: flex; gap: 8px; flex-wrap: wrap; }
+  .re-nav a { color: var(--accent); text-decoration: none; font-size: 13px; padding: 4px 10px; border: 1px solid var(--btn-border); border-radius: 4px; }
+  .re-nav a:hover { background: var(--surface-hover); }
+  .re-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; }
+  .re-card { padding: 14px 18px; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; }
+  .re-card-accent { background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); color: #fff; }
+  .re-card-accent .re-corridor-label { color: rgba(255,255,255,.7); }
+  .re-corridor-label { font-size: 11px; text-transform: uppercase; letter-spacing: .5px; opacity: .7; }
+  .re-corridor-value { font-size: 22px; font-weight: 700; margin-top: 4px; font-variant-numeric: tabular-nums; }
+  .re-card-sub { font-size: 11px; opacity: .7; margin-top: 4px; }
+  .re-chart { height: 300px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); }
+  .re-table { width: 100%; border-collapse: collapse; font-size: 13px; font-variant-numeric: tabular-nums; }
+  .re-table-wrap { border: 1px solid var(--border); border-radius: 8px; overflow: hidden; background: var(--surface); }
+  .re-table th { position: sticky; top: 0; background: var(--surface-alt); padding: 8px 12px; text-align: left; font-size: 12px; color: var(--text-dim); border-bottom: 1px solid var(--border); }
+  .re-table td { padding: 7px 12px; border-bottom: 1px solid var(--border-light); }
+  .re-loading { text-align: center; padding: 60px 20px; color: var(--text-dim); font-size: 14px; }
+  .re-error { text-align: center; padding: 40px 20px; color: #ef5350; }
+  .re-h2 { font-size: 15px; font-weight: 700; }
+</style>
+</head>
+<body>
+<div class="re-root">
+  <div class="re-header">
+    <h1>联邦基金利率</h1>
+    <span class="re-as-of" id="re-as-of"></span>
+  </div>
+
+  <div class="re-nav">
+    <a href="/rates/">← 利率</a>
+    <a href="/rates/yield-curve.html">收益率曲线</a>
+    <a href="/rates/auctions.html">国债拍卖</a>
+    <a href="/rates/real-rates.html">实际利率</a>
+    <a href="/rates/expectations/">利率预期</a>
+  </div>
+
+  <div id="re-cards"></div>
+  <div class="re-h2">短期利率走廊（SOFR 分位 + 目标区间）</div>
+  <div class="re-chart" id="corridor_chart"></div>
+  <div class="re-h2">SOFR 每日成交量（十亿美元）</div>
+  <div class="re-chart" id="sofr_vol_chart"></div>
+  <div class="re-h2">联邦基金有效利率（5 年）</div>
+  <div class="re-chart" id="effr_chart"></div>
+  <div class="re-h2">近期数据（最近 30 条）</div>
+  <div id="re-recent"></div>
+</div>
+
+<script src="/js/rates-common.js"></script>
+<script>
+async function load() {
+  const [d, cal] = await Promise.all([
+    R.get('/api/rates/fed-funds'),
+    R.get('/api/fomc/calendar'),
+  ]);
+  document.getElementById('re-as-of').textContent = `数据截至 ${d.as_of}`;
+
+  // ── 卡片 ──
+  const l = d.latest;
+  const last = (arr) => (arr.length ? arr[arr.length - 1].value : null);
+  const c = d.corridor;
+  const p2575 = (last(c.sofr_p75) !== null && last(c.sofr_p25) !== null)
+    ? ((last(c.sofr_p75) - last(c.sofr_p25)) * 100).toFixed(1) : '—';
+  const p199 = (last(c.sofr_p99) !== null && last(c.sofr_p1) !== null)
+    ? ((last(c.sofr_p99) - last(c.sofr_p1)) * 100).toFixed(1) : '—';
+  const next = cal.next ? `${cal.next.month} 月 ${cal.next.end_day} 日` : '—';
+  document.getElementById('re-cards').replaceChildren(R.cards([
+    { label: '联邦基金有效利率', value: R.fmtPct(l.effr?.value), sub: l.effr?.as_of, accent: true },
+    { label: 'SOFR 利率', value: R.fmtPct(l.sofr?.value), sub: l.sofr?.as_of },
+    { label: 'FOMC 目标区间', value: l.target ? `${l.target[0].toFixed(2)} – ${l.target[1].toFixed(2)}%` : '—' },
+    { label: '下次 FOMC', value: next, sub: `${cal.next?.year ?? ''}` },
+    { label: '25th-75th 价差', value: `${p2575} bp`, sub: '核心分散度' },
+    { label: '1st-99th 价差', value: `${p199} bp`, sub: '极端范围' },
+    { label: 'SOFR 距目标上限', value: l.target && l.sofr ? `${((l.target[1] - l.sofr.value) * 100).toFixed(1)}bp` : '—', sub: '越接近 = 流动性越紧' },
+    { label: 'SOFR 成交量', value: l.sofr_vol ? `${Math.round(l.sofr_vol.value / 1000)} 千亿` : '—', sub: l.sofr_vol?.as_of },
+  ]));
+
+  // ── 走廊图：EFFR/SOFR/TGCR/BGCR/ONRRP 五利率 + 目标区间 ──
+  R.mkChart('corridor_chart', (colors) => ({
+    legend: { data: ['EFFR', 'SOFR', 'TGCR', 'BGCR', 'ONRRP', '目标上限', '目标下限'], top: 4, right: 8, textStyle: { color: colors.text, fontSize: 11 } },
+    tooltip: { trigger: 'axis', valueFormatter: v => `${Number(v).toFixed(2)}%` },
+    grid: { top: 36, left: 48, right: 16, bottom: 56 },
+    dataZoom: [{ type: 'inside' }, { type: 'slider', bottom: 8, height: 18 }],
+    xAxis: { type: 'category', data: R.ts(c.sofr), axisLabel: { color: colors.muted, fontSize: 10 }, axisLine: { lineStyle: { color: colors.border } } },
+    yAxis: { type: 'value', scale: true, axisLabel: { color: colors.muted, formatter: '{value}%' }, splitLine: { lineStyle: { color: colors.grid } } },
+    series: [
+      { name: 'EFFR', type: 'line', data: R.vs(c.effr), symbol: 'none', lineStyle: { color: colors.green, width: 2 } },
+      { name: 'SOFR', type: 'line', data: R.vs(c.sofr), symbol: 'none', lineStyle: { color: colors.blue, width: 2 } },
+      { name: 'TGCR', type: 'line', data: R.vs(c.tgcr), symbol: 'none', lineStyle: { color: colors.orange, width: 1.5 } },
+      { name: 'BGCR', type: 'line', data: R.vs(c.bgcr), symbol: 'none', lineStyle: { color: colors.purple, width: 1.5 } },
+      { name: 'ONRRP', type: 'line', data: R.vs(c.onrrp), symbol: 'none', lineStyle: { color: colors.gray, width: 1.5 } },
+      { name: '目标上限', type: 'line', data: R.vs(c.target_hi), symbol: 'none', lineStyle: { color: colors.red, type: 'dashed', width: 1 } },
+      { name: '目标下限', type: 'line', data: R.vs(c.target_lo), symbol: 'none', lineStyle: { color: colors.red, type: 'dashed', width: 1 } },
+    ],
+  }));
+
+  // ── SOFR 成交量 ──
+  R.mkChart('sofr_vol_chart', (colors) => ({
+    tooltip: { trigger: 'axis' },
+    grid: { top: 16, left: 48, right: 16, bottom: 56 },
+    dataZoom: [{ type: 'inside' }, { type: 'slider', bottom: 8, height: 18 }],
+    xAxis: { type: 'category', data: R.ts(d.sofr_vol), axisLabel: { color: colors.muted, fontSize: 10 }, axisLine: { lineStyle: { color: colors.border } } },
+    yAxis: { type: 'value', axisLabel: { color: colors.muted }, splitLine: { lineStyle: { color: colors.grid } } },
+    series: [{ type: 'bar', data: R.vs(d.sofr_vol), barMaxWidth: 8, itemStyle: { color: colors.blue } }],
+  }));
+
+  // ── EFFR 5 年 ──
+  R.mkChart('effr_chart', (colors) => ({
+    tooltip: { trigger: 'axis', valueFormatter: v => `${Number(v).toFixed(2)}%` },
+    grid: { top: 16, left: 48, right: 16, bottom: 56 },
+    dataZoom: [{ type: 'inside' }, { type: 'slider', bottom: 8, height: 18 }],
+    xAxis: { type: 'category', data: R.ts(d.effr_history), axisLabel: { color: colors.muted, fontSize: 10 }, axisLine: { lineStyle: { color: colors.border } } },
+    yAxis: { type: 'value', scale: true, axisLabel: { color: colors.muted, formatter: '{value}%' }, splitLine: { lineStyle: { color: colors.grid } } },
+    series: [{ type: 'line', data: R.vs(d.effr_history), symbol: 'none', lineStyle: { color: colors.blue, width: 2 }, areaStyle: { color: 'rgba(59,130,246,0.08)' } }],
+  }));
+
+  // ── 近 30 条 ──
+  const wrap = R.table(['日期', '有效利率 (%)'], d.recent.map(r => ({ date: r.date, effr: r.effr })), { effr: R.fmtPct });
+  document.getElementById('re-recent').replaceChildren(wrap);
+}
+
+load().catch(e => R.fail(['re-cards', 're-recent'], e));
+</script>
+</body>
+</html>

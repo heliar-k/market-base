@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>国债拍卖 — US Macro</title>
+<link rel="stylesheet" href="/css/app.css">
+<script src="https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js"></script>
+<style>
+  .re-root { max-width: 960px; margin: 0 auto; padding: 20px 16px; display: flex; flex-direction: column; gap: 16px; }
+  .re-header { display: flex; justify-content: space-between; align-items: baseline; flex-wrap: wrap; gap: 8px; }
+  .re-header h1 { font-size: 20px; font-weight: 700; }
+  .re-as-of { font-size: 13px; color: var(--text-dim); }
+  .re-nav { display: flex; gap: 8px; flex-wrap: wrap; }
+  .re-nav a { color: var(--accent); text-decoration: none; font-size: 13px; padding: 4px 10px; border: 1px solid var(--btn-border); border-radius: 4px; }
+  .re-nav a:hover { background: var(--surface-hover); }
+  .re-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; }
+  .re-card { padding: 14px 18px; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; }
+  .re-card-accent { background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); color: #fff; }
+  .re-card-accent .re-corridor-label { color: rgba(255,255,255,.7); }
+  .re-corridor-label { font-size: 11px; text-transform: uppercase; letter-spacing: .5px; opacity: .7; }
+  .re-corridor-value { font-size: 22px; font-weight: 700; margin-top: 4px; font-variant-numeric: tabular-nums; }
+  .re-card-sub { font-size: 11px; opacity: .7; margin-top: 4px; }
+  .re-chart { height: 300px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); }
+  .re-h2 { font-size: 15px; font-weight: 700; }
+  .re-table { width: 100%; border-collapse: collapse; font-size: 13px; font-variant-numeric: tabular-nums; }
+  .re-table-wrap { border: 1px solid var(--border); border-radius: 8px; overflow: hidden; background: var(--surface); }
+  .re-table th { background: var(--surface-alt); padding: 8px 12px; text-align: left; font-size: 12px; color: var(--text-dim); border-bottom: 1px solid var(--border); }
+  .re-table td { padding: 7px 12px; border-bottom: 1px solid var(--border-light); }
+  .re-table-wrap .re-scroll { overflow-x: auto; }
+  .re-loading { text-align: center; padding: 60px 20px; color: var(--text-dim); font-size: 14px; }
+  .re-error { text-align: center; padding: 40px 20px; color: #ef5350; }
+  .re-source { font-size: 11px; color: var(--text-dim); }
+</style>
+</head>
+<body>
+<div class="re-root">
+  <div class="re-header">
+    <h1>国债拍卖</h1>
+    <span class="re-as-of" id="re-as-of"></span>
+  </div>
+
+  <div class="re-nav">
+    <a href="/rates/">← 利率</a>
+    <a href="/rates/fed-funds.html">联邦基金利率</a>
+    <a href="/rates/yield-curve.html">收益率曲线</a>
+    <a href="/rates/real-rates.html">实际利率</a>
+    <a href="/rates/expectations/">利率预期</a>
+  </div>
+
+  <div id="re-cards"></div>
+  <div class="re-h2">付息券 Bid-to-Cover 趋势（2 / 5 / 10 / 30Y，近 1 年）</div>
+  <div class="re-chart" id="trend_chart"></div>
+  <div class="re-h2">📅 未来拍卖日历（未来 21 天）</div>
+  <div id="re-upcoming"></div>
+  <div class="re-h2">📊 最近拍卖结果（近 90 天）</div>
+  <div id="re-recent"></div>
+  <div class="re-source">数据来源：美国财政部 Fiscal Data API（auctions_query / upcoming_auctions），每日自动同步。</div>
+  <div class="re-source">释义：Bid-to-Cover = 投标倍数（认购额/发行额，>2.5x 需求良好，<2.0x 警戒）；间接% = 间接投标人（外国官方+国际机构）接受占比，反映海外需求；Tail = 中标利率 − 中位投标利率（bp），正 = 弱于预期。</div>
+</div>
+
+<script src="/js/rates-common.js"></script>
+<script>
+async function load() {
+  const d = await R.get('/api/rates/auctions');
+  document.getElementById('re-as-of').textContent = `数据截至 ${d.as_of}`;
+
+  const good = d.avg_cover_10_coupon !== null && d.avg_cover_10_coupon >= 2.5;
+  document.getElementById('re-cards').replaceChildren(R.cards([
+    { label: '近 10 场付息券平均 Bid-to-Cover', value: d.avg_cover_10_coupon === null ? '—' : `${d.avg_cover_10_coupon.toFixed(2)}x`, sub: good ? '需求良好' : '需求偏弱', accent: true },
+    { label: '未来 3 周拍卖场次', value: d.upcoming_count, sub: '按拍卖日排序见下方日历' },
+  ]));
+
+  // ── 趋势图 ──
+  const names = ['2Y', '5Y', '10Y', '30Y'];
+  const allDates = [...new Set(Object.values(d.trend).flat().map(p => p.date))].sort();
+  R.mkChart('trend_chart', (colors) => ({
+    legend: { data: names, top: 8, right: '2%', icon: 'roundRect', itemWidth: 14, itemHeight: 4, textStyle: { color: colors.text, fontSize: 12 } },
+    tooltip: { trigger: 'axis', valueFormatter: v => `${Number(v).toFixed(2)}x` },
+    grid: { top: 44, left: 48, right: 16, bottom: 24 },
+    xAxis: { type: 'category', data: allDates, axisLabel: { color: colors.muted, fontSize: 10 }, axisLine: { lineStyle: { color: colors.border } } },
+    yAxis: { type: 'value', min: 1.5, axisLabel: { color: colors.muted, formatter: '{value}x' }, splitLine: { lineStyle: { color: colors.grid } } },
+    series: names.map((n, i) => {
+      const m = { '2Y': colors.blue, '5Y': colors.orange, '10Y': colors.red, '30Y': colors.purple }[n];
+      const byDate = Object.fromEntries(d.trend[n].map(p => [p.date, p.value]));
+      return {
+        name: n, type: 'line',
+        data: allDates.map(dt => byDate[dt] ?? null),
+        symbol: 'circle', symbolSize: 5, connectNulls: false,
+        lineStyle: { color: m, width: 2 }, itemStyle: { color: m },
+        markLine: n === '2Y' ? {
+          data: [
+            { yAxis: 2.0, label: { formatter: '警戒 2.0x', color: colors.red, fontSize: 10 }, lineStyle: { color: colors.red, type: 'dashed', width: 1 } },
+            { yAxis: 2.5, label: { formatter: '良好 2.5x', color: colors.green, fontSize: 10 }, lineStyle: { color: colors.green, type: 'dashed', width: 1 } },
+          ], silent: true, symbol: 'none',
+        } : undefined,
+      };
+    }),
+  }));
+
+  // ── 未来日历 ──
+  document.getElementById('re-upcoming').replaceChildren(R.table(
+    ['拍卖日', '类型', '期限', '发行额', '结算日', '重开'],
+    d.upcoming.map(u => ({ date: u.auction_date, type: u.security_type, term: u.security_term, amt: u.offering_b, issue: u.issue_date, rep: u.reopening })),
+    { amt: R.fmtB, rep: v => (v === 'Yes' ? '✓' : '') },
+  ));
+
+  // ── 近 90 天结果 ──
+  document.getElementById('re-recent').replaceChildren(R.table(
+    ['日期', '类型', '期限', '发行额', '中标利率', 'Bid/Cover', '间接%', 'Tail(bp)'],
+    d.recent.map(r => ({ date: r.auction_date, type: r.security_type, term: r.security_term, amt: r.offering_b, rate: r.high_rate, cover: r.bid_to_cover, ind: r.indirect_pct, tail: r.tail_bp })),
+    { amt: R.fmtB, rate: R.fmtPct, cover: v => (v === null ? '—' : `${v.toFixed(2)}x`), ind: v => (v === null ? '—' : `${v.toFixed(0)}%`), tail: R.fmtBp },
+  ));
+}
+
+load().catch(e => R.fail(['re-cards', 're-upcoming', 're-recent'], e));
+</script>
+</body>
+</html>

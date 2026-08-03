@@ -68,7 +68,9 @@ ticker-toolkit/
 │   ├── fetch_commodities
 │   ├── fetch_options
 │   ├── fetch_barchart_futures
-│   └── fetch_cot
+│   ├── fetch_cot
+│   ├── fetch_treasury                  ← 国债拍卖（Treasury Fiscal Data API）
+│   └── fetch_bgcr                      ← BGCR 利率（NY Fed Markets API，FRED 无此系列）
 │
 ├── data/                         ← 数据存储（增量 CSV / JSON）
 │   ├── fred/{category}/{category}.csv  ← 12 分类 FRED 数据（观测日 upsert）
@@ -89,7 +91,15 @@ ticker-toolkit/
 │   ├── barchart/futures/{ROOT}.csv        ← Barchart 期货全合约曲线（观测日 upsert 宽表）
 │   ├── barchart/commodities/ZQ/ZQ_{YYYYMM}.csv ← Barchart ZQ 合约（rate_expectations 降级）
 │   ├── cot/cot.csv                        ← CFTC COT 持仓报告（周频，观测日 upsert）
+│   ├── treasury/auction_results.csv       ← 国债拍卖结果全量（~11k 场，覆盖写）
+│   ├── treasury/upcoming_auctions.csv     ← 未来拍卖日历（覆盖写）
+│   ├── rate_expectations/                 ← FOMC 概率 + ZQ 快照（每日）
 │   └── cache/{SYMBOL}_indicators.parquet ← 指标缓存（派生产物，mtime 失效）
+│
+├── static/                       ← Web 前端（FastAPI 静态目录）
+│   ├── index.html                ← 主仪表盘 SPA
+│   ├── js/                       ← 前端 JS（echarts-theme / rates-common 等）
+│   └── rates/                    ← 利率专题页（timsun.net/rates 复刻，6 页）
 │
 └── docs/
     ├── DATA_CATALOG.md           ← 数据目录文档
@@ -131,6 +141,8 @@ ticker-toolkit/
 ./bin/fetch_cfets                   # CFETS 外汇掉期点（5 外币对 × 5 期限 + Barchart USDCNH/USDCHF 全期限）
 ./bin/fetch_barchart_futures        # Barchart 期货期限结构（10 品种全合约，免费匿名）
 ./bin/fetch_cot                     # CFTC COT 持仓报告（周频）
+./bin/fetch_treasury                # 国债拍卖结果 + 未来日历（全量覆盖）
+./bin/fetch_bgcr                     # BGCR 利率（NY Fed，FRED 无；合并进 rates.csv）
 ./bin/fetch_yfinance                # yfinance 资产价格
 ./bin/fetch_commodities             # 全部期货（整条曲线）
 ./bin/fetch_commodities --front-month  # 仅主力合约
@@ -143,6 +155,11 @@ uv run python -m src.analyze data/AAPL.csv --json   # JSON 输出
 
 # TUI（双模式应用）
 uv run python -m src.tui.app                        # 启动 TUI（技术分析 + 宏观双模式）
+
+# Web（FastAPI + 利率专题页）
+uv run python -m src.server                        # 启动 Web，浏览器打开 localhost:8000
+# 利率专题（timsun.net/rates 复刻）：/rates/ 入口页 → 联邦基金/收益率曲线/拍卖/实际利率/利率预期
+# 研判由 src/rates_analysis.py 规则引擎生成，LLM 接入点：generate_analysis() → _llm_generate()
 
 # 测试
 uv run python -m pytest                            # 全量测试（157 个）

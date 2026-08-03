@@ -32,6 +32,7 @@ from src.macro import (
     read_macro_category,
     rrp_in_millions,
 )
+from src.rates_analysis import generate_analysis
 
 app = FastAPI(title="K-line Analysis Web")
 
@@ -631,9 +632,12 @@ def get_rate_expectations() -> dict:
 
     latest_date = df.index.max()
     latest = df.loc[latest_date]
+    # 同日多次写入会产生重复行（upsert 幂等性缺陷），按会议去重
+    latest = latest.drop_duplicates(subset=["meeting_date"])
 
     meetings = []
     for _, row in latest.iterrows():
+        meeting_date = pd.to_datetime(row["meeting_date"]).strftime("%Y-%m-%d")
         probs = []
         for c in range_cols:
             lo, hi = c.replace("range_", "").split("-")
@@ -645,7 +649,7 @@ def get_rate_expectations() -> dict:
 
         meetings.append(
             {
-                "meeting_date": row["meeting_date"].strftime("%Y-%m-%d"),
+                "meeting_date": meeting_date,
                 "contract": row["contract"],
                 "implied_rate": float(row["implied_rate"]),
                 "post_meeting_rate": float(row["post_meeting_rate"]),
@@ -661,6 +665,213 @@ def get_rate_expectations() -> dict:
         {
             "as_of": latest_date.strftime("%Y-%m-%d"),
             "meetings": meetings,
+        }
+    )
+
+
+# ── rates hub（复刻 timsun.net/rates）───────────────────────────────────────
+
+
+def _macro_df(category: str) -> pd.DataFrame:
+    try:
+        return read_macro_category(category)
+    except FileNotFoundError:
+        raise HTTPException(
+            404, f"{category}.csv 缺失，先运行 ./bin/fetch_fred"
+        ) from None
+
+
+def _to_points(s: pd.Series, days: int | None = None) -> list[dict]:
+    """Series → [{date, value}]；days 限最近 N 条。"""
+    s = s.dropna()
+    if days is not None:
+        s = s.tail(days)
+    return [{"date": d.strftime("%Y-%m-%d"), "value": float(v)} for d, v in s.items()]
+
+
+def _series(df: pd.DataFrame, col: str, days: int) -> list[dict]:
+    """列序列最近 days 天 → [{date, value}]。"""
+    if col not in df.columns:
+        return []
+    return _to_points(df[col], days)
+
+
+def _offering_b(v) -> float | None:
+    """发行额（USD）→ 十亿美元；空值返回 None。"""
+    if not v:
+        return None
+    return round(float(v) / 1e9, 1)
+
+
+@app.get("/api/rates/analysis")
+def get_rates_analysis() -> dict:
+    """利率研判（规则引擎，LLM 预留）。"""
+    return _sanitize(generate_analysis())
+
+
+@app.get("/api/rates/fed-funds")
+def get_rates_fed_funds() -> dict:
+    """联邦基金利率：EFFR/SOFR/目标区间 + 走廊 + 成交量 + 历史。"""
+    df = _macro_df("rates")
+    latest = {}
+    for col, key in [("FEDFUNDS", "effr"), ("SOFR", "sofr"), ("SOFRVOL", "sofr_vol")]:
+        s = df[col].dropna() if col in df.columns else pd.Series(dtype=float)
+        if not s.empty:
+            latest[key] = {
+                "value": float(s.iloc[-1]),
+                "as_of": s.index[-1].strftime("%Y-%m-%d"),
+            }
+    tarl = df["DFEDTARL"].dropna() if "DFEDTARL" in df else pd.Series(dtype=float)
+    taru = df["DFEDTARU"].dropna() if "DFEDTARU" in df else pd.Series(dtype=float)
+    if not tarl.empty and not taru.empty:
+        latest["target"] = [float(tarl.iloc[-1]), float(taru.iloc[-1])]
+
+    return _sanitize(
+        {
+            "as_of": df.index.max().strftime("%Y-%m-%d"),
+            "latest": latest,
+            # 利率走廊（近 90 天）：EFFR/SOFR/TGCR/BGCR/ONRRP 五利率 + 目标区间
+            "corridor": {
+                "dates": [d.strftime("%Y-%m-%d") for d in df.tail(90).index],
+                "effr": _series(df, "FEDFUNDS", 90),
+                "sofr": _series(df, "SOFR", 90),
+                "tgcr": _series(df, "TGCR", 90),
+                "bgcr": _series(df, "BGCR", 90),
+                "onrrp": _series(df, "ONRRP", 90),
+                "sofr_p1": _series(df, "SOFR1", 90),
+                "sofr_p25": _series(df, "SOFR25", 90),
+                "sofr_p75": _series(df, "SOFR75", 90),
+                "sofr_p99": _series(df, "SOFR99", 90),
+                "target_lo": _series(df, "DFEDTARL", 90),
+                "target_hi": _series(df, "DFEDTARU", 90),
+            },
+            "sofr_vol": _series(df, "SOFRVOL", 90),
+            "effr_history": _series(df, "FEDFUNDS", 5 * 250),
+            "recent": [
+                {"date": d.strftime("%Y-%m-%d"), "effr": float(v)}
+                for d, v in df["FEDFUNDS"].dropna().tail(30).items()
+            ],
+        }
+    )
+
+
+@app.get("/api/rates/yield-curve")
+def get_rates_yield_curve() -> dict:
+    """收益率曲线：四线对比 + 变化 + 利差时序 + 解读（规则引擎）。"""
+    df = _macro_df("rates")
+    out = generate_analysis()
+    # 近 6 个月三大利差时序（bp）
+    spread_hist = {}
+    for name, a, b in [
+        ("2s10s", "DGS10", "DGS2"),
+        ("3m10s", "DGS10", "DGS3MO"),
+        ("5s30s", "DGS30", "DGS5"),
+    ]:
+        diff = (df[a] - df[b]).dropna().tail(6 * 22)
+        spread_hist[name] = [
+            {**p, "value": round(p["value"] * 100, 1)} for p in _to_points(diff)
+        ]
+    out["yield_curve"]["spreads_history"] = spread_hist
+    return _sanitize(out)
+
+
+@app.get("/api/rates/real-rates")
+def get_rates_real_rates(days: int = Query(365, le=2000)) -> dict:
+    """实际利率：10Y 名义/TIPS/盈亏平衡 + 2Y + 2s10s（近 1 年日频）。"""
+    df = _macro_df("rates")
+    tips = _macro_df("tips")
+
+    d10 = df["DGS10"].dropna()
+    d10_real = tips["DFII10"].dropna()
+    aligned = pd.concat([d10, d10_real], axis=1).dropna().tail(days)
+    breakeven = aligned["DGS10"] - aligned["DFII10"]
+    spread = (df["DGS10"] - df["DGS2"]).dropna().tail(days)
+
+    return _sanitize(
+        {
+            "as_of": df.index.max().strftime("%Y-%m-%d"),
+            "nominal_10y": _series(df, "DGS10", days),
+            "real_10y": _series(tips, "DFII10", days),
+            "breakeven_10y": _to_points(breakeven),
+            "y2": _series(df, "DGS2", days),
+            "spread_2s10": _to_points(spread),
+        }
+    )
+
+
+@app.get("/api/rates/auctions")
+def get_rates_auctions() -> dict:
+    """国债拍卖：需求概览 + 近 90 天结果 + 未来 21 天日历 + 2/5/10/30Y 趋势。"""
+    results_path = ROOT / "data" / "treasury" / "auction_results.csv"
+    upcoming_path = ROOT / "data" / "treasury" / "upcoming_auctions.csv"
+    if not results_path.exists():
+        raise HTTPException(404, "拍卖数据缺失，先运行 ./bin/fetch_treasury")
+
+    auc = pd.read_csv(results_path, index_col="auction_date", parse_dates=True)
+    today = pd.Timestamp(date.today())
+
+    def _row(r) -> dict:
+        cover = r.get("bid_to_cover_ratio")
+        return {
+            "security_type": r.get("security_type"),
+            "security_term": r.get("security_term"),
+            "offering_b": _offering_b(r.get("offering_amt")),
+            "bid_to_cover": round(float(cover), 2) if pd.notna(cover) else None,
+            "indirect_pct": r.get("indirect_pct"),
+            "high_rate": r.get("high_rate"),
+            "tail_bp": r.get("tail_bp"),
+            "reopening": r.get("reopening"),
+        }
+
+    recent = auc.loc[auc.index >= today - pd.Timedelta(days=90)].sort_index()
+    coupon = auc[auc["security_type"] != "Bill"]
+    covers = (
+        pd.to_numeric(coupon["bid_to_cover_ratio"], errors="coerce").dropna().tail(10)
+    )
+    avg_cover = round(float(covers.mean()), 2) if not covers.empty else None
+
+    trend = {}
+    for term in ["2-Year", "5-Year", "10-Year", "30-Year"]:
+        sub = auc[auc["security_term"] == term]
+        sub = sub.loc[sub.index >= today - pd.Timedelta(days=365)]
+        trend[term.replace("-Year", "Y")] = [
+            {
+                "date": d.strftime("%Y-%m-%d"),
+                "value": float(pd.to_numeric(r["bid_to_cover_ratio"])),
+            }
+            for d, r in sub.iterrows()
+            if pd.notna(r.get("bid_to_cover_ratio"))
+        ]
+
+    upcoming = []
+    if upcoming_path.exists():
+        up = pd.read_csv(upcoming_path, index_col="auction_date", parse_dates=True)
+        # 按日期窗口过滤（未来 21 天），源文件含历史记录不能按行数截断
+        window_end = today + pd.Timedelta(days=21)
+        up = up.loc[(up.index >= today) & (up.index <= window_end)].sort_index()
+        for d, r in up.iterrows():
+            upcoming.append(
+                {
+                    "auction_date": d.strftime("%Y-%m-%d"),
+                    "security_type": r.get("security_type"),
+                    "security_term": r.get("security_term"),
+                    "offering_b": _offering_b(r.get("offering_amt")),
+                    "issue_date": r.get("issue_date"),
+                    "reopening": r.get("reopening"),
+                }
+            )
+
+    return _sanitize(
+        {
+            "as_of": auc.index.max().strftime("%Y-%m-%d"),
+            "avg_cover_10_coupon": avg_cover,
+            "upcoming_count": len(upcoming),
+            "recent": [
+                {**{"auction_date": d.strftime("%Y-%m-%d")}, **_row(r)}
+                for d, r in recent.iterrows()
+            ],
+            "upcoming": upcoming,
+            "trend": trend,
         }
     )
 

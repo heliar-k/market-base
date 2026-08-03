@@ -76,7 +76,7 @@ class TestTreasuryFetcher:
         """验证返回 DataFrame 含预期列和派生指标。"""
         import requests
 
-        def mock_get(url, params=None, timeout=None):
+        def mock_get(url, params=None, timeout=None, **kwargs):
             resp = requests.Response()
             resp.status_code = 200
 
@@ -110,7 +110,7 @@ class TestTreasuryFetcher:
     def test_fetch_auction_results_index_is_datetime(self, monkeypatch):
         import requests
 
-        def mock_get(url, params=None, timeout=None):
+        def mock_get(url, params=None, timeout=None, **kwargs):
             resp = requests.Response()
             resp.status_code = 200
 
@@ -136,7 +136,7 @@ class TestTreasuryFetcher:
     def test_fetch_upcoming_auctions(self, monkeypatch):
         import requests
 
-        def mock_get(url, params=None, timeout=None):
+        def mock_get(url, params=None, timeout=None, **kwargs):
             resp = requests.Response()
             resp.status_code = 200
 
@@ -165,7 +165,7 @@ class TestTreasuryFetcher:
     def test_fetch_results_raises_on_connection_error(self, monkeypatch):
         import requests
 
-        def mock_get(url, params=None, timeout=None):
+        def mock_get(url, params=None, timeout=None, **kwargs):
             raise requests.ConnectionError("no network")
 
         monkeypatch.setattr("requests.get", mock_get)
@@ -178,7 +178,7 @@ class TestTreasuryFetcher:
     def test_fetch_results_empty_data(self, monkeypatch):
         import requests
 
-        def mock_get(url, params=None, timeout=None):
+        def mock_get(url, params=None, timeout=None, **kwargs):
             resp = requests.Response()
             resp.status_code = 200
 

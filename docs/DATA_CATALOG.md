@@ -16,7 +16,7 @@
 | `inflation` | `data/fred/inflation/inflation.csv` | 19 | CPI / PCE / 核心 / CPI细分 / Super-core / BEI / 通胀预期 |
 | `labor` | `data/fred/labor/labor.csv` | 3 | 失业率 / 非农 / 首申失业金 |
 | `growth` | `data/fred/growth/growth.csv` | 5 | 实际GDP / 工业产出 / 实际PCE / 产能利用率 / 制造业新订单 |
-| `rates` | `data/fred/rates/rates.csv` | 14 | 联邦基金利率 / SOFR / IORB / 国债全期限 |
+| `rates` | `data/fred/rates/rates.csv` | 14 | 联邦基金利率 / SOFR/TGCR/BGCR/ONRRP / 国债全期限 |
 | `tips` | `data/fred/tips/tips.csv` | 5 | 5Y-30Y TIPS 实际收益率 |
 | `liquidity` | `data/fred/liquidity/liquidity.csv` | 5 | NFCI / 准备金 / RRP / TGA / 联储总资产 |
 | `sentiment` | `data/fred/sentiment/sentiment.csv` | 2 | 消费者信心 / 金融压力指数 |
@@ -30,7 +30,10 @@
 `inflation`: CPI, PCE, CORE_CPI, CORE_PCE, CPI_SHELTER, CPI_FOOD, CPI_ENERGY, CORE_SERVICES, CORE_GOODS, SUPERCORE_PCE, SUPERCORE_PCE_REAL, T5YIE, T10YIE, T5YIFR, MICH, EXPINF_1Y, EXPINF_2Y, EXPINF_5Y, EXPINF_10Y
 `labor`: UNRATE, PAYEMS, ICSA
 `growth`: GDP, INDPRO, REAL_PCE, CAPU, DGORDER
-`rates`: FEDFUNDS, SOFR, IORB, DGS1MO, DGS3MO, DGS6MO, DGS1, DGS2, DGS3, DGS5, DGS7, DGS10, DGS20, DGS30
+`rates`: FEDFUNDS, DFEDTARL, DFEDTARU, SOFR, SOFR1/25/75/99, SOFRVOL, OBFR, IORB, TGCR, ONRRP, BGCR*, DGS1MO...DGS30
+
+> `BGCR`（Broad General Collateral Rate）不在 FRED，由 `./bin/fetch_bgcr` 从 NY Fed
+> Markets API 拉取并合并进 rates.csv（TGCR ⊂ BGCR ⊂ SOFR；TGCR/BGCR 自 2021-03-01 发布）。
 `tips`: DFII5, DFII7, DFII10, DFII20, DFII30
 `liquidity`: NFCI, RRPONTSYD, WTREGEN, WRESBAL, WALCL
 `sentiment`: UMCSENT, STLFSI4
@@ -302,7 +305,8 @@ FRED liquidity 分类的原始系列（由 `./bin/fetch_fred` 一并拉取）。
 | `security_term` | 期限：4-Week / 13-Week / 2-Year / 10-Year / 30-Year 等 |
 | `offering_amt` | 发行额（USD） |
 | `bid_to_cover_ratio` | 投标倍数（>2.5x 需求良好，<2.0x 警戒） |
-| `high_yield` | 中标利率（%） |
+| `high_yield` | 中标收益率（%，Note/Bond/TIPS） |
+| `high_rate` | 统一中标利率（%）：Bill 取 high_discnt_rate（贴现率），其余取 high_yield |
 | `avg_med_yield` | 中位投标利率（%），用于计算 Tail |
 | `indirect_pct` | 间接投标人占比（%）= 外国官方 + 国际机构，反映海外需求 |
 | `tail_bp` | 拍卖 Tail（bp）= (high_yield − avg_med_yield) × 100，正=弱于预期 |
@@ -415,3 +419,33 @@ spx = pd.read_csv('data/indices/SPX.csv', index_col='date', parse_dates=True)
 auction_results = pd.read_csv('data/treasury/auction_results.csv', index_col='auction_date', parse_dates=True)
 upcoming = pd.read_csv('data/treasury/upcoming_auctions.csv', index_col='auction_date', parse_dates=True)
 ```
+
+---
+
+## 13. 利率专题页（Web，复刻 timsun.net/rates）
+
+`uv run python -m src.server` 后访问 `http://localhost:8000/rates/`，共 6 页：
+
+| 页面 | 路由 | 数据源 |
+|------|------|--------|
+| 利率研判（入口） | `/rates/` | `src/rates_analysis.py` 规则引擎四段文 |
+| 联邦基金利率 | `/rates/fed-funds.html` | rates.csv（EFFR/SOFR/走廊/成交量） |
+| 收益率曲线 | `/rates/yield-curve.html` | rates.csv + tips.csv + 规则引擎解读 |
+| 国债拍卖 | `/rates/auctions.html` | `data/treasury/`（auction_results + upcoming） |
+| 实际利率 | `/rates/real-rates.html` | rates.csv + tips.csv |
+| 利率预期 | `/rates/expectations/` | `data/rate_expectations/fomc_probabilities.csv` |
+
+### API 端点
+
+- `GET /api/rates/analysis` — 利率研判（规则引擎，含 overview 四段文 + yield_curve 解读）
+- `GET /api/rates/fed-funds` — EFFR/SOFR/目标区间/走廊/成交量/EFFR 5 年历史
+- `GET /api/rates/yield-curve` — 四线快照 + 利差时序 + 规则解读
+- `GET /api/rates/real-rates` — 10Y 名义/TIPS/盈亏平衡 + 2Y + 2s10s（近 1 年）
+- `GET /api/rates/auctions` — 需求概览 + 近 90 天结果 + 未来 21 天日历 + 2/5/10/30Y 趋势
+
+### 规则引擎（`src/rates_analysis.py`）
+
+确定性推导曲线形态（熊陡/牛陡/熊平/牛平）、驱动归因（实际利率 vs 盈亏平衡）、
+验证指标确认度、交易含义、失效条件。**LLM 预留**：`generate_analysis()` 内
+`_llm_generate()` 为替换点，实现后置 `_LLM_ENABLED = True` 即切换，
+API 响应 `generator` 字段标记 `rules` / `llm`，前端无感。

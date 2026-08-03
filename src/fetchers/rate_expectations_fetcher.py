@@ -15,6 +15,7 @@ Fetch Fed Funds futures-implied FOMC rate expectations.
 import calendar
 import logging
 from datetime import datetime
+from pathlib import Path
 
 import pandas as pd
 
@@ -269,20 +270,32 @@ if __name__ == "__main__":
     out_dir = ROOT / "data" / "rate_expectations"
     out_dir.mkdir(parents=True, exist_ok=True)
 
-    from ._io import upsert_timeseries
+    def _write_snapshot(path: Path, df: pd.DataFrame) -> None:
+        """快照写入：移除旧文件中同 date 的全部行再合并。
+
+        upsert_timeseries 按唯一观测日设计，对「一日多行」的快照不幂等
+        （combine_first 对重复索引按位置对齐 → 产生重复行），此处专用。
+        """
+        if args.backfill or not path.exists():
+            combined = df
+        else:
+            old = pd.read_csv(path, index_col=0)
+            old.index = old.index.astype(str)
+            combined = pd.concat([old[~old.index.isin(df.index)], df])
+        combined.sort_index().to_csv(path, index_label="date")
 
     # FOMC 概率表 — 每日快照（date=today 索引，同日覆盖）
     fomc_path = out_dir / "fomc_probabilities.csv"
     today_str = datetime.now().strftime("%Y-%m-%d")
     fomc_df.insert(0, "date", today_str)
-    upsert_timeseries(fomc_path, fomc_df.set_index("date"), backfill=args.backfill)
-    print(f"FOMC 概率 {'backfill' if args.backfill else 'upsert'}: → {fomc_path}")
+    _write_snapshot(fomc_path, fomc_df.set_index("date"))
+    print(f"FOMC 概率 {'backfill' if args.backfill else '快照覆盖'}: → {fomc_path}")
 
     # ZQ 合约快照 — 每日快照（date=today 索引，同日覆盖）
     zq_path = out_dir / "zq_futures.csv"
     zq_df.insert(0, "date", today_str)
-    upsert_timeseries(zq_path, zq_df.set_index("date"), backfill=args.backfill)
-    print(f"ZQ 合约 {'backfill' if args.backfill else 'upsert'}: → {zq_path}")
+    _write_snapshot(zq_path, zq_df.set_index("date"))
+    print(f"ZQ 合约 {'backfill' if args.backfill else '快照覆盖'}: → {zq_path}")
 
     # ── 打印摘要 ──
     print()
