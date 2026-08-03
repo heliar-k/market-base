@@ -1,0 +1,23 @@
+name: cme-api-test
+on:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Test CME markets API
+        run: |
+          echo "=== markets.api Term SOFR (no auth) ==="
+          curl -s -m 30 -o /tmp/a.json -w "HTTP %{http_code} %{size_download}B\n" \
+            "https://markets.api.cmegroup.com/term-sofr-rates/v1/latest" -H "User-Agent: Mozilla/5.0" || echo "fail"
+          head -c 300 /tmp/a.json 2>/dev/null; echo
+          echo "=== markets.api XCCY (no auth) ==="
+          curl -s -m 30 -o /tmp/b.json -w "HTTP %{http_code} %{size_download}B\n" \
+            "https://markets.api.cmegroup.com/xccy/v1/latest" -H "User-Agent: Mozilla/5.0" || echo "fail"
+          head -c 300 /tmp/b.json 2>/dev/null; echo
+          echo "=== CME 官网 Term SOFR 数据页 ==="
+          curl -s -m 30 -o /tmp/c.json -w "HTTP %{http_code} %{size_download}B\n" \
+            "https://www.cmegroup.com/market-data/cme-group-benchmark-administration/term-sofr.html" \
+            -H "User-Agent: Mozilla/5.0" || echo "fail"
+          grep -oE "term[-_]sofr[^\"']*\.(json|csv|xml)" /tmp/c.json 2>/dev/null | head -5
