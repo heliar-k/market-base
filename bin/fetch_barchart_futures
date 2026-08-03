@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+# Barchart 期货期限结构（免费匿名，替代/补充 IBKR commodities）
+set -euo pipefail
+cd "$(dirname "$0")/.."
+uv run python -m src.fetchers.barchart_futures_fetcher "$@"

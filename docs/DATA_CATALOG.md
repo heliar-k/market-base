@@ -216,6 +216,12 @@ FRED liquidity 分类的原始系列（由 `./bin/fetch_fred` 一并拉取）。
 
 10 个期货品种，来源 IBKR，自动拉取全部未过期合约。每日 `./bin/fetch_commodities` 更新。
 
+> **Barchart 降级/补充源** — `data/barchart/futures/{ROOT}.csv`（观测日 upsert 宽表，
+> 列 = 合约代码如 ESU31）：由 `./bin/fetch_barchart_futures` 拉取（免费匿名，Actions 每日跑），
+> 覆盖全部 10 品种的整条合约曲线（含 RTY→TF 代码映射），延迟报价（lastPrice 带 s 后缀）。
+> ZQ 额外写 `data/barchart/commodities/ZQ/ZQ_{YYYYMM}.csv`（date/close），
+> `rate_expectations` 读取优先级：IBKR 本地 → Barchart，因此 FOMC 概率在 Actions 也可每日自动产出。
+
 ### 商品期货
 
 | Symbol | 品种 | 交易所 |
@@ -349,6 +355,20 @@ FRED liquidity 分类的原始系列（由 `./bin/fetch_fred` 一并拉取）。
 | `issue_date` | 发行日 |
 
 ---
+
+## 12. COT 持仓报告 — `data/cot/cot.csv`
+
+CFTC 官方周度持仓报告（周二数据、周五发布），`./bin/fetch_cot` 拉取（免费，Actions 每日跑，
+默认当年+去年全量 upsert）。观测日 = 报告日期。
+
+| 列名 | 说明 |
+|------|------|
+| `{SYM}_OI` | 总持仓（Open Interest） |
+| 商品类（disaggregated）`{SYM}_PROD_L/S`、`{SYM}_SWAP_L/S`、`{SYM}_MM_L/S` | 生产商/商户、掉期商、管理资金（投机）多/空持仓 |
+| 金融类（TFF）`{SYM}_DEALER_L/S`、`{SYM}_ASSET_L/S`、`{SYM}_HEDGE_L/S` | 做市商、资管、对冲基金多/空持仓 |
+
+覆盖品种：GC/SI/HG/CL/NG（disaggregated）+ ES/NQ/RTY/ZQ（TFF）。
+YM（道指）不在 CFTC COT 报告中（2024-26 均无）。
 
 ## 速查：怎么用
 

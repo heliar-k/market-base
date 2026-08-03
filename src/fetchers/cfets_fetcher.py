@@ -24,12 +24,13 @@ USDCNH_NEAR / USDCHF_NEAR 为近月掉期点（优先 Barchart 1M，降级 Yahoo
 import json
 import logging
 import re
-import urllib.parse
 import urllib.request
 from datetime import datetime
 
 import pandas as pd
 import requests
+
+from .barchart_client import core_get
 
 logger = logging.getLogger(__name__)
 
@@ -40,10 +41,6 @@ TENORS = ["1W", "1M", "3M", "6M", "1Y"]
 # Barchart：CFETS 不覆盖的货币对 → 全期限远期点（免费匿名）
 BARCHART_PAIRS = ["USDCNH", "USDCHF"]
 BARCHART_PAGE = "https://www.barchart.com/forex/quotes/%5E{PAIR}/forward-rates"
-BARCHART_API = (
-    "https://www.barchart.com/proxies/core-api/v1/quotes/get"
-    "?lists=forex.forwardCurves(%5E{PAIR})&fields=symbolName,bidPrice,askPrice,tradeTime"
-)
 _TENOR_RE = re.compile(r"(Overnight|Tomorrow|Spot|(\d+)-(Week|Month|Year)) Forward$")
 
 YAHOO_URL = (
@@ -86,27 +83,18 @@ def _tenor_from_name(symbol_name: str) -> str | None:
 def _fetch_barchart_curves(pair: str) -> dict[str, float] | None:
     """Barchart 远期点曲线 → {TENOR: mid_pips}（bid/ask 中值，N/A 跳过）。
 
-    两步匿名请求：GET 页面种 cookie → 带 XSRF token 调 core-api。
+    经 barchart_client 匿名两步请求（页面种 cookie → core-api 带 XSRF）。
     """
     page_url = BARCHART_PAGE.format(PAIR=pair)
-    session = requests.Session()
-    session.headers.update({"User-Agent": "Mozilla/5.0"})
-    session.get(page_url, timeout=20)  # 种 laravel_session / XSRF-TOKEN
-    xsrf = session.cookies.get("XSRF-TOKEN")
-    if not xsrf:
-        return None
-    resp = session.get(
-        BARCHART_API.format(PAIR=pair),
-        headers={
-            "Accept": "application/json",
-            "X-XSRF-TOKEN": urllib.parse.unquote(xsrf),
-            "Referer": page_url,
+    resp = core_get(
+        {
+            "lists": f"forex.forwardCurves(^{pair})",
+            "fields": "symbolName,bidPrice,askPrice,tradeTime",
         },
-        timeout=20,
+        referer=page_url,
     )
-    resp.raise_for_status()
     curves: dict[str, float] = {}
-    for rec in resp.json().get("data", []):
+    for rec in resp.get("data", []):
         tenor = _tenor_from_name(rec.get("symbolName", ""))
         bid, ask = rec.get("bidPrice"), rec.get("askPrice")
         if not tenor or bid in (None, "N/A") or ask in (None, "N/A"):

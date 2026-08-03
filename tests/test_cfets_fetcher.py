@@ -142,42 +142,18 @@ def test_fetch_barchart_curves(monkeypatch):
         {"symbolName": "USD/CNH 4-Year Forward", "bidPrice": "N/A", "askPrice": "N/A"},
     ]
 
-    class _FakeResp:
-        def __init__(self, payload):
-            self._payload = payload
-
-        def raise_for_status(self):
-            pass
-
-        def json(self):
-            return self._payload
-
-    class _FakeSession:
-        headers: dict = {}
-
-        def __init__(self):
-            self.cookies = type("C", (), {"get": lambda self, k: "xsrf-token-value"})()
-
-        def get(self, url, *a, **k):
-            if "core-api" in url:
-                return _FakeResp({"data": recs})
-            return _FakeResp({})
-
-    monkeypatch.setattr("src.fetchers.cfets_fetcher.requests.Session", _FakeSession)
+    monkeypatch.setattr(
+        "src.fetchers.cfets_fetcher.core_get", lambda params, referer: {"data": recs}
+    )
 
     curves = _fetch_barchart_curves("USDCNH")
     assert curves == {"1M": -157.5, "6M": -1037.7}  # 4Y N/A 跳过
 
-    monkeypatch.setattr(  # 无 XSRF cookie → None
-        "src.fetchers.cfets_fetcher.requests.Session",
-        lambda: type(
-            "S",
-            (),
-            {
-                "headers": {},
-                "get": lambda self, *a, **k: None,
-                "cookies": type("C", (), {"get": lambda self, k: None})(),
-            },
-        )(),
+    import pytest
+
+    monkeypatch.setattr(  # 接口异常向上抛，由 fetch_swap_points 降级处理
+        "src.fetchers.cfets_fetcher.core_get",
+        lambda params, referer: (_ for _ in ()).throw(RuntimeError("no xsrf")),
     )
-    assert _fetch_barchart_curves("USDCNH") is None
+    with pytest.raises(RuntimeError):
+        _fetch_barchart_curves("USDCNH")

@@ -31,26 +31,35 @@ def _zq_label(meeting_year: int, meeting_month: int) -> str:
 
 
 def _read_zq_close(meeting_year: int, meeting_month: int) -> tuple[float, str] | None:
-    """从 commodities 本地 CSV 读取 ZQ 合约最新收盘价（= 日结算价）。
+    """从本地 CSV 读取 ZQ 合约最新收盘价（= 日结算价）。
+
+    优先级：IBKR commodities 本地数据（质量更高）→ Barchart 降级
+    （data/barchart/commodities/ZQ/，由 ./bin/fetch_barchart_futures 写入）。
 
     Returns (settlement, as_of_date) 或 None（文件不存在/无数据）。
     """
-    path = (
-        ROOT
-        / "data"
-        / "commodities"
-        / "ZQ"
-        / f"ZQ_{meeting_year}{meeting_month:02d}.csv"
+    label = _zq_label(meeting_year, meeting_month)
+    candidates = [
+        ROOT / "data" / "commodities" / "ZQ" / f"{label}.csv",
+        ROOT / "data" / "barchart" / "commodities" / "ZQ" / f"{label}.csv",
+    ]
+    for path in candidates:
+        if not path.exists():
+            continue
+        df = pd.read_csv(path, dtype={"date": str})
+        if df.empty:
+            continue
+        last = df.iloc[-1]
+        return float(last["close"]), str(last["date"])
+    logger.warning(
+        f"ZQ {meeting_year}-{meeting_month:02d}: 无本地数据（IBKR: {candidates[0]}, "
+        f"Barchart: {candidates[1]})"
     )
-    if not path.exists():
-        logger.warning(f"ZQ {meeting_year}-{meeting_month:02d}: 无本地数据 {path}")
-        logger.warning("  请先运行: ./bin/fetch_commodities --symbols ZQ")
-        return None
-    df = pd.read_csv(path, dtype={"date": str})
-    if df.empty:
-        return None
-    last = df.iloc[-1]
-    return float(last["close"]), str(last["date"])
+    logger.warning(
+        "  请先运行: ./bin/fetch_commodities --symbols ZQ 或 "
+        "./bin/fetch_barchart_futures --symbols ZQ"
+    )
+    return None
 
 
 def _days_in_month(year: int, month: int) -> int:

@@ -38,7 +38,11 @@ ticker-toolkit/
 │   │   ├── fsi_fetcher.py        ← OFR 金融压力指数（官方 CSV 全量）
 │   │   ├── srf_fetcher.py        ← SRF 使用量（NY Fed Markets API）
 │   │   ├── tsy_fetcher.py        ← Treasury 公开市场操作明细（RMP/POMO）
-│   │   ├── cfets_fetcher.py      ← CFETS 外汇掉期点（chinamoney）
+│   │   ├── cfets_fetcher.py      ← CFETS 外汇掉期点（chinamoney）+ Barchart 远期点 + Yahoo
+│   │   ├── barchart_client.py    ← Barchart core-api 匿名客户端（XSRF 会话）
+│   │   ├── barchart_futures_fetcher.py ← Barchart 期货期限结构（10 品种全合约，IBKR 替代源）
+│   │   ├── barchart_options_fetcher.py ← Barchart 期权链（真实 gamma，GEX 降级源）
+│   │   ├── cot_fetcher.py        ← CFTC COT 持仓报告（官方 disaggregated + TFF）
 │   │   ├── commodities_fetcher.py← IBKR 商品期货日线（9 个品种，整条曲线）
 │   │   └── options_fetcher.py    ← IBKR 期权链参数
 │   └── tui/                      ← TUI 应用（Textual 双模式）
@@ -62,7 +66,9 @@ ticker-toolkit/
 │   ├── fetch_fsi
 │   ├── fetch_srf
 │   ├── fetch_commodities
-│   └── fetch_options
+│   ├── fetch_options
+│   ├── fetch_barchart_futures
+│   └── fetch_cot
 │
 ├── data/                         ← 数据存储（增量 CSV / JSON）
 │   ├── fred/{category}/{category}.csv  ← 12 分类 FRED 数据（观测日 upsert）
@@ -80,6 +86,9 @@ ticker-toolkit/
 │   ├── commodities/{SYMBOL}/{SYMBOL}_{YYYYMM}.csv  ← 期货日线
 │   ├── gex/{SYMBOL}_greeks_YYYYMMDD.csv  ← Greeks 当日快照（--reuse-greeks 复用）
 │   ├── gex/{SYMBOL}_gex_YYYYMMDD_HHMM.csv ← GEX 逐合约明细（每次运行留存）
+│   ├── barchart/futures/{ROOT}.csv        ← Barchart 期货全合约曲线（观测日 upsert 宽表）
+│   ├── barchart/commodities/ZQ/ZQ_{YYYYMM}.csv ← Barchart ZQ 合约（rate_expectations 降级）
+│   ├── cot/cot.csv                        ← CFTC COT 持仓报告（周频，观测日 upsert）
 │   └── cache/{SYMBOL}_indicators.parquet ← 指标缓存（派生产物，mtime 失效）
 │
 └── docs/
@@ -97,7 +106,8 @@ ticker-toolkit/
 
 **每日自动（无需本地操作）**：GitHub Actions `daily-fetch` workflow 每个交易日
 北京时间 05:00 自动拉取**不依赖 IBKR/TWS** 的数据源并 commit + push，本地 `git pull` 即得：
-`fred` / `cboe` / `ofr` / `srf` / `tsy` / `cfets` / `shapiro` / `sce` / `treasury` / `yfinance`（17 品种资产快照）。
+`fred` / `cboe` / `ofr` / `srf` / `tsy` / `cfets` / `shapiro` / `sce` / `treasury` / `yfinance`（17 品种资产快照）
+`barchart_futures` / `cot` / `rate_expectations`（Barchart 期货曲线、CFTC COT、FOMC 概率）。
 
 **本地手动（先启动 TWS 或 IB Gateway，端口 4001 实盘 / 4002 模拟）**：只有依赖 IBKR 的才需要本地跑：
 `ibkr` / `options` / `commodities` / `index` / `stock` / `rate_expectations`（ZQ 期货来自 commodities）。
@@ -118,7 +128,9 @@ ticker-toolkit/
 ./bin/fetch_fsi                     # OFR 金融压力指数
 ./bin/fetch_srf                     # SRF 使用量
 ./bin/fetch_tsy                     # Treasury 公开市场操作明细（RMP/POMO）
-./bin/fetch_cfets                   # CFETS 外汇掉期点（5 外币对 × 5 期限）
+./bin/fetch_cfets                   # CFETS 外汇掉期点（5 外币对 × 5 期限 + Barchart USDCNH/USDCHF 全期限）
+./bin/fetch_barchart_futures        # Barchart 期货期限结构（10 品种全合约，免费匿名）
+./bin/fetch_cot                     # CFTC COT 持仓报告（周频）
 ./bin/fetch_yfinance                # yfinance 资产价格
 ./bin/fetch_commodities             # 全部期货（整条曲线）
 ./bin/fetch_commodities --front-month  # 仅主力合约

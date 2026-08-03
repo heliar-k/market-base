@@ -449,24 +449,48 @@ def main():
     log.info(f"{symbol} spot: ${spot:.2f}")
     log.info(f"到期日: {expirations}")
 
-    # === Step 2: yfinance OI ===
+    # === Step 2: OI（Barchart 优先——gamma + OI 同源；yfinance 兜底） ===
     oi_df = pd.DataFrame()
     if not args.no_yfinance:
-        oi_df = fetch_yf_chain(symbol, expirations)[
-            [
-                "expiration",
-                "strike",
-                "right",
-                "openInterest",
-                "volume",
-                "impliedVolatility",
+        if greeks_df.empty or greeks_df["gamma"].isna().all():
+            from src.fetchers.barchart_options_fetcher import fetch_barchart_chain
+
+            try:
+                bc = fetch_barchart_chain(symbol, expirations)
+            except Exception as e:
+                log.warning("Barchart 期权链拉取失败: %s", e)
+                bc = pd.DataFrame()
+            if not bc.empty:
+                log.info(f"Barchart 期权链: {len(bc)} 条（真实市场 gamma + OI）")
+                greeks_df = bc[["expiration", "strike", "right", "gamma", "iv"]]
+                oi_df = bc.rename(columns={"iv": "impliedVolatility"})[
+                    [
+                        "expiration",
+                        "strike",
+                        "right",
+                        "openInterest",
+                        "volume",
+                        "impliedVolatility",
+                    ]
+                ]
+
+        if oi_df.empty:
+            oi_df = fetch_yf_chain(symbol, expirations)[
+                [
+                    "expiration",
+                    "strike",
+                    "right",
+                    "openInterest",
+                    "volume",
+                    "impliedVolatility",
+                ]
             ]
-        ]
         # 消费侧规整：volume/IV NaN → 0（greeks_from_yf 跳过 iv<=0 的行）
         oi_df["volume"] = oi_df["volume"].fillna(0).astype(int)
         oi_df["impliedVolatility"] = oi_df["impliedVolatility"].fillna(0)
 
-    # IBKR Greeks 不可用 → 降级：用 yfinance IV 反推 BS gamma
+    # IBKR Greeks 不可用 → 降级：Barchart 真实 gamma（已在上方填 greeks_df）
+    # → yfinance IV 反推 BS gamma（Barchart 也失败时）
     # 注意：IBKR 可能返回全 NaN gamma 的非空表（如盘前无行情），按有效 gamma 判断
     if greeks_df.empty or greeks_df["gamma"].isna().all():
         if oi_df.empty:
