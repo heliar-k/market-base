@@ -19,10 +19,15 @@ Barchart 页面数据由 JS 动态加载，前端统一调
 import logging
 import re
 import urllib.parse
+from typing import Literal
 
 import requests
 
 logger = logging.getLogger(__name__)
+
+# core-api 两种认证方式：cookie XSRF-TOKEN（quotes/get）或页面 meta csrf-token
+# （options/chain）
+AuthMode = Literal["xsrf", "csrf"]
 
 UA = (
     "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 "
@@ -49,7 +54,7 @@ def to_float(v: str | None) -> float | None:
 def core_get(
     params: dict,
     referer: str,
-    auth: str = "xsrf",
+    auth: AuthMode = "xsrf",
     endpoint: str = "quotes/get",
     timeout: int = 20,
 ) -> dict:

@@ -37,7 +37,7 @@ logger = logging.getLogger(__name__)
 COT_MARKETS: dict[str, tuple[str, str]] = {
     "GC": (r"^GOLD - COMMODITY EXCHANGE", "disagg"),
     "SI": (r"^SILVER - COMMODITY EXCHANGE", "disagg"),
-    "HG": (r"^COPPER- #1", "disagg"),
+    "HG": (r"^COPPER- #1 - ", "disagg"),
     "CL": (r"^(CRUDE OIL, LIGHT SWEET-WTI - NEW YORK|WTI-PHYSICAL)", "disagg"),
     "NG": (r"^HENRY HUB - NEW YORK", "disagg"),
     "ES": (r"^E-MINI S&P 500 - ", "fin"),

@@ -119,12 +119,6 @@ def _fetch_yahoo_near(pair_cfg: YahooPair) -> float | None:
 
     走 .env 的 HTTPS_PROXY（本地）；Actions 无代理时 urllib 自动直连。
     """
-    fut_sym, spot_sym, _, direction = (
-        pair_cfg.future,
-        pair_cfg.spot,
-        pair_cfg.column,
-        pair_cfg.direction,
-    )
 
     def _get(sym: str) -> float | None:
         url = YAHOO_URL.format(sym=sym)
@@ -138,10 +132,10 @@ def _fetch_yahoo_near(pair_cfg: YahooPair) -> float | None:
         ]
         return closes[-1] if closes else None
 
-    fut, spot = _get(fut_sym), _get(spot_sym)
+    fut, spot = _get(pair_cfg.future), _get(pair_cfg.spot)
     if fut is None or spot is None:
         return None
-    fut_price = fut if direction > 0 else 1 / fut  # 期货统一成 USD/外币 方向
+    fut_price = fut if pair_cfg.direction > 0 else 1 / fut  # 期货统一成 USD/外币 方向
     return (fut_price - spot) * 10000
 
 
