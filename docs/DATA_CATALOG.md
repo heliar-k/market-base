@@ -138,10 +138,13 @@ FRED liquidity 分类的原始系列（由 `./bin/fetch_fred` 一并拉取）。
 | `{PAIR}_{TENOR}`（EURUSD/USDJPY/GBPUSD/AUDUSD/USDHKD × 1W/1M/3M/6M/1Y） | 外汇掉期点 | pips（1 pip = 0.0001） |
 
 > 掉期点 = 远期汇率 − 即期汇率（以 pip 计），负值表示外币相对美元贴水。
-> 覆盖 5 个外币对（timsun global-dollar 页面的 USD/JPY、EUR/USD、GBP/USD 在内）；
-> USD/CNH（离岸）与 USD/CHF 不在 CFETS 范围（页面亦标注“暂未覆盖”）。
-> 注意：本 fetcher 绕过本地 SOCKS5 代理直连（chinamoney TLS 为 legacy renegotiation，
-> 走代理握手失败），Actions 环境不受影响。
+> 覆盖 5 个外币对（timsun global-dollar 页面的 USD/JPY、EUR/USD、GBP/USD 在内）。
+> 另有 2 列来自 Yahoo CME 期货主连（`USDCNH_NEAR` / `USDCHF_NEAR`，近月掉期点）：
+> USD/CNH、USD/CHF 不在 CFETS 覆盖范围（页面亦标注“暂未覆盖”），用 CME 期货主连
+> 推近月掉期点 = (F − S) × 10000，仅近月单点（Yahoo 不提供具体月份合约）。
+> 验证：CME 官网 API 本地与 GitHub Actions 均被屏蔽（403/000），Yahoo 为唯一可行源。
+> 注意：本 fetcher 对 chinamoney 绕过本地 SOCKS5 代理直连（TLS legacy renegotiation
+> 走代理握手失败），Yahoo 部分走代理（本地）/直连（Actions），互不影响。
 
 ---
 

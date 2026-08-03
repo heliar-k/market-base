@@ -47,6 +47,10 @@ def test_parses_swap_points_by_tenor(monkeypatch):
     monkeypatch.setattr(
         "src.fetchers.cfets_fetcher.requests.Session", lambda: _FakeSession(payloads)
     )
+    monkeypatch.setattr(  # Yahoo 源在此测试中不返回数据
+        "src.fetchers.cfets_fetcher.urllib.request.urlopen",
+        lambda *a, **k: (_ for _ in ()).throw(RuntimeError("no yahoo in this test")),
+    )
 
     df = fetch_swap_points()
 
@@ -65,3 +69,42 @@ def test_empty_when_no_pairs(monkeypatch):
     )
 
     assert fetch_swap_points().empty
+
+
+def test_yahoo_near_swap_points(monkeypatch):
+    """Yahoo CME 期货主连 → 近月掉期点：CNH 直接算、CHF 取倒数。"""
+    import json
+    import urllib.parse
+
+    quotes = {
+        "CNH=F": 6.7335,
+        "USDCNH=X": 6.7482,  # USD/CNH
+        "6S=F": 1.2447,
+        "CHF=X": 0.8071,  # CHF/USD
+    }
+
+    def fake_urlopen(req, timeout=0):
+        sym = urllib.parse.unquote(req.full_url.split("chart/")[1].split("?")[0])
+        closes = [quotes[sym]]
+        payload = {
+            "chart": {"result": [{"indicators": {"quote": [{"close": closes}]}}]}
+        }
+        return type(
+            "R",
+            (),
+            {
+                "read": lambda self: json.dumps(payload).encode(),
+                "__enter__": lambda self: self,
+                "__exit__": lambda self, *a: None,
+            },
+        )()
+
+    monkeypatch.setattr(
+        "src.fetchers.cfets_fetcher.urllib.request.urlopen", fake_urlopen
+    )
+    from src.fetchers.cfets_fetcher import YAHOO_PAIRS, _fetch_yahoo_near
+
+    cnh = _fetch_yahoo_near(YAHOO_PAIRS[0])
+    assert cnh is not None and abs(cnh - (6.7335 - 6.7482) * 10000) < 0.01
+    chf = _fetch_yahoo_near(YAHOO_PAIRS[1])
+    assert chf is not None and abs(chf - (1 / 1.2447 - 0.8071) * 10000) < 0.01
