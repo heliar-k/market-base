@@ -1,11 +1,12 @@
 """
-Fetch CBOE volatility data: OVX, VIX9D, VIX, VIX term structure.
+Fetch CBOE volatility data: OVX, VIX9D, VIX, VIX3M, VIX6M, VIX1Y, VIX term structure.
 写入 data/cboe/volatility.csv（观测日为 key，全量 upsert）。
 
 数据源: CBOE CDN CSV（每日更新，含全量历史）
   - OVX (Crude Oil Volatility Index)
   - VIX9D (9-day VIX)
   - VIX (30-day VIX；FRED VIXCLS 也有，此处用 CBOE 原始序列算期限结构)
+  - VIX3M / VIX6M / VIX1Y（波动率期限结构长端）
   - VIX_TERM_SLOPE = VIX - VIX9D（正=contango，负=backwardation）
 
 每次运行都拉源全量历史并 upsert：忘记运行几天，下次跑自动补齐缺失日期。
@@ -27,11 +28,20 @@ CBOE_URLS = {
         "https://cdn.cboe.com/api/global/us_indices/daily_prices/VIX9D_History.csv"
     ),
     "VIX": "https://cdn.cboe.com/api/global/us_indices/daily_prices/VIX_History.csv",
+    "VIX3M": (
+        "https://cdn.cboe.com/api/global/us_indices/daily_prices/VIX3M_History.csv"
+    ),
+    "VIX6M": (
+        "https://cdn.cboe.com/api/global/us_indices/daily_prices/VIX6M_History.csv"
+    ),
+    "VIX1Y": (
+        "https://cdn.cboe.com/api/global/us_indices/daily_prices/VIX1Y_History.csv"
+    ),
 }
 
 
 def fetch_cboe_volatility() -> pd.DataFrame:
-    """下载 OVX/VIX9D/VIX 全量历史，按观测日对齐，算 VIX_TERM_SLOPE。
+    """下载 OVX/VIX9D/VIX/VIX3M/VIX6M/VIX1Y 全量历史，按观测日对齐，算期限结构。
 
     单序列拉取失败时跳过并告警；VIX_TERM_SLOPE 需 VIX+VIX9D 同时在场。
     """
