@@ -55,15 +55,17 @@ def _read(path: Path, index_col: str = "date") -> pd.DataFrame:
 
 
 def _load() -> tuple[
-    pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame
+    pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame
 ]:
-    """rates / tips / inflation / rate_expectations / auction_results 五张本地表。"""
+    """rates / tips / inflation / rate_expectations / auction_results / cgb
+    六张本地表。"""
     rates = _read(ROOT / "data" / "fred" / "rates" / "rates.csv")
     tips = _read(ROOT / "data" / "fred" / "tips" / "tips.csv")
     infl = _read(ROOT / "data" / "fred" / "inflation" / "inflation.csv")
     rex = _read(ROOT / "data" / "rate_expectations" / "fomc_probabilities.csv")
     auc = _read(ROOT / "data" / "treasury" / "auction_results.csv", "auction_date")
-    return rates, tips, infl, rex, auc
+    cgb = _read(ROOT / "data" / "fred" / "rates" / "cgb.csv")  # chinamoney，FRED 无
+    return rates, tips, infl, rex, auc, cgb
 
 
 def _snapshot(rates: pd.DataFrame, col: str, window: int) -> float | None:
@@ -214,7 +216,7 @@ def _invalidation(shape: str, s2s10: float | None, y10: float | None) -> list[st
 
 def yield_curve_analysis() -> dict:
     """收益率曲线解读（规则版，对应 timsun 的『曲线变动解读』）。"""
-    rates, tips, infl, _, auc = _load()
+    rates, tips, infl, _, auc, cgb = _load()
     if rates.empty:
         return {"error": "data/fred/rates/rates.csv 缺失，先运行 ./bin/fetch_fred"}
 
@@ -354,37 +356,67 @@ def yield_curve_analysis() -> dict:
                 strict=True,
             )
         ],
-        # 全球长端对照（美/日/中 10Y）
+        # 全球长端对照（美/日/中 10Y + 30Y）
         "global_long_end": [
             {
                 "market": "美国",
                 "note": "10Y Treasury",
                 "rate": _snapshot(rates, "DGS10", 0),
+                "rate30": _snapshot(rates, "DGS30", 0),
                 "spread_vs_us": 0.0,
+                "spread30_vs_us": 0.0,
                 "source": "FRED DGS10 · daily",
             },
             {
                 "market": "日本",
                 "note": "10Y JGB",
                 "rate": _snapshot(rates, "JP10Y", 0),
+                "rate30": None,
                 "spread_vs_us": (
                     round(
-                        (_snapshot(rates, "JP10Y", 0) or 0)
-                        - (_snapshot(rates, "DGS10", 0) or 0),
-                        2,
+                        (
+                            (_snapshot(rates, "JP10Y", 0) or 0)
+                            - (_snapshot(rates, "DGS10", 0) or 0)
+                        )
+                        * _BP,
+                        1,
                     )
-                    * _BP
                     if "JP10Y" in rates.columns
                     else None
                 ),
+                "spread30_vs_us": None,
                 "source": "FRED IRLTLT01JPM156N · monthly",
             },
             {
                 "market": "中国",
                 "note": "10Y CGB",
-                "rate": None,
-                "spread_vs_us": None,
-                "source": "ChinaBond · planned（待接入）",
+                "rate": _snapshot(cgb, "cgb_10y", 0),
+                "rate30": _snapshot(cgb, "cgb_30y", 0),
+                "spread_vs_us": (
+                    round(
+                        (
+                            (_snapshot(cgb, "cgb_10y", 0) or 0)
+                            - (_snapshot(rates, "DGS10", 0) or 0)
+                        )
+                        * _BP,
+                        1,
+                    )
+                    if not cgb.empty and "cgb_10y" in cgb.columns
+                    else None
+                ),
+                "spread30_vs_us": (
+                    round(
+                        (
+                            (_snapshot(cgb, "cgb_30y", 0) or 0)
+                            - (_snapshot(rates, "DGS30", 0) or 0)
+                        )
+                        * _BP,
+                        1,
+                    )
+                    if not cgb.empty and "cgb_30y" in cgb.columns
+                    else None
+                ),
+                "source": "chinamoney RtimeYldCurv · daily",
             },
         ],
     }
@@ -397,7 +429,7 @@ def yield_curve_analysis() -> dict:
 
 def overview_analysis() -> dict:
     """四段研判：曲线形态 / 实际利率 / 联储预期 / 展望。"""
-    rates, tips, infl, rex, auc = _load()
+    rates, tips, infl, rex, auc, cgb = _load()
     if rates.empty:
         return {"sections": []}
     as_of = rates.index.max().strftime("%Y-%m-%d")

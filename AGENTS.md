@@ -70,7 +70,8 @@ ticker-toolkit/
 │   ├── fetch_barchart_futures
 │   ├── fetch_cot
 │   ├── fetch_treasury                  ← 国债拍卖（Treasury Fiscal Data API）
-│   └── fetch_bgcr                      ← BGCR 利率（NY Fed Markets API，FRED 无此系列）
+│   ├── fetch_bgcr                      ← BGCR 利率（NY Fed Markets API，FRED 无此系列）
+│   └── fetch_cgb                       ← 中国国债收益率 10Y/30Y（chinamoney，FRED 无）
 │
 ├── data/                         ← 数据存储（增量 CSV / JSON）
 │   ├── fred/{category}/{category}.csv  ← 12 分类 FRED 数据（观测日 upsert）
@@ -143,6 +144,7 @@ ticker-toolkit/
 ./bin/fetch_cot                     # CFTC COT 持仓报告（周频）
 ./bin/fetch_treasury                # 国债拍卖结果 + 未来日历（全量覆盖）
 ./bin/fetch_bgcr                     # BGCR 利率（NY Fed，FRED 无；合并进 rates.csv）
+./bin/fetch_cgb                      # 中国国债收益率 10Y/30Y（chinamoney 实时曲线）
 ./bin/fetch_yfinance                # yfinance 资产价格
 ./bin/fetch_commodities             # 全部期货（整条曲线）
 ./bin/fetch_commodities --front-month  # 仅主力合约

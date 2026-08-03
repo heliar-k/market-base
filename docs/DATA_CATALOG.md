@@ -34,6 +34,10 @@
 
 > `BGCR`（Broad General Collateral Rate）不在 FRED，由 `./bin/fetch_bgcr` 从 NY Fed
 > Markets API 拉取并合并进 rates.csv（TGCR ⊂ BGCR ⊂ SOFR；TGCR/BGCR 自 2021-03-01 发布）。
+
+> `CGB`（中国国债 10Y/30Y 收益率）不在 FRED，由 `./bin/fetch_cgb` 从 chinamoney
+> 实时曲线拉取，存 `data/fred/rates/cgb.csv`（独立文件不并入 rates.csv；
+> yield-curve 页全球长端对照 + overview 研判用）。
 `tips`: DFII5, DFII7, DFII10, DFII20, DFII30
 `liquidity`: NFCI, RRPONTSYD, WTREGEN, WRESBAL, WALCL
 `sentiment`: UMCSENT, STLFSI4

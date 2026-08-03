@@ -115,8 +115,14 @@ class TestCouponCover:
 
 
 def test_yield_curve_analysis_has_global_long_end():
-    """yield_curve 输出含全球长端对照（美/日/中），中国为待接入。"""
+    """yield_curve 输出含全球长端对照（美/日/中），中国行来自 cgb.csv。"""
     out = yield_curve_analysis()
     markets = {g["market"]: g for g in out["global_long_end"]}
     assert set(markets) == {"美国", "日本", "中国"}
-    assert markets["中国"]["rate"] is None  # 待接入，不伪造数值
+    cn = markets["中国"]
+    if cn["rate"] is None:
+        assert cn["source"] == "chinamoney RtimeYldCurv · daily"  # 未拉过数据不伪造
+    else:
+        assert cn["rate30"] is not None
+        assert cn["spread_vs_us"] is not None
+        assert cn["spread30_vs_us"] is not None

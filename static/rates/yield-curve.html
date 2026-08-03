@@ -108,11 +108,16 @@ async function load() {
 
   // ── 全球长端对照表 ──
   document.getElementById('re-global').replaceChildren(R.table(
-    ['市场', '说明', '10Y 收益率', 'vs 美国 (bp)', '来源'],
+    ['市场', '说明', '10Y 收益率', '30Y 收益率', 'vs 美国 (bp)', '来源'],
     d.global_long_end.map(g => ({
-      market: g.market, note: g.note, rate: g.rate, spread: g.spread_vs_us, source: g.source,
+      market: g.market, note: g.note, rate: g.rate, rate30: g.rate30,
+      spread: g.spread_vs_us, spread30: g.spread30_vs_us, source: g.source,
     })),
-    { rate: R.fmtPct, spread: (v) => (v === null || v === undefined ? '—' : `${v > 0 ? '+' : ''}${v.toFixed(0)}`), },
+    {
+      rate: R.fmtPct, rate30: R.fmtPct,
+      spread: (v) => (v === null || v === undefined ? '—' : `${v > 0 ? '+' : ''}${v.toFixed(0)}`),
+      spread30: (v) => (v === null || v === undefined ? '—' : `${v > 0 ? '+' : ''}${v.toFixed(0)}`),
+    },
   ));
 
   // ── 1 月变化柱状图 ──
