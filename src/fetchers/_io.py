@@ -30,6 +30,8 @@ def save_daily_csv(
     for dp in results:
         if dp.qa_status == QAStatus.OK and dp.value is not None:
             row[dp.metric] = dp.value
+            if dp.volume is not None:
+                row[f"{dp.metric}_volume"] = dp.volume
 
     if len(row) <= 1:
         return  # nothing to save

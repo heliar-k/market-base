@@ -260,6 +260,18 @@ def _regime_score(
     }
 
 
+def _liq_etf_cards(df_yf: pd.DataFrame) -> dict:
+    """市场流动性代理：HYG / LQD 价格 + 成交量（存量 CSV 无 volume 列时容忍）。"""
+    out = {}
+    for key, col in [("hyg", "HYG"), ("lqd", "LQD")]:
+        card, _ = _latest_card(df_yf, col, 2)
+        if card:
+            vcol = f"{col}_volume"
+            v = _latest(df_yf[vcol]) if vcol in df_yf else None
+            out[key] = {**card, "volume": round(v) if v is not None else None}
+    return out
+
+
 def overview(
     df_vol: pd.DataFrame,
     df_cr: pd.DataFrame,
@@ -367,12 +379,8 @@ def overview(
         if card:
             fincond[key] = card
 
-    # 市场流动性代理：HYG / LQD 价格
-    liq_etf = {}
-    for key, col in [("hyg", "HYG"), ("lqd", "LQD")]:
-        card, _ = _latest_card(df_yf, col, 2)
-        if card:
-            liq_etf[key] = card
+    # 市场流动性代理：HYG / LQD 价格 + 成交量
+    liq_etf = _liq_etf_cards(df_yf)
 
     return {
         "regime": _regime_score(df_vol, df_cr, df_yf),

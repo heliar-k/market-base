@@ -19,6 +19,7 @@ class DataPoint:
 
     metric: str
     value: float | None = None
+    volume: float | None = None  # 日频快照（yfinance）附带成交量，其余源为 None
     as_of: str | None = None  # ISO-8601 date string
     source: str = ""
     formula: str = ""

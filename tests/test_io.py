@@ -183,3 +183,35 @@ def test_load_timeseries_header_only_returns_empty(tmp_path):
     path = tmp_path / "a.csv"
     path.write_text("date,open,close\n")
     assert load_timeseries(path).empty
+
+
+def test_save_daily_csv_writes_volume_column(tmp_path):
+    """yfinance 快照附带 volume → 写入 {metric}_volume 列。"""
+    from src.fetchers._io import save_daily_csv
+    from src.fetchers.quality import DataPoint
+
+    path = tmp_path / "assets.csv"
+    dp = DataPoint(metric="HYG", value=79.31, volume=30_476_383)
+    dp.mark_ok()
+    save_daily_csv(path, [dp])
+
+    df = pd.read_csv(path)
+    assert df.iloc[0]["HYG"] == 79.31
+    assert df.iloc[0]["HYG_volume"] == 30_476_383
+
+
+def test_save_daily_csv_volume_none_tolerates_legacy_schema(tmp_path):
+    """存量 CSV 无 volume 列 + 新数据无 volume → 不报错，不产生 volume 列。"""
+    from src.fetchers._io import save_daily_csv
+    from src.fetchers.quality import DataPoint
+
+    path = tmp_path / "assets.csv"
+    path.write_text("date,SPX\n2026-07-31,7417.64\n")
+    dp = DataPoint(metric="SPX", value=7489.72)
+    dp.mark_ok()
+    save_daily_csv(path, [dp])
+
+    df = pd.read_csv(path)
+    assert len(df) == 2  # 旧行保留 + 新行追加
+    # 新数据无 volume → 不产生 volume 列（存量 schema 原样保留）
+    assert "SPX_volume" not in df.columns

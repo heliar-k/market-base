@@ -142,6 +142,11 @@ def _fetch_ticker(ticker: str, name: str) -> DataPoint:
         close = close_series.iloc[-1]
         ts = hist.loc[close_series.index[-1]].name
         dp.value = round(float(close), 4)
+        # 同日成交量（部分品种/时段可能缺失 → None，容忍）
+        vol_series = (
+            hist["Volume"].dropna() if "Volume" in hist else pd.Series(dtype=float)
+        )
+        dp.volume = round(float(vol_series.iloc[-1])) if not vol_series.empty else None
         dp.as_of = ts.strftime("%Y-%m-%d")
         dp.mark_ok()
     except Exception as e:

@@ -223,7 +223,10 @@ async function load() {
   lsec2.className = 're-section';
   lsec2.innerHTML = '<h2>信用 ETF 二级市场流动性代理</h2>';
   const hyg = d.liq_etf.hyg, lqd = d.liq_etf.lqd;
-  lsec2.innerHTML += `<p style="margin:0">HYG ${hyg ? '$' + hyg.value : '—'} · LQD ${lqd ? '$' + lqd.value : '—'}（Yahoo Finance 日频快照，TRACE 真实成交量预留）</p>`;
+  const etfStr = (e, name) => e
+    ? `$<b>${name}</b> ${'$' + e.value} · vol ${e.volume != null ? e.volume.toLocaleString() : '—'}`
+    : `${name} —`;
+  lsec2.innerHTML += `<p style="margin:0">${etfStr(hyg, 'HYG')} · ${etfStr(lqd, 'LQD')}（Yahoo Finance 日频快照，TRACE 真实成交量预留）</p>`;
   document.getElementById('liq-etf').appendChild(lsec2);
 
   document.getElementById('re-gen').textContent = `研判由规则引擎生成（${d.generator}）· ${d.as_of} · ICE BofA 系列经 FRED API 仅提供近 ~3 年，10Y 分位按可用历史计算`;

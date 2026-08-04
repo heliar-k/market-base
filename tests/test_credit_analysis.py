@@ -6,6 +6,7 @@ import pytest
 from src.credit_analysis import (
     STRESS_WEIGHTS,
     _latest_card,
+    _liq_etf_cards,
     _overview_signals,
     _pct,
     _regime_score,
@@ -294,3 +295,22 @@ class TestOverviewSignals:
         s = _overview_signals({}, {}, {}, {}, [], {})
         assert "数据缺失" in s["what_changed"]
         assert s["what_to_watch"] == "下一步看 SLOOS 与 HY OAS 数据是否延续。"
+
+
+class TestLiqEtfVolume:
+    def test_volume_read_from_snapshot(self):
+        # 快照带 volume 列 → 卡片含 volume；无 volume 列 → 容忍为 None
+        idx = pd.to_datetime(["2026-08-01", "2026-08-04"])
+        df = pd.DataFrame(
+            {"HYG": [79.31, 79.10], "HYG_volume": [30_000_000, 29_500_000]},
+            index=idx,
+        )
+        out = _liq_etf_cards(df)
+        assert out["hyg"]["volume"] == 29_500_000
+
+    def test_missing_volume_column_tolerated(self):
+        idx = pd.to_datetime(["2026-08-01", "2026-08-04"])
+        df = pd.DataFrame({"HYG": [79.31, 79.10]}, index=idx)
+        out = _liq_etf_cards(df)
+        assert out["hyg"]["value"] == 79.1
+        assert out["hyg"]["volume"] is None
