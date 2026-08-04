@@ -9,7 +9,7 @@
 #
 # 手动触发 Actions：gh workflow run daily-fetch.yml
 # 历史 crontab 示例（已过时，勿用）:
-#   0 5 * * 1-5 cd /Users/guankai/Documents/ticker-toolkit && bash src/run_fetch.sh >> logs/cron.log 2>&1
+#   0 5 * * 1-5 cd /Users/guankai/code/python/market-base && bash src/run_fetch.sh >> logs/cron.log 2>&1
 
 PROJECT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$PROJECT_DIR"

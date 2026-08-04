@@ -1,6 +1,6 @@
 ---
 name: planning-trades
-description: 制定股票/期权交易计划（方向性做多/做空挂单、Sell Put 收租、下跌保护对冲），产出 trade-journal/ 计划文档或策略报告。用 ticker-toolkit 工具链：src/analyze.py 技术面、compute_gex.py 期权墙、sell_put.py、hedge_planner.py、yfinance 盘前实时价。Use when 用户要 做空计划、做多计划、交易计划、挂单方案、sell put、卖 put、收租、对冲、保护、领口、put 价差、盘前复核、trade plan、trade-journal。
+description: 制定股票/期权交易计划（方向性做多/做空挂单、Sell Put 收租、下跌保护对冲），产出 trade-journal/ 计划文档或策略报告。用 market-base 工具链：src/analyze.py 技术面、compute_gex.py 期权墙、sell_put.py、hedge_planner.py、yfinance 盘前实时价。Use when 用户要 做空计划、做多计划、交易计划、挂单方案、sell put、卖 put、收租、对冲、保护、领口、put 价差、盘前复核、trade plan、trade-journal。
 ---
 
 # 交易计划（trade-journal + 策略工具）
