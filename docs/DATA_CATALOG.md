@@ -27,6 +27,10 @@
 
 ### 列名速查
 `volatility`: VIX, HY_OAS, IG_OAS
+
+> ⚠️ 发布滞后：ICE BofA 信用利差系列（HY_OAS/IG_OAS）比 VIXCLS 滞后 1~2 个交易日，
+> 最新一行可能 VIX 有值而 OAS 为空——不是拉取 bug，下次 fetch 自动补上（upsert）。
+> 此分类的 VIX 与 `data/cboe/volatility.csv` 的 VIX 同源（都是 CBOE 官方收盘），可互验。
 `inflation`: CPI, PCE, CORE_CPI, CORE_PCE, CPI_SHELTER, CPI_FOOD, CPI_ENERGY, CORE_SERVICES, CORE_GOODS, SUPERCORE_PCE, SUPERCORE_PCE_REAL, T5YIE, T10YIE, T5YIFR, MICH, EXPINF_1Y, EXPINF_2Y, EXPINF_5Y, EXPINF_10Y
 `labor`: UNRATE, PAYEMS, ICSA
 `growth`: GDP, INDPRO, REAL_PCE, CAPU, DGORDER
@@ -62,6 +66,11 @@ VIX9D/VIX/VIX3M/VIX6M/VIX1Y 全量序列一并落盘，可复算期限结构斜�
 | `VIX6M` | 6 个月 VIX（2008-01 起） |
 | `VIX1Y` | 1 年 VIX（2007-01 起） |
 | `VIX_TERM_SLOPE` | VIX 期限结构斜率（VIX - VIX9D），正=contango，负=backwardation |
+
+> 与 `data/fred/volatility/volatility.csv` 的关系：仅 VIX 一列重叠（同源），fred 版
+> 侧重信用利差（risk-off），本文件侧重波动率期限结构，用途不同不统一。
+> 本文件已纳入 Actions daily-fetch 自动拉取（`bin/fetch_cboe`）；若某日 auto-fetch
+> commit 里没有它的更新，说明 CBOE CDN 无新数据（或上次手动已拉到最新），不是漏跑。
 
 ---
 
