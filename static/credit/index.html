@@ -90,7 +90,7 @@ async function load() {
   document.getElementById('re-as-of').textContent = '数据截至 ' + d.as_of;
 
   // ── Credit Regime Score 记分卡 ──
-  const rg = d.regime;
+  const rg = d.regime || { score: null, regime: '—', color: '#999', components: [], missing: [] };
   const rsec = document.createElement('div');
   rsec.className = 're-section';
   const bars = rg.components.map(c => {
