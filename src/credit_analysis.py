@@ -412,14 +412,14 @@ def _overview_signals(
 
     # ── What changed：最新事实 ──
     changed: list[str] = []
+    hy_yield = funding["hy"]["value"] / 100 if funding.get("hy") else None
     if hy:
-        level = "低位" if (hy_p or 0) < 30 else ("中位" if (hy_p or 0) < 70 else "高位")
         txt = f"HY OAS 最新为 {hy['value']:.1f}bp"
         if hy_p is not None:
+            level = "低位" if hy_p < 30 else ("中位" if hy_p < 70 else "高位")
             txt += f"，可用历史 {hy_p:.0f}% 分位（{level}）"
         changed.append(txt)
-    if funding.get("hy"):
-        hy_yield = funding["hy"]["value"] / 100  # 内部存 bp
+    if hy_yield is not None:
         changed.append(f"HY 有效收益率 {hy_yield:.2f}%")
     if std:
         dirn = "收紧" if std["value"] > 0 else ("放松" if std["value"] < 0 else "持平")
@@ -428,8 +428,7 @@ def _overview_signals(
 
     # ── Why it matters：解读 ──
     why_parts: list[str] = []
-    if funding.get("hy"):
-        hy_yield = funding["hy"]["value"] / 100
+    if hy_yield is not None:
         why_parts.append(
             f"企业融资的绝对成本仍处于高位（HY all-in yield {hy_yield:.2f}%）"
         )
@@ -446,7 +445,7 @@ def _overview_signals(
         why = "信用数据不足以形成判断。"
     if std and std["value"] > 0 and funding.get("hy"):
         why += "融资成本高位叠加银行收紧，估值弹性会先被压缩。"
-    elif std and std["value"] <= 0:
+    elif why_parts and std and std["value"] <= 0:
         why += "信用没有确认压力时，通常支持风险偏好。"
 
     # ── What to watch next：前瞻 ──
