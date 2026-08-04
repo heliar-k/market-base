@@ -1,4 +1,5 @@
-/* 专题页共享样式（rates / fed / volatility / credit）— 由各页 <style> 合并去重生成。
+/* 专题页共享样式（rates / fed / volatility / credit）— 由各页 <style> 合并生成。
+ * 冲突规则已按多数派/语义裁定规范值（见 src/refactor 记录）。
  * 新专题页只需 <link rel="stylesheet" href="/css/special.css">；
  * 修改样式请直接编辑本文件，勿再往页面内联 <style> 里加。 */
 .re-root { max-width: 960px; margin: 0 auto; padding: 20px 16px; display: flex; flex-direction: column; gap: 16px; }
@@ -8,7 +9,7 @@
 .re-nav { display: flex; gap: 8px; flex-wrap: wrap; }
 .re-nav a { color: var(--accent); text-decoration: none; font-size: 13px; padding: 4px 10px; border: 1px solid var(--btn-border); border-radius: 4px; }
 .re-nav a:hover { background: var(--surface-hover); }
-.re-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 12px; }
+.re-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; }
 .re-card { padding: 14px 18px; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; }
 .re-card-accent { background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); color: #fff; }
 .re-card-accent .re-corridor-label { color: rgba(255,255,255,.7); }
@@ -21,13 +22,12 @@
 .re-gen { font-size: 11px; color: var(--text-dim); text-align: right; }
 .re-loading { text-align: center; padding: 60px 20px; color: var(--text-dim); font-size: 14px; }
 .re-error { text-align: center; padding: 40px 20px; color: #ef5350; }
-.re-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; }
 .re-chart { height: 300px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); }
 .re-h2 { font-size: 15px; font-weight: 700; }
 .re-table { width: 100%; border-collapse: collapse; font-size: 13px; font-variant-numeric: tabular-nums; }
-.re-table-wrap { border: 1px solid var(--border); border-radius: 8px; overflow: hidden; background: var(--surface); }
-.re-table th { background: var(--surface-alt); padding: 8px 12px; text-align: left; font-size: 12px; color: var(--text-dim); border-bottom: 1px solid var(--border); }
-.re-table td { padding: 7px 12px; border-bottom: 1px solid var(--border-light); }
+.re-table-wrap { overflow-x: auto; margin-top: 8px; }
+.re-table th { background: var(--surface-alt); padding: 8px 12px; text-align: left; font-size: 12px; color: var(--text-dim); font-weight: 600; border-bottom: 1px solid var(--border); position: sticky; top: 0; }
+.re-table td { padding: 7px 12px; border-bottom: 1px solid var(--border-light); color: var(--text); font-variant-numeric: tabular-nums; }
 .re-table-wrap .re-scroll { overflow-x: auto; }
 .re-source { font-size: 11px; color: var(--text-dim); }
 .re-badges { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
@@ -44,14 +44,10 @@
 .re-analysis h3 { font-size: 13px; font-weight: 700; }
 .re-analysis ul { margin-left: 18px; font-size: 13px; line-height: 1.7; color: var(--text-secondary); }
 .re-analysis p { font-size: 13px; line-height: 1.7; color: var(--text-secondary); }
-.re-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; }
-.re-table th { position: sticky; top: 0; background: var(--surface-alt); padding: 8px 12px; text-align: left; font-size: 12px; color: var(--text-dim); border-bottom: 1px solid var(--border); }
 .re-explain { font-size: 12px; color: var(--text-dim); line-height: 1.6; padding: 12px 16px; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; }
-.re-root {
 max-width: 960px; margin: 0 auto; padding: 20px 16px;
 display: flex; flex-direction: column; gap: 16px;
 }
-.re-header {
 display: flex; justify-content: space-between; align-items: baseline;
 flex-wrap: wrap; gap: 8px;
 .re-header .re-as-of { font-size: 13px; color: var(--text-dim); }
@@ -61,19 +57,14 @@ flex-wrap: wrap; gap: 8px;
 display: flex; gap: 24px; padding: 16px 20px;
 background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
 border-radius: 8px; color: #fff; flex-wrap: wrap;
-.re-corridor-value { font-size: 22px; font-weight: 700; margin-top: 4px; }
-.re-table-wrap {
 border: 1px solid var(--border); border-radius: 8px;
 overflow: hidden; background: var(--surface);
-.re-table {
 width: 100%; border-collapse: collapse; font-size: 13px;
 font-variant-numeric: tabular-nums;
-.re-table th {
 position: sticky; top: 0; background: var(--surface-alt);
 color: var(--text-secondary); font-weight: 600;
 padding: 8px 12px; text-align: right; border-bottom: 1px solid var(--border);
 .re-table th:first-child, .re-table td:first-child { text-align: left; }
-.re-table td {
 padding: 8px 12px; text-align: right; border-bottom: 1px solid var(--border-light);
 .re-table tbody tr:hover { background: var(--surface-hover); }
 .re-table .re-bar-cell { min-width: 200px; }
@@ -111,23 +102,12 @@ padding: 12px 16px; background: var(--surface); border: 1px solid var(--border);
 .link-card .icon { font-size: 22px; }
 .link-card .t { font-size: 14px; font-weight: 600; color: var(--text); }
 .link-card .d { font-size: 12px; color: var(--text-secondary); margin-top: 2px; }
-@media (max-width: 640px) { .vix-row, .link-grid { grid-template-columns: 1fr; } }
-.re-root { max-width: 1080px; margin: 0 auto; padding: 20px 16px; display: flex; flex-direction: column; gap: 16px; }
-.chart { width: 100%; height: 300px; }
-.re-table-wrap { overflow-x: auto; }
-.re-table { width: 100%; border-collapse: collapse; font-size: 12px; font-variant-numeric: tabular-nums; }
-.re-table th, .re-table td { padding: 5px 8px; text-align: right; white-space: nowrap; border-bottom: 1px solid var(--border); }
-.re-table th { color: var(--text-dim); font-weight: 500; }
+.chart { width: 100%; height: 300px; margin-top: 8px; }
 .term-head { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; margin-bottom: 10px; }
 .term-badge { font-size: 12px; padding: 2px 10px; border-radius: 999px; border: 1px solid; }
 .term-badge.contango { color: #34d399; border-color: #34d39955; background: #34d39915; }
 .term-badge.backwardation { color: #f87171; border-color: #f8717155; background: #f8717115; }
 .term-slope { font-size: 12px; color: var(--text-dim); }
-.re-table-wrap { overflow-x: auto; margin-top: 8px; }
-.re-table { width: 100%; border-collapse: collapse; font-size: 13px; }
-.re-table th, .re-table td { padding: 7px 10px; text-align: right; border-bottom: 1px solid var(--border); white-space: nowrap; }
-.re-table th { color: var(--text-dim); font-weight: 600; font-size: 12px; }
-.re-table td { color: var(--text); font-variant-numeric: tabular-nums; }
 .re-table tr:hover td { background: var(--surface-hover); }
 .oas-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
 .oas-card { border: 1px solid var(--border); border-radius: 8px; background: var(--surface); padding: 16px 18px; }
@@ -148,14 +128,11 @@ padding: 12px 16px; background: var(--surface); border: 1px solid var(--border);
 .regime-bar .fill { height: 100%; border-radius: 4px; }
 .regime-bar .val { text-align: right; font-variant-numeric: tabular-nums; color: var(--text); }
 .regime-bar .dim { color: var(--text-dim); }
-@media (max-width: 640px) { .oas-row { grid-template-columns: 1fr; } }
-@media (max-width: 640px) { .regime-card { flex-direction: column; } }
 .score-card { border: 1px solid var(--border); border-radius: 8px; background: var(--surface); padding: 20px 22px; display: flex; gap: 18px; align-items: center; flex-wrap: wrap; }
 .score-card .value { font-size: 44px; font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1; }
 .score-card .label { font-size: 11px; text-transform: uppercase; letter-spacing: .5px; color: var(--text-dim); }
 .score-card .badge { font-size: 13px; font-weight: 600; padding: 5px 12px; border-radius: 6px; border: 1px solid; background: var(--surface-hover); }
 .score-card .scale { font-size: 12px; color: var(--text-secondary); margin-top: 8px; }
-.chart { width: 100%; height: 320px; margin-top: 8px; }
 .proxy-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 .proxy-card { border: 1px solid var(--border); border-radius: 8px; background: var(--surface); padding: 16px 18px; }
 .proxy-card .label { font-size: 11px; text-transform: uppercase; letter-spacing: .5px; color: var(--text-dim); }
@@ -163,5 +140,7 @@ padding: 12px 16px; background: var(--surface); border: 1px solid var(--border);
 .proxy-card .value .unit { font-size: 13px; color: var(--text-dim); font-weight: 500; }
 .proxy-card .sub { font-size: 12px; color: var(--text-secondary); }
 .proxy-card .date { font-size: 11px; color: var(--text-dim); margin-top: 4px; }
-.chart { width: 100%; height: 300px; margin-top: 8px; }
-@media (max-width: 640px) { .proxy-row { grid-template-columns: 1fr; } }
+@media (max-width: 640px) { .vix-row, .link-grid { grid-template-columns: 1fr; }  }
+@media (max-width: 640px) { .oas-row { grid-template-columns: 1fr; }  }
+@media (max-width: 640px) { .regime-card { flex-direction: column; }  }
+@media (max-width: 640px) { .proxy-row { grid-template-columns: 1fr; }  }
