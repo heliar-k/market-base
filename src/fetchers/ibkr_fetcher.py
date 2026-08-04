@@ -26,7 +26,7 @@ import logging
 import random
 import sys
 import time
-from datetime import datetime
+from datetime import datetime, timezone
 
 import pandas as pd
 from ib_insync import IB, Index, Stock, util
@@ -176,8 +176,11 @@ def fetch_single(
         if last_date:
             # 完整时间戳比较（日线 bar 为当日零点，分钟线为精确时间）
             last_dt = datetime.strptime(last_date, "%Y%m%d-%H:%M:%S")
-            # 日线 bar 的 date 是 date 对象，分钟线是 datetime，统一类型再比较
-            if not isinstance(bars[0].date, datetime):
+            # 统一类型再比较：日线 bar 是 date 对象，分钟线是 UTC tz-aware datetime
+            if isinstance(bars[0].date, datetime):
+                if bars[0].date.tzinfo is not None and last_dt.tzinfo is None:
+                    last_dt = last_dt.replace(tzinfo=timezone.utc)
+            else:
                 last_dt = last_dt.date()
             new_bars = [b for b in bars if b.date > last_dt]
             if not new_bars:
