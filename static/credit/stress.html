@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>信用压力仪表盘 — US Macro</title>
+<link rel="stylesheet" href="/css/app.css">
+<script src="https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js"></script>
+<style>
+  .re-root { max-width: 960px; margin: 0 auto; padding: 20px 16px; display: flex; flex-direction: column; gap: 16px; }
+  .re-header { display: flex; justify-content: space-between; align-items: baseline; flex-wrap: wrap; gap: 8px; }
+  .re-header h1 { font-size: 20px; font-weight: 700; }
+  .re-as-of { font-size: 13px; color: var(--text-dim); }
+  .re-nav { display: flex; gap: 8px; flex-wrap: wrap; }
+  .re-nav a { color: var(--accent); text-decoration: none; font-size: 13px; padding: 4px 10px; border: 1px solid var(--btn-border); border-radius: 4px; }
+  .re-nav a:hover { background: var(--surface-hover); }
+  .re-section { border: 1px solid var(--border); border-radius: 8px; background: var(--surface); padding: 14px 18px; }
+  .re-section h2 { font-size: 14px; font-weight: 700; margin-bottom: 8px; color: var(--text); }
+  .re-section p { font-size: 13px; line-height: 1.7; color: var(--text-secondary); }
+  .re-gen { font-size: 11px; color: var(--text-dim); text-align: right; }
+  .re-error { text-align: center; padding: 40px 20px; color: #ef5350; }
+  .re-table-wrap { overflow-x: auto; margin-top: 8px; }
+  .re-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .re-table th, .re-table td { padding: 7px 10px; text-align: right; border-bottom: 1px solid var(--border); white-space: nowrap; }
+  .re-table th:first-child, .re-table td:first-child { text-align: left; }
+  .re-table th { color: var(--text-dim); font-weight: 600; font-size: 12px; }
+  .re-table td { color: var(--text); font-variant-numeric: tabular-nums; }
+  .re-table tr:hover td { background: var(--surface-hover); }
+  .score-card { border: 1px solid var(--border); border-radius: 8px; background: var(--surface); padding: 20px 22px; display: flex; gap: 18px; align-items: center; flex-wrap: wrap; }
+  .score-card .value { font-size: 44px; font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1; }
+  .score-card .label { font-size: 11px; text-transform: uppercase; letter-spacing: .5px; color: var(--text-dim); }
+  .score-card .badge { font-size: 13px; font-weight: 600; padding: 5px 12px; border-radius: 6px; border: 1px solid; background: var(--surface-hover); }
+  .score-card .scale { font-size: 12px; color: var(--text-secondary); margin-top: 8px; }
+  .chart { width: 100%; height: 320px; margin-top: 8px; }
+</style>
+</head>
+<body>
+<div class="re-root">
+  <div class="re-header">
+    <h1>信用压力仪表盘</h1>
+    <span class="re-as-of" id="re-as-of"></span>
+  </div>
+
+  <div class="re-nav">
+    <a href="/credit/">总览</a>
+    <a href="/credit/cds.html">CDS 专题</a>
+    <a href="/credit/stress.html">压力仪表盘</a>
+    <a href="/rates/">利率</a>
+    <a href="/fed/">美联储</a>
+    <a href="/volatility/">波动率</a>
+    <a href="/">← 仪表盘</a>
+  </div>
+
+  <div class="score-card" id="score-card"></div>
+  <div id="components"></div>
+  <div id="history"></div>
+  <div id="cross"></div>
+  <div class="re-section">
+    <h2>方法论</h2>
+    <p style="margin:0">5 分量加权合成（0-100）：<b>HY OAS 百分位 30%</b>（压力最直接的度量）· <b>IG OAS 百分位 20%</b>（更「干净」的信用信号）· <b>HY 30 天变化速率 20%</b>（±200bp 满量程，拐点比绝对值更早）· <b>VIX 百分位 15%</b>（跨资产确认）· <b>股信用背离度 15%</b>（|HY 分位 − VIX 分位|，背离大 = 领先/滞后信号）。分位基于 365 天滚动窗口计算（对齐 timsun v1），样本不足时按可用历史计算。</p>
+  </div>
+  <div class="re-gen" id="re-gen"></div>
+</div>
+
+<script src="/js/rates-common.js"></script>
+<script>
+async function load() {
+  const d = await R.get('/api/credit/stress');
+  document.getElementById('re-as-of').textContent = '数据截至 ' + d.as_of;
+
+  // ── 综合分数 ──
+  const card = document.getElementById('score-card');
+  card.innerHTML = `
+    <div>
+      <div class="label">COMPOSITE SCORE · 5 分量综合压力指数</div>
+      <div class="value" style="color:${d.zone_color}">${d.composite}<span style="font-size:16px;color:var(--text-dim)">/100</span></div>
+      <div class="scale">0-30 宽松 · 30-70 中性 · 70-100 压力</div>
+    </div>
+    <div class="badge" style="color:${d.zone_color};border-color:${d.zone_color}66;background:${d.zone_color}1a">${d.zone}</div>`;
+
+  // ── 分量拆解 ──
+  const csec = document.createElement('div');
+  csec.className = 're-section';
+  csec.innerHTML = '<h2>5 分量拆解</h2>';
+  csec.appendChild(R.table(['分量', '权重', '得分', '原值'], d.components.map(c => ({
+    分量: c.name, 权重: c.weight + '%', 得分: c.value, 原值: c.raw === null || c.raw === undefined ? '—' : (c.raw + (c.unit || '')),
+  })), { 得分: v => `${v}/100` }));
+  document.getElementById('components').appendChild(csec);
+
+  // ── 历史曲线 ──
+  if (d.history) {
+    const hsec = document.createElement('div');
+    hsec.className = 're-section';
+    hsec.innerHTML = '<h2>压力指数历史曲线</h2><div class="chart" id="hist-chart"></div>';
+    document.getElementById('history').appendChild(hsec);
+    R.mkChart('hist-chart', colors => ({
+      tooltip: { trigger: 'axis' },
+      grid: { left: 44, right: 16, top: 24, bottom: 28 },
+      xAxis: { type: 'category', data: d.history.dates, axisLine: { lineStyle: { color: colors.border } }, axisLabel: { color: colors.muted, fontSize: 11 } },
+      yAxis: { type: 'value', min: 0, max: 100, axisLabel: { color: colors.muted, fontSize: 11 }, splitLine: { lineStyle: { color: colors.grid } } },
+      series: [{
+        name: '压力指数', type: 'line', data: d.history.values, showSymbol: false, smooth: true,
+        lineStyle: { width: 2, color: colors.blue },
+        areaStyle: { color: { type: 'linear', x: 0, y: 0, x2: 0, y2: 1, colorStops: [{ offset: 0, color: colors.blue + '44' }, { offset: 1, color: colors.blue + '00' }] } },
+        markLine: {
+          silent: true, symbol: 'none',
+          data: [{ yAxis: 30, lineStyle: { color: '#34d399', type: 'dashed' } }, { yAxis: 70, lineStyle: { color: '#f87171', type: 'dashed' } }],
+          label: { formatter: ({ value }) => value, color: colors.muted, fontSize: 10 },
+        },
+      }],
+    }));
+  }
+
+  // ── 跨资产对照 ──
+  const xsec = document.createElement('div');
+  xsec.className = 're-section';
+  xsec.innerHTML = '<h2>跨资产对照（当前百分位 vs HY OAS）</h2>';
+  xsec.appendChild(R.table(['指标', '当前百分位', '与 HY OAS 偏离', '含义'], d.cross.map(c => ({
+    指标: c.metric, 百分位: c.pct, 偏离: c.dev, 含义: c.note + (c.obs && c.obs < 100 ? `（样本 ${c.obs} 条，积累中）` : ''),
+  })), { 百分位: v => `${v}%`, 偏离: v => `${v > 0 ? '+' : ''}${v} pct` }));
+  document.getElementById('cross').appendChild(xsec);
+
+  document.getElementById('re-gen').textContent = `规则引擎生成（${d.generator}）· ${d.as_of} · 快照日期取 HY/IG OAS 与 VIX 共同最新交易日`;
+}
+load().catch(e => R.fail(['score-card', 'components', 'history', 'cross'], e));
+</script>
+</body>
+</html>

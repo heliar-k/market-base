@@ -24,6 +24,11 @@ from src.config import (
     TERM_INFO,
     TERM_SERIES,
 )
+from src.credit_analysis import (
+    generate_credit_cds,
+    generate_credit_overview,
+    generate_credit_stress,
+)
 from src.fed_analysis import generate_fed_analysis
 from src.macro import (
     DERIVED_INPUTS,
@@ -722,6 +727,36 @@ def get_volatility_analysis() -> dict:
     """波动率研判：VIX 卡片 + 信号三段文 + 期限结构 + 图表序列
     （规则引擎，LLM 预留）。"""
     out = generate_volatility_analysis()
+    if "error" in out:
+        raise HTTPException(404, out["error"])
+    return _sanitize(out)
+
+
+# ── credit hub（复刻 timsun.net/credit）──────────────────────────────────
+
+
+@app.get("/api/credit/overview")
+def get_credit_overview() -> dict:
+    """信用周期雷达总览：OAS 分层 / all-in 融资成本 / SLOOS / 贷款质量 / 金融条件。"""
+    out = generate_credit_overview()
+    if "error" in out:
+        raise HTTPException(404, out["error"])
+    return _sanitize(out)
+
+
+@app.get("/api/credit/cds")
+def get_credit_cds() -> dict:
+    """CDS 专题：主权 CDS 代理（10Y）+ 银行系统风险代理（KBWB vs SPX）。"""
+    out = generate_credit_cds()
+    if "error" in out:
+        raise HTTPException(404, out["error"])
+    return _sanitize(out)
+
+
+@app.get("/api/credit/stress")
+def get_credit_stress() -> dict:
+    """信用压力仪表盘：5 分量合成指数 + 跨资产对照 + 历史曲线。"""
+    out = generate_credit_stress()
     if "error" in out:
         raise HTTPException(404, out["error"])
     return _sanitize(out)

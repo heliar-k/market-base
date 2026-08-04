@@ -8,7 +8,7 @@
 
 ## 1. 宏观指标 — `data/fred/{category}/` （12 分类）
 
-12 个分类、65 个系列，来源 FRED API。每次 `./bin/fetch_fred` 拉全量历史并 upsert（漏跑自动补）；`--backfill` 全量覆盖。
+12 个分类、84 个系列，来源 FRED API。每次 `./bin/fetch_fred` 拉全量历史并 upsert（漏跑自动补）；`--backfill` 全量覆盖。
 
 | 分类 | 路径 | 系列 | 内容 |
 |------|------|------|------|
@@ -43,7 +43,12 @@
 > 实时曲线拉取，存 `data/fred/rates/cgb.csv`（独立文件不并入 rates.csv；
 > yield-curve 页全球长端对照 + overview 研判用）。
 `tips`: DFII5, DFII7, DFII10, DFII20, DFII30
-`liquidity`: NFCI, RRPONTSYD, WTREGEN, WRESBAL, WALCL
+`liquidity`: NFCI, ANFCI, NFCIRISK, NFCICREDIT, NFCILEVERAGE, RRPONTSYD, WTREGEN, WRESBAL, WRBWFRBL, WALCL, TREAST, WSHOMCB, SWPT
+
+> `credit`（信用市场）：AAA/BAA 为 Moody's 月度收益率；BBB_OAS/BB_OAS/B_OAS/CCC_OAS 为
+> ICE BofA 分层 OAS（日频）；IG_YIELD/HY_YIELD 为 ICE BofA 有效收益率（日频）；
+> SLOOS_* 为季度银行信贷标准/需求；DELINQ_*/CHGOFF_* 为季度贷款质量。
+> ⚠️ FRED API 对 ICE BofA 系列仅返回近 ~3 年（795 条），10Y 分位按可用历史计算（与 timsun 同限制）。
 `sentiment`: UMCSENT, STLFSI4
 `fx`: DXY
 `producer_prices`: PPI_FD, CORE_PPI, PPI_GOODS, PPI_SERVICES
@@ -359,6 +364,7 @@ FRED liquidity 分类的原始系列（由 `./bin/fetch_fred` 一并拉取）。
 | 指数 | SPX、NDX、RUT、DJI、SOX、N225（日经）、KOSPI、NIFTY、SSE（上证）、SZSE（深证） |
 | 汇率 | DXY、USDJPY（美元兑日元）、USDCNY（美元兑人民币） |
 | 波动率 | MOVE（美林国债期权波动率，债市 VIX） |
+| 银行 | KBWB（KBW 银行 ETF，信用页银行系统风险代理） |
 | 加密 | BTC |
 | 商品 | WTI、Brent、Gold、Silver、Copper |
 | 债券 ETF | TLT、HYG、LQD |

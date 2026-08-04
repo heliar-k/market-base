@@ -184,6 +184,10 @@ FRED_SERIES = {
     },
     "liquidity": {
         "NFCI": "NFCI",
+        "ANFCI": "ANFCI",
+        "NFCIRISK": "NFCIRISK",
+        "NFCICREDIT": "NFCICREDIT",
+        "NFCILEVERAGE": "NFCILEVERAGE",
         "RRPONTSYD": "RRPONTSYD",
         "WTREGEN": "WTREGEN",
         "WRESBAL": "WRESBAL",
@@ -205,6 +209,25 @@ FRED_SERIES = {
         "BAA": "BAA",
         "AAA10Y": "AAA10Y",
         "BAA10Y": "BAA10Y",
+        # 信用利差分层（ICE BofA OAS）
+        "BBB_OAS": "BAMLC0A4CBBB",
+        "BB_OAS": "BAMLH0A1HYBB",
+        "B_OAS": "BAMLH0A2HYB",
+        "CCC_OAS": "BAMLH0A3HYC",
+        # All-in 融资成本（ICE BofA 有效收益率）
+        "IG_YIELD": "BAMLC0A0CMEY",
+        "HY_YIELD": "BAMLH0A0HYM2EY",
+        # SLOOS 银行信贷标准/需求（季度）
+        "SLOOS_CI_STD": "DRTSCILM",
+        "SLOOS_CI_DEM": "DRSDCILM",
+        "SLOOS_CRE_STD": "DRTSCREL",
+        "SLOOS_CC_STD": "DRTSCLCC",
+        # 贷款质量（逾期率/核销率，季度）
+        "DELINQ_CI": "DRBLACBS",
+        "DELINQ_CRE": "DRCRELEXFACBS",
+        "DELINQ_CC": "DRCCLACBS",
+        "CHGOFF_BUS": "CORBLACBS",
+        "CHGOFF_CONS": "CORCACBS",
     },
     "consumption": {
         "PSAVERT": "PSAVERT",
@@ -335,6 +358,7 @@ YF_TICKERS = {
     "TLT": "TLT",
     "HYG": "HYG",
     "LQD": "LQD",
+    "KBWB": "KBWB",  # KBW 银行 ETF（信用页银行系统风险代理）
     "SOX": "^SOX",
     "N225": "^N225",
     "KOSPI": "^KS11",

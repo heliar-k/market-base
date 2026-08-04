@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>信用 — US Macro</title>
+<link rel="stylesheet" href="/css/app.css">
+<script src="https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js"></script>
+<style>
+  .re-root { max-width: 960px; margin: 0 auto; padding: 20px 16px; display: flex; flex-direction: column; gap: 16px; }
+  .re-header { display: flex; justify-content: space-between; align-items: baseline; flex-wrap: wrap; gap: 8px; }
+  .re-header h1 { font-size: 20px; font-weight: 700; }
+  .re-as-of { font-size: 13px; color: var(--text-dim); }
+  .re-nav { display: flex; gap: 8px; flex-wrap: wrap; }
+  .re-nav a { color: var(--accent); text-decoration: none; font-size: 13px; padding: 4px 10px; border: 1px solid var(--btn-border); border-radius: 4px; }
+  .re-nav a:hover { background: var(--surface-hover); }
+  .re-section { border: 1px solid var(--border); border-radius: 8px; background: var(--surface); padding: 14px 18px; }
+  .re-section h2 { font-size: 14px; font-weight: 700; margin-bottom: 8px; color: var(--text); }
+  .re-section p { font-size: 13px; line-height: 1.7; color: var(--text-secondary); }
+  .re-gen { font-size: 11px; color: var(--text-dim); text-align: right; }
+  .re-loading { text-align: center; padding: 60px 20px; color: var(--text-dim); font-size: 14px; }
+  .re-error { text-align: center; padding: 40px 20px; color: #ef5350; }
+  .re-table-wrap { overflow-x: auto; margin-top: 8px; }
+  .re-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .re-table th, .re-table td { padding: 7px 10px; text-align: right; border-bottom: 1px solid var(--border); white-space: nowrap; }
+  .re-table th:first-child, .re-table td:first-child { text-align: left; }
+  .re-table th { color: var(--text-dim); font-weight: 600; font-size: 12px; }
+  .re-table td { color: var(--text); font-variant-numeric: tabular-nums; }
+  .re-table tr:hover td { background: var(--surface-hover); }
+  .sig-block { margin-bottom: 14px; }
+  .sig-block:last-child { margin-bottom: 0; }
+  .sig-block .sig-title { font-size: 11px; font-weight: 600; letter-spacing: .06em; color: var(--accent); opacity: .8; margin-bottom: 6px; }
+  .sig-block p { margin: 0; }
+  .oas-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+  .oas-card { border: 1px solid var(--border); border-radius: 8px; background: var(--surface); padding: 16px 18px; }
+  .oas-card .label { font-size: 11px; text-transform: uppercase; letter-spacing: .5px; color: var(--text-dim); }
+  .oas-card .value { font-size: 26px; font-weight: 700; font-variant-numeric: tabular-nums; margin: 4px 0 6px; }
+  .oas-card .value .unit { font-size: 13px; color: var(--text-dim); font-weight: 500; }
+  .oas-card .pcts { font-size: 12px; color: var(--text-secondary); }
+  .oas-card .date { font-size: 11px; color: var(--text-dim); margin-top: 4px; }
+  .note { font-size: 12px; color: var(--text-dim); margin-top: 6px; }
+  @media (max-width: 640px) { .oas-row { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<div class="re-root">
+  <div class="re-header">
+    <h1>信用</h1>
+    <span class="re-as-of" id="re-as-of"></span>
+  </div>
+
+  <div class="re-nav">
+    <a href="/credit/">总览</a>
+    <a href="/credit/cds.html">CDS 专题</a>
+    <a href="/credit/stress.html">压力仪表盘</a>
+    <a href="/rates/">利率</a>
+    <a href="/fed/">美联储</a>
+    <a href="/volatility/">波动率</a>
+    <a href="/">← 仪表盘</a>
+  </div>
+
+  <div id="oas-row"></div>
+  <div id="re-signals"></div>
+  <div id="layers"></div>
+  <div id="funding"></div>
+  <div id="sloos"></div>
+  <div id="quality"></div>
+  <div id="fincond"></div>
+  <div id="liq-etf"></div>
+  <div class="re-gen" id="re-gen"></div>
+</div>
+
+<script src="/js/rates-common.js"></script>
+<script>
+async function load() {
+  const d = await R.get('/api/credit/overview');
+  document.getElementById('re-as-of').textContent = '数据截至 ' + d.as_of;
+
+  // ── 利差卡片行 ──
+  const pctStr = c => c.pct_10y === null || c.pct_10y === undefined
+    ? '10Y 分位 —'
+    : `10Y 分位 ${c.pct_10y}%` + (c.full_10y ? '' : `（仅 ${c.obs} 条）`);
+  const card = (label, c, unit) => `
+    <div class="oas-card">
+      <div class="label">${label}</div>
+      <div class="value">${c.value}<span class="unit">${unit}</span></div>
+      <div class="pcts">1Y ${c.pct_1y ?? '—'}% · 3Y ${c.pct_3y ?? '—'}% · ${pctStr(c)}</div>
+      <div class="date">${c.as_of}</div>
+    </div>`;
+  const row = document.createElement('div');
+  row.className = 'oas-row';
+  row.innerHTML = card('IG OAS（投资级）', d.ig, 'bp') + card('HY OAS（高收益）', d.hy, 'bp') + card('HY − IG', d.hy_ig, 'bp');
+  document.getElementById('oas-row').appendChild(row);
+
+  // ── 研判信号 ──
+  const sec = document.createElement('div');
+  sec.className = 're-section';
+  sec.innerHTML = '<h2>信用周期研判</h2>';
+  d.signals.forEach(s => {
+    const b = document.createElement('div');
+    b.className = 'sig-block';
+    b.innerHTML = `<div class="sig-title">${s.title}</div><p>${s.text}</p>`;
+    sec.appendChild(b);
+  });
+  document.getElementById('re-signals').appendChild(sec);
+
+  // ── OAS 分层表 ──
+  const layers = d.layers.map(l => ({
+    层级: l.name, 当前bp: l.value, '1Y 分位': l.pct_1y, '3Y 分位': l.pct_3y, '10Y 分位': l.pct_10y, 最新: l.as_of,
+  }));
+  layers.push({ 层级: 'CCC − BB', 当前bp: d.spreads.ccc_bb?.value ?? '—', '1Y 分位': '—', '3Y 分位': '—', '10Y 分位': '—', 最新: d.spreads.ccc_bb?.as_of ?? '—' });
+  layers.push({ 层级: 'BBB − IG', 当前bp: d.spreads.bbb_ig?.value ?? '—', '1Y 分位': '—', '3Y 分位': '—', '10Y 分位': '—', 最新: d.spreads.bbb_ig?.as_of ?? '—' });
+  const lsec = document.createElement('div');
+  lsec.className = 're-section';
+  lsec.innerHTML = '<h2>信用利差分层（ICE BofA OAS）</h2><p style="margin:0">越低评级越暴露尾部风险：CCC−BB 快速走阔 = 压力从指数层面向弱资质发行人扩散。</p>';
+  lsec.appendChild(R.table(['层级', '当前bp', '1Y 分位', '3Y 分位', '10Y 分位', '最新'], layers, {
+    当前bp: v => v === '—' ? '—' : `${v}bp`,
+    '1Y 分位': v => typeof v === 'number' ? `${v}%` : '—',
+    '3Y 分位': v => typeof v === 'number' ? `${v}%` : '—',
+    '10Y 分位': v => typeof v === 'number' ? `${v}%` : '—',
+  }));
+  document.getElementById('layers').appendChild(lsec);
+
+  // ── All-in 融资成本 ──
+  const f = d.funding;
+  const fsec = document.createElement('div');
+  fsec.className = 're-section';
+  fsec.innerHTML = '<h2>All-in 融资成本</h2><p style="margin:0">利差是风险补偿，effective yield 是企业面对的绝对借钱成本；两者可同时出现「spread 低、融资成本高」。</p>';
+  if (f.ig && f.hy) {
+    fsec.appendChild(R.table(['指标', '当前', '对比'], [
+      { 指标: 'IG 有效收益率', 当前: f.ig.value, 对比: f.ig.as_of },
+      { 指标: 'HY 有效收益率', 当前: f.hy.value, 对比: f.hy.as_of },
+      { 指标: 'HY − 联邦基金利率', 当前: f.hy_ff, 对比: 'bp' },
+      { 指标: 'HY − 10Y 国债', 当前: f.hy_10y, 对比: 'bp' },
+    ], { 当前: (v, r) => v === null || v === undefined ? '—' : r.对比 === 'bp' ? `${v.toFixed(0)}bp` : `${v.toFixed(2)}%` }));
+  }
+  document.getElementById('funding').appendChild(fsec);
+
+  // ── SLOOS ──
+  const ssec = document.createElement('div');
+  ssec.className = 're-section';
+  ssec.innerHTML = '<h2>银行信贷 · SLOOS（净百分比，季度）</h2><p style="margin:0">正值 = 收紧标准 / 需求走强。</p>';
+  ssec.appendChild(R.table(['指标', '净百分比', '最新'],
+    d.sloos.map(s => ({ 指标: s.name, 净百分比: s.value, 最新: s.as_of })),
+    { 净百分比: v => `${v > 0 ? '+' : ''}${v.toFixed(1)}%` }));
+  document.getElementById('sloos').appendChild(ssec);
+
+  // ── 贷款质量 ──
+  const qsec = document.createElement('div');
+  qsec.className = 're-section';
+  qsec.innerHTML = '<h2>贷款质量（逾期率 / 核销率，季度）</h2><p style="margin:0">滞后但更硬的信用质量指标，验证利差是否低估基本面损伤。</p>';
+  qsec.appendChild(R.table(['指标', '当前', '10Y 分位', '最新'],
+    d.quality.map(q => ({ 指标: q.name, 当前: q.value, 分位: q.pct_10y, 最新: q.as_of })),
+    { 当前: v => `${v.toFixed(2)}%`, 分位: v => v === null || v === undefined ? '—' : `${v}%` }));
+  document.getElementById('quality').appendChild(qsec);
+
+  // ── 金融条件 ──
+  const fc = d.fincond;
+  const fsec2 = document.createElement('div');
+  fsec2.className = 're-section';
+  fsec2.innerHTML = '<h2>金融条件与压力指数</h2><p style="margin:0">NFCI 及子指数上行 = 条件收紧；与 HY OAS 同步上行时信用压力更可信。</p>';
+  fsec2.appendChild(R.table(['指标', '当前', '最新'], [
+    { 指标: 'NFCI', 当前: fc.nfci?.value, 最新: fc.nfci?.as_of },
+    { 指标: 'ANFCI（调整后）', 当前: fc.anfci?.value, 最新: fc.anfci?.as_of },
+    { 指标: 'NFCI 风险子指数', 当前: fc.nfci_risk?.value, 最新: fc.nfci_risk?.as_of },
+    { 指标: 'NFCI 信用子指数', 当前: fc.nfci_credit?.value, 最新: fc.nfci_credit?.as_of },
+    { 指标: 'NFCI 杠杆子指数', 当前: fc.nfci_leverage?.value, 最新: fc.nfci_leverage?.as_of },
+    { 指标: 'STLFSI（圣路易斯压力指数）', 当前: fc.stlfsi?.value, 最新: fc.stlfsi?.as_of },
+    { 指标: 'OFR 金融压力指数', 当前: fc.ofr_fsi?.value, 最新: fc.ofr_fsi?.as_of },
+  ], { 当前: v => v === null || v === undefined ? '—' : `${v > 0 ? '+' : ''}${v.toFixed(2)}` }));
+  document.getElementById('fincond').appendChild(fsec2);
+
+  // ── 市场流动性代理 ──
+  const lsec2 = document.createElement('div');
+  lsec2.className = 're-section';
+  lsec2.innerHTML = '<h2>信用 ETF 二级市场流动性代理</h2>';
+  const hyg = d.liq_etf.hyg, lqd = d.liq_etf.lqd;
+  lsec2.innerHTML += `<p style="margin:0">HYG ${hyg ? '$' + hyg.value : '—'} · LQD ${lqd ? '$' + lqd.value : '—'}（Yahoo Finance 日频快照，TRACE 真实成交量预留）</p>`;
+  document.getElementById('liq-etf').appendChild(lsec2);
+
+  document.getElementById('re-gen').textContent = `研判由规则引擎生成（${d.generator}）· ${d.as_of} · ICE BofA 系列经 FRED API 仅提供近 ~3 年，10Y 分位按可用历史计算`;
+}
+load().catch(e => R.fail(['oas-row', 're-signals', 'layers', 'funding', 'sloos', 'quality', 'fincond', 'liq-etf'], e));
+</script>
+</body>
+</html>
