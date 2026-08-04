@@ -162,10 +162,10 @@ def _oas_card(s: pd.Series) -> dict:
 # 各百分位窗口样本不足时按可用历史计算（同原站降级口径），仅 Market Liquidity
 # 要求 ≥23 条以避免单点动量噪声。原站公式细节不公开，数值偏差属可接受口径假设。
 REGIME_ZONES = [
-    ("easing", 0, 25, "#34d399"),
-    ("neutral easing", 25, 50, "#a7f3d0"),
-    ("neutral tightening", 50, 75, "#fbbf24"),
-    ("tightening", 75, 101, "#f87171"),
+    ("宽松", 0, 25, "#34d399"),
+    ("中性偏松", 25, 50, "#a7f3d0"),
+    ("中性偏紧", 50, 75, "#fbbf24"),
+    ("收紧", 75, 101, "#f87171"),
 ]
 
 
@@ -232,20 +232,15 @@ def _regime_score(
         cross = round((p_vix + p_hy) / 2, 1)
 
     comps = [
-        ("spread_level", "Spread Level", spread_level, p_hy),
-        (
-            "spread_mom",
-            "Spread Momentum",
-            spread_mom,
-            hy.iloc[-1] * 100 if not hy.empty else None,
-        ),
-        ("funding_cost", "Funding Cost", funding, fy),
-        ("credit_supply", "Credit Supply", supply, None),
-        ("credit_quality", "Credit Quality", quality, None),
-        ("market_liq", "Market Liquidity", liq, None),
-        ("cross_asset", "Cross-Asset Confirmation", cross, p_vix),
+        ("spread_level", "Spread Level", spread_level),
+        ("spread_mom", "Spread Momentum", spread_mom),
+        ("funding_cost", "Funding Cost", funding),
+        ("credit_supply", "Credit Supply", supply),
+        ("credit_quality", "Credit Quality", quality),
+        ("market_liq", "Market Liquidity", liq),
+        ("cross_asset", "Cross-Asset Confirmation", cross),
     ]
-    values = [v for _, _, v, _ in comps if v is not None]
+    values = [v for _, _, v in comps if v is not None]
     total = round(sum(values) / len(values), 1) if values else None
     label, color = _regime_zone(total) if total is not None else ("—", "#999")
 
@@ -253,10 +248,8 @@ def _regime_score(
         "score": total,
         "regime": label,
         "color": color,
-        "components": [
-            {"key": k, "name": n, "value": v, "raw": r} for k, n, v, r in comps
-        ],
-        "missing": [n for _, n, v, _ in comps if v is None],
+        "components": [{"key": k, "name": n, "value": v} for k, n, v in comps],
+        "missing": [n for _, n, v in comps if v is None],
     }
 
 

@@ -240,7 +240,7 @@ class TestRegimeScore:
         assert comp["cross_asset"] == 100
         vals = [v for v in comp.values() if v is not None]
         assert out["score"] == round(sum(vals) / len(vals), 1)
-        assert out["regime"] == "neutral tightening"
+        assert out["regime"] == "中性偏紧"
 
     def test_supply_zero_when_easing(self):
         # SLOOS 负值（放松标准）→ 0 分，非数据缺失（对齐原站口径）
@@ -261,12 +261,12 @@ class TestRegimeScore:
         assert "Market Liquidity" in out["missing"]
 
     def test_zone_boundaries(self):
-        assert _regime_zone(0)[0] == "easing"
-        assert _regime_zone(24.9)[0] == "easing"
-        assert _regime_zone(25)[0] == "neutral easing"
-        assert _regime_zone(49.9)[0] == "neutral easing"
-        assert _regime_zone(50)[0] == "neutral tightening"
-        assert _regime_zone(100)[0] == "tightening"
+        assert _regime_zone(0)[0] == "宽松"
+        assert _regime_zone(24.9)[0] == "宽松"
+        assert _regime_zone(25)[0] == "中性偏松"
+        assert _regime_zone(49.9)[0] == "中性偏松"
+        assert _regime_zone(50)[0] == "中性偏紧"
+        assert _regime_zone(100)[0] == "收紧"
 
 
 class TestOverviewSignals:
