@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>VIX — US Macro</title>
+<link rel="stylesheet" href="/css/app.css">
+<script src="https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js"></script>
+<style>
+  .re-root { max-width: 1080px; margin: 0 auto; padding: 20px 16px; display: flex; flex-direction: column; gap: 16px; }
+  .re-header { display: flex; justify-content: space-between; align-items: baseline; flex-wrap: wrap; gap: 8px; }
+  .re-header h1 { font-size: 20px; font-weight: 700; }
+  .re-as-of { font-size: 13px; color: var(--text-dim); }
+  .re-nav { display: flex; gap: 8px; flex-wrap: wrap; }
+  .re-nav a { color: var(--accent); text-decoration: none; font-size: 13px; padding: 4px 10px; border: 1px solid var(--btn-border); border-radius: 4px; }
+  .re-nav a:hover { background: var(--surface-hover); }
+  .re-section { border: 1px solid var(--border); border-radius: 8px; background: var(--surface); padding: 14px 18px; }
+  .re-section h2 { font-size: 14px; font-weight: 700; margin-bottom: 8px; color: var(--text); }
+  .chart { width: 100%; height: 300px; }
+  .re-loading { text-align: center; padding: 60px 20px; color: var(--text-dim); font-size: 14px; }
+  .re-error { text-align: center; padding: 40px 20px; color: #ef5350; }
+  .re-table-wrap { overflow-x: auto; }
+  .re-table { width: 100%; border-collapse: collapse; font-size: 12px; font-variant-numeric: tabular-nums; }
+  .re-table th, .re-table td { padding: 5px 8px; text-align: right; white-space: nowrap; border-bottom: 1px solid var(--border); }
+  .re-table th { color: var(--text-dim); font-weight: 500; }
+  .re-table th:first-child, .re-table td:first-child { text-align: left; }
+  .term-head { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; margin-bottom: 10px; }
+  .term-badge { font-size: 12px; padding: 2px 10px; border-radius: 999px; border: 1px solid; }
+  .term-badge.contango { color: #34d399; border-color: #34d39955; background: #34d39915; }
+  .term-badge.backwardation { color: #f87171; border-color: #f8717155; background: #f8717115; }
+  .term-slope { font-size: 12px; color: var(--text-dim); }
+</style>
+</head>
+<body>
+<div class="re-root">
+  <div class="re-header">
+    <h1>VIX — 标普500隐含波动率指数</h1>
+    <span class="re-as-of" id="re-as-of"></span>
+  </div>
+
+  <div class="re-nav">
+    <a href="/volatility/">波动率</a>
+    <a href="/rates/">利率</a>
+    <a href="/fed/">美联储</a>
+    <a href="/">← 仪表盘</a>
+  </div>
+
+  <div class="re-section">
+    <h2>VIX × SKEW（近 6 个月）</h2>
+    <div id="vix_chart" class="chart"></div>
+  </div>
+  <div class="re-section">
+    <h2>VIX × SKEW 散点（近 3 个月，尾部偏斜 vs 波动水平）</h2>
+    <div id="vix_skew_scatter" class="chart" style="height:340px"></div>
+  </div>
+  <div class="re-section">
+    <h2>SKEW 看跌偏斜（近 6 个月）</h2>
+    <div id="skew_chart" class="chart"></div>
+  </div>
+  <div class="re-section">
+    <div class="term-head">
+      <h2 style="margin:0">VIX 期限结构</h2>
+      <span id="term-badge"></span>
+    </div>
+    <div id="vix_term_chart" class="chart" style="height:260px"></div>
+  </div>
+  <div class="re-section">
+    <h2>近期数据（最近 20 条）</h2>
+    <div id="recent-table"></div>
+  </div>
+</div>
+
+<script src="/js/rates-common.js"></script>
+<script>
+async function load() {
+  const data = await R.get('/api/volatility/analysis');
+  document.getElementById('re-as-of').textContent = '数据截至 ' + data.as_of;
+
+  const c = R.colors();
+  const axis = (name) => ({
+    type: 'value', name, nameTextStyle: { color: c.muted },
+    axisLabel: { color: c.muted }, splitLine: { lineStyle: { color: c.grid } },
+  });
+
+  // ── VIX × SKEW 双线 ──
+  R.mkChart('vix_chart', () => ({
+    tooltip: { trigger: 'axis' },
+    legend: { data: ['VIX', 'SKEW'], top: 0 },
+    grid: { left: 60, right: 60, top: 36, bottom: 30 },
+    xAxis: { type: 'category', data: data.vix_history.dates, axisLabel: { color: c.muted } },
+    yAxis: [
+      axis('VIX'),
+      { ...axis('SKEW'), min: 100, splitLine: { show: false } },
+    ],
+    series: [
+      { name: 'VIX', type: 'line', data: data.vix_history.vix, smooth: true, symbol: 'none',
+        lineStyle: { width: 2, color: c.blue }, itemStyle: { color: c.blue }, areaStyle: { color: c.blue, opacity: .08 } },
+      { name: 'SKEW', type: 'line', yAxisIndex: 1, data: data.vix_history.skew, smooth: true, symbol: 'none',
+        lineStyle: { width: 2, color: c.purple }, itemStyle: { color: c.purple } },
+    ],
+  }));
+
+  // ── VIX × SKEW 散点 ──
+  R.mkChart('vix_skew_scatter', () => ({
+    tooltip: { formatter: (p) => `VIX ${p.value[0]} · SKEW ${p.value[1]}<br/>${p.value[2]}` },
+    grid: { left: 55, right: 20, top: 20, bottom: 35 },
+    xAxis: { ...axis('VIX'), scale: true },
+    yAxis: { ...axis('SKEW'), scale: true },
+    series: [{
+      type: 'scatter', symbolSize: 9, data: data.vix_skew_scatter,
+      itemStyle: { color: c.purple, opacity: .65 },
+    }],
+  }));
+
+  // ── SKEW 历史 + 阈值线 ──
+  R.mkChart('skew_chart', () => ({
+    tooltip: { trigger: 'axis' },
+    grid: { left: 55, right: 20, top: 36, bottom: 30 },
+    xAxis: { type: 'category', data: data.vix_history.dates, axisLabel: { color: c.muted } },
+    yAxis: { ...axis('SKEW'), min: 100 },
+    series: [{
+      name: 'SKEW', type: 'line', data: data.vix_history.skew, smooth: true, symbol: 'none',
+      lineStyle: { width: 2, color: c.purple }, itemStyle: { color: c.purple },
+      markLine: {
+        silent: true, symbol: 'none',
+        data: [
+          { yAxis: 130, label: { color: '#fbbf24', formatter: '偏低 130' }, lineStyle: { color: '#fbbf24', type: 'dashed', width: 1 } },
+          { yAxis: 140, label: { color: '#fb923c', formatter: '偏高 140' }, lineStyle: { color: '#fb923c', type: 'dashed', width: 1 } },
+          { yAxis: 150, label: { color: '#f87171', formatter: '极端 150' }, lineStyle: { color: '#f87171', type: 'dashed', width: 1 } },
+        ],
+      },
+    }],
+  }));
+
+  // ── 期限结构 ──
+  const term = data.term_structure;
+  const badge = document.getElementById('term-badge');
+  badge.className = 'term-badge ' + term.state;
+  const sign = term.state === 'contango' ? '+' : '−';
+  badge.textContent = `${term.state === 'contango' ? 'Contango' : 'Backwardation'} (${sign}${Math.abs(term.slope ?? 0).toFixed(2)})`;
+  R.mkChart('vix_term_chart', () => ({
+    tooltip: { trigger: 'axis' },
+    grid: { left: 50, right: 20, top: 30, bottom: 30 },
+    xAxis: { type: 'category', data: term.labels, axisLabel: { color: c.text, fontWeight: 'bold' } },
+    yAxis: { ...axis('VIX'), scale: true },
+    series: [{
+      type: 'line', data: term.values, smooth: true, symbol: 'circle', symbolSize: 8,
+      lineStyle: { width: 3, color: c.blue }, itemStyle: { color: c.blue },
+      areaStyle: { color: c.blue, opacity: .08 },
+      label: { show: true, position: 'top', color: c.muted, fontSize: 11 },
+    }],
+  }));
+
+  // ── 近期数据表 ──
+  const headers = ['日期', 'VIX1D', 'VIX9D', 'VIX', 'VIX3M', 'VIX6M', 'VIX1Y', 'SKEW', 'OVX'];
+  document.getElementById('recent-table').appendChild(
+    R.table(headers, data.recent, {
+      date: (v) => v,
+      VIX1D: (v) => v ?? '—', VIX9D: (v) => v ?? '—', VIX: (v) => v ?? '—',
+      VIX3M: (v) => v ?? '—', VIX6M: (v) => v ?? '—', VIX1Y: (v) => v ?? '—',
+      SKEW: (v) => v ?? '—', OVX: (v) => v ?? '—',
+    })
+  );
+}
+load().catch(e => R.fail(['vix_chart', 'vix_skew_scatter', 'skew_chart', 'vix_term_chart', 'recent-table'], e));
+</script>
+</body>
+</html>

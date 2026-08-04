@@ -34,6 +34,7 @@ from src.macro import (
     rrp_in_millions,
 )
 from src.rates_analysis import generate_analysis
+from src.volatility_analysis import generate_volatility_analysis
 
 app = FastAPI(title="K-line Analysis Web")
 
@@ -714,6 +715,16 @@ def _offering_b(v) -> float | None:
     if not v:
         return None
     return round(float(v) / 1e9, 1)
+
+
+@app.get("/api/volatility/analysis")
+def get_volatility_analysis() -> dict:
+    """波动率研判：VIX 卡片 + 信号三段文 + 期限结构 + 图表序列
+    （规则引擎，LLM 预留）。"""
+    out = generate_volatility_analysis()
+    if "error" in out:
+        raise HTTPException(404, out["error"])
+    return _sanitize(out)
 
 
 @app.get("/api/rates/analysis")

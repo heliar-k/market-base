@@ -1,12 +1,13 @@
 """
-Fetch CBOE volatility data: OVX, VIX9D, VIX, VIX3M, VIX6M, VIX1Y, VIX term structure.
+Fetch CBOE volatility data: OVX, VIX1D/9D, VIX, VIX3M/6M/1Y, SKEW, term structure.
 写入 data/cboe/volatility.csv（观测日为 key，全量 upsert）。
 
 数据源: CBOE CDN CSV（每日更新，含全量历史）
   - OVX (Crude Oil Volatility Index)
-  - VIX9D (9-day VIX)
+  - VIX1D / VIX9D (1-day / 9-day VIX)
   - VIX (30-day VIX；FRED VIXCLS 也有，此处用 CBOE 原始序列算期限结构)
   - VIX3M / VIX6M / VIX1Y（波动率期限结构长端）
+  - SKEW（看跌偏斜指数，尾盘对冲成本）
   - VIX_TERM_SLOPE = VIX - VIX9D（正=contango，负=backwardation）
 
 每次运行都拉源全量历史并 upsert：忘记运行几天，下次跑自动补齐缺失日期。
@@ -23,6 +24,9 @@ import requests
 logger = logging.getLogger(__name__)
 
 CBOE_URLS = {
+    "VIX1D": (
+        "https://cdn.cboe.com/api/global/us_indices/daily_prices/VIX1D_History.csv"
+    ),
     "OVX": "https://cdn.cboe.com/api/global/us_indices/daily_prices/OVX_History.csv",
     "VIX9D": (
         "https://cdn.cboe.com/api/global/us_indices/daily_prices/VIX9D_History.csv"
@@ -37,18 +41,21 @@ CBOE_URLS = {
     "VIX1Y": (
         "https://cdn.cboe.com/api/global/us_indices/daily_prices/VIX1Y_History.csv"
     ),
+    "SKEW": "https://cdn.cboe.com/api/global/us_indices/daily_prices/SKEW_History.csv",
 }
 
 
 def fetch_cboe_volatility() -> pd.DataFrame:
-    """下载 OVX/VIX9D/VIX/VIX3M/VIX6M/VIX1Y 全量历史，按观测日对齐，算期限结构。
+    """下载 VIX1D/OVX/VIX9D/VIX/VIX3M/VIX6M/VIX1Y/SKEW 全量历史，按观测日对齐。
 
     单序列拉取失败时跳过并告警；VIX_TERM_SLOPE 需 VIX+VIX9D 同时在场。
     """
+    session = requests.Session()
+    session.trust_env = False  # 直连 CDN，绕过 .env socks5 代理（代理反而 SSL 断）
     series: dict[str, pd.Series] = {}
     for name, url in CBOE_URLS.items():
         try:
-            series[name] = _fetch_cboe_series(name, url)
+            series[name] = _fetch_cboe_series(name, url, session)
             s = series[name]
             logger.info(f"  CBOE {name}: {len(s)} 条 ({s.index[0]} → {s.index[-1]})")
         except Exception as e:
@@ -62,9 +69,9 @@ def fetch_cboe_volatility() -> pd.DataFrame:
     return df.sort_index()
 
 
-def _fetch_cboe_series(name: str, url: str) -> pd.Series:
+def _fetch_cboe_series(name: str, url: str, session: requests.Session) -> pd.Series:
     """单个 CBOE CSV → 全量 Series（index=ISO 日期字符串，name=指标名）。"""
-    resp = requests.get(url, timeout=30)
+    resp = session.get(url, timeout=30)
     resp.raise_for_status()
     df = pd.read_csv(StringIO(resp.text))
     if df.empty:

@@ -55,16 +55,18 @@
 ## 2. 波动率 — `data/cboe/volatility.csv`
 
 来源 CBOE CDN。每次 `./bin/fetch_cboe` 拉全量历史并 upsert（漏跑自动补）；`--backfill` 全量覆盖。
-VIX9D/VIX/VIX3M/VIX6M/VIX1Y 全量序列一并落盘，可复算期限结构斜率。
+VIX1D/VIX9D/VIX/VIX3M/VIX6M/VIX1Y/SKEW 全量序列一并落盘，可复算期限结构斜率。
 
 | 列名 | 说明 |
 |------|------|
 | `OVX` | CBOE 原油波动率指数 |
+| `VIX1D` | 1 天 VIX（2022-05 起，期限结构最前端） |
 | `VIX9D` | 9 天 VIX |
 | `VIX` | 30 天 VIX（CBOE 原始序列；FRED VIXCLS 也有） |
 | `VIX3M` | 3 个月 VIX（2009-09 起） |
 | `VIX6M` | 6 个月 VIX（2008-01 起） |
 | `VIX1Y` | 1 年 VIX（2007-01 起） |
+| `SKEW` | 看跌偏斜指数（1990 起），>140 尾部对冲需求偏高 |
 | `VIX_TERM_SLOPE` | VIX 期限结构斜率（VIX - VIX9D），正=contango，负=backwardation |
 
 > 与 `data/fred/volatility/volatility.csv` 的关系：仅 VIX 一列重叠（同源），fred 版

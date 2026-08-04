@@ -180,6 +180,7 @@ function renderCorridorDashboard(container) {
     <div style="margin-left:auto;display:flex;align-items:flex-end;gap:12px">
       <a href="/fed/" style="color:#58a6ff;font-size:13px;text-decoration:none;white-space:nowrap">美联储 →</a>
       <a href="/rates/" style="color:#58a6ff;font-size:13px;text-decoration:none;white-space:nowrap">利率专题 →</a>
+      <a href="/volatility/" style="color:#58a6ff;font-size:13px;text-decoration:none;white-space:nowrap">波动率 →</a>
     </div>
   `;
   container.appendChild(card);

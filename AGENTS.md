@@ -77,7 +77,7 @@ ticker-toolkit/
 │
 ├── data/                         ← 数据存储（增量 CSV / JSON）
 │   ├── fred/{category}/{category}.csv  ← 12 分类 FRED 数据（观测日 upsert）
-│   ├── cboe/volatility.csv             ← CBOE 波动率（OVX, VIX9D, VIX, VIX_TERM_SLOPE）
+│   ├── cboe/volatility.csv             ← CBOE 波动率（VIX1D, OVX, VIX9D, VIX, VIX3M/6M/1Y, SKEW, VIX_TERM_SLOPE）
 │   ├── shapiro/shapiro.csv             ← Shapiro 供需 PCE 分解（观测日 upsert）
 │   ├── ofr/fsi.csv                     ← OFR 金融压力指数（观测日 upsert）
 │   ├── fred/liquidity/srf.csv          ← SRF 使用量（观测日 upsert）
@@ -106,7 +106,8 @@ ticker-toolkit/
 │   ├── fed/                         ← 美联储鹰鸽专题页（timsun.net/fed 复刻，4 页）
 │   ├── index.html                ← 主仪表盘 SPA
 │   ├── js/                       ← 前端 JS（echarts-theme / rates-common 等）
-│   └── rates/                    ← 利率专题页（timsun.net/rates 复刻，6 页）
+│   ├── rates/                    ← 利率专题页（timsun.net/rates 复刻，6 页）
+│   └── volatility/               ← 波动率专题页（timsun.net/volatility 复刻，2 页）
 │
 └── docs/
     ├── DATA_CATALOG.md           ← 数据目录文档
@@ -139,7 +140,7 @@ ticker-toolkit/
 ./bin/fetch_ibkr --days 365         # 拉取近 365 天
 ./bin/fetch_fred                    # 全部 FRED 系列（默认 upsert，漏跑自动补）
 ./bin/fetch_fred --backfill         # 全量覆盖（清旧格式 junk）
-./bin/fetch_cboe                    # CBOE 波动率（OVX/VIX9D/VIX/期限结构）
+./bin/fetch_cboe                    # CBOE 波动率（VIX1D/OVX/VIX9D/VIX/VIX3M/6M/1Y/SKEW/期限结构）
 ./bin/fetch_shapiro                 # Shapiro 供需 PCE 分解
 ./bin/fetch_sce                     # NY Fed SCE 通胀预期
 ./bin/fetch_fsi                     # OFR 金融压力指数
