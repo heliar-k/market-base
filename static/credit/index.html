@@ -83,7 +83,7 @@ async function load() {
   const sec = document.createElement('div');
   sec.className = 're-section';
   sec.innerHTML = '<h2>信用周期研判</h2>';
-  const s = d.signals;
+  const s = d.signals || { framework: '—', what_changed: '—', why_it_matters: '—', what_to_watch: '—' };
   const blocks = [
     ['What changed', s.what_changed],
     ['Why it matters', s.why_it_matters],

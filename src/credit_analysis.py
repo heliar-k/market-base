@@ -394,7 +394,7 @@ def overview(
         "quality": quality,
         "fincond": fincond,
         "liq_etf": liq_etf,
-        "signals": _overview_signals(ig, hy, hy_ig, funding, sloos, fincond),
+        "signals": _overview_signals(hy, funding, sloos, fincond),
     }
 
 
@@ -409,7 +409,7 @@ def _spread(df: pd.DataFrame, a: str, b: str, name: str) -> dict:
 
 
 def _overview_signals(
-    ig: dict, hy: dict, hy_ig: dict, funding: dict, sloos: list[dict], fincond: dict
+    hy: dict, funding: dict, sloos: list[dict], fincond: dict
 ) -> dict:
     """三段式研判：What changed / Why it matters / What to watch next。
 

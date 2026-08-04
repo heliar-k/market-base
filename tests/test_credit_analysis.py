@@ -275,7 +275,7 @@ class TestOverviewSignals:
         funding = {"hy": {"value": 716.0}}
         sloos = [{"name": "C&I 贷款标准", "value": -5.7}]
         fincond = {"nfci": {"value": -0.55}}
-        s = _overview_signals({}, hy, {}, funding, sloos, fincond)
+        s = _overview_signals(hy, funding, sloos, fincond)
         assert s["framework"].startswith("What changed")
         assert "284.0bp" in s["what_changed"]
         assert "7.16%" in s["why_it_matters"]
@@ -286,13 +286,13 @@ class TestOverviewSignals:
         # 银行收紧 + 融资成本高位 → 估值弹性先被压缩
         funding = {"hy": {"value": 716.0}}
         sloos = [{"name": "C&I 贷款标准", "value": 15.0}]
-        s = _overview_signals({}, {}, {}, funding, sloos, {})
+        s = _overview_signals({}, funding, sloos, {})
         assert "收紧" in s["what_changed"]
         assert "估值弹性会先被压缩" in s["why_it_matters"]
         assert "SLOOS 是否继续确认银行收紧" in s["what_to_watch"]
 
     def test_missing_data_degrades(self):
-        s = _overview_signals({}, {}, {}, {}, [], {})
+        s = _overview_signals({}, {}, [], {})
         assert "数据缺失" in s["what_changed"]
         assert s["what_to_watch"] == "下一步看 SLOOS 与 HY OAS 数据是否延续。"
 

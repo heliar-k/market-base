@@ -45,3 +45,10 @@ def test_snap_and_pick():
     stale = [(today - timedelta(days=10)).isoformat(), *exps]
     picked = pick_expirations(stale, targets=(30, 60, 90))
     assert len(picked) == 3 and len(set(picked)) == 3
+
+    # 全链已过期 → 返回空列表而非抛 ValueError
+    all_stale = [
+        (today - timedelta(days=10)).isoformat(),
+        (today - timedelta(days=5)).isoformat(),
+    ]
+    assert pick_expirations(all_stale) == []

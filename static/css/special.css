@@ -1,5 +1,5 @@
-/* 专题页共享样式（rates / fed / volatility / credit）— 由各页 <style> 合并生成。
- * 冲突规则已按多数派/语义裁定规范值（见 src/refactor 记录）。
+/* 专题页共享样式（rates / fed / volatility / credit）— 由 0c1131e 各页 <style> 合并生成，
+ * 并补入 924db7e 起的 HEAD 新增类（regime-* 等）。冲突规则按多数派/语义裁定。
  * 新专题页只需 <link rel="stylesheet" href="/css/special.css">；
  * 修改样式请直接编辑本文件，勿再往页面内联 <style> 里加。 */
 .re-root { max-width: 960px; margin: 0 auto; padding: 20px 16px; display: flex; flex-direction: column; gap: 16px; }
@@ -45,44 +45,22 @@
 .re-analysis ul { margin-left: 18px; font-size: 13px; line-height: 1.7; color: var(--text-secondary); }
 .re-analysis p { font-size: 13px; line-height: 1.7; color: var(--text-secondary); }
 .re-explain { font-size: 12px; color: var(--text-dim); line-height: 1.6; padding: 12px 16px; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; }
-max-width: 960px; margin: 0 auto; padding: 20px 16px;
-display: flex; flex-direction: column; gap: 16px;
-}
-display: flex; justify-content: space-between; align-items: baseline;
-flex-wrap: wrap; gap: 8px;
 .re-header .re-as-of { font-size: 13px; color: var(--text-dim); }
 .re-back { color: var(--accent); text-decoration: none; font-size: 13px; }
 .re-back:hover { text-decoration: underline; }
-.re-corridor {
-display: flex; gap: 24px; padding: 16px 20px;
-background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
-border-radius: 8px; color: #fff; flex-wrap: wrap;
-border: 1px solid var(--border); border-radius: 8px;
-overflow: hidden; background: var(--surface);
-width: 100%; border-collapse: collapse; font-size: 13px;
-font-variant-numeric: tabular-nums;
-position: sticky; top: 0; background: var(--surface-alt);
-color: var(--text-secondary); font-weight: 600;
-padding: 8px 12px; text-align: right; border-bottom: 1px solid var(--border);
+.re-corridor { display: flex; gap: 24px; padding: 16px 20px; background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); border-radius: 8px; color: #fff; flex-wrap: wrap; }
 .re-table th:first-child, .re-table td:first-child { text-align: left; }
-padding: 8px 12px; text-align: right; border-bottom: 1px solid var(--border-light);
 .re-table tbody tr:hover { background: var(--surface-hover); }
 .re-table .re-bar-cell { min-width: 200px; }
-.re-table .re-bar-wrap {
-display: flex; height: 20px; border-radius: 4px; overflow: hidden; gap: 1px;
+.re-table .re-bar-wrap { display: flex; height: 20px; border-radius: 4px; overflow: hidden; gap: 1px; }
 .re-table .re-bar-cut { background: #26a69a; }
 .re-table .re-bar-hold { background: #78909c; }
 .re-table .re-bar-hike { background: #ef5350; }
-.re-expectation {
-font-size: 12px; font-weight: 600; padding: 2px 8px; border-radius: 4px;
+.re-expectation { font-size: 12px; font-weight: 600; padding: 2px 8px; border-radius: 4px; }
 .re-expectation.cut { background: #e8f5e9; color: #2e7d32; }
 .re-expectation.hike { background: #ffebee; color: #c62828; }
 .re-expectation.hold { background: #eceff1; color: #546e7a; }
-.re-explain {
-font-size: 12px; color: var(--text-dim); line-height: 1.6;
-padding: 12px 16px; background: var(--surface); border: 1px solid var(--border); border-radius: 8px;
-/* VIX 卡片 */
-.vix-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+/* VIX 卡片 */ .vix-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 .vix-card { border: 1px solid var(--border); border-radius: 8px; background: var(--surface); padding: 18px; display: flex; flex-direction: column; gap: 10px; }
 .vix-card a { color: var(--accent); text-decoration: none; }
 .vix-label { font-size: 11px; text-transform: uppercase; letter-spacing: .5px; color: var(--text-dim); }
@@ -117,17 +95,6 @@ padding: 12px 16px; background: var(--surface); border: 1px solid var(--border);
 .oas-card .pcts { font-size: 12px; color: var(--text-secondary); }
 .oas-card .date { font-size: 11px; color: var(--text-dim); margin-top: 4px; }
 .note { font-size: 12px; color: var(--text-dim); margin-top: 6px; }
-.regime-card { display: flex; gap: 20px; align-items: center; padding: 16px 18px; }
-.regime-score { text-align: center; min-width: 130px; }
-.regime-score .score { font-size: 40px; font-weight: 800; font-variant-numeric: tabular-nums; line-height: 1; }
-.regime-score .of100 { font-size: 12px; color: var(--text-dim); }
-.regime-score .badge { display: inline-block; margin-top: 6px; padding: 2px 10px; border-radius: 999px; font-size: 12px; font-weight: 600; color: #0f172a; }
-.regime-bars { flex: 1; display: flex; flex-direction: column; gap: 6px; }
-.regime-bar { display: grid; grid-template-columns: 150px 1fr 34px; align-items: center; gap: 8px; font-size: 12px; }
-.regime-bar .track { height: 8px; border-radius: 4px; background: var(--border); overflow: hidden; }
-.regime-bar .fill { height: 100%; border-radius: 4px; }
-.regime-bar .val { text-align: right; font-variant-numeric: tabular-nums; color: var(--text); }
-.regime-bar .dim { color: var(--text-dim); }
 .score-card { border: 1px solid var(--border); border-radius: 8px; background: var(--surface); padding: 20px 22px; display: flex; gap: 18px; align-items: center; flex-wrap: wrap; }
 .score-card .value { font-size: 44px; font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1; }
 .score-card .label { font-size: 11px; text-transform: uppercase; letter-spacing: .5px; color: var(--text-dim); }
@@ -140,7 +107,19 @@ padding: 12px 16px; background: var(--surface); border: 1px solid var(--border);
 .proxy-card .value .unit { font-size: 13px; color: var(--text-dim); font-weight: 500; }
 .proxy-card .sub { font-size: 12px; color: var(--text-secondary); }
 .proxy-card .date { font-size: 11px; color: var(--text-dim); margin-top: 4px; }
-@media (max-width: 640px) { .vix-row, .link-grid { grid-template-columns: 1fr; }  }
-@media (max-width: 640px) { .oas-row { grid-template-columns: 1fr; }  }
-@media (max-width: 640px) { .regime-card { flex-direction: column; }  }
-@media (max-width: 640px) { .proxy-row { grid-template-columns: 1fr; }  }
+.vix-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.regime-card { display: flex; gap: 20px; align-items: center; padding: 16px 18px; }
+.regime-score { text-align: center; min-width: 130px; }
+.regime-score .score { font-size: 40px; font-weight: 800; font-variant-numeric: tabular-nums; line-height: 1; }
+.regime-score .of100 { font-size: 12px; color: var(--text-dim); }
+.regime-score .badge { display: inline-block; margin-top: 6px; padding: 2px 10px; border-radius: 999px; font-size: 12px; font-weight: 600; color: #0f172a; }
+.regime-bars { flex: 1; display: flex; flex-direction: column; gap: 6px; }
+.regime-bar { display: grid; grid-template-columns: 150px 1fr 34px; align-items: center; gap: 8px; font-size: 12px; }
+.regime-bar .track { height: 8px; border-radius: 4px; background: var(--border); overflow: hidden; }
+.regime-bar .fill { height: 100%; border-radius: 4px; }
+.regime-bar .val { text-align: right; font-variant-numeric: tabular-nums; color: var(--text); }
+.regime-bar .dim { color: var(--text-dim); }
+
+@media (max-width: 640px) { .vix-row, .link-grid { grid-template-columns: 1fr; } }
+@media (max-width: 640px) { .oas-row { grid-template-columns: 1fr; } }
+@media (max-width: 640px) { .proxy-row { grid-template-columns: 1fr; } }

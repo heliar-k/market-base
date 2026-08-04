@@ -98,6 +98,8 @@ def pick_expirations(options: list[str], targets=(30, 60, 90)) -> list[str]:
     """从可用到期日中挑出最接近 30/60/90 天的（自动跳过周内短期合约）"""
     today = date.today()
     options = [e for e in options if date.fromisoformat(e) >= today]
+    if not options:
+        return []  # 全链已过期 → 无合约可选（调用方自行降级）
     picked = []
     for t in targets:
         best = min(options, key=lambda e: abs((date.fromisoformat(e) - today).days - t))
