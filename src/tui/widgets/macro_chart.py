@@ -16,39 +16,16 @@
 
 from __future__ import annotations
 
-import math
-
 import pandas as pd
 from textual.app import ComposeResult
 from textual.containers import Vertical
-from textual_plotext import PlotextPlot
 
 from src.config import TERM_INFO, TERM_SERIES
 from src.tui.state import MacroView
+from src.tui.widgets._plot_common import _clean, _SubPlot
 
 # plotext 默认按 %d/%m/%Y 解析字符串日期；与 KlineChart 保持一致。
 _DATE_FMT = "%d/%m/%Y"
-
-
-def _clean(series: pd.Series) -> list:
-    """把 Series 转成 plotext 能吃的 list：NaN/Inf → None（plotext 跳过 None）。"""
-    out: list[float | None] = []
-    for v in series.tolist():
-        if v is None or (isinstance(v, float) and not math.isfinite(v)):
-            out.append(None)
-        else:
-            out.append(float(v))
-    return out
-
-
-class _SubPlot(PlotextPlot):
-    """单个 plotext 子图（时序/期限结构）。独立 plotsize+build，规避 subplots bug。"""
-
-    def on_size(self) -> None:
-        """尺寸变化 → 触发父 MacroChart 重画，让图适应新尺寸。"""
-        parent = self.parent
-        if isinstance(parent, MacroChart):
-            parent.redraw()
 
 
 class MacroChart(Vertical):

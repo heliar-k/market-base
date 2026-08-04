@@ -15,27 +15,13 @@ LLM 预留：`generate_analysis()` 是唯一入口，内部先尝试 `_llm_gener
 from __future__ import annotations
 
 from datetime import timedelta
-from pathlib import Path
 
 import pandas as pd
 
-from src.config import ROOT
+from src.analysis_utils import read_csv_or_empty as _read
+from src.config import ROOT, TERM_SERIES
 
 TENORS = ["1M", "3M", "6M", "1Y", "2Y", "3Y", "5Y", "7Y", "10Y", "20Y", "30Y"]
-DGS_COLS = [
-    "DGS1MO",
-    "DGS3MO",
-    "DGS6MO",
-    "DGS1",
-    "DGS2",
-    "DGS3",
-    "DGS5",
-    "DGS7",
-    "DGS10",
-    "DGS20",
-    "DGS30",
-]
-TIPS_COLS = ["DFII5", "DFII7", "DFII10", "DFII20", "DFII30"]
 
 # 时间窗（天）：当前 / 1周前 / 1月前 / 3月前
 _WINDOWS = {"current": 0, "1w": 7, "1m": 30, "3m": 90}
@@ -46,12 +32,6 @@ _BP = 100  # 百分数 → bp
 # ═══════════════════════════════════════════════════════════════════════════════
 # 数据装载
 # ═══════════════════════════════════════════════════════════════════════════════
-
-
-def _read(path: Path, index_col: str = "date") -> pd.DataFrame:
-    if not path.exists():
-        return pd.DataFrame()
-    return pd.read_csv(path, index_col=index_col, parse_dates=True)
 
 
 def _load() -> tuple[
@@ -381,7 +361,7 @@ def yield_curve_analysis() -> dict:
                 "chg_1m": _bp_change(rates, c, 30),
                 "chg_3m": _bp_change(rates, c, 90),
             }
-            for t, c in zip(TENORS, DGS_COLS, strict=True)
+            for t, c in zip(TENORS, TERM_SERIES["rates"], strict=True)
         ],
         "tips": [
             {
@@ -395,7 +375,7 @@ def yield_curve_analysis() -> dict:
             for t, dgs, tip in zip(
                 ["5Y", "7Y", "10Y", "20Y", "30Y"],
                 ["DGS5", "DGS7", "DGS10", "DGS20", "DGS30"],
-                TIPS_COLS,
+                TERM_SERIES["tips"],
                 strict=True,
             )
         ],

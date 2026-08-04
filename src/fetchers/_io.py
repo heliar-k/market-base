@@ -15,18 +15,16 @@ from .quality import DataPoint, QAStatus
 def save_daily_csv(
     filepath: Path,
     results: list[DataPoint],
-    *,
-    date_col: str = "date",
 ) -> None:
     """
     将 DataPoint 列表追加为 CSV 的一行。
-    - 文件不存在时自动创建，首列 date_col + 各 metric 列
-    - 已存在时追加行，同日期行会被覆盖（按 date_col 去重）
+    - 文件不存在时自动创建，首列 date + 各 metric 列
+    - 已存在时追加行，同日期行会被覆盖（按 date 去重）
     - 仅保存 QAStatus.OK 的数据点，失败的不写入
     """
     # 构建行: {metric: value}
     today = datetime.now().strftime("%Y-%m-%d")
-    row = {date_col: today}
+    row = {"date": today}
     for dp in results:
         if dp.qa_status == QAStatus.OK and dp.value is not None:
             row[dp.metric] = dp.value
@@ -44,7 +42,7 @@ def save_daily_csv(
     existing = _load_rows(filepath)
 
     # 去重：移除同日期的旧行
-    existing = [r for r in existing if r.get(date_col) != today]
+    existing = [r for r in existing if r.get("date") != today]
     existing.append(row)
 
     # 写回

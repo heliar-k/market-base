@@ -31,7 +31,7 @@ from datetime import datetime, timezone
 import pandas as pd
 from ib_insync import IB, Index, Stock, util
 
-from ..config import ROOT, config
+from ..config import INDICES, ROOT, STOCKS, config
 from ._io import load_timeseries, upsert_timeseries
 from .yfinance_fetcher import yf_minute_bars
 
@@ -328,37 +328,42 @@ def main():
     parser.add_argument("--client-id", type=int, help="指定 clientId（默认随机生成）")
     args = parser.parse_args()
 
-    ibkr_cfg = config.ibkr
-    bar_size = {
-        "1d": "1 day",
-        "5m": "5 mins",
-        "15m": "15 mins",
-        "1h": "1 hour",
-        "4h": "4 hours",
-        "1w": "1 week",  # 仅占位，1w 分支提前 return，不连 IBKR
-    }[args.bar_size]
-
-    # 筛选品种
-    all_symbols = config.ibkr_symbols
     requested = None
     if args.symbols:
         requested = set(s.strip().upper() for s in args.symbols.split(","))
-        symbols = [s for s in all_symbols if s["name"] in requested]
-        if not symbols:
-            log.error(f"未找到匹配品种: {args.symbols}")
-            sys.exit(1)
-    else:
-        symbols = all_symbols
 
     # 周线：纯本地重采样，不连 IBKR
     if args.bar_size == "1w":
         resample_weekly(list(requested) if requested else None)
         return
 
-    # yf-only：仅 yfinance，不连 IBKR
+    # 日线：委托 _symbol_fetch 统一编排（单次连接，IBKR 优先 + yfinance 回退）
+    if args.bar_size == "1d" and not args.yf_only:
+        from ._symbol_fetch import run  # 函数级 import：_symbol_fetch 依赖本模块
+
+        run([(s, "stock") for s in STOCKS] + [(s, "index") for s in INDICES], args)
+        return
+
+    # ── 以下为分钟线路径 ──
+    symbols = [
+        s for s in config.ibkr_symbols if requested is None or s["name"] in requested
+    ]
+    if not symbols:
+        log.error(f"未找到匹配品种: {args.symbols}")
+        sys.exit(1)
+
+    # yf-only：仅 yfinance，不连 IBKR（韩股等 IBKR 无权限品种）
     if args.yf_only:
         yf_only_fetch(symbols, args.bar_size)
         return
+
+    ibkr_cfg = config.ibkr
+    bar_size = {
+        "5m": "5 mins",
+        "15m": "15 mins",
+        "1h": "1 hour",
+        "4h": "4 hours",
+    }[args.bar_size]
 
     duration_override = (
         f"{args.days} D" if args.days else BAR_MAX_DURATION.get(args.bar_size)

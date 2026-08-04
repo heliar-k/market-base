@@ -22,6 +22,10 @@ from __future__ import annotations
 
 import pandas as pd
 
+from src.analysis_utils import chg_pct as _chg_pct
+from src.analysis_utils import chg_prev as _chg_prev
+from src.analysis_utils import latest as _latest
+from src.analysis_utils import read_csv_or_empty, zone
 from src.config import ROOT
 
 # 分位窗口（交易日）：1Y / 3Y / 10Y，样本不足时用可用历史并标记
@@ -42,29 +46,15 @@ STRESS_ZONES = [
 
 
 def _read(category: str) -> pd.DataFrame:
-    path = ROOT / "data" / "fred" / category / f"{category}.csv"
-    if not path.exists():
-        return pd.DataFrame()
-    return pd.read_csv(path, index_col="date", parse_dates=True)
+    return read_csv_or_empty(ROOT / "data" / "fred" / category / f"{category}.csv")
 
 
 def _read_yf() -> pd.DataFrame:
-    path = ROOT / "data" / "yfinance" / "asset_prices.csv"
-    if not path.exists():
-        return pd.DataFrame()
-    return pd.read_csv(path, index_col="date", parse_dates=True)
+    return read_csv_or_empty(ROOT / "data" / "yfinance" / "asset_prices.csv")
 
 
 def _read_ofr() -> pd.DataFrame:
-    path = ROOT / "data" / "ofr" / "fsi.csv"
-    if not path.exists():
-        return pd.DataFrame()
-    return pd.read_csv(path, index_col="date", parse_dates=True)
-
-
-def _latest(s: pd.Series) -> float | None:
-    s = s.dropna()
-    return float(s.iloc[-1]) if not s.empty else None
+    return read_csv_or_empty(ROOT / "data" / "ofr" / "fsi.csv")
 
 
 def _latest_card(
@@ -96,38 +86,10 @@ def _pct(s: pd.Series, window: int, obs: dict | None = None) -> float | None:
     return round((tail < tail.iloc[-1]).mean() * 100, 1)
 
 
-def _chg_prev(s: pd.Series, n: int) -> tuple[float, float] | None:
-    """最近值与 n 个交易日前值；样本不足或前值缺失/为零返回 None。
-
-    变化类指标的公共守卫（审计 D-4/E-8）：与 volatility_analysis 同构，
-    统一判空条件，避免各副本行为漂移。
-    """
-    s = s.dropna()
-    if len(s) < n + 1:
-        return None
-    cur, prev = s.iloc[-1], s.iloc[-1 - n]
-    if pd.isna(prev) or prev == 0:
-        return None
-    return float(cur), float(prev)
-
-
 def _chg_bp(s: pd.Series, n: int) -> float | None:
     """最近值相对 n 个交易日前的变化（bp）。"""
     pair = _chg_prev(s, n)
     return None if pair is None else round((pair[0] - pair[1]) * 100, 1)
-
-
-def _chg_pct(s: pd.Series, n: int) -> float | None:
-    """最近值相对 n 个交易日前的变化 %。"""
-    pair = _chg_prev(s, n)
-    return None if pair is None else round((pair[0] / pair[1] - 1) * 100, 2)
-
-
-def _zone(score: float) -> tuple[str, str]:
-    for label, lo, hi, color in STRESS_ZONES:
-        if lo <= score < hi:
-            return label, color
-    return "压力", "#f87171"
 
 
 def _latest_date(df: pd.DataFrame) -> str | None:
@@ -594,7 +556,7 @@ def stress(
         + STRESS_WEIGHTS["div"] * div,
         1,
     )
-    zone, color = _zone(comp)
+    zone_name, color = zone(comp, STRESS_ZONES)
 
     components = [
         {
@@ -702,7 +664,7 @@ def stress(
 
     return {
         "composite": comp,
-        "zone": zone,
+        "zone": zone_name,
         "zone_color": color,
         "components": components,
         "cross": cross,

@@ -11,14 +11,12 @@
 
 from __future__ import annotations
 
-import math
-
 import pandas as pd
 from textual.app import ComposeResult
 from textual.containers import Vertical
-from textual_plotext import PlotextPlot
 
 from src.tui.state import TechView
+from src.tui.widgets._plot_common import _clean, _SubPlot
 
 # plotext 默认按 %d/%m/%Y 解析字符串日期；统一用这个格式喂给 candlestick/vline/plot。
 _DATE_FMT = "%d/%m/%Y"
@@ -77,30 +75,6 @@ def visible_window(
     return slice(start, stop)
 
 
-def _clean(series: pd.Series) -> list:
-    """把指标 Series 转成 plotext 能吃的 list：NaN/Inf → None（plotext 跳过 None）。"""
-    out: list[float | None] = []
-    for v in series.tolist():
-        if v is None or (isinstance(v, float) and not math.isfinite(v)):
-            out.append(None)
-        else:
-            out.append(float(v))
-    return out
-
-
-class _SubPlot(PlotextPlot):
-    """单个 plotext 子图（主图或副图）。独立 plotsize+build，规避 subplots 高度 bug。"""
-
-    def __init__(self, plot_id: str) -> None:
-        super().__init__(id=plot_id)
-
-    def on_size(self) -> None:
-        """尺寸变化（含终端 resize）→ 触发父 KlineChart 重画，让图适应新尺寸。"""
-        parent = self.parent
-        if isinstance(parent, KlineChart):
-            parent.redraw()
-
-
 class KlineChart(Vertical):
     """K 线图容器：主图 candlestick + 叠加 + 2 副图 + vline 回看标记。
 
@@ -111,15 +85,14 @@ class KlineChart(Vertical):
         super().__init__()
         self.tech_view = tech_view
         self.df: pd.DataFrame | None = None
-        self._window: slice | None = None
         self._main: _SubPlot | None = None
         self._sub1: _SubPlot | None = None
         self._sub2: _SubPlot | None = None
 
     def compose(self) -> ComposeResult:
-        self._main = _SubPlot("kline-main")
-        self._sub1 = _SubPlot("kline-sub1")
-        self._sub2 = _SubPlot("kline-sub2")
+        self._main = _SubPlot(id="kline-main")
+        self._sub1 = _SubPlot(id="kline-sub1")
+        self._sub2 = _SubPlot(id="kline-sub2")
         yield self._main
         yield self._sub1
         yield self._sub2
@@ -133,7 +106,6 @@ class KlineChart(Vertical):
         下一帧布局完成后，_main 已就绪、子图也有真实尺寸。
         """
         self.df = df
-        self._window = None  # 重置窗口，下次 redraw 用默认（最近 size 根）
         self.call_after_refresh(self.redraw)
 
     # ── 重画整张图（主图+副图+vline）────────────────────────────────────
@@ -281,9 +253,7 @@ class KlineChart(Vertical):
             return slice(0, 0)
         dates = list(df.index)
         idx = self.tech_view.cursor.index()
-        win = visible_window(dates, idx)
-        self._window = win
-        return win
+        return visible_window(dates, idx)
 
     # ── 轻量 cursor 移动 ────────────────────────────────────────────────
     def move_cursor(self, direction: str) -> None:

@@ -251,24 +251,6 @@ FRED_SERIES_FLAT = {
     metric: sid for category in FRED_SERIES.values() for metric, sid in category.items()
 }
 
-# ── 期限结构分类：哪些 FRED 分类有收益率曲线 + 期限顺序（短→长）──
-TERM_SERIES = {
-    "rates": [
-        "DGS1MO",
-        "DGS3MO",
-        "DGS6MO",
-        "DGS1",
-        "DGS2",
-        "DGS3",
-        "DGS5",
-        "DGS7",
-        "DGS10",
-        "DGS20",
-        "DGS30",
-    ],
-    "tips": ["DFII5", "DFII7", "DFII10", "DFII20", "DFII30"],
-}
-
 
 # 期限品种展示信息（FRED 系列名 → 长名 + 短标签），server / TUI 共用，勿另起映射。
 # 长名供宏观快照/下拉列表（如“10年期国债收益率”），短标签供期限结构 x 轴（如“10y”）。
@@ -294,6 +276,13 @@ TERM_INFO: dict[str, TermInfo] = {
     "DFII10": TermInfo("10年期TIPS收益率", "10y"),
     "DFII20": TermInfo("20年期TIPS收益率", "20y"),
     "DFII30": TermInfo("30年期TIPS收益率", "30y"),
+}
+
+# ── 期限结构分类：哪些 FRED 分类有收益率曲线 + 期限顺序（短→长）──
+# 由 TERM_INFO 派生（DGS* = rates 名义收益率，DFII* = tips 实际收益率），勿另起列表。
+TERM_SERIES = {
+    "rates": [s for s in TERM_INFO if s.startswith("DGS")],
+    "tips": [s for s in TERM_INFO if s.startswith("DFII")],
 }
 
 # 当前 FOMC 目标区间兜底值（本地 FRED 数据缺失时用于 ZQ 概率计算）。

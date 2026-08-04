@@ -77,6 +77,7 @@ def save_chain_csv(sym_name: str, chains: list[dict], output_dir: Path):
     import csv
 
     filepath = output_dir / f"{sym_name}_grid.csv"
+    rows = 0
     with open(filepath, "w", newline="", encoding="utf-8") as f:
         writer = csv.writer(f)
         writer.writerow(
@@ -90,9 +91,8 @@ def save_chain_csv(sym_name: str, chains: list[dict], output_dir: Path):
             for exp in chain["expirations"]:
                 for strike in chain["strikes"]:
                     writer.writerow([exchange, exp, strike, multiplier, trading_class])
+                    rows += 1
 
-    with open(filepath, "r") as f:
-        rows = sum(1 for _ in f) - 1
     log.info(f"  📊 已保存 {filepath} ({rows} 行)")
 
 

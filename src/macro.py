@@ -23,102 +23,45 @@ derive_macro 追加派生列。
   - 派生列覆盖同名已存在列（本模块是权威定义）。
 """
 
+from collections.abc import Callable
 from pathlib import Path
 
 import pandas as pd
 
 
-def _spread_2s10s(df: pd.DataFrame) -> pd.Series | None:
-    """2s10s 利差 = DGS10 − DGS2（百分点，国债收益率曲线斜率）。"""
-    if not {"DGS10", "DGS2"}.issubset(df.columns):
-        return None
-    return df["DGS10"] - df["DGS2"]
+def _spread(a: str, b: str, scale: float = 1.0) -> Callable[[pd.DataFrame], pd.Series]:
+    """派生函数工厂：(df[a] − df[b]) × scale。"""
+    return lambda df: (df[a] - df[b]) * scale
 
 
-def _spread_3m10s(df: pd.DataFrame) -> pd.Series | None:
-    """3m10s 利差 = DGS10 − DGS3MO（百分点）。"""
-    if not {"DGS10", "DGS3MO"}.issubset(df.columns):
-        return None
-    return df["DGS10"] - df["DGS3MO"]
-
-
-def _spread_5s30s(df: pd.DataFrame) -> pd.Series | None:
-    """5s30s 利差 = DGS30 − DGS5（百分点）。"""
-    if not {"DGS30", "DGS5"}.issubset(df.columns):
-        return None
-    return df["DGS30"] - df["DGS5"]
-
-
-def _net_liquidity(df: pd.DataFrame) -> pd.Series | None:
+def _net_liquidity(df: pd.DataFrame) -> pd.Series:
     """净流动性 = WALCL − RRPONTSYD×1000 − WTREGEN（百万美元，联储净流动性）。
 
     RRPONTSYD（隔夜逆回购）在 FRED 单位为**十亿美元**，WALCL（联储总资产）、
     WTREGEN（财政部一般账户 TGA）为百万美元——这里把 RRP×1000 统一到百万美元。
     """
-    cols = {"WALCL", "RRPONTSYD", "WTREGEN"}
-    if not cols.issubset(df.columns):
-        return None
     return df["WALCL"] - df["RRPONTSYD"] * 1000 - df["WTREGEN"]
 
 
-def _bei_5y(df: pd.DataFrame) -> pd.Series | None:
-    """5 年期盈亏平衡通胀率 = (DGS5 − DFII5) × 100（bp）。"""
-    if not {"DGS5", "DFII5"}.issubset(df.columns):
-        return None
-    return (df["DGS5"] - df["DFII5"]) * 100
-
-
-def _bei_7y(df: pd.DataFrame) -> pd.Series | None:
-    """7 年期盈亏平衡通胀率 = (DGS7 − DFII7) × 100（bp）。"""
-    if not {"DGS7", "DFII7"}.issubset(df.columns):
-        return None
-    return (df["DGS7"] - df["DFII7"]) * 100
-
-
-def _bei_10y(df: pd.DataFrame) -> pd.Series | None:
-    """10 年期盈亏平衡通胀率 = (DGS10 − DFII10) × 100（bp）。"""
-    if not {"DGS10", "DFII10"}.issubset(df.columns):
-        return None
-    return (df["DGS10"] - df["DFII10"]) * 100
-
-
-def _bei_20y(df: pd.DataFrame) -> pd.Series | None:
-    """20 年期盈亏平衡通胀率 = (DGS20 − DFII20) × 100（bp）。"""
-    if not {"DGS20", "DFII20"}.issubset(df.columns):
-        return None
-    return (df["DGS20"] - df["DFII20"]) * 100
-
-
-def _bei_30y(df: pd.DataFrame) -> pd.Series | None:
-    """30 年期盈亏平衡通胀率 = (DGS30 − DFII30) × 100（bp）。"""
-    if not {"DGS30", "DFII30"}.issubset(df.columns):
-        return None
-    return (df["DGS30"] - df["DFII30"]) * 100
-
-
-def _sofr_iorb_spread_bp(df: pd.DataFrame) -> pd.Series | None:
-    """SOFR-IORB 利差 = (SOFR − IORB) × 100（bp，融资-准备金利率利差）。"""
-    if not {"SOFR", "IORB"}.issubset(df.columns):
-        return None
-    return (df["SOFR"] - df["IORB"]) * 100
-
-
-# 派生指标 → 所需输入列（与 _xxx 函数一一对应，保持同步）。
-# 用于告知 UI：某分类加载后会出现哪些派生系列（供 Tree 列出可叠加项）。
-# 注意：BEI_5Y/BEI_10Y 需要名义(DGS5/10)+实际(DFII5/10)两列，单分类 CSV 不会同时有，
+# 派生指标 → (输入列, 计算函数) 单一规格：derive_macro 计算与 UI 输入列反查共用。
+# 派生列只在所有输入列都存在时才计算（缺列跳过，不报错），覆盖同名已存在列。
+# 注意：BEI_* 需要名义(DGS*)+实际(DFII*)两列，单分类 CSV 不会同时有，
 # 故按分类加载时不会生成——这里仍列出输入要求，UI 按实际 df 列决定是否画。
-DERIVED_INPUTS = {
-    "SPREAD_2S10S": ("DGS10", "DGS2"),
-    "SPREAD_3M10S": ("DGS10", "DGS3MO"),
-    "SPREAD_5S30S": ("DGS30", "DGS5"),
-    "NET_LIQUIDITY": ("WALCL", "RRPONTSYD", "WTREGEN"),
-    "BEI_5Y": ("DGS5", "DFII5"),
-    "BEI_7Y": ("DGS7", "DFII7"),
-    "BEI_10Y": ("DGS10", "DFII10"),
-    "BEI_20Y": ("DGS20", "DFII20"),
-    "BEI_30Y": ("DGS30", "DFII30"),
-    "SOFR_IORB_SPREAD_BP": ("SOFR", "IORB"),
+DERIVED: dict[str, tuple[tuple[str, ...], Callable[[pd.DataFrame], pd.Series]]] = {
+    "SPREAD_2S10S": (("DGS10", "DGS2"), _spread("DGS10", "DGS2")),
+    "SPREAD_3M10S": (("DGS10", "DGS3MO"), _spread("DGS10", "DGS3MO")),
+    "SPREAD_5S30S": (("DGS30", "DGS5"), _spread("DGS30", "DGS5")),
+    "NET_LIQUIDITY": (("WALCL", "RRPONTSYD", "WTREGEN"), _net_liquidity),
+    "BEI_5Y": (("DGS5", "DFII5"), _spread("DGS5", "DFII5", 100)),
+    "BEI_7Y": (("DGS7", "DFII7"), _spread("DGS7", "DFII7", 100)),
+    "BEI_10Y": (("DGS10", "DFII10"), _spread("DGS10", "DFII10", 100)),
+    "BEI_20Y": (("DGS20", "DFII20"), _spread("DGS20", "DFII20", 100)),
+    "BEI_30Y": (("DGS30", "DFII30"), _spread("DGS30", "DFII30", 100)),
+    "SOFR_IORB_SPREAD_BP": (("SOFR", "IORB"), _spread("SOFR", "IORB", 100)),
 }
+
+# 派生指标 → 所需输入列（server / tests 的反查视图，由 DERIVED 派生，勿另写）。
+DERIVED_INPUTS = {name: inputs for name, (inputs, _) in DERIVED.items()}
 
 
 def derived_series_for_category(category: str) -> list[str]:
@@ -190,22 +133,9 @@ def derive_macro(df: pd.DataFrame) -> pd.DataFrame:
     输入列缺失时跳过对应派生，不报错。派生列覆盖同名已存在列（本模块是权威定义）。
     """
     out = df.copy()
-    derivations = (
-        ("SPREAD_2S10S", _spread_2s10s),
-        ("SPREAD_3M10S", _spread_3m10s),
-        ("SPREAD_5S30S", _spread_5s30s),
-        ("NET_LIQUIDITY", _net_liquidity),
-        ("BEI_5Y", _bei_5y),
-        ("BEI_7Y", _bei_7y),
-        ("BEI_10Y", _bei_10y),
-        ("BEI_20Y", _bei_20y),
-        ("BEI_30Y", _bei_30y),
-        ("SOFR_IORB_SPREAD_BP", _sofr_iorb_spread_bp),
-    )
-    for col, fn in derivations:
-        series = fn(out)
-        if series is not None:
-            out[col] = series
+    for col, (inputs, fn) in DERIVED.items():
+        if set(inputs).issubset(out.columns):
+            out[col] = fn(out)
     return out
 
 

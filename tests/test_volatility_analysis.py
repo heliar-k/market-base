@@ -4,10 +4,10 @@ import pandas as pd
 import pytest
 
 from src import volatility_analysis as va
+from src.analysis_utils import zone
 from src.volatility_analysis import (
     _chg_pct,
     _percentile,
-    _zone,
     signal_outlook,
     signal_term,
     signal_vix_level,
@@ -15,6 +15,10 @@ from src.volatility_analysis import (
     vix_card,
     vix_history,
 )
+
+
+def _zone(v):
+    return zone(v, va.ZONES)
 
 
 class TestZone:

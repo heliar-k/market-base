@@ -12,6 +12,7 @@ import numpy as np
 import pandas as pd
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from src.analyze import analyze
@@ -41,15 +42,6 @@ from src.macro import (
 from src.rates_analysis import generate_analysis
 from src.volatility_analysis import generate_volatility_analysis
 
-app = FastAPI(title="K-line Analysis Web")
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
 # ── helpers ──────────────────────────────────────────────────────────────────
 
 _SYMBOL_TYPE = {s["name"]: s["type"] for s in IBKR_SYMBOLS}
@@ -61,7 +53,9 @@ def _csv_path(symbol: str) -> Path:
 
 
 def _sanitize(obj: Any) -> Any:
-    """Recursively convert numpy types to Python native; NaN → None."""
+    """Recursively convert numpy types to Python native; NaN/NA/NaT → None。"""
+    if obj is pd.NA or obj is pd.NaT:
+        return None
     if isinstance(obj, dict):
         return {k: _sanitize(v) for k, v in obj.items()}
     if isinstance(obj, (list, tuple)):
@@ -80,6 +74,44 @@ def _sanitize(obj: Any) -> Any:
     if isinstance(obj, (np.str_,)):
         return str(obj)
     return obj
+
+
+class _SanitizedJSONResponse(JSONResponse):
+    """默认响应类：渲染边界统一 _sanitize（numpy 类型 → 原生，NaN → None）。"""
+
+    def render(self, content: Any) -> bytes:
+        return super().render(_sanitize(content))
+
+
+_RANGE_MONTHS = {
+    "1m": 1,
+    "3m": 3,
+    "6m": 6,
+    "1y": 12,
+    "2y": 24,
+    "3y": 36,
+    "5y": 60,
+    "10y": 120,
+    "30y": 360,
+}
+
+
+def _range_cutoff(range_: str, default: int = 0) -> pd.Timestamp | None:
+    """range 参数 → 截止时点；"all" 或未知值（default=0 时）返回 None。"""
+    months = None if range_ == "all" else _RANGE_MONTHS.get(range_, default)
+    return pd.Timestamp.now() - pd.DateOffset(months=months) if months else None
+
+
+app = FastAPI(
+    title="K-line Analysis Web", default_response_class=_SanitizedJSONResponse
+)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 
 # ── kline endpoints ──────────────────────────────────────────────────────────
@@ -110,7 +142,7 @@ def get_kline(
     df = df.reset_index()  # date index → column
     df["date"] = df["date"].dt.strftime("%Y-%m-%d")
     records = df.to_dict(orient="records")
-    return _sanitize(records)
+    return records
 
 
 # ── stock endpoints ──────────────────────────────────────────────────────────
@@ -152,7 +184,7 @@ def get_kline_indicators(symbol: str, days: int = Query(365)):
     out = df[["date", "close"]].copy()
     for src, dst in _COL_MAP.items():
         out[dst] = df[src] if src in df.columns else pd.NA
-    return _sanitize({"symbol": symbol, "data": out.to_dict(orient="records")})
+    return {"symbol": symbol, "data": out.to_dict(orient="records")}
 
 
 def _resample_ohlcv(df: pd.DataFrame, interval: str) -> pd.DataFrame:
@@ -182,7 +214,7 @@ def get_diag(symbol: str, as_of: str | None = Query(None)):
         raise HTTPException(404, f"No data for {symbol}")
     df = load_or_compute(symbol, csv)
     result = analyze(df, symbol, as_of=as_of)
-    return _sanitize(result)
+    return result
 
 
 # ── macro endpoints ──────────────────────────────────────────────────────────
@@ -348,32 +380,30 @@ def get_fomc_calendar() -> dict:
                     target_lower = target_lower or float(r["DFEDTARL"])
                     target_upper = target_upper or float(r["DFEDTARU"])
 
-    return _sanitize(
-        {
-            "current": (
-                {
-                    "year": current_meeting.year,
-                    "month": current_meeting.month,
-                    "start_day": current_meeting.start_day,
-                    "end_day": current_meeting.end_day,
-                }
-                if current_meeting
-                else None
-            ),
-            "next": (
-                {
-                    "year": next_meeting.year,
-                    "month": next_meeting.month,
-                    "start_day": next_meeting.start_day,
-                    "end_day": next_meeting.end_day,
-                }
-                if next_meeting
-                else None
-            ),
-            "target_lower": target_lower,
-            "target_upper": target_upper,
-        }
-    )
+    return {
+        "current": (
+            {
+                "year": current_meeting.year,
+                "month": current_meeting.month,
+                "start_day": current_meeting.start_day,
+                "end_day": current_meeting.end_day,
+            }
+            if current_meeting
+            else None
+        ),
+        "next": (
+            {
+                "year": next_meeting.year,
+                "month": next_meeting.month,
+                "start_day": next_meeting.start_day,
+                "end_day": next_meeting.end_day,
+            }
+            if next_meeting
+            else None
+        ),
+        "target_lower": target_lower,
+        "target_upper": target_upper,
+    }
 
 
 @app.get("/api/macro/correlate")
@@ -420,7 +450,7 @@ def get_macro_correlate(
         result[name] = {
             "category": cat,
             "label": _MACRO_LABELS.get(name, name),
-            "data": _sanitize(
+            "data": (
                 merged[["date", name]]
                 .rename(columns={name: "value"})
                 .to_dict(orient="records")
@@ -428,7 +458,7 @@ def get_macro_correlate(
         }
 
     date_range = {"from": merged["date"].iloc[0], "to": merged["date"].iloc[-1]}
-    return _sanitize({"indicators": result, "date_range": date_range})
+    return {"indicators": result, "date_range": date_range}
 
 
 @app.get("/api/macro/{category}")
@@ -440,7 +470,7 @@ def get_macro(category: str):
     df = rrp_in_millions(df)
     df = df.reset_index()
     df["date"] = df["date"].dt.strftime("%Y-%m-%d")
-    return _sanitize(df.to_dict(orient="records"))
+    return df.to_dict(orient="records")
 
 
 @app.get("/api/macro/{category}/term")
@@ -460,13 +490,11 @@ def get_macro_term(category: str):
     # 期限标签统一走 config.TERM_INFO（与 TUI 共用）
     labels = [TERM_INFO[t].short for t in available]
     values = [float(last[t]) if pd.notna(last[t]) else None for t in available]
-    return _sanitize(
-        {
-            "date": df.index[-1].strftime("%Y-%m-%d"),
-            "labels": labels,
-            "values": values,
-        }
-    )
+    return {
+        "date": df.index[-1].strftime("%Y-%m-%d"),
+        "labels": labels,
+        "values": values,
+    }
 
 
 # ── liquidity endpoints ──────────────────────────────────────────────────────
@@ -509,21 +537,7 @@ def get_liquidity_overview(range: str = Query("all")):
     # 显示层单位统一：RRP 十亿→百万，与 WRESBAL/WTREGEN 同图（stacked）同单位
     df = rrp_in_millions(df)
 
-    cutoff = None
-    if range != "all":
-        months = {
-            "1m": 1,
-            "3m": 3,
-            "6m": 6,
-            "1y": 12,
-            "2y": 24,
-            "3y": 36,
-            "5y": 60,
-            "10y": 120,
-            "30y": 360,
-        }.get(range, 0)
-        if months:
-            cutoff = pd.Timestamp.now() - pd.DateOffset(months=months)
+    cutoff = _range_cutoff(range)
 
     summary = {}
     labels = {
@@ -543,7 +557,7 @@ def get_liquidity_overview(range: str = Query("all")):
     series = {}
     for key in _LIQ_KEYS + ["NFCI"]:
         if key in filtered.columns:
-            series[key] = _sanitize(
+            series[key] = (
                 filtered[["date", key]]
                 .rename(columns={key: "value"})
                 .to_dict(orient="records")
@@ -566,11 +580,9 @@ def get_liquidity_overview(range: str = Query("all")):
         cum[sk] = running
     stacked = {}
     for sk in stack_keys:
-        stacked[sk] = _sanitize(
-            filtered[["date"]].assign(value=cum[sk]).to_dict(orient="records")
-        )
+        stacked[sk] = filtered[["date"]].assign(value=cum[sk]).to_dict(orient="records")
 
-    return _sanitize({"summary": summary, "series": series, "stacked": stacked})
+    return {"summary": summary, "series": series, "stacked": stacked}
 
 
 @app.get("/api/liquidity/compare-spx")
@@ -580,21 +592,7 @@ def get_liquidity_compare_spx(range: str = Query("5y")):
     except FileNotFoundError:
         raise HTTPException(404, "No liquidity data")
 
-    cutoff = None
-    if range != "all":
-        months = {
-            "1m": 1,
-            "3m": 3,
-            "6m": 6,
-            "1y": 12,
-            "2y": 24,
-            "3y": 36,
-            "5y": 60,
-            "10y": 120,
-            "30y": 360,
-        }.get(range, 60)
-        if months:
-            cutoff = pd.Timestamp.now() - pd.DateOffset(months=months)
+    cutoff = _range_cutoff(range, default=60)
 
     filtered = df.loc[cutoff:] if cutoff is not None else df
     filtered = filtered.reset_index()
@@ -602,7 +600,7 @@ def get_liquidity_compare_spx(range: str = Query("5y")):
 
     result: dict[str, Any] = {}
     if "NET_LIQUIDITY" in filtered.columns:
-        result["NET_LIQUIDITY"] = _sanitize(
+        result["NET_LIQUIDITY"] = (
             filtered[["date", "NET_LIQUIDITY"]]
             .rename(columns={"NET_LIQUIDITY": "value"})
             .to_dict(orient="records")
@@ -617,7 +615,7 @@ def get_liquidity_compare_spx(range: str = Query("5y")):
         spx = spx.reset_index()
         spx["date"] = spx["date"].dt.strftime("%Y-%m-%d")
         close_col = "close" if "close" in spx.columns else spx.columns[1]
-        result["SPX"] = _sanitize(
+        result["SPX"] = (
             spx[["date", close_col]]
             .rename(columns={close_col: "value"})
             .to_dict(orient="records")
@@ -672,12 +670,10 @@ def get_rate_expectations() -> dict:
             }
         )
 
-    return _sanitize(
-        {
-            "as_of": latest_date.strftime("%Y-%m-%d"),
-            "meetings": meetings,
-        }
-    )
+    return {
+        "as_of": latest_date.strftime("%Y-%m-%d"),
+        "meetings": meetings,
+    }
 
 
 # ── fed hub（复刻 timsun.net/fed）────────────────────────────────────────────
@@ -689,7 +685,7 @@ def get_fed_overview() -> dict:
     out = generate_fed_analysis()
     if "error" in out:
         raise HTTPException(404, out["error"])
-    return _sanitize(out)
+    return out
 
 
 # ── rates hub（复刻 timsun.net/rates）───────────────────────────────────────
@@ -733,7 +729,7 @@ def get_volatility_analysis() -> dict:
     out = generate_volatility_analysis()
     if "error" in out:
         raise HTTPException(404, out["error"])
-    return _sanitize(out)
+    return out
 
 
 # ── credit hub（复刻 timsun.net/credit）──────────────────────────────────
@@ -745,7 +741,7 @@ def get_credit_overview() -> dict:
     out = generate_credit_overview()
     if "error" in out:
         raise HTTPException(404, out["error"])
-    return _sanitize(out)
+    return out
 
 
 @app.get("/api/credit/cds")
@@ -754,7 +750,7 @@ def get_credit_cds() -> dict:
     out = generate_credit_cds()
     if "error" in out:
         raise HTTPException(404, out["error"])
-    return _sanitize(out)
+    return out
 
 
 @app.get("/api/credit/stress")
@@ -763,13 +759,13 @@ def get_credit_stress() -> dict:
     out = generate_credit_stress()
     if "error" in out:
         raise HTTPException(404, out["error"])
-    return _sanitize(out)
+    return out
 
 
 @app.get("/api/rates/analysis")
 def get_rates_analysis() -> dict:
     """利率研判（规则引擎，LLM 预留）。"""
-    return _sanitize(generate_analysis())
+    return generate_analysis()
 
 
 @app.get("/api/rates/fed-funds")
@@ -792,33 +788,31 @@ def get_rates_fed_funds() -> dict:
     if not tarl.empty and not taru.empty:
         latest["target"] = [float(tarl.iloc[-1]), float(taru.iloc[-1])]
 
-    return _sanitize(
-        {
-            "as_of": df.index.max().strftime("%Y-%m-%d"),
-            "latest": latest,
-            # 利率走廊（近 90 天）：EFFR/SOFR/TGCR/BGCR/ONRRP 五利率 + 目标区间
-            "corridor": {
-                "dates": [d.strftime("%Y-%m-%d") for d in df.tail(90).index],
-                "effr": _series(df, effr_col, 90),
-                "sofr": _series(df, "SOFR", 90),
-                "tgcr": _series(df, "TGCR", 90),
-                "bgcr": _series(df, "BGCR", 90),
-                "onrrp": _series(df, "ONRRP", 90),
-                "sofr_p1": _series(df, "SOFR1", 90),
-                "sofr_p25": _series(df, "SOFR25", 90),
-                "sofr_p75": _series(df, "SOFR75", 90),
-                "sofr_p99": _series(df, "SOFR99", 90),
-                "target_lo": _series(df, "DFEDTARL", 90),
-                "target_hi": _series(df, "DFEDTARU", 90),
-            },
-            "sofr_vol": _series(df, "SOFRVOL", 90),
-            "effr_history": _series(df, effr_col, 5 * 250),
-            "recent": [
-                {"date": d.strftime("%Y-%m-%d"), "effr": float(v)}
-                for d, v in df[effr_col].dropna().tail(30).items()
-            ],
-        }
-    )
+    return {
+        "as_of": df.index.max().strftime("%Y-%m-%d"),
+        "latest": latest,
+        # 利率走廊（近 90 天）：EFFR/SOFR/TGCR/BGCR/ONRRP 五利率 + 目标区间
+        "corridor": {
+            "dates": [d.strftime("%Y-%m-%d") for d in df.tail(90).index],
+            "effr": _series(df, effr_col, 90),
+            "sofr": _series(df, "SOFR", 90),
+            "tgcr": _series(df, "TGCR", 90),
+            "bgcr": _series(df, "BGCR", 90),
+            "onrrp": _series(df, "ONRRP", 90),
+            "sofr_p1": _series(df, "SOFR1", 90),
+            "sofr_p25": _series(df, "SOFR25", 90),
+            "sofr_p75": _series(df, "SOFR75", 90),
+            "sofr_p99": _series(df, "SOFR99", 90),
+            "target_lo": _series(df, "DFEDTARL", 90),
+            "target_hi": _series(df, "DFEDTARU", 90),
+        },
+        "sofr_vol": _series(df, "SOFRVOL", 90),
+        "effr_history": _series(df, effr_col, 5 * 250),
+        "recent": [
+            {"date": d.strftime("%Y-%m-%d"), "effr": float(v)}
+            for d, v in df[effr_col].dropna().tail(30).items()
+        ],
+    }
 
 
 @app.get("/api/rates/yield-curve")
@@ -838,7 +832,7 @@ def get_rates_yield_curve() -> dict:
             {**p, "value": round(p["value"] * 100, 1)} for p in _to_points(diff)
         ]
     out["yield_curve"]["spreads_history"] = spread_hist
-    return _sanitize(out)
+    return out
 
 
 @app.get("/api/rates/real-rates")
@@ -853,16 +847,14 @@ def get_rates_real_rates(days: int = Query(365, le=2000)) -> dict:
     breakeven = aligned["DGS10"] - aligned["DFII10"]
     spread = (df["DGS10"] - df["DGS2"]).dropna().tail(days)
 
-    return _sanitize(
-        {
-            "as_of": df.index.max().strftime("%Y-%m-%d"),
-            "nominal_10y": _series(df, "DGS10", days),
-            "real_10y": _series(tips, "DFII10", days),
-            "breakeven_10y": _to_points(breakeven),
-            "y2": _series(df, "DGS2", days),
-            "spread_2s10": _to_points(spread),
-        }
-    )
+    return {
+        "as_of": df.index.max().strftime("%Y-%m-%d"),
+        "nominal_10y": _series(df, "DGS10", days),
+        "real_10y": _series(tips, "DFII10", days),
+        "breakeven_10y": _to_points(breakeven),
+        "y2": _series(df, "DGS2", days),
+        "spread_2s10": _to_points(spread),
+    }
 
 
 def _trend_bucket(term: str) -> str | None:
@@ -947,19 +939,17 @@ def get_rates_auctions() -> dict:
                 }
             )
 
-    return _sanitize(
-        {
-            "as_of": auc.index.max().strftime("%Y-%m-%d"),
-            "avg_cover_10_coupon": avg_cover,
-            "upcoming_count": len(upcoming),
-            "recent": [
-                {**{"auction_date": d.strftime("%Y-%m-%d")}, **_row(r)}
-                for d, r in recent.iterrows()
-            ],
-            "upcoming": upcoming,
-            "trend": trend,
-        }
-    )
+    return {
+        "as_of": auc.index.max().strftime("%Y-%m-%d"),
+        "avg_cover_10_coupon": avg_cover,
+        "upcoming_count": len(upcoming),
+        "recent": [
+            {**{"auction_date": d.strftime("%Y-%m-%d")}, **_row(r)}
+            for d, r in recent.iterrows()
+        ],
+        "upcoming": upcoming,
+        "trend": trend,
+    }
 
 
 # ── static files (must be last) ─────────────────────────────────────────────

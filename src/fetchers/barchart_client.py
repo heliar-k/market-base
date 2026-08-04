@@ -56,7 +56,6 @@ def core_get(
     referer: str,
     auth: AuthMode = "xsrf",
     endpoint: str = "quotes/get",
-    timeout: int = 20,
 ) -> dict:
     """匿名调 Barchart core-api。
 
@@ -73,7 +72,7 @@ def core_get(
     """
     session = requests.Session()
     session.headers.update({"User-Agent": UA})
-    html = session.get(referer, timeout=timeout).text
+    html = session.get(referer, timeout=20).text
     if auth == "csrf":
         m = META_CSRF_RE.search(html)
         if not m:
@@ -94,7 +93,7 @@ def core_get(
             header: token,
             "Referer": referer,
         },
-        timeout=timeout,
+        timeout=20,
     )
     resp.raise_for_status()
     return resp.json()

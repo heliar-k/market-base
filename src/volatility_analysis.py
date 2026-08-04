@@ -20,6 +20,10 @@ from __future__ import annotations
 
 import pandas as pd
 
+from src.analysis_utils import chg_pct as _chg_pct
+from src.analysis_utils import chg_prev as _chg_prev
+from src.analysis_utils import latest as _latest
+from src.analysis_utils import read_csv_or_empty, zone
 from src.config import ROOT
 
 # 区间阈值（VIX 水平参考，与 timsun 一致）
@@ -32,36 +36,7 @@ ZONES = [
 
 
 def _read() -> pd.DataFrame:
-    path = ROOT / "data" / "cboe" / "volatility.csv"
-    if not path.exists():
-        return pd.DataFrame()
-    return pd.read_csv(path, index_col="date", parse_dates=True)
-
-
-def _latest(s: pd.Series) -> float | None:
-    s = s.dropna()
-    return float(s.iloc[-1]) if not s.empty else None
-
-
-def _chg_prev(s: pd.Series, n: int) -> tuple[float, float] | None:
-    """最近值与 n 个交易日前值；样本不足或前值缺失/为零返回 None。
-
-    变化类指标的公共守卫（审计 D-4/E-8）：统一判空条件，
-    避免 _chg_pct/_chg_pts 等副本各自实现导致行为漂移。
-    """
-    s = s.dropna()
-    if len(s) < n + 1:
-        return None
-    cur, prev = s.iloc[-1], s.iloc[-1 - n]
-    if pd.isna(prev) or prev == 0:
-        return None  # 缺失或零基数（相对变化会除零）
-    return float(cur), float(prev)
-
-
-def _chg_pct(s: pd.Series, window: int) -> float | None:
-    """最近值相对 window 个交易日前的变化 %。"""
-    pair = _chg_prev(s, window)
-    return None if pair is None else round((pair[0] / pair[1] - 1) * 100, 2)
+    return read_csv_or_empty(ROOT / "data" / "cboe" / "volatility.csv")
 
 
 def _percentile(s: pd.Series, window: int | None = None) -> float | None:
@@ -73,13 +48,6 @@ def _percentile(s: pd.Series, window: int | None = None) -> float | None:
         s = s.tail(window)
     cur = s.iloc[-1]
     return round((s <= cur).mean() * 100, 1)
-
-
-def _zone(v: float) -> tuple[str, str]:
-    for label, lo, hi, color in ZONES:
-        if lo <= v < hi:
-            return label, color
-    return "恐慌", "#f87171"
 
 
 def _slope_label(slope: float) -> str:
@@ -104,7 +72,7 @@ def vix_card(df: pd.DataFrame) -> dict:
     if s.empty:
         return {}
     v = float(s.iloc[-1])
-    zone, color = _zone(v)
+    zone_name, color = zone(v, ZONES)
     return {
         "value": v,
         "as_of": s.index[-1].strftime("%Y-%m-%d"),
@@ -113,7 +81,7 @@ def vix_card(df: pd.DataFrame) -> dict:
         # 点数口径（对齐 timsun 卡片「7 日变化 −2.84pt」，审计 P2-②）
         "chg_1w": _chg_pts(s, 5),
         "percentile_1y": _percentile(s, 250),
-        "zone": zone,
+        "zone": zone_name,
         "zone_color": color,
     }
 
@@ -153,14 +121,12 @@ def signal_vix_level(card: dict) -> str:
             f"周{'涨' if card['chg_1w_pct'] >= 0 else '跌'} "
             f"{abs(card['chg_1w_pct']):.2f}%"
         )
-    zone, _ = _zone(card["value"])
+    zone_name, _ = zone(card["value"], ZONES)
     pct = card.get("percentile_1y")
     pct_txt = f"，处于近一年 {pct}% 分位" if pct is not None else ""
     text = (
-        "，".join(parts)
-        + f"。绝对值处于{zone}区间（<15 平静 / 15-25 正常 / 25-35 警戒 / >35 恐慌）"
-        + pct_txt
-        + "。"
+        "，".join(parts) + f"。绝对值处于{zone_name}区间"
+        "（<15 平静 / 15-25 正常 / 25-35 警戒 / >35 恐慌）" + pct_txt + "。"
     )
     # 趋势注解
     if card["chg_1w_pct"] is not None and card["chg_1w_pct"] <= -10:

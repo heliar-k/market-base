@@ -18,10 +18,9 @@ import pandas as pd
 _IMPORT_ALL = "\n".join(
     f"import {m}"
     for m in [
+        "src.fetchers._symbol_fetch",
         "src.fetchers.commodities_fetcher",
-        "src.fetchers.index_fetcher",
         "src.fetchers.options_fetcher",
-        "src.fetchers.stock_fetcher",
         "src.fetchers.yfinance_fetcher",
     ]
 )

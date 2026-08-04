@@ -17,11 +17,16 @@ import time
 from datetime import datetime
 
 import pandas as pd
-from ib_insync import IB, Future, util
+from ib_insync import IB, Future
 
 from ..config import ROOT, config
 from ._io import upsert_timeseries
-from .ibkr_fetcher import IBKRConnectionError, connect_ib, port_delay
+from .ibkr_fetcher import (
+    IBKRConnectionError,
+    bars_to_dataframe,
+    connect_ib,
+    port_delay,
+)
 
 log = logging.getLogger(__name__)
 
@@ -82,11 +87,7 @@ def _fetch_bars(ib: IB, contract: Future) -> pd.DataFrame | None:
         )
         if not bars:
             return None
-
-        df = util.df(bars)
-        df = df.rename(columns={"average": "wap", "barCount": "count"})
-        df = df.set_index("date")
-        return df
+        return bars_to_dataframe(bars)
 
     except Exception as e:
         log.warning("    拉取失败: %s", e)
