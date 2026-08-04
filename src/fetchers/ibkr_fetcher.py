@@ -176,6 +176,9 @@ def fetch_single(
         if last_date:
             # 完整时间戳比较（日线 bar 为当日零点，分钟线为精确时间）
             last_dt = datetime.strptime(last_date, "%Y%m%d-%H:%M:%S")
+            # 日线 bar 的 date 是 date 对象，分钟线是 datetime，统一类型再比较
+            if not isinstance(bars[0].date, datetime):
+                last_dt = last_dt.date()
             new_bars = [b for b in bars if b.date > last_dt]
             if not new_bars:
                 log.info(f"[{sym_name}] 均已是最新数据，无需增量")
