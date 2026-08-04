@@ -16,7 +16,7 @@
 | `inflation` | `data/fred/inflation/inflation.csv` | 19 | CPI / PCE / 核心 / CPI细分 / Super-core / BEI / 通胀预期 |
 | `labor` | `data/fred/labor/labor.csv` | 3 | 失业率 / 非农 / 首申失业金 |
 | `growth` | `data/fred/growth/growth.csv` | 5 | 实际GDP / 工业产出 / 实际PCE / 产能利用率 / 制造业新订单 |
-| `rates` | `data/fred/rates/rates.csv` | 14 | 联邦基金利率 / SOFR/TGCR/BGCR/ONRRP / 国债全期限 |
+| `rates` | `data/fred/rates/rates.csv` | 15 | 联邦基金利率（DFF 日频 + FEDFUNDS 月频） / SOFR/TGCR/BGCR/ONRRP / 国债全期限 |
 | `tips` | `data/fred/tips/tips.csv` | 5 | 5Y-30Y TIPS 实际收益率 |
 | `liquidity` | `data/fred/liquidity/liquidity.csv` | 5 | NFCI / 准备金 / RRP / TGA / 联储总资产 |
 | `sentiment` | `data/fred/sentiment/sentiment.csv` | 2 | 消费者信心 / 金融压力指数 |
@@ -34,7 +34,10 @@
 `inflation`: CPI, PCE, CORE_CPI, CORE_PCE, CPI_SHELTER, CPI_FOOD, CPI_ENERGY, CORE_SERVICES, CORE_GOODS, SUPERCORE_PCE, SUPERCORE_PCE_REAL, T5YIE, T10YIE, T5YIFR, MICH, EXPINF_1Y, EXPINF_2Y, EXPINF_5Y, EXPINF_10Y
 `labor`: UNRATE, PAYEMS, ICSA
 `growth`: GDP, INDPRO, REAL_PCE, CAPU, DGORDER
-`rates`: FEDFUNDS, DFEDTARL, DFEDTARU, SOFR, SOFR1/25/75/99, SOFRVOL, OBFR, IORB, TGCR, ONRRP, BGCR*, DGS1MO...DGS30
+`rates`: DFF, FEDFUNDS, DFEDTARL, DFEDTARU, SOFR, SOFR1/25/75/99, SOFRVOL, OBFR, IORB, TGCR, ONRRP, BGCR*, DGS1MO...DGS30
+
+> `DFF` = 有效联邦基金利率（日频，1999-03 起），fed-funds 页 EFFR 图/走廊用；
+> `FEDFUNDS` 是月频均值（1954 起，仅作历史兜底），不能按日频绘制。
 
 > `BGCR`（Broad General Collateral Rate）不在 FRED，由 `./bin/fetch_bgcr` 从 NY Fed
 > Markets API 拉取并合并进 rates.csv（TGCR ⊂ BGCR ⊂ SOFR；TGCR/BGCR 自 2021-03-01 发布）。
