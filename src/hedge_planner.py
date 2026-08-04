@@ -97,6 +97,7 @@ def fetch_quotes(symbol: str, exp: str) -> dict[tuple[float, str], Quote]:
 def pick_expirations(options: list[str], targets=(30, 60, 90)) -> list[str]:
     """从可用到期日中挑出最接近 30/60/90 天的（自动跳过周内短期合约）"""
     today = date.today()
+    options = [e for e in options if date.fromisoformat(e) >= today]
     picked = []
     for t in targets:
         best = min(options, key=lambda e: abs((date.fromisoformat(e) - today).days - t))

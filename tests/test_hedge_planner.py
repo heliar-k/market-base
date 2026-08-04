@@ -1,5 +1,7 @@
 """hedge_planner 结构盈亏计算的最小校验"""
 
+from datetime import date, timedelta
+
 from src.hedge_planner import collar, naked_put, pick_expirations, put_spread, snap
 
 
@@ -27,6 +29,19 @@ def test_collar_net_credit():
 
 def test_snap_and_pick():
     assert snap([360, 370, 380, 390], 383) == 380
-    exps = ["2026-07-31", "2026-08-21", "2026-09-18", "2026-10-16"]
+    # 用相对 today 的到期日，避免硬编码日期随时间漂移
+    today = date.today()
+    # 日期间隔取 targets 的一半，确保每个目标都有唯一最近月
+    exps = [
+        (today + timedelta(days=15)).isoformat(),
+        (today + timedelta(days=30)).isoformat(),
+        (today + timedelta(days=60)).isoformat(),
+        (today + timedelta(days=90)).isoformat(),
+    ]
     picked = pick_expirations(exps, targets=(30, 60, 90))
+    assert len(picked) == 3 and len(set(picked)) == 3
+
+    # 已过期合约必须被忽略（原失败模式：硬编码日期漂移后目标塌缩到同一合约）
+    stale = [(today - timedelta(days=10)).isoformat(), *exps]
+    picked = pick_expirations(stale, targets=(30, 60, 90))
     assert len(picked) == 3 and len(set(picked)) == 3
