@@ -107,7 +107,6 @@
 .proxy-card .value .unit { font-size: 13px; color: var(--text-dim); font-weight: 500; }
 .proxy-card .sub { font-size: 12px; color: var(--text-secondary); }
 .proxy-card .date { font-size: 11px; color: var(--text-dim); margin-top: 4px; }
-.vix-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 .regime-card { display: flex; gap: 20px; align-items: center; padding: 16px 18px; }
 .regime-score { text-align: center; min-width: 130px; }
 .regime-score .score { font-size: 40px; font-weight: 800; font-variant-numeric: tabular-nums; line-height: 1; }
