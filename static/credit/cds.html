@@ -5,30 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>CDS 专题 — US Macro</title>
 <link rel="stylesheet" href="/css/app.css">
+<link rel="stylesheet" href="/css/special.css">
 <script src="https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js"></script>
-<style>
-  .re-root { max-width: 960px; margin: 0 auto; padding: 20px 16px; display: flex; flex-direction: column; gap: 16px; }
-  .re-header { display: flex; justify-content: space-between; align-items: baseline; flex-wrap: wrap; gap: 8px; }
-  .re-header h1 { font-size: 20px; font-weight: 700; }
-  .re-as-of { font-size: 13px; color: var(--text-dim); }
-  .re-nav { display: flex; gap: 8px; flex-wrap: wrap; }
-  .re-nav a { color: var(--accent); text-decoration: none; font-size: 13px; padding: 4px 10px; border: 1px solid var(--btn-border); border-radius: 4px; }
-  .re-nav a:hover { background: var(--surface-hover); }
-  .re-section { border: 1px solid var(--border); border-radius: 8px; background: var(--surface); padding: 14px 18px; }
-  .re-section h2 { font-size: 14px; font-weight: 700; margin-bottom: 8px; color: var(--text); }
-  .re-section p { font-size: 13px; line-height: 1.7; color: var(--text-secondary); }
-  .re-gen { font-size: 11px; color: var(--text-dim); text-align: right; }
-  .re-error { text-align: center; padding: 40px 20px; color: #ef5350; }
-  .proxy-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-  .proxy-card { border: 1px solid var(--border); border-radius: 8px; background: var(--surface); padding: 16px 18px; }
-  .proxy-card .label { font-size: 11px; text-transform: uppercase; letter-spacing: .5px; color: var(--text-dim); }
-  .proxy-card .value { font-size: 26px; font-weight: 700; font-variant-numeric: tabular-nums; margin: 4px 0 6px; }
-  .proxy-card .value .unit { font-size: 13px; color: var(--text-dim); font-weight: 500; }
-  .proxy-card .sub { font-size: 12px; color: var(--text-secondary); }
-  .proxy-card .date { font-size: 11px; color: var(--text-dim); margin-top: 4px; }
-  .chart { width: 100%; height: 300px; margin-top: 8px; }
-  @media (max-width: 640px) { .proxy-row { grid-template-columns: 1fr; } }
-</style>
 </head>
 <body>
 <div class="re-root">
@@ -37,15 +15,7 @@
     <span class="re-as-of" id="re-as-of"></span>
   </div>
 
-  <div class="re-nav">
-    <a href="/credit/">总览</a>
-    <a href="/credit/cds.html">CDS 专题</a>
-    <a href="/credit/stress.html">压力仪表盘</a>
-    <a href="/rates/">利率</a>
-    <a href="/fed/">美联储</a>
-    <a href="/volatility/">波动率</a>
-    <a href="/">← 仪表盘</a>
-  </div>
+  <div class="re-nav" id="re-nav"></div>
 
   <div id="proxy-row"></div>
   <div id="bank-chart-sec"></div>
@@ -120,5 +90,6 @@ async function load() {
 }
 load().catch(e => R.fail(['proxy-row'], e));
 </script>
+<script src="/js/nav.js"></script>
 </body>
 </html>

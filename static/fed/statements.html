@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>FOMC 声明 — US Macro</title>
 <link rel="stylesheet" href="/css/app.css">
+<link rel="stylesheet" href="/css/special.css">
 <link rel="stylesheet" href="/css/fed.css">
 </head>
 <body>
@@ -14,15 +15,7 @@
     <span class="re-as-of" id="re-as-of"></span>
   </div>
 
-  <div class="re-nav">
-    <a href="/fed/">美联储</a>
-    <a href="/fed/speeches.html">官员演讲</a>
-    <a href="/fed/hawkish-dovish.html">鹰鸽追踪</a>
-    <a href="/rates/">利率</a>
-    <a href="/credit/">信用</a>
-    <a href="/volatility/">波动率</a>
-    <a href="/">← 仪表盘</a>
-  </div>
+  <div class="re-nav" id="re-nav"></div>
 
   <div id="re-filter" style="display:flex;gap:8px;flex-wrap:wrap;font-size:13px"></div>
   <div id="re-list"></div>
@@ -87,5 +80,6 @@ async function load() {
 
 load().catch(e => R.fail(['re-list'], e));
 </script>
+<script src="/js/nav.js"></script>
 </body>
 </html>

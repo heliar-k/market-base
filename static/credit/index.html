@@ -5,54 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>信用 — US Macro</title>
 <link rel="stylesheet" href="/css/app.css">
+<link rel="stylesheet" href="/css/special.css">
 <script src="https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js"></script>
-<style>
-  .re-root { max-width: 960px; margin: 0 auto; padding: 20px 16px; display: flex; flex-direction: column; gap: 16px; }
-  .re-header { display: flex; justify-content: space-between; align-items: baseline; flex-wrap: wrap; gap: 8px; }
-  .re-header h1 { font-size: 20px; font-weight: 700; }
-  .re-as-of { font-size: 13px; color: var(--text-dim); }
-  .re-nav { display: flex; gap: 8px; flex-wrap: wrap; }
-  .re-nav a { color: var(--accent); text-decoration: none; font-size: 13px; padding: 4px 10px; border: 1px solid var(--btn-border); border-radius: 4px; }
-  .re-nav a:hover { background: var(--surface-hover); }
-  .re-section { border: 1px solid var(--border); border-radius: 8px; background: var(--surface); padding: 14px 18px; }
-  .re-section h2 { font-size: 14px; font-weight: 700; margin-bottom: 8px; color: var(--text); }
-  .re-section p { font-size: 13px; line-height: 1.7; color: var(--text-secondary); }
-  .re-gen { font-size: 11px; color: var(--text-dim); text-align: right; }
-  .re-loading { text-align: center; padding: 60px 20px; color: var(--text-dim); font-size: 14px; }
-  .re-error { text-align: center; padding: 40px 20px; color: #ef5350; }
-  .re-table-wrap { overflow-x: auto; margin-top: 8px; }
-  .re-table { width: 100%; border-collapse: collapse; font-size: 13px; }
-  .re-table th, .re-table td { padding: 7px 10px; text-align: right; border-bottom: 1px solid var(--border); white-space: nowrap; }
-  .re-table th:first-child, .re-table td:first-child { text-align: left; }
-  .re-table th { color: var(--text-dim); font-weight: 600; font-size: 12px; }
-  .re-table td { color: var(--text); font-variant-numeric: tabular-nums; }
-  .re-table tr:hover td { background: var(--surface-hover); }
-  .sig-block { margin-bottom: 14px; }
-  .sig-block:last-child { margin-bottom: 0; }
-  .sig-block .sig-title { font-size: 11px; font-weight: 600; letter-spacing: .06em; color: var(--accent); opacity: .8; margin-bottom: 6px; }
-  .sig-block p { margin: 0; }
-  .oas-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
-  .oas-card { border: 1px solid var(--border); border-radius: 8px; background: var(--surface); padding: 16px 18px; }
-  .oas-card .label { font-size: 11px; text-transform: uppercase; letter-spacing: .5px; color: var(--text-dim); }
-  .oas-card .value { font-size: 26px; font-weight: 700; font-variant-numeric: tabular-nums; margin: 4px 0 6px; }
-  .oas-card .value .unit { font-size: 13px; color: var(--text-dim); font-weight: 500; }
-  .oas-card .pcts { font-size: 12px; color: var(--text-secondary); }
-  .oas-card .date { font-size: 11px; color: var(--text-dim); margin-top: 4px; }
-  .note { font-size: 12px; color: var(--text-dim); margin-top: 6px; }
-  .regime-card { display: flex; gap: 20px; align-items: center; padding: 16px 18px; }
-  .regime-score { text-align: center; min-width: 130px; }
-  .regime-score .score { font-size: 40px; font-weight: 800; font-variant-numeric: tabular-nums; line-height: 1; }
-  .regime-score .of100 { font-size: 12px; color: var(--text-dim); }
-  .regime-score .badge { display: inline-block; margin-top: 6px; padding: 2px 10px; border-radius: 999px; font-size: 12px; font-weight: 600; color: #0f172a; }
-  .regime-bars { flex: 1; display: flex; flex-direction: column; gap: 6px; }
-  .regime-bar { display: grid; grid-template-columns: 150px 1fr 34px; align-items: center; gap: 8px; font-size: 12px; }
-  .regime-bar .track { height: 8px; border-radius: 4px; background: var(--border); overflow: hidden; }
-  .regime-bar .fill { height: 100%; border-radius: 4px; }
-  .regime-bar .val { text-align: right; font-variant-numeric: tabular-nums; color: var(--text); }
-  .regime-bar .dim { color: var(--text-dim); }
-  @media (max-width: 640px) { .oas-row { grid-template-columns: 1fr; } }
-  @media (max-width: 640px) { .regime-card { flex-direction: column; } }
-</style>
 </head>
 <body>
 <div class="re-root">
@@ -61,15 +15,7 @@
     <span class="re-as-of" id="re-as-of"></span>
   </div>
 
-  <div class="re-nav">
-    <a href="/credit/">总览</a>
-    <a href="/credit/cds.html">CDS 专题</a>
-    <a href="/credit/stress.html">压力仪表盘</a>
-    <a href="/rates/">利率</a>
-    <a href="/fed/">美联储</a>
-    <a href="/volatility/">波动率</a>
-    <a href="/">← 仪表盘</a>
-  </div>
+  <div class="re-nav" id="re-nav"></div>
 
   <div id="regime"></div>
   <div id="oas-row"></div>
@@ -233,5 +179,6 @@ async function load() {
 }
 load().catch(e => R.fail(['oas-row', 're-signals', 'layers', 'funding', 'sloos', 'quality', 'fincond', 'liq-etf'], e));
 </script>
+<script src="/js/nav.js"></script>
 </body>
 </html>

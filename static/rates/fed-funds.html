@@ -5,31 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>联邦基金利率 — US Macro</title>
 <link rel="stylesheet" href="/css/app.css">
+<link rel="stylesheet" href="/css/special.css">
 <script src="https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js"></script>
-<style>
-  .re-root { max-width: 960px; margin: 0 auto; padding: 20px 16px; display: flex; flex-direction: column; gap: 16px; }
-  .re-header { display: flex; justify-content: space-between; align-items: baseline; flex-wrap: wrap; gap: 8px; }
-  .re-header h1 { font-size: 20px; font-weight: 700; }
-  .re-as-of { font-size: 13px; color: var(--text-dim); }
-  .re-nav { display: flex; gap: 8px; flex-wrap: wrap; }
-  .re-nav a { color: var(--accent); text-decoration: none; font-size: 13px; padding: 4px 10px; border: 1px solid var(--btn-border); border-radius: 4px; }
-  .re-nav a:hover { background: var(--surface-hover); }
-  .re-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; }
-  .re-card { padding: 14px 18px; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; }
-  .re-card-accent { background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); color: #fff; }
-  .re-card-accent .re-corridor-label { color: rgba(255,255,255,.7); }
-  .re-corridor-label { font-size: 11px; text-transform: uppercase; letter-spacing: .5px; opacity: .7; }
-  .re-corridor-value { font-size: 22px; font-weight: 700; margin-top: 4px; font-variant-numeric: tabular-nums; }
-  .re-card-sub { font-size: 11px; opacity: .7; margin-top: 4px; }
-  .re-chart { height: 300px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); }
-  .re-table { width: 100%; border-collapse: collapse; font-size: 13px; font-variant-numeric: tabular-nums; }
-  .re-table-wrap { border: 1px solid var(--border); border-radius: 8px; overflow: hidden; background: var(--surface); }
-  .re-table th { position: sticky; top: 0; background: var(--surface-alt); padding: 8px 12px; text-align: left; font-size: 12px; color: var(--text-dim); border-bottom: 1px solid var(--border); }
-  .re-table td { padding: 7px 12px; border-bottom: 1px solid var(--border-light); }
-  .re-loading { text-align: center; padding: 60px 20px; color: var(--text-dim); font-size: 14px; }
-  .re-error { text-align: center; padding: 40px 20px; color: #ef5350; }
-  .re-h2 { font-size: 15px; font-weight: 700; }
-</style>
 </head>
 <body>
 <div class="re-root">
@@ -38,15 +15,7 @@
     <span class="re-as-of" id="re-as-of"></span>
   </div>
 
-  <div class="re-nav">
-    <a href="/rates/">← 利率</a>
-    <a href="/credit/">信用</a>
-    <a href="/volatility/">波动率</a>
-    <a href="/rates/yield-curve.html">收益率曲线</a>
-    <a href="/rates/auctions.html">国债拍卖</a>
-    <a href="/rates/real-rates.html">实际利率</a>
-    <a href="/rates/expectations/">利率预期</a>
-  </div>
+  <div class="re-nav" id="re-nav"></div>
 
   <div id="re-cards"></div>
   <div class="re-h2">短期利率走廊（SOFR 分位 + 目标区间）</div>
@@ -134,5 +103,6 @@ async function load() {
 
 load().catch(e => R.fail(['re-cards', 're-recent'], e));
 </script>
+<script src="/js/nav.js"></script>
 </body>
 </html>

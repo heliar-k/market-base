@@ -5,31 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>VIX — US Macro</title>
 <link rel="stylesheet" href="/css/app.css">
+<link rel="stylesheet" href="/css/special.css">
 <script src="https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js"></script>
-<style>
-  .re-root { max-width: 1080px; margin: 0 auto; padding: 20px 16px; display: flex; flex-direction: column; gap: 16px; }
-  .re-header { display: flex; justify-content: space-between; align-items: baseline; flex-wrap: wrap; gap: 8px; }
-  .re-header h1 { font-size: 20px; font-weight: 700; }
-  .re-as-of { font-size: 13px; color: var(--text-dim); }
-  .re-nav { display: flex; gap: 8px; flex-wrap: wrap; }
-  .re-nav a { color: var(--accent); text-decoration: none; font-size: 13px; padding: 4px 10px; border: 1px solid var(--btn-border); border-radius: 4px; }
-  .re-nav a:hover { background: var(--surface-hover); }
-  .re-section { border: 1px solid var(--border); border-radius: 8px; background: var(--surface); padding: 14px 18px; }
-  .re-section h2 { font-size: 14px; font-weight: 700; margin-bottom: 8px; color: var(--text); }
-  .chart { width: 100%; height: 300px; }
-  .re-loading { text-align: center; padding: 60px 20px; color: var(--text-dim); font-size: 14px; }
-  .re-error { text-align: center; padding: 40px 20px; color: #ef5350; }
-  .re-table-wrap { overflow-x: auto; }
-  .re-table { width: 100%; border-collapse: collapse; font-size: 12px; font-variant-numeric: tabular-nums; }
-  .re-table th, .re-table td { padding: 5px 8px; text-align: right; white-space: nowrap; border-bottom: 1px solid var(--border); }
-  .re-table th { color: var(--text-dim); font-weight: 500; }
-  .re-table th:first-child, .re-table td:first-child { text-align: left; }
-  .term-head { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; margin-bottom: 10px; }
-  .term-badge { font-size: 12px; padding: 2px 10px; border-radius: 999px; border: 1px solid; }
-  .term-badge.contango { color: #34d399; border-color: #34d39955; background: #34d39915; }
-  .term-badge.backwardation { color: #f87171; border-color: #f8717155; background: #f8717115; }
-  .term-slope { font-size: 12px; color: var(--text-dim); }
-</style>
 </head>
 <body>
 <div class="re-root">
@@ -38,13 +15,7 @@
     <span class="re-as-of" id="re-as-of"></span>
   </div>
 
-  <div class="re-nav">
-    <a href="/credit/">信用</a>
-    <a href="/volatility/">波动率</a>
-    <a href="/rates/">利率</a>
-    <a href="/fed/">美联储</a>
-    <a href="/">← 仪表盘</a>
-  </div>
+  <div class="re-nav" id="re-nav"></div>
 
   <div class="re-section">
     <h2>VIX × SKEW（近 6 个月）</h2>
@@ -165,5 +136,6 @@ async function load() {
 }
 load().catch(e => R.fail(['vix_chart', 'vix_skew_scatter', 'skew_chart', 'vix_term_chart', 'recent-table'], e));
 </script>
+<script src="/js/nav.js"></script>
 </body>
 </html>
