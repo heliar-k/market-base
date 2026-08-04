@@ -402,80 +402,86 @@ def _spread(df: pd.DataFrame, a: str, b: str, name: str) -> dict:
 
 def _overview_signals(
     ig: dict, hy: dict, hy_ig: dict, funding: dict, sloos: list[dict], fincond: dict
-) -> list[dict]:
-    sigs = []
+) -> dict:
+    """三段式研判：What changed / Why it matters / What to watch next。
 
-    # 1. 利差水位
+    对齐原站 timsun.net/credit 的 AI 分析框架（rule-based · no direct price
+    forecast），全部由规则确定性生成。"""
+    std = next((s for s in sloos if "标准" in s["name"]), None) if sloos else None
+    hy_p = hy.get("pct_10y") if hy else None
+
+    # ── What changed：最新事实 ──
+    changed: list[str] = []
     if hy:
-        p = hy.get("pct_10y")
-        if p is not None:
-            level = "低位" if p < 30 else ("中位" if p < 70 else "高位")
-            txt = (
-                f"HY OAS 为 {hy['value']:.0f}bp，处于近十年 {p:.0f}% 分位（{level}）。"
-                + (
-                    "利差水位本身偏低，可能低估尾部风险。"
-                    if p < 30
-                    else "利差定价中性。"
-                )
-            )
-        else:
-            txt = f"HY OAS 为 {hy['value']:.0f}bp。"
-        if ig:
-            txt += f" IG OAS {ig['value']:.0f}bp，"
-            txt += f"HY−IG 价差 {hy_ig.get('value', 0):.0f}bp。"
-        sigs.append({"title": "利差水位", "text": txt})
-
-    # 2. All-in 融资成本
+        level = "低位" if (hy_p or 0) < 30 else ("中位" if (hy_p or 0) < 70 else "高位")
+        txt = f"HY OAS 最新为 {hy['value']:.1f}bp"
+        if hy_p is not None:
+            txt += f"，可用历史 {hy_p:.0f}% 分位（{level}）"
+        changed.append(txt)
     if funding.get("hy"):
-        txt = f"HY 有效收益率 {funding['hy']['value']:.2f}%"
-        parts = []
-        if funding.get("hy_ff") is not None:
-            parts.append(f"高于联邦基金利率 {funding['hy_ff']:.0f}bp")
-        if funding.get("hy_10y") is not None:
-            parts.append(f"高于 10Y 国债 {funding['hy_10y']:.0f}bp")
-        txt += (
-            "，".join(["", *parts])
-            + "。利差低不等于融资便宜："
-            + "无风险利率高位时，企业再融资成本仍压制回购与杠杆扩张。"
-        )
-        sigs.append({"title": "All-in 融资成本", "text": txt})
+        hy_yield = funding["hy"]["value"] / 100  # 内部存 bp
+        changed.append(f"HY 有效收益率 {hy_yield:.2f}%")
+    if std:
+        dirn = "收紧" if std["value"] > 0 else ("放松" if std["value"] < 0 else "持平")
+        changed.append(f"SLOOS 银行信贷标准净百分比 {std['value']:+.1f}%（{dirn}）")
+    what_changed = "；".join(changed) + "。" if changed else "信用数据缺失。"
 
-    # 3. 银行信贷
-    if sloos:
-        std = next((s for s in sloos if "标准" in s["name"]), None)
-        if std:
-            dirn = "收紧" if std["value"] > 0 else "放松"
-            txt = (
-                f"SLOOS 口径银行信贷标准净百分比 {std['value']:+.1f}%（{dirn}），"
-                "未确认系统性收紧。"
-                if std["value"] < 10
-                else f"SLOOS 银行信贷标准净百分比 {std['value']:+.1f}%，信贷正在收紧，"
-                "企业融资可得性恶化，风险资产承压。"
+    # ── Why it matters：解读 ──
+    why_parts: list[str] = []
+    if funding.get("hy"):
+        hy_yield = funding["hy"]["value"] / 100
+        why_parts.append(
+            f"企业融资的绝对成本仍处于高位（HY all-in yield {hy_yield:.2f}%）"
+        )
+    if hy_p is not None and hy_p < 30:
+        why_parts.append("利差水位本身偏低，可能低估尾部风险")
+    if std:
+        if std["value"] > 0:
+            why_parts.append("银行信贷正在收紧，企业融资可得性恶化")
+        elif std["value"] < 0:
+            why_parts.append("银行信贷未确认系统性收紧")
+    if why_parts:
+        why = "，".join(why_parts) + "。"
+    else:
+        why = "信用数据不足以形成判断。"
+    if std and std["value"] > 0 and funding.get("hy"):
+        why += "融资成本高位叠加银行收紧，估值弹性会先被压缩。"
+    elif std and std["value"] <= 0:
+        why += "信用没有确认压力时，通常支持风险偏好。"
+
+    # ── What to watch next：前瞻 ──
+    watch: list[str] = []
+    if std:
+        if std["value"] > 0:
+            watch.append(f"SLOOS 是否继续确认银行收紧（当前 {std['value']:+.1f}%）")
+        elif std["value"] < 0:
+            watch.append(
+                f"SLOOS 是否转正确认银行收紧（当前 {std['value']:+.1f}% 放松）"
             )
         else:
-            txt = "SLOOS 数据缺失。"
-        nf = fincond.get("nfci")
-        if nf:
-            txt += (
-                f" NFCI {nf['value']:+.2f}（{'偏紧' if nf['value'] > 0 else '偏松'}）。"
-            )
-        sigs.append({"title": "银行信贷", "text": txt})
-
-    # 4. 交叉确认
-    cross = []
-    if fincond.get("stlfsi"):
-        cross.append(f"STLFSI {fincond['stlfsi']['value']:+.2f}")
-    if fincond.get("ofr_fsi"):
-        cross.append(f"OFR FSI {fincond['ofr_fsi']['value']:+.2f}")
-    if cross:
-        txt = (
-            "金融压力代理指标："
-            + " / ".join(cross)
-            + "，均处历史宽松区，与利差低分位相互印证——信用维度当前未确认压力。"
-            + "若 NFCI 转正且 SLOOS 收紧，需警惕估值弹性先于利差走弱。"
+            watch.append("SLOOS 是否转正确认银行收紧（当前持平）")
+    nf = fincond.get("nfci")
+    if nf:
+        watch.append(f"NFCI 是否从 {nf['value']:+.2f} 附近上行")
+    if hy_p is not None and hy_p >= 30:
+        watch.append(f"HY OAS 分位是否从 {hy_p:.0f}% 继续上行")
+    if watch:
+        what_to_watch = (
+            "下一步看 "
+            + "、".join(watch[:-1])
+            + ("，以及 " if len(watch) > 1 else "")
+            + watch[-1]
+            + "。"
         )
-        sigs.append({"title": "交叉确认", "text": txt})
-    return sigs
+    else:
+        what_to_watch = "下一步看 SLOOS 与 HY OAS 数据是否延续。"
+
+    return {
+        "framework": "What changed / Why it matters / What to watch next",
+        "what_changed": what_changed,
+        "why_it_matters": why,
+        "what_to_watch": what_to_watch,
+    }
 
 
 # ── CDS 专题 ─────────────────────────────────────────────────────────────

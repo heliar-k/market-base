@@ -133,16 +133,23 @@ async function load() {
   row.innerHTML = card('IG OAS（投资级）', d.ig, 'bp') + card('HY OAS（高收益）', d.hy, 'bp') + card('HY − IG', d.hy_ig, 'bp');
   document.getElementById('oas-row').appendChild(row);
 
-  // ── 研判信号 ──
+  // ── 研判（三段式） ──
   const sec = document.createElement('div');
   sec.className = 're-section';
   sec.innerHTML = '<h2>信用周期研判</h2>';
-  d.signals.forEach(s => {
+  const s = d.signals;
+  const blocks = [
+    ['What changed', s.what_changed],
+    ['Why it matters', s.why_it_matters],
+    ['What to watch next', s.what_to_watch],
+  ];
+  blocks.forEach(([title, text]) => {
     const b = document.createElement('div');
     b.className = 'sig-block';
-    b.innerHTML = `<div class="sig-title">${s.title}</div><p>${s.text}</p>`;
+    b.innerHTML = `<div class="sig-title">${title}</div><p>${text}</p>`;
     sec.appendChild(b);
   });
+  sec.innerHTML += `<div class="note">框架：${s.framework} · rule-based · no direct price forecast</div>`;
   document.getElementById('re-signals').appendChild(sec);
 
   // ── OAS 分层表 ──
@@ -173,7 +180,7 @@ async function load() {
       { 指标: 'HY 有效收益率', 当前: f.hy.value, 对比: f.hy.as_of },
       { 指标: 'HY − 联邦基金利率', 当前: f.hy_ff, 对比: 'bp' },
       { 指标: 'HY − 10Y 国债', 当前: f.hy_10y, 对比: 'bp' },
-    ], { 当前: (v, r) => v === null || v === undefined ? '—' : r.对比 === 'bp' ? `${v.toFixed(0)}bp` : `${v.toFixed(2)}%` }));
+    ], { 当前: (v, r) => v === null || v === undefined ? '—' : r.对比 === 'bp' ? `${v.toFixed(0)}bp` : `${(v / 100).toFixed(2)}%` }));
   }
   document.getElementById('funding').appendChild(fsec);
 

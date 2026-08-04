@@ -6,6 +6,7 @@ import pytest
 from src.credit_analysis import (
     STRESS_WEIGHTS,
     _latest_card,
+    _overview_signals,
     _pct,
     _regime_score,
     _regime_zone,
@@ -265,3 +266,31 @@ class TestRegimeScore:
         assert _regime_zone(49.9)[0] == "neutral easing"
         assert _regime_zone(50)[0] == "neutral tightening"
         assert _regime_zone(100)[0] == "tightening"
+
+
+class TestOverviewSignals:
+    def test_three_part_framework(self):
+        hy = {"value": 284.0, "pct_10y": 27.0}
+        funding = {"hy": {"value": 716.0}}
+        sloos = [{"name": "C&I 贷款标准", "value": -5.7}]
+        fincond = {"nfci": {"value": -0.55}}
+        s = _overview_signals({}, hy, {}, funding, sloos, fincond)
+        assert s["framework"].startswith("What changed")
+        assert "284.0bp" in s["what_changed"]
+        assert "7.16%" in s["why_it_matters"]
+        assert "SLOOS 是否转正确认银行收紧" in s["what_to_watch"]
+        assert "NFCI 是否从 -0.55 附近上行" in s["what_to_watch"]
+
+    def test_tightening_branch(self):
+        # 银行收紧 + 融资成本高位 → 估值弹性先被压缩
+        funding = {"hy": {"value": 716.0}}
+        sloos = [{"name": "C&I 贷款标准", "value": 15.0}]
+        s = _overview_signals({}, {}, {}, funding, sloos, {})
+        assert "收紧" in s["what_changed"]
+        assert "估值弹性会先被压缩" in s["why_it_matters"]
+        assert "SLOOS 是否继续确认银行收紧" in s["what_to_watch"]
+
+    def test_missing_data_degrades(self):
+        s = _overview_signals({}, {}, {}, {}, [], {})
+        assert "数据缺失" in s["what_changed"]
+        assert s["what_to_watch"] == "下一步看 SLOOS 与 HY OAS 数据是否延续。"
