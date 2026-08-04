@@ -150,6 +150,7 @@ FRED_SERIES = {
     },
     "rates": {
         "FEDFUNDS": "FEDFUNDS",
+        "DFF": "DFF",  # 有效联邦基金利率（日频，fed-funds 页用；FEDFUNDS 为月频均值）
         "DFEDTARL": "DFEDTARL",
         "DFEDTARU": "DFEDTARU",
         "SOFR": "SOFR",

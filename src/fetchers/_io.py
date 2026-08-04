@@ -86,11 +86,21 @@ def load_timeseries(filepath: Path) -> pd.DataFrame:
     return df.set_index("date")
 
 
-def upsert_timeseries(filepath: Path, df: pd.DataFrame, backfill: bool = False) -> None:
+def upsert_timeseries(
+    filepath: Path,
+    df: pd.DataFrame,
+    backfill: bool = False,
+    column_order: list[str] | None = None,
+) -> None:
     """将完整时间序列 DataFrame upsert 进 CSV（index=观测日期）。
 
     同日期行以新数据覆盖旧值，新日期追加；列取并集，新数据缺失处保留旧值。
     backfill=True 时全量覆盖（清旧格式 junk），否则为 upsert。
+    column_order: 稳定列序（如 config.fred_series[category] 的键序）。
+    系列瞬时拉取失败时 combine_first 会把 old-only 列追加到列尾，若不重排，
+    整文件列序会来回 churn、污染 git 历史（审计 F-10）；其余列按字母序
+    固定在尾部（BGCR 等外部合并列）。内容与磁盘完全一致（值/列序/索引，
+    NaN 视为相等）时跳过写盘，避免定时任务每日整文件重写。
     与 save_daily_csv（拉取日快照）不同：此处 date 是观测日，适合月频/日频时间序列。
     """
     filepath.parent.mkdir(parents=True, exist_ok=True)
@@ -99,6 +109,7 @@ def upsert_timeseries(filepath: Path, df: pd.DataFrame, backfill: bool = False) 
     new = df.copy()
     new.index = new.index.astype(str)
 
+    old: pd.DataFrame | None = None
     if backfill or not filepath.exists():
         combined = new
     else:
@@ -108,4 +119,15 @@ def upsert_timeseries(filepath: Path, df: pd.DataFrame, backfill: bool = False) 
         combined = new.combine_first(old)
 
     combined = combined.sort_index()
+    # 列序归一化：primary 顺序 + 其余按字母序，消除瞬时缺列导致的列序 churn
+    if column_order:
+        primary = [c for c in column_order if c in combined.columns]
+        rest = sorted(c for c in combined.columns if c not in column_order)
+        combined = combined[primary + rest]
+
+    # 内容未变（字符串化比较，含列序/索引；NaN→'nan' 一致）→ 跳过写盘
+    if old is not None:
+        if old.astype(str).equals(combined.astype(str)):
+            return
+
     combined.to_csv(filepath, index_label="date")

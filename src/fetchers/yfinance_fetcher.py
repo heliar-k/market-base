@@ -10,6 +10,7 @@ Needs SOCKS5 proxy: socks5://127.0.0.1:7890
 
 import logging
 import os
+from pathlib import Path
 
 import pandas as pd
 
@@ -73,8 +74,9 @@ def fetch_ohlcv(ticker: str, period: str = "2y") -> pd.DataFrame:
     df = t.history(period=period)
     if df.empty:
         return pd.DataFrame()
-    # 统一列名与 ibkr_fetcher 一致
-    df.index = pd.to_datetime(df.index).tz_localize(None)
+    # 统一列名与 ibkr_fetcher 一致；索引清洗（时区剥离 + 归一到零点）
+    # 在此一处完成，各调用方不再各自处理（审计 E-9）
+    df.index = pd.to_datetime(df.index).tz_localize(None).normalize()
     df.index.name = "date"
     df = df.rename(
         columns={
@@ -167,6 +169,49 @@ def fetch_all_assets() -> list[DataPoint]:
     return results
 
 
+# 快照最少行数：credit_analysis 的 Market Liquidity 子分需要 22 日动量（≥23 条）
+_SEED_MIN_ROWS = 23
+
+
+def seed_history_if_short(filepath: Path, min_rows: int = _SEED_MIN_ROWS) -> None:
+    """快照行数不足 min_rows 时，用 yfinance 日线历史回填（close + volume）。
+
+    日频快照每天只追加 1 行，新建文件后要 ~1 个月才能支撑 HYG/LQD 22 日动量
+    与 KBWB 偏离度（审计 P1-⑩）。回填只在新文件/长期未跑时触发一次；
+    拉取复用 fetch_ohlcv（索引清洗/列名统一），写盘复用 _io.upsert_timeseries
+    按观测日合并（审计 D-6），不覆盖既有行。失败逐品种容忍，不影响当日快照。
+    """
+    from ._io import load_timeseries, upsert_timeseries
+
+    existing = load_timeseries(filepath)
+    if len(existing) >= min_rows:
+        return
+    ensure_yf_proxy()
+
+    # 每个品种一段（date × [close, volume]），外连接拼宽表 → 全品种同日期同行
+    frames: list[pd.DataFrame] = []
+    for name, ticker in config.yf_tickers.items():
+        try:
+            df = fetch_ohlcv(ticker, period="3mo")
+        except Exception as e:
+            logger.info(f"  ✗ 回填 {name}: {e}")
+            continue
+        if df.empty:
+            continue
+        vol = df["volume"] if "volume" in df else pd.Series(dtype=float)
+        frames.append(pd.DataFrame({name: df["close"], f"{name}_volume": vol}))
+    if not frames:
+        return
+    wide = pd.concat(frames, axis=1).sort_index()
+    # 列序与 save_daily_csv 首次创建一致：价格列在前、volume 列在后
+    wide = wide[
+        [c for c in wide.columns if not c.endswith("_volume")]
+        + [c for c in wide.columns if c.endswith("_volume")]
+    ]
+    upsert_timeseries(filepath, wide)
+    logger.info(f"  yfinance: 历史回填 {len(wide)} 行 → {filepath.name}")
+
+
 if __name__ == "__main__":
     from ._io import save_daily_csv
 
@@ -174,5 +219,7 @@ if __name__ == "__main__":
     ok = sum(1 for r in results if r.qa_status == QAStatus.OK)
     print(f"yfinance: {ok}/{len(results)} OK")
 
-    save_daily_csv(ROOT / "data" / "yfinance" / "asset_prices.csv", results)
+    path = ROOT / "data" / "yfinance" / "asset_prices.csv"
+    save_daily_csv(path, results)
     print("  → data/yfinance/asset_prices.csv")
+    seed_history_if_short(path)

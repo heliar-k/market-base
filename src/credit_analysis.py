@@ -26,8 +26,9 @@ from src.config import ROOT
 
 # 分位窗口（交易日）：1Y / 3Y / 10Y，样本不足时用可用历史并标记
 W1Y, W3Y, W10Y = 250, 750, 2500
-# 压力指数分位窗口：对齐 timsun「基于 365 天历史」≈ 250 交易日
-STRESS_W = W1Y
+# 压力指数分位窗口：对齐 timsun v2「最长 10 年滚动历史（3650 天），
+# 样本不足时按实际可用历史计算」（原 250 天为 v1 口径，审计 P1-⑨）
+STRESS_W = 3650
 
 # 压力指数分量权重（与 timsun 一致）
 STRESS_WEIGHTS = {"hy": 0.30, "ig": 0.20, "mom": 0.20, "vix": 0.15, "div": 0.15}
@@ -80,7 +81,11 @@ def _latest_card(
 
 
 def _pct(s: pd.Series, window: int, obs: dict | None = None) -> float | None:
-    """当前值在序列最近 window 条中的分位 %（0-100）。"""
+    """当前值在序列最近 window 条中的分位 %（0-100）。
+
+    严格小于口径（审计 P1-⑧）：FRED OAS 为整 bp 离散数据、并列值极多，
+    用 <= 会把当前值自身及全部并列值计入，虚高 5~18pp；对齐原站用 <。
+    """
     s = s.dropna()
     if s.empty:
         return None
@@ -88,25 +93,34 @@ def _pct(s: pd.Series, window: int, obs: dict | None = None) -> float | None:
     if obs is not None:
         obs["n"] = len(tail)
         obs["full"] = len(tail) >= window
-    return round((tail <= tail.iloc[-1]).mean() * 100, 1)
+    return round((tail < tail.iloc[-1]).mean() * 100, 1)
+
+
+def _chg_prev(s: pd.Series, n: int) -> tuple[float, float] | None:
+    """最近值与 n 个交易日前值；样本不足或前值缺失/为零返回 None。
+
+    变化类指标的公共守卫（审计 D-4/E-8）：与 volatility_analysis 同构，
+    统一判空条件，避免各副本行为漂移。
+    """
+    s = s.dropna()
+    if len(s) < n + 1:
+        return None
+    cur, prev = s.iloc[-1], s.iloc[-1 - n]
+    if pd.isna(prev) or prev == 0:
+        return None
+    return float(cur), float(prev)
 
 
 def _chg_bp(s: pd.Series, n: int) -> float | None:
     """最近值相对 n 个交易日前的变化（bp）。"""
-    s = s.dropna()
-    if len(s) < n + 1:
-        return None
-    cur, prev = s.iloc[-1], s.iloc[-1 - n]
-    return None if pd.isna(prev) else round((cur - prev) * 100, 1)
+    pair = _chg_prev(s, n)
+    return None if pair is None else round((pair[0] - pair[1]) * 100, 1)
 
 
 def _chg_pct(s: pd.Series, n: int) -> float | None:
     """最近值相对 n 个交易日前的变化 %。"""
-    s = s.dropna()
-    if len(s) < n + 1:
-        return None
-    cur, prev = s.iloc[-1], s.iloc[-1 - n]
-    return None if not prev else round((cur / prev - 1) * 100, 2)
+    pair = _chg_prev(s, n)
+    return None if pair is None else round((pair[0] / pair[1] - 1) * 100, 2)
 
 
 def _zone(score: float) -> tuple[str, str]:
@@ -551,7 +565,7 @@ def _rolling_pct(s: pd.Series, window: int, min_periods: int = 60) -> pd.Series:
     if len(s) < min_periods:
         return pd.Series(dtype=float)
     return s.rolling(window, min_periods=min_periods).apply(
-        lambda x: (x <= x[-1]).mean() * 100, raw=True
+        lambda x: (x < x[-1]).mean() * 100, raw=True
     )
 
 

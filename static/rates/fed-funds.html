@@ -54,7 +54,7 @@ async function load() {
     { label: '25th-75th 价差', value: `${p2575} bp`, sub: '核心分散度' },
     { label: '1st-99th 价差', value: `${p199} bp`, sub: '极端范围' },
     { label: 'SOFR 距目标上限', value: l.target && l.sofr ? `${((l.target[1] - l.sofr.value) * 100).toFixed(1)}bp` : '—', sub: '越接近 = 流动性越紧' },
-    { label: 'SOFR 成交量', value: l.sofr_vol ? `${Math.round(l.sofr_vol.value / 1000)} 千亿` : '—', sub: l.sofr_vol?.as_of },
+    { label: 'SOFR 成交量', value: l.sofr_vol ? `${(l.sofr_vol.value / 10000).toFixed(2)} 万亿美元` : '—', sub: l.sofr_vol?.as_of },
   ]));
 
   // ── 走廊图：EFFR/SOFR/TGCR/BGCR/ONRRP 五利率 + 目标区间 ──

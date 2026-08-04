@@ -88,11 +88,22 @@ def _bp_change(rates: pd.DataFrame, col: str, window: int) -> float | None:
     return round((cur - prev) * _BP, 1)
 
 
-def _spread(rates: pd.DataFrame, a: str, b: str, window: int = 0) -> float | None:
-    va, vb = _snapshot(rates, a, window), _snapshot(rates, b, window)
+def _spread_vals(va: float | None, vb: float | None) -> float | None:
+    """利差核心：va − vb（bp）；任一侧缺失返回 None，不伪造 0。"""
     if va is None or vb is None:
         return None
     return round((va - vb) * _BP, 1)
+
+
+def _spread(rates: pd.DataFrame, a: str, b: str, window: int = 0) -> float | None:
+    va, vb = _snapshot(rates, a, window), _snapshot(rates, b, window)
+    return _spread_vals(va, vb)
+
+
+def _spread_vs_us(local: float | None, us: float | None) -> float | None:
+    """该市场相对美国的利差（bp）。约定 美国 − 该市场（与 timsun 符号一致，
+    审计 P1-④）；复用 _spread_vals 核心公式（审计 D-5），缺失不伪造 0。"""
+    return _spread_vals(us, local)
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -277,16 +288,33 @@ def yield_curve_analysis() -> dict:
     effr = _snapshot(rates, "FEDFUNDS", 0)
     y2 = _snapshot(rates, "DGS2", 0)
     if effr is not None and y2 is not None:
-        # 2Y 低于 EFFR = 市场定价降息 → 与熊陡的短端下行前提一致
-        ok = y2 < effr
+        # 短端定价与曲线形态的一致性（审计 P1-⑥）：
+        # 熊陡/熊平 = 长端驱动 → 短端应未定价降息（higher-for-longer，2Y ≥ EFFR）；
+        # 牛陡/牛平 = 短端驱动 → 短端应定价降息（2Y < EFFR）。
+        # 原判据恒取 y2 < effr，与同页熊陡归因自相矛盾（timsun 同场景标 ✓）。
+        if shape in ("熊陡", "熊平"):
+            ok = y2 >= effr
+            note = (
+                f"降息预期回落，2Y 在 {y2:.2f}% 处获得支撑，与长端驱动一致"
+                if ok
+                else "短端定价降息，与长端驱动矛盾"
+            )
+        elif shape in ("牛陡", "牛平"):
+            ok = y2 < effr
+            note = (
+                "短端定价降息，与短端驱动一致"
+                if ok
+                else "短端未定价降息，与牛向形态矛盾"
+            )
+        else:
+            ok = True
+            note = "形态中性，短端定价不构成矛盾"
         checks.append(
             {
                 "name": "联储利率预期",
                 "value": f"EFFR {effr:.2f}% vs 2Y {y2:.2f}%",
                 "ok": ok,
-                "note": "短端定价降息，与熊陡前提一致"
-                if ok
-                else "短端定价加息，与熊陡前提矛盾",
+                "note": note,
             }
         )
     if not auc.empty:
@@ -304,6 +332,21 @@ def yield_curve_analysis() -> dict:
                 }
             )
     confidence = sum(1 for c in checks if c["ok"])
+
+    # 全球长端对照（美/日/中 10Y + 30Y）：
+    # spread = 美国 − 该市场（bp，与 timsun 符号一致）；缺数据返回 None 不伪造
+    us10, us30 = _snapshot(rates, "DGS10", 0), _snapshot(rates, "DGS30", 0)
+    jp10 = _snapshot(rates, "JP10Y", 0) if "JP10Y" in rates.columns else None
+    cn10 = (
+        _snapshot(cgb, "cgb_10y", 0)
+        if not cgb.empty and "cgb_10y" in cgb.columns
+        else None
+    )
+    cn30 = (
+        _snapshot(cgb, "cgb_30y", 0)
+        if not cgb.empty and "cgb_30y" in cgb.columns
+        else None
+    )
 
     return {
         "as_of": as_of,
@@ -361,8 +404,8 @@ def yield_curve_analysis() -> dict:
             {
                 "market": "美国",
                 "note": "10Y Treasury",
-                "rate": _snapshot(rates, "DGS10", 0),
-                "rate30": _snapshot(rates, "DGS30", 0),
+                "rate": us10,
+                "rate30": us30,
                 "spread_vs_us": 0.0,
                 "spread30_vs_us": 0.0,
                 "source": "FRED DGS10 · daily",
@@ -370,52 +413,19 @@ def yield_curve_analysis() -> dict:
             {
                 "market": "日本",
                 "note": "10Y JGB",
-                "rate": _snapshot(rates, "JP10Y", 0),
+                "rate": jp10,
                 "rate30": None,
-                "spread_vs_us": (
-                    round(
-                        (
-                            (_snapshot(rates, "JP10Y", 0) or 0)
-                            - (_snapshot(rates, "DGS10", 0) or 0)
-                        )
-                        * _BP,
-                        1,
-                    )
-                    if "JP10Y" in rates.columns
-                    else None
-                ),
+                "spread_vs_us": _spread_vs_us(jp10, us10),
                 "spread30_vs_us": None,
                 "source": "FRED IRLTLT01JPM156N · monthly",
             },
             {
                 "market": "中国",
                 "note": "10Y CGB",
-                "rate": _snapshot(cgb, "cgb_10y", 0),
-                "rate30": _snapshot(cgb, "cgb_30y", 0),
-                "spread_vs_us": (
-                    round(
-                        (
-                            (_snapshot(cgb, "cgb_10y", 0) or 0)
-                            - (_snapshot(rates, "DGS10", 0) or 0)
-                        )
-                        * _BP,
-                        1,
-                    )
-                    if not cgb.empty and "cgb_10y" in cgb.columns
-                    else None
-                ),
-                "spread30_vs_us": (
-                    round(
-                        (
-                            (_snapshot(cgb, "cgb_30y", 0) or 0)
-                            - (_snapshot(rates, "DGS30", 0) or 0)
-                        )
-                        * _BP,
-                        1,
-                    )
-                    if not cgb.empty and "cgb_30y" in cgb.columns
-                    else None
-                ),
+                "rate": cn10,
+                "rate30": cn30,
+                "spread_vs_us": _spread_vs_us(cn10, us10),
+                "spread30_vs_us": _spread_vs_us(cn30, us30),
                 "source": "chinamoney RtimeYldCurv · daily",
             },
         ],

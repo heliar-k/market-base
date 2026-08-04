@@ -51,6 +51,20 @@ class TestScoreText:
         assert any("dissent" in h for h in hits)
         assert "raise the target range" not in hits
 
+    def test_overlapping_phrases_not_double_counted(self):
+        # 'rate cuts' 同时命中其子串 'rate cut' → 只按最长短语计一次（审计 P1-⑫）
+        score, hits = _score_text("The committee expects rate cuts later this year.")
+        assert score == -3.0
+        assert hits.count("rate cuts") == 1
+        assert "rate cut" not in hits
+
+    def test_repeated_phrase_counts_once(self):
+        # 同一短语多次出现只计一次分（审计 C-1，hits 不重复）
+        text = "Rate cuts are likely. More rate cuts would follow if data warrants."
+        score, hits = _score_text(text)
+        assert score == -3.0
+        assert hits.count("rate cuts") == 1
+
     def test_speech_action_words_downgraded(self):
         # 演讲里讨论降息（如 "markets expect rate cuts"）不应得满分鸽派
         text = "Markets expect rate cuts this year, but the outlook is data dependent."

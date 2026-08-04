@@ -43,13 +43,25 @@ def _latest(s: pd.Series) -> float | None:
     return float(s.iloc[-1]) if not s.empty else None
 
 
+def _chg_prev(s: pd.Series, n: int) -> tuple[float, float] | None:
+    """最近值与 n 个交易日前值；样本不足或前值缺失/为零返回 None。
+
+    变化类指标的公共守卫（审计 D-4/E-8）：统一判空条件，
+    避免 _chg_pct/_chg_pts 等副本各自实现导致行为漂移。
+    """
+    s = s.dropna()
+    if len(s) < n + 1:
+        return None
+    cur, prev = s.iloc[-1], s.iloc[-1 - n]
+    if pd.isna(prev) or prev == 0:
+        return None  # 缺失或零基数（相对变化会除零）
+    return float(cur), float(prev)
+
+
 def _chg_pct(s: pd.Series, window: int) -> float | None:
     """最近值相对 window 个交易日前的变化 %。"""
-    s = s.dropna()
-    if len(s) < window + 1:
-        return None
-    cur, prev = s.iloc[-1], s.iloc[-1 - window]
-    return None if not prev else round((cur / prev - 1) * 100, 2)
+    pair = _chg_prev(s, window)
+    return None if pair is None else round((pair[0] / pair[1] - 1) * 100, 2)
 
 
 def _percentile(s: pd.Series, window: int | None = None) -> float | None:
@@ -80,6 +92,12 @@ def _slope_label(slope: float) -> str:
     return "陡峭 backwardation"
 
 
+def _chg_pts(s: pd.Series, n: int) -> float | None:
+    """最近值相对 n 个交易日前的变化（点数）。"""
+    pair = _chg_prev(s, n)
+    return None if pair is None else round(pair[0] - pair[1], 2)
+
+
 def vix_card(df: pd.DataFrame) -> dict:
     """首页 VIX 卡片：最新值 / 日周变动 / 分位 / 区间徽章。"""
     s = df["VIX"].dropna()
@@ -92,6 +110,8 @@ def vix_card(df: pd.DataFrame) -> dict:
         "as_of": s.index[-1].strftime("%Y-%m-%d"),
         "chg_1d_pct": _chg_pct(s, 1),
         "chg_1w_pct": _chg_pct(s, 5),
+        # 点数口径（对齐 timsun 卡片「7 日变化 −2.84pt」，审计 P2-②）
+        "chg_1w": _chg_pts(s, 5),
         "percentile_1y": _percentile(s, 250),
         "zone": zone,
         "zone_color": color,

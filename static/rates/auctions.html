@@ -18,14 +18,14 @@
   <div class="re-nav" id="re-nav"></div>
 
   <div id="re-cards"></div>
-  <div class="re-h2">付息券 Bid-to-Cover 趋势（2 / 5 / 10 / 30Y，近 1 年）</div>
+  <div class="re-h2">付息券 Bid-to-Cover 趋势（2 / 5 / 10 / 30Y，近 1 年，含重开拍卖）</div>
   <div class="re-chart" id="trend_chart"></div>
   <div class="re-h2">📅 未来拍卖日历（未来 21 天）</div>
   <div id="re-upcoming"></div>
   <div class="re-h2">📊 最近拍卖结果（近 90 天）</div>
   <div id="re-recent"></div>
   <div class="re-source">数据来源：美国财政部 Fiscal Data API（auctions_query / upcoming_auctions），每日自动同步。</div>
-  <div class="re-source">释义：Bid-to-Cover = 投标倍数（认购额/发行额，>2.5x 需求良好，<2.0x 警戒）；间接% = 间接投标人（外国官方+国际机构）接受占比，反映海外需求；Tail = 中标利率 − 中位投标利率（bp），正 = 弱于预期。</div>
+  <div class="re-source">释义：Bid-to-Cover = 投标倍数（认购额/发行额，>2.5x 需求良好，<2.0x 警戒）；间接% = 间接投标人（外国官方+国际机构）接受占比，反映海外需求；Tail = 中标利率 − 中位投标利率（bp），正 = 弱于预期。<b>口径说明：</b>Tail 为代理口径（中标高位 − 中标中位数，审计 P2-①），非市场标准的 high yield − 发行前 when-issued 收益率（数据源无 WI 值），方向性可用、数值偏大。</div>
 </div>
 
 <script src="/js/rates-common.js"></script>

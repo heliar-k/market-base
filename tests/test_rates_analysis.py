@@ -8,6 +8,7 @@ from src.rates_analysis import (
     _coupon_cover,
     _invalidation,
     _shape_label,
+    _spread_vs_us,
     _time_frame,
     _trade_implications,
     yield_curve_analysis,
@@ -55,6 +56,17 @@ class TestInvalidation:
     def test_flat_needs_directional_move(self):
         conds = _invalidation("走平", 45.0, 4.68)
         assert "单方向移动超 20bp" in conds[0]
+
+
+class TestSpreadVsUs:
+    def test_us_minus_local_sign(self):
+        # 符号约定：美国 − 该市场（对齐 timsun，审计 P1-④）
+        assert _spread_vs_us(2.67, 4.75) == 208.0
+
+    def test_missing_side_returns_none(self):
+        # NaN 全列/缺失不得伪造 0 利差（审计 P1-⑤）
+        assert _spread_vs_us(None, 4.75) is None
+        assert _spread_vs_us(2.67, None) is None
 
 
 class TestBreakeven:

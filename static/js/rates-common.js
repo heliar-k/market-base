@@ -54,7 +54,9 @@ const R = {
   },
 
   // 数据表格（复用 expectations 页的 re-table 样式）
-  table(headers, rows, formatters = {}) {
+  // keys: 可选，显式指定每列对应的行键；缺省按 Object.keys(row) 顺序取列
+  // （行键顺序与列头不一致时会错列，显式 keys 可避免——审计 P1-③）
+  table(headers, rows, formatters = {}, keys = null) {
     const wrap = document.createElement('div');
     wrap.className = 're-table-wrap';
     const table = document.createElement('table');
@@ -69,7 +71,7 @@ const R = {
       const r = document.createElement('tr');
       headers.forEach((h, j) => {
         const td = document.createElement('td');
-        const key = Object.keys(row)[j];
+        const key = (keys && keys[j]) || Object.keys(row)[j];
         const fmt = formatters[key] || ((v) => (v === null || v === undefined || v === '' ? '—' : String(v)));
         td.textContent = fmt(row[key], row);
         r.appendChild(td);

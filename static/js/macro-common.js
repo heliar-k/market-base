@@ -10,7 +10,7 @@ export const MACRO_LABELS = {
   EXPINF_5Y: '5年期通胀预期', EXPINF_10Y: '10年期通胀预期',
   UNRATE: '失业率', PAYEMS: '非农就业人数', ICSA: '初请失业金人数',
   GDP: '国内生产总值(GDP)', INDPRO: '工业生产指数',
-  FEDFUNDS: '联邦基金利率', DFEDTARL: 'FOMC 目标利率下限', DFEDTARU: 'FOMC 目标利率上限',
+  FEDFUNDS: '联邦基金利率', DFF: '有效联邦基金利率', DFEDTARL: 'FOMC 目标利率下限', DFEDTARU: 'FOMC 目标利率上限',
   SOFR: '担保隔夜融资利率', SOFR1: 'SOFR 1st 分位数', SOFR25: 'SOFR 25th 分位数',
   SOFR75: 'SOFR 75th 分位数', SOFR99: 'SOFR 99th 分位数', SOFRVOL: 'SOFR 日成交量',
   OBFR: '隔夜银行融资利率', IORB: '准备金余额利率',

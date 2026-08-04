@@ -54,7 +54,10 @@ def fetch_auction_results() -> pd.DataFrame:
     """拉取全量历史拍卖结果，派生 indirect_pct / tail_bp。
 
     indirect_pct = indirect_bidder_accepted / total_accepted * 100（海外需求占比）
-    tail_bp = (high_yield - avg_med_yield) * 100（拍卖结果 vs 预期，bp）
+    tail_bp = (high_yield - avg_med_yield) * 100（代理口径，审计 P2-①：
+      市场标准 tail = high yield − 发行前 when-issued 收益率；本数据源无 WI 值，
+      以 中标收益率高位 − 中标收益率中位数 近似，方向性可用、数值偏大，
+      前端拍卖页已标注代理口径）
     """
     rows = _fetch_all_pages(
         f"{API_BASE}/auctions_query", RESULTS_COLUMNS, "auction_date"

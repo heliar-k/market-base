@@ -46,8 +46,10 @@ async function load() {
   document.getElementById('re-as-of').textContent = '数据截至 ' + data.as_of;
 
   // 卡片行：VIX 最新值 + 徽章 | VIX 水平参考
+  // 周变动用点数口径（对齐 timsun「7 日变化 −2.84pt」，审计 P2-②），百分比附注保留
   const chg1d = v.chg_1d_pct === null ? '' : `${v.chg_1d_pct > 0 ? '▲' : '▼'} ${Math.abs(v.chg_1d_pct).toFixed(2)}% 日 · `;
-  const chg1w = v.chg_1w_pct === null ? '' : `${v.chg_1w_pct > 0 ? '▲' : '▼'} ${Math.abs(v.chg_1w_pct).toFixed(2)}% 周`;
+  const chg1wPct = v.chg_1w_pct === null ? '' : `（${v.chg_1w_pct > 0 ? '+' : ''}${v.chg_1w_pct.toFixed(2)}%）`;
+  const chg1w = v.chg_1w === null ? '' : `${v.chg_1w > 0 ? '▲' : '▼'} ${Math.abs(v.chg_1w).toFixed(2)}pt${chg1wPct} 周`;
   const row = document.createElement('div');
   row.className = 'vix-row';
   row.innerHTML = `

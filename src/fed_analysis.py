@@ -204,6 +204,10 @@ def _score_text(text: str, action_weight: float = 1.0) -> tuple[float, list[str]
 
     action_weight: 动作词（加息/降息）权重系数。声明=1.0（决议可靠），
     演讲=0.5（提及/讨论 ≠ 倾向，避免 'market expects rate cuts' 类误伤）。
+
+    短语命中采用最长匹配 + 重叠去重（审计 P1-⑫）：'rate cuts' 命中后，
+    其子串 'rate cut' 不再单独计分；同一短语多处出现只计一次分（审计 C-1，
+    避免 hits 列表与前端渲染出现 'rate cuts · rate cuts' 重复）。
     """
     low = text.lower()
     score = 0.0
@@ -219,10 +223,30 @@ def _score_text(text: str, action_weight: float = 1.0) -> tuple[float, list[str]
                 continue
         scan_lines.append(line)
     low = "\n".join(scan_lines)
+
+    # 收集全部候选短语的匹配区间（同一短语多处出现各自成区间）
+    spans: list[tuple[int, int, str, float]] = []
     for words, s in [*_ACTION_WORDS, *_INFLATION_WORDS, *_LABOR_WORDS, *_TONE_WORDS]:
-        if words in low:
-            score += s * (action_weight if words in _ACTION_PHRASES else 1.0)
-            hits.append(words)
+        start = 0
+        while True:
+            i = low.find(words, start)
+            if i < 0:
+                break
+            spans.append((i, i + len(words), words, s))
+            start = i + 1
+    # 最长优先；重叠（含子串/交叉）只保留首个；同一短语多处出现只计一次分
+    spans.sort(key=lambda p: (-(p[1] - p[0]), p[0]))
+    covered: list[tuple[int, int]] = []
+    used: set[str] = set()
+    for start, end, words, s in spans:
+        if any(start < ce and end > cs for cs, ce in covered):
+            continue  # 与已命中短语重叠（子串/交叉）→ 跳过
+        covered.append((start, end))  # 即使已计过分的短语，区间也作为覆盖物
+        if words in used:
+            continue  # 同短语至多计一次分（旧实现语义）
+        used.add(words)
+        score += s * (action_weight if words in _ACTION_PHRASES else 1.0)
+        hits.append(words)
     return round(max(-5.0, min(5.0, score)), 1), hits
 
 

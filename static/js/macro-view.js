@@ -4,10 +4,11 @@ import { registerMacroTheme, reThemeECharts } from './echarts-theme.js';
 import { MACRO_COLORS, MACRO_LABELS, MACRO_DATE_RANGES, applyDateFilter } from './macro-common.js';
 
 // ── corridor chart config ───────────────────────────────────────────────────
-const CORRIDOR_KEYS = ['FEDFUNDS', 'DFEDTARL', 'DFEDTARU', 'SOFR', 'OBFR', 'IORB'];
+// EFFR 用 DFF（日频）；FEDFUNDS 为月频均值，画在日频图上会错位/滞后（审计 P1-②）
+const CORRIDOR_KEYS = ['DFF', 'DFEDTARL', 'DFEDTARU', 'SOFR', 'OBFR', 'IORB'];
 const CORRIDOR_COLORS = {
   DFEDTARL: '#ef5350', DFEDTARU: '#ef5350',
-  FEDFUNDS: '#1a73e8', SOFR: '#ff9800', OBFR: '#4caf50', IORB: '#9c27b0',
+  DFF: '#1a73e8', SOFR: '#ff9800', OBFR: '#4caf50', IORB: '#9c27b0',
 };
 
 // ── state ──────────────────────────────────────────────────────────────────
@@ -193,21 +194,21 @@ function renderCorridorDashboard(container) {
       name: MACRO_LABELS[key] || key,
       type: 'line',
       data: rates.map(d => [d.date, d[key]]),
-      lineStyle: { width: key === 'FEDFUNDS' ? 2 : 1.2, type: key === 'DFEDTARL' || key === 'DFEDTARU' ? 'dashed' : 'solid' },
+      lineStyle: { width: key === 'DFF' ? 2 : 1.2, type: key === 'DFEDTARL' || key === 'DFEDTARU' ? 'dashed' : 'solid' },
       itemStyle: { color: CORRIDOR_COLORS[key] || MACRO_COLORS[0] },
       showSymbol: false, emphasis: { focus: 'series' },
     }))
   );
   macroChartInstances['corridor-main'] = { chart: ec1, observer: observe(ec1, ch1) };
 
-  // ── 联邦基金有效利率（5 年）──
+  // ── 联邦基金有效利率（5 年，DFF 日频）──
   const ch2 = appendChart(container, 280);
   const ec2 = initCorridorChart(ch2, '联邦基金有效利率',
     { axisLabel: { formatter: '{value}%' } },
     [{
-      name: MACRO_LABELS['FEDFUNDS'] || 'FEDFUNDS',
+      name: MACRO_LABELS['DFF'] || 'DFF',
       type: 'line',
-      data: rates.map(d => [d.date, d.FEDFUNDS]),
+      data: rates.map(d => [d.date, d.DFF]),
       lineStyle: { width: 2, color: '#1a73e8' },
       itemStyle: { color: '#1a73e8' },
       showSymbol: false, emphasis: { focus: 'series' },
@@ -263,8 +264,8 @@ function appendChart(container, height) {
 // ── 近期数据表 ──
 function buildCorridorTable(data) {
   const rows = data.slice(-30).reverse();
-  const header = ['日期', 'FEDFUNDS', '下限', '上限', 'SOFR', 'OBFR', 'IORB', '成交量(B)'];
-  const keys = ['date', 'FEDFUNDS', 'DFEDTARL', 'DFEDTARU', 'SOFR', 'OBFR', 'IORB', 'SOFRVOL'];
+  const header = ['日期', 'EFFR(日)', '下限', '上限', 'SOFR', 'OBFR', 'IORB', '成交量(B)'];
+  const keys = ['date', 'DFF', 'DFEDTARL', 'DFEDTARU', 'SOFR', 'OBFR', 'IORB', 'SOFRVOL'];
   const thead = `<tr>${header.map(h => `<th>${h}</th>`).join('')}</tr>`;
   const tbody = rows.map(r =>
     `<tr>${keys.map(k => `<td>${r[k] != null ? (k === 'date' ? r[k] : typeof r[k] === 'number' ? r[k].toFixed(2) : r[k]) : '—'}</td>`).join('')}</tr>`

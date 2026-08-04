@@ -70,18 +70,19 @@ async function load() {
     ],
   }));
 
-  // ── 全球长端对照表 ──
+  // 全局长端对照表：显式 keys（6 列头 ↔ 6 键），
+  // 修复 Object.keys 取列时第 6 列“来源”错渲染成 spread30 的问题（审计 P1-③）
   document.getElementById('re-global').replaceChildren(R.table(
-    ['市场', '说明', '10Y 收益率', '30Y 收益率', 'vs 美国 (bp)', '来源'],
+    ['市场', '说明', '10Y 收益率', '30Y 收益率', '美国 − 该市场 (bp)', '来源'],
     d.global_long_end.map(g => ({
       market: g.market, note: g.note, rate: g.rate, rate30: g.rate30,
-      spread: g.spread_vs_us, spread30: g.spread30_vs_us, source: g.source,
+      spread: g.spread_vs_us, source: g.source,
     })),
     {
       rate: R.fmtPct, rate30: R.fmtPct,
       spread: (v) => (v === null || v === undefined ? '—' : `${v > 0 ? '+' : ''}${v.toFixed(0)}`),
-      spread30: (v) => (v === null || v === undefined ? '—' : `${v > 0 ? '+' : ''}${v.toFixed(0)}`),
     },
+    ['market', 'note', 'rate', 'rate30', 'spread', 'source'],
   ));
 
   // ── 1 月变化柱状图 ──

@@ -213,6 +213,7 @@ _MACRO_LABELS = {
     "GDP": "国内生产总值(GDP)",
     "INDPRO": "工业生产指数",
     "FEDFUNDS": "联邦基金利率",
+    "DFF": "有效联邦基金利率",
     "DFEDTARL": "FOMC 目标利率下限",
     "DFEDTARU": "FOMC 目标利率上限",
     "SOFR": "担保隔夜融资利率",
@@ -549,6 +550,9 @@ def get_liquidity_overview(range: str = Query("all")):
             )
 
     # Pre-compute stacked cumulative for area chart (WRESBAL → +WTREGEN → +RRPONTSYD)
+    # 周频列（WRESBAL/WTREGEN）在非发布日必须 ffill 而非 fillna(0)：
+    # fillna(0) 会让累计在非周三日期跌到 ~0，产生万亿级假跌落（审计 P1-⑪）。
+    # 仅序列开头无前值的 NaN 补 0（此前观测为 0，语义正确）。
     stack_keys = ["WRESBAL", "WTREGEN", "RRPONTSYD"]
     cum = pd.DataFrame(index=filtered.index)
     running = pd.Series(0.0, index=filtered.index)
@@ -558,7 +562,7 @@ def get_liquidity_overview(range: str = Query("all")):
             if sk in filtered.columns
             else pd.Series(0.0, index=filtered.index)
         )
-        running = running.add(col.fillna(0))
+        running = running.add(col.ffill().fillna(0))
         cum[sk] = running
     stacked = {}
     for sk in stack_keys:
@@ -772,8 +776,11 @@ def get_rates_analysis() -> dict:
 def get_rates_fed_funds() -> dict:
     """联邦基金利率：EFFR/SOFR/目标区间 + 走廊 + 成交量 + 历史。"""
     df = _macro_df("rates")
+    # EFFR 用 DFF（日频，1999-03 起）；FEDFUNDS 是月频均值，
+    # 当日频绘制会错位（审计 P1-②）
+    effr_col = "DFF" if "DFF" in df.columns else "FEDFUNDS"
     latest = {}
-    for col, key in [("FEDFUNDS", "effr"), ("SOFR", "sofr"), ("SOFRVOL", "sofr_vol")]:
+    for col, key in [(effr_col, "effr"), ("SOFR", "sofr"), ("SOFRVOL", "sofr_vol")]:
         s = df[col].dropna() if col in df.columns else pd.Series(dtype=float)
         if not s.empty:
             latest[key] = {
@@ -792,7 +799,7 @@ def get_rates_fed_funds() -> dict:
             # 利率走廊（近 90 天）：EFFR/SOFR/TGCR/BGCR/ONRRP 五利率 + 目标区间
             "corridor": {
                 "dates": [d.strftime("%Y-%m-%d") for d in df.tail(90).index],
-                "effr": _series(df, "FEDFUNDS", 90),
+                "effr": _series(df, effr_col, 90),
                 "sofr": _series(df, "SOFR", 90),
                 "tgcr": _series(df, "TGCR", 90),
                 "bgcr": _series(df, "BGCR", 90),
@@ -805,10 +812,10 @@ def get_rates_fed_funds() -> dict:
                 "target_hi": _series(df, "DFEDTARU", 90),
             },
             "sofr_vol": _series(df, "SOFRVOL", 90),
-            "effr_history": _series(df, "FEDFUNDS", 5 * 250),
+            "effr_history": _series(df, effr_col, 5 * 250),
             "recent": [
                 {"date": d.strftime("%Y-%m-%d"), "effr": float(v)}
-                for d, v in df["FEDFUNDS"].dropna().tail(30).items()
+                for d, v in df[effr_col].dropna().tail(30).items()
             ],
         }
     )
@@ -858,6 +865,26 @@ def get_rates_real_rates(days: int = Query(365, le=2000)) -> dict:
     )
 
 
+def _trend_bucket(term: str) -> str | None:
+    """拍卖标的期限 → 趋势分组（含重开拍卖，审计 P1-⑦）。
+
+    Treasury 重开标的的 security_term 是剩余期限：10Y 重开 1/2 个月后叫
+    '9-Year 11-Month' / '9-Year 10-Month'，30Y 重开叫 '29-Year *'。
+    归入原发行期限组，避免趋势图只画原始发行、365 天窗口内每线只剩几个点。
+    """
+    if not isinstance(term, str):
+        return None
+    if term == "2-Year" or term.startswith("1-Year"):
+        return "2-Year"
+    if term == "5-Year" or term.startswith("4-Year"):
+        return "5-Year"
+    if term == "10-Year" or term.startswith("9-Year"):
+        return "10-Year"
+    if term == "30-Year" or term.startswith("29-Year"):
+        return "30-Year"
+    return None
+
+
 @app.get("/api/rates/auctions")
 def get_rates_auctions() -> dict:
     """国债拍卖：需求概览 + 近 90 天结果 + 未来 21 天日历 + 2/5/10/30Y 趋势。"""
@@ -891,7 +918,7 @@ def get_rates_auctions() -> dict:
 
     trend = {}
     for term in ["2-Year", "5-Year", "10-Year", "30-Year"]:
-        sub = auc[auc["security_term"] == term]
+        sub = auc[auc["security_term"].map(_trend_bucket) == term]
         sub = sub.loc[sub.index >= today - pd.Timedelta(days=365)]
         trend[term.replace("-Year", "Y")] = [
             {

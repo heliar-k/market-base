@@ -27,11 +27,12 @@ def _series(n: int, descending: bool = False, start: float = 1.0) -> pd.Series:
 
 class TestPct:
     def test_ascending_last_is_max(self):
-        assert _pct(_series(300), 250) == 100.0
+        # 严格小于口径（对齐原站，审计 P1-⑧）：最大值自身不计入 → (250-1)/250
+        assert _pct(_series(300), 250) == 99.6
 
     def test_descending_last_is_min(self):
-        # 递减序列：最新值最小，(<=) 占比 = 1/窗口
-        assert _pct(_series(300, descending=True), 250) == pytest.approx(100 / 250)
+        # 递减序列：最新值最小，无严格小于它的值 → 0
+        assert _pct(_series(300, descending=True), 250) == 0.0
 
     def test_window_full_marks_obs(self):
         obs = {}
@@ -46,7 +47,7 @@ class TestPct:
     def test_exact_window_is_full(self):
         # n == window 边界：尾窗恰好全量
         obs = {}
-        assert _pct(_series(250), 250, obs) == 100.0
+        assert _pct(_series(250), 250, obs) == 99.6
         assert obs == {"n": 250, "full": True}
 
     def test_empty_returns_none(self):
@@ -58,22 +59,24 @@ class TestRollingPct:
         assert _rolling_pct(_series(59), 250, min_periods=60).empty
 
     def test_exactly_min_periods_produces_first_value(self):
-        # len == min_periods 的边界：首个滚动值出现且基于 60 条
+        # len == min_periods 的边界：首个滚动值出现且基于 60 条；
+        # 递减序列当前值最小 → 严格小于占比为 0（审计 P1-⑧）
         out = _rolling_pct(_series(60, descending=True), 250, min_periods=60)
         assert len(out) == 60
-        assert out.dropna().iloc[0] == pytest.approx(100 / 60)
+        assert out.dropna().iloc[0] == pytest.approx(0.0)
 
-    def test_ascending_peaks_at_100(self):
+    def test_ascending_peaks_at_max(self):
         out = _rolling_pct(_series(300), 250, min_periods=60)
         assert not out.empty
-        assert out.dropna().eq(100).all()
+        # 满窗时当前值为窗内最大 → (250-1)/250 = 99.6
+        assert out.dropna().iloc[-1] == pytest.approx(99.6)
 
     def test_window_len_governs_value(self):
-        # 递减：窗口内最后一条最小 → 1/len(x)；首窗口 len=min_periods
+        # 递减：窗口内最后一条最小 → 严格小于占比恒为 0（审计 P1-⑧）
         out = _rolling_pct(_series(300, descending=True), 250, min_periods=60)
         vals = out.dropna()
-        assert vals.iloc[0] == pytest.approx(100 / 60)
-        assert vals.iloc[-1] == pytest.approx(100 / 250)
+        assert vals.iloc[0] == pytest.approx(0.0)
+        assert vals.iloc[-1] == pytest.approx(0.0)
 
 
 class TestLatestCard:
@@ -124,7 +127,8 @@ class TestStressComposite:
         )
         out = stress(df_vol, pd.DataFrame(), pd.DataFrame(), pd.DataFrame())
         comp = {c["key"]: c["value"] for c in out["components"]}
-        assert comp["hy"] == 100
+        # 严格小于口径：STRESS_W=3650 覆盖全样本 → 299/300 四舍五入 99.7
+        assert comp["hy"] == 99.7
         assert comp["mom"] == pytest.approx(11.0)  # 22bp / 2
         assert comp["div"] == 0
         wh, wi, wm, wv, wd = self.W
@@ -149,7 +153,8 @@ class TestStressComposite:
         )
         out = stress(df_vol, pd.DataFrame(), pd.DataFrame(), pd.DataFrame())
         comp = {c["key"]: c["value"] for c in out["components"]}
-        assert comp["div"] == pytest.approx(99.6)
+        # hy 严格小于 → 0.0；vix 99.7；div = |0 − 99.7| = 99.7 真正贡献权重
+        assert comp["div"] == pytest.approx(99.7)
         wh, wi, wm, wv, wd = self.W
         assert out["composite"] == round(
             wh * comp["hy"]
@@ -171,8 +176,8 @@ class TestStressComposite:
         )
         out = stress(df_vol, pd.DataFrame(), pd.DataFrame(), pd.DataFrame())
         comp = {c["key"]: c["value"] for c in out["components"]}
-        assert comp["ig"] == 100
-        assert comp["vix"] == pytest.approx(0.4)
+        assert comp["ig"] == 99.7
+        assert comp["vix"] == 0.0
         wh, wi, wm, wv, wd = self.W
         assert out["composite"] == round(
             wh * comp["hy"]
@@ -197,8 +202,10 @@ class TestStressComposite:
         out = stress(df_vol, pd.DataFrame(), pd.DataFrame(), pd.DataFrame())
         comp = {c["key"]: c["value"] for c in out["components"]}
         assert comp["vix"] == 0
-        assert comp["div"] == pytest.approx(100)
-        assert out["composite"] == pytest.approx(0.30 * 100 + 0.20 * 11.0 + 0.15 * 100)
+        assert comp["div"] == pytest.approx(99.7)
+        assert out["composite"] == pytest.approx(
+            round(0.30 * 99.7 + 0.20 * 11.0 + 0.15 * 99.7, 1)
+        )
 
     def test_missing_hy_column_degrades(self):
         # HY_OAS 缺失：hy_pct=0、raw=None，不抛异常
@@ -231,13 +238,14 @@ class TestRegimeScore:
         df_yf = pd.DataFrame({"HYG": _series(n), "LQD": _series(n)})
         out = _regime_score(df_vol, df_cr, df_yf)
         comp = {c["key"]: c["value"] for c in out["components"]}
-        assert comp["spread_level"] == 100
+        assert comp["spread_level"] == 99.7
         assert comp["spread_mom"] == 61.0  # 50 + 22bp/2
-        assert comp["funding_cost"] == 100
+        assert comp["funding_cost"] == 99.7
         assert comp["credit_supply"] == 10.0
-        assert comp["credit_quality"] == pytest.approx(2.5)  # 100/40 递减
+        # 递减序列严格小于 → 0（并列值不放大分位，审计 P1-⑧）
+        assert comp["credit_quality"] == 0.0
         assert comp["market_liq"] == 0.0
-        assert comp["cross_asset"] == 100
+        assert comp["cross_asset"] == 99.7
         vals = [v for v in comp.values() if v is not None]
         assert out["score"] == round(sum(vals) / len(vals), 1)
         assert out["regime"] == "中性偏紧"
@@ -257,7 +265,7 @@ class TestRegimeScore:
         assert comp["spread_level"] is None
         assert comp["market_liq"] is None
         assert comp["credit_supply"] is None
-        assert out["score"] == pytest.approx(80.5)  # (mom 61 + cross 100)/2，其余降级
+        assert out["score"] == pytest.approx(80.4)  # round((mom 61 + cross 99.7)/2)
         assert "Market Liquidity" in out["missing"]
 
     def test_zone_boundaries(self):

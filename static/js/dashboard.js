@@ -137,7 +137,7 @@ async function refreshCards() {
   // Macro API returns flat array: [{date, KEY1, KEY2, ...}, ...]
   renderStatCard('ds-VIX', vix, 'VIX', '波动率指数', 2);
   renderStatCard('ds-CPI', cpi, 'CPI', '消费者物价', 1, '%', 'yoy');
-  renderStatCard('ds-FEDFUNDS', rates, 'FEDFUNDS', '联邦基金利率', 2, '%');
+  renderStatCard('ds-FEDFUNDS', rates, 'DFF', '联邦基金利率', 2, '%');
   renderStatCard('ds-DXY', fx, 'DXY', '美元指数', 2);
 }
 

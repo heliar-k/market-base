@@ -78,6 +78,9 @@ if __name__ == "__main__":
     backfill_data = fetch_all_fred()
     for cat, df in backfill_data.items():
         path = root / "data" / "fred" / cat / f"{cat}.csv"
-        upsert_timeseries(path, df, backfill=args.backfill)
+        # 稳定列序 = 配置键序：系列瞬时失败不会把列挪到文件尾（审计 F-10）
+        upsert_timeseries(
+            path, df, backfill=args.backfill, column_order=list(config.fred_series[cat])
+        )
         print(f"  → data/fred/{cat}/{cat}.csv ({len(df.columns)} 指标 × {len(df)} 行)")
     print(f"完成 {len(backfill_data)} 个分类")

@@ -19,7 +19,7 @@ from datetime import date, timedelta
 import pandas as pd
 import requests
 
-from ..config import ROOT
+from ..config import ROOT, config
 
 logger = logging.getLogger(__name__)
 
@@ -80,7 +80,13 @@ if __name__ == "__main__":
         print(f"BGCR: {label} 区间内无数据（{start} ~ {end}）")
         raise SystemExit(1)
 
-    upsert_timeseries(path, df, backfill=args.backfill)
+    # BGCR 是外部合并列：按 FRED rates 键序排前、BGCR 固定排尾（审计 F-10）
+    upsert_timeseries(
+        path,
+        df,
+        backfill=args.backfill,
+        column_order=list(config.fred_series["rates"]),
+    )
     print(
         f"BGCR {label} upsert: → {path}（{len(df)} 个交易日, 最新 {df.index[-1]} "
         f"= {df['BGCR'].iloc[-1]:.2f}%）"
