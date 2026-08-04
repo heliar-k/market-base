@@ -39,7 +39,19 @@
   .oas-card .pcts { font-size: 12px; color: var(--text-secondary); }
   .oas-card .date { font-size: 11px; color: var(--text-dim); margin-top: 4px; }
   .note { font-size: 12px; color: var(--text-dim); margin-top: 6px; }
+  .regime-card { display: flex; gap: 20px; align-items: center; padding: 16px 18px; }
+  .regime-score { text-align: center; min-width: 130px; }
+  .regime-score .score { font-size: 40px; font-weight: 800; font-variant-numeric: tabular-nums; line-height: 1; }
+  .regime-score .of100 { font-size: 12px; color: var(--text-dim); }
+  .regime-score .badge { display: inline-block; margin-top: 6px; padding: 2px 10px; border-radius: 999px; font-size: 12px; font-weight: 600; color: #0f172a; }
+  .regime-bars { flex: 1; display: flex; flex-direction: column; gap: 6px; }
+  .regime-bar { display: grid; grid-template-columns: 150px 1fr 34px; align-items: center; gap: 8px; font-size: 12px; }
+  .regime-bar .track { height: 8px; border-radius: 4px; background: var(--border); overflow: hidden; }
+  .regime-bar .fill { height: 100%; border-radius: 4px; }
+  .regime-bar .val { text-align: right; font-variant-numeric: tabular-nums; color: var(--text); }
+  .regime-bar .dim { color: var(--text-dim); }
   @media (max-width: 640px) { .oas-row { grid-template-columns: 1fr; } }
+  @media (max-width: 640px) { .regime-card { flex-direction: column; } }
 </style>
 </head>
 <body>
@@ -59,6 +71,7 @@
     <a href="/">← 仪表盘</a>
   </div>
 
+  <div id="regime"></div>
   <div id="oas-row"></div>
   <div id="re-signals"></div>
   <div id="layers"></div>
@@ -75,6 +88,34 @@
 async function load() {
   const d = await R.get('/api/credit/overview');
   document.getElementById('re-as-of').textContent = '数据截至 ' + d.as_of;
+
+  // ── Credit Regime Score 记分卡 ──
+  const rg = d.regime;
+  const rsec = document.createElement('div');
+  rsec.className = 're-section';
+  const bars = rg.components.map(c => {
+    const v = c.value;
+    const w = v === null || v === undefined ? 0 : v;
+    const bar = `
+      <div class="regime-bar">
+        <span>${c.name}</span>
+        <div class="track"><div class="fill" style="width:${w}%;background:${rg.color}"></div></div>
+        <span class="${v === null ? 'dim' : 'val'}">${v === null ? '—' : v}</span>
+      </div>`;
+    return bar;
+  }).join('');
+  rsec.innerHTML = `
+    <h2>Credit Regime Score</h2>
+    <div class="regime-card">
+      <div class="regime-score">
+        <div class="score" style="color:${rg.color}">${rg.score === null ? '—' : rg.score}</div>
+        <div class="of100">/ 100</div>
+        <div class="badge" style="background:${rg.color}">${rg.regime}</div>
+      </div>
+      <div class="regime-bars">${bars}</div>
+    </div>
+    <p class="note">高分 = 信用压力更大；综合分 = 7 子分等权平均。${rg.missing.length ? '子分数据不足（' + rg.missing.join('、') + '），综合分按可用子分降级计算。' : ''}口径：Spread 10Y 分位 · Momentum 22 日变化 · Funding 3Y 分位 · Supply 取 SLOOS 收紧净百分比 · Quality 逾期/核销 10Y 分位 · Liquidity ETF 动量 · Cross-Asset VIX/HY 均值。</p>`;
+  document.getElementById('regime').appendChild(rsec);
 
   // ── 利差卡片行 ──
   const pctStr = c => c.pct_10y === null || c.pct_10y === undefined

@@ -145,6 +145,123 @@ def _oas_card(s: pd.Series) -> dict:
 # ── 总览 ─────────────────────────────────────────────────────────────────
 
 
+# ── Credit Regime Score ─────────────────────────────────────────────────
+# 对齐 timsun.net/credit 的 7 子分合成面板（口径逆向自原站页面数据）：
+#   Spread Level      = 0.5*(IG_OAS + HY_OAS) 10Y 分位      （原站 21.6 ≈ (20+23)/2）
+#   Spread Momentum   = 50 + HY_OAS 22 日变化bp/2（带符号）  （原站 55：走阔方向为正）
+#   Funding Cost      = 0.5*(IG_YIELD + HY_YIELD) 3Y 分位   （原站 70，假设混入 IG）
+#   Credit Supply     = max(0, SLOOS C&I 标准净百分比)      （原站 0：-5.7% 放松=
+#                       无压力，非数据缺失）
+#   Credit Quality    = 5 项逾期/核销率 近 10Y（40 条季度）分位平均（原站 82.1：
+#                       87/84/71/95/74 平均 82.2 ✓ 已用本地数据验证 tail(40) 口径）
+#   Market Liquidity  = 50 - HYG/LQD 22 日动量%（跌=流动性紧=高分）
+#   Cross-Asset       = 0.5*(VIX + HY_OAS) 10Y 分位       （原站 34.8 ≈ (41+27)/2）
+# 综合分 = 7 子分等权平均（原站 46.0 = (21.6+55+70+0+82.1+58.8+34.8)/7 ✓ 验证等权）。
+# 子分数据不足（<样本下限）时置 None 并降级为可用子分平均；
+# 原站公式细节不公开，数值偏差属可接受口径假设。
+REGIME_ZONES = [
+    ("easing", 0, 25, "#34d399"),
+    ("neutral easing", 25, 50, "#a7f3d0"),
+    ("neutral tightening", 50, 75, "#fbbf24"),
+    ("tightening", 75, 101, "#f87171"),
+]
+
+
+def _regime_zone(score: float) -> tuple[str, str]:
+    for label, lo, hi, color in REGIME_ZONES:
+        if lo <= score < hi:
+            return label, color
+    return "tightening", "#f87171"
+
+
+def _regime_score(
+    df_vol: pd.DataFrame, df_cr: pd.DataFrame, df_yf: pd.DataFrame
+) -> dict:
+    """7 子分 Credit Regime Score 合成（口径见模块注释，高分 = 更大信用压力）。"""
+    hy = df_vol["HY_OAS"].dropna() if "HY_OAS" in df_vol else pd.Series(dtype=float)
+    ig = df_vol["IG_OAS"].dropna() if "IG_OAS" in df_vol else pd.Series(dtype=float)
+    vix = df_vol["VIX"].dropna() if "VIX" in df_vol else pd.Series(dtype=float)
+
+    def _liq_mom(col: str) -> float | None:
+        s = df_yf[col].dropna() if col in df_yf else pd.Series(dtype=float)
+        if len(s) < 23:
+            return None
+        chg = (s.iloc[-1] / s.iloc[-1 - 22] - 1) * 100
+        return round(min(100, max(0, 50 - chg * 10)), 1)
+
+    def _regime_pct(s: pd.Series, window: int) -> float | None:
+        return _pct(s, window) if not s.empty else None
+
+    # 各子分
+    spread_level = None
+    p_ig, p_hy = _regime_pct(ig, W10Y), _regime_pct(hy, W10Y)
+    if p_ig is not None and p_hy is not None:
+        spread_level = round((p_ig + p_hy) / 2, 1)
+
+    spread_mom = None
+    if not hy.empty and len(hy) >= 23:
+        chg = (hy.iloc[-1] - hy.iloc[-1 - 22]) * 100  # bp
+        spread_mom = round(min(100, max(0, 50 + chg / 2)), 1)
+
+    funding = None
+    fy, iy = None, None
+    if "HY_YIELD" in df_cr:
+        fy = _regime_pct(df_cr["HY_YIELD"].dropna(), W3Y)
+    if "IG_YIELD" in df_cr:
+        iy = _regime_pct(df_cr["IG_YIELD"].dropna(), W3Y)
+    if fy is not None and iy is not None:
+        funding = round((fy + iy) / 2, 1)
+
+    supply = None
+    if "SLOOS_CI_STD" in df_cr:
+        v = _latest(df_cr["SLOOS_CI_STD"])
+        supply = round(max(0.0, v or 0.0), 1) if v is not None else None
+
+    quality = None
+    q_cols = ["DELINQ_CI", "DELINQ_CRE", "DELINQ_CC", "CHGOFF_BUS", "CHGOFF_CONS"]
+    q_pcts = [_regime_pct(df_cr[c].dropna(), 40) for c in q_cols if c in df_cr]
+    if len(q_pcts) == len(q_cols) and all(p is not None for p in q_pcts):
+        quality = round(sum(q_pcts) / len(q_pcts), 1)
+
+    liq = None
+    l_hyg, l_lqd = _liq_mom("HYG"), _liq_mom("LQD")
+    if l_hyg is not None and l_lqd is not None:
+        liq = round((l_hyg + l_lqd) / 2, 1)
+
+    cross = None
+    p_vix = _regime_pct(vix, W10Y)
+    if p_vix is not None and p_hy is not None:
+        cross = round((p_vix + p_hy) / 2, 1)
+
+    comps = [
+        ("spread_level", "Spread Level", spread_level, p_hy),
+        (
+            "spread_mom",
+            "Spread Momentum",
+            spread_mom,
+            hy.iloc[-1] * 100 if not hy.empty else None,
+        ),
+        ("funding_cost", "Funding Cost", funding, fy),
+        ("credit_supply", "Credit Supply", supply, None),
+        ("credit_quality", "Credit Quality", quality, None),
+        ("market_liq", "Market Liquidity", liq, None),
+        ("cross_asset", "Cross-Asset Confirmation", cross, p_vix),
+    ]
+    values = [v for _, _, v, _ in comps if v is not None]
+    total = round(sum(values) / len(values), 1) if values else None
+    label, color = _regime_zone(total) if total is not None else ("—", "#999")
+
+    return {
+        "score": total,
+        "regime": label,
+        "color": color,
+        "components": [
+            {"key": k, "name": n, "value": v, "raw": r} for k, n, v, r in comps
+        ],
+        "missing": [n for _, n, v, _ in comps if v is None],
+    }
+
+
 def overview(
     df_vol: pd.DataFrame,
     df_cr: pd.DataFrame,
@@ -260,6 +377,7 @@ def overview(
             liq_etf[key] = card
 
     return {
+        "regime": _regime_score(df_vol, df_cr, df_yf),
         "ig": ig,
         "hy": hy,
         "hy_ig": hy_ig,

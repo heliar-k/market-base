@@ -7,6 +7,8 @@ from src.credit_analysis import (
     STRESS_WEIGHTS,
     _latest_card,
     _pct,
+    _regime_score,
+    _regime_zone,
     _rolling_pct,
     stress,
 )
@@ -203,3 +205,63 @@ class TestStressComposite:
         comp = {c["key"]: c["value"] for c in out["components"]}
         assert comp["hy"] == 0
         assert out["components"][0]["raw"] is None
+
+
+class TestRegimeScore:
+    def test_composite_is_equal_weight_average(self):
+        # 全部递增：各分位=100，mom=61（+22bp/2），supply=10，liq clamp 到 0
+        n = 300
+        df_vol = pd.DataFrame(
+            {"HY_OAS": _series(n) / 100, "IG_OAS": _series(n) / 100, "VIX": _series(n)}
+        )
+        df_cr = pd.DataFrame(
+            {
+                "HY_YIELD": _series(n) / 100,
+                "IG_YIELD": _series(n) / 100,
+                "SLOOS_CI_STD": _series(n).where(_series(n) <= 10, 10.0),
+                "DELINQ_CI": _series(45, descending=True),
+                "DELINQ_CRE": _series(45, descending=True),
+                "DELINQ_CC": _series(45, descending=True),
+                "CHGOFF_BUS": _series(45, descending=True),
+                "CHGOFF_CONS": _series(45, descending=True),
+            }
+        )
+        df_yf = pd.DataFrame({"HYG": _series(n), "LQD": _series(n)})
+        out = _regime_score(df_vol, df_cr, df_yf)
+        comp = {c["key"]: c["value"] for c in out["components"]}
+        assert comp["spread_level"] == 100
+        assert comp["spread_mom"] == 61.0  # 50 + 22bp/2
+        assert comp["funding_cost"] == 100
+        assert comp["credit_supply"] == 10.0
+        assert comp["credit_quality"] == pytest.approx(2.5)  # 100/40 递减
+        assert comp["market_liq"] == 0.0
+        assert comp["cross_asset"] == 100
+        vals = [v for v in comp.values() if v is not None]
+        assert out["score"] == round(sum(vals) / len(vals), 1)
+        assert out["regime"] == "neutral tightening"
+
+    def test_supply_zero_when_easing(self):
+        # SLOOS 负值（放松标准）→ 0 分，非数据缺失（对齐原站口径）
+        df_cr = pd.DataFrame({"SLOOS_CI_STD": [10.0, 5.0, -5.7]})
+        out = _regime_score(pd.DataFrame(), df_cr, pd.DataFrame())
+        comp = {c["key"]: c["value"] for c in out["components"]}
+        assert comp["credit_supply"] == 0.0
+
+    def test_missing_data_degrades_to_available_average(self):
+        # 只有 HY_OAS + VIX：6 项缺失 → 综合 = 2 项平均，missing 列表列出
+        df_vol = pd.DataFrame({"HY_OAS": _series(300) / 100, "VIX": _series(300)})
+        out = _regime_score(df_vol, pd.DataFrame(), pd.DataFrame())
+        comp = {c["key"]: c["value"] for c in out["components"]}
+        assert comp["spread_level"] is None
+        assert comp["market_liq"] is None
+        assert comp["credit_supply"] is None
+        assert out["score"] == pytest.approx(80.5)  # (mom 61 + cross 100)/2，其余降级
+        assert "Market Liquidity" in out["missing"]
+
+    def test_zone_boundaries(self):
+        assert _regime_zone(0)[0] == "easing"
+        assert _regime_zone(24.9)[0] == "easing"
+        assert _regime_zone(25)[0] == "neutral easing"
+        assert _regime_zone(49.9)[0] == "neutral easing"
+        assert _regime_zone(50)[0] == "neutral tightening"
+        assert _regime_zone(100)[0] == "tightening"
