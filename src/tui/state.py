@@ -61,18 +61,6 @@ class LookbackCursor:
         idx = self.index() + steps
         self.cursor_date = self.dates[min(idx, len(self.dates) - 1)]
 
-    def reset_to_end(self) -> None:
-        """重置到最后一根（切标的时调）。"""
-        self.cursor_date = None
-
-    def at_start(self) -> bool:
-        """是否在第一根。"""
-        return bool(self.dates) and self.index() == 0
-
-    def at_end(self) -> bool:
-        """是否在最后一根。"""
-        return bool(self.dates) and self.index() == len(self.dates) - 1
-
 
 @dataclass
 class SubplotSlots:
@@ -84,10 +72,6 @@ class SubplotSlots:
     CANDIDATES: ClassVar[tuple] = ("RSI", "MACD", "Stoch", "CCI", "MFI")
     slot1: str = "RSI"
     slot2: str = "MACD"
-
-    def current(self) -> tuple[str, str]:
-        """返回 (slot1, slot2)。"""
-        return (self.slot1, self.slot2)
 
     def cycle_slot1(self) -> None:
         """槽位1 轮换到下一个候选（跳过当前 slot2 占用的）。"""

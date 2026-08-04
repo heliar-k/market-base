@@ -185,7 +185,6 @@ class MainScreen(Container):
         self._current_df: pd.DataFrame | None = None  # 当前加载的 df（带指标）
         self._current_symbol: str | None = None
         self._macro_df: pd.DataFrame | None = None  # 宏观当前分类 df（带派生列）
-        self._macro_category_loaded: str | None = None  # 已加载到 macro_view 的分类
         self._debounce_timer = None  # 侧栏防抖定时器
 
     def compose(self) -> ComposeResult:
@@ -232,7 +231,6 @@ class MainScreen(Container):
             # 分类变化 → 重置叠加集合 + 期限光标，并（重新）加载数据
             if category != self.macro_view.category:
                 self._macro_df = None
-                self._macro_category_loaded = None
             self._load_macro_worker(category)
             return
         # 技术分析：Worker 化加载
@@ -394,7 +392,6 @@ class MainScreen(Container):
     def _on_macro_loaded(self, category: str, df: pd.DataFrame) -> None:
         """宏观 df 就绪：分类变化时重置状态 + 挂载/更新 MacroChart。"""
         self._macro_df = df
-        self._macro_category_loaded = category
         if category != self.macro_view.category:
             self.macro_view.on_category_changed(category, list(df.index))
         # 挂载 MacroChart（或复用已有）

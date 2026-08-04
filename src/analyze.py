@@ -25,6 +25,19 @@ from src.indicators import compute_all_indicators, detect_cdl_hits, load_data
 warnings.filterwarnings("ignore", message=".*frame\\.insert.*")
 
 
+def _num(x, nd: int | None = None) -> float | None:
+    """pd 值 → float，NaN → None；nd 给定则四舍五入。"""
+    if not pd.notna(x):
+        return None
+    v = float(x)
+    return round(v, nd) if nd is not None else v
+
+
+def _int(x) -> int | None:
+    """pd 值 → int，NaN → None。"""
+    return int(x) if pd.notna(x) else None
+
+
 def analyze(df: pd.DataFrame, symbol: str, as_of=None) -> dict:
     """从带指标的 DataFrame 提取诊断结果。
 
@@ -50,7 +63,7 @@ def analyze(df: pd.DataFrame, symbol: str, as_of=None) -> dict:
 
     # ── RSI ──
     rsi = last.get("RSI")
-    rsi = float(rsi) if pd.notna(rsi) else None
+    rsi = _num(rsi)
 
     # ── MACD ──
     macd = last.get("MACD")
@@ -72,18 +85,18 @@ def analyze(df: pd.DataFrame, symbol: str, as_of=None) -> dict:
 
     # ── ATR ──
     atr = last.get("ATR")
-    atr = float(atr) if pd.notna(atr) else None
+    atr = _num(atr)
 
     # ── 成交量 ──
-    vol_ratio = last.get("vol_ratio") if pd.notna(last.get("vol_ratio")) else None
+    vol_ratio = _num(last.get("vol_ratio"))
 
     # ── ADX/DMI ──
     adx = last.get("ADX")
-    adx = float(adx) if pd.notna(adx) else None
+    adx = _num(adx)
     dmp = last.get("DMP")
-    dmp = float(dmp) if pd.notna(dmp) else None
+    dmp = _num(dmp)
     dmn = last.get("DMN")
-    dmn = float(dmn) if pd.notna(dmn) else None
+    dmn = _num(dmn)
     adx_trend = None
     if adx is not None:
         if adx > 25:
@@ -95,9 +108,9 @@ def analyze(df: pd.DataFrame, symbol: str, as_of=None) -> dict:
 
     # ── Stochastic ──
     stoch_k = last.get("STOCH_k")
-    stoch_k = float(stoch_k) if pd.notna(stoch_k) else None
+    stoch_k = _num(stoch_k)
     stoch_d = last.get("STOCH_d")
-    stoch_d = float(stoch_d) if pd.notna(stoch_d) else None
+    stoch_d = _num(stoch_d)
     stoch_detail = None
     if stoch_k is not None and stoch_d is not None:
         if stoch_k < 20 and stoch_d < 20:
@@ -109,15 +122,15 @@ def analyze(df: pd.DataFrame, symbol: str, as_of=None) -> dict:
 
     # ── SuperTrend ──
     supert_dir = last.get("SUPERT_dir")
-    supert_dir = int(supert_dir) if pd.notna(supert_dir) else None
+    supert_dir = _int(supert_dir)
     supert_long = last.get("SUPERT_long_stop")
-    supert_long = float(supert_long) if pd.notna(supert_long) else None
+    supert_long = _num(supert_long)
     supert_short = last.get("SUPERT_short_stop")
-    supert_short = float(supert_short) if pd.notna(supert_short) else None
+    supert_short = _num(supert_short)
 
     # ── OBV 背离检测 ──
     obv = last.get("OBV")
-    obv = float(obv) if pd.notna(obv) else None
+    obv = _num(obv)
     obv_divergence = None
     if obv is not None and len(df) >= 20:
         # 20日价格高点 vs OBV 高点
@@ -142,7 +155,7 @@ def analyze(df: pd.DataFrame, symbol: str, as_of=None) -> dict:
 
     # ── CCI ──
     cci = last.get("CCI")
-    cci = float(cci) if pd.notna(cci) else None
+    cci = _num(cci)
     cci_detail = None
     if cci is not None:
         if cci > 200:
@@ -158,21 +171,21 @@ def analyze(df: pd.DataFrame, symbol: str, as_of=None) -> dict:
 
     # ── MFI ──
     mfi = last.get("MFI")
-    mfi = float(mfi) if pd.notna(mfi) else None
+    mfi = _num(mfi)
 
     # ── 蜡烛形态（按 as_of 查命中，避免全量 attrs 的未来污染） ──
     cdl_bullish, cdl_bearish = detect_cdl_hits(df, as_of)
 
     # ── SMC (Smart Money Concepts) ──
     smc_structure = last.get("SMC_structure")
-    smc_structure = int(smc_structure) if pd.notna(smc_structure) else None
+    smc_structure = _int(smc_structure)
     smc_pd_zone = last.get("SMC_pd_zone", None)
     smc_premium = last.get("SMC_premium")
-    smc_premium = float(smc_premium) if pd.notna(smc_premium) else None
+    smc_premium = _num(smc_premium)
     smc_equilibrium = last.get("SMC_equilibrium")
-    smc_equilibrium = float(smc_equilibrium) if pd.notna(smc_equilibrium) else None
+    smc_equilibrium = _num(smc_equilibrium)
     smc_discount = last.get("SMC_discount")
-    smc_discount = float(smc_discount) if pd.notna(smc_discount) else None
+    smc_discount = _num(smc_discount)
 
     # 最近 5 天内的 BOS/CHoCH 信号
     recent_5 = df.tail(5)
@@ -194,18 +207,16 @@ def analyze(df: pd.DataFrame, symbol: str, as_of=None) -> dict:
 
     # Liquidity Sweep
     smc_sweep = last.get("SMC_sweep")
-    smc_sweep = int(smc_sweep) if pd.notna(smc_sweep) else None
+    smc_sweep = _int(smc_sweep)
     smc_sweep_level = last.get("SMC_sweep_level")
-    smc_sweep_level = float(smc_sweep_level) if pd.notna(smc_sweep_level) else None
+    smc_sweep_level = _num(smc_sweep_level)
     smc_recent_sweep = (
         int(recent_10["SMC_sweep"].abs().sum()) if "SMC_sweep" in df.columns else 0
     )
 
     # MTF (多时间框架)
     smc_weekly_structure = last.get("SMC_weekly_structure")
-    smc_weekly_structure = (
-        int(smc_weekly_structure) if pd.notna(smc_weekly_structure) else None
-    )
+    smc_weekly_structure = _int(smc_weekly_structure)
     smc_htf_bias = last.get("SMC_htf_bias", None)
 
     # ── 近期涨跌 ──
@@ -384,13 +395,13 @@ def analyze(df: pd.DataFrame, symbol: str, as_of=None) -> dict:
         "ma_values": ma_values,
         "RSI": round(rsi, 1) if rsi else None,
         "RSI_detail": rsi_detail,
-        "MACD": round(float(macd), 3) if pd.notna(macd) else None,
-        "MACD_signal": round(float(macd_signal), 3) if pd.notna(macd_signal) else None,
-        "MACD_hist": round(float(macd_hist), 3) if pd.notna(macd_hist) else None,
+        "MACD": _num(macd, 3),
+        "MACD_signal": _num(macd_signal, 3),
+        "MACD_hist": _num(macd_hist, 3),
         "MACD_status": macd_status,
-        "BB_upper": round(float(bb_upper), 2) if pd.notna(bb_upper) else None,
-        "BB_lower": round(float(bb_lower), 2) if pd.notna(bb_lower) else None,
-        "BB_mid": round(float(bb_mid), 2) if pd.notna(bb_mid) else None,
+        "BB_upper": _num(bb_upper, 2),
+        "BB_lower": _num(bb_lower, 2),
+        "BB_mid": _num(bb_mid, 2),
         "BB_position": round(bb_pos, 0) if bb_pos is not None else None,
         "ATR": round(atr, 2) if atr else None,
         "vol_ratio": round(float(vol_ratio), 2) if vol_ratio else None,

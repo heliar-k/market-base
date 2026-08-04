@@ -32,10 +32,6 @@ function disposeChart(name) {
   delete macroChartInstances[name];
 }
 
-function disposeAllCharts() {
-  Object.keys(macroChartInstances).forEach(disposeChart);
-}
-
 function observe(chart, el) {
   const observer = new ResizeObserver(() => chart.resize());
   observer.observe(el);

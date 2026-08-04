@@ -122,11 +122,7 @@ def yf_minute_bars(ticker: str, interval: str) -> pd.DataFrame:
 
 def _fetch_ticker(ticker: str, name: str) -> DataPoint:
     """Fetch a single yfinance ticker and return a DataPoint."""
-    dp = DataPoint(
-        metric=name,
-        source="Yahoo Finance / yfinance",
-        formula="asset_prices.close, daily close",
-    )
+    dp = DataPoint(metric=name)
     try:
         ensure_yf_proxy()
         import yfinance as yf
@@ -142,14 +138,12 @@ def _fetch_ticker(ticker: str, name: str) -> DataPoint:
             dp.mark_error()
             return dp
         close = close_series.iloc[-1]
-        ts = hist.loc[close_series.index[-1]].name
         dp.value = round(float(close), 4)
         # 同日成交量（部分品种/时段可能缺失 → None，容忍）
         vol_series = (
             hist["Volume"].dropna() if "Volume" in hist else pd.Series(dtype=float)
         )
         dp.volume = round(float(vol_series.iloc[-1])) if not vol_series.empty else None
-        dp.as_of = ts.strftime("%Y-%m-%d")
         dp.mark_ok()
     except Exception as e:
         logger.info(f"  ✗ {name}: {e}")
@@ -165,7 +159,7 @@ def fetch_all_assets() -> list[DataPoint]:
         dp = _fetch_ticker(ticker, name)
         results.append(dp)
         status = "✓" if dp.qa_status == QAStatus.OK else "✗"
-        logger.info(f"  {status} {name}: {dp.value} (as_of={dp.as_of})")
+        logger.info(f"  {status} {name}: {dp.value}")
     return results
 
 
@@ -173,8 +167,8 @@ def fetch_all_assets() -> list[DataPoint]:
 _SEED_MIN_ROWS = 23
 
 
-def seed_history_if_short(filepath: Path, min_rows: int = _SEED_MIN_ROWS) -> None:
-    """快照行数不足 min_rows 时，用 yfinance 日线历史回填（close + volume）。
+def seed_history_if_short(filepath: Path) -> None:
+    """快照行数不足 _SEED_MIN_ROWS 时，用 yfinance 日线历史回填（close + volume）。
 
     日频快照每天只追加 1 行，新建文件后要 ~1 个月才能支撑 HYG/LQD 22 日动量
     与 KBWB 偏离度（审计 P1-⑩）。回填只在新文件/长期未跑时触发一次；
@@ -184,7 +178,7 @@ def seed_history_if_short(filepath: Path, min_rows: int = _SEED_MIN_ROWS) -> Non
     from ._io import load_timeseries, upsert_timeseries
 
     existing = load_timeseries(filepath)
-    if len(existing) >= min_rows:
+    if len(existing) >= _SEED_MIN_ROWS:
         return
     ensure_yf_proxy()
 

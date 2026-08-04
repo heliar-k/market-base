@@ -105,37 +105,13 @@ def test_move_left_multiple_steps() -> None:
     assert cursor.current() == dates[-6]  # 索引 14
 
 
-def test_reset_to_end() -> None:
-    """reset_to_end 从任意位置回到最后一根。"""
-    dates = list(pd.date_range("2024-01-01", periods=20))
-    cursor = LookbackCursor(dates=dates)
-    cursor.move_left(5)
-    assert cursor.current() != dates[-1]
-    cursor.reset_to_end()
-    assert cursor.current() == dates[-1]
-
-
-def test_at_start_and_at_end() -> None:
-    """at_start/at_end 在首尾返回正确布尔。"""
-    dates = list(pd.date_range("2024-01-01", periods=20))
-    cursor = LookbackCursor(dates=dates)
-    assert cursor.at_end() is True
-    assert cursor.at_start() is False
-    cursor.move_left(100)  # 拉到开头
-    assert cursor.at_start() is True
-    assert cursor.at_end() is False
-
-
 def test_empty_dates_does_not_crash() -> None:
     """空 dates 列表构造不崩，current 返回 None。"""
     cursor = LookbackCursor(dates=[])
     assert cursor.current() is None
-    # 移动/重置/边界判定都不抛
+    # 移动不抛
     cursor.move_left()
     cursor.move_right()
-    cursor.reset_to_end()
-    assert cursor.at_start() is False
-    assert cursor.at_end() is False
 
 
 # ---------- SubplotSlots ----------
@@ -144,7 +120,7 @@ def test_empty_dates_does_not_crash() -> None:
 def test_subplot_slots_default() -> None:
     """默认 slot1=RSI, slot2=MACD。"""
     slots = SubplotSlots()
-    assert slots.current() == ("RSI", "MACD")
+    assert (slots.slot1, slots.slot2) == ("RSI", "MACD")
 
 
 def test_cycle_slot1_skips_slot2() -> None:
@@ -152,7 +128,7 @@ def test_cycle_slot1_skips_slot2() -> None:
     slots = SubplotSlots()  # RSI, MACD
     slots.cycle_slot1()
     # RSI 的下一个候选是 MACD，但被 slot2 占用，跳过到 Stoch
-    assert slots.current() == ("Stoch", "MACD")
+    assert (slots.slot1, slots.slot2) == ("Stoch", "MACD")
 
 
 def test_cycle_slot2_skips_slot1() -> None:
@@ -160,7 +136,7 @@ def test_cycle_slot2_skips_slot1() -> None:
     slots = SubplotSlots()  # RSI, MACD
     slots.cycle_slot2()
     # MACD 的下一个是 Stoch，与 slot1 的 RSI 不冲突
-    assert slots.current() == ("RSI", "Stoch")
+    assert (slots.slot1, slots.slot2) == ("RSI", "Stoch")
 
 
 def test_cycle_loops_back_and_never_collides() -> None:
@@ -171,7 +147,7 @@ def test_cycle_loops_back_and_never_collides() -> None:
     for _ in range(4):  # 4 次后回到 RSI（共 5 候选，每跳 1 个被占）
         slots.cycle_slot1()
         assert slots.slot1 != slots.slot2  # 永不碰撞
-        seen.add(slots.current())
+        seen.add((slots.slot1, slots.slot2))
     assert slots.slot1 == "RSI"  # 回到起点
 
 
@@ -231,11 +207,10 @@ def test_techview_resets_cursor_on_symbol_change() -> None:
     view = TechView()
     view.cursor = LookbackCursor(dates=dates)
     view.cursor.move_left(5)
-    assert not view.cursor.at_end()
+    assert view.cursor.current() != dates[-1]
     # 模拟切标的：传入新 df 的日期索引
     new_dates = list(pd.date_range("2025-01-01", periods=10))
     view.on_symbol_changed(new_dates)
-    assert view.cursor.at_end()
     assert view.cursor.current() == new_dates[-1]
 
 
@@ -244,5 +219,5 @@ def test_techview_default_components() -> None:
     view = TechView()
     assert isinstance(view.slots, SubplotSlots)
     assert isinstance(view.overlays, OverlayToggles)
-    assert view.slots.current() == ("RSI", "MACD")
+    assert (view.slots.slot1, view.slots.slot2) == ("RSI", "MACD")
     assert "BB" in view.overlays.active_overlays()
