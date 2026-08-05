@@ -264,6 +264,91 @@ def yf_only_fetch(symbols: list, bar_size: str) -> None:
     log.info(f"yf-only 完成，共新增 {total} 条")
 
 
+def fetch_minutes(
+    ib: IB,
+    connected_port: int,
+    symbols: list[dict],
+    bar_size: str,
+    duration_override: str | None,
+) -> int:
+    """拉取一个周期的分钟线（复用已建立的 IB 连接），返回新增条数。"""
+    ibkr_cfg = config.ibkr
+    log.info(f"[{bar_size}] duration: {duration_override or ibkr_cfg.duration}")
+    bar_size_ib = {
+        "5m": "5 mins",
+        "15m": "15 mins",
+        "1h": "1 hour",
+        "4h": "4 hours",
+    }[bar_size]
+    base_dir = ROOT / ibkr_cfg.output_dir
+    base_dir.mkdir(parents=True, exist_ok=True)
+    inter_symbol_delay = port_delay(connected_port)
+
+    total_new = 0
+    for sym in symbols:
+        name = sym["name"]
+        log.info(f"--- 开始拉取 {name} ({bar_size}) ---")
+
+        try:
+            contract = make_contract(sym)
+            ib.qualifyContracts(contract)
+            log.info(f"  合约: {contract}")
+        except Exception as e:
+            log.error(f"[{name}] 合约创建失败: {e}")
+            continue
+
+        subdir = "stocks" if sym["type"] == "stock" else "indices"
+        output_dir = base_dir / subdir
+        output_dir.mkdir(parents=True, exist_ok=True)
+        filepath = (output_dir / f"{name}_{bar_size}.csv").resolve()
+        existing = load_timeseries(filepath)
+        last_date = get_last_date(existing)
+        if last_date:
+            log.info(f"  已有 {len(existing)} 条本地数据，最新: {last_date}")
+
+        if inter_symbol_delay:
+            log.info(f"  等待 {inter_symbol_delay}s ...")
+            time.sleep(inter_symbol_delay)
+
+        try:
+            bars = fetch_single(
+                ib,
+                contract,
+                name,
+                ibkr_cfg,
+                last_date,
+                duration_override,
+                connected_port=connected_port,
+                bar_size=bar_size_ib,
+            )
+        except Exception as e:
+            log.error(f"[{name}] 拉取失败: {e}")
+            continue
+
+        if bars:
+            df = bars_to_dataframe(bars)
+            if not existing.empty and not df.empty:
+                df = df[df.index > existing.index.max()]
+            upsert_timeseries(filepath, df)
+            total_new += len(df)
+            log.info(f"[{name}] 新增 {len(df)} 条")
+        elif sym.get("yf_ticker"):
+            # IBKR 无权限（如韩股 KSE）→ yfinance 回退
+            log.warning(f"[{name}] IBKR 无数据，回退 yfinance {sym['yf_ticker']}")
+            df = yf_minute_bars(sym["yf_ticker"], bar_size)
+            if not existing.empty and not df.empty:
+                df = df[df.index > existing.index.max()]
+            if df.empty:
+                log.warning(f"[{name}] yfinance 回退也无新数据")
+            else:
+                upsert_timeseries(filepath, df)
+                total_new += len(df)
+                log.info(f"[{name}] yfinance 回退新增 {len(df)} 条")
+        else:
+            log.info(f"[{name}] 无新数据")
+    return total_new
+
+
 def resample_weekly(symbols: list[str] | None = None) -> None:
     """从已有日线 CSV 重采样周线（周五截止），无需连接 IBKR。"""
     base_dir = ROOT / config.ibkr.output_dir
@@ -315,9 +400,12 @@ def main():
     )
     parser.add_argument(
         "--bar-size",
-        choices=["1d", "5m", "15m", "1h", "4h", "1w"],
+        choices=["1d", "all", "5m", "15m", "1h", "4h", "1w"],
         default="1d",
-        help="K 线周期；1w 从本地日线重采样生成（无需 TWS），其余需 IBKR",
+        help=(
+            "K 线周期；all = 一次拉 5m/15m/1h/4h；"
+            "1w 从本地日线重采样生成（无需 TWS），其余需 IBKR"
+        ),
     )
     parser.add_argument(
         "--yf-only",
@@ -352,26 +440,18 @@ def main():
         log.error(f"未找到匹配品种: {args.symbols}")
         sys.exit(1)
 
+    # all = 一次拉全部周期
+    bar_sizes = ["5m", "15m", "1h", "4h"] if args.bar_size == "all" else [args.bar_size]
+
     # yf-only：仅 yfinance，不连 IBKR（韩股等 IBKR 无权限品种）
     if args.yf_only:
-        yf_only_fetch(symbols, args.bar_size)
+        for bar in bar_sizes:
+            yf_only_fetch(symbols, bar)
         return
 
     ibkr_cfg = config.ibkr
-    bar_size = {
-        "5m": "5 mins",
-        "15m": "15 mins",
-        "1h": "1 hour",
-        "4h": "4 hours",
-    }[args.bar_size]
-
-    duration_override = (
-        f"{args.days} D" if args.days else BAR_MAX_DURATION.get(args.bar_size)
-    )
     log.info(f"待拉取品种: {[s['name'] for s in symbols]}")
-    log.info(
-        f"K 线周期: {bar_size}，duration: {duration_override or ibkr_cfg.duration}"
-    )
+    log.info(f"K 线周期: {bar_sizes}")
     log.info(f"TWS 地址: {ibkr_cfg.host}:{ibkr_cfg.port}")
 
     # 连接 IB — 依次尝试 4002 (paper) → 4001 (live/readonly)
@@ -382,89 +462,16 @@ def main():
     except IBKRConnectionError:
         sys.exit(1)
 
-    inter_symbol_delay = port_delay(connected_port)
-
     if args.dry_run:
         log.info("--dry-run 模式，仅检查连接，退出")
         ib.disconnect()
         return
 
-    # 输出目录
-    base_dir = ROOT / ibkr_cfg.output_dir
-    base_dir.mkdir(parents=True, exist_ok=True)
-
-    # 逐品种拉取
+    # 逐周期拉取（复用同一连接）
     total_new = 0
-    for sym in symbols:
-        name = sym["name"]
-        log.info(f"--- 开始拉取 {name} ---")
-
-        try:
-            contract = make_contract(sym)
-            ib.qualifyContracts(contract)
-            log.info(f"  合约: {contract}")
-        except Exception as e:
-            log.error(f"[{name}] 合约创建失败: {e}")
-            continue
-
-        # 输出目录统一按资产类型: 日线 → {NAME}.csv，其他周期 → {NAME}_{bar}.csv
-        subdir = "stocks" if sym["type"] == "stock" else "indices"
-        output_dir = base_dir / subdir
-        output_dir.mkdir(parents=True, exist_ok=True)
-        suffix = "" if args.bar_size == "1d" else f"_{args.bar_size}"
-
-        # 检查本地已有数据
-        filepath = output_dir / f"{name}{suffix}.csv"
-        filepath = filepath.resolve()
-        existing = load_timeseries(filepath)
-        last_date = get_last_date(existing)
-        if last_date:
-            log.info(f"  已有 {len(existing)} 条本地数据，最新: {last_date}")
-
-        # 跨品种延迟（实盘 3s，paper 15s）
-        if inter_symbol_delay:
-            log.info(f"  等待 {inter_symbol_delay}s ...")
-            time.sleep(inter_symbol_delay)
-
-        # 拉取
-        try:
-            bars = fetch_single(
-                ib,
-                contract,
-                name,
-                ibkr_cfg,
-                last_date,
-                duration_override,
-                connected_port=connected_port,
-                bar_size=bar_size,
-            )
-        except Exception as e:
-            log.error(f"[{name}] 拉取失败: {e}")
-            continue
-
-        if bars:
-            df = bars_to_dataframe(bars)
-            if not existing.empty and not df.empty:
-                df = df[df.index > existing.index.max()]
-            upsert_timeseries(filepath, df)
-            new_count = len(df)
-            total_new += new_count
-            log.info(f"[{name}] 新增 {new_count} 条")
-        elif sym.get("yf_ticker"):
-            # IBKR 无权限（如韩股 KSE）→ yfinance 回退
-            log.warning(f"[{name}] IBKR 无数据，回退 yfinance {sym['yf_ticker']}")
-            df = yf_minute_bars(sym["yf_ticker"], args.bar_size)
-            if not existing.empty and not df.empty:
-                df = df[df.index > existing.index.max()]
-            if df.empty:
-                log.warning(f"[{name}] yfinance 回退也无新数据")
-            else:
-                upsert_timeseries(filepath, df)
-                total_new += len(df)
-                log.info(f"[{name}] yfinance 回退新增 {len(df)} 条")
-        else:
-            log.info(f"[{name}] 无新数据")
-
+    for bar in bar_sizes:
+        duration_override = f"{args.days} D" if args.days else BAR_MAX_DURATION.get(bar)
+        total_new += fetch_minutes(ib, connected_port, symbols, bar, duration_override)
     ib.disconnect()
     log.info(f"全部完成！本次共新增 {total_new} 条记录")
 

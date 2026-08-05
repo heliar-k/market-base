@@ -5,6 +5,7 @@
 # 用法：
 #   ./bin/fetch_ibkr                    # 日线（默认，全部品种）
 #   ./bin/fetch_ibkr --bar-size 5m      # 5 分钟线（15m/1h/4h 同理），输出 data/bars/{周期}/
+#   ./bin/fetch_ibkr --bar-size all      # 一次拉全部周期（5m/15m/1h/4h）
 #   ./bin/fetch_ibkr --bar-size 1w      # 周线：从本地日线重采样，无需 TWS
 #   ./bin/fetch_ibkr --bar-size 5m --symbols AAPL --days 60
 set -euo pipefail
