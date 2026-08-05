@@ -82,7 +82,6 @@ STOCKS: list[SymbolConfig] = [
 INDICES: list[SymbolConfig] = [
     SymbolConfig(name="SPX", exchange="CBOE"),
     SymbolConfig(name="IXIC", exchange="NASDAQ", ibkr_symbol="COMP"),
-    SymbolConfig(name="VIX", exchange="CBOE"),
     SymbolConfig(name="RUT", exchange="RUSSELL"),
     SymbolConfig(name="SOX", exchange="PHLX"),
 ]
