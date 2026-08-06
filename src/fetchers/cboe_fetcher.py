@@ -15,8 +15,10 @@ Fetch CBOE volatility data: OVX, VIX1D/9D, VIX, VIX3M/6M/1Y, SKEW, term structur
     VXSL→VXSLV（白银）、VTLT→VXTLT（20Y 国债）、VXGO→VXGOG（Google）、
     VXAP→VXAPL（Apple）、VXAZ→VXAZN（Amazon）、VXIB→VXIBM（IBM）
   CBOE CDN 无数据的（S3 403，不含在 URL 表，拉取自动跳过）：
-    VXMT（中期 VIX）、VXMO（标准月度）、VXNG（天然气）、VXHY（高收益债）、
-    VEWZ（巴西）、VEEM（新兴）、VXEF（新兴 ETF）——如后续开放可加入
+    VXHY（高收益债）、VEWZ（巴西）、VXMO（标准月度）——免费源均验证无；
+    VXEF（MSCI 新兴市场）CBOE 2026 公告停止 MSCI 衍生品系列。
+  别名（2026-08-06 调研确认，详见 DATA_CATALOG）：VXMT≡VIX6M、VXV≡VIX3M、
+    VXNG≡VXUNG、VEEM≡VXEEM（timsun 显示名 vs 官方代码，数值已验证一致）。
 
 每次运行都拉源全量历史并 upsert：忘记运行几天，下次跑自动补齐缺失日期。
 """
@@ -59,6 +61,11 @@ CBOE_URLS = {
     "VXAP": _CSV + "VXAPL_History.csv",  # Apple（官方 VXAPL）
     "VXAZ": _CSV + "VXAZN_History.csv",  # Amazon（官方 VXAZN）
     "VXIB": _CSV + "VXIBM_History.csv",  # IBM（官方 VXIBM）
+    # ── 调研补充（2026-08-06，见 DATA_CATALOG 别名表）──
+    "VXNG": _CSV
+    + "VXUNG_History.csv",  # 天然气（timsun 名 VXNG，官方 VXUNG，2020-11 起）
+    "VXEEM": _CSV + "VXEEM_History.csv",  # 新兴市场 VIX（EEM 期权版，2011-03 起；
+    #   timsun 面板的 VEEM（EWZ 版）无免费源，VXEEM 为近似替代）
 }
 
 

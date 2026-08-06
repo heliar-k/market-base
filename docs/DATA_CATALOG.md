@@ -88,9 +88,21 @@ VIX1D/VIX9D/VIX/VIX3M/VIX6M/VIX1Y/SKEW 全量序列一并落盘，可复算期�
 | `VXTH` | Tail Hedge 指数（2007-01 起） |
 | `VTLT` | 20Y 国债波动率（官方 VXTLT，2004-01 起） |
 | `VXGO` / `VXGS` / `VXAP` / `VXAZ` / `VXIB` | 个股波动率（Google/高盛/Apple/Amazon/IBM，2011-01 起） |
+| `VXNG` | 天然气波动率（官方 VXUNG，2020-11 起） |
+| `VXEEM` | 新兴市场 ETF 波动率（官方 VXEEM，2011-03 起） |
 
-> CBOE CDN 无免费数据的 7 个指数（VXMT/VXMO/VXNG/VXHY/VEWZ/VEEM/VXEF，S3 403）不入列，
-> 待 CBOE 开放后加入即可（fetcher 对单序列失败自动跳过）。
+### 指数别名映射（调研确认，2026-08-06）
+
+| timsun 面板名 | 本库实际列 | 说明 |
+|---|---|---|
+| VXMT（中期 VIX） | `VIX6M` | 同一指数（官方定义 6 个月 SPX 波动率），数值已验证一致 |
+| VXV（3 个月 VIX） | `VIX3M` | 同一指数（2018 更名），重叠期数值 diff=0 |
+| VXNG（天然气） | `VXNG`（官方 VXUNG） | timsun 显示名 vs 官方代码，数值已验证一致 |
+| VEEM（新兴市场） | `VXEEM` | timsun 显示名 vs 官方代码，数值已验证一致 |
+
+> 无免费源（CDN 403，Yahoo/FRED/stooq/Barchart 均验证无）：VXHY（高收益债 VIX）、
+> VEWZ（巴西 ETF VIX）、VXMO（Standard Monthly VIX，2024 新推）。
+> VXEF（MSCI 新兴市场 VIX）：CBOE 2026 公告停止 MSCI 衍生品指数系列。
 
 > 与 `data/fred/volatility/volatility.csv` 的关系：仅 VIX 一列重叠（同源），fred 版
 > 侧重信用利差（risk-off），本文件侧重波动率期限结构，用途不同不统一。
