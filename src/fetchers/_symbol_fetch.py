@@ -66,13 +66,16 @@ def _try_ibkr(
 
 def _try_yfinance(sym: SymbolConfig, filepath: Path, existing) -> int:
     """yfinance 回退。返回新增条数。"""
-    if not sym.yf_ticker:
+    # US 股票 Yahoo ticker 即 name；指数用显式 yf_ticker（^GSPC 等）
+    yf_ticker = sym.yf_ticker or sym.name
+    if not yf_ticker:
         return 0
 
     name = sym.name
-    log.info(f"[{name}] IBKR 无数据，回退到 yfinance ({sym.yf_ticker})...")
+    log.info(f"[{name}] IBKR 无数据，回退到 yfinance ({yf_ticker})...")
     try:
-        df = fetch_ohlcv(sym.yf_ticker)
+        # auto_adjust=False：与 IBKR TRADES 原始价一致
+        df = fetch_ohlcv(yf_ticker, auto_adjust=False)
         if df.empty:
             log.warning(f"[{name}] yfinance 也无数据")
             return 0

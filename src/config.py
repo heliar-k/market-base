@@ -41,7 +41,9 @@ class SymbolConfig:
 # ── 股票 ──
 STOCKS: list[SymbolConfig] = [
     SymbolConfig(name="AAPL", exchange="SMART"),
-    SymbolConfig(name="BRK.B", exchange="SMART", ibkr_symbol="BRK B"),
+    SymbolConfig(
+        name="BRK.B", exchange="SMART", ibkr_symbol="BRK B", yf_ticker="BRK-B"
+    ),
     SymbolConfig(name="TSLA", exchange="SMART"),
     SymbolConfig(name="MSFT", exchange="SMART"),
     SymbolConfig(name="MCD", exchange="SMART"),
@@ -80,10 +82,10 @@ STOCKS: list[SymbolConfig] = [
 
 # ── 指数 ──
 INDICES: list[SymbolConfig] = [
-    SymbolConfig(name="SPX", exchange="CBOE"),
-    SymbolConfig(name="IXIC", exchange="NASDAQ", ibkr_symbol="COMP"),
-    SymbolConfig(name="RUT", exchange="RUSSELL"),
-    SymbolConfig(name="SOX", exchange="PHLX"),
+    SymbolConfig(name="SPX", exchange="CBOE", yf_ticker="^GSPC"),
+    SymbolConfig(name="IXIC", exchange="NASDAQ", ibkr_symbol="COMP", yf_ticker="^IXIC"),
+    SymbolConfig(name="RUT", exchange="RUSSELL", yf_ticker="^RUT"),
+    SymbolConfig(name="SOX", exchange="PHLX", yf_ticker="^SOX"),
 ]
 
 

@@ -61,17 +61,21 @@ def ensure_yf_proxy(timeout: float = 3.0) -> None:
         ) from None
 
 
-def fetch_ohlcv(ticker: str, period: str = "2y") -> pd.DataFrame:
+def fetch_ohlcv(
+    ticker: str, period: str = "2y", auto_adjust: bool = True
+) -> pd.DataFrame:
     """拉取 OHLCV 日线，返回 DataFrame，列: open/high/low/close/volume。
 
     用于 IBKR 不可用时的回退。index 为 date (datetime)。
+    默认 auto_adjust=True（拆股+分红复权）；与 IBKR 原始价合并写入同一文件时
+    必须传 auto_adjust=False（yf_only_fetch 日线 / _symbol_fetch 回退）。
     """
     logger.info(f"[yfinance fallback] 拉取 {ticker} OHLCV (period={period})...")
     ensure_yf_proxy()
     import yfinance as yf
 
     t = yf.Ticker(ticker)
-    df = t.history(period=period)
+    df = t.history(period=period, auto_adjust=auto_adjust)
     if df.empty:
         return pd.DataFrame()
     # 统一列名与 ibkr_fetcher 一致；索引清洗（时区剥离 + 归一到零点）
@@ -102,7 +106,9 @@ def yf_minute_bars(ticker: str, interval: str) -> pd.DataFrame:
     ensure_yf_proxy()
     import yfinance as yf
 
-    h = yf.Ticker(ticker).history(period=period, interval=interval)
+    # auto_adjust=False：与 IBKR TRADES 原始价一致（默认 True 会做拆股复权，
+    # 混用同一文件时拆股日前后会断层）
+    h = yf.Ticker(ticker).history(period=period, interval=interval, auto_adjust=False)
     if h.empty:
         return pd.DataFrame()
     df = h.rename(

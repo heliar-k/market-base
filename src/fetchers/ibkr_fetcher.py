@@ -33,7 +33,7 @@ from ib_insync import IB, Index, Stock, util
 
 from ..config import INDICES, ROOT, STOCKS, config
 from ._io import load_timeseries, upsert_timeseries
-from .yfinance_fetcher import yf_minute_bars
+from .yfinance_fetcher import fetch_ohlcv, yf_minute_bars
 
 # ---------------------------------------------------------------------------
 # 日志
@@ -242,25 +242,34 @@ BAR_MAX_DURATION = {
 
 
 def yf_only_fetch(symbols: list, bar_size: str) -> None:
-    """仅 yfinance 拉取（--yf-only，无需 TWS；韩股等 IBKR 无权限品种）。"""
+    """仅 yfinance 拉取（--yf-only，无需 TWS）。"""
     base_dir = ROOT / config.ibkr.output_dir
     total = 0
     for sym in symbols:
-        if not sym.get("yf_ticker"):
-            log.info(f"[{sym['name']}] 无 yf_ticker，跳过")
-            continue
+        # US 股票 Yahoo ticker 即 name；指数/韩股用显式 yf_ticker（^GSPC 等）
+        yf_ticker = sym.get("yf_ticker") or sym["name"]
         subdir = "stocks" if sym["type"] == "stock" else "indices"
-        filepath = base_dir / subdir / f"{sym['name']}_{bar_size}.csv"
-        existing = load_timeseries(filepath)
-        df = yf_minute_bars(sym["yf_ticker"], bar_size)
-        if not existing.empty and not df.empty:
-            df = df[df.index > existing.index.max()]
+        if bar_size == "1d":
+            # 日线写 {NAME}.csv；yf 为权威源：全量 upsert 覆盖同日，
+            # 可自愈 IBKR 盘中写入的部分 bar（volume/count 明显偏小）
+            filepath = base_dir / subdir / f"{sym['name']}.csv"
+            # 10y 与 IBKR 现有深度相当；更深回溯由本地 IBKR 负责。
+            # round(2)：对齐 IBKR 两位小数显示，避免全文件 float 精度噪声
+            df = fetch_ohlcv(yf_ticker, period="10y", auto_adjust=False).round(2)
+        else:
+            # 分钟线只追加（bar 不可变，避免与 IBKR 浮点噪声互相覆盖）
+            filepath = base_dir / subdir / f"{sym['name']}_{bar_size}.csv"
+            df = yf_minute_bars(yf_ticker, bar_size)
+            existing = load_timeseries(filepath)
+            if not existing.empty and not df.empty:
+                df = df[df.index > existing.index.max()]
         if df.empty:
             log.info(f"[{sym['name']}] 无新数据")
-            continue
-        upsert_timeseries(filepath, df)
-        total += len(df)
-        log.info(f"[{sym['name']}] 新增 {len(df)} 条")
+        else:
+            upsert_timeseries(filepath, df)
+            total += len(df)
+            log.info(f"[{sym['name']}] 新增 {len(df)} 条")
+        time.sleep(1)  # Yahoo 限流保护（Actions 一次性 ~130 个请求）
     log.info(f"yf-only 完成，共新增 {total} 条")
 
 
@@ -332,10 +341,11 @@ def fetch_minutes(
             upsert_timeseries(filepath, df)
             total_new += len(df)
             log.info(f"[{name}] 新增 {len(df)} 条")
-        elif sym.get("yf_ticker"):
-            # IBKR 无权限（如韩股 KSE）→ yfinance 回退
-            log.warning(f"[{name}] IBKR 无数据，回退 yfinance {sym['yf_ticker']}")
-            df = yf_minute_bars(sym["yf_ticker"], bar_size)
+        elif sym.get("yf_ticker") or sym["type"] == "stock":
+            # IBKR 无权限 → yfinance 回退（US 股票 ticker 即 name）
+            yf_ticker = sym.get("yf_ticker") or sym["name"]
+            log.warning(f"[{name}] IBKR 无数据，回退 yfinance {yf_ticker}")
+            df = yf_minute_bars(yf_ticker, bar_size)
             if not existing.empty and not df.empty:
                 df = df[df.index > existing.index.max()]
             if df.empty:
@@ -404,7 +414,8 @@ def main():
         default="1d",
         help=(
             "K 线周期；all = 一次拉 5m/15m/1h/4h；"
-            "1w 从本地日线重采样生成（无需 TWS），其余需 IBKR"
+            "1w 从本地日线重采样生成；配合 --yf-only 时 1d/5m/15m/1h/4h"
+            "均走 yfinance（无需 TWS）"
         ),
     )
     parser.add_argument(

@@ -125,10 +125,12 @@ market-base/
 **每日自动（无需本地操作）**：GitHub Actions `daily-fetch` workflow 每个交易日
 北京时间 05:00 自动拉取**不依赖 IBKR/TWS** 的数据源并 commit + push，本地 `git pull` 即得：
 `fred` / `cboe` / `ofr` / `srf` / `tsy` / `cfets` / `shapiro` / `sce` / `treasury` / `yfinance`（17 品种资产快照）
-`barchart_futures` / `cot` / `rate_expectations` / `fed`（Barchart 期货曲线、CFTC COT、FOMC 概率、FOMC 声明+演讲）。
+`barchart_futures` / `cot` / `rate_expectations` / `fed`（Barchart 期货曲线、CFTC COT、FOMC 概率、FOMC 声明+演讲）
+`minute_bars`（全部股票+指数 1d 日线 + 5m/15m/1h/4h 分钟线，yfinance 原始价与 IBKR 一致；1d 全量历史，5m/15m 深度 60 天、1h/4h 2 年）。
 
 **本地手动（先启动 TWS 或 IB Gateway，端口 4001 实盘 / 4002 模拟）**：只有依赖 IBKR 的才需要本地跑：
-`ibkr` / `options` / `commodities` / `index` / `stock` / `rate_expectations`（ZQ 期货来自 commodities）。
+`ibkr`（日线，可选——Actions yfinance 已覆盖，IBKR 用于权威覆盖与更深回溯）/ `options` / `commodities` / `index` / `stock` / `rate_expectations`（ZQ 期货来自 commodities）。
+日线/分钟线均已由 Actions 用 yfinance 覆盖；本地 IBKR 拉取（`--bar-size all`）只用于补深。
 
 > 别一上来就全部本地拉取——纯 API 部分 Actions 已经跑过了，本地只补 IBKR 部分。
 > 手动触发 Actions：`gh workflow run daily-fetch.yml` 或 GitHub Actions 页面点 Run workflow。
