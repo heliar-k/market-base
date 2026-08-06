@@ -129,3 +129,26 @@ def upsert_timeseries(
             return
 
     combined.to_csv(filepath, index_label="date")
+
+
+def upsert_rows(
+    filepath: Path,
+    df: pd.DataFrame,
+    subset: list[str],
+    sort_by: list[str] | None = None,
+) -> None:
+    """长表按复合键 upsert：同日同键新值覆盖旧值，新键追加，保留历史。
+
+    用于 (date, ticker) 等复合键的逐行快照（如分析师目标价、报警标量）：
+    与 upsert_timeseries（宽表按观测日）互补，date 列保持普通列。
+    """
+    filepath.parent.mkdir(parents=True, exist_ok=True)
+    if df.empty:
+        return
+    if filepath.exists():
+        df = pd.concat([pd.read_csv(filepath), df]).drop_duplicates(
+            subset=subset, keep="last"
+        )
+    if sort_by:
+        df = df.sort_values(sort_by)
+    df.to_csv(filepath, index=False)

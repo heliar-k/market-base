@@ -44,6 +44,14 @@ COT_MARKETS: dict[str, tuple[str, str]] = {
     "NQ": (r"^(E-MINI )?NASDAQ-100( Consolidated)? - ", "fin"),
     "RTY": (r"^(E-)?MINI RUSSELL 2000 - |^RUSSELL E-MINI - ", "fin"),
     "ZQ": (r"^(30-DAY )?FED FUNDS - ", "fin"),
+    # ── timsun 持仓追踪扩展（2026-08）──
+    "VX": (r"^VIX FUTURES - CBOE FUTURES EXCHANGE", "fin"),
+    "ZF": (r"^UST 5Y NOTE - CHICAGO BOARD OF TRADE", "fin"),
+    "ZN": (r"^UST 10Y NOTE - CHICAGO BOARD OF TRADE", "fin"),
+    "ZB": (r"^UST BOND - CHICAGO BOARD OF TRADE", "fin"),
+    "EUR": (r"^EURO FX - CHICAGO MERCANTILE EXCHANGE", "fin"),
+    "JPY": (r"^JAPANESE YEN - CHICAGO MERCANTILE EXCHANGE", "fin"),
+    # 注：DXY（ICE 美元指数）不在 CFTC COT 报告中（2025/2026 均无），无源可拉
 }
 URL = "https://www.cftc.gov/files/dea/history/fut_{type}_txt_{year}.zip"
 

@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+# Nasdaq 100 分析师目标价（Wikipedia 成分 + yfinance）
+set -euo pipefail
+cd "$(dirname "$0")/.."
+uv run python -m src.fetchers.analyst_fetcher "$@"

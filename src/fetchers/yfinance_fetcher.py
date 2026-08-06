@@ -22,11 +22,13 @@ logger = logging.getLogger(__name__)
 # ── 代理 URL（纯计算，无副作用）─────────────────────────────────────────
 # YF_NO_PROXY=1（GitHub Actions 无代理环境）：跳过代理设置，直连 Yahoo。
 # 兜底：.env 没配代理时用项目默认值。
+# 注意用 socks5h://（代理端 DNS 解析）而非 socks5://（本地解析）：
+# 本地 DNS 对 Yahoo 域名可能污染，socks5 本地解析会连接失败（curl 000/TLS 错）。
 # env 写入与 TCP 探测收敛在 ensure_yf_proxy()；yfinance 在函数内惰性 import。
 if os.environ.get("YF_NO_PROXY"):
     _PROXY_URL = ""
 else:
-    _PROXY_URL = config.https_proxy or "socks5://127.0.0.1:7890"
+    _PROXY_URL = config.https_proxy or "socks5h://127.0.0.1:7890"
 
 
 def ensure_yf_proxy(timeout: float = 3.0) -> None:

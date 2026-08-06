@@ -151,6 +151,8 @@ market-base/
 ./bin/fetch_cfets                   # CFETS 外汇掉期点（5 外币对 × 5 期限 + Barchart USDCNH/USDCHF 全期限）
 ./bin/fetch_barchart_futures        # Barchart 期货期限结构（10 品种全合约，免费匿名）
 ./bin/fetch_cot                     # CFTC COT 持仓报告（周频）
+./bin/fetch_analyst                  # Nasdaq 100 分析师目标价（Wikipedia 成分 + yfinance）
+uv run python -m src.cross_asset     # 跨资产 30 日相关性矩阵（派生，依赖资产快照）
 ./bin/fetch_fed                     # FOMC 声明 + 官员演讲（增量，首次自动全量）
 ./bin/fetch_treasury                # 国债拍卖结果 + 未来日历（全量覆盖）
 ./bin/fetch_bgcr                     # BGCR 利率（NY Fed，FRED 无；合并进 rates.csv）

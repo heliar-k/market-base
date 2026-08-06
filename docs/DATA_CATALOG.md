@@ -64,6 +64,8 @@
 
 来源 CBOE CDN。每次 `./bin/fetch_cboe` 拉全量历史并 upsert（漏跑自动补）；`--backfill` 全量覆盖。
 VIX1D/VIX9D/VIX/VIX3M/VIX6M/VIX1Y/SKEW 全量序列一并落盘，可复算期限结构斜率。
+2026-08 扩展至 24 列（timsun 波动率面板对齐）：新增商品/股指/期限/尾部/个股波动率指数。
+列名用 timsun 面板显示名，部分与 CBOE 官方代码不同（VXSL→VXSLV、VTLT→VXTLT、VXGO→VXGOG、VXAP→VXAPL、VXAZ→VXAZN、VXIB→VXIBM）。
 
 | 列名 | 说明 |
 |------|------|
@@ -76,6 +78,19 @@ VIX1D/VIX9D/VIX/VIX3M/VIX6M/VIX1Y/SKEW 全量序列一并落盘，可复算期�
 | `VIX1Y` | 1 年 VIX（2007-01 起） |
 | `SKEW` | 看跌偏斜指数（1990 起），>140 尾部对冲需求偏高 |
 | `VIX_TERM_SLOPE` | VIX 期限结构斜率（VIX - VIX9D），正=contango，负=backwardation |
+| `GVZ` | 黄金波动率（2008-03 起） |
+| `VXSL` | 白银波动率（官方 VXSLV，2011-03 起） |
+| `VXN` | 纳指 100 波动率（2001-01 起） |
+| `VXD` | 道琼斯波动率（1997-07 起） |
+| `VVIX` | 波动率的波动率（2007-01 起） |
+| `VXV` | 3 个月 VIX（与 VIX3M 同义；CDN 上 VXV 历史仅 23 行（2017-09~10，源数据异常），实质用 VIX3M 列） |
+| `VIN` / `VIF` | Near / Far Term VIX（2008-08 起，4000+ 行） |
+| `VXTH` | Tail Hedge 指数（2007-01 起） |
+| `VTLT` | 20Y 国债波动率（官方 VXTLT，2004-01 起） |
+| `VXGO` / `VXGS` / `VXAP` / `VXAZ` / `VXIB` | 个股波动率（Google/高盛/Apple/Amazon/IBM，2011-01 起） |
+
+> CBOE CDN 无免费数据的 7 个指数（VXMT/VXMO/VXNG/VXHY/VEWZ/VEEM/VXEF，S3 403）不入列，
+> 待 CBOE 开放后加入即可（fetcher 对单序列失败自动跳过）。
 
 > 与 `data/fred/volatility/volatility.csv` 的关系：仅 VIX 一列重叠（同源），fred 版
 > 侧重信用利差（risk-off），本文件侧重波动率期限结构，用途不同不统一。
@@ -365,12 +380,13 @@ FRED liquidity 分类的原始系列（由 `./bin/fetch_fred` 一并拉取）。
 | 类别 | 品种 |
 |---|---|
 | 指数 | SPX、NDX、RUT、DJI、SOX、N225（日经）、KOSPI、NIFTY、SSE（上证）、SZSE（深证） |
-| 汇率 | DXY、USDJPY（美元兑日元）、USDCNY（美元兑人民币） |
+| 汇率 | DXY、USDJPY（美元兑日元）、USDCNY（美元兑人民币）、EURUSD（欧元/美元）、GBPUSD（英镑/美元）、USDKRW（美元/韩元） |
 | 波动率 | MOVE（美林国债期权波动率，债市 VIX） |
 | 银行 | KBWB（KBW 银行 ETF，信用页银行系统风险代理） |
-| 加密 | BTC |
-| 商品 | WTI、Brent、Gold、Silver、Copper |
-| 债券 ETF | TLT、HYG、LQD |
+| 加密 | BTC、ETH |
+| 商品 | WTI、Brent、Gold、Silver、Copper、NG（天然气） |
+| 债券 ETF | TLT、IEF（7-10 年）、HYG、LQD |
+| 半导体 ETF | SMH、SOXX |
 | 韩股 | SAMSUNG（三星电子）、SKHYNIX（SK 海力士）——纯数字 KRX 代码用可读名，yf_ticker 保留 005930.KS/000660.KS |
 
 | 列名 | 说明 |
@@ -381,6 +397,33 @@ FRED liquidity 分类的原始系列（由 `./bin/fetch_fred` 一并拉取）。
 | `reopening` | 是否重开 |
 | `cusip` | CUSIP 代码 |
 | `issue_date` | 发行日 |
+
+---
+
+## 11.5 分析师目标价 — `data/analyst/`
+
+Nasdaq 100 成分股分析师目标价快照（timsun /assets/equities 面板数据）。
+成分股来自 Wikipedia（约月频更新，拉取失败回退本地缓存）；目标价来自 yfinance `Ticker.info`。
+
+| 文件 | 说明 |
+|------|------|
+| `ndx_components.csv` | 成分股缓存（ticker / company / industry，约 103 只） |
+| `ndx_targets.csv` | 长表（date + ticker + price / target_mean / target_high / target_low / analysts / rating），按 (date, ticker) upsert，保留历史 |
+
+> 无分析师覆盖的票跳过；单票拉取失败（含限流）跳过不阻塞整批。
+> 已纳入 Actions daily-fetch（`bin/fetch_analyst`）。
+
+---
+
+## 11.6 跨资产相关性 — `data/cross_asset/`
+
+30 日滚动相关系数（timsun /assets 面板）。纯派生计算（`uv run python -m src.cross_asset`），
+依赖资产快照，无网络。仅保留交易日行（周末 BTC/外汇有值、股票无值，相关性按交易日算）。
+
+| 文件 | 说明 |
+|------|------|
+| `correlation.csv` | 最新相关系数矩阵（13 标的 × 13 标的，覆盖写） |
+| `alerts.csv` | 报警标量按日追加：SPX_TLT_30d（股债相关，正=对冲失效）、WTI_SPX_30d（油股相关，负=滞胀交易） |
 
 ---
 
@@ -395,8 +438,8 @@ CFTC 官方周度持仓报告（周二数据、周五发布），`./bin/fetch_co
 | 商品类（disaggregated）`{SYM}_PROD_L/S`、`{SYM}_SWAP_L/S`、`{SYM}_MM_L/S` | 生产商/商户、掉期商、管理资金（投机）多/空持仓 |
 | 金融类（TFF）`{SYM}_DEALER_L/S`、`{SYM}_ASSET_L/S`、`{SYM}_HEDGE_L/S` | 做市商、资管、对冲基金多/空持仓 |
 
-覆盖品种：GC/SI/HG/CL/NG（disaggregated）+ ES/NQ/RTY/ZQ（TFF）。
-YM（道指）不在 CFTC COT 报告中（2024-26 均无）。
+覆盖品种：GC/SI/HG/CL/NG（disaggregated）+ ES/NQ/RTY/ZQ/VX/ZF/ZN/ZB/EUR/JPY（TFF）。
+YM（道指）不在 CFTC COT 报告中（2024-26 均无）；DXY（ICE 美元指数）同样不在（2025/26 无）。
 
 ## 速查：怎么用
 

@@ -44,7 +44,12 @@ def test_fetch_cot_merges_by_symbol(monkeypatch):
                 "GOLD - COMMODITY EXCHANGE INC.",
                 "CRUDE OIL, LIGHT SWEET-WTI - NEW YORK MERCANTILE EXCHANGE",
             ],
-            "fin": ["E-MINI S&P 500 - CHICAGO MERCANTILE EXCHANGE"],
+            "fin": [
+                "E-MINI S&P 500 - CHICAGO MERCANTILE EXCHANGE",
+                "VIX FUTURES - CBOE FUTURES EXCHANGE",
+                "UST 10Y NOTE - CHICAGO BOARD OF TRADE",
+                "EURO FX - CHICAGO MERCANTILE EXCHANGE",
+            ],
         }[report_type]
         buf = io.BytesIO()
         with zipfile.ZipFile(buf, "w") as zf:
@@ -78,9 +83,34 @@ def test_fetch_cot_merges_by_symbol(monkeypatch):
         "ES_ASSET_L",
         "ES_ASSET_S",
         "ES_HEDGE_S",
+        # timsun 扩展：VIX 期货 / 美债 / 外汇
+        "VX_OI",
+        "VX_DEALER_L",
+        "VX_DEALER_S",
+        "VX_ASSET_L",
+        "VX_ASSET_S",
+        "VX_HEDGE_L",
+        "VX_HEDGE_S",
+        "ZN_OI",
+        "ZN_DEALER_L",
+        "ZN_DEALER_S",
+        "ZN_ASSET_L",
+        "ZN_ASSET_S",
+        "ZN_HEDGE_L",
+        "ZN_HEDGE_S",
+        "EUR_OI",
+        "EUR_DEALER_L",
+        "EUR_DEALER_S",
+        "EUR_ASSET_L",
+        "EUR_ASSET_S",
+        "EUR_HEDGE_L",
+        "EUR_HEDGE_S",
     }
     assert len(df) == 2  # 两个报告日
     assert df.index[-1] == "2026-07-28"
     assert df.iloc[-1]["GC_OI"] == 100
     assert df.iloc[-1]["ES_OI"] == 100
     assert df.iloc[-1]["CL_MM_L"] == 10
+    assert df.iloc[-1]["VX_OI"] == 100
+    assert df.iloc[-1]["ZN_OI"] == 100
+    assert df.iloc[-1]["EUR_OI"] == 100

@@ -10,6 +10,14 @@ Fetch CBOE volatility data: OVX, VIX1D/9D, VIX, VIX3M/6M/1Y, SKEW, term structur
   - SKEW（看跌偏斜指数，尾盘对冲成本）
   - VIX_TERM_SLOPE = VIX - VIX9D（正=contango，负=backwardation）
 
+扩展（timsun 波动率面板 30 指数对齐，2026-08）：
+  列名用 timsun 面板显示名，URL 用 CBOE 官方代码：
+    VXSL→VXSLV（白银）、VTLT→VXTLT（20Y 国债）、VXGO→VXGOG（Google）、
+    VXAP→VXAPL（Apple）、VXAZ→VXAZN（Amazon）、VXIB→VXIBM（IBM）
+  CBOE CDN 无数据的（S3 403，不含在 URL 表，拉取自动跳过）：
+    VXMT（中期 VIX）、VXMO（标准月度）、VXNG（天然气）、VXHY（高收益债）、
+    VEWZ（巴西）、VEEM（新兴）、VXEF（新兴 ETF）——如后续开放可加入
+
 每次运行都拉源全量历史并 upsert：忘记运行几天，下次跑自动补齐缺失日期。
 """
 
@@ -23,30 +31,39 @@ import requests
 
 logger = logging.getLogger(__name__)
 
+_CSV = "https://cdn.cboe.com/api/global/us_indices/daily_prices/"
+
 CBOE_URLS = {
-    "VIX1D": (
-        "https://cdn.cboe.com/api/global/us_indices/daily_prices/VIX1D_History.csv"
-    ),
-    "OVX": "https://cdn.cboe.com/api/global/us_indices/daily_prices/OVX_History.csv",
-    "VIX9D": (
-        "https://cdn.cboe.com/api/global/us_indices/daily_prices/VIX9D_History.csv"
-    ),
-    "VIX": "https://cdn.cboe.com/api/global/us_indices/daily_prices/VIX_History.csv",
-    "VIX3M": (
-        "https://cdn.cboe.com/api/global/us_indices/daily_prices/VIX3M_History.csv"
-    ),
-    "VIX6M": (
-        "https://cdn.cboe.com/api/global/us_indices/daily_prices/VIX6M_History.csv"
-    ),
-    "VIX1Y": (
-        "https://cdn.cboe.com/api/global/us_indices/daily_prices/VIX1Y_History.csv"
-    ),
-    "SKEW": "https://cdn.cboe.com/api/global/us_indices/daily_prices/SKEW_History.csv",
+    "VIX1D": _CSV + "VIX1D_History.csv",
+    "OVX": _CSV + "OVX_History.csv",
+    "VIX9D": _CSV + "VIX9D_History.csv",
+    "VIX": _CSV + "VIX_History.csv",
+    "VIX3M": _CSV + "VIX3M_History.csv",
+    "VIX6M": _CSV + "VIX6M_History.csv",
+    "VIX1Y": _CSV + "VIX1Y_History.csv",
+    "SKEW": _CSV + "SKEW_History.csv",
+    # ── timsun 面板扩展（2026-08）──
+    # 列名 = timsun 显示名；URL 用 CBOE 官方代码（命名不同的已在注释标注）
+    "GVZ": _CSV + "GVZ_History.csv",  # 黄金
+    "VXSL": _CSV + "VXSLV_History.csv",  # 白银（官方 VXSLV）
+    "VXN": _CSV + "VXN_History.csv",  # 纳指 100
+    "VXD": _CSV + "VXD_History.csv",  # 道琼斯
+    "VVIX": _CSV + "VVIX_History.csv",  # 波动率的波动率
+    "VXV": _CSV + "VXV_History.csv",  # 3 个月 VIX
+    "VIN": _CSV + "VIN_History.csv",  # Near Term
+    "VIF": _CSV + "VIF_History.csv",  # Far Term
+    "VXTH": _CSV + "VXTH_History.csv",  # Tail Hedge
+    "VTLT": _CSV + "VXTLT_History.csv",  # 20Y 国债（官方 VXTLT）
+    "VXGO": _CSV + "VXGOG_History.csv",  # Google（官方 VXGOG）
+    "VXGS": _CSV + "VXGS_History.csv",  # 高盛
+    "VXAP": _CSV + "VXAPL_History.csv",  # Apple（官方 VXAPL）
+    "VXAZ": _CSV + "VXAZN_History.csv",  # Amazon（官方 VXAZN）
+    "VXIB": _CSV + "VXIBM_History.csv",  # IBM（官方 VXIBM）
 }
 
 
 def fetch_cboe_volatility() -> pd.DataFrame:
-    """下载 VIX1D/OVX/VIX9D/VIX/VIX3M/VIX6M/VIX1Y/SKEW 全量历史，按观测日对齐。
+    """下载全部 VIX 家族指数全量历史，按观测日对齐。
 
     单序列拉取失败时跳过并告警；VIX_TERM_SLOPE 需 VIX+VIX9D 同时在场。
     """
@@ -81,6 +98,13 @@ def _fetch_cboe_series(name: str, url: str, session: requests.Session) -> pd.Ser
     if not date_col:
         raise ValueError(f"找不到日期列: {list(df.columns)}")
     val_col = _find_column(df.columns, ["OVX", "CLOSE", "Close", "close", name])
+    if not val_col:
+        # 值列名与指标名不一致（如 VXTLT 的列名是 VXTLT 而非 VTLT）
+        # → 取第一个非日期数值列
+        for col in df.columns:
+            if col != date_col and pd.api.types.is_numeric_dtype(df[col]):
+                val_col = col
+                break
     if not val_col:
         raise ValueError(f"找不到值列: {list(df.columns)}")
 

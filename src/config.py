@@ -344,15 +344,20 @@ YF_TICKERS = {
     "DXY": "DX-Y.NYB",
     "MOVE": "^MOVE",  # 美林国债期权波动率指数（债市 VIX）
     "BTC": "BTC-USD",
+    "ETH": "ETH-USD",
     "WTI": "CL=F",
+    "NG": "NG=F",  # 天然气（timsun 商品板块）
     "Brent": "BZ=F",
     "Gold": "GC=F",
     "Silver": "SI=F",
     "Copper": "HG=F",
     "TLT": "TLT",
+    "IEF": "IEF",  # 7-10 年国债 ETF
     "HYG": "HYG",
     "LQD": "LQD",
     "KBWB": "KBWB",  # KBW 银行 ETF（信用页银行系统风险代理）
+    "SMH": "SMH",  # 半导体 ETF（timsun ETF 看板）
+    "SOXX": "SOXX",  # 半导体 ETF（timsun ETF 看板）
     "SOX": "^SOX",
     "N225": "^N225",
     "KOSPI": "^KS11",
@@ -361,6 +366,9 @@ YF_TICKERS = {
     "SZSE": "399001.SZ",
     "USDJPY": "JPY=X",  # 1 美元兑日元
     "USDCNY": "CNY=X",  # 1 美元兑人民币
+    "EURUSD": "EURUSD=X",  # 欧元/美元
+    "GBPUSD": "GBPUSD=X",  # 英镑/美元
+    "USDKRW": "KRW=X",  # 美元/韩元
     # 韩股/中概等纯数字代码用可读名（SAMSUNG/SKHYNIX），不直接用 KRX 数字代码
     "SAMSUNG": "005930.KS",
     "SKHYNIX": "000660.KS",
