@@ -27,7 +27,9 @@ def _mock_get(monkeypatch, text=None, exc=None):
         r.text = text or ""
         return r
 
-    monkeypatch.setattr(af.requests, "get", fake_get)
+    from src.fetchers import _wiki
+
+    monkeypatch.setattr(_wiki.requests, "get", fake_get)
 
 
 def test_components_parse(monkeypatch, tmp_path):

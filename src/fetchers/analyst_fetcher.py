@@ -12,12 +12,9 @@ Nasdaq 100 分析师目标价快照（timsun /assets/equities 面板数据）。
 """
 
 import logging
-import re
 import time
-from html import unescape
 
 import pandas as pd
-import requests
 
 from ..config import ROOT
 
@@ -30,50 +27,14 @@ _REQUEST_SLEEP_SECONDS = 0.2  # 103 票连发易触发 yfinance 限流
 
 
 def fetch_ndx_components() -> pd.DataFrame:
-    """从 Wikipedia 抓当前 Nasdaq-100 成分（Ticker/Company/Industry）。
+    """从 Wikipedia 抓当前 Nasdaq-100 成分（ticker/company/industry）。
 
     网络失败时回退读本地缓存（ndx_components.csv，上次成功的成分）。
     """
-    try:
-        resp = requests.get(
-            COMPONENTS_URL,
-            timeout=30,
-            headers={"User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)"},
-        )
-        resp.raise_for_status()
-        # 第一个 wikitable：Ticker | Company | ICB Industry | ICB Subsector
-        m = re.search(
-            r'<table[^>]*class="[^"]*wikitable[^"]*"[^>]*>(.*?)</table>',
-            resp.text,
-            re.S,
-        )
-        if not m:
-            raise ValueError("成分表未找到")
-        rows = []
-        for tr in re.findall(r"<tr[^>]*>(.*?)</tr>", m.group(1), re.S):
-            cells = [
-                unescape(re.sub(r"<[^>]+>", "", c)).strip()
-                for c in re.findall(r"<t[dh][^>]*>(.*?)</t[dh]>", tr, re.S)
-            ]
-            if (
-                len(cells) >= 3
-                and cells[0] not in ("Ticker", "")
-                and re.match(r"^[A-Z][A-Z0-9.\-]{0,4}$", cells[0])
-            ):
-                rows.append(
-                    {"ticker": cells[0], "company": cells[1], "industry": cells[2]}
-                )
-        if not rows:
-            raise ValueError("成分表解析为空")
-        df = pd.DataFrame(rows).drop_duplicates(subset="ticker")
-        COMPONENTS_PATH.parent.mkdir(parents=True, exist_ok=True)
-        df.to_csv(COMPONENTS_PATH, index=False)
-        return df
-    except Exception as e:
-        logger.warning(f"Wikipedia 成分拉取失败（回退缓存）: {e}")
-        if COMPONENTS_PATH.exists():
-            return pd.read_csv(COMPONENTS_PATH)
-        raise
+    from ._wiki import fetch_wiki_tickers
+
+    df = fetch_wiki_tickers(COMPONENTS_URL, COMPONENTS_PATH)
+    return df.rename(columns={"category": "industry"})
 
 
 def _ticker_targets(ticker: str) -> dict | None:

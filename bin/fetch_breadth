@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+# 市场广度 ABV（SPX 成分股在均线上方占比，Wikipedia 成分 + yfinance 批量）
+set -euo pipefail
+cd "$(dirname "$0")/.."
+uv run python -m src.fetchers.breadth_fetcher "$@"

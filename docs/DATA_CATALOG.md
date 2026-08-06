@@ -427,6 +427,23 @@ Nasdaq 100 成分股分析师目标价快照（timsun /assets/equities 面板数
 
 ---
 
+## 11.7 市场广度 — `data/breadth/`
+
+SPX 成分股在均线上方占比（timsun /assets/equities 面板）。
+成分股来自 Wikipedia（缓存回退）；yfinance 批量拉 2y 日线逐票算均线。
+**与 Barchart $S5TH 交叉验证**：自算 ABV200 vs Barchart 当前值误差 <0.2%。
+
+| 文件 | 说明 |
+|------|------|
+| `sp500_components.csv` | SPX 成分缓存（ticker / company / category，~503 只） |
+| `abv.csv` | 观测日 upsert：ABV50 / ABV100 / ABV200（%，仅派生序列，不存明细） |
+
+> 现成源调研（2026-08-06）：StockCharts $SPXA200R、investing S5TH 均被 Cloudflare 拦截；
+> Barchart $S5TH 仅当前值可匿名获取（历史端点 500）。自算为唯一免费完整历史方案。
+> 已纳入 Actions daily-fetch（`bin/fetch_breadth`，yfinance 批量 ~2-5 分钟）。
+
+---
+
 ## 11.6 跨资产相关性 — `data/cross_asset/`
 
 30 日滚动相关系数（timsun /assets 面板）。纯派生计算（`uv run python -m src.cross_asset`），
