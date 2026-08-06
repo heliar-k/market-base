@@ -62,6 +62,9 @@ STOCKS: list[SymbolConfig] = [
     SymbolConfig(name="HOOD", exchange="SMART"),
     SymbolConfig(name="COIN", exchange="SMART"),
     SymbolConfig(name="SNDK", exchange="SMART"),
+    SymbolConfig(name="AMD", exchange="SMART"),
+    SymbolConfig(name="AVGO", exchange="SMART"),
+    SymbolConfig(name="INTC", exchange="SMART"),
     # ── 算力拥挤度观察（IBKR 不可用时 yfinance 回退）──
     # 韩股/中概等纯数字代码用可读名（SAMSUNG/SKHYNIX），yf_ticker 保留原始代码
     SymbolConfig(
