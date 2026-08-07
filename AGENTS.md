@@ -22,6 +22,8 @@ market-base/
 │   ├── config.py                 ← 统一配置（FRED 系列、IBKR 品种、yfinance 标的）
 │   ├── indicators.py             ← 技术指标计算（MA/RSI/MACD/Bollinger/ADX/Stoch/SuperTrend 等）
 │   ├── analyze.py                ← 技术分析诊断引擎（analyze + detect_cdl_hits），CLI 输出 JSON
+│   ├── intraday_levels.py        ← 分时价位分析（触及次数/量能分布/插针判定，单日 5m 报告）
+│   ├── stock_snapshot.py         ← 盘前实时价 + OI 墙快照（yfinance）
 │   ├── compute_gex.py            ← Gamma Exposure 与期权墙计算（IBKR + yfinance）
 │   ├── cache.py                  ← 指标缓存层（parquet + mtime 失效，TUI 加速）
 │   ├── macro.py                  ← 宏观派生指标（2s10s / 净流动性 / BEI / SOFR-IORB）
@@ -205,6 +207,7 @@ uv run python src/sell_put.py --symbol TSM
 ### 1. 数据层 vs 分析层分离
 - **fetchers/** 只负责拉取数据、写入 CSV，**不**包含分析逻辑
 - **indicators.py / analyze.py** 只负责读取本地 CSV、计算指标、输出报告
+- **指标归位规则**：输出是"逐日一行的新列"（df→df+列，可缓存）→ `indicators.py` 的 `add_*()`；输出是"给人看的报告"（文本/CLI）→ 独立模块（如 `intraday_levels.py` 分钟线、`compute_gex.py` 期权），不进指标缓存
 - 新增 fetcher → 在 `src/fetchers/` 下新建文件；宏观 fetcher 实现 `fetch_*() -> DataFrame`（全量 upsert），其余按需用 DataPoint
 - 新增指标 → 在 `src/indicators.py` 里加 `add_*()` 函数，并在 `compute_all_indicators()` 注册
 
