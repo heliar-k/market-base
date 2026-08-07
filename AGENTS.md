@@ -77,7 +77,8 @@ market-base/
 │   ├── fetch_fed                      ← FOMC 声明 + 官员演讲（增量，Actions 每日）
 │   ├── fetch_treasury                  ← 国债拍卖（Treasury Fiscal Data API）
 │   ├── fetch_bgcr                      ← BGCR 利率（NY Fed Markets API，FRED 无此系列）
-│   └── fetch_cgb                       ← 中国国债收益率 10Y/30Y（chinamoney，FRED 无）
+│   ├── fetch_cgb                       ← 中国国债收益率 10Y/30Y（chinamoney，FRED 无）
+│   └── fetch_news                      ← Yahoo Finance 个股新闻（curl_cffi 直连 NCP，不走 yfinance）
 │
 ├── data/                         ← 数据存储（增量 CSV / JSON）
 │   ├── fred/{category}/{category}.csv  ← 12 分类 FRED 数据（观测日 upsert）
@@ -166,6 +167,7 @@ uv run python -m src.cross_asset     # 跨资产 30 日相关性矩阵（派生�
 ./bin/fetch_treasury                # 国债拍卖结果 + 未来日历（全量覆盖）
 ./bin/fetch_bgcr                     # BGCR 利率（NY Fed，FRED 无；合并进 rates.csv）
 ./bin/fetch_cgb                      # 中国国债收益率 10Y/30Y（chinamoney 实时曲线）
+./bin/fetch_news TSM -n 10          # 个股新闻（直连 Yahoo NCP 接口，绕过 yfinance t.news bug）
 ./bin/fetch_yfinance                # yfinance 资产价格
 ./bin/fetch_commodities             # 全部期货（整条曲线）
 ./bin/fetch_commodities --front-month  # 仅主力合约

@@ -1,0 +1,5 @@
+#!/bin/bash
+# Yahoo Finance 个股新闻（curl_cffi 直连 NCP 接口，绕过 yfinance t.news bug）
+set -euo pipefail
+cd "$(dirname "$0")/.."
+exec uv run python -m src.fetchers.news_fetcher "$@"
