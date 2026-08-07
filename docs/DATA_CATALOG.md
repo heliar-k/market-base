@@ -429,6 +429,25 @@ Nasdaq 100 成分股分析师目标价快照（timsun /assets/equities 面板数
 
 ## 11.7 市场广度 — `data/breadth/`
 
+---
+
+## 12. 财报三张表 — `data/financials/{SYMBOL}/`
+
+来源 yfinance（走 .env SOCKS5 代理；Actions 用 `YF_NO_PROXY=1` 直连）。
+`./bin/fetch_financials` 拉取，每只股票 6 张表：`{income|balance|cashflow}_{annual|quarterly}.csv`。
+CSV 行 = 报告期末（period end，upsert 模式：同日新值覆盖、新期追加），列 = 科目（yfinance 原始科目名）。
+年度近 4 年、季度近 4-8 期；ETF（SPY/QQQ）无财报自动跳过。
+
+---
+
+## 13. SEC 财报原文 — `data/sec/{SYMBOL}/`
+
+来源 SEC EDGAR（免费、无需认证；UA 须为「机构名 + 邮箱」格式）。
+`./bin/fetch_sec` 拉取，文件 `{FORM}_{filing_date}.txt.gz`：10-K/10-Q 正本（跳过 /A 修正件）
+主文档（iXBRL HTML）去 ix:header/标签后的纯文本，gzip 压缩（~20-60KB/份）。
+存储模式：文件存在即跳过 → 自然增量；默认回溯 2 年（`--years N` 加长），
+仅美股（韩股/ETF 无 EDGAR 申报）。文档直链须用无破折号 accession。
+
 SPX 成分股在均线上方占比（timsun /assets/equities 面板）。
 成分股来自 Wikipedia（缓存回退）；yfinance 批量拉 2y 日线逐票算均线。
 **与 Barchart $S5TH 交叉验证**：自算 ABV200 vs Barchart 当前值误差 <0.2%。

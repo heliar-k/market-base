@@ -32,7 +32,7 @@ jobs:
           YF_NO_PROXY: "1"        # Actions 无 socks5 代理，yfinance 直连
         run: |
           set +e  # 单个失败不阻断
-          for f in fetch_fred fetch_fsi fetch_srf fetch_tsy fetch_cfets fetch_cboe fetch_shapiro fetch_sce fetch_treasury fetch_yfinance fetch_barchart_futures fetch_cot fetch_rate_expectations fetch_bgcr fetch_cgb fetch_fed fetch_analyst fetch_breadth; do
+          for f in fetch_fred fetch_fsi fetch_srf fetch_tsy fetch_cfets fetch_cboe fetch_shapiro fetch_sce fetch_treasury fetch_yfinance fetch_barchart_futures fetch_cot fetch_rate_expectations fetch_bgcr fetch_cgb fetch_fed fetch_analyst fetch_breadth fetch_financials fetch_sec; do
             echo "===== START $f ====="
             bash "bin/$f" || echo "===== FAIL  $f ====="
           done
