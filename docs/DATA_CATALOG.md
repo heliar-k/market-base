@@ -216,6 +216,7 @@ FRED liquidity 分类的原始系列（由 `./bin/fetch_fred` 一并拉取）。
 | `AAPL.csv` | Apple |
 | `AMZN.csv` | Amazon |
 | `GOOG.csv` | Google (Alphabet) |
+| `ISRG.csv` | Intuitive Surgical (直觉外科) |
 | `META.csv` | Meta |
 | `MSFT.csv` | Microsoft |
 | `MU.csv` | Micron |

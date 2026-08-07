@@ -49,6 +49,7 @@ STOCKS: list[SymbolConfig] = [
     SymbolConfig(name="MCD", exchange="SMART"),
     SymbolConfig(name="LLY", exchange="SMART"),
     SymbolConfig(name="UNH", exchange="SMART"),
+    SymbolConfig(name="ISRG", exchange="NASDAQ"),
     SymbolConfig(name="KO", exchange="SMART"),
     SymbolConfig(name="MU", exchange="SMART"),
     SymbolConfig(name="TSM", exchange="SMART"),
