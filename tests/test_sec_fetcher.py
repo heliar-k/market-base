@@ -18,6 +18,7 @@ def _submissions_json() -> dict:
             "0000320193-24-000004",
             "0000320193-24-000005",
             "0001046179-25-000006",
+            "0001046179-25-000007",
         ],
         "filingDate": [
             "2025-11-01",
@@ -26,8 +27,9 @@ def _submissions_json() -> dict:
             "2024-08-01",
             "2019-05-01",
             "2025-05-01",
+            "2025-04-17",
         ],
-        "form": ["10-Q", "10-K", "10-K/A", "10-Q", "10-K", "20-F"],
+        "form": ["10-Q", "10-K", "10-K/A", "10-Q", "10-K", "20-F", "6-K"],
         "primaryDocument": [
             "aapl-20250927.htm",
             "aapl-20240928.htm",
@@ -35,8 +37,9 @@ def _submissions_json() -> dict:
             "aapl-20240629.xbrl",
             "aapl-20190928.htm",
             "tsmc-20250430.htm",
+            "tsm-20250417x6k.htm",
         ],
-        "primaryDocDescription": ["", "", "", "", "", ""],
+        "primaryDocDescription": ["", "", "", "", "", "", ""],
     }
     return {"filings": {"recent": recent}}
 
@@ -57,6 +60,25 @@ def test_recent_filings_filter(monkeypatch):
         "000032019325000002/aapl-20240928.htm"
     )
     assert url == expected
+
+
+def test_6k_full_text_url_and_pattern(monkeypatch):
+    """6-K 走完整提交文本直链（目录无破折号、文件名带破折号），
+    doc_pattern 只放行匹配主文档名的 6-K。"""
+    payload = json.dumps(_submissions_json()).encode()
+    monkeypatch.setattr(sec_fetcher, "_get", lambda url: payload)
+    items = sec_fetcher.recent_filings(
+        "1046179",
+        years=2,
+        forms=("6-K",),
+        doc_pattern=r"^tsm-\d{8}x6k",
+    )
+    assert [(f, d) for f, d, _ in items] == [("6-K", "2025-04-17")]
+    form, fdate, url = items[0]
+    assert url == (
+        "https://www.sec.gov/Archives/edgar/data/1046179/"
+        "000104617925000007/0001046179-25-000007.txt"
+    )
 
 
 def test_normalize_ticker():
@@ -99,6 +121,26 @@ def test_download_filing_short_text_skipped(tmp_path, monkeypatch):
     dest = tmp_path / "10-K_bad.txt.gz"
     assert not sec_fetcher._download_filing("http://example/x.htm", dest)
     assert not dest.exists()
+
+
+def test_download_full_text_strips_sec_meta(tmp_path, monkeypatch):
+    """完整提交文本：剥 <SEC-HEADER>/<SEC-DOCUMENT> 元数据后落盘。"""
+    body = (
+        b"<SEC-DOCUMENT>0001.txt : 20250417\n"
+        b"<SEC-HEADER>ACCESSION NUMBER: 0001</SEC-HEADER>\n"
+        b"<DOCUMENT><TYPE>6-K</TYPE><TEXT><html><p>"
+        + b"revenue 1000 " * 150
+        + b"</p></html></TEXT>"
+    )
+    monkeypatch.setattr(sec_fetcher, "_get", lambda url: body)
+    dest = tmp_path / "6-K_2025-04-17_0001.txt.gz"
+    assert sec_fetcher._download_filing("http://example/0001.txt", dest)
+    with gzip.open(dest, "rt", encoding="utf-8") as f:
+        text = f.read()
+    assert "revenue 1000" in text
+    assert "SEC-HEADER" not in text
+    assert "<html>" not in text  # 附件 HTML 一并剥离
+    assert "ACCESSION" not in text
 
 
 if __name__ == "__main__":

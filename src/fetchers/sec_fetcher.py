@@ -1,21 +1,25 @@
 """
-Fetch SEC 10-K / 10-Q filings (original text) from EDGAR.
+Fetch SEC filings (original text) from EDGAR.
 
 数据源: data.sec.gov / www.sec.gov（免费、无需认证；
 UA 须为「机构名 + 联系邮箱」格式，否则 WAF 403）
 输出: data/sec/{SYMBOL}/{FORM}_{filing_date}.txt.gz
-  = 主文档（10-Q/10-K 正文，iXBRL HTML）去标签后的纯文本，gzip 压缩（~150KB/份）
-  （不含附件——全量申报 .txt 一份 10-Q 就 5.8MB，进 git 太重）
+  = 主文档（10-Q/10-K/20-F 正文，iXBRL HTML）去标签后的纯文本，gzip 压缩
+  = 6-K 则存完整提交文本 {accession}.txt（6-K 主文档只是封面，正文全在附件里）
 存储模式: 文档库（非时间序列），目标文件已存在即跳过 → 自然增量，无全量覆盖逻辑
 默认回溯 2 年（10-K × 2 + 10-Q × 8），与 yfinance 三张表（financials_fetcher）深度匹配；
---years N 可加长。仅收录 10-K / 10-Q / 20-F 正本（跳过 /A 修正件；
+--years N 可加长。默认仅收录 10-K / 10-Q / 20-F 正本（跳过 /A 修正件；
 20-F 是外国私人发行人（FPI，如 TSM）的年度报告，与 10-K 同级）。
+6-K（FPI 季报/临时披露）噪音大，须配 --doc-pattern 按主文档名过滤，
+如 TSM 季报+月度营收: --forms 6-K --doc-pattern "^(tsm-[0-9]{8}x6k|tsm-fs|tsm-revenue)"
 注意: EDGAR 新架构文档直链必须用无破折号 accession（带破折号 404）。
 
 用法:
   uv run python -m src.fetchers.sec_fetcher
   uv run python -m src.fetchers.sec_fetcher --symbols AAPL,MSFT
   uv run python -m src.fetchers.sec_fetcher --years 5
+  uv run python -m src.fetchers.sec_fetcher --symbols TSM --forms 6-K
+      --doc-pattern "..."
 """
 
 from __future__ import annotations
@@ -60,6 +64,12 @@ _TAG_RE = re.compile(r"<[^>]+>")
 _SKIP_RE = re.compile(r"<script.*?</script>|<style.*?</style>", re.S)
 # iXBRL 文档头部有命名空间/上下文定义块（无实际内容），剥离后再去标签
 _IX_HEADER_RE = re.compile(r"<ix:header>.*?</ix:header>", re.S)
+# 完整提交文本中的 SGML 元数据块/文档分隔标记
+_SEC_HEADER_RE = re.compile(r"<SEC-HEADER>.*?</SEC-HEADER>", re.S)
+_SEC_DOC_RE = re.compile(r"<SEC-DOCUMENT>[^\n]*\n", re.S)
+
+# 6-K 主文档只是封面页（~18KB），正文在附件里 → 必须下完整提交文本
+FULL_TEXT_FORMS = ("6-K",)
 
 
 def _get(url: str) -> str | bytes:
@@ -96,12 +106,25 @@ def _extract_text(html: str) -> str:
     return "\n".join(ln for ln in lines if ln)
 
 
-def recent_filings(cik: str, years: int) -> list[tuple[str, str, str]]:
-    """该 CIK 近 N 年的 (form, filing_date, txt_url) 列表，按日期升序。
+def _full_text_url(cik: str, accession: str) -> str:
+    """完整提交文本（封面+全部附件合并）。目录无破折号、文件名带破折号。"""
+    nodash = accession.replace("-", "")
+    return f"{BASE}/Archives/edgar/data/{cik}/{nodash}/{accession}.txt"
 
-    仅收录 10-K/10-Q 正本：跳过 /A 修正件；primaryDocument 非 HTML
-    （老式 XBRL 入口页）跳过。
+
+def recent_filings(
+    cik: str,
+    years: int,
+    forms: tuple[str, ...] | None = None,
+    doc_pattern: str | None = None,
+) -> list[tuple[str, str, str]]:
+    """该 CIK 近 N 年的 (form, filing_date, url) 列表，按日期升序。
+
+    forms=None 用默认 FORMS；跳过 /A 修正件；primaryDocument 非 HTML 跳过；
+    doc_pattern 为正则，匹配主文档名（6-K 噪音过滤用）。
     """
+    forms = forms or FORMS
+    pat = re.compile(doc_pattern) if doc_pattern else None
     raw = _get(f"{DATA_BASE}/submissions/CIK{cik:0>10}.json")
     recent = json.loads(raw)["filings"]["recent"]
     cutoff = datetime.now().timestamp() - years * 365.25 * 86400
@@ -114,25 +137,35 @@ def recent_filings(cik: str, years: int) -> list[tuple[str, str, str]]:
         recent["primaryDocument"],
         strict=True,
     ):
-        if form not in FORMS:  # 排除 10-K/A、10-Q/A
+        if form not in forms:  # 排除 10-K/A、10-Q/A 等修正件
             continue
         if not doc.lower().endswith((".htm", ".html")):
             logger.debug("跳过非 HTML 主文档 %s %s", cik, doc)
             continue
+        if pat and not pat.search(doc):
+            continue
         if datetime.strptime(fdate, "%Y-%m-%d").timestamp() < cutoff:
             continue
-        items.append((form, fdate, _filing_url(cik, acc, doc)))
+        if form in FULL_TEXT_FORMS:
+            items.append((form, fdate, _full_text_url(cik, acc)))
+        else:
+            items.append((form, fdate, _filing_url(cik, acc, doc)))
     return sorted(items, key=lambda x: x[1])
 
 
 def _download_filing(url: str, dest: Path) -> bool:
-    """下载主文档 HTML → 提取纯文本 → gzip 落盘。返回是否成功。"""
+    """下载文档 → 提取纯文本 → gzip 落盘。返回是否成功。"""
     try:
-        html = _get(url).decode("utf-8", errors="replace")
+        raw = _get(url)
     except Exception as e:  # noqa: BLE001 — 单条失败不阻断整体
         logger.warning("下载失败 %s: %s", url, e)
         return False
-    text = _extract_text(html)
+    # 完整提交文本：剥 SGML 元数据后仍含 <DOCUMENT> 标记 + 附件原始 HTML
+    if url.endswith(".txt"):
+        text = _SEC_HEADER_RE.sub("", raw.decode("utf-8", errors="replace"))
+        text = _extract_text(text)
+    else:
+        text = _extract_text(raw.decode("utf-8", errors="replace"))
     if len(text) < 1000:
         logger.warning("文本过短 %s（%d 字符），跳过", url, len(text))
         return False
@@ -143,9 +176,12 @@ def _download_filing(url: str, dest: Path) -> bool:
 
 
 def fetch_sec(
-    symbols: list[str] | None = None, years: int = 2
+    symbols: list[str] | None = None,
+    years: int = 2,
+    forms: tuple[str, ...] | None = None,
+    doc_pattern: str | None = None,
 ) -> dict[str, tuple[int, int]]:
-    """拉取指定股票的 10-K/10-Q 原文。symbols=None 时用配置全部股票。"""
+    """拉取指定股票的申报原文。symbols=None 时用配置全部股票。"""
     cik_map = fetch_cik_map()
     result: dict[str, tuple[int, int]] = {}
     for sc in STOCKS:
@@ -158,8 +194,12 @@ def fetch_sec(
             continue
         new = skipped = 0
         out_dir = OUT_DIR / sc.name
-        for form, fdate, url in recent_filings(cik, years):
-            dest = out_dir / f"{form}_{fdate}.txt.gz"
+        for form, fdate, url in recent_filings(cik, years, forms, doc_pattern):
+            if form in FULL_TEXT_FORMS:
+                name = f"{form}_{fdate}_{url.rsplit('/', 1)[-1].split('.')[0]}.txt.gz"
+            else:
+                name = f"{form}_{fdate}.txt.gz"
+            dest = out_dir / name
             if dest.exists():
                 skipped += 1
                 continue
@@ -170,14 +210,21 @@ def fetch_sec(
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Fetch SEC 10-K/10-Q original text")
+    parser = argparse.ArgumentParser(description="Fetch SEC filings original text")
     parser.add_argument("--symbols", help="逗号分隔的股票列表（默认全部）")
     parser.add_argument("--years", type=int, default=2, help="回溯年数（默认 2）")
+    parser.add_argument(
+        "--forms",
+        default=",".join(FORMS),
+        help="表单（逗号分隔，默认 %(default)s；6-K 需配 --doc-pattern）",
+    )
+    parser.add_argument("--doc-pattern", help="主文档名正则过滤（如 TSM 季报/营收）")
     args = parser.parse_args()
 
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
     symbols = [s.strip() for s in args.symbols.split(",")] if args.symbols else None
-    result = fetch_sec(symbols, args.years)
+    forms = tuple(f.strip() for f in args.forms.split(","))
+    result = fetch_sec(symbols, args.years, forms, args.doc_pattern)
     total_new = total_skip = 0
     for name, (new, skipped) in result.items():
         logger.info("%s: 新增 %d，跳过 %d", name, new, skipped)

@@ -36,6 +36,8 @@ jobs:
             echo "===== START $f ====="
             bash "bin/$f" || echo "===== FAIL  $f ====="
           done
+          # TSM 6-K（FPI 季报 + 月度营收，按主文档名过滤；6-K 主文档只是封面，存完整提交文本）
+          bash bin/fetch_sec --symbols TSM --forms 6-K --doc-pattern '^(tsm-[0-9]{8}x6k|tsm-fs|tsm-revenue)' || echo "===== FAIL  fetch_sec-tsm-6k ====="
 
       - name: 跨资产相关性（派生，依赖资产快照）
         run: |
