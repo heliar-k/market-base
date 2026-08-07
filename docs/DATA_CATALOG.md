@@ -214,18 +214,26 @@ FRED liquidity 分类的原始系列（由 `./bin/fetch_fred` 一并拉取）。
 | 文件 | 品种 |
 |------|------|
 | `AAPL.csv` | Apple |
+| `ABBV.csv` | AbbVie (艾伯维) |
+| `AZN.csv` | AstraZeneca ADR (阿斯利康) |
 | `AMZN.csv` | Amazon |
+| `COST.csv` | Costco (好市多) |
 | `GOOG.csv` | Google (Alphabet) |
+| `HD.csv` | Home Depot (家得宝) |
 | `ISRG.csv` | Intuitive Surgical (直觉外科) |
+| `JNJ.csv` | Johnson & Johnson (强生) |
 | `META.csv` | Meta |
 | `MSFT.csv` | Microsoft |
 | `MU.csv` | Micron |
 | `NVDA.csv` | NVIDIA |
+| `PEP.csv` | PepsiCo (百事) |
+| `PG.csv` | Procter & Gamble (宝洁) |
 | `QQQ.csv` | Invesco QQQ ETF |
 | `SNDK.csv` | SanDisk (闪迪) |
 | `SPY.csv` | SPDR S&P 500 ETF |
 | `TSLA.csv` | Tesla |
 | `TSM.csv` | TSMC (台积电) |
+| `WMT.csv` | Walmart (沃尔玛) |
 
 ### 列格式（OHLCV）
 
