@@ -264,7 +264,10 @@ uv run python src/sell_put.py --symbol TSM
 | 查 yfinance 用法 | `find-docs` | 获取 yfinance / pandas / ib_insync 的 API 文档 |
 | 指标代码审查 | `ponytail-review` | 检查是否过度抽象、引入不必要依赖 |
 | 分析特定股票 | `yfinance-data` | 拉取实时行情、基本面数据 |
+| 盘前复核/交易计划 | `planning-trades` | 做空/做多挂单计划、盘前实时价（`uv run python -m src.stock_snapshot {X} --oi`）、GEX 验证 |
 | 期权分析 | `options-payoff` | 可视化期权盈亏曲线 |
+| 财报前瞻/复盘 | `earnings-preview` / `earnings-recap` | 财报前预期简报 / 财报后结果与股价反应分析 |
+| 分析师预期趋势 | `estimate-analysis` | EPS/营收预期修正趋势追踪 |
 | 写 commit | `git-commit` | 生成规范的 commit message |
 
 ---
