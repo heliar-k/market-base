@@ -17,6 +17,7 @@ def _submissions_json() -> dict:
             "0000320193-24-000003",
             "0000320193-24-000004",
             "0000320193-24-000005",
+            "0001046179-25-000006",
         ],
         "filingDate": [
             "2025-11-01",
@@ -24,30 +25,33 @@ def _submissions_json() -> dict:
             "2024-11-01",
             "2024-08-01",
             "2019-05-01",
+            "2025-05-01",
         ],
-        "form": ["10-Q", "10-K", "10-K/A", "10-Q", "10-K"],
+        "form": ["10-Q", "10-K", "10-K/A", "10-Q", "10-K", "20-F"],
         "primaryDocument": [
             "aapl-20250927.htm",
             "aapl-20240928.htm",
             "aapl-20240928.htm",
             "aapl-20240629.xbrl",
             "aapl-20190928.htm",
+            "tsmc-20250430.htm",
         ],
-        "primaryDocDescription": ["", "", "", "", ""],
+        "primaryDocDescription": ["", "", "", "", "", ""],
     }
     return {"filings": {"recent": recent}}
 
 
 def test_recent_filings_filter(monkeypatch):
-    """只留 10-K/10-Q 正本、HTML 主文档、回溯期内；URL 指向 .txt 渲染。"""
+    """只留 10-K/10-Q/20-F 正本、HTML 主文档、回溯期内；URL 指向无破折号直链。"""
     payload = json.dumps(_submissions_json()).encode()
     monkeypatch.setattr(sec_fetcher, "_get", lambda url: payload)
     items = sec_fetcher.recent_filings("320193", years=2)
     assert [(f, d) for f, d, _ in items] == [
+        ("20-F", "2025-05-01"),
         ("10-K", "2025-08-01"),
         ("10-Q", "2025-11-01"),
     ]
-    form, fdate, url = items[0]
+    form, fdate, url = items[1]
     expected = (
         "https://www.sec.gov/Archives/edgar/data/320193/"
         "000032019325000002/aapl-20240928.htm"

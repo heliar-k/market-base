@@ -443,7 +443,7 @@ CSV 行 = 报告期末（period end，upsert 模式：同日新值覆盖、新�
 ## 13. SEC 财报原文 — `data/sec/{SYMBOL}/`
 
 来源 SEC EDGAR（免费、无需认证；UA 须为「机构名 + 邮箱」格式）。
-`./bin/fetch_sec` 拉取，文件 `{FORM}_{filing_date}.txt.gz`：10-K/10-Q 正本（跳过 /A 修正件）
+`./bin/fetch_sec` 拉取，文件 `{FORM}_{filing_date}.txt.gz`：10-K/10-Q/20-F 正本（跳过 /A 修正件）
 主文档（iXBRL HTML）去 ix:header/标签后的纯文本，gzip 压缩（~20-60KB/份）。
 存储模式：文件存在即跳过 → 自然增量；默认回溯 2 年（`--years N` 加长），
 仅美股（韩股/ETF 无 EDGAR 申报）。文档直链须用无破折号 accession。

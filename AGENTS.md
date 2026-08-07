@@ -73,7 +73,7 @@ market-base/
 │   ├── fetch_barchart_futures
 │   ├── fetch_cot
 │   ├── fetch_financials                ← 财报三张表（yfinance 季度+年度，Actions 每日）
-│   ├── fetch_sec                       ← SEC 10-K/10-Q 原文（EDGAR 增量，Actions 每日）
+│   ├── fetch_sec                       ← SEC 10-K/10-Q/20-F 原文（EDGAR 增量，Actions 每日）
 │   ├── fetch_fed                      ← FOMC 声明 + 官员演讲（增量，Actions 每日）
 │   ├── fetch_treasury                  ← 国债拍卖（Treasury Fiscal Data API）
 │   ├── fetch_bgcr                      ← BGCR 利率（NY Fed Markets API，FRED 无此系列）
@@ -162,7 +162,7 @@ market-base/
 uv run python -m src.cross_asset     # 跨资产 30 日相关性矩阵（派生，依赖资产快照）
 ./bin/fetch_fed                     # FOMC 声明 + 官员演讲（增量，首次自动全量）
 ./bin/fetch_financials               # 财报三张表（yfinance，季度+年度，Actions 每日）
-./bin/fetch_sec                      # SEC 10-K/10-Q 原文（EDGAR 增量，默认回溯 2 年）
+./bin/fetch_sec                      # SEC 10-K/10-Q/20-F 原文（EDGAR 增量，默认回溯 2 年）
 ./bin/fetch_treasury                # 国债拍卖结果 + 未来日历（全量覆盖）
 ./bin/fetch_bgcr                     # BGCR 利率（NY Fed，FRED 无；合并进 rates.csv）
 ./bin/fetch_cgb                      # 中国国债收益率 10Y/30Y（chinamoney 实时曲线）

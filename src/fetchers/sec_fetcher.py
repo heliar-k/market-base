@@ -8,7 +8,8 @@ UA 须为「机构名 + 联系邮箱」格式，否则 WAF 403）
   （不含附件——全量申报 .txt 一份 10-Q 就 5.8MB，进 git 太重）
 存储模式: 文档库（非时间序列），目标文件已存在即跳过 → 自然增量，无全量覆盖逻辑
 默认回溯 2 年（10-K × 2 + 10-Q × 8），与 yfinance 三张表（financials_fetcher）深度匹配；
---years N 可加长。仅收录 10-K / 10-Q 正本（跳过 /A 修正件）。
+--years N 可加长。仅收录 10-K / 10-Q / 20-F 正本（跳过 /A 修正件；
+20-F 是外国私人发行人（FPI，如 TSM）的年度报告，与 10-K 同级）。
 注意: EDGAR 新架构文档直链必须用无破折号 accession（带破折号 404）。
 
 用法:
@@ -47,7 +48,8 @@ _SESSION.trust_env = False
 _SESSION.headers.update(HEADERS)
 
 OUT_DIR = ROOT / "data" / "sec"
-FORMS = ("10-K", "10-Q")
+# 10-K/10-Q 为美国本土发行人，20-F 为外国发行人（FPI，如 TSM）年度报告
+FORMS = ("10-K", "10-Q", "20-F")
 
 # 全部公司 ticker→CIK 映射（~1.4MB，SEC 官方文件，每轮拉一次）
 # 注意在 www 域，data 域无此文件
