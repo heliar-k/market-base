@@ -35,7 +35,7 @@ description: 制定股票/期权交易计划（方向性做多/做空挂单、Se
 
 1. **消息反应测试（权重最高）** — web_search 最近 3–5 条利好/利空，看市场怎么定价：利好不涨 = 做空共识（别做多）；利空不跌 = 做多共识（别做空）；消息后放量反向 = 体制在翻页（降档）。
 2. **大环境** — 大盘（SPX/QQQ/恒指）MA 排列与 ADX（`uv run python -m src.analyze data/indices/...csv`）；宏观周期（`src/macro.py`：净流动性、2s10s、利率方向）；板块相对强弱（板块指数 vs 大盘，跑赢 = 轮动流入）。
-3. **资金流** — 美股没有"南向"对应物，用等价物：①沽空：FINRA 每日 short sale volume（T+1 免费，暂无 fetcher）+ 双周 short interest（yfinance shortRatio，阶段 1 步骤 1 已查，滞后 2 周只配看趋势）；②内部人：SEC Form 4（EDGAR T+2 免费，高管连续卖出 = 最硬信号之一）；③板块资金：相关 ETF 资金流（半导体 SMH / 科技 XLK）；④大单分布美股无免费源，用期权大单/unusual activity 定性替代。⚠️ ①③暂无 fetcher，**无数据时跳过不假装做了**。港股标的才看南向/北向 + HKEX 沽空。
+3. **资金流** — 美股没有"南向"对应物，用等价物：①沽空：`./bin/fetch_finra`（FINRA 每日 short sale volume，T+1，数据 `data/short_selling/finra_daily.csv`）+ 双周 short interest（yfinance shortRatio，阶段 1 步骤 1 已查，滞后 2 周只配看趋势）；②内部人：`./bin/fetch_insider`（SEC Form 4，EDGAR T+2，数据 `data/insider/{SYMBOL}.csv`，高管连续卖出 = 最硬信号之一）；③板块资金：ETF 真实申赎流无免费源，用价格相对强弱代理（SMH/SOXX 数据已有）；④大单分布无免费源，用期权大单/unusual activity 定性替代。港股标的才看南向/北向 + HKEX 沽空。
 4. **期权层** — 走分支 D：净 GEX 正负、OI 墙相对现价位置、skew 是否变平。做多计划要求现价下方有墙或正 GEX 支撑。
 5. **落档** — 跨层独立信号 ≥2 且方向一致 → 正常仓位；翻页期（信号对半冲突、体制判定不明确）→ **不参与**；共识与计划方向相反 → 放弃（做空共识对多数用户 = 离场信号，优先于入场信号：回避 + 清多仓，不是反手做空）。
 

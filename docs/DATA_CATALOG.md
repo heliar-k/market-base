@@ -500,6 +500,32 @@ CFTC 官方周度持仓报告（周二数据、周五发布），`./bin/fetch_co
 覆盖品种：GC/SI/HG/CL/NG（disaggregated）+ ES/NQ/RTY/ZQ/VX/ZF/ZN/ZB/EUR/JPY（TFF）。
 YM（道指）不在 CFTC COT 报告中（2024-26 均无）；DXY（ICE 美元指数）同样不在（2025/26 无）。
 
+## 12.5 FINRA 每日沽空量 — `data/short_selling/finra_daily.csv`
+
+FINRA Reg SHO 每日短卖数据（T+1 免费公开），`./bin/fetch_finra` 拉取（宽表 upsert，观测日 = 交易日）。
+直连被 WAF 拦时自动 fallback SOCKS5 代理（Actions 美国 IP 直连）。
+
+| 列名 | 说明 |
+|------|------|
+| `{SYM}_short_ratio` | ShortVolume / TotalVolume（当日沽空占比） |
+| `{SYM}_short_vol` | 当日沽空量（源文件偶见小数，疑 TRF 加权口径，原样存储） |
+
+`--backfill` 探测历史深度并回填（单次最多 400 天，按天幂等可续）；周末/假日 404 自动跳过。
+
+## 12.6 SEC Form 4 内部人交易 — `data/insider/{SYMBOL}.csv`
+
+EDGAR 内部人持股变动（T+2 免费公开），`./bin/fetch_insider` 拉取（长表，accession 去重增量，默认回溯 2 年）。
+
+| 列名 | 说明 |
+|------|------|
+| `filing_date` / `transaction_date` | 申报日 / 交易执行日 |
+| `insider_name` / `title` | 内部人姓名 / 职务（董事标记） |
+| `code` | P=公开市场买入 S=公开市场卖出（信号）；A=授予 M=行权 F=缴税代扣 G=赠与 |
+| `shares` / `price` / `value` / `shares_after` | 股数 / 价格 / 金额 / 交易后持股 |
+| `accession` | EDGAR 申报号（去重键） |
+
+CLI 结尾打印每标的近 90 天 open-market 净买入汇总（仅 P/S 计信号）。
+
 ## 速查：怎么用
 
 ```python

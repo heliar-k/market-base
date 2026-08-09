@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+# SEC Form 4 内部人交易（EDGAR，免费）
+set -euo pipefail
+cd "$(dirname "$0")/.."
+uv run python -m src.fetchers.insider_fetcher "$@"

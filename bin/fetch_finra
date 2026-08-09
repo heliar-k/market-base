@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+# FINRA 每日沽空量（Reg SHO，免费）
+set -euo pipefail
+cd "$(dirname "$0")/.."
+uv run python -m src.fetchers.finra_fetcher "$@"
