@@ -57,6 +57,7 @@ MSPD_COLUMNS = [
     "security_type_desc",
     "security_class_desc",
     "debt_held_public_mil_amt",
+    "total_mil_amt",
 ]
 
 # security_class_desc → 输出列名（市场化品种，bill 占比监控用）
@@ -123,9 +124,10 @@ def fetch_mspd() -> pd.DataFrame:
     """拉取月度未偿债务结构（MSPD Table 1），派生 Bill 占比。
 
     返回 DataFrame: index=月末，列为各市场化品种债务（百万美元，BILLS/NOTES/
-    BONDS/TIPS/FRN）+ MARKETABLE_TOTAL + BILL_SHARE（Bills/市场化总额，%）。
-    金额口径=debt_held_public_mil_amt（公众持有，剔除政府间持有）。
-    仅保留 security_type_desc == "Marketable" 的行；源字段缺失时抛 ValueError。
+    BONDS/TIPS/FRN）+ MARKETABLE_TOTAL + BILL_SHARE（Bills/市场化总额，%）
+    + TOTAL_DEBT（总未偿债务，含非市场化与政府间，D.3 官方占比分母）。
+    金额口径=debt_held_public_mil_amt（公众持有，剔除政府间持有）；
+    TOTAL_DEBT 取 total_mil_amt。源字段缺失时抛 ValueError。
     """
     rows = _fetch_all_pages(
         f"{API_BASE_DEBT}/mspd/mspd_table_1", MSPD_COLUMNS, "record_date"
@@ -140,6 +142,11 @@ def fetch_mspd() -> pd.DataFrame:
         raise ValueError(f"MSPD 字段缺失: {list(df.columns)}")
     df["record_date"] = pd.to_datetime(df["record_date"])
 
+    # 总未偿债务行（D.3 海外官方占比分母），先于 Marketable 过滤取出
+    total_rows = df[df["security_type_desc"] == "Total Public Debt Outstanding"]
+    total = pd.to_numeric(total_rows["total_mil_amt"], errors="coerce")
+    total.index = total_rows["record_date"]
+
     df["_type"] = df["security_class_desc"].map(
         lambda d: _MSPD_TYPE_MAP.get(d or "", "")
     )
@@ -153,6 +160,7 @@ def fetch_mspd() -> pd.DataFrame:
     ).sort_index()
     pivot["MARKETABLE_TOTAL"] = pivot.sum(axis=1)
     pivot["BILL_SHARE"] = (pivot["BILLS"] / pivot["MARKETABLE_TOTAL"] * 100).round(2)
+    pivot["TOTAL_DEBT"] = total.reindex(pivot.index)
     return pivot
 
 

@@ -46,6 +46,20 @@ def mock_mspd_response():
                 "security_class_desc": "Notes",
                 "debt_held_public_mil_amt": "5900000",
             },
+            {
+                "record_date": "2026-06-30",
+                "security_type_desc": "Total Public Debt Outstanding",
+                "security_class_desc": "_",
+                "debt_held_public_mil_amt": "30000000",
+                "total_mil_amt": "38000000",
+            },
+            {
+                "record_date": "2026-05-31",
+                "security_type_desc": "Total Public Debt Outstanding",
+                "security_class_desc": "_",
+                "debt_held_public_mil_amt": "29000000",
+                "total_mil_amt": "37000000",
+            },
         ],
         "links": {"self": "...", "next": None},
     }
@@ -268,13 +282,14 @@ class TestMspd:
 
         df = fetch_mspd()
 
-        # 只有市场化品种列 + 派生列；Total Public Debt 行被过滤
+        # 只有市场化品种列 + 派生列；Savings Bonds 行被过滤
         assert set(df.columns) == {
             "BILLS",
             "NOTES",
             "BONDS",
             "MARKETABLE_TOTAL",
             "BILL_SHARE",
+            "TOTAL_DEBT",
         }
         assert df.index.tolist() == [
             pd.Timestamp("2026-05-31"),
@@ -284,6 +299,10 @@ class TestMspd:
         row = df.loc[pd.Timestamp("2026-06-30")]
         assert row["MARKETABLE_TOTAL"] == pytest.approx(10_000_000)
         assert row["BILL_SHARE"] == pytest.approx(30.0)
+        assert row["TOTAL_DEBT"] == pytest.approx(38_000_000)
+        assert df.loc[pd.Timestamp("2026-05-31"), "TOTAL_DEBT"] == pytest.approx(
+            37_000_000
+        )
 
     def test_fetch_mspd_missing_fields_raises(self, monkeypatch):
         monkeypatch.setattr(

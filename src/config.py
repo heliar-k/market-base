@@ -259,15 +259,20 @@ FRED_SERIES = {
         "PPI_SERVICES": "WPSFD4211",
     },
     "tic": {
-        # TIC 报告（月度，滞后 2 月；FRED 转发 TIC 官方数据，含表 5 持仓分项）
+        # TIC 报告（月度，滞后 2 月；FRED 转发 TIC 官方数据）
+        # 持仓系列用 FORTREASPOS*（LT+ST 总额，与 Table 5 口径一致，
+        # 勿用 FORLTTREASPOS* LT-only——中国持仓将永远低于 7000 亿阈值）
         # 净买入/持仓单位均为百万美元
         "TIC_NET_TOTAL": "FORTREASNET99996",  # 外国净买入美债（LT+ST，总额）
         "TIC_NET_OFFICIAL": "FORTREASNET99990",  # 外国官方净买入（LT+ST）
         "TIC_HOLD_OFFICIAL": "FORTREASPOS99990",  # 外国官方持仓（LT+ST）
-        "TIC_HOLD_JAPAN": "FORLTTREASPOS42609",  # 日本持仓（LT）
-        "TIC_HOLD_CHINA": "FORLTTREASPOS41408",  # 中国持仓（LT）
-        "TIC_HOLD_SAUDI": "FORLTTREASPOS45608",  # 沙特持仓（LT）
-        "TIC_HOLD_UAE": "FORLTTREASPOS46604",  # 阿联酋持仓（LT）
+        "TIC_HOLD_TOTAL": "FORTREASPOS99996",  # 外国持仓总额（LT+ST，官方占比分子用）
+        "TIC_HOLD_JAPAN": "FORTREASPOS42609",  # 日本持仓（Table 5 口径）
+        "TIC_HOLD_CHINA": "FORTREASPOS41408",  # 中国持仓（Table 5 口径）
+        "TIC_HOLD_SAUDI": "FORTREASPOS45608",  # 沙特持仓（Table 5 口径）
+        "TIC_HOLD_UAE": "FORTREASPOS46604",  # 阿联酋持仓（Table 5 口径）
+        # 海外官方占比（D.3，<23% 结构性偏空）分母 = data/treasury/mspd.csv 的
+        # TOTAL_DEBT（总未偿债务，月度）。勿用 GFDEBTN——FRED 侧已停更数月。
     },
 }
 

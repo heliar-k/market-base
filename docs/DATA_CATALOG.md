@@ -61,11 +61,14 @@
 `fx`: DXY
 `producer_prices`: PPI_FD, CORE_PPI, PPI_GOODS, PPI_SERVICES
 `consumption`: PSAVERT
-`tic`: TIC_NET_TOTAL, TIC_NET_OFFICIAL, TIC_HOLD_OFFICIAL, TIC_HOLD_JAPAN, TIC_HOLD_CHINA, TIC_HOLD_SAUDI, TIC_HOLD_UAE
+`tic`: TIC_NET_TOTAL, TIC_NET_OFFICIAL, TIC_HOLD_OFFICIAL, TIC_HOLD_TOTAL, TIC_HOLD_JAPAN, TIC_HOLD_CHINA, TIC_HOLD_SAUDI, TIC_HOLD_UAE
 
 > `tic`（Treasury International Capital，月度，滞后 2 月；FRED 转发 TIC 官方数据）：
 > 净买入/持仓均为百万美元。监控阈值：官方单月净抛>400 亿告警、连续 3 月净抛强告警；
-> 中国持仓<7000 亿告警。注意持仓为 LT（长期）口径，Table 5 总持仓含 ST，略大。
+> 中国持仓<7000 亿告警。持仓用 FORTREASPOS*（LT+ST 总额，Table 5 口径），
+> 勿用 FORLTTREASPOS*（LT-only——中国持仓将永远低于阈值）。
+> 海外官方占比（<23% 结构性偏空）= TIC_HOLD_OFFICIAL ÷ data/treasury/mspd.csv 的
+> TOTAL_DEBT（总未偿债务；GFDEBTN 在 FRED 侧已停更，勿用）。
 `labor_market`: JOLTS_OPEN, JOLTS_QUITS, UNEMPLOY, ECI_WAGES
 
 ---
@@ -398,6 +401,7 @@ MSPD Table 1（Monthly Statement of the Public Debt）派生：各市场化品�
 | `BILLS` / `NOTES` / `BONDS` / `TIPS` / `FRN` | 各券种未偿额（百万美元，公众持有口径） |
 | `MARKETABLE_TOTAL` | 市场化债务合计 |
 | `BILL_SHARE` | Bill 占市场化债务比例（%），>25% 接近债务上限告警 |
+| `TOTAL_DEBT` | 总未偿债务（含非市场化与政府间，百万美元；海外官方占比分母） |
 
 ### refunding.csv（季度再融资声明 + 融资估算，增量文档库）
 
