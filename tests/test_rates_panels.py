@@ -1,5 +1,6 @@
 """rates 面板新数据源单元测试：借款估算解析 + Bill 占比合并 + 期限溢价 1 月变化。"""
 
+import numpy as np
 import pandas as pd
 
 import src.server as server
@@ -26,7 +27,8 @@ def test_borrowing_estimate_parses_two_quarters_and_change(monkeypatch, tmp_path
         "Treasury expects to borrow $739 billion in privately-held "
         "net marketable debt. During the October-December 2026 quarter, "
         "Treasury expects to borrow $628 billion. The borrowing estimate "
-        "is $68 billion higher than announced in May 2026.",
+        "is $68 billion higher than announced in May 2026. Actual borrowing "
+        "was $18 billion lower than announced in May.",
     )
     monkeypatch.setattr(server, "ROOT", tmp_path)
     est = server._borrowing_estimate()
@@ -38,6 +40,19 @@ def test_borrowing_estimate_parses_two_quarters_and_change(monkeypatch, tmp_path
         "chg_b": 68,
         "chg_dir": "higher",
     }
+
+
+def test_borrowing_estimate_ignores_prior_quarter_actual(monkeypatch, tmp_path):
+    """变化量锚定 "estimate is ..."：上季实际值（actual borrowing was）不参与。"""
+    _write_refunding(
+        tmp_path,
+        "Actual borrowing was $18 billion lower than announced in May. "
+        "The borrowing estimate is $68 billion higher than announced in May. ",
+    )
+    monkeypatch.setattr(server, "ROOT", tmp_path)
+    est = server._borrowing_estimate()
+    assert est["chg_b"] == 68
+    assert est["chg_dir"] == "higher"
 
 
 def test_borrowing_estimate_missing_file(monkeypatch, tmp_path):
@@ -55,21 +70,19 @@ def test_bill_share_merges_monthly_and_daily_dedup(monkeypatch, tmp_path):
         }
     ).to_csv(td / "mspd.csv", index=False)
     pd.DataFrame(
-        {"date": ["2026-07-31", "2026-08-01"], "BILL_SHARE": [22.0, 22.4]}
+        {"date": ["2026-07-31", "2026-08-01"], "BILL_SHARE": [22.4, 22.6]}
     ).to_csv(td / "bill_share_daily.csv", index=False)
     monkeypatch.setattr(server, "ROOT", tmp_path)
 
     pts, latest = server._bill_share_series()
-    assert latest == 22.4
-    # 7-31 重叠日取日频（keep='last'），共 3 点
+    assert latest == 22.6
+    # 7-31 重叠日两源值不同（22.0 vs 22.4），keep='last' 必须取日频 22.4
     assert [p["date"] for p in pts] == ["2026-06-30", "2026-07-31", "2026-08-01"]
-    assert pts[1]["value"] == 22.0
+    assert pts[1]["value"] == 22.4
 
 
 def test_term_premium_chg_1m(monkeypatch, tmp_path):
     """ACMTP10 1 月变化：最近值 − 30 天前最近值，bp。"""
-    import numpy as np
-
     dates = pd.date_range("2026-01-01", periods=40, freq="D")
     df = pd.DataFrame(
         {

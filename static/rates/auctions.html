@@ -41,12 +41,12 @@ async function load() {
   document.getElementById('re-as-of').textContent = `数据截至 ${d.as_of}`;
 
   const good = d.avg_cover_10_coupon !== null && d.avg_cover_10_coupon >= 2.5;
-  const b = d.borrowing;
+  const borrow = d.borrowing;
   document.getElementById('re-cards').replaceChildren(R.cards([
     { label: '近 10 场付息券平均 Bid-to-Cover', value: d.avg_cover_10_coupon === null ? '—' : `${d.avg_cover_10_coupon.toFixed(2)}x`, sub: good ? '需求良好' : '需求偏弱', accent: true },
     { label: 'Bill 占未偿可交易债务', value: d.bill_share_latest === null ? '—' : `${d.bill_share_latest.toFixed(2)}%`, sub: '供给结构，MSPD+日频' },
     { label: '未来 3 周拍卖场次', value: d.upcoming_count, sub: '按拍卖日排序见下方日历' },
-    ...(b && b.current_b ? [{ label: `QRA 借款估算（${b.quarter}）`, value: `$${b.current_b}B`, sub: b.chg_b ? `较上次 ${b.chg_b}B ${b.chg_dir === 'higher' ? '↑' : '↓'}（${b.date}）` : b.date, accent: b.chg_dir === 'higher' }] : []),
+    ...(borrow && borrow.current_b ? [{ label: `QRA 借款估算（${borrow.quarter}）`, value: `$${borrow.current_b}B`, sub: borrow.chg_b ? `较上次 ${borrow.chg_b}B ${borrow.chg_dir === 'higher' ? '↑' : '↓'}（${borrow.date}）` : borrow.date, accent: borrow.chg_dir === 'higher' }] : []),
   ]));
 
   // ── 趋势图 ──
@@ -105,7 +105,7 @@ async function load() {
     xAxis: { type: 'category', data: indDates, axisLabel: { color: colors.muted, fontSize: 10 }, axisLine: { lineStyle: { color: colors.border } } },
     yAxis: { type: 'value', scale: true, axisLabel: { color: colors.muted, formatter: '{value}%' }, splitLine: { lineStyle: { color: colors.grid } } },
     series: indNames.map(n => {
-      const m = n === '10Y' ? colors.red : colors.purple;
+      const m = { '10Y': colors.red, '30Y': colors.purple }[n];
       const byDate = Object.fromEntries(d.indirect_trend[n].map(p => [p.date, p.value]));
       return {
         name: n, type: 'line',

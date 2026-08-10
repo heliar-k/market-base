@@ -51,8 +51,9 @@ async function load() {
     card('10Y-2Y 利差', last(d.spread_2s10), '(10Y−2Y) %'),
   ]));
 
-  // ── 三线 + 期限溢价 ──
-  R.mkChart('triple_chart', (colors) => ({
+    // 按日期对齐 x 轴（nominal 的日期序列）：ACM 缺日/滞后时置 null 断线，不错位
+    const tpByDate = Object.fromEntries(d.term_premium.map(p => [p.date, p.value]));
+    R.mkChart('triple_chart', (colors) => ({
     legend: { data: ['10Y 名义利率', '10Y 实际利率(TIPS)', '10Y 盈亏平衡通胀', '10Y 期限溢价(ACM)'], top: 4, right: 8, textStyle: { color: colors.text, fontSize: 11 } },
     tooltip: { trigger: 'axis', valueFormatter: v => `${Number(v).toFixed(2)}%` },
     grid: { top: 36, left: 48, right: 48, bottom: 56 },
@@ -66,7 +67,7 @@ async function load() {
       { name: '10Y 名义利率', type: 'line', data: R.vs(d.nominal_10y), symbol: 'none', lineStyle: { color: colors.blue, width: 2 } },
       { name: '10Y 实际利率(TIPS)', type: 'line', data: R.vs(d.real_10y), symbol: 'none', lineStyle: { color: colors.orange, width: 2 } },
       { name: '10Y 盈亏平衡通胀', type: 'line', data: R.vs(d.breakeven_10y), symbol: 'none', lineStyle: { color: colors.green, width: 2 } },
-      { name: '10Y 期限溢价(ACM)', type: 'line', data: R.vs(d.term_premium), yAxisIndex: 1, symbol: 'none', lineStyle: { color: colors.purple, width: 1.5, type: 'dashed' } },
+      { name: '10Y 期限溢价(ACM)', type: 'line', data: R.ts(d.nominal_10y).map(dt => tpByDate[dt] ?? null), yAxisIndex: 1, symbol: 'none', lineStyle: { color: colors.purple, width: 1.5, type: 'dashed' } },
     ],
   }));
 

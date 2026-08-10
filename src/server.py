@@ -888,10 +888,26 @@ def _trend_bucket(term: str) -> str | None:
     return None
 
 
+def _auction_points(sub: pd.DataFrame, col: str) -> list[dict]:
+    """拍卖子集某指标列 → [{date, value}]（近 1 年窗口已由调用方切好）。"""
+    return [
+        {
+            "date": d.strftime("%Y-%m-%d"),
+            "value": float(pd.to_numeric(r[col])),
+        }
+        for d, r in sub.iterrows()
+        if pd.notna(r.get(col))
+    ]
+
+
 def _borrowing_estimate() -> dict | None:
     """最新 QRA 再融资借款估算：当季/下季净借款（十亿美元）+ 较上次变化。
 
-    解析 financing_estimates 正文固定句式（"expects to borrow $X billion"）。
+    解析 financing_estimates 正文固定句式（"expects to borrow $X billion"）；
+    变化量锚定 "estimate is $X billion higher/lower than announced"，
+    避免误取 "actual borrowing was ..."（上季实际值）。
+    # ponytail: 与 QRA 正文措辞强耦合，句式微调会静默缺字段；升级路径 =
+    # 改结构化字段（如 QRA 附带的机器可读 JSON）或人工校验。
     """
     path = ROOT / "data" / "treasury" / "refunding.csv"
     if not path.exists():
@@ -903,21 +919,23 @@ def _borrowing_estimate() -> dict | None:
     row = est.iloc[-1]
     body = str(row["body"]).replace("\xa0", " ")
     vals = [
-        int(v.replace(",", ""))
+        int(float(v.replace(",", "")))
         for v in re.findall(r"borrow\s+\$([\d,]+) billion", body)
     ]
-    chg = re.findall(r"(\d+) billion (higher|lower) than announced", body)
+    chg = re.findall(
+        r"estimate is \$([\d,]+) billion (higher|lower) than announced", body
+    )
     return {
         "date": row["date"],
         "quarter": row["quarter"],
         "current_b": vals[0] if vals else None,
         "next_b": vals[1] if len(vals) > 1 else None,
-        "chg_b": int(chg[0][0]) if chg else None,
+        "chg_b": int(float(chg[0][0])) if chg else None,
         "chg_dir": chg[0][1] if chg else None,
     }
 
 
-def _bill_share_series(years: int = 6) -> tuple[list[dict], float | None]:
+def _bill_share_series() -> tuple[list[dict], float | None]:
     """Bill 占未偿可交易债务比例：MSPD 月频历史 + 日频近期（派生），去重叠。"""
     mspd_path = ROOT / "data" / "treasury" / "mspd.csv"
     daily_path = ROOT / "data" / "treasury" / "bill_share_daily.csv"
@@ -931,7 +949,7 @@ def _bill_share_series(years: int = 6) -> tuple[list[dict], float | None]:
     if not parts:
         return [], None
     s = pd.concat(parts)
-    s = s[~s.index.duplicated(keep="last")].sort_index().tail(years * 366)
+    s = s[~s.index.duplicated(keep="last")].sort_index().tail(6 * 366)
     latest = round(float(s.iloc[-1]), 2) if not s.empty else None
     return _to_points(s), latest
 
@@ -970,32 +988,11 @@ def get_rates_auctions() -> dict:
     trend, tail_trend, indirect_trend = {}, {}, {}
     for term in ["2-Year", "5-Year", "10-Year", "30-Year"]:
         sub = auc[auc["security_term"].map(_trend_bucket) == term]
-        sub = sub.loc[sub.index >= today - pd.Timedelta(days=365)]
         key = term.replace("-Year", "Y")
-        trend[key] = [
-            {
-                "date": d.strftime("%Y-%m-%d"),
-                "value": float(pd.to_numeric(r["bid_to_cover_ratio"])),
-            }
-            for d, r in sub.iterrows()
-            if pd.notna(r.get("bid_to_cover_ratio"))
-        ]
-        tail_trend[key] = [
-            {
-                "date": d.strftime("%Y-%m-%d"),
-                "value": float(pd.to_numeric(r["tail_bp"])),
-            }
-            for d, r in sub.iterrows()
-            if pd.notna(r.get("tail_bp"))
-        ]
-        indirect_trend[key] = [
-            {
-                "date": d.strftime("%Y-%m-%d"),
-                "value": float(pd.to_numeric(r["indirect_pct"])),
-            }
-            for d, r in sub.iterrows()
-            if pd.notna(r.get("indirect_pct"))
-        ]
+        sub365 = sub.loc[sub.index >= today - pd.Timedelta(days=365)]
+        trend[key] = _auction_points(sub365, "bid_to_cover_ratio")
+        tail_trend[key] = _auction_points(sub365, "tail_bp")
+        indirect_trend[key] = _auction_points(sub365, "indirect_pct")
 
     upcoming = []
     if upcoming_path.exists():
