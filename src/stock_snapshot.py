@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import argparse
 from datetime import datetime, timezone
+from zoneinfo import ZoneInfo
 
 from src.fetchers.yfinance_fetcher import ensure_yf_proxy
 
@@ -40,8 +41,13 @@ def price_snapshot(symbols: list[str]) -> None:
             if d.empty:
                 print(f"{tk:<6}  无数据")
                 continue
-            prev = float(d["Close"].iloc[-1])
-            lo, hi = float(d["Low"].iloc[-1]), float(d["High"].iloc[-1])
+            # 盘中日线最后一根 bar 是当日 partial bar → 昨收/昨日区间取前一根
+            prev_idx = -1
+            if d.index[-1].date() == datetime.now(ZoneInfo("America/New_York")).date():
+                prev_idx = -2
+            r = d.iloc[prev_idx]
+            prev = float(r["Close"])
+            lo, hi = float(r["Low"]), float(r["High"])
             h = t.history(period="1d", interval="5m", prepost=True)
             last = float(h["Close"].iloc[-1]) if not h.empty else prev
             chg = (last / prev - 1) * 100
