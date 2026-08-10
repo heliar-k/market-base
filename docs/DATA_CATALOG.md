@@ -414,6 +414,18 @@ MSPD Table 1（Monthly Statement of the Public Debt）派生：各市场化品�
 | `kind` | `statement`（Refunding Statement）/ `financing_estimates`（QRA 融资估算） |
 | `title` / `url` / `body` | 标题 / 链接 / 全文（关键词 "increase coupon issuance"=偏空、"no change"=偏多） |
 
+### bill_share_daily.csv（日频 Bill 占比，派生）
+
+`uv run python -m src.bill_share` 由 MSPD 月末锚 + 拍卖净发行派生（无新数据源）：
+
+| 列名 | 说明 |
+|------|------|
+| `BILLS` / `MARKETABLE` | 各日未偿估算（百万美元）= 最新 MSPD 月末值 + 锚后发行 − 到期 |
+| `BILL_SHARE` | Bill 占市场化债务比例（%），>25% 接近债务上限告警 |
+
+口径：auctions_query 不含 CMB，CMB 存量波动不捕捉（实测月内 ±4.5% 存量差 ≈ ±1pp
+占比）；Treasury 买回不反映（~0.1%）。锚更新后（每月 MSPD 发布）历史段重算对齐。
+
 ## 10b. 多周期 K 线 — 同目录后缀式 `{NAME}_{周期}.csv`
 
 与日线同目录（`data/stocks/` / `data/indices/`），周期为文件名后缀：

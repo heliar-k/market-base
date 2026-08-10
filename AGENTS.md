@@ -104,6 +104,7 @@ market-base/
 │   ├── treasury/auction_results.csv       ← 国债拍卖结果全量（~11k 场，覆盖写）
 │   ├── treasury/upcoming_auctions.csv     ← 未来拍卖日历（覆盖写）
 │   ├── treasury/mspd.csv                  ← 月度未偿债务结构 + Bill 占比（覆盖写）
+│   ├── treasury/bill_share_daily.csv      ← 日频 Bill 占比（派生：MSPD 锚+拍卖净发行）
 │   ├── treasury/refunding.csv             ← 季度再融资声明 + QRA 融资估算（增量）
 │   ├── rate_expectations/                 ← FOMC 概率 + ZQ 快照（每日）
 │   ├── financials/{SYMBOL}/              ← 财报三张表 × 年度/季度（period end upsert）

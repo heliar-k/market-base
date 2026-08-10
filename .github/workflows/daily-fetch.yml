@@ -43,6 +43,10 @@ jobs:
         run: |
           uv run python -m src.cross_asset || echo "===== FAIL cross_asset ====="
 
+      - name: 日频 Bill 占比（派生，依赖 MSPD + 拍卖）
+        run: |
+          uv run python -m src.bill_share || echo "===== FAIL bill_share ====="
+
       - name: Fetch OHLCV bars (yfinance, no TWS)
         env:
           YF_NO_PROXY: "1"
