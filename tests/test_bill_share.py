@@ -71,3 +71,10 @@ def test_preanchor_issue_maturity_is_deducted():
     assert df.loc["2026-07-20", "BILLS"] == pytest.approx(2900.0)
     # MARKETABLE 同样扣 100：10000 + (200+50+300) − (50+100) = 10400
     assert df.loc["2026-07-20", "MARKETABLE"] == pytest.approx(10400.0)
+
+
+def test_missing_marketable_column_raises():
+    """锚行缺 MARKETABLE_TOTAL 列时报 KeyError（保持原有覆盖）。"""
+    mspd = _mspd().rename(columns={"MARKETABLE_TOTAL": "MARKETABLE"})
+    with pytest.raises(KeyError):
+        compute_daily_bill_share(mspd, _auctions(), end=pd.Timestamp("2026-07-20"))

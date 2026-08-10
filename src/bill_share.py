@@ -27,24 +27,26 @@ OUT_CSV = ROOT / "data" / "treasury" / "bill_share_daily.csv"
 
 
 def _net_flows(
-    auctions: pd.DataFrame, anchor: pd.Timestamp, bills_only: bool = False
+    auctions: pd.DataFrame, anchor_date: pd.Timestamp, bills_only: bool = False
 ) -> pd.Series:
     """锚后逐日净发行（百万美元）。
 
     issued 端只算锚后新发行；matured 端算所有锚后到期（含锚前发行、锚后
     到期——其发行已计入锚余额，只应扣到期）。两端过滤独立，不能先按
     issue_date 过滤整帧，否则锚前发行的到期会被整批丢掉。
+    两个 groupby 索引不同（发行日 vs 到期日），sub(fill_value=0) 在相减前
+    补零——先减后 fillna 会把"该日无到期"的对齐 NaN 也抹成 0。
     """
     if bills_only:
         auctions = auctions[auctions["security_type"] == "Bill"]
     issued = (
-        auctions[auctions["issue_date"] > anchor]
+        auctions[auctions["issue_date"] > anchor_date]
         .groupby("issue_date")["offering_amt"]
         .sum()
         / 1e6
     )
     matured = (
-        auctions[auctions["maturity_date"] > anchor]
+        auctions[auctions["maturity_date"] > anchor_date]
         .groupby("maturity_date")["offering_amt"]
         .sum()
         / 1e6
