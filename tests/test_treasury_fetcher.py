@@ -3,7 +3,65 @@
 import pandas as pd
 import pytest
 
-from src.fetchers.treasury_fetcher import _endpoint_name
+from src.fetchers.treasury_fetcher import _endpoint_name, fetch_mspd
+
+
+def mock_mspd_response():
+    """构造最小 mspd_table_1 API 响应（月末 × 品种）。"""
+    return {
+        "data": [
+            {
+                "record_date": "2026-06-30",
+                "security_type_desc": "Marketable",
+                "security_class_desc": "Bills",
+                "debt_held_public_mil_amt": "3000000",
+            },
+            {
+                "record_date": "2026-06-30",
+                "security_type_desc": "Marketable",
+                "security_class_desc": "Notes",
+                "debt_held_public_mil_amt": "6000000",
+            },
+            {
+                "record_date": "2026-06-30",
+                "security_type_desc": "Marketable",
+                "security_class_desc": "Bonds",
+                "debt_held_public_mil_amt": "1000000",
+            },
+            {
+                "record_date": "2026-06-30",
+                "security_type_desc": "Non-marketable",
+                "security_class_desc": "Savings Bonds",
+                "debt_held_public_mil_amt": "1000000",
+            },
+            {
+                "record_date": "2026-05-31",
+                "security_type_desc": "Marketable",
+                "security_class_desc": "Bills",
+                "debt_held_public_mil_amt": "2800000",
+            },
+            {
+                "record_date": "2026-05-31",
+                "security_type_desc": "Marketable",
+                "security_class_desc": "Notes",
+                "debt_held_public_mil_amt": "5900000",
+            },
+        ],
+        "links": {"self": "...", "next": None},
+    }
+
+
+def _fake_get(body: dict):
+    class FakeResp:
+        @staticmethod
+        def json():
+            return body
+
+        @staticmethod
+        def raise_for_status():
+            pass
+
+    return lambda *a, **k: FakeResp()
 
 
 def mock_auctions_response():
@@ -199,3 +257,57 @@ class TestTreasuryFetcher:
 
         df = fetch_auction_results()
         assert df.empty
+
+
+class TestMspd:
+    def test_fetch_mspd_pivots_and_derives_share(self, monkeypatch):
+        monkeypatch.setattr(
+            "src.fetchers.treasury_fetcher.requests.get",
+            _fake_get(mock_mspd_response()),
+        )
+
+        df = fetch_mspd()
+
+        # 只有市场化品种列 + 派生列；Total Public Debt 行被过滤
+        assert set(df.columns) == {
+            "BILLS",
+            "NOTES",
+            "BONDS",
+            "MARKETABLE_TOTAL",
+            "BILL_SHARE",
+        }
+        assert df.index.tolist() == [
+            pd.Timestamp("2026-05-31"),
+            pd.Timestamp("2026-06-30"),
+        ]
+        # 2026-06: 市场化 = 3B+6B+1B = 10B，Bill 占比 = 30%
+        row = df.loc[pd.Timestamp("2026-06-30")]
+        assert row["MARKETABLE_TOTAL"] == pytest.approx(10_000_000)
+        assert row["BILL_SHARE"] == pytest.approx(30.0)
+
+    def test_fetch_mspd_missing_fields_raises(self, monkeypatch):
+        monkeypatch.setattr(
+            "src.fetchers.treasury_fetcher.requests.get",
+            _fake_get({"data": [{"record_date": "2026-06-30", "amount": "1"}]}),
+        )
+        with pytest.raises(ValueError):
+            fetch_mspd()
+
+    def test_fetch_mspd_no_marketable_rows_raises(self, monkeypatch):
+        monkeypatch.setattr(
+            "src.fetchers.treasury_fetcher.requests.get",
+            _fake_get(
+                {
+                    "data": [
+                        {
+                            "record_date": "2026-06-30",
+                            "security_type_desc": "Non-marketable",
+                            "security_class_desc": "Savings Bonds",
+                            "debt_held_public_mil_amt": "1000000",
+                        }
+                    ]
+                }
+            ),
+        )
+        with pytest.raises(ValueError):
+            fetch_mspd()

@@ -6,9 +6,9 @@
 
 ---
 
-## 1. 宏观指标 — `data/fred/{category}/` （12 分类）
+## 1. 宏观指标 — `data/fred/{category}/` （13 分类）
 
-12 个分类、84 个系列，来源 FRED API。每次 `./bin/fetch_fred` 拉全量历史并 upsert（漏跑自动补）；`--backfill` 全量覆盖。
+13 个分类、91 个系列，来源 FRED API。每次 `./bin/fetch_fred` 拉全量历史并 upsert（漏跑自动补）；`--backfill` 全量覆盖。
 
 | 分类 | 路径 | 系列 | 内容 |
 |------|------|------|------|
@@ -16,7 +16,7 @@
 | `inflation` | `data/fred/inflation/inflation.csv` | 19 | CPI / PCE / 核心 / CPI细分 / Super-core / BEI / 通胀预期 |
 | `labor` | `data/fred/labor/labor.csv` | 3 | 失业率 / 非农 / 首申失业金 |
 | `growth` | `data/fred/growth/growth.csv` | 5 | 实际GDP / 工业产出 / 实际PCE / 产能利用率 / 制造业新订单 |
-| `rates` | `data/fred/rates/rates.csv` | 15 | 联邦基金利率（DFF 日频 + FEDFUNDS 月频） / SOFR/TGCR/BGCR/ONRRP / 国债全期限 |
+| `rates` | `data/fred/rates/rates.csv` | 16 | 联邦基金利率（DFF 日频 + FEDFUNDS 月频） / SOFR/TGCR/BGCR/ONRRP / 国债全期限 + ACMTP10 |
 | `tips` | `data/fred/tips/tips.csv` | 5 | 5Y-30Y TIPS 实际收益率 |
 | `liquidity` | `data/fred/liquidity/liquidity.csv` | 5 | NFCI / 准备金 / RRP / TGA / 联储总资产 |
 | `sentiment` | `data/fred/sentiment/sentiment.csv` | 2 | 消费者信心 / 金融压力指数 |
@@ -24,6 +24,7 @@
 | `producer_prices` | `data/fred/producer_prices/producer_prices.csv` | 4 | PPI Final Demand / 核心PPI / 分项 |
 | `consumption` | `data/fred/consumption/consumption.csv` | 1 | 个人储蓄率 |
 | `labor_market` | `data/fred/labor_market/labor_market.csv` | 4 | JOLTS 职位空缺/离职率 + 失业人数 + ECI 工资 |
+| `tic` | `data/fred/tic/tic.csv` | 7 | TIC 美债净买入（总额/官方）+ 官方持仓 + 日本/中国/沙特/阿联酋持仓 |
 
 ### 列名速查
 `volatility`: VIX, HY_OAS, IG_OAS
@@ -34,7 +35,11 @@
 `inflation`: CPI, PCE, CORE_CPI, CORE_PCE, CPI_SHELTER, CPI_FOOD, CPI_ENERGY, CORE_SERVICES, CORE_GOODS, SUPERCORE_PCE, SUPERCORE_PCE_REAL, T5YIE, T10YIE, T5YIFR, MICH, EXPINF_1Y, EXPINF_2Y, EXPINF_5Y, EXPINF_10Y
 `labor`: UNRATE, PAYEMS, ICSA
 `growth`: GDP, INDPRO, REAL_PCE, CAPU, DGORDER
-`rates`: DFF, FEDFUNDS, DFEDTARL, DFEDTARU, SOFR, SOFR1/25/75/99, SOFRVOL, OBFR, IORB, TGCR, ONRRP, BGCR*, DGS1MO...DGS30
+`rates`: DFF, FEDFUNDS, DFEDTARL, DFEDTARU, SOFR, SOFR1/25/75/99, SOFRVOL, OBFR, IORB, TGCR, ONRRP, BGCR*, DGS1MO...DGS30, ACMTP10*
+
+> `ACMTP10`（NY Fed ACM 模型 10Y 期限溢价）不在 FRED，由 `./bin/fetch_acm` 从
+> NY Fed 交互图底稿 CSV（acmPlot_data.csv，月度月末，1961-06 起）拉取并合并进
+> rates.csv。阈值参考：>+0.85% 偏空 / <+0.50% 偏多 / 单月跳>15bp 告警。
 
 > `DFF` = 有效联邦基金利率（日频，1999-03 起），fed-funds 页 EFFR 图/走廊用；
 > `FEDFUNDS` 是月频均值（1954 起，仅作历史兜底），不能按日频绘制。
@@ -56,6 +61,11 @@
 `fx`: DXY
 `producer_prices`: PPI_FD, CORE_PPI, PPI_GOODS, PPI_SERVICES
 `consumption`: PSAVERT
+`tic`: TIC_NET_TOTAL, TIC_NET_OFFICIAL, TIC_HOLD_OFFICIAL, TIC_HOLD_JAPAN, TIC_HOLD_CHINA, TIC_HOLD_SAUDI, TIC_HOLD_UAE
+
+> `tic`（Treasury International Capital，月度，滞后 2 月；FRED 转发 TIC 官方数据）：
+> 净买入/持仓均为百万美元。监控阈值：官方单月净抛>400 亿告警、连续 3 月净抛强告警；
+> 中国持仓<7000 亿告警。注意持仓为 LT（长期）口径，Table 5 总持仓含 ST，略大。
 `labor_market`: JOLTS_OPEN, JOLTS_QUITS, UNEMPLOY, ECI_WAGES
 
 ---
@@ -377,6 +387,27 @@ FRED liquidity 分类的原始系列（由 `./bin/fetch_fred` 一并拉取）。
 | `maturity_date` | 到期日 |
 
 ### upcoming_auctions.csv（未来拍卖日历，~93 条，全量覆盖）
+
+### mspd.csv（月度未偿债务结构，307 个月，全量覆盖）
+
+MSPD Table 1（Monthly Statement of the Public Debt）派生：各市场化品种公众持有额
+（百万美元，剔除政府间持有）+ 市场化总额 + Bill 占比。
+
+| 列名 | 说明 |
+|------|------|
+| `BILLS` / `NOTES` / `BONDS` / `TIPS` / `FRN` | 各券种未偿额（百万美元，公众持有口径） |
+| `MARKETABLE_TOTAL` | 市场化债务合计 |
+| `BILL_SHARE` | Bill 占市场化债务比例（%），>25% 接近债务上限告警 |
+
+### refunding.csv（季度再融资声明 + 融资估算，增量文档库）
+
+`./bin/fetch_refunding` 从 home.treasury.gov 季度再融资页抓取，按 URL 去重增量：
+
+| 列名 | 说明 |
+|------|------|
+| `id` / `date` / `quarter` | 新闻稿 slug / 发布日期（YYYY-MM-DD）/ 季度（2026-Q3） |
+| `kind` | `statement`（Refunding Statement）/ `financing_estimates`（QRA 融资估算） |
+| `title` / `url` / `body` | 标题 / 链接 / 全文（关键词 "increase coupon issuance"=偏空、"no change"=偏多） |
 
 ## 10b. 多周期 K 线 — 同目录后缀式 `{NAME}_{周期}.csv`
 

@@ -1,0 +1,5 @@
+#!/bin/bash
+# Treasury 季度再融资声明 + 融资估算拉取（Refunding Statement / QRA）
+set -euo pipefail
+cd "$(dirname "$0")/.."
+exec uv run python -m src.fetchers.refunding_fetcher "$@"

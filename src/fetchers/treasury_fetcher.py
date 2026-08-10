@@ -1,6 +1,6 @@
 """
-Fetch US Treasury auction data from Treasury Fiscal Data API.
-写入 data/treasury/ 目录（auction_date 为 key）。
+Fetch US Treasury auction & debt data from Treasury Fiscal Data API.
+写入 data/treasury/ 目录（auction_date / record_date 为 key）。
 
 数据源: US Treasury Fiscal Data API（免费，无需认证）
   - auctions_query: 历史拍卖结果（中标利率、Bid-to-Cover、间接投标人%、Tail）
@@ -8,6 +8,7 @@ Fetch US Treasury auction data from Treasury Fiscal Data API.
 
 auction_results.csv: 每次全量覆盖（API 返回全量历史，非增量）。
 upcoming_auctions.csv: 每次全量覆盖。
+mspd.csv: 每次全量覆盖（月度未偿债务结构，派生 Bill 占比）。
 """
 
 import logging
@@ -18,6 +19,10 @@ import requests
 
 API_BASE = (
     "https://api.fiscaldata.treasury.gov/services/api/fiscal_service/v1/accounting/od"
+)
+
+API_BASE_DEBT = (
+    "https://api.fiscaldata.treasury.gov/services/api/fiscal_service/v1/debt"
 )
 
 RESULTS_COLUMNS = [
@@ -46,6 +51,22 @@ UPCOMING_COLUMNS = [
     "auction_date",
     "issue_date",
 ]
+
+MSPD_COLUMNS = [
+    "record_date",
+    "security_type_desc",
+    "security_class_desc",
+    "debt_held_public_mil_amt",
+]
+
+# security_class_desc → 输出列名（市场化品种，bill 占比监控用）
+_MSPD_TYPE_MAP = {
+    "Bills": "BILLS",
+    "Notes": "NOTES",
+    "Bonds": "BONDS",
+    "Treasury Inflation-Protected Securities": "TIPS",
+    "Floating Rate Notes": "FRN",
+}
 
 logger = logging.getLogger(__name__)
 
@@ -96,6 +117,43 @@ def fetch_upcoming_auctions() -> pd.DataFrame:
     df = pd.DataFrame(rows)
     df["auction_date"] = pd.to_datetime(df["auction_date"])
     return df.set_index("auction_date").sort_index()
+
+
+def fetch_mspd() -> pd.DataFrame:
+    """拉取月度未偿债务结构（MSPD Table 1），派生 Bill 占比。
+
+    返回 DataFrame: index=月末，列为各市场化品种债务（百万美元，BILLS/NOTES/
+    BONDS/TIPS/FRN）+ MARKETABLE_TOTAL + BILL_SHARE（Bills/市场化总额，%）。
+    金额口径=debt_held_public_mil_amt（公众持有，剔除政府间持有）。
+    仅保留 security_type_desc == "Marketable" 的行；源字段缺失时抛 ValueError。
+    """
+    rows = _fetch_all_pages(
+        f"{API_BASE_DEBT}/mspd/mspd_table_1", MSPD_COLUMNS, "record_date"
+    )
+    if not rows:
+        return pd.DataFrame()
+
+    df = pd.DataFrame(rows)
+    if not {"record_date", "security_type_desc", "security_class_desc"}.issubset(
+        df.columns
+    ):
+        raise ValueError(f"MSPD 字段缺失: {list(df.columns)}")
+    df["record_date"] = pd.to_datetime(df["record_date"])
+
+    df["_type"] = df["security_class_desc"].map(
+        lambda d: _MSPD_TYPE_MAP.get(d or "", "")
+    )
+    df = df[(df["security_type_desc"] == "Marketable") & (df["_type"] != "")].copy()
+    if df.empty:
+        raise ValueError("MSPD 无市场化品种行（security_type_desc/class 值异常）")
+    df["_amt"] = pd.to_numeric(df["debt_held_public_mil_amt"], errors="coerce")
+
+    pivot = df.pivot_table(
+        index="record_date", columns="_type", values="_amt", aggfunc="first"
+    ).sort_index()
+    pivot["MARKETABLE_TOTAL"] = pivot.sum(axis=1)
+    pivot["BILL_SHARE"] = (pivot["BILLS"] / pivot["MARKETABLE_TOTAL"] * 100).round(2)
+    return pivot
 
 
 def _fetch_all_pages(url: str, columns: list[str], sort_field: str) -> list[dict]:
@@ -171,3 +229,20 @@ if __name__ == "__main__":
         path = out_dir / "upcoming_auctions.csv"
         upcoming.to_csv(path, index_label="auction_date")
         print(f"Treasury: → {path} ({len(upcoming.columns)} 列 × {len(upcoming)} 行)")
+
+    # ── 月度未偿债务结构（Bill 占比）──
+    try:
+        mspd = fetch_mspd()
+    except Exception as e:
+        print(f"Treasury: mspd 拉取失败: {e}")
+        raise SystemExit(1)
+    if mspd.empty:
+        print("Treasury: mspd 无数据")
+    else:
+        path = out_dir / "mspd.csv"
+        mspd.to_csv(path, index_label="record_date")
+        latest = mspd.iloc[-1]
+        print(
+            f"Treasury: → {path} ({len(mspd.columns)} 列 × {len(mspd)} 行; "
+            f"最新 {mspd.index[-1].date()} Bill 占比 {latest['BILL_SHARE']:.1f}%)"
+        )

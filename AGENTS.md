@@ -34,7 +34,7 @@ market-base/
 │   │   ├── quality.py            ← DataPoint / QAStatus 数据质量追踪
 │   │   ├── _io.py                ← CSV 保存工具（save_daily_csv 快照 + upsert_timeseries 全量）
 │   │   ├── ibkr_fetcher.py       ← IBKR 日线 OHLCV（股票 + 指数）
-│   │   ├── fred_fetcher.py       ← FRED API 宏观指标（46 个系列，9 分类）
+│   │   ├── fred_fetcher.py       ← FRED API 宏观指标（91 个系列，13 分类）
 │   │   ├── yfinance_fetcher.py   ← yfinance 资产价格（需 SOCKS5 代理）
 │   │   ├── cboe_fetcher.py       ← CBOE 波动率（OVX、VIX 期限结构）
 │   │   ├── fsi_fetcher.py        ← OFR 金融压力指数（官方 CSV 全量）
@@ -77,11 +77,13 @@ market-base/
 │   ├── fetch_fed                      ← FOMC 声明 + 官员演讲（增量，Actions 每日）
 │   ├── fetch_treasury                  ← 国债拍卖（Treasury Fiscal Data API）
 │   ├── fetch_bgcr                      ← BGCR 利率（NY Fed Markets API，FRED 无此系列）
+│   ├── fetch_acm                       ← NY Fed ACM 10Y 期限溢价（合并进 rates.csv）
+│   ├── fetch_refunding                 ← Treasury 季度再融资声明 + QRA 估算（增量）
 │   ├── fetch_cgb                       ← 中国国债收益率 10Y/30Y（chinamoney，FRED 无）
 │   └── fetch_news                      ← Yahoo Finance 个股新闻（curl_cffi 直连 NCP，不走 yfinance）
 │
 ├── data/                         ← 数据存储（增量 CSV / JSON）
-│   ├── fred/{category}/{category}.csv  ← 12 分类 FRED 数据（观测日 upsert）
+│   ├── fred/{category}/{category}.csv  ← 13 分类 FRED 数据（观测日 upsert；tic= TIC 美债持仓/净买入）
 │   ├── cboe/volatility.csv             ← CBOE 波动率（VIX1D, OVX, VIX9D, VIX, VIX3M/6M/1Y, SKEW, VIX_TERM_SLOPE）
 │   ├── shapiro/shapiro.csv             ← Shapiro 供需 PCE 分解（观测日 upsert）
 │   ├── ofr/fsi.csv                     ← OFR 金融压力指数（观测日 upsert）
@@ -101,6 +103,8 @@ market-base/
 │   ├── cot/cot.csv                        ← CFTC COT 持仓报告（周频，观测日 upsert）
 │   ├── treasury/auction_results.csv       ← 国债拍卖结果全量（~11k 场，覆盖写）
 │   ├── treasury/upcoming_auctions.csv     ← 未来拍卖日历（覆盖写）
+│   ├── treasury/mspd.csv                  ← 月度未偿债务结构 + Bill 占比（覆盖写）
+│   ├── treasury/refunding.csv             ← 季度再融资声明 + QRA 融资估算（增量）
 │   ├── rate_expectations/                 ← FOMC 概率 + ZQ 快照（每日）
 │   ├── financials/{SYMBOL}/              ← 财报三张表 × 年度/季度（period end upsert）
 │   ├── sec/{SYMBOL}/{FORM}_{date}.txt.gz ← SEC 10-K/10-Q 原文纯文本（增量，近 2 年）
@@ -166,6 +170,8 @@ uv run python -m src.cross_asset     # 跨资产 30 日相关性矩阵（派生�
 ./bin/fetch_sec                      # SEC 10-K/10-Q/20-F 原文（EDGAR 增量，默认回溯 2 年）
 ./bin/fetch_treasury                # 国债拍卖结果 + 未来日历（全量覆盖）
 ./bin/fetch_bgcr                     # BGCR 利率（NY Fed，FRED 无；合并进 rates.csv）
+./bin/fetch_acm                      # NY Fed ACM 10Y 期限溢价（ACMTP10，合并进 rates.csv）
+./bin/fetch_refunding                # Treasury 季度再融资声明 + QRA 融资估算（增量）
 ./bin/fetch_cgb                      # 中国国债收益率 10Y/30Y（chinamoney 实时曲线）
 ./bin/fetch_news TSM -n 10          # 个股新闻（直连 Yahoo NCP 接口，绕过 yfinance t.news bug）
 ./bin/fetch_yfinance                # yfinance 资产价格

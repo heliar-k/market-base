@@ -258,6 +258,17 @@ FRED_SERIES = {
         "PPI_GOODS": "WPSFD4111",
         "PPI_SERVICES": "WPSFD4211",
     },
+    "tic": {
+        # TIC 报告（月度，滞后 2 月；FRED 转发 TIC 官方数据，含表 5 持仓分项）
+        # 净买入/持仓单位均为百万美元
+        "TIC_NET_TOTAL": "FORTREASNET99996",  # 外国净买入美债（LT+ST，总额）
+        "TIC_NET_OFFICIAL": "FORTREASNET99990",  # 外国官方净买入（LT+ST）
+        "TIC_HOLD_OFFICIAL": "FORTREASPOS99990",  # 外国官方持仓（LT+ST）
+        "TIC_HOLD_JAPAN": "FORLTTREASPOS42609",  # 日本持仓（LT）
+        "TIC_HOLD_CHINA": "FORLTTREASPOS41408",  # 中国持仓（LT）
+        "TIC_HOLD_SAUDI": "FORLTTREASPOS45608",  # 沙特持仓（LT）
+        "TIC_HOLD_UAE": "FORLTTREASPOS46604",  # 阿联酋持仓（LT）
+    },
 }
 
 FRED_SERIES_FLAT = {
