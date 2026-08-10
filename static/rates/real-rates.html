@@ -28,6 +28,8 @@
   <div class="re-explain">
     读图：名义 = 实际 + 盈亏平衡。若收益率上行主要由实际利率推动 → 金融条件收紧（紧缩交易）；
     若主要由盈亏平衡推动 → 通胀交易。盈亏平衡通胀 = DGS10 − DFII10（本地计算）。
+    期限溢价 = NY Fed ACM 估计（ACMTP10，右轴虚线）：<b>BEI 不动而期限溢价上行 → 供给/风险溢价交易</b>；
+    溢价上行 + 名义利率上行 → 供给驱动的熊陡。10Y 名义 − 期限溢价 ≈ 市场预期的平均短端路径。
   </div>
 </div>
 
@@ -39,26 +41,32 @@ async function load() {
 
   const last = (arr) => (arr.length ? arr[arr.length - 1].value : null);
   const card = (label, value, sub, accent = false) => ({ label, value: R.fmtPct(value), sub, accent });
+  const tpChg = d.term_premium_chg_1m;
   document.getElementById('re-cards').replaceChildren(R.cards([
     card('10Y 名义利率', last(d.nominal_10y), 'DGS10', true),
     card('10Y 实际利率(TIPS)', last(d.real_10y), 'DFII10'),
     card('10Y 盈亏平衡通胀', last(d.breakeven_10y), '名义 − 实际'),
+    card('10Y 期限溢价(ACM)', last(d.term_premium), tpChg === null ? 'NY Fed ACM 估计' : `1月 ${tpChg > 0 ? '+' : ''}${tpChg.toFixed(1)}bp`),
     card('2Y 国债收益率', last(d.y2), 'DGS2'),
     card('10Y-2Y 利差', last(d.spread_2s10), '(10Y−2Y) %'),
   ]));
 
-  // ── 三线 ──
+  // ── 三线 + 期限溢价 ──
   R.mkChart('triple_chart', (colors) => ({
-    legend: { data: ['10Y 名义利率', '10Y 实际利率(TIPS)', '10Y 盈亏平衡通胀'], top: 4, right: 8, textStyle: { color: colors.text, fontSize: 11 } },
+    legend: { data: ['10Y 名义利率', '10Y 实际利率(TIPS)', '10Y 盈亏平衡通胀', '10Y 期限溢价(ACM)'], top: 4, right: 8, textStyle: { color: colors.text, fontSize: 11 } },
     tooltip: { trigger: 'axis', valueFormatter: v => `${Number(v).toFixed(2)}%` },
-    grid: { top: 36, left: 48, right: 16, bottom: 56 },
+    grid: { top: 36, left: 48, right: 48, bottom: 56 },
     dataZoom: [{ type: 'inside' }, { type: 'slider', bottom: 8, height: 18 }],
     xAxis: { type: 'category', data: R.ts(d.nominal_10y), axisLabel: { color: colors.muted, fontSize: 10 }, axisLine: { lineStyle: { color: colors.border } } },
-    yAxis: { type: 'value', scale: true, axisLabel: { color: colors.muted, formatter: '{value}%' }, splitLine: { lineStyle: { color: colors.grid } } },
+    yAxis: [
+      { type: 'value', scale: true, axisLabel: { color: colors.muted, formatter: '{value}%' }, splitLine: { lineStyle: { color: colors.grid } } },
+      { type: 'value', scale: true, axisLabel: { color: colors.muted, formatter: '{value}%' }, splitLine: { show: false } },
+    ],
     series: [
       { name: '10Y 名义利率', type: 'line', data: R.vs(d.nominal_10y), symbol: 'none', lineStyle: { color: colors.blue, width: 2 } },
       { name: '10Y 实际利率(TIPS)', type: 'line', data: R.vs(d.real_10y), symbol: 'none', lineStyle: { color: colors.orange, width: 2 } },
       { name: '10Y 盈亏平衡通胀', type: 'line', data: R.vs(d.breakeven_10y), symbol: 'none', lineStyle: { color: colors.green, width: 2 } },
+      { name: '10Y 期限溢价(ACM)', type: 'line', data: R.vs(d.term_premium), yAxisIndex: 1, symbol: 'none', lineStyle: { color: colors.purple, width: 1.5, type: 'dashed' } },
     ],
   }));
 

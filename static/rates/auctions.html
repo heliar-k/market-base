@@ -20,12 +20,18 @@
   <div id="re-cards"></div>
   <div class="re-h2">付息券 Bid-to-Cover 趋势（2 / 5 / 10 / 30Y，近 1 年，含重开拍卖）</div>
   <div class="re-chart" id="trend_chart"></div>
+  <div class="re-h2">拍卖 Tail 趋势（2 / 5 / 10 / 30Y，bp，正 = 弱于预期）</div>
+  <div class="re-chart" id="tail_chart"></div>
+  <div class="re-h2">间接投标占比趋势（10 / 30Y，%，外国官方 + 国际机构需求）</div>
+  <div class="re-chart" id="indirect_chart"></div>
+  <div class="re-h2">供给前瞻：Bill 占比（近 6 年，MSPD 月频 + 日频派生）</div>
+  <div class="re-chart" id="bill_chart"></div>
   <div class="re-h2">📅 未来拍卖日历（未来 21 天）</div>
   <div id="re-upcoming"></div>
   <div class="re-h2">📊 最近拍卖结果（近 90 天）</div>
   <div id="re-recent"></div>
-  <div class="re-source">数据来源：美国财政部 Fiscal Data API（auctions_query / upcoming_auctions），每日自动同步。</div>
-  <div class="re-source">释义：Bid-to-Cover = 投标倍数（认购额/发行额，>2.5x 需求良好，<2.0x 警戒）；间接% = 间接投标人（外国官方+国际机构）接受占比，反映海外需求；Tail = 中标利率 − 中位投标利率（bp），正 = 弱于预期。<b>口径说明：</b>Tail 为代理口径（中标高位 − 中标中位数，审计 P2-①），非市场标准的 high yield − 发行前 when-issued 收益率（数据源无 WI 值），方向性可用、数值偏大。</div>
+  <div class="re-source">数据来源：美国财政部 Fiscal Data API（auctions_query / upcoming_auctions），每日自动同步；Bill 占比 = 财政部 MSPD 月频 + 本地日频派生；借款估算 = QRA 再融资声明（refunding）。</div>
+  <div class="re-source">释义：Bid-to-Cover = 投标倍数（认购额/发行额，>2.5x 需求良好，<2.0x 警戒）；间接% = 间接投标人（外国官方+国际机构）接受占比，反映海外需求；Tail = 中标利率 − 中位投标利率（bp），正 = 弱于预期。<b>口径说明：</b>Tail 为代理口径（中标高位 − 中标中位数，审计 P2-①），非市场标准的 high yield − 发行前 when-issued 收益率（数据源无 WI 值），方向性可用、数值偏大。<b>交叉检验：</b>10Y/30Y Tail 走阔 + 期限溢价（real-rates 页 ACM）上行 → 长端供需恶化确认；Bill 占比高企 → 付息券供给受控，压低期限溢价。</div>
 </div>
 
 <script src="/js/rates-common.js"></script>
@@ -35,9 +41,12 @@ async function load() {
   document.getElementById('re-as-of').textContent = `数据截至 ${d.as_of}`;
 
   const good = d.avg_cover_10_coupon !== null && d.avg_cover_10_coupon >= 2.5;
+  const b = d.borrowing;
   document.getElementById('re-cards').replaceChildren(R.cards([
     { label: '近 10 场付息券平均 Bid-to-Cover', value: d.avg_cover_10_coupon === null ? '—' : `${d.avg_cover_10_coupon.toFixed(2)}x`, sub: good ? '需求良好' : '需求偏弱', accent: true },
+    { label: 'Bill 占未偿可交易债务', value: d.bill_share_latest === null ? '—' : `${d.bill_share_latest.toFixed(2)}%`, sub: '供给结构，MSPD+日频' },
     { label: '未来 3 周拍卖场次', value: d.upcoming_count, sub: '按拍卖日排序见下方日历' },
+    ...(b && b.current_b ? [{ label: `QRA 借款估算（${b.quarter}）`, value: `$${b.current_b}B`, sub: b.chg_b ? `较上次 ${b.chg_b}B ${b.chg_dir === 'higher' ? '↑' : '↓'}（${b.date}）` : b.date, accent: b.chg_dir === 'higher' }] : []),
   ]));
 
   // ── 趋势图 ──
@@ -65,6 +74,59 @@ async function load() {
         } : undefined,
       };
     }),
+  }));
+
+  // ── Tail 趋势 ──
+  const tailDates = [...new Set(Object.values(d.tail_trend).flat().map(p => p.date))].sort();
+  R.mkChart('tail_chart', (colors) => ({
+    legend: { data: names, top: 8, right: '2%', icon: 'roundRect', itemWidth: 14, itemHeight: 4, textStyle: { color: colors.text, fontSize: 12 } },
+    tooltip: { trigger: 'axis', valueFormatter: v => (v === null || v === undefined ? '' : `${Number(v).toFixed(1)} bp`) },
+    grid: { top: 44, left: 48, right: 16, bottom: 24 },
+    xAxis: { type: 'category', data: tailDates, axisLabel: { color: colors.muted, fontSize: 10 }, axisLine: { lineStyle: { color: colors.border } } },
+    yAxis: { type: 'value', axisLabel: { color: colors.muted, formatter: '{value} bp' }, splitLine: { lineStyle: { color: colors.grid } } },
+    series: names.map((n, i) => {
+      const m = { '2Y': colors.blue, '5Y': colors.orange, '10Y': colors.red, '30Y': colors.purple }[n];
+      const byDate = Object.fromEntries(d.tail_trend[n].map(p => [p.date, p.value]));
+      return {
+        name: n, type: 'bar', barMaxWidth: 18,
+        data: tailDates.map(dt => (byDate[dt] === undefined ? null : byDate[dt])),
+        itemStyle: { color: m, opacity: 0.85 },
+      };
+    }),
+  }));
+
+  // ── 间接投标占比趋势 ──
+  const indNames = ['10Y', '30Y'];
+  const indDates = [...new Set(indNames.flatMap(n => d.indirect_trend[n].map(p => p.date)))].sort();
+  R.mkChart('indirect_chart', (colors) => ({
+    legend: { data: indNames, top: 8, right: '2%', icon: 'roundRect', itemWidth: 14, itemHeight: 4, textStyle: { color: colors.text, fontSize: 12 } },
+    tooltip: { trigger: 'axis', valueFormatter: v => `${Number(v).toFixed(0)}%` },
+    grid: { top: 44, left: 48, right: 16, bottom: 24 },
+    xAxis: { type: 'category', data: indDates, axisLabel: { color: colors.muted, fontSize: 10 }, axisLine: { lineStyle: { color: colors.border } } },
+    yAxis: { type: 'value', scale: true, axisLabel: { color: colors.muted, formatter: '{value}%' }, splitLine: { lineStyle: { color: colors.grid } } },
+    series: indNames.map(n => {
+      const m = n === '10Y' ? colors.red : colors.purple;
+      const byDate = Object.fromEntries(d.indirect_trend[n].map(p => [p.date, p.value]));
+      return {
+        name: n, type: 'line',
+        data: indDates.map(dt => (byDate[dt] === undefined ? null : byDate[dt])),
+        symbol: 'circle', symbolSize: 6, connectNulls: false,
+        lineStyle: { color: m, width: 2 }, itemStyle: { color: m },
+      };
+    }),
+  }));
+
+  // ── Bill 占比 ──
+  R.mkChart('bill_chart', (colors) => ({
+    tooltip: { trigger: 'axis', valueFormatter: v => `${Number(v).toFixed(2)}%` },
+    grid: { top: 20, left: 48, right: 16, bottom: 24 },
+    xAxis: { type: 'category', data: R.ts(d.bill_share), axisLabel: { color: colors.muted, fontSize: 10 }, axisLine: { lineStyle: { color: colors.border } } },
+    yAxis: { type: 'value', axisLabel: { color: colors.muted, formatter: '{value}%' }, splitLine: { lineStyle: { color: colors.grid } } },
+    series: [{
+      type: 'line', data: R.vs(d.bill_share), symbol: 'none',
+      lineStyle: { color: colors.blue, width: 2 },
+      areaStyle: { color: { type: 'linear', x: 0, y: 0, x2: 0, y2: 1, colorStops: [{ offset: 0, color: 'rgba(59,130,246,0.15)' }, { offset: 1, color: 'rgba(59,130,246,0)' }] } },
+    }],
   }));
 
   // ── 未来日历 ──

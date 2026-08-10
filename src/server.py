@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import math
+import re
 from datetime import date
 from pathlib import Path
 from typing import Any
@@ -837,7 +838,7 @@ def get_rates_yield_curve() -> dict:
 
 @app.get("/api/rates/real-rates")
 def get_rates_real_rates(days: int = Query(365, le=2000)) -> dict:
-    """实际利率：10Y 名义/TIPS/盈亏平衡 + 2Y + 2s10s（近 1 年日频）。"""
+    """实际利率：10Y 名义/TIPS/盈亏平衡 + ACM 期限溢价 + 2Y + 2s10s。"""
     df = _macro_df("rates")
     tips = _macro_df("tips")
 
@@ -847,11 +848,21 @@ def get_rates_real_rates(days: int = Query(365, le=2000)) -> dict:
     breakeven = aligned["DGS10"] - aligned["DFII10"]
     spread = (df["DGS10"] - df["DGS2"]).dropna().tail(days)
 
+    tp = df["ACMTP10"].dropna().tail(days)
+    tp_chg_1m = None
+    if len(tp) >= 2:
+        month_ago = tp.index[-1] - pd.Timedelta(days=30)
+        tp_prev = tp[tp.index <= month_ago]
+        if not tp_prev.empty:
+            tp_chg_1m = round(float(tp.iloc[-1] - tp_prev.iloc[-1]) * 100, 1)
+
     return {
         "as_of": df.index.max().strftime("%Y-%m-%d"),
         "nominal_10y": _series(df, "DGS10", days),
         "real_10y": _series(tips, "DFII10", days),
         "breakeven_10y": _to_points(breakeven),
+        "term_premium": _to_points(tp),
+        "term_premium_chg_1m": tp_chg_1m,
         "y2": _series(df, "DGS2", days),
         "spread_2s10": _to_points(spread),
     }
@@ -875,6 +886,54 @@ def _trend_bucket(term: str) -> str | None:
     if term == "30-Year" or term.startswith("29-Year"):
         return "30-Year"
     return None
+
+
+def _borrowing_estimate() -> dict | None:
+    """最新 QRA 再融资借款估算：当季/下季净借款（十亿美元）+ 较上次变化。
+
+    解析 financing_estimates 正文固定句式（"expects to borrow $X billion"）。
+    """
+    path = ROOT / "data" / "treasury" / "refunding.csv"
+    if not path.exists():
+        return None
+    df = pd.read_csv(path)
+    est = df[df["kind"] == "financing_estimates"].sort_values("date")
+    if est.empty:
+        return None
+    row = est.iloc[-1]
+    body = str(row["body"]).replace("\xa0", " ")
+    vals = [
+        int(v.replace(",", ""))
+        for v in re.findall(r"borrow\s+\$([\d,]+) billion", body)
+    ]
+    chg = re.findall(r"(\d+) billion (higher|lower) than announced", body)
+    return {
+        "date": row["date"],
+        "quarter": row["quarter"],
+        "current_b": vals[0] if vals else None,
+        "next_b": vals[1] if len(vals) > 1 else None,
+        "chg_b": int(chg[0][0]) if chg else None,
+        "chg_dir": chg[0][1] if chg else None,
+    }
+
+
+def _bill_share_series(years: int = 6) -> tuple[list[dict], float | None]:
+    """Bill 占未偿可交易债务比例：MSPD 月频历史 + 日频近期（派生），去重叠。"""
+    mspd_path = ROOT / "data" / "treasury" / "mspd.csv"
+    daily_path = ROOT / "data" / "treasury" / "bill_share_daily.csv"
+    parts: list[pd.Series] = []
+    if mspd_path.exists():
+        m = pd.read_csv(mspd_path, index_col="record_date", parse_dates=True)
+        parts.append(m["BILL_SHARE"].dropna())
+    if daily_path.exists():
+        d = pd.read_csv(daily_path, index_col="date", parse_dates=True)
+        parts.append(d["BILL_SHARE"].dropna())
+    if not parts:
+        return [], None
+    s = pd.concat(parts)
+    s = s[~s.index.duplicated(keep="last")].sort_index().tail(years * 366)
+    latest = round(float(s.iloc[-1]), 2) if not s.empty else None
+    return _to_points(s), latest
 
 
 @app.get("/api/rates/auctions")
@@ -908,17 +967,34 @@ def get_rates_auctions() -> dict:
     )
     avg_cover = round(float(covers.mean()), 2) if not covers.empty else None
 
-    trend = {}
+    trend, tail_trend, indirect_trend = {}, {}, {}
     for term in ["2-Year", "5-Year", "10-Year", "30-Year"]:
         sub = auc[auc["security_term"].map(_trend_bucket) == term]
         sub = sub.loc[sub.index >= today - pd.Timedelta(days=365)]
-        trend[term.replace("-Year", "Y")] = [
+        key = term.replace("-Year", "Y")
+        trend[key] = [
             {
                 "date": d.strftime("%Y-%m-%d"),
                 "value": float(pd.to_numeric(r["bid_to_cover_ratio"])),
             }
             for d, r in sub.iterrows()
             if pd.notna(r.get("bid_to_cover_ratio"))
+        ]
+        tail_trend[key] = [
+            {
+                "date": d.strftime("%Y-%m-%d"),
+                "value": float(pd.to_numeric(r["tail_bp"])),
+            }
+            for d, r in sub.iterrows()
+            if pd.notna(r.get("tail_bp"))
+        ]
+        indirect_trend[key] = [
+            {
+                "date": d.strftime("%Y-%m-%d"),
+                "value": float(pd.to_numeric(r["indirect_pct"])),
+            }
+            for d, r in sub.iterrows()
+            if pd.notna(r.get("indirect_pct"))
         ]
 
     upcoming = []
@@ -939,6 +1015,8 @@ def get_rates_auctions() -> dict:
                 }
             )
 
+    bill_share, bill_share_latest = _bill_share_series()
+
     return {
         "as_of": auc.index.max().strftime("%Y-%m-%d"),
         "avg_cover_10_coupon": avg_cover,
@@ -949,6 +1027,11 @@ def get_rates_auctions() -> dict:
         ],
         "upcoming": upcoming,
         "trend": trend,
+        "tail_trend": tail_trend,
+        "indirect_trend": indirect_trend,
+        "bill_share": bill_share,
+        "bill_share_latest": bill_share_latest,
+        "borrowing": _borrowing_estimate(),
     }
 
 
