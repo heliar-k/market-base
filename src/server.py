@@ -904,8 +904,10 @@ def _borrowing_estimate() -> dict | None:
     """最新 QRA 再融资借款估算：当季/下季净借款（十亿美元）+ 较上次变化。
 
     解析 financing_estimates 正文固定句式（"expects to borrow $X billion"）；
-    变化量锚定 "estimate is $X billion higher/lower than announced"，
-    避免误取 "actual borrowing was ..."（上季实际值）。
+    变化量锚定头条句式 "[Tt]he borrowing estimate is $X billion higher/lower
+    than announced"，排除从句（"the current quarter borrowing estimate is"）
+    与上季实际值（"actual borrowing was ..."）；锚定不到则返回 None（缺字段
+    显示 "—"），绝不静默取错。
     # ponytail: 与 QRA 正文措辞强耦合，句式微调会静默缺字段；升级路径 =
     # 改结构化字段（如 QRA 附带的机器可读 JSON）或人工校验。
     """
@@ -923,7 +925,9 @@ def _borrowing_estimate() -> dict | None:
         for v in re.findall(r"borrow\s+\$([\d,]+) billion", body)
     ]
     chg = re.findall(
-        r"estimate is \$([\d,]+) billion (higher|lower) than announced", body
+        r"[Tt]he borrowing estimate is \$([\d,]+) billion "
+        r"(higher|lower) than announced",
+        body,
     )
     return {
         "date": row["date"],

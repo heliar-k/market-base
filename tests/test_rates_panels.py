@@ -43,16 +43,33 @@ def test_borrowing_estimate_parses_two_quarters_and_change(monkeypatch, tmp_path
 
 
 def test_borrowing_estimate_ignores_prior_quarter_actual(monkeypatch, tmp_path):
-    """变化量锚定 "estimate is ..."：上季实际值（actual borrowing was）不参与。"""
+    """变化量锚定头条 "The borrowing estimate is ..."：
+    上季实际值（actual borrowing was）与从句（current quarter）均不参与。"""
     _write_refunding(
         tmp_path,
         "Actual borrowing was $18 billion lower than announced in May. "
-        "The borrowing estimate is $68 billion higher than announced in May. ",
+        "Excluding the higher-than-assumed beginning-of-quarter cash "
+        "balance, the current quarter borrowing estimate is $87 billion "
+        "higher than announced in May. The borrowing estimate is $68 "
+        "billion higher than announced in May 2026.",
     )
     monkeypatch.setattr(server, "ROOT", tmp_path)
     est = server._borrowing_estimate()
     assert est["chg_b"] == 68
     assert est["chg_dir"] == "higher"
+
+
+def test_borrowing_estimate_unmatched_returns_none(monkeypatch, tmp_path):
+    """正文措辞变化导致头条句式缺失 → 返回 None（缺字段），不静默取错。"""
+    _write_refunding(
+        tmp_path,
+        "Treasury expects to borrow $739 billion in privately-held "
+        "net marketable debt.",
+    )
+    monkeypatch.setattr(server, "ROOT", tmp_path)
+    est = server._borrowing_estimate()
+    assert est["chg_b"] is None
+    assert est["chg_dir"] is None
 
 
 def test_borrowing_estimate_missing_file(monkeypatch, tmp_path):
