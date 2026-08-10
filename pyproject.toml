@@ -25,6 +25,7 @@ dependencies = [
     "fastapi>=0.115.0",
     "uvicorn>=0.32.0",
     "pysocks>=1.7.1",
+    "xlrd>=2.0.2",
 ]
 
 [dependency-groups]

@@ -38,8 +38,9 @@
 `rates`: DFF, FEDFUNDS, DFEDTARL, DFEDTARU, SOFR, SOFR1/25/75/99, SOFRVOL, OBFR, IORB, TGCR, ONRRP, BGCR*, DGS1MO...DGS30, ACMTP10*
 
 > `ACMTP10`（NY Fed ACM 模型 10Y 期限溢价）不在 FRED，由 `./bin/fetch_acm` 从
-> NY Fed 交互图底稿 CSV（acmPlot_data.csv，月度月末，1961-06 起）拉取并合并进
-> rates.csv。阈值参考：>+0.85% 偏空 / <+0.50% 偏多 / 单月跳>15bp 告警。
+> NY Fed 底稿 ACMTermPremium.xls 的 **ACM Daily** sheet 拉取（官方日频估算，
+> 1961-06 起）并合并进 rates.csv；同文件 ACM Monthly sheet 为月末重估。
+> 阈值参考：>+0.85% 偏空 / <+0.50% 偏多 / 单月跳>15bp 告警。
 
 > `DFF` = 有效联邦基金利率（日频，1999-03 起），fed-funds 页 EFFR 图/走廊用；
 > `FEDFUNDS` 是月频均值（1954 起，仅作历史兜底），不能按日频绘制。
