@@ -26,14 +26,41 @@ AUCTIONS_CSV = ROOT / "data" / "treasury" / "auction_results.csv"
 OUT_CSV = ROOT / "data" / "treasury" / "bill_share_daily.csv"
 
 
+def _net_flows(
+    auctions: pd.DataFrame, anchor: pd.Timestamp, bills_only: bool = False
+) -> pd.Series:
+    """锚后逐日净发行（百万美元）。
+
+    issued 端只算锚后新发行；matured 端算所有锚后到期（含锚前发行、锚后
+    到期——其发行已计入锚余额，只应扣到期）。两端过滤独立，不能先按
+    issue_date 过滤整帧，否则锚前发行的到期会被整批丢掉。
+    """
+    if bills_only:
+        auctions = auctions[auctions["security_type"] == "Bill"]
+    issued = (
+        auctions[auctions["issue_date"] > anchor]
+        .groupby("issue_date")["offering_amt"]
+        .sum()
+        / 1e6
+    )
+    matured = (
+        auctions[auctions["maturity_date"] > anchor]
+        .groupby("maturity_date")["offering_amt"]
+        .sum()
+        / 1e6
+    )
+    return issued.sub(matured, fill_value=0).sort_index()
+
+
 def compute_daily_bill_share(
-    mspd: pd.DataFrame, auctions: pd.DataFrame
+    mspd: pd.DataFrame, auctions: pd.DataFrame, end: pd.Timestamp | None = None
 ) -> pd.DataFrame:
     """锚定法派生日频未偿。返回 index=日期，列 BILLS/MARKETABLE/BILL_SHARE。
 
     mspd: index=月末(parse_dates)，列含 BILLS/MARKETABLE_TOTAL（百万美元）。
     auctions: 需 issue_date/maturity_date/security_type/offering_amt（美元）。
     锚 = mspd 最新月末；只输出锚日之后（含锚日）的逐日序列。
+    end: 输出截止日（默认今天；传固定日期可保证测试确定性）。
     """
     anchor_date = mspd.index.max()
     anchor = mspd.loc[anchor_date]
@@ -41,26 +68,11 @@ def compute_daily_bill_share(
     auc["issue_date"] = pd.to_datetime(auc["issue_date"])
     auc["maturity_date"] = pd.to_datetime(auc["maturity_date"])
     auc["offering_amt"] = pd.to_numeric(auc["offering_amt"], errors="coerce")
-    auc = auc[auc["issue_date"] > anchor_date]  # 锚后新发行才计入
 
-    # 逐日净发行（发行日 +额 / 到期日 −额），单位换算为百万美元；
-    # 两个 groupby 索引不同（发行日 vs 到期日），sub(fill_value=0) 在相减前
-    # 补零——先减后 fillna 会把"该日无到期"的对齐 NaN 也抹成 0
-    issued = auc.groupby("issue_date")["offering_amt"].sum() / 1e6
-    matured = auc.groupby("maturity_date")["offering_amt"].sum() / 1e6
-    net = issued.sub(matured, fill_value=0).sort_index()
-    is_bill = auc["security_type"] == "Bill"
-    bill_auc = auc[is_bill]
-    net_bill = (
-        (bill_auc.groupby("issue_date")["offering_amt"].sum() / 1e6)
-        .sub(
-            bill_auc.groupby("maturity_date")["offering_amt"].sum() / 1e6,
-            fill_value=0,
-        )
-        .sort_index()
-    )
+    net = _net_flows(auc, anchor_date)
+    net_bill = _net_flows(auc, anchor_date, bills_only=True)
 
-    days = pd.date_range(anchor_date, pd.Timestamp.today().normalize())
+    days = pd.date_range(anchor_date, end or pd.Timestamp.today().normalize())
     out = pd.DataFrame(index=days)
     out["BILLS"] = anchor["BILLS"] + net_bill.reindex(days).fillna(0).cumsum()
     out["MARKETABLE"] = (
