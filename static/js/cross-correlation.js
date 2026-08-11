@@ -159,11 +159,15 @@ async function loadPreset(preset) {
 
 async function loadAndRender() {
   if (!activePreset) return;
-  const indicators = activePreset.indicators.join(',');
   try {
-    const res = await fetch(`/api/macro/correlate?indicators=${encodeURIComponent(indicators)}`);
+    // Pages 静态部署：预渲染的全指标合并文件，本地按当前组合过滤（一次加载，任意组合可查）
+    const res = await fetch('/api/macro/correlate.json');
     if (!res.ok) throw new Error(`API error: ${res.status}`);
-    const json = await res.json();
+    const all = await res.json();
+    const json = { indicators: {} };
+    for (const name of activePreset.indicators) {
+      if (all.indicators[name]) json.indicators[name] = all.indicators[name];
+    }
 
     const seriesMap = {};
     for (const [name, info] of Object.entries(json.indicators)) {

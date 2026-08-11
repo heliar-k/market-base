@@ -362,8 +362,8 @@ function debouncedDiag() {
 
 async function fetchDiag() {
   if (!currentSymbol) return;
-  let url = `/api/diag/${currentSymbol}`;
-  if (crosshairDate) url += `?as_of=${crosshairDate}`;
+  // Pages 静态部署：as_of 光标回看无法预渲染所有日期，固定返回最新诊断
+  const url = `/api/diag/${currentSymbol}`;
   try {
     const res = await fetch(url);
     const d = await res.json();
