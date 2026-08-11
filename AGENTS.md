@@ -190,6 +190,9 @@ uv run python -m src.tui.app                        # 启动 TUI（技术分析 
 
 # Web（FastAPI + 利率专题页）
 uv run python -m src.server                        # 启动 Web，浏览器打开 localhost:8000
+# 静态部署（GitHub Pages，公开仓库）：uv run python -m src.export_pages 生成 site/，
+# daily-fetch workflow 每日自动构建部署 → https://heliar-k.github.io/market-base/
+# 限制：K 线仅近 3 年、相关性页仅近 5 年、诊断面板无光标回看（静态预渲染的固有降级）
 # 利率专题（timsun.net/rates 复刻）：/rates/ 入口页 → 联邦基金/收益率曲线/拍卖/实际利率/利率预期
 # 研判由 src/rates_analysis.py 规则引擎生成，LLM 接入点：generate_analysis() → _llm_generate()
 
