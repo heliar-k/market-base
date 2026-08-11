@@ -56,7 +56,7 @@ KLINE_YEARS = 3
 CORRELATE_YEARS = 5  # 全指标合并文件体积大，截 5 年（10Y/30Y/All 按钮显示止于此处）
 
 # 站内绝对路径前缀（html/js 中出现，均需加 BASE；https:// 不受影响）
-_PATH_PREFIXES = ("api", "css", "js", "fed", "volatility", "rates", "credit")
+_PATH_PREFIXES = ("api", "css", "js", "vendor", "fed", "volatility", "rates", "credit")
 
 _PREFIX_RE = re.compile(r'(["\'\x60])/(' + "|".join(_PATH_PREFIXES) + r")/")
 _HOME_RE = re.compile(r'href="/"')
