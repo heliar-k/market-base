@@ -48,6 +48,8 @@ function onCorrThemeChanged() {
   corrObserver = new ResizeObserver(() => corrChart.resize());
   corrObserver.observe(dom);
 }
+
+function renderUI() {
   const card = document.getElementById('correlation-card');
   card.innerHTML = '';
 
