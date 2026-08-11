@@ -86,7 +86,7 @@ def _safe(rel: str, fn, *args, **kwargs) -> None:
 
 def export_api() -> None:
     symbols = get_symbols()
-    _dump("api/symbols.json", symbols)
+    _dump("api/symbols", symbols)
 
     # K 线：近 3 年（as_of 截断）；days=2/5 变体自动兼容（前端只取尾部）
     # CDL_* 62 列前端未使用，剔除控体积（约 -45%）
@@ -96,14 +96,14 @@ def export_api() -> None:
         records = [
             {k: v for k, v in r.items() if not k.startswith("CDL_")} for r in records
         ]
-        _dump(f"api/kline/{s['name']}.json", records)
-        _safe(f"api/diag/{s['name']}.json", get_diag, s["name"], as_of=None)
+        _dump(f"api/kline/{s['name']}", records)
+        _safe(f"api/diag/{s['name']}", get_diag, s["name"], as_of=None)
 
     # 宏观：14 分类 + categories/presets + correlate 全指标合并（截 5 年控体积）
-    _dump("api/macro/categories.json", get_macro_categories())
-    _dump("api/macro/presets.json", get_macro_presets())
+    _dump("api/macro/categories", get_macro_categories())
+    _dump("api/macro/presets", get_macro_presets())
     for cat in FRED_SERIES:
-        _safe(f"api/macro/{cat}.json", get_macro, cat)
+        _safe(f"api/macro/{cat}", get_macro, cat)
     merged = load_macro_categories(list(FRED_SERIES))
     all_indicators = [c for c in merged.columns if categories_for(c) is not None]
     correlate = get_macro_correlate(indicators=",".join(all_indicators))
@@ -120,8 +120,8 @@ def export_api() -> None:
         _safe(f"api/liquidity/overview_{range_}.json", get_liquidity_overview, range_)
 
     # 专题页（FOMC / rates / volatility / fed / credit）
-    _safe("api/fomc/calendar.json", get_fomc_calendar)
-    _safe("api/rate-expectations.json", get_rate_expectations)
+    _safe("api/fomc/calendar", get_fomc_calendar)
+    _safe("api/rate-expectations", get_rate_expectations)
     for name, fn in [
         ("analysis", get_rates_analysis),
         ("fed-funds", get_rates_fed_funds),
@@ -129,12 +129,12 @@ def export_api() -> None:
         ("real-rates", lambda: get_rates_real_rates(days=365)),
         ("auctions", get_rates_auctions),
     ]:
-        _safe(f"api/rates/{name}.json", fn)
-    _safe("api/volatility/analysis.json", get_volatility_analysis)
-    _safe("api/fed/overview.json", get_fed_overview)
-    _safe("api/credit/overview.json", get_credit_overview)
-    _safe("api/credit/cds.json", get_credit_cds)
-    _safe("api/credit/stress.json", get_credit_stress)
+        _safe(f"api/rates/{name}", fn)
+    _safe("api/volatility/analysis", get_volatility_analysis)
+    _safe("api/fed/overview", get_fed_overview)
+    _safe("api/credit/overview", get_credit_overview)
+    _safe("api/credit/cds", get_credit_cds)
+    _safe("api/credit/stress", get_credit_stress)
 
 
 def export_frontend() -> None:
