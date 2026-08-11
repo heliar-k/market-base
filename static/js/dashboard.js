@@ -146,7 +146,7 @@ async function refreshMiniCharts() {
   miniCharts.forEach(c => { try { c.dispose(); } catch (e) { /* ignore */ } });
   miniCharts = [];
   const [liq, rates] = await Promise.allSettled([
-    fetchJSON('/api/liquidity/overview?range=1y'),
+    fetchJSON('/api/liquidity/overview_1y.json'),
     fetchJSON('/api/macro/rates'),
   ]);
   renderMiniChart('mini-netliq', liq, 'NET_LIQUIDITY', '#26a69a');
@@ -162,7 +162,7 @@ async function refreshWatchlist() {
 }
 
 async function refreshLiquidity() {
-  const res = await fetchJSON('/api/liquidity/overview?range=all');
+  const res = await fetchJSON('/api/liquidity/overview_all.json');
   data.liqSummary = res?.summary ?? {};
   renderLiquidity();
 }

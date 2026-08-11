@@ -71,7 +71,7 @@ async function loadAndRender() {
   if (chartsEl) chartsEl.innerHTML = '';
 
   try {
-    const res = await fetch(`/api/liquidity/overview?range=${encodeURIComponent(dateRange)}`);
+    const res = await fetch(`/api/liquidity/overview_${dateRange}.json`);
     if (!res.ok) throw new Error(`API ${res.status}`);
     overviewData = await res.json();
     renderSummaryCards();
