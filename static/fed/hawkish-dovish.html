@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>鹰鸽追踪 — US Macro</title>
@@ -131,7 +132,7 @@ async function load() {
   ));
 
   // ── 各官员最新立场表（有演讲者）──
-  const rows = data.stances.map(s => ({
+  const stanceRows = data.stances.map(s => ({
     speaker: s.speaker,
     score: s.score > 0 ? `+${s.score}` : String(s.score),
     label: s.label,
@@ -140,7 +141,7 @@ async function load() {
   }));
   document.getElementById('re-stances').appendChild(R.table(
     ['官员', '立场', '评分', '最新日期', '最新演讲'],
-    rows,
+    stanceRows,
     { label: (v) => v, score: (v) => v },
   ));
 }

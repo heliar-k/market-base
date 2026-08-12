@@ -56,7 +56,17 @@ KLINE_YEARS = 3
 CORRELATE_YEARS = 5  # 全指标合并文件体积大，截 5 年（10Y/30Y/All 按钮显示止于此处）
 
 # 站内绝对路径前缀（html/js 中出现，均需加 BASE；https:// 不受影响）
-_PATH_PREFIXES = ("api", "css", "js", "vendor", "fed", "volatility", "rates", "credit")
+_PATH_PREFIXES = (
+    "api",
+    "css",
+    "js",
+    "vendor",
+    "favicon",
+    "fed",
+    "volatility",
+    "rates",
+    "credit",
+)
 
 _PREFIX_RE = re.compile(r'(["\'\x60])/(' + "|".join(_PATH_PREFIXES) + r")/")
 _HOME_RE = re.compile(r'href="/"')
@@ -146,6 +156,8 @@ def export_frontend() -> None:
         if p.is_file() and p.suffix in (".html", ".js"):
             text = p.read_text(encoding="utf-8")
             text = _PREFIX_RE.sub(rf"\1{BASE}/\2/", text)
+            # favicon.svg 在站点根目录（无目录斜杠，前缀规则匹配不到），单独替换
+            text = text.replace('href="/favicon.svg"', f'href="{BASE}/favicon.svg"')
             text = _HOME_RE.sub(f'href="{BASE}/"', text)
             p.write_text(text, encoding="utf-8")
 
