@@ -314,7 +314,8 @@ function renderStandardCategory(name, seriesKeys, container) {
   const series = activeKeys.map((key, idx) => ({
     name: MACRO_LABELS[key] || key,
     type: 'line',
-    data: data.map(d => [d.date, d[key]]),
+    // 过滤 null：月频/季频序列（AAA/SLOOS 等）只画有效点，避免日频轴上断点
+    data: data.filter(d => d[key] != null).map(d => [d.date, d[key]]),
     lineStyle: { width: 1.5 },
     itemStyle: { color: MACRO_COLORS[idx % MACRO_COLORS.length] },
     showSymbol: false,
