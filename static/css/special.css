@@ -2,6 +2,8 @@
  * 并补入 924db7e 起的 HEAD 新增类（regime-* 等）。冲突规则按多数派/语义裁定。
  * 新专题页只需 <link rel="stylesheet" href="/css/special.css">；
  * 修改样式请直接编辑本文件，勿再往页面内联 <style> 里加。 */
+/* 专题页 body 可滚动：app.css 的 overflow:hidden 是 SPA 布局专用（SPA 不加载本文件） */
+body { height: auto; overflow-y: auto; }
 .re-root { max-width: 960px; margin: 0 auto; padding: 20px 16px; display: flex; flex-direction: column; gap: 16px; }
 .re-header { display: flex; justify-content: space-between; align-items: baseline; flex-wrap: wrap; gap: 8px; }
 .re-header h1 { font-size: 20px; font-weight: 700; }
