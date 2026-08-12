@@ -69,6 +69,9 @@ _PATH_PREFIXES = (
 )
 
 _PREFIX_RE = re.compile(r'(["\'\x60])/(' + "|".join(_PATH_PREFIXES) + r")/")
+# kline ?days=N → 尾部小文件（模板字符串与字面量两种写法）
+_KLINE_DAYS_TMPL_RE = re.compile(r"/api/kline/(\$\{[^}]+\})\?days=(\d+)")
+_KLINE_DAYS_LIT_RE = re.compile(r"/api/kline/([A-Za-z.]+)\?days=(\d+)")
 # 流动性 overview 动态 URL（range query）→ 静态文件名（静态托管忽略 query）
 # 注意：不匹配引号，替换后前缀规则再处理；模板字符串（dateRange 变量）单独一条
 _LIQ_URL_RE = re.compile(r"/api/liquidity/overview\?range=([a-z0-9]+)")
@@ -113,6 +116,13 @@ def export_api() -> None:
             {k: v for k, v in r.items() if not k.startswith("CDL_")} for r in records
         ]
         _dump(f"api/kline/{s['name']}", records)
+        # 尾部小文件：?days=N 变体（静态托管忽略 query，前端预取价格只用尾部几行）
+        for n in (2, 5):
+            tail = get_kline(s["name"], as_of=as_of, interval="1d", days=n)
+            tail = [
+                {k: v for k, v in r.items() if not k.startswith("CDL_")} for r in tail
+            ]
+            _dump(f"api/kline/{s['name']}_d{n}", tail)
         _safe(f"api/diag/{s['name']}", get_diag, s["name"], as_of=None)
 
     # 宏观：14 分类 + categories/presets + correlate 全指标合并（截 5 年控体积）
@@ -167,6 +177,8 @@ def export_frontend() -> None:
                 rf"{BASE}/api/liquidity/overview_${{dateRange}}.json", text
             )
             text = _LIQ_URL_RE.sub(rf"{BASE}/api/liquidity/overview_\1.json", text)
+            text = _KLINE_DAYS_TMPL_RE.sub(rf"{BASE}/api/kline/\1_d\2.json", text)
+            text = _KLINE_DAYS_LIT_RE.sub(rf"{BASE}/api/kline/\1_d\2.json", text)
             text = _PREFIX_RE.sub(rf"\1{BASE}/\2/", text)
             # favicon.svg 在站点根目录（无目录斜杠，前缀规则匹配不到），单独替换
             text = text.replace('href="/favicon.svg"', f'href="{BASE}/favicon.svg"')
