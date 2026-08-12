@@ -23,7 +23,7 @@ document.getElementById('theme-toggle').addEventListener('click', () => {
 
 // ── shared state ───────────────────────────────────────────────────────────
 export const state = {
-  currentTab: 'dashboard',
+  currentTab: 'macro',
   symbols: null,
 };
 
@@ -80,4 +80,4 @@ window.addEventListener('go-stock', e => {
   if (e.detail) techSelectSymbol(e.detail);
 });
 
-switchTab('dashboard');
+switchTab('macro');  // 默认进入宏观页（仪表盘已隐藏）

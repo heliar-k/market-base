@@ -127,14 +127,18 @@ function buildIndicesPanel() {
 
 // ── data loaders ────────────────────────────────────────────
 async function refreshCards() {
-  const [vix, cpi, rates, fx] = await Promise.allSettled([
+  const [vix, cpi, fedFunds, fx] = await Promise.allSettled([
     fetchJSON('/api/macro/volatility'),
     fetchJSON('/api/macro/inflation'),
-    fetchJSON('/api/macro/rates'),
+    fetchJSON('/api/rates/fed-funds'),
     fetchJSON('/api/macro/fx'),
   ]);
-  data.vix = vix; data.cpi = cpi; data.rates = rates; data.fx = fx;
-  // Macro API returns flat array: [{date, KEY1, KEY2, ...}, ...]
+  data.vix = vix; data.cpi = cpi; data.rates = fedFunds; data.fx = fx;
+  // fed-funds API 的 recent 30 天 effr 序列 → 伪 records 数组（喂给 renderStatCard）
+  const ff = fedFunds.value;
+  const rates = (fedFunds.status === 'fulfilled' && ff?.recent)
+    ? { status: 'fulfilled', value: ff.recent.map(r => ({ date: r.date, DFF: r.effr })) }
+    : fedFunds;
   renderStatCard('ds-VIX', vix, 'VIX', '波动率指数', 2);
   renderStatCard('ds-CPI', cpi, 'CPI', '消费者物价', 1, '%', 'yoy');
   renderStatCard('ds-FEDFUNDS', rates, 'DFF', '联邦基金利率', 2, '%');
@@ -145,12 +149,13 @@ async function refreshMiniCharts() {
   // ponytail: clear all mini charts once before re-rendering both
   miniCharts.forEach(c => { try { c.dispose(); } catch (e) { /* ignore */ } });
   miniCharts = [];
-  const [liq, rates] = await Promise.allSettled([
+  // 迷你图数据源用轻量 API（rates 全量 16MB 只为画 2s10s 太浪费）
+  const [liq, yc] = await Promise.allSettled([
     fetchJSON('/api/liquidity/overview?range=1y'),
-    fetchJSON('/api/macro/rates'),
+    fetchJSON('/api/rates/yield-curve'),
   ]);
   renderMiniChart('mini-netliq', liq, 'NET_LIQUIDITY', '#26a69a');
-  renderMiniChart('mini-spread', rates, 'SPREAD_2S10S', '#ff9800');
+  renderMiniChart('mini-spread', yc, '2s10s', '#ff9800');
 }
 
 async function refreshWatchlist() {
@@ -245,6 +250,11 @@ async function renderMiniChart(containerId, result, key, color) {
   const val = result.value;
   if (val?.series?.[key]) {
     seriesData = val.series[key]
+      .filter(d => d.value != null)
+      .map(d => [d.date, d.value]);
+  } else if (val?.yield_curve?.spreads_history?.[key]) {
+    // yield-curve API：spreads_history 为 {date, value} 点数组（bp）
+    seriesData = val.yield_curve.spreads_history[key]
       .filter(d => d.value != null)
       .map(d => [d.date, d.value]);
   } else if (Array.isArray(val)) {

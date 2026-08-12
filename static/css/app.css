@@ -197,6 +197,21 @@ body { font-family: system-ui, -apple-system, sans-serif; background: var(--bg);
 /* ── loading ────────────────────────────────────────────── */
 .loading { display: flex; align-items: center; justify-content: center; height: 100%; color: var(--text-dim); font-size: 14px; }
 
+/* ── macro 专题速览 tab（当期数字 + 结论 + 跳转）── */
+.macro-feature { margin-bottom: 12px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); overflow: hidden; }
+.macro-feature-tabs { display: flex; gap: 4px; padding: 8px 12px 0; border-bottom: 1px solid var(--border); }
+.macro-feature-tab { padding: 6px 16px; border: 1px solid transparent; border-bottom: none; border-radius: 6px 6px 0 0; background: transparent; color: var(--text-secondary); cursor: pointer; font-size: 13px; transition: all .15s; }
+.macro-feature-tab:hover { color: var(--text); }
+.macro-feature-tab.active { background: var(--surface-alt); border-color: var(--border); color: var(--text); font-weight: 600; }
+.macro-feature-panels { padding: 14px 16px; }
+.macro-feature-panel { display: none; }
+.macro-feature-panel.active { display: block; }
+.macro-feature-num { font-size: 26px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.macro-feature-concl { margin-top: 4px; color: var(--text-secondary); font-size: 13px; line-height: 1.5; }
+.macro-feature-sub { margin-top: 2px; font-size: 12px; color: var(--text-dim); }
+.macro-feature-link { display: inline-block; margin-top: 10px; font-size: 13px; color: var(--accent); text-decoration: none; }
+.macro-feature-link:hover { text-decoration: underline; }
+
 /* ── macro toolbar ──────────────────────────────────────── */
 .macro-toolbar { display: flex; gap: 6px; padding: 8px 12px; border-bottom: 1px solid var(--border); flex-wrap: wrap; position: sticky; top: 0; background: var(--surface); z-index: 10; }
 .macro-range-btn { padding: 4px 12px; border: 1px solid var(--btn-border); border-radius: 4px; background: var(--surface); font-size: 12px; cursor: pointer; transition: all .15s; color: var(--text-secondary); }

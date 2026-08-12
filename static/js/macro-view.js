@@ -61,6 +61,85 @@ async function loadMacroCategories() {
   renderMacroSections();
 }
 
+// ── 专题速览 tab（当期数字 + 结论 + 跳转专题页；曲线在专题页内查看）────────────────
+const FEATURED = [
+  {
+    id: 'rates', label: '利率', page: '/rates/',
+    apis: ['/api/rates/analysis', '/api/fomc/calendar'],
+    num: d => `2s10s ${d[0].yield_curve.spreads['2s10s']}bp`,
+    concl: d => d[0].overview.sections[0]?.body || '',
+    sub: d => `FOMC 目标区间 ${Number(d[1].target_lower).toFixed(2)}% – ${Number(d[1].target_upper).toFixed(2)}%`,
+  },
+  {
+    id: 'fed', label: '美联储', page: '/fed/',
+    apis: ['/api/fed/overview'],
+    num: d => `鹰鸽 ${d[0].indicator.label}`,
+    concl: d => `官员立场样本 ${d[0].indicator.sample} 人`,
+  },
+  {
+    id: 'credit', label: '信用', page: '/credit/',
+    apis: ['/api/credit/overview'],
+    num: d => `信用 ${d[0].regime.regime}`,
+    concl: d => `HY-IG 利差 ${d[0].hy_ig.value}bp · ${d[0].hy_ig.as_of}`,
+  },
+  {
+    id: 'vol', label: '波动率', page: '/volatility/',
+    apis: ['/api/volatility/analysis'],
+    num: d => `VIX ${d[0].vix.value}`,
+    concl: d => `${d[0].vix.zone}区间 · ${d[0].vix.percentile_1y}% 分位`,
+    sub: d => d[0].signals[0]?.title || '',
+  },
+];
+
+async function renderFeatureTabs(container) {
+  const wrap = document.createElement('div');
+  wrap.className = 'macro-feature';
+  const tabs = document.createElement('div');
+  tabs.className = 'macro-feature-tabs';
+  const panels = document.createElement('div');
+  panels.className = 'macro-feature-panels';
+
+  const results = await Promise.all(FEATURED.map(async f => {
+    try {
+      const datas = await Promise.all(f.apis.map(u => fetch(u).then(r => r.json())));
+      return { f, datas, err: null };
+    } catch (e) {
+      return { f, datas: null, err: e };
+    }
+  }));
+
+  results.forEach(({ f, datas, err }, i) => {
+    const btn = document.createElement('button');
+    btn.className = 'macro-feature-tab' + (i === 0 ? ' active' : '');
+    btn.textContent = f.label;
+    btn.addEventListener('click', () => {
+      panels.querySelectorAll('.macro-feature-panel').forEach(p =>
+        p.classList.toggle('active', p.dataset.fid === f.id));
+      tabs.querySelectorAll('.macro-feature-tab').forEach(t =>
+        t.classList.toggle('active', t === btn));
+    });
+    tabs.appendChild(btn);
+
+    const panel = document.createElement('div');
+    panel.className = 'macro-feature-panel' + (i === 0 ? ' active' : '');
+    panel.dataset.fid = f.id;
+    if (err || !datas) {
+      panel.innerHTML = '<div class="loading">加载失败</div>';
+    } else {
+      panel.innerHTML = `
+        <div class="macro-feature-num">${f.num(datas)}</div>
+        <div class="macro-feature-concl">${f.concl(datas)}</div>
+        ${f.sub ? `<div class="macro-feature-sub">${f.sub(datas)}</div>` : ''}
+        <a class="macro-feature-link" href="${f.page}">查看详情 →</a>`;
+    }
+    panels.appendChild(panel);
+  });
+
+  wrap.appendChild(tabs);
+  wrap.appendChild(panels);
+  container.appendChild(wrap);
+}
+
 // ── render ─────────────────────────────────────────────────────────────────
 function renderMacroSections() {
   const container = document.getElementById('macro-chart-card');
@@ -76,17 +155,14 @@ function renderMacroSections() {
   });
   container.appendChild(toolbar);
 
+  renderFeatureTabs(container);
+
   const grid = document.createElement('div');
   grid.className = 'macro-grid';
 
-  // ── 利率走廊专用区块（在分类列表上方）──
-  const corridorSection = document.createElement('div');
-  corridorSection.className = 'macro-section collapsed';
-  corridorSection.innerHTML = `<div class="macro-section-header"><span class="macro-expand">▶</span><span class="macro-cat-name">利率走廊</span><span class="macro-cat-count">Fed Funds Corridor</span></div><div class="macro-section-body"><div class="macro-series-charts" id="macro-charts-corridor"></div></div>`;
-  corridorSection.querySelector('.macro-section-header').addEventListener('click', () => toggleCorridorSection(corridorSection));
-  grid.appendChild(corridorSection);
-
-  macroCategories.forEach(cat => {
+  // 有专题页的分类（rates/credit/volatility）不在宏观页重复画曲线，见专题速览 tab
+  const featuredCats = new Set(['rates', 'credit', 'volatility']);
+  macroCategories.filter(cat => !featuredCats.has(cat.name)).forEach(cat => {
     const section = document.createElement('div');
     section.className = 'macro-section collapsed';
     section.innerHTML = `<div class="macro-section-header" data-cat="${cat.name}"><span class="macro-expand">▶</span><span class="macro-cat-name">${catNameLabel(cat.name)}</span><span class="macro-cat-count">${cat.series.length} 项</span></div><div class="macro-section-body"><div class="macro-series-charts" id="macro-charts-${cat.name}"></div></div>`;
@@ -94,8 +170,6 @@ function renderMacroSections() {
     grid.appendChild(section);
   });
   container.appendChild(grid);
-  // 首次加载自动展开利率走廊
-  setTimeout(() => toggleCorridorSection(corridorSection), 50);
 }
 
 function catNameLabel(name) {

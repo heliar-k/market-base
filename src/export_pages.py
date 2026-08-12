@@ -177,8 +177,8 @@ def export_frontend() -> None:
                 rf"{BASE}/api/liquidity/overview_${{dateRange}}.json", text
             )
             text = _LIQ_URL_RE.sub(rf"{BASE}/api/liquidity/overview_\1.json", text)
-            text = _KLINE_DAYS_TMPL_RE.sub(rf"{BASE}/api/kline/\1_d\2.json", text)
-            text = _KLINE_DAYS_LIT_RE.sub(rf"{BASE}/api/kline/\1_d\2.json", text)
+            text = _KLINE_DAYS_TMPL_RE.sub(rf"{BASE}/api/kline/\1_d\2", text)
+            text = _KLINE_DAYS_LIT_RE.sub(rf"{BASE}/api/kline/\1_d\2", text)
             text = _PREFIX_RE.sub(rf"\1{BASE}/\2/", text)
             # favicon.svg 在站点根目录（无目录斜杠，前缀规则匹配不到），单独替换
             text = text.replace('href="/favicon.svg"', f'href="{BASE}/favicon.svg"')
