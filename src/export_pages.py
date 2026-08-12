@@ -69,6 +69,12 @@ _PATH_PREFIXES = (
 )
 
 _PREFIX_RE = re.compile(r'(["\'\x60])/(' + "|".join(_PATH_PREFIXES) + r")/")
+# 流动性 overview 动态 URL（range query）→ 静态文件名（静态托管忽略 query）
+# 注意：不匹配引号，替换后前缀规则再处理；模板字符串（dateRange 变量）单独一条
+_LIQ_URL_RE = re.compile(r"/api/liquidity/overview\?range=([a-z0-9]+)")
+_LIQ_URL_TMPL_RE = re.compile(
+    r"/api/liquidity/overview\?range=\$\{encodeURIComponent\(dateRange\)\}"
+)
 _HOME_RE = re.compile(r'href="/"')
 
 _ENDPOINTS: list[tuple[str, object]] = []  # (相对路径, 可调用) 惰性填充
@@ -155,10 +161,17 @@ def export_frontend() -> None:
     for p in SITE.rglob("*"):
         if p.is_file() and p.suffix in (".html", ".js"):
             text = p.read_text(encoding="utf-8")
+            # 动态 API URL → 静态文件名（本地 dev 用 FastAPI 路由，静态版用文件名）；
+            # 必须先转文件名再加前缀，否则 /market-base 前缀会被二次匹配
+            text = _LIQ_URL_TMPL_RE.sub(
+                rf"{BASE}/api/liquidity/overview_${{dateRange}}.json", text
+            )
+            text = _LIQ_URL_RE.sub(rf"{BASE}/api/liquidity/overview_\1.json", text)
             text = _PREFIX_RE.sub(rf"\1{BASE}/\2/", text)
             # favicon.svg 在站点根目录（无目录斜杠，前缀规则匹配不到），单独替换
             text = text.replace('href="/favicon.svg"', f'href="{BASE}/favicon.svg"')
             text = _HOME_RE.sub(f'href="{BASE}/"', text)
+            # 动态 API URL → 静态文件名（本地 dev 用 FastAPI 路由，静态版用文件名）
             p.write_text(text, encoding="utf-8")
 
 
