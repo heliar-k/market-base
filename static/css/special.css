@@ -11,8 +11,8 @@
 .re-nav a:hover { background: var(--surface-hover); }
 .re-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; }
 .re-card { padding: 14px 18px; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; }
-.re-card-accent { background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); color: #fff; }
-.re-card-accent .re-corridor-label { color: rgba(255,255,255,.7); }
+.re-card-accent { background: var(--surface); border: 1px solid var(--border); color: var(--text); }
+.re-card-accent .re-corridor-label { color: var(--text-secondary); }
 .re-corridor-label { font-size: 11px; text-transform: uppercase; letter-spacing: .5px; opacity: .7; }
 .re-corridor-value { font-size: 22px; font-weight: 700; margin-top: 4px; font-variant-numeric: tabular-nums; }
 .re-card-sub { font-size: 11px; opacity: .7; margin-top: 4px; }
@@ -48,7 +48,7 @@
 .re-header .re-as-of { font-size: 13px; color: var(--text-dim); }
 .re-back { color: var(--accent); text-decoration: none; font-size: 13px; }
 .re-back:hover { text-decoration: underline; }
-.re-corridor { display: flex; gap: 24px; padding: 16px 20px; background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); border-radius: 8px; color: #fff; flex-wrap: wrap; }
+.re-corridor { display: flex; gap: 24px; padding: 16px 20px; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; color: var(--text); flex-wrap: wrap; }
 .re-table th:first-child, .re-table td:first-child { text-align: left; }
 .re-table tbody tr:hover { background: var(--surface-hover); }
 .re-table .re-bar-cell { min-width: 200px; }
