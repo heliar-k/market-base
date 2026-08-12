@@ -124,3 +124,15 @@ body { height: auto; overflow-y: auto; }
 @media (max-width: 640px) { .vix-row, .link-grid { grid-template-columns: 1fr; } }
 @media (max-width: 640px) { .oas-row { grid-template-columns: 1fr; } }
 @media (max-width: 640px) { .proxy-row { grid-template-columns: 1fr; } }
+
+/* ── dark 主题徽章变体 ── */
+body.dark .re-badge.bear { background: rgba(248,113,113,.15); color: #f87171; }
+body.dark .re-badge.bull { background: rgba(52,211,153,.15); color: #34d399; }
+body.dark .re-badge.flat { background: rgba(156,163,175,.15); color: #9ca3af; }
+body.dark .re-expectation.cut { background: rgba(52,211,153,.15); color: #34d399; }
+body.dark .re-expectation.hike { background: rgba(248,113,113,.15); color: #f87171; }
+body.dark .re-expectation.hold { background: rgba(156,163,175,.15); color: #9ca3af; }
+
+/* 专题页悬浮主题切换按钮 */
+.theme-float { position: fixed; top: 12px; right: 12px; z-index: 100; width: 34px; height: 34px; border-radius: 50%; border: 1px solid var(--btn-border); background: var(--surface); cursor: pointer; font-size: 15px; line-height: 1; box-shadow: 0 1px 4px rgba(0,0,0,.12); }
+.theme-float:hover { border-color: var(--accent); }

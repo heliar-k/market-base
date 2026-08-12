@@ -47,4 +47,22 @@
   });
   html += '<a href="/">← 仪表盘</a>';
   el.innerHTML = html;
+
+  // 主题：从 localStorage 恢复（与 SPA 共享 key）+ 悬浮切换按钮
+  var DARK_KEY = 'ticker-toolkit-dark';
+  var darkOn = localStorage.getItem(DARK_KEY) === '1';
+  document.body.classList.toggle('dark', darkOn);
+  var tb = document.createElement('button');
+  tb.className = 'theme-float';
+  tb.title = '切换亮暗主题';
+  tb.textContent = darkOn ? '☀️' : '🌙';
+  tb.addEventListener('click', function () {
+    darkOn = !darkOn;
+    document.body.classList.toggle('dark', darkOn);
+    localStorage.setItem(DARK_KEY, darkOn ? '1' : '0');
+    tb.textContent = darkOn ? '☀️' : '🌙';
+    // rates-common 等已监听该事件，图表随之重绘
+    window.dispatchEvent(new CustomEvent('theme-changed', { detail: { dark: darkOn } }));
+  });
+  document.body.appendChild(tb);
 })();
