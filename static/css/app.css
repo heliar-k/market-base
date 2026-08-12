@@ -159,7 +159,7 @@ body { font-family: system-ui, -apple-system, sans-serif; background: var(--bg);
 
 /* ── chart containers ───────────────────────────────────── */
 .chart-card { background: var(--surface); border-radius: 8px; border: 1px solid var(--border); overflow: hidden; }
-#macro-chart-card { overflow-y: auto; max-height: calc(100vh - 60px); }
+#macro-chart-card { overflow: visible; }
 /* tech charts: distribute remaining vertical space 5:3:3 */
 .tech-view .chart-card { display: flex; flex-direction: column; }
 .tech-view .chart-card:has(#main-chart)   { flex: 5; }
@@ -236,7 +236,7 @@ body { font-family: system-ui, -apple-system, sans-serif; background: var(--bg);
 #correlation-chart { flex: 1; min-height: 400px; position: relative; }
 
 /* ── liquidity view ─────────────────────────────────────── */
-.liq-root { display: flex; flex-direction: column; overflow-y: auto; max-height: calc(100vh - 60px); }
+.liq-root { display: flex; flex-direction: column; overflow: visible; }
 .liq-summary { display: flex; flex-wrap: wrap; gap: 8px; padding: 12px; }
 .liq-card {
   flex: 1 1 140px; min-width: 130px; max-width: 220px;

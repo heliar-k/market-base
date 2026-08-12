@@ -305,35 +305,65 @@ function renderStandardCategory(name, seriesKeys, container) {
   const activeKeys = seriesKeys.filter(k => data.some(d => d[k] != null));
   if (activeKeys.length === 0) return;
 
-  const chartWrap = document.createElement('div');
-  chartWrap.className = 'macro-series-chart';
-  chartWrap.id = `macro-ec-${name}`;
-  chartWrap.style.cssText = 'height:360px;width:100%';
-  container.appendChild(chartWrap);
+  // 按最新值量级分组：组内跨度 ≤20 倍，避免存量（万亿）与流量（十亿）量纲悬殊
+  // 同图导致小序列被压扁（贪心：排序后逐元素归组，超出倍数开新组）
+  const last = data[data.length - 1];
+  const kv = activeKeys
+    .map(k => [k, last ? last[k] : null])
+    .filter(p => p[1] != null)
+    .sort((a, b) => Math.abs(a[1]) - Math.abs(b[1]));
+  const groups = [];
+  for (const p of kv) {
+    const g = groups[groups.length - 1];
+    if (g) {
+      const lo = Math.min(...g.map(x => Math.abs(x[1])));
+      const hi = Math.max(...g.map(x => Math.abs(x[1])));
+      const v = Math.abs(p[1]);
+      if (hi / Math.max(lo, 1e-9) > 20 || v / Math.max(lo, 1e-9) > 20 || hi / Math.max(v, 1e-9) > 20) {
+        groups.push([p]);
+      } else {
+        g.push(p);
+      }
+    } else {
+      groups.push([p]);
+    }
+  }
 
-  const series = activeKeys.map((key, idx) => ({
-    name: MACRO_LABELS[key] || key,
-    type: 'line',
-    // 过滤 null：月频/季频序列（AAA/SLOOS 等）只画有效点，避免日频轴上断点
-    data: data.filter(d => d[key] != null).map(d => [d.date, d[key]]),
-    lineStyle: { width: 1.5 },
-    itemStyle: { color: MACRO_COLORS[idx % MACRO_COLORS.length] },
-    showSymbol: false,
-    emphasis: { focus: 'series' },
-  }));
+  let gi = 0;
+  for (const group of groups) {
+    gi++;
+    const keys = group.map(p => p[0]);
+    const key = groups.length > 1 ? `${name}-g${gi}` : name;
+    const chartWrap = document.createElement('div');
+    chartWrap.className = 'macro-series-chart';
+    chartWrap.id = `macro-ec-${key}`;
+    chartWrap.style.cssText = 'height:360px;width:100%';
+    container.appendChild(chartWrap);
 
-  const chart = echarts.init(chartWrap, 'macro', { renderer: 'canvas' });
-  chart.setOption({
-    legend: { show: activeKeys.length > 1, top: 4, right: 8 },
-    grid: { left: '3%', right: '4%', bottom: 56, top: activeKeys.length > 1 ? 40 : 16, containLabel: true },
-    xAxis: { type: 'time', boundaryGap: false },
-    yAxis: { type: 'value', scale: true, splitNumber: 4 },
-    tooltip: { trigger: 'axis', axisPointer: { type: 'cross' } },
-    dataZoom: [{ type: 'inside' }, { type: 'slider', bottom: 8, height: 20 }],
-    series,
-  });
+    const series = keys.map((k, idx) => ({
+      name: MACRO_LABELS[k] || k,
+      type: 'line',
+      // 过滤 null：月频/季频序列（AAA/SLOOS 等）只画有效点，避免日频轴上断点
+      data: data.filter(d => d[k] != null).map(d => [d.date, d[k]]),
+      lineStyle: { width: 1.5 },
+      itemStyle: { color: MACRO_COLORS[idx % MACRO_COLORS.length] },
+      showSymbol: false,
+      emphasis: { focus: 'series' },
+    }));
 
-  macroChartInstances[name] = { chart, observer: observe(chart, chartWrap) };
+    const chart = echarts.init(chartWrap, 'macro', { renderer: 'canvas' });
+    chart.setOption({
+      legend: { show: keys.length > 1, top: 4, right: 8 },
+      grid: { left: '3%', right: '4%', bottom: 56, top: keys.length > 1 ? 40 : 16, containLabel: true },
+      xAxis: { type: 'time', boundaryGap: false },
+      yAxis: { type: 'value', scale: true, splitNumber: 4 },
+      tooltip: { trigger: 'axis', axisPointer: { type: 'cross' } },
+      dataZoom: [{ type: 'inside' }, { type: 'slider', bottom: 8, height: 20 }],
+      series,
+    });
+
+    macroChartInstances[key] = { chart, observer: observe(chart, chartWrap) };
+  }
 }
 
 // ── term structure category (rates/tips): line chart ───────────────────────
