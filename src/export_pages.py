@@ -18,6 +18,7 @@ import json
 import re
 import shutil
 from datetime import date, timedelta
+from typing import Callable
 
 import pandas as pd
 
@@ -80,8 +81,6 @@ _LIQ_URL_TMPL_RE = re.compile(
 )
 _HOME_RE = re.compile(r'href="/"')
 
-_ENDPOINTS: list[tuple[str, object]] = []  # (相对路径, 可调用) 惰性填充
-
 
 def _dump(rel: str, obj: object) -> None:
     """写 JSON（NaN → null），建父目录，打印体积。"""
@@ -93,7 +92,7 @@ def _dump(rel: str, obj: object) -> None:
     print(f"  {size:9.0f} KB  {rel}")
 
 
-def _safe(rel: str, fn, *args, **kwargs) -> None:
+def _safe(rel: str, fn: Callable[..., object], *args: object, **kwargs: object) -> None:
     """调用路由函数；404（数据缺失）跳过并警告。"""
     try:
         _dump(rel, fn(*args, **kwargs))
@@ -183,7 +182,6 @@ def export_frontend() -> None:
             # favicon.svg 在站点根目录（无目录斜杠，前缀规则匹配不到），单独替换
             text = text.replace('href="/favicon.svg"', f'href="{BASE}/favicon.svg"')
             text = _HOME_RE.sub(f'href="{BASE}/"', text)
-            # 动态 API URL → 静态文件名（本地 dev 用 FastAPI 路由，静态版用文件名）
             p.write_text(text, encoding="utf-8")
 
 
