@@ -7,8 +7,8 @@
 - 直接调用 src.server 的路由函数（与 HTTP 同一代码路径），结果 _sanitize 后写 JSON
 - 前端 fetch('/api/...') 在 Pages 子路径下会断 → 构建期把站内绝对路径
   /api /css /js /fed /volatility /rates /credit 统一加 /market-base 前缀
-- K 线只导出近 3 年（as_of 截断）；days= 变体无需导出——静态服务器忽略
-  query，前端只取返回数组尾部，语义等价
+- K 线导出近 3 年全量 + _d2/_d5 尾部小文件（构建期把 ?days=N 请求转成
+  小文件，避免侧栏预取拉全量）
 - diag 的 as_of 变体（光标回看）无法预渲染所有日期 → 前端已降级为固定取最新
 """
 
@@ -73,6 +73,8 @@ _PREFIX_RE = re.compile(r'(["\'\x60])/(' + "|".join(_PATH_PREFIXES) + r")/")
 # kline ?days=N → 尾部小文件（模板字符串与字面量两种写法）
 _KLINE_DAYS_TMPL_RE = re.compile(r"/api/kline/(\$\{[^}]+\})\?days=(\d+)")
 _KLINE_DAYS_LIT_RE = re.compile(r"/api/kline/([A-Za-z.]+)\?days=(\d+)")
+# correlate 动态查询 → 静态全量文件（本地 dev 用 FastAPI，静态版本地过滤）
+_CORRELATE_RE = re.compile(r"/api/macro/correlate\?indicators=[^'\"`]*")
 # 流动性 overview 动态 URL（range query）→ 静态文件名（静态托管忽略 query）
 # 注意：不匹配引号，替换后前缀规则再处理；模板字符串（dateRange 变量）单独一条
 _LIQ_URL_RE = re.compile(r"/api/liquidity/overview\?range=([a-z0-9]+)")
@@ -172,6 +174,7 @@ def export_frontend() -> None:
             text = p.read_text(encoding="utf-8")
             # 动态 API URL → 静态文件名（本地 dev 用 FastAPI 路由，静态版用文件名）；
             # 必须先转文件名再加前缀，否则 /market-base 前缀会被二次匹配
+            text = _CORRELATE_RE.sub(f"{BASE}/api/macro/correlate.json", text)
             text = _LIQ_URL_TMPL_RE.sub(
                 rf"{BASE}/api/liquidity/overview_${{dateRange}}.json", text
             )

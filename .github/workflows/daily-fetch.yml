@@ -83,7 +83,11 @@ jobs:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
+      # ref: main 必需：schedule 触发时 github.sha 是 fetch 前旧 HEAD，
+      # 不指定会部署上一轮数据（fetch job 新 push 的 commit 不在构建里）
       - uses: actions/checkout@v5
+        with:
+          ref: main
 
       - uses: astral-sh/setup-uv@v9.0.0
         with:

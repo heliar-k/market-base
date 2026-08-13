@@ -3,7 +3,6 @@
 import { registerMacroTheme, reThemeECharts } from './echarts-theme.js';
 import { MACRO_COLORS, MACRO_LABELS, MACRO_DATE_RANGES, applyDateFilter } from './macro-common.js';
 
-// ── corridor chart config ───────────────────────────────────────────────────
 // EFFR 用 DFF（日频）；FEDFUNDS 为月频均值，画在日频图上会错位/滞后（审计 P1-②）
 const CORRIDOR_KEYS = ['DFF', 'DFEDTARL', 'DFEDTARU', 'SOFR', 'OBFR', 'IORB'];
 const CORRIDOR_COLORS = {
@@ -177,173 +176,7 @@ function catNameLabel(name) {
   return name.charAt(0).toUpperCase() + name.slice(1);
 }
 
-// ── corridor section ─────────────────────────────────────────────────────────
 
-let corridorCache = null;
-
-function initCorridorChart(el, title, yAxisOpts, series) {
-  const ec = echarts.init(el, 'macro', { renderer: 'canvas' });
-  const opts = {
-    title: { text: title, left: 12, top: 8, textStyle: { fontSize: 13, fontWeight: 'bold' } },
-    legend: { show: true, top: 4, right: 8, textStyle: { fontSize: 10 } },
-    grid: { left: '3%', right: '4%', bottom: 48, top: 52, containLabel: true },
-    xAxis: { type: 'time', boundaryGap: false },
-    tooltip: { trigger: 'axis', axisPointer: { type: 'cross' } },
-    dataZoom: [{ type: 'inside' }, { type: 'slider', bottom: 8, height: 20 }],
-    series,
-  };
-  if (Array.isArray(yAxisOpts)) {
-    opts.yAxis = yAxisOpts;
-  } else {
-    opts.yAxis = { type: 'value', scale: true, ...yAxisOpts };
-  }
-  ec.setOption(opts);
-  return ec;
-}
-
-async function toggleCorridorSection(section) {
-  const isOpen = section.classList.contains('open');
-  if (isOpen) {
-    section.classList.remove('open');
-    section.classList.add('collapsed');
-    return;
-  }
-  section.classList.remove('collapsed');
-  section.classList.add('open');
-
-  const container = document.getElementById('macro-charts-corridor');
-  if (container.children.length > 0) return;
-
-  if (!corridorCache) {
-    const [fcRes, ratesRes] = await Promise.all([
-      fetch('/api/fomc/calendar'),
-      fetch('/api/macro/rates'),
-    ]);
-    corridorCache = {
-      fomc: await fcRes.json(),
-      rates: applyDateFilter(await ratesRes.json(), macroDateRange),
-    };
-  }
-
-  renderCorridorDashboard(container);
-}
-
-function renderCorridorDashboard(container) {
-  const { fomc, rates } = corridorCache;
-  if (!rates || rates.length === 0) return;
-
-  const targetLower = fomc.target_lower ?? '—';
-  const targetUpper = fomc.target_upper ?? '—';
-  const targetStr = targetLower !== '—' ? `${targetLower.toFixed(2)}% – ${targetUpper.toFixed(2)}%` : '—';
-
-  // ── 目标区间卡片（数据来自 FOMC API）──
-  const card = document.createElement('div');
-  card.className = 'corridor-target-card';
-  card.innerHTML = `
-    <div class="corridor-target-range">
-      <span class="corridor-target-label">FOMC 目标区间</span>
-      <span class="corridor-target-value">${targetStr}</span>
-    </div>
-    <div class="corridor-next-meeting">
-      <span class="corridor-next-label">下次会议</span>
-      <span class="corridor-next-value">${fomc.next ? `${fomc.next.year}-${String(fomc.next.month).padStart(2,'0')}-${String(fomc.next.start_day).padStart(2,'0')} / ${String(fomc.next.end_day).padStart(2,'0')}` : '—'}</span>
-    </div>
-    <div style="margin-left:auto;display:flex;align-items:flex-end;gap:12px">
-      <a href="/fed/" style="color:#58a6ff;font-size:13px;text-decoration:none;white-space:nowrap">美联储 →</a>
-      <a href="/rates/" style="color:#58a6ff;font-size:13px;text-decoration:none;white-space:nowrap">利率专题 →</a>
-      <a href="/volatility/" style="color:#58a6ff;font-size:13px;text-decoration:none;white-space:nowrap">波动率 →</a>
-    </div>
-  `;
-  container.appendChild(card);
-
-  // ── 短期利率走廊图 ──
-  const ch1 = appendChart(container, 340);
-  const ec1 = initCorridorChart(ch1, '短期利率走廊',
-    { axisLabel: { formatter: '{value}%' } },
-    CORRIDOR_KEYS.map(key => ({
-      name: MACRO_LABELS[key] || key,
-      type: 'line',
-      data: rates.map(d => [d.date, d[key]]),
-      lineStyle: { width: key === 'DFF' ? 2 : 1.2, type: key === 'DFEDTARL' || key === 'DFEDTARU' ? 'dashed' : 'solid' },
-      itemStyle: { color: CORRIDOR_COLORS[key] || MACRO_COLORS[0] },
-      showSymbol: false, emphasis: { focus: 'series' },
-    }))
-  );
-  macroChartInstances['corridor-main'] = { chart: ec1, observer: observe(ec1, ch1) };
-
-  // ── 联邦基金有效利率（5 年，DFF 日频）──
-  const ch2 = appendChart(container, 280);
-  const ec2 = initCorridorChart(ch2, '联邦基金有效利率',
-    { axisLabel: { formatter: '{value}%' } },
-    [{
-      name: MACRO_LABELS['DFF'] || 'DFF',
-      type: 'line',
-      data: rates.map(d => [d.date, d.DFF]),
-      lineStyle: { width: 2, color: '#1a73e8' },
-      itemStyle: { color: '#1a73e8' },
-      showSymbol: false, emphasis: { focus: 'series' },
-      markLine: {
-        silent: true, symbol: 'none',
-        lineStyle: { type: 'dashed', color: '#ef5350', width: 1 },
-        data: [{ yAxis: fomc.target_lower, label: { formatter: '下限 {c}%', fontSize: 10 } },
-               { yAxis: fomc.target_upper, label: { formatter: '上限 {c}%', fontSize: 10 } }],
-      },
-    }]
-  );
-  macroChartInstances['corridor-fedfunds'] = { chart: ec2, observer: observe(ec2, ch2) };
-
-  // ── SOFR 分位数走廊图 ──
-  const ch3 = appendChart(container, 300);
-  const ec3 = initCorridorChart(ch3, 'SOFR 利率走廊（分位数）',
-    { axisLabel: { formatter: '{value}%' } },
-    [
-      { name: 'SOFR 99th', type: 'line', data: rates.map(d => [d.date, d.SOFR99]), lineStyle: { width: 0.5, color: '#546e7a' }, showSymbol: false, emphasis: { focus: 'series' } },
-      { name: 'SOFR 75th', type: 'line', data: rates.map(d => [d.date, d.SOFR75]), lineStyle: { width: 0.5, color: '#78909c' }, showSymbol: false, emphasis: { focus: 'series' }, areaStyle: { color: 'rgba(144,164,174,0.06)' } },
-      { name: 'SOFR', type: 'line', data: rates.map(d => [d.date, d.SOFR]), lineStyle: { width: 1.8, color: '#ff9800' }, showSymbol: false, emphasis: { focus: 'series' } },
-      { name: 'SOFR 25th', type: 'line', data: rates.map(d => [d.date, d.SOFR25]), lineStyle: { width: 0.5, color: '#78909c' }, showSymbol: false, emphasis: { focus: 'series' }, areaStyle: { color: 'rgba(144,164,174,0.06)' } },
-      { name: 'SOFR 1st', type: 'line', data: rates.map(d => [d.date, d.SOFR1]), lineStyle: { width: 0.5, color: '#546e7a' }, showSymbol: false, emphasis: { focus: 'series' } },
-    ]
-  );
-  macroChartInstances['corridor-sofr-pctl'] = { chart: ec3, observer: observe(ec3, ch3) };
-
-  // ── SOFR 成交量（柱状图）──
-  const ch4 = appendChart(container, 260);
-  const ec4 = initCorridorChart(ch4, 'SOFR 每日成交量',
-    [{ type: 'value', name: '十亿美元', scale: true }],
-    [
-      { name: 'SOFR Volume', type: 'bar', data: rates.map(d => [d.date, d.SOFRVOL]), itemStyle: { color: 'rgba(26,115,232,0.3)' } },
-    ]
-  );
-  macroChartInstances['corridor-sofr-vol'] = { chart: ec4, observer: observe(ec4, ch4) };
-
-  // ── 近期数据表 ──
-  const table = document.createElement('div');
-  table.className = 'corridor-table-wrap';
-  table.innerHTML = buildCorridorTable(rates);
-  container.appendChild(table);
-}
-
-function appendChart(container, height) {
-  const el = document.createElement('div');
-  el.className = 'corridor-chart';
-  el.style.cssText = `height:${height}px;width:100%`;
-  container.appendChild(el);
-  return el;
-}
-
-// ── 近期数据表 ──
-function buildCorridorTable(data) {
-  const rows = data.slice(-30).reverse();
-  const header = ['日期', 'EFFR(日)', '下限', '上限', 'SOFR', 'OBFR', 'IORB', '成交量(B)'];
-  const keys = ['date', 'DFF', 'DFEDTARL', 'DFEDTARU', 'SOFR', 'OBFR', 'IORB', 'SOFRVOL'];
-  const thead = `<tr>${header.map(h => `<th>${h}</th>`).join('')}</tr>`;
-  const tbody = rows.map(r =>
-    `<tr>${keys.map(k => `<td>${r[k] != null ? (k === 'date' ? r[k] : typeof r[k] === 'number' ? r[k].toFixed(2) : r[k]) : '—'}</td>`).join('')}</tr>`
-  ).join('');
-  return `<table class="corridor-table"><thead>${thead}</thead><tbody>${tbody}</tbody></table>`;
-}
-
-// ── corridor section end ────────────────────────────────────────────────────
 
 async function toggleMacroSection(name, seriesKeys, section) {
   const isOpen = section.classList.contains('open');
@@ -489,24 +322,6 @@ function setMacroDateRange(range) {
   if (macroDateRange === range) return;
   macroDateRange = range;
   document.querySelectorAll('.macro-range-btn').forEach(b => b.classList.toggle('active', b.dataset.range === range));
-
-  // 保存 fomc 引用再清 corridor cache，避免日期切换丢失会议数据
-  const savedFomc = corridorCache?.fomc;
-  corridorCache = null;
-
-  // 走廊 section 若已展开则仅 dispose 走廊图表，不动其他 section
-  const corridorChartsEl = document.getElementById('macro-charts-corridor');
-  if (corridorChartsEl) {
-    const corrSection = corridorChartsEl.closest('.macro-section');
-    if (corrSection && corrSection.classList.contains('open')) {
-      ['corridor-main', 'corridor-fedfunds', 'corridor-sofr-pctl', 'corridor-sofr-vol'].forEach(disposeChart);
-      corridorChartsEl.innerHTML = '';
-      fetch('/api/macro/rates').then(r => r.json()).then(data => {
-        corridorCache = { fomc: savedFomc, rates: applyDateFilter(data, macroDateRange) };
-        renderCorridorDashboard(corridorChartsEl);
-      });
-    }
-  }
 
   // 仅重渲染已展开的分类 section；折叠的不动
   const openNames = new Set();

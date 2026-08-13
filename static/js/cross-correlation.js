@@ -71,7 +71,8 @@ function renderUI() {
 
   const dateToolbar = document.createElement('div');
   dateToolbar.className = 'correlation-date-toolbar';
-  dateToolbar.innerHTML = MACRO_DATE_RANGES.map(r =>
+  // 相关性数据止于 5 年（体积约束），隐藏 10y/30y 按钮避免静默失效
+  dateToolbar.innerHTML = MACRO_DATE_RANGES.filter(r => r.months <= 60).map(r =>
     `<button class="macro-range-btn${r.value === dateRange ? ' active' : ''}" data-range="${r.value}">${r.label}</button>`
   ).join('');
   dateToolbar.querySelectorAll('.macro-range-btn').forEach(btn => {
@@ -162,8 +163,9 @@ async function loadPreset(preset) {
 async function loadAndRender() {
   if (!activePreset) return;
   try {
-    // Pages 静态部署：预渲染的全指标合并文件，本地按当前组合过滤（一次加载，任意组合可查）
-    const res = await fetch('/api/macro/correlate.json');
+    const indicators = activePreset.indicators.join(',');
+    // 本地 dev：FastAPI 按 indicators 返回；静态版：构建期转全量 correlate.json，本地过滤
+    const res = await fetch(`/api/macro/correlate?indicators=${encodeURIComponent(indicators)}`);
     if (!res.ok) throw new Error(`API error: ${res.status}`);
     const all = await res.json();
     const json = { indicators: {} };
