@@ -4,7 +4,6 @@ import { initDashboard, refresh as dashRefresh, cleanup as dashCleanup, updateSt
 import { initTechView, selectSymbol as techSelectSymbol, updateStatus as techStatus } from './tech-view.js';
 import { initMacroView, updateStatus as macroStatus } from './macro-view.js';
 import { initCorrelationView, updateStatus as correlationStatus } from './cross-correlation.js';
-import { initLiquidityView, updateStatus as liquidityStatus } from './liquidity-heatmap.js';
 
 // ── dark mode ──────────────────────────────────────────────────────────────
 const DARK_KEY = 'ticker-toolkit-dark';
@@ -34,7 +33,6 @@ const views = {
   tech:         { label: '技术',   init: initTechView,       status: techStatus },
   macro:        { label: '宏观',   init: initMacroView,      status: macroStatus },
   correlation:  { label: '关联',   init: initCorrelationView, status: correlationStatus },
-  liquidity:    { label: '流动性', init: initLiquidityView,   status: liquidityStatus },
 };
 
 function switchTab(tab) {

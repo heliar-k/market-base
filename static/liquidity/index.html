@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>流动性 — US Macro</title>
+<link rel="stylesheet" href="/css/app.css">
+<link rel="stylesheet" href="/css/special.css">
+<script src="/vendor/echarts.min.js"></script>
+</head>
+<body>
+<div class="re-root">
+  <div class="re-header">
+    <h1>流动性</h1>
+    <span class="re-as-of" id="re-as-of"></span>
+  </div>
+
+  <div class="re-nav" id="re-nav"></div>
+
+  <div id="cards"></div>
+  <div id="stacked"></div>
+  <div id="seesaw"></div>
+  <div id="nfci"></div>
+  <div class="re-gen" id="re-gen"></div>
+</div>
+
+<script src="/js/rates-common.js"></script>
+<script>
+const COLORS = {
+  WALCL: '#1a73e8', RRPONTSYD: '#ff9800', WRESBAL: '#26a69a',
+  WTREGEN: '#ef5350', NET_LIQUIDITY: '#9c27b0', NFCI: '#607d8b',
+};
+const LABELS = {
+  WALCL: '美联储总资产', RRPONTSYD: '隔夜逆回购', WRESBAL: '准备金余额',
+  WTREGEN: 'TGA余额', NET_LIQUIDITY: '净流动性', NFCI: '金融状况指数',
+};
+
+function fmtVal(v) {
+  if (v == null) return '—';
+  const a = Math.abs(v);
+  if (a >= 1e12) return (v / 1e12).toFixed(1) + '万亿';
+  if (a >= 1e8) return (v / 1e8).toFixed(0) + '亿';
+  if (a >= 1e4) return (v / 1e4).toFixed(1) + '万';
+  return v.toFixed(2);
+}
+// 流动性数据单位统一为百万美元：≥1万亿显示万亿，小值显示亿（如 RRP）
+const fmtT = v => {
+  if (v == null) return '—';
+  const t = v / 1e6;
+  if (t >= 1) return t.toFixed(1) + '万亿';
+  return parseFloat((v / 100).toFixed(1)) + '亿';
+};
+const pctHtml = p => (p == null ? '<span style="color:#999">—</span>'
+  : `<span class="${p > 0 ? 'up' : p < 0 ? 'down' : ''}">${p > 0 ? '+' : ''}${(p * 100).toFixed(1)}%</span>`);
+const toSeries = data => (data || []).filter(p => p.value != null).map(p => [p.date, p.value]);
+
+function section(id, title, note, innerId, height) {
+  const sec = document.createElement('div');
+  sec.className = 're-section';
+  sec.innerHTML = `<h2>${title}</h2>${note ? `<p style="margin:0">${note}</p>` : ''}<div id="${innerId}" style="height:${height}px"></div>`;
+  document.getElementById(id).appendChild(sec);
+}
+
+const axisStyle = (colors, vf = v => fmtT(v)) => ({
+  xAxis: { type: 'time', boundaryGap: false, axisLabel: { color: colors.muted } },
+  yAxis: { type: 'value', scale: true, splitNumber: 4, axisLabel: { color: colors.muted, formatter: vf }, splitLine: { lineStyle: { color: colors.grid } } },
+  grid: { left: '3%', right: '4%', bottom: 48, top: 40, containLabel: true },
+  tooltip: { trigger: 'axis', axisPointer: { type: 'cross' }, valueFormatter: vf },
+  dataZoom: [{ type: 'inside' }, { type: 'slider', bottom: 6, height: 20 }],
+});
+
+async function load() {
+  // 固定全量历史（各图自带 dataZoom 滑条缩放，无需区间按钮）；
+  // ?range=all 字面量在静态导出时会被替换为 overview_all.json
+  const d = await R.get('/api/liquidity/overview?range=all');
+  const walcl = d.series.WALCL || [];
+  const last = walcl.filter(p => p.value != null).pop();
+  document.getElementById('re-as-of').textContent = last ? '数据截至 ' + last.date : '';
+
+  // 金额类系列（准备金/TGA/RRP）从 2002-12 起才有数据，之前被堆叠算法 ffill 成 0；
+  // NFCI 虽自 1971 起有数据，但为保持三图横轴一致，统一裁剪到该起始日；
+  // 注意：Math.min 会把日期字符串转数字得 NaN，必须用字典序比较
+  const clipStart = ['WRESBAL', 'WTREGEN', 'RRPONTSYD']
+    .map(k => (d.series[k] || []).find(p => p.value != null)?.date)
+    .filter(Boolean)
+    .reduce((a, b) => (a < b ? a : b));
+  const from = arr => toSeries(arr).filter(([dt]) => !clipStart || dt >= clipStart);
+
+  // ── 指标卡片行 ──
+  const S = d.summary;
+  const card = (key, accent) => {
+    const s = S[key] || {};
+    return {
+      label: s.label || LABELS[key], accent,
+      value: fmtT(s.latest_value),
+      sub: `1M ${pctHtml(s.change_1m)} · 1Y ${pctHtml(s.change_1y)}`,
+    };
+  };
+  document.getElementById('cards').appendChild(R.cards([
+    card('WALCL'), card('RRPONTSYD'), card('WRESBAL'), card('WTREGEN'), card('NET_LIQUIDITY', true),
+  ]));
+
+  // ── 资产负债表堆叠面积 + 净流动性 ──
+  section('stacked', '美联储资产负债表（堆叠）', '堆叠 = 准备金 + TGA + 逆回购；净流动性 = 总资产 − TGA − RRP（近似口径），是驱动风险资产的中枢变量。', 'liq-stacked', 360);
+  R.mkChart('liq-stacked', (colors) => {
+    const series = ['WRESBAL', 'WTREGEN', 'RRPONTSYD'].map(k => ({
+      name: LABELS[k], type: 'line', data: from(d.stacked[k]),
+      lineStyle: { color: COLORS[k], width: 1 }, itemStyle: { color: COLORS[k] },
+      areaStyle: { color: COLORS[k] + '44' }, stack: 'total', showSymbol: false,
+      emphasis: { focus: 'series' },
+    }));
+    const nl = from(d.series.NET_LIQUIDITY);
+    if (nl.length) series.push({
+      name: LABELS.NET_LIQUIDITY, type: 'line', data: nl,
+      lineStyle: { color: COLORS.NET_LIQUIDITY, width: 2 }, itemStyle: { color: COLORS.NET_LIQUIDITY },
+      showSymbol: false, emphasis: { focus: 'series' },
+    });
+    return {
+      ...axisStyle(colors),
+      legend: { top: 4, right: 8, textStyle: { color: colors.text } },
+      series,
+    };
+  });
+
+  // ── RRP vs 准备金跷跷板 ──
+  section('seesaw', 'RRP vs 准备金余额（跷跷板）', 'QT 期间逆回购缓冲池先耗尽，之后准备金加速下降（2023 债务上限解除后的 TGA 重建即为典型）。', 'liq-seesaw', 300);
+  R.mkChart('liq-seesaw', (colors) => {
+    const series = [];
+    const rrp = from(d.series.RRPONTSYD);
+    if (rrp.length) series.push({
+      name: LABELS.RRPONTSYD, type: 'line', data: rrp, yAxisIndex: 0,
+      lineStyle: { color: COLORS.RRPONTSYD, width: 2 }, itemStyle: { color: COLORS.RRPONTSYD },
+      showSymbol: false, emphasis: { focus: 'series' },
+    });
+    const res = from(d.series.WRESBAL);
+    if (res.length) series.push({
+      name: LABELS.WRESBAL, type: 'line', data: res, yAxisIndex: 1,
+      lineStyle: { color: COLORS.WRESBAL, width: 2 }, itemStyle: { color: COLORS.WRESBAL },
+      showSymbol: false, emphasis: { focus: 'series' },
+    });
+    return {
+      ...axisStyle(colors),
+      grid: { left: '3%', right: '8%', bottom: 48, top: 40, containLabel: true },
+      yAxis: [
+        { type: 'value', scale: true, splitNumber: 4, name: 'RRP', nameTextStyle: { color: colors.muted }, axisLabel: { color: colors.muted, formatter: v => fmtT(v) }, splitLine: { lineStyle: { color: colors.grid } } },
+        { type: 'value', scale: true, splitNumber: 4, name: '准备金', nameTextStyle: { color: colors.muted }, axisLabel: { color: colors.muted, formatter: v => fmtT(v) }, splitLine: { show: false } },
+      ],
+      legend: { top: 4, left: 8, textStyle: { color: colors.text } },
+      series,
+    };
+  });
+
+  // ── NFCI ──
+  section('nfci', 'NFCI 金融状况指数', '芝加哥联储周频，&lt; 0 宽松、&gt; 0 收紧；与流动性环境互为印证。', 'liq-nfci', 240);
+  R.mkChart('liq-nfci', (colors) => ({
+    ...axisStyle(colors, v => v.toFixed(2)),
+    series: [{
+      name: LABELS.NFCI, type: 'line', data: from(d.series.NFCI),
+      lineStyle: { color: COLORS.NFCI, width: 2 }, itemStyle: { color: COLORS.NFCI },
+      showSymbol: false,
+      markLine: { data: [{ yAxis: 0 }], lineStyle: { color: colors.muted, type: 'dashed', width: 1 }, silent: true, symbol: 'none', label: { show: false } },
+    }],
+  }));
+
+  document.getElementById('re-gen').textContent = '数据源 FRED（WALCL/RRPONTSYD/WRESBAL/WTREGEN/NFCI）· 净流动性为派生指标（总资产 − TGA − RRP）· 单位百万美元';
+}
+load().catch(e => R.fail(['cards', 'stacked', 'seesaw', 'nfci'], e));
+</script>
+<script src="/js/nav.js"></script>
+</body>
+</html>

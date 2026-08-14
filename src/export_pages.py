@@ -69,6 +69,7 @@ _PATH_PREFIXES = (
     "inflation",
     "labor",
     "treasury",
+    "liquidity",
     "volatility",
     "rates",
     "credit",

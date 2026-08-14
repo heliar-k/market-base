@@ -1,4 +1,5 @@
 import { registerMacroTheme, reThemeECharts } from './echarts-theme.js';
+import { openTopic } from './macro-view.js';
 
 // ponytail: default watchlist, CRUD later
 const WATCHLIST = ['AAPL', 'NVDA', 'SPY', 'QQQ', 'TSLA'];
@@ -81,7 +82,7 @@ function buildMacroOverview() {
   const nDiv = el('div'); nDiv.id = 'mini-netliq'; nDiv.className = 'dash-mini-chart';
   nWrap.appendChild(nDiv);
   nWrap.style.cursor = 'pointer';
-  nWrap.addEventListener('click', () => switchTo('liquidity'));
+  nWrap.addEventListener('click', () => { switchTo('macro'); openTopic('liquidity'); });
 
   const sWrap = el('div', 'dash-mini-wrap');
   sWrap.innerHTML = '<div class="dash-mini-label">期限利差 (2S10S)</div>';

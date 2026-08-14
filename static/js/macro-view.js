@@ -35,6 +35,17 @@ const FEATURED = [
     delta: d => fmtDelta('年', d[0].cards.hold_total.chg_1y_b, 'B', true, 0, '$'),
   },
   {
+    id: 'liquidity', label: '流动性', page: '/liquidity/',
+    apis: ['/api/liquidity/overview'],
+    num: d => `净流动性 $${(d[0].summary.NET_LIQUIDITY.latest_value / 1e6).toFixed(1)}万亿`,
+    concl: d => `总资产 $${(d[0].summary.WALCL.latest_value / 1e6).toFixed(1)}万亿 · 准备金 $${(d[0].summary.WRESBAL.latest_value / 1e6).toFixed(1)}万亿`,
+    sub: d => `RRP $${(d[0].summary.RRPONTSYD.latest_value / 1e6).toFixed(1)}万亿 · TGA $${(d[0].summary.WTREGEN.latest_value / 1e6).toFixed(1)}万亿`,
+    delta: d => {
+      const c = d[0].summary.NET_LIQUIDITY.change_1m;
+      return c == null ? null : fmtDelta('1M', Number((c * 100).toFixed(1)), '%');
+    },
+  },
+  {
     id: 'fed', label: '美联储', page: '/fed/',
     apis: ['/api/fed/overview'],
     num: d => `鹰鸽 ${d[0].indicator.label}`,
@@ -177,6 +188,12 @@ export function initMacroView() {
   const container = document.getElementById('macro-chart-card');
   container.innerHTML = '';
   renderSplit(container);
+}
+
+// 外部跳转指定专题（如仪表盘净流动性小卡片）：已初始化直接切，未初始化靠 hash 兜底
+export function openTopic(id) {
+  if (frames.has(id)) selectTopic(id, true);
+  else location.hash = id;
 }
 
 // ── status ─────────────────────────────────────────────────────────────────

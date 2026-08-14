@@ -28,6 +28,7 @@
     ['通胀', '/inflation/'],
     ['就业', '/labor/'],
     ['美债需求', '/treasury/'],
+    ['流动性', '/liquidity/'],
     ['信用', '/credit/'],
     ['美联储', '/fed/'],
     ['波动率', '/volatility/'],

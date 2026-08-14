@@ -48,13 +48,12 @@ body { font-family: system-ui, -apple-system, sans-serif; background: var(--bg);
 .status-bar #status-refresh { margin-left: auto; }
 
 /* ── view switching ─────────────────────────────────────── */
-.tech-view, .macro-view, .dashboard-view, .correlation-view, .liquidity-view { display: none; }
+.tech-view, .macro-view, .dashboard-view, .correlation-view { display: none; }
 [data-view="dashboard"] .dashboard-view { display: flex; }
 [data-view="tech"] .tech-view { display: flex; }
 [data-view="tech"] .sidebar { display: flex; }
 [data-view="macro"] .macro-view { display: flex; }
 [data-view="correlation"] .correlation-view { display: flex; }
-[data-view="liquidity"] .liquidity-view { display: flex; }
 
 /* ── dashboard ────────────────────────────────────────────── */
 .dashboard-view {
@@ -275,24 +274,6 @@ body { font-family: system-ui, -apple-system, sans-serif; background: var(--bg);
 .correlation-add-btn { padding: 4px 8px; border: 1px dashed var(--btn-border); border-radius: 4px; background: var(--surface); font-size: 12px; cursor: pointer; color: var(--text-secondary); }
 .correlation-add-btn:hover { background: var(--surface-hover); border-color: var(--accent); color: var(--accent); }
 #correlation-chart { flex: 1; min-height: 400px; position: relative; }
-
-/* ── liquidity view ─────────────────────────────────────── */
-.liq-root { display: flex; flex-direction: column; overflow: visible; }
-.liq-summary { display: flex; flex-wrap: wrap; gap: 8px; padding: 12px; }
-.liq-card {
-  flex: 1 1 140px; min-width: 130px; max-width: 220px;
-  padding: 12px; border: 1px solid var(--border); border-radius: 8px;
-  background: var(--surface-alt); cursor: pointer; transition: all .15s;
-}
-.liq-card:hover { border-color: var(--accent); box-shadow: 0 1px 4px rgba(26,115,232,.12); }
-.liq-card.highlighted { border-color: var(--accent); background: var(--accent-light); }
-.liq-card-wide { flex: 2 1 280px; max-width: 460px; }
-.liq-card-label { font-size: 12px; color: var(--text-secondary); margin-bottom: 4px; font-weight: 500; }
-.liq-card-value { font-size: 20px; font-weight: 700; margin-bottom: 6px; }
-.liq-card-changes { font-size: 12px; display: flex; gap: 12px; }
-.liq-charts { display: flex; flex-direction: column; gap: 12px; padding: 0 12px 12px; }
-.liq-chart-section { border: 1px solid var(--border); border-radius: 8px; padding: 12px; background: var(--surface); }
-.liq-chart-title { font-size: 13px; font-weight: 600; margin-bottom: 8px; color: var(--text); }
 
 /* ── tech info bar ─────────────────────────────────────── */
 .tech-info-bar {
