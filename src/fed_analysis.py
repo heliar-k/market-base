@@ -21,7 +21,7 @@ from pathlib import Path
 
 import pandas as pd
 
-from src.config import ROOT
+from src.config import FOMC_MEETINGS, ROOT
 
 STATEMENTS_CSV = ROOT / "data" / "fed" / "statements.csv"
 SPEECHES_CSV = ROOT / "data" / "fed" / "speeches.csv"
@@ -267,6 +267,37 @@ def stance_label(score: float) -> str:
     return "中性"
 
 
+def _pre_meeting_indicator(
+    sp: pd.DataFrame, days: int = 14, today: pd.Timestamp | None = None
+) -> dict | None:
+    """上一次 FOMC 会议前 days 天窗口内演讲的平均鹰鸽分（无演讲则 None）。
+
+    ponytail: 窗口固定会前 14 天（黑窗期前演讲最密），需要多窗口再参数化。
+    """
+    if sp.empty or "date" not in sp or "score" not in sp:
+        return None
+    ref = today or pd.Timestamp.today().normalize()
+    past = [m for m in FOMC_MEETINGS if pd.Timestamp(m.year, m.month, m.end_day) <= ref]
+    if not past:
+        return None
+    m = max(past, key=lambda x: (x.year, x.month, x.end_day))
+    end = pd.Timestamp(m.year, m.month, m.end_day)
+    start = end - pd.Timedelta(days=days)
+    win = sp[
+        (sp["date"] >= start.strftime("%Y%m%d"))
+        & (sp["date"] <= end.strftime("%Y%m%d"))
+    ]
+    if win.empty:
+        return None
+    avg = round(win["score"].astype(float).mean(), 1)
+    return {
+        "score": avg,
+        "label": stance_label(avg),
+        "sample": int(len(win)),
+        "meeting": end.strftime("%Y-%m-%d"),
+    }
+
+
 # ═══════════════════════════════════════════════════════════════════════════════
 # 数据装载与聚合
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -403,7 +434,12 @@ def fed_analysis(n_sample: int = 20) -> dict:
     timeline.sort(key=lambda x: x["date"])
 
     return {
-        "indicator": {"score": avg, "label": stance_label(avg), "sample": len(pool)},
+        "indicator": {
+            "score": avg,
+            "label": stance_label(avg),
+            "sample": len(pool),
+            "pre_meeting": _pre_meeting_indicator(sp),
+        },
         "statements": statements,
         "speeches": speeches,
         "stances": stances,

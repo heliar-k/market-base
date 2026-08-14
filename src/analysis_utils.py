@@ -14,7 +14,13 @@ def read_csv_or_empty(path: Path, index_col: str = "date") -> pd.DataFrame:
     """读时间序列 CSV；文件缺失返回空 DataFrame。"""
     if not path.exists():
         return pd.DataFrame()
-    return pd.read_csv(path, index_col=index_col, parse_dates=True)
+    if index_col in ("date", "record_date"):
+        # 全项目 CSV date 均为 ISO（AGENTS.md），显式格式避免逐元素 dateutil 回退警告
+        return pd.read_csv(
+            path, index_col=index_col, parse_dates=True, date_format="ISO8601"
+        )
+    # 非日期索引（如 refunding 的 id）不做日期解析
+    return pd.read_csv(path, index_col=index_col)
 
 
 def latest(s: pd.Series) -> float | None:

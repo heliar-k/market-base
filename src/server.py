@@ -11,7 +11,7 @@ from typing import Any
 
 import numpy as np
 import pandas as pd
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
@@ -1040,6 +1040,16 @@ def get_rates_auctions() -> dict:
 _static = ROOT / "static"
 _static.mkdir(exist_ok=True)
 app.mount("/", StaticFiles(directory=str(_static), html=True), name="static")
+
+
+@app.middleware("http")
+async def _no_cache_html(request: Request, call_next):
+    """HTML 一律 no-cache：Starlette 静态文件不带 Cache-Control，浏览器会按
+    Last-Modified 龄期启发式缓存 HTML 数天，改了专题页/SPA 却看不到更新。"""
+    resp = await call_next(request)
+    if request.url.path.endswith((".html", "/")):
+        resp.headers["Cache-Control"] = "no-cache"
+    return resp
 
 
 if __name__ == "__main__":

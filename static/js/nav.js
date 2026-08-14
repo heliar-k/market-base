@@ -32,6 +32,11 @@
     ['美联储', '/fed/'],
     ['波动率', '/volatility/'],
   ];
+
+  // 内嵌（SPA 宏观分栏的 iframe）时不渲染主题按钮与专题间 Tab/仪表盘链接
+  var embedded = window.self !== window.top;
+  if (embedded) document.body.classList.add('embedded');
+
   var el = document.getElementById('re-nav');
   if (!el) return;
   var path = location.pathname;
@@ -45,27 +50,43 @@
       break;
     }
   }
-  TABS.forEach(function (t) {
-    html += '<a href="' + t[1] + '">' + t[0] + '</a>';
-  });
-  html += '<a href="/">← 仪表盘</a>';
-  el.innerHTML = html;
+  if (!embedded) {
+    TABS.forEach(function (t) {
+      html += '<a href="' + t[1] + '">' + t[0] + '</a>';
+    });
+    html += '<a href="/">← 仪表盘</a>';
+  }
+  if (html) {
+    el.innerHTML = html;
+  } else {
+    el.style.display = 'none';
+  }
 
-  // 主题：从 localStorage 恢复（与 SPA 共享 key）+ 悬浮切换按钮
+  // 主题：从 localStorage 恢复（与 SPA 共享 key）；父页切换时 storage 事件联动
   var DARK_KEY = 'ticker-toolkit-dark';
-  var darkOn = localStorage.getItem(DARK_KEY) === '1';
-  document.body.classList.toggle('dark', darkOn);
+  function applyTheme() {
+    document.body.classList.toggle('dark', localStorage.getItem(DARK_KEY) === '1');
+  }
+  applyTheme();
+  window.addEventListener('storage', function (e) {
+    if (e.key !== DARK_KEY) return;
+    applyTheme();
+    // 图表按主题重绘（rates-common 监听该事件）
+    window.dispatchEvent(new Event('theme-changed'));
+  });
+
+  // 悬浮切换按钮仅独立访问时显示（内嵌时由父页统一控制）
+  if (embedded) return;
   var tb = document.createElement('button');
   tb.className = 'theme-float';
   tb.title = '切换亮暗主题';
-  tb.textContent = darkOn ? '☀️' : '🌙';
+  tb.textContent = localStorage.getItem(DARK_KEY) === '1' ? '☀️' : '🌙';
   tb.addEventListener('click', function () {
-    darkOn = !darkOn;
-    document.body.classList.toggle('dark', darkOn);
-    localStorage.setItem(DARK_KEY, darkOn ? '1' : '0');
-    tb.textContent = darkOn ? '☀️' : '🌙';
+    document.body.classList.toggle('dark');
+    localStorage.setItem(DARK_KEY, document.body.classList.contains('dark') ? '1' : '0');
+    tb.textContent = document.body.classList.contains('dark') ? '☀️' : '🌙';
     // rates-common 等已监听该事件，图表随之重绘
-    window.dispatchEvent(new CustomEvent('theme-changed', { detail: { dark: darkOn } }));
+    window.dispatchEvent(new CustomEvent('theme-changed', { detail: { dark: document.body.classList.contains('dark') } }));
   });
   document.body.appendChild(tb);
 })();

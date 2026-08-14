@@ -189,20 +189,76 @@ body { font-family: system-ui, -apple-system, sans-serif; background: var(--bg);
 /* ── loading ────────────────────────────────────────────── */
 .loading { display: flex; align-items: center; justify-content: center; height: 100%; color: var(--text-dim); font-size: 14px; }
 
-/* ── macro 专题速览 tab（当期数字 + 结论 + 跳转）── */
-.macro-feature { margin-bottom: 12px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); overflow: hidden; }
-.macro-feature-tabs { display: flex; gap: 4px; padding: 8px 12px 0; border-bottom: 1px solid var(--border); }
-.macro-feature-tab { padding: 6px 16px; border: 1px solid transparent; border-bottom: none; border-radius: 6px 6px 0 0; background: transparent; color: var(--text-secondary); cursor: pointer; font-size: 13px; transition: all .15s; }
-.macro-feature-tab:hover { color: var(--text); }
-.macro-feature-tab.active { background: var(--surface-alt); border-color: var(--border); color: var(--text); font-weight: 600; }
-.macro-feature-panels { padding: 14px 16px; }
-.macro-feature-panel { display: none; }
-.macro-feature-panel.active { display: block; }
-.macro-feature-num { font-size: 26px; font-weight: 700; font-variant-numeric: tabular-nums; }
-.macro-feature-concl { margin-top: 4px; color: var(--text-secondary); font-size: 13px; line-height: 1.5; }
-.macro-feature-sub { margin-top: 2px; font-size: 12px; color: var(--text-dim); }
-.macro-feature-link { display: inline-block; margin-top: 10px; font-size: 13px; color: var(--accent); text-decoration: none; }
-.macro-feature-link:hover { text-decoration: underline; }
+/* ── macro 专题分栏（左侧卡片 + 右侧详情 iframe）── */
+.macro-split { display: flex; gap: 12px; flex: 1; min-height: 0; }
+.macro-side { flex: 0 0 20%; min-width: 180px; max-width: 260px; display: flex; flex-direction: column; gap: 8px; overflow-y: auto; }
+.macro-side-card {
+  padding: 10px 12px; border: 1px solid var(--border); border-radius: 8px;
+  background: var(--surface); cursor: pointer;
+  transition: border-color .15s, box-shadow .15s;
+}
+.macro-side-card:hover { border-color: var(--accent); }
+.macro-side-card.active {
+  border-color: var(--accent); background: var(--accent-light);
+  box-shadow: 0 1px 4px rgba(26,115,232,.1);
+}
+.macro-side-top { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+.macro-side-title { font-size: 13px; font-weight: 600; color: var(--text-secondary); }
+.macro-side-delta { font-size: 10px; font-weight: 600; white-space: nowrap; }
+.macro-side-card.active .macro-side-title { color: var(--accent); }
+.macro-side-num { margin-top: 2px; font-size: 16px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.macro-side-concl {
+  margin-top: 2px; font-size: 11px; color: var(--text-dim); line-height: 1.4;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.macro-side-sub {
+  margin-top: 2px; font-size: 10px; color: var(--text-dim); opacity: .75;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.macro-side-toggle { display: none; } /* 仅窄屏折叠时显示 */
+.macro-side-backdrop { display: none; } /* 仅窄屏浮层展开时显示 */
+.macro-detail { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.macro-detail iframe {
+  flex: 1; width: 100%; border: 1px solid var(--border);
+  border-radius: 8px; background: var(--surface);
+}
+@media (max-width: 900px) {
+  .macro-split { flex-direction: column; position: relative; }
+  /* 折叠态：顶部一行标题 chip，横向滚动 */
+  .macro-side {
+    flex: none; flex-direction: row; align-items: center; gap: 6px;
+    min-width: 0; max-width: none; /* 去掉宽屏的 180/260 上限，窄屏横条占满宽 */
+    overflow-x: auto; overflow-y: hidden;
+    padding: 6px 40px 6px 6px; /* 右侧留出折叠按钮位，chip 不会钻到按钮下 */
+    border-bottom: 1px solid var(--border);
+  }
+  .macro-side-card { flex: 0 0 auto; padding: 5px 10px; }
+  .macro-side-num, .macro-side-concl, .macro-side-sub, .macro-side-delta { display: none; }
+  .macro-side-toggle {
+    display: flex; position: absolute; top: 6px; right: 6px; z-index: 4;
+    align-items: center; justify-content: center; width: 26px; height: 26px;
+    border: 1px solid var(--btn-border); border-radius: 6px;
+    background: var(--surface); color: var(--text-secondary); cursor: pointer;
+  }
+  /* 展开态：与宽屏左栏一致的等宽竖排卡片列表，浮层盖在 iframe 上（iframe 高度不变） */
+  .macro-split.side-open .macro-side {
+    position: absolute; top: 0; left: 0; right: 0; z-index: 3;
+    flex-direction: column; align-items: stretch; gap: 8px;
+    overflow-x: hidden; overflow-y: auto; max-height: 320px;
+    padding: 40px 8px 8px; /* 顶部留出按钮条，卡片不会与 ▴ 按钮重叠 */
+    background: var(--surface); border: 1px solid var(--border); border-radius: 8px;
+    box-shadow: 0 4px 16px rgba(0,0,0,.2);
+  }
+  .macro-split.side-open .macro-side-card { flex: none; padding: 10px 12px; }
+  .macro-split.side-open .macro-side-num,
+  .macro-split.side-open .macro-side-concl,
+  .macro-split.side-open .macro-side-sub { display: block; }
+  .macro-split.side-open .macro-side-delta { display: inline; }
+  .macro-split.side-open .macro-side-backdrop {
+    display: block; position: absolute; inset: 0; z-index: 2;
+    background: rgba(0,0,0,.35); border-radius: 8px;
+  }
+}
 
 /* ── correlation view ───────────────────────────────────── */
 .correlation-presets { display: flex; gap: 6px; padding: 8px 12px; border-bottom: 1px solid var(--border); flex-wrap: wrap; }

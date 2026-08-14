@@ -4,6 +4,7 @@ import pandas as pd
 import pytest
 
 from src.fed_analysis import (
+    _pre_meeting_indicator,
     _score_text,
     fed_analysis,
     stance_label,
@@ -171,3 +172,27 @@ class TestFedAnalysis:
         monkeypatch.setattr(fa, "SPEECHES_CSV", tmp_path / "nope2.csv")
         out = fed_analysis()
         assert "error" in out
+
+
+class TestPreMeetingIndicator:
+    def test_window_filters_speeches_before_last_fomc(self):
+        """固定 today=2026-07-29：窗口 07-15..07-29，窗口外/空数据不计数。"""
+        df = pd.DataFrame(
+            {
+                "date": ["20260720", "20260726", "20260601", "20260801"],
+                "score": ["2.0", "3.0", "-5.0", "4.0"],
+            }
+        )
+        pm = _pre_meeting_indicator(df, today=pd.Timestamp("2026-07-29"))
+        assert pm["meeting"] == "2026-07-29"
+        assert pm["sample"] == 2  # 仅 07-20/07-26；会前更早与会议后都排除
+        assert pm["score"] == 2.5
+        assert pm["label"] == "鹰派"
+
+    def test_empty_or_no_window_returns_none(self):
+        df = pd.DataFrame({"date": ["20250101"], "score": ["1.0"]})
+        assert _pre_meeting_indicator(df, today=pd.Timestamp("2026-07-29")) is None
+        assert (
+            _pre_meeting_indicator(pd.DataFrame(), today=pd.Timestamp("2026-07-29"))
+            is None
+        )
