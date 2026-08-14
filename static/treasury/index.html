@@ -59,7 +59,7 @@ async function load() {
   // ── 持仓历史曲线 ──
   const hsec = document.createElement('div');
   hsec.className = 're-section';
-  hsec.innerHTML = '<h2>海外持仓（近 10 年，$万亿）</h2><div id="hold-chart" style="height:340px"></div>';
+  hsec.innerHTML = '<h2>主要国家持仓（近 10 年，$万亿）</h2><p style="margin:0">总额见上方卡片（9.4T 会把国家线压扁，故不放入本图）。</p><div id="hold-chart" style="height:340px"></div>';
   document.getElementById('history').appendChild(hsec);
   const h = d.holdings_history;
   const line = (name, data, color) => ({
@@ -74,9 +74,14 @@ async function load() {
     yAxis: { type: 'value', scale: true, splitNumber: 4, axisLabel: { color: colors.text }, splitLine: { lineStyle: { color: colors.grid } } },
     tooltip: { trigger: 'axis', valueFormatter: v => v != null ? '$' + v.toFixed(2) + 'T' : '—' },
     series: [
-      line('总额', h.total, colors.blue),
-      line('日本', h.japan, colors.orange),
+      line('日本', h.japan, colors.blue),
       line('中国', h.china, colors.red),
+      line('英国', h.uk, colors.orange),
+      line('法国', h.france, colors.purple),
+      line('比利时', h.belgium, colors.green),
+      line('爱尔兰', h.ireland, '#00bcd4'),
+      line('卢森堡', h.luxembourg, '#607d8b'),
+      line('瑞士', h.swiss, '#e91e63'),
     ],
   }));
 
@@ -93,7 +98,29 @@ async function load() {
   if (d.mspd && d.mspd.length) {
     const msec = document.createElement('div');
     msec.className = 're-section';
-    msec.innerHTML = '<h2>未偿债务结构（MSPD，月度）</h2>';
+    msec.innerHTML = '<h2>未偿债务结构（MSPD，月度）</h2><p style="margin:0">占比累积堆叠（%）；绝对值见下表。</p><div id="mspd-chart" style="height:340px"></div>';
+    document.getElementById('mspd').appendChild(msec);
+    const mh = d.mspd_history || {};
+    const comps = [
+      ['短期国债', mh.pct_bills, '#1a73e8'],
+      ['中期国债', mh.pct_notes, '#ff9800'],
+      ['长期国债', mh.pct_bonds, '#26a69a'],
+      ['TIPS', mh.pct_tips, '#ef5350'],
+      ['FRN', mh.pct_frn, '#9c27b0'],
+    ];
+    R.mkChart('mspd-chart', (colors) => ({
+      legend: { top: 4, left: 'center', textStyle: { color: colors.text } },
+      grid: { left: '3%', right: '4%', bottom: 24, top: 36, containLabel: true },
+      xAxis: { type: 'time', boundaryGap: false, axisLabel: { color: colors.text } },
+      yAxis: { type: 'value', min: 0, max: 100, splitNumber: 4, axisLabel: { color: colors.text, formatter: '{value}%' }, splitLine: { lineStyle: { color: colors.grid } } },
+      tooltip: { trigger: 'axis', valueFormatter: v => v != null ? v.toFixed(1) + '%' : '—' },
+      series: comps.map(([name, data, color]) => ({
+        name, type: 'line', showSymbol: false, stack: 'total',
+        data: (mh.dates || []).map((dt, i) => [dt, data[i]]),
+        lineStyle: { color, width: 1 }, itemStyle: { color }, areaStyle: { color: color + '44' },
+        emphasis: { focus: 'series' },
+      })),
+    }));
     msec.appendChild(R.table(['品种', '规模', '占比', '观测期'],
       d.mspd.map(x => ({ 品种: x.name, 规模: x.value_t, 占比: x.share, 观测期: x.as_of })),
       { 规模: v => `$${v.toFixed(2)}万亿`, 占比: v => v === null ? '—' : `${v}%` }));

@@ -35,6 +35,12 @@ HOLD_LABELS = {
     "TIC_HOLD_CHINA": "中国",
     "TIC_HOLD_SAUDI": "沙特",
     "TIC_HOLD_UAE": "阿联酋",
+    "TIC_HOLD_UK": "英国",
+    "TIC_HOLD_FRANCE": "法国",
+    "TIC_HOLD_BELGIUM": "比利时",
+    "TIC_HOLD_IRELAND": "爱尔兰",
+    "TIC_HOLD_LUXEMBOURG": "卢森堡",
+    "TIC_HOLD_SWISS": "瑞士",
 }
 
 # 官方占比警戒线（config.py tic 注释口径）
@@ -188,17 +194,45 @@ def holdings_table(tic: pd.DataFrame) -> list[dict]:
 
 
 def holdings_history(tic: pd.DataFrame, months: int = 120) -> dict:
-    """海外持仓（总额/日本/中国，$T）近 months 个月。"""
+    """海外持仓（总额/日本/中国/主要欧洲国家，$T）近 months 个月。"""
     total = tic["TIC_HOLD_TOTAL"].dropna().tail(months)
-    jp = tic["TIC_HOLD_JAPAN"].reindex(total.index)
-    cn = tic["TIC_HOLD_CHINA"].reindex(total.index)
     r = lambda v: _t(float(v)) if pd.notna(v) else None  # noqa: E731
-    return {
+    out = {
         "dates": [d.strftime("%Y-%m-%d") for d in total.index],
         "total": [r(v) for v in total],
-        "japan": [r(v) for v in jp],
-        "china": [r(v) for v in cn],
     }
+    country_keys = {
+        "TIC_HOLD_JAPAN": "japan",
+        "TIC_HOLD_CHINA": "china",
+        "TIC_HOLD_UK": "uk",
+        "TIC_HOLD_FRANCE": "france",
+        "TIC_HOLD_BELGIUM": "belgium",
+        "TIC_HOLD_IRELAND": "ireland",
+        "TIC_HOLD_LUXEMBOURG": "luxembourg",
+        "TIC_HOLD_SWISS": "swiss",
+    }
+    for key, short in country_keys.items():
+        if key in tic:
+            out[short] = [r(v) for v in tic[key].reindex(total.index)]
+    return out
+
+
+def mspd_history(mspd: pd.DataFrame) -> dict:
+    """未偿债务结构历史（月度全量）：各品种占比（% 累积堆叠）+ 绝对额（$T）。"""
+    if mspd.empty:
+        return {}
+    out = {"dates": [d.strftime("%Y-%m-%d") for d in mspd.index]}
+    total = mspd["MARKETABLE_TOTAL"]
+    for col in ("BILLS", "NOTES", "BONDS", "TIPS", "FRN"):
+        if col in mspd:
+            out[col.lower()] = [
+                _t(float(v)) if pd.notna(v) else None for v in mspd[col]
+            ]
+            out[f"pct_{col.lower()}"] = [
+                float(v) / float(m) * 100 if pd.notna(v) and pd.notna(m) and m else None
+                for v, m in zip(mspd[col], total, strict=True)
+            ]
+    return out
 
 
 def mspd_table(mspd: pd.DataFrame) -> list[dict]:
@@ -306,6 +340,7 @@ def generate_treasury_overview() -> dict:
         "holdings_history": holdings_history(tic),
         "holdings": holdings,
         "mspd": mspd_table(mspd),
+        "mspd_history": mspd_history(mspd),
         "refunding": refunding,
     }
 

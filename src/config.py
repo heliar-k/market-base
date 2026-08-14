@@ -271,6 +271,12 @@ FRED_SERIES = {
         "TIC_HOLD_CHINA": "FORTREASPOS41408",  # 中国持仓（Table 5 口径）
         "TIC_HOLD_SAUDI": "FORTREASPOS45608",  # 沙特持仓（Table 5 口径）
         "TIC_HOLD_UAE": "FORTREASPOS46604",  # 阿联酋持仓（Table 5 口径）
+        "TIC_HOLD_UK": "FORTREASPOS13005",  # 英国持仓
+        "TIC_HOLD_FRANCE": "FORTREASPOS10804",  # 法国持仓
+        "TIC_HOLD_BELGIUM": "FORTREASPOS10251",  # 比利时持仓
+        "TIC_HOLD_IRELAND": "FORTREASPOS11401",  # 爱尔兰持仓
+        "TIC_HOLD_LUXEMBOURG": "FORTREASPOS11703",  # 卢森堡持仓
+        "TIC_HOLD_SWISS": "FORTREASPOS12688",  # 瑞士持仓
         # 海外官方占比（D.3，<23% 结构性偏空）分母 = data/treasury/mspd.csv 的
         # TOTAL_DEBT（总未偿债务，月度）。勿用 GFDEBTN——FRED 侧已停更数月。
     },
