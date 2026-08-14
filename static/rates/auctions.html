@@ -50,23 +50,25 @@ async function load() {
     ...(borrow && borrow.current_b ? [{ label: `QRA 借款估算（${borrow.quarter}）`, value: `$${borrow.current_b}B`, sub: borrow.chg_b ? `较上次 ${borrow.chg_b}B ${borrow.chg_dir === 'higher' ? '↑' : '↓'}（${borrow.date}）` : borrow.date, accent: borrow.chg_dir === 'higher' }] : []),
   ]));
 
-  // ── 趋势图 ──
+  // ── 趋势图（真实时间轴：间距=实际天数；重开=空心点）──
   const names = ['2Y', '5Y', '10Y', '30Y'];
-  const allDates = [...new Set(Object.values(d.trend).flat().map(p => p.date))].sort();
   R.mkChart('trend_chart', (colors) => ({
     legend: { data: names, top: 8, right: '2%', icon: 'roundRect', itemWidth: 14, itemHeight: 4, textStyle: { color: colors.text, fontSize: 12 } },
     tooltip: { trigger: 'axis', valueFormatter: v => `${Number(v).toFixed(2)}x` },
-    grid: { top: 44, left: 48, right: 16, bottom: 24 },
-    xAxis: { type: 'category', data: allDates, axisLabel: { color: colors.muted, fontSize: 10 }, axisLine: { lineStyle: { color: colors.border } } },
+    grid: { top: 44, left: 48, right: 64, bottom: 24 },
+    xAxis: { type: 'time', axisLabel: { color: colors.muted, fontSize: 10, formatter: v => { const t = new Date(v); return `${t.getMonth() + 1}/${t.getDate()}`; } }, axisLine: { lineStyle: { color: colors.border } } },
     yAxis: { type: 'value', min: 1.5, axisLabel: { color: colors.muted, formatter: '{value}x' }, splitLine: { lineStyle: { color: colors.grid } } },
-    series: names.map((n, i) => {
+    series: names.map((n) => {
       const m = { '2Y': colors.blue, '5Y': colors.orange, '10Y': colors.red, '30Y': colors.purple }[n];
-      const byDate = Object.fromEntries(d.trend[n].map(p => [p.date, p.value]));
       return {
         name: n, type: 'line',
-        data: allDates.map(dt => byDate[dt] ?? null),
-        symbol: 'circle', symbolSize: 5, connectNulls: false,
-        lineStyle: { color: m, width: 2 }, itemStyle: { color: m },
+        data: d.trend[n].map(p => ({
+          value: [p.date, p.value],
+          symbol: p.reopening ? 'emptyCircle' : 'circle',
+          symbolSize: p.reopening ? 6 : 7,
+          itemStyle: { color: m, borderColor: m, borderWidth: 1.5 },
+        })),
+        lineStyle: { color: m, width: 2 },
         markLine: n === '2Y' ? {
           data: [
             { yAxis: 2.0, label: { formatter: '警戒 2.0x', color: colors.red, fontSize: 10 }, lineStyle: { color: colors.red, type: 'dashed', width: 1 } },
@@ -77,42 +79,62 @@ async function load() {
     }),
   }));
 
-  // ── Tail 趋势 ──
+  // ── Tail 趋势（热力条带：行=期限，色深=弱）──
   const tailDates = [...new Set(Object.values(d.tail_trend).flat().map(p => p.date))].sort();
+  const tailCells = names.flatMap(n => d.tail_trend[n].map(p => [p.date, n, p.value]));
   R.mkChart('tail_chart', (colors) => ({
-    legend: { data: names, top: 8, right: '2%', icon: 'roundRect', itemWidth: 14, itemHeight: 4, textStyle: { color: colors.text, fontSize: 12 } },
-    tooltip: { trigger: 'axis', valueFormatter: v => (v === null || v === undefined ? '' : `${Number(v).toFixed(1)} bp`) },
-    grid: { top: 44, left: 48, right: 16, bottom: 24 },
-    xAxis: { type: 'category', data: tailDates, axisLabel: { color: colors.muted, fontSize: 10 }, axisLine: { lineStyle: { color: colors.border } } },
-    yAxis: { type: 'value', axisLabel: { color: colors.muted, formatter: '{value} bp' }, splitLine: { lineStyle: { color: colors.grid } } },
-    series: names.map((n, i) => {
-      const m = { '2Y': colors.blue, '5Y': colors.orange, '10Y': colors.red, '30Y': colors.purple }[n];
-      const byDate = Object.fromEntries(d.tail_trend[n].map(p => [p.date, p.value]));
-      return {
-        name: n, type: 'bar', barMaxWidth: 18,
-        data: tailDates.map(dt => (byDate[dt] === undefined ? null : byDate[dt])),
-        itemStyle: { color: m, opacity: 0.85 },
-      };
-    }),
+    tooltip: { position: 'top', formatter: p => `${p.value[0]} ${p.value[1]}：${Number(p.value[2]).toFixed(1)} bp` },
+    grid: { top: 30, left: 48, right: 16, bottom: 56 },
+    xAxis: { type: 'category', data: tailDates, axisLabel: { color: colors.muted, fontSize: 10, formatter: v => v.slice(5) }, axisLine: { lineStyle: { color: colors.border } } },
+    yAxis: { type: 'category', data: names, axisLabel: { color: colors.text, fontSize: 11 }, axisLine: { lineStyle: { color: colors.border } } },
+    visualMap: {
+      min: Math.min(...tailCells.map(c => c[2])),
+      max: Math.max(...tailCells.map(c => c[2])),
+      orient: 'horizontal', left: 'left', bottom: 0,
+      text: ['弱（bp 高）', '强'], textStyle: { color: colors.muted, fontSize: 10 },
+      inRange: { color: ['#86efac', '#fbbf24', '#ef4444'] },
+      formatter: v => v.toFixed(1),
+    },
+    series: [{
+      type: 'heatmap', data: tailCells,
+      label: { show: true, fontSize: 8, color: '#fff', textBorderColor: 'rgba(15,23,42,0.85)', textBorderWidth: 2, formatter: p => Number(p.value[2]).toFixed(1) },
+      itemStyle: { borderColor: colors.bg, borderWidth: 1 },
+    }],
   }));
 
-  // ── 间接投标占比趋势 ──
+  // ── 间接投标占比趋势（真实时间轴 + 各期限均值参考线）──
   const indNames = ['10Y', '30Y'];
-  const indDates = [...new Set(indNames.flatMap(n => d.indirect_trend[n].map(p => p.date)))].sort();
   R.mkChart('indirect_chart', (colors) => ({
     legend: { data: indNames, top: 8, right: '2%', icon: 'roundRect', itemWidth: 14, itemHeight: 4, textStyle: { color: colors.text, fontSize: 12 } },
     tooltip: { trigger: 'axis', valueFormatter: v => `${Number(v).toFixed(0)}%` },
     grid: { top: 44, left: 48, right: 16, bottom: 24 },
-    xAxis: { type: 'category', data: indDates, axisLabel: { color: colors.muted, fontSize: 10 }, axisLine: { lineStyle: { color: colors.border } } },
+    xAxis: { type: 'time', axisLabel: { color: colors.muted, fontSize: 10, formatter: v => { const t = new Date(v); return `${t.getMonth() + 1}/${t.getDate()}`; } }, axisLine: { lineStyle: { color: colors.border } } },
     yAxis: { type: 'value', scale: true, axisLabel: { color: colors.muted, formatter: '{value}%' }, splitLine: { lineStyle: { color: colors.grid } } },
     series: indNames.map(n => {
       const m = { '10Y': colors.red, '30Y': colors.purple }[n];
-      const byDate = Object.fromEntries(d.indirect_trend[n].map(p => [p.date, p.value]));
+      const pts = d.indirect_trend[n];
+      const mean = pts.reduce((s, p) => s + p.value, 0) / pts.length;
       return {
         name: n, type: 'line',
-        data: indDates.map(dt => (byDate[dt] === undefined ? null : byDate[dt])),
-        symbol: 'circle', symbolSize: 6, connectNulls: false,
-        lineStyle: { color: m, width: 2 }, itemStyle: { color: m },
+        data: pts.map(p => ({
+          value: [p.date, p.value],
+          symbol: p.reopening ? 'emptyCircle' : 'circle',
+          symbolSize: p.reopening ? 6 : 7,
+          itemStyle: { color: m, borderColor: m, borderWidth: 1.5 },
+        })),
+        lineStyle: { color: m, width: 2 },
+        markLine: {
+          silent: true, symbol: 'none',
+          data: [{ yAxis: mean, label: { formatter: `${n} 均值 ${mean.toFixed(0)}%`, color: m, fontSize: 11, fontWeight: 'bold', position: 'insideEndTop' }, lineStyle: { color: m, type: 'dashed', width: 1 } }],
+        },
+        markPoint: {
+          symbolSize: 4,
+          data: [
+            { type: 'max', name: '最高', label: { position: 'top' } },
+            { type: 'min', name: '最低', label: { position: 'bottom' } },
+          ],
+          label: { fontSize: 9, color: colors.muted, formatter: p => `${Number(p.value).toFixed(0)}%` },
+        },
       };
     }),
   }));

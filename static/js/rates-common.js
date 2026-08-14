@@ -26,7 +26,7 @@ const R = {
       text: dark ? '#8b949e' : '#666',
       muted: dark ? '#484f58' : '#999',
       border: dark ? '#30363d' : '#e1e4e8',
-      grid: dark ? '#21262d' : '#f0f0f0',
+      grid: dark ? '#2d333b' : '#f0f0f0',
       bg: dark ? '#161b22' : '#fff',
       blue: '#3b82f6', orange: '#fb923c', green: '#34d399',
       red: '#f87171', gray: '#9ca3af', purple: '#a78bfa',
@@ -99,13 +99,5 @@ const R = {
   },
 };
 
-// 主题切换（所有 rates 页面共用，Cmd+T）
-const saved = localStorage.getItem('theme');
-if (saved === 'dark') document.body.classList.add('dark');
-document.addEventListener('keydown', (e) => {
-  if (e.key === 't' && e.metaKey) {
-    document.body.classList.toggle('dark');
-    localStorage.setItem('theme', document.body.classList.contains('dark') ? 'dark' : 'light');
-    window.dispatchEvent(new Event('theme-changed'));
-  }
-});
+// 主题由 nav.js 统一管理（localStorage 'ticker-toolkit-dark'，无偏好时跟随系统）；
+// 本文件只需监听 theme-changed 重绘图表（见上方监听器）

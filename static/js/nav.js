@@ -62,12 +62,30 @@
     el.style.display = 'none';
   }
 
-  // 主题：从 localStorage 恢复（与 SPA 共享 key）；父页切换时 storage 事件联动
+  // 主题：以 localStorage 为准（与 SPA 共享 key）；无手动偏好时跟随系统，系统切换实时生效
   var DARK_KEY = 'ticker-toolkit-dark';
+  function resolveDark() {
+    var s = localStorage.getItem(DARK_KEY);
+    if (s !== null) return s === '1';
+    return !embedded && window.matchMedia('(prefers-color-scheme: dark)').matches;
+  }
   function applyTheme() {
-    document.body.classList.toggle('dark', localStorage.getItem(DARK_KEY) === '1');
+    document.body.classList.toggle('dark', resolveDark());
   }
   applyTheme();
+  window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', function () {
+    if (localStorage.getItem(DARK_KEY) === null) {
+      applyTheme();
+      window.dispatchEvent(new Event('theme-changed'));
+    }
+  });
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 't' && e.metaKey) {
+      document.body.classList.toggle('dark');
+      localStorage.setItem(DARK_KEY, document.body.classList.contains('dark') ? '1' : '0');
+      window.dispatchEvent(new Event('theme-changed'));
+    }
+  });
   window.addEventListener('storage', function (e) {
     if (e.key !== DARK_KEY) return;
     applyTheme();
@@ -80,7 +98,7 @@
   var tb = document.createElement('button');
   tb.className = 'theme-float';
   tb.title = '切换亮暗主题';
-  tb.textContent = localStorage.getItem(DARK_KEY) === '1' ? '☀️' : '🌙';
+  tb.textContent = resolveDark() ? '☀️' : '🌙';
   tb.addEventListener('click', function () {
     document.body.classList.toggle('dark');
     localStorage.setItem(DARK_KEY, document.body.classList.contains('dark') ? '1' : '0');

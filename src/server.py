@@ -893,6 +893,7 @@ def _auction_points(sub: pd.DataFrame, col: str) -> list[dict]:
         {
             "date": d.strftime("%Y-%m-%d"),
             "value": float(pd.to_numeric(r[col])),
+            "reopening": str(r.get("reopening", "")).strip().lower() == "yes",
         }
         for d, r in sub.iterrows()
         if pd.notna(r.get(col))
