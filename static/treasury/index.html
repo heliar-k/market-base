@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>美债需求 — US Macro</title>
+<link rel="stylesheet" href="/css/app.css">
+<link rel="stylesheet" href="/css/special.css">
+<script src="/vendor/echarts.min.js"></script>
+</head>
+<body>
+<div class="re-root">
+  <div class="re-header">
+    <h1>美债需求</h1>
+    <span class="re-as-of" id="re-as-of"></span>
+  </div>
+
+  <div class="re-nav" id="re-nav"></div>
+
+  <div id="cards"></div>
+  <div id="re-signals"></div>
+  <div id="history"></div>
+  <div id="holdings"></div>
+  <div id="mspd"></div>
+  <div id="refunding"></div>
+  <div class="re-gen" id="re-gen"></div>
+</div>
+
+<script src="/js/rates-common.js"></script>
+<script>
+async function load() {
+  const d = await R.get('/api/treasury/overview');
+  document.getElementById('re-as-of').textContent = '数据截至 ' + d.as_of;
+
+  // ── 卡片行 ──
+  const c = d.cards;
+  const netLabel = c.net_total.value >= 0 ? '净买入' : '净卖出';
+  document.getElementById('cards').appendChild(R.cards([
+    { label: '海外持仓总额', value: '$' + c.hold_total.value + ' 万亿', sub: c.hold_total.as_of + (c.hold_total.chg_1y_b !== null ? ` · 1Y ${c.hold_total.chg_1y_b >= 0 ? '+' : ''}${c.hold_total.chg_1y_b}B` : ''), accent: true },
+    { label: '海外官方占比', value: (c.official_share.value ?? '—') + '%', sub: (c.official_share.as_of || '') + ' · <23% 偏空' },
+    { label: '月度' + netLabel + '（TIC）', value: '$' + Math.abs(c.net_total.value) + 'B', sub: c.net_total.as_of + ` · 12M 累计 $${Math.abs(c.net_total.net_12m_b)}B` },
+    { label: 'Bill 占比', value: (c.bill_share.value ?? '—') + '%', sub: (c.bill_share.as_of || '') + (c.bill_share.chg_1y !== null ? ` · 1Y ${c.bill_share.chg_1y > 0 ? '+' : ''}${c.bill_share.chg_1y}pp` : '') },
+  ]));
+
+  // ── 研判（三段式） ──
+  const sec = document.createElement('div');
+  sec.className = 're-section';
+  sec.innerHTML = '<h2>美债需求研判</h2>';
+  (d.signals || []).forEach(s => {
+    const b = document.createElement('div');
+    b.className = 'sig-block';
+    b.innerHTML = `<div class="sig-title">${s.title}</div><p>${s.text}</p>`;
+    sec.appendChild(b);
+  });
+  sec.innerHTML += '<div class="note">rule-based · no direct price forecast</div>';
+  document.getElementById('re-signals').appendChild(sec);
+
+  // ── 持仓历史曲线 ──
+  const hsec = document.createElement('div');
+  hsec.className = 're-section';
+  hsec.innerHTML = '<h2>海外持仓（近 10 年，$万亿）</h2><div id="hold-chart" style="height:340px"></div>';
+  document.getElementById('history').appendChild(hsec);
+  const h = d.holdings_history;
+  const line = (name, data, color) => ({
+    name, type: 'line', showSymbol: false,
+    data: h.dates.map((dt, i) => [dt, data[i]]),
+    lineStyle: { width: 1.5 }, itemStyle: { color },
+  });
+  R.mkChart('hold-chart', (colors) => ({
+    legend: { top: 4, right: 8, textStyle: { color: colors.text } },
+    grid: { left: '3%', right: '4%', bottom: 24, top: 36, containLabel: true },
+    xAxis: { type: 'time', boundaryGap: false, axisLabel: { color: colors.text } },
+    yAxis: { type: 'value', scale: true, splitNumber: 4, axisLabel: { color: colors.text }, splitLine: { lineStyle: { color: colors.grid } } },
+    tooltip: { trigger: 'axis', valueFormatter: v => v != null ? '$' + v.toFixed(2) + 'T' : '—' },
+    series: [
+      line('总额', h.total, colors.blue),
+      line('日本', h.japan, colors.orange),
+      line('中国', h.china, colors.red),
+    ],
+  }));
+
+  // ── 持仓明细 ──
+  const tsec = document.createElement('div');
+  tsec.className = 're-section';
+  tsec.innerHTML = '<h2>海外持仓明细（TIC，月频滞后 2 月）</h2>';
+  tsec.appendChild(R.table(['持有方', '持仓', '1Y 变化', '最新'],
+    d.holdings.map(x => ({ 持有方: x.name, 持仓: x.value_b, '1Y 变化': x.chg_1y_b, 最新: x.as_of })),
+    { 持仓: v => `$${v.toLocaleString()}B`, '1Y 变化': v => v === null ? '—' : `${v > 0 ? '+' : ''}${v.toFixed(0)}B` }));
+  document.getElementById('holdings').appendChild(tsec);
+
+  // ── 债务结构 ──
+  if (d.mspd && d.mspd.length) {
+    const msec = document.createElement('div');
+    msec.className = 're-section';
+    msec.innerHTML = '<h2>未偿债务结构（MSPD，月度）</h2>';
+    msec.appendChild(R.table(['品种', '规模', '占比'],
+      d.mspd.map(x => ({ 品种: x.name, 规模: x.value_t, 占比: x.share })),
+      { 规模: v => `$${v.toFixed(2)}万亿`, 占比: v => v === null ? '—' : `${v}%` }));
+    document.getElementById('mspd').appendChild(msec);
+  }
+
+  // ── 再融资声明 ──
+  if (d.refunding && d.refunding.quarter) {
+    const rsec = document.createElement('div');
+    rsec.className = 're-section';
+    rsec.innerHTML = `<h2>季度再融资声明（QRA）</h2><p style="margin:0">最新：${d.refunding.quarter}（${d.refunding.date}）· <a href="${d.refunding.url}" target="_blank" rel="noopener">${d.refunding.title}</a></p>`;
+    document.getElementById('refunding').appendChild(rsec);
+  }
+
+  document.getElementById('re-gen').textContent = `研判由规则引擎生成（${d.generator}）· ${d.as_of} · TIC 单位为百万美元（页面换算为 B/T），官方占比分母 = MSPD 总未偿债务`;
+}
+load().catch(e => R.fail(['cards', 're-signals', 'history', 'holdings', 'mspd', 'refunding'], e));
+</script>
+<script src="/js/nav.js"></script>
+</body>
+</html>

@@ -34,10 +34,11 @@ from src.server import (  # noqa: PLC2701 复用路由函数
     get_diag,
     get_fed_overview,
     get_fomc_calendar,
+    get_inflation_overview,
     get_kline,
+    get_labor_overview,
     get_liquidity_overview,
     get_macro,
-    get_macro_categories,
     get_macro_correlate,
     get_macro_presets,
     get_rate_expectations,
@@ -47,6 +48,7 @@ from src.server import (  # noqa: PLC2701 复用路由函数
     get_rates_real_rates,
     get_rates_yield_curve,
     get_symbols,
+    get_treasury_overview,
     get_volatility_analysis,
 )
 
@@ -64,6 +66,9 @@ _PATH_PREFIXES = (
     "vendor",
     "favicon",
     "fed",
+    "inflation",
+    "labor",
+    "treasury",
     "volatility",
     "rates",
     "credit",
@@ -126,8 +131,7 @@ def export_api() -> None:
             _dump(f"api/kline/{s['name']}_d{n}", tail)
         _safe(f"api/diag/{s['name']}", get_diag, s["name"], as_of=None)
 
-    # 宏观：14 分类 + categories/presets + correlate 全指标合并（截 5 年控体积）
-    _dump("api/macro/categories", get_macro_categories())
+    # 宏观：presets + 全分类 + correlate 全指标合并（截 5 年控体积）
     _dump("api/macro/presets", get_macro_presets())
     for cat in FRED_SERIES:
         _safe(f"api/macro/{cat}", get_macro, cat)
@@ -162,6 +166,9 @@ def export_api() -> None:
     _safe("api/credit/overview", get_credit_overview)
     _safe("api/credit/cds", get_credit_cds)
     _safe("api/credit/stress", get_credit_stress)
+    _safe("api/inflation/overview", get_inflation_overview)
+    _safe("api/treasury/overview", get_treasury_overview)
+    _safe("api/labor/overview", get_labor_overview)
 
 
 def export_frontend() -> None:

@@ -20,11 +20,9 @@ from src.analyze import analyze
 from src.cache import load_or_compute
 from src.config import (
     FOMC_MEETINGS,
-    FRED_SERIES,
     IBKR_SYMBOLS,
     ROOT,
     TERM_INFO,
-    TERM_SERIES,
 )
 from src.credit_analysis import (
     generate_credit_cds,
@@ -32,6 +30,8 @@ from src.credit_analysis import (
     generate_credit_stress,
 )
 from src.fed_analysis import generate_fed_analysis
+from src.inflation_analysis import generate_inflation_overview
+from src.labor_analysis import generate_labor_overview
 from src.macro import (
     DERIVED_INPUTS,
     categories_for,
@@ -41,6 +41,7 @@ from src.macro import (
     rrp_in_millions,
 )
 from src.rates_analysis import generate_analysis
+from src.treasury_analysis import generate_treasury_overview
 from src.volatility_analysis import generate_volatility_analysis
 
 # ── helpers ──────────────────────────────────────────────────────────────────
@@ -280,14 +281,6 @@ _MACRO_LABELS = {
 _MACRO_LABELS.update({k: v.name for k, v in TERM_INFO.items()})
 
 
-@app.get("/api/macro/categories")
-def get_macro_categories():
-    out = []
-    for name, series_map in FRED_SERIES.items():
-        out.append({"name": name, "series": list(series_map.keys())})
-    return out
-
-
 @app.get("/api/macro/presets")
 def get_macro_presets():
     return {
@@ -472,30 +465,6 @@ def get_macro(category: str):
     df = df.reset_index()
     df["date"] = df["date"].dt.strftime("%Y-%m-%d")
     return df.to_dict(orient="records")
-
-
-@app.get("/api/macro/{category}/term")
-def get_macro_term(category: str):
-    if category not in TERM_SERIES:
-        raise HTTPException(404, f"No term structure for {category}")
-    try:
-        df = read_macro_category(category)
-    except FileNotFoundError:
-        raise HTTPException(404, f"No macro data for {category}")
-    terms = TERM_SERIES[category]
-    available = [t for t in terms if t in df.columns]
-    if not available:
-        raise HTTPException(404, "No term columns found")
-    last = df.iloc[-1]
-
-    # 期限标签统一走 config.TERM_INFO（与 TUI 共用）
-    labels = [TERM_INFO[t].short for t in available]
-    values = [float(last[t]) if pd.notna(last[t]) else None for t in available]
-    return {
-        "date": df.index[-1].strftime("%Y-%m-%d"),
-        "labels": labels,
-        "values": values,
-    }
 
 
 # ── liquidity endpoints ──────────────────────────────────────────────────────
@@ -758,6 +727,36 @@ def get_credit_cds() -> dict:
 def get_credit_stress() -> dict:
     """信用压力仪表盘：5 分量合成指数 + 跨资产对照 + 历史曲线。"""
     out = generate_credit_stress()
+    if "error" in out:
+        raise HTTPException(404, out["error"])
+    return out
+
+
+# ── inflation hub ───────────────────────────────────────────────────────────
+
+
+@app.get("/api/inflation/overview")
+def get_inflation_overview() -> dict:
+    """通胀专题总览：YoY 卡片 + 三段研判 + 历史曲线 + 分项/预期/Shapiro 供需。"""
+    out = generate_inflation_overview()
+    if "error" in out:
+        raise HTTPException(404, out["error"])
+    return out
+
+
+@app.get("/api/treasury/overview")
+def get_treasury_overview() -> dict:
+    """美债需求专题总览：TIC 海外持仓/净买入 + 官方占比 + Bill 占比 + 再融资。"""
+    out = generate_treasury_overview()
+    if "error" in out:
+        raise HTTPException(404, out["error"])
+    return out
+
+
+@app.get("/api/labor/overview")
+def get_labor_overview() -> dict:
+    """就业专题总览：失业率/非农/初请/JOLTS 卡片 + Sahm + V/U + 三段研判。"""
+    out = generate_labor_overview()
     if "error" in out:
         raise HTTPException(404, out["error"])
     return out

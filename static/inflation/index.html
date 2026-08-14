@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>通胀 — US Macro</title>
+<link rel="stylesheet" href="/css/app.css">
+<link rel="stylesheet" href="/css/special.css">
+<script src="/vendor/echarts.min.js"></script>
+</head>
+<body>
+<div class="re-root">
+  <div class="re-header">
+    <h1>通胀</h1>
+    <span class="re-as-of" id="re-as-of"></span>
+  </div>
+
+  <div class="re-nav" id="re-nav"></div>
+
+  <div id="cards"></div>
+  <div id="re-signals"></div>
+  <div id="history"></div>
+  <div id="components"></div>
+  <div id="expectations"></div>
+  <div id="shapiro"></div>
+  <div id="recent"></div>
+  <div class="re-gen" id="re-gen"></div>
+</div>
+
+<script src="/js/rates-common.js"></script>
+<script>
+const chgStr = v => v === null || v === undefined ? '' :
+  ` · 较上月 <span class="${v > 0 ? 'up' : v < 0 ? 'down' : ''}">${v > 0 ? '+' : ''}${v}pp</span>`;
+
+async function load() {
+  const d = await R.get('/api/inflation/overview');
+  document.getElementById('re-as-of').textContent = '数据截至 ' + d.as_of;
+
+  // ── YoY 卡片行 ──
+  const c = d.cards;
+  document.getElementById('cards').appendChild(R.cards([
+    { label: 'CPI 同比', value: c.cpi.value + '%', sub: c.cpi.as_of + chgStr(c.cpi.chg_1m), accent: true },
+    { label: '核心 CPI 同比', value: c.core_cpi.value + '%', sub: c.core_cpi.as_of + chgStr(c.core_cpi.chg_1m) },
+    { label: '核心 PCE 同比（美联储口径）', value: c.core_pce.value + '%', sub: c.core_pce.as_of + chgStr(c.core_pce.chg_1m) },
+    { label: 'PPI 同比', value: (c.ppi.value ?? '—') + '%', sub: (c.ppi.as_of || '') + chgStr(c.ppi.chg_1m) },
+  ]));
+
+  // ── 研判（三段式） ──
+  const sec = document.createElement('div');
+  sec.className = 're-section';
+  sec.innerHTML = '<h2>通胀研判</h2>';
+  (d.signals || []).forEach(s => {
+    const b = document.createElement('div');
+    b.className = 'sig-block';
+    b.innerHTML = `<div class="sig-title">${s.title}</div><p>${s.text}</p>`;
+    sec.appendChild(b);
+  });
+  sec.innerHTML += '<div class="note">rule-based · no direct price forecast</div>';
+  document.getElementById('re-signals').appendChild(sec);
+
+  // ── YoY 历史曲线 ──
+  const hsec = document.createElement('div');
+  hsec.className = 're-section';
+  hsec.innerHTML = '<h2>通胀同比走势（近 10 年）</h2><div id="yoy-chart" style="height:340px"></div>';
+  document.getElementById('history').appendChild(hsec);
+  const h = d.yoy_history;
+  const line = (name, data, color) => ({
+    name, type: 'line', showSymbol: false,
+    data: h.dates.map((dt, i) => [dt, data[i]]),
+    lineStyle: { width: 1.5 }, itemStyle: { color },
+  });
+  R.mkChart('yoy-chart', (colors) => ({
+    legend: { top: 4, right: 8, textStyle: { color: colors.text } },
+    grid: { left: '3%', right: '4%', bottom: 24, top: 36, containLabel: true },
+    xAxis: { type: 'time', boundaryGap: false, axisLabel: { color: colors.text } },
+    yAxis: { type: 'value', scale: true, splitNumber: 4, axisLabel: { color: colors.text, formatter: '{value}%' }, splitLine: { lineStyle: { color: colors.grid } } },
+    tooltip: { trigger: 'axis', valueFormatter: v => v != null ? v.toFixed(2) + '%' : '—' },
+    series: [
+      line('CPI', h.cpi, colors.blue),
+      line('核心 CPI', h.core_cpi, colors.orange),
+      line('核心 PCE', h.core_pce, colors.green),
+    ],
+  }));
+
+  // ── CPI 分项 ──
+  const csec = document.createElement('div');
+  csec.className = 're-section';
+  csec.innerHTML = '<h2>CPI / PCE 分项同比</h2><p style="margin:0">核心商品 &lt; 0 = 商品通缩；住所与超级核心是服务通胀粘性的主要观察点。</p>';
+  csec.appendChild(R.table(['分项', '同比', '较上月', '最新'],
+    d.components.map(x => ({ 分项: x.name, 同比: x.yoy, 较上月: x.chg_1m, 最新: x.as_of })),
+    { 同比: v => v === null ? '—' : `${v.toFixed(2)}%`, 较上月: v => v === null ? '—' : `${v > 0 ? '+' : ''}${v.toFixed(2)}pp` }));
+  document.getElementById('components').appendChild(csec);
+
+  // ── 通胀预期 ──
+  const esec = document.createElement('div');
+  esec.className = 're-section';
+  esec.innerHTML = '<h2>通胀预期</h2><p style="margin:0">市场隐含（盈亏平衡，日频）与调查端（月频）对照；调查显著高于市场时多为体感通胀，未必传导至定价。</p>';
+  const expRows = [...d.expectations.market, ...d.expectations.survey]
+    .map(x => ({ 口径: x.name, 当前: x.value, 较上月: x.chg_1m, 最新: x.as_of }));
+  esec.appendChild(R.table(['口径', '当前', '较上月', '最新'], expRows,
+    { 当前: v => `${v.toFixed(2)}%`, 较上月: v => v === null ? '—' : `${v > 0 ? '+' : ''}${v.toFixed(2)}pp` }));
+  document.getElementById('expectations').appendChild(esec);
+
+  // ── Shapiro 供需分解 ──
+  if (d.shapiro && d.shapiro.core) {
+    const ssec = document.createElement('div');
+    ssec.className = 're-section';
+    ssec.innerHTML = `<h2>PCE 供需分解（旧金山联储 Shapiro，YoY 贡献）</h2><p style="margin:0">需求贡献 &gt; 供给贡献 = 需求驱动通胀，货币政策对症；反之紧缩边际效用最弱。ambiguous = 无法归因部分。</p>`;
+    ssec.appendChild(R.table(['口径', '供给贡献', '需求贡献', 'Ambiguous', '最新'], [
+      { 口径: 'Headline PCE', ...d.shapiro.headline, 最新: d.shapiro.as_of },
+      { 口径: '核心 PCE', ...d.shapiro.core, 最新: d.shapiro.as_of },
+    ], {
+      supply: v => `${v.toFixed(2)}pp`, demand: v => `${v.toFixed(2)}pp`, ambig: v => `${v.toFixed(2)}pp`,
+    }, ['口径', 'supply', 'demand', 'ambig', '最新']));
+    document.getElementById('shapiro').appendChild(ssec);
+  }
+
+  // ── 近期数据 ──
+  const rsec = document.createElement('div');
+  rsec.className = 're-section';
+  rsec.innerHTML = '<h2>近期数据（近 12 个月）</h2>';
+  rsec.appendChild(R.table(['月份', 'CPI', '核心 CPI', '核心 PCE', 'PPI'],
+    d.recent.map(r => ({ 月份: r.date, CPI: r.cpi_yoy, 核心CPI: r.core_cpi_yoy, 核心PCE: r.core_pce_yoy, PPI: r.ppi_yoy })),
+    {
+      CPI: v => v === null ? '—' : `${v.toFixed(2)}%`, 核心CPI: v => v === null ? '—' : `${v.toFixed(2)}%`,
+      核心PCE: v => v === null ? '—' : `${v.toFixed(2)}%`, PPI: v => v === null ? '—' : `${v.toFixed(2)}%`,
+    }, ['月份', 'CPI', '核心CPI', '核心PCE', 'PPI']));
+  document.getElementById('recent').appendChild(rsec);
+
+  document.getElementById('re-gen').textContent = `研判由规则引擎生成（${d.generator}）· ${d.as_of} · YoY 由指数水平计算（月频），盈亏平衡为日频`;
+}
+load().catch(e => R.fail(['cards', 're-signals', 'history', 'components', 'expectations', 'shapiro', 'recent'], e));
+</script>
+<script src="/js/nav.js"></script>
+</body>
+</html>

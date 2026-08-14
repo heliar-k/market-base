@@ -25,6 +25,9 @@
   // 专题间 Tab（总入口）
   var TABS = [
     ['利率', '/rates/'],
+    ['通胀', '/inflation/'],
+    ['就业', '/labor/'],
+    ['美债需求', '/treasury/'],
     ['信用', '/credit/'],
     ['美联储', '/fed/'],
     ['波动率', '/volatility/'],
