@@ -10,6 +10,16 @@ from pathlib import Path
 import pandas as pd
 
 
+def release_dates(fred_dir: Path) -> dict[str, str]:
+    """FRED 系列 → last_updated（最近发布/修订日，data/fred/_release_dates.csv）。
+    文件由 fetch_fred 每日拉数时写入（Actions 自动更新）。"""
+    p = fred_dir / "_release_dates.csv"
+    if not p.exists():
+        return {}
+    df = pd.read_csv(p, dtype=str)
+    return dict(zip(df.series_id, df.last_updated))
+
+
 def read_csv_or_empty(path: Path, index_col: str = "date") -> pd.DataFrame:
     """读时间序列 CSV；文件缺失返回空 DataFrame。"""
     if not path.exists():

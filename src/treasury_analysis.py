@@ -23,8 +23,10 @@ from __future__ import annotations
 import pandas as pd
 
 from src.analysis_utils import chg_prev as _chg_prev
-from src.analysis_utils import read_csv_or_empty
-from src.config import ROOT
+from src.analysis_utils import read_csv_or_empty, release_dates
+from src.config import ROOT, config
+
+FRED_DIR = ROOT / "data" / "fred"
 
 HOLD_LABELS = {
     "TIC_HOLD_TOTAL": "海外持仓总额",
@@ -161,7 +163,9 @@ def signal_issuance(cards: dict, refunding: dict) -> str:
 
 
 def holdings_table(tic: pd.DataFrame) -> list[dict]:
-    """持仓明细：最新值（$B）+ 1Y 变化（$B）。"""
+    """持仓明细：最新值（$B）+ 1Y 变化（$B）+ 发布时间。"""
+    rel = release_dates(FRED_DIR)
+    sid = config.fred_series["tic"]
     rows = []
     for key, name in HOLD_LABELS.items():
         if key not in tic:
@@ -177,6 +181,7 @@ def holdings_table(tic: pd.DataFrame) -> list[dict]:
                 "value_b": _b(v),
                 "chg_1y_b": _yoy_chg_b(tic[key]),
                 "as_of": dt.strftime("%Y-%m-%d"),
+                "released": (rel.get(sid.get(key, "")) or "")[:10],
             }
         )
     return rows
@@ -221,6 +226,7 @@ def mspd_table(mspd: pd.DataFrame) -> list[dict]:
                     "name": name,
                     "value_t": _t(float(last[key])),
                     "share": round(float(share), 1) if share is not None else None,
+                    "as_of": last.name.strftime("%Y-%m-%d"),
                 }
             )
     return rows

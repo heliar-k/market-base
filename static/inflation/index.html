@@ -87,8 +87,8 @@ async function load() {
   const csec = document.createElement('div');
   csec.className = 're-section';
   csec.innerHTML = '<h2>CPI / PCE 分项同比</h2><p style="margin:0">核心商品 &lt; 0 = 商品通缩；住所与超级核心是服务通胀粘性的主要观察点。</p>';
-  csec.appendChild(R.table(['分项', '同比', '较上月', '最新'],
-    d.components.map(x => ({ 分项: x.name, 同比: x.yoy, 较上月: x.chg_1m, 最新: x.as_of })),
+  csec.appendChild(R.table(['分项', '同比', '较上月', '观测期', '发布'],
+    d.components.map(x => ({ 分项: x.name, 同比: x.yoy, 较上月: x.chg_1m, 观测期: x.as_of, 发布: x.released || '—' })),
     { 同比: v => v === null ? '—' : `${v.toFixed(2)}%`, 较上月: v => v === null ? '—' : `${v > 0 ? '+' : ''}${v.toFixed(2)}pp` }));
   document.getElementById('components').appendChild(csec);
 
@@ -97,8 +97,8 @@ async function load() {
   esec.className = 're-section';
   esec.innerHTML = '<h2>通胀预期</h2><p style="margin:0">市场隐含（盈亏平衡，日频）与调查端（月频）对照；调查显著高于市场时多为体感通胀，未必传导至定价。</p>';
   const expRows = [...d.expectations.market, ...d.expectations.survey]
-    .map(x => ({ 口径: x.name, 当前: x.value, 较上月: x.chg_1m, 最新: x.as_of }));
-  esec.appendChild(R.table(['口径', '当前', '较上月', '最新'], expRows,
+    .map(x => ({ 口径: x.name, 当前: x.value, 较上月: x.chg_1m, 观测期: x.as_of, 发布: x.released || '—' }));
+  esec.appendChild(R.table(['口径', '当前', '较上月', '观测期', '发布'], expRows,
     { 当前: v => `${v.toFixed(2)}%`, 较上月: v => v === null ? '—' : `${v > 0 ? '+' : ''}${v.toFixed(2)}pp` }));
   document.getElementById('expectations').appendChild(esec);
 

@@ -25,8 +25,10 @@ import pandas as pd
 from src.analysis_utils import chg_pct as _chg_pct
 from src.analysis_utils import chg_prev as _chg_prev
 from src.analysis_utils import latest as _latest
-from src.analysis_utils import read_csv_or_empty, zone
-from src.config import ROOT
+from src.analysis_utils import read_csv_or_empty, release_dates, zone
+from src.config import ROOT, config
+
+FRED_DIR = ROOT / "data" / "fred"
 
 # 分位窗口（交易日）：1Y / 3Y / 10Y，样本不足时用可用历史并标记
 W1Y, W3Y, W10Y = 250, 750, 2500
@@ -264,6 +266,13 @@ def overview(
             "pct_10y": d["pct_10y"],
         }
 
+    # 各明细行的发布时间（FRED 系列 → last_updated 日期）
+    rel = release_dates(FRED_DIR)
+    sid = {m: s for cat in config.fred_series.values() for m, s in cat.items()}
+
+    def _rel(metric: str) -> str:
+        return (rel.get(sid.get(metric, "")) or "")[:10]
+
     # OAS 分层表
     layers = []
     for name, col in [
@@ -281,6 +290,8 @@ def overview(
         elif col in df_cr:
             c = _oas_card(df_cr[col])
             layers.append({**c, "name": name})
+        if layers:
+            layers[-1]["released"] = _rel(col)
     spread_ccbb = _spread(df_cr, "CCC_OAS", "BB_OAS", "CCC − BB")
     spread_bbig = _spread(df_cr, "BBB_OAS", "IG_OAS", "BBB − IG")
 
@@ -289,6 +300,7 @@ def overview(
     for key, col in [("ig", "IG_YIELD"), ("hy", "HY_YIELD")]:
         card, _ = _latest_card(df_cr, col, 1, scale=100)
         if card:
+            card["released"] = _rel(col)
             funding[key] = card
     ff = _latest(df_rates["FEDFUNDS"]) if "FEDFUNDS" in df_rates else None
     d10 = _latest(df_rates["DGS10"]) if "DGS10" in df_rates else None
@@ -309,7 +321,11 @@ def overview(
     ]:
         card, _ = _latest_card(df_cr, col, 1)
         if card:
-            sloos.append({"name": name, **card})
+            # DRTSCREL 等停更系列：最新观测早于 2020 则当前值置空，
+            # 避免拿 2013 年旧数据冒充最新
+            if card["as_of"] < "2020-01-01":
+                card["value"] = None
+            sloos.append({"name": name, **card, "released": _rel(col)})
 
     # 贷款质量（季度，滞后但硬）
     quality = []
@@ -330,6 +346,7 @@ def overview(
                     "pct_10y": _pct(s, W10Y, p10),
                     "obs": p10["n"],
                     "full_10y": p10["full"],
+                    "released": _rel(col),
                 }
             )
 
@@ -346,7 +363,7 @@ def overview(
     ]:
         card, _ = _latest_card(df_src, col, 3)
         if card:
-            fincond[key] = card
+            fincond[key] = {**card, "released": _rel(col)}
 
     # 市场流动性代理：HYG / LQD 价格 + 成交量
     liq_etf = _liq_etf_cards(df_yf)

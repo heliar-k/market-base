@@ -28,7 +28,8 @@ import pandas as pd
 
 from src.analysis_utils import chg_prev as _chg_prev
 from src.analysis_utils import read_csv_or_empty
-from src.config import ROOT
+from src.analysis_utils import release_dates as _release_dates
+from src.config import ROOT, config
 
 FRED_DIR = ROOT / "data" / "fred"
 
@@ -190,6 +191,8 @@ def yoy_history(df: pd.DataFrame, months: int = 120) -> dict:
 
 def market_expectations(df: pd.DataFrame) -> list[dict]:
     """市场隐含预期（日频，变动按 21 个交易日）。"""
+    rel = _release_dates(FRED_DIR)
+    sid = config.fred_series["inflation"]
     rows = []
     for key, name in MARKET_EXPECT_LABELS.items():
         if key not in df:
@@ -204,6 +207,7 @@ def market_expectations(df: pd.DataFrame) -> list[dict]:
                 "value": round(float(s.iloc[-1]), 2),
                 "chg_1m": _pts_chg(s, 21),
                 "as_of": s.index[-1].strftime("%Y-%m-%d"),
+                "released": (rel.get(sid.get(key, "")) or "")[:10],
             }
         )
     return rows
@@ -211,6 +215,8 @@ def market_expectations(df: pd.DataFrame) -> list[dict]:
 
 def survey_expectations(df: pd.DataFrame, sce: pd.DataFrame) -> list[dict]:
     """调查端预期（月频，变动按上月，pp）。"""
+    rel = _release_dates(FRED_DIR)
+    sid = config.fred_series["inflation"]
     rows = []
     for key, name in SURVEY_EXPECT_LABELS.items():
         if key not in df:
@@ -225,6 +231,7 @@ def survey_expectations(df: pd.DataFrame, sce: pd.DataFrame) -> list[dict]:
                 "value": round(float(s.iloc[-1]), 2),
                 "chg_1m": _pts_chg(s, 1),
                 "as_of": s.index[-1].strftime("%Y-%m-%d"),
+                "released": (rel.get(sid.get(key, "")) or "")[:10],
             }
         )
     sce_labels = {
@@ -245,6 +252,7 @@ def survey_expectations(df: pd.DataFrame, sce: pd.DataFrame) -> list[dict]:
                 "value": round(float(s.iloc[-1]), 2),
                 "chg_1m": _pts_chg(s, 1),
                 "as_of": s.index[-1].strftime("%Y-%m-%d"),
+                "released": "",  # SCE 来自 NY Fed 官网，非 FRED 系列
             }
         )
     return rows
@@ -339,6 +347,8 @@ def generate_inflation_overview() -> dict:
         if k in df
     }
     comp = {k: v for k, v in comp.items() if v.get("value") is not None}
+    rel = _release_dates(FRED_DIR)
+    sid = config.fred_series["inflation"]
     shapiro_out = shapiro_block(shapiro)
     market = market_expectations(df)
     survey = survey_expectations(df, sce)
@@ -359,8 +369,9 @@ def generate_inflation_overview() -> dict:
                 "yoy": v["value"],
                 "chg_1m": v["chg_1m"],
                 "as_of": v["as_of"],
+                "released": (rel.get(sid.get(k, "")) or "")[:10],
             }
-            for v in comp.values()
+            for k, v in comp.items()
         ],
         "expectations": {"market": market, "survey": survey},
         "shapiro": shapiro_out,

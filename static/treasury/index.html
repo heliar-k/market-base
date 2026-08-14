@@ -84,8 +84,8 @@ async function load() {
   const tsec = document.createElement('div');
   tsec.className = 're-section';
   tsec.innerHTML = '<h2>海外持仓明细（TIC，月频滞后 2 月）</h2>';
-  tsec.appendChild(R.table(['持有方', '持仓', '1Y 变化', '最新'],
-    d.holdings.map(x => ({ 持有方: x.name, 持仓: x.value_b, '1Y 变化': x.chg_1y_b, 最新: x.as_of })),
+  tsec.appendChild(R.table(['持有方', '持仓', '1Y 变化', '观测期', '发布'],
+    d.holdings.map(x => ({ 持有方: x.name, 持仓: x.value_b, '1Y 变化': x.chg_1y_b, 观测期: x.as_of, 发布: x.released || '—' })),
     { 持仓: v => `$${v.toLocaleString()}B`, '1Y 变化': v => v === null ? '—' : `${v > 0 ? '+' : ''}${v.toFixed(0)}B` }));
   document.getElementById('holdings').appendChild(tsec);
 
@@ -94,8 +94,8 @@ async function load() {
     const msec = document.createElement('div');
     msec.className = 're-section';
     msec.innerHTML = '<h2>未偿债务结构（MSPD，月度）</h2>';
-    msec.appendChild(R.table(['品种', '规模', '占比'],
-      d.mspd.map(x => ({ 品种: x.name, 规模: x.value_t, 占比: x.share })),
+    msec.appendChild(R.table(['品种', '规模', '占比', '观测期'],
+      d.mspd.map(x => ({ 品种: x.name, 规模: x.value_t, 占比: x.share, 观测期: x.as_of })),
       { 规模: v => `$${v.toFixed(2)}万亿`, 占比: v => v === null ? '—' : `${v}%` }));
     document.getElementById('mspd').appendChild(msec);
   }
