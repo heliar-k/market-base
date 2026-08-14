@@ -86,7 +86,7 @@ async function load() {
   tsec.innerHTML = '<h2>海外持仓明细（TIC，月频滞后 2 月）</h2>';
   tsec.appendChild(R.table(['持有方', '持仓', '1Y 变化', '观测期', '发布'],
     d.holdings.map(x => ({ 持有方: x.name, 持仓: x.value_b, '1Y 变化': x.chg_1y_b, 观测期: x.as_of, 发布: x.released || '—' })),
-    { 持仓: v => `$${v.toLocaleString()}B`, '1Y 变化': v => v === null ? '—' : `${v > 0 ? '+' : ''}${v.toFixed(0)}B` }));
+    { 持仓: v => `$${v.toLocaleString()}B`, '1Y 变化': v => v === null ? '—' : `<span class="${v > 0 ? 'up' : v < 0 ? 'down' : ''}">${v > 0 ? '+' : ''}${v.toFixed(0)}B</span>` }, null, true));
   document.getElementById('holdings').appendChild(tsec);
 
   // ── 债务结构 ──

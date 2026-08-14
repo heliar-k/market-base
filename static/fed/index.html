@@ -67,7 +67,7 @@ async function load() {
 
   // ── 统计卡：鹰鸽指示器 + 下次会议 + 最新声明/演讲 ──
   document.getElementById('re-cards').replaceChildren(R.cards([
-    { label: '鹰鸽指示器', value: `${ind.score > 0 ? '+' : ''}${ind.score} / 5`, sub: `${ind.label}（最近 ${ind.sample} 条）`, accent: true },
+    { label: '鹰鸽指示器', value: `${ind.score > 0 ? '+' : ''}${ind.score} 分`, sub: `${ind.label} · 范围 -5 鸽 ~ +5 鹰（最近 ${ind.sample} 条）`, accent: true },
     { label: '下次 FOMC', value: days > 0 ? `${days} 天` : '会议中', sub: nextTxt },
     { label: '目标利率', value: R.fmtPct(cal.target_lower) + '–' + R.fmtPct(cal.target_upper), sub: '联邦基金目标区间' },
     { label: '最新声明', value: latestStmt?.label, sub: latestStmt?.date, },

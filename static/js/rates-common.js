@@ -56,7 +56,8 @@ const R = {
   // 数据表格（复用 expectations 页的 re-table 样式）
   // keys: 可选，显式指定每列对应的行键；缺省按 Object.keys(row) 顺序取列
   // （行键顺序与列头不一致时会错列，显式 keys 可避免——审计 P1-③）
-  table(headers, rows, formatters = {}, keys = null) {
+  // html: true 时单元格用 innerHTML（允许 formatter 返回带 <span> 的着色文本）
+  table(headers, rows, formatters = {}, keys = null, html = false) {
     const wrap = document.createElement('div');
     wrap.className = 're-table-wrap';
     const table = document.createElement('table');
@@ -73,7 +74,8 @@ const R = {
         const td = document.createElement('td');
         const key = (keys && keys[j]) || Object.keys(row)[j];
         const fmt = formatters[key] || ((v) => (v === null || v === undefined || v === '' ? '—' : String(v)));
-        td.textContent = fmt(row[key], row);
+        const cell = fmt(row[key], row);
+        if (html) td.innerHTML = cell; else td.textContent = cell;
         r.appendChild(td);
       });
       tbody.appendChild(r);

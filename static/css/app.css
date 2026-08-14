@@ -52,8 +52,8 @@ body { font-family: system-ui, -apple-system, sans-serif; background: var(--bg);
 [data-view="dashboard"] .dashboard-view { display: flex; }
 [data-view="tech"] .tech-view { display: flex; }
 [data-view="tech"] .sidebar { display: flex; }
-[data-view="macro"] .macro-view { display: flex; }
-[data-view="correlation"] .correlation-view { display: flex; }
+[data-view="macro"] .macro-view { display: flex; min-height: 0; }
+[data-view="correlation"] .correlation-view { display: flex; min-height: 0; }
 
 /* ── dashboard ────────────────────────────────────────────── */
 .dashboard-view {
@@ -150,7 +150,7 @@ body { font-family: system-ui, -apple-system, sans-serif; background: var(--bg);
 
 /* ── chart containers ───────────────────────────────────── */
 .chart-card { background: var(--surface); border-radius: 8px; border: 1px solid var(--border); overflow: hidden; }
-#macro-chart-card { overflow: visible; }
+#macro-chart-card { overflow: visible; min-height: 0; }
 /* tech charts: distribute remaining vertical space 5:3:3 */
 .tech-view .chart-card { display: flex; flex-direction: column; }
 .tech-view .chart-card:has(#main-chart)   { flex: 5; }

@@ -151,7 +151,7 @@ async function load() {
         { type: 'value', scale: true, splitNumber: 4, name: 'RRP', nameTextStyle: { color: colors.muted }, axisLabel: { color: colors.muted, formatter: axisFmt(rrp) }, splitLine: { lineStyle: { color: colors.grid } } },
         { type: 'value', scale: true, splitNumber: 4, name: '准备金', nameTextStyle: { color: colors.muted }, axisLabel: { color: colors.muted, formatter: axisFmt(res) }, splitLine: { show: false } },
       ],
-      legend: { top: 4, left: 8, textStyle: { color: colors.text } },
+      legend: { top: 4, left: 'center', textStyle: { color: colors.text } },
       series,
     };
   });

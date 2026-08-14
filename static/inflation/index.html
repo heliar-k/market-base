@@ -89,7 +89,7 @@ async function load() {
   csec.innerHTML = '<h2>CPI / PCE 分项同比</h2><p style="margin:0">核心商品 &lt; 0 = 商品通缩；住所与超级核心是服务通胀粘性的主要观察点。</p>';
   csec.appendChild(R.table(['分项', '同比', '较上月', '观测期', '发布'],
     d.components.map(x => ({ 分项: x.name, 同比: x.yoy, 较上月: x.chg_1m, 观测期: x.as_of, 发布: x.released || '—' })),
-    { 同比: v => v === null ? '—' : `${v.toFixed(2)}%`, 较上月: v => v === null ? '—' : `${v > 0 ? '+' : ''}${v.toFixed(2)}pp` }));
+    { 同比: v => v === null ? '—' : `${v.toFixed(2)}%`, 较上月: v => v === null ? '—' : `<span class="${v > 0 ? 'up' : v < 0 ? 'down' : ''}">${v > 0 ? '+' : ''}${v.toFixed(2)}pp</span>` }, null, true));
   document.getElementById('components').appendChild(csec);
 
   // ── 通胀预期 ──
@@ -99,7 +99,7 @@ async function load() {
   const expRows = [...d.expectations.market, ...d.expectations.survey]
     .map(x => ({ 口径: x.name, 当前: x.value, 较上月: x.chg_1m, 观测期: x.as_of, 发布: x.released || '—' }));
   esec.appendChild(R.table(['口径', '当前', '较上月', '观测期', '发布'], expRows,
-    { 当前: v => `${v.toFixed(2)}%`, 较上月: v => v === null ? '—' : `${v > 0 ? '+' : ''}${v.toFixed(2)}pp` }));
+    { 当前: v => `${v.toFixed(2)}%`, 较上月: v => v === null ? '—' : `<span class="${v > 0 ? 'up' : v < 0 ? 'down' : ''}">${v > 0 ? '+' : ''}${v.toFixed(2)}pp</span>` }, null, true));
   document.getElementById('expectations').appendChild(esec);
 
   // ── Shapiro 供需分解 ──

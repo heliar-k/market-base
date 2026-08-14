@@ -56,11 +56,21 @@ async function load() {
   // ── NFP bar + 失业率 line ──
   const hsec = document.createElement('div');
   hsec.className = 're-section';
-  hsec.innerHTML = '<h2>非农月度新增 vs 失业率（近 3 年）</h2><div id="nfp-chart" style="height:340px"></div>';
+  hsec.innerHTML = '<h2>非农月度新增 vs 失业率（近 3 年）</h2><p style="margin:0">2025-10 失业率无数据：政府停摆使 BLS 未采集当月 CPS，官方宣布不回溯补采。</p><div id="nfp-chart" style="height:340px"></div>';
   document.getElementById('history').appendChild(hsec);
   const h = d.nfp_history;
+  // 失业率缺失月（如 2025-10 政府停摆未采集 CPS）用菱形标记标出，y 取前后值中点
+  const missingMonths = [];
+  h.dates.forEach((dt, i) => {
+    if (h.nfp[i] != null && h.unrate[i] == null) {
+      let prev = null, next = null;
+      for (let j = i - 1; j >= 0; j--) { if (h.unrate[j] != null) { prev = h.unrate[j]; break; } }
+      for (let j = i + 1; j < h.dates.length; j++) { if (h.unrate[j] != null) { next = h.unrate[j]; break; } }
+      missingMonths.push({ coord: [dt, prev != null && next != null ? (prev + next) / 2 : (prev ?? next)], value: '未发布' });
+    }
+  });
   R.mkChart('nfp-chart', (colors) => ({
-    legend: { top: 4, right: 8, textStyle: { color: colors.text } },
+    legend: { top: 4, left: 'center', textStyle: { color: colors.text } },
     grid: { left: '3%', right: '3%', bottom: 24, top: 36, containLabel: true },
     xAxis: { type: 'time', axisLabel: { color: colors.text } },
     yAxis: [
@@ -70,7 +80,13 @@ async function load() {
     tooltip: { trigger: 'axis' },
     series: [
       { name: 'NFP', type: 'bar', data: h.dates.map((dt, i) => [dt, h.nfp[i]]), itemStyle: { color: colors.blue } },
-      { name: '失业率', type: 'line', yAxisIndex: 1, showSymbol: false, data: h.dates.map((dt, i) => [dt, h.unrate[i]]), lineStyle: { width: 1.5 }, itemStyle: { color: colors.orange } },
+      { name: '失业率', type: 'line', yAxisIndex: 1, showSymbol: false, data: h.dates.map((dt, i) => [dt, h.unrate[i]]), lineStyle: { width: 1.5 }, itemStyle: { color: colors.orange },
+        markPoint: {
+          symbol: 'diamond', symbolSize: 13,
+          data: missingMonths,
+          itemStyle: { color: colors.orange },
+          label: { show: true, formatter: p => p.value, position: 'top', fontSize: 10, color: colors.text },
+        } },
     ],
   }));
 
@@ -82,8 +98,8 @@ async function load() {
     d.indicators.map(x => ({ 指标: x.name, 最新: x.value, 较上期: x.chg, 观测期: x.as_of, 发布: x.released || '—', unit: x.unit })),
     {
       最新: (v, r) => `${v.toLocaleString()}${r.unit === '指数' ? '' : r.unit}`,
-      较上期: v => v === null ? '—' : `${v > 0 ? '+' : ''}${v.toLocaleString()}`,
-    }, ['指标', '最新', '较上期', '观测期', '发布']));
+      较上期: v => v === null ? '—' : `<span class="${v > 0 ? 'up' : v < 0 ? 'down' : ''}">${v > 0 ? '+' : ''}${v.toLocaleString()}</span>`,
+    }, ['指标', '最新', '较上期', '观测期', '发布'], true));
   document.getElementById('indicators').appendChild(tsec);
 
   document.getElementById('re-gen').textContent = `研判由规则引擎生成（${d.generator}）· ${d.as_of} · NFP = PAYEMS 一阶差分；V/U = JOLTS 空缺 / 失业人数`;

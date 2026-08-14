@@ -144,10 +144,13 @@ async function load() {
     <h3>【时间框架】</h3><p>${d.time_frame}</p>`;
 
   // ── 明细表 ──
+  const bpHtml = v => v === null || v === undefined ? '—'
+    : `<span class="${v > 0 ? 'up' : v < 0 ? 'down' : ''}">${Number(v) > 0 ? '+' : ''}${Number(v).toFixed(1)}</span>`;
   document.getElementById('re-tenors').replaceChildren(R.table(
     ['期限', '当前', '1周前', '1月前', '3月前', 'vs 1周', 'vs 1月', 'vs 3月'],
     tenors.map(t => ({ t: t.tenor, cur: t.current, w1: t.prev_1w, m1: t.prev_1m, m3: t.prev_3m, c1: t.chg_1w, c2: t.chg_1m, c3: t.chg_3m })),
-    { cur: R.fmtPct, w1: R.fmtPct, m1: R.fmtPct, m3: R.fmtPct, c1: R.fmtBp, c2: R.fmtBp, c3: R.fmtBp },
+    { cur: R.fmtPct, w1: R.fmtPct, m1: R.fmtPct, m3: R.fmtPct, c1: bpHtml, c2: bpHtml, c3: bpHtml },
+    null, true,
   ));
 }
 
