@@ -22,7 +22,7 @@ import pandas as pd
 
 from src.analysis_utils import chg_prev as _chg_prev
 from src.analysis_utils import read_csv_or_empty
-from src.config import ROOT
+from src.config import ROOT, config
 
 FRED_DIR = ROOT / "data" / "fred"
 
@@ -160,8 +160,17 @@ def nfp_history(labor: pd.DataFrame, months: int = 36) -> dict:
     }
 
 
+def _release_dates() -> dict[str, str]:
+    """FRED 系列 → last_updated（最近发布/修订日，data/fred/_release_dates.csv）。"""
+    p = FRED_DIR / "_release_dates.csv"
+    if not p.exists():
+        return {}
+    df = pd.read_csv(p, dtype=str)
+    return dict(zip(df.series_id, df.last_updated))
+
+
 def indicators_table(labor: pd.DataFrame, lm: pd.DataFrame) -> list[dict]:
-    """7 指标最新值 + 较上期变化（ICSA 按 4 周前，ECI 按上季）。"""
+    """7 指标最新值 + 较上期变化（ICSA 按 4 周前，ECI 按上季）+ 发布时间。"""
     src = {
         **{k: labor[k] for k in ("UNRATE", "PAYEMS", "ICSA") if k in labor},
         **{
@@ -170,6 +179,9 @@ def indicators_table(labor: pd.DataFrame, lm: pd.DataFrame) -> list[dict]:
             if k in lm
         },
     }
+    # 指标名 → FRED 系列 ID（查发布日用）
+    sid = {**config.fred_series["labor"], **config.fred_series["labor_market"]}
+    rel = _release_dates()
     lag = {"ICSA": 4, "ECI_WAGES": 1}
     rows = []
     for key, (name, unit) in INDICATOR_LABELS.items():
@@ -181,6 +193,7 @@ def indicators_table(labor: pd.DataFrame, lm: pd.DataFrame) -> list[dict]:
             continue
         v, dt = pair
         prev = _chg_prev(s, lag.get(key, 1))
+        rel_date = (rel.get(sid.get(key, "")) or "")[:10]
         rows.append(
             {
                 "name": name,
@@ -188,6 +201,7 @@ def indicators_table(labor: pd.DataFrame, lm: pd.DataFrame) -> list[dict]:
                 "unit": unit,
                 "chg": round(prev[0] - prev[1], 2) if prev else None,
                 "as_of": dt.strftime("%Y-%m-%d"),
+                "released": rel_date,
             }
         )
     return rows

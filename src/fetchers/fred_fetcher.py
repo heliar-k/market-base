@@ -29,11 +29,16 @@ def fetch_all_fred() -> dict[str, "object"]:
     """拉取全部 FRED 系列，按分类返回 {category: DataFrame}。
 
     每个 DataFrame index=观测日（字符串），列=指标名。单系列失败跳过并告警，不影响其余。
+    同时拉取各系列 last_updated（最近发布/修订时间）写入 data/fred/_release_dates.csv，
+    供页面展示「观测期 + 发布时间」。
     """
     import pandas as pd
 
+    from ..config import ROOT
+
     fred = _get_fred()
     result: dict[str, pd.DataFrame] = {}
+    releases: list[dict] = []
     for cat, series_map in config.fred_series.items():
         dfs = []
         for metric, series_id in series_map.items():
@@ -51,9 +56,22 @@ def fetch_all_fred() -> dict[str, "object"]:
                 )
             except Exception as e:
                 logger.warning(f"  {metric}({series_id}): 拉取失败 → {e}")
+                continue
+            try:
+                info = fred.get_series_info(series_id)
+                if info and info.get("last_updated"):
+                    releases.append(
+                        {"series_id": series_id, "last_updated": info["last_updated"]}
+                    )
+            except Exception as e:
+                logger.warning(f"  {metric}({series_id}): 元数据拉取失败 → {e}")
         if dfs:
             combined = dfs[0] if len(dfs) == 1 else pd.concat(dfs, axis=1)
             result[cat] = combined.sort_index()
+    if releases:
+        pd.DataFrame(releases).to_csv(
+            ROOT / "data" / "fred" / "_release_dates.csv", index=False
+        )
     return result
 
 

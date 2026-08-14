@@ -248,7 +248,7 @@ FRED_SERIES = {
     },
     "labor_market": {
         "JOLTS_OPEN": "JTSJOL",
-        "JOLTS_QUITS": "JTSQUR",
+        "JOLTS_QUITS": "JTSQUL",  # 离职人数（千人）；JTSQUR 是离职率（%），勿用
         "UNEMPLOY": "UNEMPLOY",
         "ECI_WAGES": "ECIWAG",
     },
