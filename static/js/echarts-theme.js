@@ -40,7 +40,7 @@ function buildTheme(dark) {
       axisLabel: { color: t.textMuted, fontSize: 10 }, splitLine: { lineStyle: { color: t.borderSubtle } },
     },
     grid: { left: '3%', right: '4%', bottom: '3%', top: 48, containLabel: true },
-    color: ['#1a73e8', '#ff9800', '#26a69a', '#ef5350', '#9c27b0', '#00bcd4', '#ff5722', '#607d8b'],
+    color: ['#1a73e8', '#ff9800', '#26a69a', '#ef5350', '#9c27b0', '#00bcd4', '#7c4dff', '#607d8b'],
     line: { lineStyle: { width: 2 }, symbol: 'none' },
     bar: { itemStyle: { borderRadius: [2, 2, 0, 0] } },
   };

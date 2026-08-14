@@ -103,7 +103,7 @@ async function load() {
     xAxis: {
       type: 'category',
       data: [...new Set(tl.map(x => x.date))],
-      axisLabel: { color: c.text, fontSize: 10 },
+      axisLabel: { color: c.text, fontSize: 10, rotate: 45, hideOverlap: true },
       axisLine: { lineStyle: { color: c.border } },
     },
     yAxis: {

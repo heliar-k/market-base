@@ -128,12 +128,17 @@ async function load() {
   R.mkChart('liq-seesaw', (colors) => {
     const series = [];
     const rrp = from(d.series.RRPONTSYD);
+    const res = from(d.series.WRESBAL);
+    // 单轴统一单位：轴峰值 ≥ 1 万亿全部用万亿，否则全部用亿（避免 5000亿/1.0万亿 混排）
+    const axisFmt = data => {
+      const max = Math.max(...data.map(([, v]) => v));
+      return max >= 1e6 ? v => (v / 1e6).toFixed(1) + '万亿' : v => parseFloat((v / 100).toFixed(1)) + '亿';
+    };
     if (rrp.length) series.push({
       name: LABELS.RRPONTSYD, type: 'line', data: rrp, yAxisIndex: 0,
       lineStyle: { color: COLORS.RRPONTSYD, width: 2 }, itemStyle: { color: COLORS.RRPONTSYD },
       showSymbol: false, emphasis: { focus: 'series' },
     });
-    const res = from(d.series.WRESBAL);
     if (res.length) series.push({
       name: LABELS.WRESBAL, type: 'line', data: res, yAxisIndex: 1,
       lineStyle: { color: COLORS.WRESBAL, width: 2 }, itemStyle: { color: COLORS.WRESBAL },
@@ -143,8 +148,8 @@ async function load() {
       ...axisStyle(colors),
       grid: { left: '3%', right: '8%', bottom: 48, top: 40, containLabel: true },
       yAxis: [
-        { type: 'value', scale: true, splitNumber: 4, name: 'RRP', nameTextStyle: { color: colors.muted }, axisLabel: { color: colors.muted, formatter: v => fmtT(v) }, splitLine: { lineStyle: { color: colors.grid } } },
-        { type: 'value', scale: true, splitNumber: 4, name: '准备金', nameTextStyle: { color: colors.muted }, axisLabel: { color: colors.muted, formatter: v => fmtT(v) }, splitLine: { show: false } },
+        { type: 'value', scale: true, splitNumber: 4, name: 'RRP', nameTextStyle: { color: colors.muted }, axisLabel: { color: colors.muted, formatter: axisFmt(rrp) }, splitLine: { lineStyle: { color: colors.grid } } },
+        { type: 'value', scale: true, splitNumber: 4, name: '准备金', nameTextStyle: { color: colors.muted }, axisLabel: { color: colors.muted, formatter: axisFmt(res) }, splitLine: { show: false } },
       ],
       legend: { top: 4, left: 8, textStyle: { color: colors.text } },
       series,

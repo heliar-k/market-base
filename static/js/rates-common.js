@@ -28,8 +28,8 @@ const R = {
       border: dark ? '#30363d' : '#e1e4e8',
       grid: dark ? '#2d333b' : '#f0f0f0',
       bg: dark ? '#161b22' : '#fff',
-      blue: '#3b82f6', orange: '#fb923c', green: '#34d399',
-      red: '#f87171', gray: '#9ca3af', purple: '#a78bfa',
+      blue: '#3b82f6', orange: '#ff9800', green: '#26a69a',
+      red: '#ef5350', gray: '#9ca3af', purple: '#a78bfa',
     };
   },
 

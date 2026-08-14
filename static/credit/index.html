@@ -67,7 +67,7 @@ async function load() {
   // ── 利差卡片行 ──
   const pctStr = c => c.pct_10y === null || c.pct_10y === undefined
     ? '10Y 分位 —'
-    : `10Y 分位 ${c.pct_10y}%` + (c.full_10y ? '' : `（仅 ${c.obs} 条）`);
+    : `10Y 分位 ${c.pct_10y}%` + (c.full_10y || c.obs == null ? '' : `（仅 ${c.obs} 条）`);
   const card = (label, c, unit) => `
     <div class="oas-card">
       <div class="label">${label}</div>
@@ -125,9 +125,9 @@ async function load() {
     fsec.appendChild(R.table(['指标', '当前', '对比'], [
       { 指标: 'IG 有效收益率', 当前: f.ig.value, 对比: f.ig.as_of },
       { 指标: 'HY 有效收益率', 当前: f.hy.value, 对比: f.hy.as_of },
-      { 指标: 'HY − 联邦基金利率', 当前: f.hy_ff, 对比: 'bp' },
-      { 指标: 'HY − 10Y 国债', 当前: f.hy_10y, 对比: 'bp' },
-    ], { 当前: (v, r) => v === null || v === undefined ? '—' : r.对比 === 'bp' ? `${v.toFixed(0)}bp` : `${(v / 100).toFixed(2)}%` }));
+      { 指标: 'HY − 联邦基金利率', 当前: f.hy_ff == null ? '—' : `${f.hy_ff.toFixed(0)}bp`, 对比: f.ig.as_of },
+      { 指标: 'HY − 10Y 国债', 当前: f.hy_10y == null ? '—' : `${f.hy_10y.toFixed(0)}bp`, 对比: f.ig.as_of },
+    ], { 当前: (v) => v === null || v === undefined ? '—' : typeof v === 'number' ? `${(v / 100).toFixed(2)}%` : String(v) }));
   }
   document.getElementById('funding').appendChild(fsec);
 

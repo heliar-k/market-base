@@ -88,7 +88,7 @@ async function load() {
   // ── SKEW 历史 + 阈值线 ──
   R.mkChart('skew_chart', () => ({
     tooltip: { trigger: 'axis' },
-    grid: { left: 55, right: 20, top: 36, bottom: 30 },
+    grid: { left: 55, right: 64, top: 36, bottom: 30 },
     xAxis: { type: 'category', data: data.vix_history.dates, axisLabel: { color: c.muted } },
     yAxis: { ...axis('SKEW'), min: 100 },
     series: [{
@@ -97,9 +97,9 @@ async function load() {
       markLine: {
         silent: true, symbol: 'none',
         data: [
-          { yAxis: 130, label: { color: '#fbbf24', formatter: '偏低 130' }, lineStyle: { color: '#fbbf24', type: 'dashed', width: 1 } },
-          { yAxis: 140, label: { color: '#fb923c', formatter: '偏高 140' }, lineStyle: { color: '#fb923c', type: 'dashed', width: 1 } },
-          { yAxis: 150, label: { color: '#f87171', formatter: '极端 150' }, lineStyle: { color: '#f87171', type: 'dashed', width: 1 } },
+          { yAxis: 130, label: { color: '#ff9800', formatter: '偏低 130' }, lineStyle: { color: '#ff9800', type: 'dashed', width: 1 } },
+          { yAxis: 140, label: { color: '#ff9800', formatter: '偏高 140' }, lineStyle: { color: '#ff9800', type: 'dashed', width: 1 } },
+          { yAxis: 150, label: { color: '#ef5350', formatter: '极端 150' }, lineStyle: { color: '#ef5350', type: 'dashed', width: 1 } },
         ],
       },
     }],

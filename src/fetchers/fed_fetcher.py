@@ -59,6 +59,7 @@ _TAG_RE = re.compile(r"<[^>]+>")
 def _get(url: str) -> str:
     r = _SESSION.get(url, timeout=20)
     r.raise_for_status()
+    r.encoding = "utf-8"  # 站点未声明 charset，requests 默认 latin-1 会把 — 解成乱码
     time.sleep(DELAY)
     return r.text
 
@@ -67,6 +68,8 @@ def _extract_body(html: str) -> str:
     """提取正文纯文本（声明/演讲页共用容器）。"""
     m = _BODY_RE.search(html)
     body = m.group(1) if m else html
+    # 视频无障碍说明块（sr-only，含 Accessible Keys for Video）不是正文
+    body = re.sub(r'<div class="sr-only">.*?</div>', " ", body, flags=re.S)
     body = re.sub(r"<script.*?</script>", "", body, flags=re.S)
     # 标签→空格（内联标签不拆词），再折叠多余空白、保留段落
     text = unescape(_TAG_RE.sub(" ", body))

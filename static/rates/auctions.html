@@ -92,7 +92,7 @@ async function load() {
       max: Math.max(...tailCells.map(c => c[2])),
       orient: 'horizontal', left: 'left', bottom: 0,
       text: ['弱（bp 高）', '强'], textStyle: { color: colors.muted, fontSize: 10 },
-      inRange: { color: ['#86efac', '#fbbf24', '#ef4444'] },
+      inRange: { color: ['#26a69a', '#ff9800', '#ef5350'] },
       formatter: v => v.toFixed(1),
     },
     series: [{
@@ -115,7 +115,7 @@ async function load() {
       const pts = d.indirect_trend[n];
       const mean = pts.reduce((s, p) => s + p.value, 0) / pts.length;
       return {
-        name: n, type: 'line',
+        name: n, type: 'line', color: m, // 图例图标取 series 顶层 color，只设 lineStyle/itemStyle 会用到调色板默认色
         data: pts.map(p => ({
           value: [p.date, p.value],
           symbol: p.reopening ? 'emptyCircle' : 'circle',
