@@ -50,12 +50,12 @@ async function load() {
   document.getElementById('re-cards').replaceChildren(R.cards([
     { label: '联邦基金有效利率', value: R.fmtPct(l.effr?.value), sub: l.effr?.as_of, accent: true },
     { label: 'SOFR 利率', value: R.fmtPct(l.sofr?.value), sub: l.sofr?.as_of },
-    { label: 'FOMC 目标区间', value: l.target ? `${l.target[0].toFixed(2)} – ${l.target[1].toFixed(2)}%` : '—' },
+    { label: 'FOMC 目标区间', value: l.target ? `${l.target[0].toFixed(2)}–${l.target[1].toFixed(2)}%` : '—' },
     { label: '下次 FOMC', value: next, sub: `${cal.next?.year ?? ''}` },
     { label: '25th-75th 价差', value: `${p2575} bp`, sub: '核心分散度' },
     { label: '1st-99th 价差', value: `${p199} bp`, sub: '极端范围' },
     { label: 'SOFR 距目标上限', value: l.target && l.sofr ? `${((l.target[1] - l.sofr.value) * 100).toFixed(1)}bp` : '—', sub: '越接近 = 流动性越紧' },
-    { label: 'SOFR 成交量', value: l.sofr_vol ? `${(l.sofr_vol.value / 10000).toFixed(2)} 万亿美元` : '—', sub: l.sofr_vol?.as_of },
+    { label: 'SOFR 成交量', value: l.sofr_vol ? `${(l.sofr_vol.value / 1000).toFixed(2)} 万亿` : '—', sub: l.sofr_vol?.as_of },
   ]));
 
   // ── 走廊图：EFFR/SOFR/TGCR/BGCR/ONRRP 五利率 + 目标区间 ──
@@ -63,7 +63,7 @@ async function load() {
     legend: { data: ['EFFR', 'SOFR', 'TGCR', 'BGCR', 'ONRRP', '目标上限', '目标下限'], top: 4, right: 8, textStyle: { color: colors.text, fontSize: 11 } },
     tooltip: { trigger: 'axis', valueFormatter: v => `${Number(v).toFixed(2)}%` },
     grid: { top: 36, left: 48, right: 16, bottom: 56 },
-    dataZoom: [{ type: 'inside' }, { type: 'slider', bottom: 8, height: 18 }],
+    dataZoom: [{ type: 'inside' }, { type: 'slider', bottom: 16, height: 18 }],
     xAxis: { type: 'category', data: R.ts(c.sofr), axisLabel: { color: colors.muted, fontSize: 10 }, axisLine: { lineStyle: { color: colors.border } } },
     yAxis: { type: 'value', scale: true, axisLabel: { color: colors.muted, formatter: '{value}%' }, splitLine: { lineStyle: { color: colors.grid } } },
     series: [
@@ -81,7 +81,7 @@ async function load() {
   R.mkChart('sofr_vol_chart', (colors) => ({
     tooltip: { trigger: 'axis' },
     grid: { top: 16, left: 48, right: 16, bottom: 56 },
-    dataZoom: [{ type: 'inside' }, { type: 'slider', bottom: 8, height: 18 }],
+    dataZoom: [{ type: 'inside' }, { type: 'slider', bottom: 16, height: 18 }],
     xAxis: { type: 'category', data: R.ts(d.sofr_vol), axisLabel: { color: colors.muted, fontSize: 10 }, axisLine: { lineStyle: { color: colors.border } } },
     yAxis: { type: 'value', axisLabel: { color: colors.muted }, splitLine: { lineStyle: { color: colors.grid } } },
     series: [{ type: 'bar', data: R.vs(d.sofr_vol), barMaxWidth: 8, itemStyle: { color: colors.blue } }],
@@ -91,7 +91,7 @@ async function load() {
   R.mkChart('effr_chart', (colors) => ({
     tooltip: { trigger: 'axis', valueFormatter: v => `${Number(v).toFixed(2)}%` },
     grid: { top: 16, left: 48, right: 16, bottom: 56 },
-    dataZoom: [{ type: 'inside' }, { type: 'slider', bottom: 8, height: 18 }],
+    dataZoom: [{ type: 'inside' }, { type: 'slider', bottom: 16, height: 18 }],
     xAxis: { type: 'category', data: R.ts(d.effr_history), axisLabel: { color: colors.muted, fontSize: 10 }, axisLine: { lineStyle: { color: colors.border } } },
     yAxis: { type: 'value', scale: true, axisLabel: { color: colors.muted, formatter: '{value}%' }, splitLine: { lineStyle: { color: colors.grid } } },
     series: [{ type: 'line', data: R.vs(d.effr_history), symbol: 'none', lineStyle: { color: colors.blue, width: 2 }, areaStyle: { color: 'rgba(59,130,246,0.08)' } }],

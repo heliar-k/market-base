@@ -4,7 +4,7 @@
   <link rel="icon" href="/favicon.svg" type="image/svg+xml">
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>美债需求 — US Macro</title>
+<title>美债 — US Macro</title>
 <link rel="stylesheet" href="/css/app.css">
 <link rel="stylesheet" href="/css/special.css">
 <script src="/vendor/echarts.min.js"></script>
@@ -12,28 +12,40 @@
 <body>
 <div class="re-root">
   <div class="re-header">
-    <h1>美债需求</h1>
+    <h1>美债</h1>
     <span class="re-as-of" id="re-as-of"></span>
   </div>
 
   <div class="re-nav" id="re-nav"></div>
+  <div class="page-toc" id="page-toc"></div>
 
   <div id="cards"></div>
   <div id="re-signals"></div>
+  <div id="auctions"></div>
   <div id="history"></div>
   <div id="holdings"></div>
   <div id="mspd"></div>
   <div id="refunding"></div>
+  <div class="re-source">数据来源：美国财政部 Fiscal Data API（auctions_query / upcoming_auctions / MSPD）+ FRED TIC 持仓，每日自动同步；Bill 占比 = MSPD 月频 + 本地日频派生；借款估算 = QRA 再融资声明。</div>
   <div class="re-gen" id="re-gen"></div>
 </div>
 
 <script src="/js/rates-common.js"></script>
 <script>
 async function load() {
-  const d = await R.get('/api/treasury/overview');
+  // 小节锚点导航（长页快速跳转；sticky 见 special.css .page-toc）
+  document.getElementById('page-toc').innerHTML = [
+    ['概览', 'cards'], ['研判', 're-signals'], ['拍卖', 'auctions'],
+    ['海外持仓', 'history'], ['债务结构', 'mspd'], ['再融资', 'refunding'],
+  ].map(([t, id]) => `<a href="#${id}">${t}</a>`).join('');
+
+  const [d, auc] = await Promise.all([
+    R.get('/api/treasury/overview'),
+    R.get('/api/rates/auctions'),
+  ]);
   document.getElementById('re-as-of').textContent = '数据截至 ' + d.as_of;
 
-  // ── 卡片行 ──
+  // ── 卡片行：需求 ──
   const c = d.cards;
   const netLabel = c.net_total.value >= 0 ? '净买入' : '净卖出';
   document.getElementById('cards').appendChild(R.cards([
@@ -46,7 +58,7 @@ async function load() {
   // ── 研判（三段式） ──
   const sec = document.createElement('div');
   sec.className = 're-section';
-  sec.innerHTML = '<h2>美债需求研判</h2>';
+  sec.innerHTML = '<h2>美债研判</h2>';
   (d.signals || []).forEach(s => {
     const b = document.createElement('div');
     b.className = 'sig-block';
@@ -55,6 +67,163 @@ async function load() {
   });
   sec.innerHTML += '<div class="note">rule-based · no direct price forecast</div>';
   document.getElementById('re-signals').appendChild(sec);
+
+  // ══ 拍卖（发行端） ══
+  const asec = document.createElement('div');
+  asec.className = 're-section';
+  const good = auc.avg_cover_10_coupon !== null && auc.avg_cover_10_coupon >= 2.5;
+  const borrow = auc.borrowing;
+  asec.innerHTML = `<h2>国债拍卖</h2><p style="margin:0">Bid-to-Cover = 投标倍数（>2.5x 需求良好，<2.0x 警戒）；间接% = 外国官方+国际机构接受占比；Tail = 中标利率 − 中位投标利率（bp，正 = 弱于预期）。</p>`;
+  document.getElementById('auctions').appendChild(asec);
+  asec.appendChild(R.cards([
+    { label: '近 10 场付息券平均 Bid-to-Cover', value: auc.avg_cover_10_coupon === null ? '—' : `${auc.avg_cover_10_coupon.toFixed(2)}x`, sub: good ? '需求良好' : '需求偏弱', accent: true },
+    { label: '未来 3 周拍卖场次', value: auc.upcoming_count, sub: '按拍卖日排序见下方日历' },
+    ...(borrow && borrow.current_b ? [{ label: `QRA 借款估算（${borrow.quarter}）`, value: `$${borrow.current_b}B`, sub: borrow.chg_b ? `较上次 ${borrow.chg_b}B ${borrow.chg_dir === 'higher' ? '↑' : '↓'}（${borrow.date}）` : borrow.date, accent: borrow.chg_dir === 'higher' }] : []),
+  ]));
+
+  asec.innerHTML += '<h3 style="margin:16px 0 8px">付息券 Bid-to-Cover 趋势（2 / 5 / 10 / 30Y，近 1 年，含重开拍卖）</h3><div class="re-chart" id="trend_chart"></div>';
+  asec.innerHTML += '<h3 style="margin:16px 0 4px">拍卖 Tail 趋势（2 / 5 / 10 / 30Y，bp，正 = 弱于预期）</h3><div class="note" style="margin-bottom:4px">点大小 = 发行规模 · 空心 = 重开 · 虚线 = 各期限均值</div><div class="re-chart" id="tail_chart"></div>';
+  asec.innerHTML += '<h3 style="margin:16px 0 8px">间接投标占比趋势（10 / 30Y，%，外国官方 + 国际机构需求）</h3><div class="re-chart" id="indirect_chart"></div>';
+  asec.innerHTML += '<h3 style="margin:16px 0 8px">供给前瞻：Bill 占比（近 6 年，MSPD 月频 + 日频派生）</h3><div class="re-chart" id="bill_chart"></div>';
+  asec.innerHTML += '<h3 style="margin:16px 0 8px">📅 未来拍卖日历（未来 21 天）</h3><div id="re-upcoming"></div>';
+  asec.innerHTML += '<h3 style="margin:16px 0 8px">📊 最近拍卖结果（近 90 天）</h3><div id="re-recent"></div>';
+
+  // ── BTC 趋势（真实时间轴：间距=实际天数；重开=空心点）──
+  const names = ['2Y', '5Y', '10Y', '30Y'];
+  const trendNames = names.map(n => `${n}（均 ${(auc.trend[n].reduce((s, p) => s + p.value, 0) / auc.trend[n].length).toFixed(2)}）`);
+  R.mkChart('trend_chart', (colors) => ({
+    legend: { data: trendNames, top: 8, right: '2%', icon: 'roundRect', itemWidth: 14, itemHeight: 4, textStyle: { color: colors.text, fontSize: 12 } },
+    tooltip: { trigger: 'axis', valueFormatter: v => `${Number(v).toFixed(2)}x` },
+    grid: { top: 44, left: 48, right: 64, bottom: 24 },
+    xAxis: { type: 'time', axisLabel: { color: colors.muted, fontSize: 10, formatter: v => { const t = new Date(v); return `${t.getMonth() + 1}/${t.getDate()}`; } }, axisLine: { lineStyle: { color: colors.border } } },
+    yAxis: { type: 'value', min: 1.5, axisLabel: { color: colors.muted, formatter: '{value}x' }, splitLine: { lineStyle: { color: colors.grid } } },
+    series: names.map((n) => {
+      const m = { '2Y': colors.blue, '5Y': colors.orange, '10Y': colors.red, '30Y': colors.purple }[n];
+      const pts = auc.trend[n];
+      const mean = pts.reduce((s, p) => s + p.value, 0) / pts.length;
+      return {
+        name: trendNames[names.indexOf(n)], type: 'line',
+        data: pts.map(p => ({
+          value: [p.date, p.value],
+          symbol: p.reopening ? 'emptyCircle' : 'circle',
+          symbolSize: p.reopening ? 6 : 7,
+          itemStyle: { color: m, borderColor: m, borderWidth: 1.5 },
+        })),
+        lineStyle: { color: m, width: 2 },
+        markLine: {
+          silent: true, symbol: 'none',
+          label: { show: false },
+          data: [
+            ...(n === '2Y' ? [
+              { yAxis: 2.0, label: { show: true, formatter: '警戒 2.0x', color: colors.red, fontSize: 10 }, lineStyle: { color: colors.red, type: 'dashed', width: 1 } },
+              { yAxis: 2.5, label: { show: true, formatter: '良好 2.5x', color: colors.green, fontSize: 10 }, lineStyle: { color: colors.green, type: 'dashed', width: 1 } },
+            ] : []),
+            { yAxis: mean, lineStyle: { color: m, type: 'dashed', width: 1 } },
+          ],
+        },
+      };
+    }),
+  }));
+
+  // ── Tail 趋势（散点：x=时间 y=tail bp，点大小=发行规模，重开空心，虚线=各期限均值）──
+  const tailMean = (pts) => pts.length ? pts.reduce((s, p) => s + p.value, 0) / pts.length : 0;
+  const sizeScale = (() => {
+    const sizes = Object.values(auc.tail_trend).flat().map(p => p.size).filter(v => v != null);
+    const min = Math.min(...sizes), max = Math.max(...sizes);
+    return v => v == null ? 8 : 6 + ((v - min) / (max - min || 1)) * 14;
+  })();
+  R.mkChart('tail_chart', (colors) => ({
+    legend: { top: 4, left: 'center', icon: 'circle', textStyle: { color: colors.text, fontSize: 11 } },
+    tooltip: { trigger: 'item', formatter: p => {
+      const v = p.value;
+      return `${p.seriesName} ${v[0]}<br/>Tail ${Number(v[1]).toFixed(1)} bp${v[2] != null ? `<br/>规模 $${v[2]}B` : ''}${v[3] ? '<br/>重开' : ''}`;
+    } },
+    grid: { top: 36, left: 48, right: 16, bottom: 24 },
+    xAxis: { type: 'time', axisLabel: { color: colors.muted, fontSize: 10, formatter: v => { const t = new Date(v); return `${t.getMonth() + 1}/${t.getDate()}`; } }, axisLine: { lineStyle: { color: colors.border } } },
+    yAxis: { type: 'value', name: 'tail bp', scale: true, axisLabel: { color: colors.muted, formatter: '{value}' }, splitLine: { lineStyle: { color: colors.grid } } },
+    series: names.map(n => {
+      const m = { '2Y': colors.blue, '5Y': colors.orange, '10Y': colors.red, '30Y': colors.purple }[n];
+      const pts = auc.tail_trend[n];
+      return {
+        name: `${n}（均 ${tailMean(pts).toFixed(1)}）`, type: 'scatter',
+        data: pts.map(p => ({
+          value: [p.date, p.value, p.size, p.reopening],
+          symbol: p.reopening ? 'emptyCircle' : 'circle',
+          symbolSize: sizeScale(p.size),
+          itemStyle: { color: m, borderColor: m, borderWidth: 2 },
+        })),
+        markLine: {
+          silent: true, symbol: 'none',
+          label: { show: false },  // 均值已写进图例，线端不再标注避免重叠
+          data: [{ yAxis: tailMean(pts), lineStyle: { color: m, type: 'dashed', width: 1 } }],
+        },
+      };
+    }),
+  }));
+
+  // ── 间接投标占比趋势 ──
+  const indNames = ['10Y', '30Y'];
+  R.mkChart('indirect_chart', (colors) => ({
+    legend: { data: indNames, top: 8, right: '2%', icon: 'roundRect', itemWidth: 14, itemHeight: 4, textStyle: { color: colors.text, fontSize: 12 } },
+    tooltip: { trigger: 'axis', valueFormatter: v => `${Number(v).toFixed(0)}%` },
+    grid: { top: 44, left: 48, right: 16, bottom: 24 },
+    xAxis: { type: 'time', axisLabel: { color: colors.muted, fontSize: 10, formatter: v => { const t = new Date(v); return `${t.getMonth() + 1}/${t.getDate()}`; } }, axisLine: { lineStyle: { color: colors.border } } },
+    yAxis: { type: 'value', scale: true, axisLabel: { color: colors.muted, formatter: '{value}%' }, splitLine: { lineStyle: { color: colors.grid } } },
+    series: indNames.map(n => {
+      const m = { '10Y': colors.red, '30Y': colors.purple }[n];
+      const pts = auc.indirect_trend[n];
+      const mean = pts.reduce((s, p) => s + p.value, 0) / pts.length;
+      return {
+        name: n, type: 'line', color: m, // 图例图标取 series 顶层 color，只设 lineStyle/itemStyle 会用到调色板默认色
+        data: pts.map(p => ({
+          value: [p.date, p.value],
+          symbol: p.reopening ? 'emptyCircle' : 'circle',
+          symbolSize: p.reopening ? 6 : 7,
+          itemStyle: { color: m, borderColor: m, borderWidth: 1.5 },
+        })),
+        lineStyle: { color: m, width: 2 },
+        markLine: {
+          silent: true, symbol: 'none',
+          data: [{ yAxis: mean, label: { formatter: `${n} 均值 ${mean.toFixed(0)}%`, color: m, fontSize: 11, fontWeight: 'bold', position: 'insideEndTop' }, lineStyle: { color: m, type: 'dashed', width: 1 } }],
+        },
+        markPoint: {
+          symbolSize: 4,
+          data: [
+            { type: 'max', name: '最高', label: { position: 'top' } },
+            { type: 'min', name: '最低', label: { position: 'bottom' } },
+          ],
+          label: { fontSize: 9, color: colors.muted, formatter: p => `${Number(p.value).toFixed(0)}%` },
+        },
+      };
+    }),
+  }));
+
+  // ── Bill 占比 ──
+  R.mkChart('bill_chart', (colors) => ({
+    tooltip: { trigger: 'axis', valueFormatter: v => `${Number(v).toFixed(2)}%` },
+    grid: { top: 20, left: 48, right: 16, bottom: 24 },
+    xAxis: { type: 'category', data: R.ts(auc.bill_share), axisLabel: { color: colors.muted, fontSize: 10 }, axisLine: { lineStyle: { color: colors.border } } },
+    yAxis: { type: 'value', axisLabel: { color: colors.muted, formatter: '{value}%' }, splitLine: { lineStyle: { color: colors.grid } } },
+    series: [{
+      type: 'line', data: R.vs(auc.bill_share), symbol: 'none',
+      lineStyle: { color: colors.blue, width: 2 },
+      areaStyle: { color: { type: 'linear', x: 0, y: 0, x2: 0, y2: 1, colorStops: [{ offset: 0, color: 'rgba(59,130,246,0.15)' }, { offset: 1, color: 'rgba(59,130,246,0)' }] } },
+    }],
+  }));
+
+  // ── 未来日历 ──
+  document.getElementById('re-upcoming').replaceChildren(R.table(
+    ['拍卖日', '类型', '期限', '发行额', '结算日', '重开'],
+    auc.upcoming.map(u => ({ date: u.auction_date, type: u.security_type, term: u.security_term, amt: u.offering_b, issue: u.issue_date, rep: u.reopening })),
+    { amt: R.fmtB, rep: v => (v === 'Yes' ? '✓' : '') },
+  ));
+
+  // ── 近 90 天结果 ──
+  document.getElementById('re-recent').replaceChildren(R.table(
+    ['日期', '类型', '期限', '发行额', '中标利率', 'Bid/Cover', '间接%', 'Tail(bp)'],
+    auc.recent.map(r => ({ date: r.auction_date, type: r.security_type, term: r.security_term, amt: r.offering_b, rate: r.high_rate, cover: r.bid_to_cover, ind: r.indirect_pct, tail: r.tail_bp })),
+    { amt: R.fmtB, rate: R.fmtPct, cover: v => (v === null ? '—' : `${v.toFixed(2)}x`), ind: v => (v === null ? '—' : `${v.toFixed(0)}%`), tail: R.fmtBp },
+  ));
 
   // ── 持仓历史曲线 ──
   const hsec = document.createElement('div');
@@ -137,7 +306,7 @@ async function load() {
 
   document.getElementById('re-gen').textContent = `研判由规则引擎生成（${d.generator}）· ${d.as_of} · TIC 单位为百万美元（页面换算为 B/T），官方占比分母 = MSPD 总未偿债务`;
 }
-load().catch(e => R.fail(['cards', 're-signals', 'history', 'holdings', 'mspd', 'refunding'], e));
+load().catch(e => R.fail(['cards', 're-signals', 'auctions', 'history', 'holdings', 'mspd', 'refunding'], e));
 </script>
 <script src="/js/nav.js"></script>
 </body>

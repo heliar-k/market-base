@@ -6,7 +6,7 @@
     '/rates/': [
       ['联邦基金利率', 'fed-funds.html'],
       ['收益率曲线', 'yield-curve.html'],
-      ['国债拍卖', 'auctions.html'],
+
       ['实际利率', 'real-rates.html'],
       ['利率预期', 'expectations/'],
     ],
@@ -27,7 +27,7 @@
     ['利率', '/rates/'],
     ['通胀', '/inflation/'],
     ['就业', '/labor/'],
-    ['美债需求', '/treasury/'],
+    [ '美债', '/treasury/' ],
     ['流动性', '/liquidity/'],
     ['信用', '/credit/'],
     ['美联储', '/fed/'],

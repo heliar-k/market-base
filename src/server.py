@@ -888,16 +888,21 @@ def _trend_bucket(term: str) -> str | None:
 
 
 def _auction_points(sub: pd.DataFrame, col: str) -> list[dict]:
-    """拍卖子集某指标列 → [{date, value}]（近 1 年窗口已由调用方切好）。"""
-    return [
-        {
-            "date": d.strftime("%Y-%m-%d"),
-            "value": float(pd.to_numeric(r[col])),
-            "reopening": str(r.get("reopening", "")).strip().lower() == "yes",
-        }
-        for d, r in sub.iterrows()
-        if pd.notna(r.get(col))
-    ]
+    """拍卖子集某指标列 → [{date, value, reopening, size}]。"""
+    pts = []
+    for d, r in sub.iterrows():
+        if pd.notna(r.get(col)):
+            pts.append(
+                {
+                    "date": d.strftime("%Y-%m-%d"),
+                    "value": float(pd.to_numeric(r[col])),
+                    "reopening": str(r.get("reopening", "")).strip().lower() == "yes",
+                    "size": _offering_b(r.get("offering_amt"))
+                    if pd.notna(r.get("offering_amt"))
+                    else None,
+                }
+            )
+    return pts
 
 
 def _borrowing_estimate() -> dict | None:

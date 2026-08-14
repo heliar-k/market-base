@@ -27,7 +27,7 @@ const FEATURED = [
     delta: d => fmtDelta('3M', d[0].cards.unrate.chg_3m, 'pp'),
   },
   {
-    id: 'treasury', label: '美债需求', page: '/treasury/',
+    id: 'treasury', label: '美债', page: '/treasury/',
     apis: ['/api/treasury/overview'],
     num: d => `官方占比 ${d[0].cards.official_share.value}%`,
     concl: d => d[0].signals[0]?.text || '',

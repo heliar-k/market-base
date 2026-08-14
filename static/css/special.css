@@ -14,13 +14,29 @@ body.embedded .re-header h1 { display: none; } /* 内嵌时左卡已有标题 */
 .re-nav { display: flex; gap: 8px; flex-wrap: wrap; }
 .re-nav a { color: var(--accent); text-decoration: none; font-size: 13px; padding: 4px 10px; border: 1px solid var(--btn-border); border-radius: 4px; }
 .re-nav a:hover { background: var(--surface-hover); }
-.re-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(128px, 1fr)); gap: 12px; }
+.re-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; }
 .re-card { padding: 14px 18px; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; }
 .re-card-accent { background: var(--surface); border: 1px solid var(--border); color: var(--text); }
 .re-card-accent .re-corridor-label { color: var(--text-secondary); }
 .re-corridor-label { font-size: 11px; text-transform: uppercase; letter-spacing: .5px; opacity: .7; }
 .re-corridor-value { font-size: 22px; font-weight: 700; margin-top: 4px; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .re-card-sub { font-size: 11px; opacity: .7; margin-top: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* 页内锚点导航（长页如美债） */
+.page-toc {
+  position: sticky; top: 0; z-index: 10;
+  display: flex; gap: 8px; flex-wrap: wrap;
+  padding: 8px 0;
+  background: var(--bg);
+  border-bottom: 1px solid var(--border);
+}
+.page-toc a {
+  font-size: 12px; padding: 4px 10px; border-radius: 999px;
+  border: 1px solid var(--border); background: var(--surface);
+  color: var(--text-secondary); text-decoration: none;
+}
+.page-toc a:hover { color: var(--accent); border-color: var(--accent); }
+.re-root > div { scroll-margin-top: 52px; }
 .re-section { border: 1px solid var(--border); border-radius: 8px; background: var(--surface); padding: 14px 18px; }
 .re-section h2 { font-size: 14px; font-weight: 700; margin-bottom: 8px; color: var(--text); }
 .re-section p { font-size: 13px; line-height: 1.7; color: var(--text-secondary); }

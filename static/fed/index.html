@@ -69,7 +69,7 @@ async function load() {
   document.getElementById('re-cards').replaceChildren(R.cards([
     { label: '鹰鸽指示器', value: `${ind.score > 0 ? '+' : ''}${ind.score} 分`, sub: `${ind.label} · 范围 -5 鸽 ~ +5 鹰（最近 ${ind.sample} 条）`, accent: true },
     { label: '下次 FOMC', value: days > 0 ? `${days} 天` : '会议中', sub: nextTxt },
-    { label: '目标利率', value: R.fmtPct(cal.target_lower) + '–' + R.fmtPct(cal.target_upper), sub: '联邦基金目标区间' },
+    { label: '目标利率', value: `${Number(cal.target_lower).toFixed(2)}–${Number(cal.target_upper).toFixed(2)}%`, sub: '联邦基金目标区间' },
     { label: '最新声明', value: latestStmt?.label, sub: latestStmt?.date, },
     { label: '最新演讲', value: data.speeches[0]?.label, sub: data.speeches[0]?.speaker, },
   ]));
