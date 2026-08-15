@@ -17,15 +17,21 @@
   </div>
 
   <div class="re-nav" id="re-nav"></div>
+  <div class="page-toc" id="page-toc"></div>
 
-  <div id="re-cards"></div>
-  <div id="re-latest"></div>
+  <div id="cards"></div>
+  <div id="sec-stmts"></div>
+  <div id="sec-speeches"></div>
+  <div id="sec-hawk"></div>
   <div class="re-gen" id="re-gen"></div>
 </div>
 
 <script src="/vendor/echarts.min.js"></script>
 <script src="/js/rates-common.js"></script>
 <script>
+const KIND_LABEL = { statement: '声明', minutes: '会议纪要', sep: '经济预测', discount: '贴现率纪要', other: '其他' };
+const KIND_ORDER = ['statement', 'minutes', 'sep', 'discount', 'other'];
+
 function badge(label) {
   const cls = /鹰/.test(label) ? 'hawk' : (/鸽/.test(label) ? 'dove' : 'mid');
   return `<span class="fed-badge ${cls}">${label}</span>`;
@@ -43,7 +49,183 @@ function docCard(d, href) {
   return el;
 }
 
+// 分类过滤条（声明 kind / 演讲 speaker 共用）
+function mkFilter(bar, labels, onPick) {
+  bar.innerHTML = '';
+  Object.entries(labels).forEach(([label, key]) => {
+    const a = document.createElement('a');
+    a.href = '#';
+    a.textContent = label;
+    a.style.cssText = 'color:var(--accent);text-decoration:none;padding:2px 8px;border:1px solid var(--btn-border);border-radius:4px';
+    a.onclick = (e) => { e.preventDefault(); onPick(key); };
+    bar.appendChild(a);
+  });
+}
+
+function renderStatements(root, data) {
+  const sec = document.createElement('div');
+  sec.className = 're-section';
+  sec.innerHTML = '<h2>FOMC 货币政策声明</h2><div id="re-filter" style="display:flex;gap:8px;flex-wrap:wrap;font-size:13px;margin-bottom:10px"></div><div id="re-list"></div>';
+  root.appendChild(sec);
+  const ALL = data.statements;
+  const list = sec.querySelector('#re-list');
+  const render = (filter = 'all') => {
+    list.innerHTML = '';
+    for (const d of ALL) {
+      if (filter !== 'all' && d.kind !== filter) continue;
+      const el = docCard(d, d.url);
+      el.querySelector('.fed-doc-head').insertAdjacentHTML('beforeend',
+        `<span class="fed-doc-meta">${KIND_LABEL[d.kind] || d.kind}</span>`);
+      if (d.hits.length) el.innerHTML += `<div class="fed-doc-hits">信号词: ${d.hits.join(' · ')}</div>`;
+      list.appendChild(el);
+    }
+  };
+  const labels = { ['全部 (' + ALL.length + ')']: 'all' };
+  for (const k of KIND_ORDER) {
+    const n = ALL.filter(x => x.kind === k).length;
+    if (n) labels[`${KIND_LABEL[k]} (${n})`] = k;
+  }
+  mkFilter(sec.querySelector('#re-filter'), labels, render);
+  render();
+}
+
+function renderSpeeches(root, data) {
+  const sec = document.createElement('div');
+  sec.className = 're-section';
+  sec.innerHTML = '<h2>美联储官员演讲</h2><div id="sp-filter" style="display:flex;gap:8px;flex-wrap:wrap;font-size:13px;margin-bottom:10px"></div><div id="sp-list"></div>';
+  root.appendChild(sec);
+  const ALL = data.speeches;
+  const list = sec.querySelector('#sp-list');
+  const render = (filter = 'all') => {
+    list.innerHTML = '';
+    for (const d of ALL) {
+      if (filter !== 'all' && d.speaker !== filter) continue;
+      const el = docCard(d, d.url);
+      el.querySelector('.fed-doc-head').insertAdjacentHTML('beforeend',
+        `<span class="fed-doc-meta">${d.speaker}</span>`);
+      list.appendChild(el);
+    }
+  };
+  const speakers = [...new Set(ALL.map(d => d.speaker))];
+  const labels = { ['全部 (' + ALL.length + ')']: 'all' };
+  speakers.forEach(s => { labels[s] = s; });
+  mkFilter(sec.querySelector('#sp-filter'), labels, render);
+  render();
+}
+
+function renderHawkish(root, data) {
+  const wrap = document.createElement('div');
+  const tl = data.timeline;
+  const roster = data.roster || [];
+
+  // ── 投票成员立场分布（横向条形，按分数排序）──
+  const s1 = document.createElement('div');
+  s1.className = 're-section';
+  s1.innerHTML = '<h2>2026 年 FOMC 投票成员立场分布 <span style="font-weight:400;font-size:12px;color:var(--text-dim)">红 = 鹰，绿 = 鸽，灰 = 无近期演讲</span></h2><div class="fed-chart" id="chart-roster"></div>';
+  wrap.appendChild(s1);
+  const sorted = [...roster].sort((a, b) => a.score - b.score);
+  R.mkChart('chart-roster', (c) => ({
+    backgroundColor: 'transparent',
+    tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
+    grid: { left: 110, right: 30, top: 8, bottom: 8 },
+    xAxis: {
+      type: 'value', min: -5, max: 5,
+      splitLine: { lineStyle: { color: c.grid } },
+      axisLabel: { color: c.text, formatter: (v) => (v > 0 ? '+' + v : v) },
+    },
+    yAxis: {
+      type: 'category', inverse: true,
+      data: sorted.map(r => `${r.name_zh}${r.votes ? '·' : ''}`),
+      axisLabel: { color: c.text, fontSize: 11 },
+      axisLine: { show: false }, axisTick: { show: false },
+    },
+    series: [{
+      type: 'bar', barWidth: 14,
+      data: sorted.map(r => ({
+        value: r.score,
+        itemStyle: { color: r.score > 0 ? c.red : r.score < 0 ? c.green : c.gray, borderRadius: 3 },
+      })),
+      label: {
+        show: true, position: 'right', color: c.text, fontSize: 10,
+        formatter: (p) => p.value > 0 ? '+' + p.value : p.value,
+      },
+    }],
+  }));
+
+  // ── 时间线：声明（红方块）+ 演讲（蓝点）散点 ──
+  const s2 = document.createElement('div');
+  s2.className = 're-section';
+  s2.innerHTML = '<h2>鹰鸽立场时间线 <span style="font-weight:400;font-size:12px;color:var(--text-dim)">纵轴 +5 = 极鹰，-5 = 极鸽，0 = 中性</span></h2><div class="fed-chart-tall" id="chart-timeline"></div>';
+  wrap.appendChild(s2);
+  const mk = (type) => tl.filter(x => x.type === type).map(x => ({
+    name: x.name, value: [x.date, x.score],
+  }));
+  R.mkChart('chart-timeline', (c) => ({
+    backgroundColor: 'transparent',
+    tooltip: {
+      trigger: 'item',
+      formatter: (p) => `${p.data.name}<br>${p.data.value[0]} · ${p.data.value[1] > 0 ? '+' : ''}${p.data.value[1]}`,
+    },
+    grid: { left: 40, right: 16, top: 20, bottom: 40 },
+    xAxis: {
+      type: 'category',
+      data: [...new Set(tl.map(x => x.date))],
+      axisLabel: { color: c.text, fontSize: 10, rotate: 45, hideOverlap: true },
+      axisLine: { lineStyle: { color: c.border } },
+    },
+    yAxis: {
+      type: 'value', min: -5, max: 5,
+      splitLine: { lineStyle: { color: c.grid } },
+      axisLabel: { color: c.text, formatter: (v) => (v > 0 ? '+' + v : v) },
+    },
+    series: [
+      { name: '声明', type: 'scatter', symbol: 'rect', symbolSize: 9, itemStyle: { color: c.red }, data: mk('statement') },
+      { name: '演讲', type: 'scatter', symbolSize: 6, itemStyle: { color: c.blue }, data: mk('speech') },
+    ],
+  }));
+
+  // ── FOMC 理事一览表 ──
+  const s3 = document.createElement('div');
+  s3.className = 're-section';
+  s3.innerHTML = '<h2>FOMC 理事一览（2026 年）</h2>';
+  s3.appendChild(R.table(
+    ['姓名', '职位', '投票权', '倾向', '评分', '最近发言'],
+    roster.map(r => ({
+      name: `${r.name_zh} ${r.speaker}`,
+      role: r.role,
+      votes: r.votes ? '投票' : '—',
+      label: r.label,
+      score: r.score > 0 ? `+${r.score}` : String(r.score),
+      date: r.date || '暂无近期发言',
+    })),
+  ));
+  wrap.appendChild(s3);
+
+  // ── 各官员最新立场表 ──
+  const s4 = document.createElement('div');
+  s4.className = 're-section';
+  s4.innerHTML = '<h2>各官员最新立场</h2>';
+  s4.appendChild(R.table(
+    ['官员', '立场', '评分', '最新日期', '最新演讲'],
+    data.stances.map(s => ({
+      speaker: s.speaker,
+      score: s.score > 0 ? `+${s.score}` : String(s.score),
+      label: s.label,
+      date: s.date,
+      title: s.title,
+    })),
+    { label: (v) => v, score: (v) => v },
+  ));
+  wrap.appendChild(s4);
+  root.appendChild(wrap);
+}
+
 async function load() {
+  // 小节锚点导航（长页快速跳转；sticky 见 special.css .page-toc）
+  document.getElementById('page-toc').innerHTML = [
+    ['概览', 'cards'], ['声明', 'sec-stmts'], ['演讲', 'sec-speeches'], ['鹰鸽追踪', 'sec-hawk'],
+  ].map(([t, id]) => `<a href="#${id}">${t}</a>`).join('');
+
   const [data, cal] = await Promise.all([
     R.get('/api/fed/overview'),
     R.get('/api/fomc/calendar'),
@@ -56,7 +238,6 @@ async function load() {
 
   // 下次 FOMC 会议倒计时
   const nx = cal.next;
-  // 最新声明：取 kind==statement 的第一条（SEP 发布日的顶条是预测公告，非声明）
   const latestStmt = data.statements.find(s => s.kind === 'statement');
   let days = '—';
   if (nx) {
@@ -65,32 +246,21 @@ async function load() {
   }
   const nextTxt = nx ? `${nx.month} 月 ${nx.start_day}-${nx.end_day} 日` : '—';
 
-  // ── 统计卡：鹰鸽指示器 + 下次会议 + 最新声明/演讲 ──
-  document.getElementById('re-cards').replaceChildren(R.cards([
+  // ── 统计卡 ──
+  document.getElementById('cards').replaceChildren(R.cards([
     { label: '鹰鸽指示器', value: `${ind.score > 0 ? '+' : ''}${ind.score} 分`, sub: `${ind.label} · 范围 -5 鸽 ~ +5 鹰（最近 ${ind.sample} 条）`, accent: true },
     { label: '下次 FOMC', value: days > 0 ? `${days} 天` : '会议中', sub: nextTxt },
     { label: '目标利率', value: `${Number(cal.target_lower).toFixed(2)}–${Number(cal.target_upper).toFixed(2)}%`, sub: '联邦基金目标区间' },
-    { label: '最新声明', value: latestStmt?.label, sub: latestStmt?.date, },
-    { label: '最新演讲', value: data.speeches[0]?.label, sub: data.speeches[0]?.speaker, },
+    { label: '最新声明', value: latestStmt?.label, sub: latestStmt?.date },
+    { label: '最新演讲', value: data.speeches[0]?.label, sub: data.speeches[0]?.speaker },
   ]));
 
-  // ── 最新声明 + 最近演讲 ──
-  const root = document.getElementById('re-latest');
-  root.innerHTML = '';
-  const stmt = document.createElement('div');
-  stmt.className = 're-section';
-  stmt.innerHTML = '<h2>最新 FOMC 声明 <a href="/fed/statements.html" style="font-size:12px;font-weight:400;color:var(--accent);text-decoration:none">查看全部 →</a></h2>';
-  if (latestStmt) stmt.appendChild(docCard(latestStmt, latestStmt.url));
-  root.appendChild(stmt);
-
-  const sp = document.createElement('div');
-  sp.className = 're-section';
-  sp.innerHTML = '<h2>最近官员演讲 <a href="/fed/speeches.html" style="font-size:12px;font-weight:400;color:var(--accent);text-decoration:none">查看全部 →</a></h2>';
-  for (const d of data.speeches.slice(0, 5)) sp.appendChild(docCard(d, d.url));
-  root.appendChild(sp);
+  renderStatements(document.getElementById('sec-stmts'), data);
+  renderSpeeches(document.getElementById('sec-speeches'), data);
+  renderHawkish(document.getElementById('sec-hawk'), data);
 }
 
-load().catch(e => R.fail(['re-cards', 're-latest'], e));
+load().catch(e => R.fail(['cards', 'sec-stmts', 'sec-speeches', 'sec-hawk'], e));
 </script>
 <script src="/js/nav.js"></script>
 </body>

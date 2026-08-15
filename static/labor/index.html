@@ -17,6 +17,7 @@
   </div>
 
   <div class="re-nav" id="re-nav"></div>
+  <div class="page-toc" id="page-toc"></div>
 
   <div id="cards"></div>
   <div id="re-signals"></div>
@@ -28,6 +29,11 @@
 <script src="/js/rates-common.js"></script>
 <script>
 async function load() {
+  // 小节锚点导航（长页快速跳转；sticky 见 special.css .page-toc）
+  document.getElementById('page-toc').innerHTML = [
+    ['概览', 'cards'], ['研判', 're-signals'], ['走势', 'history'], ['明细', 'indicators'],
+  ].map(([t, id]) => `<a href="#${id}">${t}</a>`).join('');
+
   const d = await R.get('/api/labor/overview');
   document.getElementById('re-as-of').textContent = '数据截至 ' + d.as_of;
 

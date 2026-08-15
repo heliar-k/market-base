@@ -36,7 +36,7 @@ body.embedded .re-header h1 { display: none; } /* 内嵌时左卡已有标题 */
   color: var(--text-secondary); text-decoration: none;
 }
 .page-toc a:hover { color: var(--accent); border-color: var(--accent); }
-.re-root > div { scroll-margin-top: 52px; }
+.re-root > div, .re-section { scroll-margin-top: 52px; }
 .re-section { border: 1px solid var(--border); border-radius: 8px; background: var(--surface); padding: 14px 18px; }
 .re-section h2 { font-size: 14px; font-weight: 700; margin-bottom: 8px; color: var(--text); }
 .re-section p { font-size: 13px; line-height: 1.7; color: var(--text-secondary); }

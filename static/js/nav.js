@@ -1,5 +1,5 @@
 // 专题导航注入 — 新专题页只需 <div class="re-nav" id="re-nav"></div> + 本脚本；
-// 改导航结构只改这里（rates/fed/volatility/credit 四套 + 专题间 Tab）。
+// 改导航结构只改这里（rates/volatility 两套 + 专题间 Tab；fed/credit/treasury 已合并单页）
 (function () {
   // 每个专题的子页导航（相对该专题目录）
   var NAVS = {
@@ -10,19 +10,9 @@
       ['实际利率', 'real-rates.html'],
       ['利率预期', 'expectations/'],
     ],
-    '/fed/': [
-      ['FOMC 声明', 'statements.html'],
-      ['官员演讲', 'speeches.html'],
-      ['鹰鸽追踪', 'hawkish-dovish.html'],
-    ],
     '/volatility/': [
       ['全景仪表盘', 'index.html'],
       ['VIX 详情', 'vix.html'],
-    ],
-    '/credit/': [
-      ['总览', 'index.html'],
-      ['CDS 专题', 'cds.html'],
-      ['压力仪表盘', 'stress.html'],
     ],
   };
   // 专题间 Tab（总入口）

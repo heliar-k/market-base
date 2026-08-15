@@ -674,14 +674,14 @@ API 响应 `generator` 字段标记 `rules` / `llm`，前端无感。
 ## 14. 美联储鹰鸽面板（Web，复刻 timsun.net/fed）
 
 `./bin/fetch_fed` 拉取 federalreserve.gov（直连，不受 SOCKS5 代理影响），
-`uv run python -m src.server` 后访问 `http://localhost:8000/fed/`，共 4 页：
+`uv run python -m src.server` 后访问 `http://localhost:8000/fed/`，单页（2026-08 合并）：
 
-| 页面 | 路由 | 数据源 |
+| 板块 | 锚点 | 数据源 |
 |------|------|--------|
-| 美联储（入口） | `/fed/` | 鹰鸽指示器 + 下次 FOMC 倒计时 + 最新声明/演讲 |
-| FOMC 声明 | `/fed/statements.html` | `data/fed/statements.csv`（声明/纪要/SEP/贴现率纪要） |
-| 官员演讲 | `/fed/speeches.html` | `data/fed/speeches.csv`（近 2 年） |
-| 鹰鸽追踪 | `/fed/hawkish-dovish.html` | 立场时间线 + 官员最新立场表 |
+| 概览 | `/fed/#cards` | 鹰鸽指示器 + 下次 FOMC 倒计时 + 最新声明/演讲 |
+| FOMC 声明 | `/fed/#sec-stmts` | `data/fed/statements.csv`（声明/纪要/SEP/贴现率纪要） |
+| 官员演讲 | `/fed/#sec-speeches` | `data/fed/speeches.csv`（近 2 年） |
+| 鹰鸽追踪 | `/fed/#sec-hawk` | 立场时间线 + 官员最新立场表 |
 
 ### 数据文件
 

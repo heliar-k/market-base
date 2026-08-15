@@ -17,6 +17,7 @@
   </div>
 
   <div class="re-nav" id="re-nav"></div>
+  <div class="page-toc" id="page-toc"></div>
 
   <div id="regime"></div>
   <div id="oas-row"></div>
@@ -27,13 +28,27 @@
   <div id="quality"></div>
   <div id="fincond"></div>
   <div id="liq-etf"></div>
+  <div id="cds-sec"></div>
+  <div id="stress-sec"></div>
   <div class="re-gen" id="re-gen"></div>
 </div>
 
 <script src="/js/rates-common.js"></script>
 <script>
 async function load() {
-  const d = await R.get('/api/credit/overview');
+  // 小节锚点导航（长页快速跳转；sticky 见 special.css .page-toc）
+  document.getElementById('page-toc').innerHTML = [
+    ['概览', 'regime'], ['利差', 'oas-row'], ['研判', 're-signals'], ['分层', 'layers'],
+    ['融资成本', 'funding'], ['银行信贷', 'sloos'], ['贷款质量', 'quality'],
+    ['金融条件', 'fincond'], ['ETF流动性', 'liq-etf'], ['CDS 专题', 'cds-sec'],
+    ['压力仪表盘', 'stress-sec'],
+  ].map(([t, id]) => `<a href="#${id}">${t}</a>`).join('');
+
+  const [d, cds, stress] = await Promise.all([
+    R.get('/api/credit/overview'),
+    R.get('/api/credit/cds'),
+    R.get('/api/credit/stress'),
+  ]);
   document.getElementById('re-as-of').textContent = '数据截至 ' + d.as_of;
 
   // ── Credit Regime Score 记分卡 ──
@@ -176,9 +191,121 @@ async function load() {
   lsec2.innerHTML += `<p style="margin:0">${etfStr(hyg, 'HYG')} · ${etfStr(lqd, 'LQD')}（Yahoo Finance 日频快照，TRACE 真实成交量预留）</p>`;
   document.getElementById('liq-etf').appendChild(lsec2);
 
+  // ── CDS 专题（原 cds.html 并入）──
+  renderCds(document.getElementById('cds-sec'), cds);
+
+  // ── 信用压力仪表盘（原 stress.html 并入）──
+  renderStress(document.getElementById('stress-sec'), stress);
+
   document.getElementById('re-gen').textContent = `研判由规则引擎生成（${d.generator}）· ${d.as_of} · ICE BofA 系列经 FRED API 仅提供近 ~3 年，10Y 分位按可用历史计算`;
 }
-load().catch(e => R.fail(['oas-row', 're-signals', 'layers', 'funding', 'sloos', 'quality', 'fincond', 'liq-etf'], e));
+
+// ── CDS 专题：主权/银行系统风险代理 + 归一化双线 ──
+function renderCds(root, d) {
+  const sec = document.createElement('div');
+  sec.className = 're-section';
+  sec.innerHTML = '<h2>CDS 专题 · 信用违约互换</h2>';
+  let sov = '<div class="proxy-card"><div class="label">主权 CDS 代理（10Y UST 收益率）</div>';
+  if (d.sovereign) {
+    sov += `<div class="value">${d.sovereign.value}<span class="unit">%</span></div>
+      <div class="sub">当 10Y 显著上行，通常反映市场对美元信用 / 财政可持续性的定价变化</div>
+      <div class="date">${d.sovereign.as_of}</div>`;
+  } else {
+    sov += '<div class="sub">数据缺失</div>';
+  }
+  sov += '</div>';
+  let bank = '<div class="proxy-card"><div class="label">银行系统风险代理（KBWB vs ^GSPC）</div>';
+  if (d.bank) {
+    const dv = d.bank.divergence;
+    const dir = dv < 0 ? '银行板块相对承压' : (dv > 0 ? '银行板块相对强势' : '持平');
+    const color = dv < -0.5 ? 'var(--accent)' : 'var(--text)';
+    bank += `<div class="value" style="color:${color}">${dv > 0 ? '+' : ''}${dv.toFixed(2)}<span class="unit">pct</span></div>
+      <div class="sub">KBWB ${d.bank.days} 日 ${d.bank.kbwb_chg > 0 ? '+' : ''}${d.bank.kbwb_chg.toFixed(2)}% · ^GSPC ${d.bank.spx_chg > 0 ? '+' : ''}${d.bank.spx_chg.toFixed(2)}% · ${dir}</div>
+      <div class="date">近 ${d.bank.days} 个交易日（快照数据积累中，14 日口径需约 15 个交易日）</div>`;
+  } else {
+    bank += '<div class="sub">KBWB / SPX 快照不足（需 ≥2 个交易日）</div>';
+  }
+  bank += '</div>';
+  const row = document.createElement('div');
+  row.className = 'proxy-row';
+  row.innerHTML = sov + bank;
+  sec.appendChild(row);
+
+  if (d.bank && d.bank.chart) {
+    sec.innerHTML += '<h3 style="margin:12px 0 6px">KBWB vs ^GSPC · 近 30 日归一化 = 100</h3><div class="chart" id="bank-chart"></div>';
+    const c = d.bank.chart;
+    R.mkChart('bank-chart', colors => ({
+      tooltip: { trigger: 'axis' },
+      legend: { data: ['KBWB', '^GSPC'], textStyle: { color: colors.text }, top: 0 },
+      grid: { left: 48, right: 16, top: 32, bottom: 28 },
+      xAxis: { type: 'category', data: c.dates, axisLine: { lineStyle: { color: colors.border } }, axisLabel: { color: colors.muted, fontSize: 11 } },
+      yAxis: { type: 'value', scale: true, axisLabel: { color: colors.muted, fontSize: 11 }, splitLine: { lineStyle: { color: colors.grid } } },
+      series: [
+        { name: 'KBWB', type: 'line', data: c.kbwb, smooth: true, showSymbol: false, lineStyle: { width: 2, color: colors.orange } },
+        { name: '^GSPC', type: 'line', data: c.spx, smooth: true, showSymbol: false, lineStyle: { width: 2, color: colors.blue } },
+      ],
+    }));
+  }
+  sec.innerHTML += '<p style="margin:0;font-size:12px">真实 Markit CDX IG / CDX HY / 主权 CDS 为付费数据源（Bloomberg / Refinitiv 授权），本页使用公开代理指标。</p>';
+  root.appendChild(sec);
+}
+
+// ── 信用压力仪表盘：综合分 + 5 分量 + 历史 + 跨资产 ──
+function renderStress(root, d) {
+  const wrap = document.createElement('div');
+  const card = document.createElement('div');
+  card.className = 'score-card';
+  card.innerHTML = `
+    <div>
+      <div class="label">COMPOSITE SCORE · 5 分量综合压力指数</div>
+      <div class="value" style="color:${d.zone_color}">${d.composite}<span style="font-size:16px;color:var(--text-dim)">/100</span></div>
+      <div class="scale">0-30 宽松 · 30-70 中性 · 70-100 压力</div>
+    </div>
+    <div class="badge" style="color:${d.zone_color};border-color:${d.zone_color}66;background:${d.zone_color}1a">${d.zone}</div>`;
+  wrap.appendChild(card);
+
+  const csec = document.createElement('div');
+  csec.className = 're-section';
+  csec.innerHTML = '<h2>5 分量拆解</h2>';
+  csec.appendChild(R.table(['分量', '权重', '得分', '原值'], d.components.map(c => ({
+    分量: c.name, 权重: c.weight + '%', 得分: c.value, 原值: c.raw === null || c.raw === undefined ? '—' : (c.raw + (c.unit || '')),
+  })), { 得分: v => `${v}/100` }));
+  wrap.appendChild(csec);
+
+  if (d.history) {
+    const hsec = document.createElement('div');
+    hsec.className = 're-section';
+    hsec.innerHTML = '<h2>压力指数历史曲线</h2><div class="chart" id="hist-chart"></div>';
+    wrap.appendChild(hsec);
+    R.mkChart('hist-chart', colors => ({
+      tooltip: { trigger: 'axis' },
+      grid: { left: 44, right: 16, top: 24, bottom: 28 },
+      xAxis: { type: 'category', data: d.history.dates, axisLine: { lineStyle: { color: colors.border } }, axisLabel: { color: colors.muted, fontSize: 11 } },
+      yAxis: { type: 'value', min: 0, max: 100, axisLabel: { color: colors.muted, fontSize: 11 }, splitLine: { lineStyle: { color: colors.grid } } },
+      series: [{
+        name: '压力指数', type: 'line', data: d.history.values, showSymbol: false, smooth: true,
+        lineStyle: { width: 2, color: colors.blue },
+        areaStyle: { color: { type: 'linear', x: 0, y: 0, x2: 0, y2: 1, colorStops: [{ offset: 0, color: colors.blue + '44' }, { offset: 1, color: colors.blue + '00' }] } },
+        markLine: {
+          silent: true, symbol: 'none',
+          data: [{ yAxis: 30, lineStyle: { color: '#26a69a', type: 'dashed' } }, { yAxis: 70, lineStyle: { color: '#ef5350', type: 'dashed' } }],
+          label: { formatter: ({ value }) => value, color: colors.muted, fontSize: 10 },
+        },
+      }],
+    }));
+  }
+
+  const xsec = document.createElement('div');
+  xsec.className = 're-section';
+  xsec.innerHTML = '<h2>跨资产对照（当前百分位 vs HY OAS）</h2>';
+  xsec.appendChild(R.table(['指标', '当前百分位', '与 HY OAS 偏离', '含义'], d.cross.map(c => ({
+    指标: c.metric, 百分位: c.pct, 偏离: c.dev, 含义: c.note + (c.obs && c.obs < 100 ? `（样本 ${c.obs} 条，积累中）` : ''),
+  })), { 百分位: v => `${v}%`, 偏离: v => `${v > 0 ? '+' : ''}${v} pct` }));
+  wrap.appendChild(xsec);
+  root.appendChild(wrap);
+}
+
+load().catch(e => R.fail(['regime', 'oas-row', 're-signals', 'layers', 'funding', 'sloos', 'quality', 'fincond', 'liq-etf', 'cds-sec', 'stress-sec'], e));
 </script>
 <script src="/js/nav.js"></script>
 </body>

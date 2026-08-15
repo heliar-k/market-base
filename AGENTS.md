@@ -119,10 +119,11 @@ market-base/
 │   └── cache/{SYMBOL}_indicators.parquet ← 指标缓存（派生产物，mtime 失效）
 │
 ├── static/                       ← Web 前端（FastAPI 静态目录）
-│   ├── fed/                         ← 美联储鹰鸽专题页（timsun.net/fed 复刻，4 页）
+│   ├── fed/                         ← 美联储鹰鸽专题页（timsun.net/fed 复刻，单页：声明+演讲+鹰鸽追踪）
 │   ├── index.html                ← 主仪表盘 SPA
 │   ├── js/                       ← 前端 JS（echarts-theme / rates-common 等）
-│   ├── rates/                    ← 利率专题页（timsun.net/rates 复刻，6 页）
+│   ├── rates/                    ← 利率专题页（timsun.net/rates 复刻，5 页）
+│   ├── credit/                   ← 信用专题页（单页：总览+CDS+压力仪表盘）
 │   └── volatility/               ← 波动率专题页（timsun.net/volatility 复刻，2 页）
 │
 └── docs/
