@@ -204,6 +204,7 @@ async function load() {
 function renderCds(root, d) {
   const sec = document.createElement('div');
   sec.className = 're-section';
+  root.appendChild(sec);  // 先挂文档再建图（R.mkChart 按 id 查 DOM，detached 时查不到）
   sec.innerHTML = '<h2>CDS 专题 · 信用违约互换</h2>';
   let sov = '<div class="proxy-card"><div class="label">主权 CDS 代理（10Y UST 收益率）</div>';
   if (d.sovereign) {
@@ -247,12 +248,12 @@ function renderCds(root, d) {
     }));
   }
   sec.innerHTML += '<p style="margin:0;font-size:12px">真实 Markit CDX IG / CDX HY / 主权 CDS 为付费数据源（Bloomberg / Refinitiv 授权），本页使用公开代理指标。</p>';
-  root.appendChild(sec);
 }
 
 // ── 信用压力仪表盘：综合分 + 5 分量 + 历史 + 跨资产 ──
 function renderStress(root, d) {
   const wrap = document.createElement('div');
+  root.appendChild(wrap);  // 先挂文档再建图（同 renderCds）
   const card = document.createElement('div');
   card.className = 'score-card';
   card.innerHTML = `
@@ -302,7 +303,6 @@ function renderStress(root, d) {
     指标: c.metric, 百分位: c.pct, 偏离: c.dev, 含义: c.note + (c.obs && c.obs < 100 ? `（样本 ${c.obs} 条，积累中）` : ''),
   })), { 百分位: v => `${v}%`, 偏离: v => `${v > 0 ? '+' : ''}${v} pct` }));
   wrap.appendChild(xsec);
-  root.appendChild(wrap);
 }
 
 load().catch(e => R.fail(['regime', 'oas-row', 're-signals', 'layers', 'funding', 'sloos', 'quality', 'fincond', 'liq-etf', 'cds-sec', 'stress-sec'], e));

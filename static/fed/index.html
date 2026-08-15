@@ -115,6 +115,7 @@ function renderSpeeches(root, data) {
 
 function renderHawkish(root, data) {
   const wrap = document.createElement('div');
+  root.appendChild(wrap);  // 先挂文档再建图（R.mkChart 按 id 查 DOM，detached 时查不到）
   const tl = data.timeline;
   const roster = data.roster || [];
 
@@ -217,7 +218,6 @@ function renderHawkish(root, data) {
     { label: (v) => v, score: (v) => v },
   ));
   wrap.appendChild(s4);
-  root.appendChild(wrap);
 }
 
 async function load() {
