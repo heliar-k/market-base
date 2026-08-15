@@ -76,7 +76,10 @@ def load_data(path: str) -> pd.DataFrame:
     df = df.sort_values("date").set_index("date")
     # 统一列名为小写
     df.columns = df.columns.str.lower()
-    return df
+    # 丢弃 OHLC 含 NaN 的坏行（yfinance 偶发缺 close 的尾 bar），防指标计算炸
+    return df.dropna(
+        subset=[c for c in ("open", "high", "low", "close") if c in df.columns]
+    )
 
 
 # ── 均线 ────────────────────────────────────────────────────────────────

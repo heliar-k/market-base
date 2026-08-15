@@ -263,6 +263,8 @@ def yf_only_fetch(symbols: list, bar_size: str) -> None:
             existing = load_timeseries(filepath)
             if not existing.empty and not df.empty:
                 df = df[df.index > existing.index.max()]
+        # yfinance 偶发缺 close 的坏行（韩股节前尾 bar）→ 拒写，防 NaN 进 CSV
+        df = df.dropna()
         if df.empty:
             log.info(f"[{sym['name']}] 无新数据")
         else:
