@@ -218,11 +218,25 @@ async function load() {
     { amt: R.fmtB, rep: v => (v === 'Yes' ? '✓' : '') },
   ));
 
-  // ── 近 90 天结果 ──
+  // ── 近 90 天结果 ──（着色规则同 timsun.net：Bid/Cover ≥2.5 绿 / <2.0 红；Tail ≥+1.5 红 / ≤-1.5 绿）
   document.getElementById('re-recent').replaceChildren(R.table(
     ['日期', '类型', '期限', '发行额', '中标利率', 'Bid/Cover', '间接%', 'Tail(bp)'],
     auc.recent.map(r => ({ date: r.auction_date, type: r.security_type, term: r.security_term, amt: r.offering_b, rate: r.high_rate, cover: r.bid_to_cover, ind: r.indirect_pct, tail: r.tail_bp })),
-    { amt: R.fmtB, rate: R.fmtPct, cover: v => (v === null ? '—' : `${v.toFixed(2)}x`), ind: v => (v === null ? '—' : `${v.toFixed(0)}%`), tail: R.fmtBp },
+    {
+      amt: R.fmtB, rate: R.fmtPct,
+      cover: v => {
+        if (v === null) return '—';
+        const cls = v >= 2.5 ? 'up' : v < 2.0 ? 'down' : '';
+        return cls ? `<span class="${cls}">${v.toFixed(2)}x</span>` : `${v.toFixed(2)}x`;
+      },
+      ind: v => (v === null ? '—' : `${v.toFixed(0)}%`),
+      tail: v => {
+        if (v === null) return '—';
+        const cls = v >= 1.5 ? 'down' : v <= -1.5 ? 'up' : '';
+        return cls ? `<span class="${cls}">${R.fmtBp(v)}</span>` : R.fmtBp(v);
+      },
+    },
+    null, true,
   ));
 
   // ── 持仓历史曲线 ──
