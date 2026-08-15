@@ -119,39 +119,37 @@ function renderHawkish(root, data) {
   const tl = data.timeline;
   const roster = data.roster || [];
 
-  // ── 投票成员立场分布（横向条形，按分数排序）──
+  // ── 投票成员立场分布：表格呈现（12 人小样本，表格比条形图信息密度高；
+  //    着色评分列 + 标题鹰鸽计数替代图形的扫视优势）──
   const s1 = document.createElement('div');
   s1.className = 're-section';
-  s1.innerHTML = '<h2>2026 年 FOMC 投票成员立场分布 <span style="font-weight:400;font-size:12px;color:var(--text-dim)">红 = 鹰，绿 = 鸽，灰 = 无近期演讲</span></h2><div class="fed-chart" id="chart-roster"></div>';
+  const hawkN = roster.filter(r => r.score > 0).length;
+  const doveN = roster.filter(r => r.score < 0).length;
+  const midN = roster.length - hawkN - doveN;
+  const hdColor = (v) => v > 0 ? '#ef5350' : v < 0 ? '#26a69a' : '#9ca3af';
+  s1.innerHTML = `<h2>2026 年 FOMC 投票成员立场分布
+    <span style="font-weight:400;font-size:12px;color:var(--text-dim)">${hawkN} 鹰 · ${doveN} 鸽 · ${midN} 中性（红 = 鹰，绿 = 鸽，灰 = 无近期演讲）</span></h2>`;
   wrap.appendChild(s1);
-  const sorted = [...roster].sort((a, b) => a.score - b.score);
-  R.mkChart('chart-roster', (c) => ({
-    backgroundColor: 'transparent',
-    tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
-    grid: { left: 110, right: 30, top: 8, bottom: 8 },
-    xAxis: {
-      type: 'value', min: -5, max: 5,
-      splitLine: { lineStyle: { color: c.grid } },
-      axisLabel: { color: c.text, formatter: (v) => (v > 0 ? '+' + v : v) },
-    },
-    yAxis: {
-      type: 'category', inverse: true,
-      data: sorted.map(r => `${r.name_zh}${r.votes ? '·' : ''}`),
-      axisLabel: { color: c.text, fontSize: 11 },
-      axisLine: { show: false }, axisTick: { show: false },
-    },
-    series: [{
-      type: 'bar', barWidth: 14,
-      data: sorted.map(r => ({
-        value: r.score,
-        itemStyle: { color: r.score > 0 ? c.red : r.score < 0 ? c.green : c.gray, borderRadius: 3 },
-      })),
-      label: {
-        show: true, position: 'right', color: c.text, fontSize: 10,
-        formatter: (p) => p.value > 0 ? '+' + p.value : p.value,
+  const sorted = [...roster].sort((a, b) => b.score - a.score);
+  s1.appendChild(R.table(
+    ['姓名', '职位', '投票权', '倾向', '评分', '最近发言'],
+    sorted.map(r => ({
+      name: r.name_zh + (r.votes ? '·' : ''),
+      role: r.role,
+      votes: r.votes ? '投票' : '—',
+      label: r.label,
+      score: r.score > 0 ? `+${r.score}` : String(r.score),
+      date: r.date || '暂无近期发言',
+    })),
+    {
+      label: (v) => {
+        const cls = /鹰/.test(v) ? 'hawk' : (/鸽/.test(v) ? 'dove' : 'mid');
+        return `<span class="fed-badge ${cls}">${v}</span>`;
       },
-    }],
-  }));
+      score: (v) => `<span style="color:${hdColor(Number(v))};font-weight:700">${v}</span>`,
+      votes: (v) => v === '投票' ? `<span style="color:var(--accent)">投票</span>` : v,
+    },
+    null, true));
 
   // ── 时间线：声明（红方块）+ 演讲（蓝点）散点 ──
   const s2 = document.createElement('div');
@@ -184,23 +182,6 @@ function renderHawkish(root, data) {
       { name: '演讲', type: 'scatter', symbolSize: 6, itemStyle: { color: c.blue }, data: mk('speech') },
     ],
   }));
-
-  // ── FOMC 理事一览表 ──
-  const s3 = document.createElement('div');
-  s3.className = 're-section';
-  s3.innerHTML = '<h2>FOMC 理事一览（2026 年）</h2>';
-  s3.appendChild(R.table(
-    ['姓名', '职位', '投票权', '倾向', '评分', '最近发言'],
-    roster.map(r => ({
-      name: `${r.name_zh} ${r.speaker}`,
-      role: r.role,
-      votes: r.votes ? '投票' : '—',
-      label: r.label,
-      score: r.score > 0 ? `+${r.score}` : String(r.score),
-      date: r.date || '暂无近期发言',
-    })),
-  ));
-  wrap.appendChild(s3);
 
   // ── 各官员最新立场表 ──
   const s4 = document.createElement('div');
