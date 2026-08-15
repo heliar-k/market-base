@@ -18,25 +18,56 @@
 
   <div class="re-nav" id="re-nav"></div>
 
+  <!-- 状态卡 ×3：百分位 / 期限结构 / 7 日动量 -->
+  <div class="re-cards" id="status-cards"></div>
+
+  <!-- VIX 大数字 + 区间色条 -->
   <div class="re-section">
-    <h2>VIX × SKEW（近 6 个月）</h2>
-    <div id="vix_chart" class="chart"></div>
+    <h2>VIX 最新值</h2>
+    <div class="score-card">
+      <div style="min-width:110px">
+        <div class="label">VIX 恐慌指数</div>
+        <div class="value" id="vix-big-value">—</div>
+      </div>
+      <div style="flex:1">
+        <div class="zone-strip" id="zone-strip"></div>
+        <div class="scale" id="zone-caption"></div>
+      </div>
+    </div>
   </div>
+
+  <!-- 长期 VIX（近 2 年，恐慌区域虚线） -->
   <div class="re-section">
-    <h2>VIX × SKEW 散点（近 3 个月，尾部偏斜 vs 波动水平）</h2>
-    <div id="vix_skew_scatter" class="chart" style="height:340px"></div>
+    <h2>VIX 波动率指数（近 2 年）</h2>
+    <div id="vix_long_chart" class="chart" style="height:320px"></div>
   </div>
+
+  <!-- VIX × SKEW 信号：左文右图 -->
+  <div class="re-section">
+    <h2>VIX × SKEW 信号</h2>
+    <div class="vix-row">
+      <div class="sig-block" id="skew-signal"></div>
+      <div id="vix_skew_scatter" class="chart" style="height:340px"></div>
+    </div>
+  </div>
+
+  <!-- SKEW 走势 -->
   <div class="re-section">
     <h2>SKEW 看跌偏斜（近 6 个月）</h2>
     <div id="skew_chart" class="chart"></div>
   </div>
+
+  <!-- 期限结构 + 解读 -->
   <div class="re-section">
     <div class="term-head">
       <h2 style="margin:0">VIX 期限结构</h2>
       <span id="term-badge"></span>
     </div>
     <div id="vix_term_chart" class="chart" style="height:260px"></div>
+    <div class="re-analysis" id="term-signals" style="margin-top:10px"></div>
   </div>
+
+  <!-- 近期数据 -->
   <div class="re-section">
     <h2>近期数据（最近 20 条）</h2>
     <div id="recent-table"></div>
@@ -55,34 +86,112 @@ async function load() {
     axisLabel: { color: c.muted }, splitLine: { lineStyle: { color: c.grid } },
   });
 
-  // ── VIX × SKEW 双线 ──
-  R.mkChart('vix_chart', () => ({
+  // ── 状态卡 ×3 ──
+  const v = data.vix, t = data.term_structure;
+  const dot = (color) => `<span class="status-dot" style="background:${color}"></span>`;
+  const momDir = v.chg_1w === null ? null : v.chg_1w > 0 ? '上行' : v.chg_1w < 0 ? '下行' : '走平';
+  const momColor = momDir === '上行' ? c.red : momDir === '下行' ? c.green : c.gray;
+  const ratio = t.values[2] && t.values[3] ? (t.values[2] / t.values[3]) : null;
+  document.getElementById('status-cards').appendChild(
+    R.cards([
+      {
+        label: '百分位',
+        value: `${dot(v.zone_color)}${v.zone}`,
+        sub: `近一年 ${v.percentile_1y ?? '—'}% 分位`,
+      },
+      {
+        label: '期限结构',
+        value: `${dot(t.state === 'backwardation' ? '#f87171' : t.state === 'contango' ? '#34d399' : c.gray)}${t.state === 'contango' ? 'Contango' : t.state === 'backwardation' ? 'Backwardation' : '—'}`,
+        sub: ratio ? `VIX / VIX3M = ${ratio.toFixed(3)}` : '比值缺失',
+      },
+      {
+        label: '7 日动量',
+        value: `${dot(momColor)}${v.chg_1w === null || v.chg_1w === undefined ? '—' : (v.chg_1w > 0 ? '+' : '') + v.chg_1w.toFixed(2) + ' pt'}`,
+        sub: momDir ? `波动率${momDir}，${momDir === '走平' ? '方向不明继续观察' : momDir === '上行' ? '风险溢价回升' : '风险溢价回落'}` : '',
+      },
+    ])
+  );
+
+  // ── VIX 大数字 + 区间色条 ──
+  // 色值来自后端 ZONES（与首页 vix-badge、credit/stress 同源），前端只给边界和文案
+  const zones = [
+    { lo: '<15', hi: 15, label: '极度平静' },
+    { lo: '15–25', hi: 25, label: '正常波动' },
+    { lo: '25–35', hi: 35, label: '偏高警戒' },
+    { lo: '>35', hi: 1e9, label: '恐慌市场' },
+  ];
+  zones.forEach((z, i) => { z.color = data.zones[i].color; });
+  document.getElementById('vix-big-value').textContent = v.value.toFixed(2);
+  document.getElementById('vix-big-value').style.color = v.zone_color;
+  const strip = document.getElementById('zone-strip');
+  zones.forEach(z => {
+    const seg = document.createElement('div');
+    seg.className = 'zone-seg' + (v.value < z.hi ? ' on' : '');
+    seg.style.background = z.color;
+    seg.textContent = `${z.lo} ${z.label}`;
+    strip.appendChild(seg);
+  });
+  document.getElementById('zone-caption').textContent =
+    `当前 ${v.value.toFixed(2)} 处「${v.zone}」区间，截至 ${v.as_of}`;
+
+  // ── 长期 VIX（近 2 年 + 恐慌虚线） ──
+  R.mkChart('vix_long_chart', () => ({
     tooltip: { trigger: 'axis' },
-    legend: { data: ['VIX', 'SKEW'], top: 0 },
-    grid: { left: 60, right: 60, top: 36, bottom: 30 },
-    xAxis: { type: 'category', data: data.vix_history.dates, axisLabel: { color: c.muted } },
-    yAxis: [
-      axis('VIX'),
-      { ...axis('SKEW'), min: 100, splitLine: { show: false } },
-    ],
-    series: [
-      { name: 'VIX', type: 'line', data: data.vix_history.vix, smooth: true, symbol: 'none',
-        lineStyle: { width: 2, color: c.blue }, itemStyle: { color: c.blue }, areaStyle: { color: c.blue, opacity: .08 } },
-      { name: 'SKEW', type: 'line', yAxisIndex: 1, data: data.vix_history.skew, smooth: true, symbol: 'none',
-        lineStyle: { width: 2, color: c.purple }, itemStyle: { color: c.purple } },
-    ],
+    grid: { left: 55, right: 90, top: 36, bottom: 30 },
+    xAxis: { type: 'category', data: data.vix_long.dates, axisLabel: { color: c.muted } },
+    yAxis: { ...axis('VIX') },
+    series: [{
+      name: 'VIX', type: 'line', data: data.vix_long.vix, smooth: true, symbol: 'none',
+      lineStyle: { width: 2, color: c.red }, itemStyle: { color: c.red },
+      markLine: {
+        silent: true, symbol: 'none',
+        data: [{ yAxis: 30, label: { color: c.red, formatter: '恐慌区域（>30）' }, lineStyle: { color: c.red, type: 'dashed', width: 1 } }],
+      },
+    }],
   }));
 
-  // ── VIX × SKEW 散点 ──
+  // ── VIX × SKEW 信号：左文 ──
+  const s = data.skew_signal;
+  document.getElementById('skew-signal').innerHTML = `
+    <div class="sig-title">象限判定</div>
+    <div style="font-size:18px;font-weight:700;color:${s.state === '恐慌区' ? c.red : s.state === '平静区' ? c.green : c.orange};margin-bottom:6px">${s.state}</div>
+    <p>${s.text}</p>
+    <div class="sig-title" style="margin-top:12px">交易建议</div>
+    <p>${s.advice}</p>
+    <div class="sig-title" style="margin-top:12px">风险</div>
+    <p>${s.risk}</p>`;
+
+  // ── VIX × SKEW 散点（象限虚线 + 今日红点） ──
+  const pts = data.vix_skew_scatter;
+  const today = pts[pts.length - 1];
+  const gridLine = (c) => ({ lineStyle: { color: c.muted, type: 'dashed', width: 1 } });
   R.mkChart('vix_skew_scatter', () => ({
-    tooltip: { formatter: (p) => `VIX ${p.value[0]} · SKEW ${p.value[1]}<br/>${p.value[2]}` },
+    tooltip: { formatter: (p) => `${p.seriesName === '今日' ? '' : ''}VIX ${p.value[0]} · SKEW ${p.value[1]}<br/>${p.value[2]}` },
     grid: { left: 55, right: 20, top: 20, bottom: 35 },
-    xAxis: { ...axis('VIX'), scale: true },
+    xAxis: { ...axis('VIX'), scale: true,
+      splitLine: { lineStyle: { color: c.grid } },
+    },
     yAxis: { ...axis('SKEW'), scale: true },
-    series: [{
-      type: 'scatter', symbolSize: 9, data: data.vix_skew_scatter,
-      itemStyle: { color: c.purple, opacity: .65 },
-    }],
+    series: [
+      {
+        name: '近 90 日', type: 'scatter', symbolSize: 9, data: pts.slice(0, -1),
+        itemStyle: { color: c.purple, opacity: .65 },
+        markLine: {
+          silent: true, symbol: 'none', label: { color: c.muted, fontSize: 10 },
+          data: [
+            { xAxis: 17, ...gridLine(c), label: { formatter: '17', position: 'start', color: c.muted } },
+            { xAxis: 22, ...gridLine(c), label: { formatter: '22', position: 'start', color: c.muted } },
+            { yAxis: 130, ...gridLine(c), label: { formatter: '130', position: 'start', color: c.muted } },
+            { yAxis: 150, ...gridLine(c), label: { formatter: '150', position: 'start', color: c.muted } },
+          ],
+        },
+      },
+      {
+        name: '今日', type: 'scatter', symbolSize: 14, data: [today],
+        itemStyle: { color: c.red, borderColor: '#fff', borderWidth: 1 },
+        label: { show: true, formatter: '今天', position: 'top', color: c.red, fontSize: 11 },
+      },
+    ],
   }));
 
   // ── SKEW 历史 + 阈值线 ──
@@ -110,7 +219,7 @@ async function load() {
   const badge = document.getElementById('term-badge');
   badge.className = 'term-badge ' + term.state;
   const sign = term.state === 'contango' ? '+' : '−';
-  badge.textContent = `${term.state === 'contango' ? 'Contango' : 'Backwardation'} (${sign}${Math.abs(term.slope ?? 0).toFixed(2)})`;
+  badge.textContent = `${term.state === 'contango' ? 'Contango' : term.state === 'backwardation' ? 'Backwardation' : '—'} (${sign}${Math.abs(term.slope ?? 0).toFixed(2)})`;
   R.mkChart('vix_term_chart', () => ({
     tooltip: { trigger: 'axis' },
     grid: { left: 50, right: 20, top: 30, bottom: 30 },
@@ -124,6 +233,15 @@ async function load() {
     }],
   }));
 
+  // ── 期限结构解读（复用 signals 三段文） ──
+  const termBox = document.getElementById('term-signals');
+  data.signals.forEach(sg => {
+    const block = document.createElement('div');
+    block.className = 'sig-block';
+    block.innerHTML = `<div class="sig-title">${sg.title}</div><p>${sg.text}</p>`;
+    termBox.appendChild(block);
+  });
+
   // ── 近期数据表 ──
   const headers = ['日期', 'VIX1D', 'VIX9D', 'VIX', 'VIX3M', 'VIX6M', 'VIX1Y', 'SKEW', 'OVX'];
   document.getElementById('recent-table').appendChild(
@@ -135,7 +253,7 @@ async function load() {
     })
   );
 }
-load().catch(e => R.fail(['vix_chart', 'vix_skew_scatter', 'skew_chart', 'vix_term_chart', 'recent-table'], e));
+load().catch(e => R.fail(['status-cards', 'vix_long_chart', 'vix_skew_scatter', 'skew_chart', 'vix_term_chart', 'recent-table'], e));
 </script>
 <script src="/js/nav.js"></script>
 </body>

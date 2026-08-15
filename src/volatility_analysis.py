@@ -218,6 +218,50 @@ def signal_outlook(df: pd.DataFrame, card: dict) -> str:
     return "。".join(parts)
 
 
+def skew_quadrant(vix: float | None, skew: float | None) -> dict:
+    """VIX×SKEW 象限信号：波动水平 × 尾部对冲需求 → 状态 / 建议 / 风险。
+
+    象限分界（对齐 timsun 散点图虚线）：VIX 17 / 22，SKEW 130 / 150。
+    """
+    if vix is None or skew is None:
+        return {"state": "—", "text": "数据缺失", "advice": "—", "risk": "—"}
+    if vix >= 22:
+        state, text = (
+            "恐慌区",
+            f"VIX {vix:.1f} 处 22 上方且 SKEW {skew:.0f}，波动与尾部担忧同步升温。",
+        )
+        advice = (
+            "降低风险敞口，优先买入保护性 put；波动率高企时卖出期权收权利金更划算。"
+        )
+        risk = "VIX 跳升阶段追空风险大，gamma 挤压可能进一步推升波动。"
+    elif vix >= 17:
+        state, text = (
+            "波动偏高",
+            f"VIX {vix:.1f} 处 17-22 区间，波动率偏高；SKEW {skew:.0f}。",
+        )
+        advice = "保持基础对冲，避免新增裸多头；关注 VIX 是否向 22 突破。"
+        risk = "若 SKEW 同步升破 150，尾部对冲成本将快速上升。"
+    elif skew >= 150:
+        state, text = (
+            "平静但尾部对冲高",
+            f"VIX {vix:.1f} 平静，但 SKEW {skew:.0f} ≥ 150，市场在低价位抢购尾部保护。",
+        )
+        advice = "波动低 + 尾部对冲贵，是低成本布局保护性结构的窗口；谨慎做空波动。"
+        risk = "SKEW 极端高常领先于波动率脉冲上行。"
+    else:
+        state, text = (
+            "平静区",
+            f"VIX {vix:.1f} 低于 17，SKEW {skew:.0f} 低于 150，"
+            "波动与尾部担忧均处低位。",
+        )
+        advice = (
+            "低波动环境可持有风险敞口，用领口或价差控制回撤；"
+            "警惕低波动本身积累的下行风险。"
+        )
+        risk = "VIX 从低位跳升往往剧烈（均值回归），关注 VIX9D 是否先行抬升。"
+    return {"state": state, "text": text, "advice": advice, "risk": risk}
+
+
 def vix_history(df: pd.DataFrame, days: int = 6 * 22) -> dict:
     """VIX + SKEW 近 days 个交易日双线（SKEW 对齐到 VIX 日期轴，缺失补 null）。"""
     vix = df["VIX"].dropna().tail(days)
@@ -290,6 +334,11 @@ def generate_volatility_analysis() -> dict:
             {"title": "展望", "text": signal_outlook(df, card)},
         ],
         "vix_history": hist,
+        # 长期序列复用 vix_history（days 参数化），前端只取 vix 轴
+        "vix_long": vix_history(df, 2 * 252),
+        "skew_signal": skew_quadrant(card["value"], _latest(df["SKEW"])),
+        # 区间色表下发（前端色条直接消费，不硬编码色值）
+        "zones": [{"label": lb, "color": c} for lb, _, _, c in ZONES],
         "vix_skew_scatter": vix_skew_scatter(df),
         "recent": recent_rows(df),
     }

@@ -11,6 +11,7 @@ from src.volatility_analysis import (
     signal_outlook,
     signal_term,
     signal_vix_level,
+    skew_quadrant,
     term_structure,
     vix_card,
     vix_history,
@@ -131,6 +132,28 @@ class TestSignals:
         assert "低于 130" in signal_outlook(low, vix_card(low))
 
 
+class TestSkewQuadrant:
+    def test_panic(self):
+        q = skew_quadrant(25.0, 152.0)
+        assert q["state"] == "恐慌区"
+        assert "advice" in q and "risk" in q
+
+    def test_elevated_vol(self):
+        q = skew_quadrant(19.0, 135.0)
+        assert q["state"] == "波动偏高"
+
+    def test_calm_high_skew(self):
+        q = skew_quadrant(14.0, 155.0)
+        assert q["state"] == "平静但尾部对冲高"
+
+    def test_calm(self):
+        q = skew_quadrant(14.0, 135.0)
+        assert q["state"] == "平静区"
+
+    def test_missing(self):
+        assert skew_quadrant(None, 140.0)["state"] == "—"
+
+
 class TestVixHistory:
     def test_skew_aligned_to_vix_dates(self, sig_df):
         hist = vix_history(sig_df, days=10)
@@ -151,6 +174,12 @@ class TestVixHistory:
         assert "skew_history" not in out
         assert len(out["vix_skew_scatter"]) == len(sig_df)
         assert len(out["recent"]) == 6
+        # 长期序列与象限信号（timsun 页对齐）
+        assert "vix_long" in out and len(out["vix_long"]["vix"]) == len(sig_df)
+        assert out["skew_signal"]["state"] == "平静区"
+        # 区间色表与 ZONES 同源（前端色条不硬编码）
+        assert [z["label"] for z in out["zones"]] == [z[0] for z in va.ZONES]
+        assert [z["color"] for z in out["zones"]] == [z[3] for z in va.ZONES]
 
     def test_generate_entry_missing_skew(self, sig_df, monkeypatch):
         monkeypatch.setattr(va, "_read", lambda: sig_df.drop(columns=["SKEW"]))
