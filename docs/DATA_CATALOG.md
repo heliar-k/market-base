@@ -80,6 +80,7 @@
 VIX1D/VIX9D/VIX/VIX3M/VIX6M/VIX1Y/SKEW 全量序列一并落盘，可复算期限结构斜率。
 2026-08 扩展至 24 列（timsun 波动率面板对齐）：新增商品/股指/期限/尾部/个股波动率指数。
 列名用 timsun 面板显示名，部分与 CBOE 官方代码不同（VXSL→VXSLV、VTLT→VXTLT、VXGO→VXGOG、VXAP→VXAPL、VXAZ→VXAZN、VXIB→VXIBM）。
+2026-08-15 再扩展至 26 列：新增 VXHY（官方 VXHYG，HYG 版）、VEWZ（官方 VXEWZ）。
 
 | 列名 | 说明 |
 |------|------|
@@ -104,6 +105,8 @@ VIX1D/VIX9D/VIX/VIX3M/VIX6M/VIX1Y/SKEW 全量序列一并落盘，可复算期�
 | `VXGO` / `VXGS` / `VXAP` / `VXAZ` / `VXIB` | 个股波动率（Google/高盛/Apple/Amazon/IBM，2011-01 起） |
 | `VXNG` | 天然气波动率（官方 VXUNG，2020-11 起） |
 | `VXEEM` | 新兴市场 ETF 波动率（官方 VXEEM，2011-03 起） |
+| `VXHY` | 高收益债波动率（官方 VXHYG，HYG 版，2015-04 起；原 VXHY 指数 2019 停发） |
+| `VEWZ` | 巴西 ETF 波动率（官方 VXEWZ，2011-03 起） |
 
 ### 指数别名映射（调研确认，2026-08-06）
 
@@ -114,9 +117,11 @@ VIX1D/VIX9D/VIX/VIX3M/VIX6M/VIX1Y/SKEW 全量序列一并落盘，可复算期�
 | VXNG（天然气） | `VXNG`（官方 VXUNG） | timsun 显示名 vs 官方代码，数值已验证一致 |
 | VEEM（新兴市场） | `VXEEM` | timsun 显示名 vs 官方代码，数值已验证一致 |
 
-> 无免费源（CDN 403，Yahoo/FRED/stooq/Barchart 均验证无）：VXHY（高收益债 VIX）、
-> VEWZ（巴西 ETF VIX）、VXMO（Standard Monthly VIX，2024 新推）。
-> VXEF（MSCI 新兴市场 VIX）：CBOE 2026 公告停止 MSCI 衍生品指数系列。
+> 无免费历史源（CDN 403，Yahoo/FRED/stooq 均验证无）：VXMO（Standard Monthly VIX，
+> 2024 新推）、VXEF（EFA VIX，CBOE 2026 公告停止 MSCI 衍生品指数系列）。
+> 此两个指数由 `./bin/fetch_barchart_vol` 每日快照积累（见 2c 节）。
+> MOVE/TDEX/VOLI（美债/TailDex/VolDex）由 yfinance 拉取，存
+> `data/yfinance/asset_prices.csv`（2002/2013 起历史）。
 
 > 与 `data/fred/volatility/volatility.csv` 的关系：仅 VIX 一列重叠（同源），fred 版
 > 侧重信用利差（risk-off），本文件侧重波动率期限结构，用途不同不统一。
@@ -137,6 +142,20 @@ VIX1D/VIX9D/VIX/VIX3M/VIX6M/VIX1Y/SKEW 全量序列一并落盘，可复算期�
 | `US` / `OTHER_ADVANCED` / `EMERGING_MARKETS` | 分区域贡献 |
 
 ---
+
+## 2c. 波动率指数快照 — `data/barchart/volatility_snapshot.csv`
+
+来源 Barchart core-api `list=stocks.markets.volatility`（免费匿名，Actions 每日跑
+`./bin/fetch_barchart_vol`）。每次返回 30 个波动率指数的 lastPrice + 1D/5D/1M/1Y
+官方变化（即 timsun.net/volatility/dashboard 的「Barchart snapshot」同源数据）。
+观测日 upsert 宽表：`{SYM}` 价格列 + `{SYM}_chg1d/_chg5d/_chg1m/_chg1y` 变化列
+（百分数口径，-2.60 即 -2.60%）。
+
+用途：
+- VXMO、VXEF 的唯一数据源（CBOE/yfinance 均无，见 2 节），逐日快照积累历史；
+- 其余 28 个指数的官方变化字段，作 `src/volatility_dashboard.py` 的 1D/5D/1M/1Y
+  变化口径（与 timsun 同源同口径；快照缺失时回落本地历史自算）；
+- 30 指数与 CBOE/yfinance 交叉校验。
 
 ---
 
@@ -450,7 +469,7 @@ MSPD Table 1（Monthly Statement of the Public Debt）派生：各市场化品�
 |---|---|
 | 指数 | SPX、NDX、RUT、DJI、SOX、N225（日经）、KOSPI、NIFTY、SSE（上证）、SZSE（深证） |
 | 汇率 | DXY、USDJPY（美元兑日元）、USDCNY（美元兑人民币）、EURUSD（欧元/美元）、GBPUSD（英镑/美元）、USDKRW（美元/韩元） |
-| 波动率 | MOVE（美林国债期权波动率，债市 VIX） |
+| 波动率 | MOVE（美林国债期权波动率，债市 VIX）、TDEX（Nations TailDex 尾部风险指数）、VOLI（Nations VolDex 波动率指数） |
 | 银行 | KBWB（KBW 银行 ETF，信用页银行系统风险代理） |
 | 加密 | BTC、ETH |
 | 商品 | WTI、Brent、Gold、Silver、Copper、NG（天然气） |

@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+# Barchart 波动率指数快照（30 指数，timsun dashboard 对齐源）
+set -euo pipefail
+cd "$(dirname "$0")/.."
+uv run python -m src.fetchers.barchart_vol_fetcher "$@"

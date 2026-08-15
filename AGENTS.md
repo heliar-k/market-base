@@ -24,6 +24,7 @@ market-base/
 │   ├── analyze.py                ← 技术分析诊断引擎（analyze + detect_cdl_hits），CLI 输出 JSON
 │   ├── intraday_levels.py        ← 分时价位分析（触及次数/量能分布/插针判定，单日 5m 报告）
 │   ├── stock_snapshot.py         ← 盘前实时价 + OI 墙快照（yfinance）
+│   ├── volatility_dashboard.py   ← 波动率全景仪表盘分析层（30 指数 + 风险矩阵 + Trade Map + 7 段叙事，规则引擎 + LLM 预留）
 │   ├── compute_gex.py            ← Gamma Exposure 与期权墙计算（IBKR + yfinance）
 │   ├── cache.py                  ← 指标缓存层（parquet + mtime 失效，TUI 加速）
 │   ├── macro.py                  ← 宏观派生指标（2s10s / 净流动性 / BEI / SOFR-IORB）
@@ -44,6 +45,7 @@ market-base/
 │   │   ├── barchart_client.py    ← Barchart core-api 匿名客户端（XSRF 会话）
 │   │   ├── barchart_futures_fetcher.py ← Barchart 期货期限结构（10 品种全合约，IBKR 替代源）
 │   │   ├── barchart_options_fetcher.py ← Barchart 期权链（真实 gamma，GEX 降级源）
+│   │   ├── barchart_vol_fetcher.py ← Barchart 波动率 30 指数快照（timsun dashboard 对齐源）
 │   │   ├── cot_fetcher.py        ← CFTC COT 持仓报告（官方 disaggregated + TFF）
 │   │   ├── fed_fetcher.py        ← FOMC 声明 + 官员演讲（federalreserve.gov，增量）
 │   │   ├── commodities_fetcher.py← IBKR 商品期货日线（9 个品种，整条曲线）
@@ -71,6 +73,7 @@ market-base/
 │   ├── fetch_commodities
 │   ├── fetch_options
 │   ├── fetch_barchart_futures
+│   ├── fetch_barchart_vol                ← Barchart 波动率 30 指数快照（timsun dashboard 对齐源）
 │   ├── fetch_cot
 │   ├── fetch_financials                ← 财报三张表（yfinance 季度+年度，Actions 每日）
 │   ├── fetch_sec                       ← SEC 10-K/10-Q/20-F 原文（EDGAR 增量，Actions 每日）
@@ -99,6 +102,7 @@ market-base/
 │   ├── gex/{SYMBOL}_greeks_YYYYMMDD.csv  ← Greeks 当日快照（--reuse-greeks 复用）
 │   ├── gex/{SYMBOL}_gex_YYYYMMDD_HHMM.csv ← GEX 逐合约明细（每次运行留存）
 │   ├── barchart/futures/{ROOT}.csv        ← Barchart 期货全合约曲线（观测日 upsert 宽表）
+│   ├── barchart/volatility_snapshot.csv   ← Barchart 波动率 30 指数快照（价格 + 1D/5D/1M/1Y 变化）
 │   ├── barchart/commodities/ZQ/ZQ_{YYYYMM}.csv ← Barchart ZQ 合约（rate_expectations 降级）
 │   ├── cot/cot.csv                        ← CFTC COT 持仓报告（周频，观测日 upsert）
 │   ├── treasury/auction_results.csv       ← 国债拍卖结果全量（~11k 场，覆盖写）
@@ -137,7 +141,7 @@ market-base/
 **每日自动（无需本地操作）**：GitHub Actions `daily-fetch` workflow 每个交易日
 北京时间 05:00 自动拉取**不依赖 IBKR/TWS** 的数据源并 commit + push，本地 `git pull` 即得：
 `fred` / `cboe` / `ofr` / `srf` / `tsy` / `cfets` / `shapiro` / `sce` / `treasury` / `yfinance`（17 品种资产快照）
-`barchart_futures` / `cot` / `rate_expectations` / `fed`（Barchart 期货曲线、CFTC COT、FOMC 概率、FOMC 声明+演讲）
+`barchart_futures` / `barchart_vol` / `cot` / `rate_expectations` / `fed`（Barchart 期货曲线、Barchart 波动率 30 指数快照、CFTC COT、FOMC 概率、FOMC 声明+演讲）
 `financials` / `sec`（财报三张表 + SEC 10-K/10-Q 原文）
 `minute_bars`（全部股票+指数 1d 日线 + 5m/15m/1h/4h 分钟线，yfinance 原始价与 IBKR 一致；1d 全量历史，5m/15m 深度 60 天、1h/4h 2 年）。
 
@@ -163,6 +167,7 @@ market-base/
 ./bin/fetch_tsy                     # Treasury 公开市场操作明细（RMP/POMO）
 ./bin/fetch_cfets                   # CFETS 外汇掉期点（5 外币对 × 5 期限 + Barchart USDCNH/USDCHF 全期限）
 ./bin/fetch_barchart_futures        # Barchart 期货期限结构（10 品种全合约，免费匿名）
+./bin/fetch_barchart_vol            # Barchart 波动率 30 指数快照（timsun dashboard 对齐源，VXMO/VXEF 唯一源）
 ./bin/fetch_cot                     # CFTC COT 持仓报告（周频）
 ./bin/fetch_analyst                  # Nasdaq 100 分析师目标价（Wikipedia 成分 + yfinance）
 uv run python -m src.cross_asset     # 跨资产 30 日相关性矩阵（派生，依赖资产快照）

@@ -15,7 +15,10 @@
       ['官员演讲', 'speeches.html'],
       ['鹰鸽追踪', 'hawkish-dovish.html'],
     ],
-    '/volatility/': [['VIX', 'vix.html']],
+    '/volatility/': [
+      ['全景仪表盘', 'index.html'],
+      ['VIX 详情', 'vix.html'],
+    ],
     '/credit/': [
       ['总览', 'index.html'],
       ['CDS 专题', 'cds.html'],

@@ -163,6 +163,9 @@ def export_api() -> None:
     ]:
         _safe(f"api/rates/{name}", fn)
     _safe("api/volatility/analysis", get_volatility_analysis)
+    from src.volatility_dashboard import generate_dashboard
+
+    _safe("api/volatility/dashboard", generate_dashboard)
     _safe("api/fed/overview", get_fed_overview)
     _safe("api/credit/overview", get_credit_overview)
     _safe("api/credit/cds", get_credit_cds)

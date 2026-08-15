@@ -702,6 +702,18 @@ def get_volatility_analysis() -> dict:
     return out
 
 
+@app.get("/api/volatility/dashboard")
+def get_volatility_dashboard() -> dict:
+    """波动率全景仪表盘：30 指数 + 风险矩阵 + Trade Map + 统计 + 7 段叙事
+    （timsun.net/volatility/dashboard 复刻，规则引擎，LLM 预留）。"""
+    from src.volatility_dashboard import generate_dashboard
+
+    out = generate_dashboard()
+    if "error" in out:
+        raise HTTPException(404, out["error"])
+    return out
+
+
 # ── credit hub（复刻 timsun.net/credit）──────────────────────────────────
 
 

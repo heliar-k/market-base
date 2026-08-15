@@ -374,6 +374,8 @@ YF_TICKERS = {
     "DJI": "^DJI",
     "DXY": "DX-Y.NYB",
     "MOVE": "^MOVE",  # 美林国债期权波动率指数（债市 VIX）
+    "TDEX": "^TDEX",  # Nations TailDex 尾部风险指数（timsun 波动率面板）
+    "VOLI": "^VOLI",  # Nations VolDex 波动率指数（timsun 波动率面板）
     "BTC": "BTC-USD",
     "ETH": "ETH-USD",
     "WTI": "CL=F",

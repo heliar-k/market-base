@@ -4,7 +4,7 @@
   <link rel="icon" href="/favicon.svg" type="image/svg+xml">
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>波动率 — US Macro</title>
+<title>波动率全景仪表盘 — US Macro</title>
 <link rel="stylesheet" href="/css/app.css">
 <link rel="stylesheet" href="/css/special.css">
 <script src="/vendor/echarts.min.js"></script>
@@ -12,27 +12,88 @@
 <body>
 <div class="re-root">
   <div class="re-header">
-    <h1>波动率</h1>
+    <h1>波动率全景仪表盘</h1>
     <span class="re-as-of" id="re-as-of"></span>
   </div>
 
   <div class="re-nav" id="re-nav"></div>
+  <div class="page-toc" id="page-toc"></div>
 
-  <div id="vix-row"></div>
-  <div id="re-signals"></div>
+  <!-- Hero 四卡 + 定调 -->
+  <div id="vol-overview">
+    <div class="vol-hero" id="vol-hero"></div>
+    <div class="vol-verdict" id="vol-verdict"></div>
+  </div>
+
+  <!-- 三张信号卡 -->
+  <div class="re-section" id="vol-signals-sec">
+    <h2>跨资产波动信号</h2>
+    <div class="vol-signal-grid" id="vol-signals"></div>
+  </div>
+
+  <!-- 风险来源矩阵 -->
+  <div class="re-section" id="vol-risk-sec">
+    <h2>风险来源矩阵</h2>
+    <div class="vol-risk-grid" id="vol-risk"></div>
+  </div>
+
+  <!-- Vol Trade Map -->
+  <div class="re-section" id="vol-trade-sec">
+    <h2>今日 Vol Trade Map</h2>
+    <div class="vol-trade" id="vol-trade"></div>
+  </div>
+
+  <!-- 市场波动状态统计条 -->
+  <div class="vol-stats" id="vol-stats"></div>
+
+  <!-- 全部指数热力图 -->
+  <div class="re-section" id="vol-heat-sec">
+    <h2>全部波动率指数热力图</h2>
+    <div class="vol-heat" id="vol-heat"></div>
+  </div>
+
+  <!-- VIX 期限结构 -->
+  <div class="re-section" id="vol-term-sec">
+    <div class="term-head">
+      <h2 style="margin:0">VIX 期限结构</h2>
+      <span id="term-badge"></span>
+    </div>
+    <div id="vol-term-chart" class="chart" style="height:280px"></div>
+  </div>
+
+  <!-- 跨资产 1D 变化 -->
+  <div class="re-section" id="vol-cross-sec">
+    <h2>跨资产波动率 1D 变化</h2>
+    <div id="vol-cross-chart" class="chart" style="height:680px"></div>
+  </div>
+
+  <!-- 7 段叙事 -->
+  <div class="vol-narrative" id="vol-narrative"></div>
+
+  <!-- Top 8 升温 / 降温 -->
+  <div class="re-section" id="vol-top-sec">
+    <div class="vol-top-row" id="vol-top"></div>
+  </div>
+
+  <!-- 全量 30 指数表 -->
+  <div class="re-section" id="vol-table-sec">
+    <h2>全部波动率指数（30 个）</h2>
+    <div id="vol-table"></div>
+  </div>
+
   <div class="link-grid">
-    <a class="link-card" href="https://www.barchart.com/options/volatility-index" target="_blank">
-      <span class="icon">📡</span>
-      <div>
-        <div class="t">波动率全景</div>
-        <div class="d">实时跨资产波动率仪表盘（Barchart）</div>
-      </div>
-    </a>
     <a class="link-card" href="/volatility/vix.html">
       <span class="icon">🌊</span>
       <div>
-        <div class="t">VIX</div>
-        <div class="d">标普500隐含波动率指数</div>
+        <div class="t">VIX 详情</div>
+        <div class="d">标普500隐含波动率深挖：SKEW 象限、分位、近 2 年走势</div>
+      </div>
+    </a>
+    <a class="link-card" href="https://www.barchart.com/stocks/indices/volatility" target="_blank">
+      <span class="icon">📡</span>
+      <div>
+        <div class="t">Barchart 波动率全景</div>
+        <div class="d">本页数据快照来源（30 指数实时报价）</div>
       </div>
     </a>
   </div>
@@ -41,51 +102,191 @@
 
 <script src="/js/rates-common.js"></script>
 <script>
+const UP = '#ef5350', DOWN = '#26a69a', FLAT = '#9ca3af';
+const chgClass = (v) => v === null || v === undefined || v === 0 ? 'flat' : v > 0 ? 'up' : 'down';
+const chgColor = (v) => v > 0 ? UP : v < 0 ? DOWN : FLAT;
+const pct = (v) => v === null || v === undefined ? '—' : `${v > 0 ? '+' : ''}${v.toFixed(2)}%`;
+
 async function load() {
-  const data = await R.get('/api/volatility/analysis');
-  const v = data.vix;
+  // 小节锚点导航（长页快速跳转；sticky 见 special.css .page-toc，同 treasury 页）
+  document.getElementById('page-toc').innerHTML = [
+    ['概览', 'vol-overview'], ['信号', 'vol-signals-sec'], ['风险矩阵', 'vol-risk-sec'],
+    ['Trade Map', 'vol-trade-sec'], ['热力图', 'vol-heat-sec'], ['期限结构', 'vol-term-sec'],
+    ['跨资产', 'vol-cross-sec'], ['叙事', 'vol-narrative'], ['榜单', 'vol-top-sec'],
+    ['全量表', 'vol-table-sec'],
+  ].map(([t, id]) => `<a href="#${id}">${t}</a>`).join('');
+
+  const data = await R.get('/api/volatility/dashboard');
   document.getElementById('re-as-of').textContent = '数据截至 ' + data.as_of;
-
-  // 卡片行：VIX 最新值 + 徽章 | VIX 水平参考
-  // 周变动用点数口径（对齐 timsun「7 日变化 −2.84pt」，审计 P2-②），百分比附注保留
-  const chg1d = v.chg_1d_pct === null ? '' : `${v.chg_1d_pct > 0 ? '▲' : '▼'} ${Math.abs(v.chg_1d_pct).toFixed(2)}% 日 · `;
-  const chg1wPct = v.chg_1w_pct === null ? '' : `（${v.chg_1w_pct > 0 ? '+' : ''}${v.chg_1w_pct.toFixed(2)}%）`;
-  const chg1w = v.chg_1w === null ? '' : `${v.chg_1w > 0 ? '▲' : '▼'} ${Math.abs(v.chg_1w).toFixed(2)}pt${chg1wPct} 周`;
-  const row = document.createElement('div');
-  row.className = 'vix-row';
-  row.innerHTML = `
-    <div class="vix-card">
-      <span class="vix-label">VIX（恐慌指数）</span>
-      <span class="vix-value">${v.value.toFixed(2)}</span>
-      <span class="vix-badge" style="color:${v.zone_color};border-color:${v.zone_color}66;background:${v.zone_color}1a">${v.zone}区间 · ${v.percentile_1y}% 分位</span>
-      <span class="vix-date">${chg1d}${chg1w} &nbsp;·&nbsp; ${v.as_of}</span>
-    </div>
-    <div class="vix-card vix-legend">
-      <div class="title">VIX 水平参考</div>
-      <div class="scale">
-        <span style="color:#26a69a">＜15 平静</span>
-        <span style="color:#ff9800">15-25 正常</span>
-        <span style="color:#ff9800">25-35 警戒</span>
-        <span style="color:#ef5350">＞35 恐慌</span>
-      </div>
-    </div>`;
-  document.getElementById('vix-row').appendChild(row);
-
-  // 波动率信号（三段）
-  const sec = document.createElement('div');
-  sec.className = 're-section';
-  sec.innerHTML = '<h2>波动率信号</h2>';
-  data.signals.forEach(s => {
-    const b = document.createElement('div');
-    b.className = 'sig-block';
-    b.innerHTML = `<div class="sig-title">${s.title}</div><p>${s.text}</p>`;
-    sec.appendChild(b);
+  const c = R.colors();
+  const axis = (name) => ({
+    type: 'value', name, nameTextStyle: { color: c.muted },
+    axisLabel: { color: c.muted }, splitLine: { lineStyle: { color: c.grid } },
   });
-  document.getElementById('re-signals').appendChild(sec);
 
-  document.getElementById('re-gen').textContent = `研判由规则引擎生成（${data.generator}）· ${data.as_of}`;
+  // ── Hero 四卡 + 定调 ──
+  const hero = document.getElementById('vol-hero');
+  data.hero.cards.forEach(k => {
+    const cls = chgClass(k.chg1d);
+    const d = document.createElement('div');
+    d.className = 'vol-hero-card';
+    d.innerHTML = `<div class="vh-label">${k.name}（${k.symbol}）</div>
+      <div class="vh-value">${k.value === null ? '—' : k.value.toFixed(2)}</div>
+      <span class="vh-chg ${cls}">1D ${pct(k.chg1d)}</span>`;
+    hero.appendChild(d);
+  });
+  document.getElementById('vol-verdict').innerHTML =
+    `<b>定调：</b>${data.hero.verdict}`;
+
+  // ── 三张信号卡 ──
+  const sig = document.getElementById('vol-signals');
+  data.signals.forEach(s => {
+    const d = document.createElement('div');
+    d.className = 'vol-signal-card';
+    d.innerHTML = `<div class="vs-title">${s.title}</div>
+      <div class="vs-metric">${s.metric}</div>
+      <p>${s.text}</p>` + (s.advice ? `<div class="vs-advice">${s.advice}</div>` : '');
+    sig.appendChild(d);
+  });
+
+  // ── 风险来源矩阵 ──
+  const risk = document.getElementById('vol-risk');
+  data.risk_matrix.forEach(r => {
+    const cls = chgClass(r.chg_value);
+    const d = document.createElement('div');
+    d.className = 'vol-risk-cell';
+    d.innerHTML = `<div class="vr-name">${r.name}</div>
+      <div class="vr-line">${r.chg_symbol} <b class="${cls}">${r.chg_label}</b> · ${r.level_label}</div>
+      <div class="vr-check">${r.check}</div>`;
+    risk.appendChild(d);
+  });
+
+  // ── Vol Trade Map ──
+  const tm = data.trade_map;
+  document.getElementById('vol-trade').innerHTML = `
+    <div class="vt-head"><span class="vt-title">${tm.title}</span>
+      <span class="vt-conf">置信度：${tm.confidence}</span></div>
+    <div class="vt-row"><b>策略：</b>${tm.strategy}</div>
+    <div class="vt-row"><b>触发条件：</b>${tm.trigger}</div>
+    <div class="vt-row"><b>失效条件：</b>${tm.invalidate}</div>`;
+
+  // ── 统计条 ──
+  const st = data.stats;
+  const statTile = (label, value, cls) => `
+    <div class="vol-stat"><div class="st-label">${label}</div>
+    <div class="st-value ${cls || ''}">${value}</div></div>`;
+  document.getElementById('vol-stats').innerHTML =
+    statTile('平均 1 日变化', st.avg1d === null ? '—' : pct(st.avg1d), chgClass(st.avg1d)) +
+    statTile('平均 5 日变化', st.avg5d === null ? '—' : pct(st.avg5d), chgClass(st.avg5d)) +
+    statTile('平均 1 月变化', st.avg1m === null ? '—' : pct(st.avg1m), chgClass(st.avg1m)) +
+    statTile(`样本内 ${st.n} 个`, `${st.up} 涨 / ${st.down} 跌`);
+
+  // ── 热力图 ──
+  const heat = document.getElementById('vol-heat');
+  data.indices.forEach(r => {
+    const cls = chgClass(r.chg1d);
+    const mag = r.chg1d === null ? 0 : Math.min(Math.abs(r.chg1d) / 8, 1);
+    const tint = r.chg1d > 0
+      ? `rgba(239,83,80,${(0.12 + 0.5 * mag).toFixed(2)})`
+      : r.chg1d < 0
+      ? `rgba(38,166,154,${(0.12 + 0.5 * mag).toFixed(2)})`
+      : 'var(--surface)';
+    const d = document.createElement('div');
+    d.className = `vol-heat-cell ${cls}`;
+    d.style.background = tint;
+    d.innerHTML = `<span class="ht-sym">$${r.symbol}</span>
+      <span class="ht-name">${r.name}</span>
+      <span class="ht-value">${r.value === null ? '—' : r.value.toFixed(2)}</span>
+      <span class="ht-chg" style="color:${chgColor(r.chg1d)}">${pct(r.chg1d)}</span>`;
+    heat.appendChild(d);
+  });
+
+  // ── 期限结构 ──
+  const term = data.term_structure;
+  const badge = document.getElementById('term-badge');
+  badge.className = 'term-badge ' + term.state;
+  const sign = term.state === 'contango' ? '+' : '−';
+  badge.textContent = `${term.state === 'contango' ? 'Contango' : term.state === 'backwardation' ? 'Backwardation' : '—'} (${sign}${Math.abs(term.slope ?? 0).toFixed(2)})`;
+  R.mkChart('vol-term-chart', () => ({
+    tooltip: { trigger: 'axis' },
+    grid: { left: 50, right: 20, top: 30, bottom: 30 },
+    xAxis: { type: 'category', data: term.labels, axisLabel: { color: c.text, fontWeight: 'bold' } },
+    yAxis: { ...axis('VIX'), scale: true },
+    series: [{
+      type: 'line', data: term.values, smooth: true, symbol: 'circle', symbolSize: 8,
+      lineStyle: { width: 3, color: c.blue }, itemStyle: { color: c.blue },
+      areaStyle: { color: c.blue, opacity: .08 },
+      label: { show: true, position: 'top', color: c.muted, fontSize: 11 },
+    }],
+  }));
+
+  // ── 跨资产 1D 变化（横向条形图，按 1D 升序） ──
+  const sorted = [...data.indices].filter(r => r.chg1d !== null).sort((a, b) => a.chg1d - b.chg1d);
+  R.mkChart('vol-cross-chart', () => ({
+    tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' },
+      formatter: (ps) => { const r = sorted[ps[0].dataIndex]; return `$${r.symbol} ${r.name}<br/>1D ${pct(r.chg1d)} · 最新 ${r.value?.toFixed(2) ?? '—'}`; } },
+    grid: { left: 110, right: 55, top: 10, bottom: 26 },
+    xAxis: { ...axis('1D %'), axisLabel: { color: c.muted, formatter: '{value}%' } },
+    yAxis: { type: 'category', data: sorted.map(r => `$${r.symbol}`), axisLabel: { color: c.text, fontSize: 11 } },
+    series: [{
+      type: 'bar', data: sorted.map(r => ({
+        value: r.chg1d,
+        itemStyle: { color: r.chg1d > 0 ? UP : DOWN, borderRadius: r.chg1d > 0 ? [0, 4, 4, 0] : [4, 0, 0, 4] },
+      })),
+      barMaxWidth: 14,
+      label: { show: true, position: 'right', color: c.muted, fontSize: 10, formatter: (p) => pct(p.value) },
+    }],
+  }));
+
+  // ── 7 段叙事 ──
+  const narr = document.getElementById('vol-narrative');
+  data.narrative.forEach(n => {
+    const sec = document.createElement('div');
+    sec.className = 're-section';
+    let inner = `<h2>${n.title}${n.score !== undefined ? `<span class="vol-score">综合评分 ${n.score}/10</span>` : ''}</h2>`;
+    if (n.parts) {
+      inner += '<div class="vol-basic-grid">' + n.parts.map(p =>
+        `<div class="sig-block"><div class="sig-title">${p.title}</div><p>${p.text}</p></div>`).join('') + '</div>';
+    } else {
+      inner += `<div class="re-analysis"><p>${n.text}</p></div>`;
+    }
+    sec.innerHTML = inner;
+    narr.appendChild(sec);
+  });
+
+  // ── Top 8 升温 / 降温 ──
+  const rankable = data.indices.filter(r => r.chg1d !== null);
+  const hot = [...rankable].sort((a, b) => b.chg1d - a.chg1d).slice(0, 8);
+  const cool = [...rankable].sort((a, b) => a.chg1d - b.chg1d).slice(0, 8);
+  const fmtTop = (rows) => rows.map(r => ({
+    symbol: r.symbol, name: r.name, value: r.value,
+    chg1d: `<span style="color:${chgColor(r.chg1d)}">${pct(r.chg1d)}</span>`,
+    chg1m: r.chg1m === null ? '—' : `<span style="color:${chgColor(r.chg1m)}">${pct(r.chg1m)}</span>`,
+  }));
+  const topBox = document.getElementById('vol-top');
+  const hotBox = document.createElement('div');
+  hotBox.innerHTML = '<h3 class="hot">Top 8 波动升温</h3>';
+  hotBox.appendChild(R.table(['代码', '名称', '最新', '1D%', '1M%'], fmtTop(hot), {}, null, true));
+  const coolBox = document.createElement('div');
+  coolBox.innerHTML = '<h3 class="cool">Top 8 波动降温</h3>';
+  coolBox.appendChild(R.table(['代码', '名称', '最新', '1D%', '1M%'], fmtTop(cool), {}, null, true));
+  topBox.appendChild(hotBox);
+  topBox.appendChild(coolBox);
+
+  // ── 全量 30 指数表 ──
+  document.getElementById('vol-table').appendChild(R.table(
+    ['代码', '名称', '最新价', '1D%', '5D%', '1M%', '1Y%'],
+    data.indices.map(r => ({
+      symbol: `$${r.symbol}`, name: r.name, value: r.value?.toFixed(2) ?? '—',
+      chg1d: `<span style="color:${chgColor(r.chg1d)}">${pct(r.chg1d)}</span>`,
+      chg5d: r.chg5d === null ? '—' : `<span style="color:${chgColor(r.chg5d)}">${pct(r.chg5d)}</span>`,
+      chg1m: r.chg1m === null ? '—' : `<span style="color:${chgColor(r.chg1m)}">${pct(r.chg1m)}</span>`,
+      chg1y: r.chg1y === null ? '—' : `<span style="color:${chgColor(r.chg1y)}">${pct(r.chg1y)}</span>`,
+    })), {}, null, true));
+
+  document.getElementById('re-gen').textContent = `研判由规则引擎生成（${data.generator}）· ${data.as_of} · 快照源 Barchart/CBOE`;
 }
-load().catch(e => R.fail(['vix-row', 're-signals'], e));
+load().catch(e => R.fail(['vol-hero', 'vol-verdict', 'vol-signals', 'vol-risk', 'vol-trade', 'vol-stats', 'vol-heat', 'vol-term-chart', 'vol-cross-chart', 'vol-narrative', 'vol-top', 'vol-table'], e));
 </script>
 <script src="/js/nav.js"></script>
 </body>
