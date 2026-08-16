@@ -95,7 +95,22 @@ const R = {
       d.innerHTML = `<div class="re-corridor-label">${label}</div>
         <div class="re-corridor-value">${value}</div>
         <div class="re-card-sub">${sub || ''}</div>`;
+      // 长值（如“3.50% – 3.75%”、“2026-09-16”）按卡片宽度自动缩字号，防溢出；
+      // 仅当卡片宽度真正变化时重算（守卫 lastW，避免改字号→高度变→循环触发）
+      const v = d.querySelector('.re-corridor-value');
+      let lastW = 0;
+      const fit = () => {
+        const w = d.clientWidth;
+        if (w === lastW) return;
+        lastW = w;
+        v.style.fontSize = '';
+        const avail = w - 40; // 卡片 padding 36px + 4px 安全边距（非整数字号下字形取整会多出几 px）
+        if (avail > 0 && v.scrollWidth > avail) {
+          v.style.fontSize = Math.max(12, Math.floor((220 * avail) / v.scrollWidth) / 10) + 'px';
+        }
+      };
       row.appendChild(d);
+      new ResizeObserver(fit).observe(d);
     });
     return row;
   },

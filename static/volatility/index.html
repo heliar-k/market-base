@@ -266,10 +266,16 @@ async function load() {
   const topBox = document.getElementById('vol-top');
   const hotBox = document.createElement('div');
   hotBox.innerHTML = '<h3 class="hot">Top 8 波动升温</h3>';
-  hotBox.appendChild(R.table(['代码', '名称', '最新', '1D%', '1M%'], fmtTop(hot), {}, null, true));
+  const hotWrap = document.createElement('div');
+  hotWrap.className = 're-table-wrap'; // 窄屏横向滚动，防溢出
+  hotWrap.appendChild(R.table(['代码', '名称', '最新', '1D%', '1M%'], fmtTop(hot), {}, null, true));
+  hotBox.appendChild(hotWrap);
   const coolBox = document.createElement('div');
   coolBox.innerHTML = '<h3 class="cool">Top 8 波动降温</h3>';
-  coolBox.appendChild(R.table(['代码', '名称', '最新', '1D%', '1M%'], fmtTop(cool), {}, null, true));
+  const coolWrap = document.createElement('div');
+  coolWrap.className = 're-table-wrap';
+  coolWrap.appendChild(R.table(['代码', '名称', '最新', '1D%', '1M%'], fmtTop(cool), {}, null, true));
+  coolBox.appendChild(coolWrap);
   topBox.appendChild(hotBox);
   topBox.appendChild(coolBox);
 

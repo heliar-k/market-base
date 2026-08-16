@@ -35,10 +35,7 @@
 <script src="/js/rates-common.js"></script>
 <script>
 async function load() {
-  const [d, cal] = await Promise.all([
-    R.get('/api/rates/fed-funds'),
-    R.get('/api/fomc/calendar'),
-  ]);
+  const d = await R.get('/api/rates/fed-funds');
   document.getElementById('re-as-of').textContent = `数据截至 ${d.as_of}`;
 
   // ── 卡片 ──
@@ -49,12 +46,10 @@ async function load() {
     ? ((last(c.sofr_p75) - last(c.sofr_p25)) * 100).toFixed(1) : '—';
   const p199 = (last(c.sofr_p99) !== null && last(c.sofr_p1) !== null)
     ? ((last(c.sofr_p99) - last(c.sofr_p1)) * 100).toFixed(1) : '—';
-  const next = cal.next ? `${cal.next.month} 月 ${cal.next.end_day} 日` : '—';
   document.getElementById('re-cards').replaceChildren(R.cards([
     { label: '联邦基金有效利率', value: R.fmtPct(l.effr?.value), sub: l.effr?.as_of, accent: true },
     { label: 'SOFR 利率', value: R.fmtPct(l.sofr?.value), sub: l.sofr?.as_of },
     { label: 'FOMC 目标区间', value: l.target ? `${l.target[0].toFixed(2)}–${l.target[1].toFixed(2)}%` : '—' },
-    { label: '下次 FOMC', value: next, sub: `${cal.next?.year ?? ''}` },
     { label: '25th-75th 价差', value: `${p2575} bp`, sub: '核心分散度' },
     { label: '1st-99th 价差', value: `${p199} bp`, sub: '极端范围' },
     { label: 'SOFR 距目标上限', value: l.target && l.sofr ? `${((l.target[1] - l.sofr.value) * 100).toFixed(1)}bp` : '—', sub: '越接近 = 流动性越紧' },

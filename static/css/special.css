@@ -36,7 +36,6 @@ body.embedded .re-header h1 { display: none; } /* 内嵌时左卡已有标题 */
   color: var(--text-secondary); text-decoration: none;
 }
 .page-toc a:hover { color: var(--accent); border-color: var(--accent); }
-.re-root > div, .re-section { scroll-margin-top: 52px; }
 .re-section { border: 1px solid var(--border); border-radius: 8px; background: var(--surface); padding: 14px 18px; }
 .re-section h2 { font-size: 14px; font-weight: 700; margin-bottom: 8px; color: var(--text); }
 .re-section p { font-size: 13px; line-height: 1.7; color: var(--text-secondary); }
@@ -65,7 +64,7 @@ body.embedded .re-header h1 { display: none; } /* 内嵌时左卡已有标题 */
 .re-check .note { color: var(--text-dim); font-size: 12px; }
 .re-analysis { border: 1px solid var(--border); border-radius: 8px; background: var(--surface); padding: 14px 18px; display: flex; flex-direction: column; gap: 8px; }
 .re-analysis h3 { font-size: 13px; font-weight: 700; }
-.re-analysis ul { margin-left: 18px; font-size: 13px; line-height: 1.7; color: var(--text-secondary); }
+.re-analysis ul { margin-left: 18px; font-size: 13px; line-height: 1.7; color: var(--text-secondary); overflow-wrap: break-word; }
 .re-analysis p { font-size: 13px; line-height: 1.7; color: var(--text-secondary); }
 .re-explain { font-size: 12px; color: var(--text-dim); line-height: 1.6; padding: 12px 16px; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; }
 .re-header .re-as-of { font-size: 13px; color: var(--text-dim); }
@@ -87,6 +86,8 @@ body.embedded .re-header h1 { display: none; } /* 内嵌时左卡已有标题 */
 /* VIX 区间色条（四段） */
 .zone-strip { display: flex; border-radius: 6px; overflow: hidden; height: 26px; margin-bottom: 6px; }
 .zone-seg { flex: 1; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 600; color: #fff; opacity: .35; white-space: nowrap; }
+/* 窄屏分段标签会互相裁切，隐藏文字只留色带（下方 zone-caption 仍有文字说明） */
+@media (max-width: 640px) { .zone-seg { font-size: 0; } }
 .zone-seg + .zone-seg { border-left: 2px solid #fff; }
 .zone-seg.on { opacity: 1; }
 .vix-card { border: 1px solid var(--border); border-radius: 8px; background: var(--surface); padding: 18px; display: flex; flex-direction: column; gap: 10px; }
@@ -135,7 +136,7 @@ body.embedded .re-header h1 { display: none; } /* 内嵌时左卡已有标题 */
 .proxy-card .value .unit { font-size: 13px; color: var(--text-dim); font-weight: 500; }
 .proxy-card .sub { font-size: 12px; color: var(--text-secondary); }
 .proxy-card .date { font-size: 11px; color: var(--text-dim); margin-top: 4px; }
-.regime-card { display: flex; gap: 20px; align-items: center; padding: 16px 18px; }
+.regime-card { display: flex; gap: 20px; align-items: center; padding: 16px 18px; flex-wrap: wrap; }
 .regime-score { text-align: center; min-width: 130px; }
 .regime-score .score { font-size: 40px; font-weight: 800; font-variant-numeric: tabular-nums; line-height: 1; }
 .regime-score .of100 { font-size: 12px; color: var(--text-dim); }
@@ -224,6 +225,7 @@ body.dark .vol-heat-cell.up { border-color: #f8717155; }
 body.dark .vol-heat-cell.down { border-color: #34d39955; }
 
 .vol-top-row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.vol-top-row > div { min-width: 0; } /* 窄屏时表格在 re-table-wrap 内横向滚动，而不是把栅格撑破 */
 .vol-top-row h3 { font-size: 13px; font-weight: 700; margin: 0 0 8px; }
 .vol-top-row h3.hot { color: #ef5350; }
 .vol-top-row h3.cool { color: #26a69a; }

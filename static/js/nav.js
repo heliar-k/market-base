@@ -55,6 +55,15 @@
     el.style.display = 'none';
   }
 
+  // sticky 页内导航条高度随换行变化（44px 一行 / 79px+ 两行）→ 实时测量
+  // 并设置滚动偏移，锚点跳转目标始终落在导航条下方 12px
+  var toc = document.querySelector('.page-toc');
+  if (toc) {
+    new ResizeObserver(function () {
+      document.documentElement.style.scrollPaddingTop = (toc.offsetHeight + 12) + 'px';
+    }).observe(toc);
+  }
+
   // 主题：以 localStorage 为准（与 SPA 共享 key）；无手动偏好时跟随系统，系统切换实时生效
   var DARK_KEY = 'ticker-toolkit-dark';
   function resolveDark() {
