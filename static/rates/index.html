@@ -78,7 +78,7 @@ async function load() {
   const t = Object.fromEntries(d.tenors.map(x => [x.tenor, x]));
   const tips10 = d.tips.find(x => x.tenor === '10Y');
   const chgSub = (v, label) => v === null || v === undefined ? ''
-    : `<span style="color:${v > 0 ? '#ef5350' : v < 0 ? '#26a69a' : '#9ca3af'}">${v > 0 ? '▲ +' : v < 0 ? '▼ ' : ''}${Number(v).toFixed(0)}bp</span> · ${label}`;
+    : `<span style="color:${v > 0 ? '#26a69a' : v < 0 ? '#ef5350' : '#9ca3af'}">${v > 0 ? '▲ +' : v < 0 ? '▼ ' : ''}${Number(v).toFixed(0)}bp</span> · ${label}`;
   const h = ff.effr_history;
   const effr1w = h && h.length > 5 ? (h[h.length - 1].value - h[h.length - 6].value) * 100 : null;
   document.getElementById('re-cards').replaceChildren(R.cards([

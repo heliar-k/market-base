@@ -102,7 +102,7 @@
 
 <script src="/js/rates-common.js"></script>
 <script>
-const UP = '#ef5350', DOWN = '#26a69a', FLAT = '#9ca3af';
+const UP = '#26a69a', DOWN = '#ef5350', FLAT = '#9ca3af';
 const chgClass = (v) => v === null || v === undefined || v === 0 ? 'flat' : v > 0 ? 'up' : 'down';
 const chgColor = (v) => v > 0 ? UP : v < 0 ? DOWN : FLAT;
 const pct = (v) => v === null || v === undefined ? '—' : `${v > 0 ? '+' : ''}${v.toFixed(2)}%`;
@@ -187,9 +187,9 @@ async function load() {
     const cls = chgClass(r.chg1d);
     const mag = r.chg1d === null ? 0 : Math.min(Math.abs(r.chg1d) / 8, 1);
     const tint = r.chg1d > 0
-      ? `rgba(239,83,80,${(0.12 + 0.5 * mag).toFixed(2)})`
-      : r.chg1d < 0
       ? `rgba(38,166,154,${(0.12 + 0.5 * mag).toFixed(2)})`
+      : r.chg1d < 0
+      ? `rgba(239,83,80,${(0.12 + 0.5 * mag).toFixed(2)})`
       : 'var(--surface)';
     const d = document.createElement('div');
     d.className = `vol-heat-cell ${cls}`;

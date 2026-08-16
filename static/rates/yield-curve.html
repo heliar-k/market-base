@@ -97,7 +97,7 @@ async function load() {
     yAxis: { type: 'value', axisLabel: { color: colors.muted, formatter: '{value} bp' }, scale: true, splitLine: { lineStyle: { color: colors.grid } } },
     series: [{
       type: 'bar', barMaxWidth: 36,
-      data: tenors.map(t => ({ value: t.chg_1m, itemStyle: { color: (t.chg_1m || 0) >= 0 ? colors.red : colors.green } })),
+      data: tenors.map(t => ({ value: t.chg_1m, itemStyle: { color: (t.chg_1m || 0) >= 0 ? colors.green : colors.red } })),
       label: { show: true, position: 'top', fontSize: 10, color: colors.muted, formatter: p => (p.value === null || p.value === undefined ? '' : p.value) },
     }],
   }));
@@ -148,7 +148,7 @@ async function load() {
 
   // ── 明细表 ──
   const bpHtml = v => v === null || v === undefined ? '—'
-    : `<span style="color:${v > 0 ? '#ef5350' : v < 0 ? '#26a69a' : '#9ca3af'}">${Number(v) > 0 ? '+' : ''}${Number(v).toFixed(1)}</span>`;
+    : `<span style="color:${v > 0 ? '#26a69a' : v < 0 ? '#ef5350' : '#9ca3af'}">${Number(v) > 0 ? '+' : ''}${Number(v).toFixed(1)}</span>`;
   document.getElementById('re-tenors').replaceChildren(R.table(
     ['期限', '当前', '1周前', '1月前', '3月前', 'vs 1周', 'vs 1月', 'vs 3月'],
     tenors.map(t => ({ t: t.tenor, cur: t.current, w1: t.prev_1w, m1: t.prev_1m, m3: t.prev_3m, c1: t.chg_1w, c2: t.chg_1m, c3: t.chg_3m })),
