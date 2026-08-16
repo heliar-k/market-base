@@ -7,16 +7,21 @@ import { initCorrelationView, updateStatus as correlationStatus } from './cross-
 
 // ── dark mode ──────────────────────────────────────────────────────────────
 const DARK_KEY = 'ticker-toolkit-dark';
+const prefersDarkMedia = window.matchMedia('(prefers-color-scheme: dark)');
+let manual = false; // 会话级手动覆盖：点按钮后停止跟随系统，刷新恢复自动
 function applyTheme(dark) {
   document.body.classList.toggle('dark', dark);
   document.getElementById('theme-toggle').textContent = dark ? '☀️' : '🌙';
-  localStorage.setItem(DARK_KEY, dark ? '1' : '0');
+  localStorage.setItem(DARK_KEY, dark ? '1' : '0'); // 同步给内嵌专题 iframe（storage 事件）
   window.dispatchEvent(new CustomEvent('theme-changed', { detail: { dark } }));
 }
-const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-const stored = localStorage.getItem(DARK_KEY);
-applyTheme(stored !== null ? stored === '1' : prefersDark);
+applyTheme(prefersDarkMedia.matches);
+// 系统主题变化：未手动切换过则实时跟随
+prefersDarkMedia.addEventListener('change', () => {
+  if (!manual) applyTheme(prefersDarkMedia.matches);
+});
 document.getElementById('theme-toggle').addEventListener('click', () => {
+  manual = true;
   applyTheme(!document.body.classList.contains('dark'));
 });
 

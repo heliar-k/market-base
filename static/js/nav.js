@@ -60,27 +60,22 @@
     }).observe(toc);
   }
 
-  // 主题：以 localStorage 为准（与 SPA 共享 key）；无手动偏好时跟随系统，系统切换实时生效
+  // 主题：默认实时跟随系统；点悬浮按钮后仅本会话固定（刷新恢复自动）。
+  // 内嵌 iframe 由父页 SPA 驱动（DARK_KEY + storage 事件）
   var DARK_KEY = 'ticker-toolkit-dark';
+  var manual = false;
   function resolveDark() {
-    var s = localStorage.getItem(DARK_KEY);
-    if (s !== null) return s === '1';
-    return !embedded && window.matchMedia('(prefers-color-scheme: dark)').matches;
+    if (embedded) return localStorage.getItem(DARK_KEY) === '1';
+    if (manual) return document.body.classList.contains('dark');
+    return window.matchMedia('(prefers-color-scheme: dark)').matches;
   }
   function applyTheme() {
     document.body.classList.toggle('dark', resolveDark());
   }
   applyTheme();
   window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', function () {
-    if (localStorage.getItem(DARK_KEY) === null) {
+    if (!embedded && !manual) {
       applyTheme();
-      window.dispatchEvent(new Event('theme-changed'));
-    }
-  });
-  document.addEventListener('keydown', function (e) {
-    if (e.key === 't' && e.metaKey) {
-      document.body.classList.toggle('dark');
-      localStorage.setItem(DARK_KEY, document.body.classList.contains('dark') ? '1' : '0');
       window.dispatchEvent(new Event('theme-changed'));
     }
   });
@@ -113,8 +108,8 @@
   tb.title = '切换亮暗主题';
   tb.textContent = resolveDark() ? '☀️' : '🌙';
   tb.addEventListener('click', function () {
+    manual = true; // 会话级覆盖：停止跟随系统，刷新恢复自动
     document.body.classList.toggle('dark');
-    localStorage.setItem(DARK_KEY, document.body.classList.contains('dark') ? '1' : '0');
     tb.textContent = document.body.classList.contains('dark') ? '☀️' : '🌙';
     // rates-common 等已监听该事件，图表随之重绘
     window.dispatchEvent(new CustomEvent('theme-changed', { detail: { dark: document.body.classList.contains('dark') } }));
