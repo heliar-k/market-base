@@ -38,10 +38,9 @@
 async function load() {
   // 小节锚点导航（长页快速跳转；sticky 见 special.css .page-toc）
   document.getElementById('page-toc').innerHTML = [
-    ['概览', 'regime'], ['利差', 'oas-row'], ['研判', 're-signals'], ['分层', 'layers'],
+    ['概览', 'regime'], ['利差·研判', 'oas-row'], ['分层', 'layers'],
     ['融资成本', 'funding'], ['银行信贷', 'sloos'], ['贷款质量', 'quality'],
-    ['金融条件', 'fincond'], ['ETF流动性', 'liq-etf'], ['CDS 专题', 'cds-sec'],
-    ['压力仪表盘', 'stress-sec'],
+    ['金融条件', 'fincond'], ['ETF/CDS', 'liq-etf'], ['压力仪表盘', 'stress-sec'],
   ].map(([t, id]) => `<a href="#${id}">${t}</a>`).join('');
 
   const [d, cds, stress] = await Promise.all([

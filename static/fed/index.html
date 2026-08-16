@@ -204,7 +204,7 @@ function renderHawkish(root, data) {
 async function load() {
   // 小节锚点导航（长页快速跳转；sticky 见 special.css .page-toc）
   document.getElementById('page-toc').innerHTML = [
-    ['概览', 'cards'], ['声明', 'sec-stmts'], ['演讲', 'sec-speeches'], ['鹰鸽追踪', 'sec-hawk'],
+    ['概览', 'cards'], ['演讲', 'sec-speeches'], ['鹰鸽追踪', 'sec-hawk'],
   ].map(([t, id]) => `<a href="#${id}">${t}</a>`).join('');
 
   const [data, cal] = await Promise.all([

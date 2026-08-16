@@ -37,8 +37,8 @@ const chgStr = v => v === null || v === undefined ? '' :
 async function load() {
   // 小节锚点导航（长页快速跳转；sticky 见 special.css .page-toc）
   document.getElementById('page-toc').innerHTML = [
-    ['概览', 'cards'], ['研判', 're-signals'], ['走势', 'history'], ['分项', 'components'],
-    ['预期', 'expectations'], ['供需', 'shapiro'], ['近期', 'recent'],
+    ['概览', 'cards'], ['走势', 'history'], ['分项', 'components'],
+    ['预期', 'expectations'], ['供需', 'shapiro'],
   ].map(([t, id]) => `<a href="#${id}">${t}</a>`).join('');
 
   const d = await R.get('/api/inflation/overview');

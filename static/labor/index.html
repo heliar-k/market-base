@@ -31,7 +31,7 @@
 async function load() {
   // 小节锚点导航（长页快速跳转；sticky 见 special.css .page-toc）
   document.getElementById('page-toc').innerHTML = [
-    ['概览', 'cards'], ['研判', 're-signals'], ['走势', 'history'], ['明细', 'indicators'],
+    ['概览', 'cards'], ['走势', 'history'], ['明细', 'indicators'],
   ].map(([t, id]) => `<a href="#${id}">${t}</a>`).join('');
 
   const d = await R.get('/api/labor/overview');

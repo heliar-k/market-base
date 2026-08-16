@@ -110,7 +110,7 @@ const pct = (v) => v === null || v === undefined ? '—' : `${v > 0 ? '+' : ''}$
 async function load() {
   // 小节锚点导航（长页快速跳转；sticky 见 special.css .page-toc，同 treasury 页）
   document.getElementById('page-toc').innerHTML = [
-    ['概览', 'vol-overview'], ['信号', 'vol-signals-sec'], ['风险矩阵', 'vol-risk-sec'],
+    ['概览·信号', 'vol-overview'], ['风险矩阵', 'vol-risk-sec'],
     ['Trade Map', 'vol-trade-sec'], ['热力图', 'vol-heat-sec'], ['期限结构', 'vol-term-sec'],
     ['跨资产', 'vol-cross-sec'], ['叙事', 'vol-narrative'], ['榜单', 'vol-top-sec'],
     ['全量表', 'vol-table-sec'],
