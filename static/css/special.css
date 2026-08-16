@@ -164,6 +164,11 @@ body.dark .re-expectation.hold { background: rgba(156,163,175,.15); color: #9ca3
 .theme-float { position: fixed; top: 12px; right: 12px; z-index: 100; width: 34px; height: 34px; border-radius: 50%; border: 1px solid var(--btn-border); background: var(--surface); cursor: pointer; font-size: 15px; line-height: 1; box-shadow: 0 1px 4px rgba(0,0,0,.12); }
 .theme-float:hover { border-color: var(--accent); }
 
+/* 返回顶部悬浮按钮（专题入口页右下角，滚动超过一屏才显示） */
+.back-top { position: fixed; right: 16px; bottom: 16px; z-index: 100; width: 36px; height: 36px; border-radius: 50%; border: 1px solid var(--btn-border); background: var(--surface); color: var(--text-secondary); cursor: pointer; font-size: 16px; line-height: 1; opacity: 0; pointer-events: none; transition: opacity .2s; box-shadow: 0 1px 4px rgba(0,0,0,.12); }
+.back-top.show { opacity: 1; pointer-events: auto; }
+.back-top:hover { color: var(--accent); border-color: var(--accent); }
+
 /* ── 波动率全景仪表盘（timsun 复刻）── */
 .vol-hero { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; margin-bottom: 12px; }
 .vol-hero-card { border: 1px solid var(--border); border-radius: 10px; background: var(--surface); padding: 14px 16px; }

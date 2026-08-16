@@ -26,12 +26,12 @@
   var el = document.getElementById('re-nav');
   if (!el) return;
   var path = location.pathname;
+  // 专题入口页（以 / 或 /index.html 结尾）；子页由 NAVS 循环另行处理
+  var isIndex = path.slice(-1) === '/' || path.slice(-11) === '/index.html';
   var html = '';
   for (var dir in NAVS) {
     if (path.indexOf(dir) === 0) {
       var base = path.slice(0, path.indexOf(dir) + dir.length);
-      var rest = path.slice(base.length);
-      var isIndex = rest === '' || rest === 'index.html';
       if (!isIndex) {
         // 子页只留返回入口链接；入口页由 link-card 网格承担子页导航，顶部不重复
         html += '<a href="' + base + NAVS[dir][0][1] + '">← ' + NAVS[dir][0][0] + '</a>';
@@ -90,6 +90,21 @@
     // 图表按主题重绘（rates-common 监听该事件）
     window.dispatchEvent(new Event('theme-changed'));
   });
+
+  // 返回顶部：专题入口页右下角悬浮，滚动超过一屏才显示（内嵌 iframe 同样生效）
+  if (isIndex) {
+    var topBtn = document.createElement('button');
+    topBtn.className = 'back-top';
+    topBtn.title = '返回顶部';
+    topBtn.textContent = '↑';
+    topBtn.addEventListener('click', function () {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    });
+    document.body.appendChild(topBtn);
+    var syncTop = function () { topBtn.classList.toggle('show', window.scrollY > 300); };
+    window.addEventListener('scroll', syncTop, { passive: true });
+    syncTop();
+  }
 
   // 悬浮切换按钮仅独立访问时显示（内嵌时由父页统一控制）
   if (embedded) return;
