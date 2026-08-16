@@ -19,15 +19,41 @@
   <div class="re-nav" id="re-nav"></div>
   <div class="page-toc" id="page-toc"></div>
 
+  <div class="re-badges" id="re-badges"></div>
   <div id="re-cards"></div>
+  <div class="re-h2" id="sec-shape">曲线快照（当前 / 1周前 / 1月前 / 3月前）</div>
+  <div class="re-chart" id="yc_compare"></div>
   <div id="re-sections"></div>
+
+  <div class="link-grid" id="re-links">
+    <a class="link-card" href="fed-funds.html">
+      <span class="icon">🏦</span>
+      <div>
+        <div class="t">联邦基金利率</div>
+        <div class="d">EFFR/SOFR 走廊、成交量与 5 年政策周期</div>
+      </div>
+    </a>
+    <a class="link-card" href="yield-curve.html">
+      <span class="icon">📈</span>
+      <div>
+        <div class="t">收益率曲线</div>
+        <div class="d">曲线形态研判、全期限明细与全球长端对照</div>
+      </div>
+    </a>
+    <a class="link-card" href="pricing.html">
+      <span class="icon">🎯</span>
+      <div>
+        <div class="t">利率定价</div>
+        <div class="d">FOMC 会议概率与名义/实际/BEI 长端分解</div>
+      </div>
+    </a>
+  </div>
   <div class="re-gen" id="re-gen"></div>
 </div>
 
 <script src="/js/rates-common.js"></script>
 <script>
 async function load() {
-  // 并行请求：研判 + EFFR（统计卡），一次渲染
   const [data, ff] = await Promise.all([
     R.get('/api/rates/analysis'),
     R.get('/api/rates/fed-funds'),
@@ -36,24 +62,49 @@ async function load() {
   document.getElementById('re-gen').textContent =
     `研判生成：${data.generator === 'llm' ? 'LLM' : '规则引擎（LLM 预留）'}`;
 
-  // 小节锚点导航：概览 + 四段研判（sticky 见 special.css .page-toc）
-  const tocItems = [['概览', 're-cards']];
-  data.overview.sections.forEach((s, i) => tocItems.push([s.title, `re-sec-${i}`]));
-  document.getElementById('page-toc').innerHTML =
-    tocItems.map(([t, id]) => `<a href="#${id}">${t}</a>`).join('');
+  const d = data.yield_curve;
 
-  // ── 统计卡：EFFR / 2Y / 10Y / 30Y / 2s10s / 10Y 实际利率 ──
-  const t = Object.fromEntries(data.yield_curve.tenors.map(x => [x.tenor, x.current]));
-  const s = data.yield_curve.spreads;
-  const d10 = data.yield_curve.tips.find(x => x.tenor === '10Y');
+  // ── 形态徽章行（与收益率曲线页同款定调）──
+  const shapeCls = d.shape.includes('熊') ? 'bear' : d.shape.includes('牛') ? 'bull' : 'flat';
+  const s = d.spreads;
+  document.getElementById('re-badges').innerHTML = `
+    <span class="re-badge ${shapeCls}">${d.shape} · ${d.driver}</span>
+    <span class="re-spread">2s10s: ${R.fmtBp(s['2s10s'])}bp</span>
+    <span class="re-spread">3m10s: ${R.fmtBp(s['3m10s'])}bp</span>
+    <span class="re-spread">5s30s: ${R.fmtBp(s['5s30s'])}bp</span>
+    <span class="re-spread">确认度 ${d.confidence}</span>`;
+
+  // ── 统计卡（变动着色：涨红跌绿，与专题页图表一致）──
+  const t = Object.fromEntries(d.tenors.map(x => [x.tenor, x]));
+  const tips10 = d.tips.find(x => x.tenor === '10Y');
+  const chgSub = (v, label) => v === null || v === undefined ? ''
+    : `<span style="color:${v > 0 ? '#ef5350' : v < 0 ? '#26a69a' : '#9ca3af'}">${v > 0 ? '▲ +' : v < 0 ? '▼ ' : ''}${Number(v).toFixed(0)}bp</span> · ${label}`;
+  const h = ff.effr_history;
+  const effr1w = h && h.length > 5 ? (h[h.length - 1].value - h[h.length - 6].value) * 100 : null;
   document.getElementById('re-cards').replaceChildren(R.cards([
-    { label: '联邦基金有效利率', value: R.fmtPct(ff.latest.effr?.value), sub: ff.latest.effr?.as_of, accent: true },
-    { label: '2Y', value: R.fmtPct(t['2Y']), sub: '国债收益率' },
-    { label: '10Y', value: R.fmtPct(t['10Y']), sub: '国债收益率' },
-    { label: '30Y', value: R.fmtPct(t['30Y']), sub: '国债收益率' },
-    { label: '10Y-2Y', value: R.fmtBp(s['2s10s']), sub: '利差 bp' },
-    { label: '10Y 实际利率', value: R.fmtPct(d10?.real), sub: 'TIPS' },
+    { label: '联邦基金有效利率', value: R.fmtPct(ff.latest.effr?.value), sub: chgSub(effr1w, '1周'), accent: true },
+    { label: '2Y', value: R.fmtPct(t['2Y'].current), sub: chgSub(t['2Y'].chg_1w, '1周') },
+    { label: '10Y', value: R.fmtPct(t['10Y'].current), sub: chgSub(t['10Y'].chg_1w, '1周') },
+    { label: '30Y', value: R.fmtPct(t['30Y'].current), sub: chgSub(t['30Y'].chg_1w, '1周') },
+    { label: '10Y-2Y', value: R.fmtBp(s['2s10s']), sub: chgSub(s['2s10s_1m_chg'], '1月') },
+    { label: '10Y 实际利率', value: R.fmtPct(tips10?.real), sub: 'TIPS' },
   ]));
+
+  // ── 曲线四线快照（tenors 自带 1周/1月/3月前，零新请求）──
+  const tenors = d.tenors;
+  R.mkChart('yc_compare', (colors) => ({
+    legend: { data: ['当前', '1周前', '1月前', '3月前'], top: 4, right: 8, textStyle: { color: colors.text, fontSize: 11 } },
+    tooltip: { trigger: 'axis', valueFormatter: v => `${Number(v).toFixed(2)}%` },
+    grid: { top: 36, left: 48, right: 16, bottom: 24 },
+    xAxis: { type: 'category', data: tenors.map(x => x.tenor), axisLabel: { color: colors.muted, fontSize: 10 }, axisLine: { lineStyle: { color: colors.border } } },
+    yAxis: { type: 'value', scale: true, axisLabel: { color: colors.muted, formatter: '{value}%' }, splitLine: { lineStyle: { color: colors.grid } } },
+    series: [
+      { name: '当前', type: 'line', data: tenors.map(x => x.current), symbol: 'circle', symbolSize: 6, lineStyle: { color: colors.blue, width: 2 }, itemStyle: { color: colors.blue }, connectNulls: true },
+      { name: '1周前', type: 'line', data: tenors.map(x => x.prev_1w), symbol: 'none', lineStyle: { color: colors.gray, type: 'dashed', width: 1.5 }, connectNulls: true },
+      { name: '1月前', type: 'line', data: tenors.map(x => x.prev_1m), symbol: 'none', lineStyle: { color: colors.orange, type: 'dashed', width: 1.5 }, connectNulls: true },
+      { name: '3月前', type: 'line', data: tenors.map(x => x.prev_3m), symbol: 'none', lineStyle: { color: colors.red, type: 'dashed', width: 1.5 }, connectNulls: true },
+    ],
+  }));
 
   // ── 四段研判 ──
   const root = document.getElementById('re-sections');
@@ -66,6 +117,11 @@ async function load() {
     div.querySelector('p').textContent = sec.body;
     root.appendChild(div);
   });
+
+  // ── 小节锚点导航：页面不长，四段研判合并为一项 ──
+  const tocItems = [['概览', 're-cards'], ['曲线快照', 'sec-shape'], ['研判', 're-sections'], ['深挖子页', 're-links']];
+  document.getElementById('page-toc').innerHTML =
+    tocItems.map(([label, id]) => `<a href="#${id}">${label}</a>`).join('');
 }
 
 load().catch(e => R.fail(['re-cards', 're-sections'], e));

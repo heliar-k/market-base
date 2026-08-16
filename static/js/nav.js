@@ -1,18 +1,11 @@
 // 专题导航注入 — 新专题页只需 <div class="re-nav" id="re-nav"></div> + 本脚本；
 // 改导航结构只改这里（rates/volatility 两套 + 专题间 Tab；fed/credit/treasury 已合并单页）
 (function () {
-  // 每个专题的子页导航（相对该专题目录）
+  // 每个专题的入口页（link-card 网格已承载子页导航）
+  // 子页顶部只渲染首项“返回入口”链接
   var NAVS = {
-    '/rates/': [
-      ['概览', 'index.html'],
-      ['联邦基金利率', 'fed-funds.html'],
-      ['收益率曲线', 'yield-curve.html'],
-      ['利率定价', 'pricing.html'],
-    ],
-    '/volatility/': [
-      ['全景仪表盘', 'index.html'],
-      ['VIX 详情', 'vix.html'],
-    ],
+    '/rates/': [['概览', 'index.html']],
+    '/volatility/': [['全景仪表盘', 'index.html']],
   };
   // 专题间 Tab（总入口）
   var TABS = [
@@ -37,9 +30,12 @@
   for (var dir in NAVS) {
     if (path.indexOf(dir) === 0) {
       var base = path.slice(0, path.indexOf(dir) + dir.length);
-      NAVS[dir].forEach(function (item) {
-        html += '<a href="' + base + item[1] + '">' + item[0] + '</a>';
-      });
+      var rest = path.slice(base.length);
+      var isIndex = rest === '' || rest === 'index.html';
+      if (!isIndex) {
+        // 子页只留返回入口链接；入口页由 link-card 网格承担子页导航，顶部不重复
+        html += '<a href="' + base + NAVS[dir][0][1] + '">← ' + NAVS[dir][0][0] + '</a>';
+      }
       break;
     }
   }
