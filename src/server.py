@@ -613,6 +613,8 @@ def get_rate_expectations() -> dict:
     latest = df.loc[latest_date]
     # 同日多次写入会产生重复行（upsert 幂等性缺陷），按会议去重
     latest = latest.drop_duplicates(subset=["meeting_date"])
+    # 会议按日期升序：最近的一场排在最上
+    latest = latest.sort_values("meeting_date")
 
     meetings = []
     for _, row in latest.iterrows():
@@ -822,7 +824,7 @@ def get_rates_fed_funds() -> dict:
         "effr_history": _series(df, effr_col, 5 * 250),
         "recent": [
             {"date": d.strftime("%Y-%m-%d"), "effr": float(v)}
-            for d, v in df[effr_col].dropna().tail(30).items()
+            for d, v in df[effr_col].dropna().tail(30)[::-1].items()  # 最新在前
         ],
     }
 
@@ -999,7 +1001,11 @@ def get_rates_auctions() -> dict:
             "reopening": r.get("reopening"),
         }
 
-    recent = auc.loc[auc.index >= today - pd.Timedelta(days=90)].sort_index()
+    # 近 90 天结果：最新在前；源文件含已公告未拍卖的场次（结果字段 NaN），
+    # 只保留已有 bid_to_cover 的成交行，避免与未来日历重复
+    recent = auc.loc[
+        (auc.index >= today - pd.Timedelta(days=90)) & auc["bid_to_cover_ratio"].notna()
+    ].sort_index(ascending=False)
     coupon = auc[auc["security_type"] != "Bill"]
     covers = (
         pd.to_numeric(coupon["bid_to_cover_ratio"], errors="coerce").dropna().tail(10)
