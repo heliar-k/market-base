@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>利率定价 — US Macro</title>
+<link rel="stylesheet" href="/css/app.css">
+<link rel="stylesheet" href="/css/special.css">
+<script src="/vendor/echarts.min.js"></script>
+</head>
+<body>
+<div class="re-root">
+  <div class="re-header">
+    <h1>利率定价</h1>
+    <span class="re-as-of" id="re-as-of"></span>
+  </div>
+
+  <div class="re-nav" id="re-nav"></div>
+  <div class="page-toc" id="page-toc">
+    <a href="#re-cards">概览</a><a href="#sec-prob">会议概率</a><a href="#sec-table">概率分布表</a><a href="#sec-triple">名义/实际/BEI</a><a href="#sec-2y10y">2Y/10Y 与利差</a>
+  </div>
+
+  <div id="re-cards"></div>
+
+  <!-- ── 政策路径定价 ── -->
+  <div class="re-group" id="sec-policy">政策路径定价</div>
+  <div class="re-h2" id="sec-prob">FOMC 会议概率（ZQ 期货反推）</div>
+  <div class="re-chart" id="re-prob-chart"></div>
+
+  <div class="re-h2" id="sec-table">概率分布明细</div>
+  <div class="re-table-wrap">
+    <table class="re-table">
+      <thead>
+        <tr>
+          <th>会议日期</th>
+          <th>合约</th>
+          <th>隐含利率</th>
+          <th>会议后利率</th>
+          <th>概率分布</th>
+          <th>降息</th>
+          <th>维持</th>
+          <th>加息</th>
+          <th>预期</th>
+        </tr>
+      </thead>
+      <tbody id="re-tbody"></tbody>
+    </table>
+  </div>
+
+  <!-- ── 长端分解 ── -->
+  <div class="re-group" id="sec-decomp">长端分解</div>
+  <div class="re-h2" id="sec-triple">10Y 名义 / 实际(TIPS) / 盈亏平衡通胀（近 1 年）</div>
+  <div class="re-chart" id="triple_chart"></div>
+  <div class="re-h2" id="sec-2y10y">2Y vs 10Y 与 2s10s 利差（近 1 年，阴影带 = 利差）</div>
+  <div class="re-chart" id="spread_2_10_chart"></div>
+
+  <div class="re-explain">
+    <b>政策路径：</b>FOMC 概率基于 ZQ 30 天联邦基金期货结算价反推，采用 CME FedWatch 方法论近似，
+    每日北京时间凌晨更新；目标利率来自 FRED DFEDTARL/DFEDTARU。
+    <b>长端分解：</b>名义 = 实际 + 盈亏平衡。若收益率上行主要由实际利率推动 → 金融条件收紧（紧缩交易）；
+    若主要由盈亏平衡推动 → 通胀交易。盈亏平衡通胀 = DGS10 − DFII10（本地计算）。
+    期限溢价 = NY Fed ACM 估计（ACMTP10，右轴虚线）：<b>BEI 不动而期限溢价上行 → 供给/风险溢价交易</b>；
+    溢价上行 + 名义利率上行 → 供给驱动的熊陡。10Y 名义 − 期限溢价 ≈ 市场预期的平均短端路径。
+  </div>
+</div>
+
+<script src="/js/rates-common.js"></script>
+<script>
+const isDark = () => document.body.classList.contains('dark');
+
+function echartsTheme() {
+  const dark = isDark();
+  return {
+    textStyle: { color: dark ? '#8b949e' : '#666' },
+    legend: { textStyle: { color: dark ? '#8b949e' : '#666' } },
+  };
+}
+
+async function load() {
+  const el = document.getElementById('re-tbody');
+  el.innerHTML = '<tr><td colspan="9" class="re-loading">加载中…</td></tr>';
+
+  const [reRes, fomcRes, d] = await Promise.all([
+    fetch('/api/rate-expectations'),
+    fetch('/api/fomc/calendar'),
+    R.get('/api/rates/real-rates'),
+  ]);
+  if (!reRes.ok) throw new Error((await reRes.json().catch(() => ({}))).detail || '数据不可用');
+  const re = await reRes.json();
+  const fomc = fomcRes.ok ? await fomcRes.json() : null;
+
+  document.getElementById('re-as-of').textContent = `数据截至 ${d.as_of}`;
+
+  // ── 页首概览卡（政策路径 2 张 + 长端分解 6 张）──
+  const last = (arr) => (arr.length ? arr[arr.length - 1].value : null);
+  const card = (label, value, sub, accent = false) => ({ label, value: R.fmtPct(value), sub, accent });
+  const tpChg = d.term_premium_chg_1m;
+  const tgt = fomc && fomc.target_lower != null
+    ? fomc.target_lower.toFixed(2) + '% – ' + fomc.target_upper.toFixed(2) + '%' : '—';
+  const nxt = fomc && fomc.next
+    ? fomc.next.year + '-' + String(fomc.next.month).padStart(2, '0') + '-' + String(fomc.next.end_day).padStart(2, '0') : '—';
+  document.getElementById('re-cards').replaceChildren(R.cards([
+    { label: 'FOMC 目标区间', value: tgt, sub: 'FRED DFEDTARL/U', accent: true },
+    { label: '下次 FOMC 会议', value: nxt, sub: '美联储日历' },
+    card('10Y 名义利率', last(d.nominal_10y), 'DGS10'),
+    card('10Y 实际利率(TIPS)', last(d.real_10y), 'DFII10'),
+    card('10Y 盈亏平衡通胀', last(d.breakeven_10y), '名义 − 实际'),
+    card('10Y 期限溢价(ACM)', last(d.term_premium), tpChg === null ? 'NY Fed ACM 估计' : `1月 ${tpChg > 0 ? '+' : ''}${tpChg.toFixed(1)}bp`),
+    card('2Y 国债收益率', last(d.y2), 'DGS2'),
+    card('10Y-2Y 利差', last(d.spread_2s10), '(10Y−2Y) %'),
+  ]));
+
+  renderTable(re.meetings);
+  renderProbChart(re.meetings);
+
+  // ── 名义/实际/BEI + 期限溢价 ──
+  const tpByDate = Object.fromEntries(d.term_premium.map(p => [p.date, p.value]));
+  R.mkChart('triple_chart', (colors) => ({
+    legend: { data: ['10Y 名义利率', '10Y 实际利率(TIPS)', '10Y 盈亏平衡通胀', '10Y 期限溢价(ACM)'], top: 4, left: 'center', textStyle: { color: colors.text, fontSize: 11 } },
+    tooltip: { trigger: 'axis', valueFormatter: v => `${Number(v).toFixed(2)}%` },
+    grid: { top: 36, left: 48, right: 48, bottom: 56 },
+    dataZoom: [{ type: 'inside' }, { type: 'slider', bottom: 8, height: 18 }],
+    xAxis: { type: 'category', data: R.ts(d.nominal_10y), axisLabel: { color: colors.muted, fontSize: 10 }, axisLine: { lineStyle: { color: colors.border } } },
+    yAxis: [
+      { type: 'value', scale: true, axisLabel: { color: colors.muted, formatter: '{value}%' }, splitLine: { lineStyle: { color: colors.grid } } },
+      { type: 'value', scale: true, axisLabel: { color: colors.muted, formatter: '{value}%' }, splitLine: { show: false } },
+    ],
+    series: [
+      { name: '10Y 名义利率', type: 'line', data: R.vs(d.nominal_10y), symbol: 'none', lineStyle: { color: colors.blue, width: 2 } },
+      { name: '10Y 实际利率(TIPS)', type: 'line', data: R.vs(d.real_10y), symbol: 'none', lineStyle: { color: colors.orange, width: 2 } },
+      { name: '10Y 盈亏平衡通胀', type: 'line', data: R.vs(d.breakeven_10y), symbol: 'none', lineStyle: { color: colors.green, width: 2 } },
+      { name: '10Y 期限溢价(ACM)', type: 'line', data: R.ts(d.nominal_10y).map(dt => tpByDate[dt] ?? null), yAxisIndex: 1, symbol: 'none', lineStyle: { color: colors.purple, width: 1.5, type: 'dashed' } },
+    ],
+  }));
+
+  // ── 2Y vs 10Y：间隙填充图（阴影带 = 2s10s 利差，倒挂时两线交叉）──
+  R.mkChart('spread_2_10_chart', (colors) => ({
+    legend: { data: ['2Y', '10Y', '2s10s 利差'], top: 4, right: 8, textStyle: { color: colors.text, fontSize: 11 } },
+    tooltip: {
+      trigger: 'axis',
+      formatter: (ps) => {
+        const m = Object.fromEntries(ps.map(p => [p.seriesName, Number(p.value)]));
+        return `${ps[0].axisValue}<br/>2Y：${m['2Y'].toFixed(2)}%<br/>10Y：${m['10Y'].toFixed(2)}%<br/>2s10s 利差：${m['2s10s 利差'].toFixed(2)}%`;
+      },
+    },
+    grid: { top: 36, left: 48, right: 16, bottom: 56 },
+    dataZoom: [{ type: 'inside' }, { type: 'slider', bottom: 8, height: 18 }],
+    xAxis: { type: 'category', data: R.ts(d.y2), axisLabel: { color: colors.muted, fontSize: 10 }, axisLine: { lineStyle: { color: colors.border } } },
+    yAxis: { type: 'value', scale: true, axisLabel: { color: colors.muted, formatter: '{value}%' }, splitLine: { lineStyle: { color: colors.grid } } },
+    series: [
+      { name: '2Y', type: 'line', stack: 'spread', data: R.vs(d.y2), symbol: 'none', lineStyle: { color: colors.orange, width: 2 }, areaStyle: { opacity: 0 } },
+      { name: '2s10s 利差', type: 'line', stack: 'spread', data: R.vs(d.spread_2s10), symbol: 'none', lineStyle: { opacity: 0 },
+        areaStyle: { color: { type: 'linear', x: 0, y: 0, x2: 0, y2: 1, colorStops: [{ offset: 0, color: 'rgba(59,130,246,0.25)' }, { offset: 1, color: 'rgba(59,130,246,0.05)' }] } } },
+      { name: '10Y', type: 'line', data: R.vs(d.nominal_10y), symbol: 'none', lineStyle: { color: colors.blue, width: 2 } },
+    ],
+  }));
+}
+
+function renderTable(meetings) {
+  const fmtPct = (v) => (v * 100).toFixed(1) + '%';
+  const el = document.getElementById('re-tbody');
+  el.innerHTML = meetings.map(m => {
+    const cutW = (m.prob_cut * 100).toFixed(1);
+    const holdW = (m.prob_hold * 100).toFixed(1);
+    const hikeW = (m.prob_hike * 100).toFixed(1);
+    const label = m.expectation;
+    const cls = label === '降息' ? 'cut' : label === '加息' ? 'hike' : 'hold';
+    return `<tr>
+      <td>${m.meeting_date}</td>
+      <td>${m.contract}</td>
+      <td>${m.implied_rate.toFixed(3)}%</td>
+      <td>${m.post_meeting_rate.toFixed(3)}%</td>
+      <td class="re-bar-cell">
+        <div class="re-bar-wrap">
+          <div class="re-bar-cut" style="width:${cutW}%"></div>
+          <div class="re-bar-hold" style="width:${holdW}%"></div>
+          <div class="re-bar-hike" style="width:${hikeW}%"></div>
+        </div>
+      </td>
+      <td>${fmtPct(m.prob_cut)}</td>
+      <td>${fmtPct(m.prob_hold)}</td>
+      <td>${fmtPct(m.prob_hike)}</td>
+      <td><span class="re-expectation ${cls}">${label}</span></td>
+    </tr>`;
+  }).join('');
+}
+
+function renderProbChart(meetings) {
+  const dom = document.getElementById('re-prob-chart');
+  const chart = echarts.init(dom, null, { renderer: 'canvas' });
+  const theme = echartsTheme();
+  const dark = isDark();
+
+  chart.setOption({
+    tooltip: {
+      trigger: 'axis',
+      axisPointer: { type: 'shadow' },
+      formatter: (params) => {
+        let s = '<b>' + params[0].axisValue + '</b>';
+        params.forEach(p => {
+          s += '<br/>' + p.marker + ' ' + p.seriesName + ': ' + (p.value * 100).toFixed(1) + '%';
+        });
+        return s;
+      },
+    },
+    legend: { bottom: 0, data: ['降息', '维持', '加息'], ...theme.legend },
+    grid: { left: 60, right: 20, top: 20, bottom: 40 },
+    xAxis: {
+      type: 'category',
+      data: meetings.map(m => m.meeting_date),
+      axisLabel: { ...theme.textStyle, fontSize: 11 },
+    },
+    yAxis: {
+      type: 'value',
+      max: 1,
+      axisLabel: { formatter: (v) => (v * 100) + '%', ...theme.textStyle },
+      splitLine: { lineStyle: { color: dark ? '#30363d' : '#e1e4e8' } },
+    },
+    series: [
+      { name: '降息', type: 'bar', stack: 'total', data: meetings.map(m => m.prob_cut), itemStyle: { color: '#26a69a' }, barWidth: '40%' },
+      { name: '维持', type: 'bar', stack: 'total', data: meetings.map(m => m.prob_hold), itemStyle: { color: '#78909c' } },
+      { name: '加息', type: 'bar', stack: 'total', data: meetings.map(m => m.prob_hike), itemStyle: { color: '#ef5350' } },
+    ],
+  });
+
+  new ResizeObserver(() => chart.resize()).observe(dom);
+  window.addEventListener('theme-changed', () => {
+    chart.setOption({
+      textStyle: { color: isDark() ? '#8b949e' : '#666' },
+      legend: { textStyle: { color: isDark() ? '#8b949e' : '#666' } },
+      xAxis: { axisLabel: { color: isDark() ? '#8b949e' : '#666' } },
+      yAxis: { splitLine: { lineStyle: { color: isDark() ? '#30363d' : '#e1e4e8' } } },
+    });
+  });
+}
+
+load().catch(e => {
+  document.getElementById('re-tbody').innerHTML = '<tr><td colspan="9" class="re-error">' + e.message + '</td></tr>';
+  R.fail(['re-cards'], e);
+});
+</script>
+<script src="/js/nav.js"></script>
+</body>
+</html>

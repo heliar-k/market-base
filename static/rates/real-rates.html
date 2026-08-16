@@ -1,111 +1,12 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>实际利率 — US Macro</title>
-<link rel="stylesheet" href="/css/app.css">
-<link rel="stylesheet" href="/css/special.css">
-<script src="/vendor/echarts.min.js"></script>
+<meta http-equiv="refresh" content="0; url=/rates/pricing.html">
+<title>利率定价 — US Macro</title>
 </head>
 <body>
-<div class="re-root">
-  <div class="re-header">
-    <h1>实际利率</h1>
-    <span class="re-as-of" id="re-as-of"></span>
-  </div>
-
-  <div class="re-nav" id="re-nav"></div>
-  <div class="page-toc" id="page-toc">
-    <a href="#re-cards">概览</a><a href="#sec-triple">名义/实际/BEI</a><a href="#sec-2y10y">2Y vs 10Y</a><a href="#sec-spread">10Y-2Y 利差</a>
-  </div>
-
-  <div id="re-cards"></div>
-  <div class="re-h2" id="sec-triple">10Y 名义 / 实际(TIPS) / 盈亏平衡通胀（近 1 年）</div>
-  <div class="re-chart" id="triple_chart"></div>
-  <div class="re-h2" id="sec-2y10y">2Y vs 10Y 收益率（近 1 年）</div>
-  <div class="re-chart" id="spread_2_10_chart"></div>
-  <div class="re-h2" id="sec-spread">10Y-2Y 利差（近 1 年）</div>
-  <div class="re-chart" id="spread_chart"></div>
-
-  <div class="re-explain">
-    读图：名义 = 实际 + 盈亏平衡。若收益率上行主要由实际利率推动 → 金融条件收紧（紧缩交易）；
-    若主要由盈亏平衡推动 → 通胀交易。盈亏平衡通胀 = DGS10 − DFII10（本地计算）。
-    期限溢价 = NY Fed ACM 估计（ACMTP10，右轴虚线）：<b>BEI 不动而期限溢价上行 → 供给/风险溢价交易</b>；
-    溢价上行 + 名义利率上行 → 供给驱动的熊陡。10Y 名义 − 期限溢价 ≈ 市场预期的平均短端路径。
-  </div>
-</div>
-
-<script src="/js/rates-common.js"></script>
-<script>
-async function load() {
-  const d = await R.get('/api/rates/real-rates');
-  document.getElementById('re-as-of').textContent = `数据截至 ${d.as_of}`;
-
-  const last = (arr) => (arr.length ? arr[arr.length - 1].value : null);
-  const card = (label, value, sub, accent = false) => ({ label, value: R.fmtPct(value), sub, accent });
-  const tpChg = d.term_premium_chg_1m;
-  document.getElementById('re-cards').replaceChildren(R.cards([
-    card('10Y 名义利率', last(d.nominal_10y), 'DGS10', true),
-    card('10Y 实际利率(TIPS)', last(d.real_10y), 'DFII10'),
-    card('10Y 盈亏平衡通胀', last(d.breakeven_10y), '名义 − 实际'),
-    card('10Y 期限溢价(ACM)', last(d.term_premium), tpChg === null ? 'NY Fed ACM 估计' : `1月 ${tpChg > 0 ? '+' : ''}${tpChg.toFixed(1)}bp`),
-    card('2Y 国债收益率', last(d.y2), 'DGS2'),
-    card('10Y-2Y 利差', last(d.spread_2s10), '(10Y−2Y) %'),
-  ]));
-
-    // 按日期对齐 x 轴（nominal 的日期序列）：ACM 缺日/滞后时置 null 断线，不错位
-    const tpByDate = Object.fromEntries(d.term_premium.map(p => [p.date, p.value]));
-    R.mkChart('triple_chart', (colors) => ({
-    legend: { data: ['10Y 名义利率', '10Y 实际利率(TIPS)', '10Y 盈亏平衡通胀', '10Y 期限溢价(ACM)'], top: 4, left: 'center', textStyle: { color: colors.text, fontSize: 11 } },
-    tooltip: { trigger: 'axis', valueFormatter: v => `${Number(v).toFixed(2)}%` },
-    grid: { top: 36, left: 48, right: 48, bottom: 56 },
-    dataZoom: [{ type: 'inside' }, { type: 'slider', bottom: 8, height: 18 }],
-    xAxis: { type: 'category', data: R.ts(d.nominal_10y), axisLabel: { color: colors.muted, fontSize: 10 }, axisLine: { lineStyle: { color: colors.border } } },
-    yAxis: [
-      { type: 'value', scale: true, axisLabel: { color: colors.muted, formatter: '{value}%' }, splitLine: { lineStyle: { color: colors.grid } } },
-      { type: 'value', scale: true, axisLabel: { color: colors.muted, formatter: '{value}%' }, splitLine: { show: false } },
-    ],
-    series: [
-      { name: '10Y 名义利率', type: 'line', data: R.vs(d.nominal_10y), symbol: 'none', lineStyle: { color: colors.blue, width: 2 } },
-      { name: '10Y 实际利率(TIPS)', type: 'line', data: R.vs(d.real_10y), symbol: 'none', lineStyle: { color: colors.orange, width: 2 } },
-      { name: '10Y 盈亏平衡通胀', type: 'line', data: R.vs(d.breakeven_10y), symbol: 'none', lineStyle: { color: colors.green, width: 2 } },
-      { name: '10Y 期限溢价(ACM)', type: 'line', data: R.ts(d.nominal_10y).map(dt => tpByDate[dt] ?? null), yAxisIndex: 1, symbol: 'none', lineStyle: { color: colors.purple, width: 1.5, type: 'dashed' } },
-    ],
-  }));
-
-  // ── 2Y vs 10Y ──
-  R.mkChart('spread_2_10_chart', (colors) => ({
-    legend: { data: ['2Y', '10Y'], top: 4, right: 8, textStyle: { color: colors.text, fontSize: 11 } },
-    tooltip: { trigger: 'axis', valueFormatter: v => `${Number(v).toFixed(2)}%` },
-    grid: { top: 36, left: 48, right: 16, bottom: 56 },
-    dataZoom: [{ type: 'inside' }, { type: 'slider', bottom: 8, height: 18 }],
-    xAxis: { type: 'category', data: R.ts(d.y2), axisLabel: { color: colors.muted, fontSize: 10 }, axisLine: { lineStyle: { color: colors.border } } },
-    yAxis: { type: 'value', scale: true, axisLabel: { color: colors.muted, formatter: '{value}%' }, splitLine: { lineStyle: { color: colors.grid } } },
-    series: [
-      { name: '2Y', type: 'line', data: R.vs(d.y2), symbol: 'none', lineStyle: { color: colors.orange, width: 1.5 } },
-      { name: '10Y', type: 'line', data: R.vs(d.nominal_10y), symbol: 'none', lineStyle: { color: colors.blue, width: 2 } },
-    ],
-  }));
-
-  // ── 2s10s 利差 ──
-  R.mkChart('spread_chart', (colors) => ({
-    tooltip: { trigger: 'axis', valueFormatter: v => `${Number(v).toFixed(2)}%` },
-    grid: { top: 16, left: 48, right: 16, bottom: 56 },
-    dataZoom: [{ type: 'inside' }, { type: 'slider', bottom: 8, height: 18 }],
-    xAxis: { type: 'category', data: R.ts(d.spread_2s10), axisLabel: { color: colors.muted, fontSize: 10 }, axisLine: { lineStyle: { color: colors.border } } },
-    yAxis: { type: 'value', axisLabel: { color: colors.muted, formatter: '{value}%' }, scale: true, splitLine: { lineStyle: { color: colors.grid } } },
-    series: [{
-      type: 'line', data: R.vs(d.spread_2s10), symbol: 'none', lineStyle: { color: colors.blue, width: 2 },
-      areaStyle: { color: { type: 'linear', x: 0, y: 0, x2: 0, y2: 1, colorStops: [{ offset: 0, color: 'rgba(59,130,246,0.15)' }, { offset: 1, color: 'rgba(59,130,246,0)' }] } },
-      markLine: { data: [{ yAxis: 0 }], label: { show: false }, lineStyle: { color: colors.muted, type: 'dashed', width: 1 }, silent: true, symbol: 'none' },
-    }],
-  }));
-}
-
-load().catch(e => R.fail(['re-cards'], e));
-</script>
-<script src="/js/nav.js"></script>
+<p>本页已合并至 <a href="/rates/pricing.html">利率定价</a>。</p>
+<script>location.replace('/rates/pricing.html');</script>
 </body>
 </html>

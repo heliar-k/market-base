@@ -122,7 +122,7 @@ market-base/
 │   ├── fed/                         ← 美联储鹰鸽专题页（timsun.net/fed 复刻，单页：声明+演讲+鹰鸽追踪）
 │   ├── index.html                ← 主仪表盘 SPA
 │   ├── js/                       ← 前端 JS（echarts-theme / rates-common 等）
-│   ├── rates/                    ← 利率专题页（timsun.net/rates 复刻，5 页）
+│   ├── rates/                    ← 利率专题页（timsun.net/rates 复刻，4 子页）
 │   ├── credit/                   ← 信用专题页（单页：总览+CDS+压力仪表盘）
 │   └── volatility/               ← 波动率专题页（timsun.net/volatility 复刻，2 页）
 │
@@ -199,7 +199,7 @@ uv run python -m src.server                        # 启动 Web，浏览器打�
 # 静态部署（GitHub Pages，公开仓库）：uv run python -m src.export_pages 生成 site/，
 # daily-fetch workflow 每日自动构建部署 → https://heliar-k.github.io/market-base/
 # 限制：K 线仅近 3 年、相关性页仅近 5 年、诊断面板无光标回看（静态预渲染的固有降级）
-# 利率专题（timsun.net/rates 复刻）：/rates/ 入口页 → 联邦基金/收益率曲线/拍卖/实际利率/利率预期
+# 利率专题（timsun.net/rates 复刻）：/rates/ 入口页 → 联邦基金/收益率曲线/利率定价/拍卖
 # 研判由 src/rates_analysis.py 规则引擎生成，LLM 接入点：generate_analysis() → _llm_generate()
 
 # 测试

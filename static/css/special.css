@@ -45,6 +45,8 @@ body.embedded .re-header h1 { display: none; } /* 内嵌时左卡已有标题 */
 .re-error { text-align: center; padding: 40px 20px; color: #ef5350; }
 .re-chart { height: 300px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); }
 .re-h2 { font-size: 15px; font-weight: 700; }
+/* 页内分组分隔标题（如利率定价页的政策路径 / 长端分解） */
+.re-group { font-size: 16px; font-weight: 800; margin: 24px 0 4px; padding-bottom: 6px; border-bottom: 2px solid var(--accent); color: var(--text); }
 .re-table { width: 100%; border-collapse: collapse; font-size: 13px; font-variant-numeric: tabular-nums; }
 .re-table-wrap { overflow-x: auto; margin-top: 8px; }
 .re-table th { background: var(--surface-alt); padding: 8px 12px; text-align: left; font-size: 12px; color: var(--text-dim); font-weight: 600; border-bottom: 1px solid var(--border); position: sticky; top: 0; }

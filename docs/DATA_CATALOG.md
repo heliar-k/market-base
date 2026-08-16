@@ -643,7 +643,7 @@ upcoming = pd.read_csv('data/treasury/upcoming_auctions.csv', index_col='auction
 
 ## 13. 利率专题页（Web，复刻 timsun.net/rates）
 
-`uv run python -m src.server` 后访问 `http://localhost:8000/rates/`，共 6 页：
+`uv run python -m src.server` 后访问 `http://localhost:8000/rates/`，共 5 页：
 
 | 页面 | 路由 | 数据源 |
 |------|------|--------|
@@ -651,8 +651,7 @@ upcoming = pd.read_csv('data/treasury/upcoming_auctions.csv', index_col='auction
 | 联邦基金利率 | `/rates/fed-funds.html` | rates.csv（EFFR/SOFR/走廊/成交量） |
 | 收益率曲线 | `/rates/yield-curve.html` | rates.csv + tips.csv + 规则引擎解读 |
 | 国债拍卖 | `/rates/auctions.html` | `data/treasury/`（auction_results + upcoming） |
-| 实际利率 | `/rates/real-rates.html` | rates.csv + tips.csv |
-| 利率预期 | `/rates/expectations/` | `data/rate_expectations/fomc_probabilities.csv` |
+| 利率定价（预期+实际） | `/rates/pricing.html` | rate_expectations + rates.csv + tips.csv |
 
 ### API 端点
 

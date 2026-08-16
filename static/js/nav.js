@@ -4,11 +4,10 @@
   // 每个专题的子页导航（相对该专题目录）
   var NAVS = {
     '/rates/': [
+      ['概览', 'index.html'],
       ['联邦基金利率', 'fed-funds.html'],
       ['收益率曲线', 'yield-curve.html'],
-
-      ['实际利率', 'real-rates.html'],
-      ['利率预期', 'expectations/'],
+      ['利率定价', 'pricing.html'],
     ],
     '/volatility/': [
       ['全景仪表盘', 'index.html'],
