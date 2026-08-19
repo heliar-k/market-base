@@ -212,8 +212,9 @@ async function load() {
     R.get('/api/fomc/calendar'),
   ]);
   const ind = data.indicator;
+  const fmtD = s => s ? `${s.date.slice(0,4)}-${s.date.slice(4,6)}-${s.date.slice(6)}` : '—';
   document.getElementById('re-as-of').textContent =
-    `数据截至 ${data.statements[0]?.date.slice(0,4)}-${data.statements[0]?.date.slice(4,6)}-${data.statements[0]?.date.slice(6)}`;
+    `数据截至 声明 ${fmtD(data.statements[0])} · 演讲 ${fmtD(data.speeches[0])}`;
   document.getElementById('re-gen').textContent =
     `鹰鸽评分：${data.generator === 'llm' ? 'LLM' : '规则引擎（LLM 预留）'}`;
 

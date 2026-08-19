@@ -35,7 +35,10 @@ async function load() {
   ].map(([t, id]) => `<a href="#${id}">${t}</a>`).join('');
 
   const d = await R.get('/api/labor/overview');
-  document.getElementById('re-as-of').textContent = '数据截至 ' + d.as_of;
+  // 月频卡片（失业率/非农/JOLTS）与周频初请时效不同，页头显示双时点
+  const md = [d.cards.unrate.as_of, d.cards.nfp.as_of, d.cards.jolts.as_of].filter(Boolean).sort();
+  document.getElementById('re-as-of').textContent =
+    `数据截至 月频 ${md[0]}–${md[md.length - 1]} · 初请 ${d.cards.icsa.as_of}`;
 
   // ── 卡片行 ──
   const c = d.cards;

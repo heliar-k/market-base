@@ -117,7 +117,11 @@ async function load() {
   ].map(([t, id]) => `<a href="#${id}">${t}</a>`).join('');
 
   const data = await R.get('/api/volatility/dashboard');
-  document.getElementById('re-as-of').textContent = '数据截至 ' + data.as_of;
+  // CBOE 期限结构滞后一天（CDN 次晨更新），Barchart 快照日频不滞后，双时点如实标注
+  document.getElementById('re-as-of').textContent =
+    data.as_of_snapshot && data.as_of_snapshot > data.as_of
+      ? `数据截至 CBOE ${data.as_of} · 快照 ${data.as_of_snapshot}`
+      : '数据截至 ' + data.as_of;
   const c = R.colors();
   const axis = (name) => ({
     type: 'value', name, nameTextStyle: { color: c.muted },

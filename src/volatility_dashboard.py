@@ -677,6 +677,12 @@ def generate_dashboard() -> dict:
     return {
         "generator": "rules",
         "as_of": cboe.index.max().strftime("%Y-%m-%d"),
+        # Barchart 快照日频更新且不滞后（CBOE CDN 延迟一天），页头需区分两个时效
+        "as_of_snapshot": (
+            bc.index.max().strftime("%Y-%m-%d")
+            if not bc.empty and hasattr(bc.index, "strftime")
+            else None
+        ),
         "hero": _hero(rows),
         "signals": _signals(rows),
         "indices": rows,

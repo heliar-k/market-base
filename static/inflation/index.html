@@ -42,7 +42,10 @@ async function load() {
   ].map(([t, id]) => `<a href="#${id}">${t}</a>`).join('');
 
   const d = await R.get('/api/inflation/overview');
-  document.getElementById('re-as-of').textContent = '数据截至 ' + d.as_of;
+  // 月频卡片（CPI/PCE/PPI）滞后，盈亏平衡为日频，页头显示双时点
+  const md = [d.cards.cpi.as_of, d.cards.core_pce.as_of].filter(Boolean).sort();
+  document.getElementById('re-as-of').textContent =
+    `数据截至 月频 ${md[0]}–${md[md.length - 1]} · 盈亏平衡日频`;
 
   // ── YoY 卡片行 ──
   const c = d.cards;

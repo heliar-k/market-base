@@ -43,7 +43,9 @@ async function load() {
     R.get('/api/treasury/overview'),
     R.get('/api/rates/auctions'),
   ]);
-  document.getElementById('re-as-of').textContent = '数据截至 ' + d.as_of;
+  // 数据源时效不同：TIC 月频滞后 ~6.5 周，Bill 占比/拍卖为日频，页头如实标注双时点
+  document.getElementById('re-as-of').textContent =
+    `数据截至 TIC ${d.cards.hold_total.as_of} · Bill 占比/拍卖 ${d.cards.bill_share.as_of}`;
 
   // ── 卡片行：需求 ──
   const c = d.cards;
