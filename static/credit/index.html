@@ -246,7 +246,8 @@ function renderCds(root, d) {
       ],
     }));
   }
-  sec.innerHTML += '<p style="margin:0;font-size:12px">真实 Markit CDX IG / CDX HY / 主权 CDS 为付费数据源（Bloomberg / Refinitiv 授权），本页使用公开代理指标。</p>';
+  // 用 insertAdjacentHTML 追加，不能 innerHTML +=（会重建全部子节点，把上面已建好的 bank-chart 图表 div 换成一个空白新节点）
+  sec.insertAdjacentHTML('beforeend', '<p style="margin:0;font-size:12px">真实 Markit CDX IG / CDX HY / 主权 CDS 为付费数据源（Bloomberg / Refinitiv 授权），本页使用公开代理指标。</p>');
 }
 
 // ── 信用压力仪表盘：综合分 + 5 分量 + 历史 + 跨资产 ──
