@@ -215,10 +215,10 @@ function pGex(panel, v) {
       tooltip: { trigger: 'axis' },
       legend: { data: ['Call GEX', 'Put GEX', '累计 GEX'], textStyle: { color: colors.text }, top: 0 },
       grid: { left: 52, right: 60, top: 28, bottom: 52 },
-      xAxis: { type: 'category', data: ss, axisLine: { lineStyle: { color: colors.border } }, axisLabel: { color: colors.muted, fontSize: 10, rotate: 0 }, name: '行权价', nameTextStyle: { color: colors.muted, fontSize: 10 } },
+      xAxis: { type: 'category', data: ss, axisLine: { lineStyle: { color: colors.border } }, axisLabel: { color: colors.muted, fontSize: 10, rotate: 0 }, name: '行权价', nameLocation: 'middle', nameGap: 32, nameTextStyle: { color: colors.muted, fontSize: 10 } },
       yAxis: [
-        { type: 'value', min: -vmax, max: vmax, axisLabel: { color: colors.muted, fontSize: 11 }, splitLine: { lineStyle: { color: colors.grid } }, name: 'M / 点', nameTextStyle: { color: colors.muted, fontSize: 10 } },
-        { type: 'value', min: -cumMax, max: cumMax, position: 'right', splitLine: { show: false }, axisLabel: { color: colors.muted, fontSize: 11 }, name: '累计 M', nameTextStyle: { color: colors.muted, fontSize: 10 } },
+        { type: 'value', min: -vmax, max: vmax, axisLabel: { color: colors.muted, fontSize: 11 }, splitLine: { lineStyle: { color: colors.grid } } },
+        { type: 'value', min: -cumMax, max: cumMax, position: 'right', splitLine: { show: false }, axisLabel: { color: colors.muted, fontSize: 11 } },
       ],
       series: [
         {
