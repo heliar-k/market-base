@@ -424,10 +424,20 @@ def fx_series() -> pd.DataFrame:
 
 def equities() -> dict:
     p = asset_prices()
-    out: dict = {"indices": {}, "breadth": {}, "analysis": {}}
+    out: dict = {
+        "indices": {},
+        "breadth": {},
+        "analysis": {},
+        "chart": {},
+        "analyst": {},
+        "radar": {},
+    }
     if p.empty:
         return out
     out["indices"] = _price_rows(p, EQUITY_ROWS)
+
+    # 指数归一化走势（近 1 年，窗口首日为 0%）——timsun 同款
+    out["chart"] = _index_normalized(p, EQUITY_ROWS)
 
     # 广度：SPX/RUT 20D + ABV 占比
     spx20 = _chg(p["SPX"], 20) if "SPX" in p.columns else None
@@ -469,7 +479,285 @@ def equities() -> dict:
         )
 
     out["analysis"] = equity_analysis(out["breadth"])
+    out["analyst"] = analyst_board()
+    out["radar"] = ndx_radar()
     return out
+
+
+def _index_normalized(p: pd.DataFrame, rows: list[tuple[str, str]]) -> dict:
+    """近 1 年归一化 %：窗口首日 = 0，输出 dates + 每标的 series。"""
+    df = p[[k for k, _ in rows if k in p.columns]].dropna(how="all")
+    if df.empty:
+        return {"dates": [], "series": {}}
+    df = df.dropna(how="all").tail(252)
+    base = df.iloc[0]
+    out = {"dates": [str(d.date()) for d in df.index]}
+    out["series"] = {
+        k: [
+            round((float(v) / float(base[k]) - 1) * 100, 2)
+            if pd.notna(v) and base[k]
+            else None
+            for v in df[k]
+        ]
+        for k, _ in rows
+        if k in df.columns
+    }
+    return out
+
+
+def _latest_targets() -> pd.DataFrame:
+    """最新交易日全部成分目标价（长表，一票一行）。"""
+    df = _csv("analyst/ndx_targets.csv")
+    if df.empty:
+        return df
+    latest = df.index.max()
+    return df[df.index == latest]
+
+
+def analyst_board() -> dict:
+    """Nasdaq 100 分析师目标价（timsun /assets/equities 面板）。
+
+    指标：覆盖率 / 等权平均空间 / 去极值典型 / 高于现价占比 / 平均分析师数,
+    榜单：上行 Top10 / 下行 Top10 / 分歧 Top10, 行业表 + 完整表。
+    """
+    df = _latest_targets()
+    if df.empty:
+        return {"rows": 0}
+    comp = _read("analyst/ndx_components.csv")
+    total = len(comp)
+    up = df[df["upside"].notna()]
+    n = len(up)
+    if n < 10:
+        return {"rows": n}
+
+    # 去极值典型：掐头去尾各 10%（timsun 同款口径——样本越高噪音越低）
+    cuts = max(1, int(n * 0.1))
+    trimmed = up["upside"].sort_values().iloc[cuts:-cuts]
+
+    def row(t: pd.Series) -> dict:
+        return {
+            "ticker": t["ticker"],
+            "company": t["company"],
+            "industry": t["industry"],
+            "price": float(t["price"]) if pd.notna(t["price"]) else None,
+            "mean": float(t["target_mean"]) if pd.notna(t["target_mean"]) else None,
+            "high": float(t["target_high"]) if pd.notna(t["target_high"]) else None,
+            "low": float(t["target_low"]) if pd.notna(t["target_low"]) else None,
+            "upside": round(float(t["upside"]), 2),
+            "analysts": int(t["analysts"]) if pd.notna(t["analysts"]) else None,
+            "rating": t.get("rating"),
+        }
+
+    tops = up.nlargest(10, "upside")
+    bottoms = up.nsmallest(10, "upside")
+    spread = up.copy()
+    spread["_sp"] = spread["target_high"] - spread["target_low"]
+    divs = spread.dropna(subset=["_sp"]).nlargest(10, "_sp")
+
+    industry = (
+        up.groupby("industry")
+        .agg(
+            coverage=("ticker", "count"),
+            avg_space=("upside", "mean"),
+            med_space=("upside", "median"),
+            avg_analysts=("analysts", "mean"),
+        )
+        .reset_index()
+        .sort_values("avg_space", ascending=False)
+    )
+    industries = []
+    for _, r in industry.iterrows():
+        industries.append(
+            {
+                "industry": r["industry"],
+                "coverage": int(r["coverage"]),
+                "avg": round(float(r["avg_space"]), 2),
+                "med": round(float(r["med_space"]), 2),
+                "analysts": round(float(r["avg_analysts"]), 1),
+            }
+        )
+
+    rich = (
+        up[
+            [
+                "ticker",
+                "company",
+                "industry",
+                "price",
+                "target_mean",
+                "target_high",
+                "target_low",
+                "upside",
+                "analysts",
+                "rating",
+            ]
+        ]
+        .rename(
+            columns={"target_mean": "mean", "target_high": "high", "target_low": "low"}
+        )
+        .sort_values("upside", ascending=False)
+        .to_dict("records")
+    )
+    for r in rich:
+        for k in ("price", "mean", "high", "low"):
+            r[k] = round(float(r[k]), 2) if pd.notna(r[k]) else None
+
+    return {
+        "date": str(df.index.max().date()),
+        "rows": n,
+        "total": total,
+        "coverage_pct": round(n / total * 100, 1) if total else None,
+        "avg_upside": round(float(up["upside"].mean()), 2),
+        "trim_upside": round(float(trimmed.mean()), 2) if len(trimmed) else None,
+        "above_share": round(float((up["upside"] > 0).mean() * 100), 1),
+        "above_cnt": int((up["upside"] > 0).sum()),
+        "avg_analysts": round(float(up["analysts"].mean()), 1),
+        "tops": [row(t) for _, t in tops.iterrows()],
+        "bottoms": [row(t) for _, t in bottoms.iterrows()],
+        "divs": [row(t) for _, t in divs.iterrows()],
+        "industries": industries,
+        "table": rich,
+    }
+
+
+def ndx_radar() -> dict:
+    """Nasdaq 100 成分股雷达：价格可得性 + 今日/短中期动能 + 行业强弱 + 成分行情。"""
+    comp = _read("analyst/ndx_components.csv")
+    # components 无 date 列（ticker/company/category），按 ticker 建立映射
+    comp = comp.rename(columns={"category": "industry"})
+    px = _csv("analyst/ndx_prices.csv")
+    if comp.empty or px.empty:
+        return {"rows": 0}
+    price_cols = [c for c in px.columns if c != "date"]
+    if not price_cols:
+        return {"rows": 0}
+
+    last = px.iloc[-1]
+    has = [c for c in price_cols if pd.notna(last.get(c))]
+    n = len(has)
+    if n < 10:
+        return {"rows": n}
+
+    # 每票：1D / 5D / 20D / 60D 涨跌 + 50D/200D 均线上方 + 趋势
+    stats = {}
+    for t in has:
+        s = px[t].dropna()
+        if len(s) < 70:
+            continue
+        chg = {}
+        for w in (1, 5, 20, 60):
+            if len(s) > w and s.iloc[-w - 1]:
+                chg[w] = (float(s.iloc[-1]) / float(s.iloc[-w - 1]) - 1) * 100
+        ma50 = float(s.tail(50).mean())
+        ma200 = float(s.tail(200).mean()) if len(s) >= 200 else None
+        price = float(s.iloc[-1])
+        stats[t] = {
+            "price": price,
+            "chg1": round(chg.get(1), 2) if 1 in chg else None,
+            "chg5": round(chg.get(5), 2) if 5 in chg else None,
+            "chg20": round(chg.get(20), 2) if 20 in chg else None,
+            "chg60": round(chg.get(60), 2) if 60 in chg else None,
+            "above50": price > ma50,
+            "above200": price > ma200 if ma200 else None,
+        }
+
+    # 行业强弱（等权）：1D / 20D / 50DMA+ 占比
+    comp_map = comp.set_index("ticker")
+    by_industry: dict[str, list[str]] = {}
+    for t in has:
+        if t not in stats:
+            continue
+        industry = comp_map.loc[t, "industry"] if t in comp_map.index else "未知"
+        by_industry.setdefault(industry, []).append(t)
+    industries = []
+    for ind, tk in by_industry.items():
+        if len(tk) < 1:
+            continue
+        chg1 = [stats[t]["chg1"] for t in tk if stats[t]["chg1"] is not None]
+        chg20 = [stats[t]["chg20"] for t in tk if stats[t]["chg20"] is not None]
+        industries.append(
+            {
+                "industry": ind,
+                "coverage": len(tk),
+                "chg1": round(sum(chg1) / len(chg1), 2) if chg1 else None,
+                "chg20": round(sum(chg20) / len(chg20), 2) if chg20 else None,
+                "above50": round(
+                    sum(1 for t in tk if stats[t]["above50"]) / len(tk) * 100, 0
+                ),
+            }
+        )
+    industries.sort(key=lambda x: (x["chg20"] is None, -(x["chg20"] or 0)))
+
+    today_up = sum(1 for t in stats if (stats[t]["chg1"] or 0) > 0)
+    rows = []
+    for t, st in stats.items():
+        meta = comp_map.loc[t] if t in comp_map.index else {}
+        rows.append(
+            {
+                "ticker": t,
+                "company": meta.get("company", ""),
+                "industry": meta.get("industry", ""),
+                "price": round(st["price"], 2),
+                "chg1": st["chg1"],
+                "chg5": st["chg5"],
+                "chg20": st["chg20"],
+                "chg60": st["chg60"],
+                "above50": st["above50"],
+                "above200": st["above200"],
+            }
+        )
+    rows.sort(key=lambda r: (r["chg20"] is None, -(r["chg20"] or 0)))
+
+    strong20 = [r for r in rows if r["chg20"] is not None][:8]
+    weak20 = sorted(
+        [r for r in rows if r["chg20"] is not None], key=lambda r: r["chg20"]
+    )[:8]
+
+    # 近 20 个交易日指数收盘
+    p = asset_prices()
+    recent = []
+    if not p.empty:
+        pp = p[[k for k, _ in EQUITY_ROWS if k in p.columns]].dropna(how="all").tail(20)
+        recent = [
+            {
+                "date": str(d.date()),
+                "SPX": round(float(pp.loc[d, "SPX"]), 2) if "SPX" in pp else None,
+                "NDX": round(float(pp.loc[d, "NDX"]), 2) if "NDX" in pp else None,
+                "DJI": round(float(pp.loc[d, "DJI"]), 2) if "DJI" in pp else None,
+                "RUT": round(float(pp.loc[d, "RUT"]), 2) if "RUT" in pp else None,
+            }
+            for d in pp.index
+        ]
+
+    return {
+        "date": str(px.index[-1].date()),
+        "rows": len(rows),
+        "total": n,
+        "price_share": round(len(stats) / n * 100, 1) if n else None,
+        "today_up": today_up,
+        "today_up_pct": round(today_up / len(stats) * 100, 1) if stats else None,
+        "above50_pct": round(
+            sum(1 for s2 in stats.values() if s2["above50"]) / len(stats) * 100, 1
+        )
+        if stats
+        else None,
+        "above200_pct": round(
+            sum(1 for s2 in stats.values() if s2["above200"])
+            / sum(1 for s2 in stats.values() if s2["above200"] is not None)
+            * 100,
+            1,
+        )
+        if any(s2["above200"] is not None for s2 in stats.values())
+        else None,
+        "avg20": round(sum(s2["chg20"] or 0 for s2 in stats.values()) / len(stats), 2)
+        if stats
+        else None,
+        "industries": industries,
+        "strong20": strong20,
+        "weak20": weak20,
+        "table": rows,
+        "recent": recent,
+    }
 
 
 def equity_analysis(b: dict) -> dict:

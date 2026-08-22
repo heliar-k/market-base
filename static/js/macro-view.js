@@ -6,8 +6,8 @@ const NAV = [
   { key: 'assets', label: '大类资产', page: '/assets/', items: [
     { key: 'assets/equities', label: '美股', page: '/assets/equities.html' },
     { key: 'assets/etfs', label: 'ETF 看板', page: '/assets/etfs.html' },
-    { key: 'assets/options', label: '期权 / GEX', page: '/assets/options.html' },
-    { key: 'assets/positioning', label: '持仓追踪 · CFTC', page: '/assets/positioning.html' },
+    { key: 'equities/options', label: '期权 / GEX', page: '/assets/equities/options.html' },
+    { key: 'equities/positioning', label: '持仓追踪 · CFTC', page: '/assets/equities/positioning.html' },
     { key: 'assets/bonds', label: '债券', page: '/assets/bonds.html' },
     { key: 'assets/commodities', label: '商品', page: '/assets/commodities.html' },
     { key: 'assets/fx', label: '外汇', page: '/assets/fx.html' },

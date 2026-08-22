@@ -191,3 +191,101 @@ class TestOptionsNarrative:
     def test_high_pcr_gets_defensive_note(self):
         n = _options_narrative(self._sym(pcr_oi=1.6))
         assert "防御性仓位重" in n["cross"]
+
+
+class TestAnalystBoard:
+    def test_board_summary_and_ranks(self, monkeypatch, tmp_path):
+        import pandas as pd
+
+        from src.assets_analysis import analyst_board
+
+        n = 20
+        df = pd.DataFrame(
+            {
+                "date": pd.to_datetime(["2026-08-21"] * n),
+                "ticker": [f"T{i:02d}" for i in range(n)],
+                "company": [f"C{i:02d}" for i in range(n)],
+                "industry": ["Tech"] * n,
+                "sector": ["Technology"] * n,
+                "price": [100.0] * n,
+                "target_mean": [110.0, 130.0] * (n // 2),
+                "target_high": [140.0] * n,
+                "target_low": [80.0] * n,
+                "upside": [15.0, 35.0] * (n // 2),
+                "analysts": [20] * n,
+                "rating": ["buy"] * n,
+            }
+        )
+        targets = tmp_path / "targets.csv"
+        df.to_csv(targets, index=False)
+
+        comp = tmp_path / "comp.csv"
+        pd.DataFrame(
+            {
+                "ticker": [f"T{i:02d}" for i in range(n)],
+                "company": [f"C{i:02d}" for i in range(n)],
+                "category": ["Tech"] * n,
+            }
+        ).to_csv(comp, index=False)
+
+        # 核心数值：覆盖 20/20、平均空间 25、去极值后仍 25、全部高于现价
+        monkeypatch.setattr(
+            "src.assets_analysis._latest_targets",
+            lambda: pd.read_csv(targets, index_col="date", parse_dates=["date"]),
+        )
+        monkeypatch.setattr(
+            "src.assets_analysis._read", lambda _p, **_kw: pd.read_csv(comp)
+        )
+        out = analyst_board()
+        assert out["rows"] == 20
+        assert out["coverage_pct"] == 100.0
+        assert out["avg_upside"] == 25.0
+        assert out["trim_upside"] == 25.0
+        assert out["above_share"] == 100.0
+        assert out["tops"][0]["upside"] == 35.0
+        assert len(out["industries"]) == 1
+        assert out["industries"][0]["coverage"] == 20
+
+
+class TestNdxRadar:
+    def test_radar_counts_and_industry(self, monkeypatch, tmp_path):
+        from src.assets_analysis import ndx_radar
+
+        # 12 票、130 天单调上行 → 全部 50DMA 上方、今日上涨、行业分组
+        dates = pd.date_range("2026-04-01", periods=130)
+        px = pd.DataFrame(
+            {
+                f"T{i:02d}": [100 + i * 0.5 + j * (0.3 + i * 0.03) for j in range(130)]
+                for i in range(12)
+            },
+            index=dates,
+        )
+        px.index.name = "date"
+        prices = tmp_path / "prices.csv"
+        px.to_csv(prices)
+
+        comp = tmp_path / "comp.csv"
+        pd.DataFrame(
+            {
+                "ticker": [f"T{i:02d}" for i in range(12)],
+                "company": [f"C{i:02d}" for i in range(12)],
+                "category": ["Tech" if i < 6 else "Health" for i in range(12)],
+            }
+        ).to_csv(comp, index=False)
+
+        monkeypatch.setattr(
+            "src.assets_analysis._read", lambda _p, **_kw: pd.read_csv(comp)
+        )
+        monkeypatch.setattr(
+            "src.assets_analysis._csv",
+            lambda _p, **_kw: pd.read_csv(
+                prices, index_col="date", parse_dates=["date"]
+            ),
+        )
+        monkeypatch.setattr("src.assets_analysis.asset_prices", lambda: pd.DataFrame())
+        out = ndx_radar()
+        assert out["rows"] == 12
+        assert out["today_up"] == 12
+        assert out["above50_pct"] == 100.0
+        assert len(out["industries"]) == 2
+        assert out["strong20"][0]["ticker"] == "T11"

@@ -23,6 +23,7 @@ logger = logging.getLogger(__name__)
 COMPONENTS_URL = "https://en.wikipedia.org/wiki/List_of_NASDAQ-100_companies"
 COMPONENTS_PATH = ROOT / "data" / "analyst" / "ndx_components.csv"
 TARGETS_PATH = ROOT / "data" / "analyst" / "ndx_targets.csv"
+PRICES_PATH = ROOT / "data" / "analyst" / "ndx_prices.csv"  # 成分股日收盘宽表（雷达用）
 _REQUEST_SLEEP_SECONDS = 0.2  # 103 票连发易触发 yfinance 限流
 
 
@@ -91,10 +92,33 @@ def fetch_ndx_targets() -> pd.DataFrame:
     return pd.DataFrame(rows)
 
 
+def fetch_ndx_prices() -> pd.DataFrame:
+    """成分股近 1 年日收盘 → 宽表（index=date，列=ticker）。"""
+    from .breadth_fetcher import download_closes
+
+    components = fetch_ndx_components()
+    closes = download_closes(components["ticker"].tolist())
+    if closes.empty:
+        return pd.DataFrame()
+    closes = closes.sort_index()
+    closes.index.name = "date"
+    return closes
+
+
 if __name__ == "__main__":
     from datetime import date
 
     TARGETS_PATH.parent.mkdir(parents=True, exist_ok=True)
+
+    # 1) 成分股日收盘（雷达）——先拉价格再拉目标价，避免不同日成分漂移
+    prices = fetch_ndx_prices()
+    if not prices.empty:
+        from ._io import upsert_timeseries
+
+        upsert_timeseries(PRICES_PATH, prices, backfill=not PRICES_PATH.exists())
+        print(f"日线: {prices.shape[0]} 天 × {prices.shape[1]} 票 → {PRICES_PATH}")
+    else:
+        print("日线: 拉取失败，保留旧数据")
 
     df = fetch_ndx_targets()
     if df.empty:

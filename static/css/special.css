@@ -319,3 +319,25 @@ body.dark .vol-top-row h3.cool { color: #f87171; }
 .vol-basic-grid .sig-block { border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; margin: 0; }
 
 @media (max-width: 640px) { .vol-top-row { grid-template-columns: 1fr; } }
+
+/* ── equities 页：分析师目标价 + 成分股雷达 ── */
+.src-note { font-size: 12px; color: var(--text-dim); margin: 6px 0 10px; line-height: 1.6; }
+.re-col3 { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 10px; margin: 12px 0; }
+.re-colbox { border: 1px solid var(--border); border-radius: 10px; background: var(--surface); padding: 10px 12px; min-width: 0; }
+.re-colbox-title { font-size: 13px; font-weight: 700; margin-bottom: 6px; color: var(--text); }
+.rk-row { display: flex; align-items: baseline; gap: 8px; padding: 4px 0; font-size: 13px; border-bottom: 1px solid var(--border); }
+.rk-row:last-child { border-bottom: none; }
+.rk-t { font-weight: 700; font-size: 13px; color: var(--text); flex-shrink: 0; }
+.rk-n { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-secondary); font-size: 12px; }
+.rk-v { font-variant-numeric: tabular-nums; font-size: 12px; color: var(--text-secondary); flex-shrink: 0; white-space: nowrap; }
+.re-table-wrap { margin-top: 14px; }
+.re-table-title { font-size: 14px; font-weight: 700; margin-bottom: 4px; color: var(--text); }
+.re-table td.mono { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.re-table thead th { position: sticky; top: 0; }
+
+/* ── equities 子页导航（美股 / 期权 / 持仓追踪）── */
+.eq-subnav { display: flex; gap: 8px; margin: 0 0 16px; flex-wrap: wrap; }
+.eq-subnav a { font-size: 13px; font-weight: 600; padding: 4px 14px; border-radius: 999px;
+  border: 1px solid var(--border); color: var(--text-secondary); text-decoration: none; transition: all .15s; }
+.eq-subnav a:hover { color: var(--text); border-color: var(--accent); }
+.eq-subnav a.on { background: var(--accent); border-color: var(--accent); color: #fff; }
