@@ -334,10 +334,3 @@ body.dark .vol-top-row h3.cool { color: #f87171; }
 .re-table-title { font-size: 14px; font-weight: 700; margin-bottom: 4px; color: var(--text); }
 .re-table td.mono { font-variant-numeric: tabular-nums; white-space: nowrap; }
 .re-table thead th { position: sticky; top: 0; }
-
-/* ── equities 子页导航（美股 / 期权 / 持仓追踪）── */
-.eq-subnav { display: flex; gap: 8px; margin: 0 0 16px; flex-wrap: wrap; }
-.eq-subnav a { font-size: 13px; font-weight: 600; padding: 4px 14px; border-radius: 999px;
-  border: 1px solid var(--border); color: var(--text-secondary); text-decoration: none; transition: all .15s; }
-.eq-subnav a:hover { color: var(--text); border-color: var(--accent); }
-.eq-subnav a.on { background: var(--accent); border-color: var(--accent); color: #fff; }
