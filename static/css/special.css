@@ -51,6 +51,11 @@ body.embedded .re-header h1 { display: none; } /* 内嵌时左卡已有标题 */
 .re-table-wrap { overflow-x: auto; margin-top: 8px; }
 .re-table th { background: var(--surface-alt); padding: 8px 12px; text-align: left; font-size: 12px; color: var(--text-dim); font-weight: 600; border-bottom: 1px solid var(--border); position: sticky; top: 0; }
 .re-table td { padding: 7px 12px; border-bottom: 1px solid var(--border-light); color: var(--text); font-variant-numeric: tabular-nums; }
+/* 表格内涨跌着色：.re-table td 的 color 会覆盖全局 .up/.down（特异性 0,1,1 > 0,1,0），此处提升 */
+.re-table td.up { color: #26a69a; }
+.re-table td.down { color: #ef5350; }
+body.dark .re-table td.up { color: #34d399; }
+body.dark .re-table td.down { color: #f87171; }
 .re-table-wrap .re-scroll { overflow-x: auto; }
 .re-source { font-size: 11px; color: var(--text-dim); }
 .re-badges { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
