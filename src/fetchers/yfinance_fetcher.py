@@ -171,27 +171,23 @@ def fetch_all_assets() -> list[DataPoint]:
     return results
 
 
-def wide_close(series: dict[str, str | pd.Series], period: str = "2y") -> pd.DataFrame:
+def wide_close(series: dict[str, str], period: str = "2y") -> pd.DataFrame:
     """批量 yfinance 日线收盘 → 宽表（index=date，列=key）。
 
-    series: {key: yf_ticker} 或 {key: 已拉的 pd.Series}（后者跳过网络拉取）。
-    失败逐键容忍；同 index 重复去重。
+    series: {key: yf_ticker}。失败逐键容忍（日志含 ticker 与异常详情）；
+    同 index 重复去重。
     """
     frames: list[pd.DataFrame] = []
-    for key, val in series.items():
-        if isinstance(val, str):
-            try:
-                df = fetch_ohlcv(val, period=period)
-            except Exception:
-                logger.warning(f"  ✗ {key}: 拉取失败，跳过")
-                continue
-            if df.empty:
-                logger.warning(f"  ✗ {key}: 空数据，跳过")
-                continue
-            frame = pd.DataFrame({key: df["close"]})
-        else:  # 已算好的序列（测试/派生用）
-            frame = pd.DataFrame({key: val})
-        frames.append(frame)
+    for key, ticker in series.items():
+        try:
+            df = fetch_ohlcv(ticker, period=period)
+        except Exception as e:
+            logger.warning(f"  ✗ {key} ({ticker}): {e}")
+            continue
+        if df.empty:
+            logger.warning(f"  ✗ {key} ({ticker}): 空数据")
+            continue
+        frames.append(pd.DataFrame({key: df["close"]}))
     if not frames:
         return pd.DataFrame()
     wide = pd.concat(frames, axis=1).sort_index()
