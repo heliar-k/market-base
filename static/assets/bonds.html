@@ -67,7 +67,9 @@ async function load() {
   const rsec = document.createElement('div');
   rsec.className = 're-section';
   rsec.innerHTML = '<h2>收盘价明细</h2>';
-  rsec.appendChild(R.table(['日期'].concat(keys), rows, {}));
+  const fmts = { 日期: v => v };
+  keys.forEach(k => { fmts[k] = v => fmt(v); });
+  rsec.appendChild(R.table(['日期'].concat(keys), rows, fmts));
   document.getElementById('recent').appendChild(rsec);
 
   document.getElementById('re-gen').textContent = '数据源：Yahoo Finance 日频快照 · 口径为收盘价';

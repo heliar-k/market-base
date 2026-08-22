@@ -40,3 +40,14 @@ def test_short_history_returns_nan_matrix():
     short = _prices().iloc[:10]
     m, _ = compute_correlation_matrix(short, window=30)
     assert m.isna().all().all()
+
+
+def test_trailing_short_column_computes_with_min_periods():
+    # 扩展列（如 ETH）只有尾部 13 个观测：min_periods 允许窗口内 NaN，
+    # 不应整列空白（回归：rolling(30) 默认窗口内任一 NaN 即 NaN）
+    df = _prices()
+    df["ETH"] = df["SPX"]  # 与 SPX 完全正相关
+    df.loc[df.index[:-13], "ETH"] = np.nan
+    m, _ = compute_correlation_matrix(df)
+    assert abs(m.loc["ETH", "SPX"] - 1.0) < 1e-6
+    assert abs(m.loc["ETH", "ETH"] - 1.0) < 1e-6

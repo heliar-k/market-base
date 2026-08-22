@@ -132,22 +132,46 @@ async function load() {
     const assets = d.corr.assets;
     const now = d.as_of;
     csec.innerHTML = `<h2>CORRELATION 跨资产相关性</h2>
-      <p style="margin:0">${now} · 基于日收益率滚动相关系数。深蓝 强负相关 → 灰 零相关 → 深红 强正相关。</p>
+      <p style="margin:0">${now} · 30 日滚动相关系数：蓝 负相关 → 中性 → 红 正相关。ETH/NG/EURUSD 历史不足 30 日，按窗口内可得观测计算。</p>
       <div class="chart" id="corr-chart" style="height:520px"></div>`;
     document.getElementById('correlation').appendChild(csec);
     R.mkChart('corr-chart', colors => ({
-      tooltip: { position: 'top' },
+      tooltip: {
+        position: 'top',
+        formatter: p => {
+          const v = p.value && p.value[2];
+          return `${assets[p.value[1]]} × ${assets[p.value[0]]}<br>${v == null ? '—' : Number(v).toFixed(2)}`;
+        },
+      },
       grid: { left: 70, right: 20, top: 20, bottom: 70 },
       xAxis: { type: 'category', data: assets, axisLabel: { color: colors.muted, fontSize: 11, rotate: 45 }, axisLine: { lineStyle: { color: colors.border } } },
       yAxis: { type: 'category', data: assets, axisLabel: { color: colors.muted, fontSize: 11 }, axisLine: { lineStyle: { color: colors.border } } },
       visualMap: {
         min: -1, max: 1, calculable: true, orient: 'horizontal', left: 'center', bottom: 0,
-        inRange: { color: ['#1d4ed8', '#6b7280', '#b91c1c'] }, text: ['强正相关', '强负相关'],
+        // 发散色带（0 为中心）：浅色/深色主题分段取中性底色，避免深红蓝团块
+        inRange: {
+          color: R.isDark()
+            ? ['#60a5fa', '#1e3a5f', '#1f2937', '#7f1d1d', '#f87171']
+            : ['#1d4ed8', '#93c5fd', '#f1f5f9', '#fca5a5', '#dc2626'],
+        },
+        text: ['强正相关', '强负相关'],
         textStyle: { color: colors.muted, fontSize: 11 },
       },
       series: [{
         type: 'heatmap', data: d.corr.matrix.flatMap((row, i) => row.map((v, j) => [j, i, v])),
-        label: { show: true, fontSize: 9, color: colors.text, formatter: p => p.value !== null && Math.abs(p.value) >= 0.3 ? p.value.toFixed(2) : '' },
+        label: {
+          show: true,
+          rich: {
+            w: { color: '#fff', fontSize: 11 },
+            d: R.isDark() ? { color: '#c9d1d9', fontSize: 11 } : { color: '#334155', fontSize: 11 },
+          },
+          formatter: p => {
+            const v = p.value && p.value[2];
+            if (v == null || Math.abs(v) < 0.4) return '';
+            // |r|≥0.5 格子为深色底 → 白字；浅色底 → 深字（rich 标签保证对比度）
+            return `{${Math.abs(v) >= 0.5 ? 'w' : 'd'}|${v.toFixed(2)}}`;
+          },
+        },
       }],
     }));
   }

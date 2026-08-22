@@ -544,6 +544,78 @@ def _ls_cols(sym: str) -> tuple[str, str]:
     return f"{sym}_MM_L", f"{sym}_MM_S"
 
 
+# CFTC 合约元数据（timsun 同款展示：报告名 · 报告 code / 报告类型；
+# code 在 cot.csv 未存，静态保留）
+COT_META = {
+    "NQ": ("纳斯达克100 E-mini", "NASDAQ MINI", "209742", "金融类 TFFF"),
+    "ES": ("标普500 E-mini", "E-MINI S&P 500", "13874A", "金融类 TFFF"),
+    "RTY": ("罗素2000 E-mini", "E-MINI RUSSELL 2000", "132741", "金融类 TFFF"),
+    "VX": ("VIX 期货", "VIX FUTURES", "1170E1", "金融类 TFFF"),
+    "ZF": ("5年美债", "UST 5Y NOTE", "044601", "金融类 TFFF"),
+    "ZN": ("10年美债", "UST 10Y NOTE", "043602", "金融类 TFFF"),
+    "ZB": ("30年美债", "UST BOND", "020601", "金融类 TFFF"),
+    "EUR": ("欧元", "EURO FX", "099741", "金融类 TFFF"),
+    "JPY": ("日元", "JAPANESE YEN", "097741", "金融类 TFFF"),
+    "DXY": ("美元指数", "USD INDEX", "098662", "金融类 TFFF"),
+    "GC": ("黄金", "GOLD", "088691", "商品类 DISAGG"),
+    "SI": ("白银", "SILVER", "084691", "商品类 DISAGG"),
+    "HG": ("铜", "COPPER", "089692", "商品类 DISAGG"),
+    "CL": ("WTI 原油", "WTI CRUDE OIL", "067651", "商品类 DISAGG"),
+    "NG": ("天然气", "NATURAL GAS", "023651", "商品类 DISAGG"),
+    "BTC": ("比特币", "BITCOIN", "133741", "金融类 TFFF"),
+}
+COT_TIPS = {
+    "index_vol": "股指仓位主要看风险偏好是否拥挤。",
+    "rates": "美债仓位主要看市场是在押注利率下行，还是继续押注收益率上行。",
+    "fx": "外汇仓位看美元与非美货币的拥挤方向。",
+    "commodities": "商品仓位看再通胀交易是否拥挤，以及趋势资金有没有追随。",
+}
+
+
+def _cot_reading(label: str, week_dir: str | None) -> str:
+    """合约解读第一句：按判读桶给出方向含义（timsun 口径）。"""
+    if label.startswith("极度偏多"):
+        return (
+            "仓位处在极度偏多区间，说明趋势资金已经明显站队；继续上涨需要新增买盘确认。"
+        )
+    if label.startswith("极度偏空"):
+        return (
+            "仓位处在极度偏空区间，说明市场共识很悲观；若价格抗跌，容易出现空头回补。"
+        )
+    if label == "偏多":
+        return "仓位偏多，趋势资金倾向支持上行，但并未到最拥挤状态。"
+    if label == "偏空":
+        return "仓位偏空，说明资金仍偏防御；若价格转强，需要观察净空是否开始回补。"
+    return "仓位处在中性区间，单独看 CFTC 还不能给出强方向结论。"
+
+
+def _cot_week_text(week_dir: str | None) -> str:
+    if week_dir == "增仓":
+        return "本周净仓增加，说明资金边际上在加多或减空。"
+    if week_dir == "减仓":
+        return "本周净仓下降，说明资金边际上在减多或加空。"
+    return ""
+
+
+# 组判断模板（非极端时 timsun 同款；极端时换拥挤警示）
+COT_VERDICT = {
+    "index_vol": "股指投机仓位不极端，价格方向更多要看盈利、利率和期权结构确认。",
+    "rates": "利率仓位不极端，长端利率的下一步更依赖通胀、财政供给和美联储定价。",
+    "fx": "外汇仓位不极端，汇率方向更依赖利差和美元流动性。",
+    "commodities": "商品仓位不极端，价格更需要库存、地缘和美元方向确认。",
+}
+COT_VERDICT_EXTREME = {
+    "index_vol": "股指投机仓位较极端，拥挤状态下价格反向时波动会放大，关注 "
+    + "{f}"
+    + "。",
+    "rates": "利率仓位较极端，拥挤状态下数据反向时的波动会放大，关注 " + "{f}" + "。",
+    "fx": "外汇仓位较极端，拥挤状态下汇率反向波动会放大，关注 " + "{f}" + "。",
+    "commodities": "商品仓位较极端，拥挤状态下价格反向时的波动会放大，关注 "
+    + "{f}"
+    + "。",
+}
+
+
 def positioning() -> dict:
     cot = _csv("cot/cot.csv")
     if cot.empty or len(cot) < 52:
@@ -577,7 +649,9 @@ def positioning() -> dict:
             if len(s) < 52:
                 continue
             net_val = float(s.iloc[-1])
-            pct = float((s < net_val).mean() * 100)
+            # 2 年窗口（104 周）——timsun 同款；全窗口导致极端度被稀释
+            s2y = s.tail(104)
+            pct = float((s2y < net_val).mean() * 100)
             wk = None
             if len(s) >= 2:
                 wk = float(s.iloc[-1] - s.iloc[-2])
@@ -592,23 +666,76 @@ def positioning() -> dict:
                     )
                 )
             )
+            week_dir = (
+                "增仓"
+                if wk is not None and wk > 0
+                else ("减仓" if wk is not None else None)
+            )
+            name, cme, code, kind = COT_META.get(sym, (sym, sym, "", ""))
+            # 2 年迷你图：投机方（金融=HEDGE，商品=MM）vs 资管（金融=ASSET，商品无）
+            if sym in FIN_SYMBOLS:
+                spec = cot[f"{sym}_HEDGE_L"] - cot[f"{sym}_HEDGE_S"]
+                asset = cot[f"{sym}_ASSET_L"] - cot[f"{sym}_ASSET_S"]
+            else:
+                spec = cot[f"{sym}_MM_L"] - cot[f"{sym}_MM_S"]
+                asset = pd.Series(index=cot.index, dtype=float)
+            tail = cot.index[-104:]
+            spark = {
+                "dates": [str(d.date()) for d in tail],
+                "spec": [
+                    None if pd.isna(v) else round(float(v), 0)
+                    for v in spec.reindex(tail)
+                ],
+                "asset": [
+                    None if pd.isna(v) else round(float(v), 0)
+                    for v in asset.reindex(tail)
+                ],
+            }
             contracts.append(
                 {
                     "symbol": sym,
+                    "name": name,
+                    "cme": cme,
+                    "code": code,
+                    "kind": kind,
                     "net": round(net_val, 0),
                     "pct_2y": round(pct, 1),
                     "label": label,
                     "week_chg": wk,
-                    "week_dir": "增仓"
-                    if wk is not None and wk > 0
-                    else ("减仓" if wk is not None else None),
+                    "week_dir": week_dir,
+                    "reading": _cot_reading(label, week_dir)
+                    + " "
+                    + _cot_week_text(week_dir),
                     "long": round(float(longs[sym].iloc[-1]), 0),
                     "short": round(float(shorts[sym].iloc[-1]), 0),
+                    "oi": round(float(cot[f"{sym}_OI"].iloc[-1]), 0)
+                    if f"{sym}_OI" in cot.columns
+                    else None,
+                    "spark": spark,
                 }
             )
             all_pct.append(abs(pct - 50) * 2)
         if contracts:
             worst = max(contracts, key=lambda c: abs(c["pct_2y"] - 50))
+            bulls = sum(
+                1
+                for c in contracts
+                if c["label"].endswith("看多") or c["label"] == "偏多"
+            )
+            bears = sum(
+                1
+                for c in contracts
+                if c["label"].endswith("看空") or c["label"] == "偏空"
+            )
+            # 组判断：组内极端合约 ≤ 半数 → 非极端（方向留给宏观确认）；
+            # 多数极端 → 拥挤警示
+            ext_n = sum(1 for c in contracts if c["label"].startswith("极度"))
+            if ext_n and ext_n / len(contracts) > 0.5:
+                verdict = COT_VERDICT_EXTREME[g].format(
+                    f=f"{worst['symbol']}（{worst['pct_2y']:.1f}）"
+                )
+            else:
+                verdict = COT_VERDICT[g]
             out["groups"].append(
                 {
                     "name": g,
@@ -617,10 +744,31 @@ def positioning() -> dict:
                         f"最极端：{worst['symbol']}（2 年百分位 "
                         f"{worst['pct_2y']:.1f}，{worst['label']}）"
                     ),
+                    "verdict": verdict,
+                    "focus": {"symbol": worst["symbol"], "pct_2y": worst["pct_2y"]},
+                    "bulls": bulls,
+                    "bears": bears,
                 }
             )
     if all_pct:
         out["crowding"] = round(sum(all_pct) / len(all_pct), 1)
+        all = [c for g in out["groups"] for c in g["contracts"]]
+        bulls = sum(
+            1 for c in all if c["label"].endswith("看多") or c["label"] == "偏多"
+        )
+        bears = sum(
+            1 for c in all if c["label"].endswith("看空") or c["label"] == "偏空"
+        )
+        ext = [c for c in all if c["label"].startswith("极度")]
+        extremes = sorted(all, key=lambda c: abs(c["pct_2y"] - 50), reverse=True)[:3]
+        out["overview"] = {
+            "bias": "偏多" if bulls > bears else ("偏空" if bears > bulls else "中性"),
+            "counts": {"bull": bulls, "bear": bears, "extreme": len(ext)},
+            "extremes": [
+                {"symbol": c["symbol"], "name": c["name"], "pct_2y": c["pct_2y"]}
+                for c in extremes
+            ],
+        }
     return out
 
 
@@ -857,11 +1005,170 @@ def etfs() -> dict:
 
 
 def options_board() -> dict | None:
-    """读取最新期权结构快照（13 标的看板）。"""
+    """读取最新期权结构快照（13 标的看板），附加每标的规则引擎结构解读。"""
     files = sorted((ROOT / "data" / "options_structure").glob("20*.json"))
     if not files:
         return None
-    return json.loads(files[-1].read_text(encoding="utf-8"))
+    board = json.loads(files[-1].read_text(encoding="utf-8"))
+    for s in board.get("symbols", {}).values():
+        s["narrative"] = _options_narrative(s)
+    return board
+
+
+def _options_narrative(s: dict) -> dict:
+    """Timsun 风格结构解读（规则引擎；LLM 预留——接入后同构 dict 直接覆盖）。
+
+    以 Gamma Flip、墙位、Regime 为骨架生成 6 块结论：gamma 定调 / 区间结构 /
+    波动率结构 / 关键监控水平 / 当前环境下不宜 / 跨资产联动 + P/C 提示。
+    """
+    flip = s.get("gamma_flip")
+    flip_pct = s.get("flip_dist")  # 正=现价在 Flip 上方（局部正 Gamma）
+    cw = (s.get("call_wall") or {}).get("strike")
+    pw = (s.get("put_wall") or {}).get("strike")
+    net_gex = s.get("net_gex")
+    pcr = s.get("pcr_oi")
+    iv_slope = s.get("iv_slope")
+    near7 = s.get("charm_near7")
+    name = s.get("symbol", "")
+
+    local_pos = (
+        flip_pct is not None and flip_pct >= 0
+    )  # 现价在 Flip 上方 → 局部正 Gamma
+    flip_txt = f"{flip:.0f}" if flip else "—"
+
+    def fv(x: float | None, unit: str = "") -> str:
+        return "—" if x is None else f"{x:,.0f}{unit}"
+
+    # 1) Gamma 定调
+    gamma_title = (
+        "正 Gamma：波动更容易被压制" if local_pos else "负 Gamma：波动更容易放大"
+    )
+    range_a, range_b = (pw, cw) if pw is not None and cw is not None else (flip, cw)
+    range_text = (
+        f"{range_a:.0f}–{range_b:.0f}"
+        if range_a is not None and range_b is not None
+        else "墙位区间"
+    )
+    gex_text = "—" if net_gex is None else f"{net_gex:+.2f}B"
+    if local_pos:
+        gamma_text = (
+            f"{name} 现价位于 Gamma Flip 上方，局部处于正 Gamma 环境。"
+            f"全部期权合约合计的 Net GEX {gex_text} 仅作为强度参考，价格更容易"
+            f"围绕关键墙位震荡，优先观察 {range_text}"
+        )
+    else:
+        gamma_text = (
+            f"{name} 现价位于 Gamma Flip 下方，局部处于负 Gamma 环境。"
+            f"全部期权合约合计的 Net GEX {gex_text} 仅作为强度参考，价格更容易"
+            f"放大波动，跌破关键支撑后波动扩散风险上升，优先观察 {range_text}"
+        )
+
+    # 2) 区间结构
+    if local_pos:
+        meaning = (
+            f"Put Wall {fv(pw)} 与 Call Wall {fv(cw)} "
+            "更适合被当作结构边界观察，突破前不宜把贴边波动直接外推成趋势。"
+        )
+        invalid = f"跌破 Gamma Flip {flip_txt} 后切换为负 Gamma 框架"
+        risk = f"若跌破 Gamma Flip {flip_txt}，原有区间压制逻辑失效"
+        direction = (
+            f"接近 Call Wall {fv(cw)} 时上行动能容易放缓；"
+            f"接近 Put Wall {fv(pw)} 时下方支撑需要重新验证"
+        )
+        avoid = [
+            f"不宜把站上 {fv(cw)} 前的贴边波动直接解读为有效突破",
+            "不宜把低波动环境误读成宏观风险消失；正 Gamma 只是短期结构压制",
+            "不宜在区间中部给出强方向结论，关键是价格相对 Flip 和墙位的位置",
+        ]
+        vol_meaning = (
+            "正 Gamma 且远离 Flip 时，隐含波动率通常更容易被压制；"
+            "若价格重新靠近 Flip 或 VIX 抬升，低波动假设需要降权。"
+        )
+        vol_risk = (
+            "VIX 突然抬升或跌破 Gamma Flip " + flip_txt + " 时，正 Gamma 解释力下降"
+        )
+    else:
+        meaning = (
+            f"现价位于 Gamma Flip {flip_txt} 下方，负 Gamma 环境下波动易被放大；"
+            "突破前的贴边波动不宜直接外推成趋势。"
+        )
+        invalid = f"站上 Gamma Flip {flip_txt} 后切换为正 Gamma 框架"
+        risk = f"若站上 Gamma Flip {flip_txt}，原有波动放大逻辑失效"
+        direction = (
+            f"跌破 Put Wall {fv(pw)} 后波动扩散风险上升；"
+            f"接近 Call Wall {fv(cw)} 时关注负 Gamma 带来的快速反弹"
+        )
+        avoid = [
+            "负 Gamma 环境下不宜在贴近墙位处追空，反弹容易快速",
+            f"不宜把跌破 Gamma Flip {flip_txt} 后的加速下跌直接外推至趋势",
+            "不宜忽视正 Delta 敞口的支撑；负 Gamma 放大的是双向波动",
+        ]
+        vol_meaning = (
+            "负 Gamma 环境中隐含波动率通常被放大；"
+            "若价格站上 Flip 或 IV 开始回落，高波动假设需要降权。"
+        )
+        vol_risk = (
+            "价格站上 Gamma Flip " + flip_txt + " 或 IV 快速回落时，负 Gamma 解释力下降"
+        )
+
+    # 3) 波动率结构
+    vol_direction = (
+        "波动率回落更像结构结果，不等同于基本面风险消失"
+        if (iv_slope or 0) >= 0
+        else "IV 期限结构倒挂，短期事件定价高，注意到期后的回落"
+    )
+
+    # 4) 跨资产联动
+    if pcr is not None and pcr >= 1.3:
+        cross = (
+            f"Put/Call OI 比 {pcr:.2f} 偏高 — 防御性仓位重，若这些 put 集中到期，"
+            "对冲平仓可能释放正 Gamma，但需要结合到期日和价格位置验证"
+        )
+    elif pcr is not None:
+        cross = f"Put/Call OI 比 {pcr:.2f} 中性 — 期权市场多空仓位相对均衡"
+    else:
+        cross = "Put/Call OI 比暂无数据"
+
+    return {
+        "gamma": {"title": gamma_title, "text": gamma_text},
+        "range": {
+            "title": "区间结构（Range Regime）",
+            "confidence": "高",
+            "meaning": meaning,
+            "watch": "观察：现价、Gamma Flip、Call Wall、Put Wall、VIX",
+            "direction": direction,
+            "invalid": invalid,
+            "risk": risk,
+        },
+        "vol": {
+            "title": "波动率结构",
+            "confidence": "中",
+            "meaning": vol_meaning,
+            "watch": "观察：IV 期限结构、VIX、Gamma Flip 距离、到期日 Gamma 集中度",
+            "direction": vol_direction,
+            "risk": vol_risk,
+        },
+        "levels": [
+            {
+                "value": flip_txt,
+                "label": "Gamma Flip",
+                "desc": "正/负 Gamma 分界线。穿越此价位后结构解释需要切换",
+            },
+            {
+                "value": fv(cw),
+                "label": "Call Wall",
+                "desc": "上方期权敞口集中位。接近时观察上涨动能是否放缓",
+            },
+            {
+                "value": fv(pw),
+                "label": "Put Wall",
+                "desc": "下方期权敞口集中位。跌破后观察波动是否扩散",
+            },
+        ],
+        "avoid": avoid,
+        "cross": cross,
+        "near7": near7,
+    }
 
 
 def crypto_derivatives() -> dict | None:

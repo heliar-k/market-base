@@ -7,6 +7,7 @@ from src.assets_analysis import (
     _chg,
     _fx_verdict,
     _ls_cols,
+    _options_narrative,
     _price_rows,
     equity_analysis,
 )
@@ -151,3 +152,42 @@ class TestCrowdingPercentile:
         s = pd.Series(range(1, 101))
         v = float(s.iloc[-1])
         assert float((s < v).mean() * 100) == 99.0
+
+
+class TestOptionsNarrative:
+    """期权结构解读（规则引擎）关键字段完整性：timsun 结构 6 块 + P/C 提示。"""
+
+    def _sym(self, **over):
+        s = {
+            "symbol": "SPY",
+            "spot": 765.72,
+            "net_gex": -0.75,
+            "net_dex": 34.44,
+            "gamma_flip": 500.0,
+            "flip_dist": 34.7,
+            "call_wall": {"strike": 770.0, "per_point_m": 77.6},
+            "put_wall": {"strike": 765.0, "per_point_m": -406.2},
+            "pcr_oi": 1.63,
+            "pcr_vol": 1.24,
+            "iv_slope": 0.07,
+            "charm_near7": 80.9,
+        }
+        s.update(over)
+        return s
+
+    def test_above_flip_is_positive_gamma(self):
+        n = _options_narrative(self._sym())
+        assert n["gamma"]["title"] == "正 Gamma：波动更容易被压制"
+        assert "上方" in n["gamma"]["text"]
+        assert "Net GEX -0.75B" in n["gamma"]["text"]  # 保留 2 位小数，非 -1B
+        assert n["range"]["invalid"].endswith("负 Gamma 框架")
+        assert len(n["levels"]) == 3
+
+    def test_below_flip_is_negative_gamma(self):
+        n = _options_narrative(self._sym(flip_dist=-5.0))
+        assert n["gamma"]["title"] == "负 Gamma：波动更容易放大"
+        assert "下方" in n["gamma"]["text"]
+
+    def test_high_pcr_gets_defensive_note(self):
+        n = _options_narrative(self._sym(pcr_oi=1.6))
+        assert "防御性仓位重" in n["cross"]

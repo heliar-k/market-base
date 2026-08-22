@@ -100,12 +100,14 @@ async function load() {
   const rsec = document.createElement('div');
   rsec.className = 're-section';
   rsec.innerHTML = '<h2>近期收盘价（最近 20 个交易日）</h2>';
-  rsec.appendChild(R.table(['日期'].concat(keys), rows, {}));
+  const fmts = { 日期: v => v };
+  keys.forEach(k => { fmts[k] = v => fmt(v); });
+  rsec.appendChild(R.table(['日期'].concat(keys), rows, fmts));
   document.getElementById('recent').appendChild(rsec);
 
   document.getElementById('re-gen').textContent = '规则引擎生成（LLM 预留）· 流动性口径：WALCL − TGA − RRP；BTC 90 日收益率对净流动性变化回归';
 }
-function fmt(v) { return v == null ? '—' : Number(v).toLocaleString(undefined, { maximumFractionDigits: 2 }); }
+function fmt(v) { return v == null ? '—' : Number(v === 0 ? 0 : v).toLocaleString(undefined, { maximumFractionDigits: 2 }); }
 function chg(v) { return v == null ? '—' : `<span style="color:${v >= 0 ? '#26a69a' : '#ef5350'}">${v >= 0 ? '▲ +' : '▼ '}${Number(v).toFixed(2)}%</span>`; }
 
 load().catch(e => R.fail(['cards', 'liquidity', 'chart', 'recent'], e));

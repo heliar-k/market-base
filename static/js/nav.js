@@ -1,14 +1,6 @@
 // 专题导航注入 — 新专题页只需 <div class="re-nav" id="re-nav"></div> + 本脚本；
 // 改导航结构只改这里（rates/volatility 两套 + 专题间 Tab；fed/credit/treasury 已合并单页）
 (function () {
-  // 每个专题的入口页（link-card 网格已承载子页导航）
-  // 子页顶部只渲染首项“返回入口”链接
-  var NAVS = {
-    '/rates/': [['概览', 'index.html']],
-    '/volatility/': [['概览', 'index.html']],
-    '/liquidity/': [['概览', 'index.html']],
-    '/assets/': [['概览', 'index.html']],
-  };
   // 专题间 Tab（总入口）
   var TABS = [
     ['大类资产', '/assets/'],
@@ -29,21 +21,9 @@
   var el = document.getElementById('re-nav');
   if (!el) return;
   var path = location.pathname;
-  // 专题入口页（以 / 或 /index.html 结尾）；子页由 NAVS 循环另行处理
+  // 入口页（以 / 或 /index.html 结尾）→ 右下角返回顶部按钮；子页导航全靠左侧导航/Tab，不再渲染面包屑
   var isIndex = path.slice(-1) === '/' || path.slice(-11) === '/index.html';
   var html = '';
-  for (var dir in NAVS) {
-    if (path.indexOf(dir) === 0) {
-      var base = path.slice(0, path.indexOf(dir) + dir.length);
-      if (!isIndex) {
-        // 子页面包屑：醒目返回链接 + 当前页名（title 去 “ — US Macro” 后缀）
-        var cur = (document.title || '').split(' — ')[0];
-        html += '<a class="re-crumb" href="' + base + NAVS[dir][0][1] + '">← ' + NAVS[dir][0][0] + '</a>';
-        if (cur) html += '<span class="re-crumb-cur">› ' + cur + '</span>';
-      }
-      break;
-    }
-  }
   if (!embedded) {
     TABS.forEach(function (t) {
       html += '<a href="' + t[1] + '">' + t[0] + '</a>';

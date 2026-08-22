@@ -60,7 +60,7 @@ async function load() {
     const total = (d.breadth.group_pairs || {})[gn] ?? rows.length;
     sec.innerHTML = `<h2>${gn} · ${rows.length} / ${total} 有数据</h2>`;
     sec.appendChild(R.table(['品种', '最新', '1D', '5D', '20D', '60D', '20D USD压力'], rows, {
-      symbol: v => `${v} · ${rows.find(r => r.symbol === v)?.name || ''}`,
+      symbol: v => `${String(v).replace(/=X$/, '')} · ${rows.find(r => r.symbol === v)?.name || ''}`,
       last: v => fmt(v, 4),
       d1: (v, row) => pctColor(v), d5: (v, row) => pctColor(v), d20: (v, row) => pctColor(v), d60: (v, row) => pctColor(v),
       pressure: (v, row) => `<b style="color:${v < -1 ? '#26a69a' : (v > 1 ? '#ef5350' : 'var(--text)')}">${v == null ? '—' : (v >= 0 ? '+' : '') + v.toFixed(2) + '%'}</b>`,

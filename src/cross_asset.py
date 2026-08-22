@@ -59,7 +59,9 @@ def compute_correlation_matrix(
     """
     cols = [c for c in TICKERS if c in prices.columns]
     rets = prices[cols].pct_change()
-    corr = rets.rolling(window).corr()  # MultiIndex (date, i) × j
+    # min_periods=10：扩展列（ETH/NG/EURUSD，历史不足 30 日）按窗口内有效观测计算；
+    # 默认为 window 时窗口内任一 NaN（含 pct_change 首值 NaN）即整格空白。
+    corr = rets.rolling(window, min_periods=10).corr()  # MultiIndex (date, i) × j
     latest = corr.loc[corr.index.get_level_values(0).max()]
 
     alerts = {}

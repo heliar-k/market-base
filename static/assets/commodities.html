@@ -92,7 +92,9 @@ async function load() {
   const rsec = document.createElement('div');
   rsec.className = 're-section';
   rsec.innerHTML = '<h2>商品近期收盘价 · 最近 20 个交易日</h2>';
-  rsec.appendChild(R.table(['日期'].concat(keys2(rc)), rows, { 日期: v => v }));
+  const fmts = { 日期: v => v };
+  keys2(rc).forEach(k => { fmts[k] = v => fmt(v); });
+  rsec.appendChild(R.table(['日期'].concat(keys2(rc)), rows, fmts));
   document.getElementById('recent').appendChild(rsec);
 
   document.getElementById('re-gen').textContent = '数据源：Yahoo Finance 日频快照 · 归一化起点 = 1 年前收盘';

@@ -14,10 +14,7 @@ body.embedded .re-header h1 { display: none; } /* 内嵌时左卡已有标题 */
 .re-nav { display: flex; gap: 8px; flex-wrap: wrap; }
 .re-nav a { color: var(--accent); text-decoration: none; font-size: 13px; padding: 4px 10px; border: 1px solid var(--btn-border); border-radius: 999px; }
 .re-nav a:hover { background: var(--surface-hover); }
-/* 子页面包屑：返回概览链接与 tab 胶囊视觉区分（nav.js 统一渲染，各专题子页生效） */
-.re-nav a.re-crumb { border-color: var(--accent); font-weight: 600; background: color-mix(in srgb, var(--accent) 10%, transparent); }
-.re-nav a.re-crumb:hover { background: color-mix(in srgb, var(--accent) 20%, transparent); }
-.re-crumb-cur { color: var(--text-secondary); font-size: 12px; align-self: center; }
+/* 子页不再渲染“返回概览”面包屑（导航在左侧导航 / Tab 中） */
 .re-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; }
 .re-card { padding: 14px 18px; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; }
 .re-card-accent { background: var(--surface); border: 1px solid var(--border); color: var(--text); }
@@ -57,7 +54,8 @@ body.embedded .re-header h1 { display: none; } /* 内嵌时左卡已有标题 */
 .re-table-wrap .re-scroll { overflow-x: auto; }
 .re-source { font-size: 11px; color: var(--text-dim); }
 .re-badges { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
-.re-badge { padding: 6px 14px; border-radius: 999px; font-size: 13px; font-weight: 600; }
+.re-badge { padding: 6px 14px; border-radius: 999px; font-size: 13px; font-weight: 600; color: var(--text-secondary); }
+/* .re-badge 基础类必需显式颜色：a 元素（如 ETF 筛选 chip）不设色时落浏览器默认链接蓝，暗色下不可读 */
 .re-badge.bear { background: #ffebee; color: #c62828; }
 .re-badge.bull { background: #e8f5e9; color: #2e7d32; }
 .re-badge.flat { background: #eceff1; color: #546e7a; }
@@ -172,6 +170,79 @@ body.dark .re-expectation.hold { background: rgba(156,163,175,.15); color: #9ca3
 .back-top { position: fixed; right: 16px; bottom: 16px; z-index: 100; width: 36px; height: 36px; border-radius: 50%; border: 1px solid var(--btn-border); background: var(--surface); color: var(--text-secondary); cursor: pointer; font-size: 16px; line-height: 1; opacity: 0; pointer-events: none; transition: opacity .2s; box-shadow: 0 1px 4px rgba(0,0,0,.12); }
 .back-top.show { opacity: 1; pointer-events: auto; }
 .back-top:hover { color: var(--accent); border-color: var(--accent); }
+
+/* 资产分组表：日期列不折行（index 页 6 分组价格表；名称列允许换行，以免窄列挤出日期） */
+#asset-groups .re-table td:last-child { white-space: nowrap; }
+
+/* ── 期权市场结构（timsun 复刻样式）── */
+.opt-note { font-size: 12px; color: var(--text-dim); }
+.opt-regime { border: 1px solid var(--border); border-radius: 12px; background: var(--surface); padding: 18px 20px; display: flex; flex-direction: column; gap: 8px; }
+.opt-regime .rg-label { font-size: 11px; font-weight: 600; letter-spacing: .08em; color: var(--text-dim); }
+.opt-regime .rg-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; flex-wrap: wrap; }
+.opt-regime .rg-title { font-size: 28px; font-weight: 800; letter-spacing: .01em; line-height: 1.15; }
+.opt-regime .rg-title.pp { color: #14b8a6; }
+.opt-regime .rg-title.nn { color: #ef5350; }
+.opt-regime .rg-title.pn, .opt-regime .rg-title.np { color: #f59e0b; }
+.opt-regime .rg-sub { font-size: 13px; color: var(--text-secondary); }
+.opt-regime .rg-gex { display: flex; gap: 28px; text-align: right; }
+.opt-regime .rg-gex .k { font-size: 11px; letter-spacing: .06em; color: var(--text-dim); font-weight: 600; }
+.opt-regime .rg-gex .v { font-size: 18px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.opt-regime .rg-desc { font-size: 13px; line-height: 1.8; color: var(--text-secondary); }
+/* regime 胶囊（13 标的看板） */
+.opt-chip { display: inline-block; padding: 3px 10px; border-radius: 999px; font-size: 12px; font-weight: 600; border: 1px solid; white-space: nowrap; }
+.opt-chip.pp { color: #14b8a6; border-color: #14b8a655; background: #14b8a615; }
+.opt-chip.nn { color: #f87171; border-color: #f8717155; background: #f8717115; }
+.opt-chip.pn, .opt-chip.np { color: #f59e0b; border-color: #f59e0b55; background: #f59e0b15; }
+/* 板块 Tab */
+.opt-tabs { display: flex; gap: 2px; border-bottom: 1px solid var(--border); margin: 14px 0 0; flex-wrap: wrap; }
+.opt-tabs button { padding: 8px 14px; border: 1px solid transparent; border-bottom: none; background: none; cursor: pointer; font-size: 13px; color: var(--text-secondary); border-radius: 6px 6px 0 0; }
+.opt-tabs button:hover { color: var(--accent); background: var(--surface-hover); }
+.opt-tabs button.active { color: var(--accent); font-weight: 600; border-color: var(--border); background: var(--surface); }
+.opt-panel { border: 1px solid var(--border); border-top: none; border-radius: 0 0 8px 8px; background: var(--surface); padding: 16px 18px; min-height: 200px; }
+.opt-panel h3 { font-size: 15px; font-weight: 700; margin-bottom: 8px; }
+/* DEX/希腊值大数字块 */
+.opt-big { display: flex; flex-direction: column; gap: 4px; }
+.opt-big .k { font-size: 11px; letter-spacing: .06em; color: var(--text-dim); font-weight: 600; }
+.opt-big .v { font-size: 34px; font-weight: 800; font-variant-numeric: tabular-nums; line-height: 1.1; }
+.opt-big .s { font-size: 12px; color: var(--text-secondary); }
+/* 到期 Gamma 集中度水平条 */
+.range-row { display: grid; grid-template-columns: 120px 1fr 130px; gap: 8px; align-items: center; padding: 6px 0; border-bottom: 1px solid var(--border-light); font-size: 13px; }
+.range-row:last-child { border-bottom: none; }
+.range-track { height: 10px; border-radius: 5px; background: var(--border); overflow: hidden; }
+.range-fill { height: 100%; border-radius: 5px; background: var(--accent); }
+.range-val { text-align: right; font-variant-numeric: tabular-nums; color: var(--text-secondary); }
+/* 结构解读键值行 */
+.kv-row { display: grid; grid-template-columns: 72px 1fr; gap: 8px; padding: 4px 0; font-size: 13px; line-height: 1.7; }
+.kv-row .kv-k { color: var(--text-dim); font-weight: 600; }
+
+/* ── 持仓追踪（CFTC COT，timsun 复刻）── */
+.pos-rules { font-size: 12px; color: var(--text-secondary); line-height: 1.8; }
+.pos-hero { border: 1px solid var(--border); border-radius: 12px; background: var(--surface); padding: 18px 20px; display: grid; grid-template-columns: 1fr 260px; gap: 16px; border-left: 3px solid #f59e0b; }
+.pos-hero .ph-label { font-size: 11px; font-weight: 600; letter-spacing: .08em; color: var(--text-dim); }
+.pos-hero .ph-title { font-size: 24px; font-weight: 800; color: #f59e0b; margin-top: 4px; }
+.pos-hero .ph-sub { font-size: 12px; color: var(--text-secondary); margin-top: 2px; }
+.pos-hero .ph-desc { font-size: 13px; line-height: 1.8; color: var(--text-secondary); margin-top: 10px; }
+.pos-hero .ph-side { font-size: 12px; line-height: 1.75; color: var(--text-secondary); border-left: 1px solid var(--border); padding-left: 16px; display: flex; flex-direction: column; gap: 8px; justify-content: center; }
+.pos-group-note { background: var(--surface-alt); border: 1px solid var(--border); border-radius: 8px; padding: 10px 14px; font-size: 12px; line-height: 1.75; color: var(--text-secondary); margin-bottom: 12px; }
+.pos-contract-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.pos-contract { border: 1px solid var(--border); border-radius: 10px; background: var(--surface); padding: 14px 16px; display: flex; flex-direction: column; gap: 8px; }
+.pos-contract .pc-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; }
+.pos-contract .pc-title { font-size: 15px; font-weight: 700; }
+.pos-contract .pc-code { font-size: 11px; color: var(--text-secondary); margin-top: 2px; }
+.pos-contract .pc-pct { font-size: 11px; color: var(--text-secondary); margin-top: 3px; }
+.pos-contract .pc-badge { display: inline-block; padding: 2px 10px; border-radius: 999px; font-size: 12px; font-weight: 600; }
+.pos-contract .pc-badge.extreme { background: #f8717115; color: #f87171; }
+.pos-contract .pc-badge.bullish { background: #26a69a20; color: #14b8a6; }
+.pos-contract .pc-badge.neutral { background: #9ca3af20; color: #9ca3af; }
+.pos-cols { display: flex; justify-content: space-between; gap: 14px; }
+.pos-cols > div { min-width: 0; }
+.pos-cols .k { font-size: 10px; letter-spacing: .06em; color: var(--text-secondary); font-weight: 600; }
+.pos-cols .v { font-size: 14px; font-weight: 700; font-variant-numeric: tabular-nums; margin-top: 2px; white-space: nowrap; }
+.pos-chart { height: 130px; }
+.pos-reading { font-size: 12px; line-height: 1.75; color: var(--text-secondary); }
+.pos-foot { font-size: 11px; color: var(--text-secondary); border-top: 1px solid var(--border-light); padding-top: 6px; display: flex; justify-content: space-between; }
+.pos-subtitle { font-size: 12px; color: var(--text-secondary); margin-bottom: 10px; }
+@media (max-width: 900px) { .pos-hero { grid-template-columns: 1fr; } .pos-hero .ph-side { border-left: none; padding-left: 0; } .pos-contract-grid { grid-template-columns: 1fr; } }
 
 /* ── 波动率全景仪表盘（timsun 复刻）── */
 .vol-hero { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; margin-bottom: 12px; }

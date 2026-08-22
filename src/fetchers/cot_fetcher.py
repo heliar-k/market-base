@@ -41,7 +41,7 @@ COT_MARKETS: dict[str, tuple[str, str]] = {
     "CL": (r"^(CRUDE OIL, LIGHT SWEET-WTI - NEW YORK|WTI-PHYSICAL)", "disagg"),
     "NG": (r"^HENRY HUB - NEW YORK", "disagg"),
     "ES": (r"^E-MINI S&P 500 - ", "fin"),
-    "NQ": (r"^(E-MINI )?NASDAQ-100( Consolidated)? - ", "fin"),
+    "NQ": (r"^NASDAQ MINI - ", "fin"),
     "RTY": (r"^(E-)?MINI RUSSELL 2000 - |^RUSSELL E-MINI - ", "fin"),
     "ZQ": (r"^(30-DAY )?FED FUNDS - ", "fin"),
     # ── timsun 持仓追踪扩展（2026-08）──
