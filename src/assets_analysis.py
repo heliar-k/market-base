@@ -529,6 +529,12 @@ def _latest_targets() -> pd.DataFrame:
     return df[df.index == latest]
 
 
+def _industry_totals(comp: pd.DataFrame) -> dict[str, int]:
+    """行业内成分总数（timsun 覆盖 X/Y 的分母）。"""
+    c = comp.rename(columns={"category": "industry"})
+    return c.groupby("industry")["ticker"].nunique().to_dict()
+
+
 def analyst_board() -> dict:
     """Nasdaq 100 分析师目标价（timsun /assets/equities 面板）。
 
@@ -580,8 +586,7 @@ def analyst_board() -> dict:
         .reset_index()
     )
     # 行业内成分总数（分母，timsun 同款 X/Y）
-    comp = comp.rename(columns={"category": "industry"})
-    ind_total = comp.groupby("industry")["ticker"].nunique().to_dict()
+    ind_total = _industry_totals(comp)
     industry["total_ind"] = industry["industry"].map(ind_total).fillna(0).astype(int)
     industry = industry.sort_values("avg_space", ascending=False)
     industries = []
@@ -690,7 +695,7 @@ def ndx_radar() -> dict:
             continue
         industry = comp_map.loc[t, "industry"] if t in comp_map.index else "未知"
         by_industry.setdefault(industry, []).append(t)
-    ind_total = comp.groupby("industry")["ticker"].nunique().to_dict()
+    ind_total = _industry_totals(comp)
     industries = []
     for ind, tk in by_industry.items():
         if len(tk) < 1:
@@ -712,6 +717,7 @@ def ndx_radar() -> dict:
     industries.sort(key=lambda x: (x["chg20"] is None, -(x["chg20"] or 0)))
 
     today_up = sum(1 for t in stats if (stats[t]["chg1"] or 0) > 0)
+    today_up_pct = round(today_up / len(stats) * 100, 1) if stats else None
     # 每票最后有效交易日（timsun 完整行情表日期列——停牌股最后日期更早）
     last_dates: dict[str, str] = {}
     for t in stats:
@@ -767,7 +773,7 @@ def ndx_radar() -> dict:
         "total": n,
         "price_share": round(len(stats) / n * 100, 1) if n else None,
         "today_up": today_up,
-        "today_up_pct": round(today_up / len(stats) * 100, 1) if stats else None,
+        "today_up_pct": today_up_pct,
         "above50_pct": round(
             sum(1 for s2 in stats.values() if s2["above50"]) / len(stats) * 100, 1
         )
@@ -794,9 +800,7 @@ def ndx_radar() -> dict:
         )
         if any(s2["chg20"] is not None for s2 in stats.values())
         else None,
-        "verdict": _radar_verdict(today_up / len(stats) * 100 if stats else None)
-        if stats
-        else None,
+        "verdict": _radar_verdict(today_up_pct),
         "industries": industries,
         "strong20": strong20,
         "weak20": weak20,

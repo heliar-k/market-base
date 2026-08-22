@@ -54,11 +54,22 @@ body.embedded .re-header h1 { display: none; } /* 内嵌时左卡已有标题 */
 .re-table-wrap .re-scroll { overflow-x: auto; }
 .re-source { font-size: 11px; color: var(--text-dim); }
 .re-badges { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.re-badge.chip { font-size: 11px; padding: 2px 10px; }
+.eq-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 10px; }
+/* Top10 三列（timsun 同款：三列均分，行内公司名小字号不挤出列） */
+.rank-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.rank-grid .re-colbox { padding: 8px 10px; }
+.rank-grid .rk-t { font-size: 12px; }
+.rank-grid .rk-n { font-size: 11px; }
+.rank-grid .rk-v { font-size: 11px; }
+@media (max-width: 700px) { .rank-grid { grid-template-columns: 1fr; } }
+.chart-lg { height: 560px; }
+.chart-md { height: 340px; }
 .re-badge { padding: 6px 14px; border-radius: 999px; font-size: 13px; font-weight: 600; color: var(--text-secondary); }
 /* .re-badge 基础类必需显式颜色：a 元素（如 ETF 筛选 chip）不设色时落浏览器默认链接蓝，暗色下不可读 */
 .re-badge.bear { background: #ffebee; color: #c62828; }
-.re-badge.bull { background: #e8f5e9; color: #2e7d32; }
-.re-badge.flat { background: #eceff1; color: #546e7a; }
+.re-badge.bull { background: var(--chip-up-bg); color: var(--chip-up-fg); }
+.re-badge.flat { background: var(--chip-flat-bg); color: var(--chip-flat-fg); }
 .re-spread { font-size: 13px; color: var(--text-secondary); }
 .re-check { display: flex; align-items: baseline; gap: 8px; padding: 5px 0; font-size: 13px; }
 .re-check .ok { color: #2e7d32; font-weight: 700; }
@@ -156,8 +167,6 @@ body.embedded .re-header h1 { display: none; } /* 内嵌时左卡已有标题 */
 
 /* ── dark 主题徽章变体 ── */
 body.dark .re-badge.bear { background: rgba(248,113,113,.15); color: #f87171; }
-body.dark .re-badge.bull { background: rgba(52,211,153,.15); color: #34d399; }
-body.dark .re-badge.flat { background: rgba(156,163,175,.15); color: #9ca3af; }
 body.dark .re-expectation.cut { background: rgba(52,211,153,.15); color: #34d399; }
 body.dark .re-expectation.hike { background: rgba(248,113,113,.15); color: #f87171; }
 body.dark .re-expectation.hold { background: rgba(156,163,175,.15); color: #9ca3af; }
@@ -351,12 +360,13 @@ body.dark .vol-top-row h3.cool { color: #f87171; }
 .re-scroll-y .re-table th { padding: 7px 8px; white-space: nowrap; }
 .re-scroll-y .re-table th { top: 0; background: var(--surface-alt); }
 .rt-pill { display: inline-block; padding: 2px 10px; border-radius: 4px; font-size: 11px; font-weight: 700; letter-spacing: .04em; }
-.rt-sb { background: #e8f5e9; color: #2e7d32; }
+/* 共享色板：re-badge.bull/flat 与 rt-*、tr-pill.on 同源（明/暗各自定义一次） */
+:root { --chip-up-bg: #e8f5e9; --chip-up-fg: #2e7d32; --chip-flat-bg: #eceff1; --chip-flat-fg: #546e7a; }
+body.dark { --chip-up-bg: rgba(52,211,153,.15); --chip-up-fg: #34d399; --chip-flat-bg: rgba(156,163,175,.15); --chip-flat-fg: #9ca3af; }
+.rt-sb { background: var(--chip-up-bg); color: var(--chip-up-fg); }
 .rt-b { background: #e3f2fd; color: #1565c0; }
-.rt-h { background: #eceff1; color: #546e7a; }
-body.dark .rt-sb { background: rgba(52,211,153,.15); color: #34d399; }
+.rt-h { background: var(--chip-flat-bg); color: var(--chip-flat-fg); }
 body.dark .rt-b { background: rgba(96,165,250,.15); color: #60a5fa; }
-body.dark .rt-h { background: rgba(156,163,175,.15); color: #9ca3af; }
 .eq-actions { float: right; display: flex; gap: 8px; }
 .eq-btn { display: inline-block; padding: 4px 12px; border: 1px solid var(--border); border-radius: 6px; font-size: 12px;
   color: var(--text-secondary); text-decoration: none; transition: all .15s; }
@@ -366,8 +376,7 @@ body.dark .rt-h { background: rgba(156,163,175,.15); color: #9ca3af; }
 .eq-radar-side .re-colbox { flex: 1; overflow-y: auto; }
 .tr-pill { display: inline-block; padding: 2px 8px; margin-right: 4px; border-radius: 4px; font-size: 11px; white-space: nowrap;
   background: var(--surface-alt); color: var(--text-dim); }
-.tr-pill.on { background: #e8f5e9; color: #2e7d32; }
-body.dark .tr-pill.on { background: rgba(52,211,153,.15); color: #34d399; }
+.tr-pill.on { background: var(--chip-up-bg); color: var(--chip-up-fg); }
 @media (max-width: 900px) {
   .eq-radar-grid { grid-template-columns: 1fr; }
 }
