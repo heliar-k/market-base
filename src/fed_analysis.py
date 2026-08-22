@@ -148,6 +148,9 @@ _ACTION_PHRASES = {w for w, _ in _ACTION_WORDS}
 
 # 2026 年 FOMC 投票成员（7 理事 + 5 地区联储主席，federalreserve.gov 官网）
 # speaker_key: 演讲 URL 姓氏，用于关联 stances；地区联储演讲不在 Board 站点，无评分
+# 票委名册每年 1 月更新：更新 FED_OFFICIALS 时同步改 VOTING_YEAR，前端标题随之刷新
+VOTING_YEAR = 2026
+
 FED_OFFICIALS: list[dict] = [
     {"speaker_key": "Powell", "name_zh": "鲍威尔", "role": "美联储主席", "votes": True},
     {
@@ -445,6 +448,7 @@ def fed_analysis(n_sample: int = 20) -> dict:
         "stances": stances,
         "roster": roster,
         "timeline": timeline,
+        "voting_year": VOTING_YEAR,
     }
 
 

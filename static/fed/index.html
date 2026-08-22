@@ -1,8 +1,8 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
 <meta charset="UTF-8">
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>美联储 — US Macro</title>
 <link rel="stylesheet" href="/css/app.css">
@@ -127,7 +127,7 @@ function renderHawkish(root, data) {
   const doveN = roster.filter(r => r.score < 0).length;
   const midN = roster.length - hawkN - doveN;
   const hdColor = (v) => v > 0 ? '#ef5350' : v < 0 ? '#26a69a' : '#9ca3af';
-  s1.innerHTML = `<h2>2026 年 FOMC 投票成员立场分布
+  s1.innerHTML = `<h2>${data.voting_year} 年 FOMC 投票成员立场分布
     <span style="font-weight:400;font-size:12px;color:var(--text-dim)">${hawkN} 鹰 · ${doveN} 鸽 · ${midN} 中性（红 = 鹰，绿 = 鸽，灰 = 无近期演讲）</span></h2>`;
   wrap.appendChild(s1);
   const sorted = [...roster].sort((a, b) => b.score - a.score);
@@ -216,7 +216,7 @@ async function load() {
   document.getElementById('re-as-of').textContent =
     `数据截至 声明 ${fmtD(data.statements[0])} · 演讲 ${fmtD(data.speeches[0])}`;
   document.getElementById('re-gen').textContent =
-    `鹰鸽评分：${data.generator === 'llm' ? 'LLM' : '规则引擎（LLM 预留）'}`;
+    `鹰鸽评分：${R.genText(data.generator)}`;
 
   // 下次 FOMC 会议倒计时
   const nx = cal.next;

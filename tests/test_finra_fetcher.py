@@ -44,6 +44,13 @@ def test_backfill_dates_anchors_on_trading_day(monkeypatch):
     """今天为周末时：先锚定最近交易日再步进，连续 2 桶无文件才截断。"""
     from datetime import date, timedelta
 
+    # 冻结“今天”为 2026-08-09 周日（原测试硬编码真实 today，随日期漂移失败）
+    class _FixedToday(date):
+        @classmethod
+        def today(cls):
+            return cls(2026, 8, 9)
+
+    monkeypatch.setattr(finra_fetcher, "date", _FixedToday)
     # 2026-08-09 是周日；文件存在于 2026-08-07（周五）回溯 49 天（7 桶）内
     anchor = date(2026, 8, 7)
     oldest_ok = anchor - timedelta(days=49)

@@ -8,6 +8,8 @@ const R = {
   fmtPct: (v) => (v === null || v === undefined ? '—' : `${Number(v).toFixed(2)}%`),
   fmtBp: (v) => (v === null || v === undefined ? '—' : `${Number(v) > 0 ? '+' : ''}${Number(v).toFixed(1)}`),
   fmtB: (v) => (v === null || v === undefined ? '—' : `$${Number(v).toFixed(0)}B`),
+  // 生成器类型 → 界面文案（避免内部枚举 rules/llm 泄漏到页面，见审计 D2）
+  genText: (g) => (g === 'llm' ? 'LLM' : '规则引擎（LLM 预留）'),
   ts: (arr) => (arr || []).map(p => p.date),
   vs: (arr) => (arr || []).map(p => p.value),
 

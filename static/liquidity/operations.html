@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>公开市场操作 — US Macro</title>
+<link rel="stylesheet" href="/css/app.css">
+<link rel="stylesheet" href="/css/special.css">
+<script src="/vendor/echarts.min.js"></script>
+</head>
+<body>
+<div class="re-root">
+  <div class="re-header">
+    <h1>公开市场操作</h1>
+    <span class="re-as-of" id="re-as-of"></span>
+  </div>
+  <div class="re-nav" id="re-nav"></div>
+  <div class="page-toc" id="page-toc"></div>
+
+  <div class="re-h2" id="sec-rmp">准备金管理购买（RMP · Reserve Management Purchases）</div>
+  <div id="re-rmp-cards"></div>
+  <div class="re-chart" id="rmp_chart"></div>
+
+  <div class="re-h2" id="sec-recent">最近国债公开市场操作</div>
+  <div id="re-recent"></div>
+
+  <div class="re-h2" id="sec-soma">SOMA 持仓摘要</div>
+  <div id="re-soma"></div>
+
+  <div class="re-h2" id="sec-srf">常备回购便利 SRF 使用量</div>
+  <div id="re-srf"></div>
+  <div class="re-gen" id="re-gen"></div>
+</div>
+
+<script src="/js/rates-common.js"></script>
+<script>
+async function load() {
+  document.getElementById('page-toc').innerHTML = [
+    ['RMP', 'sec-rmp'], ['最近操作', 'sec-recent'], ['SOMA', 'sec-soma'], ['SRF', 'sec-srf'],
+  ].map(([t, id]) => `<a href="#${id}">${t}</a>`).join('');
+
+  const d = await R.get('/api/liquidity/operations');
+  const rmp = d.rmp || {};
+  document.getElementById('re-rmp-cards').appendChild(R.cards([
+    { label: '启动日期', value: rmp.start || '—', sub: '技术性操作（补充银行准备金），非 QE' },
+    { label: '累计购买', value: rmp.cumulative_b == null ? '—' : '$' + rmp.cumulative_b.toFixed(0) + 'B', sub: '自启动以来' },
+    { label: '月均节奏', value: rmp.monthly_b == null ? '—' : '$' + rmp.monthly_b.toFixed(1) + 'B/月', sub: `目标 $${rmp.target_b ?? 40}B/月` },
+    { label: '操作次数', value: rmp.count ?? '—', sub: '次' },
+  ]));
+
+  // RMP 日度与累计
+  const rs = d.rmp_series || [];
+  if (rs.length) {
+    R.mkChart('rmp_chart', c => ({
+      xAxis: { type: 'time', axisLabel: { color: c.muted } },
+      yAxis: [
+        { type: 'value', name: '日购买', nameTextStyle: { color: c.muted }, splitLine: { lineStyle: { color: c.grid } }, axisLabel: { color: c.muted, formatter: v => '$' + v + 'B' } },
+        { type: 'value', name: '累计', nameTextStyle: { color: c.muted }, splitLine: { show: false }, axisLabel: { color: c.muted, formatter: v => '$' + v + 'B' } },
+      ],
+      tooltip: { trigger: 'axis' },
+      grid: { left: 70, right: 70, bottom: 30, top: 20, containLabel: true },
+      legend: { top: 4, data: ['日购买', '累计购买'], textStyle: { color: c.text } },
+      series: [
+        { name: '日购买', type: 'bar', data: rs.map(p => [p.date, p.accepted_b]), itemStyle: { color: c.green }, barMaxWidth: 8 },
+        { name: '累计购买', type: 'line', yAxisIndex: 1, data: rs.map(p => [p.date, p.cum_b]), lineStyle: { color: c.blue, width: 2 }, showSymbol: false },
+      ],
+    }));
+  } else {
+    document.getElementById('rmp_chart').innerHTML = '<div class="re-error">暂无 RMP 数据</div>';
+  }
+
+  const fmtB = v => (v == null ? '—' : '$' + Number(v).toFixed(1) + 'B');
+  document.getElementById('re-recent').appendChild(R.table(
+    ['日期', '操作类型', '到期范围', '提交额', '接受额', '接受比'],
+    d.recent || [], { submitted_b: fmtB, accepted_b: fmtB, accept_ratio: v => (v == null ? '—' : v + '%') },
+    ['date', 'type', 'maturity', 'submitted_b', 'accepted_b', 'accept_ratio'],
+  ));
+
+  const soma = d.soma || {};
+  const somaRows = Object.entries(soma).map(([name, v]) => ({ name, ...v }));
+  document.getElementById('re-soma').appendChild(R.table(
+    ['资产', '持有规模', '周变化', '月变化'],
+    somaRows,
+    { holdings_b: v => '$' + v.toFixed(1) + 'B', week_b: v => (v >= 0 ? '+' : '') + v.toFixed(2) + 'B', month_b: v => (v >= 0 ? '+' : '') + v.toFixed(2) + 'B' },
+    ['name', 'holdings_b', 'week_b', 'month_b'],
+  ));
+
+  const srf = d.srf || {};
+  document.getElementById('re-srf').innerHTML = `<div class="re-section"><p style="margin:0">
+    <b>激活天数（90 天）：${srf.active_days_90 ?? 0}</b> · 最新使用 <b>$${srf.latest_m ?? 0}M</b>。
+    SRF 为美联储常设回购便利，市场紧张时银行可通过抵押国债换取隔夜融资；正常状态应为零，非零即回购市场出现紧张。</p></div>`;
+
+  document.getElementById('re-gen').textContent =
+    '数据源：NY Fed Treasury 公开市场操作明细（tsy_operations）· H.4.1（SOMA）· NY Fed Markets（SRF）';
+}
+load().catch(e => R.fail(['re-rmp-cards', 'rmp_chart', 're-recent', 're-soma', 're-srf'], e));
+</script>
+<script src="/js/nav.js"></script>
+</body>
+</html>

@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>逆回购与财政部账户 — US Macro</title>
+<link rel="stylesheet" href="/css/app.css">
+<link rel="stylesheet" href="/css/special.css">
+<script src="/vendor/echarts.min.js"></script>
+</head>
+<body>
+<div class="re-root">
+  <div class="re-header">
+    <h1>逆回购与财政部账户</h1>
+    <span class="re-as-of" id="re-as-of"></span>
+  </div>
+  <div class="re-nav" id="re-nav"></div>
+  <div class="page-toc" id="page-toc"></div>
+
+  <div id="re-alert"></div>
+  <div id="re-cur"></div>
+  <div class="re-h2" id="sec-heat">未来 14 天流动性热力（估算）</div>
+  <div id="re-heat"></div>
+  <div class="re-h2" id="sec-spread">SOFR − IORB 60 日走势</div>
+  <div class="re-chart" id="spread_chart"></div>
+  <div class="re-h2" id="sec-cash">TGA 日度现金流（DTS）</div>
+  <div class="re-chart" id="cash_chart"></div>
+  <div class="re-gen" id="re-gen"></div>
+</div>
+
+<script src="/js/rates-common.js"></script>
+<script>
+const BUCKET_LABEL = { extreme: '极端抽水', strong: '强', mild: '温和', smooth: '平稳', injection: '注入' };
+const BUCKET_COLOR = { extreme: '#ef5350', strong: '#ff7043', mild: '#ffb74d', smooth: '#9ca3af', injection: '#26a69a' };
+
+async function load() {
+  document.getElementById('page-toc').innerHTML = [
+    ['预警', 're-alert'], ['当前余额', 're-cur'], ['未来热力', 'sec-heat'], ['60日利差', 'sec-spread'], ['日度现金流', 'sec-cash'],
+  ].map(([t, id]) => `<a href="#${id}">${t}</a>`).join('');
+
+  const d = await R.get('/api/liquidity/rrp-tga');
+  const a = d.alert || {};
+  document.getElementById('re-as-of').textContent = d.data_date ? `数据日期: ${d.data_date}` : '';
+
+  const pos = (a.sofr_iorb_bp ?? 0) >= 0;
+  document.getElementById('re-alert').innerHTML = `<div class="re-section" style="border-color:${pos ? '#ef5350' : '#26a69a'};border-width:1.5px">
+    <h2>PRESSURE ALERT 流动性压力预警</h2>
+    <div style="display:flex;gap:24px;align-items:baseline;flex-wrap:wrap">
+      <span style="font-size:30px;font-weight:700;color:${pos ? '#ef5350' : '#26a69a'}">${a.sofr_iorb_bp == null ? '—' : a.sofr_iorb_bp.toFixed(1)}bp</span>
+      <span style="font-size:14px">SOFR ${a.sofr ?? '—'}% · IORB ${a.iorb ?? '—'}% · FFR 上限 ${a.ffr_upper ?? '—'}%</span>
+      <span style="font-size:12px;color:${pos ? '#ef5350' : '#26a69a'}">${a.state || ''}</span>
+    </div></div>`;
+
+  const cur = d.current || {};
+  const fmtCur = (v, unit) => (v == null ? '—' : (typeof v === 'number' ? v.toLocaleString() : v) + unit);
+  document.getElementById('re-cur').appendChild(R.cards([
+    { label: 'RRP 余额', value: fmtCur(cur.rrp_b, ' 十亿'), sub: '美联储隔夜逆回购' },
+    { label: 'TGA 余额', value: fmtCur(cur.tga_b, ' 十亿'), sub: '财政部一般账户（DTS 日度）' },
+    { label: '净流动性', value: fmtCur(cur.net_liq_b, ' 十亿'), sub: '总资产 − RRP − TGA' },
+    { label: 'SRF 使用', value: fmtCur(cur.srf_m, ' 百万'), sub: '银行正使用 SRF 即为紧张信号' },
+  ]));
+
+  // ── 未来 14 天热力 ──
+  const cal = d.calendar || {};
+  const net7 = cal.net_7d_b, net14 = cal.net_14d_b;
+  const f1 = v => (v >= 0 ? '+' : '') + v.toFixed(1) + 'B';
+  const heat = (cal.days || []).map(r => `
+    <tr>
+      <td style="white-space:nowrap">${r.date} <span style="color:var(--text-dim)">${r.weekday}</span></td>
+      <td style="white-space:nowrap;color:var(--text-secondary);font-size:12px">${(r.flows || []).map(f => `${f.label} ${f.amount_b >= 0 ? '+' : ''}${f.amount_b.toFixed(1)}B`).join(' · ') || '—'}</td>
+      <td style="text-align:right;white-space:nowrap;color:${BUCKET_COLOR[r.bucket]};font-weight:600">${(r.flows || []).length ? f1(r.net_b) : '—'}</td>
+      <td style="text-align:right;white-space:nowrap"><span style="padding:2px 8px;border-radius:999px;font-size:11px;border:1px solid ${BUCKET_COLOR[r.bucket]}66;color:${BUCKET_COLOR[r.bucket]}">${BUCKET_LABEL[r.bucket] || r.bucket}</span></td>
+    </tr>`).join('');
+  document.getElementById('re-heat').innerHTML = `
+    <div class="re-section">
+      <p style="margin:0 0 6px;font-size:12px;color:var(--text-dim)">7日净冲击 <b style="color:${(net7 ?? 0) < 0 ? '#ef5350' : '#26a69a'}">${net7 == null ? '—' : net7.toFixed(0)}B</b> · 14日净冲击 <b style="color:${(net14 ?? 0) < 0 ? '#ef5350' : '#26a69a'}">${net14 == null ? '—' : net14.toFixed(0)}B</b>（DTS 历史过去 7/14 日）</p>
+      <table class="re-table"><thead><tr><th>日期</th><th>资金流</th><th style="text-align:right">净冲击</th><th style="text-align:right">级别</th></tr></thead><tbody>${heat}</tbody></table>
+      <p style="margin:8px 0 0;font-size:12px;color:var(--text-dim)">${cal.source_note || ''} 图例：极端抽水 ≤-200B · 强 ≤-80B · 温和 ≤-30B · 平稳 · 注入</p>
+    </div>`;
+
+  // ── SOFR−IORB 60 日 ──
+  const s60 = d.series?.sofr_iorb_bp || [];
+  R.mkChart('spread_chart', c => ({
+    xAxis: { type: 'time', axisLabel: { color: c.muted } },
+    yAxis: { type: 'value', scale: true, axisLabel: { color: c.muted, formatter: v => v + 'bp' }, splitLine: { lineStyle: { color: c.grid } } },
+    grid: { left: 60, right: 20, bottom: 30, top: 20, containLabel: true },
+    tooltip: { trigger: 'axis' },
+    series: [{ type: 'line', data: s60.map(p => [p.date, p.value]), lineStyle: { color: c.blue, width: 2 }, showSymbol: false,
+      markLine: { data: [{ yAxis: 0 }], lineStyle: { color: c.muted, type: 'dashed' }, symbol: 'none', label: { show: false } } }],
+  }));
+
+  // ── TGA 日度现金流 ──
+  const cf = d.cashflows || [];
+  R.mkChart('cash_chart', c => ({
+    xAxis: { type: 'time', axisLabel: { color: c.muted } },
+    yAxis: { type: 'value', axisLabel: { color: c.muted, formatter: v => '$' + v + 'B' }, splitLine: { lineStyle: { color: c.grid } } },
+    grid: { left: 60, right: 20, bottom: 30, top: 20, containLabel: true },
+    tooltip: { trigger: 'axis' },
+    series: [
+      { name: '存款', type: 'bar', stack: 'c', data: cf.map(p => [p.date, p.deposits_b]), itemStyle: { color: c.green }, barMaxWidth: 10 },
+      { name: '支出', type: 'bar', stack: 'c', data: cf.map(p => [p.date, -p.withdrawals_b]), itemStyle: { color: c.red }, barMaxWidth: 10 },
+    ],
+  }));
+
+  document.getElementById('re-gen').textContent =
+    '数据源：DTS（Daily Treasury Statement，日度真实现金流）· FRED（SOFR/IORB 利率走廊）· Treasury 拍卖日历（未来热力估算）· H.4.1（RRP/TGA 周度，DTS 日度优先）';
+}
+load().catch(e => R.fail(['re-alert', 're-cur', 're-heat', 'spread_chart', 'cash_chart'], e));
+</script>
+<script src="/js/nav.js"></script>
+</body>
+</html>

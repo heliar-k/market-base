@@ -1,8 +1,8 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
 <meta charset="UTF-8">
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>就业 — US Macro</title>
 <link rel="stylesheet" href="/css/app.css">
@@ -46,7 +46,7 @@ async function load() {
     { label: '失业率', value: c.unrate.value + '%', sub: c.unrate.as_of + (c.unrate.chg_3m !== null ? ` · 3M ${c.unrate.chg_3m > 0 ? '+' : ''}${c.unrate.chg_3m}pp` : '') + (c.unrate.sahm !== null ? ` · Sahm ${c.unrate.sahm}` : ''), accent: true },
     { label: '新增非农（近月）', value: c.nfp.value + 'K', sub: c.nfp.as_of + ` · 3M 均值 ${c.nfp.avg_3m}K` },
     { label: '初请失业金（周）', value: c.icsa.value + 'K', sub: c.icsa.as_of + ` · 4W 均值 ${c.icsa.avg_4w}K` },
-    { label: 'JOLTS 职位空缺', value: (c.jolts.value ?? '—') + 'M', sub: (c.jolts.as_of || '') + (c.jolts.vu !== null ? ` · V/U ${c.jolts.vu}` : '') },
+    { label: 'JOLTS 职位空缺', value: c.jolts.value == null ? '—' : c.jolts.value + 'M', sub: (c.jolts.as_of || '') + (c.jolts.vu !== null ? ` · V/U ${c.jolts.vu}` : '') },
   ]));
 
   // ── 研判（三段式） ──
@@ -111,7 +111,7 @@ async function load() {
     }, ['指标', '最新', '较上期', '观测期', '发布'], true));
   document.getElementById('indicators').appendChild(tsec);
 
-  document.getElementById('re-gen').textContent = `研判由规则引擎生成（${d.generator}）· ${d.as_of} · NFP = PAYEMS 一阶差分；V/U = JOLTS 空缺 / 失业人数`;
+  document.getElementById('re-gen').textContent = `研判生成：${R.genText(d.generator)} · ${d.as_of} · NFP = PAYEMS 一阶差分；V/U = JOLTS 空缺 / 失业人数`;
 }
 load().catch(e => R.fail(['cards', 're-signals', 'history', 'indicators'], e));
 </script>

@@ -1,8 +1,8 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
 <meta charset="UTF-8">
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>美债 — US Macro</title>
 <link rel="stylesheet" href="/css/app.css">
@@ -52,9 +52,9 @@ async function load() {
   const netLabel = c.net_total.value >= 0 ? '净买入' : '净卖出';
   document.getElementById('cards').appendChild(R.cards([
     { label: '海外持仓总额', value: '$' + c.hold_total.value + ' 万亿', sub: c.hold_total.as_of + (c.hold_total.chg_1y_b !== null ? ` · 1Y ${c.hold_total.chg_1y_b >= 0 ? '+' : ''}${c.hold_total.chg_1y_b}B` : ''), accent: true },
-    { label: '海外官方占比', value: (c.official_share.value ?? '—') + '%', sub: (c.official_share.as_of || '') + ' · <23% 偏空' },
+    { label: '海外官方占比', value: c.official_share.value == null ? '—' : c.official_share.value + '%', sub: (c.official_share.as_of || '') + ' · <23% 偏空' },
     { label: '月度' + netLabel + '（TIC）', value: '$' + Math.abs(c.net_total.value) + 'B', sub: c.net_total.as_of + ` · 12M 累计 $${Math.abs(c.net_total.net_12m_b)}B` },
-    { label: 'Bill 占比', value: (c.bill_share.value ?? '—') + '%', sub: (c.bill_share.as_of || '') + (c.bill_share.chg_1y !== null ? ` · 1Y ${c.bill_share.chg_1y > 0 ? '+' : ''}${c.bill_share.chg_1y}pp` : '') },
+    { label: 'Bill 占比', value: c.bill_share.value == null ? '—' : c.bill_share.value + '%', sub: (c.bill_share.as_of || '') + (c.bill_share.chg_1y !== null ? ` · 1Y ${c.bill_share.chg_1y > 0 ? '+' : ''}${c.bill_share.chg_1y}pp` : '') },
   ]));
 
   // ── 研判（三段式） ──
@@ -320,7 +320,7 @@ async function load() {
     document.getElementById('refunding').appendChild(rsec);
   }
 
-  document.getElementById('re-gen').textContent = `研判由规则引擎生成（${d.generator}）· ${d.as_of} · TIC 单位为百万美元（页面换算为 B/T），官方占比分母 = MSPD 总未偿债务`;
+  document.getElementById('re-gen').textContent = `研判生成：${R.genText(d.generator)} · ${d.as_of} · TIC 单位为百万美元（页面换算为 B/T），官方占比分母 = MSPD 总未偿债务`;
 }
 load().catch(e => R.fail(['cards', 're-signals', 'auctions', 'history', 'holdings', 'mspd', 'refunding'], e));
 </script>

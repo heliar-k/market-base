@@ -1,8 +1,8 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
 <meta charset="UTF-8">
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>波动率全景仪表盘 — US Macro</title>
 <link rel="stylesheet" href="/css/app.css">
@@ -294,7 +294,7 @@ async function load() {
       chg1y: r.chg1y === null ? '—' : `<span style="color:${chgColor(r.chg1y)}">${pct(r.chg1y)}</span>`,
     })), {}, null, true));
 
-  document.getElementById('re-gen').textContent = `研判由规则引擎生成（${data.generator}）· ${data.as_of} · 快照源 Barchart/CBOE`;
+  document.getElementById('re-gen').textContent = `研判生成：${R.genText(data.generator)} · ${data.as_of} · 快照源 Barchart/CBOE`;
 }
 load().catch(e => R.fail(['vol-hero', 'vol-verdict', 'vol-signals', 'vol-risk', 'vol-trade', 'vol-stats', 'vol-heat', 'vol-term-chart', 'vol-cross-chart', 'vol-narrative', 'vol-top', 'vol-table'], e));
 </script>

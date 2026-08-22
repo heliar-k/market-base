@@ -46,6 +46,13 @@ const FEATURED = [
     },
   },
   {
+    id: 'credit', label: '信用', page: '/credit/',
+    apis: ['/api/credit/overview'],
+    num: d => d[0].regime.regime,
+    concl: d => `HY-IG 利差 ${d[0].hy_ig.value}bp`,
+    delta: d => fmtDelta('1Y分位', d[0].hy_ig.pct_1y, '%', false),
+  },
+  {
     id: 'fed', label: '美联储', page: '/fed/',
     apis: ['/api/fed/overview'],
     num: d => `鹰鸽 ${d[0].indicator.label}`,
@@ -53,18 +60,11 @@ const FEATURED = [
     delta: d => {
       const pm = d[0].indicator.pre_meeting;
       if (!pm) return null;
-      // 与上一次 FOMC 会前 14 天窗口的演讲平均立场对比，转鹰绿 / 转鸽红
+      // 与上一次 FOMC 会前 14 天窗口的演讲平均立场对比，转鹰红 / 转鸽绿（与 fed 专题页红鹰绿鸽一致）
       const diff = d[0].indicator.score - pm.score;
-      const cls = diff > 0.1 ? 'up' : diff < -0.1 ? 'down' : '';
+      const cls = diff > 0.1 ? 'down' : diff < -0.1 ? 'up' : '';
       return `<span class="macro-side-delta ${cls}" title="${pm.meeting} 会前 ${pm.sample} 篇演讲">会前 ${pm.label}</span>`;
     },
-  },
-  {
-    id: 'credit', label: '信用', page: '/credit/',
-    apis: ['/api/credit/overview'],
-    num: d => d[0].regime.regime,
-    concl: d => `HY-IG 利差 ${d[0].hy_ig.value}bp`,
-    delta: d => fmtDelta('1Y分位', d[0].hy_ig.pct_1y, '%', false),
   },
   {
     id: 'vol', label: '波动率', page: '/volatility/',

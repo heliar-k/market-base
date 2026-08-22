@@ -32,7 +32,7 @@ jobs:
           YF_NO_PROXY: "1"        # Actions 无 socks5 代理，yfinance 直连
         run: |
           set +e  # 单个失败不阻断
-          for f in fetch_fred fetch_fsi fetch_srf fetch_tsy fetch_cfets fetch_cboe fetch_shapiro fetch_sce fetch_treasury fetch_acm fetch_refunding fetch_yfinance fetch_barchart_futures fetch_cot fetch_rate_expectations fetch_barchart_vol fetch_bgcr fetch_cgb fetch_fed fetch_analyst fetch_breadth fetch_financials fetch_sec fetch_finra fetch_insider; do
+          for f in fetch_fred fetch_fsi fetch_srf fetch_tsy fetch_cfets fetch_cboe fetch_shapiro fetch_sce fetch_treasury fetch_dts fetch_acm fetch_refunding fetch_yfinance fetch_barchart_futures fetch_cot fetch_rate_expectations fetch_barchart_vol fetch_bgcr fetch_cgb fetch_fed fetch_analyst fetch_breadth fetch_financials fetch_sec fetch_finra fetch_insider; do
             echo "===== START $f ====="
             bash "bin/$f" || echo "===== FAIL  $f ====="
           done
@@ -55,6 +55,10 @@ jobs:
           for bs in 1d 5m 15m 1h 4h; do
             uv run python -m src.fetchers.ibkr_fetcher --bar-size $bs --yf-only
           done
+
+      - name: LPI 快照（流动性压力指数日历历史，30 天+ 后用于分位校准）
+        run: |
+          uv run python -m src.liquidity_analysis --snapshot || echo "===== FAIL lpi_snapshot ====="
 
       - name: Commit and push updates
         run: |

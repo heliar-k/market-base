@@ -597,6 +597,73 @@ def get_liquidity_compare_spx(range: str = Query("5y")):
 # ── rate expectations ────────────────────────────────────────────────────────
 
 
+# ── liquidity hub（复刻 timsun.net/liquidity 主页面 + 7 子页）────────────
+
+
+@app.get("/api/liquidity/snapshot")
+def get_liquidity_snapshot() -> dict:
+    """主页面：卡片 + 评估叙事（净流动性 / 展望 / 准备金三段）。"""
+    from src.liquidity_analysis import liquidity_snapshot
+
+    return liquidity_snapshot()
+
+
+@app.get("/api/liquidity/transmission-chain")
+def get_liquidity_transmission_chain() -> dict:
+    """子页：规则型美元流动性压力指数 LPI（三层加权 + 确认条件 + 证据层）。"""
+    from src.liquidity_analysis import lpi
+
+    return lpi()
+
+
+@app.get("/api/liquidity/fed-balance-sheet")
+def get_liquidity_fed_balance_sheet() -> dict:
+    """子页：美联储资产负债表（卡片 + 近 20 日对照表）。"""
+    from src.liquidity_analysis import page_fed_balance_sheet
+
+    return page_fed_balance_sheet()
+
+
+@app.get("/api/liquidity/operations")
+def get_liquidity_operations() -> dict:
+    """子页：公开市场操作（RMP / 最近 40 条 / SOMA / SRF 90 天）。"""
+    from src.liquidity_analysis import page_operations
+
+    return page_operations()
+
+
+@app.get("/api/liquidity/rrp-tga")
+def get_liquidity_rrp_tga() -> dict:
+    """子页：RRP & TGA（压力预警 / 未来 14 天热力 / 日度现金流）。"""
+    from src.liquidity_analysis import page_rrp_tga
+
+    return page_rrp_tga()
+
+
+@app.get("/api/liquidity/reserves")
+def get_liquidity_reserves() -> dict:
+    """子页：银行准备金（余额 + 中介意愿双确认）。"""
+    from src.liquidity_analysis import page_reserves
+
+    return page_reserves()
+
+
+@app.get("/api/liquidity/global-dollar")
+def get_liquidity_global_dollar() -> dict:
+    """子页：全球美元（DXY / 央行互换 / 掉期点一览）。"""
+    from src.liquidity_analysis import page_global_dollar
+
+    return page_global_dollar()
+
+
+@app.get("/api/liquidity/subsurface")
+def get_liquidity_subsurface() -> dict:
+    """子页：次表层资金流（SOFR 分位/成交量 z/SRF/央行互换）。"""
+    from src.liquidity_analysis import page_subsurface
+
+    return page_subsurface()
+
+
 @app.get("/api/rate-expectations")
 def get_rate_expectations() -> dict:
     csv_path = ROOT / "data" / "rate_expectations" / "fomc_probabilities.csv"

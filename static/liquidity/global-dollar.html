@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>全球美元流动性 — US Macro</title>
+<link rel="stylesheet" href="/css/app.css">
+<link rel="stylesheet" href="/css/special.css">
+<script src="/vendor/echarts.min.js"></script>
+</head>
+<body>
+<div class="re-root">
+  <div class="re-header">
+    <h1>全球美元流动性</h1>
+    <span class="re-as-of" id="re-as-of"></span>
+  </div>
+  <div class="re-nav" id="re-nav"></div>
+  <div class="page-toc" id="page-toc"></div>
+
+  <div id="re-cards"></div>
+  <div id="re-swap"></div>
+  <div class="re-h2" id="sec-table">外汇掉期点一览（pips）</div>
+  <div id="re-table"></div>
+  <div class="re-gen" id="re-gen"></div>
+</div>
+
+<script src="/js/rates-common.js"></script>
+<script>
+async function load() {
+  document.getElementById('page-toc').innerHTML = [
+    ['概览', 're-cards'], ['央行互换', 're-swap'], ['掉期点', 'sec-table'],
+  ].map(([t, id]) => `<a href="#${id}">${t}</a>`).join('');
+
+  const d = await R.get('/api/liquidity/global-dollar');
+  const sw = d.swap || {};
+  document.getElementById('re-as-of').textContent = sw.date ? `央行互换数据 ${sw.date}` : '';
+
+  const dxy = d.dxy || {};
+  document.getElementById('re-cards').appendChild(R.cards([
+    { label: 'DXY 美元指数', value: dxy.value == null ? '—' : dxy.value.toFixed(2), sub: `1日 ${(dxy.chg_1d_pct ?? 0) >= 0 ? '+' : ''}${(dxy.chg_1d_pct ?? 0).toFixed(2)}%` },
+    { label: '央行流动性互换余额', value: sw.balance_m == null ? '—' : '$' + Number(sw.balance_m).toLocaleString() + 'M', sub: `30日变化 ${(sw.chg_30d_m ?? 0) >= 0 ? '+' : ''}${(sw.chg_30d_m ?? 0).toLocaleString()}M` },
+    { label: '离岸美元压力评分', value: d.score == null ? '—' : d.score + '/10', sub: '1M 掉期点规则评分，越负越高' },
+  ]));
+
+  document.getElementById('re-swap').innerHTML = `<div class="re-section">
+    <h2>央行流动性互换（CBS Total）</h2>
+    <p style="margin:0">最新余额 <b>$${Number(sw.balance_m ?? 0).toLocaleString()} 百万</b>（${sw.date || '—'}）。
+    余额 > 0 表明有外国央行正从美联储借入美元，离岸美元流动性存在紧缺信号。
+    30 日变化 <b>${(sw.chg_30d_m ?? 0) >= 0 ? '+' : ''}${Number(sw.chg_30d_m ?? 0).toLocaleString()} 百万</b>。</p></div>`;
+
+  const pairs = d.pairs || {};
+  const fmtPips = v => (v == null ? '—' : Number(v).toFixed(1));
+  const rows = Object.entries(pairs).map(([pair, v]) => ({ pair, ...v }));
+  document.getElementById('re-table').appendChild(R.table(
+    ['货币对', '1W', '1M', '3M', '6M', '1Y', '方向'],
+    rows,
+    { '1W': fmtPips, '1M': fmtPips, '3M': fmtPips, '6M': fmtPips, '1Y': fmtPips,
+      '方向': (v, row) => {
+        const m = row['1M'];
+        if (m == null) return '—';
+        return `<span style="color:${m < 0 ? '#ffb74d' : '#26a69a'}">${m < 0 ? '美元偏紧' : '美元充裕'}</span>`;
+      } },
+    ['pair', '1W', '1M', '3M', '6M', '1Y', '方向'],
+    true,
+  ));
+
+  document.getElementById('re-gen').textContent =
+    '数据源：CFETS（chinamoney）外汇掉期点 + Barchart 远期点（USD/CNH、USD/CHF 全期限）· FRED H.4.1（SWPT 央行互换，周度）· yfinance（DXY）· 负值 = 美元融资成本高于本币（美元稀缺）';
+}
+load().catch(e => R.fail(['re-cards', 're-swap', 're-table'], e));
+</script>
+<script src="/js/nav.js"></script>
+</body>
+</html>

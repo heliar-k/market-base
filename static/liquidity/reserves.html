@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>银行准备金 — US Macro</title>
+<link rel="stylesheet" href="/css/app.css">
+<link rel="stylesheet" href="/css/special.css">
+<script src="/vendor/echarts.min.js"></script>
+</head>
+<body>
+<div class="re-root">
+  <div class="re-header">
+    <h1>银行准备金</h1>
+    <span class="re-as-of" id="re-as-of"></span>
+  </div>
+  <div class="re-nav" id="re-nav"></div>
+  <div class="page-toc" id="page-toc"></div>
+
+  <div id="re-cards"></div>
+  <div class="re-h2" id="sec-spread1">SOFR − 3M T-Bill 60 日（银行中介意愿替代口径）</div>
+  <div class="re-chart" id="chart1"></div>
+  <div class="re-h2" id="sec-spread2">SOFR − IORB 60 日（交叉确认）</div>
+  <div class="re-chart" id="chart2"></div>
+  <div class="re-h2" id="sec-recent">近期数据（最近 20 条）</div>
+  <div id="re-recent"></div>
+  <div class="re-gen" id="re-gen"></div>
+</div>
+
+<script src="/js/rates-common.js"></script>
+<script>
+const base = (c) => ({
+  xAxis: { type: 'time', axisLabel: { color: c.muted } },
+  yAxis: { type: 'value', scale: true, axisLabel: { color: c.muted, formatter: v => v + 'bp' }, splitLine: { lineStyle: { color: c.grid } } },
+  grid: { left: 60, right: 20, bottom: 30, top: 20, containLabel: true },
+  tooltip: { trigger: 'axis' },
+  series: [{ type: 'line', data: [], lineStyle: { color: c.blue, width: 2 }, showSymbol: false,
+    markLine: { data: [{ yAxis: 0 }], lineStyle: { color: c.muted, type: 'dashed' }, symbol: 'none', label: { show: false } } }],
+});
+
+async function load() {
+  document.getElementById('page-toc').innerHTML = [
+    ['概览', 're-cards'], ['中介意愿', 'sec-spread1'], ['交叉确认', 'sec-spread2'], ['近期数据', 'sec-recent'],
+  ].map(([t, id]) => `<a href="#${id}">${t}</a>`).join('');
+
+  const d = await R.get('/api/liquidity/reserves');
+  const r = d.cards?.reserves || {};
+  document.getElementById('re-as-of').textContent = r.date ? `数据日期: ${r.date}` : '';
+  document.getElementById('re-cards').appendChild(R.cards([
+    { label: '银行准备金余额', value: r.value_b == null ? '—' : (r.value_b / 1000).toFixed(2) + ' 万亿', sub: `4周 ${(r.chg_4w_pct ?? 0) >= 0 ? '+' : ''}${(r.chg_4w_pct ?? 0).toFixed(2)}%` },
+    { label: '银行中介意愿', value: d.cards?.intermediation?.state || '—', sub: 'SOFR−3M T-Bill 走扩说明担保融资变贵' },
+  ]));
+
+  const s = d.series || {};
+  const fill = (id, key) => {
+    const data = (s[key] || []).map(p => [p.date, p.value]);
+    if (!data.length) { document.getElementById(id).innerHTML = '<div class="re-error">暂无数据</div>'; return; }
+    R.mkChart(id, c => ({ ...base(c), series: [{ ...base(c).series[0], data }] }));
+  };
+  fill('chart1', 'sofr_tbill3m_bp');
+  fill('chart2', 'sofr_iorb_bp');
+
+  document.getElementById('re-recent').appendChild(R.table(
+    ['日期', '准备金（万亿 USD）'],
+    d.rows || [], { reserves_b: v => (v == null ? '—' : (Number(v) / 1000).toFixed(2)) },
+    ['date', 'reserves_b'],
+  ));
+  document.getElementById('re-gen').textContent =
+    '数据源：FRED H.4.1（WRESBAL，周度）· FRED 利率走廊（SOFR/IORB/DGS3MO，日度）· 准备金充裕时短端流动性压力较小';
+}
+load().catch(e => R.fail(['re-cards', 'chart1', 'chart2', 're-recent'], e));
+</script>
+<script src="/js/nav.js"></script>
+</body>
+</html>

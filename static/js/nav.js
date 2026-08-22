@@ -6,6 +6,7 @@
   var NAVS = {
     '/rates/': [['概览', 'index.html']],
     '/volatility/': [['全景仪表盘', 'index.html']],
+    '/liquidity/': [['流动性入口', 'index.html']],
   };
   // 专题间 Tab（总入口）
   var TABS = [

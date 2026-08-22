@@ -1,8 +1,8 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
 <meta charset="UTF-8">
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>通胀 — US Macro</title>
 <link rel="stylesheet" href="/css/app.css">
@@ -53,7 +53,7 @@ async function load() {
     { label: 'CPI 同比', value: c.cpi.value + '%', sub: c.cpi.as_of + chgStr(c.cpi.chg_1m), accent: true },
     { label: '核心 CPI 同比', value: c.core_cpi.value + '%', sub: c.core_cpi.as_of + chgStr(c.core_cpi.chg_1m) },
     { label: '核心 PCE 同比（美联储口径）', value: c.core_pce.value + '%', sub: c.core_pce.as_of + chgStr(c.core_pce.chg_1m) },
-    { label: 'PPI 同比', value: (c.ppi.value ?? '—') + '%', sub: (c.ppi.as_of || '') + chgStr(c.ppi.chg_1m) },
+    { label: 'PPI 同比', value: c.ppi.value == null ? '—' : c.ppi.value + '%', sub: (c.ppi.as_of || '') + chgStr(c.ppi.chg_1m) },
   ]));
 
   // ── 研判（三段式） ──
@@ -138,7 +138,7 @@ async function load() {
     }, ['月份', 'CPI', '核心CPI', '核心PCE', 'PPI']));
   document.getElementById('recent').appendChild(rsec);
 
-  document.getElementById('re-gen').textContent = `研判由规则引擎生成（${d.generator}）· ${d.as_of} · YoY 由指数水平计算（月频），盈亏平衡为日频`;
+  document.getElementById('re-gen').textContent = `研判生成：${R.genText(d.generator)} · ${d.as_of} · YoY 由指数水平计算（月频），盈亏平衡为日频`;
 }
 load().catch(e => R.fail(['cards', 're-signals', 'history', 'components', 'expectations', 'shapiro', 'recent'], e));
 </script>

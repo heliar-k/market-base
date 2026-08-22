@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>次表层资金流 — US Macro</title>
+<link rel="stylesheet" href="/css/app.css">
+<link rel="stylesheet" href="/css/special.css">
+<script src="/vendor/echarts.min.js"></script>
+</head>
+<body>
+<div class="re-root">
+  <div class="re-header">
+    <h1>次表层资金流监控</h1>
+    <span class="re-as-of" id="re-as-of"></span>
+  </div>
+  <div class="re-nav" id="re-nav"></div>
+  <div class="page-toc" id="page-toc"></div>
+
+  <div id="re-composite"></div>
+  <div class="re-h2" id="sec-pct">SOFR 分位分布（1/25/75/99 + 中位数 vs IORB）</div>
+  <div id="re-pct"></div>
+  <div class="re-h2" id="sec-vol">SOFR 成交量 60 日</div>
+  <div class="re-chart" id="vol_chart"></div>
+  <div class="re-h2" id="sec-srf">SRF 常备回购便利使用量</div>
+  <div id="re-srf"></div>
+  <div class="re-gen" id="re-gen"></div>
+</div>
+
+<script src="/js/rates-common.js"></script>
+<script>
+async function load() {
+  document.getElementById('page-toc').innerHTML = [
+    ['综合压力', 're-composite'], ['SOFR 分位', 'sec-pct'], ['成交量', 'sec-vol'], ['SRF', 'sec-srf'],
+  ].map(([t, id]) => `<a href="#${id}">${t}</a>`).join('');
+
+  const d = await R.get('/api/liquidity/subsurface');
+  const comp = d.composite || {};
+  const stateColor = comp.state === '承压' ? '#ef5350' : comp.state === '轻微' ? '#ffb74d' : '#26a69a';
+  const bar = (label, v, max, color) => `
+    <div style="flex:1;min-width:150px">
+      <div style="font-size:12px;color:var(--text-secondary)">${label} <span style="color:var(--text-dim)">${v.toFixed(1)}/${max}</span></div>
+      <div style="height:6px;background:var(--border);border-radius:3px;margin:6px 0">
+        <div style="height:6px;width:${Math.min(100, (v / max) * 100)}%;background:${color};border-radius:3px"></div>
+      </div>
+    </div>`;
+  document.getElementById('re-composite').innerHTML = `<div class="score-card">
+    <div>
+      <div class="label">综合次表层压力</div>
+      <div style="font-size:16px;font-weight:600;margin:6px 0">
+        <span style="display:inline-block;padding:2px 12px;border-radius:999px;border:1px solid ${stateColor}66;background:${stateColor}18;color:${stateColor}">● ${comp.state || '—'}</span>
+      </div>
+      <div style="font-size:12px;color:var(--text-dim)">加权和 ${((comp.tail ?? 0) + (comp.volume ?? 0) + (comp.srf ?? 0) + (comp.swap ?? 0)).toFixed(1)}/10：≥2 轻微 · ≥4 承压</div>
+    </div>
+    <div style="display:flex;gap:18px;flex-wrap:wrap;flex:1">
+      ${bar('尾部宽度', comp.tail ?? 0, comp.tail_max ?? 3, '#3b82f6')}
+      ${bar('成交量 z', comp.volume ?? 0, comp.volume_max ?? 2, '#ff9800')}
+      ${bar('SRF 激活', comp.srf ?? 0, comp.srf_max ?? 3, '#ef5350')}
+      ${bar('央行互换变化', comp.swap ?? 0, comp.swap_max ?? 2, '#a78bfa')}
+    </div></div>`;
+
+  const pct = d.percentiles || {};
+  const p = pct.values || {};
+  const fmtPct = v => (v == null ? '—' : Number(v).toFixed(4) + '%');
+  const rows = Object.entries(p).map(([name, v]) => ({ name, v,
+    d: pct.iorb == null ? null : v - pct.iorb }));
+  document.getElementById('re-pct').appendChild(R.table(
+    ['分位', '利率', 'vs IORB'],
+    rows,
+    { v: fmtPct, d: v => (v == null ? '—' : (v >= 0 ? '>' : '<') + ' IORB ' + (v >= 0 ? '+' : '') + (v * 100).toFixed(1) + 'bp') },
+    ['name', 'v', 'd'],
+  ));
+
+  // 成交量 60 日 + z 注记
+  const vs = d.volume_series || [];
+  const vol = d.volume || {};
+  if (vs.length) {
+    R.mkChart('vol_chart', c => ({
+      xAxis: { type: 'time', axisLabel: { color: c.muted } },
+      yAxis: { type: 'value', axisLabel: { color: c.muted, formatter: v => v + 'B' }, splitLine: { lineStyle: { color: c.grid } } },
+      grid: { left: 60, right: 20, bottom: 30, top: 20, containLabel: true },
+      tooltip: { trigger: 'axis' },
+      series: [{ type: 'line', data: vs.map(q => [q.date, q.value]), lineStyle: { color: c.purple, width: 2 }, showSymbol: false,
+        markLine: { data: [{ yAxis: vol.mean_60d_b ?? 0 }], lineStyle: { color: c.muted, type: 'dashed' }, symbol: 'none', label: { formatter: '60日均值', color: c.muted } } }],
+    }));
+  } else {
+    document.getElementById('vol_chart').innerHTML = '<div class="re-error">暂无成交量数据</div>';
+  }
+  const zHtml = vol.z60 == null ? '' : `<span style="color:${vol.z60 > 1 ? '#ffb74d' : 'var(--text-dim)'}">60 日 z-score <b>${vol.z60 >= 0 ? '+' : ''}${vol.z60.toFixed(2)}</b>（最新 $${(vol.latest_b ?? 0).toLocaleString()}B / 均值 $${(vol.mean_60d_b ?? 0).toLocaleString()}B）</span>`;
+  document.getElementById('re-srf').innerHTML = `<div class="re-section">
+    <h2>SRF 与央行互换</h2>
+    <p style="margin:0">SRF 近 30 天激活天数 <b>${d.srf?.active_30d ?? 0}</b> 天 · 最新 <b>$${d.srf?.latest_m ?? 0}M</b>。
+    央行互换余额 <b>$${Number(d.swap?.balance_m ?? 0).toLocaleString()}M</b>（30日变化 ${(d.swap?.chg_30d_m ?? 0) >= 0 ? '+' : ''}${(d.swap?.chg_30d_m ?? 0).toLocaleString()}M）。</p>
+    <p style="margin:8px 0 0;font-size:12px;color:var(--text-dim)">主流指标（SOFR 中位数/RRP/总资产）反映均衡态；次表层是未被均衡吸收的摩擦——SOFR 99 分位暴露最紧张交易对手的边际定价，成交量 z-score 捕捉市场结构骤变，SRF 是绝对硬约束，央行互换是海外美元压力的被动读数。通常领先主流指标 3-10 个交易日。${zHtml}</p></div>`;
+
+  document.getElementById('re-gen').textContent =
+    '数据源：FRED（SOFR 分位 / SOFRVOL 成交额）· NY Fed Markets（SRF）· FRED H.4.1（SWPT 央行互换）· SOFRVOL 单位为十亿美元';
+}
+load().catch(e => R.fail(['re-composite', 're-pct', 'vol_chart', 're-srf'], e));
+</script>
+<script src="/js/nav.js"></script>
+</body>
+</html>

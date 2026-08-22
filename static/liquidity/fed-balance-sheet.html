@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>美联储资产负债表 — US Macro</title>
+<link rel="stylesheet" href="/css/app.css">
+<link rel="stylesheet" href="/css/special.css">
+<script src="/vendor/echarts.min.js"></script>
+</head>
+<body>
+<div class="re-root">
+  <div class="re-header">
+    <h1>美联储资产负债表</h1>
+    <span class="re-as-of" id="re-as-of"></span>
+  </div>
+  <div class="re-nav" id="re-nav"></div>
+  <div class="page-toc" id="page-toc"></div>
+  <div id="re-cards"></div>
+  <div class="re-h2" id="sec-table">近期对照表（最近 20 条）</div>
+  <div id="re-table"></div>
+  <div class="re-gen" id="re-gen"></div>
+</div>
+
+<script src="/js/rates-common.js"></script>
+<script>
+async function load() {
+  document.getElementById('page-toc').innerHTML =
+    [['概览', 're-cards'], ['近期对照', 'sec-table']].map(([t, id]) => `<a href="#${id}">${t}</a>`).join('');
+  const d = await R.get('/api/liquidity/fed-balance-sheet');
+  document.getElementById('re-as-of').textContent = d.rows?.length ? `数据截至 ${d.rows[d.rows.length - 1].date}` : '';
+
+  const card = (key, accent) => {
+    const s = (d.cards || {})[key] || {};
+    return { label: s.label || key, accent, value: (s.value_b == null ? '—' : (s.value_b / 1000).toFixed(2) + ' 万亿'), sub: 'H.4.1 周度' };
+  };
+  document.getElementById('re-cards').appendChild(R.cards([
+    card('WALCL'), card('TREAST'), card('WSHOMCB'), card('NET_LIQUIDITY', true),
+  ]));
+
+  const rows = (d.rows || []).map(r => ({ ...r }));
+  const f = v => (v == null ? '—' : (Number(v) / 1000).toFixed(2));
+  const fpx = v => (v == null ? '—' : Number(v).toLocaleString());
+  document.getElementById('re-table').appendChild(R.table(
+    ['日期', 'Fed总资产', '净流动性', '标普500', '纳斯达克100', '国债', 'MBS'],
+    rows, { WALCL: f, NET_LIQUIDITY: f, SPX: fpx, NDX: fpx, TREAST: f, WSHOMCB: f },
+    ['date', 'WALCL', 'NET_LIQUIDITY', 'SPX', 'NDX', 'TREAST', 'WSHOMCB'],
+  ));
+  document.getElementById('re-gen').textContent =
+    `${d.note || ''} 净流动性 = 总资产 − RRP − TGA（近似口径）· 单位 万亿 USD（十亿输入前 3 位）`;
+}
+load().catch(e => R.fail(['re-cards', 're-table'], e));
+</script>
+<script src="/js/nav.js"></script>
+</body>
+</html>

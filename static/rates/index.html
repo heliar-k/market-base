@@ -1,8 +1,8 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
 <meta charset="UTF-8">
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>利率 — US Macro</title>
 <link rel="stylesheet" href="/css/app.css">
@@ -60,7 +60,7 @@ async function load() {
   ]);
   document.getElementById('re-as-of').textContent = `数据截至 ${data.overview.as_of}`;
   document.getElementById('re-gen').textContent =
-    `研判生成：${data.generator === 'llm' ? 'LLM' : '规则引擎（LLM 预留）'}`;
+    `研判生成：${R.genText(data.generator)}`;
 
   const d = data.yield_curve;
 
@@ -74,7 +74,7 @@ async function load() {
     <span class="re-spread">5s30s: ${R.fmtBp(s['5s30s'])}bp</span>
     <span class="re-spread">确认度 ${d.confidence}</span>`;
 
-  // ── 统计卡（变动着色：涨红跌绿，与专题页图表一致）──
+  // ── 统计卡（变动着色：涨绿跌红，与全站一致）──
   const t = Object.fromEntries(d.tenors.map(x => [x.tenor, x]));
   const tips10 = d.tips.find(x => x.tenor === '10Y');
   const chgSub = (v, label) => v === null || v === undefined ? ''

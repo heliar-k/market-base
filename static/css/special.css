@@ -12,7 +12,7 @@ body { height: auto; overflow-y: auto; display: block; }
 body.embedded .re-header h1 { display: none; } /* 内嵌时左卡已有标题 */
 .re-as-of { font-size: 13px; color: var(--text-dim); }
 .re-nav { display: flex; gap: 8px; flex-wrap: wrap; }
-.re-nav a { color: var(--accent); text-decoration: none; font-size: 13px; padding: 4px 10px; border: 1px solid var(--btn-border); border-radius: 4px; }
+.re-nav a { color: var(--accent); text-decoration: none; font-size: 13px; padding: 4px 10px; border: 1px solid var(--btn-border); border-radius: 999px; }
 .re-nav a:hover { background: var(--surface-hover); }
 .re-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; }
 .re-card { padding: 14px 18px; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; }
@@ -53,7 +53,7 @@ body.embedded .re-header h1 { display: none; } /* 内嵌时左卡已有标题 */
 .re-table-wrap .re-scroll { overflow-x: auto; }
 .re-source { font-size: 11px; color: var(--text-dim); }
 .re-badges { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
-.re-badge { padding: 6px 14px; border-radius: 6px; font-size: 13px; font-weight: 600; }
+.re-badge { padding: 6px 14px; border-radius: 999px; font-size: 13px; font-weight: 600; }
 .re-badge.bear { background: #ffebee; color: #c62828; }
 .re-badge.bull { background: #e8f5e9; color: #2e7d32; }
 .re-badge.flat { background: #eceff1; color: #546e7a; }

@@ -154,6 +154,26 @@ def export_api() -> None:
     # 专题页（FOMC / rates / volatility / fed / credit）
     _safe("api/fomc/calendar", get_fomc_calendar)
     _safe("api/rate-expectations", get_rate_expectations)
+    # 流动性专题（复刻 timsun.net/liquidity 主页面 + 7 子页）
+    from src.liquidity_analysis import (
+        liquidity_snapshot,
+        lpi,
+        page_fed_balance_sheet,
+        page_global_dollar,
+        page_operations,
+        page_reserves,
+        page_rrp_tga,
+        page_subsurface,
+    )
+
+    _safe("api/liquidity/snapshot", liquidity_snapshot)
+    _safe("api/liquidity/transmission-chain", lpi)
+    _safe("api/liquidity/fed-balance-sheet", page_fed_balance_sheet)
+    _safe("api/liquidity/operations", page_operations)
+    _safe("api/liquidity/rrp-tga", page_rrp_tga)
+    _safe("api/liquidity/reserves", page_reserves)
+    _safe("api/liquidity/global-dollar", page_global_dollar)
+    _safe("api/liquidity/subsurface", page_subsurface)
     for name, fn in [
         ("analysis", get_rates_analysis),
         ("fed-funds", get_rates_fed_funds),

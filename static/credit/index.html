@@ -1,8 +1,8 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
 <meta charset="UTF-8">
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>信用 — US Macro</title>
 <link rel="stylesheet" href="/css/app.css">
@@ -100,9 +100,9 @@ async function load() {
   sec.innerHTML = '<h2>信用周期研判</h2>';
   const s = d.signals || { framework: '—', what_changed: '—', why_it_matters: '—', what_to_watch: '—' };
   const blocks = [
-    ['What changed', s.what_changed],
-    ['Why it matters', s.why_it_matters],
-    ['What to watch next', s.what_to_watch],
+    ['发生了什么变化', s.what_changed],
+    ['为什么重要', s.why_it_matters],
+    ['接下来关注什么', s.what_to_watch],
   ];
   blocks.forEach(([title, text]) => {
     const b = document.createElement('div');
@@ -196,7 +196,7 @@ async function load() {
   // ── 信用压力仪表盘（原 stress.html 并入）──
   renderStress(document.getElementById('stress-sec'), stress);
 
-  document.getElementById('re-gen').textContent = `研判由规则引擎生成（${d.generator}）· ${d.as_of} · ICE BofA 系列经 FRED API 仅提供近 ~3 年，10Y 分位按可用历史计算`;
+  document.getElementById('re-gen').textContent = `研判生成：${R.genText(d.generator)} · ${d.as_of} · ICE BofA 系列经 FRED API 仅提供近 ~3 年，10Y 分位按可用历史计算`;
 }
 
 // ── CDS 专题：主权/银行系统风险代理 + 归一化双线 ──

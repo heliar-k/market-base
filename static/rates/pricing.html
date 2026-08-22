@@ -1,8 +1,8 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
 <meta charset="UTF-8">
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>利率定价 — US Macro</title>
 <link rel="stylesheet" href="/css/app.css">
@@ -67,16 +67,6 @@
 
 <script src="/js/rates-common.js"></script>
 <script>
-const isDark = () => document.body.classList.contains('dark');
-
-function echartsTheme() {
-  const dark = isDark();
-  return {
-    textStyle: { color: dark ? '#8b949e' : '#666' },
-    legend: { textStyle: { color: dark ? '#8b949e' : '#666' } },
-  };
-}
-
 async function load() {
   const el = document.getElementById('re-tbody');
   el.innerHTML = '<tr><td colspan="9" class="re-loading">加载中…</td></tr>';
@@ -187,12 +177,8 @@ function renderTable(meetings) {
 }
 
 function renderProbChart(meetings) {
-  const dom = document.getElementById('re-prob-chart');
-  const chart = echarts.init(dom, null, { renderer: 'canvas' });
-  const theme = echartsTheme();
-  const dark = isDark();
-
-  chart.setOption({
+  // 与全站一致走 R.mkChart：自动主题联动 + ResizeObserver（原自实现已删，见审计 E4）
+  R.mkChart('re-prob-chart', (colors) => ({
     tooltip: {
       trigger: 'axis',
       axisPointer: { type: 'shadow' },
@@ -204,35 +190,25 @@ function renderProbChart(meetings) {
         return s;
       },
     },
-    legend: { bottom: 0, data: ['降息', '维持', '加息'], ...theme.legend },
+    legend: { bottom: 0, data: ['降息', '维持', '加息'], textStyle: { color: colors.text } },
     grid: { left: 60, right: 20, top: 20, bottom: 40 },
     xAxis: {
       type: 'category',
       data: meetings.map(m => m.meeting_date),
-      axisLabel: { ...theme.textStyle, fontSize: 11 },
+      axisLabel: { color: colors.text, fontSize: 11 },
     },
     yAxis: {
       type: 'value',
       max: 1,
-      axisLabel: { formatter: (v) => (v * 100) + '%', ...theme.textStyle },
-      splitLine: { lineStyle: { color: dark ? '#30363d' : '#e1e4e8' } },
+      axisLabel: { formatter: (v) => (v * 100) + '%', color: colors.text },
+      splitLine: { lineStyle: { color: colors.grid } },
     },
     series: [
       { name: '降息', type: 'bar', stack: 'total', data: meetings.map(m => m.prob_cut), itemStyle: { color: '#26a69a' }, barWidth: '40%' },
       { name: '维持', type: 'bar', stack: 'total', data: meetings.map(m => m.prob_hold), itemStyle: { color: '#78909c' } },
       { name: '加息', type: 'bar', stack: 'total', data: meetings.map(m => m.prob_hike), itemStyle: { color: '#ef5350' } },
     ],
-  });
-
-  new ResizeObserver(() => chart.resize()).observe(dom);
-  window.addEventListener('theme-changed', () => {
-    chart.setOption({
-      textStyle: { color: isDark() ? '#8b949e' : '#666' },
-      legend: { textStyle: { color: isDark() ? '#8b949e' : '#666' } },
-      xAxis: { axisLabel: { color: isDark() ? '#8b949e' : '#666' } },
-      yAxis: { splitLine: { lineStyle: { color: isDark() ? '#30363d' : '#e1e4e8' } } },
-    });
-  });
+  }));
 }
 
 load().catch(e => {

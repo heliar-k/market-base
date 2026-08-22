@@ -1,8 +1,8 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
 <meta charset="UTF-8">
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>VIX — US Macro</title>
 <link rel="stylesheet" href="/css/app.css">
@@ -17,12 +17,13 @@
   </div>
 
   <div class="re-nav" id="re-nav"></div>
+  <div class="page-toc" id="page-toc"></div>
 
   <!-- 状态卡 ×3：百分位 / 期限结构 / 7 日动量 -->
   <div class="re-cards" id="status-cards"></div>
 
   <!-- VIX 大数字 + 区间色条 -->
-  <div class="re-section">
+  <div class="re-section" id="sec-value">
     <h2>VIX 最新值</h2>
     <div class="score-card">
       <div style="min-width:110px">
@@ -37,13 +38,13 @@
   </div>
 
   <!-- 长期 VIX（近 2 年，恐慌区域虚线） -->
-  <div class="re-section">
+  <div class="re-section" id="sec-long">
     <h2>VIX 波动率指数（近 2 年）</h2>
     <div id="vix_long_chart" class="chart" style="height:320px"></div>
   </div>
 
   <!-- VIX × SKEW 信号：左文右图 -->
-  <div class="re-section">
+  <div class="re-section" id="sec-skew-signal">
     <h2>VIX × SKEW 信号</h2>
     <div class="vix-row">
       <div class="sig-block" id="skew-signal"></div>
@@ -52,13 +53,13 @@
   </div>
 
   <!-- SKEW 走势 -->
-  <div class="re-section">
+  <div class="re-section" id="sec-skew">
     <h2>SKEW 看跌偏斜（近 6 个月）</h2>
     <div id="skew_chart" class="chart"></div>
   </div>
 
   <!-- 期限结构 + 解读 -->
-  <div class="re-section">
+  <div class="re-section" id="sec-term">
     <div class="term-head">
       <h2 style="margin:0">VIX 期限结构</h2>
       <span id="term-badge"></span>
@@ -68,7 +69,7 @@
   </div>
 
   <!-- 近期数据 -->
-  <div class="re-section">
+  <div class="re-section" id="sec-recent">
     <h2>近期数据（最近 20 条）</h2>
     <div id="recent-table"></div>
   </div>
@@ -77,6 +78,12 @@
 <script src="/js/rates-common.js"></script>
 <script>
 async function load() {
+  // 小节锚点导航（长页快速跳转；sticky 见 special.css .page-toc，同波动率全景页）
+  document.getElementById('page-toc').innerHTML = [
+    ['状态', 'status-cards'], ['最新值', 'sec-value'], ['VIX 走势', 'sec-long'],
+    ['VIX×SKEW', 'sec-skew-signal'], ['SKEW', 'sec-skew'], ['期限结构', 'sec-term'], ['近期数据', 'sec-recent'],
+  ].map(([t, id]) => `<a href="#${id}">${t}</a>`).join('');
+
   const data = await R.get('/api/volatility/analysis');
   document.getElementById('re-as-of').textContent = '数据截至 ' + data.as_of;
 
@@ -89,8 +96,9 @@ async function load() {
   // ── 状态卡 ×3 ──
   const v = data.vix, t = data.term_structure;
   const dot = (color) => `<span class="status-dot" style="background:${color}"></span>`;
+  // 涨绿跌红（与波动率全景页 / 全站价格惯例一致，见 A1 审计）
   const momDir = v.chg_1w === null ? null : v.chg_1w > 0 ? '上行' : v.chg_1w < 0 ? '下行' : '走平';
-  const momColor = momDir === '上行' ? c.red : momDir === '下行' ? c.green : c.gray;
+  const momColor = momDir === '上行' ? c.green : momDir === '下行' ? c.red : c.gray;
   const ratio = t.values[2] && t.values[3] ? (t.values[2] / t.values[3]) : null;
   document.getElementById('status-cards').appendChild(
     R.cards([
