@@ -11,14 +11,10 @@
 </head>
 <body>
 
-<!-- Tab bar -->
-<nav class="tab-bar">
-  <button class="tab-btn" data-tab="dashboard" style="display:none">仪表盘</button>
-  <button class="tab-btn" data-tab="tech" style="display:none">技术</button>
-  <button class="tab-btn" data-tab="macro">宏观</button>
-  <button class="tab-btn" data-tab="correlation">关联</button>
-  <button class="theme-toggle" id="theme-toggle" title="切换暗色/亮色模式">🌙</button>
-</nav>
+<!-- 全局左侧导航（macro-view.js 渲染） -->
+<button id="macro-nav-toggle" title="展开导航">☰</button>
+<div class="macro-nav" id="macro-nav"><div class="loading">加载中…</div></div>
+<div class="macro-nav-backdrop" id="macro-nav-backdrop"></div>
 
 <div class="app" data-view="dashboard">
   <!-- Left sidebar (tech only) -->

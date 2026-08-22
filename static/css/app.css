@@ -41,10 +41,12 @@ body { font-family: system-ui, -apple-system, sans-serif; background: var(--bg);
 .tab-btn.active { color: var(--accent); font-weight: 600; border-bottom-color: var(--accent); }
 
 /* ── layout ─────────────────────────────────────────────── */
-.app { display: flex; flex: 1; min-height: 0; }
+.app { display: flex; flex: 1; min-height: 0; margin-left: 240px; }
+@media (max-width: 900px) { .app { margin-left: 0; } }
 .sidebar { width: 140px; background: var(--surface); border-right: 1px solid var(--border); display: none; flex-direction: column; flex-shrink: 0; }
 .center { flex: 1; display: flex; flex-direction: column; min-width: 0; min-height: 0; padding: 12px; gap: 8px; overflow-y: auto; }
-.status-bar { height: 28px; background: var(--surface); border-top: 1px solid var(--border); display: flex; align-items: center; padding: 0 16px; font-size: 12px; color: var(--text-secondary); gap: 16px; flex-shrink: 0; }
+.status-bar { height: 28px; background: var(--surface); border-top: 1px solid var(--border); display: flex; align-items: center; padding: 0 16px; font-size: 12px; color: var(--text-secondary); gap: 16px; flex-shrink: 0; margin-left: 240px; }
+@media (max-width: 900px) { .status-bar { margin-left: 0; } }
 .status-bar #status-refresh { margin-left: auto; }
 
 /* ── view switching ─────────────────────────────────────── */
@@ -188,74 +190,80 @@ body { font-family: system-ui, -apple-system, sans-serif; background: var(--bg);
 /* ── loading ────────────────────────────────────────────── */
 .loading { display: flex; align-items: center; justify-content: center; height: 100%; color: var(--text-dim); font-size: 14px; }
 
-/* ── macro 专题分栏（左侧卡片 + 右侧详情 iframe）── */
-.macro-split { display: flex; gap: 12px; flex: 1; min-height: 0; }
-.macro-side { flex: 0 0 20%; min-width: 180px; max-width: 260px; display: flex; flex-direction: column; gap: 8px; overflow-y: auto; }
-.macro-side-card {
-  padding: 10px 12px; border: 1px solid var(--border); border-radius: 8px;
-  background: var(--surface); cursor: pointer;
-  transition: border-color .15s, box-shadow .15s;
+/* ── 全局左侧导航（timsun 风格）── */
+.macro-nav {
+  position: fixed; top: 0; left: 0; bottom: 0; width: 240px;
+  display: flex; flex-direction: column;
+  background: var(--surface); border-right: 1px solid var(--border);
+  overflow-y: auto; z-index: 40;
 }
-.macro-side-card:hover { border-color: var(--accent); }
-.macro-side-card.active {
-  border-color: var(--accent); background: var(--accent-light);
-  box-shadow: 0 1px 4px rgba(26,115,232,.1);
+.macro-nav-brand { padding: 16px 16px 8px; display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
+.macro-nav-brand-name { font-size: 16px; font-weight: 700; letter-spacing: .08em; color: var(--text); }
+.macro-nav-brand-sub { font-size: 10px; color: var(--text-dim); letter-spacing: .12em; margin-top: 2px; }
+.macro-nav-brand .theme-toggle {
+  margin: 4px 0 0; padding: 4px 10px; border: 1px solid var(--btn-border);
+  border-radius: 6px; background: var(--surface-alt); cursor: pointer;
+  font-size: 12px; color: var(--text-secondary); flex-shrink: 0;
 }
-.macro-side-top { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
-.macro-side-title { font-size: 13px; font-weight: 600; color: var(--text-secondary); }
-.macro-side-delta { font-size: 10px; font-weight: 600; white-space: nowrap; }
-.macro-side-card.active .macro-side-title { color: var(--accent); }
-.macro-side-num { margin-top: 2px; font-size: 16px; font-weight: 700; font-variant-numeric: tabular-nums; }
-.macro-side-concl {
-  margin-top: 2px; font-size: 11px; color: var(--text-dim); line-height: 1.4;
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+.macro-nav-brand .theme-toggle:hover { background: var(--surface-hover); color: var(--accent); }
+.macro-nav-caption {
+  padding: 10px 16px 4px; font-size: 10px; font-weight: 600; color: var(--text-dim);
+  text-transform: uppercase; letter-spacing: .16em;
 }
-.macro-side-sub {
-  margin-top: 2px; font-size: 10px; color: var(--text-dim); opacity: .75;
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+.macro-nav-sep { margin: 10px 16px 2px; border-top: 1px solid var(--border); }
+.macro-nav-item {
+  display: block; padding: 6px 16px; font-size: 13px; font-weight: 500;
+  color: var(--text-secondary); cursor: pointer; text-decoration: none;
+  position: relative; transition: background .12s, color .12s;
+  user-select: none;
 }
-.macro-side-toggle { display: none; } /* 仅窄屏折叠时显示 */
-.macro-side-backdrop { display: none; } /* 仅窄屏浮层展开时显示 */
+.macro-nav-item:hover { background: var(--surface-hover); color: var(--text); }
+.macro-nav-item.active {
+  background: var(--accent-light); color: var(--accent);
+}
+.macro-nav-item.active::before {
+  content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 2px;
+  background: var(--accent);
+}
+.macro-nav-item.child { padding-left: 32px; font-size: 12px; }
+.macro-nav-group-head { display: flex; align-items: stretch; }
+.macro-nav-group-head > .macro-nav-item { flex: 1; }
+.macro-nav-toggle {
+  border: none; background: none; color: var(--text-dim); cursor: pointer;
+  padding: 0 14px 0 6px; font-size: 14px; line-height: 1;
+  transition: transform .15s, color .12s;
+}
+.macro-nav-toggle:hover { color: var(--text); }
+.macro-nav-group.open .macro-nav-toggle { transform: rotate(90deg); }
+.macro-nav-sub { display: none; }
+.macro-nav-group.open .macro-nav-sub { display: block; }
+.macro-nav-foot {
+  margin-top: auto; padding: 10px 16px; font-size: 10px; color: var(--text-dim);
+  display: flex; justify-content: space-between; border-top: 1px solid var(--border);
+}
+#macro-nav-toggle, .macro-nav-backdrop { display: none; } /* 仅窄屏显示 */
 .macro-detail { flex: 1; min-width: 0; display: flex; flex-direction: column; }
 .macro-detail iframe {
   flex: 1; width: 100%; border: 1px solid var(--border);
   border-radius: 8px; background: var(--surface);
 }
 @media (max-width: 900px) {
-  .macro-split { flex-direction: column; position: relative; }
-  /* 折叠态：顶部一行标题 chip，横向滚动 */
-  .macro-side {
-    flex: none; flex-direction: row; align-items: center; gap: 6px;
-    min-width: 0; max-width: none; /* 去掉宽屏的 180/260 上限，窄屏横条占满宽 */
-    overflow-x: auto; overflow-y: hidden;
-    padding: 6px 40px 6px 6px; /* 右侧留出折叠按钮位，chip 不会钻到按钮下 */
-    border-bottom: 1px solid var(--border);
+  .macro-nav {
+    transform: translateX(-105%); transition: transform .2s ease;
+    box-shadow: 4px 0 16px rgba(0,0,0,.15);
+    padding-top: 40px; /* 避开左上角 ☰ 按钮 */
   }
-  .macro-side-card { flex: 0 0 auto; padding: 5px 10px; }
-  .macro-side-num, .macro-side-concl, .macro-side-sub, .macro-side-delta { display: none; }
-  .macro-side-toggle {
-    display: flex; position: absolute; top: 6px; right: 6px; z-index: 4;
-    align-items: center; justify-content: center; width: 26px; height: 26px;
+  body.side-open .macro-nav { transform: none; }
+  #macro-nav-toggle {
+    display: flex; position: fixed; top: 8px; left: 8px; z-index: 50;
+    align-items: center; justify-content: center; width: 30px; height: 30px;
     border: 1px solid var(--btn-border); border-radius: 6px;
     background: var(--surface); color: var(--text-secondary); cursor: pointer;
+    font-size: 14px;
   }
-  /* 展开态：与宽屏左栏一致的等宽竖排卡片列表，浮层盖在 iframe 上（iframe 高度不变） */
-  .macro-split.side-open .macro-side {
-    position: absolute; top: 0; left: 0; right: 0; z-index: 3;
-    flex-direction: column; align-items: stretch; gap: 8px;
-    overflow-x: hidden; overflow-y: auto; max-height: 320px;
-    padding: 40px 8px 8px; /* 顶部留出按钮条，卡片不会与 ▴ 按钮重叠 */
-    background: var(--surface); border: 1px solid var(--border); border-radius: 8px;
-    box-shadow: 0 4px 16px rgba(0,0,0,.2);
-  }
-  .macro-split.side-open .macro-side-card { flex: none; padding: 10px 12px; }
-  .macro-split.side-open .macro-side-num,
-  .macro-split.side-open .macro-side-concl,
-  .macro-split.side-open .macro-side-sub { display: block; }
-  .macro-split.side-open .macro-side-delta { display: inline; }
-  .macro-split.side-open .macro-side-backdrop {
-    display: block; position: absolute; inset: 0; z-index: 2;
-    background: rgba(0,0,0,.35); border-radius: 8px;
+  body.side-open .macro-nav-backdrop {
+    display: block; position: fixed; inset: 0; z-index: 30;
+    background: rgba(0,0,0,.35);
   }
 }
 

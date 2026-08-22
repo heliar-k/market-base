@@ -2,8 +2,11 @@
 
 import { initDashboard, refresh as dashRefresh, cleanup as dashCleanup, updateStatus as dashStatus } from './dashboard.js';
 import { initTechView, selectSymbol as techSelectSymbol, updateStatus as techStatus } from './tech-view.js';
-import { initMacroView, updateStatus as macroStatus } from './macro-view.js';
+import { initMacroView, initGlobalNav, updateStatus as macroStatus } from './macro-view.js';
 import { initCorrelationView, updateStatus as correlationStatus } from './cross-correlation.js';
+
+// ── 全局左侧导航 ──────────────────────────────────────────────────────────
+initGlobalNav();
 
 // ── dark mode ──────────────────────────────────────────────────────────────
 const DARK_KEY = 'ticker-toolkit-dark';
@@ -50,8 +53,6 @@ function switchTab(tab) {
   }
 
   state.currentTab = tab;
-  document.querySelectorAll('.tab-btn').forEach(b =>
-    b.classList.toggle('active', b.dataset.tab === tab));
   document.querySelector('.app').dataset.view = tab;
 
   const view = views[tab];
@@ -71,10 +72,7 @@ function switchTab(tab) {
   document.getElementById('status-refresh').textContent = '更新: ' + new Date().toLocaleTimeString('zh-CN');
 }
 
-document.querySelectorAll('.tab-btn').forEach(btn =>
-  btn.addEventListener('click', () => switchTab(btn.dataset.tab)));
-
-// Cross-module tab switching (dashboard mini-charts, watchlist clicks)
+// Cross-module tab switching (dashboard mini-charts, watchlist clicks, 左侧导航)
 window.addEventListener('switch-tab', e => switchTab(e.detail));
 
 // ponytail: go-stock now redirects to tech view with symbol pre-selected
