@@ -63,8 +63,8 @@ body.embedded .re-header h1 { display: none; } /* 内嵌时左卡已有标题 */
 .rank-grid .rk-n { font-size: 11px; }
 .rank-grid .rk-v { font-size: 11px; }
 @media (max-width: 700px) { .rank-grid { grid-template-columns: 1fr; } }
-.chart-lg { height: 560px; }
-.chart-md { height: 340px; }
+.chart.chart-lg { height: 280px; }
+.chart.chart-md { height: 340px; }
 .re-badge { padding: 6px 14px; border-radius: 999px; font-size: 13px; font-weight: 600; color: var(--text-secondary); }
 /* .re-badge 基础类必需显式颜色：a 元素（如 ETF 筛选 chip）不设色时落浏览器默认链接蓝，暗色下不可读 */
 .re-badge.bear { background: #ffebee; color: #c62828; }
