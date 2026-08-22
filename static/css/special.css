@@ -14,6 +14,10 @@ body.embedded .re-header h1 { display: none; } /* 内嵌时左卡已有标题 */
 .re-nav { display: flex; gap: 8px; flex-wrap: wrap; }
 .re-nav a { color: var(--accent); text-decoration: none; font-size: 13px; padding: 4px 10px; border: 1px solid var(--btn-border); border-radius: 999px; }
 .re-nav a:hover { background: var(--surface-hover); }
+/* 子页面包屑：返回概览链接与 tab 胶囊视觉区分（nav.js 统一渲染，各专题子页生效） */
+.re-nav a.re-crumb { border-color: var(--accent); font-weight: 600; background: color-mix(in srgb, var(--accent) 10%, transparent); }
+.re-nav a.re-crumb:hover { background: color-mix(in srgb, var(--accent) 20%, transparent); }
+.re-crumb-cur { color: var(--text-secondary); font-size: 12px; align-self: center; }
 .re-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; }
 .re-card { padding: 14px 18px; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; }
 .re-card-accent { background: var(--surface); border: 1px solid var(--border); color: var(--text); }

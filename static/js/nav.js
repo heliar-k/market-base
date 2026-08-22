@@ -5,8 +5,8 @@
   // 子页顶部只渲染首项“返回入口”链接
   var NAVS = {
     '/rates/': [['概览', 'index.html']],
-    '/volatility/': [['全景仪表盘', 'index.html']],
-    '/liquidity/': [['流动性入口', 'index.html']],
+    '/volatility/': [['概览', 'index.html']],
+    '/liquidity/': [['概览', 'index.html']],
   };
   // 专题间 Tab（总入口）
   var TABS = [
@@ -34,8 +34,10 @@
     if (path.indexOf(dir) === 0) {
       var base = path.slice(0, path.indexOf(dir) + dir.length);
       if (!isIndex) {
-        // 子页只留返回入口链接；入口页由 link-card 网格承担子页导航，顶部不重复
-        html += '<a href="' + base + NAVS[dir][0][1] + '">← ' + NAVS[dir][0][0] + '</a>';
+        // 子页面包屑：醒目返回链接 + 当前页名（title 去 “ — US Macro” 后缀）
+        var cur = (document.title || '').split(' — ')[0];
+        html += '<a class="re-crumb" href="' + base + NAVS[dir][0][1] + '">← ' + NAVS[dir][0][0] + '</a>';
+        if (cur) html += '<span class="re-crumb-cur">› ' + cur + '</span>';
       }
       break;
     }
