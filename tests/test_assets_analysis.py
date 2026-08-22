@@ -123,17 +123,27 @@ class TestBsGreeks:
 class TestFxBreadth:
     def test_verdict_zero_pairs(self):
         """total_pairs=0 → 数据不足（而非误判“美元走弱 0/0”）。"""
-        assert _fx_verdict(0, 0) == {"weak": 0, "total": 0, "verdict": "数据不足"}
+        assert _fx_verdict(0, 0, 0) == {
+            "weak": 0,
+            "strong": 0,
+            "total": 0,
+            "verdict": "数据不足",
+        }
 
     def test_verdict_half_weak(self):
         """半数以上对压力 < −1 → 美元走弱。"""
-        assert _fx_verdict(8, 15)["verdict"] == "美元走弱"
+        assert _fx_verdict(8, 2, 15)["verdict"] == "美元走弱"
 
-    def test_verdict_none_weak(self):
-        assert _fx_verdict(0, 15)["verdict"] == "美元走强"
+    def test_verdict_half_strong(self):
+        """半数以上对压力 > +1 → 美元走强。"""
+        assert _fx_verdict(0, 8, 15)["verdict"] == "美元走强"
+
+    def test_verdict_all_neutral(self):
+        """全部中性（−1..+1 之间）→ 美元中性（而非走强）。"""
+        assert _fx_verdict(0, 0, 15)["verdict"] == "美元中性"
 
     def test_verdict_split(self):
-        assert _fx_verdict(5, 15)["verdict"] == "分化"
+        assert _fx_verdict(5, 3, 15)["verdict"] == "分化"
 
 
 class TestCrowdingPercentile:

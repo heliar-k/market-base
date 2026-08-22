@@ -668,25 +668,44 @@ def fx() -> dict:
         breadth.append(
             {"group": g, "avg_pressure": round(avg, 2), "label": label, "n": len(vals)}
         )
-    # 美元广度按对统计（每组均值供展示；weak/total 计数基于对级压力）
+    # 美元广度按对统计（每组均值供展示；weak/strong/total 计数基于对级压力）
     weak_count = sum(
         1 for r in rows if r["pressure"] is not None and r["pressure"] < -1
     )
-    total_pairs = sum(1 for r in rows if r["pressure"] is not None)
-    overall = _fx_verdict(weak_count, total_pairs)
-    return {"breadth": {"groups": breadth, "overall": overall}, "dashboard": rows}
-
-
-def _fx_verdict(weak_count: int, total_pairs: int) -> dict:
-    """美元广度判定：0 对 → 数据不足；≥半数对压力 <−1 → 走弱；否则走强/分化。"""
-    if total_pairs == 0:
-        return {"weak": 0, "total": 0, "verdict": "数据不足"}
-    verdict = (
-        "美元走弱"
-        if weak_count >= total_pairs / 2
-        else ("美元走强" if weak_count == 0 else "分化")
+    strong_count = sum(
+        1 for r in rows if r["pressure"] is not None and r["pressure"] > 1
     )
-    return {"weak": weak_count, "total": total_pairs, "verdict": verdict}
+    total_pairs = sum(1 for r in rows if r["pressure"] is not None)
+    overall = _fx_verdict(weak_count, strong_count, total_pairs)
+    # 各组全量对数量（前端“有数据 N/M”分母；dashboard 只含有历史深度的对）
+    group_pairs: dict[str, int] = {}
+    for _t, _n, g in FX_PAIRS.values():
+        group_pairs[g] = group_pairs.get(g, 0) + 1
+    return {
+        "breadth": {"groups": breadth, "overall": overall, "group_pairs": group_pairs},
+        "dashboard": rows,
+    }
+
+
+def _fx_verdict(weak_count: int, strong_count: int, total_pairs: int) -> dict:
+    """美元广度判定（对级）：0 对 → 数据不足；半数以上走弱 → 走弱；半数以上走强 → 走强；
+    两者都不足半数且强弱均有 → 分化；全为中性（−1..+1）→ 中性。"""
+    if total_pairs == 0:
+        return {"weak": 0, "strong": 0, "total": 0, "verdict": "数据不足"}
+    if weak_count >= total_pairs / 2:
+        verdict = "美元走弱"
+    elif strong_count >= total_pairs / 2:
+        verdict = "美元走强"
+    elif weak_count == 0 and strong_count == 0:
+        verdict = "美元中性"
+    else:
+        verdict = "分化"
+    return {
+        "weak": weak_count,
+        "strong": strong_count,
+        "total": total_pairs,
+        "verdict": verdict,
+    }
 
 
 # ── bonds / commodities / crypto 子页 ────────────────────────────────────────

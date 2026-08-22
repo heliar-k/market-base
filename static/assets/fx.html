@@ -37,7 +37,7 @@ async function load() {
   bsec.innerHTML += `
     <div class="re-badges" style="margin-bottom:10px">
       <span class="re-badge" style="background:${color}22;color:${color}">${o.verdict}</span>
-      <span class="re-spread">走弱货币对 ${o.weak}/${o.total} · 20日美元压力均值 ${avgPressure(d.breadth.groups)}%</span>
+      <span class="re-spread">走弱货币对 ${o.weak}/${o.total} · 走强货币对 ${o.strong}/${o.total}${avgPressure(d.breadth.groups)}</span>
     </div>`;
   const cards = d.breadth.groups.map(g => `
     <div class="re-card"><div class="re-corridor-label">${g.group}</div>
@@ -56,7 +56,9 @@ async function load() {
     const sec = document.createElement('div');
     sec.className = 're-section';
     sec.style.marginBottom = '12px';
-    sec.innerHTML = `<h2>${gn} · ${rows.length} / ${totalInGroup(d.dashboard, gn)} 有数据</h2>`;
+    // 分母 = 全组配置对数（group_pairs），非当前有数据行数——后者恒等于分子
+    const total = (d.breadth.group_pairs || {})[gn] ?? rows.length;
+    sec.innerHTML = `<h2>${gn} · ${rows.length} / ${total} 有数据</h2>`;
     sec.appendChild(R.table(['品种', '最新', '1D', '5D', '20D', '60D', '20D USD压力'], rows, {
       symbol: v => `${v} · ${rows.find(r => r.symbol === v)?.name || ''}`,
       last: v => fmt(v, 4),
@@ -70,11 +72,9 @@ async function load() {
   document.getElementById('re-gen').textContent = '读法：美元压力 = 各对 20 日涨跌统一换算美元强弱；亚洲/EM 同向走弱 = 美元融资压力抬升；JPY carry（USDJPY 与 EURJPY 同步下行）警惕套息平仓。';
 }
 function avgPressure(groups) {
+  if (!groups.length) return '';  // 无分组数据时不掺入标题（避免 NaN%）；空值安全
   const vals = groups.map(g => g.avg_pressure);
-  return (vals.reduce((a, b) => a + b, 0) / vals.length).toFixed(2);
-}
-function totalInGroup(rows, gn) {
-  return rows.filter(r => r.group === gn).length;
+  return ` · 20日美元压力均值 ${(vals.reduce((a, b) => a + b, 0) / vals.length).toFixed(2)}%`;
 }
 function pctColor(v) { return v == null ? '—' : `<span style="color:${v >= 0 ? '#26a69a' : '#ef5350'}">${v >= 0 ? '+' : ''}${v.toFixed(2)}%</span>`; }
 function fmt(v, d) { return v == null ? '—' : Number(v).toLocaleString(undefined, { maximumFractionDigits: d }); }
