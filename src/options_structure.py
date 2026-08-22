@@ -385,7 +385,28 @@ def build_snapshot(symbols: list[str] | None = None, use_cache: bool = True) -> 
     for sym in symbols:
         try:
             ticker = yf.Ticker(sym)
-            exps = [e.replace("-", "") for e in ticker.options[:8]]
+            # 覆盖四个到期桶（timsun 口径 0DTE/本周/月度/季度+）：
+            # 近 10D 全收 + 首个 ≥30D（月度）+ 首个 ≥90D（季度），
+            # 避免 [:8] 截断导致季度+ 桶恒为 0
+            today = datetime.now().date()
+            exps = [
+                e
+                for e in ticker.options
+                if (datetime.strptime(e, "%Y-%m-%d").date() - today).days <= 10
+            ]
+            for dte_min in (30, 90):
+                pick = next(
+                    (
+                        e
+                        for e in ticker.options
+                        if (datetime.strptime(e, "%Y-%m-%d").date() - today).days
+                        >= dte_min
+                    ),
+                    None,
+                )
+                if pick and pick not in exps:
+                    exps.append(pick)
+            exps = [e.replace("-", "") for e in exps]
             spot = float(ticker.fast_info.last_price)
             if not exps or not spot:
                 logger.warning(f"  {sym}: 无期权/无现价，跳过")
@@ -419,6 +440,11 @@ def main() -> None:
     if snapshot["symbols"]:
         DATA.mkdir(parents=True, exist_ok=True)
         path = DATA / f"{datetime.now():%Y%m%d}.json"
+        # 子集运行（--symbols）合并当天既有快照，避免丢失其余标的（全量运行则覆盖）
+        if symbols and path.exists():
+            existing = json.loads(path.read_text(encoding="utf-8"))
+            existing["symbols"].update(snapshot["symbols"])
+            snapshot = existing
         # compact 单行（程序消费的快照，不经 pretty-format-json——多行展开会让
         # git 差异不可读且体积翻倍）
         path.write_text(
