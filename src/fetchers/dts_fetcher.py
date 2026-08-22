@@ -14,6 +14,7 @@ Fetch US Treasury Daily Treasury Statement (DTS) from Fiscal Data API.
 """
 
 import logging
+from pathlib import Path
 from urllib.parse import urlparse
 
 import pandas as pd
@@ -41,7 +42,6 @@ def fetch_operating_cash_balance() -> pd.DataFrame:
     """
     rows = _fetch_pages(
         f"{API_BASE}/operating_cash_balance",
-        ["record_date", "account_type", "close_today_bal", "open_today_bal"],
         filter_expr="account_type:eq:Treasury General Account (TGA) Closing Balance",
     )
     df = pd.DataFrame(rows)
@@ -67,7 +67,6 @@ def fetch_cashflows(start: str | None = None) -> pd.DataFrame:
         flt = f"record_date:gte:{start},{flt}"
     rows = _fetch_pages(
         f"{API_BASE}/deposits_withdrawals_operating_cash",
-        ["record_date", "transaction_type", "transaction_today_amt"],
         filter_expr=flt,
     )
     df = pd.DataFrame(rows)
@@ -83,8 +82,11 @@ def fetch_cashflows(start: str | None = None) -> pd.DataFrame:
     return pivot.dropna(subset=["DEPOSITS", "WITHDRAWALS"])
 
 
-def _fetch_pages(url: str, columns: list[str], filter_expr: str | None) -> list[dict]:
-    """分页拉取（直连，proxies=None 覆盖 .env SOCKS5，同 treasury_fetcher 模式）。"""
+def _fetch_pages(url: str, filter_expr: str | None) -> list[dict]:
+    """分页拉取（直连，proxies=None 覆盖 .env SOCKS5，同 treasury_fetcher 模式）。
+    ponytail: 与 treasury_fetcher._fetch_all_pages 分页骨架重复，跨 fetcher 抽共享
+    helper 需动既有模块，暂留；若再出现第三个同构分页再抽。
+    """
     all_rows: list[dict] = []
     page = 1
     name = urlparse(url).path.rstrip("/").split("/")[-1]
@@ -116,7 +118,7 @@ def _fetch_pages(url: str, columns: list[str], filter_expr: str | None) -> list[
     return all_rows
 
 
-def _out_paths(ROOT) -> tuple:
+def _out_paths(ROOT: Path) -> tuple[Path, Path]:
     out_dir = ROOT / "data" / "treasury"
     out_dir.mkdir(parents=True, exist_ok=True)
     return out_dir / "dts_operating_cash.csv", out_dir / "dts_cashflows.csv"

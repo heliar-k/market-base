@@ -20,6 +20,8 @@
 
   <div id="re-score"></div>
   <div id="re-layers"></div>
+  <div class="re-h2" id="sec-history">压力指数历史走势（近 30 个快照）</div>
+  <div class="re-chart" id="history_chart" style="height:220px"></div>
   <div class="re-h2" id="sec-confirm">升级为系统性压力的确认条件</div>
   <div id="re-confirm"></div>
   <div class="re-h2" id="sec-offshore">离岸美元压力 &amp; 外部冲击</div>
@@ -41,7 +43,7 @@ const scoreCell = v => (v == null ? '—' : `<b>${v}</b>`);
 
 async function load() {
   document.getElementById('page-toc').innerHTML = [
-    ['指数', 're-score'], ['三层评分', 're-layers'], ['确认条件', 'sec-confirm'],
+    ['指数', 're-score'], ['三层评分', 're-layers'], ['历史走势', 'sec-history'], ['确认条件', 'sec-confirm'],
     ['离岸/外部', 'sec-offshore'], ['证据层', 'sec-evidence'],
   ].map(([t, id]) => `<a href="#${id}">${t}</a>`).join('');
 
@@ -56,7 +58,7 @@ async function load() {
       <div class="label">规则型美元流动性压力指数 LPI</div>
       <div class="value" style="color:${BAND_COLORS[d.band[0]] || 'var(--text)'}">${d.score ?? '—'}<span style="font-size:20px;color:var(--text-dim)">/10</span></div>
       ${bandBadge(d.band)}
-      <div style="font-size:12px;color:var(--text-dim);margin-top:8px">结构性缓冲 45% + 融资市场确认 35% + 风险资产传导 20%</div>
+      <div style="font-size:12px;color:var(--text-dim);margin-top:8px">结构性缓冲 45% + 融资市场确认 35% + 风险资产传导 20%${d.pctile_30d != null ? ' · 过去 30 天第 ' + d.pctile_30d + ' 分位' : ''}</div>
     </div>
     <div style="flex:1;min-width:260px;font-size:13px;line-height:1.7;color:var(--text-secondary)">
       评分边界：0-3 宽松 · 3-5 中性 · 5-7 警戒观察 · 7+ 压力确认。
@@ -95,6 +97,22 @@ async function load() {
     layerCard('structure', '结构性缓冲压力', '系统水位是不是变薄？准备金 / 净流动性 / TGA-RRP 缓冲') +
     layerCard('funding', '融资市场确认', '缺钱有没有出现在融资市场？Repo 定价 / SRF / 离岸美元 basis') +
     layerCard('transmission', '风险资产传导', '市场有没有开始承认压力？VIX / MOVE / 信用利差 / NFCI');
+
+  // ── LPI 历史走势（快照积累，<2 点显示占位）──
+  const hist = d.history || [];
+  if (hist.length >= 2) {
+    R.mkChart('history_chart', c => ({
+      xAxis: { type: 'time', axisLabel: { color: c.muted } },
+      yAxis: { type: 'value', min: 0, max: 10, axisLabel: { color: c.muted }, splitLine: { lineStyle: { color: c.grid } } },
+      grid: { left: 40, right: 20, bottom: 28, top: 20 },
+      tooltip: { trigger: 'axis' },
+      series: [{ type: 'line', data: hist.map(p => [p.date, p.value]),
+        lineStyle: { color: c.orange, width: 2 }, itemStyle: { color: c.orange }, symbolSize: 6 }],
+    }));
+  } else {
+    document.getElementById('history_chart').innerHTML =
+      `<div class="re-error">快照积累中（当前 ${hist.length} 条）—— daily-fetch 每日自动写入，2 条后显示走势、10 条后显示分位。</div>`;
+  }
 
   // ── 确认条件 ──
   const conf = d.confirmations || [];

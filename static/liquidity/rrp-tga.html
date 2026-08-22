@@ -74,7 +74,7 @@ async function load() {
     </tr>`).join('');
   document.getElementById('re-heat').innerHTML = `
     <div class="re-section">
-      <p style="margin:0 0 6px;font-size:12px;color:var(--text-dim)">7日净冲击 <b style="color:${(net7 ?? 0) < 0 ? '#ef5350' : '#26a69a'}">${net7 == null ? '—' : net7.toFixed(0)}B</b> · 14日净冲击 <b style="color:${(net14 ?? 0) < 0 ? '#ef5350' : '#26a69a'}">${net14 == null ? '—' : net14.toFixed(0)}B</b>（DTS 历史过去 7/14 日）</p>
+      <p style="margin:0 0 6px;font-size:12px;color:var(--text-dim)">未来 7 日净冲击 <b style="color:${(net7 ?? 0) < 0 ? '#ef5350' : '#26a69a'}">${net7 == null ? '—' : net7.toFixed(0)}B</b> · 未来 14 日净冲击 <b style="color:${(net14 ?? 0) < 0 ? '#ef5350' : '#26a69a'}">${net14 == null ? '—' : net14.toFixed(0)}B</b>（估算 = 下方逐日之和）</p>
       <table class="re-table"><thead><tr><th>日期</th><th>资金流</th><th style="text-align:right">净冲击</th><th style="text-align:right">级别</th></tr></thead><tbody>${heat}</tbody></table>
       <p style="margin:8px 0 0;font-size:12px;color:var(--text-dim)">${cal.source_note || ''} 图例：极端抽水 ≤-200B · 强 ≤-80B · 温和 ≤-30B · 平稳 · 注入</p>
     </div>`;

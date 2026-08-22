@@ -64,7 +64,7 @@ def _liq_daily() -> pd.DataFrame:
     return out
 
 
-def _last(s: pd.Series, n: int | None = None):
+def _last(s: pd.Series, n: int | None = None) -> float | list[float] | None:
     v = s.dropna()
     if n is None:
         return float(v.iloc[-1]) if len(v) else None
@@ -414,7 +414,8 @@ def lpi() -> dict:
         "score": lpi_total,
         "score_raw": lpi_total,
         "band": _band(lpi_total),
-        "pctile_30d": lpi_percentile_30d(),
+        "pctile_30d": lpi_percentile_30d(lpi_total),
+        "history": _lpi_history(30),
         "layers": {
             "structure": {
                 "score": s_struc,
@@ -466,6 +467,8 @@ def save_lpi_snapshot() -> Path | None:
 
     每日运行积累 30 天+ 后即可做分位校准（参考页“过去 30 天第 87 分位”）。
     已由 daily-fetch workflow 自动触发；本地可手动运行 --snapshot。
+    ponytail: 分析层写盘对齐 src/bill_share.py 先例（派生指标落盘非拉取），
+    若未来派生落盘模块增多，再抽公共 tooling。
     """
     d = lpi()
     if not d or d.get("score") is None:
@@ -497,16 +500,27 @@ def save_lpi_snapshot() -> Path | None:
     return LPI_HISTORY_PATH
 
 
-def lpi_percentile_30d() -> float | None:
-    """当前 LPI 在近 30 个快照中的分位（0-100）。历史不足 10 条返回 None。"""
+def lpi_percentile_30d(score: float | None) -> float | None:
+    """当前 LPI 在近 30 个快照中的分位（0-100）。历史不足 10 条返回 None。
+
+    只读历史，不重算 lpi()（历史曾因内部重算造成互递归嵌套，审计后修复）。
+    """
     if not LPI_HISTORY_PATH.exists():
         return None
     hist = pd.read_csv(LPI_HISTORY_PATH, index_col=0)
     s = pd.to_numeric(hist.get("SCORE"), errors="coerce").dropna().tail(30)
-    d = lpi()
-    if len(s) < 10 or not d or d.get("score") is None:
+    if len(s) < 10 or score is None:
         return None
-    return round((s <= d["score"]).mean() * 100)
+    return round((s <= score).mean() * 100)
+
+
+def _lpi_history(n: int = 30) -> list[dict]:
+    """近 n 条 LPI 快照（date/score），供 30 天历史走势图。"""
+    if not LPI_HISTORY_PATH.exists():
+        return []
+    hist = pd.read_csv(LPI_HISTORY_PATH, index_col=0, parse_dates=True)
+    s = pd.to_numeric(hist.get("SCORE"), errors="coerce").dropna().tail(n)
+    return [{"date": d.date().isoformat(), "value": float(v)} for d, v in s.items()]
 
 
 def _band(score: float | None) -> tuple[str, str]:
@@ -589,17 +603,21 @@ def _confirmations(
     ]
 
 
+# 货币对→显示名唯一映射（offshore 评分/详情/页面共用，增删货币对只改这里）
+_PAIR_DISPLAY = {
+    "USDJPY": "USD/JPY",
+    "USDCNH": "USD/CNH",
+    "EURUSD": "EUR/USD",
+    "GBPUSD": "GBP/USD",
+    "USDCHF": "USD/CHF",
+}
+
+
 def _offshore_score(cfets: pd.DataFrame) -> float | None:
-    """四货币对 1M 掉期点平均压力分：越负 → 美元利率溢价越高（偏紧）。"""
-    cols = {
-        "USDJPY_1M": "USD/JPY",
-        "USDCNH_1M": "USD/CNH",
-        "EURUSD_1M": "EUR/USD",
-        "GBPUSD_1M": "GBP/USD",
-        "USDCHF_1M": "USD/CHF",
-    }
+    """各货币对 1M 掉期点平均压力分：越负 → 美元利率溢价越高（偏紧）。"""
     scores: list[float] = []
-    for col in cols:
+    for pair in _PAIR_DISPLAY:
+        col = f"{pair}_1M"
         if col not in cfets:
             continue
         v = float(cfets[col].dropna().iloc[-1])
@@ -608,9 +626,8 @@ def _offshore_score(cfets: pd.DataFrame) -> float | None:
 
 
 def _offshore_detail(cfets: pd.DataFrame) -> dict:
-    pairs = ["USDJPY", "USDCNH", "EURUSD", "GBPUSD", "USDCHF"]
     out = {}
-    for p in pairs:
+    for p in _PAIR_DISPLAY:
         row = {}
         for ten in ("1W", "1M", "3M", "6M", "1Y"):
             col = f"{p}_{ten}"
@@ -698,7 +715,7 @@ def forward_calendar(days: int = 14) -> dict:
     """未来 days 天 TGA 净冲击估算：
     - 拍卖结算（确知）：upcoming_auctions 按 issue_date 归集 offering_amt（抽水 −）
     - SOMA 购买（估算）：TREAST 4 周周均变化，落在周四（结算日惯例，注入 +）
-    返回 {days: [...], net_7d_b, net_14d_b, source_note}。
+    返回 {days: [...], net_7d_b, net_14d_b, source_note}（net_7/14 = 未来窗口估算）。
     """
     up = _read("treasury/upcoming_auctions.csv", parse_dates=["issue_date"])
     auc = _read(
@@ -774,11 +791,9 @@ def forward_calendar(days: int = 14) -> dict:
             }
         )
 
-    dts = _csv("treasury/dts_cashflows.csv")
-    net_7 = net_14 = None
-    if not dts.empty:
-        net_7 = round(float(dts["NET"].tail(7).sum()) / 1000, 1)  # M→B
-        net_14 = round(float(dts["NET"].tail(14).sum()) / 1000, 1)
+    # 未来窗口估算（与逐日热力表同源）：7/14 日 = 前 7/14 行净冲击之和
+    net_7 = round(sum(r["net_b"] for r in rows[:7]), 1) if rows else None
+    net_14 = round(sum(r["net_b"] for r in rows[:14]), 1) if rows else None
     return {
         "days": rows,
         "net_7d_b": net_7,
@@ -793,11 +808,30 @@ def forward_calendar(days: int = 14) -> dict:
 # ─────────────────────────────────────────────────────────────────────────────
 
 
-def _frow(d, y, nonnull=None):
-    try:
-        return d.iloc[d.index.get_loc(y)]
-    except (KeyError, IndexError, ValueError):
-        return None
+def _spread_series(
+    rates: pd.DataFrame, a: str, b: str, scale: float = 100, n: int = 60
+) -> list[dict]:
+    """利率列差 × scale 的近 n 条序列 (date, value)；任一侧缺失返回空。"""
+    if a not in rates.columns or b not in rates.columns:
+        return []
+    both = (
+        pd.concat(
+            [
+                pd.to_numeric(rates[a], errors="coerce"),
+                pd.to_numeric(rates[b], errors="coerce"),
+            ],
+            axis=1,
+        )
+        .dropna()
+        .tail(n)
+    )
+    return [
+        {
+            "date": d.date().isoformat(),
+            "value": round(float(r.iloc[0] - r.iloc[1]) * scale, 1),
+        }
+        for d, r in both.iterrows()
+    ]
 
 
 def page_fed_balance_sheet() -> dict:
@@ -994,25 +1028,9 @@ def page_rrp_tga() -> dict:
         ]
     # 60 日序列（SOFR−IORB 走势 + TGA 日度余额）
     series = {}
-    s_i = (
-        pd.concat(
-            [
-                pd.to_numeric(rates.get("SOFR"), errors="coerce"),
-                pd.to_numeric(rates.get("IORB"), errors="coerce"),
-            ],
-            axis=1,
-        )
-        .dropna()
-        .tail(60)
-    )
-    if not s_i.empty:
-        series["sofr_iorb_bp"] = [
-            {
-                "date": d.date().isoformat(),
-                "value": round(float(r.iloc[0] - r.iloc[1]) * 100, 1),
-            }
-            for d, r in s_i.iterrows()
-        ]
+    s_i = _spread_series(rates, "SOFR", "IORB")
+    if s_i:
+        series["sofr_iorb_bp"] = s_i
     if "WTREGEN" in liq.columns and not liq["WTREGEN"].dropna().empty:
         t = liq["WTREGEN"].dropna().tail(60)
         series["tga_b"] = [
@@ -1054,26 +1072,7 @@ def page_reserves() -> dict:
         ("sofr_tbill3m", "SOFR", "DGS3MO"),
         ("sofr_iorb", "SOFR", "IORB"),
     ]:
-        if a in rates.columns and b in rates.columns:
-            both = (
-                pd.concat(
-                    [
-                        pd.to_numeric(rates[a], errors="coerce"),
-                        pd.to_numeric(rates[b], errors="coerce"),
-                    ],
-                    axis=1,
-                )
-                .dropna()
-                .tail(60)
-            )
-            if not both.empty:
-                series[name + "_bp"] = [
-                    {
-                        "date": d.date().isoformat(),
-                        "value": round(float(r.iloc[0] - r.iloc[1]) * 100, 1),
-                    }
-                    for d, r in both.iterrows()
-                ]
+        series[name + "_bp"] = _spread_series(rates, a, b)
     out["series"] = series
     out["rows"] = (
         [
@@ -1109,19 +1108,11 @@ def page_global_dollar() -> dict:
             "date": swpt.index[-1].date().isoformat(),
             "chg_30d_m": round(_chg(swpt, 30) or 0, 0),
         }
-    out["pairs"] = {_pairs_display(p): v for p, v in _offshore_detail(cfets).items()}
+    out["pairs"] = {
+        _PAIR_DISPLAY.get(p, p): v for p, v in _offshore_detail(cfets).items()
+    }
     out["score"] = _offshore_score(cfets)
     return out
-
-
-def _pairs_display(p: str) -> str:
-    return {
-        "USDJPY": "USD/JPY",
-        "USDCNH": "USD/CNH",
-        "EURUSD": "EUR/USD",
-        "GBPUSD": "GBP/USD",
-        "USDCHF": "USD/CHF",
-    }.get(p, p)
 
 
 def page_subsurface() -> dict:
