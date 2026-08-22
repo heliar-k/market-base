@@ -460,12 +460,27 @@ def equities() -> dict:
 
     abv = _csv("breadth/abv.csv")
     if not abv.empty:
+
+        def _col(name: str) -> pd.Series:
+            if name in abv.columns:
+                return abv[name].dropna()
+            return pd.Series(dtype=float)
+
+        a50 = _col("ABV50")
+        a200 = _col("ABV200")
         out["breadth"]["abv200"] = (
-            float(abv["ABV200"].dropna().iloc[-1]) if "ABV200" in abv.columns else None
+            round(float(a200.iloc[-1]), 1) if not a200.empty else None
         )
         out["breadth"]["abv50"] = (
-            float(abv["ABV50"].dropna().iloc[-1]) if "ABV50" in abv.columns else None
+            round(float(a50.iloc[-1]), 1) if not a50.empty else None
         )
+        out["breadth"]["abv_date"] = (
+            str(a50.index[-1].date()) if not a50.empty else None
+        )
+        # 昨日变化（timsun 同款：卡片副文本 ▲+0.0 / ▼-0.0 日期）
+        for key, s in (("abv50", a50), ("abv200", a200)):
+            if len(s) >= 2:
+                out["breadth"][f"{key}_chg"] = round(float(s.iloc[-1] - s.iloc[-2]), 1)
         out["breadth"]["abv_dates"] = [str(d.date()) for d in abv.index]
         out["breadth"]["abv50_series"] = (
             [None if pd.isna(v) else round(float(v), 1) for v in abv["ABV50"]]
@@ -563,14 +578,19 @@ def analyst_board() -> dict:
             avg_analysts=("analysts", "mean"),
         )
         .reset_index()
-        .sort_values("avg_space", ascending=False)
     )
+    # 行业内成分总数（分母，timsun 同款 X/Y）
+    comp = comp.rename(columns={"category": "industry"})
+    ind_total = comp.groupby("industry")["ticker"].nunique().to_dict()
+    industry["total_ind"] = industry["industry"].map(ind_total).fillna(0).astype(int)
+    industry = industry.sort_values("avg_space", ascending=False)
     industries = []
     for _, r in industry.iterrows():
         industries.append(
             {
                 "industry": r["industry"],
                 "coverage": int(r["coverage"]),
+                "total_ind": int(r["total_ind"]),
                 "avg": round(float(r["avg_space"]), 2),
                 "med": round(float(r["med_space"]), 2),
                 "analysts": round(float(r["avg_analysts"]), 1),
@@ -608,6 +628,7 @@ def analyst_board() -> dict:
         "total": total,
         "coverage_pct": round(n / total * 100, 1) if total else None,
         "avg_upside": round(float(up["upside"].mean()), 2),
+        "med_upside": round(float(up["upside"].median()), 2),
         "trim_upside": round(float(trimmed.mean()), 2) if len(trimmed) else None,
         "above_share": round(float((up["upside"] > 0).mean() * 100), 1),
         "above_cnt": int((up["upside"] > 0).sum()),
@@ -669,6 +690,7 @@ def ndx_radar() -> dict:
             continue
         industry = comp_map.loc[t, "industry"] if t in comp_map.index else "未知"
         by_industry.setdefault(industry, []).append(t)
+    ind_total = comp.groupby("industry")["ticker"].nunique().to_dict()
     industries = []
     for ind, tk in by_industry.items():
         if len(tk) < 1:
@@ -679,6 +701,7 @@ def ndx_radar() -> dict:
             {
                 "industry": ind,
                 "coverage": len(tk),
+                "total_ind": int(ind_total.get(ind, len(tk))),
                 "chg1": round(sum(chg1) / len(chg1), 2) if chg1 else None,
                 "chg20": round(sum(chg20) / len(chg20), 2) if chg20 else None,
                 "above50": round(
@@ -689,6 +712,14 @@ def ndx_radar() -> dict:
     industries.sort(key=lambda x: (x["chg20"] is None, -(x["chg20"] or 0)))
 
     today_up = sum(1 for t in stats if (stats[t]["chg1"] or 0) > 0)
+    # 每票最后有效交易日（timsun 完整行情表日期列——停牌股最后日期更早）
+    last_dates: dict[str, str] = {}
+    for t in stats:
+        s = px[t].dropna()
+        last_dates[t] = (
+            str(s.index[-1].date()) if not s.empty else str(px.index[-1].date())
+        )
+
     rows = []
     for t, st in stats.items():
         meta = comp_map.loc[t] if t in comp_map.index else {}
@@ -704,6 +735,7 @@ def ndx_radar() -> dict:
                 "chg60": st["chg60"],
                 "above50": st["above50"],
                 "above200": st["above200"],
+                "date": last_dates.get(t),
             }
         )
     rows.sort(key=lambda r: (r["chg20"] is None, -(r["chg20"] or 0)))
@@ -752,12 +784,36 @@ def ndx_radar() -> dict:
         "avg20": round(sum(s2["chg20"] or 0 for s2 in stats.values()) / len(stats), 2)
         if stats
         else None,
+        "med20": round(
+            float(
+                pd.Series(
+                    [s2["chg20"] for s2 in stats.values() if s2["chg20"] is not None]
+                ).median()
+            ),
+            2,
+        )
+        if any(s2["chg20"] is not None for s2 in stats.values())
+        else None,
+        "verdict": _radar_verdict(today_up / len(stats) * 100 if stats else None)
+        if stats
+        else None,
         "industries": industries,
         "strong20": strong20,
         "weak20": weak20,
         "table": rows,
         "recent": recent,
     }
+
+
+def _radar_verdict(today_up_pct: float | None) -> str:
+    """雷达标签（timsun 同款语义）：上涨家数 2/3 附近 = 结构分化。"""
+    if today_up_pct is None:
+        return "—"
+    if today_up_pct >= 70:
+        return "全面强势"
+    if today_up_pct >= 50:
+        return "分化修复"
+    return "内部走弱"
 
 
 def equity_analysis(b: dict) -> dict:
