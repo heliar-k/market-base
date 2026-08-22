@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>期权市场结构 — US Macro</title>
+<link rel="stylesheet" href="/css/app.css">
+<link rel="stylesheet" href="/css/special.css">
+<script src="/vendor/echarts.min.js"></script>
+</head>
+<body>
+<div class="re-root">
+  <div class="re-header">
+    <h1>期权市场结构</h1>
+    <span class="re-as-of" id="re-as-of"></span>
+  </div>
+
+  <div class="re-nav" id="re-nav"></div>
+
+  <div id="board"></div>
+  <div id="detail"></div>
+  <div class="re-gen" id="re-gen"></div>
+</div>
+
+<script src="/js/rates-common.js"></script>
+<script>
+let D = null;
+let S = 'SPY';
+
+const REGIME_INFO = {
+  pos: { label: '正 Gamma + 正 Delta', desc: '现价在 Gamma Flip 上方，波动偏被压制，多头 delta 占优。' },
+  neg: { label: '负 Gamma + 正 Delta', desc: '现价在 Gamma Flip 下方，波动易放大，多头 delta 占优。' },
+  posneg: { label: '正 Gamma + 负 Delta', desc: '现价在 Gamma Flip 上方，但 delta 偏空。' },
+  negneg: { label: '负 Gamma + 负 Delta', desc: '现价在 Gamma Flip 下方，delta 偏空，双重压力。' },
+};
+
+function fmtNum(v, d = 2) {
+  return v === null || v === undefined ? '—' : Number(v).toLocaleString(undefined, { maximumFractionDigits: d });
+}
+
+async function load() {
+  D = await R.get('/api/assets/equities-options');
+  if (!D || !D.symbols) { R.fail(['board', 'detail'], new Error('无期权结构快照')); return; }
+  document.getElementById('re-as-of').textContent = '快照时间 · ' + (D.date || '');
+
+  renderBoard();
+  renderDetail();
+  document.getElementById('re-gen').textContent = 'GEX/DEX/Vanna/Charm 为模型估算（BSM，yfinance 降级源），非交易所官方持仓方向。真实 OI + IV。';
+}
+
+function renderBoard() {
+  const syms = D.symbols;
+  const groups = [
+    ['指数 / ETF', ['SPY', 'QQQ', 'IWM']],
+    ['Mag 7', ['NVDA', 'AAPL', 'MSFT', 'AMZN', 'META', 'TSLA', 'GOOGL']],
+    ['重点个股', ['AVGO', 'BRK-B', 'JPM']],
+  ];
+  const board = document.getElementById('board');
+  board.innerHTML = '<h2 class="re-h2" style="margin:0 0 8px">13 标的看板</h2>';
+  groups.forEach(([title, list]) => {
+    const sec = document.createElement('div');
+    sec.className = 're-section';
+    sec.style.marginBottom = '12px';
+    sec.innerHTML = `<h2>${title}</h2>`;
+    const rows = list.filter(s => syms[s]).map(s => {
+      const v = syms[s];
+      const gammaPos = v.net_gex >= 0;
+      const deltaPos = v.net_dex >= 0;
+      const regime = (gammaPos ? '正 Gamma' : '负 Gamma') + ' + ' + (deltaPos ? '正 Delta' : '负 Delta');
+      return { symbol: s, spot: v.spot, gex: v.net_gex, regime, _sym: s };
+    });
+    sec.appendChild(R.table(['标的', '现价', 'Net GEX (B)', 'Regime'], rows, {
+      symbol: v => `<a href="javascript:pick('${v._sym}')" style="color:var(--accent)">${v}</a>`,
+      gex: v => `<span style="color:${v >= 0 ? '#26a69a' : '#ef5350'}">${v >= 0 ? '+' : ''}${fmtNum(v)}</span>`,
+      regime: v => v,
+    }, null, true));
+    board.appendChild(sec);
+  });
+  board.insertAdjacentHTML('beforeend', '<p class="re-source">列：标的 · 现价 · Net GEX (B) · Regime。点击任意标的切换主视图。</p>');
+}
+
+function pick(s) { S = s; renderDetail(); window.scrollTo({ top: document.getElementById('detail').offsetTop - 80, behavior: 'smooth' }); }
+
+function renderDetail() {
+  const v = D.symbols[S];
+  if (!v) return;
+  const d = document.getElementById('detail');
+  d.innerHTML = '';
+
+  const sec = document.createElement('div');
+  sec.className = 're-section';
+  const gammaPos = v.net_gex >= 0;
+  const deltaPos = v.net_dex >= 0;
+  const key = (gammaPos ? 'pos' : 'neg') + (deltaPos ? '' : 'neg');
+  const ri = REGIME_INFO[key] || REGIME_INFO.pos;
+  let html = `<h2>${S} · 期权结构 Regime</h2>
+    <div class="re-badges" style="margin-bottom:8px">
+      <span class="re-badge ${gammaPos ? 'bull' : 'bear'}">${ri.label}</span>
+      <span class="re-spread">现价 ${fmtNum(v.spot)} · ${gammaPos ? '局部正 Gamma' : '局部负 Gamma'} · ${deltaPos ? '正 Delta' : '负 Delta'}</span>
+    </div>
+    <div class="re-cards" style="grid-template-columns:repeat(auto-fit,minmax(160px,1fr))">
+      <div class="re-card"><div class="re-corridor-label">Net GEX</div><div class="re-corridor-value">${v.net_gex >= 0 ? '+' : ''}${fmtNum(v.net_gex)} <span style="font-size:13px">B</span></div></div>
+      <div class="re-card"><div class="re-corridor-label">Net DEX</div><div class="re-corridor-value">${v.net_dex >= 0 ? '+' : ''}${fmtNum(v.net_dex)} <span style="font-size:13px">B</span></div></div>
+      <div class="re-card"><div class="re-corridor-label">Gamma Flip</div><div class="re-corridor-value">${fmtNum(v.gamma_flip, 1)}</div>
+        <div class="re-card-sub">现价 ${v.flip_dist >= 0 ? '高' : '低'} ${Math.abs(v.flip_dist).toFixed(1)}%</div></div>
+      <div class="re-card"><div class="re-corridor-label">Call Wall · 阻力</div><div class="re-corridor-value">${fmtNum(v.call_wall?.strike, 1)}</div>
+        <div class="re-card-sub">${v.call_wall ? '+' + fmtNum(v.call_wall.per_point_m, 1) + ' M / 点' : '—'}</div></div>
+      <div class="re-card"><div class="re-corridor-label">Put Wall · 支撑</div><div class="re-corridor-value">${fmtNum(v.put_wall?.strike, 1)}</div>
+        <div class="re-card-sub">${v.put_wall ? fmtNum(v.put_wall.per_point_m, 1) + ' M / 点' : '—'}</div></div>
+      <div class="re-card"><div class="re-corridor-label">25Δ Skew</div><div class="re-corridor-value">${v.skew == null ? '—' : fmtNum(v.skew)}</div>
+        <div class="re-card-sub">${v.skew_dte || '—'}D · P ${v.skew_put_iv ?? '—'}% / C ${v.skew_call_iv ?? '—'}%</div></div>
+    </div>
+    <p class="re-source" style="margin:10px 0 0">${ri.desc} 距 Gamma Flip ${Math.abs(v.flip_dist).toFixed(2)}%。P/C OI 比 ${fmtNum(v.pcr_oi)} · 成交量比 ${fmtNum(v.pcr_vol)}</p>`;
+  sec.innerHTML = html;
+  d.appendChild(sec);
+
+  // ── 图组：GEX 分布 / IV 期限结构 / OI Top20 ──
+  const graphs = document.createElement('div');
+  graphs.style.display = 'grid';
+  graphs.style.gridTemplateColumns = '1fr 1fr';
+  graphs.style.gap = '14px';
+  d.appendChild(graphs);
+
+  // GEX 分布
+  const gsec = document.createElement('div');
+  gsec.className = 're-section';
+  gsec.innerHTML = `<h2>${S} · GEX 按行权价分布</h2><p style="margin:0 0 8px">绿色 = call gamma × OI（dealer 净多，压制波动）；红色 = put gamma × OI（dealer 净空，放大波动）。蓝线 = 现价，白虚线 = Gamma Flip。</p><div class="chart" id="gex-chart" style="height:300px"></div>`;
+  graphs.appendChild(gsec);
+  R.mkChart('gex-chart', colors => {
+    const wall = (v.wall || []).filter(w => Math.abs(w.gex_m) > 0.5);
+    return {
+      tooltip: { trigger: 'axis' },
+      grid: { left: 44, right: 16, top: 20, bottom: 28 },
+      xAxis: { type: 'category', data: wall.map(w => w.strike), axisLine: { lineStyle: { color: colors.border } }, axisLabel: { color: colors.muted, fontSize: 10 } },
+      yAxis: { type: 'value', axisLabel: { color: colors.muted, fontSize: 11 }, splitLine: { lineStyle: { color: colors.grid } } },
+      series: [{
+        type: 'bar', data: wall.map(w => w.gex_m),
+        itemStyle: { color: p => p.data >= 0 ? '#26a69a' : '#ef5350' },
+        markLine: {
+          silent: true, symbol: 'none',
+          data: [
+            { xAxis: String(v.spot), lineStyle: { color: '#3b82f6', width: 2 }, label: { show: true, formatter: '现价', color: colors.muted, fontSize: 10 } },
+            ...(v.gamma_flip ? [{ xAxis: String(v.gamma_flip), lineStyle: { color: '#fff', type: 'dashed', width: 1.5 }, label: { show: true, formatter: 'Flip', color: colors.muted, fontSize: 10 } }] : []),
+          ],
+        },
+      }],
+    };
+  });
+
+  // 到期 Gamma 集中度
+  const bsec = document.createElement('div');
+  bsec.className = 're-section';
+  const buckets = v.buckets || {};
+  const bnames = { '0DTE': '0DTE · 当日', '本周': '本周 · 1-7d', '月度': '月度 · 8-35d', '季度+': '季度+ · >35d' };
+  bsec.innerHTML = '<h2>到期日 Gamma 集中度</h2>' + Object.entries(buckets).map(([k, b]) => `
+    <div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border-light)">
+      <span>${bnames[k] || k}</span>
+      <span><b>${b.gex_pct ?? '—'}%</b> · ${fmtNum(b.contracts, 0)} 合约</span>
+    </div>`).join('') + '<p class="re-source" style="margin:8px 0 0">GEX 分布较均衡，walls 在多个时间尺度上都有约束力。</p>';
+  graphs.appendChild(bsec);
+
+  // Vanna / Charm
+  const vsec = document.createElement('div');
+  vsec.className = 're-section';
+  vsec.innerHTML = `<h2>Vanna / Charm</h2>
+    <div class="re-cards" style="grid-template-columns:1fr 1fr">
+      <div class="re-card"><div class="re-corridor-label">Net Vanna (dealer)</div><div class="re-corridor-value">${v.net_vanna >= 0 ? '+' : ''}${fmtNum(v.net_vanna)}</div>
+        <div class="re-card-sub">${v.net_vanna >= 0 ? '正 Vanna（IV 下降助推上涨）' : '负 Vanna'}</div></div>
+      <div class="re-card"><div class="re-corridor-label">Total Charm</div><div class="re-corridor-value">${v.net_charm >= 0 ? '+' : ''}${fmtNum(v.net_charm)}</div>
+        <div class="re-card-sub">近 7 天到期贡献 ${v.charm_near7 ?? '—'}%</div></div>
+    </div>
+    <p class="re-source" style="margin:8px 0 0">Vanna ≈ −γ·S·√T·d1 × OI × 100；Charm ≈ γ·S/(2√T) × OI × 100，近到期放大。call 正向、put 翻号。</p>`;
+  graphs.appendChild(vsec);
+
+  // IV 期限结构
+  if (v.iv_curve && v.iv_curve.length) {
+    const isec = document.createElement('div');
+    isec.className = 're-section';
+    isec.innerHTML = `<h2>ATM IV 期限结构</h2>
+      <div style="display:flex;justify-content:space-between;padding:4px 0">
+        <span>Front (${v.iv_front?.dte || '—'}D) <b>${v.iv_front?.iv ?? '—'}%</b></span>
+        <span>Back (${v.iv_back?.dte || '—'}D) <b>${v.iv_back?.iv ?? '—'}%</b></span>
+      </div>
+      <p class="re-source" style="margin:4px 0 8px">斜率 ${v.iv_slope ?? '—'} pt ${v.iv_slope > 0 ? '（Contango · 正常风险定价）' : '（Backwardation）'}</p>
+      <div class="chart" id="iv-chart" style="height:220px"></div>`;
+    graphs.appendChild(isec);
+    R.mkChart('iv-chart', colors => ({
+      tooltip: { trigger: 'axis' },
+      grid: { left: 40, right: 16, top: 20, bottom: 28 },
+      xAxis: { type: 'category', data: v.iv_curve.map(x => (x.dte || '') + 'D'), axisLine: { lineStyle: { color: colors.border } }, axisLabel: { color: colors.muted, fontSize: 10 } },
+      yAxis: { type: 'value', axisLabel: { color: colors.muted, fontSize: 11 }, splitLine: { lineStyle: { color: colors.grid } } },
+      series: [{ type: 'line', data: v.iv_curve.map(x => x.iv), showSymbol: true, lineStyle: { width: 2, color: colors.blue } }],
+    }));
+  }
+
+  // OI Top20
+  if (v.oi_top && v.oi_top.length) {
+    const osec = document.createElement('div');
+    osec.className = 're-section';
+    osec.style.gridColumn = '1 / -1';
+    osec.innerHTML = '<h2>OI 集中度 Top 20 · (Strike × 到期)</h2><p style="margin:0">按总 OI (call + put) 排序，观察 dealer 关键 pin 位。</p>';
+    osec.appendChild(R.table(['Strike', '到期', 'Call OI', 'Put OI', '总 OI', 'Call Vol', 'Put Vol'], v.oi_top, {
+      call_oi: v2 => (Number(v2) / 1000).toFixed(1) + 'K',
+      put_oi: v2 => (Number(v2) / 1000).toFixed(1) + 'K',
+      total: v2 => (Number(v2) / 1000).toFixed(1) + 'K',
+      call_vol: v2 => (Number(v2) / 1000).toFixed(1) + 'K',
+      put_vol: v2 => (Number(v2) / 1000).toFixed(1) + 'K',
+    }));
+    d.appendChild(osec);
+  }
+}
+
+load().catch(e => R.fail(['board', 'detail'], e));
+</script>
+<script src="/js/nav.js"></script>
+</body>
+</html>

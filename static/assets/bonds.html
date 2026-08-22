@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>债券 — US Macro</title>
+<link rel="stylesheet" href="/css/app.css">
+<link rel="stylesheet" href="/css/special.css">
+<script src="/vendor/echarts.min.js"></script>
+</head>
+<body>
+<div class="re-root">
+  <div class="re-header">
+    <h1>债券</h1>
+    <span class="re-as-of" id="re-as-of"></span>
+  </div>
+
+  <div class="re-nav" id="re-nav"></div>
+
+  <div id="cards" class="re-cards"></div>
+  <div id="chart"></div>
+  <div id="recent"></div>
+  <div class="re-gen" id="re-gen"></div>
+</div>
+
+<script src="/js/rates-common.js"></script>
+<script>
+async function load() {
+  const d = await R.get('/api/assets/bonds');
+  const cards = (d.cards || []).map(i => ({
+    label: i.name,
+    value: fmt(i.last),
+    sub: `${chg(i.chg_pct)} · ${i.date}`,
+  }));
+  document.getElementById('cards').innerHTML = cards.map(c => `
+    <div class="re-card"><div class="re-corridor-label">${c.label}</div>
+    <div class="re-corridor-value">${c.value}</div><div class="re-card-sub">${c.sub}</div></div>`).join('');
+  if (d.cards && d.cards.length) document.getElementById('re-as-of').textContent = '数据截至 ' + d.cards[0].date;
+
+  // 20 日收盘图/表
+  const rc = d.recent || { dates: [], series: {} };
+  const names = ['20年+国债ETF', '7-10年国债ETF', '投资级债券ETF', '高收益债券ETF'];
+  const keys = Object.keys(rc.series);
+  const shortNames = { TLT: 'TLT', IEF: 'IEF', LQD: 'LQD', HYG: 'HYG' };
+  const csec = document.createElement('div');
+  csec.className = 're-section';
+  csec.innerHTML = '<h2>近期收盘价（最近 20 个交易日）</h2><div class="chart" id="bond-chart" style="height:280px"></div>';
+  document.getElementById('chart').appendChild(csec);
+  R.mkChart('bond-chart', colors => ({
+    tooltip: { trigger: 'axis' },
+    legend: { data: keys, textStyle: { color: colors.text }, top: 0 },
+    grid: { left: 44, right: 16, top: 28, bottom: 28 },
+    xAxis: { type: 'category', data: rc.dates, axisLine: { lineStyle: { color: colors.border } }, axisLabel: { color: colors.muted, fontSize: 10 } },
+    yAxis: { type: 'value', scale: true, axisLabel: { color: colors.muted, fontSize: 11 }, splitLine: { lineStyle: { color: colors.grid } } },
+    series: keys.map((k, i) => ({
+      name: k, type: 'line', data: rc.series[k], showSymbol: false, smooth: true,
+      lineStyle: { width: 2, color: [colors.blue, colors.orange, colors.green, colors.red][i % 4] },
+    })),
+  }));
+
+  const rows = rc.dates.map((dt, i) => {
+    const row = { 日期: dt };
+    keys.forEach(k => { row[k] = rc.series[k][i]; });
+    return row;
+  });
+  const rsec = document.createElement('div');
+  rsec.className = 're-section';
+  rsec.innerHTML = '<h2>收盘价明细</h2>';
+  rsec.appendChild(R.table(['日期'].concat(keys), rows, {}));
+  document.getElementById('recent').appendChild(rsec);
+
+  document.getElementById('re-gen').textContent = '数据源：Yahoo Finance 日频快照 · 口径为收盘价';
+}
+
+function fmt(v) { return v == null ? '—' : Number(v).toLocaleString(undefined, { maximumFractionDigits: 2 }); }
+function chg(v) { return v == null ? '—' : `<span style="color:${v >= 0 ? '#26a69a' : '#ef5350'}">${v >= 0 ? '▲ +' : '▼ '}${Number(v).toFixed(2)}%</span>`; }
+
+load().catch(e => R.fail(['cards', 'chart', 'recent'], e));
+</script>
+<script src="/js/nav.js"></script>
+</body>
+</html>

@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+# ETF 数据（全量清单 + 精选池日线，timsun /assets/etfs 面板数据源）
+set -euo pipefail
+cd "$(dirname "$0")/.."
+uv run python -m src.fetchers.etf_fetcher "$@"

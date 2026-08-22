@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+# 加密衍生品快照（OKX 永续 + Deribit 期权 + CME 基差，timsun /assets/crypto/derivatives）
+set -euo pipefail
+cd "$(dirname "$0")/.."
+uv run python -m src.fetchers.crypto_derivatives_fetcher "$@"

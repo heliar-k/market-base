@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>持仓追踪（CFTC COT） — US Macro</title>
+<link rel="stylesheet" href="/css/app.css">
+<link rel="stylesheet" href="/css/special.css">
+</head>
+<body>
+<div class="re-root">
+  <div class="re-header">
+    <h1>持仓追踪</h1>
+    <span class="re-as-of" id="re-as-of"></span>
+  </div>
+
+  <div class="re-nav" id="re-nav"></div>
+
+  <div id="overview"></div>
+  <div id="groups"></div>
+  <div class="re-gen" id="re-gen"></div>
+</div>
+
+<script src="/js/rates-common.js"></script>
+<script>
+async function load() {
+  const d = await R.get('/api/assets/positioning');
+  if (!d.latest_report) { R.fail(['overview', 'groups'], new Error('COT 数据不足')); return; }
+  document.getElementById('re-as-of').textContent = '最新报告日 ' + d.latest_report + ' · 投机方：股指/利率/外汇 = 对冲基金（Leveraged Money），商品 = 管理资金（Managed Money）';
+
+  // ── 拥挤度 ──
+  const o = document.createElement('div');
+  o.className = 're-section';
+  o.innerHTML = '<h2>Positioning Readthrough</h2>';
+  if (d.crowding != null) {
+    const label = d.crowding >= 60 ? '仓位偏拥挤' : (d.crowding >= 40 ? '仓位中性' : '仓位分散');
+    const color = d.crowding >= 60 ? '#ef5350' : '#26a69a';
+    o.innerHTML += `
+      <div class="re-badges" style="margin-bottom:8px">
+        <span class="re-badge" style="background:${color}22;color:${color}">${label}</span>
+        <span class="re-spread">拥挤度 ${d.crowding.toFixed(1)}/100</span>
+      </div>
+      <p style="margin:0">当前 CFTC 投机仓位整体为「${label}」。百分位越靠近 0 或 100，越说明仓位拥挤；拥挤不是反转信号，但会放大数据反向时的波动。</p>`;
+  }
+  document.getElementById('overview').appendChild(o);
+
+  // ── 分组合约 ──
+  const gnames = { index_vol: '股指 / 波动率', rates: '利率 / 美债', fx: '外汇', commodities: '商品' };
+  const gtips = {
+    index_vol: '股指仓位主要看风险偏好是否拥挤。',
+    rates: '美债仓位主要看市场是在押注利率下行，还是继续押注收益率上行。',
+    fx: '外汇仓位看美元与非美货币的拥挤方向。',
+    commodities: '商品仓位看管理资金对通胀与增长的定价。',
+  };
+  const wrap = document.getElementById('groups');
+  d.groups.forEach(g => {
+    const sec = document.createElement('div');
+    sec.className = 're-section';
+    sec.style.marginBottom = '12px';
+    sec.innerHTML = `<h2>${gnames[g.name] || g.name} · ${g.contracts.length} 合约</h2>
+      <p style="margin:0 0 8px">${gtips[g.name] || ''} ${g.summary || ''}</p>`;
+    sec.appendChild(R.table(['合约', '2y 百分位', '判读', '净持仓', '多 / 空', '周环比'], g.contracts.map(c => ({
+      symbol: c.symbol, pct: c.pct_2y, label: c.label, net: c.net, ls: `${Math.round(c.long).toLocaleString()} / ${Math.round(c.short).toLocaleString()}`, week: c.week_chg, _dir: c.week_dir,
+    })), {
+      symbol: v => `<b>${v}</b>`,
+      pct: v => `${v.toFixed(1)}`,
+      label: v => {
+        const color = v.includes('极度') ? (v.includes('多') ? '#ef5350' : '#26a69a') : '#9ca3af';
+        return `<span style="color:${color}">${v}</span>`;
+      },
+      net: v => Number(v).toLocaleString(),
+      week: (v, row) => `${row._dir == '增仓' ? '▲ +' : (row._dir == '减仓' ? '▼ ' : '—')}${Math.abs(Number(v)).toLocaleString()}`,
+    }, ['symbol', 'pct', 'label', 'net', 'ls', 'week'], true));
+    wrap.appendChild(sec);
+  });
+  document.getElementById('re-gen').textContent = '口径：CFTC COT · 净多头百分位 ≥90 极度看多 / ≥75 偏多；≤10 极度看空 / ≤25 偏空；其余中性。2 年窗口期。';
+}
+
+load().catch(e => R.fail(['overview', 'groups'], e));
+</script>
+<script src="/js/nav.js"></script>
+</body>
+</html>

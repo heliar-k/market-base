@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>加密货币 — US Macro</title>
+<link rel="stylesheet" href="/css/app.css">
+<link rel="stylesheet" href="/css/special.css">
+<script src="/vendor/echarts.min.js"></script>
+</head>
+<body>
+<div class="re-root">
+  <div class="re-header">
+    <h1>加密货币</h1>
+    <span class="re-as-of" id="re-as-of"></span>
+  </div>
+
+  <div class="re-nav" id="re-nav"></div>
+
+  <div id="cards" class="re-cards"></div>
+  <div id="liquidity"></div>
+  <div id="chart"></div>
+  <div id="recent"></div>
+  <div class="re-gen" id="re-gen"></div>
+</div>
+
+<script src="/js/rates-common.js"></script>
+<script>
+async function load() {
+  const d = await R.get('/api/assets/crypto');
+  const cards = (d.cards || []).map(i => ({
+    label: i.name,
+    value: fmt(i.last),
+    sub: `${chg(i.chg_pct)} · ${i.date}`,
+  }));
+  document.getElementById('cards').innerHTML = cards.map(c => `
+    <div class="re-card"><div class="re-corridor-label">${c.label}</div>
+    <div class="re-corridor-value">${c.value}</div><div class="re-card-sub">${c.sub}</div></div>`).join('');
+  if (d.cards && d.cards.length) document.getElementById('re-as-of').textContent = '数据截至 ' + d.cards[0].date;
+
+  // ── 宏观 × 加密流动性溢出 ──
+  const L = d.liquidity || {};
+  const lsec = document.createElement('div');
+  lsec.className = 're-section';
+  lsec.innerHTML = '<h2>宏观 × 加密流动性溢出</h2><p style="margin:0 0 8px">Net Liquidity = Fed − TGA − RRP</p>';
+  if (L.net != null) {
+    const pulseColor = L.pulse_state === '扩张' ? '#26a69a' : '#ef5350';
+    lsec.innerHTML += `
+      <div class="re-cards" style="grid-template-columns:repeat(auto-fit,minmax(150px,1fr))">
+        <div class="re-card"><div class="re-corridor-label">净流动性</div><div class="re-corridor-value">$${fmt(L.net)}T</div>
+          <div class="re-card-sub">Fed ${fmt(L.fed)}T − TGA ${fmt(L.tga)}B − RRP ${fmt(L.rrp)}B</div></div>
+        <div class="re-card"><div class="re-corridor-label">20 日脉冲</div><div class="re-corridor-value" style="color:${pulseColor}">${L.pulse_20d == null ? '—' : fmt(L.pulse_20d)}</div>
+          <div class="re-card-sub">● ${L.pulse_state || '—'}</div></div>
+        <div class="re-card"><div class="re-corridor-label">BTC 流动性 Beta</div><div class="re-corridor-value">${L.beta ?? '—'}</div>
+          <div class="re-card-sub">SPX β 0.15 · R² ${L.r2 ?? '—'} · 90日</div></div>
+      </div>`;
+    if (L.divergence) {
+      const dv = L.divergence;
+      const warn = dv.nl < 0 && dv.btc > 0;
+      lsec.innerHTML += `
+        <div style="margin-top:12px;padding:10px 14px;border:1px solid ${warn ? 'var(--border-accent)' : 'var(--border)'};border-radius:8px">
+          <b style="font-size:13px">${warn ? '⚠ 背离监控' : '背离监控'} — ${warn ? '净流动性在收缩而 BTC 却在涨，注意回撤风险' : '净流动性与 BTC 同向'}</b>
+          <p style="margin:6px 0 0;font-size:12px">NL ${fmt(dv.nl)}T · BTC ${dv.btc >= 0 ? '+' : ''}${fmt(dv.btc)}% · 30日</p>
+        </div>`;
+    }
+  }
+  document.getElementById('liquidity').appendChild(lsec);
+
+  // ── 净流动性 vs BTC ──
+  if (L.nl_series && L.nl_series.length) {
+    const csec = document.createElement('div');
+    csec.className = 're-section';
+    csec.innerHTML = '<h2>净流动性 vs BTC（180 日）</h2><div class="chart" id="liq-chart" style="height:300px"></div>';
+    document.getElementById('chart').appendChild(csec);
+    R.mkChart('liq-chart', colors => ({
+      tooltip: { trigger: 'axis' },
+      legend: { data: ['净流动性 (T)', 'BTC (右轴)'], textStyle: { color: colors.text }, top: 0 },
+      grid: { left: 44, right: 60, top: 28, bottom: 28 },
+      xAxis: { type: 'category', data: L.nl_dates, axisLine: { lineStyle: { color: colors.border } }, axisLabel: { color: colors.muted, fontSize: 10 } },
+      yAxis: [
+        { type: 'value', axisLabel: { color: colors.muted, fontSize: 11 }, splitLine: { lineStyle: { color: colors.grid } } },
+        { type: 'value', scale: true, axisLabel: { color: colors.muted, fontSize: 11 }, splitLine: { show: false } },
+      ],
+      series: [
+        { name: '净流动性 (T)', type: 'line', data: L.nl_series, showSymbol: false, smooth: true, lineStyle: { width: 2, color: colors.blue }, areaStyle: { opacity: 0.08 } },
+        { name: 'BTC (右轴)', type: 'line', yAxisIndex: 1, data: L.btc_series, showSymbol: false, smooth: true, lineStyle: { width: 2, color: colors.orange, type: 'dashed' } },
+      ],
+    }));
+  }
+
+  // 20 日表
+  const rc = d.recent || { dates: [], series: {} };
+  const keys = Object.keys(rc.series);
+  const rows = rc.dates.map((dt, i) => {
+    const row = { 日期: dt };
+    keys.forEach(k => { row[k] = rc.series[k][i]; });
+    return row;
+  });
+  const rsec = document.createElement('div');
+  rsec.className = 're-section';
+  rsec.innerHTML = '<h2>近期收盘价（最近 20 个交易日）</h2>';
+  rsec.appendChild(R.table(['日期'].concat(keys), rows, {}));
+  document.getElementById('recent').appendChild(rsec);
+
+  document.getElementById('re-gen').textContent = '规则引擎生成（LLM 预留）· 流动性口径：WALCL − TGA − RRP；BTC 90 日收益率对净流动性变化回归';
+}
+function fmt(v) { return v == null ? '—' : Number(v).toLocaleString(undefined, { maximumFractionDigits: 2 }); }
+function chg(v) { return v == null ? '—' : `<span style="color:${v >= 0 ? '#26a69a' : '#ef5350'}">${v >= 0 ? '▲ +' : '▼ '}${Number(v).toFixed(2)}%</span>`; }
+
+load().catch(e => R.fail(['cards', 'liquidity', 'chart', 'recent'], e));
+</script>
+<script src="/js/nav.js"></script>
+</body>
+</html>

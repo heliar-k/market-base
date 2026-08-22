@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+# 外汇对日线（16 对，timsun /assets/fx 面板数据源）
+set -euo pipefail
+cd "$(dirname "$0")/.."
+uv run python -m src.fetchers.fx_fetcher "$@"

@@ -408,6 +408,123 @@ YF_TICKERS = {
 }
 
 
+# ── 外汇对（timsun /assets/fx 面板；独立管线 data/fx/fx_pairs.csv）──
+# key: (yf_ticker, 中文名, 分组)；USD pressure = 该对涨跌统一换算成“美元强弱”
+FX_PAIRS: dict[str, tuple[str, str, str]] = {
+    "DXY": ("DX-Y.NYB", "美元指数", "美元锚"),
+    "EURUSD": ("EURUSD=X", "欧元/美元", "G10"),
+    "GBPUSD": ("GBPUSD=X", "英镑/美元", "G10"),
+    "USDJPY": ("JPY=X", "美元/日元", "G10"),
+    "USDCHF": ("CHF=X", "美元/瑞郎", "G10"),
+    "AUDUSD": ("AUDUSD=X", "澳元/美元", "商品货币"),
+    "NZDUSD": ("NZDUSD=X", "纽元/美元", "商品货币"),
+    "USDCAD": ("CAD=X", "美元/加元", "商品货币"),
+    "USDCNH": ("CNH=X", "美元/离岸人民币", "亚洲/EM"),
+    "USDHKD": ("HKD=X", "美元/港币", "亚洲/EM"),
+    "USDKRW": ("KRW=X", "美元/韩元", "亚洲/EM"),
+    "USDINR": ("INR=X", "美元/卢比", "亚洲/EM"),
+    "USDMXN": ("MXN=X", "美元/墨西哥比索", "高贝塔EM"),
+    "USDBRL": ("BRL=X", "美元/雷亚尔", "高贝塔EM"),
+    "USDZAR": ("ZAR=X", "美元/兰特", "高贝塔EM"),
+    "EURJPY": ("EURJPY=X", "欧元/日元", "交叉盘"),
+}
+
+# ── ETF 精选池（timsun /assets/etfs 研究池 25 只；独立管线 data/etf/）──
+# ticker → (中文名, 分类)；分类与 timsun ETF 页筛选器一致
+ETF_POOL: dict[str, tuple[str, str]] = {
+    "SMH": ("半导体核心", "ai_semis"),
+    "SOXX": ("半导体核心", "ai_semis"),
+    "PSI": ("动量半导体", "ai_semis"),
+    "XSD": ("等权半导体", "ai_semis"),
+    "IGV": ("软件", "ai_software"),
+    "SKYY": ("云计算", "ai_software"),
+    "SPY": ("宽基美股", "broad"),
+    "QQQ": ("纳斯达克100", "broad"),
+    "IWM": ("小盘股", "broad"),
+    "LQD": ("投资级信用", "bond"),
+    "HYG": ("高收益信用", "bond"),
+    "TLT": ("长债", "bond"),
+    "GLD": ("黄金", "commodity"),
+    "SLV": ("白银", "commodity"),
+    "USO": ("原油", "commodity"),
+    "EEM": ("新兴市场", "global"),
+    "FXI": ("中国大盘", "global"),
+    "KWEB": ("中国互联网", "global"),
+    "CQQQ": ("中国科技", "global"),
+    "EWT": ("台湾科技链", "global"),
+    "AIQ": ("AI 主题", "theme"),
+    "BOTZ": ("机器人/AI", "theme"),
+    "ROBO": ("机器人自动化", "theme"),
+    "ARKW": ("互联网主题", "theme"),
+    "ARKK": ("高 beta 主题", "high_beta"),
+}
+
+# ETF 全量清单名称关键词 → 分类（Nasdaq Trader 清单 + 规则分类，timsun 口径简化版）
+ETF_KEYWORDS: dict[str, list[str]] = {
+    "bond": [
+        "bond",
+        "treasury",
+        "municipal",
+        "corp",
+        "credit",
+        "float",
+        "investment grade",
+        "high yield",
+        "agg",
+    ],
+    "commodity": [
+        "gold",
+        "silver",
+        "oil",
+        "energy",
+        "commodity",
+        "copper",
+        "miners",
+        "natural gas",
+        "precious",
+        "uranium",
+        "agriculture",
+    ],
+    "crypto": ["bitcoin", "ethereum", "crypto", "blockchain", "bito"],
+    "currency": ["currency", "dollar", "euro", "yen", "fx", "futures"],
+    "factor_income": [
+        "dividend",
+        "income",
+        "value",
+        "momentum",
+        "quality",
+        "low volatility",
+        "equal weight",
+    ],
+    "global": [
+        "international",
+        "emerging",
+        "china",
+        "europe",
+        "asia",
+        "india",
+        "japan",
+        "developed",
+        "ex-us",
+        "world",
+    ],
+    "leveraged_inverse": ["2x", "3x", "inverse", "ultrashort", "ultrapro"],
+    "high_beta": ["growth", "innovation", "disrupt"],
+    "theme": [
+        "ai",
+        "semiconductor",
+        "cyber",
+        "clean",
+        "water",
+        "biotech",
+        "robotics",
+        "cloud",
+        "space",
+    ],
+    "broad": [],
+}
+
+
 # ═══════════════════════════════════════════════════════════════════════════════
 # 配置结构
 # ═══════════════════════════════════════════════════════════════════════════════

@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+# 期权结构快照（13 标的 GEX/DEX/Vanna/Charm，yfinance 降级源）
+set -euo pipefail
+cd "$(dirname "$0")/.."
+uv run python -m src.options_structure "$@"

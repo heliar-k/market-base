@@ -17,6 +17,8 @@ from src.config import ROOT
 logger = logging.getLogger(__name__)
 
 # 矩阵标的（timsun 面板同款）：美股/债券/商品/加密/美元
+# ETH/NG/EURUSD 为 2026-08 扩展（timsun /assets 主页表格内资产），
+# 新增列在 asset_prices.csv 中已存在（YF_TICKERS 同款）
 TICKERS = [
     "SPX",
     "NDX",
@@ -30,7 +32,10 @@ TICKERS = [
     "WTI",
     "Copper",
     "BTC",
+    "ETH",
+    "NG",
     "DXY",
+    "EURUSD",
 ]
 # 报警对：(i, j, 列名)
 ALERTS = [("SPX", "TLT", "SPX_TLT_30d"), ("WTI", "SPX", "WTI_SPX_30d")]
@@ -63,10 +68,26 @@ def main() -> None:
     path = ROOT / "data" / "yfinance" / "asset_prices.csv"
     prices = pd.read_csv(path, index_col="date", parse_dates=True)
     prices = prices[[c for c in prices.columns if not c.endswith("_volume")]]
-    # 周末行部分标的无值（BTC/外汇 7×24 有、股票/债券无）→ 相关性按交易日算，
-    # 只保留 13 个矩阵标的全有值的行（dropna 前先删掉 8 个新增列的全 NaN 历史段）
-    matrix_cols = [c for c in TICKERS if c in prices.columns]
-    prices = prices.dropna(subset=matrix_cols)
+    # 周末行部分标的无值（BTC/外汇 7×24 有、股票/债券无）→ 相关性按交易日算。
+    # 行过滤只看核心 13 标的（扩展列 ETH/NG/EURUSD 历史段可能为 NaN，拖累全部行）；
+    # 扩展列与核心列的相关性由 rolling corr 按两两有效对计算（dropna 不适用于扩展列）。
+    CORE = [
+        "SPX",
+        "NDX",
+        "RUT",
+        "DJI",
+        "TLT",
+        "HYG",
+        "LQD",
+        "Gold",
+        "Silver",
+        "WTI",
+        "Copper",
+        "BTC",
+        "DXY",
+    ]
+    core_cols = [c for c in CORE if c in prices.columns]
+    prices = prices.dropna(subset=core_cols)
     if len(prices) < WINDOW + 1:
         logger.warning(f"资产快照仅 {len(prices)} 行，不足 {WINDOW + 1} 行，跳过")
         return

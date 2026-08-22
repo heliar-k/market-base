@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>大宗商品 — US Macro</title>
+<link rel="stylesheet" href="/css/app.css">
+<link rel="stylesheet" href="/css/special.css">
+<script src="/vendor/echarts.min.js"></script>
+</head>
+<body>
+<div class="re-root">
+  <div class="re-header">
+    <h1>大宗商品</h1>
+    <span class="re-as-of" id="re-as-of"></span>
+  </div>
+
+  <div class="re-nav" id="re-nav"></div>
+
+  <div id="cards" class="re-cards"></div>
+  <div id="asset-compare"></div>
+  <div id="chart"></div>
+  <div id="recent"></div>
+  <div class="re-gen" id="re-gen"></div>
+</div>
+
+<script src="/js/rates-common.js"></script>
+<script>
+const GROUP_TITLES = { equities: '美股', bonds: '债券', commodities: '商品', etfs: 'ETF', fx: '外汇', crypto: '加密货币' };
+
+async function load() {
+  const [d, ov] = await Promise.all([R.get('/api/assets/commodities'), R.get('/api/assets/overview')]);
+  const cards = (d.cards || []).map(i => ({
+    label: i.name + ' · ' + i.symbol,
+    value: fmt(i.last),
+    sub: `${chg(i.chg_pct)} · ${i.date}`,
+  }));
+  document.getElementById('cards').innerHTML = cards.map(c => `
+    <div class="re-card"><div class="re-corridor-label">${c.label}</div>
+    <div class="re-corridor-value">${c.value}</div><div class="re-card-sub">${c.sub}</div></div>`).join('');
+  if (d.cards && d.cards.length) document.getElementById('re-as-of').textContent = '数据截至 ' + d.cards[0].date;
+
+  // ── 大类资产价格同屏（全部 6 组）──
+  const wrap = document.createElement('div');
+  wrap.className = 're-section';
+  wrap.innerHTML = '<h2>大类资产价格</h2><p style="margin:0 0 10px">同屏查看权益、债券、商品、外汇、加密的最新价格与日涨跌。</p>';
+  const grid = document.createElement('div');
+  grid.style.display = 'grid';
+  grid.style.gridTemplateColumns = 'repeat(auto-fit, minmax(320px, 1fr))';
+  grid.style.gap = '12px';
+  Object.entries(ov.tables || {}).forEach(([g, rows]) => {
+    const sec = document.createElement('div');
+    sec.innerHTML = `<h3 style="font-size:13px;font-weight:700;margin:0 0 6px">${GROUP_TITLES[g] || g}</h3>`;
+    sec.appendChild(R.table(['代码', '名称', '最新价', '日涨跌幅'], (rows || []).map(r => ({
+      code: r.symbol, name: r.name, last: r.last, chg: r.chg_pct,
+    })), {
+      last: v => Number(v).toLocaleString(undefined, { maximumFractionDigits: 2 }),
+      chg: v => v == null ? '—' : `<span style="color:${v >= 0 ? '#26a69a' : '#ef5350'}">${v >= 0 ? '▲ +' : '▼ '}${Number(v).toFixed(2)}%</span>`,
+    }, ['code', 'name', 'last', 'chg'], true));
+    grid.appendChild(sec);
+  });
+  wrap.appendChild(grid);
+  document.getElementById('asset-compare').appendChild(wrap);
+
+  // 归一化走势（1 年）
+  const n = d.normalized || { dates: [], series: {} };
+  const keys = Object.keys(n.series);
+  const csec = document.createElement('div');
+  csec.className = 're-section';
+  csec.innerHTML = '<h2>商品走势（归一化 %）· 近 1 年</h2><div class="chart" id="com-chart" style="height:300px"></div>';
+  document.getElementById('chart').appendChild(csec);
+  R.mkChart('com-chart', colors => ({
+    tooltip: { trigger: 'axis' },
+    legend: { data: keys, textStyle: { color: colors.text }, top: 0 },
+    grid: { left: 44, right: 16, top: 28, bottom: 40 },
+    xAxis: { type: 'category', data: n.dates, axisLine: { lineStyle: { color: colors.border } }, axisLabel: { color: colors.muted, fontSize: 10 } },
+    yAxis: { type: 'value', axisLabel: { color: colors.muted, fontSize: 11 }, splitLine: { lineStyle: { color: colors.grid } } },
+    series: keys.map((k, i) => ({
+      name: k, type: 'line', data: n.series[k], showSymbol: false, smooth: true,
+      lineStyle: { width: 2, color: [colors.blue, colors.orange, colors.green, colors.red, colors.purple][i % 5] },
+    })),
+  }));
+
+  // 20 日表
+  const rc = d.recent || { dates: [], series: {} };
+  const rows = rc.dates.map((dt, i) => {
+    const row = { 日期: dt };
+    keys2(rc).forEach(k => { row[k] = rc.series[k][i]; });
+    return row;
+  });
+  const rsec = document.createElement('div');
+  rsec.className = 're-section';
+  rsec.innerHTML = '<h2>商品近期收盘价 · 最近 20 个交易日</h2>';
+  rsec.appendChild(R.table(['日期'].concat(keys2(rc)), rows, { 日期: v => v }));
+  document.getElementById('recent').appendChild(rsec);
+
+  document.getElementById('re-gen').textContent = '数据源：Yahoo Finance 日频快照 · 归一化起点 = 1 年前收盘';
+}
+function keys2(rc) { return Object.keys(rc.series || {}); }
+function fmt(v) { return v == null ? '—' : Number(v).toLocaleString(undefined, { maximumFractionDigits: 4 }); }
+function chg(v) { return v == null ? '—' : `<span style="color:${v >= 0 ? '#26a69a' : '#ef5350'}">${v >= 0 ? '▲ +' : '▼ '}${Number(v).toFixed(2)}%</span>`; }
+
+load().catch(e => R.fail(['cards', 'asset-compare', 'chart', 'recent'], e));
+</script>
+<script src="/js/nav.js"></script>
+</body>
+</html>

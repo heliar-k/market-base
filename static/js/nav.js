@@ -7,9 +7,11 @@
     '/rates/': [['概览', 'index.html']],
     '/volatility/': [['概览', 'index.html']],
     '/liquidity/': [['概览', 'index.html']],
+    '/assets/': [['概览', 'index.html']],
   };
   // 专题间 Tab（总入口）
   var TABS = [
+    ['大类资产', '/assets/'],
     ['利率', '/rates/'],
     ['通胀', '/inflation/'],
     ['就业', '/labor/'],

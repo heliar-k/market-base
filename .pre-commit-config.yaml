@@ -8,6 +8,9 @@ repos:
       - id: check-json
       - id: pretty-format-json
         args: [--autofix, --no-sort-keys]
+        # 程序消费的快照 JSON：compact 单行即可，pretty 展开会让 git diff 不可读
+        #（end-of-file-fixer 仍会保证尾部换行）— 单行正则，块标量会带 \n 无法匹配
+        exclude: '^data/(options_structure|crypto_derivatives)/'
       - id: check-added-large-files
         args: [--maxkb=10240]  # 分钟线 CSV 单品种可达数 MB，放宽到 10MB
       - id: check-ast

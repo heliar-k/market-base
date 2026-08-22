@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>加密衍生品市场 — US Macro</title>
+<link rel="stylesheet" href="/css/app.css">
+<link rel="stylesheet" href="/css/special.css">
+</head>
+<body>
+<div class="re-root">
+  <div class="re-header">
+    <h1>加密衍生品市场</h1>
+    <span class="re-as-of" id="as-of"></span>
+  </div>
+
+  <div class="re-nav" id="re-nav"></div>
+
+  <div id="stale"></div>
+  <div id="radar"></div>
+  <div id="kpi"></div>
+  <div id="options"></div>
+  <div class="re-gen" id="re-gen"></div>
+</div>
+
+<script src="/js/rates-common.js"></script>
+<script>
+function fmt(v, d = 2) { return v == null ? '—' : Number(v).toLocaleString(undefined, { maximumFractionDigits: d }); }
+
+async function load() {
+  const d = await R.get('/api/assets/crypto-derivatives');
+  if (!d || !d.ts) { R.fail(['radar', 'kpi', 'options'], new Error('无快照')); return; }
+
+  // 数据时效
+  const ts = new Date(d.ts);
+  const ageH = (Date.now() - ts.getTime()) / 3600e3;
+  document.getElementById('as-of').textContent = '快照 ' + d.ts.slice(0, 16).replace('T', ' ') + ' UTC';
+  const stale = document.getElementById('stale');
+  stale.innerHTML = `<div class="re-explain">📡 数据时效：衍生品 KPI ${ageH.toFixed(1)}h${ageH > 24 ? ' <b style="color:var(--warning)">⚠ STALE</b>' : ''} · 每日 cron 自动刷新 · 日频按美股交易日，小时级按 24/72h</div>`;
+
+  // ── 前瞻雷达（后端规则引擎 crypto_radar，7 信号权重）──
+  const radar = d.radar || { total: null, verdict: '数据不足', confidence: 0, structure: '—', signals: [] };
+  const rsec = document.createElement('div');
+  rsec.className = 're-section';
+  const rcolor = radar.verdict === '偏多' ? '#26a69a' : (radar.verdict === '偏空' ? '#ef5350' : '#9ca3af');
+  rsec.innerHTML = `
+    <h2>BTC FORWARD RADAR</h2>
+    <p style="margin:0 0 8px">把 ETF、CME、基差、永续杠杆和期权信号压缩为 0-24h / 1-7d 判断。</p>
+    <div class="re-cards" style="grid-template-columns:repeat(auto-fit,minmax(140px,1fr))">
+      <div class="re-card"><div class="re-corridor-label">综合分</div><div class="re-corridor-value" style="color:${rcolor}">${radar.total == null ? '—' : (radar.total >= 0 ? '+' : '') + radar.total}</div></div>
+      <div class="re-card"><div class="re-corridor-label">置信度</div><div class="re-corridor-value">${radar.confidence}/100</div></div>
+      <div class="re-card"><div class="re-corridor-label">24h 偏向</div><div class="re-corridor-value" style="color:${rcolor};font-size:15px">${radar.verdict}</div></div>
+      <div class="re-card"><div class="re-corridor-label">3-7 日结构</div><div class="re-corridor-value" style="font-size:15px">${radar.structure}</div></div>
+    </div>
+    <p class="re-source" style="margin:10px 0 6px">信号权重（缺失信号不纳入评分）：</p>`;
+  rsec.appendChild(R.table(['信号', '权重', '方向', '描述'], radar.signals, {
+    weight: v => v,
+    方向: (v, row) => row.dir === 1 ? '<span style="color:#26a69a">+</span>' : (row.dir === -1 ? '<span style="color:#ef5350">−</span>' : '0'),
+  }, ['name', 'weight', 'dir', 'desc'], true));
+  rsec.insertAdjacentHTML('beforeend', `
+    <div class="re-badges" style="margin-top:10px">
+      <span class="re-badge flat">触发条件 · 资金费率年化 &gt;15% 或基差 &gt;0.3% 且 PCR &lt;0.7</span>
+    </div>
+    <p class="re-source" style="margin:8px 0 0">反证条件：基差转负 &gt;0.3% 或 Call Wall 上移后跌破。</p>`);
+  document.getElementById('radar').appendChild(rsec);
+
+  // ── KPI 卡 ──
+  const p = d.perp || {};
+  const ksec = document.createElement('div');
+  ksec.className = 're-section';
+  ksec.innerHTML = '<h2>衍生品 KPI（OKX 永续）</h2>';
+  ksec.appendChild(R.table(['品种', '永续现价', '资金费率 (8h)', '年化', 'OI (USD)', 'OI (币)'], ['BTC', 'ETH'].map(ccy => {
+    const x = p[ccy] || {};
+    return { ccy, last: x.last, fr: x.funding_rate, ann: x.funding_annual, oi: x.oi_usd, oic: x.oi_ccy };
+  }), {
+    last: v => fmt(v, 0),
+    fr: v => v == null ? '—' : (v * 100).toFixed(4) + '%',
+    ann: v => v == null ? '—' : (v * 100).toFixed(1) + '%',
+    oi: v => v == null ? '—' : '$' + (v / 1e9).toFixed(2) + 'B',
+    oic: v => v == null ? '—' : fmt(v, 0),
+  }, ['ccy', 'last', 'fr', 'ann', 'oi', 'oic']));
+  document.getElementById('kpi').appendChild(ksec);
+
+  // ── 期权墙（Deribit）──
+  const osec = document.createElement('div');
+  osec.className = 're-section';
+  osec.innerHTML = '<h2>期权结构（Deribit）</h2>';
+  const rows = (d.options_BTC ? [['BTC', d.options_BTC]] : []).concat(d.options_ETH ? [['ETH', d.options_ETH]] : []);
+  osec.appendChild(R.table(['币种', '现货锚', 'Call Wall', 'Put Wall', 'PCR (OI)', 'Max Pain', '总 OI'], rows.map(([ccy, o]) => ({
+    ccy, spot: o.spot_anchor, cw: o.call_wall, pw: o.put_wall, pcr: o.pcr, pain: o.max_pain, oi: o.total_oi,
+  })), { spot: v => '$' + fmt(v, 0), cw: v => '$' + fmt(v, 0), pw: v => '$' + fmt(v, 0), pain: v => '$' + fmt(v, 0), oi: v => fmt(v, 0) }, ['ccy', 'spot', 'cw', 'pw', 'pcr', 'pain', 'oi']));
+  osec.insertAdjacentHTML('beforeend', `<p class="re-source" style="margin:8px 0 0">CME 基差：${d.cme ? d.cme.basis_pct.toFixed(2) + '%（' + '$' + fmt(d.cme.fut_price, 0) + ' vs $' + fmt(d.cme.spot, 0) + '）' : '—'}</p>`);
+  document.getElementById('options').appendChild(osec);
+
+  document.getElementById('re-gen').textContent = '规则引擎生成（LLM 预留）· 数据源：OKX API / Deribit API / Yahoo Finance CME / CFTC';
+}
+
+load().catch(e => R.fail(['radar', 'kpi', 'options'], e));
+</script>
+<script src="/js/nav.js"></script>
+</body>
+</html>

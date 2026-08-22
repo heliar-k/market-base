@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>美股 — US Macro</title>
+<link rel="stylesheet" href="/css/app.css">
+<link rel="stylesheet" href="/css/special.css">
+<script src="/vendor/echarts.min.js"></script>
+</head>
+<body>
+<div class="re-root">
+  <div class="re-header">
+    <h1>美股</h1>
+    <span class="re-as-of" id="re-as-of"></span>
+  </div>
+
+  <div class="re-nav" id="re-nav"></div>
+
+  <div id="indices" class="re-cards"></div>
+  <div id="breadth"></div>
+  <div id="abv-chart"></div>
+  <div id="analysis"></div>
+  <div class="re-gen" id="re-gen"></div>
+</div>
+
+<script src="/js/rates-common.js"></script>
+<script>
+async function load() {
+  const d = await R.get('/api/assets/equities');
+  const idx = d.indices || [];
+
+  // ── 指数卡片 ──
+  const cards = idx.map(i => ({
+    label: i.name,
+    value: Number(i.last).toLocaleString(undefined, { maximumFractionDigits: 2 }),
+    sub: `${i.chg_pct === null || i.chg_pct === undefined ? '—' : (i.chg_pct >= 0 ? '▲ +' : '▼ ') + Number(i.chg_pct).toFixed(2) + '%'} · ${i.date}`,
+  }));
+  document.getElementById('indices').innerHTML = cards.map(c => `
+    <div class="re-card"><div class="re-corridor-label">${c.label}</div>
+    <div class="re-corridor-value">${c.value}</div><div class="re-card-sub">${c.sub}</div></div>`).join('');
+
+  if (idx.length) document.getElementById('re-as-of').textContent = '数据截至 ' + idx[0].date;
+
+  // ── 市场广度 ──
+  const b = d.breadth || {};
+  const bsec = document.createElement('div');
+  bsec.className = 're-section';
+  bsec.innerHTML = '<h2>市场广度与动能集中度</h2>';
+  const label = b.abv200 >= 60 ? '广度健康' : (b.abv200 == null ? '—' : '广度偏弱');
+  bsec.innerHTML += `
+    <div class="re-badges" style="margin-bottom:8px">
+      <span class="re-badge ${b.abv200 >= 60 ? 'bull' : 'bear'}">${label}</span>
+      <span class="re-spread">${b.verdict || '—'}</span>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px">
+      <div class="re-card"><div class="re-corridor-label">标普500 · 20日</div>
+        <div class="re-corridor-value">${b.spx_20d == null ? '—' : (b.spx_20d >= 0 ? '+' : '') + Number(b.spx_20d).toFixed(2) + '%'}</div>
+        <div class="re-card-sub">大盘权重股累计涨跌</div></div>
+      <div class="re-card"><div class="re-corridor-label">罗素2000 · 20日</div>
+        <div class="re-corridor-value">${b.rut_20d == null ? '—' : (b.rut_20d >= 0 ? '+' : '') + Number(b.rut_20d).toFixed(2) + '%'}</div>
+        <div class="re-card-sub">中小盘广度代表累计涨跌</div></div>
+      <div class="re-card"><div class="re-corridor-label">SPX − RUT 差距</div>
+        <div class="re-corridor-value">${b.gap == null ? '—' : (b.gap >= 0 ? '+' : '') + Number(b.gap).toFixed(2) + ' pp'}</div>
+        <div class="re-card-sub">正值 = 大盘领涨 / 广度差</div></div>
+      <div class="re-card"><div class="re-corridor-label">200 日均线上方占比</div>
+        <div class="re-corridor-value">${b.abv200 == null ? '—' : Number(b.abv200).toFixed(1) + '%'}</div>
+        <div class="re-card-sub">标普成分股 · 低于 50% = 内部走弱</div></div>
+      <div class="re-card"><div class="re-corridor-label">50 日均线上方占比</div>
+        <div class="re-corridor-value">${b.abv50 == null ? '—' : Number(b.abv50).toFixed(1) + '%'}</div>
+        <div class="re-card-sub">标普成分股</div></div>
+    </div>`;
+  document.getElementById('breadth').appendChild(bsec);
+
+  // ── ABV 走势图 ──
+  if (b.abv200_series && b.abv200_series.length) {
+    const csec = document.createElement('div');
+    csec.className = 're-section';
+    csec.innerHTML = '<h2>标普500 成分股在均线上方占比走势</h2><div class="chart" id="abv-chart-el" style="height:280px"></div>';
+    document.getElementById('abv-chart').appendChild(csec);
+    R.mkChart('abv-chart-el', colors => ({
+      tooltip: { trigger: 'axis' },
+      legend: { data: ['ABV50', 'ABV200'], textStyle: { color: colors.text }, top: 0 },
+      grid: { left: 44, right: 16, top: 28, bottom: 28 },
+      xAxis: { type: 'category', data: b.abv_dates, axisLine: { lineStyle: { color: colors.border } }, axisLabel: { color: colors.muted, fontSize: 11 } },
+      yAxis: { type: 'value', min: 40, max: 80, axisLabel: { color: colors.muted, fontSize: 11 }, splitLine: { lineStyle: { color: colors.grid } } },
+      series: [
+        { name: 'ABV50', type: 'line', data: b.abv50_series, showSymbol: false, smooth: true, lineStyle: { width: 2, color: colors.orange } },
+        { name: 'ABV200', type: 'line', data: b.abv200_series, showSymbol: false, smooth: true, lineStyle: { width: 2, color: colors.blue } },
+      ],
+    }));
+  }
+
+  // ── 分析（3 段）──
+  const asec = document.createElement('div');
+  asec.className = 're-section';
+  asec.innerHTML = '<h2>AI 分析 · 动能集中度</h2>';
+  Object.entries(d.analysis || {}).forEach(([k, v]) => {
+    if (!v || !v.text) return;
+    const blk = document.createElement('div');
+    blk.className = 'sig-block';
+    blk.innerHTML = `<div class="sig-title">${v.title}</div><p>${v.text}</p>`;
+    asec.appendChild(blk);
+  });
+  document.getElementById('analysis').appendChild(asec);
+
+  document.getElementById('re-gen').textContent = '规则引擎生成（LLM 预留）· 广度数据 source: yfinance 批量 / 均线占比';
+}
+
+load().catch(e => R.fail(['indices', 'breadth', 'abv-chart', 'analysis'], e));
+</script>
+<script src="/js/nav.js"></script>
+</body>
+</html>

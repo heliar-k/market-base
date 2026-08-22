@@ -8,10 +8,43 @@ compute_gex / sell_put / hedge_planner 三处重复的收敛点：
 """
 
 import logging
+from math import erf, exp, pi, sqrt
+from math import log as _ln
 
 import pandas as pd
 
 log = logging.getLogger("pricing")
+
+# BS 无风险利率（与 compute_gex.greeks_from_yf / options_structure 一致）
+R = 0.04
+
+
+def _norm_cdf(x: float) -> float:
+    return 0.5 * (1.0 + erf(x / sqrt(2)))
+
+
+def _norm_pdf(x: float) -> float:
+    return exp(-x * x / 2) / sqrt(2 * pi)
+
+
+def d1_from(S: float, K: float, T: float, sigma: float, r: float = R) -> float:
+    """BS d1（vanna ≈ −γ·S·√T·d1 入参）。T≤0 或 σ≤0 返回 0。"""
+    if T <= 0 or sigma <= 0:
+        return 0.0
+    return (_ln(S / K) + (r + sigma * sigma / 2) * T) / (sigma * sqrt(T))
+
+
+def bs_greeks(
+    S: float, K: float, T: float, sigma: float, r: float = R
+) -> tuple[float, float]:
+    """(gamma, delta_call) per share；put delta = delta_call − 1，调用方处理。"""
+    if T <= 0 or sigma <= 0:
+        return 0.0, 0.0
+    sig_t = sigma * sqrt(T)
+    d1 = (_ln(S / K) + (r + sigma * sigma / 2) * T) / sig_t
+    gamma = _norm_pdf(d1) / (S * sig_t)
+    return gamma, _norm_cdf(d1)
+
 
 # 统一列（三调用方各自消费子集）
 CHAIN_COLUMNS = [
@@ -43,8 +76,8 @@ def fetch_yf_chain(symbol: str, expirations: list[str]) -> pd.DataFrame:
     log.info(f"从 yfinance 拉取 {symbol} 期权链（{len(expirations)} 个到期日）...")
     ticker = yf.Ticker(symbol)
     results = []
-    for exp in expirations:
-        yf_date = exp.replace("-", "")
+    for exp_dt in expirations:
+        yf_date = exp_dt.replace("-", "")
         exp_fmt = f"{yf_date[:4]}-{yf_date[4:6]}-{yf_date[6:8]}"
         try:
             chain = ticker.option_chain(exp_fmt)

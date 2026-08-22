@@ -83,6 +83,10 @@ market-base/
 │   ├── fetch_acm                       ← NY Fed ACM 10Y 期限溢价（合并进 rates.csv）
 │   ├── fetch_refunding                 ← Treasury 季度再融资声明 + QRA 估算（增量）
 │   ├── fetch_cgb                       ← 中国国债收益率 10Y/30Y（chinamoney，FRED 无）
+│   ├── fetch_fx                        ← 外汇对日线 16 对（timsun /assets/fx 数据源）
+│   ├── fetch_etf                       ← ETF 全量清单 + 精选池 25 只日线（timsun /assets/etfs）
+│   ├── fetch_options_structure         ← 13 标的期权结构快照（GEX/DEX/Vanna/Charm，yfinance 降级源）
+│   ├── fetch_crypto_derivatives        ← 加密衍生品快照（OKX + Deribit + CME 基差）
 │   └── fetch_news                      ← Yahoo Finance 个股新闻（curl_cffi 直连 NCP，不走 yfinance）
 │
 ├── data/                         ← 数据存储（增量 CSV / JSON）
@@ -116,6 +120,11 @@ market-base/
 │   ├── fed/                                ← FOMC 声明 + 官员演讲（federalreserve.gov）
 │   │   ├── statements.csv                  ← 声明/纪要/SEP（kind 分类，2020 起，纪要 2021 起）
 │   │   └── speeches.csv                    ← 官员演讲（近 2 年）
+│   ├── fx/fx_pairs.csv                  ← 外汇对日线宽表 16 对（timsun /assets/fx）
+│   ├── etf/universe.csv                 ← Nasdaq Trader 全量 ETF 清单（~5600 只）+ 分类
+│   ├── etf/pool_prices.csv              ← 精选池 25 只 ETF 日线（timsun /assets/etfs）
+│   ├── options_structure/{date}.json    ← 13 标的期权结构快照（GEX/DEX/Vanna/Charm）
+│   ├── crypto_derivatives/{date}.json   ← 加密衍生品快照（OKX/Deribit/CME）
 │   └── cache/{SYMBOL}_indicators.parquet ← 指标缓存（派生产物，mtime 失效）
 │
 ├── static/                       ← Web 前端（FastAPI 静态目录）
@@ -124,6 +133,7 @@ market-base/
 │   ├── js/                       ← 前端 JS（echarts-theme / rates-common 等）
 │   ├── rates/                    ← 利率专题页（timsun.net/rates 复刻，4 子页）
 │   ├── credit/                   ← 信用专题页（单页：总览+CDS+压力仪表盘）
+│   ├── assets/                   ← 大类资产专题页（timsun.net/assets 复刻，主页 + 9 子页）
 │   └── volatility/               ← 波动率专题页（timsun.net/volatility 复刻，2 页）
 │
 └── docs/
@@ -182,6 +192,10 @@ uv run python -m src.cross_asset     # 跨资产 30 日相关性矩阵（派生�
 ./bin/fetch_cgb                      # 中国国债收益率 10Y/30Y（chinamoney 实时曲线）
 ./bin/fetch_news TSM -n 10          # 个股新闻（直连 Yahoo NCP 接口，绕过 yfinance t.news bug）
 ./bin/fetch_yfinance                # yfinance 资产价格
+./bin/fetch_fx                     # 外汇对日线 16 对（timsun /assets/fx）
+./bin/fetch_etf                    # ETF 全量清单 + 精选池（timsun /assets/etfs）
+./bin/fetch_options_structure      # 13 标的期权结构快照（GEX/DEX/Vanna/Charm，~3min）
+./bin/fetch_crypto_derivatives     # 加密衍生品快照（OKX + Deribit + CME）
 ./bin/fetch_commodities             # 全部期货（整条曲线）
 ./bin/fetch_commodities --front-month  # 仅主力合约
 ./bin/fetch_options                 # 期权链参数

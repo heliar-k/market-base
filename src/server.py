@@ -1126,6 +1126,89 @@ def get_rates_auctions() -> dict:
     }
 
 
+# ── assets hub（复刻 timsun.net/assets）──────────────────────────────
+
+
+@app.get("/api/assets/overview")
+def get_assets_overview() -> dict:
+    """大类资产主页：6 大分组价格表 + 30 日相关性热力 + 报警 + 4 段交叉分析。"""
+    from src.assets_analysis import overview
+
+    return overview()
+
+
+@app.get("/api/assets/equities")
+def get_assets_equities() -> dict:
+    """美股：指数卡片 + 市场广度（SPX/RUT 20D + ABV 占比）+ 动能集中度分析。"""
+    from src.assets_analysis import equities
+
+    return equities()
+
+
+@app.get("/api/assets/equities-options")
+def get_assets_equities_options() -> dict:
+    """期权市场结构：13 标的看板 + SPY GEX/DEX/Vanna/Charm 详图（快照 JSON）。"""
+    from src.assets_analysis import options_board
+
+    return options_board()
+
+
+@app.get("/api/assets/positioning")
+def get_assets_positioning() -> dict:
+    """持仓追踪：CFTC COT 拥挤度 + 分组合约。"""
+    from src.assets_analysis import positioning
+
+    return positioning()
+
+
+@app.get("/api/assets/bonds")
+def get_assets_bonds() -> dict:
+    """债券：4 只 ETF 卡片 + 近 20 日收盘表。"""
+    from src.assets_analysis import bonds
+
+    return bonds()
+
+
+@app.get("/api/assets/commodities")
+def get_assets_commodities() -> dict:
+    """商品：卡片 + 近 20 日表 + 1 年归一化走势。"""
+    from src.assets_analysis import commodities
+
+    return commodities()
+
+
+@app.get("/api/assets/crypto")
+def get_assets_crypto() -> dict:
+    """加密货币：BTC/ETH 卡片 + 净流动性溢出（β / 背离监控）+ 20 日表。"""
+    from src.assets_analysis import crypto
+
+    return crypto()
+
+
+@app.get("/api/assets/crypto-derivatives")
+def get_assets_crypto_derivatives() -> dict:
+    """加密衍生品：OKX 永续 + Deribit 期权墙 + CME 基差 + BTC 前瞻雷达。"""
+    from src.assets_analysis import crypto_derivatives
+
+    return crypto_derivatives()
+
+
+@app.get("/api/assets/etfs")
+def get_assets_etfs() -> dict:
+    """ETF：精选池温度筛选 + 全量清单分类统计。"""
+    from src.assets_analysis import etfs
+
+    return etfs()
+
+
+@app.get("/api/assets/fx")
+def get_assets_fx() -> dict:
+    """外汇：美元广度评分 + 各分组 20D USD 压力仪表盘。"""
+    from src.assets_analysis import fx
+
+    return fx()
+
+
 # ── static files (must be last) ─────────────────────────────────────────────
 
 _static = ROOT / "static"

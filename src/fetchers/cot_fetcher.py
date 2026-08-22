@@ -51,8 +51,11 @@ COT_MARKETS: dict[str, tuple[str, str]] = {
     "ZB": (r"^UST BOND - CHICAGO BOARD OF TRADE", "fin"),
     "EUR": (r"^EURO FX - CHICAGO MERCANTILE EXCHANGE", "fin"),
     "JPY": (r"^JAPANESE YEN - CHICAGO MERCANTILE EXCHANGE", "fin"),
+    # 加密（timsun 衍生品页 CME 机构头寸信号；CME 比特币期货，TFF 报告）
+    "BTC": (r"^BITCOIN - CHICAGO MERCANTILE EXCHANGE", "fin"),
     # 注：DXY（ICE 美元指数）不在 CFTC COT 报告中（2025/2026 均无），无源可拉
 }
+
 URL = "https://www.cftc.gov/files/dea/history/fut_{type}_txt_{year}.zip"
 
 # 目标列（按报告类型的市场列名 → 输出指标名）

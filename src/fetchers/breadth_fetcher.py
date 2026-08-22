@@ -10,7 +10,6 @@ git 友好）。data/breadth/abv.csv 观测日 upsert：date + ABV50/ABV100/ABV2
 """
 
 import logging
-from datetime import date
 
 import pandas as pd
 
@@ -80,14 +79,25 @@ def main() -> None:
         logger.warning(f"ABV 数据不足（{len(abv)} 行），跳过写盘")
         return
 
-    row = abv.iloc[-1:].copy()
-    row.index = [str(date.today())]
-    row.index.name = "date"
+    # 首日回填整条历史（abv.csv 只有最新行时，先在本地补全 1 年走势——
+    # yfinance 2y 日线即可产出 ABV200 序列；之后每日只追加最新行）
     from ._io import upsert_rows
 
-    upsert_rows(ABV_PATH, row.reset_index(), subset=["date"], sort_by=["date"])
-    latest = abv.iloc[-1].round(2).to_dict()
-    logger.info(f"ABV → {ABV_PATH}: {latest}")
+    abv = abv.dropna()
+    if not abv.empty:
+        existing = pd.read_csv(ABV_PATH) if ABV_PATH.exists() else pd.DataFrame()
+        seed = len(existing) < 200
+        rows = abv.reset_index() if seed else abv.iloc[-1:].reset_index()
+        rows.columns = ["date", "ABV50", "ABV100", "ABV200"]
+        rows["date"] = pd.to_datetime(rows["date"]).dt.strftime("%Y-%m-%d")
+        upsert_rows(ABV_PATH, rows, subset=["date"], sort_by=["date"])
+        latest = abv.iloc[-1].round(2).to_dict()
+        logger.info(
+            "ABV → %s: %s（%s）",
+            ABV_PATH,
+            latest,
+            f"回填 {len(rows)} 行" if seed else "追加 1 行",
+        )
 
 
 if __name__ == "__main__":

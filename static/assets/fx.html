@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>外汇 — US Macro</title>
+<link rel="stylesheet" href="/css/app.css">
+<link rel="stylesheet" href="/css/special.css">
+</head>
+<body>
+<div class="re-root">
+  <div class="re-header">
+    <h1>外汇</h1>
+    <span class="re-as-of" id="re-as-of"></span>
+  </div>
+
+  <div class="re-nav" id="re-nav"></div>
+
+  <div id="breadth"></div>
+  <div id="dashboard"></div>
+  <div class="re-gen" id="re-gen"></div>
+</div>
+
+<script src="/js/rates-common.js"></script>
+<script>
+async function load() {
+  const d = await R.get('/api/assets/fx');
+  if (!d.breadth) { R.fail(['breadth', 'dashboard'], new Error('外汇数据不足')); return; }
+
+  // ── 美元广度 ──
+  const o = d.breadth.overall;
+  const bsec = document.createElement('div');
+  bsec.className = 're-section';
+  bsec.innerHTML = '<h2>美元广度</h2>';
+  const color = o.verdict === '美元走弱' ? '#26a69a' : (o.verdict === '美元走强' ? '#ef5350' : '#9ca3af');
+  bsec.innerHTML += `
+    <div class="re-badges" style="margin-bottom:10px">
+      <span class="re-badge" style="background:${color}22;color:${color}">${o.verdict}</span>
+      <span class="re-spread">走弱分组 ${o.weak}/${o.total} · 20日美元压力均值 ${avgPressure(d.breadth.groups)}%</span>
+    </div>`;
+  const cards = d.breadth.groups.map(g => `
+    <div class="re-card"><div class="re-corridor-label">${g.group}</div>
+      <div class="re-corridor-value" style="color:${g.avg_pressure < -1 ? '#26a69a' : (g.avg_pressure > 1 ? '#ef5350' : 'var(--text)')}">${g.avg_pressure >= 0 ? '+' : ''}${g.avg_pressure.toFixed(2)}%</div>
+      <div class="re-card-sub">${g.label} · ${g.n} 对</div></div>`).join('');
+  bsec.insertAdjacentHTML('beforeend', `<div class="re-cards">${cards}</div>`);
+  document.getElementById('breadth').appendChild(bsec);
+
+  // ── FX Dashboard ──
+  const gname = { '美元锚': '美元锚', G10: 'G10', '商品货币': '商品货币', '亚洲/EM': '亚洲/EM', '高贝塔EM': '高贝塔EM', '交叉盘': '交叉盘' };
+  const wrap = document.getElementById('dashboard');
+  const order = ['美元锚', 'G10', '商品货币', '亚洲/EM', '高贝塔EM', '交叉盘'];
+  order.forEach(gn => {
+    const rows = d.dashboard.filter(r => r.group === gn);
+    if (!rows.length) return;
+    const sec = document.createElement('div');
+    sec.className = 're-section';
+    sec.style.marginBottom = '12px';
+    sec.innerHTML = `<h2>${gn} · ${rows.length} / ${totalInGroup(d.dashboard, gn)} 有数据</h2>`;
+    sec.appendChild(R.table(['品种', '最新', '1D', '5D', '20D', '60D', '20D USD压力'], rows, {
+      symbol: v => `${v} · ${rows.find(r => r.symbol === v)?.name || ''}`,
+      last: v => fmt(v, 4),
+      d1: (v, row) => pctColor(v), d5: (v, row) => pctColor(v), d20: (v, row) => pctColor(v), d60: (v, row) => pctColor(v),
+      pressure: (v, row) => `<b style="color:${v < -1 ? '#26a69a' : (v > 1 ? '#ef5350' : 'var(--text)')}">${v == null ? '—' : (v >= 0 ? '+' : '') + v.toFixed(2) + '%'}</b>`,
+    }, ['symbol', 'last', 'd1', 'd5', 'd20', 'd60', 'pressure'], true));
+    wrap.appendChild(sec);
+  });
+
+  document.getElementById('re-as-of').textContent = '最新行情 · 20D USD pressure 为“对美元强弱”的统一读数（间接报价翻转符号）';
+  document.getElementById('re-gen').textContent = '读法：美元压力 = 各对 20 日涨跌统一换算美元强弱；亚洲/EM 同向走弱 = 美元融资压力抬升；JPY carry（USDJPY 与 EURJPY 同步下行）警惕套息平仓。';
+}
+function avgPressure(groups) {
+  const vals = groups.map(g => g.avg_pressure);
+  return (vals.reduce((a, b) => a + b, 0) / vals.length).toFixed(2);
+}
+function totalInGroup(rows, gn) {
+  return rows.filter(r => r.group === gn).length;
+}
+function pctColor(v) { return v == null ? '—' : `<span style="color:${v >= 0 ? '#26a69a' : '#ef5350'}">${v >= 0 ? '+' : ''}${v.toFixed(2)}%</span>`; }
+function fmt(v, d) { return v == null ? '—' : Number(v).toLocaleString(undefined, { maximumFractionDigits: d }); }
+
+load().catch(e => R.fail(['breadth', 'dashboard'], e));
+</script>
+<script src="/js/nav.js"></script>
+</body>
+</html>

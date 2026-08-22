@@ -701,3 +701,55 @@ API 响应 `generator` 字段标记 `rules` / `llm`，前端无感。
 反对票方向计入内部压力。**LLM 预留**：`generate_fed_analysis()` 内
 `_llm_generate()` 为替换点，实现后置 `_LLM_ENABLED = True` 即切换，
 API 响应 `generator` 字段标记 `rules` / `llm`，前端无感。
+
+---
+
+## 15. 大类资产专题（Web，复刻 timsun.net/assets）
+
+2026-08 复刻 `timsun.net/assets` 全集：主页 + 9 子页。数据源分三类：
+
+| 文件 | 内容 | 来源 / 命令 |
+|------|------|------|
+| `data/fx/fx_pairs.csv` | 16 个外汇对日线收盘宽表（2y） | yfinance · `./bin/fetch_fx` |
+| `data/etf/universe.csv` | Nasdaq Trader 全量 ETF 清单（ETF=Y，~5600 只）+ 名称关键词分类 | Nasdaq Trader · `./bin/fetch_etf` |
+| `data/etf/pool_prices.csv` | 精选池 25 只 ETF 日线收盘宽表（1y） | yfinance · `./bin/fetch_etf` |
+| `data/options_structure/{date}.json` | 13 标的期权结构快照（Net GEX/DEX、Gamma Flip、Call/Put Wall、25Δ Skew、IV 期限结构、Vanna/Charm、OI Top20） | yfinance 期权链 + BS · `./bin/fetch_options_structure` |
+| `data/crypto_derivatives/{date}.json` | OKX 永续（资金费率/OI/现价）+ Deribit 期权（墙/PCR/Max Pain）+ CME 基差 + taker 多空比 | OKX/Deribit 公开 API · `./bin/fetch_crypto_derivatives` |
+
+其余复用既有数据：`data/yfinance/asset_prices.csv`（指数/债券/商品/加密价格）、
+`data/cross_asset/`（30 日相关性矩阵）、`data/breadth/abv.csv`（均线占比）、
+`data/cot/cot.csv`（COT 新增 BTC=CME 比特币期货）、`data/analyst/`（Nasdaq 100 目标价）、
+`data/fred/liquidity/liquidity.csv`（净流动性）。
+
+### Web 页面
+
+`./bin/fetch_fx` / `fetch_etf` / `fetch_options_structure` / `fetch_crypto_derivatives`
+（全部无 IBKR 依赖，Actions 每日跑）。`uv run python -m src.server` 后访问：
+
+| 页面 | 路径 | API |
+|------|------|------|
+| 大类资产主页 | `/assets/` | `/api/assets/overview` |
+| 美股 | `/assets/equities.html` | `/api/assets/equities` |
+| 期权市场结构 | `/assets/options.html` | `/api/assets/equities-options` |
+| 持仓追踪（COT） | `/assets/positioning.html` | `/api/assets/positioning` |
+| 债券 | `/assets/bonds.html` | `/api/assets/bonds` |
+| 商品 | `/assets/commodities.html` | `/api/assets/commodities` |
+| 加密货币 | `/assets/crypto.html` | `/api/assets/crypto` |
+| 加密衍生品 | `/assets/crypto-derivatives.html` | `/api/assets/crypto-derivatives` |
+| ETF | `/assets/etfs.html` | `/api/assets/etfs` |
+| 外汇 | `/assets/fx.html` | `/api/assets/fx` |
+
+### 口径说明
+
+- **期权结构**（`src/options_structure.py`）：BSM 模型反推 Greeks（gamma/delta/vanna/
+  charm），GEX = Σγ·OI·100·S；gamma 符号 call 正/put 负，delta/vanna/charm 采用
+  timsun 的「call 正向、put 翻号」口径；OI+IV 来自 yfinance 期权链（降级源，
+  精度低于 IBKR 但可每日无人值守跑）。模型估算非交易所官方数据。
+- **COT**：新增 `BTC`（CME 比特币期货，TFF 报告）用于加密衍生品页 CME 机构头寸信号。
+- **FX 美元压力**：20D 变化统一换算为「美元强弱」——间接报价（EURUSD/GBPUSD/
+  AUDUSD/NZDUSD）翻转符号。
+- **ETF 分类**：Nasdaq Trader 清单 + 名称关键词规则分类（简化版，非 timsun 的
+  持仓/基金数据分类）；全量清单无价格，价格增强仅精选池 25 只。
+- **加密衍生品**：OKX rubik L/S-ratio 端点已废弃（404），多空比用
+  `rubik/stat/taker-volume` 买/卖成交额比代理；CME 基差 = yfinance BTC=F − Deribit
+  现货指数。

@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>大类资产 — US Macro</title>
+<link rel="stylesheet" href="/css/app.css">
+<link rel="stylesheet" href="/css/special.css">
+<script src="/vendor/echarts.min.js"></script>
+</head>
+<body>
+<div class="re-root">
+  <div class="re-header">
+    <h1>大类资产</h1>
+    <span class="re-as-of" id="re-as-of"></span>
+  </div>
+
+  <div class="re-nav" id="re-nav"></div>
+  <div class="page-toc" id="page-toc"></div>
+
+  <div id="asset-groups"></div>
+  <div id="correlation"></div>
+  <div id="cross-analysis"></div>
+
+  <div class="link-grid" id="re-links">
+    <a class="link-card" href="equities.html">
+      <span class="icon">📈</span>
+      <div>
+        <div class="t">美股</div>
+        <div class="d">指数卡片、市场广度（ABV 占比）与动能集中度</div>
+      </div>
+    </a>
+    <a class="link-card" href="options.html">
+      <span class="icon">🎯</span>
+      <div>
+        <div class="t">期权市场结构</div>
+        <div class="d">GEX/DEX/Gamma Flip/Wall/Skew 与 13 标的看板</div>
+      </div>
+    </a>
+    <a class="link-card" href="positioning.html">
+      <span class="icon">🧭</span>
+      <div>
+        <div class="t">持仓追踪 · CFTC</div>
+        <div class="d">投机仓位拥挤度与分组合约百分位</div>
+      </div>
+    </a>
+    <a class="link-card" href="bonds.html">
+      <span class="icon">🏛️</span>
+      <div>
+        <div class="t">债券</div>
+        <div class="d">TLT/IEF/LQD/HYG 卡片与 20 日收盘</div>
+      </div>
+    </a>
+    <a class="link-card" href="commodities.html">
+      <span class="icon">🛢️</span>
+      <div>
+        <div class="t">商品</div>
+        <div class="d">黄金/白银/原油/气/铜 + 1 年归一化走势</div>
+      </div>
+    </a>
+    <a class="link-card" href="crypto.html">
+      <span class="icon">₿</span>
+      <div>
+        <div class="t">加密货币</div>
+        <div class="d">BTC/ETH + 净流动性溢出与背离监控</div>
+      </div>
+    </a>
+    <a class="link-card" href="crypto-derivatives.html">
+      <span class="icon">⚡</span>
+      <div>
+        <div class="t">加密衍生品</div>
+        <div class="d">OKX/Deribit 期权墙与 BTC 前瞻雷达</div>
+      </div>
+    </a>
+    <a class="link-card" href="etfs.html">
+      <span class="icon">📊</span>
+      <div>
+        <div class="t">ETF</div>
+        <div class="d">精选池温度筛选与全量清单</div>
+      </div>
+    </a>
+    <a class="link-card" href="fx.html">
+      <span class="icon">💱</span>
+      <div>
+        <div class="t">外汇</div>
+        <div class="d">美元广度与各分组 20D USD 压力</div>
+      </div>
+    </a>
+  </div>
+  <div class="re-gen" id="re-gen"></div>
+</div>
+
+<script src="/js/rates-common.js"></script>
+<script>
+async function load() {
+  document.getElementById('page-toc').innerHTML = [
+    ['价格总览', 'asset-groups'], ['相关性', 'correlation'], ['交叉分析', 'cross-analysis'],
+  ].map(([t, id]) => `<a href="#${id}">${t}</a>`).join('');
+
+  const d = await R.get('/api/assets/overview');
+  document.getElementById('re-as-of').textContent = '数据截至 ' + d.as_of;
+
+  // ── 6 大分组价格表 ──
+  const groups = [
+    ['美股', d.tables.equities], ['债券', d.tables.bonds], ['商品', d.tables.commodities],
+    ['ETF', d.tables.etfs], ['外汇', d.tables.fx], ['加密货币', d.tables.crypto],
+  ];
+  const wrap = document.createElement('div');
+  wrap.style.display = 'grid';
+  wrap.style.gridTemplateColumns = 'repeat(auto-fit, minmax(430px, 1fr))';
+  wrap.style.gap = '14px';
+  groups.forEach(([title, rows]) => {
+    const sec = document.createElement('div');
+    sec.className = 're-section';
+    sec.innerHTML = `<h2>${title}</h2>`;
+    const data = (rows || []).map(r => ({
+      code: r.symbol, name: r.name, last: r.last, chg: r.chg_pct, date: r.date,
+    }));
+    sec.appendChild(R.table(['代码', '名称', '最新价', '日涨跌幅', '日期'], data, {
+      last: v => Number(v).toLocaleString(undefined, { maximumFractionDigits: 2 }),
+      chg: v => v === null || v === undefined ? '—' : `<span style="color:${v >= 0 ? '#26a69a' : '#ef5350'}">${v >= 0 ? '▲ +' : '▼ '}${Number(v).toFixed(2)}%</span>`,
+    }, null, true));
+    wrap.appendChild(sec);
+  });
+  document.getElementById('asset-groups').appendChild(wrap);
+
+  // ── 相关性热力 ──
+  if (d.corr) {
+    const csec = document.createElement('div');
+    csec.className = 're-section';
+    const assets = d.corr.assets;
+    const now = d.as_of;
+    csec.innerHTML = `<h2>CORRELATION 跨资产相关性</h2>
+      <p style="margin:0">${now} · 基于日收益率滚动相关系数。深蓝 强负相关 → 灰 零相关 → 深红 强正相关。</p>
+      <div class="chart" id="corr-chart" style="height:520px"></div>`;
+    document.getElementById('correlation').appendChild(csec);
+    R.mkChart('corr-chart', colors => ({
+      tooltip: { position: 'top' },
+      grid: { left: 70, right: 20, top: 20, bottom: 70 },
+      xAxis: { type: 'category', data: assets, axisLabel: { color: colors.muted, fontSize: 11, rotate: 45 }, axisLine: { lineStyle: { color: colors.border } } },
+      yAxis: { type: 'category', data: assets, axisLabel: { color: colors.muted, fontSize: 11 }, axisLine: { lineStyle: { color: colors.border } } },
+      visualMap: {
+        min: -1, max: 1, calculable: true, orient: 'horizontal', left: 'center', bottom: 0,
+        inRange: { color: ['#1d4ed8', '#6b7280', '#b91c1c'] }, text: ['强正相关', '强负相关'],
+        textStyle: { color: colors.muted, fontSize: 11 },
+      },
+      series: [{
+        type: 'heatmap', data: d.corr.matrix.flatMap((row, i) => row.map((v, j) => [j, i, v])),
+        label: { show: true, fontSize: 9, color: colors.text, formatter: p => p.value !== null && Math.abs(p.value) >= 0.3 ? p.value.toFixed(2) : '' },
+      }],
+    }));
+  }
+
+  // 报警卡
+  (d.alerts || []).forEach(a => {
+    const w = document.createElement('div');
+    w.className = 're-section';
+    w.innerHTML = `<p style="margin:0"><b>⚠ ${a.title}</b><br>${a.text}</p>`;
+    document.getElementById('correlation').appendChild(w);
+  });
+
+  // ── 交叉分析（4 段叙事）──
+  const asec = document.createElement('div');
+  asec.className = 're-section';
+  asec.innerHTML = '<h2>交叉分析</h2>';
+  const labels = { cross_asset: '跨资产相关性', dollar_commodities: '美元与商品', outlook: '展望', risk_appetite: '风险偏好' };
+  Object.entries(d.analysis || {}).forEach(([k, v]) => {
+    if (!v || !v.text) return;
+    const b = document.createElement('div');
+    b.className = 'sig-block';
+    b.innerHTML = `<div class="sig-title">${v.title || labels[k] || k}</div><p>${v.text}</p>`;
+    asec.appendChild(b);
+  });
+  document.getElementById('cross-analysis').appendChild(asec);
+
+  document.getElementById('re-gen').textContent = '规则引擎生成（LLM 预留）· 数据源：yfinance / FRED / Nasdaq Trader';
+}
+
+load().catch(e => R.fail(['asset-groups', 'correlation', 'cross-analysis'], e));
+</script>
+<script src="/js/nav.js"></script>
+</body>
+</html>

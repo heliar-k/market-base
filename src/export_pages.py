@@ -73,6 +73,7 @@ _PATH_PREFIXES = (
     "volatility",
     "rates",
     "credit",
+    "assets",
 )
 
 _PREFIX_RE = re.compile(r'(["\'\x60])/(' + "|".join(_PATH_PREFIXES) + r")/")
@@ -193,6 +194,31 @@ def export_api() -> None:
     _safe("api/inflation/overview", get_inflation_overview)
     _safe("api/treasury/overview", get_treasury_overview)
     _safe("api/labor/overview", get_labor_overview)
+
+    # 大类资产专题（复刻 timsun.net/assets 主页 + 子页）
+    from src.assets_analysis import (
+        bonds,
+        commodities,
+        crypto,
+        crypto_derivatives,
+        equities,
+        etfs,
+        fx,
+        options_board,
+        overview,
+        positioning,
+    )
+
+    _safe("api/assets/overview", overview)
+    _safe("api/assets/equities", equities)
+    _safe("api/assets/equities-options", options_board)
+    _safe("api/assets/positioning", positioning)
+    _safe("api/assets/bonds", bonds)
+    _safe("api/assets/commodities", commodities)
+    _safe("api/assets/crypto", crypto)
+    _safe("api/assets/crypto-derivatives", crypto_derivatives)
+    _safe("api/assets/etfs", etfs)
+    _safe("api/assets/fx", fx)
 
 
 def export_frontend() -> None:
