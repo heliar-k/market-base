@@ -187,7 +187,10 @@ function renderPanel() {
 function pGex(panel, v) {
   panel.innerHTML = `
     <h3>${S} · GEX 按行权价分布</h3>
-    <p style="margin:0 0 10px;font-size:12px;color:var(--text-secondary)">绿色 = Call GEX × OI（dealer 净多，压制波动）；红色 = Put GEX × OI（dealer 净空，放大波动）；黑色曲线 = 累计 GEX（右轴，穿越 0 线即 Gamma Flip）。蓝线 = 现价。</p>
+    <p style="margin:0 0 8px;font-size:12px;color:var(--text-secondary)">绿色 = Call GEX × OI（dealer 净多，压制波动）；红色 = Put GEX × OI（dealer 净空，放大波动）；黑色曲线 = 累计 GEX（右轴，穿越 0 线即 Gamma Flip）。蓝线 = 现价。</p>
+    <div class="gx-legend"><span class="gl"><i style="background:#26a69a"></i>Call GEX</span>
+      <span class="gl"><i style="background:#ef5350"></i>Put GEX</span>
+      <span class="gl"><i style="background:var(--text);height:2px;border-radius:1px"></i>累计 GEX</span></div>
     <div class="chart" id="gex-chart" style="height:300px"></div>
     <h3 style="margin-top:16px">到期日 Gamma 集中度</h3>
     <div id="buckets"></div>
@@ -213,8 +216,8 @@ function pGex(panel, v) {
     const cumMax = Math.max(...cum.map(Math.abs), 10);
     return {
       tooltip: { trigger: 'axis' },
-      legend: { data: ['Call GEX', 'Put GEX', '累计 GEX'], orient: 'vertical', right: 4, top: 'middle', textStyle: { color: colors.text, fontSize: 11 }, itemWidth: 14, itemHeight: 8 },
-      grid: { left: 52, right: 84, top: 28, bottom: 52 },
+      legend: { show: false },
+      grid: { left: 52, right: 56, top: 28, bottom: 52 },
       xAxis: { type: 'category', data: ss, axisLine: { lineStyle: { color: colors.border } }, axisLabel: { color: colors.muted, fontSize: 10, rotate: 0 }, name: '行权价', nameLocation: 'middle', nameGap: 32, nameTextStyle: { color: colors.muted, fontSize: 10 } },
       yAxis: [
         { type: 'value', min: -vmax, max: vmax, axisLabel: { color: colors.muted, fontSize: 11 }, splitLine: { lineStyle: { color: colors.grid } } },
