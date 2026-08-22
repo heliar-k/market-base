@@ -50,7 +50,8 @@ def _req(url: str, params: dict | None = None, timeout: int = 20) -> dict:
     return resp.json()
 
 
-def _okx(path: str, **params) -> dict:
+def _okx(path: str, **params) -> list:
+    """OKX v5 GET：code=0 时返回 data 列表。"""
     d = _req(f"{_OKX}/{path}", params or None)
     if d.get("code") != "0":
         raise RuntimeError(f"OKX {path}: {d.get('msg')}")

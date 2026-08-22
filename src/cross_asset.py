@@ -37,6 +37,11 @@ TICKERS = [
     "DXY",
     "EURUSD",
 ]
+# 扩展列（历史段可能为 NaN，不可用于行级 dropna）
+EXTENDED_TICKERS = {"ETH", "NG", "EURUSD"}
+# 行过滤只看核心标的（扩展列与核心列相关性由 rolling corr 两两有效对计算）
+CORE_TICKERS = [t for t in TICKERS if t not in EXTENDED_TICKERS]
+
 # 报警对：(i, j, 列名)
 ALERTS = [("SPX", "TLT", "SPX_TLT_30d"), ("WTI", "SPX", "WTI_SPX_30d")]
 WINDOW = 30
@@ -71,22 +76,7 @@ def main() -> None:
     # 周末行部分标的无值（BTC/外汇 7×24 有、股票/债券无）→ 相关性按交易日算。
     # 行过滤只看核心 13 标的（扩展列 ETH/NG/EURUSD 历史段可能为 NaN，拖累全部行）；
     # 扩展列与核心列的相关性由 rolling corr 按两两有效对计算（dropna 不适用于扩展列）。
-    CORE = [
-        "SPX",
-        "NDX",
-        "RUT",
-        "DJI",
-        "TLT",
-        "HYG",
-        "LQD",
-        "Gold",
-        "Silver",
-        "WTI",
-        "Copper",
-        "BTC",
-        "DXY",
-    ]
-    core_cols = [c for c in CORE if c in prices.columns]
+    core_cols = [c for c in CORE_TICKERS if c in prices.columns]
     prices = prices.dropna(subset=core_cols)
     if len(prices) < WINDOW + 1:
         logger.warning(f"资产快照仅 {len(prices)} 行，不足 {WINDOW + 1} 行，跳过")

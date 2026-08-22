@@ -48,8 +48,6 @@ class TestPositioningLs:
         assert _ls_cols("GC") == ("GC_MM_L", "GC_MM_S")
 
     def test_net_is_minus(self):
-        import pandas as pd
-
         cot = pd.DataFrame(
             {
                 "BTC_HEDGE_L": [1000.0, 1200.0],
@@ -96,8 +94,6 @@ class TestComputeStructure:
                 "volume": 2,
             },
         ]
-        import pandas as pd
-
         df = pd.DataFrame(rows)
         r = compute_structure(df, 100.0)
         assert r.get("spot") is not None

@@ -5,11 +5,14 @@
 未接入时回落规则引擎，参考 liquidity_analysis._llm_generate_dashboard 模式）：
   - 主页面：6 大类价格表 + 相关性热力数据 + 4 段交叉分析叙事
   - equities：广度判读（SPX/RUT 差距 + ABV 占比）+ 动能集中度
-  - fx：美元广度评分（2/15 类）+ 各分组 20D USD 压力
+  - fx：美元广度评分（2/15 对）+ 各分组 20D USD 压力
   - commodities / bonds / crypto：20 日收盘表 + 走势归一化
   - positioning：CFTC 投机仓位拥挤度 + 分组合约（2 年百分位规则）
   - etfs：精选池温度筛选（1w/1m/3m 动量、20d 波动、3m 回撤、趋势判读）
   - crypto_derivatives：BTC 前瞻雷达（7 信号加权 + 触发/反证条件）
+
+LLM 钩子只装在叙事段（cross_analysis / equity_analysis / crypto_radar）——
+纯数据表页（bonds/commodities/etfs/fx/positioning）无叙事，不设 _llm_generate。
 
 数据层只读现有 CSV/JSON：
   data/yfinance/asset_prices.csv       资产价格宽表（日频快照）
@@ -27,12 +30,15 @@
 from __future__ import annotations
 
 import json
+import logging
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
 
 from src.config import ETF_POOL, FX_PAIRS
+
+logger = logging.getLogger(__name__)
 
 ROOT = Path(__file__).resolve().parent.parent
 
@@ -93,7 +99,8 @@ def _read(path: str, **kw) -> pd.DataFrame:
         return pd.DataFrame()
     try:
         return pd.read_csv(f, **kw)
-    except Exception:
+    except Exception as e:
+        logger.warning("读取 %s 失败: %s", path, e)
         return pd.DataFrame()
 
 
@@ -661,13 +668,17 @@ def fx() -> dict:
         breadth.append(
             {"group": g, "avg_pressure": round(avg, 2), "label": label, "n": len(vals)}
         )
-    weak_count = sum(1 for b in breadth if b["avg_pressure"] < -1)
+    # 美元广度按对统计（每组均值供展示；weak/total 计数基于对级压力）
+    weak_count = sum(
+        1 for r in rows if r["pressure"] is not None and r["pressure"] < -1
+    )
+    total_pairs = sum(1 for r in rows if r["pressure"] is not None)
     overall = {
         "weak": weak_count,
-        "total": len(breadth),
+        "total": total_pairs,
         "verdict": "美元走弱"
-        if weak_count >= len(breadth) / 2
-        else ("美元走强" if weak_count == 0 and len(breadth) else "分化"),
+        if weak_count >= total_pairs / 2
+        else ("美元走强" if weak_count == 0 and total_pairs else "分化"),
     }
     return {"breadth": {"groups": breadth, "overall": overall}, "dashboard": rows}
 
@@ -923,13 +934,15 @@ def crypto_radar(snap: dict) -> dict:
     )
 
     # 期权牵引（Call Wall 上方压制 / Put Wall 支撑）
+    # 口径（与 timsun 显示一致，pcr=0.59 时给出正分）：低 PCR = call 拥挤 =
+    # 看涨期权集中；分值 = (1 − PCR)×10，pcr<1 → 正分
     pcr = opt.get("pcr")
     call_wall = opt.get("call_wall")
     spot_a = opt.get("spot_anchor")
     dist = (call_wall / spot_a - 1) * 100 if call_wall and spot_a else None
     direction = None
     if pcr is not None:
-        direction = (pcr - 1.0) * -10  # 低 PCR（call 拥挤）→ 上方压制 → 负分
+        direction = (1.0 - pcr) * 10  # 见上：PCR 越低 → 正分（timsun 口径）
     add(
         "期权牵引",
         10,

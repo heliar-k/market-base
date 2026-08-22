@@ -65,22 +65,9 @@ def fetch_universe() -> pd.DataFrame:
 
 def fetch_pool_prices(period: str = "1y") -> pd.DataFrame:
     """精选池日线收盘宽表（index=date，列=ETF_POOL key）。"""
-    from src.fetchers.yfinance_fetcher import fetch_ohlcv
+    from src.fetchers.yfinance_fetcher import wide_close
 
-    frames: list[pd.DataFrame] = []
-    for ticker in ETF_POOL:
-        try:
-            df = fetch_ohlcv(ticker, period=period)
-        except Exception as e:
-            logger.warning(f"✗ {ticker}: {e}")
-            continue
-        if df.empty:
-            continue
-        frames.append(pd.DataFrame({ticker: df["close"]}))
-    if not frames:
-        return pd.DataFrame()
-    wide = pd.concat(frames, axis=1).sort_index()
-    return wide[~wide.index.duplicated(keep="last")]
+    return wide_close({t: t for t in ETF_POOL}, period)
 
 
 def main() -> None:

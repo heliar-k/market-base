@@ -183,9 +183,9 @@ def greeks_from_yf(oi_df, spot, r=0.04):
     """IBKR Greeks 不可用时的降级路径：用 yfinance IV 反推 BS gamma。
 
     gamma = φ(d1) / (S·σ·√T)；惯例 call > 0、put < 0（与 compute_gex 一致）。
+    复用 src.pricing.bs_greeks 同一实现（T≤0 与此处 t≤0 continue 语义一致）。
     """
-    from math import exp, pi, sqrt
-    from math import log as ln
+    from src.pricing import bs_greeks
 
     today = datetime.now().date()
     rows = []
@@ -196,15 +196,13 @@ def greeks_from_yf(oi_df, spot, r=0.04):
         t = (datetime.strptime(row["expiration"], "%Y%m%d").date() - today).days / 365
         if t <= 0:
             continue
-        sig_t = iv * sqrt(t)
-        d1 = (ln(spot / row["strike"]) + (r + iv * iv / 2) * t) / sig_t
-        gamma = exp(-d1 * d1 / 2) / sqrt(2 * pi) / (spot * sig_t)
+        gamma_p, _delta = bs_greeks(spot, row["strike"], t, iv, r=r)
         rows.append(
             {
                 "expiration": row["expiration"],
                 "strike": row["strike"],
                 "right": row["right"],
-                "gamma": gamma if row["right"] == "C" else -gamma,
+                "gamma": gamma_p if row["right"] == "C" else -gamma_p,
                 "iv": iv,
             }
         )

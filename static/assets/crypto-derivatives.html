@@ -56,7 +56,7 @@ async function load() {
     <p class="re-source" style="margin:10px 0 6px">信号权重（缺失信号不纳入评分）：</p>`;
   rsec.appendChild(R.table(['信号', '权重', '方向', '描述'], radar.signals, {
     weight: v => v,
-    方向: (v, row) => row.dir === 1 ? '<span style="color:#26a69a">+</span>' : (row.dir === -1 ? '<span style="color:#ef5350">−</span>' : '0'),
+    dir: (v, row) => row.dir === 1 ? '<span style="color:#26a69a">+</span>' : (row.dir === -1 ? '<span style="color:#ef5350">−</span>' : '0'),
   }, ['name', 'weight', 'dir', 'desc'], true));
   rsec.insertAdjacentHTML('beforeend', `
     <div class="re-badges" style="margin-top:10px">

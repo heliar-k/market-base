@@ -37,7 +37,7 @@ async function load() {
   bsec.innerHTML += `
     <div class="re-badges" style="margin-bottom:10px">
       <span class="re-badge" style="background:${color}22;color:${color}">${o.verdict}</span>
-      <span class="re-spread">走弱分组 ${o.weak}/${o.total} · 20日美元压力均值 ${avgPressure(d.breadth.groups)}%</span>
+      <span class="re-spread">走弱货币对 ${o.weak}/${o.total} · 20日美元压力均值 ${avgPressure(d.breadth.groups)}%</span>
     </div>`;
   const cards = d.breadth.groups.map(g => `
     <div class="re-card"><div class="re-corridor-label">${g.group}</div>

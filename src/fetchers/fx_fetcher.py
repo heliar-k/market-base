@@ -24,24 +24,10 @@ PERIOD = "2y"  # 回填深度（60D USD 压力需 ≥ 60 交易日，2y 富余�
 
 def fetch_fx_prices(period: str = PERIOD) -> pd.DataFrame:
     """全对日线收盘宽表（index=date tz-free，列=FX_PAIRS key）。"""
-    from src.fetchers.yfinance_fetcher import fetch_ohlcv
+    from src.fetchers.yfinance_fetcher import wide_close
 
-    frames: list[pd.DataFrame] = []
-    for key, (ticker, _name, _grp) in FX_PAIRS.items():
-        try:
-            df = fetch_ohlcv(ticker, period=period)
-        except Exception as e:
-            logger.warning(f"✗ {key} ({ticker}): {e}")
-            continue
-        if df.empty:
-            logger.warning(f"✗ {key}: 空数据")
-            continue
-        frames.append(pd.DataFrame({key: df["close"]}))
-    if not frames:
-        return pd.DataFrame()
-    wide = pd.concat(frames, axis=1).sort_index()
-    # 去重（同 index 重复时 concat 会有重复 index）
-    return wide[~wide.index.duplicated(keep="last")]
+    tickers = {key: ticker for key, (ticker, _n, _g) in FX_PAIRS.items()}
+    return wide_close(tickers, period)
 
 
 def main() -> None:

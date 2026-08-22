@@ -29,10 +29,10 @@ let D = null;
 let S = 'SPY';
 
 const REGIME_INFO = {
-  pos: { label: '正 Gamma + 正 Delta', desc: '现价在 Gamma Flip 上方，波动偏被压制，多头 delta 占优。' },
-  neg: { label: '负 Gamma + 正 Delta', desc: '现价在 Gamma Flip 下方，波动易放大，多头 delta 占优。' },
-  posneg: { label: '正 Gamma + 负 Delta', desc: '现价在 Gamma Flip 上方，但 delta 偏空。' },
-  negneg: { label: '负 Gamma + 负 Delta', desc: '现价在 Gamma Flip 下方，delta 偏空，双重压力。' },
+  pp: { label: '正 Gamma + 正 Delta', desc: '现价在 Gamma Flip 上方，波动偏被压制，多头 delta 占优。' },
+  pn: { label: '正 Gamma + 负 Delta', desc: '现价在 Gamma Flip 上方，但 delta 偏空。' },
+  np: { label: '负 Gamma + 正 Delta', desc: '现价在 Gamma Flip 下方，波动易放大，多头 delta 占优。' },
+  nn: { label: '负 Gamma + 负 Delta', desc: '现价在 Gamma Flip 下方，delta 偏空，双重压力。' },
 };
 
 function fmtNum(v, d = 2) {
@@ -92,8 +92,11 @@ function renderDetail() {
   sec.className = 're-section';
   const gammaPos = v.net_gex >= 0;
   const deltaPos = v.net_dex >= 0;
-  const key = (gammaPos ? 'pos' : 'neg') + (deltaPos ? '' : 'neg');
-  const ri = REGIME_INFO[key] || REGIME_INFO.pos;
+  const key = (gammaPos ? 'p' : 'n') + (deltaPos ? 'p' : 'n');
+  const ri = REGIME_INFO[key] || REGIME_INFO.pp;
+  // Gamma Flip 空值安全：后端无翻转点时 flip_dist=None → 显示 —（不再误报“低 0.00%”）
+  const flipDist = v.flip_dist == null ? null : Math.abs(v.flip_dist);
+  const flipText = flipDist == null ? '—' : `现价 ${v.flip_dist >= 0 ? '高' : '低'} ${flipDist.toFixed(1)}%`;
   let html = `<h2>${S} · 期权结构 Regime</h2>
     <div class="re-badges" style="margin-bottom:8px">
       <span class="re-badge ${gammaPos ? 'bull' : 'bear'}">${ri.label}</span>
@@ -102,8 +105,8 @@ function renderDetail() {
     <div class="re-cards" style="grid-template-columns:repeat(auto-fit,minmax(160px,1fr))">
       <div class="re-card"><div class="re-corridor-label">Net GEX</div><div class="re-corridor-value">${v.net_gex >= 0 ? '+' : ''}${fmtNum(v.net_gex)} <span style="font-size:13px">B</span></div></div>
       <div class="re-card"><div class="re-corridor-label">Net DEX</div><div class="re-corridor-value">${v.net_dex >= 0 ? '+' : ''}${fmtNum(v.net_dex)} <span style="font-size:13px">B</span></div></div>
-      <div class="re-card"><div class="re-corridor-label">Gamma Flip</div><div class="re-corridor-value">${fmtNum(v.gamma_flip, 1)}</div>
-        <div class="re-card-sub">现价 ${v.flip_dist >= 0 ? '高' : '低'} ${Math.abs(v.flip_dist).toFixed(1)}%</div></div>
+      <div class="re-card"><div class="re-corridor-label">Gamma Flip</div><div class="re-corridor-value">${v.gamma_flip == null ? '—' : fmtNum(v.gamma_flip, 1)}</div>
+        <div class="re-card-sub">${flipText}</div></div>
       <div class="re-card"><div class="re-corridor-label">Call Wall · 阻力</div><div class="re-corridor-value">${fmtNum(v.call_wall?.strike, 1)}</div>
         <div class="re-card-sub">${v.call_wall ? '+' + fmtNum(v.call_wall.per_point_m, 1) + ' M / 点' : '—'}</div></div>
       <div class="re-card"><div class="re-corridor-label">Put Wall · 支撑</div><div class="re-corridor-value">${fmtNum(v.put_wall?.strike, 1)}</div>
@@ -111,7 +114,7 @@ function renderDetail() {
       <div class="re-card"><div class="re-corridor-label">25Δ Skew</div><div class="re-corridor-value">${v.skew == null ? '—' : fmtNum(v.skew)}</div>
         <div class="re-card-sub">${v.skew_dte || '—'}D · P ${v.skew_put_iv ?? '—'}% / C ${v.skew_call_iv ?? '—'}%</div></div>
     </div>
-    <p class="re-source" style="margin:10px 0 0">${ri.desc} 距 Gamma Flip ${Math.abs(v.flip_dist).toFixed(2)}%。P/C OI 比 ${fmtNum(v.pcr_oi)} · 成交量比 ${fmtNum(v.pcr_vol)}</p>`;
+    <p class="re-source" style="margin:10px 0 0">${ri.desc}${flipDist == null ? '' : ` 距 Gamma Flip ${flipDist.toFixed(2)}%。`} P/C OI 比 ${fmtNum(v.pcr_oi)} · 成交量比 ${fmtNum(v.pcr_vol)}</p>`;
   sec.innerHTML = html;
   d.appendChild(sec);
 

@@ -37,7 +37,14 @@ async function load() {
 
   if (D.universe) {
     document.getElementById('re-as-of').textContent = `全量 ETF ${D.universe.total} · Nasdaq Trader ETF=Y 清单 · 价格增强 ${D.pool.length}/${D.pool.length} 精选池`;
-    document.getElementById('universe').innerHTML = `<div class="re-explain">覆盖 Nasdaq Trader symbol directory 中 ETF 标记为 Y 的美国挂牌产品；价格为本系统已增强的精选池子集。</div>`;
+    // 全量清单分类统计（universe.categories 逐类计数摘要）
+    if (D.universe.categories) {
+      const cats = Object.entries(D.universe.categories)
+        .sort((a, b) => b[1] - a[1])
+        .map(([c, n]) => `${categories(c)} (${n})`);
+      document.getElementById('universe').innerHTML =
+        `<div class="re-explain">覆盖 Nasdaq Trader symbol directory 中 ETF 标记为 Y 的美国挂牌产品；价格为本系统已增强的精选池子集。分类统计：${cats.join(' · ')}</div>`;
+    }
   }
 
   renderFilters();
@@ -75,14 +82,14 @@ function renderPool() {
   nsec.appendChild(R.table(['代码', '主题', '价格', '1周', '1月', '3月', '20日波动', '3月回撤', '判断'], rows.map(r => ({
     ...r, trendColor: r.trend === '趋势向上' ? '#26a69a' : (r.trend === '趋势向下' ? '#ef5350' : '#9ca3af'),
   })), {
-    主题: (v, row) => `${row.name} · ${categories(row.category)}`,
+    name: (v, row) => `${v} · ${categories(row.category)}`,
     last: v => '$' + fmt(v),
     w1: (v, row) => pctColor(v),
     m1: (v, row) => pctColor(v),
     m3: (v, row) => pctColor(v),
     vol20d: v => v == null ? '—' : v.toFixed(1) + '%',
     dd3m: (v, row) => pctColor(v),
-    判断: (v, row) => `<span style="color:${row.trendColor}">${v}</span>`,
+    trend: (v, row) => `<span style="color:${row.trendColor}">${v}</span>`,
   }, ['ticker', 'name', 'last', 'w1', 'm1', 'm3', 'vol20d', 'dd3m', 'trend'], true));
   const sec = document.getElementById('pool');
   const old = sec.querySelector('.re-section');
