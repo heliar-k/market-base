@@ -226,6 +226,7 @@ body { font-family: system-ui, -apple-system, sans-serif; background: var(--bg);
   background: var(--accent);
 }
 .macro-nav-item.child { padding-left: 32px; font-size: 12px; }
+.macro-nav-item.child.sub { padding-left: 46px; font-size: 11px; color: var(--text-dim); }
 .macro-nav-group-head { display: flex; align-items: stretch; }
 .macro-nav-group-head > .macro-nav-item { flex: 1; }
 .macro-nav-toggle {

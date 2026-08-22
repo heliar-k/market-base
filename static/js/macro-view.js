@@ -2,17 +2,18 @@
 
 // ── 全站专题导航 ──
 // 结构：核心入口（视图级）+ 全部专题（分组，可展开/收起）；与网站页面一一对应
+// 子项 sub: true → 二级缩进（timsun 同款：美股下的 ETF/期权/持仓、加密货币下的衍生品）
 const NAV = [
   { key: 'assets', label: '大类资产', page: '/assets/', items: [
     { key: 'assets/equities', label: '美股', page: '/assets/equities.html' },
-    { key: 'assets/etfs', label: 'ETF 看板', page: '/assets/etfs.html' },
-    { key: 'equities/options', label: '期权 / GEX', page: '/assets/equities/options.html' },
-    { key: 'equities/positioning', label: '持仓追踪 · CFTC', page: '/assets/equities/positioning.html' },
+    { key: 'assets/etfs', label: 'ETF 看板', page: '/assets/etfs.html', sub: true },
+    { key: 'equities/options', label: '期权 / GEX', page: '/assets/equities/options.html', sub: true },
+    { key: 'equities/positioning', label: '持仓追踪 · CFTC', page: '/assets/equities/positioning.html', sub: true },
     { key: 'assets/bonds', label: '债券', page: '/assets/bonds.html' },
     { key: 'assets/commodities', label: '商品', page: '/assets/commodities.html' },
     { key: 'assets/fx', label: '外汇', page: '/assets/fx.html' },
     { key: 'assets/crypto', label: '加密货币', page: '/assets/crypto.html' },
-    { key: 'assets/crypto-derivatives', label: '衍生品 · OKX+Deribit', page: '/assets/crypto-derivatives.html' },
+    { key: 'assets/crypto-derivatives', label: '衍生品 · OKX+Deribit', page: '/assets/crypto-derivatives.html', sub: true },
   ]},
   { key: 'rates', label: '利率', page: '/rates/', items: [
     { key: 'rates/fed-funds', label: '联邦基金利率', page: '/rates/fed-funds.html' },
@@ -132,7 +133,7 @@ export function initGlobalNav() {
           ${g.items ? '<button class="macro-nav-toggle" title="展开 / 收起">›</button>' : ''}
         </div>
         ${g.items ? `<div class="macro-nav-sub">${g.items.map(it =>
-          `<a class="macro-nav-item child" data-url="${it.page}">${esc(it.label)}</a>`).join('')}</div>` : ''}
+          `<a class="macro-nav-item child${it.sub ? ' sub' : ''}" data-url="${it.page}">${esc(it.label)}</a>`).join('')}</div>` : ''}
       </div>`).join('')}
     <div class="macro-nav-foot">
       <span>美东时间</span><span id="macro-nav-clock"></span>
