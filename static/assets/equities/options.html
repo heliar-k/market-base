@@ -187,7 +187,7 @@ function renderPanel() {
 function pGex(panel, v) {
   panel.innerHTML = `
     <h3>${S} · GEX 按行权价分布</h3>
-    <p style="margin:0 0 10px;font-size:12px;color:var(--text-secondary)">绿色 = Call GEX × OI（dealer 净多，压制波动）；红色 = Put GEX × OI（dealer 净空，放大波动）。蓝线 = 现价，白虚线 = Gamma Flip。</p>
+    <p style="margin:0 0 10px;font-size:12px;color:var(--text-secondary)">绿色 = Call GEX × OI（dealer 净多，压制波动）；红色 = Put GEX × OI（dealer 净空，放大波动）；深色线 = 净 GEX（Call+Put）。蓝线 = 现价。</p>
     <div class="chart" id="gex-chart" style="height:300px"></div>
     <h3 style="margin-top:16px">到期日 Gamma 集中度</h3>
     <div id="buckets"></div>
@@ -209,7 +209,7 @@ function pGex(panel, v) {
     const vmax = Math.max(...g.map(x => Math.abs(x.call_gex_m || 0)), ...g.map(x => Math.abs(x.put_gex_m || 0)), 10);
     return {
       tooltip: { trigger: 'axis' },
-      legend: { data: ['Call GEX', 'Put GEX'], textStyle: { color: colors.text }, top: 0 },
+      legend: { data: ['Call GEX', 'Put GEX', '净 GEX'], textStyle: { color: colors.text }, top: 0 },
       grid: { left: 52, right: 16, top: 28, bottom: 52 },
       xAxis: { type: 'category', data: ss, axisLine: { lineStyle: { color: colors.border } }, axisLabel: { color: colors.muted, fontSize: 10, rotate: 0 }, name: '行权价', nameTextStyle: { color: colors.muted, fontSize: 10 } },
       yAxis: { type: 'value', min: -vmax, max: vmax, axisLabel: { color: colors.muted, fontSize: 11 }, splitLine: { lineStyle: { color: colors.grid } }, name: 'M / 点', nameTextStyle: { color: colors.muted, fontSize: 10 } },
@@ -226,6 +226,9 @@ function pGex(panel, v) {
           },
         },
         { name: 'Put GEX', type: 'bar', data: g.map(x => x.put_gex_m), itemStyle: { color: '#ef5350' } },
+        // 净 GEX 折线（call+put 合计，timsun 页面无此线——用户要求直接画出）
+        { name: '净 GEX', type: 'line', data: g.map(x => (x.call_gex_m || 0) + (x.put_gex_m || 0)),
+          showSymbol: false, smooth: false, lineStyle: { width: 1.5, color: colors.text } },
       ],
     };
   };
