@@ -3,7 +3,13 @@
 import pandas as pd
 import pytest
 
-from src.assets_analysis import _chg, _ls_cols, _price_rows, equity_analysis
+from src.assets_analysis import (
+    _chg,
+    _fx_verdict,
+    _ls_cols,
+    _price_rows,
+    equity_analysis,
+)
 from src.options_structure import bucket_dte, compute_structure
 from src.pricing import bs_greeks, d1_from
 
@@ -112,6 +118,22 @@ class TestBsGreeks:
     def test_d1_sign(self):
         # 深实值 call → d1 为正（vanna ≈ −γ·S·√T·d1 取负，符号口径验证）
         assert d1_from(100.0, 90.0, 0.1, 0.2) > 0
+
+
+class TestFxBreadth:
+    def test_verdict_zero_pairs(self):
+        """total_pairs=0 → 数据不足（而非误判“美元走弱 0/0”）。"""
+        assert _fx_verdict(0, 0) == {"weak": 0, "total": 0, "verdict": "数据不足"}
+
+    def test_verdict_half_weak(self):
+        """半数以上对压力 < −1 → 美元走弱。"""
+        assert _fx_verdict(8, 15)["verdict"] == "美元走弱"
+
+    def test_verdict_none_weak(self):
+        assert _fx_verdict(0, 15)["verdict"] == "美元走强"
+
+    def test_verdict_split(self):
+        assert _fx_verdict(5, 15)["verdict"] == "分化"
 
 
 class TestCrowdingPercentile:

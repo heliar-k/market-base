@@ -673,14 +673,20 @@ def fx() -> dict:
         1 for r in rows if r["pressure"] is not None and r["pressure"] < -1
     )
     total_pairs = sum(1 for r in rows if r["pressure"] is not None)
-    overall = {
-        "weak": weak_count,
-        "total": total_pairs,
-        "verdict": "美元走弱"
-        if weak_count >= total_pairs / 2
-        else ("美元走强" if weak_count == 0 and total_pairs else "分化"),
-    }
+    overall = _fx_verdict(weak_count, total_pairs)
     return {"breadth": {"groups": breadth, "overall": overall}, "dashboard": rows}
+
+
+def _fx_verdict(weak_count: int, total_pairs: int) -> dict:
+    """美元广度判定：0 对 → 数据不足；≥半数对压力 <−1 → 走弱；否则走强/分化。"""
+    if total_pairs == 0:
+        return {"weak": 0, "total": 0, "verdict": "数据不足"}
+    verdict = (
+        "美元走弱"
+        if weak_count >= total_pairs / 2
+        else ("美元走强" if weak_count == 0 else "分化")
+    )
+    return {"weak": weak_count, "total": total_pairs, "verdict": verdict}
 
 
 # ── bonds / commodities / crypto 子页 ────────────────────────────────────────
