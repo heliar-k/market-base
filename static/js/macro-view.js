@@ -41,7 +41,7 @@ const NAV = [
 // 核心入口：SPA 视图（switch-tab 事件）或专题页（iframe）
 const CORE = [
   { label: '今日判断', view: 'macro' },
-  { label: '市场仪表盘', page: '/assets/' },
+  { label: '市场仪表盘', view: 'dashboard' },
   { label: '技术分析', view: 'tech' },
   { label: '关联分析', view: 'correlation' },
 ];
