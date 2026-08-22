@@ -20,7 +20,7 @@
 
   <div id="cards" class="re-cards"></div>
   <div id="liquidity"></div>
-  <div id="chart"></div>
+  <div id="trend"></div>
   <div id="recent"></div>
   <div class="re-gen" id="re-gen"></div>
 </div>
@@ -39,78 +39,132 @@ async function load() {
     <div class="re-corridor-value">${c.value}</div><div class="re-card-sub">${c.sub}</div></div>`).join('');
   if (d.cards && d.cards.length) document.getElementById('re-as-of').textContent = '数据截至 ' + d.cards[0].date;
 
-  // ── 宏观 × 加密流动性溢出 ──
+  // ── 宏观 × 加密流动性溢出（timsun 同款 4 KPI：净流动性 / 20 日脉冲 / BTC Beta / 背离监控）──
   const L = d.liquidity || {};
   const lsec = document.createElement('div');
   lsec.className = 're-section';
   lsec.innerHTML = '<h2>宏观 × 加密流动性溢出</h2><p style="margin:0 0 8px">Net Liquidity = Fed − TGA − RRP</p>';
   if (L.net != null) {
     const pulseColor = L.pulse_state === '扩张' ? '#26a69a' : '#ef5350';
+    const dv = L.divergence || null;
+    const warn = dv && dv.nl < 0 && dv.btc > 0;
+    const divColor = dv ? (warn ? '#ef5350' : (dv.nl > 0 && dv.btc < 0 ? '#ef5350' : '#26a69a')) : '#9ca3af';
+    const divText = dv
+      ? (warn ? '净流动性在收缩而 BTC 却在涨，注意回撤风险'
+              : (dv.nl > 0 && dv.btc < 0 ? 'BTC 回调但流动性扩张，下跌或为技术性'
+                                        : '净流动性与 BTC 同向'))
+      : '—';
     lsec.innerHTML += `
       <div class="re-cards" style="grid-template-columns:repeat(auto-fit,minmax(150px,1fr))">
         <div class="re-card"><div class="re-corridor-label">净流动性</div><div class="re-corridor-value">$${fmt(L.net)}T</div>
           <div class="re-card-sub">Fed ${fmt(L.fed)}T − TGA ${fmt(L.tga)}B − RRP ${fmt(L.rrp)}B</div></div>
-        <div class="re-card"><div class="re-corridor-label">20 日脉冲</div><div class="re-corridor-value" style="color:${pulseColor}">${L.pulse_20d == null ? '—' : fmt(L.pulse_20d)}</div>
-          <div class="re-card-sub">● ${L.pulse_state || '—'}</div></div>
+        <div class="re-card"><div class="re-corridor-label">20 日脉冲</div><div class="re-corridor-value" style="color:${pulseColor}">${L.pulse_20d == null ? '—' : fmt(L.pulse_20d) + 'B'}</div>
+          <div class="re-card-sub" style="color:${pulseColor}">● ${L.pulse_state || '—'}</div></div>
         <div class="re-card"><div class="re-corridor-label">BTC 流动性 Beta</div><div class="re-corridor-value">${L.beta ?? '—'}</div>
-          <div class="re-card-sub">SPX β 0.15 · R² ${L.r2 ?? '—'} · 90日</div></div>
+          <div class="re-card-sub">SPX β ${L.spx_beta ?? '—'} · R² ${L.r2 ?? '—'} · 90日</div></div>
+        <div class="re-card"><div class="re-corridor-label">背离监控</div>
+          <div class="re-corridor-value" style="color:${divColor};font-size:13px;font-weight:600;white-space:normal">${divText}</div>
+          <div class="re-card-sub" style="white-space:normal">${dv ? `NL ${fmt(dv.nl)}T · BTC ${dv.btc >= 0 ? '+' : ''}${fmt(dv.btc)}% · 30日` : '—'}</div></div>
       </div>`;
-    if (L.divergence) {
-      const dv = L.divergence;
-      const warn = dv.nl < 0 && dv.btc > 0;
-      lsec.innerHTML += `
-        <div style="margin-top:12px;padding:10px 14px;border:1px solid ${warn ? 'var(--border-accent)' : 'var(--border)'};border-radius:8px">
-          <b style="font-size:13px">${warn ? '⚠ 背离监控' : '背离监控'} — ${warn ? '净流动性在收缩而 BTC 却在涨，注意回撤风险' : '净流动性与 BTC 同向'}</b>
-          <p style="margin:6px 0 0;font-size:12px">NL ${fmt(dv.nl)}T · BTC ${dv.btc >= 0 ? '+' : ''}${fmt(dv.btc)}% · 30日</p>
-        </div>`;
-    }
   }
   document.getElementById('liquidity').appendChild(lsec);
 
-  // ── 净流动性 vs BTC ──
+  // ── 净流动性 vs BTC（180 日）──
   if (L.nl_series && L.nl_series.length) {
     const csec = document.createElement('div');
     csec.className = 're-section';
-    csec.innerHTML = '<h2>净流动性 vs BTC（180 日）</h2><div class="chart" id="liq-chart" style="height:300px"></div>';
-    document.getElementById('chart').appendChild(csec);
+    csec.innerHTML = '<h2>净流动性 vs BTC（180 日）</h2><div class="chart" id="liq-chart" style="height:320px"></div>';
+    document.getElementById('liquidity').appendChild(csec);
     R.mkChart('liq-chart', colors => ({
-      tooltip: { trigger: 'axis' },
-      legend: { data: ['净流动性 (T)', 'BTC (右轴)'], textStyle: { color: colors.text }, top: 0 },
-      grid: { left: 44, right: 60, top: 28, bottom: 28 },
-      xAxis: { type: 'category', data: L.nl_dates, axisLine: { lineStyle: { color: colors.border } }, axisLabel: { color: colors.muted, fontSize: 10 } },
+      tooltip: { trigger: 'axis', axisPointer: { type: 'cross' } },
+      legend: { data: ['净流动性 (T)', 'BTC 价格'], textStyle: { color: colors.text }, top: 0 },
+      grid: { left: '5%', right: '5%', top: 35, bottom: 40, containLabel: true },
+      xAxis: { type: 'category', data: L.nl_dates, axisLine: { lineStyle: { color: colors.border } },
+        axisLabel: { color: colors.muted, fontSize: 10, rotate: 30 } },
       yAxis: [
-        { type: 'value', axisLabel: { color: colors.muted, fontSize: 11 }, splitLine: { lineStyle: { color: colors.grid } } },
-        { type: 'value', scale: true, axisLabel: { color: colors.muted, fontSize: 11 }, splitLine: { show: false } },
+        { type: 'value', scale: true, position: 'left', name: '净流动性 (T)', nameTextStyle: { color: '#06b6d4' },
+          axisLabel: { color: '#06b6d4', fontSize: 10 }, splitLine: { lineStyle: { color: colors.grid, type: 'dashed' } } },
+        { type: 'value', scale: true, position: 'right', name: 'BTC ($)', nameTextStyle: { color: '#f59e0b' },
+          axisLabel: { color: '#f59e0b', fontSize: 10 }, splitLine: { show: false } },
       ],
       series: [
-        { name: '净流动性 (T)', type: 'line', data: L.nl_series, showSymbol: false, smooth: true, lineStyle: { width: 2, color: colors.blue }, areaStyle: { opacity: 0.08 } },
-        { name: 'BTC (右轴)', type: 'line', yAxisIndex: 1, data: L.btc_series, showSymbol: false, smooth: true, lineStyle: { width: 2, color: colors.orange, type: 'dashed' } },
+        { name: '净流动性 (T)', type: 'line', data: L.nl_series, showSymbol: false, smooth: true,
+          lineStyle: { width: 2, color: '#06b6d4' }, itemStyle: { color: '#06b6d4' }, areaStyle: { color: '#06b6d4', opacity: 0.1 } },
+        { name: 'BTC 价格', type: 'line', yAxisIndex: 1, data: L.btc_series, showSymbol: false, smooth: true, connectNulls: true,
+          lineStyle: { width: 2, color: '#f59e0b' }, itemStyle: { color: '#f59e0b' } },
       ],
     }));
   }
 
-  // 20 日表
+  // ── 交易含义（规则引擎生成，LLM 预留）──
+  const tsec = document.createElement('div');
+  tsec.className = 're-section';
+  if (L.trading) {
+    tsec.innerHTML = `<div style="border:1px solid var(--accent);border-radius:8px;padding:14px 16px;background:var(--surface)">
+      <b style="font-size:13px">交易含义</b><p style="margin:6px 0 0;font-size:13px;line-height:1.7">${L.trading}</p></div>`;
+  }
+  document.getElementById('liquidity').appendChild(tsec);
+
+  // ── 加密走势（归一化 % + BTC/ETH 价比右轴）──
+  const tr = d.trend || { dates: [], series: {} };
+  const keys = Object.keys(tr.series).filter(k => k !== 'RATIO');
+  if (keys.length && tr.dates.length) {
+    const nsec = document.createElement('div');
+    nsec.className = 're-section';
+    nsec.innerHTML = '<h2>加密走势（归一化 %）</h2><div class="chart" id="crypto-trend" style="height:320px"></div>';
+    document.getElementById('trend').appendChild(nsec);
+    R.mkChart('crypto-trend', colors => ({
+      tooltip: { trigger: 'axis', valueFormatter: v => v == null ? '—' : Number(v).toFixed(2) },
+      legend: { top: 0, data: keys.map(k => CRYPTO_NAME[k] || k).concat(['BTC/ETH 价比']), textStyle: { color: colors.text }, icon: 'rect', itemWidth: 12, itemHeight: 3 },
+      grid: { left: 48, right: 60, top: 32, bottom: 64 },
+      xAxis: { type: 'category', data: tr.dates, axisLine: { lineStyle: { color: colors.border } },
+        axisLabel: { color: colors.muted, fontSize: 11,
+          interval: (i) => i === 0 || i === tr.dates.length - 1 || tr.dates[i].slice(0, 7) !== tr.dates[i - 1].slice(0, 7),
+          formatter: v => { const [y, m] = v.split('-'); return m === '01' ? y : Number(m) + '月'; } } },
+      yAxis: [
+        { type: 'value', axisLabel: { color: colors.muted, fontSize: 11, formatter: v => v + '%' }, splitLine: { lineStyle: { color: colors.grid } } },
+        { type: 'value', scale: true, position: 'right', axisLabel: { color: colors.purple, fontSize: 11, formatter: v => v + 'x' }, splitLine: { show: false } },
+      ],
+      dataZoom: [
+        { type: 'inside', start: 0, end: 100 },
+        { type: 'slider', height: 20, bottom: 12, borderColor: colors.border, handleStyle: { color: colors.accent },
+          textStyle: { color: colors.muted }, dataBackground: { lineStyle: { color: colors.border }, areaStyle: { color: colors.grid } } },
+      ],
+      series: keys.map(k => ({
+        name: CRYPTO_NAME[k] || k, type: 'line', data: tr.series[k], showSymbol: false, smooth: true, connectNulls: true,
+        color: TREND_COLORS[k], lineStyle: { width: 1.6, color: TREND_COLORS[k] }, itemStyle: { color: TREND_COLORS[k] }, emphasis: { focus: 'series' },
+        markLine: { silent: true, symbol: 'none', label: { show: false }, lineStyle: { color: colors.border, type: 'dashed' }, data: [{ yAxis: 0 }] },
+      })).concat([{
+        name: 'BTC/ETH 价比', type: 'line', yAxisIndex: 1, data: tr.series.RATIO, showSymbol: false, smooth: true, connectNulls: true,
+        lineStyle: { width: 1.4, type: 'dashed', color: colors.purple }, itemStyle: { color: colors.purple },
+      }]),
+    }));
+  }
+
+  // ── 近期收盘价（最近 20 个交易日）──
   const rc = d.recent || { dates: [], series: {} };
-  const keys = Object.keys(rc.series);
+  const rkeys = Object.keys(rc.series);
   const rows = rc.dates.map((dt, i) => {
     const row = { 日期: dt };
-    keys.forEach(k => { row[k] = rc.series[k][i]; });
+    rkeys.forEach(k => { row[k] = rc.series[k][i]; });
     return row;
   });
   const rsec = document.createElement('div');
   rsec.className = 're-section';
   rsec.innerHTML = '<h2>近期收盘价（最近 20 个交易日）</h2>';
   const fmts = { 日期: v => v };
-  keys.forEach(k => { fmts[k] = v => fmt(v); });
-  rsec.appendChild(R.table(['日期'].concat(keys), rows, fmts));
+  rkeys.forEach(k => { fmts[k] = v => fmt(v); });
+  rsec.appendChild(R.table(['日期'].concat(rkeys), rows, fmts));
   document.getElementById('recent').appendChild(rsec);
 
-  document.getElementById('re-gen').textContent = '规则引擎生成（LLM 预留）· 流动性口径：WALCL − TGA − RRP；BTC 90 日收益率对净流动性变化回归';
+  document.getElementById('re-gen').textContent = '规则引擎生成（LLM 预留）· 流动性口径：WALCL − TGA − RRP；β 为 90 日 NL 变化对资产日收益率回归；收盘价 source: yfinance';
 }
+const CRYPTO_NAME = { BTC: 'BTC', ETH: 'ETH' };
+const TREND_COLORS = { BTC: '#f59e0b', ETH: '#26a69a' };
 function fmt(v) { return v == null ? '—' : Number(v === 0 ? 0 : v).toLocaleString(undefined, { maximumFractionDigits: 2 }); }
 function chg(v) { return v == null ? '—' : `<span style="color:${v >= 0 ? '#26a69a' : '#ef5350'}">${v >= 0 ? '▲ +' : '▼ '}${Number(v).toFixed(2)}%</span>`; }
 
-load().catch(e => R.fail(['cards', 'liquidity', 'chart', 'recent'], e));
+load().catch(e => R.fail(['cards', 'liquidity', 'trend', 'recent'], e));
 </script>
 <script src="/js/nav.js"></script>
 </body>

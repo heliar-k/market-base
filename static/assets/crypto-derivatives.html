@@ -20,44 +20,60 @@
   <div id="stale"></div>
   <div id="radar"></div>
   <div id="kpi"></div>
-  <div id="options"></div>
+  <div id="walls"></div>
+  <div id="retail"></div>
+  <div id="consensus"></div>
   <div class="re-gen" id="re-gen"></div>
 </div>
 
 <script src="/js/rates-common.js"></script>
 <script>
 function fmt(v, d = 2) { return v == null ? '—' : Number(v === 0 ? 0 : v).toLocaleString(undefined, { maximumFractionDigits: d }); }
+function stance(ann) { const a = Math.abs(ann || 0); return a >= 30 ? '偏高' : (a >= 15 ? '偏多' : '中性'); }
+function pcrStance(p) { return p == null ? '中性' : (p < 0.4 ? '偏多' : (p > 1.5 ? '偏空' : '中性')); }
+const P = { up: '#26a69a', down: '#ef5350', flat: '#9ca3af' };
 
 async function load() {
   const d = await R.get('/api/assets/crypto-derivatives');
-  if (!d || !d.ts) { R.fail(['radar', 'kpi', 'options'], new Error('无快照')); return; }
+  if (!d || !d.ts) { R.fail(['radar', 'kpi', 'walls', 'retail', 'consensus'], new Error('无快照')); return; }
 
-  // 数据时效
-  const ts = new Date(d.ts);
-  const ageH = (Date.now() - ts.getTime()) / 3600e3;
-  document.getElementById('as-of').textContent = '快照 ' + d.ts.slice(0, 16).replace('T', ' ') + ' UTC';
+  // ── 数据时效（timsun 同款多源时效条）──
+  const age = (iso) => ((Date.now() - new Date(iso).getTime()) / 3600e3).toFixed(1);
   const stale = document.getElementById('stale');
-  stale.innerHTML = `<div class="re-explain">📡 数据时效：衍生品 KPI ${ageH.toFixed(1)}h${ageH > 24 ? ' <b style="color:var(--warning)">⚠ STALE</b>' : ''} · 每日 cron 自动刷新 · 日频按美股交易日，小时级按 24/72h</div>`;
+  const cmeAge = d.cme && d.cme.as_of ? ` (${age(d.cme.as_of + 'T12:00:00Z')}h)` : '';
+  stale.innerHTML = `<div class="re-explain">📡 数据时效：衍生品 KPI ${age(d.ts)}h · CME 基差 ${cmeAge || '—'} · 日频按美股交易日，小时级按 24/72h · 每日 cron 自动刷新</div>`;
 
-  // ── 前瞻雷达（后端规则引擎 crypto_radar，7 信号权重）──
-  const radar = d.radar || { total: null, verdict: '数据不足', confidence: 0, structure: '—', signals: [] };
+  // ── BTC FORWARD RADAR（timsun 同款：综合分 + 4 列 + 信号权重）──
+  const radar = d.radar || { total: null, confidence: 0, verdict: '数据不足', structure: '—', lev_risk: '—', driver: '—', signals: [] };
+  const rcolor = radar.verdict === '偏多' ? P.up : (radar.verdict === '偏空' ? P.down : P.flat);
   const rsec = document.createElement('div');
   rsec.className = 're-section';
-  const rcolor = radar.verdict === '偏多' ? '#26a69a' : (radar.verdict === '偏空' ? '#ef5350' : '#9ca3af');
+  const missed = (radar.signals || []).filter(s => s.dir === 0).map(s => s.name);
+  const etfMissed = (radar.signals || []).some(s => s.name === 'ETF 资金流' && s.dir === 0);
   rsec.innerHTML = `
-    <h2>BTC FORWARD RADAR</h2>
+    <h2>BTC FORWARD RADAR <span style="font-size:12px;font-weight:400;opacity:.7">— BTC 前瞻雷达</span></h2>
     <p style="margin:0 0 8px">把 ETF、CME、基差、永续杠杆和期权信号压缩为 0-24h / 1-7d 判断。</p>
     <div class="re-cards" style="grid-template-columns:repeat(auto-fit,minmax(140px,1fr))">
-      <div class="re-card"><div class="re-corridor-label">综合分</div><div class="re-corridor-value" style="color:${rcolor}">${radar.total == null ? '—' : (radar.total >= 0 ? '+' : '') + radar.total}</div></div>
-      <div class="re-card"><div class="re-corridor-label">置信度</div><div class="re-corridor-value">${radar.confidence}/100</div></div>
+      <div class="re-card"><div class="re-corridor-label">综合分</div><div class="re-corridor-value" style="color:${rcolor}">${radar.total == null ? '—' : (radar.total >= 0 ? '+' : '') + radar.total}</div>
+        <div class="re-card-sub">置信度 ${radar.confidence}/100</div></div>
       <div class="re-card"><div class="re-corridor-label">24h 偏向</div><div class="re-corridor-value" style="color:${rcolor};font-size:15px">${radar.verdict}</div></div>
       <div class="re-card"><div class="re-corridor-label">3-7 日结构</div><div class="re-corridor-value" style="font-size:15px">${radar.structure}</div></div>
+      <div class="re-card"><div class="re-corridor-label">杠杆风险</div><div class="re-corridor-value" style="font-size:15px">${radar.lev_risk}</div></div>
+      <div class="re-card" style="grid-column:span 2"><div class="re-corridor-label">主导力量</div><div class="re-corridor-value" style="font-size:15px">${radar.driver}</div></div>
     </div>
-    <p class="re-source" style="margin:10px 0 6px">信号权重（缺失信号不纳入评分）：</p>`;
-  rsec.appendChild(R.table(['信号', '权重', '方向', '描述'], radar.signals, {
-    weight: v => v,
-    dir: (v, row) => row.dir === 1 ? '<span style="color:#26a69a">+</span>' : (row.dir === -1 ? '<span style="color:#ef5350">−</span>' : '0'),
-  }, ['name', 'weight', 'dir', 'desc'], true));
+    ${etfMissed ? '<div style="margin-top:10px;padding:8px 12px;border:1px solid var(--warning,#d97706);border-radius:6px;font-size:12px;color:var(--warning,#d97706)">ETF 资金流未接入，不纳入方向评分。</div>' : ''}
+    <p class="re-source" style="margin:10px 0 6px">信号权重（缺失信号不纳入评分）${missed.length ? ' · 缺：' + missed.join(' / ') : ''}</p>`;
+  const rows = (radar.signals || []).map(s => {
+    const sc = s.dir * s.weight;
+    const c = sc > 0 ? P.up : (sc < 0 ? P.down : P.flat);
+    return `<div class="re-card" style="display:flex;align-items:baseline;gap:10px;padding:10px 14px">
+      <span style="min-width:110px;font-weight:600">${s.name}</span>
+      <span style="font-size:11px;opacity:.7;flex:1">${s.desc}</span>
+      <span style="font-weight:700;color:${c}">${sc > 0 ? '+' + sc : sc}</span>
+      <span style="font-size:11px;opacity:.6;min-width:36px;text-align:right">权 ${s.weight}</span></div>`;
+  }).join('');
+  rsec.insertAdjacentHTML('beforeend', `<div class="re-render" style="display:grid;gap:6px"></div>`);
+  rsec.querySelector('.re-render').innerHTML = rows;
   rsec.insertAdjacentHTML('beforeend', `
     <div class="re-badges" style="margin-top:10px">
       <span class="re-badge flat">触发条件 · 资金费率年化 &gt;15% 或基差 &gt;0.3% 且 PCR &lt;0.7</span>
@@ -65,38 +81,119 @@ async function load() {
     <p class="re-source" style="margin:8px 0 0">反证条件：基差转负 &gt;0.3% 或 Call Wall 上移后跌破。</p>`);
   document.getElementById('radar').appendChild(rsec);
 
-  // ── KPI 卡 ──
+  // ── 衍生品 KPI 卡（timsun 同款 7 卡：资金费率 / 多空比 / ETH OI / PCR / 期权 OI / Max Pain / 指数价）──
   const p = d.perp || {};
+  const optB = d.options_BTC || {}, optE = d.options_ETH || {};
+  const BTC = p.BTC || {}, ETH = p.ETH || {};
+  const taker = (d.taker || {}).BTC || [];
+  let tarb = 0, tars = 0;
+  taker.slice(0, 3).forEach(r => { tarb += r.buy; tars += r.sell; });
+  const ls = tars ? tarb / tars : null;
+  const ann = BTC.funding_annual;
+  const kpi = (label, value, sub, color) => `
+    <div class="re-card"><div class="re-corridor-label">${label}</div>
+    <div class="re-corridor-value" style="${color ? 'color:' + color + ';' : ''}${String(value).length > 8 ? 'font-size:18px' : ''}">${value}</div>
+    <div class="re-card-sub" style="white-space:normal">${sub}</div></div>`;
   const ksec = document.createElement('div');
   ksec.className = 're-section';
-  ksec.innerHTML = '<h2>衍生品 KPI（OKX 永续）</h2>';
-  ksec.appendChild(R.table(['品种', '永续现价', '资金费率 (8h)', '年化', 'OI (USD)', 'OI (币)'], ['BTC', 'ETH'].map(ccy => {
-    const x = p[ccy] || {};
-    return { ccy, last: x.last, fr: x.funding_rate, ann: x.funding_annual, oi: x.oi_usd, oic: x.oi_ccy };
-  }), {
-    last: v => fmt(v, 0),
-    fr: v => v == null ? '—' : (v * 100).toFixed(4) + '%',
-    ann: v => v == null ? '—' : (v * 100).toFixed(1) + '%',
-    oi: v => v == null ? '—' : '$' + (v / 1e9).toFixed(2) + 'B',
-    oic: v => v == null ? '—' : fmt(v, 0),
-  }, ['ccy', 'last', 'fr', 'ann', 'oi', 'oic']));
+  ksec.innerHTML = `<h2>衍生品 KPI（OKX 永续 + Deribit 期权）</h2>
+    <div class="re-cards" style="grid-template-columns:repeat(auto-fit,minmax(170px,1fr))">
+      ${kpi('BTC 永续资金费率', (BTC.funding_rate == null ? '—' : (BTC.funding_rate * 100).toFixed(4) + '%'), `年化 ${ann == null ? '—' : (ann * 100).toFixed(1) + '%'} · ${stance(ann)}`)}
+      ${kpi('BTC 散户多空比', ls == null ? '—' : ls.toFixed(2), ls == null ? 'taker 数据不可用' : `${Math.round(ls / (1 + ls) * 100)}% 多 / ${Math.round(1 / (1 + ls) * 100)}% 空 · 3 日 taker 口径`)}
+      ${kpi('ETH 期货 OI', ETH.oi_ccy == null ? '—' : fmt(ETH.oi_ccy, 0) + ' ETH', `$${ETH.oi_usd == null ? '—' : (ETH.oi_usd / 1e9).toFixed(2)}B · OKX 永续`)}
+      ${kpi('BTC 期权 P/C (OI)', optB.pcr ?? '—', `${pcrStance(optB.pcr)}区间`)}
+      ${kpi('BTC 期权总 OI', fmt(optB.total_oi, 0) + ' 张', 'Deribit 全到期合约汇总')}
+      ${kpi('BTC Max Pain（最近到期）', optB.max_pain == null ? '—' : '$' + fmt(optB.max_pain, 0), `${optB.d_exp} 个到期月`)}
+      ${kpi('BTC 指数价格', optB.spot_anchor == null ? '—' : '$' + fmt(optB.spot_anchor, 0), 'Deribit btc_usd 合成指数')}
+    </div>`;
   document.getElementById('kpi').appendChild(ksec);
 
-  // ── 期权墙（Deribit）──
-  const osec = document.createElement('div');
-  osec.className = 're-section';
-  osec.innerHTML = '<h2>期权结构（Deribit）</h2>';
-  const rows = (d.options_BTC ? [['BTC', d.options_BTC]] : []).concat(d.options_ETH ? [['ETH', d.options_ETH]] : []);
-  osec.appendChild(R.table(['币种', '现货锚', 'Call Wall', 'Put Wall', 'PCR (OI)', 'Max Pain', '总 OI'], rows.map(([ccy, o]) => ({
-    ccy, spot: o.spot_anchor, cw: o.call_wall, pw: o.put_wall, pcr: o.pcr, pain: o.max_pain, oi: o.total_oi,
-  })), { spot: v => '$' + fmt(v, 0), cw: v => '$' + fmt(v, 0), pw: v => '$' + fmt(v, 0), pain: v => '$' + fmt(v, 0), oi: v => fmt(v, 0) }, ['ccy', 'spot', 'cw', 'pw', 'pcr', 'pain', 'oi']));
-  osec.insertAdjacentHTML('beforeend', `<p class="re-source" style="margin:8px 0 0">CME 基差：${d.cme ? d.cme.basis_pct.toFixed(2) + '%（' + '$' + fmt(d.cme.fut_price, 0) + ' vs $' + fmt(d.cme.spot, 0) + '）' : '—'}</p>`);
-  document.getElementById('options').appendChild(osec);
+  // ── 🧱 期权价格墙 · Strike Wall（Deribit；CME 机构期权无 OI 数据未接入）──
+  const wsec = document.createElement('div');
+  wsec.className = 're-section';
+  const dist = (wall, spot) => wall == null || !spot ? null : (wall / spot - 1) * 100;
+  const wallBox = (label, v, spot) => v == null ? '' : `
+    <div style="border:1px solid ${label === 'Call Wall' ? 'var(--down,#ef5350)' : 'var(--up,#26a69a)'};border-radius:8px;padding:12px;background:var(--surface)">
+      <div class="re-corridor-label">${label}</div>
+      <div style="font-size:22px;font-weight:700;color:${label === 'Call Wall' ? 'var(--down,#ef5350)' : 'var(--up,#26a69a)'}">$${fmt(v, 0)}</div>
+      <div class="re-card-sub">${dist(v, spot) == null ? '' : `距现价 ${dist(v, spot) >= 0 ? '+' : ''}${dist(v, spot).toFixed(1)}%`}</div>
+    </div>`;
+  wsec.innerHTML = `<h2>🧱 期权价格墙 · Strike Wall</h2>
+    <p style="margin:0 0 8px;font-size:12px;opacity:.75">Call Wall 偏上方压制 / Put Wall 偏下方支撑；用于短线磁吸与失效条件，不单独代表方向。</p>
+    <div style="border:1px solid var(--accent);border-radius:8px;padding:10px 14px;margin-bottom:10px;font-size:12px">
+      <b>如何解读</b> — Strike Wall 是短期价格磁吸/压制区，尤其在临近到期时更有用。它不是趋势信号，更像短线地图。</div>
+    <div class="re-cards" style="grid-template-columns:repeat(auto-fit,minmax(260px,1fr))">
+      <div class="re-card"><div class="re-corridor-label">Deribit 全市场期权 · BTC</div>
+        <div class="re-card-sub" style="white-space:normal">现货锚 $${fmt(optB.spot_anchor, 0)} · 最近到期 ${optB.d_exp} 个到期月</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px">
+          ${wallBox('Call Wall', optB.call_wall, optB.spot_anchor)}${wallBox('Put Wall', optB.put_wall, optB.spot_anchor)}
+        </div></div>
+      <div class="re-card"><div class="re-corridor-label">Deribit 全市场期权 · ETH</div>
+        <div class="re-card-sub" style="white-space:normal">现货锚 $${fmt(optE.spot_anchor, 0)} · 最近到期 ${optE.d_exp} 个到期月</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px">
+          ${wallBox('Call Wall', optE.call_wall, optE.spot_anchor)}${wallBox('Put Wall', optE.put_wall, optE.spot_anchor)}
+        </div></div>
+    </div>
+    <p class="re-source" style="margin:8px 0 0">Top Walls 明细与 CME 机构期权墙：数据源未接入，待快照扩展。</p>`;
+  document.getElementById('walls').appendChild(wsec);
 
-  document.getElementById('re-gen').textContent = '规则引擎生成（LLM 预留）· 数据源：OKX API / Deribit API / Yahoo Finance CME / CFTC';
+  // ── LAYER 3 · RETAIL 散户立场 ──
+  const stFr = `${BTC.funding_rate == null ? 0 : BTC.funding_rate * 100 >= 0 ? '+' : ''}${(BTC.funding_rate || 0) * 100}%`;
+  const stLS = ls == null ? '—' : `${ls.toFixed(2)} (${Math.round(ls / (1 + ls) * 100)}% 多)`;
+  const lsWord = ls == null ? '中性' : (ls > 1.2 ? '偏多' : (ls < 0.8 ? '偏空' : '中性'));
+  const pcrW = pcrStance(optB.pcr);
+  const retailRows = [
+    ['永续资金费率', `资金费率 ${stFr} → 永续多空成本${stance(ann) === '中性' ? '中性' : '偏多'}`],
+    ['永续多空比', `散户多空比 ${stLS} → 散户立场${lsWord}`],
+    ['期权 PCR', `期权 PCR ${fmt(optB.pcr, 2)} → 散户期权立场${pcrW}`],
+    ['永续 OI', `BTC 永续 OI $${(BTC.oi_usd || 0) / 1e9} B → 7d 变化待历史积累`],
+  ];
+  const rsec2 = document.createElement('div');
+  rsec2.className = 're-section';
+  rsec2.innerHTML = `<h2>🆚 散户在想这件事 <span style="font-size:12px;font-weight:400;opacity:.7">LAYER 3 · RETAIL — 永续 / 期权（基于当前数据，非"看多/看空"判断）</span></h2>`;
+  const ret = document.createElement('div');
+  ret.className = 're-render';
+  ret.style.display = 'grid';
+  ret.style.gap = '6px';
+  retailRows.forEach(([k, v]) => {
+    const d2 = document.createElement('div');
+    d2.className = 're-card';
+    d2.style.display = 'flex';
+    d2.style.gap = '10px';
+    d2.style.padding = '10px 14px';
+    d2.innerHTML = `<span style="min-width:110px;font-weight:600">${k}</span><span style="font-size:12px;flex:1">${v}</span>`;
+    ret.appendChild(d2);
+  });
+  rsec2.appendChild(ret);
+  document.getElementById('retail').appendChild(rsec2);
+
+  // ── CONSENSUS · DIVERGENCE 机构 vs 散户 ──
+  const c = d.consensus || null;
+  if (c) {
+    const csec = document.createElement('div');
+    csec.className = 're-section';
+    csec.innerHTML = `<h2>🆚 机构 vs 散户 · 对照 <span style="margin-left:6px;font-size:12px;font-weight:400;opacity:.7;border:1px solid var(--border);padding:2px 8px;border-radius:4px">${c.verdict}</span></h2>
+      <div class="re-cards" style="grid-template-columns:repeat(auto-fit,minmax(180px,1fr))">
+        <div class="re-card"><div class="re-corridor-label">🏛 机构方向</div>
+          <div style="font-size:15px;font-weight:600">立场${c.inst.stance}</div>
+          <div class="re-card-sub" style="white-space:normal">${c.inst.votes} <span style="opacity:.6">${c.inst.note}</span></div>
+          <div class="re-card-sub" style="white-space:normal">${c.inst.text}</div></div>
+        <div class="re-card"><div class="re-corridor-label">🆚 散户方向</div>
+          <div style="font-size:15px;font-weight:600">立场${c.retail.stance}</div>
+          <div class="re-card-sub" style="white-space:normal">${c.retail.votes} <span style="opacity:.6">${c.retail.note}</span></div>
+          <div class="re-card-sub" style="white-space:normal">${c.retail.text}</div></div>
+        <div class="re-card"><div class="re-corridor-label">📊 当前对照</div>
+          <div style="font-size:15px;font-weight:600">${c.verdict}</div>
+          <div class="re-card-sub" style="white-space:normal">${c.detail}</div></div>
+      </div>
+      <p class="re-source" style="margin:8px 0 0">注：此对照仅描述"现在机构和散户立场是否一致"，非"BTC 即将上涨/下跌"的预测信号。共识不等于赚钱，分歧不等于反转，以独立判断为准。</p>`;
+    document.getElementById('consensus').appendChild(csec);
+  }
+
+  document.getElementById('re-gen').textContent = '规则引擎生成（LLM 预留）· 数据源：OKX API / Deribit API / Yahoo Finance CME / CFTC COT';
 }
 
-load().catch(e => R.fail(['radar', 'kpi', 'options'], e));
+load().catch(e => R.fail(['radar', 'kpi', 'walls', 'retail', 'consensus'], e));
 </script>
 <script src="/js/nav.js"></script>
 </body>

@@ -217,7 +217,7 @@ def seed_history_if_short(filepath: Path) -> None:
     frames: list[pd.DataFrame] = []
     for name, ticker in config.yf_tickers.items():
         try:
-            df = fetch_ohlcv(ticker, period="3mo")
+            df = fetch_ohlcv(ticker, period="2y")
         except Exception as e:
             logger.info(f"  ✗ 回填 {name}: {e}")
             continue

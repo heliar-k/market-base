@@ -87,7 +87,7 @@ FX_ROWS = [
     ("USDCNH", "美元/离岸人民币"),
     ("USDKRW", "美元/韩元"),
 ]
-CRYPTO_ROWS = [("BTC", "比特币"), ("ETH", "以太坊")]
+CRYPTO_ROWS = [("BTC", "BTC"), ("ETH", "ETH")]
 
 
 # ── 读数据 ───────────────────────────────────────────────────────────────────
@@ -149,9 +149,9 @@ def _price_rows(df: pd.DataFrame, rows: list[tuple[str, str]]) -> list[dict]:
 
 
 def _recent_prices(df: pd.DataFrame, cols: list[str], n: int = 20) -> list[dict]:
-    """近 n 日收盘表（行=日期，列=标的）。"""
+    """近 n 日收盘表（行=日期，列=标的；timsun 同款：最新在前倒序）。"""
     sub = df[[c for c in cols if c in df.columns]].dropna(how="all")
-    sub = sub.tail(n)
+    sub = sub.tail(n).iloc[::-1]
     dates = [str(d.date()) for d in sub.index]
     series = {}
     for c in cols:
@@ -500,23 +500,26 @@ def equities() -> dict:
 
 
 def _index_normalized(p: pd.DataFrame, rows: list[tuple[str, str]]) -> dict:
-    """近 1 年归一化 %：窗口首日 = 0，输出 dates + 每标的 series。"""
+    """近 1 年归一化 %：窗口首日 = 0，输出 dates + 每标的 series。
+
+    基准取每列自身首个有效值（列起点不一致时后启标的仍能正常归一化，
+    如 ETH 历史短于 BTC 的情况）。
+    """
     df = p[[k for k, _ in rows if k in p.columns]].dropna(how="all")
     if df.empty:
         return {"dates": [], "series": {}}
     df = df.dropna(how="all").tail(252)
-    base = df.iloc[0]
     out = {"dates": [str(d.date()) for d in df.index]}
-    out["series"] = {
-        k: [
-            round((float(v) / float(base[k]) - 1) * 100, 2)
-            if pd.notna(v) and base[k]
-            else None
+    out["series"] = {}
+    for k, _ in rows:
+        if k not in df.columns:
+            continue
+        base = df[k].dropna()
+        base0 = float(base.iloc[0]) if not base.empty else None
+        out["series"][k] = [
+            round((float(v) / base0 - 1) * 100, 2) if pd.notna(v) and base0 else None
             for v in df[k]
         ]
-        for k, _ in rows
-        if k in df.columns
-    }
     return out
 
 
@@ -1233,12 +1236,47 @@ def commodities() -> dict:
     }
 
 
+def _reg_beta(
+    nl: pd.Series, px: pd.Series, n: int = 90
+) -> tuple[float | None, float | None]:
+    """90 日回归：NL 与资产日收益率（beta, r2）；NL 为百万美元口径。"""
+    r = pd.concat([nl, px], axis=1, keys=["NL", "PX"]).dropna()
+    rets = r.pct_change().dropna().tail(n)
+    if len(rets) < 60:
+        return None, None
+    x = rets["NL"].values
+    y = rets["PX"].values
+    if np.std(x) > 0 and np.std(y) > 0:
+        beta = float(np.cov(x, y)[0, 1] / np.var(x))
+        r2 = float(np.corrcoef(x, y)[0, 1] ** 2)
+        return beta, r2
+    return None, None
+
+
 def crypto() -> dict:
+    """加密货币页：BTC/ETH 卡片 + 净流动性溢出（timsun 对齐口径）+ 走势归一化。
+
+    口径（与 timsun /assets/crypto 一致）：net/fed 以 T、tga/rrp 以 B、
+    pulse_20d 为 20 日绝对变化（B）、divergence.nl 为 30 日绝对变化（T）。
+    """
     p = asset_prices()
     out = {
         "cards": _price_rows(p, CRYPTO_ROWS),
         "recent": _recent_prices(p, [k for k, _ in CRYPTO_ROWS]),
+        "trend": _index_normalized(p, CRYPTO_ROWS),
     }
+    # BTC/ETH 价格比（走势图右轴；与归一化图同窗同网格）
+    t = out.get("trend") or {}
+    if t.get("dates"):
+        grid = pd.to_datetime(t["dates"])
+        bp = p["BTC"].reindex(grid)
+        ep = p["ETH"].reindex(grid)
+        t.setdefault("series", {})["RATIO"] = [
+            round(float(b) / float(e), 2)
+            if pd.notna(b) and pd.notna(e) and float(e)
+            else None
+            for b, e in zip(bp, ep)
+        ]
     # 净流动性溢出
     liq = _csv("fred/liquidity/liquidity.csv")
     btc = p["BTC"].dropna() if "BTC" in p.columns else pd.Series(dtype=float)
@@ -1249,46 +1287,63 @@ def crypto() -> dict:
             wide[c] = liq[c].ffill()
         wide["RRP"] = liq["RRPONTSYD"]
         wide["NL"] = wide["WALCL"] - wide["RRP"] * 1000 - wide["WTREGEN"]
-        nl = wide["NL"].dropna()
-        btc30 = btc.tail(200)
-        # 90 日收益率回归（NL 变化 vs BTC 日收益）
-        r = pd.concat([nl, btc30], axis=1, keys=["NL", "BTC"]).dropna()
-        rets = r.pct_change().dropna()
-        beta = None
-        r2 = None
-        if len(rets) >= 60:
-            y = rets["BTC"].tail(90).values
-            x = rets["NL"].tail(90).values
-            if np.std(x) > 0 and np.std(y) > 0:
-                beta = float(np.cov(x, y)[0, 1] / np.var(x))
-                r2 = float(np.corrcoef(x, y)[0, 1] ** 2)
-        pulse = None
-        if len(nl) >= 21:
-            pulse = (float(nl.iloc[-1]) / float(nl.iloc[-21]) - 1) * 100
+        nl = wide["NL"].dropna()  # 百万美元
+        # 90 日回归（Beta / R²；SPX 同样口径用于 β 对比）
+        beta, r2 = _reg_beta(nl, btc)
+        spx = p["SPX"].dropna() if "SPX" in p.columns else pd.Series(dtype=float)
+        spx_beta, _ = _reg_beta(nl, spx)
+        # 20 日脉冲：绝对变化（B）
+        pulse = (
+            (float(nl.iloc[-1]) - float(nl.iloc[-21])) / 1000 if len(nl) >= 21 else None
+        )
+        # 30 日背离：NL 绝对变化（T）+ BTC 涨跌幅（%）
         div = None
         if len(nl) >= 31 and len(btc) >= 31:
             div = {
-                "nl": round(
-                    (float(nl.iloc[-1]) / float(nl.iloc[-31]) - 1) * 100 / 1000, 2
-                ),
+                "nl": round((float(nl.iloc[-1]) - float(nl.iloc[-31])) / 1e6, 2),
                 "btc": round((float(btc.iloc[-1]) / float(btc.iloc[-31]) - 1) * 100, 1),
             }
+        # 180 日历日窗口（timsun 同款：日网格含周末，NL ffill 成连续线；
+        # 而非 180 个交易日——否则窗口跨度变 260+ 天、形状错位）
+        end = nl.index[-1]
+        grid = pd.date_range(end - pd.Timedelta(days=179), end)
+        nld = nl.reindex(grid).ffill().dropna()
+        btc_al = btc.reindex(nld.index)
+        # 交易含义（规则引擎；LLM 预留接 _llm_generate 后替换）
+        parts: list[str] = []
+        if beta is not None and spx_beta:
+            parts.append(
+                f"BTC 对美元流动性变化的敏感度约是标普的 {beta / spx_beta:.1f} 倍。"
+            )
+        if pulse is not None:
+            if pulse < 0:
+                parts.append(
+                    f"当前脉冲为负（{round(pulse):.0f}B），历史经验下建议等待脉冲转正信号再建仓。"
+                )
+            else:
+                parts.append(
+                    f"当前脉冲为正（+{round(pulse):.0f}B），加密流动性顺风延续。"
+                )
+        if div and div["nl"] < 0 and div["btc"] > 0:
+            parts.append("注意：净流动性收缩但 BTC 上涨，警惕回撤风险。")
         out["liquidity"] = {
-            "net": round(float(nl.iloc[-1]) / 1000, 2),  # T
-            "fed": round(float(wide["WALCL"].dropna().iloc[-1]) / 1000, 2),
-            "tga": round(float(wide["WTREGEN"].dropna().iloc[-1]) / 1000, 1),
-            "rrp": round(float(wide["RRP"].dropna().iloc[-1]) / 1000, 2),
-            "pulse_20d": round(pulse, 0) if pulse is not None else None,
+            "net": round(float(nl.iloc[-1]) / 1e6, 2),  # T
+            "fed": round(float(wide["WALCL"].dropna().iloc[-1]) / 1e6, 2),  # T
+            "tga": round(float(wide["WTREGEN"].dropna().iloc[-1]) / 1000, 1),  # B
+            "rrp": round(float(wide["RRP"].dropna().iloc[-1]), 2),  # B（FRED 已是 B）
+            "pulse_20d": round(pulse) if pulse is not None else None,
             "pulse_state": "收缩"
             if pulse is not None and pulse < 0
             else ("扩张" if pulse is not None else None),
             "beta": round(beta, 2) if beta is not None else None,
             "r2": round(r2, 2) if r2 is not None else None,
+            "spx_beta": round(spx_beta, 2) if spx_beta is not None else None,
             "divergence": div,
-            "nl_series": [round(float(v) / 1000, 2) for v in nl.tail(180)],
-            "nl_dates": [str(d.date()) for d in nl.tail(180).index],
-            "btc_series": [round(float(v), 0) for v in btc.tail(180)],
-            "btc_dates": [str(d.date()) for d in btc.tail(180).index],
+            "trading": " ".join(parts) or None,
+            "nl_series": [round(float(v) / 1e6, 2) for v in nld],
+            "nl_dates": [str(d.date()) for d in nld.index],
+            "btc_series": [round(float(v), 0) if pd.notna(v) else None for v in btc_al],
+            "btc_dates": [str(d.date()) for d in nld.index],
         }
     return out
 
@@ -1525,7 +1580,99 @@ def crypto_derivatives() -> dict | None:
         return None
     snap = json.loads(files[-1].read_text(encoding="utf-8"))
     snap["radar"] = crypto_radar(snap)
+    snap["consensus"] = crypto_consensus(snap, snap["radar"])
     return snap
+
+
+# ── 机构 vs 散户对照（衍生品页；规则引擎，LLM 预留） ──────────────────────────
+
+
+def _stance(value: float | None, thr: float) -> str:
+    """±thr 阈值 → 多/空/中性。"""
+    if value is None:
+        return "中性"
+    return "偏多" if value > thr else ("偏空" if value < -thr else "中性")
+
+
+def crypto_consensus(snap: dict, radar: dict) -> dict:
+    """机构 vs 散户方向对照：机构=CME OI 周变化（+ETF 预留）；
+    散户=资金费率 + 多空比 + PCR。返回双方立场与对照结论。"""
+    cot = _csv("cot/cot.csv")
+    chg = None
+    if "BTC_OI" in cot.columns:
+        oi = cot["BTC_OI"].dropna()
+        if len(oi) >= 2:
+            chg = (float(oi.iloc[-1]) / float(oi.iloc[-2]) - 1) * 100
+    inst_stance = _stance(chg, 0.5)
+
+    perp = (snap.get("perp") or {}).get("BTC") or {}
+    taker = (snap.get("taker") or {}).get("BTC") or []
+    opt = snap.get("options_BTC") or {}
+    ann = perp.get("funding_annual")
+    fr_stance = _stance(ann, 15)  # 年化 >15% 视为多头拥挤
+    ls = None
+    if len(taker) >= 3:
+        buy = sum(r["buy"] for r in taker[:3])
+        sell = sum(r["sell"] for r in taker[:3])
+        ls = buy / sell if sell else None
+    ls_stance = _stance((ls - 1) * 100 if ls is not None else None, 20)  # ±20%
+    pcr = opt.get("pcr")
+    pcr_stance = "中性"
+    if pcr is not None:
+        # 低 PCR = call 拥挤 = 偏多（与雷达口径一致）
+        pcr_stance = "偏多" if pcr < 0.8 else ("偏空" if pcr > 1.2 else "中性")
+
+    def votes(stances: list[str]) -> str:
+        def cnt(st: str) -> int:
+            return sum(x == st for x in stances)
+
+        return f"多 {cnt('偏多')} · 空 {cnt('偏空')} · 平 {cnt('中性')}"
+
+    retail_stances = [fr_stance, ls_stance, pcr_stance]
+    note_inst = "(CME 综合)" if chg is not None else "(CME 数据待积累)"
+    short = {"偏多": "多", "偏空": "空", "中性": "中性"}
+    both_neutral = inst_stance == "中性" and all(s == "中性" for s in retail_stances)
+    if both_neutral:
+        verdict = "双方都按兵不动 — 等待新催化"
+        detail = (
+            "机构与散户立场均中性，无方向性持仓变化。等待宏观或链上新催化打破僵局。"
+        )
+    elif len({inst_stance, *retail_stances}) == 1:
+        verdict = f"机构与散户同向偏{short[inst_stance][:1]} — 趋势延续概率上升"
+        detail = (
+            f"机构（CME OI {chg:+.1f}%）与散户（资金费率/多空比/PCR）"
+            "立场一致，方向性信号同向。"
+        )
+    else:
+        verdict = (
+            f"机构偏{short[inst_stance]}，散户偏{short[retail_stances[0]]}"
+            " — 分歧看定价权"
+        )
+        detail = (
+            "机构与散户立场不一致：以机构（CME）定价权为锚，"
+            "散户信号仅作反向拥挤度参考。"
+        )
+    return {
+        "inst": {
+            "stance": inst_stance,
+            "votes": votes([inst_stance]),
+            "note": note_inst,
+            "text": f"CME OI 周变化 {chg:+.1f}%"
+            if chg is not None
+            else "CME COT 数据待积累",
+        },
+        "retail": {
+            "stance": retail_stances[0] if len(set(retail_stances)) == 1 else "分化",
+            "votes": votes(retail_stances),
+            "note": "(资金费率 / 多空比 / PCR 综合)",
+            "text": f"资金费率年化 {ann * 100:.1f}% · 多空比 {ls:.2f} · PCR {pcr}"
+            if ann is not None and ls is not None and pcr is not None
+            else "部分散户数据不可用",
+        },
+        "verdict": verdict,
+        "detail": detail,
+        "generator": "rules",
+    }
 
 
 # ── BTC 前瞻雷达（衍生品页；信号来自快照 + CFTC COT） ────────────────────────
@@ -1590,6 +1737,16 @@ def crypto_radar(snap: dict) -> dict:
         f"CME OI 周变化 {cme_oi_chg:+.1f}%（CFTC）"
         if cme_oi_chg is not None
         else "CFTC COT 更新前待积累",
+    )
+
+    # 杠杆风险（资金费率年化；timsun 口径：>30% 高 / >15% 中 / 其余低）
+    fr = perp.get("funding_annual") or 0
+    lev_risk = "高" if abs(fr) >= 30 else ("中" if abs(fr) >= 15 else "低")
+    # 主导力量（timsun 口径：机构增减仓 vs 现货驱动）
+    driver = (
+        f"CME 机构头寸: {'机构增仓' if (cme_oi_chg or 0) > 0 else '机构减仓'}"
+        if cme_oi_chg is not None
+        else "现货驱动 · CFTC 数据待积累"
     )
 
     # 资金费率（年化）
@@ -1676,5 +1833,7 @@ def crypto_radar(snap: dict) -> dict:
         "structure": "偏多结构"
         if total is not None and total >= 2
         else ("偏空结构" if total is not None and total <= -2 else "现货通道待确认"),
+        "lev_risk": lev_risk,
+        "driver": driver,
         "signals": signals,
     }
