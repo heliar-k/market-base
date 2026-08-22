@@ -224,7 +224,7 @@ body.dark .re-expectation.hold { background: rgba(156,163,175,.15); color: #9ca3
 .opt-big .v { font-size: 34px; font-weight: 800; font-variant-numeric: tabular-nums; line-height: 1.1; }
 .opt-big .s { font-size: 12px; color: var(--text-secondary); }
 /* 到期 Gamma 集中度水平条 */
-.range-row { display: grid; grid-template-columns: 120px 1fr 130px; gap: 8px; align-items: center; padding: 6px 0; border-bottom: 1px solid var(--border-light); font-size: 13px; }
+.range-row { display: grid; grid-template-columns: 88px 180px max-content; gap: 10px; align-items: center; padding: 5px 0; border-bottom: 1px solid var(--border-light); font-size: 13px; }
 .range-row:last-child { border-bottom: none; }
 .range-track { height: 10px; border-radius: 5px; background: var(--border); overflow: hidden; }
 .range-fill { height: 100%; border-radius: 5px; background: var(--accent); }

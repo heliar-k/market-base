@@ -1374,7 +1374,7 @@ def _options_narrative(s: dict) -> dict:
     cw = (s.get("call_wall") or {}).get("strike")
     pw = (s.get("put_wall") or {}).get("strike")
     net_gex = s.get("net_gex")
-    pcr = s.get("pcr_oi")
+    pcr = s.get("pcr_oi_atm") or s.get("pcr_oi")
     iv_slope = s.get("iv_slope")
     near7 = s.get("charm_near7")
     name = s.get("symbol", "")
@@ -1473,7 +1473,7 @@ def _options_narrative(s: dict) -> dict:
             "对冲平仓可能释放正 Gamma，但需要结合到期日和价格位置验证"
         )
     elif pcr is not None:
-        cross = f"Put/Call OI 比 {pcr:.2f} 中性 — 期权市场多空仓位相对均衡"
+        cross = f"Put/Call OI 比 {pcr:.2f}（ATM ±10% 口径）中性 — 市场多空仓位相对均衡"
     else:
         cross = "Put/Call OI 比暂无数据"
 

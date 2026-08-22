@@ -25,7 +25,7 @@ import numpy as np
 import pandas as pd
 
 from src.config import ROOT
-from src.pricing import bs_greeks, d1_from
+from src.pricing import R, _norm_pdf, bs_greeks, d1_from
 
 logger = logging.getLogger(__name__)
 
@@ -41,6 +41,15 @@ def bucket_dte(days: int) -> str:
     if days <= 35:
         return "月度"
     return "季度+"
+
+
+def _pcr_oi_atm(c: pd.DataFrame, spot: float) -> float | None:
+    """ATM ±10% 行权价带的 P/C OI 比（剔深 OTM 存量污染）。"""
+    a = c[c["strike"].between(spot * 0.9, spot * 1.1)]
+    call_oi = float(a[a["right"] == "C"]["oi"].sum())
+    if call_oi == 0:
+        return None
+    return round(float(a[a["right"] == "P"]["oi"].sum() / call_oi), 2)
 
 
 # 13 标的看板（指数/ETF + Mag7 + 重点个股）
@@ -144,10 +153,14 @@ def compute_structure(df: pd.DataFrame, spot: float) -> dict:
         gamma = gamma_p if sig else -gamma_p
         # delta 卖保护口径：call 正向；put 取短保护（dealer 短 put = 正 delta）
         delta_d = delta if sig else 1.0 - delta
-        # vanna/charm（timsun 口径）：call 正向、put 翻号
+        # vanna/charm（标准 BSM）：call 正向、put 翻号
         d1 = d1_from(spot, r["strike"], t, iv)
-        vanna = -gamma * spot * sqrt(t) * d1  # per share
-        charm = gamma * spot / (2 * sqrt(t)) if sig else -gamma_p * spot / (2 * sqrt(t))
+        # vanna = ∂Vega/∂S = -γ·S·√T·d2（用 d2，d1 会在 ATM 附近引入 ~7% 偏差）
+        vanna = -gamma * spot * sqrt(t) * (d1 - iv * sqrt(t))  # per share
+        # charm = ∂Δ_call/∂T = φ(d1)·[(r+σ²/2)/(σ√T) − d1/(2T)]；put 翻号
+        r_term = (R + iv * iv / 2) / (iv * sqrt(t)) - d1 / (2 * t)
+        phi = _norm_pdf(d1)
+        charm = phi * r_term if sig else -phi * r_term
         oi = int(r["openInterest"])
         rows.append(
             {
@@ -258,6 +271,11 @@ def compute_structure(df: pd.DataFrame, spot: float) -> dict:
         )
         if c[c["right"] == "C"]["oi"].sum()
         else None,
+        # 近端 P/C（ATM ±10% 行权价带）：全样本被深 OTM 存量大单污染（如 SPY
+        # 11/20 500P OI 30 万），narrative 与页面展示用此口径更贴近市场结构
+        # 近端 P/C（ATM ±10% 行权价带）：全样本被深 OTM 存量大单污染（如 SPY
+        # 11/20 500P OI 30 万），narrative 与页面展示用此口径更贴近市场结构
+        "pcr_oi_atm": _pcr_oi_atm(c, spot),
         "pcr_vol": round(
             float(
                 c[c["right"] == "P"]["volume"].sum()
@@ -281,13 +299,13 @@ def compute_structure(df: pd.DataFrame, spot: float) -> dict:
         }
         if pw is not None
         else None,
-        "iv_front": {"dte": front_dte, "iv": round(front, 2)}
+        "iv_front": {"dte": front_dte, "iv": round(front * 100, 2)}
         if front is not None
         else None,
-        "iv_back": {"dte": back_dte, "iv": round(back, 2)}
+        "iv_back": {"dte": back_dte, "iv": round(back * 100, 2)}
         if back is not None
         else None,
-        "iv_slope": round(back - front, 2)
+        "iv_slope": round((back - front) * 100, 2)
         if front is not None and back is not None
         else None,
         "skew": skew,
@@ -308,17 +326,24 @@ def compute_structure(df: pd.DataFrame, spot: float) -> dict:
         else None,
     }
     # 到期集中度（4 桶恒存在，0 值也显示——timsun 页面同款）
+    # gex_pct = 桶内 Σ|gex| / 全链 Σ|gex|（绝对强度占比，四桶加总 = 100%）。
+    # 不能分子用“桶净值”、分母用“全链绝对强度”——两者量纲不一致，加总只有
+    # ~23%（SPY 实测），不可加和、不代表集中度。gex_m 带符号表达桶方向。
+    abs_total = float(c["gex"].abs().sum())
     buckets: dict[str, dict] = {
-        "0DTE": {"gex_pct": 0.0, "contracts": 0},
-        "本周": {"gex_pct": 0.0, "contracts": 0},
-        "月度": {"gex_pct": 0.0, "contracts": 0},
-        "季度+": {"gex_pct": 0.0, "contracts": 0},
+        "0DTE": {"gex_pct": 0.0, "gex_m": 0.0, "contracts": 0},
+        "本周": {"gex_pct": 0.0, "gex_m": 0.0, "contracts": 0},
+        "月度": {"gex_pct": 0.0, "gex_m": 0.0, "contracts": 0},
+        "季度+": {"gex_pct": 0.0, "gex_m": 0.0, "contracts": 0},
     }
     for b, g in c.groupby("bucket"):
+        gex_sum = float(g["gex"].sum())
+        bucket_strength = float(g["gex"].abs().sum())
         buckets[b] = {
-            "gex_pct": round(float(g["gex"].sum() / c["gex"].sum()) * 100, 1)
-            if float(c["gex"].sum()) != 0
+            "gex_pct": round(bucket_strength / abs_total * 100, 1)
+            if abs_total != 0
             else None,
+            "gex_m": round(gex_sum / 1e6, 1),
             "contracts": int(g["oi"].sum()),
         }
     final["buckets"] = buckets
@@ -338,7 +363,8 @@ def compute_structure(df: pd.DataFrame, spot: float) -> dict:
         {"expiration": e, "dte": int(dte_map[e]), "iv": round(float(tm[e]) * 100, 2)}
         for e in order.index
     ]
-    # OI Top 20（strike × 到期）
+    # OI Top 20（strike × 到期）— 按 |gamma 加权 GEX| 排序（pin 位参考，
+    # 深 OTM 存量大单按总 OI 会占满榜，对 dealer 关键位无参考价值）
     top = (
         c.groupby(["strike", "expiration"])
         .agg(
@@ -346,11 +372,12 @@ def compute_structure(df: pd.DataFrame, spot: float) -> dict:
             put_oi=("oi", lambda s: s[c.loc[s.index, "right"] == "P"].sum()),
             call_vol=("volume", lambda s: s[c.loc[s.index, "right"] == "C"].sum()),
             put_vol=("volume", lambda s: s[c.loc[s.index, "right"] == "P"].sum()),
+            abs_gex=("gex", lambda s: abs(float(s.sum()))),
         )
         .reset_index()
     )
     top["total"] = top["call_oi"] + top["put_oi"]
-    top = top.nlargest(20, "total")
+    top = top.nlargest(20, "abs_gex")
     final["oi_top"] = [
         {
             "strike": float(r["strike"]),
@@ -386,24 +413,16 @@ def build_snapshot(symbols: list[str] | None = None, use_cache: bool = True) -> 
         try:
             ticker = yf.Ticker(sym)
             # 覆盖四个到期桶（timsun 口径 0DTE/本周/月度/季度+）：
-            # 近 10D 全收 + 首个 ≥30D（月度）+ 首个 ≥90D（季度），
-            # 避免 [:8] 截断导致季度+ 桶恒为 0
+            # 近 35D 全收（月度桶含月选，SPY 9/18 月选 27D 曾被 ≥30D 采样跳过，
+            # 月度桶 GEX 占比 20%→47.9%）+ 后续每 45D 一个代表（月度/季月尾部）
             today = datetime.now().date()
-            exps = [
-                e
-                for e in ticker.options
-                if (datetime.strptime(e, "%Y-%m-%d").date() - today).days <= 10
-            ]
-            for dte_min in (30, 90):
-                pick = next(
-                    (
-                        e
-                        for e in ticker.options
-                        if (datetime.strptime(e, "%Y-%m-%d").date() - today).days
-                        >= dte_min
-                    ),
-                    None,
-                )
+
+            def _dte(e: str) -> int:
+                return (datetime.strptime(e, "%Y-%m-%d").date() - today).days
+
+            exps = [e for e in ticker.options if _dte(e) <= 35]
+            for dte_min in (36, 90, 180, 270):
+                pick = next((e for e in ticker.options if _dte(e) >= dte_min), None)
                 if pick and pick not in exps:
                     exps.append(pick)
             exps = [e.replace("-", "") for e in exps]

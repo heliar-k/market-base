@@ -251,14 +251,17 @@ function pGex(panel, v) {
   let domLabel = null, domPct = 0;
   dom.innerHTML = entries.map(([k, b]) => {
     const pct = b.gex_pct ?? 0;
+    const m = b.gex_m ?? null; // 带符号：正 = call 侧净 gamma（市场压制波动），负 = put 侧
+    const pos = m != null && m >= 0;
     if (pct > domPct) { domPct = pct; domLabel = k; }
+    const contracts = b.contracts >= 1e6 ? (b.contracts / 1e6).toFixed(1) + 'M' : b.contracts >= 1e3 ? Math.round(b.contracts / 1e3) + 'K' : String(b.contracts);
     return `<div class="range-row">
       <span>${BUCKET_NAMES[k] || k}</span>
-      <div class="range-track"><div class="range-fill" style="width:${(pct / maxPct * 100).toFixed(1)}%"></div></div>
-      <span class="range-val"><b>${pct.toFixed(1)}%</b> · ${fmtNum(b.contracts, 0)} 合约</span>
+      <div class="range-track"><div class="range-fill" style="width:${(pct / maxPct * 100).toFixed(1)}%;background:${m != null ? (pos ? '#26a69a' : '#ef5350') : ''}"></div></div>
+      <span class="range-val"><b style="color:${m != null ? (pos ? '#26a69a' : '#ef5350') : ''}">${pct.toFixed(1)}%</b>${m != null ? ` · ${m >= 0 ? '+' : ''}${Math.abs(m) >= 1000 ? (m / 1e3).toFixed(1) + 'B' : m.toFixed(0)}M` : ''} · ${contracts} 合约</span>
     </div>`;
   }).join('');
-  dom.insertAdjacentHTML('beforeend', `<p class="re-source" style="margin:8px 0 0">${domLabel && domPct ? `${BUCKET_NAMES[domLabel]} 占主导（${domPct.toFixed(1)}%）` : ''}</p>`);
+  dom.insertAdjacentHTML('beforeend', `<p class="re-source" style="margin:8px 0 0">占比 = 各到期段 Σ|GEX| / 全链 Σ|GEX|（加总 100%），颜色 = 桶的净 gamma 方向（绿正/红负）。${domLabel && domPct ? `${BUCKET_NAMES[domLabel]} 集中度最高（${domPct.toFixed(1)}%）` : ''}</p>`);
 }
 
 // ── DEX tab ──
@@ -277,7 +280,7 @@ function pDex(panel, v) {
         <div class="re-corridor-value">${v.net_dex >= 0 ? '+' : ''}${fmtNum(v.put_dex)} <span style="font-size:13px">B</span></div>
         <div class="re-card-sub">put 端按卖保护口径翻号折算</div></div>
     </div>
-    <p class="re-source" style="margin:10px 0 0">DEX = Σ(delta × OI × 100 × S)。模型口径：call 端按正向 delta 计入，put 端翻号后合并。P/C OI 比: ${fmtNum(v.pcr_oi)} · 成交量比: ${fmtNum(v.pcr_vol)}</p>`;
+    <p class="re-source" style="margin:10px 0 0">DEX = Σ(delta × OI × 100 × S)。模型口径：call 端按正向 delta 计入，put 端翻号后合并。P/C OI 比（ATM ±10%）: ${fmtNum(v.pcr_oi_atm ?? v.pcr_oi)} · 全链: ${fmtNum(v.pcr_oi)} · 成交量比: ${fmtNum(v.pcr_vol)}</p>`;
 }
 
 // ── IV 期限结构 tab ──
@@ -348,7 +351,7 @@ function pVanna(panel, v) {
     <p class="re-source" style="margin:8px 0 0" id="charm-desc"></p>
     <p class="re-source" style="margin:8px 0 0">${vpos ? 'IV 回落时做市商将被迫买入现货，支撑价格。反之 IV 飙升时做市商减多。' : 'IV 回落时做市商被迫卖出，价格承压；IV 飙升时减仓平抑波动。'}</p>
     <p class="re-source" style="margin:8px 0 0">${near7 != null && near7 >= 40 ? `近 7 天到期合约贡献 ${near7.toFixed(0)}% 的 Charm — 盘中磁吸效应强，周到期前 delta 衰减快。` : ''}</p>
-    <p class="re-source" style="margin:8px 0 0">Vanna ≈ −γ·S·√T·d1 × OI × 100（基于 BSM；d1 由 Φ⁻¹(delta) 反推）。Charm ≈ γ·S / (2√T) × OI × 100，近到期放大。符号采用 call 正向、put 翻号的统一估算口径。</p>`;
+    <p class="re-source" style="margin:8px 0 0">Vanna ≈ −γ·S·√T·d2 × OI × 100（标准 BSM）；Charm = φ(d1)·[(r+σ²/2)/(σ√T) − d1/(2T)] × OI × 100。符号采用 call 正向、put 翻号的统一估算口径。</p>`;
 }
 
 // ── OI 热力 tab ──
