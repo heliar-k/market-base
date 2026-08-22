@@ -255,10 +255,14 @@ function pGex(panel, v) {
     const pos = m != null && m >= 0;
     if (pct > domPct) { domPct = pct; domLabel = k; }
     const contracts = b.contracts >= 1e6 ? (b.contracts / 1e6).toFixed(1) + 'M' : b.contracts >= 1e3 ? Math.round(b.contracts / 1e3) + 'K' : String(b.contracts);
+    const gexTxt = m == null ? '—' : `${m >= 0 ? '+' : ''}${Math.abs(m) >= 1000 ? (m / 1e3).toFixed(1) + 'B' : m.toFixed(0)}M`;
+    const col = m != null ? (pos ? '#26a69a' : '#ef5350') : '';
     return `<div class="range-row">
       <span>${BUCKET_NAMES[k] || k}</span>
       <div class="range-track"><div class="range-fill" style="width:${(pct / maxPct * 100).toFixed(1)}%;background:${m != null ? (pos ? '#26a69a' : '#ef5350') : ''}"></div></div>
-      <span class="range-val"><b style="color:${m != null ? (pos ? '#26a69a' : '#ef5350') : ''}">${pct.toFixed(1)}%</b>${m != null ? ` · ${m >= 0 ? '+' : ''}${Math.abs(m) >= 1000 ? (m / 1e3).toFixed(1) + 'B' : m.toFixed(0)}M` : ''} · ${contracts} 合约</span>
+      <span class="range-val" style="color:${col}"><b>${pct.toFixed(1)}%</b></span>
+      <span class="range-val" style="color:${col}">${gexTxt}</span>
+      <span class="range-val">${contracts} 合约</span>
     </div>`;
   }).join('');
   dom.insertAdjacentHTML('beforeend', `<p class="re-source" style="margin:8px 0 0">占比 = 各到期段 Σ|GEX| / 全链 Σ|GEX|（加总 100%），颜色 = 桶的净 gamma 方向（绿正/红负）。${domLabel && domPct ? `${BUCKET_NAMES[domLabel]} 集中度最高（${domPct.toFixed(1)}%）` : ''}</p>`);
