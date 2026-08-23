@@ -65,11 +65,35 @@ def _to_float(tok: str) -> float | None:
     return sign * float(m.group(2).replace(",", ""))
 
 
-def parse_farside(content: str) -> pd.DataFrame:
-    """解析 Jina 渲染的 Farside Markdown（每 token 一行：日期行 + 13 值行）。
+def _parse_table(content: str) -> pd.DataFrame:
+    """解析 Jina Markdown 管道表（2026-08 起 Jina 把 Farside 表渲染成 | a | b | 形式）：
+    每行 | 日期 | 13 值 |，列序即 COLUMNS（与 Farside 表头一致）。"""
+    records = []
+    for ln in content.splitlines():
+        if "|" not in ln:
+            continue
+        cells = [c.strip() for c in ln.strip().strip("|").split("|")]
+        if len(cells) < 3 or not _DATE_RE.match(cells[0]):
+            continue
+        nums = [_to_float(v) for v in cells[1 : 1 + len(COLUMNS)]]
+        nums += [None] * (len(COLUMNS) - len(nums))
+        d = pd.to_datetime(cells[0], format="%d %b %Y").strftime("%Y-%m-%d")
+        records.append({"date": d, **dict(zip(COLUMNS, nums))})
+    if not records:
+        return pd.DataFrame()
+    df = pd.DataFrame(records).set_index("date")
+    return df[~df.index.duplicated(keep="last")].sort_index()
 
-    Returns: DataFrame index=date(str)，列=COLUMNS（M USD，NaN=无数据）。
+
+def parse_farside(content: str) -> pd.DataFrame:
+    """解析 Jina 渲染的 Farside 全表（M USD）。
+
+    新格式：Markdown 管道表（每行 | 日期 | 13 值 |）；
+    旧格式（历史/测试）：每 token 一行（日期行 + 13 值行）。
     """
+    df = _parse_table(content)
+    if not df.empty:
+        return df
     tokens = [ln.strip() for ln in content.splitlines() if ln.strip()]
     # 表头锚定：最后一个 "Date" token 之后、首个日期行之前为列名
     # （菜单/页脚无关 token 不计）
