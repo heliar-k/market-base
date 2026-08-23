@@ -256,7 +256,7 @@ body.dark .re-expectation.hold { background: rgba(156,163,175,.15); color: #9ca3
 .pos-cols > div { min-width: 0; }
 .pos-cols .k { font-size: 10px; letter-spacing: .06em; color: var(--text-secondary); font-weight: 600; }
 .pos-cols .v { font-size: 14px; font-weight: 700; font-variant-numeric: tabular-nums; margin-top: 2px; white-space: nowrap; }
-.pos-chart { height: 130px; }
+.pos-chart { height: 180px; }
 .pos-reading { font-size: 12px; line-height: 1.75; color: var(--text-secondary); }
 .pos-foot { font-size: 11px; color: var(--text-secondary); border-top: 1px solid var(--border-light); padding-top: 6px; display: flex; justify-content: space-between; }
 .pos-subtitle { font-size: 12px; color: var(--text-secondary); margin-bottom: 10px; }

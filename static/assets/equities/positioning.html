@@ -82,7 +82,7 @@ function renderGroup(g) {
   sec.innerHTML = `<h2 style="display:flex;justify-content:space-between;align-items:center;gap:8px;white-space:nowrap;font-size:13px">${GNAMES[g.name] || g.name}<span class="re-badge neutral" style="flex-shrink:0">${g.contracts.length} 合约</span></h2>`;
   const note = document.createElement('div');
   note.className = 'pos-group-note';
-  note.innerHTML = `${TIPS[g.name] || ''}<br>${g.verdict || ''}<br><b>本组最需要关注：</b>${g.focus?.symbol || '—'}，2 年百分位 ${g.focus?.pct_2y ?? '—'}。`;
+  note.innerHTML = `${TIPS[g.name] || ''}<br>${g.verdict || ''}<br><b>本组最需要关注：</b>${g.focus?.name || g.focus?.symbol || '—'}，2 年百分位 ${g.focus?.pct_2y ?? '—'}。`;
   sec.appendChild(note);
   const grid = document.createElement('div');
   grid.className = 'pos-contract-grid';
@@ -119,8 +119,8 @@ function contractCard(c) {
     </div>
     <div class="pos-cols">
       <div><div class="k">净持仓</div><div class="v" style="color:${netColor}">${c.net >= 0 ? '+' : ''}${num(c.net)}</div></div>
-      <div><div class="k">多 / 空</div><div class="v">${num(c.long)} / ${num(c.short)}</div></div>
-      <div><div class="k">周环比</div><div class="v" style="color:${wkColor}">${c.week_dir == '增仓' ? '▲ +' : (c.week_dir == '减仓' ? '▼ ' : '—')}${c.week_chg == null ? '' : Math.abs(Number(c.week_chg)).toLocaleString()}</div></div>
+      <div><div class="k">多 / 空</div><div class="v"><span style="color:#26a69a">${num(c.long)}</span> / <span style="color:#ef5350">${num(c.short)}</span></div></div>
+      <div><div class="k">周环比</div><div class="v" style="color:${wkColor}">${c.week_dir == '增仓' ? '▲ ' : (c.week_dir == '减仓' ? '▼ ' : '—')}${c.week_chg == null ? '' : (c.week_chg > 0 ? '+' : '') + Number(c.week_chg).toLocaleString()}</div></div>
     </div>
     <div class="pos-chart"></div>
     <div class="pos-reading">${c.reading || ''}</div>
@@ -130,20 +130,27 @@ function contractCard(c) {
 
 function sparkChart(dom, s) {
   const hasAsset = (s.asset || []).some(v => v != null);
+  // 纵轴标签宽度：大数值（如 3,836,283）会超出固定 left:50 被裁切，按最大绝对值动态扩左边距
+  const maxAbs = Math.max(1, ...[...(s.spec || []), ...(s.asset || [])].filter(v => v != null).map(Math.abs));
+  const yLeft = Math.max(50, maxAbs.toLocaleString('en-US').length * 6.5 + 12);
   R.mkChart(dom.id || (dom.id = 'spark-' + Math.random().toString(36).slice(2)), colors => ({
     tooltip: { trigger: 'axis' },
-    legend: hasAsset ? { data: ['投机方净持仓', '资管净持仓'], textStyle: { color: colors.text, fontSize: 10 }, top: 0, icon: 'rect', itemWidth: 12, itemHeight: 3, itemGap: 10 } : { show: false },
-    grid: { left: 44, right: 10, top: hasAsset ? 22 : 8, bottom: 22 },
+    legend: { data: hasAsset ? ['投机方净持仓', '资管净持仓'] : ['投机方净持仓'], textStyle: { color: '#9ca3af', fontSize: 10 }, top: 0, icon: 'rect', itemWidth: 14, itemHeight: 2, itemGap: 14 },
+    grid: { left: yLeft, right: 12, top: 28, bottom: 24 },
     xAxis: {
-      type: 'category', data: s.dates,
+      type: 'category', data: s.dates, boundaryGap: false,
       axisLine: { lineStyle: { color: colors.border } },
       axisLabel: { color: colors.muted, fontSize: 9, interval: Math.max(1, Math.floor((s.dates.length || 1) / 6)) },
       axisTick: { show: false },
     },
-    yAxis: { type: 'value', scale: true, boundaryGap: ['8%', '8%'], axisLabel: { color: colors.muted, fontSize: 9, formatter: v => v === 0 ? '0' : (Math.abs(v) >= 1e6 ? (v / 1e6).toFixed(1).replace(/\.0$/, '') + 'M' : (v / 1e3).toFixed(0) + 'K') }, splitLine: { lineStyle: { color: colors.grid } } },
+    yAxis: { type: 'value', scale: true, axisLabel: { color: colors.muted, fontSize: 10, formatter: v => Number(v).toLocaleString('en-US') }, splitLine: { lineStyle: { color: colors.grid } } },
     series: [
-      { name: '投机方净持仓', type: 'line', data: s.spec, showSymbol: false, color: colors.text, lineStyle: { width: 1.5, color: colors.text, type: 'dashed' }, itemStyle: { color: colors.text } },
-      ...(hasAsset ? [{ name: '资管净持仓', type: 'line', data: s.asset, showSymbol: false, color: colors.blue, lineStyle: { width: 1.5, color: colors.blue }, itemStyle: { color: colors.blue } }] : []),
+      {
+        name: '投机方净持仓', type: 'line', data: s.spec, showSymbol: false,
+        color: '#60a5fa', lineStyle: { width: 2, color: '#60a5fa' },
+        areaStyle: { color: { type: 'linear', x: 0, y: 0, x2: 0, y2: 1, colorStops: [{ offset: 0, color: 'rgba(96,165,250,0.28)' }, { offset: 1, color: 'rgba(96,165,250,0.02)' }] } },
+      },
+      ...(hasAsset ? [{ name: '资管净持仓', type: 'line', data: s.asset, showSymbol: false, color: '#a3a3a3', lineStyle: { width: 1.5, color: '#a3a3a3' } }] : []),
     ],
   }));
 }

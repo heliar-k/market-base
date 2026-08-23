@@ -53,7 +53,8 @@ COT_MARKETS: dict[str, tuple[str, str]] = {
     "JPY": (r"^JAPANESE YEN - CHICAGO MERCANTILE EXCHANGE", "fin"),
     # 加密（timsun 衍生品页 CME 机构头寸信号；CME 比特币期货，TFF 报告）
     "BTC": (r"^BITCOIN - CHICAGO MERCANTILE EXCHANGE", "fin"),
-    # 注：DXY（ICE 美元指数）不在 CFTC COT 报告中（2025/2026 均无），无源可拉
+    # DXY（ICE 美元指数，code 098662）在 TFF 金融报告中，2024-2026 均已确认
+    "DXY": (r"^USD INDEX - ICE FUTURES U.S.", "fin"),
 }
 
 URL = "https://www.cftc.gov/files/dea/history/fut_{type}_txt_{year}.zip"

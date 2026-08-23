@@ -884,7 +884,7 @@ def equity_analysis(b: dict) -> dict:
 # ── positioning 子页（CFTC COT） ─────────────────────────────────────────────
 
 # 金融合约（对冲基金 L/S）与商品合约（管理资金 L/S）→ 测试可引用
-FIN_SYMBOLS = ("NQ", "ES", "RTY", "VX", "ZF", "ZN", "ZB", "EUR", "JPY", "BTC")
+FIN_SYMBOLS = ("NQ", "ES", "RTY", "VX", "ZF", "ZN", "ZB", "EUR", "JPY", "DXY", "BTC")
 COMMODITY_SYMBOLS = ("GC", "SI", "HG", "CL", "NG")
 
 
@@ -898,22 +898,22 @@ def _ls_cols(sym: str) -> tuple[str, str]:
 # CFTC 合约元数据（timsun 同款展示：报告名 · 报告 code / 报告类型；
 # code 在 cot.csv 未存，静态保留）
 COT_META = {
-    "NQ": ("纳斯达克100 E-mini", "NASDAQ MINI", "209742", "金融类 TFFF"),
-    "ES": ("标普500 E-mini", "E-MINI S&P 500", "13874A", "金融类 TFFF"),
-    "RTY": ("罗素2000 E-mini", "E-MINI RUSSELL 2000", "132741", "金融类 TFFF"),
-    "VX": ("VIX 期货", "VIX FUTURES", "1170E1", "金融类 TFFF"),
-    "ZF": ("5年美债", "UST 5Y NOTE", "044601", "金融类 TFFF"),
-    "ZN": ("10年美债", "UST 10Y NOTE", "043602", "金融类 TFFF"),
-    "ZB": ("30年美债", "UST BOND", "020601", "金融类 TFFF"),
-    "EUR": ("欧元", "EURO FX", "099741", "金融类 TFFF"),
-    "JPY": ("日元", "JAPANESE YEN", "097741", "金融类 TFFF"),
-    "DXY": ("美元指数", "USD INDEX", "098662", "金融类 TFFF"),
+    "NQ": ("纳斯达克100 E-mini", "NASDAQ MINI", "209742", "金融类 TFF"),
+    "ES": ("标普500 E-mini", "E-MINI S&P 500", "13874A", "金融类 TFF"),
+    "RTY": ("罗素2000 E-mini", "E-MINI RUSSELL 2000", "132741", "金融类 TFF"),
+    "VX": ("VIX 期货", "VIX FUTURES", "1170E1", "金融类 TFF"),
+    "ZF": ("5年美债", "UST 5Y NOTE", "044601", "金融类 TFF"),
+    "ZN": ("10年美债", "UST 10Y NOTE", "043602", "金融类 TFF"),
+    "ZB": ("30年美债", "UST BOND", "020601", "金融类 TFF"),
+    "EUR": ("欧元", "EURO FX", "099741", "金融类 TFF"),
+    "JPY": ("日元", "JAPANESE YEN", "097741", "金融类 TFF"),
+    "DXY": ("美元指数", "USD INDEX", "098662", "金融类 TFF"),
     "GC": ("黄金", "GOLD", "088691", "商品类 DISAGG"),
     "SI": ("白银", "SILVER", "084691", "商品类 DISAGG"),
     "HG": ("铜", "COPPER", "089692", "商品类 DISAGG"),
     "CL": ("WTI 原油", "WTI CRUDE OIL", "067651", "商品类 DISAGG"),
     "NG": ("天然气", "NATURAL GAS", "023651", "商品类 DISAGG"),
-    "BTC": ("比特币", "BITCOIN", "133741", "金融类 TFFF"),
+    "BTC": ("比特币", "BITCOIN", "133741", "金融类 TFF"),
 }
 COT_TIPS = {
     "index_vol": "股指仓位主要看风险偏好是否拥挤。",
@@ -982,11 +982,12 @@ def positioning() -> dict:
             shorts[sym] = cot[scol]
             net[sym] = cot[lcol] - cot[scol]
     # 百分位（近 2 年滚动窗口取最新）
+    # timsun 同款组合同：股指组无 RTY、外汇含 DXY、商品仅 GC/CL（其余合约仍拉取入库）
     groups_def = {
-        "index_vol": ["NQ", "ES", "RTY", "VX"],
+        "index_vol": ["NQ", "ES", "VX"],
         "rates": ["ZF", "ZN", "ZB"],
-        "fx": ["EUR", "JPY"],
-        "commodities": ["GC", "SI", "HG", "CL", "NG"],
+        "fx": ["EUR", "DXY", "JPY"],
+        "commodities": ["GC", "CL"],
     }
     latest = cot.index[-1]
     out = {"latest_report": str(latest.date()), "groups": [], "crowding": None}
@@ -1000,9 +1001,9 @@ def positioning() -> dict:
             if len(s) < 52:
                 continue
             net_val = float(s.iloc[-1])
-            # 2 年窗口（104 周）——timsun 同款；全窗口导致极端度被稀释
+            # 2 年窗口（104 周）百分位——timsun 同款 rank 中点法 (count_less + 0.5)/n
             s2y = s.tail(104)
-            pct = float((s2y < net_val).mean() * 100)
+            pct = float(((s2y < net_val).sum() + 0.5) / len(s2y) * 100)
             wk = None
             if len(s) >= 2:
                 wk = float(s.iloc[-1] - s.iloc[-2])
@@ -1030,7 +1031,7 @@ def positioning() -> dict:
             else:
                 spec = cot[f"{sym}_MM_L"] - cot[f"{sym}_MM_S"]
                 asset = pd.Series(index=cot.index, dtype=float)
-            tail = cot.index[-104:]
+            tail = cot.index[-53:]  # 迷你图窗口 1 年（52 周 + 当前），timsun 同款
             spark = {
                 "dates": [str(d.date()) for d in tail],
                 "spec": [
@@ -1083,7 +1084,7 @@ def positioning() -> dict:
             ext_n = sum(1 for c in contracts if c["label"].startswith("极度"))
             if ext_n and ext_n / len(contracts) > 0.5:
                 verdict = COT_VERDICT_EXTREME[g].format(
-                    f=f"{worst['symbol']}（{worst['pct_2y']:.1f}）"
+                    f=f"{worst['name']}（{worst['pct_2y']:.1f}）"
                 )
             else:
                 verdict = COT_VERDICT[g]
@@ -1096,7 +1097,11 @@ def positioning() -> dict:
                         f"{worst['pct_2y']:.1f}，{worst['label']}）"
                     ),
                     "verdict": verdict,
-                    "focus": {"symbol": worst["symbol"], "pct_2y": worst["pct_2y"]},
+                    "focus": {
+                        "symbol": worst["symbol"],
+                        "name": worst.get("name", worst["symbol"]),
+                        "pct_2y": worst["pct_2y"],
+                    },
                     "bulls": bulls,
                     "bears": bears,
                 }
