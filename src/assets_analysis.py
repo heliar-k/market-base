@@ -1683,6 +1683,334 @@ def _coinglass() -> dict:
         return {"available": False}
 
 
+# ── LAYER 1 · NOW（8 个核心 KPI：当前值 + 1 年百分位 + 1d 变化） ──────────────
+
+
+def _latest_snapshot() -> dict | None:
+    """加密衍生品最新快照（data/crypto_derivatives/ 文件名按日期排序取最新）。"""
+    files = sorted((ROOT / "data" / "crypto_derivatives").glob("20*.json"))
+    if not files:
+        return None
+    try:
+        return json.loads(files[-1].read_text(encoding="utf-8"))
+    except Exception as e:
+        logger.warning("读取快照失败: %s", e)
+        return None
+
+
+def _okx_funding_history() -> list[float]:
+    """OKX 永续 BTC funding-rate-history（8h 一条，翻页拉近 ~1 年，返回 %）。
+
+    独立函数便于测试 monkeypatch；失败/无数据返回 []（不抛异常，KPI 降级"历史不足"）。
+    """
+    try:
+        from src.fetchers.crypto_derivatives_fetcher import _okx
+
+        rates: list[float] = []
+        seen: set[int] = set()
+        after: str | None = None
+        while len(rates) < 1100:  # 365×3=1095 条 + 余量
+            params: dict = {"instId": "BTC-USDT-SWAP", "limit": "100"}
+            if after:
+                params["after"] = after
+            rows = _okx("public/funding-rate-history", **params)
+            if not rows:
+                break
+            before = len(rates)
+            for r in rows:
+                t = int(r["fundingTime"])
+                if t not in seen:
+                    seen.add(t)
+                    rates.append(float(r["fundingRate"]) * 100)
+            after = str(rows[-1]["fundingTime"])
+            if len(rates) == before:  # 翻页无新数据，防死循环
+                break
+        return rates
+    except Exception as e:
+        logger.warning("OKX funding history 拉取失败: %s", e)
+        return []
+
+
+def _okx_taker_history() -> list[float]:
+    """OKX rubik taker-volume（BTC 合约日频，近 10 日，返回每日 buy/sell 比）。
+
+    独立函数便于测试 monkeypatch；失败返回 []。
+    """
+    try:
+        from src.fetchers.crypto_derivatives_fetcher import _okx
+
+        rows = _okx(
+            "rubik/stat/taker-volume", ccy="BTC", instType="CONTRACTS", period="1D"
+        )
+        out: list[float] = []
+        for r in rows[:10]:
+            sell = float(r[2])
+            if sell:
+                out.append(float(r[1]) / sell)
+        return out
+    except Exception as e:
+        logger.warning("OKX taker history 拉取失败: %s", e)
+        return []
+
+
+def _pcr_history() -> list[float]:
+    """历史快照 options_BTC.pcr 收集（现在只有 2 个文件，<30 点 → 百分位 None）。"""
+    out: list[float] = []
+    for f in sorted((ROOT / "data" / "crypto_derivatives").glob("20*.json")):
+        try:
+            j = json.loads(f.read_text(encoding="utf-8"))
+            pcr = (j.get("options_BTC") or {}).get("pcr")
+            if pcr is not None:
+                out.append(float(pcr))
+        except Exception:
+            continue
+    return out
+
+
+def _rank_pct(
+    s: pd.Series, cur: float | None, min_n: int = 30
+) -> tuple[float | None, str | None]:
+    """百分位 rank（考虑小样本）：(series <= cur).mean()×100 保留 1 位小数。
+
+    样本 < min_n → (None, 说明文字)。
+    """
+    if cur is None:
+        return None, "当前值缺失"
+    v = s.dropna()
+    if len(v) < min_n:
+        return None, f"样本 {len(v)} 个（<{min_n} 不足）"
+    return round(float((v <= cur).mean() * 100), 1), None
+
+
+def _quartiles(s: pd.Series, nd: int = 2) -> list[float] | None:
+    """P25/P50/P75（前端小柱刻度）；样本 <5 返回 None。"""
+    v = s.dropna()
+    if len(v) < 5:
+        return None
+    q = v.quantile([0.25, 0.5, 0.75])
+    return [round(float(q[k]), nd) for k in (0.25, 0.5, 0.75)]
+
+
+def _dir_chg(delta: float | None, unit: str = "", nd: int = 2) -> str | None:
+    """1d 变化：↑/↓/→ + 幅度字符串（delta 为 None 返回 None）。"""
+    if delta is None:
+        return None
+    arrow = "↑" if delta > 0 else ("↓" if delta < 0 else "→")
+    return f"{arrow} {delta:+.{nd}f}{unit}"
+
+
+def _pct_label(n_pts: int, rank: float | None, unit: str = "天") -> str:
+    if rank is None:
+        return "历史不足"
+    return f"过去 {n_pts} {unit} · 第 {rank:g} 百分位"
+
+
+def _layer1_kpis() -> dict:
+    """LAYER 1 · NOW：8 个核心 KPI（当前值 + 1 年百分位 + 1d 变化方向）。
+
+    timsun /assets/crypto/derivatives 口径。每 KPI：
+      label / value（字符串含单位）/ pct_rank（0-100 或 None）/ pct_label /
+      chg（↑↓→ 方向 + 幅度）/ quartiles（P25/P50/P75 小柱刻度）/ note。
+    网络拉取（OKX funding/taker 历史）失败 → 对应 KPI 降级 None，不阻断。
+    """
+    snap = _latest_snapshot() or {}
+    perp = (snap.get("perp") or {}).get("BTC") or {}
+    opt = snap.get("options_BTC") or {}
+    cme = snap.get("cme") or {}
+    taker_snap = (snap.get("taker") or {}).get("BTC") or []
+
+    kpis: list[dict] = []
+    N = 365  # 1 年窗口（日频/8h 序列）
+
+    def add(**kw) -> None:
+        kpis.append(
+            {
+                "label": kw["label"],
+                "value": kw.get("value", "数据不足"),
+                "pct_rank": kw.get("pct_rank"),
+                "pct_label": kw.get("pct_label", "历史不足"),
+                "chg": kw.get("chg"),
+                "quartiles": kw.get("quartiles"),
+                "note": kw.get("note"),
+            }
+        )
+
+    # 1) BTC 现价（当前 = OKX perp last 优先，Deribit spot_anchor 兜底）
+    px = asset_prices()
+    btc = px["BTC"].dropna() if "BTC" in px.columns else pd.Series(dtype=float)
+    cur_px = perp.get("last") or opt.get("spot_anchor")
+    win = btc.tail(N)
+    rank, note = _rank_pct(win, cur_px)
+    chg = None
+    if len(btc) >= 2:
+        chg = _dir_chg((float(btc.iloc[-1]) / float(btc.iloc[-2]) - 1) * 100, "%")
+    add(
+        label="BTC 现价",
+        value=f"${cur_px:,.0f}" if cur_px is not None else "数据不足",
+        pct_rank=rank,
+        pct_label=_pct_label(len(win), rank),
+        chg=chg,
+        quartiles=_quartiles(win),
+        note=note,
+    )
+
+    # 2) BTC 30d 已实现波动率（日收益率 30d 滚动标准差，简单总体 std，年化 ×√365）
+    vol = pd.Series(dtype=float)
+    if len(btc) >= 31:
+        rets = btc.pct_change().dropna()
+        vol = (rets.rolling(30).std(ddof=0) * np.sqrt(365) * 100).dropna()
+    cur_vol = float(vol.iloc[-1]) if len(vol) else None
+    winv = vol.tail(N)
+    rank, note = _rank_pct(winv, cur_vol)
+    chg = None
+    if cur_vol is not None and len(vol) >= 2:
+        chg = _dir_chg(cur_vol - float(vol.iloc[-2]), "pp")
+    add(
+        label="BTC 30d 已实现波动率",
+        value=f"{cur_vol:.1f}%" if cur_vol is not None else "数据不足",
+        pct_rank=rank,
+        pct_label=_pct_label(len(winv), rank),
+        chg=chg,
+        quartiles=_quartiles(winv),
+        note=note,
+    )
+
+    # 3) 基差 60d EMA（crypto_basis/basis.csv，basis_pct 列）
+    ema60 = pd.Series(dtype=float)
+    bz = _csv("crypto_basis/basis.csv")
+    if "basis_pct" in bz.columns:
+        basis = bz["basis_pct"].dropna()
+        if len(basis):
+            ema60 = basis.ewm(span=60, adjust=False).mean().dropna()
+    cur_ema = float(ema60.iloc[-1]) if len(ema60) else None
+    rank, note = _rank_pct(ema60, cur_ema)
+    chg = None
+    if cur_ema is not None and len(ema60) >= 2:
+        chg = _dir_chg(cur_ema - float(ema60.iloc[-2]), "pp")
+    add(
+        label="基差 60d EMA",
+        value=f"{cur_ema:.2f}%" if cur_ema is not None else "数据不足",
+        pct_rank=rank,
+        pct_label=_pct_label(len(ema60), rank),
+        chg=chg,
+        quartiles=_quartiles(ema60),
+        note=note,
+    )
+
+    # 4) Spread = 基差 60d EMA − SOFR（FRED 最新值；缺失 → 数据不足）
+    rates = _csv("fred/rates/rates.csv")
+    sofr = None
+    if "SOFR" in rates.columns:
+        sr = rates["SOFR"].dropna()
+        if len(sr):
+            sofr = float(sr.iloc[-1])
+    spread = ema60 - sofr if sofr is not None and len(ema60) else pd.Series(dtype=float)
+    cur_sp = float(spread.iloc[-1]) if len(spread) else None
+    rank, note = _rank_pct(spread, cur_sp)
+    chg = None
+    if cur_sp is not None and len(spread) >= 2:
+        chg = _dir_chg(cur_sp - float(spread.iloc[-2]), "pp")
+    add(
+        label="Spread（基差−SOFR）",
+        value=f"{cur_sp:+.2f}%" if cur_sp is not None else "数据不足",
+        pct_rank=rank,
+        pct_label=_pct_label(len(spread), rank),
+        chg=chg,
+        quartiles=_quartiles(spread),
+        note=note if sofr is not None else "SOFR 缺失",
+    )
+
+    # 5) 永续资金费率 8h（当前 = 快照 funding_rate；历史 = 快照 funding_hist 升序，
+    #    无则现场拉 OKX（降级，不阻断））
+    cur_fr = perp.get("funding_rate")
+    cur_fr_pct = float(cur_fr) * 100 if cur_fr is not None else None
+    fund_hist = pd.Series(
+        snap.get("funding_hist") or _okx_funding_history(), dtype=float
+    )
+    rank, note = _rank_pct(fund_hist, cur_fr_pct)
+    chg = None
+    if cur_fr_pct is not None and len(fund_hist) >= 4:
+        # 升序序列：最新=iloc[-1]，24h 前=倒数第 4 条
+        chg = _dir_chg(cur_fr_pct - float(fund_hist.iloc[-4]), "%", nd=4)
+    add(
+        label="永续资金费率 8h",
+        value=f"{cur_fr_pct:.4f}%" if cur_fr_pct is not None else "数据不足",
+        pct_rank=rank,
+        pct_label=_pct_label(int(len(fund_hist) * 8 / 24), rank, unit="天"),
+        chg=chg,
+        quartiles=_quartiles(fund_hist, nd=4) if len(fund_hist) else None,
+        note=note,
+    )
+
+    # 6) CME BTC OI（fut_oi=份数；历史 = COT 周频 BTC_OI 同为份数，同量纲直接比）
+    fut_oi = cme.get("fut_oi")
+    cur_oi = float(fut_oi) if fut_oi is not None else None
+    cot = _csv("cot/cot.csv")
+    cot_oi = (
+        cot["BTC_OI"].dropna() if "BTC_OI" in cot.columns else pd.Series(dtype=float)
+    )
+    rank, note = _rank_pct(cot_oi, cur_oi)
+    chg = None
+    if len(cot_oi) >= 2:
+        chg = _dir_chg((float(cot_oi.iloc[-1]) / float(cot_oi.iloc[-2]) - 1) * 100, "%")
+    add(
+        label="CME BTC OI",
+        value=f"{cur_oi:,.0f} 份" if cur_oi is not None else "数据不足",
+        pct_rank=rank,
+        pct_label=_pct_label(len(cot_oi), rank, unit="周"),
+        chg=chg,
+        quartiles=_quartiles(cot_oi, nd=0),
+        note=("周频（COT 全月口径）" if note is None else note + " · 周频")
+        if len(cot_oi)
+        else note,
+    )
+
+    # 7) 永续多空比（当前 = 快照 taker 3 日 buy/sell 比；历史 = OKX 近 10 日）
+    cur_ls = None
+    if len(taker_snap) >= 3:
+        buy = sum(r["buy"] for r in taker_snap[:3])
+        sell = sum(r["sell"] for r in taker_snap[:3])
+        cur_ls = buy / sell if sell else None
+    taker_hist = _okx_taker_history()  # 降序（最新在前）
+    if not taker_hist and len(taker_snap) >= 2:
+        # 网络失败 → 快照自带日序列兜底（同降序）
+        taker_hist = [r["buy"] / r["sell"] for r in taker_snap if r.get("sell")]
+    th = pd.Series(taker_hist, dtype=float)
+    rank, note = _rank_pct(th, cur_ls)
+    chg = None
+    if len(th) >= 2:  # 降序：最新=iloc[0]，前一日=iloc[1]
+        chg = _dir_chg((float(th.iloc[0]) / float(th.iloc[1]) - 1) * 100, "%")
+
+    add(
+        label="永续多空比",
+        value=f"{cur_ls:.2f}" if cur_ls is not None else "数据不足",
+        pct_rank=rank,
+        pct_label=_pct_label(len(th), rank, unit="日"),
+        chg=chg,
+        quartiles=_quartiles(th),
+        note=note,
+    )
+
+    # 8) 期权 Put/Call OI（当前 = 最新快照 pcr；历史 = 全部快照收集，<30 点注明）
+    pcrs = _pcr_history()
+    cur_pcr = opt.get("pcr")
+    rank, note = _rank_pct(pd.Series(pcrs), cur_pcr)
+    chg = None
+    if len(pcrs) >= 2:
+        chg = _dir_chg(float(pcrs[-1]) - float(pcrs[-2]), nd=2)
+    add(
+        label="期权 Put/Call OI",
+        value=f"{cur_pcr:.2f}" if cur_pcr is not None else "数据不足",
+        pct_rank=rank,
+        pct_label=_pct_label(len(pcrs), rank, unit="个快照"),
+        chg=chg,
+        quartiles=_quartiles(pd.Series(pcrs)),
+        note=(f"快照积累中（{len(pcrs)} 个快照）" if len(pcrs) and note else note),
+    )
+
+    return {"kpis": kpis}
+
+
 def crypto_derivatives() -> dict | None:
     files = sorted((ROOT / "data" / "crypto_derivatives").glob("20*.json"))
     if not files:
@@ -1691,6 +2019,7 @@ def crypto_derivatives() -> dict | None:
     snap["etf"] = _etf_flows()
     snap["basis"] = _crypto_basis()
     snap["coinglass"] = _coinglass()
+    snap["layer1"] = _layer1_kpis()
     snap["radar"] = crypto_radar(snap)
     snap["consensus"] = crypto_consensus(snap, snap["radar"])
     return snap

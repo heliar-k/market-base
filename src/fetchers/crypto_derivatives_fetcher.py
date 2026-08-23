@@ -272,6 +272,43 @@ def _yahoo_quote_oi() -> dict:
         return {}
 
 
+def fetch_funding_history(hours: int = 24 * 365) -> list[float]:
+    """OKX BTC 永续资金费率历史（8h 一条，降序→已翻转为升序返回）。
+
+    供 LAYER 1 KPI 百分位/1d 变化使用；失败返回 []（KPI 降级"历史不足"）。
+    注意 OKX 返回按 fundingTime 降序（最新在前），此处翻转为升序（旧→新）。
+    """
+    try:
+        n = hours // 8 + 1
+        rows: list[tuple[int, float]] = []
+        after: str | None = None
+        while len(rows) < n:
+            params: dict = {"instId": "BTC-USDT-SWAP", "limit": "100"}
+            if after:
+                params["after"] = after
+            page = _okx("public/funding-rate-history", **params)
+            if not page:
+                break
+            before = len(rows)
+            for r in page:
+                rows.append((int(r["fundingTime"]), float(r["fundingRate"])))
+            after = str(page[-1]["fundingTime"])
+            if len(rows) == before:
+                break
+        # 按时间升序（旧→新），去重（同 ts 保留最新一条）
+        rows.sort(key=lambda x: x[0])
+        seen: set[int] = set()
+        out: list[float] = []
+        for t, r in rows:
+            if t not in seen:
+                seen.add(t)
+                out.append(r * 100)
+        return out
+    except Exception as e:
+        logger.warning("OKX funding history: %s", e)
+        return []
+
+
 def fetch_cme_basis() -> dict | None:
     """CME 比特币期货（yfinance BTC=F）vs Deribit 现货指数 → 基差 %；
     附带 Yahoo quote 免费 OI（BTC=F 近月 + MBT=F Micro）。"""
@@ -322,6 +359,12 @@ def main() -> None:
         snap["cme"] = fetch_cme_basis()
     except Exception as e:
         logger.warning("cme: %s", e)
+    try:
+        hist = fetch_funding_history()
+        if hist:
+            snap["funding_hist"] = hist  # 升序（旧→新），% 单位
+    except Exception as e:
+        logger.warning("funding_hist: %s", e)
 
     DATA.mkdir(parents=True, exist_ok=True)
     path = DATA / f"{datetime.now():%Y%m%d}.json"
