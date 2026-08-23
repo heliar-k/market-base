@@ -103,6 +103,48 @@ def fetch_taker_ratio() -> dict:
     return out
 
 
+def _parse_exp(exp: str) -> datetime | None:
+    """Deribit 到期段 DDMYY → 日期；解析失败返回 None（如未知格式）。"""
+    try:
+        return datetime.strptime(exp, "%d%b%y")
+    except ValueError:
+        return None
+
+
+def _wall(
+    df: pd.DataFrame, right: str
+) -> tuple[float | None, float | None, list[dict]]:
+    """期权墙：df 内 right 侧按行权价聚 OI，返回 (墙 strike, 墙 OI, OI 前 5)。"""
+    sub = df[df["right"] == right]
+    if sub.empty:
+        return None, None, []
+    by_k = sub.groupby("strike")["oi"].sum().sort_values(ascending=False)
+    return (
+        float(by_k.index[0]),
+        float(by_k.iloc[0]),
+        [{"strike": float(s), "oi": float(o)} for s, o in by_k.head(5).items()],
+    )
+
+
+def _max_pain(df: pd.DataFrame) -> float | None:
+    """Max Pain（到期时卖方损失最小价）：df 需含 strike/right/oi 列。
+    min_K Σ [call OI×max(0,K−K_i) + put OI×max(0,K_i−K)]
+    """
+    if df.empty:
+        return None
+    ks = sorted(df["strike"].unique())
+    call_by_k = df[df["right"] == "C"].groupby("strike")["oi"].sum()
+    put_by_k = df[df["right"] == "P"].groupby("strike")["oi"].sum()
+    best_k, best_v = None, float("inf")
+    for k in ks:
+        v = sum(oi * max(0.0, k - ki) for ki, oi in call_by_k.items()) + sum(
+            oi * max(0.0, ki - k) for ki, oi in put_by_k.items()
+        )
+        if v < best_v:
+            best_v, best_k = v, k
+    return float(best_k) if best_k is not None else None
+
+
 def fetch_options(currency: str = "BTC") -> dict:
     """Deribit options book summary（全到期）；返回按行权价/到期聚合。"""
     rows = _deribit("get_book_summary_by_currency", currency=currency, kind="option")
@@ -150,21 +192,23 @@ def fetch_options(currency: str = "BTC") -> dict:
     put_oi = float(df[df["right"] == "P"]["oi"].sum())
     pcr = put_oi / call_oi if call_oi else None
 
-    # Max Pain（到期时卖方损失最小价）：
-    # min_K Σ [call OI×max(0,K−K_i) + put OI×max(0,K_i−K)]
-    pain = None
-    if not df.empty:
-        ks = sorted(df["strike"].unique())
-        call_by_k = df[df["right"] == "C"].groupby("strike")["oi"].sum()
-        put_by_k = df[df["right"] == "P"].groupby("strike")["oi"].sum()
-        best_k, best_v = None, float("inf")
-        for k in ks:
-            v = sum(oi * max(0.0, k - ki) for ki, oi in call_by_k.items()) + sum(
-                oi * max(0.0, ki - k) for ki, oi in put_by_k.items()
-            )
-            if v < best_v:
-                best_v, best_k = v, k
-        pain = float(best_k) if best_k is not None else None
+    pain = _max_pain(df)
+
+    # 最近到期月度口径（timsun Strike Wall 模块）：按 DDMYY 到期段解析取最早
+    df["_exp_date"] = df["expiration"].map(_parse_exp)
+    near = df.dropna(subset=["_exp_date"])
+    nearest_exp, near_call_wall, near_put_wall = None, None, None
+    near_call_wall_oi = near_put_wall_oi = None
+    top_calls: list[dict] = []
+    top_puts: list[dict] = []
+    near_max_pain = None
+    if not near.empty:
+        min_d = near["_exp_date"].min()
+        nearest_exp = min_d.strftime("%Y-%m-%d")
+        near = near[near["_exp_date"] == min_d]
+        near_call_wall, near_call_wall_oi, top_calls = _wall(near, "C")
+        near_put_wall, near_put_wall_oi, top_puts = _wall(near, "P")
+        near_max_pain = _max_pain(near)
 
     return {
         "spot_anchor": round(spot, 1),
@@ -174,11 +218,63 @@ def fetch_options(currency: str = "BTC") -> dict:
         "max_pain": pain,
         "total_oi": round(call_oi + put_oi, 0),
         "d_exp": int(df["expiration"].nunique()),
+        "nearest_exp": nearest_exp,
+        "near_call_wall": near_call_wall,
+        "near_call_wall_oi": near_call_wall_oi,
+        "near_put_wall": near_put_wall,
+        "near_put_wall_oi": near_put_wall_oi,
+        "near_max_pain": near_max_pain,
+        "top_calls": top_calls,
+        "top_puts": top_puts,
     }
 
 
+def _yahoo_quote_oi() -> dict:
+    """Yahoo v7/finance/quote 免费 OI（crumb 两步匿名流程；无 scope）。
+
+    返回 {fut_oi: BTC=F 近月 OI, micro_oi: MBT=F OI, fut_contract, micro_contract}。
+    失败返回空 dict（不影响主快照）。
+    """
+    try:
+        import requests as _rq
+
+        s = _rq.Session()
+        s.headers["User-Agent"] = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)"
+        s.get("https://fc.yahoo.com", timeout=10)
+        crumb = s.get(
+            "https://query1.finance.yahoo.com/v1/test/getcrumb", timeout=10
+        ).text
+        r = s.get(
+            "https://query1.finance.yahoo.com/v7/finance/quote",
+            params={
+                "symbols": "BTC=F,MBT=F",
+                "fields": "shortName,openInterest,volume",
+                "crumb": crumb,
+            },
+            timeout=10,
+        )
+        r.raise_for_status()
+        out: dict = {}
+        for q in r.json().get("quoteResponse", {}).get("result", []):
+            sym = q.get("symbol")
+            oi = q.get("openInterest")
+            if oi is None:
+                continue
+            if sym == "BTC=F":
+                out["fut_oi"] = int(oi)
+                out["fut_contract"] = q.get("shortName", "")
+            elif sym == "MBT=F":
+                out["micro_oi"] = int(oi)
+                out["micro_contract"] = q.get("shortName", "")
+        return out
+    except Exception as e:
+        logger.warning("Yahoo quote OI: %s", e)
+        return {}
+
+
 def fetch_cme_basis() -> dict | None:
-    """CME 比特币期货（yfinance BTC=F）vs Deribit 现货指数 → 基差 %。"""
+    """CME 比特币期货（yfinance BTC=F）vs Deribit 现货指数 → 基差 %；
+    附带 Yahoo quote 免费 OI（BTC=F 近月 + MBT=F Micro）。"""
     try:
         from src.fetchers.yfinance_fetcher import ensure_yf_proxy, fetch_ohlcv
 
@@ -191,12 +287,14 @@ def fetch_cme_basis() -> dict | None:
         last = float(fut["close"].iloc[-1])
         if not spot:
             return None
-        return {
+        out = {
             "fut_price": round(last, 1),
             "spot": round(spot, 1),
             "basis_pct": round((last / spot - 1) * 100, 2),
             "as_of": str(fut.index[-1].date()),
         }
+        out.update(_yahoo_quote_oi())
+        return out
     except Exception as e:
         logger.warning("CME basis: %s", e)
         return None

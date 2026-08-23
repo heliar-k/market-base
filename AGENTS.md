@@ -87,6 +87,8 @@ market-base/
 │   ├── fetch_etf                       ← ETF 全量清单 + 精选池 25 只日线（timsun /assets/etfs）
 │   ├── fetch_options_structure         ← 13 标的期权结构快照（GEX/DEX/Vanna/Charm，yfinance 降级源）
 │   ├── fetch_crypto_derivatives        ← 加密衍生品快照（OKX + Deribit + CME 基差）
+│   ├── fetch_crypto_basis               ← CME BTC 基差日序列（Yahoo BTC=F，timsun V1 治理）
+│   ├── fetch_coinglass                  ← Coinglass 全市场聚合快照（经 Jina Reader）
 │   ├── fetch_etf_flows                 ← BTC 现货 ETF 资金流（Farside via Jina Reader）
 │   └── fetch_news                      ← Yahoo Finance 个股新闻（curl_cffi 直连 NCP，不走 yfinance）
 │
@@ -126,6 +128,8 @@ market-base/
 │   ├── etf/pool_prices.csv              ← 精选池 25 只 ETF 日线（timsun /assets/etfs）
 │   ├── options_structure/{date}.json    ← 13 标的期权结构快照（GEX/DEX/Vanna/Charm）
 │   ├── crypto_derivatives/{date}.json   ← 加密衍生品快照（OKX/Deribit/CME）
+│   ├── crypto_basis/basis.csv          ← CME BTC 基差日序列（观测日 upsert，治理后 ~35% 完整）
+│   ├── coinglass/{date}.json           ← Coinglass 全市场聚合快照（OI/清算/交易所分布）
 │   ├── etf_flows/etf_flows.csv         ← BTC 现货 ETF 资金流（Farside，12 ETF + Total，M USD）
 │   └── cache/{SYMBOL}_indicators.parquet ← 指标缓存（派生产物，mtime 失效）
 │
@@ -198,6 +202,8 @@ uv run python -m src.cross_asset     # 跨资产 30 日相关性矩阵（派生�
 ./bin/fetch_etf                    # ETF 全量清单 + 精选池（timsun /assets/etfs）
 ./bin/fetch_options_structure      # 13 标的期权结构快照（GEX/DEX/Vanna/Charm，~3min）
 ./bin/fetch_crypto_derivatives     # 加密衍生品快照（OKX + Deribit + CME）
+./bin/fetch_crypto_basis             # CME BTC 基差日序列（Yahoo BTC=F proxy）
+./bin/fetch_coinglass                 # Coinglass 全市场聚合（Jina Reader，OI/清算/交易所分布）
 ./bin/fetch_etf_flows                 # BTC 现货 ETF 资金流（Farside via Jina Reader）
 ./bin/fetch_commodities             # 全部期货（整条曲线）
 ./bin/fetch_commodities --front-month  # 仅主力合约

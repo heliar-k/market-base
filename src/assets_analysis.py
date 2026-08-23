@@ -1635,12 +1635,62 @@ def _etf_flows() -> dict:
     }
 
 
+def _crypto_basis() -> dict:
+    """CME BTC 基差日序列聚合（衍生日页机构基差专题 + LAYER 1 KPI）。
+
+    数据源 data/crypto_basis/basis.csv（Yahoo BTC=F proxy 日频，观测日 key）。
+    返回：当前值 / 30d 均值 / 60d EMA / 距到期 / 百分位 + SOFR Spread。
+    """
+    df = _csv("crypto_basis/basis.csv")
+    if df.empty:
+        return {"available": False}
+    basis = df["basis_pct"].dropna()
+    if basis.empty:
+        return {"available": False}
+    cur = float(basis.iloc[-1])
+    last_date = basis.index[-1]
+    ma30 = float(basis.tail(30).mean())
+    ema60 = float(basis.ewm(span=60, adjust=False).mean().iloc[-1])
+    pct_rank = float((basis <= cur).mean() * 100)
+    # SOFR（FRED），Spread = 基差 60d EMA − SOFR
+    sofa = _csv("fred/rates/rates.csv")
+    sofr = None
+    if "SOFR" in sofa.columns:
+        s = sofa["SOFR"].dropna()
+        if len(s):
+            sofr = float(s.iloc[-1])
+    spread = ema60 - sofr if sofr is not None else None
+    return {
+        "available": True,
+        "current": cur,
+        "latest": str(last_date.date()),
+        "ma30": round(ma30, 2),
+        "ema60": round(ema60, 2),
+        "pct_rank": round(pct_rank, 1),
+        "spread": round(spread, 2) if spread is not None else None,
+        "sofr": sofr,
+    }
+
+
+def _coinglass() -> dict:
+    """Coinglass 全市场聚合（衍生日页 Coinglass 模块）；读取最新快照 json。"""
+    files = sorted((ROOT / "data" / "coinglass").glob("20*.json"))
+    if not files:
+        return {"available": False}
+    try:
+        return json.loads(files[-1].read_text(encoding="utf-8"))
+    except Exception:
+        return {"available": False}
+
+
 def crypto_derivatives() -> dict | None:
     files = sorted((ROOT / "data" / "crypto_derivatives").glob("20*.json"))
     if not files:
         return None
     snap = json.loads(files[-1].read_text(encoding="utf-8"))
     snap["etf"] = _etf_flows()
+    snap["basis"] = _crypto_basis()
+    snap["coinglass"] = _coinglass()
     snap["radar"] = crypto_radar(snap)
     snap["consensus"] = crypto_consensus(snap, snap["radar"])
     return snap
@@ -1692,6 +1742,12 @@ def crypto_consensus(snap: dict, radar: dict) -> dict:
         etf_stance = (
             "偏多" if (v5 or 0) > 0.05 else ("偏空" if (v5 or 0) < -0.05 else "中性")
         )
+    # 基差 carry 通道（Spread = 60d EMA − SOFR；>5% 吸引力足 / <0 负）
+    bz = snap.get("basis") or {}
+    spread = bz.get("spread")
+    bz_stance = (
+        "偏多" if (spread or 0) > 5 else ("偏空" if (spread or 0) < 0 else "中性")
+    )
 
     def votes(stances: list[str]) -> str:
         def cnt(st: str) -> int:
@@ -1703,9 +1759,16 @@ def crypto_consensus(snap: dict, radar: dict) -> dict:
     inst_stances = [inst_stance]
     if etf_stance != "中性" or etf.get("available"):
         inst_stances.append(etf_stance)
-    note_inst = "(CME / ETF 综合)" if len(inst_stances) > 1 else "(CME 综合)"
-    if chg is None and len(inst_stances) == 1:
+    if bz_stance != "中性" or spread is not None:
+        inst_stances.append(bz_stance)
+    if len(inst_stances) > 2:
+        note_inst = "(CME / ETF / Spread 综合)"
+    elif len(inst_stances) > 1:
+        note_inst = "(CME / ETF 综合)"
+    elif chg is None:
         note_inst = "(CME 数据待积累)"
+    else:
+        note_inst = "(CME 综合)"
     short = {"偏多": "多", "偏空": "空", "中性": "中性"}
     both_neutral = inst_stance == "中性" and all(s == "中性" for s in retail_stances)
     if both_neutral:
@@ -1835,16 +1898,29 @@ def crypto_radar(snap: dict) -> dict:
         f"年化约 {(funding or 0) * 100:.1f}%",
     )
 
-    # 基差 carry
+    # 基差 carry（60d EMA；Spread = EMA − SOFR，tim sun 口径）
     basis = cme.get("basis_pct")
-    add(
-        "基差 carry",
-        20,
-        basis,
-        f"Spread {basis:.2f}%，CME ${cme.get('fut_price')} vs 现货 ${cme.get('spot')}"
-        if basis is not None
-        else "CME 基差不可用",
-    )
+    bz = snap.get("basis") or {}
+    if bz.get("available"):
+        add(
+            "基差 carry",
+            20,
+            bz.get("ema60"),
+            f"Spread {bz.get('spread')}% ({bz.get('ema60')}% EMA − SOFR "
+            f"{bz.get('sofr')}%)"
+            if bz.get("spread") is not None
+            else f"基差 60d EMA {bz.get('ema60')}%（SOFR 不可用）",
+        )
+    else:
+        add(
+            "基差 carry",
+            20,
+            basis,
+            f"Spread {basis:.2f}%，CME ${cme.get('fut_price')} vs "
+            f"现货 ${cme.get('spot')}"
+            if basis is not None
+            else "CME 基差不可用",
+        )
 
     # 期权牵引（Call Wall 上方压制 / Put Wall 支撑）
     # 口径（与 timsun 显示一致，pcr=0.59 时给出正分）：低 PCR = call 拥挤 =

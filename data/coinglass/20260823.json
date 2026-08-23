@@ -1,0 +1,71 @@
+{
+  "ts": "2026-08-23T01:06:31Z",
+  "title": "Coinglass \u5168\u5e02\u573a\u884d\u751f\u54c1\u805a\u5408",
+  "all_open_interest_usd": 137149294671,
+  "liq24h_usd": 994810128,
+  "liq24h_chg_pct": -32.24,
+  "ls_ratio": {
+    "long_pct": 49.28,
+    "short_pct": 50.72
+  },
+  "btc_oi_btc": 717290.0,
+  "btc_oi_usd": 55450000000.0,
+  "exchanges": [
+    {
+      "name": "CME",
+      "oi_btc": 125950.0,
+      "oi_usd": 9740000000.0,
+      "share_pct": 17.56,
+      "chg_1d_pct": 2.01
+    },
+    {
+      "name": "Binance",
+      "oi_btc": 141880.0,
+      "oi_usd": 10960000000.0,
+      "share_pct": 19.77,
+      "chg_1d_pct": -0.08
+    },
+    {
+      "name": "OKX",
+      "oi_btc": 37260.0,
+      "oi_usd": 2880000000.0,
+      "share_pct": 5.19,
+      "chg_1d_pct": -1.04
+    },
+    {
+      "name": "Bybit",
+      "oi_btc": 58240.0,
+      "oi_usd": 4500000000.0,
+      "share_pct": 8.11,
+      "chg_1d_pct": -1.05
+    },
+    {
+      "name": "KuCoin",
+      "oi_btc": 23310.0,
+      "oi_usd": 1800000000.0,
+      "share_pct": 3.24,
+      "chg_1d_pct": 3.32
+    },
+    {
+      "name": "Gate",
+      "oi_btc": 59150.0,
+      "oi_usd": 4570000000.0,
+      "share_pct": 8.24,
+      "chg_1d_pct": 0.68
+    },
+    {
+      "name": "Bitget",
+      "oi_btc": 26910.0,
+      "oi_usd": 2080000000.0,
+      "share_pct": 3.75,
+      "chg_1d_pct": 1.19
+    },
+    {
+      "name": "BingX",
+      "oi_btc": 7460.0,
+      "oi_usd": 576110000.0,
+      "share_pct": 1.03,
+      "chg_1d_pct": -66.36
+    }
+  ]
+}

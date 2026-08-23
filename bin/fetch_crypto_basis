@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+# CME BTC 期货年化基差日序列（Yahoo chart API，timsun V1 治理口径）
+set -euo pipefail
+cd "$(dirname "$0")/.."
+uv run python -m src.fetchers.crypto_basis_fetcher "$@"

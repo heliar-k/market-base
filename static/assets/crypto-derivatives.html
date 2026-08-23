@@ -125,45 +125,52 @@ async function load() {
     <div class="re-card-sub" style="white-space:normal">${sub}</div></div>`;
   const ksec = document.createElement('div');
   ksec.className = 're-section';
-  ksec.innerHTML = `<h2>衍生品 KPI（OKX 永续 + Deribit 期权）</h2>
+  const cmeK = d.cme || {};
+  ksec.innerHTML = `<h2>衍生品 KPI（OKX 永续 + Deribit 期权 + CME 期货）</h2>
     <div class="re-cards" style="grid-template-columns:repeat(auto-fit,minmax(170px,1fr))">
+      ${cmeK.fut_oi != null ? kpi('CME BTC 期货 OI', fmt(cmeK.fut_oi, 0) + ' 份', `≈ ${fmt(cmeK.fut_oi * 5, 0)} BTC · ${(cmeK.fut_contract || '').replace('Bitcoin Futures, ', '')} · Yahoo 免费`): ''}
+      ${cmeK.micro_oi != null ? kpi('Micro BTC OI', fmt(cmeK.micro_oi, 0) + ' 份', `≈ ${fmt(cmeK.micro_oi / 10, 0)} BTC · ${(cmeK.micro_contract || '').replace('Micro Bitcoin Futures, ', '')}`): ''}
       ${kpi('BTC 永续资金费率', (BTC.funding_rate == null ? '—' : (BTC.funding_rate * 100).toFixed(4) + '%'), `年化 ${ann == null ? '—' : (ann * 100).toFixed(1) + '%'} · ${stance(ann)}`)}
       ${kpi('BTC 散户多空比', ls == null ? '—' : ls.toFixed(2), ls == null ? 'taker 数据不可用' : `${Math.round(ls / (1 + ls) * 100)}% 多 / ${Math.round(1 / (1 + ls) * 100)}% 空 · 3 日 taker 口径`)}
       ${kpi('ETH 期货 OI', ETH.oi_ccy == null ? '—' : fmt(ETH.oi_ccy, 0) + ' ETH', `$${ETH.oi_usd == null ? '—' : (ETH.oi_usd / 1e9).toFixed(2)}B · OKX 永续`)}
       ${kpi('BTC 期权 P/C (OI)', optB.pcr ?? '—', `${pcrStance(optB.pcr)}区间`)}
       ${kpi('BTC 期权总 OI', fmt(optB.total_oi, 0) + ' 张', 'Deribit 全到期合约汇总')}
-      ${kpi('BTC Max Pain（最近到期）', optB.max_pain == null ? '—' : '$' + fmt(optB.max_pain, 0), `${optB.d_exp} 个到期月`)}
+      ${kpi('BTC Max Pain（最近到期）', (optB.near_max_pain ?? optB.max_pain) == null ? '—' : '$' + fmt(optB.near_max_pain ?? optB.max_pain, 0), `${optB.nearest_exp || optB.d_exp + ' 个到期月'} · 最近到期口径`)}
       ${kpi('BTC 指数价格', optB.spot_anchor == null ? '—' : '$' + fmt(optB.spot_anchor, 0), 'Deribit btc_usd 合成指数')}
     </div>`;
   document.getElementById('kpi').appendChild(ksec);
 
-  // ── 🧱 期权价格墙 · Strike Wall（Deribit；CME 机构期权无 OI 数据未接入）──
+  // ── 🧱 期权价格墙 · Strike Wall（Deribit 最近到期口径 + Top 5；CME 机构期权无 OI 源暂缺）──
   const wsec = document.createElement('div');
   wsec.className = 're-section';
   const dist = (wall, spot) => wall == null || !spot ? null : (wall / spot - 1) * 100;
-  const wallBox = (label, v, spot) => v == null ? '' : `
+  const wallBox = (label, v, oi, spot) => v == null ? '' : `
     <div style="border:1px solid ${label === 'Call Wall' ? 'var(--down,#ef5350)' : 'var(--up,#26a69a)'};border-radius:8px;padding:12px;background:var(--surface)">
       <div class="re-corridor-label">${label}</div>
       <div style="font-size:22px;font-weight:700;color:${label === 'Call Wall' ? 'var(--down,#ef5350)' : 'var(--up,#26a69a)'}">$${fmt(v, 0)}</div>
-      <div class="re-card-sub">${dist(v, spot) == null ? '' : `距现价 ${dist(v, spot) >= 0 ? '+' : ''}${dist(v, spot).toFixed(1)}%`}</div>
+      <div class="re-card-sub">${oi == null ? '' : `OI ${fmt(oi, 0)} · `}${dist(v, spot) == null ? '' : `距现价 ${dist(v, spot) >= 0 ? '+' : ''}${dist(v, spot).toFixed(1)}%`}</div>
     </div>`;
+  const topList = (rows) => rows && rows.length ? `
+    <div style="margin-top:8px;font-size:12px"><div style="opacity:.7;margin-bottom:4px">Top ${rows.length} 墙</div>
+      ${rows.map(r => `<div style="display:flex;justify-content:space-between;border-bottom:1px solid var(--border,#333);padding:2px 0"><span>$${fmt(r.strike, 0)}</span><span style="opacity:.7">OI ${fmt(r.oi, 0)}</span></div>`).join('')}</div>` : '';
+  const wallCard = (title, o, spot) => `
+    <div class="re-card"><div class="re-corridor-label">${title}</div>
+      <div class="re-card-sub" style="white-space:normal">现货锚 $${fmt(spot, 0)} · 最近到期 ${o.nearest_exp || (o.d_exp + ' 个到期月')}</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px">
+        ${wallBox('Call Wall', o.near_call_wall ?? o.call_wall, o.near_call_wall_oi ?? null, spot)}${wallBox('Put Wall', o.near_put_wall ?? o.put_wall, o.near_put_wall_oi ?? null, spot)}
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+        ${topList(o.top_calls || [])}${topList(o.top_puts || [])}
+      </div></div>`;
   wsec.innerHTML = `<h2>🧱 期权价格墙 · Strike Wall</h2>
     <p style="margin:0 0 8px;font-size:12px;opacity:.75">Call Wall 偏上方压制 / Put Wall 偏下方支撑；用于短线磁吸与失效条件，不单独代表方向。</p>
     <div style="border:1px solid var(--accent);border-radius:8px;padding:10px 14px;margin-bottom:10px;font-size:12px">
       <b>如何解读</b> — Strike Wall 是短期价格磁吸/压制区，尤其在临近到期时更有用。它不是趋势信号，更像短线地图。</div>
     <div class="re-cards" style="grid-template-columns:repeat(auto-fit,minmax(260px,1fr))">
-      <div class="re-card"><div class="re-corridor-label">Deribit 全市场期权 · BTC</div>
-        <div class="re-card-sub" style="white-space:normal">现货锚 $${fmt(optB.spot_anchor, 0)} · 最近到期 ${optB.d_exp} 个到期月</div>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px">
-          ${wallBox('Call Wall', optB.call_wall, optB.spot_anchor)}${wallBox('Put Wall', optB.put_wall, optB.spot_anchor)}
-        </div></div>
-      <div class="re-card"><div class="re-corridor-label">Deribit 全市场期权 · ETH</div>
-        <div class="re-card-sub" style="white-space:normal">现货锚 $${fmt(optE.spot_anchor, 0)} · 最近到期 ${optE.d_exp} 个到期月</div>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px">
-          ${wallBox('Call Wall', optE.call_wall, optE.spot_anchor)}${wallBox('Put Wall', optE.put_wall, optE.spot_anchor)}
-        </div></div>
+      ${wallCard('Deribit 全市场期权 · BTC', optB, optB.spot_anchor)}
+      ${wallCard('Deribit 全市场期权 · ETH', optE, optE.spot_anchor)}
     </div>
-    <p class="re-source" style="margin:8px 0 0">Top Walls 明细与 CME 机构期权墙：数据源未接入，待快照扩展。</p>`;
+    <p class="re-source" style="margin:8px 0 0">口径：最近到期月度（near wall）为主，全到期聚合为回退。CME 机构期权墙：无免费 OI 源，待接入。</p>`;
   document.getElementById('walls').appendChild(wsec);
 
   // ── LAYER 3 · RETAIL 散户立场 ──
@@ -219,7 +226,52 @@ async function load() {
     document.getElementById('consensus').appendChild(csec);
   }
 
-  document.getElementById('re-gen').textContent = '规则引擎生成（LLM 预留）· 数据源：OKX API / Deribit API / Yahoo Finance CME / CFTC COT';
+  // ── 🏛 机构基差专题（CME BTC 期货年化基差 + SOFR Spread）──
+  const bz = d.basis || {};
+  if (bz.available) {
+    const bsec = document.createElement('div');
+    bsec.className = 're-section';
+    bsec.innerHTML = `<h2>🏛 机构基差专题 <span style="font-size:12px;font-weight:400;opacity:.7">CME BTC 期货年化基差（Yahoo BTC=F proxy · timsun V1 治理口径）</span></h2>
+      <div style="border:1px solid var(--accent);border-radius:8px;padding:10px 14px;margin-bottom:10px;font-size:12px">
+        <b>如何解读</b> — 基差代表机构愿意为远期 BTC 支付的溢价。基差高不等于立刻上涨，但说明 carry/套利资金愿意留在场内。
+        <span style="opacity:.7">Spread = 基差 60d EMA − SOFR（真实 carry alpha）；&gt;5% 套利 alpha 充足，&lt;0 为负。</span></div>
+      <div class="re-cards" style="grid-template-columns:repeat(auto-fit,minmax(150px,1fr))">
+        ${`<div class="re-card"><div class="re-corridor-label">当前基差年化</div><div class="re-corridor-value">${bz.current}%</div><div class="re-card-sub">${bz.latest} · 最新有效</div></div>`}
+        ${`<div class="re-card"><div class="re-corridor-label">30 日均值</div><div class="re-corridor-value">${bz.ma30}%</div></div>`}
+        ${`<div class="re-card"><div class="re-corridor-label">1 年百分位</div><div class="re-corridor-value">${bz.pct_rank}%</div></div>`}
+        ${`<div class="re-card"><div class="re-corridor-label">Spread（基差−SOFR）</div><div class="re-corridor-value" style="color:${bz.spread != null && bz.spread > 5 ? 'var(--up,#26a69a)' : (bz.spread != null && bz.spread < 0 ? 'var(--down,#ef5350)' : '')}">${bz.spread == null ? '—' : bz.spread + '%'}</div><div class="re-card-sub">SOFR ${bz.sofr}%</div></div>`}
+      </div>
+      <p class="re-source" style="margin:8px 0 0">公式：basis = (F−S)/S × 365/dte × 100%；治理：dte&lt;10 天跳过 · |basis|&gt;18% 过滤 · 最新未成熟日线跳过（数据完整性 ~35%，近月连续合约 proxy，非 CME 逐合约结算）。</p>`;
+    document.getElementById('re-gen').insertAdjacentElement('beforebegin', bsec);
+  }
+
+  // ── 🌐 Coinglass 全市场聚合 ──
+  const cg = d.coinglass || {};
+  if (cg.available !== false && (cg.all_open_interest_usd || (cg.exchanges || []).length)) {
+    const gsec = document.createElement('div');
+    gsec.className = 're-section';
+    const exchRows = (cg.exchanges || []).map(e => `
+      <div style="display:flex;justify-content:space-between;border-bottom:1px solid var(--border,#333);padding:3px 0;font-size:12px">
+        <span style="min-width:70px">${e.name}</span>
+        <span style="opacity:.7">${fmt(e.oi_btc / 1000, 1)}K BTC · $${(e.oi_usd / 1e9).toFixed(2)}B · ${e.share_pct}%</span>
+        <span style="color:${e.chg_1d_pct >= 0 ? 'var(--up,#26a69a)' : 'var(--down,#ef5350)'}">${e.chg_1d_pct >= 0 ? '+' : ''}${e.chg_1d_pct}%</span>
+      </div>`).join('');
+    const ls = cg.ls_ratio || {};
+    gsec.innerHTML = `<h2>🌐 Coinglass 全市场聚合 <span style="font-size:12px;font-weight:400;opacity:.7">全市场杠杆分布 + 清算压力（经 Jina Reader）</span></h2>
+      <div style="border:1px solid var(--accent);border-radius:8px;padding:10px 14px;margin-bottom:10px;font-size:12px">
+        <b>如何解读</b> — 回答的是：风险是否来自交易所杠杆而非现货资金。OI 快速上升 + 清算低 = 杠杆堆积；清算放大后 OI 下降 = 去杠杆完成。</div>
+      <div class="re-cards" style="grid-template-columns:repeat(auto-fit,minmax(170px,1fr))">
+        ${`<div class="re-card"><div class="re-corridor-label">BTC 全市场期货 OI</div><div class="re-corridor-value">$${(cg.btc_oi_usd || 0) / 1e9} B</div><div class="re-card-sub">${fmt((cg.btc_oi_btc || 0) / 1000, 1)}K BTC</div></div>`}
+        ${`<div class="re-card"><div class="re-corridor-label">全加密期货 OI</div><div class="re-corridor-value">$${(cg.all_open_interest_usd || 0) / 1e9} B</div><div class="re-card-sub">所有币种合计</div></div>`}
+        ${`<div class="re-card"><div class="re-corridor-label">24h 清算总额</div><div class="re-corridor-value" style="color:var(--down,#ef5350)">$${(cg.liq24h_usd || 0) / 1e6} M</div><div class="re-card-sub">${cg.liq24h_chg_pct >= 0 ? '+' : ''}${cg.liq24h_chg_pct}%</div></div>`}
+        ${ls.long_pct != null ? `<div class="re-card"><div class="re-corridor-label">24h 多空比</div><div class="re-corridor-value">${ls.long_pct}% / ${ls.short_pct}%</div><div class="re-card-sub">${ls.long_pct > 50 ? '偏多' : (ls.long_pct < 50 ? '偏空' : '中性')}</div></div>` : ''}
+      </div>
+      ${exchRows ? `<div style="margin-top:10px;font-size:12px;opacity:.9"><div style="opacity:.7;margin-bottom:4px">交易所 OI 分布 · Top ${(cg.exchanges || []).length}（24h 变化）</div>${exchRows}</div>` : ''}
+      <p class="re-source" style="margin:8px 0 0">数据源：Coinglass（经 Jina Reader）· 快照 ${cg.ts || ''} · 单项失败容忍。</p>`;
+    document.getElementById('re-gen').insertAdjacentElement('beforebegin', gsec);
+  }
+
+  document.getElementById('re-gen').textContent = '规则引擎生成（LLM 预留）· 数据源：OKX API / Deribit API / Yahoo Finance CME / CFTC COT / Farside / Coinglass(经 Jina)';
 }
 
 load().catch(e => R.fail(['radar', 'kpi', 'walls', 'retail', 'consensus'], e));
