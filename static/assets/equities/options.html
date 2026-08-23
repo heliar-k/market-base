@@ -9,6 +9,12 @@
 <link rel="stylesheet" href="/css/special.css">
 <style>/* 仅本页：放宽容器随视口自适应（共享 .re-root 默认 960px 不影响其他页） */
 .re-root { max-width: min(1400px, calc(100vw - 32px)); }
+/* 13 标的看板：三张表（指数/ETF · Mag 7 · 重点个股）列宽统一。
+   各表 auto-layout 按自身内容定宽，同名列会错位 20-45px → 固定百分比列宽对齐 */
+#board .re-table { table-layout: fixed; }
+#board .re-table th:nth-child(1), #board .re-table td:nth-child(1) { width: 15%; }
+#board .re-table th:nth-child(2), #board .re-table td:nth-child(2) { width: 18%; }
+#board .re-table th:nth-child(3), #board .re-table td:nth-child(3) { width: 24%; }
 </style>
 <script src="/vendor/echarts.min.js"></script>
 </head>
