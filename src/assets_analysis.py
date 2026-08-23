@@ -1946,7 +1946,8 @@ def _layer1_kpis() -> dict:
         pct_label=_pct_label(int(len(fund_hist) * 8 / 24), rank, unit="天"),
         chg=chg,
         quartiles=_quartiles(fund_hist, nd=4) if len(fund_hist) else None,
-        note=note,
+        # funding_rate 为下一结算周期预测值（OKX：实际结算以 settFundingRate 为准）
+        note=(note + " · " if note else "") + "当前费率为预测值（未结算）",
     )
 
     # 6) CME BTC OI（fut_oi=份数；历史 = COT 周频 BTC_OI 同为份数，同量纲直接比）

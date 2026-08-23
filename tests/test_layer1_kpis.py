@@ -204,6 +204,8 @@ def test_network_failure_degrades(tmp_path, monkeypatch):
     assert by["永续资金费率 8h"]["value"] == "0.0100%"
     assert by["永续多空比"]["value"] == "1.11"
     assert by["永续多空比"]["pct_rank"] is None
+    # 网络失败 → 快照 taker 兑底（降序 [100/80, 90/100, 110/90]）：chg = 1.25/0.9−1
+    assert by["永续多空比"]["chg"] == "↑ +38.89%"
 
 
 def test_funding_kpi_uses_mocked_history(setup, monkeypatch):
@@ -265,3 +267,18 @@ def test_funding_kpi_snapshot_hist_path(tmp_path, monkeypatch):
     k = _by_label(aa._layer1_kpis())["永续资金费率 8h"]
     # 当前 0.01% − 24h 前 0.008% = +0.0020pp（百分点差用 pp）；若误用 [-4] 会取到 0.0052
     assert k["chg"] == "↑ +0.0020pp"
+
+
+def test_funding_kpi_snapshot_hist_len3_chg_none(tmp_path, monkeypatch):
+    """快照 funding_hist 恰 3 条（<4）→ chg 置 None。
+
+    iloc[-3] 索引合法，但 guard len>=4 拦截：3 条不足以建立 24h 对齐窗口
+    （锁定当前护栏行为，防止放宽 guard 后无测试守护）。
+    """
+    monkeypatch.setattr(aa, "ROOT", tmp_path)
+    _mk(tmp_path)
+    snap = _snapshot()
+    snap["funding_hist"] = [0.0052, 0.008, 0.009]
+    _write(tmp_path, "data/crypto_derivatives/20260802.json", json.dumps(snap))
+    k = _by_label(aa._layer1_kpis())["永续资金费率 8h"]
+    assert k["chg"] is None

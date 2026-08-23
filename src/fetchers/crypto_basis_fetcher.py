@@ -32,6 +32,8 @@ logger = logging.getLogger(__name__)
 CHART_URL = "https://query1.finance.yahoo.com/v8/finance/chart/{symbol}"
 MIN_DTE = 10  # timsun V1：roll 过渡期阈值（天）
 MAX_BASIS = 18.0  # timsun V1：失真过滤阈值（%）
+# 边界观察：生产 2025-07-31 basis=18.23% 距阈值仅 0.23pp，源数据修正或阈值微调
+# 都会使该日在 CSV 中进/出，引起派生指标（EMA/百分位）小跳动（非 bug）
 COLUMNS = ["basis_pct", "fut_close", "spot_close"]
 
 
