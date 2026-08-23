@@ -157,7 +157,7 @@ market-base/
 
 ### 数据更新方式（重要）
 
-**每日自动（无需本地操作）**：GitHub Actions `daily-fetch` workflow 每个交易日
+**每日自动（无需本地操作）**：GitHub Actions `daily-fetch` workflow 每天
 北京时间 05:00 自动拉取**不依赖 IBKR/TWS** 的数据源并 commit + push，本地 `git pull` 即得：
 `fred` / `cboe` / `ofr` / `srf` / `tsy` / `cfets` / `shapiro` / `sce` / `treasury` / `yfinance`（17 品种资产快照）
 `barchart_futures` / `barchart_vol` / `cot` / `rate_expectations` / `fed`（Barchart 期货曲线、Barchart 波动率 30 指数快照、CFTC COT、FOMC 概率、FOMC 声明+演讲）

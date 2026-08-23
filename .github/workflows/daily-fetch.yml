@@ -1,13 +1,14 @@
 name: daily-fetch
 
-# 每日自动拉取不依赖 IBKR 的数据源（美股收盘后，北京 05:00 = UTC 21:00）
+# 每日自动拉取不依赖 IBKR 的数据源（美股收盘后，北京 05:00 = UTC 21:00；
+# 周末也跑：crypto 源（OKX/Deribit/Coinglass/CME 等）7×24 有数据，非加密源周末幂等无更新）
 # 产出自动 commit + push，本地 pull 即得最新数据。
 # 依赖 IBKR 的 fetchers（ibkr/options/commodities/index/stock/rate_expectations）
 # 不在 Actions 跑——需要 TWS 实盘连接，仍由本地 cron 负责。
 
 on:
   schedule:
-    - cron: "0 21 * * 1-5"   # 周一~五 UTC 21:00（北京周二~六 05:00，覆盖周一~五美股收盘）
+    - cron: "0 21 * * *"   # 每天 UTC 21:00（北京 05:00，覆盖美股收盘 + 周末 crypto 数据）
   workflow_dispatch: {}       # 支持手动触发
 
 jobs:
