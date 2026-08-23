@@ -108,12 +108,15 @@ def _mk(
 
 
 def _mock_net(monkeypatch) -> None:
-    """mock 网络拉取函数（funding ≥30 条、taker 10 条）。"""
+    """mock 网络拉取函数（funding ≥30 条、taker 10 条）。
+
+    taker 用降序（OKX 实测最新在前，与生产一致——KPI7 chg 依赖 iloc[0]/iloc[1]）。
+    """
     monkeypatch.setattr(
         aa, "_okx_funding_history", lambda: [0.0001 * i for i in range(1, 41)]
     )
     monkeypatch.setattr(
-        aa, "_okx_taker_history", lambda: [1.0 + 0.01 * i for i in range(10)]
+        aa, "_okx_taker_history", lambda: [1.09 - 0.01 * i for i in range(10)]
     )
 
 
@@ -213,6 +216,17 @@ def test_funding_kpi_uses_mocked_history(setup, monkeypatch):
     # 当前 0.01%（0.0001×100），历史 0.006%..0.24% 共 40 条 → 仅 1 条 ≤ 0.01 → rank 2.5
     assert k["pct_rank"] == 2.5
     assert k["quartiles"] is not None
+    # 降级路径（现场拉的历史）与快照 cur 时间轴无法对齐 → chg 置 None
+    assert k["chg"] is None
+
+
+def test_funding_kpi_degraded_chg_none(setup):
+    """快照无 funding_hist（默认降级现拉，40 条足够）→ chg 仍为 None。
+
+    旧行为会算出一个错位的 1d 变化；修复后仅快照自带 hist 才出 chg。
+    """
+    k = _by_label(aa._layer1_kpis())["永续资金费率 8h"]
+    assert k["chg"] is None
 
 
 def test_crypto_derivatives_wires_layer1(setup):
@@ -220,3 +234,34 @@ def test_crypto_derivatives_wires_layer1(setup):
     assert d is not None
     assert "layer1" in d
     assert len(d["layer1"]["kpis"]) == 8
+
+
+def test_taker_pct_rank_with_10_rows(setup):
+    """KPI7 min_n=7：10 条 taker 历史下 pct_rank 非 None（原 min_n=30 永不可达）。"""
+    k = _by_label(aa._layer1_kpis())["永续多空比"]
+    # 当前 1.111 ≥ 历史最大 1.09 → 第 100 百分位
+    assert k["pct_rank"] == 100.0
+    assert k["pct_label"] == "过去 10 日 · 第 100 百分位"
+    # 降序历史（最新在前）：chg = iloc[0]/iloc[1] = 1.09/1.08 → 上升
+    assert k["chg"] == "↑ +0.93%"
+
+
+def test_funding_kpi_snapshot_hist_path(tmp_path, monkeypatch):
+    """快照自带 funding_hist（升序 %）→ KPI5 走快照路径：24h 前 = 倒数第 4 条。
+
+    若不慎走了降级路径（_okx_funding_history），chg 会变成历史第 N 个值之差。
+    """
+    monkeypatch.setattr(aa, "ROOT", tmp_path)
+    _mk(tmp_path)
+    snap = _snapshot()
+    # 升序 8h 结算费率（%）：cur=0.01 为下一结算点，hist[-1]=上一结算点
+    # （结构化差 1 格）→ 24h 参照 = hist[-3] = 0.008
+    snap["funding_hist"] = [0.0052, 0.008, 0.009, 0.01]
+    _write(tmp_path, "data/crypto_derivatives/20260802.json", json.dumps(snap))
+    # 网络历史 mock 成与快照不同的序列：若误走降级路径会取不到 0.008
+    monkeypatch.setattr(
+        aa, "_okx_funding_history", lambda: [0.0099, 0.0098, 0.0097, 0.0096, 0.0095]
+    )
+    k = _by_label(aa._layer1_kpis())["永续资金费率 8h"]
+    # 当前 0.01% − 24h 前 0.008% = +0.0020pp（百分点差用 pp）；若误用 [-4] 会取到 0.0052
+    assert k["chg"] == "↑ +0.0020pp"

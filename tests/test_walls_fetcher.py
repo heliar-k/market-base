@@ -216,3 +216,36 @@ def test_yahoo_quote_oi_missing_fields(monkeypatch):
 
     monkeypatch.setattr(requests, "Session", _FakeSession)
     assert cdf._yahoo_quote_oi() == {}
+
+
+def test_funding_history_paginates_dedup_ascending(monkeypatch):
+    """翻页 + 去重 + 升序（旧→新）+ ×100；空页/重复页提前退出不死循环。"""
+    pages = {
+        None: [
+            {"fundingTime": "300", "fundingRate": "0.0003"},
+            {"fundingTime": "200", "fundingRate": "0.0002"},
+        ],
+        "200": [{"fundingTime": "100", "fundingRate": "0.0001"}],
+        "100": [{"fundingTime": "100", "fundingRate": "0.0001"}],  # 重复页
+    }
+    calls: list[str | None] = []
+
+    def fake_okx(path, **params):
+        calls.append(params.get("after"))
+        return pages[params.get("after")]
+
+    monkeypatch.setattr(cdf, "_okx", fake_okx)
+    hist = cdf.fetch_funding_history(hours=8 * 3)  # n=4 条即够
+    # OKX 返回降序（最新在前），after = 本页最旧一条 → 函数按时间升序返回，值 ×100（%）
+    assert hist == [0.01, 0.02, 0.03]
+    assert calls == [None, "200", "100"]  # 第 3 页重复 → new==0 提前退出
+
+
+def test_funding_history_failure_returns_empty(monkeypatch):
+    """OKX 异常 → 返回 []（KPI 降级"历史不足"，不阻断）。"""
+
+    def boom(path, **params):
+        raise RuntimeError("offline")
+
+    monkeypatch.setattr(cdf, "_okx", boom)
+    assert cdf.fetch_funding_history() == []

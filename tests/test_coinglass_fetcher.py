@@ -70,11 +70,16 @@ def test_parse_oi_table():
     assert out["exchanges"][1]["chg_1d_pct"] == -0.08
 
 
-def test_missing_fields_tolerated():
-    # 无导航栏 → 只跳过 top 字段，不抛异常
+def test_missing_fields_tolerated(caplog):
+    """缺字段不抛异常；空表也告警（0 行不静默）。"""
+    import logging
+
+    caplog.set_level(logging.WARNING, logger="src.fetchers.coinglass_fetcher")
+    # 无导航栏 → 只跳过 top 字段
     assert parse_top("no nav here") == {}
-    # 无表格 → 只跳过表字段
+    # 无表格 → 只跳过表字段，但“<8 家”告警仍触发（0 行兜底）
     assert parse_oi_table("## Exchange BTC Open Interest (USD)\nempty") == {}
+    assert "仅 0 家" in caplog.text
     # 无 All 行但有交易所行 → 交易所字段仍解析
     row = "1![Image 9: Bitget](https://u) Bitget 26.91K BTC$2.08B "
     row += "3.75%+0.27%+0.09%+1.19%0.7445"
@@ -88,3 +93,58 @@ def test_missing_fields_tolerated():
             "chg_1d_pct": 1.19,
         }
     ]
+
+
+def test_eight_good_rows_no_warning(caplog):
+    """8+ 好行（恰 3 变化列）→ 零告警（负断言，防正常页面误报）。"""
+    import logging
+
+    caplog.set_level(logging.WARNING, logger="src.fetchers.coinglass_fetcher")
+    rows = []
+    for i in range(1, 9):
+        rows.append(
+            f"{i}![Image {i + 10}: Ex{i}](https://u) Ex{i} 10.0K BTC$1.0B "
+            "2.50%+0.10%+0.20%+0.30%0.5"
+        )
+    out = parse_oi_table("\n".join(rows))
+    assert [e["name"] for e in out["exchanges"]] == [f"Ex{i}" for i in range(1, 9)]
+    assert "Coinglass" not in caplog.text
+
+
+def test_na_in_change_columns_counted_as_drifted(caplog):
+    """N/A 夹杂在变化列（其前有合法 token）→ 计 drifted 弃行并告警。"""
+    import logging
+
+    caplog.set_level(logging.WARNING, logger="src.fetchers.coinglass_fetcher")
+    row_mid = (
+        "1![Image 4: OKX](https://u) OKX 37.26K BTC$2.88B "
+        "5.19%+0.03%N/A%+1.04%0.5356"  # 第 2 变化列为 N/A → 剩 1 个合法 token
+    )
+    out = parse_oi_table(row_mid)
+    assert "exchanges" not in out
+    assert "1 行变化列缺失/异常" in caplog.text
+
+
+def test_column_drift_rows_skipped(caplog):
+    """变化列数 ≠3（页面加列/删列）→ 弃行并告警，不静默错标 24h。"""
+    import logging
+
+    caplog.set_level(logging.WARNING, logger="src.fetchers.coinglass_fetcher")
+    good = (
+        "1![Image 4: CME](https://u) CME 125.95K BTC$9.74B "
+        "17.56%+0.31%+0.05%+2.01%0.8277"
+    )
+    extra_col = (
+        "2![Image 5: Binance](https://u) Binance 141.88K BTC$10.96B "
+        "19.77%+0.22%-0.19%-0.08%+0.50%0.845"  # 多一列变化 → 4 列
+    )
+    missing_col = (
+        "3![Image 6: OKX](https://u) OKX 37.26K BTC$2.88B "
+        "5.19%+0.03%-0.28%0.5356"  # 少一列变化 → 2 列
+    )
+    out = parse_oi_table("\n".join([good, extra_col, missing_col]))
+    # 漂移行（4 列/2 列）被弃行，不进入 exchanges；好行不受影响
+    assert [e["name"] for e in out["exchanges"]] == ["CME"]
+    assert out["exchanges"][0]["chg_1d_pct"] == 2.01
+    assert "变化列缺失/异常" in caplog.text
+    assert "2 行" in caplog.text

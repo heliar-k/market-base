@@ -1699,7 +1699,7 @@ def _latest_snapshot() -> dict | None:
 
 
 def _okx_funding_history() -> list[float]:
-    """OKX 永续 BTC funding-rate-history（8h 一条，翻页拉近 ~1 年，返回 %）。
+    """OKX 永续 BTC funding-rate-history（8h 一条，翻页拉近 3 个月上限，返回 %）。
 
     独立函数便于测试 monkeypatch；失败/无数据返回 []（不抛异常，KPI 降级"历史不足"）。
     """
@@ -1710,7 +1710,7 @@ def _okx_funding_history() -> list[float]:
         rates: list[tuple[int, float]] = []
         seen: set[int] = set()
         after: str | None = None
-        while len(rates) < 1100:  # 365×3=1095 条 + 余量
+        while len(rates) < 300:  # OKX 上限近 3 个月（实测 ~291 条）+ 余量
             params: dict = {"instId": "BTC-USDT-SWAP", "limit": "100"}
             if after:
                 params["after"] = after
@@ -1927,14 +1927,18 @@ def _layer1_kpis() -> dict:
     #    无则现场拉 OKX（降级，不阻断））
     cur_fr = perp.get("funding_rate")
     cur_fr_pct = float(cur_fr) * 100 if cur_fr is not None else None
-    fund_hist = pd.Series(
-        snap.get("funding_hist") or _okx_funding_history(), dtype=float
-    )
+    snap_hist = snap.get("funding_hist")
+    fund_hist = pd.Series(snap_hist or _okx_funding_history(), dtype=float)
     rank, note = _rank_pct(fund_hist, cur_fr_pct)
     chg = None
-    if cur_fr_pct is not None and len(fund_hist) >= 4:
-        # 升序序列：最新=iloc[-1]，24h 前=倒数第 4 条
-        chg = _dir_chg(cur_fr_pct - float(fund_hist.iloc[-4]), "%", nd=4)
+    if snap_hist and cur_fr_pct is not None and len(fund_hist) >= 4:
+        # 升序序列：24h 参照 = hist[-3]。cur 来自 funding-rate（fundingTime=
+        # 下一结算点，如 03:46 时取 08:00），hist[-1] 为上一结算点（如 00:00），
+        # 两者结构化相差 1 格（8h）→ 当前费率 24h 前 = hist[-3]（不是 [-4]，
+        # 那是相对 hist[-1] 的 24h）。仅快照自带 hist 时对齐有效：
+        # 降级路径（现场拉）的 hist 是分析时刻结算点，与快照时刻 cur 跨 ≥1
+        # 周期无法对齐 → chg 置 None（与 pct 降级口径一致）。
+        chg = _dir_chg(cur_fr_pct - float(fund_hist.iloc[-3]), "pp", nd=4)
     add(
         label="永续资金费率 8h",
         value=f"{cur_fr_pct:.4f}%" if cur_fr_pct is not None else "数据不足",

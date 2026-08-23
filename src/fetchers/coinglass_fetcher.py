@@ -45,7 +45,7 @@ _NAV_LS_RE = re.compile(r"\[24h Long/Short ([\d.]+)%/([\d.]+)%\]")
 _ROW_RE = re.compile(
     r"(?m)^(\d+)\[?!\[Image \d+: ([^\]]+)\]\([^)]*\)[^\n]*?\]?(?:\([^)]*\))?"
     r"\s*(?:[A-Za-z][A-Za-z0-9.]*\s+)?([\d.]+[KM]?) BTC\$([\d.]+[KMB]?) "
-    r"([\d.]+)%([+-][\d.]+)%([+-][\d.]+)%([+-][\d.]+)%"
+    r"([\d.]+)%((?:[+-][\d.]+%)+)"
 )
 # 合计行: All 717.29K BTC$55.45B 100%+0.19%-0.37%-1.61%0.9345
 _ALL_RE = re.compile(r"(?m)^All\s+([\d.]+[KM]?)\s+BTC\$([\d.]+[KMB]?)\s+([\d.]+)%")
@@ -84,7 +84,10 @@ def parse_top(content: str) -> dict:
 def parse_oi_table(content: str) -> dict:
     """OI 分布表：BTC 合计（All 行）+ 交易所明细（前 8 家，页面顺序）。
 
-    逐行解析：坏行（N/A/空/列数不足）跳过并计数，不影响好行；
+    逐行解析：坏行智能跳过，不影响好行：
+    整行不匹配（如 OI/份额字段 N/A）不计数，靠“<8 家告警”兜底；
+    匹配但 token 异常（如多小数点）计入 skipped；
+    变化列数 ≠3（页面加列/删列 → 列漂移）弃行并告警，防止 24h 值错标；
     匹配数 < 8 时 log warning（Jina 布局变化时静默丢数据的防线）。
     """
     out: dict = {}
@@ -94,14 +97,13 @@ def parse_oi_table(content: str) -> dict:
         out["btc_oi_usd"] = round(_qty(m.group(2)), 2)
     rows = []
     skipped = 0
+    drifted = 0
     for m in _ROW_RE.finditer(content):
-        name, oi, usd, share, chg24h = (
-            m.group(2),
-            m.group(3),
-            m.group(4),
-            m.group(5),
-            m.group(8),
-        )
+        chg_tokens = re.findall(r"[+-][\d.]+%", m.group(6))
+        if len(chg_tokens) != 3:  # 1h/4h/24h 恰 3 列；加列/删列 → 列漂移，弃行防错标
+            drifted += 1
+            continue
+        name, oi, usd, share = m.group(2), m.group(3), m.group(4), m.group(5)
         try:
             rows.append(
                 {
@@ -109,17 +111,25 @@ def parse_oi_table(content: str) -> dict:
                     "oi_btc": round(_qty(oi), 2),
                     "oi_usd": round(_qty(usd), 2),
                     "share_pct": _pct(share),
-                    "chg_1d_pct": _pct(chg24h),
+                    "chg_1d_pct": _pct(chg_tokens[-1]),  # 第 3 列 = 24h
                 }
             )
         except ValueError:
-            skipped += 1  # 坏 token（N/A/异常）跳过该行，不丢整表
+            # 多小数点等非法 token（regex 字符类较宽）→ 跳该行不丢整表
+            skipped += 1
     if skipped:
         logger.warning("Coinglass 交易所行跳过 %d 行（坏 token）", skipped)
+    if drifted:
+        logger.warning(
+            "Coinglass 交易所行 %d 行变化列缺失/异常（<3 或 >3；"
+            "整行 N/A 由 <8 告警兜底；若为头部行将影响 Top 8 名单）",
+            drifted,
+        )
     if rows:
         out["exchanges"] = rows[:8]
-        if len(rows) < 8:
-            logger.warning("Coinglass 交易所行仅 %d 家（<8，页面可能改版）", len(rows))
+    if len(rows) < 8:
+        # 0 行也告警：整表 N/A/改版时不留静默空窗
+        logger.warning("Coinglass 交易所行仅 %d 家（<8，页面可能改版）", len(rows))
     return out
 
 

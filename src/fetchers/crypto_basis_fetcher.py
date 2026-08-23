@@ -4,7 +4,8 @@
   - BTC=F：CME 比特币期货连续近月（不精确 roll，timsun 同款近似）
   - BTC-USD：现货参考价
 公式：basis_annualized_pct = (F − S)/S × 365/dte × 100，
-dte = CME 合约到期日 − 数据日；到期日 = 当月最后一个周五（timsun 口径）。
+dte = CME 合约到期日 − 数据日；到期日 = 当月最后一个周五（timsun 口径），
+已过则滚到次月合约（当月最后周五之后的交易日对应次月到期）。
 治理规则（timsun V1）：
   1. dte < 10 天：合约 roll 过渡期，价差失真 → 跳过
   2. |basis_pct| > 18%：大概率时区错位/数据错配 → 过滤
@@ -34,10 +35,20 @@ MAX_BASIS = 18.0  # timsun V1：失真过滤阈值（%）
 COLUMNS = ["basis_pct", "fut_close", "spot_close"]
 
 
-def _last_friday(d: pd.Timestamp) -> pd.Timestamp:
-    """当月最后一个周五（timsun 口径：CME 月度合约到期日）。"""
-    end = d.normalize() + pd.offsets.MonthEnd(0)
-    return end - pd.Timedelta(days=(end.dayofweek - 4) % 7)
+def _expiry(d: pd.Timestamp) -> pd.Timestamp:
+    """d 对应的近月合约到期日：当月最后一个周五；已过（月末后段）→ 次月最后周五。
+
+    timsun 口径：CME 月度合约到期日 = 当月最后一个周五。若 d 在该周五之后
+    （如 2026-06-29/30 在 06-26 之后），近月已到期，应滚到次月合约，
+    否则 dte 为负会把当月末段交易日全部静默滤掉。
+    """
+    d = d.normalize()
+    end = d + pd.offsets.MonthEnd(0)
+    lf = end - pd.Timedelta(days=(end.dayofweek - 4) % 7)
+    if lf < d:  # 到期日已过 → 次月
+        end = end + pd.offsets.MonthEnd(1)
+        lf = end - pd.Timedelta(days=(end.dayofweek - 4) % 7)
+    return lf
 
 
 def _fetch_chart_close(symbol: str) -> pd.Series:
@@ -81,7 +92,7 @@ def compute_basis_series(fut: pd.Series, spot: pd.Series) -> pd.DataFrame:
     df = df.iloc[:-1]
     if df.empty:
         return pd.DataFrame(columns=COLUMNS)
-    dte = pd.Series([(_last_friday(d) - d).days for d in df.index], index=df.index)
+    dte = pd.Series([(_expiry(d) - d).days for d in df.index], index=df.index)
     # 规则 1：roll 过渡期（dte < 10）跳过；先过滤再相除，避免 dte=0 除零
     df = df[dte >= MIN_DTE]
     basis = (df["fut"] / df["spot"] - 1.0) * 365.0 / dte.reindex(df.index) * 100.0

@@ -276,7 +276,8 @@ def fetch_funding_history(hours: int = 24 * 365) -> list[float]:
     """OKX BTC 永续资金费率历史（8h 一条，降序→已翻转为升序返回）。
 
     供 LAYER 1 KPI 百分位/1d 变化使用；失败返回 []（KPI 降级"历史不足"）。
-    注意 OKX 返回按 fundingTime 降序（最新在前），此处翻转为升序（旧→新）。
+    注意：OKX 接口上限近 3 个月（实测 ~291 条），"1 年"口径实际为 3 个月，
+    百分位标签按实际条数显示；返回按 fundingTime 降序（最新在前），此处翻转为升序。
     """
     try:
         n = hours // 8 + 1

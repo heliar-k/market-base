@@ -94,3 +94,46 @@ def test_roll_period_and_outlier_filtered(monkeypatch):
     ]
     assert df.iloc[0]["basis_pct"] == pytest.approx(7.3)
     assert df.iloc[1]["basis_pct"] == pytest.approx(9.12, abs=0.02)
+
+
+def test_month_end_rolls_to_next_contract(monkeypatch):
+    """月末最后周五之后（2026-06-26 后）→ 滚到次月合约，dte 为正，不再被丢弃。
+
+    2026-06-29/30：近月应取 2026-07-31（周五），dte = 32/31；
+    修复前 _expiry 返回 06-26 → dte 为负被规则 1 静默滤掉（每月丢 1-3 交易日）。
+    """
+    dates = ["2026-06-29", "2026-06-30", "2026-12-31"]
+    fut = [100.5, 100.6, 100.5]
+    _mock_yahoo(monkeypatch, dates, fut, dates, [100.0] * 3)
+    df = cbf.fetch_basis_series()
+    # 末根（12-31）跳过；06-29/30 保留，dte 分别 32/31
+    assert list(df.index) == [
+        pd.Timestamp("2026-06-29"),
+        pd.Timestamp("2026-06-30"),
+    ]
+    assert df.iloc[0]["basis_pct"] == pytest.approx(5.70, abs=0.01)
+    assert df.iloc[1]["basis_pct"] == pytest.approx(7.06, abs=0.01)
+
+
+def test_single_bar_degrades_to_empty(monkeypatch):
+    """只剩 1 行 → 规则 3 跳过末根后为空，返回空 df（不崩）。"""
+    _mock_yahoo(monkeypatch, ["2026-01-05"], [100.5], ["2026-01-05"], [100.0])
+    df = cbf.fetch_basis_series()
+    assert df.empty
+    assert list(df.columns) == ["basis_pct", "fut_close", "spot_close"]
+
+
+@pytest.mark.parametrize(
+    ("d", "expected"),
+    [
+        ("2026-01-05", "2026-01-30"),  # 正常：当月最后周五
+        ("2026-06-29", "2026-07-31"),  # 月末段（最后周五之后）→ 次月
+        ("2026-06-30", "2026-07-31"),
+        ("2026-12-31", "2027-01-29"),  # 跨年 roll
+        ("2026-07-31", "2026-07-31"),  # 月末本身是周五 → dte=0（规则 1 滤）
+        ("2026-01-30", "2026-01-30"),  # 周五非月末日 → dte=0（规则 1 滤）
+    ],
+)
+def test_expiry_edges(d: str, expected: str):
+    """_expiry 边界：正常 / 月末后段 roll / 跨年 / 到期日当天（dte=0 交规则 1）。"""
+    assert cbf._expiry(pd.Timestamp(d)) == pd.Timestamp(expected)
