@@ -29,7 +29,7 @@
 <script src="/js/rates-common.js"></script>
 <script>
 function fmt(v, d = 2) { return v == null ? '—' : Number(v === 0 ? 0 : v).toLocaleString(undefined, { maximumFractionDigits: d }); }
-function stance(ann) { const a = Math.abs((ann || 0) * 100); return a >= 30 ? '偏高' : (a >= 15 ? '偏多' : '中性'); }
+function stance(ann) { const a = Math.abs((ann || 0) * 100); if (ann < 0) return '偏空'; return a >= 30 ? '偏高' : (a >= 15 ? '偏多' : '中性'); }
 function pcrStance(p) { return p == null ? '中性' : (p < 0.4 ? '偏多' : (p > 1.5 ? '偏空' : '中性')); }
 const P = { up: '#26a69a', down: '#ef5350', flat: '#9ca3af' };
 

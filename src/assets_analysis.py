@@ -1706,7 +1706,8 @@ def _okx_funding_history() -> list[float]:
     try:
         from src.fetchers.crypto_derivatives_fetcher import _okx
 
-        rates: list[float] = []
+        # (fundingTime, rate%)，保留时间戳按时间排序
+        rates: list[tuple[int, float]] = []
         seen: set[int] = set()
         after: str | None = None
         while len(rates) < 1100:  # 365×3=1095 条 + 余量
@@ -1721,13 +1722,13 @@ def _okx_funding_history() -> list[float]:
                 t = int(r["fundingTime"])
                 if t not in seen:
                     seen.add(t)
-                    rates.append(float(r["fundingRate"]) * 100)
+                    rates.append((t, float(r["fundingRate"]) * 100))
             after = str(rows[-1]["fundingTime"])
             if len(rates) == before:  # 翻页无新数据，防死循环
                 break
         # 按时间升序（旧→新），与 fetcher fetch_funding_history 口径一致
-        rates.sort()
-        return rates
+        rates.sort(key=lambda x: x[0])
+        return [r for _, r in rates]
     except Exception as e:
         logger.warning("OKX funding history 拉取失败: %s", e)
         return []
@@ -2118,6 +2119,7 @@ def crypto_consensus(snap: dict, radar: dict) -> dict:
     # 机构侧以全体投票判向（CME/ETF/Spread 任一偏多即非全中性）
     inst_dirs = [s for s in inst_stances if s != "中性"]
     inst_lean = inst_dirs[0] if len(set(inst_dirs)) == 1 else "分化"
+    short_inst = short.get(inst_lean, "分化")  # 分化时避免 KeyError
     both_neutral = not inst_dirs and all(s == "中性" for s in retail_stances)
     if both_neutral:
         verdict = "双方都按兵不动 — 等待新催化"
@@ -2130,15 +2132,17 @@ def crypto_consensus(snap: dict, radar: dict) -> dict:
             f"机构（{note_inst}）全体中性，散户（资金费率/多空比/PCR）"
             f"偏{short[retail_stances[0]]}——散户信号仅作反向拥挤度参考。"
         )
-    elif all(s == inst_lean or s == "中性" for s in retail_stances) and inst_lean:
-        verdict = f"机构与散户同向偏{short[inst_lean][:1]} — 趋势延续概率上升"
+    elif inst_lean == "分化":
+        verdict = "机构内部分歧 — 以 CME/ETF/Spread 通道对立为线索"
         detail = (
-            f"机构（{note_inst}）偏{short[inst_lean]}且散户未反向，方向性信号同向。"
+            f"机构通道分歧（{note_inst}），散户偏{short[retail_stances[0]]}。"
+            "通道对立时以 ETF 现货通道为锚，Spread 作 carry 参考。"
         )
+    elif all(s == inst_lean or s == "中性" for s in retail_stances) and inst_lean:
+        verdict = f"机构与散户同向偏{short_inst[:1]} — 趋势延续概率上升"
+        detail = f"机构（{note_inst}）偏{short_inst}且散户未反向，方向性信号同向。"
     else:
-        verdict = (
-            f"机构偏{short[inst_lean]}，散户偏{short[retail_stances[0]]} — 分歧看定价权"
-        )
+        verdict = f"机构偏{short_inst}，散户偏{short[retail_stances[0]]} — 分歧看定价权"
         detail = (
             "机构与散户立场不一致：以机构（CME/ETF/Spread）定价权为锚，"
             "散户信号仅作反向拥挤度参考。"

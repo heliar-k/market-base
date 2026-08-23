@@ -67,9 +67,14 @@ def _strike_rows(content: str) -> list[tuple[int, str, int]]:
         if not m:
             continue
         cells = [c.strip() for c in line.split("|")]
-        nums = [int(c) for c in cells[2:] if c.lstrip("+-").isdigit()]
-        # 数据行共 9 个数（g,oo,pnt,tot_vol,blk,eoo,at_close,oi,chg），oi 是第 8 个
-        if len(nums) >= 8:
+        nums = [
+            int(c.replace(",", ""))
+            for c in cells[2:]
+            if c.lstrip("+-.").replace(",", "").isdigit()
+        ]
+        # 数据行共 9 个数（g,oo,pnt,tot_vol,blk,eoo,at_close,oi,chg），oi 是第 8 个；
+        # 恰 9 列才接受（列漂移防护：少于/多于 9 列弃行，行数不足由上层告警兜底）
+        if len(nums) == 9:
             rows.append((int(m.group(1)), m.group(2), nums[7]))
     return rows
 
@@ -123,13 +128,20 @@ def parse_options(content: str) -> dict:
         m = _TOTAL_RE.match(line.strip())
         if not m:
             continue
-        nums = [int(t) for t in m.group(2).split()]
+        # Preliminary 阶段 Total 行可能含 "N/A"（int 会崩）→ 非数字过滤
+        nums = [
+            int(t.replace(",", ""))
+            for t in m.group(2).split()
+            if t.lstrip("+-.").replace(",", "").isdigit()
+        ]
         if len(nums) >= 8:
             totals[m.group(1)] = nums[7]
+    if "Call" in totals:
+        out["call_total_oi"] = totals["Call"]
+    if "Put" in totals:
+        out["put_total_oi"] = totals["Put"]
     if "Call" in totals and "Put" in totals:
         call_total, put_total = totals["Call"], totals["Put"]
-        out["call_total_oi"] = call_total
-        out["put_total_oi"] = put_total
         out["total_oi"] = call_total + put_total
         out["pcr_oi"] = round(put_total / call_total, 2) if call_total else None
 
@@ -149,7 +161,12 @@ def parse_options(content: str) -> dict:
         if mp:
             out["max_pain"] = mp
 
+    # 最小完整性门槛：totals 与墙都缺 → 视为解析失败（不覆盖当日好快照）；
+    # totals 与墙任一存在即可（Preliminary 阶段可能只有 strike 行或只有 Total）
     if not rows and not totals:
+        return {}
+    if not totals and not call_oi and not put_oi:
+        logger.warning("CME 期权解析不完整（rows=%d），放弃写入", len(rows))
         return {}
     return out
 

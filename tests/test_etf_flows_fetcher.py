@@ -150,3 +150,19 @@ def test_etf_signal_scored_when_fresh(monkeypatch, tmp_path):
     snap["etf"]["stale"] = False
     cons = crypto_consensus(snap, radar)
     assert "ETF" in cons["inst"]["note"]
+
+
+def test_consensus_inst_split_no_crash():
+    """机构票型分裂（CME 偏多 + Spread 偏空）→ 不 KeyError，verdict 为内部分歧。"""
+    from src.assets_analysis import crypto_consensus
+
+    snap = {
+        "etf": {"available": False},
+        "basis": {"spread": -3.0, "ema60": 1.0, "sofr": 4.0},
+        "perp": {"BTC": {"funding_annual": 0.1, "funding_rate": 0.0001}},
+        "options_BTC": {"pcr": 0.8},
+        "taker": {"BTC": [{"buy": 1.0, "sell": 1.0}] * 5},
+    }
+    cons = crypto_consensus(snap, {"signals": []})
+    assert cons["verdict"]  # 不崩
+    assert "分歧" in cons["verdict"] or "多空" in cons["verdict"]

@@ -122,3 +122,22 @@ def test_crypto_derivatives_wires_cme_options(monkeypatch, tmp_path):
     )
     d = aa.crypto_derivatives()
     assert d["cme_options"]["call_wall"] == 10500
+
+
+def test_total_row_na_tolerated():
+    """Total 行含 N/A（Preliminary 阶段）不崩、跳过非数字。"""
+    snap = parse_options(
+        "Last Updated 22 Aug 2026 12:21:19 AM CT.\n"
+        "Call Total 83 0 0 83 0 0 0 N/A N/A\n"
+        "Put Total 92 0 0 92 0 0 0 379 56\n"
+        "| 10500 Call | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 158 | 0 |\n"
+    )
+    # Call Total 是 N/A → 该字段缺省（墙 OI 仍可用）；Put Total 正常解析
+    assert "call_total_oi" not in snap
+    assert snap["put_total_oi"] == 379
+    assert snap["call_wall"] == 10500  # 墙 OI 不受 Total 行影响
+
+
+def test_incomplete_returns_empty():
+    """totals 与墙都缺 → 返回 {}（不覆盖好快照）。"""
+    assert parse_options("No table here at all") == {}
