@@ -6,7 +6,7 @@
    body 恢复 block——app.css 的 flex 会让 .re-root 变为 flex item，宽度按内容收缩导致
    各子页面宽度不一致（fed-funds 473px / yield-curve 725px / expectations 884px） */
 body { height: auto; overflow-y: auto; display: block; }
-.re-root { max-width: 960px; margin: 0 auto; padding: 20px 16px; display: flex; flex-direction: column; gap: 16px; }
+.re-root { max-width: min(1280px, calc(100vw - 48px)); margin: 0 auto; padding: 20px 16px; display: flex; flex-direction: column; gap: 16px; }
 .re-header { display: flex; justify-content: space-between; align-items: baseline; flex-wrap: wrap; gap: 8px; }
 .re-header h1 { font-size: 20px; font-weight: 700; }
 body.embedded .re-header h1 { display: none; } /* 内嵌时左卡已有标题 */
