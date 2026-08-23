@@ -82,25 +82,44 @@ def parse_top(content: str) -> dict:
 
 
 def parse_oi_table(content: str) -> dict:
-    """OI 分布表：BTC 合计（All 行）+ 交易所明细（前 8 家，页面顺序）。"""
+    """OI 分布表：BTC 合计（All 行）+ 交易所明细（前 8 家，页面顺序）。
+
+    逐行解析：坏行（N/A/空/列数不足）跳过并计数，不影响好行；
+    匹配数 < 8 时 log warning（Jina 布局变化时静默丢数据的防线）。
+    """
     out: dict = {}
     m = _ALL_RE.search(content)
     if m:
         out["btc_oi_btc"] = round(_qty(m.group(1)), 2)
         out["btc_oi_usd"] = round(_qty(m.group(2)), 2)
     rows = []
-    for _, name, oi, usd, share, _1h, _4h, chg24h in _ROW_RE.findall(content)[:8]:
-        rows.append(
-            {
-                "name": name,
-                "oi_btc": round(_qty(oi), 2),
-                "oi_usd": round(_qty(usd), 2),
-                "share_pct": _pct(share),
-                "chg_1d_pct": _pct(chg24h),
-            }
+    skipped = 0
+    for m in _ROW_RE.finditer(content):
+        name, oi, usd, share, chg24h = (
+            m.group(2),
+            m.group(3),
+            m.group(4),
+            m.group(5),
+            m.group(8),
         )
+        try:
+            rows.append(
+                {
+                    "name": name,
+                    "oi_btc": round(_qty(oi), 2),
+                    "oi_usd": round(_qty(usd), 2),
+                    "share_pct": _pct(share),
+                    "chg_1d_pct": _pct(chg24h),
+                }
+            )
+        except ValueError:
+            skipped += 1  # 坏 token（N/A/异常）跳过该行，不丢整表
+    if skipped:
+        logger.warning("Coinglass 交易所行跳过 %d 行（坏 token）", skipped)
     if rows:
-        out["exchanges"] = rows
+        out["exchanges"] = rows[:8]
+        if len(rows) < 8:
+            logger.warning("Coinglass 交易所行仅 %d 家（<8，页面可能改版）", len(rows))
     return out
 
 

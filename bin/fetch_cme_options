@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+# CME BTC 期货期权墙快照（Jina Reader）
+set -euo pipefail
+cd "$(dirname "$0")/.."
+uv run python -m src.fetchers.cme_options_fetcher "$@"

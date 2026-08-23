@@ -29,7 +29,7 @@
 <script src="/js/rates-common.js"></script>
 <script>
 function fmt(v, d = 2) { return v == null ? '—' : Number(v === 0 ? 0 : v).toLocaleString(undefined, { maximumFractionDigits: d }); }
-function stance(ann) { const a = Math.abs(ann || 0); return a >= 30 ? '偏高' : (a >= 15 ? '偏多' : '中性'); }
+function stance(ann) { const a = Math.abs((ann || 0) * 100); return a >= 30 ? '偏高' : (a >= 15 ? '偏多' : '中性'); }
 function pcrStance(p) { return p == null ? '中性' : (p < 0.4 ? '偏多' : (p > 1.5 ? '偏空' : '中性')); }
 const P = { up: '#26a69a', down: '#ef5350', flat: '#9ca3af' };
 
@@ -171,6 +171,7 @@ async function load() {
 
   // ── 🧱 期权价格墙 · Strike Wall（Deribit 最近到期口径 + Top 5；CME 机构期权无 OI 源暂缺）──
   const wsec = document.createElement('div');
+  const cmo = d.cme_options || {};
   wsec.className = 're-section';
   const dist = (wall, spot) => wall == null || !spot ? null : (wall / spot - 1) * 100;
   const wallBox = (label, v, oi, spot) => v == null ? '' : `
@@ -198,8 +199,19 @@ async function load() {
     <div class="re-cards" style="grid-template-columns:repeat(auto-fit,minmax(260px,1fr))">
       ${wallCard('Deribit 全市场期权 · BTC', optB, optB.spot_anchor)}
       ${wallCard('Deribit 全市场期权 · ETH', optE, optE.spot_anchor)}
+      ${cmo.available !== false && cmo.call_wall ? `
+      <div class="re-card"><div class="re-corridor-label">CME 机构期权 · ${cmo.as_of ? (cmo.as_of + ' 到期月') : '当前月'}</div>
+        <div class="re-card-sub" style="white-space:normal">官方每日结算（经 Jina）· 总 OI ${fmt(cmo.total_oi, 0)} · P/C ${fmt(cmo.pcr_oi, 2)}</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px">
+          ${wallBox('Call Wall', cmo.call_wall, cmo.call_wall_oi, null)}${wallBox('Put Wall', cmo.put_wall, cmo.put_wall_oi, null)}
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+          ${topList(cmo.top_calls)}${topList(cmo.top_puts)}
+        </div>
+        ${cmo.max_pain ? `<div class="re-card-sub" style="margin-top:6px">Max Pain $${fmt(cmo.max_pain.strike, 0)}</div>` : ''}
+      </div>` : ''}
     </div>
-    <p class="re-source" style="margin:8px 0 0">口径：最近到期月度（near wall）为主，全到期聚合为回退。CME 机构期权墙：无免费 OI 源，待接入。</p>`;
+    <p class="re-source" style="margin:8px 0 0">口径：Deribit 最近到期月度（near wall）为主，全到期聚合为回退；CME 为官方每日结算当前月（经 Jina Reader，到期月切换暂不可用）。</p>`;
   document.getElementById('walls').appendChild(wsec);
 
   // ── LAYER 3 · RETAIL 散户立场 ──

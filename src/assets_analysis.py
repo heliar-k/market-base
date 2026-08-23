@@ -1642,7 +1642,7 @@ def _crypto_basis() -> dict:
     返回：当前值 / 30d 均值 / 60d EMA / 距到期 / 百分位 + SOFR Spread。
     """
     df = _csv("crypto_basis/basis.csv")
-    if df.empty:
+    if df.empty or "basis_pct" not in df.columns:
         return {"available": False}
     basis = df["basis_pct"].dropna()
     if basis.empty:
@@ -1725,6 +1725,8 @@ def _okx_funding_history() -> list[float]:
             after = str(rows[-1]["fundingTime"])
             if len(rates) == before:  # 翻页无新数据，防死循环
                 break
+        # 按时间升序（旧→新），与 fetcher fetch_funding_history 口径一致
+        rates.sort()
         return rates
     except Exception as e:
         logger.warning("OKX funding history 拉取失败: %s", e)
@@ -1976,7 +1978,7 @@ def _layer1_kpis() -> dict:
         # 网络失败 → 快照自带日序列兜底（同降序）
         taker_hist = [r["buy"] / r["sell"] for r in taker_snap if r.get("sell")]
     th = pd.Series(taker_hist, dtype=float)
-    rank, note = _rank_pct(th, cur_ls)
+    rank, note = _rank_pct(th, cur_ls, min_n=7)  # OKX taker 仅近 10 日，>30 永不可达
     chg = None
     if len(th) >= 2:  # 降序：最新=iloc[0]，前一日=iloc[1]
         chg = _dir_chg((float(th.iloc[0]) / float(th.iloc[1]) - 1) * 100, "%")
@@ -2011,6 +2013,17 @@ def _layer1_kpis() -> dict:
     return {"kpis": kpis}
 
 
+def _cme_options() -> dict:
+    """CME 期权墙（衍生日页 CME 机构期权模块）；读取最新快照 json。"""
+    files = sorted((ROOT / "data" / "cme_options").glob("20*.json"))
+    if not files:
+        return {"available": False}
+    try:
+        return json.loads(files[-1].read_text(encoding="utf-8"))
+    except Exception:
+        return {"available": False}
+
+
 def crypto_derivatives() -> dict | None:
     files = sorted((ROOT / "data" / "crypto_derivatives").glob("20*.json"))
     if not files:
@@ -2019,6 +2032,7 @@ def crypto_derivatives() -> dict | None:
     snap["etf"] = _etf_flows()
     snap["basis"] = _crypto_basis()
     snap["coinglass"] = _coinglass()
+    snap["cme_options"] = _cme_options()
     snap["layer1"] = _layer1_kpis()
     snap["radar"] = crypto_radar(snap)
     snap["consensus"] = crypto_consensus(snap, snap["radar"])
@@ -2050,7 +2064,8 @@ def crypto_consensus(snap: dict, radar: dict) -> dict:
     taker = (snap.get("taker") or {}).get("BTC") or []
     opt = snap.get("options_BTC") or {}
     ann = perp.get("funding_annual")
-    fr_stance = _stance(ann, 15)  # 年化 >15% 视为多头拥挤
+    # 年化 >15% 视为多头拥挤（decimal → %）
+    fr_stance = _stance((ann or 0) * 100 if ann is not None else None, 15)
     ls = None
     if len(taker) >= 3:
         buy = sum(r["buy"] for r in taker[:3])
@@ -2086,38 +2101,46 @@ def crypto_consensus(snap: dict, radar: dict) -> dict:
 
     retail_stances = [fr_stance, ls_stance, pcr_stance]
     inst_stances = [inst_stance]
-    if etf_stance != "中性" or etf.get("available"):
+    # stale 的 ETF 不投票（与 radar dir=0 一致），可用才计入
+    if etf.get("available") and not etf.get("stale"):
         inst_stances.append(etf_stance)
     if bz_stance != "中性" or spread is not None:
         inst_stances.append(bz_stance)
-    if len(inst_stances) > 2:
-        note_inst = "(CME / ETF / Spread 综合)"
-    elif len(inst_stances) > 1:
-        note_inst = "(CME / ETF 综合)"
-    elif chg is None:
-        note_inst = "(CME 数据待积累)"
-    else:
-        note_inst = "(CME 综合)"
+    names = []
+    if chg is not None:
+        names.append("CME")
+    if etf.get("available") and not etf.get("stale"):
+        names.append("ETF")
+    if spread is not None:
+        names.append("Spread")
+    note_inst = f"({' / '.join(names)} 综合)" if names else "(CME 数据待积累)"
     short = {"偏多": "多", "偏空": "空", "中性": "中性"}
-    both_neutral = inst_stance == "中性" and all(s == "中性" for s in retail_stances)
+    # 机构侧以全体投票判向（CME/ETF/Spread 任一偏多即非全中性）
+    inst_dirs = [s for s in inst_stances if s != "中性"]
+    inst_lean = inst_dirs[0] if len(set(inst_dirs)) == 1 else "分化"
+    both_neutral = not inst_dirs and all(s == "中性" for s in retail_stances)
     if both_neutral:
         verdict = "双方都按兵不动 — 等待新催化"
         detail = (
             "机构与散户立场均中性，无方向性持仓变化。等待宏观或链上新催化打破僵局。"
         )
-    elif len({inst_stance, *retail_stances}) == 1:
-        verdict = f"机构与散户同向偏{short[inst_stance][:1]} — 趋势延续概率上升"
+    elif not inst_dirs:
+        verdict = "机构按兵不动，散户有方向 — 看散户拥挤度"
         detail = (
-            f"机构（CME OI {chg:+.1f}%）与散户（资金费率/多空比/PCR）"
-            "立场一致，方向性信号同向。"
+            f"机构（{note_inst}）全体中性，散户（资金费率/多空比/PCR）"
+            f"偏{short[retail_stances[0]]}——散户信号仅作反向拥挤度参考。"
+        )
+    elif all(s == inst_lean or s == "中性" for s in retail_stances) and inst_lean:
+        verdict = f"机构与散户同向偏{short[inst_lean][:1]} — 趋势延续概率上升"
+        detail = (
+            f"机构（{note_inst}）偏{short[inst_lean]}且散户未反向，方向性信号同向。"
         )
     else:
         verdict = (
-            f"机构偏{short[inst_stance]}，散户偏{short[retail_stances[0]]}"
-            " — 分歧看定价权"
+            f"机构偏{short[inst_lean]}，散户偏{short[retail_stances[0]]} — 分歧看定价权"
         )
         detail = (
-            "机构与散户立场不一致：以机构（CME）定价权为锚，"
+            "机构与散户立场不一致：以机构（CME/ETF/Spread）定价权为锚，"
             "散户信号仅作反向拥挤度参考。"
         )
     return {
@@ -2209,7 +2232,7 @@ def crypto_radar(snap: dict) -> dict:
 
     # 杠杆风险（资金费率年化；timsun 口径：>30% 高 / >15% 中 / 其余低）
     fr = perp.get("funding_annual") or 0
-    lev_risk = "高" if abs(fr) >= 30 else ("中" if abs(fr) >= 15 else "低")
+    lev_risk = "高" if abs(fr * 100) >= 30 else ("中" if abs(fr * 100) >= 15 else "低")
     # 主导力量（timsun 口径：机构增减仓 vs 现货驱动）
     driver = (
         f"CME 机构头寸: {'机构增仓' if (cme_oi_chg or 0) > 0 else '机构减仓'}"
@@ -2227,14 +2250,16 @@ def crypto_radar(snap: dict) -> dict:
         f"年化约 {(funding or 0) * 100:.1f}%",
     )
 
-    # 基差 carry（60d EMA；Spread = EMA − SOFR，tim sun 口径）
+    # 基差 carry（Spread = EMA60 − SOFR 判向：>0 机构 carry 有吸引力 → 正分；
+    # SOFR 缺失则用 EMA60 本身）
     basis = cme.get("basis_pct")
     bz = snap.get("basis") or {}
     if bz.get("available"):
+        bv = bz.get("spread") if bz.get("spread") is not None else bz.get("ema60")
         add(
             "基差 carry",
             20,
-            bz.get("ema60"),
+            bv,
             f"Spread {bz.get('spread')}% ({bz.get('ema60')}% EMA − SOFR "
             f"{bz.get('sofr')}%)"
             if bz.get("spread") is not None
@@ -2267,8 +2292,12 @@ def crypto_radar(snap: dict) -> dict:
         direction,
         f"PCR {pcr:.2f}，Call Wall ${call_wall}（距现价 {dist:+.1f}%），"
         f"Put Wall ${opt.get('put_wall')}"
-        if pcr is not None
-        else "期权数据不可用",
+        if pcr is not None and call_wall and dist is not None
+        else (
+            f"PCR {pcr:.2f}，Call Wall/Put Wall 数据不足"
+            if pcr is not None
+            else "期权数据不可用"
+        ),
     )
 
     # 永续 OI（7d 变化需历史快照积累；未积累前不纳入评分）

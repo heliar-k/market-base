@@ -281,7 +281,9 @@ def fetch_funding_history(hours: int = 24 * 365) -> list[float]:
     try:
         n = hours // 8 + 1
         rows: list[tuple[int, float]] = []
+        seen: set[int] = set()
         after: str | None = None
+        prev_after: str | None = None
         while len(rows) < n:
             params: dict = {"instId": "BTC-USDT-SWAP", "limit": "100"}
             if after:
@@ -289,21 +291,20 @@ def fetch_funding_history(hours: int = 24 * 365) -> list[float]:
             page = _okx("public/funding-rate-history", **params)
             if not page:
                 break
-            before = len(rows)
+            new = 0
             for r in page:
-                rows.append((int(r["fundingTime"]), float(r["fundingRate"])))
+                t = int(r["fundingTime"])
+                if t not in seen:
+                    seen.add(t)
+                    rows.append((t, float(r["fundingRate"])))
+                    new += 1
             after = str(page[-1]["fundingTime"])
-            if len(rows) == before:
-                break
-        # 按时间升序（旧→新），去重（同 ts 保留最新一条）
+            if new == 0 or after == prev_after:
+                break  # 翻页无新数据（防死循环）
+            prev_after = after
+        # 按时间升序（旧→新），去重
         rows.sort(key=lambda x: x[0])
-        seen: set[int] = set()
-        out: list[float] = []
-        for t, r in rows:
-            if t not in seen:
-                seen.add(t)
-                out.append(r * 100)
-        return out
+        return [r * 100 for _, r in rows]
     except Exception as e:
         logger.warning("OKX funding history: %s", e)
         return []

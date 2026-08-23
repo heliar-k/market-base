@@ -78,6 +78,11 @@ def parse_farside(content: str) -> pd.DataFrame:
     last_date = max((i for i, t in enumerate(tokens[:idx]) if t == "Date"), default=-1)
     if last_date >= 0:
         header = [t for t in tokens[last_date + 1 : idx] if _DATE_RE.match(t) is None]
+    # 表头与 COLUMNS 数量一致但内容不同（Jina 列序变化/噪声）→ 回退并告警；
+    # 数量不同的小样本/变体页仍按页面自身 header 解析
+    if header and len(header) == len(COLUMNS) and header != COLUMNS:
+        logger.warning("Farside 表头与预期不一致: %s…（回退默认列序）", str(header[:5]))
+        header = []
     cols = header if header else COLUMNS
     rows: list[dict] = []
     cur_date, cur_vals = None, []

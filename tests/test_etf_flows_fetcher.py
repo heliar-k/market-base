@@ -7,24 +7,64 @@ from src.fetchers.etf_flows_fetcher import COLUMNS, parse_farside
 
 # 与真实页面一致的列序（Date + 13 值列）；构造最小 3 列样本时下标需对齐 COLUMNS
 _SAMPLE = """Bitcoin ETF Flow – All Data (US$m)
-Date\t
-IBIT\t
-FBTC\t
+Date
+IBIT
+FBTC
+BITB
+ARKB
+BTCO
+EZBC
+BRRR
+HODL
+BTCW
+MSBT
+GBTC
+BTC
 Total
 
-11 Jan 2024\t
-111.7\t
-227.0\t
+11 Jan 2024
+111.7
+227.0
+237.9
+65.3
+17.4
+50.1
+29.4
+10.6
+1.0
+-
+(95.1)
+-
 655.3
 
-12 Jan 2024\t
-386.0\t
-195.3\t
+12 Jan 2024
+386.0
+195.3
+17.4
+39.8
+28.4
+0.0
+20.2
+0.0
+0.0
+-
+(484.1)
+-
 203.0
 
-15 Jan 2024\t
--\t
-0.0\t
+15 Jan 2024
+-
+0.0
+0.0
+0.0
+0.0
+0.0
+0.0
+0.0
+0.0
+-
+0.0
+-
 -1.0
 """
 
@@ -49,7 +89,7 @@ def test_parse_farside_basic():
 
 
 def test_parse_farside_paren_negative():
-    df = parse_farside("Date\t\nGBTC\n\n11 Jan 2024\t\n(95.1)\t\n")
+    df = parse_farside("Date	\nGBTC\n\n11 Jan 2024	\n(95.1)	\n")
     assert df.loc["2024-01-11", "GBTC"] == -95.1
 
 
@@ -102,6 +142,11 @@ def test_etf_signal_scored_when_fresh(monkeypatch, tmp_path):
     etf_sig = [s for s in radar["signals"] if s["name"] == "ETF 资金流"][0]
     assert etf_sig["dir"] == 0
 
-    # consensus 机构侧含 ETF 票
+    # stale 时 consensus 机构侧不投 ETF 票（与 radar dir=0 一致）
+    cons = crypto_consensus(snap, radar)
+    assert "ETF" not in cons["inst"]["note"]
+
+    # fresh 时机构侧含 ETF 票
+    snap["etf"]["stale"] = False
     cons = crypto_consensus(snap, radar)
     assert "ETF" in cons["inst"]["note"]
