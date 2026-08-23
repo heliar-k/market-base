@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+# BTC 现货 ETF 资金流（Farside via Jina Reader）
+set -euo pipefail
+cd "$(dirname "$0")/.."
+uv run python -m src.fetchers.etf_flows_fetcher "$@"

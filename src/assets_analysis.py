@@ -1574,11 +1574,73 @@ def _options_narrative(s: dict) -> dict:
     }
 
 
+ETF_COLS = [
+    "IBIT",
+    "FBTC",
+    "BITB",
+    "ARKB",
+    "BTCO",
+    "EZBC",
+    "BRRR",
+    "HODL",
+    "BTCW",
+    "MSBT",
+    "GBTC",
+    "BTC",
+    "Total",
+]
+
+
+def _etf_flows() -> dict:
+    """Farside BTC 现货 ETF 资金流聚合（衍生日页 ETF FLOWS 模块）。
+
+    数据源 data/etf_flows/etf_flows.csv（M USD 日频，观测日 key）。
+    返回：最近有效值 / 5d·30d 累计 / 累计 AUM / Top 3 / 时效标记。
+    stale 定义：最新数据日距今天交易日间隔 > 3（覆盖周末，含 Farside
+    每日 21:00 UTC 更新的 1 天滞后）。
+    """
+    df = _csv("etf_flows/etf_flows.csv")
+    if df.empty:
+        return {"available": False}
+    df = df[[c for c in ETF_COLS if c in df.columns]]
+    last = df.dropna(subset=["Total"]).iloc[-1]
+    latest = last.name
+    # 交易日间隔（weekday 计数）
+    trade_days = pd.bdate_range(latest, pd.Timestamp.today())
+    stale = len(trade_days) > 3  # 周五数据周一跑 = 3 天（含更新滞后 1 天）
+    recent = df.loc[:latest].tail(30)  # 30d 窗口（含 NaN 行保持日序）
+
+    def _sum5() -> float | None:
+        s = df.loc[:latest].tail(8).dropna(subset=["Total"]).tail(5)["Total"]
+        return float(s.sum() / 1000) if len(s) else None  # M→B USD
+
+    def _sum30() -> float | None:
+        s = recent.dropna(subset=["Total"])["Total"]
+        return float(s.sum() / 1000) if len(s) else None
+
+    cum = df["Total"].cumsum()  # 自 2024-01-11 起累计净流入（M USD）
+    top = []
+    if len(cum):
+        per = df.drop(columns=["Total"]).sum()
+        top = [str(k) for k in per.sort_values(ascending=False).head(3).index]
+    return {
+        "available": True,
+        "latest": str(latest.date()),
+        "last_flow_musd": float(last["Total"]),
+        "sum5d_busd": _sum5(),
+        "sum30d_busd": _sum30(),
+        "cum_aum_busd": round(float(cum.iloc[-1] / 1000), 1),
+        "top": top,
+        "stale": stale,
+    }
+
+
 def crypto_derivatives() -> dict | None:
     files = sorted((ROOT / "data" / "crypto_derivatives").glob("20*.json"))
     if not files:
         return None
     snap = json.loads(files[-1].read_text(encoding="utf-8"))
+    snap["etf"] = _etf_flows()
     snap["radar"] = crypto_radar(snap)
     snap["consensus"] = crypto_consensus(snap, snap["radar"])
     return snap
@@ -1622,6 +1684,15 @@ def crypto_consensus(snap: dict, radar: dict) -> dict:
         # 低 PCR = call 拥挤 = 偏多（与雷达口径一致）
         pcr_stance = "偏多" if pcr < 0.8 else ("偏空" if pcr > 1.2 else "中性")
 
+    # ETF 通道（Farside；stale 不投票）
+    etf = snap.get("etf") or {}
+    etf_stance = "中性"
+    if etf.get("available") and not etf.get("stale"):
+        v5 = etf.get("sum5d_busd")
+        etf_stance = (
+            "偏多" if (v5 or 0) > 0.05 else ("偏空" if (v5 or 0) < -0.05 else "中性")
+        )
+
     def votes(stances: list[str]) -> str:
         def cnt(st: str) -> int:
             return sum(x == st for x in stances)
@@ -1629,7 +1700,12 @@ def crypto_consensus(snap: dict, radar: dict) -> dict:
         return f"多 {cnt('偏多')} · 空 {cnt('偏空')} · 平 {cnt('中性')}"
 
     retail_stances = [fr_stance, ls_stance, pcr_stance]
-    note_inst = "(CME 综合)" if chg is not None else "(CME 数据待积累)"
+    inst_stances = [inst_stance]
+    if etf_stance != "中性" or etf.get("available"):
+        inst_stances.append(etf_stance)
+    note_inst = "(CME / ETF 综合)" if len(inst_stances) > 1 else "(CME 综合)"
+    if chg is None and len(inst_stances) == 1:
+        note_inst = "(CME 数据待积累)"
     short = {"偏多": "多", "偏空": "空", "中性": "中性"}
     both_neutral = inst_stance == "中性" and all(s == "中性" for s in retail_stances)
     if both_neutral:
@@ -1655,7 +1731,7 @@ def crypto_consensus(snap: dict, radar: dict) -> dict:
     return {
         "inst": {
             "stance": inst_stance,
-            "votes": votes([inst_stance]),
+            "votes": votes(inst_stances),
             "note": note_inst,
             "text": f"CME OI 周变化 {chg:+.1f}%"
             if chg is not None
@@ -1817,8 +1893,25 @@ def crypto_radar(snap: dict) -> dict:
     else:
         add("散户多空比", 10, None, "taker 数据不可用")
 
-    # ETF 资金流：公开免费源未接入 → null
-    add("ETF 资金流", 15, None, "公开免费源未接入（Farside 预留）")
+    # ETF 资金流（Farside：5d 净流入，B USD；stale 时不计分）
+    etf = snap.get("etf") or {}
+    if etf.get("available") and not etf.get("stale"):
+        v = etf.get("sum5d_busd")
+        add(
+            "ETF 资金流",
+            15,
+            v,
+            f"近 5 日净流入 {v:+.2f} B USD（Farside，截至 {etf.get('latest')}）"
+            if v is not None
+            else "ETF 资金流数据不可用",
+        )
+    else:
+        reason = (
+            "超过时效阈值，不纳入方向评分"
+            if etf.get("stale")
+            else "公开免费源未接入（Farside）"
+        )
+        add("ETF 资金流", 15, None, reason)
 
     total = round(score / weight_total * 100 / 25) if weight_total else None
     verdict = (

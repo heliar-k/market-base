@@ -81,6 +81,35 @@ async function load() {
     <p class="re-source" style="margin:8px 0 0">反证条件：基差转负 &gt;0.3% 或 Call Wall 上移后跌破。</p>`);
   document.getElementById('radar').appendChild(rsec);
 
+  // ── ETF FLOWS（Farside via Jina；stale 时只展示最近值不参与方向）──
+  const etf = d.etf || {};
+  if (etf.available) {
+    const esec = document.createElement('div');
+    esec.className = 're-section';
+    const v5 = etf.sum5d_busd, v30 = etf.sum30d_busd;
+    const fst = v => v == null ? '暂停判读' : `${v >= 0 ? '+' : ''}${v.toFixed(2)} B`;
+    const fcol = v => v == null ? '' : (v >= 0 ? 'color:var(--up,#26a69a)' : 'color:var(--down,#ef5350)');
+    const fcard = (label, value, sub, color) => `
+      <div class="re-card"><div class="re-corridor-label">${label}</div>
+      <div class="re-corridor-value" style="${color || ''}">${value}</div>
+      <div class="re-card-sub">${sub}</div></div>`;
+    esec.innerHTML = `<h2>ETF FLOWS 💰 机构资金流入对照（BTC Spot ETF）</h2>
+      <div style="border:1px solid var(--accent);border-radius:8px;padding:10px 14px;margin-bottom:10px;font-size:12px">
+        <b>如何解读</b> — ETF 是最干净的现货资金通道：价格上涨 + ETF 流入 = 现货确认；
+        价格上涨但 ETF 流出 = 更可能是杠杆或短线挤压。
+        <span style="opacity:.7">数据源：Farside Investors（12 ETF + Total，2024-01-11 起，M USD）</span></div>
+      ${etf.stale ? '<div style="padding:8px 12px;border:1px solid var(--warning,#d97706);border-radius:6px;font-size:12px;color:var(--warning,#d97706);margin-bottom:10px">⚠ ETF 资金流超过时效阈值（最新 ' + etf.latest + '），本区保留最近有效值，不参与方向判断。</div>' : ''}
+      <div class="re-cards" style="grid-template-columns:repeat(auto-fit,minmax(160px,1fr))">
+        ${fcard('最近有效净流入', fst(etf.last_flow_musd == null ? null : etf.last_flow_musd / 1000), etf.latest + ' · Farside 更新', fcol(etf.last_flow_musd))}
+        ${fcard('5 天累计', fst(v5), etf.stale ? '暂停判读' : '参与方向评分', fcol(v5))}
+        ${fcard('30 天累计', fst(v30), etf.stale ? '暂停判读' : '趋势参考', fcol(v30))}
+        ${fcard('累计 AUM', (etf.cum_aum_busd ?? '—') + ' B', '净流入 cumsum 近似（自 2024-01-11）')}
+        ${fcard('Top 3', (etf.top || []).join(' · '), '累计净流入最高')}
+      </div>
+      <p class="re-source" style="margin:8px 0 0">Farside 每日 ~21:00 UTC 更新；负数 = 净流出。4 象限：流入+高基差=健康牛市 · 流出+低基差=共识看空 · 背离罕见。</p>`;
+    document.getElementById('kpi').insertAdjacentElement('beforebegin', esec);
+  }
+
   // ── 衍生品 KPI 卡（timsun 同款 7 卡：资金费率 / 多空比 / ETH OI / PCR / 期权 OI / Max Pain / 指数价）──
   const p = d.perp || {};
   const optB = d.options_BTC || {}, optE = d.options_ETH || {};
