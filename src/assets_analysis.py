@@ -1775,6 +1775,13 @@ def _pcr_history() -> list[float]:
     return out
 
 
+def _window_1y(s: pd.Series) -> pd.Series:
+    """近 1 个日历年窗口（按 index 日期切；稀疏序列不把观测数当“天数”）。"""
+    if s.empty:
+        return s
+    return s[s.index >= s.index[-1] - pd.Timedelta(days=365)]
+
+
 def _rank_pct(
     s: pd.Series, cur: float | None, min_n: int = 30
 ) -> tuple[float | None, str | None]:
@@ -1824,7 +1831,6 @@ def _layer1_kpis() -> dict:
     snap = _latest_snapshot() or {}
     perp = (snap.get("perp") or {}).get("BTC") or {}
     opt = snap.get("options_BTC") or {}
-    cme = snap.get("cme") or {}
     taker_snap = (snap.get("taker") or {}).get("BTC") or []
 
     kpis: list[dict] = []
@@ -1883,7 +1889,8 @@ def _layer1_kpis() -> dict:
         note=note,
     )
 
-    # 3) 基差 60d EMA（crypto_basis/basis.csv，basis_pct 列）
+    # 3) 基差 60d EMA（crypto_basis/basis.csv，basis_pct 列；稀疏序列 ~35% 完整）：
+    #    百分位窗口 = 近 1 个日历年（不以观测数充当“天数”）
     ema60 = pd.Series(dtype=float)
     bz = _csv("crypto_basis/basis.csv")
     if "basis_pct" in bz.columns:
@@ -1891,7 +1898,8 @@ def _layer1_kpis() -> dict:
         if len(basis):
             ema60 = basis.ewm(span=60, adjust=False).mean().dropna()
     cur_ema = float(ema60.iloc[-1]) if len(ema60) else None
-    rank, note = _rank_pct(ema60, cur_ema)
+    win_ema = _window_1y(ema60)
+    rank, note = _rank_pct(win_ema, cur_ema)
     chg = None
     if cur_ema is not None and len(ema60) >= 2:
         chg = _dir_chg(cur_ema - float(ema60.iloc[-2]), "pp")
@@ -1899,22 +1907,29 @@ def _layer1_kpis() -> dict:
         label="基差 60d EMA",
         value=f"{cur_ema:.2f}%" if cur_ema is not None else "数据不足",
         pct_rank=rank,
-        pct_label=_pct_label(len(ema60), rank),
+        pct_label=(
+            f"近 1 年 · 第 {rank:g} 百分位（{len(win_ema)} 个有效观测）"
+            if rank is not None
+            else "历史不足"
+        ),
         chg=chg,
-        quartiles=_quartiles(ema60),
+        quartiles=_quartiles(win_ema),
         note=note,
     )
 
-    # 4) Spread = 基差 60d EMA − SOFR（FRED 最新值；缺失 → 数据不足）
+    # 4) Spread = 基差 60d EMA − SOFR（逐观测日配对当日 SOFR，ffill；缺失 → 数据不足）
     rates = _csv("fred/rates/rates.csv")
     sofr = None
+    spread = pd.Series(dtype=float)
     if "SOFR" in rates.columns:
         sr = rates["SOFR"].dropna()
         if len(sr):
             sofr = float(sr.iloc[-1])
-    spread = ema60 - sofr if sofr is not None and len(ema60) else pd.Series(dtype=float)
+            if len(ema60):
+                spread = (ema60 - sr.reindex(ema60.index, method="ffill")).dropna()
     cur_sp = float(spread.iloc[-1]) if len(spread) else None
-    rank, note = _rank_pct(spread, cur_sp)
+    win_sp = _window_1y(spread)
+    rank, note = _rank_pct(win_sp, cur_sp)
     chg = None
     if cur_sp is not None and len(spread) >= 2:
         chg = _dir_chg(cur_sp - float(spread.iloc[-2]), "pp")
@@ -1922,9 +1937,13 @@ def _layer1_kpis() -> dict:
         label="Spread（基差−SOFR）",
         value=f"{cur_sp:+.2f}%" if cur_sp is not None else "数据不足",
         pct_rank=rank,
-        pct_label=_pct_label(len(spread), rank),
+        pct_label=(
+            f"近 1 年 · 第 {rank:g} 百分位（{len(win_sp)} 个有效观测）"
+            if rank is not None
+            else "历史不足"
+        ),
         chg=chg,
-        quartiles=_quartiles(spread),
+        quartiles=_quartiles(win_sp),
         note=note if sofr is not None else "SOFR 缺失",
     )
 
@@ -1955,14 +1974,15 @@ def _layer1_kpis() -> dict:
         note=(note + " · " if note else "") + "当前费率为预测值（未结算）",
     )
 
-    # 6) CME BTC OI（fut_oi=份数；历史 = COT 周频 BTC_OI 同为份数，同量纲直接比）
-    fut_oi = cme.get("fut_oi")
-    cur_oi = float(fut_oi) if fut_oi is not None else None
+    # 6) CME BTC OI（口径统一：当前与历史都用 CFTC COT 周频全合约 OI；
+    #    快照 fut_oi 是近月单合约，与聚合口径不可直接比 → 不作为 KPI 当前值）
     cot = _csv("cot/cot.csv")
     cot_oi = (
         cot["BTC_OI"].dropna() if "BTC_OI" in cot.columns else pd.Series(dtype=float)
     )
-    rank, note = _rank_pct(cot_oi, cur_oi)
+    cur_oi = float(cot_oi.iloc[-1]) if len(cot_oi) else None
+    win_oi = cot_oi.tail(52) if len(cot_oi) else cot_oi  # 近 1 年（周频 52 个观测）
+    rank, note = _rank_pct(win_oi, cur_oi)
     chg = None
     if len(cot_oi) >= 2:
         chg = _dir_chg((float(cot_oi.iloc[-1]) / float(cot_oi.iloc[-2]) - 1) * 100, "%")
@@ -1970,12 +1990,19 @@ def _layer1_kpis() -> dict:
         label="CME BTC OI",
         value=f"{cur_oi:,.0f} 份" if cur_oi is not None else "数据不足",
         pct_rank=rank,
-        pct_label=_pct_label(len(cot_oi), rank, unit="周"),
+        pct_label=(
+            f"近 1 年 · 第 {rank:g} 百分位（{len(win_oi)} 个周观测）"
+            if rank is not None
+            else "历史不足"
+        ),
         chg=chg,
-        quartiles=_quartiles(cot_oi, nd=0),
-        note=("周频（COT 全月口径）" if note is None else note + " · 周频")
-        if len(cot_oi)
-        else note,
+        quartiles=_quartiles(win_oi, nd=0),
+        note=(
+            ((note + " · ") if note else "")
+            + f"周频 · COT 全合约口径（最新 {str(cot_oi.index[-1].date())}）"
+            if len(cot_oi)
+            else note
+        ),
     )
 
     # 7) 永续多空比（当前 = 快照 taker 3 日 buy/sell 比；历史 = OKX 近 10 日）

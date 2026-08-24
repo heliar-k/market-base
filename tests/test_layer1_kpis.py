@@ -165,6 +165,38 @@ def test_pct_rank_mid_series(tmp_path, monkeypatch):
     assert k["value"] == "$50"
 
 
+def test_cme_oi_kpi_uses_cot_caliber(tmp_path, monkeypatch):
+    """KPI6 口径：当前值必须用 COT 周频全合约 OI（快照 fut_oi 是近月单合约不可比）。
+
+    快照 fut_oi=1（远小于 COT 基线）→ 若误用快照值，value 会是 1 份；
+    修复应取 COT 末值（fixture: 1000 + 1000×p/100 → 2000）。
+    """
+    monkeypatch.setattr(aa, "ROOT", tmp_path)
+    _mk(tmp_path)
+    _write(
+        tmp_path,
+        "data/crypto_derivatives/20260801.json",
+        json.dumps(_snapshot(last=100.0, fut_oi=1)),
+    )
+    _mock_net(monkeypatch)
+    k = _by_label(aa._layer1_kpis())["CME BTC OI"]
+    assert k["value"] == "2,000 份"
+    assert "近 1 年" in k["pct_label"]
+    assert "周观测" in k["pct_label"]
+    assert "COT 全合约口径" in k["note"]
+    assert k["pct_rank"] is not None
+
+
+def test_cme_oi_small_sample_keeps_note(tmp_path, monkeypatch):
+    """COT 样本 <30 周：note 必须保留"样本不足"解释，不能被口径说明覆盖。"""
+    monkeypatch.setattr(aa, "ROOT", tmp_path)
+    _mk(tmp_path, prices=[float(i) for i in range(1, 11)])  # COT 仅 10 周
+    _mock_net(monkeypatch)
+    k = _by_label(aa._layer1_kpis())["CME BTC OI"]
+    assert k["pct_rank"] is None
+    assert "样本" in k["note"] and "COT 全合约口径" in k["note"]
+
+
 def test_insufficient_data_pct_none(tmp_path, monkeypatch):
     """10 天数据 + 5 条 funding + 3 条 taker + 2 个快照。
 
