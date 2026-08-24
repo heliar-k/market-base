@@ -182,7 +182,7 @@ def test_cme_oi_kpi_uses_cot_caliber(tmp_path, monkeypatch):
     k = _by_label(aa._layer1_kpis())["CME BTC OI"]
     assert k["value"] == "2,000 份"
     assert "近 1 年" in k["pct_label"]
-    assert "周观测" in k["pct_label"]
+    assert "第 " in k["pct_label"]
     assert "COT 全合约口径" in k["note"]
     assert k["pct_rank"] is not None
 
@@ -213,7 +213,7 @@ def test_insufficient_data_pct_none(tmp_path, monkeypatch):
         assert k["note"], k["label"]
     by = _by_label(d)
     assert "快照积累中" in by["期权 Put/Call OI"]["note"]
-    assert "不足" in by["BTC 现价"]["note"]
+    assert "样本" in by["BTC 现价"]["note"]
 
 
 def test_network_failure_degrades(tmp_path, monkeypatch):

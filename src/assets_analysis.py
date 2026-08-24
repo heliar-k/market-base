@@ -1793,7 +1793,7 @@ def _rank_pct(
         return None, "当前值缺失"
     v = s.dropna()
     if len(v) < min_n:
-        return None, f"样本 {len(v)} 个（<{min_n} 不足）"
+        return None, f"样本 {len(v)} 个"
     return round(float((v <= cur).mean() * 100), 1), None
 
 
@@ -1907,11 +1907,7 @@ def _layer1_kpis() -> dict:
         label="基差 60d EMA",
         value=f"{cur_ema:.2f}%" if cur_ema is not None else "数据不足",
         pct_rank=rank,
-        pct_label=(
-            f"近 1 年 · 第 {rank:g} 百分位（{len(win_ema)} 个有效观测）"
-            if rank is not None
-            else "历史不足"
-        ),
+        pct_label=(f"近 1 年 · 第 {rank:g} 百分位" if rank is not None else "历史不足"),
         chg=chg,
         quartiles=_quartiles(win_ema),
         note=note,
@@ -1937,11 +1933,7 @@ def _layer1_kpis() -> dict:
         label="Spread（基差−SOFR）",
         value=f"{cur_sp:+.2f}%" if cur_sp is not None else "数据不足",
         pct_rank=rank,
-        pct_label=(
-            f"近 1 年 · 第 {rank:g} 百分位（{len(win_sp)} 个有效观测）"
-            if rank is not None
-            else "历史不足"
-        ),
+        pct_label=(f"近 1 年 · 第 {rank:g} 百分位" if rank is not None else "历史不足"),
         chg=chg,
         quartiles=_quartiles(win_sp),
         note=note if sofr is not None else "SOFR 缺失",
@@ -1971,7 +1963,7 @@ def _layer1_kpis() -> dict:
         chg=chg,
         quartiles=_quartiles(fund_hist, nd=4) if len(fund_hist) else None,
         # funding_rate 为下一结算周期预测值（OKX：实际结算以 settFundingRate 为准）
-        note=(note + " · " if note else "") + "当前费率为预测值（未结算）",
+        note=(note + " · " if note else "") + "当前费率为预测值",
     )
 
     # 6) CME BTC OI（口径统一：当前与历史都用 CFTC COT 周频全合约 OI；
@@ -1990,16 +1982,11 @@ def _layer1_kpis() -> dict:
         label="CME BTC OI",
         value=f"{cur_oi:,.0f} 份" if cur_oi is not None else "数据不足",
         pct_rank=rank,
-        pct_label=(
-            f"近 1 年 · 第 {rank:g} 百分位（{len(win_oi)} 个周观测）"
-            if rank is not None
-            else "历史不足"
-        ),
+        pct_label=(f"近 1 年 · 第 {rank:g} 百分位" if rank is not None else "历史不足"),
         chg=chg,
         quartiles=_quartiles(win_oi, nd=0),
         note=(
-            ((note + " · ") if note else "")
-            + f"周频 · COT 全合约口径（最新 {str(cot_oi.index[-1].date())}）"
+            ((note + " · ") if note else "") + "周频 · COT 全合约口径"
             if len(cot_oi)
             else note
         ),
@@ -2045,7 +2032,7 @@ def _layer1_kpis() -> dict:
         pct_label=_pct_label(len(pcrs), rank, unit="个快照"),
         chg=chg,
         quartiles=_quartiles(pd.Series(pcrs)),
-        note=(f"快照积累中（{len(pcrs)} 个快照）" if len(pcrs) and note else note),
+        note=(f"快照积累中 · {len(pcrs)} 个快照" if len(pcrs) and note else note),
     )
 
     return {"kpis": kpis}

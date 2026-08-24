@@ -88,22 +88,23 @@ async function load() {
     lsec.className = 're-section';
     const kArrow = s => s == null ? '' : `<span style="color:${s[0] === '↑' ? 'var(--up,#26a69a)' : (s[0] === '↓' ? 'var(--down,#ef5350)' : 'var(--flat,#9ca3af)')};font-weight:600">${s}</span>`;
     const pctBar = k => {
-      if (k.pct_rank == null) return '';
-      const pos = Math.max(0, Math.min(100, k.pct_rank));
+      // 固定占位（无 rank 也渲染空 bar + 空四分位行），保证所有卡片高度/对齐一致；marker 只在有 rank 时显示
       const q = k.quartiles || [];
       const ticks = [25, 50, 75].map(p => `<div style="position:absolute;left:${p}%;top:0;bottom:0;width:1px;background:var(--border,#555)"></div>`).join('');
-      return `<div style="position:relative;height:12px;margin-top:8px;background:var(--surface,#161616);border:1px solid var(--border,#333);border-radius:3px">${ticks}
-        <div style="position:absolute;left:calc(${pos}% - 1px);top:-2px;bottom:-2px;width:3px;background:var(--text,#111);border-radius:1px"></div></div>
-        ${q.length === 3 ? `<div style="display:flex;justify-content:space-between;font-size:10px;opacity:.6;margin-top:2px"><span>P25 ${fmt(q[0], 1)}</span><span>P50 ${fmt(q[1], 1)}</span><span>P75 ${fmt(q[2], 1)}</span></div>` : ''}`;
+      const marker = k.pct_rank == null ? '' : `<div style="position:absolute;left:calc(${Math.max(0, Math.min(100, k.pct_rank))}% - 1px);top:-2px;bottom:-2px;width:3px;background:var(--text,#111);border-radius:1px"></div>`;
+      const fq = v => Math.abs(v) < 0.01 ? v.toFixed(4) : v.toLocaleString(undefined, { maximumFractionDigits: 2 });
+      return `<div style="position:relative;height:12px;margin-top:8px;background:var(--surface,#161616);border:1px solid var(--border,#333);border-radius:3px">${ticks}${marker}</div>
+        <div style="display:flex;justify-content:space-between;font-size:10px;opacity:.6;margin-top:2px;min-height:13px">
+          ${q.length === 3 ? `<span>${fq(q[0])}</span><span>${fq(q[1])}</span><span>${fq(q[2])}</span>` : ''}</div>`;
     };
     lsec.innerHTML = `<h2>LAYER 1 · NOW 🔵 现在市场情况 <span style="font-size:12px;font-weight:400;opacity:.7">8 个核心 KPI · 当前值 + 1 年百分位 + 1d 变化方向</span></h2>
       <div class="re-cards" style="grid-template-columns:repeat(auto-fit,minmax(170px,1fr))">
-        ${l1.kpis.map(k => `<div class="re-card" style="padding:12px 14px">
+        ${l1.kpis.map(k => `<div class="re-card" style="padding:12px 14px" title="${(k.note || '').replace(/"/g, '&quot;')}">
           <div class="re-corridor-label">${k.label}</div>
           <div class="re-corridor-value" style="font-size:17px;margin:2px 0">${k.value}</div>
-          <div style="min-height:16px;font-size:12px">${kArrow(k.chg)}${k.note ? `<span style="opacity:.6;font-size:10px;margin-left:4px">${k.note}</span>` : ''}</div>
-          <div class="re-card-sub" style="white-space:normal">${k.pct_label || ''}</div>
+          <div style="min-height:16px;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${kArrow(k.chg)}</div>
           ${pctBar(k)}
+          <div style="margin-top:4px;font-size:11px;opacity:.65;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${k.pct_label || ''}</div>
         </div>`).join('')}
       </div>
       <p class="re-source" style="margin:8px 0 0">口径：百分位 = 当前值在近 1 年序列中的位置（&lt;30 个点标历史不足）；历史源：OKX（funding/taker）/ CFTC COT / 日线快照 / 期权快照。部分 KPI 因源上限窗口不足 1 年（funding 92 天 / taker 10 日 / PCR 快照积累中）。</p>`;
