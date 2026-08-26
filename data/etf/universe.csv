@@ -1058,6 +1058,7 @@ TEXN,iShares Texas Equity ETF,broad
 TEXX,Horizon Kinetics Texas ETF,broad
 TFGZ,Thornburg Focus Growth Fund,high_beta
 TFNS,T. Rowe Price Financials ETF,broad
+TGRZ,China AI Tigers LLM ETF,global
 THMZ,Lazard Equity Megatrends ETF,broad
 THRV,Prospera Income ETF,factor_income
 THYM,T. Rowe Price High Income Municipal ETF,bond
@@ -1785,6 +1786,7 @@ CAML,Congress Large Cap Growth ETF,high_beta
 CAMX,Cambiar Aggressive Value ETF,bond
 CANE,Teucrium Sugar Fund ETV,broad
 CAOS,Alpha Architect Tail Risk ETF,theme
+CAPA,Defiance AI Capacitors Leaders ETF,theme
 CAPE,DoubleLine Shiller CAPE U.S. Equities ETF,broad
 CARD,MAX Auto Industry -3x Inverse Leveraged ETN,leveraged_inverse
 CARK,CastleArk Large Growth ETF,high_beta
@@ -3848,7 +3850,11 @@ MUNA,Northern Trust 2030 Tax-Exempt Distributing Ladder ETF,broad
 MUNB,Northern Trust 2035 Tax-Exempt Distributing Ladder ETF,broad
 MUNC,Northern Trust 2045 Tax-Exempt Distributing Ladder ETF,broad
 MUND,Northern Trust 2055 Tax-Exempt Distributing Ladder ETF,broad
+MUNF,Northern Trust 2036 Tax-Exempt Distributing Ladder ETF,broad
+MUNG,Northern Trust 2046 Tax-Exempt Distributing Ladder ETF,broad
+MUNH,Northern Trust 2056 Tax-Exempt Distributing Ladder ETF,broad
 MUNI,PIMCO Intermediate Municipal Bond Active Exchange-Traded Fund,bond
+MUNJ,Northern Trust 2031 Tax-Exempt Distributing Ladder ETF,broad
 MUNX,AMG GW&K Muni Income ETF,factor_income
 MUNY,Vanguard New York Tax-Exempt Bond ETF,bond
 MUSE,TCW Multisector Credit Income ETF,bond
@@ -4067,6 +4073,7 @@ ORO,Arrow Valtoro ETF,broad
 OSCV,Opus Small Cap Value ETF,factor_income
 OSEA,Harbor International Compounders ETF,global
 OSSL,Defiance Daily Target 2X Long OSS ETF,leveraged_inverse
+OTAX,Optimal Tax Managed Equity ETF,broad
 OUNZ,VanEck Merk Gold ETF,commodity
 OUSA,ALPS O'Shares U.S. Quality Dividend ETF,factor_income
 OUSL,Defiance Daily Target 2X Long OUST ETF,leveraged_inverse
@@ -4262,6 +4269,7 @@ PSMD,Pacer Swan SOS Moderate (January) ETF,broad
 PSMJ,Pacer Swan SOS Moderate (July) ETF,broad
 PSMO,Pacer Swan SOS Moderate (October) ETF,broad
 PSMR,Pacer Swan SOS Moderate (April) ETF,broad
+PSOX,Tema MLCC & PowerSemi ETF,broad
 PSP,Invesco Global Listed Private Equity ETF,broad
 PSQ,ProShares Short QQQ,broad
 PSQA,Palmer Square CLO Senior Debt ETF,broad
@@ -4669,7 +4677,6 @@ SHYD,VanEck Short High Yield Muni ETF,bond
 SHYG,iShares 0-5 Year High Yield Corporate Bond ETF,bond
 SHYL,Xtrackers Short Duration High Yield Bond ETF,bond
 SHYM,iShares Short Duration High Yield Muni Active ETF,bond
-SIC,Tema Power Semiconductor ETF,theme
 SIFI,Harbor Ares Systematic Multi-Sector Income ETF,factor_income
 SIHY,Harbor Ares Systematic High Yield ETF,bond
 SIJ,ProShares UltraShort Industrials,leveraged_inverse
@@ -5010,6 +5017,10 @@ TIPA,Northern Trust 2030 Inflation-Linked Distributing Ladder ETF,broad
 TIPB,Northern Trust 2035 Inflation-Linked Distributing Ladder ETF,broad
 TIPC,Northern Trust 2045 Inflation-Linked Distributing Ladder ETF,broad
 TIPD,Northern Trust 2055 Inflation-Linked Distributing Ladder ETF,broad
+TIPE,Northern Trust 2031 Inflation-Linked Distributing Ladder ETF,broad
+TIPF,Northern Trust 2036 Inflation-Linked Distributing Ladder ETF,broad
+TIPG,Northern Trust 2046 Inflation-Linked Distributing Ladder ETF,broad
+TIPH,Northern Trust 2056 Inflation-Linked Distributing Ladder ETF,broad
 TIPX,State Street SPDR Bloomberg 1a??10 Year TIPS ETF,broad
 TIPZ,PIMCO Broad U.S. TIPS Index Exchange-Traded Fund,broad
 TJAN,Innovator Equity Defined Protection ETF - 2 Yr to January 2027,broad
@@ -5570,6 +5581,7 @@ XUSP,Innovator Uncapped Accelerated U.S. Equity ETF,broad
 XV,Simplify Target 15 Distribution ETF,broad
 XVAP,FT Vest AAPL & Target Income ETF,factor_income
 XVNV,FT Vest NVDA & Target Income ETF,factor_income
+XVSP,FT Vest SPCX & Target Income ETF,factor_income
 XVTS,FT Vest TSLA & Target Income ETF,factor_income
 XVV,iShares ESG Select Screened S&P 500 ETF,broad
 XW,Corgi Ex-U.S. Equities 2x Daily ETF,leveraged_inverse
