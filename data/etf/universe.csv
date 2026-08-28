@@ -285,21 +285,10 @@ DUOG,Leverage Shares 2X Long DUOL Daily ETF,leveraged_inverse
 DUSG,U.S. Small Cap Growth Portfolio: ETF Class Shares,high_beta
 DVAL,BrandywineGLOBAL-Dynamic US Large Cap Value ETF,factor_income
 DVGR,DAC 3D Dividend Growth ETF,factor_income
-DVIN,WEBs Industrials XLI Defined Volatility ETF,broad
 DVLU,First Trust Dorsey Wright Momentum & Value ETF,factor_income
 DVOL,First Trust Dorsey Wright Momentum & Low Volatility ETF,factor_income
 DVQQ,WEBs QQQ Defined Volatility ETF,broad
-DVRE,WEBs Real Estate XLRE Defined Volatility ETF,broad
 DVSP,WEBs SPY Defined Volatility ETF,broad
-DVUT,WEBs Utilities XLU Defined Volatility ETF,broad
-DVXB,WEBs Materials XLB Defined Volatility ETF,broad
-DVXC,WEBs Communication Services XLC Defined Volatility ETF,broad
-DVXE,WEBs Energy XLE Defined Volatility ETF,commodity
-DVXF,WEBs Financial XLF Defined Volatility ETF,broad
-DVXK,WEBs Technology XLK Defined Volatility ETF,broad
-DVXP,WEBs Consumer Staples XLP Defined Volatility ETF,broad
-DVXV,WEBs Health Care XLV Defined Volatility ETF,broad
-DVXY,WEBs Consumer Discretionary XLY Defined Volatility ETF,broad
 DVY,iShares Select Dividend ETF,factor_income
 DWAS,Invesco Dorsey Wright SmallCap Momentum ETF,factor_income
 DWAW,AdvisorShares Dorsey Wright FSM All Cap World ETF,global
@@ -522,6 +511,7 @@ HOYY,GraniteShares YieldBOOST HOOD ETF,broad
 HQGO,Hartford US Quality Growth ETF,factor_income
 HRTS,Tema Heart & Health ETF,broad
 HUTG,Leverage Shares 2X Long HUT Daily ETF,leveraged_inverse
+HWGV,Hotchkis & Wiley Global Value Fund,factor_income
 HWIV,Hotchkis & Wiley International Value Fund,factor_income
 HWO,Hotchkis & Wiley Opportunities Fund,broad
 HWSM,Hotchkis & Wiley SMID Cap Diversified Value Fund,factor_income
@@ -1047,7 +1037,7 @@ TDCL,GraniteShares 2x Long TDC Daily ETF,leveraged_inverse
 TDI,Touchstone Dynamic International ETF,global
 TDIV,First Trust NASDAQ Technology Dividend Index Fund,factor_income
 TDOG,21shares Dogecoin ETF,broad
-TDOT,21shares Polkadot ETF,broad
+TDOT,21shares Polkadot Staking ETF,broad
 TDSB,ETC Cabana Target Beta ETF,broad
 TDSC,ETC Cabana Target Drawdown 10 ETF,broad
 TECY,GraniteShares YieldBOOST Technology ETF,broad
@@ -1062,7 +1052,7 @@ TGRZ,China AI Tigers LLM ETF,global
 THMZ,Lazard Equity Megatrends ETF,broad
 THRV,Prospera Income ETF,factor_income
 THYM,T. Rowe Price High Income Municipal ETF,bond
-THYP,21shares Hyperliquid ETF,broad
+THYP,21shares Hyperliquid Staking ETF,broad
 TIH,The Investment House ETF,broad
 TILC,Thrivent International Large Cap ETF,global
 TISC,Thrivent International Small Cap ETF,global
@@ -1106,7 +1096,7 @@ TSMU,GraniteShares 2x Long TSM Daily ETF,leveraged_inverse
 TSMX,Direxion Daily TSM Bull 2X ETF,leveraged_inverse
 TSMZ,Direxion Daily TSM Bear 1X ETF,theme
 TSPY,TappAlpha S&P 500 Growth & Daily Income ETF,factor_income
-TSUI,21Shares Sui ETF,broad
+TSUI,21Shares Sui Staking ETF,broad
 TSYX,TSPY Lift ETF,broad
 TSYY,GraniteShares YieldBOOST TSLA ETF,broad
 TTEQ,T. Rowe Price Technology ETF,broad
@@ -1321,6 +1311,12 @@ ADME,Aptus Drawdown Managed Equity ETF,broad
 ADPV,Adaptiv Select ETF,broad
 ADVE,Matthews Asia Dividend Active ETF,factor_income
 AEHG,Leverage Shares 2X Long AEHR Daily ETF,leveraged_inverse
+AEMC,Harbor AlphaEdge Mid Cap Core ETF,broad
+AEMG,Harbor AlphaEdge Mid Cap Growth ETF,high_beta
+AEMV,Harbor AlphaEdge Mid Cap Value ETF,factor_income
+AESB,Harbor AlphaEdge Small Cap Core ETF,broad
+AESG,Harbor AlphaEdge Small Cap Growth ETF,high_beta
+AESL,Harbor AlphaEdge Small Cap Value ETF,factor_income
 AESR,Anfield U.S. Equity Sector Rotation ETF,broad
 AETH,Bitwise Trendwise Ether and Treasuries Rotation Strategy ETF,broad
 AFGR,First Trust Multi-Manager Large Growth ETF,high_beta
@@ -2233,6 +2229,7 @@ DSCO,DoubleLine Securitized Credit ETF,bond
 DSEP,FT Vest U.S. Equity Deep Buffer ETF - September,broad
 DSI,iShares ESG MSCI KLD 400 ETF,broad
 DSMC,Distillate Small/Mid Cash Flow ETF,broad
+DSPC,Leverage Shares 1X Short SPCX Daily ETF,theme
 DSPY,Tema S&P 500 Historical Weight ETF Strategy,broad
 DSTL,Distillate U.S. Fundamental Stability & Value ETF,factor_income
 DSTX,Distillate International Fundamental Stability & Value ETF,factor_income
@@ -2960,6 +2957,7 @@ HAUZ,Xtrackers International Real Estate ETF,global
 HAWG,HCM Hedged Equity ETF,broad
 HAWX,iShares Currency Hedged MSCI ACWI ex U.S. ETF,currency
 HBIL,Harbor Short Term Treasury ETF,bond
+HBIT,Hedgeye Hedged Bitcoin ETF,crypto
 HBMX,Tuttle Capital Concentrated Memory Stack ETF,broad
 HBRD,Invesco U.S. Hybrid Bond ETF,bond
 HBTA,Horizon Expedition Plus ETF,broad
@@ -3788,6 +3786,7 @@ MMSD,NYLI MacKay Muni Short Duration ETF,broad
 MMTM,State Street SPDR S&P 1500 Momentum Tilt ETF,factor_income
 MNA,NYLI Merger Arbitrage ETF,broad
 MNBD,ALPS BBH Intermediate Municipal Bond ETF,bond
+MNGU,MicroSectors 3x Long MANGOS+ ex Private Companies ETNs,leveraged_inverse
 MNRS,Grayscale Bitcoin Miners ETF,commodity
 MNSX,Corgi MNST 2x Daily ETF,leveraged_inverse
 MNVR,Pacer Swan SOS Moderate (November) ETF,broad
@@ -4233,6 +4232,7 @@ PQXV,PGIM S&P 500 Quarterly Buffer 15 ETF,broad
 PQXX,PGIM S&P 500 Quarterly Buffer 20 ETF,broad
 PRAB,State Street IG Public & Private ABS ETF,broad
 PRAE,PlanRock Alternative Growth ETF,high_beta
+PRAM,Defiance Memory & Photonics ETF,broad
 PRAY,FIS Christian Stock Fund,broad
 PRCS,Parnassus Core Select ETF,broad
 PREF,Principal Spectrum Preferred Securities Active ETF,broad
