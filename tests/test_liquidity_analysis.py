@@ -87,12 +87,17 @@ class TestForwardCalendar:
         assert cal["net_7d_b"] is not None
         assert cal["net_7d_b"] == round(sum(x["net_b"] for x in days[:7]), 1)
         assert cal["net_14d_b"] == round(sum(x["net_b"] for x in days[:14]), 1)
-        # 8-27 有 bill 结算 → 应为净发行（抵消到期后仍为负或小正值），不越界极端
-        day927 = next((d for d in days if d["date"].startswith("2026-08-27")), None)
-        assert day927 is not None
-        assert abs(day927["net_b"]) < 100, (
-            f"净发行口径应抵消滚续，实际 {day927['net_b']}"
-        )
+        # 有新发抽水的 bill 结算日：同日到期抵消后净冲击应远小于毛发行额，不越界极端
+        settle_days = [
+            d
+            for d in days
+            if any(f["type"] == "auction_settlement" for f in d["flows"])
+        ]
+        assert settle_days, "14 天窗口内应有 bill 新发结算日（数据缺失或日历滚动？）"
+        for d in settle_days:
+            assert abs(d["net_b"]) < 100, (
+                f"净发行口径应抵消滚续，实际 {d['date']} {d['net_b']}"
+            )
 
 
 class TestLpiSnapshot:

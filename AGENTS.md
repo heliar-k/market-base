@@ -22,18 +22,33 @@ market-base/
 │   ├── config.py                 ← 统一配置（FRED 系列、IBKR 品种、yfinance 标的）
 │   ├── indicators.py             ← 技术指标计算（MA/RSI/MACD/Bollinger/ADX/Stoch/SuperTrend 等）
 │   ├── analyze.py                ← 技术分析诊断引擎（analyze + detect_cdl_hits），CLI 输出 JSON
+│   ├── analysis_utils.py         ← 分析层共享工具（read_csv_or_empty / chg_prev / chg_pct / zone / 分位口径）
 │   ├── intraday_levels.py        ← 分时价位分析（触及次数/量能分布/插针判定，单日 5m 报告）
 │   ├── stock_snapshot.py         ← 盘前实时价 + OI 墙快照（yfinance）
 │   ├── volatility_dashboard.py   ← 波动率全景仪表盘分析层（30 指数 + 风险矩阵 + Trade Map + 7 段叙事，规则引擎 + LLM 预留）
 │   ├── compute_gex.py            ← Gamma Exposure 与期权墙计算（IBKR + yfinance）
 │   ├── cache.py                  ← 指标缓存层（parquet + mtime 失效，TUI 加速）
 │   ├── macro.py                  ← 宏观派生指标（2s10s / 净流动性 / BEI / SOFR-IORB）
+│   ├── bill_share.py             ← 日频 Bill 占比（MSPD 锚 + 拍卖净发行派生）
+│   ├── pricing.py                ← 定价收敛点（compute_gex / sell_put / hedge_planner 三处重复的 BS 定价收敛）
+│   ├── options_structure.py      ← 期权结构快照分析（GEX/DEX/Vanna/Charm 13 标的面板）
+│   ├── cross_asset.py            ← 跨资产 30 日相关性矩阵（派生，依赖资产快照）
+│   ├── sell_put.py               ← Sell Put 选点位（期权墙 + 技术面交叉）
+│   ├── hedge_planner.py          ← 下跌保护结构报价器（put / 价差 / 领口）
+│   ├── server.py                 ← FastAPI Web 后端（45 routes，组合根：import 全部分析层）
+│   ├── export_pages.py           ← 静态站点导出（GitHub Pages，site/ 预渲染）
+│   ├── *_analysis.py             ← 专题分析引擎（9 个，规则引擎生成叙事，只读 CSV 不写盘）：
+│   │     rates / credit / inflation / labor / treasury / fed / volatility /
+│   │     assets / liquidity —— 读 CSV 统一走 src/analysis_utils.py
 │   ├── run_fetch.sh              ← 每日全量数据拉取 cron 入口（依次调用所有 ./bin/fetch_*）
 │   ├── __init__.py
 │   ├── fetchers/
 │   │   ├── __init__.py
 │   │   ├── quality.py            ← DataPoint / QAStatus 数据质量追踪
 │   │   ├── _io.py                ← CSV 保存工具（save_daily_csv 快照 + upsert_timeseries 全量）
+│   │   ├── _symbol_fetch.py      ← 股票/指数日线拉取统一编排（IBKR 优先，yfinance 回退）
+│   │   ├── _wiki.py              ← Wikipedia 成分股表解析（NDX / S&P 500 共用）
+│   │   ├── jina_reader.py        ← Jina Reader 通用抓取（r.jina.ai 网页→Markdown，绕 Cloudflare）
 │   │   ├── ibkr_fetcher.py       ← IBKR 日线 OHLCV（股票 + 指数）
 │   │   ├── fred_fetcher.py       ← FRED API 宏观指标（91 个系列，13 分类）
 │   │   ├── yfinance_fetcher.py   ← yfinance 资产价格（需 SOCKS5 代理）
@@ -49,14 +64,35 @@ market-base/
 │   │   ├── cot_fetcher.py        ← CFTC COT 持仓报告（官方 disaggregated + TFF）
 │   │   ├── fed_fetcher.py        ← FOMC 声明 + 官员演讲（federalreserve.gov，增量）
 │   │   ├── commodities_fetcher.py← IBKR 商品期货日线（9 个品种，整条曲线）
-│   │   └── options_fetcher.py    ← IBKR 期权链参数
+│   │   ├── options_fetcher.py    ← IBKR 期权链参数
+│   │   ├── breadth_fetcher.py    ← 市场广度 ABV（SPX 成分股在均线上方占比，Wikipedia 成分）
+│   │   ├── dts_fetcher.py        ← Treasury Daily Statement（DTS 现金流，Fiscal Data API）
+│   │   ├── finra_fetcher.py      ← FINRA Reg SHO 日度卖空量
+│   │   ├── insider_fetcher.py    ← SEC Form 4 内部人交易（EDGAR）
+│   │   ├── analyst_fetcher.py    ← Nasdaq 100 分析师目标价快照（Wikipedia 成分 + yfinance）
+│   │   ├── sec_fetcher.py        ← SEC 10-K/10-Q 原文（EDGAR 增量）
+│   │   ├── etf_fetcher.py        ← ETF 数据管线（全量清单 + 精选池日线，timsun 源）
+│   │   ├── fx_fetcher.py         ← 外汇对日线 16 对宽表（timsun /assets/fx）
+│   │   ├── acm_fetcher.py        ← NY Fed ACM 10Y 期限溢价（合并进 rates.csv）
+│   │   ├── bgcr_fetcher.py       ← BGCR 利率（NY Fed Markets API）
+│   │   ├── cgb_fetcher.py        ← 中国国债 10Y/30Y（chinamoney）
+│   │   ├── cme_options_fetcher.py ← CME BTC 期权墙快照（官网经 Jina）
+│   │   ├── coinglass_fetcher.py  ← Coinglass 全市场聚合快照（经 Jina）
+│   │   ├── crypto_basis_fetcher.py ← CME BTC 基差日序列（Yahoo BTC=F）
+│   │   ├── crypto_derivatives_fetcher.py ← 加密衍生品快照（OKX + Deribit + CME）
+│   │   ├── etf_flows_fetcher.py  ← BTC 现货 ETF 资金流（Farside via Jina）
+│   │   ├── financials_fetcher.py ← 财报三张表（yfinance 季度+年度）
+│   │   ├── news_fetcher.py       ← Yahoo Finance 个股新闻（curl_cffi 直连 NCP）
+│   │   ├── rate_expectations_fetcher.py ← FOMC 概率（ZQ 期货隐含）
+│   │   ├── refunding_fetcher.py  ← Treasury 季度再融资声明 + QRA 估算
+│   │   └── treasury_fetcher.py   ← 国债拍卖 + 债务数据（Treasury Fiscal Data API）
 │   └── tui/                      ← TUI 应用（Textual 双模式）
 │       ├── app.py                ← KlineApp 主入口（技术分析 / 宏观双模式 + Tab 切换）
 │       ├── state.py              ← TUI 状态管理（模式、当前标的、回看光标）
 │       ├── screens.py            ← 屏幕组装（三栏布局 + 模式切换）
-│       └── widgets/              ← 可复用组件（kline_chart / diag_sidebar / macro_chart）
+│       └── widgets/              ← 可复用组件（kline_chart / diag_sidebar / macro_chart / _plot_common）
 │
-├── tests/                        ← pytest 测试套件（157 个测试，tmp_path 隔离 + autouse 清缓存）
+├── tests/                        ← pytest 测试套件（547 个测试，tmp_path 隔离 + autouse 清缓存）
 │
 ├── docs/adr/                     ← 架构决策记录（0001 回看交互、0002 重命名 code→src）
 │
@@ -91,6 +127,14 @@ market-base/
 │   ├── fetch_coinglass                  ← Coinglass 全市场聚合快照（经 Jina Reader）
 │   ├── fetch_cme_options                ← CME 期权墙快照（官网 volume/options 页经 Jina）
 │   ├── fetch_etf_flows                 ← BTC 现货 ETF 资金流（Farside via Jina Reader）
+│   ├── fetch_breadth                   ← 市场广度 ABV（SPX 成分股在均线上方占比）
+│   ├── fetch_dts                       ← Treasury Daily Statement 现金流（Fiscal Data API）
+│   ├── fetch_finra                     ← FINRA Reg SHO 日度卖空量
+│   ├── fetch_insider                   ← SEC Form 4 内部人交易（EDGAR）
+│   ├── fetch_analyst                    ← Nasdaq 100 分析师目标价（Wikipedia 成分 + yfinance）
+│   ├── fetch_index                     ← 指数日线（_symbol_fetch 统一编排）
+│   ├── fetch_stock                     ← 股票日线（_symbol_fetch 统一编排）
+│   ├── fetch_rate_expectations         ← FOMC 概率 + ZQ 快照（每日）
 │   └── fetch_news                      ← Yahoo Finance 个股新闻（curl_cffi 直连 NCP，不走 yfinance）
 │
 ├── data/                         ← 数据存储（增量 CSV / JSON）
@@ -229,7 +273,7 @@ uv run python -m src.server                        # 启动 Web，浏览器打�
 # 研判由 src/rates_analysis.py 规则引擎生成，LLM 接入点：generate_analysis() → _llm_generate()
 
 # 测试
-uv run python -m pytest                            # 全量测试（157 个）
+uv run python -m pytest                            # 全量测试（547 个）
 
 # GEX 计算（IBKR 优先，拿不到 Greeks 自动降级 yfinance）
 uv run python src/compute_gex.py                        # AAPL（默认）
@@ -305,7 +349,8 @@ uv run python src/sell_put.py --symbol TSM
 - **格式化**: ruff (select E/F/I/W) + ruff-format，`pre-commit` 在 git commit 时自动执行（`ruff --fix` + `ruff-format` 自动修并重新暂存）。**写完代码无需手动跑 ruff/pre-commit**，只验证功能正确性（代码能跑）即可；E501（行太长）不会被自动修，commit 被拦时再手动改
 - **类型提示**: 所有函数签名带类型注解，用 `|` 替代 `Optional`（Python 3.10+）
 - **import**: 先标准库 → 第三方 → `src.*`（`isort` 自动处理）
-- **测试**: pytest 测试套件（`tests/`，157 个测试），用 `tmp_path` 隔离 + autouse fixture 清理缓存。运行 `uv run python -m pytest`
+- **测试**: pytest 测试套件（`tests/`，547 个测试），用 `tmp_path` 隔离 + autouse fixture 清理缓存。运行 `uv run python -m pytest`
+- **分析层约定**: 专题分析模块（`*_analysis.py`）只读 CSV 不写盘，读 CSV 统一走 `src/analysis_utils.py` 的 `read_csv_or_empty`，不各写各的 `_read`
 
 ---
 

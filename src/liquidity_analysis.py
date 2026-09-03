@@ -21,6 +21,8 @@ from pathlib import Path
 
 import pandas as pd
 
+from src.analysis_utils import read_csv_or_empty as _csv
+
 ROOT = Path(__file__).resolve().parent.parent
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -28,27 +30,12 @@ ROOT = Path(__file__).resolve().parent.parent
 # ─────────────────────────────────────────────────────────────────────────────
 
 
-def _read(path: str, **kw) -> pd.DataFrame:
-    f = ROOT / "data" / path
-    if not f.exists():
-        return pd.DataFrame()
-    return pd.read_csv(f, **kw)
-
-
-def _csv(path: str, **kw) -> pd.DataFrame:
-    """宽松读法：默认 date 索引；失败返回空帧。"""
-    try:
-        return _read(path, index_col="date", parse_dates=True, **kw)
-    except Exception:
-        return pd.DataFrame()
-
-
 def _liq_daily() -> pd.DataFrame:
     """日度流动性帧：周度列（WALCL/TREAST/WSHOMCB/WRESBAL/TGA）ffill 到日度，
     日度列（RRP）保留原值；NET_LIQUIDITY = WALCL − RRP×1000 − TGA（百万美元）。
     RRP 列保持十亿美元原单位（与宏观模块口径一致）。
     """
-    liq = _csv("fred/liquidity/liquidity.csv")
+    liq = _csv(ROOT / "data" / "fred/liquidity/liquidity.csv")
     if liq.empty:
         return pd.DataFrame()
     out = pd.DataFrame(index=liq.index)
@@ -135,7 +122,7 @@ def _fmt_b(v: float | None, digits: int = 1) -> str | None:
 def liquidity_snapshot() -> dict:
     """主页面卡片 + 评估叙事（net_liquidity / outlook / reserves 三段）。"""
     liq = _liq_daily()
-    rates = _csv("fred/rates/rates.csv")
+    rates = _csv(ROOT / "data" / "fred/rates/rates.csv")
     if liq.empty:
         return {"cards": {}, "evaluation": {}, "data_date": None}
 
@@ -188,9 +175,9 @@ def _narrative(liq: pd.DataFrame, rates: pd.DataFrame) -> dict:
     walcl = liq["WALCL"].dropna() if "WALCL" in liq else pd.Series(dtype=float)
     res = liq["WRESBAL"].dropna() if "WRESBAL" in liq else pd.Series(dtype=float)
     nfci = liq["NFCI"].dropna() if "NFCI" in liq else pd.Series(dtype=float)
-    srf = _csv("fred/liquidity/srf.csv")
+    srf = _csv(ROOT / "data" / "fred/liquidity/srf.csv")
     srf_usage = srf["SRF_USAGE"].dropna() if not srf.empty else pd.Series(dtype=float)
-    asset = _csv("yfinance/asset_prices.csv")
+    asset = _csv(ROOT / "data" / "yfinance/asset_prices.csv")
 
     def _txt(v: float) -> str:
         return f"{v / 1e6:,.1f}"
@@ -229,7 +216,7 @@ def _narrative(liq: pd.DataFrame, rates: pd.DataFrame) -> dict:
         if not asset.empty and "WTI" in asset
         else pd.Series(dtype=float)
     )
-    vix = _csv("cboe/volatility.csv")
+    vix = _csv(ROOT / "data" / "cboe/volatility.csv")
     vix_s = (
         vix["VIX"].dropna()
         if not vix.empty and "VIX" in vix
@@ -327,12 +314,12 @@ def _narrative(liq: pd.DataFrame, rates: pd.DataFrame) -> dict:
 def lpi() -> dict:
     """规则型美元流动性压力指数：三层加权 + 离岸/外部输入 + 确认条件。"""
     liq = _liq_daily()
-    rates = _csv("fred/rates/rates.csv")
-    credit = _csv("fred/credit/credit.csv")
-    vix = _csv("cboe/volatility.csv")
-    srf = _csv("fred/liquidity/srf.csv")
-    cfets = _csv("fred/liquidity/cfets_swap_points.csv")
-    asset = _csv("yfinance/asset_prices.csv")
+    rates = _csv(ROOT / "data" / "fred/rates/rates.csv")
+    credit = _csv(ROOT / "data" / "fred/credit/credit.csv")
+    vix = _csv(ROOT / "data" / "cboe/volatility.csv")
+    srf = _csv(ROOT / "data" / "fred/liquidity/srf.csv")
+    cfets = _csv(ROOT / "data" / "fred/liquidity/cfets_swap_points.csv")
+    asset = _csv(ROOT / "data" / "yfinance/asset_prices.csv")
     if liq.empty:
         return {}
 
@@ -717,9 +704,12 @@ def forward_calendar(days: int = 14) -> dict:
     - SOMA 购买（估算）：TREAST 4 周周均变化，落在周四（结算日惯例，注入 +）
     返回 {days: [...], net_7d_b, net_14d_b, source_note}（net_7/14 = 未来窗口估算）。
     """
-    up = _read("treasury/upcoming_auctions.csv", parse_dates=["issue_date"])
-    auc = _read(
-        "treasury/auction_results.csv", parse_dates=["maturity_date", "issue_date"]
+    up = pd.read_csv(
+        ROOT / "data" / "treasury/upcoming_auctions.csv", parse_dates=["issue_date"]
+    )
+    auc = pd.read_csv(
+        ROOT / "data" / "treasury/auction_results.csv",
+        parse_dates=["maturity_date", "issue_date"],
     )
     today = pd.Timestamp(date.today())
     window = [today + pd.Timedelta(days=i) for i in range(1, days + 1)]
@@ -839,7 +829,7 @@ def page_fed_balance_sheet() -> dict:
     （Fed 总数/净流动性/SPX/NDX/国债/MBS）。"""
     # 金额为十亿美元（B）；SPX/NDX 取同日收盘
     liq = _liq_daily()
-    asset = _csv("yfinance/asset_prices.csv")
+    asset = _csv(ROOT / "data" / "yfinance/asset_prices.csv")
     if liq.empty:
         return {}
     cards = {}
@@ -884,9 +874,12 @@ def page_fed_balance_sheet() -> dict:
 
 def page_operations() -> dict:
     """子页：公开市场操作 — RMP 统计 / 最近 40 条 / SOMA 摘要 / SRF 90 天。"""
-    ops = _read("fred/liquidity/tsy_operations.csv", parse_dates=["settlement_date"])
+    ops = pd.read_csv(
+        ROOT / "data" / "fred/liquidity/tsy_operations.csv",
+        parse_dates=["settlement_date"],
+    )
     liq = _liq_daily()
-    srf = _csv("fred/liquidity/srf.csv")
+    srf = _csv(ROOT / "data" / "fred/liquidity/srf.csv")
     out: dict = {"rmp": {}, "recent": [], "soma": {}, "srf": {}}
     if ops.empty:
         return out
@@ -954,9 +947,9 @@ def page_operations() -> dict:
 def page_rrp_tga() -> dict:
     """子页：RRP & TGA — 压力预警 / 未来 14 天热力 / 当前余额 / 日度现金流。"""
     liq = _liq_daily()
-    rates = _csv("fred/rates/rates.csv")
-    dts = _csv("treasury/dts_cashflows.csv")
-    dts_tga = _csv("treasury/dts_operating_cash.csv")
+    rates = _csv(ROOT / "data" / "fred/rates/rates.csv")
+    dts = _csv(ROOT / "data" / "treasury/dts_cashflows.csv")
+    dts_tga = _csv(ROOT / "data" / "treasury/dts_operating_cash.csv")
     out: dict = {"alert": {}, "calendar": {}, "current": {}, "cashflows": []}
     if liq.empty:
         return out
@@ -989,7 +982,7 @@ def page_rrp_tga() -> dict:
     }
     out["calendar"] = forward_calendar(14)
     out["data_date"] = _data_date(dts_tga) if not dts_tga.empty else None
-    srf = _csv("fred/liquidity/srf.csv")
+    srf = _csv(ROOT / "data" / "fred/liquidity/srf.csv")
     # TGA 优先 DTS 日度余额（更实时）；净流动性口径用 WTREGEN（与定义一致）
     tga_latest = None
     if not dts_tga.empty and not dts_tga["TGA_CLOSE"].dropna().empty:
@@ -1044,7 +1037,7 @@ def page_rrp_tga() -> dict:
 def page_reserves() -> dict:
     """子页：准备金 — 卡片 + 银行中介意愿（SOFR−3M T-Bill / SOFR−IORB 60 日）。"""
     liq = _liq_daily()
-    rates = _csv("fred/rates/rates.csv")
+    rates = _csv(ROOT / "data" / "fred/rates/rates.csv")
     out: dict = {"cards": {}, "spreads": {}, "rows": []}
     if liq.empty:
         return out
@@ -1091,8 +1084,8 @@ def page_reserves() -> dict:
 def page_global_dollar() -> dict:
     """子页：全球美元 — DXY / 央行互换 / 掉期点一览 + 压力读数。"""
     liq = _liq_daily()
-    cfets = _csv("fred/liquidity/cfets_swap_points.csv")
-    asset = _csv("yfinance/asset_prices.csv")
+    cfets = _csv(ROOT / "data" / "fred/liquidity/cfets_swap_points.csv")
+    asset = _csv(ROOT / "data" / "yfinance/asset_prices.csv")
     out: dict = {"dxy": {}, "swap": {}, "pairs": {}}
     dxy = (
         asset["DXY"].dropna()
@@ -1117,8 +1110,8 @@ def page_global_dollar() -> dict:
 
 def page_subsurface() -> dict:
     """子页：次表层 — SOFR 分位 / 成交量 z / SRF 激活 / 央行互换变化。"""
-    rates = _csv("fred/rates/rates.csv")
-    srf = _csv("fred/liquidity/srf.csv")
+    rates = _csv(ROOT / "data" / "fred/rates/rates.csv")
+    srf = _csv(ROOT / "data" / "fred/liquidity/srf.csv")
     liq = _liq_daily()
     out: dict = {
         "percentiles": {},

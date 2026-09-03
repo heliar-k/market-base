@@ -105,9 +105,7 @@ def test_etf_signal_scored_when_fresh(monkeypatch, tmp_path):
     """radar：ETF 数据新鲜且 5d 流入 → dir=+1 纳入评分（权重 15）；stale 时不纳入。"""
     df = pd.DataFrame(
         [{c: 100.0 for c in COLUMNS}] * 6,
-        index=pd.bdate_range(
-            "2026-08-14", periods=6
-        ),  # 至 2026-08-21（周五，贴近 Today）
+        index=pd.bdate_range(end=pd.Timestamp.today().normalize(), periods=6),
     )
     df.index.name = "date"
     from src import assets_analysis
