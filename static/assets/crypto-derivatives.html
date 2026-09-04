@@ -12,7 +12,7 @@
 <div class="re-root">
   <div class="re-header">
     <h1>加密衍生品市场</h1>
-    <span class="re-as-of" id="as-of"></span>
+    <span class="re-as-of" id="re-as-of"></span>
   </div>
 
   <div class="re-nav" id="re-nav"></div>
@@ -36,6 +36,7 @@ const P = { up: '#26a69a', down: '#ef5350', flat: '#9ca3af' };
 async function load() {
   const d = await R.get('/api/assets/crypto-derivatives');
   if (!d || !d.ts) { R.fail(['radar', 'kpi', 'walls', 'retail', 'consensus'], new Error('无快照')); return; }
+  document.getElementById('re-as-of').textContent = '数据截至 ' + d.ts.slice(0, 10);
 
   // ── 数据时效（timsun 同款多源时效条）──
   const age = (iso) => ((Date.now() - new Date(iso).getTime()) / 3600e3).toFixed(1);
@@ -97,7 +98,7 @@ async function load() {
         <div style="display:flex;justify-content:space-between;font-size:10px;opacity:.6;margin-top:2px;min-height:13px">
           ${q.length === 3 ? `<span>${fq(q[0])}</span><span>${fq(q[1])}</span><span>${fq(q[2])}</span>` : ''}</div>`;
     };
-    lsec.innerHTML = `<h2>LAYER 1 · NOW 🔵 现在市场情况 <span style="font-size:12px;font-weight:400;opacity:.7">8 个核心 KPI · 当前值 + 1 年百分位 + 1d 变化方向</span></h2>
+    lsec.innerHTML = `<h2>LAYER 1 · NOW 现在市场情况 <span style="font-size:12px;font-weight:400;opacity:.7">8 个核心 KPI · 当前值 + 1 年百分位 + 1d 变化方向</span></h2>
       <div class="re-cards" style="grid-template-columns:repeat(auto-fit,minmax(170px,1fr))">
         ${l1.kpis.map(k => `<div class="re-card" style="padding:12px 14px" title="${(k.note || '').replace(/"/g, '&quot;')}">
           <div class="re-corridor-label">${k.label}</div>
@@ -123,8 +124,8 @@ async function load() {
       <div class="re-card"><div class="re-corridor-label">${label}</div>
       <div class="re-corridor-value" style="${color || ''}">${value}</div>
       <div class="re-card-sub">${sub}</div></div>`;
-    esec.innerHTML = `<h2>ETF FLOWS 💰 机构资金流入对照（BTC Spot ETF）</h2>
-      <div style="border:1px solid var(--accent);border-radius:8px;padding:10px 14px;margin-bottom:10px;font-size:12px">
+    esec.innerHTML = `<h2>ETF FLOWS 机构资金流入对照（BTC Spot ETF）</h2>
+      <div class="re-explain" style="margin-bottom:10px">
         <b>如何解读</b> — ETF 是最干净的现货资金通道：价格上涨 + ETF 流入 = 现货确认；
         价格上涨但 ETF 流出 = 更可能是杠杆或短线挤压。
         <span style="opacity:.7">数据源：Farside Investors（12 ETF + Total，2024-01-11 起，M USD）</span></div>
@@ -193,9 +194,9 @@ async function load() {
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
         ${topList(o.top_calls || [])}${topList(o.top_puts || [])}
       </div></div>`;
-  wsec.innerHTML = `<h2>🧱 期权价格墙 · Strike Wall</h2>
+  wsec.innerHTML = `<h2>期权价格墙 · Strike Wall</h2>
     <p style="margin:0 0 8px;font-size:12px;opacity:.75">Call Wall 偏上方压制 / Put Wall 偏下方支撑；用于短线磁吸与失效条件，不单独代表方向。</p>
-    <div style="border:1px solid var(--accent);border-radius:8px;padding:10px 14px;margin-bottom:10px;font-size:12px">
+    <div class="re-explain" style="margin-bottom:10px">
       <b>如何解读</b> — Strike Wall 是短期价格磁吸/压制区，尤其在临近到期时更有用。它不是趋势信号，更像短线地图。</div>
     <div class="re-cards" style="grid-template-columns:repeat(auto-fit,minmax(260px,1fr))">
       ${wallCard('Deribit 全市场期权 · BTC', optB, optB.spot_anchor)}
@@ -221,14 +222,14 @@ async function load() {
   const lsWord = ls == null ? '中性' : (ls > 1.2 ? '偏多' : (ls < 0.8 ? '偏空' : '中性'));
   const pcrW = pcrStance(optB.pcr);
   const retailRows = [
-    ['永续资金费率', `资金费率 ${stFr} → 永续多空成本${stance(ann) === '中性' ? '中性' : '偏多'}`],
+    ['永续资金费率', `资金费率 ${stFr} → 永续多空成本${stance(ann)}`],
     ['永续多空比', `散户多空比 ${stLS} → 散户立场${lsWord}`],
     ['期权 PCR', `期权 PCR ${fmt(optB.pcr, 2)} → 散户期权立场${pcrW}`],
-    ['永续 OI', `BTC 永续 OI $${(BTC.oi_usd || 0) / 1e9} B → 7d 变化待历史积累`],
+    ['永续 OI', `BTC 永续 OI $${((BTC.oi_usd || 0) / 1e9).toFixed(2)} B → 7d 变化待历史积累`],
   ];
   const rsec2 = document.createElement('div');
   rsec2.className = 're-section';
-  rsec2.innerHTML = `<h2>🆚 散户在想这件事 <span style="font-size:12px;font-weight:400;opacity:.7">LAYER 3 · RETAIL — 永续 / 期权（基于当前数据，非"看多/看空"判断）</span></h2>`;
+  rsec2.innerHTML = `<h2>散户在想这件事 <span style="font-size:12px;font-weight:400;opacity:.7">LAYER 3 · RETAIL — 永续 / 期权（基于当前数据，非"看多/看空"判断）</span></h2>`;
   const ret = document.createElement('div');
   ret.className = 're-render';
   ret.style.display = 'grid';
@@ -250,7 +251,7 @@ async function load() {
   if (c) {
     const csec = document.createElement('div');
     csec.className = 're-section';
-    csec.innerHTML = `<h2>🆚 机构 vs 散户 · 对照 <span style="margin-left:6px;font-size:12px;font-weight:400;opacity:.7;border:1px solid var(--border);padding:2px 8px;border-radius:4px">${c.verdict}</span></h2>
+    csec.innerHTML = `<h2>机构 vs 散户 · 对照 <span style="margin-left:6px;font-size:12px;font-weight:400;opacity:.7;border:1px solid var(--border);padding:2px 8px;border-radius:4px">${c.verdict}</span></h2>
       <div class="re-cards" style="grid-template-columns:repeat(auto-fit,minmax(180px,1fr))">
         <div class="re-card"><div class="re-corridor-label">🏛 机构方向</div>
           <div style="font-size:15px;font-weight:600">立场${c.inst.stance}</div>
@@ -273,8 +274,8 @@ async function load() {
   if (bz.available) {
     const bsec = document.createElement('div');
     bsec.className = 're-section';
-    bsec.innerHTML = `<h2>🏛 机构基差专题 <span style="font-size:12px;font-weight:400;opacity:.7">CME BTC 期货年化基差（Yahoo BTC=F proxy · timsun V1 治理口径）</span></h2>
-      <div style="border:1px solid var(--accent);border-radius:8px;padding:10px 14px;margin-bottom:10px;font-size:12px">
+    bsec.innerHTML = `<h2>机构基差专题 <span style="font-size:12px;font-weight:400;opacity:.7">CME BTC 期货年化基差（Yahoo BTC=F proxy · timsun V1 治理口径）</span></h2>
+      <div class="re-explain" style="margin-bottom:10px">
         <b>如何解读</b> — 基差代表机构愿意为远期 BTC 支付的溢价。基差高不等于立刻上涨，但说明 carry/套利资金愿意留在场内。
         <span style="opacity:.7">Spread = 基差 60d EMA − SOFR（真实 carry alpha）；&gt;5% 套利 alpha 充足，&lt;0 为负。</span></div>
       <div class="re-cards" style="grid-template-columns:repeat(auto-fit,minmax(150px,1fr))">
@@ -299,13 +300,13 @@ async function load() {
         <span style="color:${e.chg_1d_pct >= 0 ? 'var(--up,#26a69a)' : 'var(--down,#ef5350)'}">${e.chg_1d_pct >= 0 ? '+' : ''}${e.chg_1d_pct}%</span>
       </div>`).join('');
     const ls = cg.ls_ratio || {};
-    gsec.innerHTML = `<h2>🌐 Coinglass 全市场聚合 <span style="font-size:12px;font-weight:400;opacity:.7">全市场杠杆分布 + 清算压力（经 Jina Reader）</span></h2>
-      <div style="border:1px solid var(--accent);border-radius:8px;padding:10px 14px;margin-bottom:10px;font-size:12px">
+    gsec.innerHTML = `<h2>Coinglass 全市场聚合 <span style="font-size:12px;font-weight:400;opacity:.7">全市场杠杆分布 + 清算压力（经 Jina Reader）</span></h2>
+      <div class="re-explain" style="margin-bottom:10px">
         <b>如何解读</b> — 回答的是：风险是否来自交易所杠杆而非现货资金。OI 快速上升 + 清算低 = 杠杆堆积；清算放大后 OI 下降 = 去杠杆完成。</div>
       <div class="re-cards" style="grid-template-columns:repeat(auto-fit,minmax(170px,1fr))">
-        ${`<div class="re-card"><div class="re-corridor-label">BTC 全市场期货 OI</div><div class="re-corridor-value">$${(cg.btc_oi_usd || 0) / 1e9} B</div><div class="re-card-sub">${fmt((cg.btc_oi_btc || 0) / 1000, 1)}K BTC</div></div>`}
-        ${`<div class="re-card"><div class="re-corridor-label">全加密期货 OI</div><div class="re-corridor-value">$${(cg.all_open_interest_usd || 0) / 1e9} B</div><div class="re-card-sub">所有币种合计</div></div>`}
-        ${`<div class="re-card"><div class="re-corridor-label">24h 清算总额</div><div class="re-corridor-value" style="color:var(--down,#ef5350)">$${(cg.liq24h_usd || 0) / 1e6} M</div><div class="re-card-sub">${cg.liq24h_chg_pct >= 0 ? '+' : ''}${cg.liq24h_chg_pct}%</div></div>`}
+        ${`<div class="re-card"><div class="re-corridor-label">BTC 全市场期货 OI</div><div class="re-corridor-value">$${((cg.btc_oi_usd || 0) / 1e9).toFixed(2)} B</div><div class="re-card-sub">${fmt((cg.btc_oi_btc || 0) / 1000, 1)}K BTC</div></div>`}
+        ${`<div class="re-card"><div class="re-corridor-label">全加密期货 OI</div><div class="re-corridor-value">$${((cg.all_open_interest_usd || 0) / 1e9).toFixed(2)} B</div><div class="re-card-sub">所有币种合计</div></div>`}
+        ${`<div class="re-card"><div class="re-corridor-label">24h 清算总额</div><div class="re-corridor-value" style="color:var(--down,#ef5350)">$${((cg.liq24h_usd || 0) / 1e6).toFixed(1)} M</div><div class="re-card-sub">${cg.liq24h_chg_pct >= 0 ? '+' : ''}${cg.liq24h_chg_pct}%</div></div>`}
         ${ls.long_pct != null ? `<div class="re-card"><div class="re-corridor-label">24h 多空比</div><div class="re-corridor-value">${ls.long_pct}% / ${ls.short_pct}%</div><div class="re-card-sub">${ls.long_pct > 50 ? '偏多' : (ls.long_pct < 50 ? '偏空' : '中性')}</div></div>` : ''}
       </div>
       ${exchRows ? `<div style="margin-top:10px;font-size:12px;opacity:.9"><div style="opacity:.7;margin-bottom:4px">交易所 OI 分布 · Top ${(cg.exchanges || []).length}（24h 变化）</div>${exchRows}</div>` : ''}
