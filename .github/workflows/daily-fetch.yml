@@ -85,15 +85,19 @@ jobs:
           if git diff --cached --quiet; then
             echo "no data changes, skip commit"
           else
-            git commit -m "data: daily auto-fetch ($(date -u +%F))"
+            # 有数据源失败时写进 commit message：git pull 后 git log -1 即知，无需翻 Actions 日志
+            NL=$'\n\n'
+            MSG="data: daily auto-fetch ($(date -u +%F))"
+            [ -n "$FAILED_LIST" ] && MSG="$MSG${NL}失败:$FAILED_LIST"
+            git commit -m "$MSG"
             # 并发保护：远端有新 commit（如本地手动 push）时 rebase 再推，数据文件无冲突
             git pull --rebase origin main
             git push
           fi
 
-      # 所有拉取/派生步骤跑完后统一判红：数据照常 commit，但 job 标红便于发现
-      # 检查方式：gh run list 看 conclusion；失败名列表 grep "失败:" 即得
-      - name: 失败汇总（有失败则 job 红且跳过 Pages 部署）
+      # 所有拉取/派生步骤跑完后统一判红：数据照常 commit、Pages 照常部署，
+      # 仅 job 标红便于发现；失败名列表 grep "失败:" 即得
+      - name: 失败汇总（有失败则 job 红）
         if: env.FAILED_LIST != ''
         run: |
           echo "以下步骤失败，数据已照常 commit:$FAILED_LIST"
@@ -103,6 +107,9 @@ jobs:
   # 首次启用需在仓库 Settings → Pages → Build and deployment → Source: GitHub Actions
   deploy-pages:
     needs: fetch
+    # fetch 部分数据源失败也照常部署（数据已 commit，站点镜像仓库现状；
+    # 仅基础设施故障如 checkout/uv sync 失败时渲染旧仓库，无害）
+    if: always()
     runs-on: ubuntu-latest
     permissions:
       contents: read
