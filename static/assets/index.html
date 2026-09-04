@@ -161,15 +161,14 @@ async function load() {
         type: 'heatmap', data: d.corr.matrix.flatMap((row, i) => row.map((v, j) => [j, i, v])),
         label: {
           show: true,
-          rich: {
-            w: { color: '#fff', fontSize: 11 },
-            d: R.isDark() ? { color: '#c9d1d9', fontSize: 11 } : { color: '#334155', fontSize: 11 },
-          },
+          rich: R.isDark()
+            ? { s: { color: '#1f2937', fontSize: 11 }, n: { color: '#c9d1d9', fontSize: 11 } }
+            : { s: { color: '#fff', fontSize: 11 }, n: { color: '#334155', fontSize: 11 } },
           formatter: p => {
             const v = p.value && p.value[2];
-            if (v == null || Math.abs(v) < 0.4) return '';
-            // |r|≥0.5 格子为深色底 → 白字；浅色底 → 深字（rich 标签保证对比度）
-            return `{${Math.abs(v) >= 0.5 ? 'w' : 'd'}|${v.toFixed(2)}}`;
+            if (v == null) return '';
+            // |r|≥0.75 落在色带两端最深/最亮的格子 → 反色字；其余格子用主题字色
+            return `{${Math.abs(v) >= 0.75 ? 's' : 'n'}|${v.toFixed(2)}}`;
           },
         },
       }],
