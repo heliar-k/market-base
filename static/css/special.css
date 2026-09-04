@@ -75,6 +75,10 @@ body.dark .re-table td.down { color: #f87171; }
 .re-badge.bear { background: #ffebee; color: #c62828; }
 .re-badge.bull { background: var(--chip-up-bg); color: var(--chip-up-fg); }
 .re-badge.flat { background: var(--chip-flat-bg); color: var(--chip-flat-fg); }
+/* 可点击筛选 chip（etfs 页）：选中态与其他页 active 一致（accent 描边 + 浅底） */
+a.re-badge { cursor: pointer; color: var(--text-secondary); }
+a.re-badge:hover { color: var(--accent); }
+.re-badge.on { background: var(--accent-light); color: var(--accent); border: 1px solid var(--accent); }
 .re-spread { font-size: 13px; color: var(--text-secondary); }
 .re-check { display: flex; align-items: baseline; gap: 8px; padding: 5px 0; font-size: 13px; }
 .re-check .ok { color: #2e7d32; font-weight: 700; }

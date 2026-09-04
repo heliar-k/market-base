@@ -17,6 +17,7 @@
 
   <div class="re-nav" id="re-nav"></div>
 
+  <div id="stats" class="re-cards"></div>
   <div id="universe"></div>
   <div id="filters"></div>
   <div id="pool"></div>
@@ -30,46 +31,72 @@ let curCat = '全部';
 let curTrend = '全部';
 
 const CATS = { ai_semis: 'AI 半导体', ai_software: 'AI 软件', bond: '债券', broad: '宽基', commodity: '商品', crypto: '加密', currency: '货币', equity: '股票', factor_income: '因子/收益', global: '全球', high_beta: '高贝塔', leveraged_inverse: '杠杆/反向', theme: '主题' };
+const UP = '#26a69a', DOWN = '#ef5350';
+
+function categories(c) { return CATS[c] || c; }
+function pctColor(v) { return v == null ? '—' : `<span style="color:${v >= 0 ? UP : DOWN}">${v >= 0 ? '+' : ''}${v.toFixed(2)}%</span>`; }
+function fmt(v) { return v == null ? '—' : Number(v).toLocaleString(undefined, { maximumFractionDigits: 2 }); }
 
 async function load() {
   D = await R.get('/api/assets/etfs');
-  if (!D.pool || !D.pool.length) { R.fail(['pool'], new Error('精选池数据不足')); return; }
+  if (!D.pool || !D.pool.length) { R.fail(['stats', 'pool'], new Error('精选池数据不足')); return; }
 
-  if (D.universe) {
-    document.getElementById('re-as-of').textContent = `全量 ETF ${D.universe.total} · Nasdaq Trader ETF=Y 清单 · 价格增强 ${D.pool.length}/${D.pool.length} 精选池`;
-    // 全量清单分类统计（universe.categories 逐类计数摘要）
-    if (D.universe.categories) {
-      const cats = Object.entries(D.universe.categories)
-        .sort((a, b) => b[1] - a[1])
-        .map(([c, n]) => `${categories(c)} (${n})`);
-      document.getElementById('universe').innerHTML =
-        `<div class="re-explain">覆盖 Nasdaq Trader symbol directory 中 ETF 标记为 Y 的美国挂牌产品；价格为本系统已增强的精选池子集。分类统计：${cats.join(' · ')}</div>`;
-    }
-  }
-
+  if (D.as_of) document.getElementById('re-as-of').textContent = '数据截至 ' + D.as_of;
+  renderStats();
+  renderUniverse();
   renderFilters();
   renderPool();
   document.getElementById('re-gen').textContent = '判断为规则化市场描述，不是买卖建议；日线价格以最近可得美股交易日收盘为准。';
+}
+
+// 顶部指标卡（与其他子页 re-cards 行对齐）：池规模 / 向上 / 向下 / 中位动量
+function renderStats() {
+  const p = D.pool, up = p.filter(r => r.trend === '趋势向上').length, down = p.filter(r => r.trend === '趋势向下').length;
+  const meds = ['w1', 'm1', 'm3'].map(k => {
+    const vs = p.map(r => r[k]).filter(v => v != null).sort((a, b) => a - b);
+    const m = vs.length ? vs[Math.floor(vs.length / 2)] : null;
+    return { label: { w1: '中位 1 周', m1: '中位 1 月', m3: '中位 3 月' }[k], v: m };
+  });
+  document.getElementById('stats').innerHTML = [
+    { label: '精选池', value: p.length, sub: `全量 ETF ${D.universe ? D.universe.total : '—'} 只` },
+    { label: '趋势向上', value: up, sub: `${(up / p.length * 100).toFixed(0)}% 池内占比`, color: UP },
+    { label: '趋势向下', value: down, sub: `${(down / p.length * 100).toFixed(0)}% 池内占比`, color: DOWN },
+    ...meds.map(m => ({ label: m.label, value: m.v == null ? '—' : (m.v >= 0 ? '+' : '') + m.v.toFixed(2) + '%', sub: '池内等权中位动量', color: m.v == null ? '' : (m.v >= 0 ? UP : DOWN) })),
+  ].map(c => `
+    <div class="re-card"><div class="re-corridor-label">${c.label}</div>
+    <div class="re-corridor-value" ${c.color ? `style="color:${c.color}"` : ''}>${c.value}</div>
+    <div class="re-card-sub">${c.sub}</div></div>`).join('');
+}
+
+function renderUniverse() {
+  if (!D.universe || !D.universe.categories) return;
+  const cats = Object.entries(D.universe.categories)
+    .sort((a, b) => b[1] - a[1])
+    .map(([c, n]) => `${categories(c)} (${n})`);
+  document.getElementById('universe').innerHTML =
+    `<div class="re-explain">覆盖 Nasdaq Trader symbol directory 中 ETF 标记为 Y 的美国挂牌产品；价格为本系统已增强的精选池子集。分类统计：${cats.join(' · ')}</div>`;
 }
 
 function renderFilters() {
   const cats = ['全部'].concat(Object.keys(CATS));
   const trends = ['全部', '趋势向上', '趋势分化', '趋势向下'];
   const f = document.getElementById('filters');
-  f.innerHTML = '<h2 class="re-h2" style="margin:0 0 8px">ETF 市场温度与筛选</h2><p style="margin:0 0 8px">价格不是孤立数字：用 1周 / 1月 / 3月动量、20日年化波动率和距3月高点回撤，区分趋势与风险。</p>';
-  f.appendChild(catChips(cats, curCat, c => { curCat = c; renderFilters(); renderPool(); }));
-  f.appendChild(catChips(trends, curTrend, t => { curTrend = t; renderFilters(); renderPool(); }));
+  f.innerHTML = `<div class="re-section">
+    <h2>ETF 市场温度与筛选</h2>
+    <p style="margin:0 0 8px">价格不是孤立数字：用 1周 / 1月 / 3月动量、20日年化波动率和距3月高点回撤，区分趋势与风险。</p>
+    ${chips(cats, curCat, 'f-cat')}${chips(trends, curTrend, 'f-trend')}
+  </div>`;
+  f.querySelectorAll('a[data-v]').forEach(a => a.addEventListener('click', () => {
+    if (a.dataset.k === 'f-cat') curCat = a.dataset.v; else curTrend = a.dataset.v;
+    renderFilters();
+    renderPool();
+  }));
 }
-
-function catChips(items, cur, onPick) {
-  const wrap = document.createElement('div');
-  wrap.className = 're-badges';
-  wrap.style.marginBottom = '10px';
-  wrap.innerHTML = items.map(c => `<a href="javascript:void(0)" class="re-badge" style="cursor:pointer;${c === cur ? 'outline:2px solid var(--accent)' : ''}" data-v="${c}">${categories(c)}</a>`).join('');
-  wrap.querySelectorAll('a').forEach(a => a.addEventListener('click', () => onPick(a.dataset.v)));
-  return wrap;
+// 可点击筛选 chip：统一 re-badge.on 选中态（accent 描边 + 浅底），选中类由 CSS 控制
+function chips(items, cur, kind) {
+  return `<div class="re-badges" style="margin:8px 0 4px">${items.map(c =>
+    `<a href="javascript:void(0)" class="re-badge${c === cur ? ' on' : ''}" data-v="${c}" data-k="${kind}">${categories(c)}</a>`).join('')}</div>`;
 }
-function categories(c) { return CATS[c] || c; }
 
 function renderPool() {
   const rows = D.pool.filter(r => (curCat === '全部' || r.category === curCat) && (curTrend === '全部' || r.trend === curTrend));
@@ -79,17 +106,15 @@ function renderPool() {
   nsec.className = 're-section';
   nsec.innerHTML = `<h2>ETF / 主题</h2>
     <p style="margin:0 0 8px">当前结果 <b>${rows.length}</b> · 研究池内符合条件 ETF · 趋势向上 ${up} · 趋势向下 ${down}</p>`;
-  nsec.appendChild(R.table(['代码', '主题', '价格', '1周', '1月', '3月', '20日波动', '3月回撤', '判断'], rows.map(r => ({
-    ...r, trendColor: r.trend === '趋势向上' ? '#26a69a' : (r.trend === '趋势向下' ? '#ef5350' : '#9ca3af'),
-  })), {
+  nsec.appendChild(R.table(['代码', '主题', '价格', '1周', '1月', '3月', '20日波动', '3月回撤', '判断'], rows.map(r => ({ ...r })), {
     name: (v, row) => `${v} · ${categories(row.category)}`,
     last: v => '$' + fmt(v),
-    w1: (v, row) => pctColor(v),
-    m1: (v, row) => pctColor(v),
-    m3: (v, row) => pctColor(v),
+    w1: v => pctColor(v),
+    m1: v => pctColor(v),
+    m3: v => pctColor(v),
     vol20d: v => v == null ? '—' : v.toFixed(1) + '%',
-    dd3m: (v, row) => pctColor(v),
-    trend: (v, row) => `<span style="color:${row.trendColor}">${v}</span>`,
+    dd3m: v => pctColor(v),
+    trend: (v, row) => `<span style="color:${row.trend === '趋势向上' ? UP : row.trend === '趋势向下' ? DOWN : '#9ca3af'}">${v}</span>`,
   }, ['ticker', 'name', 'last', 'w1', 'm1', 'm3', 'vol20d', 'dd3m', 'trend'], true));
   const sec = document.getElementById('pool');
   const old = sec.querySelector('.re-section');
@@ -97,10 +122,7 @@ function renderPool() {
   sec.appendChild(nsec);
 }
 
-function pctColor(v) { return v == null ? '—' : `<span style="color:${v >= 0 ? '#26a69a' : '#ef5350'}">${v >= 0 ? '+' : ''}${v.toFixed(2)}%</span>`; }
-function fmt(v) { return v == null ? '—' : Number(v).toLocaleString(undefined, { maximumFractionDigits: 2 }); }
-
-load().catch(e => R.fail(['pool'], e));
+load().catch(e => R.fail(['stats', 'pool'], e));
 </script>
 <script src="/js/nav.js"></script>
 </body>

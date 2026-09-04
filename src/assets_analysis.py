@@ -1392,8 +1392,9 @@ def crypto() -> dict:
 def etfs() -> dict:
     pool = _csv("etf/pool_prices.csv")
 
-    out: dict = {"pool": [], "universe": None, "note": ""}
+    out: dict = {"pool": [], "universe": None, "note": "", "as_of": ""}
     if not pool.empty:
+        out["as_of"] = str(pool.index[-1].date())
         for ticker, (name, cat) in ETF_POOL.items():
             if ticker not in pool.columns:
                 continue
