@@ -199,17 +199,31 @@ def compute_structure(df: pd.DataFrame, spot: float) -> dict:
     )
     wall = wall.sort_values("strike").reset_index(drop=True)
 
-    # Gamma Flip：累计 GEX 由负转正的第一个行权价（现价下方最近位；
-    # 无翻转点（全正/全负累计）时返回 None，前端显示 — 而非兜底最低行权价——
-    # 后者会让 flip_dist 输出失真（0DTE 周选链低价权行权价与真实翻转点无关）。
+    # Gamma Flip：累计 GEX 由负转正的穿越点中，按现价处累计符号取位——
+    # 现价处累计 ≥0 → 取现价下方最后一个翻转点；<0 → 取现价上方第一个。
+    # 只找现价下方第一个穿越有两个坑：①现价处累计已转负、翻转点在现价上方时
+    # 漏检（SPY 20260904：现价处累计 -694M、穿越点在上方 800 → 返回 None，
+    # REGIME 卡回退 net_gex 符号后与分布图直接矛盾）；②深 ITM 噪声穿越被误当
+    # 翻转点（NVDA 取 103，真实翻转在 225）。取位规则保证
+    # sign(flip_dist) == sign(现价处累计 GEX)，与前端分布图黑线一致；
+    # 全链无负→正穿越时返回 None，此时 sign(net_gex) 即现价处符号，
+    # 前端与 narrative 引擎同款回退（勿兜底最低行权价，0DTE 链远端价权会失真）。
     wall["cum"] = wall["gex"].cumsum()
-    flip = None
+    spot_rows = wall.loc[wall["strike"] <= spot, "cum"]
+    spot_cum = float(spot_rows.iloc[-1]) if not spot_rows.empty else 0.0
+    flips: list[float] = []
     prev_cum = 0.0
     for _, w in wall.iterrows():
-        if prev_cum < 0 <= w["cum"] and w["strike"] < spot:
-            flip = float(w["strike"])
-            break
-        prev_cum = w["cum"]
+        cum = float(w["cum"])
+        if prev_cum < 0 <= cum:  # 仅负→正为翻转；正→负是反转向，不构成 Flip
+            flips.append(float(w["strike"]))
+        prev_cum = cum
+    if spot_cum >= 0:
+        below = [k for k in flips if k <= spot]
+        flip = below[-1] if below else None
+    else:
+        above = [k for k in flips if k > spot]
+        flip = above[0] if above else None
 
     # Walls：每点 $M（Σ γ·OI·100 / 1e6）按 call/put 两端
     call_wall = c[c["right"] == "C"].groupby("strike")["gex"].sum()

@@ -1472,9 +1472,10 @@ def _options_narrative(s: dict) -> dict:
     near7 = s.get("charm_near7")
     name = s.get("symbol", "")
 
-    local_pos = (
-        flip_pct is not None and flip_pct >= 0
-    )  # 现价在 Flip 上方 → 局部正 Gamma
+    # 现价在 Flip 上方 → 局部正 Gamma；无翻转点（全链累计恒同号）时回退
+    # net_gex 符号——与前端 REGIME 卡的回退口径一致（旧逻辑 None 一律判负
+    # Gamma，会与 REGIME 卡给出相反结论）
+    local_pos = flip_pct >= 0 if flip_pct is not None else (net_gex or 0) >= 0
     flip_txt = f"{flip:.0f}" if flip else "—"
 
     def fv(x: float | None, unit: str = "") -> str:

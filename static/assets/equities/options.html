@@ -93,7 +93,9 @@ function renderRegime() {
   const key = regimeKey(v);
   const ri = REGIME_INFO[key];
   // 全部期权净 GEX 与现价附近 Gamma 状态相反 → 短线提示（timsun 同款）
-  const localPos = v.flip_dist != null && v.flip_dist >= 0;
+  // localPos 与 regimeKey 同口径：flip_dist 缺失（全链无翻转点）时回退
+  // net_gex 符号，避免标题与副标题各判一边
+  const localPos = v.flip_dist == null ? v.net_gex >= 0 : v.flip_dist >= 0;
   const flipText = v.flip_dist == null ? null : Math.abs(v.flip_dist).toFixed(1);
   const flipSign = v.flip_dist == null || v.flip_dist >= 0 ? '高' : '低';
   const opposite = localPos !== (v.net_gex >= 0);
@@ -116,7 +118,7 @@ function renderRegime() {
   <div class="re-cards" style="grid-template-columns:repeat(auto-fit,minmax(180px,1fr));margin-top:12px">
     <div class="re-card"><div class="re-corridor-label">Gamma Flip</div>
       <div class="re-corridor-value">${v.gamma_flip == null ? '—' : fmtNum(v.gamma_flip, 1)}</div>
-      <div class="re-card-sub">现价 ${flipSign} ${flipText || '—'}%</div></div>
+      <div class="re-card-sub">${v.flip_dist == null ? '全链累计无翻转点' : `现价 ${flipSign} ${flipText}%`}</div></div>
     <div class="re-card"><div class="re-corridor-label">Call Wall · 阻力</div>
       <div class="re-corridor-value">${fmtNum(v.call_wall?.strike, 1)}</div>
       <div class="re-card-sub">${v.call_wall ? '+' + fmtNum(v.call_wall.per_point_m, 1) + ' M / 点' : '—'}</div></div>
