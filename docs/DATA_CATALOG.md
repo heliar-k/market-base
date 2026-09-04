@@ -145,8 +145,9 @@ VIX1D/VIX9D/VIX/VIX3M/VIX6M/VIX1Y/SKEW 全量序列一并落盘，可复算期�
 
 ## 2c. 波动率指数快照 — `data/barchart/volatility_snapshot.csv`
 
-来源 Barchart core-api `list=stocks.markets.volatility`（免费匿名，Actions 每日跑
-`./bin/fetch_barchart_vol`）。每次返回 30 个波动率指数的 lastPrice + 1D/5D/1M/1Y
+来源 Barchart core-api `list=stocks.markets.volatility`（Actions 每日跑
+`./bin/fetch_barchart_vol`；2026-09 起 Barchart 全站 AWS WAF，
+`barchart_client` 直连失败自动降级无头浏览器）。每次返回 30 个波动率指数的 lastPrice + 1D/5D/1M/1Y
 官方变化（即 timsun.net/volatility/dashboard 的「Barchart snapshot」同源数据）。
 观测日 upsert 宽表：`{SYM}` 价格列 + `{SYM}_chg1d/_chg5d/_chg1m/_chg1y` 变化列
 （百分数口径，-2.60 即 -2.60%）。
@@ -231,7 +232,7 @@ FRED liquidity 分类的原始系列（由 `./bin/fetch_fred` 一并拉取）。
 > 掉期点 = 远期汇率 − 即期汇率（以 pip 计），负值表示外币相对美元贴水。
 > 覆盖 5 个外币对（timsun global-dollar 页面的 USD/JPY、EUR/USD、GBP/USD 在内）。
 > USD/CNH、USD/CHF 不在 CFETS 覆盖范围（页面亦标注“暂未覆盖”），改用 Barchart
-> forward-rates 页面的全期限远期点曲线（匿名两步请求：页面种 cookie → core-api 带
+> forward-rates 页面的全期限远期点曲线（barchart_client 两步请求，WAF 后自动降级无头浏览器：页面种 cookie → core-api 带
 > XSRF token，`quotes/get?lists=forex.forwardCurves(^PAIR)`），延迟报价；数值与
 > investing.com 远期点页面对拍一致（差异 <1%）。
 > Yahoo CME 期货主连（`CNH=F` / `6S=F`）仅作 Barchart 失败时的降级，近月单点。
@@ -312,7 +313,8 @@ FRED liquidity 分类的原始系列（由 `./bin/fetch_fred` 一并拉取）。
 10 个期货品种，来源 IBKR，自动拉取全部未过期合约。每日 `./bin/fetch_commodities` 更新。
 
 > **Barchart 降级/补充源** — `data/barchart/futures/{ROOT}.csv`（观测日 upsert 宽表，
-> 列 = 合约代码如 ESU31）：由 `./bin/fetch_barchart_futures` 拉取（免费匿名，Actions 每日跑），
+> 列 = 合约代码如 ESU31）：由 `./bin/fetch_barchart_futures` 拉取（Actions 每日跑，
+> 经 barchart_client：直连失败自动降级无头浏览器），
 > 覆盖全部 10 品种的整条合约曲线（含 RTY→TF 代码映射），延迟报价（lastPrice 带 s 后缀）。
 > ZQ 额外写 `data/barchart/commodities/ZQ/ZQ_{YYYYMM}.csv`（date/close），
 > `rate_expectations` 读取优先级：IBKR 本地 → Barchart，因此 FOMC 概率在 Actions 也可每日自动产出。
@@ -536,7 +538,7 @@ SPX 成分股在均线上方占比（timsun /assets/equities 面板）。
 | `abv.csv` | 观测日 upsert：ABV50 / ABV100 / ABV200（%，仅派生序列，不存明细） |
 
 > 现成源调研（2026-08-06）：StockCharts $SPXA200R、investing S5TH 均被 Cloudflare 拦截；
-> Barchart $S5TH 仅当前值可匿名获取（历史端点 500）。自算为唯一免费完整历史方案。
+> Barchart $S5TH 当前值可获取（历史端点 500）。自算为唯一免费完整历史方案。
 > 已纳入 Actions daily-fetch（`bin/fetch_breadth`，yfinance 批量 ~2-5 分钟）。
 
 ---

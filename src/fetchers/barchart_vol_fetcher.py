@@ -2,7 +2,7 @@
 
 timsun.net/volatility/dashboard 的「Barchart snapshot」即 core-api
 `list=stocks.markets.volatility`：一次返回 30 个波动率指数的
-lastPrice + 1D/5D/1M/1Y 变化，免费匿名。
+lastPrice + 1D/5D/1M/1Y 变化，免费（直连失败自动降级无头浏览器，见 barchart_client）。
 
 本仓库 CBOE / yfinance 已覆盖其中 28 个（全量历史），此 fetcher 补齐
 VXMO（CBOE Standard Monthly VIX）、VXEF（EFA VIX，CBOE 已停发）

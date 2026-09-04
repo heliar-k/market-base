@@ -6,10 +6,12 @@
 - 外汇掉期曲线（外币对）: /r/cms/www/chinamoney/data/fx/fx-sw-curv-{PAIR}.json
   覆盖 EUR.USD / USD.JPY / GBP.USD / AUD.USD / USD.HKD（每日 16:30 发布，17:00 可查）
 
-数据源 2: Barchart 远期点曲线（USDCNH / USDCHF 全期限，免费匿名，无 key）
+数据源 2: Barchart 远期点曲线（USDCNH / USDCHF 全期限，免费无 key）
+  直连失败自动降级无头浏览器（见 barchart_client，2026-09 Barchart 全站 AWS WAF）
 - CFETS 不覆盖这两个货币对，但 Barchart 的 forward-rates 页面有完整曲线：
   ON/TN/SN/1W/2W/3W/1M~11M/1Y/2Y/3Y（4Y+ 常为 N/A）。
-- 两步匿名请求：GET 页面种 cookie（laravel_session/XSRF-TOKEN）→ 带 X-XSRF-TOKEN
+- 两步请求：GET 页面种 cookie（laravel_session/XSRF-TOKEN）→ 带 X-XSRF-TOKEN
+  （直连失败经 barchart_client 自动降级无头浏览器）
   调 core-api `quotes/get?lists=forex.forwardCurves(^PAIR)`，取 bid/ask 中值。
   ⚠️ 数据质量标注：① 延迟报价（非实时）；② 非官方清算曲线，仅市场报价；
   ③ 4Y+ 期限可能 N/A（自动跳过）；④ 页面依赖的 core-api 若改版需同步更新。
@@ -39,7 +41,7 @@ BASE = "https://www.chinamoney.org.cn/r/cms/www/chinamoney/data/fx"
 PAIRS = ["EUR.USD", "USD.JPY", "GBP.USD", "AUD.USD", "USD.HKD"]
 TENORS = ["1W", "1M", "3M", "6M", "1Y"]
 
-# Barchart：CFETS 不覆盖的货币对 → 全期限远期点（免费匿名）
+# Barchart：CFETS 不覆盖的货币对 → 全期限远期点（免费）
 BARCHART_PAIRS = ["USDCNH", "USDCHF"]
 BARCHART_PAGE = "https://www.barchart.com/forex/quotes/%5E{PAIR}/forward-rates"
 _TENOR_RE = re.compile(r"(Overnight|Tomorrow|Spot|(\d+)-(Week|Month|Year)) Forward$")
@@ -93,7 +95,8 @@ def _tenor_from_name(symbol_name: str) -> str | None:
 def _fetch_barchart_curves(pair: str) -> dict[str, float] | None:
     """Barchart 远期点曲线 → {TENOR: mid_pips}（bid/ask 中值，N/A 跳过）。
 
-    经 barchart_client 匿名两步请求（页面种 cookie → core-api 带 XSRF）。
+    经 barchart_client 两步请求（页面种 cookie → core-api 带 XSRF）。
+    直连失败自动降级无头浏览器（见 barchart_client）。
     """
     page_url = BARCHART_PAGE.format(PAIR=pair)
     resp = core_get(

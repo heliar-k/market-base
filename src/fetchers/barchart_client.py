@@ -1,7 +1,7 @@
-"""Barchart core-api 匿名访问客户端。
+"""Barchart core-api 客户端（直连失败自动降级无头浏览器）。
 
 Barchart 页面数据由 JS 动态加载，前端统一调
-`/proxies/core-api/v1/quotes/get`，需要两步匿名请求：
+`/proxies/core-api/v1/quotes/get`，需要两步请求（无 key 无登录）：
 
 1. GET 页面（任意 Barchart 页面）→ 种 laravel_session / XSRF-TOKEN cookie
 2. 带 token header 调 core-api（参数是 lists / symbol / fields 等）
@@ -61,7 +61,7 @@ def core_get(
     auth: AuthMode = "xsrf",
     endpoint: str = "quotes/get",
 ) -> dict:
-    """匿名调 Barchart core-api（直连失败自动降级无头浏览器）。
+    """调 Barchart core-api（直连失败自动降级无头浏览器）。
 
     Args:
         params: 查询参数（lists=forex.forwardCurves(^USDCNH)、symbol=ES^F、fields=...）

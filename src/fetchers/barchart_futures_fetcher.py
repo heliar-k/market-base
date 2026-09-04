@@ -1,4 +1,6 @@
-"""Fetch commodity futures term structure from Barchart（免费匿名，替代/补充 IBKR）。
+"""Fetch commodity futures term structure from Barchart（免费，替代/补充 IBKR）。
+
+直连失败经 barchart_client 自动降级无头浏览器（2026-09 Barchart 全站 AWS WAF）。
 
 IBKR commodities 依赖本地 TWS（Actions 拉不了），Barchart 提供全合约曲线：
 

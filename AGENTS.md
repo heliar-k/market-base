@@ -57,7 +57,7 @@ market-base/
 │   │   ├── srf_fetcher.py        ← SRF 使用量（NY Fed Markets API）
 │   │   ├── tsy_fetcher.py        ← Treasury 公开市场操作明细（RMP/POMO）
 │   │   ├── cfets_fetcher.py      ← CFETS 外汇掉期点（chinamoney）+ Barchart 远期点 + Yahoo
-│   │   ├── barchart_client.py    ← Barchart core-api 匿名客户端（XSRF 会话）
+│   │   ├── barchart_client.py    ← Barchart core-api 客户端（直连失败自动降级无头浏览器过 AWS WAF）
 │   │   ├── barchart_futures_fetcher.py ← Barchart 期货期限结构（10 品种全合约，IBKR 替代源）
 │   │   ├── barchart_options_fetcher.py ← Barchart 期权链（真实 gamma，GEX 降级源）
 │   │   ├── barchart_vol_fetcher.py ← Barchart 波动率 30 指数快照（timsun dashboard 对齐源）
@@ -208,6 +208,9 @@ market-base/
 `financials` / `sec`（财报三张表 + SEC 10-K/10-Q 原文）
 `minute_bars`（全部股票+指数 1d 日线 + 5m/15m/1h/4h 分钟线，yfinance 原始价与 IBKR 一致；1d 全量历史，5m/15m 深度 60 天、1h/4h 2 年）。
 
+> 部分数据源失败时：成功的数据照常 commit，失败列表写进当日 commit message 的「失败:」段
+> （`git log -1` 即见），job 标红，Pages 照常部署。不用再 grep Actions 日志找 `FAIL`。
+
 **本地手动（先启动 TWS 或 IB Gateway，端口 4001 实盘 / 4002 模拟）**：只有依赖 IBKR 的才需要本地跑：
 `ibkr`（日线，可选——Actions yfinance 已覆盖，IBKR 用于权威覆盖与更深回溯）/ `options` / `commodities` / `index` / `stock` / `rate_expectations`（ZQ 期货来自 commodities）。
 日线/分钟线均已由 Actions 用 yfinance 覆盖；本地 IBKR 拉取（`--bar-size all`）只用于补深。
@@ -229,7 +232,7 @@ market-base/
 ./bin/fetch_srf                     # SRF 使用量
 ./bin/fetch_tsy                     # Treasury 公开市场操作明细（RMP/POMO）
 ./bin/fetch_cfets                   # CFETS 外汇掉期点（5 外币对 × 5 期限 + Barchart USDCNH/USDCHF 全期限）
-./bin/fetch_barchart_futures        # Barchart 期货期限结构（10 品种全合约，免费匿名）
+./bin/fetch_barchart_futures        # Barchart 期货期限结构（10 品种全合约，IBKR 替代源）
 ./bin/fetch_barchart_vol            # Barchart 波动率 30 指数快照（timsun dashboard 对齐源，VXMO/VXEF 唯一源）
 ./bin/fetch_cot                     # CFTC COT 持仓报告（周频）
 ./bin/fetch_analyst                  # Nasdaq 100 分析师目标价（Wikipedia 成分 + yfinance）
@@ -333,6 +336,8 @@ uv run python src/sell_put.py --symbol TSM
 ### 5. yfinance 需要 SOCKS5 代理
 - `https_proxy=socks5://127.0.0.1:7890` 在 `.env` 中配置
 - 代理必须在导入 yfinance **之前**设置环境变量（`yfinance_fetcher.py` 在 import 前设置）
+- ⚠️ 调用 `ensure_yf_proxy()` 的入口在 Actions 必须设 `YF_NO_PROXY=1`（无代理环境直连）；
+  env 是 **step 级不继承**，漏配即静默 ConnectionError（2026-09 options_structure 因此停更 12 天）
 
 ### 6. IBKR 端口与限制
 - 端口：`4002` = 模拟账户（默认，行情订阅数有限 ~3-5，GEX 用 `--batch-size 3` 小批量串行）；`4001` = 实盘只读（`connect_ib` 自动带 `readonly=True`，可 `--batch-size 50`）
@@ -340,6 +345,21 @@ uv run python src/sell_put.py --symbol TSM
 - Greeks 当日快照：`data/gex/{SYMBOL}_greeks_YYYYMMDD.csv`，`--reuse-greeks` 复用后只拉 yfinance OI；gamma 贴近墙位对 spot 敏感，spot 动 1%+ 要重拉
 - gamma 符号惯例：call 正 / put 负（IBKR modelGreeks 恒非负，`fetch_options_greeks` 里统一翻转，与 `greeks_from_yf` 一致）
 - 每次请求后 `sleep(15s)` 避免限流（配置在 `config.ibkr.request_delay_seconds`）
+
+### 7. 反爬抓取工具箱（新 fetcher 优先复用）
+
+遇到 `202/403 + 空 body/HTML challenge` 时，按站点反爬类型选工具，**不要重造轮子**：
+
+| 工具 | 适用场景 | 参考实现 |
+|------|---------|---------|
+| `jina_reader.jina_fetch(url)` | Cloudflare 拦截 / JS 渲染页（页面→Markdown） | `cme_options_fetcher` / `coinglass_fetcher` / `etf_flows_fetcher`（Farside） |
+| `barchart_client.core_get(params, referer, auth)` | Barchart core-api（期货曲线/波动率快照/远期点/期权链）；直连失败**自动降级** playwright 无头浏览器（进程单例） | `barchart_futures_fetcher` / `barchart_vol_fetcher` / `cfets_fetcher` |
+| `curl_cffi requests.Session(impersonate="chrome")` | TLS 指纹检测的直连 JSON API | `news_fetcher`（Yahoo NCP） |
+
+- Jina 免费额度 ~20 RPM，日频 cron 量够；慢加载页加 `x-timeout` / `x-no-cache` / `x-wait-for-time` 头（见 `cme_options_fetcher.fetch_page`）
+- AWS WAF（JS challenge + aws-waf-token）只有真浏览器能过；Jina 能过 WAF 但拿不到 cookie，所以 Barchart 用 playwright 页内 fetch 而非 Jina
+- 测试环境：`tests/conftest.py` autouse 禁用浏览器通道（真起 chromium 会污染 TUI 测试的 event loop）
+- Actions 已预装 chromium（daily-fetch workflow 的 "Install playwright chromium" step）
 
 ---
 

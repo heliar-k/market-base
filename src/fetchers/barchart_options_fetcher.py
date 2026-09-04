@@ -1,4 +1,4 @@
-"""Fetch options chain with greeks from Barchart（免费匿名，IBKR 降级源）。
+"""Fetch options chain with greeks from Barchart（免费，IBKR 降级源）。
 
 compute_gex 降级链：IBKR → Barchart（真实市场 gamma + OI 同源）→ yfinance BS 反推。
 
