@@ -45,6 +45,8 @@ jobs:
           uv run python -m src.cross_asset || echo "===== FAIL cross_asset ====="
 
       - name: 期权结构快照（13 标的 GEX/DEX/Vanna/Charm，yfinance 降级源；耗时 ~3min）
+        env:
+          YF_NO_PROXY: "1"      # options_structure 走 ensure_yf_proxy()，Actions 无代理需直连
         run: |
           uv run python -m src.options_structure || echo "===== FAIL options_structure ====="
 
