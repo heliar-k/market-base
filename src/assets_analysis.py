@@ -1321,18 +1321,17 @@ def crypto() -> dict:
             else None
         )
         # 30 日背离：NL 与 BTC 双腿同为 30 日历日。
-        # 判定带幅度豁免（对齐 timsun 可观察行为：其 -0.04T/-0.7% 不报背离，
-        # 且其 /liquidity 页验证指标体系也是绝对阈值制）：|ΔNL| < 0.05T 或
-        # |ΔBTC| < 5% 视为噪声，归「同向/无明显背离」，避免 FRED 修订级
-        # 的小幅波动让警告闪现。
+        # 判定带幅度豁免，对齐行业标准：netliquidity.org 认为只有 ≥$100B
+        # 的变动才实质改变市场条件（"moves of $100B or more"）；其 BTC 腿
+        # 背离定义也用「BTC 持稳」而非单看符号，故配 5% 豁免。低于阈值
+        # 归「无明显背离」，避免 FRED 修订级噪声让警告闪现。
         div = None
         if len(nld) >= 31 and pd.notna(btc_al.iloc[-31]) and pd.notna(btc_al.iloc[-1]):
             nl_chg = round((float(nld.iloc[-1]) - float(nld.iloc[-31])) / 1e6, 2)
             btc_chg = round(
                 (float(btc_al.iloc[-1]) / float(btc_al.iloc[-31]) - 1) * 100, 1
             )
-            # ponytail: 0.05T/5% 为拍定值，timsun 若能观察到更多样本再校准
-            if abs(nl_chg) >= 0.05 and abs(btc_chg) >= 5:
+            if abs(nl_chg) >= 0.1 and abs(btc_chg) >= 5:
                 if nl_chg < 0 < btc_chg:
                     verdict = "净流动性收缩而 BTC 上涨，注意回撤风险"
                 elif nl_chg > 0 > btc_chg:

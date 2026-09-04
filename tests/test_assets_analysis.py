@@ -430,8 +430,9 @@ class TestCryptoLiquidity:
         assert out["divergence"]["btc"] == pytest.approx(10.0)
 
     def test_small_moves_are_neutral(self, monkeypatch):
-        # |ΔNL| < 0.05T 的符号相反（NL 微降 + BTC 大涨）不触发背离警告（对齐 timsun）
-        self._fixtures(monkeypatch, 5_960_000.0)  # 10 日前 -40B
+        # |ΔNL| < 0.1T（行业噪声底线）不触发背离：-60B 正是 timsun 当前
+        # 样本量级，其不报警，我们也不报
+        self._fixtures(monkeypatch, 5_940_000.0)  # 10 日前 -60B
         out = crypto()["liquidity"]
         assert out["divergence"]["verdict"] == "流动性与 BTC 同向，无明显背离"
         assert out["divergence"]["warn"] is False
