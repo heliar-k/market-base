@@ -390,42 +390,71 @@ class TestRegBeta:
 
 
 class TestCryptoLiquidity:
-    """crypto() 溢出 KPI 窗口：脉冲/背离双腿均按日历日对齐。"""
+    """crypto() 溢出 KPI：脉冲/背离按日历日取窗 + 背离判定幅度豁免。"""
 
     @staticmethod
-    def _fixtures(monkeypatch):
-        # 65 个工作日 ≈ 91 日历日；WALCL 承载两个台阶：
-        # 32 日历日前 -50B（旧 20 观测窗口 ≈28 日历日看不到，
-        # 新 20 日历日更看不到→仅旧口径会多算）
-        # 40 日历日前 -100B（旧 30 观测窗口 ≈43 日历日会看到，新 30 日历日看不到）
+    def _fixtures(
+        monkeypatch,
+        walcl_recent,
+        walcl_before=6_000_000.0,
+        btc_jump_pct=10.0,
+        step_days=25,
+    ):
+        # 65 个工作日 ≈ 91 日历日；WALCL：end-step_days 日历日之前为 walcl_before，
+        # 之后为 walcl_recent。step_days<30 → 30 日背离 = recent-before、
+        # 脉冲 = (recent-before)×(30-step_days)/30 量级；step_days>30 → 两者均为 0
         days = pd.bdate_range("2026-06-01", periods=65)
         end = days[-1]
-        walcl = pd.Series(6_000_000.0, index=days)  # 百万美元
-        walcl[walcl.index <= end - pd.Timedelta(days=40)] = 6_100_000.0
-        walcl[walcl.index <= end - pd.Timedelta(days=32)] = 6_050_000.0
+        walcl = pd.Series(walcl_before, index=days)  # 百万美元
+        walcl[walcl.index > end - pd.Timedelta(days=step_days)] = walcl_recent
         liq = pd.DataFrame(
             {"WALCL": walcl, "RRPONTSYD": 0.0, "WTREGEN": 0.0}, index=days
         )
-        # BTC 日频（含周末）：30 日历日 +10%
+        # BTC 日频（含周末）：30 日历日内跳变 btc_jump_pct%
         cal = pd.date_range(days[0], end)
         btc = pd.Series(100.0, index=cal)
-        btc[btc.index > end - pd.Timedelta(days=30)] = 110.0
+        btc[btc.index > end - pd.Timedelta(days=30)] = 100.0 * (1 + btc_jump_pct / 100)
         px = pd.DataFrame({"BTC": btc, "ETH": btc / 20, "SPX": 5000.0})
         monkeypatch.setattr("src.assets_analysis.asset_prices", lambda: px)
         monkeypatch.setattr("src.assets_analysis._csv", lambda _p, **_kw: liq)
         return end
 
     def test_pulse_and_divergence_use_calendar_days(self, monkeypatch):
-        self._fixtures(monkeypatch)
+        # 台阶在 40 日历日前（20/30 日窗口外）→ 脉冲与背离变化量均为 0；
+        # 旧观测行口径会误读为 -50/-100B
+        self._fixtures(monkeypatch, 6_000_000.0, walcl_before=6_050_000.0, step_days=40)
         out = crypto()["liquidity"]
-        # 两个台阶都在 20/30 日历日窗口之外 → 变化量 0；旧观测行口径会算成 -50/-100
         assert out["pulse_20d"] == 0
         assert out["divergence"]["nl"] == 0.0
         # BTC 腿：双腿同锚 → 30 日历日 +10%
         assert out["divergence"]["btc"] == pytest.approx(10.0)
 
+    def test_small_moves_are_neutral(self, monkeypatch):
+        # |ΔNL| < 0.05T 的符号相反（NL 微降 + BTC 大涨）不触发背离警告（对齐 timsun）
+        self._fixtures(monkeypatch, 5_960_000.0)  # 10 日前 -40B
+        out = crypto()["liquidity"]
+        assert out["divergence"]["verdict"] == "流动性与 BTC 同向，无明显背离"
+        assert out["divergence"]["warn"] is False
+
+    def test_meaningful_divergence_warns(self, monkeypatch):
+        # NL 10 日前 -200B（20/30 日窗口内、幅度超阈）+ BTC +10% → 回撤警告
+        self._fixtures(monkeypatch, 5_800_000.0, step_days=10)
+        out = crypto()["liquidity"]
+        assert out["pulse_20d"] == -200
+        assert out["divergence"]["nl"] == -0.2
+        assert "回撤风险" in out["divergence"]["verdict"]
+        assert out["divergence"]["warn"] is True
+        assert "警惕回撤风险" in out["trading"]
+
+    def test_technical_pullback_branch(self, monkeypatch):
+        # NL +200B + BTC -10% → 技术性回调分支
+        self._fixtures(monkeypatch, 6_200_000.0, btc_jump_pct=-10.0)
+        out = crypto()["liquidity"]
+        assert "技术性" in out["divergence"]["verdict"]
+        assert out["divergence"]["warn"] is True
+
     def test_beta_narrative_gated_by_r2(self, monkeypatch):
-        self._fixtures(monkeypatch)
+        self._fixtures(monkeypatch, 6_000_000.0, walcl_before=6_050_000.0)
         out = crypto()["liquidity"]
         # 构造数据里 NL 与 BTC 无线性关系（R²≈0）→ 不输出「敏感度 X 倍」叙事
         if (out.get("r2") or 0) >= 0.15:

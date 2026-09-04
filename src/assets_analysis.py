@@ -1320,14 +1320,32 @@ def crypto() -> dict:
             if len(nld) >= 21
             else None
         )
-        # 30 日背离：NL 与 BTC 双腿同为 30 日历日
+        # 30 日背离：NL 与 BTC 双腿同为 30 日历日。
+        # 判定带幅度豁免（对齐 timsun 可观察行为：其 -0.04T/-0.7% 不报背离，
+        # 且其 /liquidity 页验证指标体系也是绝对阈值制）：|ΔNL| < 0.05T 或
+        # |ΔBTC| < 5% 视为噪声，归「同向/无明显背离」，避免 FRED 修订级
+        # 的小幅波动让警告闪现。
         div = None
         if len(nld) >= 31 and pd.notna(btc_al.iloc[-31]) and pd.notna(btc_al.iloc[-1]):
+            nl_chg = round((float(nld.iloc[-1]) - float(nld.iloc[-31])) / 1e6, 2)
+            btc_chg = round(
+                (float(btc_al.iloc[-1]) / float(btc_al.iloc[-31]) - 1) * 100, 1
+            )
+            # ponytail: 0.05T/5% 为拍定值，timsun 若能观察到更多样本再校准
+            if abs(nl_chg) >= 0.05 and abs(btc_chg) >= 5:
+                if nl_chg < 0 < btc_chg:
+                    verdict = "净流动性收缩而 BTC 上涨，注意回撤风险"
+                elif nl_chg > 0 > btc_chg:
+                    verdict = "BTC 回调但流动性扩张，下跌或为技术性"
+                else:
+                    verdict = "净流动性与 BTC 同向"
+            else:
+                verdict = "流动性与 BTC 同向，无明显背离"
             div = {
-                "nl": round((float(nld.iloc[-1]) - float(nld.iloc[-31])) / 1e6, 2),
-                "btc": round(
-                    (float(btc_al.iloc[-1]) / float(btc_al.iloc[-31]) - 1) * 100, 1
-                ),
+                "nl": nl_chg,
+                "btc": btc_chg,
+                "verdict": verdict,
+                "warn": "回撤风险" in verdict or "技术性" in verdict,
             }
         # 交易含义（规则引擎；LLM 预留接 _llm_generate 后替换）
         parts: list[str] = []
@@ -1345,7 +1363,7 @@ def crypto() -> dict:
                 parts.append(
                     f"当前脉冲为正（+{round(pulse):.0f}B），加密流动性顺风延续。"
                 )
-        if div and div["nl"] < 0 and div["btc"] > 0:
+        if div and "回撤风险" in div.get("verdict", ""):
             parts.append("注意：净流动性收缩但 BTC 上涨，警惕回撤风险。")
         out["liquidity"] = {
             "net": round(float(nl.iloc[-1]) / 1e6, 2),  # T

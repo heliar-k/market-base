@@ -47,13 +47,9 @@ async function load() {
   if (L.net != null) {
     const pulseColor = L.pulse_state === '扩张' ? '#26a69a' : '#ef5350';
     const dv = L.divergence || null;
-    const warn = dv && dv.nl < 0 && dv.btc > 0;
-    const divColor = dv ? (warn ? '#ef5350' : (dv.nl > 0 && dv.btc < 0 ? '#ef5350' : '#26a69a')) : '#9ca3af';
-    const divText = dv
-      ? (warn ? '净流动性在收缩而 BTC 却在涨，注意回撤风险'
-              : (dv.nl > 0 && dv.btc < 0 ? 'BTC 回调但流动性扩张，下跌或为技术性'
-                                        : '净流动性与 BTC 同向'))
-      : '—';
+    const warn = !!(dv && dv.warn);
+    const divColor = dv ? (warn ? '#ef5350' : '#26a69a') : '#9ca3af';
+    const divText = dv ? dv.verdict : '—';
     lsec.innerHTML += `
       <div class="re-cards" style="grid-template-columns:repeat(auto-fit,minmax(150px,1fr))">
         <div class="re-card"><div class="re-corridor-label">净流动性</div><div class="re-corridor-value">$${fmt(L.net)}T</div>
