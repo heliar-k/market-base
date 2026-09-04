@@ -26,6 +26,7 @@ dependencies = [
     "uvicorn>=0.32.0",
     "pysocks>=1.7.1",
     "xlrd>=2.0.2",
+    "playwright>=1.62.0",
 ]
 
 [dependency-groups]

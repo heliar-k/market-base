@@ -18,6 +18,16 @@ def _clean_test_cache():
         shutil.rmtree(_CACHE_DIR)
 
 
+@pytest.fixture(autouse=True)
+def _no_barchart_browser(monkeypatch):
+    """禁用 Barchart 浏览器降级通道（真起 chromium，会污染 TUI 测试 event loop）。"""
+
+    def _forbidden(*args, **kwargs):
+        raise RuntimeError("browser channel disabled in tests")
+
+    monkeypatch.setattr("src.fetchers.barchart_client._core_get_browser", _forbidden)
+
+
 @pytest.fixture
 def sample_ohlcv_df() -> pd.DataFrame:
     """构造一小段 OHLCV 数据用于指标/分析测试。

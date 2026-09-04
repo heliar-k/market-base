@@ -27,6 +27,10 @@ jobs:
       - name: Install deps
         run: uv sync
 
+      # Barchart 走无头浏览器通道时需要（barchart_client 降级路径）
+      - name: Install playwright chromium
+        run: uv run playwright install --with-deps chromium
+
       - name: Fetch non-IBKR data sources
         env:
           FRED_API_KEY: ${{ secrets.FRED_API_KEY }}
