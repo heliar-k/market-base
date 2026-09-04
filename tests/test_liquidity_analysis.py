@@ -87,16 +87,48 @@ class TestForwardCalendar:
         assert cal["net_7d_b"] is not None
         assert cal["net_7d_b"] == round(sum(x["net_b"] for x in days[:7]), 1)
         assert cal["net_14d_b"] == round(sum(x["net_b"] for x in days[:14]), 1)
-        # 有新发抽水的 bill 结算日：同日到期抵消后净冲击应远小于毛发行额，不越界极端
+        # 有新发抽水的结算日：独立从原始数据重算期望值（同日到期 − 新发），
+        # 验证到期回笼确实被抵消（未抵消的旧 bug 会显示全额新发 -266B）。
+        # 不能用固定阈值：再融资周新发结算日撞上 Bill 到期日时，
+        # 净冲击可以合理地超过 100B（如 2026-09-15 到期 323B − 新发 119B = +204B）
+        from src.liquidity_analysis import ROOT
+
+        up = pd.read_csv(
+            ROOT / "data/treasury/upcoming_auctions.csv", parse_dates=["issue_date"]
+        )
+        auc = pd.read_csv(
+            ROOT / "data/treasury/auction_results.csv",
+            parse_dates=["maturity_date", "issue_date"],
+        )
         settle_days = [
             d
             for d in days
             if any(f["type"] == "auction_settlement" for f in d["flows"])
         ]
-        assert settle_days, "14 天窗口内应有 bill 新发结算日（数据缺失或日历滚动？）"
+        assert settle_days, "14 天窗口内应有新发结算日（数据缺失或日历滚动？）"
         for d in settle_days:
-            assert abs(d["net_b"]) < 100, (
-                f"净发行口径应抵消滚续，实际 {d['date']} {d['net_b']}"
+            day = pd.Timestamp(d["date"])
+            issue = (
+                up.loc[up["issue_date"] == day, "offering_amt"]
+                .fillna(0)
+                .astype(float)
+                .sum()
+                / 1e9
+            )
+            mature = (
+                auc.loc[auc["maturity_date"] == day, "offering_amt"]
+                .dropna()
+                .astype(float)
+                .sum()
+                / 1e9
+            )
+            expected = round(mature - issue, 1)
+            actual = next(
+                f["amount_b"] for f in d["flows"] if f["type"] == "auction_settlement"
+            )
+            assert actual == expected, (
+                f"{d['date']}: 到期回笼 {mature:.0f}B − 新发抽水 {issue:.0f}B，"
+                f"应为 {expected}，实际 {actual}"
             )
 
 
