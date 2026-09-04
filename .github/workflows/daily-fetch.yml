@@ -39,24 +39,28 @@ jobs:
           set +e  # 单个失败不阻断
           for f in fetch_fred fetch_fsi fetch_srf fetch_tsy fetch_cfets fetch_cboe fetch_shapiro fetch_sce fetch_treasury fetch_dts fetch_acm fetch_refunding fetch_yfinance fetch_barchart_futures fetch_cot fetch_rate_expectations fetch_barchart_vol fetch_bgcr fetch_cgb fetch_fed fetch_analyst fetch_breadth fetch_financials fetch_sec fetch_finra fetch_insider fetch_fx fetch_etf fetch_crypto_derivatives fetch_crypto_basis fetch_coinglass fetch_cme_options fetch_etf_flows; do
             echo "===== START $f ====="
-            bash "bin/$f" || echo "===== FAIL  $f ====="
+            bash "bin/$f" || FAILED="$FAILED $f"
           done
           # TSM 6-K（FPI 季报 + 月度营收，按主文档名过滤；6-K 主文档只是封面，存完整提交文本）
-          bash bin/fetch_sec --symbols TSM --forms 6-K --doc-pattern '^(tsm-[0-9]{8}x6k|tsm-fs|tsm-revenue)' || echo "===== FAIL  fetch_sec-tsm-6k ====="
+          bash bin/fetch_sec --symbols TSM --forms 6-K --doc-pattern '^(tsm-[0-9]{8}x6k|tsm-fs|tsm-revenue)' || FAILED="$FAILED fetch_sec-tsm-6k"
+          # 失败列表写入 job 级变量，最终汇总 step 统一判红
+          # 不用 || echo FAIL：GitHub Actions 回显 run 块源码，字面 FAIL 会与运行时输出混淆难 grep
+          [ -n "$FAILED" ] && echo "失败:$FAILED" && echo "FAILED_LIST=$FAILED" >> "$GITHUB_ENV"
+          exit 0
 
       - name: 跨资产相关性（派生，依赖资产快照）
         run: |
-          uv run python -m src.cross_asset || echo "===== FAIL cross_asset ====="
+          uv run python -m src.cross_asset || { echo "失败: cross_asset"; echo "FAILED_LIST=${FAILED_LIST} cross_asset" >> "$GITHUB_ENV"; }
 
       - name: 期权结构快照（13 标的 GEX/DEX/Vanna/Charm，yfinance 降级源；耗时 ~3min）
         env:
           YF_NO_PROXY: "1"      # options_structure 走 ensure_yf_proxy()，Actions 无代理需直连
         run: |
-          uv run python -m src.options_structure || echo "===== FAIL options_structure ====="
+          uv run python -m src.options_structure || { echo "失败: options_structure"; echo "FAILED_LIST=${FAILED_LIST} options_structure" >> "$GITHUB_ENV"; }
 
       - name: 日频 Bill 占比（派生，依赖 MSPD + 拍卖）
         run: |
-          uv run python -m src.bill_share || echo "===== FAIL bill_share ====="
+          uv run python -m src.bill_share || { echo "失败: bill_share"; echo "FAILED_LIST=${FAILED_LIST} bill_share" >> "$GITHUB_ENV"; }
 
       - name: Fetch OHLCV bars (yfinance, no TWS)
         env:
@@ -64,12 +68,14 @@ jobs:
         run: |
           set +e
           for bs in 1d 5m 15m 1h 4h; do
-            uv run python -m src.fetchers.ibkr_fetcher --bar-size $bs --yf-only
+            uv run python -m src.fetchers.ibkr_fetcher --bar-size $bs --yf-only || FAILED="$FAILED ohlcv-$bs"
           done
+          [ -n "$FAILED" ] && echo "失败:$FAILED" && echo "FAILED_LIST=${FAILED_LIST} $FAILED" >> "$GITHUB_ENV"
+          exit 0
 
       - name: LPI 快照（流动性压力指数日历历史，30 天+ 后用于分位校准）
         run: |
-          uv run python -m src.liquidity_analysis --snapshot || echo "===== FAIL lpi_snapshot ====="
+          uv run python -m src.liquidity_analysis --snapshot || { echo "失败: lpi_snapshot"; echo "FAILED_LIST=${FAILED_LIST} lpi_snapshot" >> "$GITHUB_ENV"; }
 
       - name: Commit and push updates
         run: |
@@ -84,6 +90,14 @@ jobs:
             git pull --rebase origin main
             git push
           fi
+
+      # 所有拉取/派生步骤跑完后统一判红：数据照常 commit，但 job 标红便于发现
+      # 检查方式：gh run list 看 conclusion；失败名列表 grep "失败:" 即得
+      - name: 失败汇总（有失败则 job 红且跳过 Pages 部署）
+        if: env.FAILED_LIST != ''
+        run: |
+          echo "以下步骤失败，数据已照常 commit:$FAILED_LIST"
+          exit 1
 
   # 网页静态站点：预渲染 API → site/ → GitHub Pages 部署
   # 首次启用需在仓库 Settings → Pages → Build and deployment → Source: GitHub Actions
