@@ -1242,12 +1242,17 @@ def commodities() -> dict:
 
 
 def _reg_beta(
-    nl: pd.Series, px: pd.Series, n: int = 90
+    nl: pd.Series, px: pd.Series, days: int = 90
 ) -> tuple[float | None, float | None]:
-    """90 日回归：NL 与资产日收益率（beta, r2）；NL 为百万美元口径。"""
-    r = pd.concat([nl, px], axis=1, keys=["NL", "PX"]).dropna()
-    rets = r.pct_change().dropna().tail(n)
-    if len(rets) < 60:
+    """days 个日历日窗口回归 NL 与资产日收益率（beta, r2）；NL 为百万美元口径。
+
+    NL 观测是周频 WALCL + 日频 TGA/RRP 的混合网格，直接数观测行会让窗口虚增
+    （90 观测 ≈ 126 日历日），先铺到日历日网格（NL ffill）再对齐资产报价。
+    """
+    grid = pd.date_range(nl.index[-1] - pd.Timedelta(days=days), nl.index[-1])
+    r = pd.DataFrame({"NL": nl.reindex(grid).ffill(), "PX": px.reindex(grid)}).dropna()
+    rets = r.pct_change().dropna()
+    if len(rets) < 50:
         return None, None
     x = rets["NL"].values
     y = rets["PX"].values
@@ -1259,10 +1264,12 @@ def _reg_beta(
 
 
 def crypto() -> dict:
-    """加密货币页：BTC/ETH 卡片 + 净流动性溢出（timsun 对齐口径）+ 走势归一化。
+    """加密货币页：BTC/ETH 卡片 + 净流动性溢出 + 走势归一化。
 
-    口径（与 timsun /assets/crypto 一致）：net/fed 以 T、tga/rrp 以 B、
-    pulse_20d 为 20 日绝对变化（B）、divergence.nl 为 30 日绝对变化（T）。
+    口径：NL = WALCL − TGA − RRP（市场通行标准口径）。注意 timsun /assets/crypto
+    用的是剔除外国官方回购池的调整口径（≈准备金+流通货币），其 Fed 腿会比本页
+    低 ~0.38T，两边数值不可直接对照。窗口一律按日历日：pulse_20d 为 20 日历日
+    绝对变化（B）、divergence 双腿同为 30 日历日、beta 为 90 日历日回归。
     """
     p = asset_prices()
     out = {
@@ -1294,29 +1301,38 @@ def crypto() -> dict:
         wide["NL"] = wide["WALCL"] - wide["RRP"] * 1000 - wide["WTREGEN"]
         nl = wide["NL"].dropna()  # 百万美元
         # 90 日回归（Beta / R²；SPX 同样口径用于 β 对比）
-        beta, r2 = _reg_beta(nl, btc)
-        spx = p["SPX"].dropna() if "SPX" in p.columns else pd.Series(dtype=float)
-        spx_beta, _ = _reg_beta(nl, spx)
-        # 20 日脉冲：绝对变化（B）
-        pulse = (
-            (float(nl.iloc[-1]) - float(nl.iloc[-21])) / 1000 if len(nl) >= 21 else None
-        )
-        # 30 日背离：NL 绝对变化（T）+ BTC 涨跌幅（%）
-        div = None
-        if len(nl) >= 31 and len(btc) >= 31:
-            div = {
-                "nl": round((float(nl.iloc[-1]) - float(nl.iloc[-31])) / 1e6, 2),
-                "btc": round((float(btc.iloc[-1]) / float(btc.iloc[-31]) - 1) * 100, 1),
-            }
-        # 180 日历日窗口（timsun 同款：日网格含周末，NL ffill 成连续线；
-        # 而非 180 个交易日——否则窗口跨度变 260+ 天、形状错位）
+        # 180 日历日网格（timsun 同款：日网格含周末，NL ffill 成连续线；
+        # 而非 180 个交易日——否则窗口跨度变 260+ 天、形状错位）。
+        # 脉冲/背离/回归的窗口也一律按日历日在此网格上取：NL 观测是周频
+        # WALCL + 日频 TGA/RRP 的混合网格，直接数观测行会虚增窗口（20 观测
+        # ≈ 28 日历日），且与 BTC 的日频报价对不齐。
         end = nl.index[-1]
         grid = pd.date_range(end - pd.Timedelta(days=179), end)
         nld = nl.reindex(grid).ffill().dropna()
         btc_al = btc.reindex(nld.index)
+        # 90 日历日回归（Beta / R²；SPX 同样口径用于 β 对比）
+        beta, r2 = _reg_beta(nl, btc)
+        spx = p["SPX"].dropna() if "SPX" in p.columns else pd.Series(dtype=float)
+        spx_beta, _ = _reg_beta(nl, spx)
+        # 20 日脉冲：日历日绝对变化（B）
+        pulse = (
+            (float(nld.iloc[-1]) - float(nld.iloc[-21])) / 1000
+            if len(nld) >= 21
+            else None
+        )
+        # 30 日背离：NL 与 BTC 双腿同为 30 日历日
+        div = None
+        if len(nld) >= 31 and pd.notna(btc_al.iloc[-31]) and pd.notna(btc_al.iloc[-1]):
+            div = {
+                "nl": round((float(nld.iloc[-1]) - float(nld.iloc[-31])) / 1e6, 2),
+                "btc": round(
+                    (float(btc_al.iloc[-1]) / float(btc_al.iloc[-31]) - 1) * 100, 1
+                ),
+            }
         # 交易含义（规则引擎；LLM 预留接 _llm_generate 后替换）
         parts: list[str] = []
-        if beta is not None and spx_beta:
+        # R² 门控：回归无线性关系时不下「敏感度 X 倍」的结论（纯噪声）
+        if beta is not None and spx_beta and (r2 or 0) >= 0.15:
             parts.append(
                 f"BTC 对美元流动性变化的敏感度约是标普的 {beta / spx_beta:.1f} 倍。"
             )

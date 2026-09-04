@@ -1,5 +1,6 @@
 """assets_analysis 规则引擎单元测试（不依赖网络，纯函数验证）。"""
 
+import numpy as np
 import pandas as pd
 import pytest
 
@@ -9,6 +10,8 @@ from src.assets_analysis import (
     _ls_cols,
     _options_narrative,
     _price_rows,
+    _reg_beta,
+    crypto,
     equity_analysis,
 )
 from src.options_structure import bucket_dte, compute_structure
@@ -359,3 +362,73 @@ class TestNdxRadar:
         assert out["above50_pct"] == 100.0
         assert len(out["industries"]) == 2
         assert out["strong20"][0]["ticker"] == "T11"
+
+
+class TestRegBeta:
+    """_reg_beta 窗口口径：按日历日取窗，而非 NL 观测行数（90 观测 ≈ 126 日历日）。"""
+
+    def test_calendar_window_excludes_old_noise(self):
+        # 最后 ≈81 个日历日内 PX 收益率严格 = 2×NL 收益率；更早区域 PX 加噪声。
+        # 旧口径按观测行数回看 90 行（≈126 日历日）会把噪声卷入 → R² 明显 < 1。
+        idx = pd.bdate_range("2026-01-05", periods=150)  # ≈ 210 日历日
+        r = pd.Series(0.0, index=idx)
+        r[idx >= idx[-58]] = 0.008  # 爬升起点 ≈81 日历日前，安全落在 90 日窗口内
+        nl = 1000.0 * (1 + r).cumprod()
+        rng = np.random.default_rng(0)
+        noise = pd.Series(0.0, index=idx)
+        noise[idx < idx[-70]] = rng.normal(0, 0.03, size=(idx < idx[-70]).sum())
+        px = 100.0 * (1 + 2 * r + noise).cumprod()  # 噪声区在 ≈98 日历日前，窗口外
+        beta, r2 = _reg_beta(nl, px, days=90)
+        assert beta == pytest.approx(2.0, abs=0.05)
+        assert r2 == pytest.approx(1.0, abs=0.02)
+
+    def test_insufficient_data_returns_none(self):
+        idx = pd.bdate_range("2026-08-03", periods=30)
+        nl = pd.Series(1000.0, index=idx)
+        px = pd.Series(2000.0, index=idx)
+        assert _reg_beta(nl, px, days=90) == (None, None)
+
+
+class TestCryptoLiquidity:
+    """crypto() 溢出 KPI 窗口：脉冲/背离双腿均按日历日对齐。"""
+
+    @staticmethod
+    def _fixtures(monkeypatch):
+        # 65 个工作日 ≈ 91 日历日；WALCL 承载两个台阶：
+        # 32 日历日前 -50B（旧 20 观测窗口 ≈28 日历日看不到，
+        # 新 20 日历日更看不到→仅旧口径会多算）
+        # 40 日历日前 -100B（旧 30 观测窗口 ≈43 日历日会看到，新 30 日历日看不到）
+        days = pd.bdate_range("2026-06-01", periods=65)
+        end = days[-1]
+        walcl = pd.Series(6_000_000.0, index=days)  # 百万美元
+        walcl[walcl.index <= end - pd.Timedelta(days=40)] = 6_100_000.0
+        walcl[walcl.index <= end - pd.Timedelta(days=32)] = 6_050_000.0
+        liq = pd.DataFrame(
+            {"WALCL": walcl, "RRPONTSYD": 0.0, "WTREGEN": 0.0}, index=days
+        )
+        # BTC 日频（含周末）：30 日历日 +10%
+        cal = pd.date_range(days[0], end)
+        btc = pd.Series(100.0, index=cal)
+        btc[btc.index > end - pd.Timedelta(days=30)] = 110.0
+        px = pd.DataFrame({"BTC": btc, "ETH": btc / 20, "SPX": 5000.0})
+        monkeypatch.setattr("src.assets_analysis.asset_prices", lambda: px)
+        monkeypatch.setattr("src.assets_analysis._csv", lambda _p, **_kw: liq)
+        return end
+
+    def test_pulse_and_divergence_use_calendar_days(self, monkeypatch):
+        self._fixtures(monkeypatch)
+        out = crypto()["liquidity"]
+        # 两个台阶都在 20/30 日历日窗口之外 → 变化量 0；旧观测行口径会算成 -50/-100
+        assert out["pulse_20d"] == 0
+        assert out["divergence"]["nl"] == 0.0
+        # BTC 腿：双腿同锚 → 30 日历日 +10%
+        assert out["divergence"]["btc"] == pytest.approx(10.0)
+
+    def test_beta_narrative_gated_by_r2(self, monkeypatch):
+        self._fixtures(monkeypatch)
+        out = crypto()["liquidity"]
+        # 构造数据里 NL 与 BTC 无线性关系（R²≈0）→ 不输出「敏感度 X 倍」叙事
+        if (out.get("r2") or 0) >= 0.15:
+            assert "敏感度" in (out["trading"] or "")
+        else:
+            assert "敏感度" not in (out["trading"] or "")
