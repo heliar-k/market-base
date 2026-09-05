@@ -65,28 +65,44 @@ function mkFilter(bar, labels, onPick) {
 function renderStatements(root, data) {
   const sec = document.createElement('div');
   sec.className = 're-section';
-  sec.innerHTML = '<h2>FOMC 货币政策声明</h2><div id="re-filter" style="display:flex;gap:8px;flex-wrap:wrap;font-size:13px;margin-bottom:10px"></div><div id="re-list"></div>';
+  sec.innerHTML = '<h2>FOMC 货币政策声明</h2><div id="re-list"></div>';
   root.appendChild(sec);
   const ALL = data.statements;
   const list = sec.querySelector('#re-list');
-  const render = (filter = 'all') => {
-    list.innerHTML = '';
-    for (const d of ALL) {
-      if (filter !== 'all' && d.kind !== filter) continue;
-      const el = docCard(d, d.url);
-      el.querySelector('.fed-doc-head').insertAdjacentHTML('beforeend',
-        `<span class="fed-doc-meta">${KIND_LABEL[d.kind] || d.kind}</span>`);
-      if (d.hits.length) el.innerHTML += `<div class="fed-doc-hits">信号词: ${d.hits.join(' · ')}</div>`;
-      list.appendChild(el);
-    }
-  };
-  const labels = { ['全部 (' + ALL.length + ')']: 'all' };
+  // 按类型分组折叠（声明默认展开）+ 组内「显示更多」分页
+  const PAGE = 8;
   for (const k of KIND_ORDER) {
-    const n = ALL.filter(x => x.kind === k).length;
-    if (n) labels[`${KIND_LABEL[k]} (${n})`] = k;
+    const docs = ALL.filter(d => d.kind === k);
+    if (!docs.length) continue;
+    const g = document.createElement('div');
+    g.className = 'fed-group' + (k === 'statement' ? '' : ' fed-group-closed');
+    const head = document.createElement('div');
+    head.className = 'fed-group-head';
+    head.innerHTML = `<span class="fed-group-arr">▼</span>${KIND_LABEL[k] || k}<span class="fed-group-cnt">${docs.length} 条 · 最近 ${docs[0].date}</span>`;
+    const body = document.createElement('div');
+    body.className = 'fed-group-body';
+    const more = document.createElement('a');
+    more.className = 'fed-more-btn';
+    let shown = 0;
+    const draw = () => {
+      for (const d of docs.slice(shown, shown + PAGE)) {
+        const el = docCard(d, d.url);
+        el.querySelector('.fed-doc-head').insertAdjacentHTML('beforeend',
+          `<span class="fed-doc-meta">${KIND_LABEL[d.kind] || d.kind}</span>`);
+        if (d.hits.length) el.innerHTML += `<div class="fed-doc-hits">信号词: ${d.hits.join(' · ')}</div>`;
+        body.insertBefore(el, more);
+      }
+      shown = Math.min(shown + PAGE, docs.length);
+      if (shown >= docs.length) more.style.display = 'none';
+      else more.textContent = `显示更多（${shown}/${docs.length}）`;
+    };
+    body.appendChild(more);
+    draw();
+    more.onclick = draw;
+    head.onclick = () => g.classList.toggle('fed-group-closed');
+    g.append(head, body);
+    list.appendChild(g);
   }
-  mkFilter(sec.querySelector('#re-filter'), labels, render);
-  render();
 }
 
 function renderSpeeches(root, data) {
@@ -134,7 +150,7 @@ function renderHawkish(root, data) {
   s1.appendChild(R.table(
     ['姓名', '职位', '投票权', '倾向', '评分', '最近发言'],
     sorted.map(r => ({
-      name: r.name_zh + (r.votes ? '·' : ''),
+      name: r.name_zh,
       role: r.role,
       votes: r.votes ? '投票' : '—',
       label: r.label,
@@ -154,34 +170,71 @@ function renderHawkish(root, data) {
   // ── 时间线：声明（红方块）+ 演讲（蓝点）散点 ──
   const s2 = document.createElement('div');
   s2.className = 're-section';
-  s2.innerHTML = '<h2>鹰鸽立场时间线 <span style="font-weight:400;font-size:12px;color:var(--text-dim)">纵轴 +5 = 极鹰，-5 = 极鸽，0 = 中性</span></h2><div class="fed-chart-tall" id="chart-timeline"></div>';
+  s2.innerHTML = '<h2>鹰鸽立场时间线 <span style="font-weight:400;font-size:12px;color:var(--text-dim)">纵轴 +5 = 极鹰，-5 = 极鸽，0 = 中性；悬停查看发言人与日期</span></h2><div id="tl-filter" style="display:flex;gap:8px;flex-wrap:wrap;font-size:13px;margin-bottom:8px"></div>';
   wrap.appendChild(s2);
-  const mk = (type) => tl.filter(x => x.type === type).map(x => ({
-    name: x.name, value: [x.date, x.score],
-  }));
-  R.mkChart('chart-timeline', (c) => ({
-    backgroundColor: 'transparent',
-    tooltip: {
-      trigger: 'item',
-      formatter: (p) => `${p.data.name}<br>${p.data.value[0]} · ${p.data.value[1] > 0 ? '+' : ''}${p.data.value[1]}`,
-    },
-    grid: { left: 40, right: 16, top: 20, bottom: 40 },
-    xAxis: {
-      type: 'category',
-      data: [...new Set(tl.map(x => x.date))],
-      axisLabel: { color: c.text, fontSize: 10, rotate: 45, hideOverlap: true },
-      axisLine: { lineStyle: { color: c.border } },
-    },
-    yAxis: {
-      type: 'value', min: -5, max: 5,
-      splitLine: { lineStyle: { color: c.grid } },
-      axisLabel: { color: c.text, formatter: (v) => (v > 0 ? '+' + v : v) },
-    },
-    series: [
-      { name: '声明', type: 'scatter', symbol: 'rect', symbolSize: 9, itemStyle: { color: c.red }, data: mk('statement') },
-      { name: '演讲', type: 'scatter', symbolSize: 6, itemStyle: { color: c.blue }, data: mk('speech') },
-    ],
-  }));
+  // time 轴用时间戳（间距真实）；同日同分的演讲点做确定性微抖动防重叠。
+  // 默认只绘近一年：立场随周期漂移，更早的分数对判断当前鹰鸽参考意义有限（可切全部）
+  const ts = (d) => new Date(+d.slice(0, 4), +d.slice(4, 6) - 1, +d.slice(6, 8)).getTime();
+  const fmtDate = (d) => `${d.slice(0, 4)}-${d.slice(4, 6)}-${d.slice(6, 8)}`;
+  const anchor = ts(tl.reduce((m, x) => (x.date > m ? x.date : m), '0'));
+  const mk = (arr, type, jitterIt = false) => {
+    let pts = arr.filter(x => x.type === type).map(x => ({ name: x.name || '—', date: x.date, score: x.score }));
+    if (jitterIt) {
+      const seen = {};
+      pts = pts.map(p => {
+        const k = p.date + '|' + p.score;
+        seen[k] = (seen[k] || 0) + 1;
+        return { ...p, off: ((seen[k] - 1) % 5 - 2) * 0.55 };
+      });
+    }
+    // real = 真实日期（抖动只改 x 坐标，tooltip 显示不受污染）
+    return pts.map(p => ({
+      name: p.name,
+      value: [ts(p.date) + (p.off || 0) * 86400000, p.score],
+      real: fmtDate(p.date),
+    }));
+  };
+  const opt = (c, winDays = 365) => {
+    const sub = winDays ? tl.filter(x => anchor - ts(x.date) <= winDays * 86400000) : tl;
+    return {
+      backgroundColor: 'transparent',
+      legend: { top: 0, textStyle: { color: c.text, fontSize: 11 } },
+      tooltip: {
+        trigger: 'item',
+        formatter: (p) => `${p.data.name}<br>${p.data.real} · ${p.data.value[1] > 0 ? '+' : ''}${p.data.value[1]}`,
+      },
+      grid: { left: 40, right: 16, top: 36, bottom: 40 },
+      xAxis: {
+        type: 'time',
+        axisLabel: { color: c.text, fontSize: 10, hideOverlap: true },
+        axisLine: { lineStyle: { color: c.border } },
+      },
+      yAxis: {
+        type: 'value', min: -5, max: 5, interval: 1,
+        splitLine: { lineStyle: { color: c.grid } },
+        axisLabel: { color: c.text, formatter: (v) => (v > 0 ? '+' + v : v) },
+      },
+      series: [
+        { name: '声明', type: 'scatter', symbol: 'rect', symbolSize: 9, z: 10,
+          itemStyle: { color: c.red, opacity: .85 }, data: mk(sub, 'statement') },
+        { name: '演讲', type: 'scatter', symbolSize: 5, z: 1,
+          itemStyle: { color: c.blue, opacity: .55 }, data: mk(sub, 'speech', true) },
+      ],
+    };
+  };
+  let winDays = 365;
+  let chart = null;
+  const chartDiv = document.createElement('div');
+  chartDiv.className = 'fed-chart-tall';
+  chartDiv.id = 'chart-timeline';
+  chartDiv.style.height = '500px';
+  s2.appendChild(chartDiv);
+  const draw = () => {
+    if (!chart) chart = R.mkChart('chart-timeline', (c) => opt(c, winDays));
+    else chart.setOption(opt(R.colors(), winDays), true);
+  };
+  mkFilter(s2.querySelector('#tl-filter'), { '近半年': 183, '近一年': 365, '全部': 0 }, (k) => { winDays = k; draw(); });
+  draw();
 
   // ── 各官员最新立场表 ──
   const s4 = document.createElement('div');
