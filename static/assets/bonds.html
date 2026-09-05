@@ -49,12 +49,23 @@ async function load() {
   document.getElementById('chart').appendChild(csec);
   R.mkChart('bond-chart', colors => ({
     tooltip: { trigger: 'axis' },
-    legend: { data: keys, textStyle: { color: colors.text }, top: 0 },
+    // ECharts legend icon 不跟随 series 线型（5.6 已验证），改用 formatter 在文字后标注线型（色盲友好）
+    legend: {
+      data: keys,
+      formatter: name => {
+        const t = { solid: '（实线）', dashed: '（虚线）', dotted: '（点线）' };
+        const i = keys.indexOf(name);
+        return i === 3 ? `${name}（点划线）` : `${name}${t[['solid', 'dashed', 'dotted'][i]] || ''}`;
+      },
+      textStyle: { color: colors.text }, top: 0,
+    },
     grid: { left: 44, right: 16, top: 28, bottom: 28 },
     xAxis: { type: 'category', data: rc.dates, axisLine: { lineStyle: { color: colors.border } }, axisLabel: { color: colors.muted, fontSize: 10 } },
     yAxis: { type: 'value', scale: true, axisLabel: { color: colors.muted, fontSize: 11 }, splitLine: { lineStyle: { color: colors.grid } } },
     series: keys.map((k, i) => ({
       name: k, type: 'line', data: rc.series[k], showSymbol: false, smooth: true,
+      // 顶层 color 同步给图例 icon（icon 不读 lineStyle.color，只读 series.color）
+      color: [colors.blue, colors.orange, colors.green, colors.red][i % 4],
       // 线型差异（实线/虚线/点线/点划线）+ 粗细分层，不依赖颜色也能区分（色盲友好）
       lineStyle: { width: [2.5, 2, 2, 2][i], type: ['solid', 'dashed', 'dotted', [6, 3, 2, 3]][i], color: [colors.blue, colors.orange, colors.green, colors.red][i % 4] },
     })),

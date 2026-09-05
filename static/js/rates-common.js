@@ -70,7 +70,8 @@ const R = {
     thead.appendChild(tr);
     table.appendChild(thead);
     const tbody = document.createElement('tbody');
-    const numCol = new Array(headers.length).fill(false);  // 记录数值列，表头随单元格同步右对齐
+    const numCol = new Array(headers.length).fill(false);  // 含真实数值的列，整列右对齐（含 — 占位）
+    const pending = [];  // [td, col, isNum] 先收集后统一应用，避免 — 与数值混排时锯齿
     rows.forEach(row => {
       const r = document.createElement('tr');
       headers.forEach((h, j) => {
@@ -80,18 +81,18 @@ const R = {
         const cell = fmt(row[key], row);
         if (html) td.innerHTML = cell; else td.textContent = cell;
         // 数值列右对齐（纯数字/百分号/负号/单位符号开头），小数位纵向对齐；首列名称保持左对齐。
-        // html 模式下先剥标签再测（如 <span>-0.15</span>）
+        // html 模式下先剥标签再测（如 <span>-0.15</span>）；单位前允许空格（如 "+0.5 pct"）
         const plain = html ? String(cell).replace(/<[^>]+>/g, '').trim() : String(cell).trim();
-        if (j > 0 && /^[-+—]?[$€¥]?[\d.,]+(%|x|bp|pct|k|m|b|t)?$/i.test(plain)) {
-          td.style.textAlign = 'right';
-          numCol[j] = true;
-        }
+        const isNum = j > 0 && /^[-+—]?[$€¥]?[\d.,]+\s?(%|x|bp|pct|k|m|b|t)?$/i.test(plain) && plain !== '—';
+        pending.push([td, j, isNum]);
+        if (isNum) numCol[j] = true;
         r.appendChild(td);
       });
       tbody.appendChild(r);
     });
     table.appendChild(tbody);
-    // 表头跟随数值列右对齐
+    // 统一应用：数值列的所有单元格（含 — 占位）与表头都右对齐，保证列内成线
+    pending.forEach(([td, j, isNum]) => { if (isNum || numCol[j]) td.style.textAlign = 'right'; });
     numCol.forEach((isNum, j) => { if (isNum) thead.rows[0].cells[j].style.textAlign = 'right'; });
     wrap.appendChild(table);
     return wrap;

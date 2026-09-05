@@ -78,8 +78,8 @@ async function load() {
   if (vs.length) {
     R.mkChart('vol_chart', c => ({
       xAxis: { type: 'time', axisLabel: { color: c.muted } },
-      // ponytail: Y 轴用 [min-15%, max+8%] 松弛避免数据贴顶/贴底，若未来数据跨度极大可改 scale:true
-      yAxis: { type: 'value', min: v => Math.max(0, Math.floor((v.min - (v.max - v.min) * 0.15) / 100) * 100), max: v => Math.ceil((v.max + (v.max - v.min) * 0.08) / 100) * 100, axisLabel: { color: c.muted, formatter: v => v + 'B' }, splitLine: { lineStyle: { color: c.grid } } },
+      // ponytail: Y 轴 [min-15%, max+8%] 松弛防贴顶贴底；interval 按范围自适应整数刻度避免标签抽稀不均
+      yAxis: { type: 'value', min: v => Math.max(0, Math.floor((v.min - (v.max - v.min) * 0.15) / 100) * 100), max: v => Math.ceil((v.max + (v.max - v.min) * 0.08) / 100) * 100, interval: 200, axisLabel: { color: c.muted, formatter: v => v + 'B' }, splitLine: { lineStyle: { color: c.grid } } },
       grid: { left: 60, right: 28, bottom: 30, top: 24, containLabel: true },
       tooltip: { trigger: 'axis' },
       series: [{ type: 'line', data: vs.map(q => [q.date, q.value]), lineStyle: { color: c.purple, width: 2 }, showSymbol: false,
