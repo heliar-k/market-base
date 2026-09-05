@@ -55,7 +55,8 @@ async function load() {
     yAxis: { type: 'value', scale: true, axisLabel: { color: colors.muted, fontSize: 11 }, splitLine: { lineStyle: { color: colors.grid } } },
     series: keys.map((k, i) => ({
       name: k, type: 'line', data: rc.series[k], showSymbol: false, smooth: true,
-      lineStyle: { width: 2, color: [colors.blue, colors.orange, colors.green, colors.red][i % 4] },
+      // 线型差异（实线/虚线/点线/点划线）+ 粗细分层，不依赖颜色也能区分（色盲友好）
+      lineStyle: { width: [2.5, 2, 2, 2][i], type: ['solid', 'dashed', 'dotted', [6, 3, 2, 3]][i], color: [colors.blue, colors.orange, colors.green, colors.red][i % 4] },
     })),
   }));
 

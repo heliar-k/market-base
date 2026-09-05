@@ -70,6 +70,7 @@ const R = {
     thead.appendChild(tr);
     table.appendChild(thead);
     const tbody = document.createElement('tbody');
+    const numCol = new Array(headers.length).fill(false);  // 记录数值列，表头随单元格同步右对齐
     rows.forEach(row => {
       const r = document.createElement('tr');
       headers.forEach((h, j) => {
@@ -78,11 +79,20 @@ const R = {
         const fmt = formatters[key] || ((v) => (v === null || v === undefined || v === '' ? '—' : String(v)));
         const cell = fmt(row[key], row);
         if (html) td.innerHTML = cell; else td.textContent = cell;
+        // 数值列右对齐（纯数字/百分号/负号/单位符号开头），小数位纵向对齐；首列名称保持左对齐。
+        // html 模式下先剥标签再测（如 <span>-0.15</span>）
+        const plain = html ? String(cell).replace(/<[^>]+>/g, '').trim() : String(cell).trim();
+        if (j > 0 && /^[-+—]?[$€¥]?[\d.,]+(%|x|bp|pct|k|m|b|t)?$/i.test(plain)) {
+          td.style.textAlign = 'right';
+          numCol[j] = true;
+        }
         r.appendChild(td);
       });
       tbody.appendChild(r);
     });
     table.appendChild(tbody);
+    // 表头跟随数值列右对齐
+    numCol.forEach((isNum, j) => { if (isNum) thead.rows[0].cells[j].style.textAlign = 'right'; });
     wrap.appendChild(table);
     return wrap;
   },

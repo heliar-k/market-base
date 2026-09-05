@@ -84,7 +84,7 @@ function renderFilters() {
   f.innerHTML = `<div class="re-section">
     <h2>ETF 市场温度与筛选</h2>
     <p style="margin:0 0 8px">价格不是孤立数字：用 1周 / 1月 / 3月动量、20日年化波动率和距3月高点回撤，区分趋势与风险。</p>
-    ${chips(cats, curCat, 'f-cat')}${chips(trends, curTrend, 'f-trend')}
+    ${chips(cats, curCat, 'f-cat')}${chips(trends, curTrend, 'f-trend', 'margin-top:14px')}
   </div>`;
   f.querySelectorAll('a[data-v]').forEach(a => a.addEventListener('click', () => {
     if (a.dataset.k === 'f-cat') curCat = a.dataset.v; else curTrend = a.dataset.v;
@@ -92,9 +92,9 @@ function renderFilters() {
     renderPool();
   }));
 }
-// 可点击筛选 chip：统一 re-badge.on 选中态（accent 描边 + 浅底），选中类由 CSS 控制
-function chips(items, cur, kind) {
-  return `<div class="re-badges" style="margin:8px 0 4px">${items.map(c =>
+// 可点击筛选 chip：统一 re-badge.on 选中态（accent 描边 + 浅底），选中类由 CSS 控制；extraStyle 用于第二组与第一组拉开间距
+function chips(items, cur, kind, extraStyle = '') {
+  return `<div class="re-badges" style="margin:8px 0 4px;${extraStyle}">${items.map(c =>
     `<a href="javascript:void(0)" class="re-badge${c === cur ? ' on' : ''}" data-v="${c}" data-k="${kind}">${categories(c)}</a>`).join('')}</div>`;
 }
 

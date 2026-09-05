@@ -7,7 +7,7 @@
 .fed-badge.mid { background: rgba(156,163,175,.15); color: var(--text-secondary); }
 
 /* 文档条目（声明/演讲列表） */
-.fed-doc { border: 1px solid var(--border); border-radius: 8px; background: var(--surface); padding: 12px 16px; }
+.fed-doc { border: 1px solid var(--border); border-radius: 8px; background: var(--surface); padding: 16px 20px; }
 .fed-doc-head { display: flex; gap: 10px; align-items: baseline; flex-wrap: wrap; }
 .fed-doc-title { font-size: 14px; font-weight: 700; color: var(--text); text-decoration: none; }
 .fed-doc-title:hover { color: var(--accent); }

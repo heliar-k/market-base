@@ -4,14 +4,14 @@
 :root {
   --bg: #f5f6f8; --surface: #fff; --surface-hover: #f0f2f5;
   --surface-alt: #fafbfc; --border: #e1e4e8; --border-light: #f0f0f0;
-  --text: #1a1a2e; --text-secondary: #666; --text-dim: #999;
+  --text: #1a1a2e; --text-secondary: #595959; --text-dim: #737373;
   --accent: #1a73e8; --accent-light: #e8f0fe;
   --btn-border: #d1d5db;
 }
 body.dark {
   --bg: #0d1117; --surface: #161b22; --surface-hover: #1c2129;
   --surface-alt: #1c2129; --border: #30363d; --border-light: #21262d;
-  --text: #c9d1d9; --text-secondary: #8b949e; --text-dim: #484f58;
+  --text: #c9d1d9; --text-secondary: #a3adba; --text-dim: #8b949e;
   --accent: #58a6ff; --accent-light: #1f3148;
   --btn-border: #30363d;
 }

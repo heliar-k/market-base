@@ -294,7 +294,7 @@ function renderStress(root, d) {
     wrap.appendChild(hsec);
     R.mkChart('hist-chart', colors => ({
       tooltip: { trigger: 'axis' },
-      grid: { left: 44, right: 16, top: 24, bottom: 28 },
+      grid: { left: 44, right: 34, top: 24, bottom: 28, containLabel: true },
       xAxis: { type: 'category', data: d.history.dates, axisLine: { lineStyle: { color: colors.border } }, axisLabel: { color: colors.muted, fontSize: 11 } },
       yAxis: { type: 'value', min: 0, max: 100, axisLabel: { color: colors.muted, fontSize: 11 }, splitLine: { lineStyle: { color: colors.grid } } },
       series: [{
@@ -303,8 +303,10 @@ function renderStress(root, d) {
         areaStyle: { color: { type: 'linear', x: 0, y: 0, x2: 0, y2: 1, colorStops: [{ offset: 0, color: colors.blue + '44' }, { offset: 1, color: colors.blue + '00' }] } },
         markLine: {
           silent: true, symbol: 'none',
-          data: [{ yAxis: 30, lineStyle: { color: '#26a69a', type: 'dashed' } }, { yAxis: 70, lineStyle: { color: '#ef5350', type: 'dashed' } }],
-          label: { formatter: ({ value }) => value, color: colors.muted, fontSize: 10 },
+          data: [
+            { yAxis: 30, lineStyle: { color: '#26a69a', type: 'dashed' }, label: { formatter: '30', color: colors.muted, fontSize: 10, position: 'insideEndTop' } },
+            { yAxis: 70, lineStyle: { color: '#ef5350', type: 'dashed' }, label: { formatter: '70', color: colors.muted, fontSize: 10, position: 'insideEndTop' } },
+          ],
         },
       }],
     }));
