@@ -147,7 +147,7 @@ async function load() {
   });
   const rsec = document.createElement('div');
   rsec.className = 're-section';
-  rsec.innerHTML = '<h2>近期收盘价（最近 20 个交易日）</h2>';
+  rsec.innerHTML = '<h2>近期收盘价（最近 20 个交易日）</h2><style>#recent .re-table th:nth-child(1), #recent .re-table td:nth-child(1) { width: 120px; }</style>';
   const fmts = { 日期: v => v };
   rkeys.forEach(k => { fmts[k] = v => fmt(v); });
   rsec.appendChild(R.table(['日期'].concat(rkeys), rows, fmts));

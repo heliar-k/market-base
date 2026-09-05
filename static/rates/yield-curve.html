@@ -92,9 +92,10 @@ async function load() {
   // ── 1 月变化柱状图 ──
   R.mkChart('yc_change', (colors) => ({
     tooltip: { trigger: 'axis', valueFormatter: v => `${v} bp` },
-    grid: { top: 28, left: 48, right: 16, bottom: 24 },
+    grid: { top: 28, left: 48, right: 16, bottom: 24, containLabel: false },
+    // 顶部留 16px 防柱顶标签裁切（含 grid.top 合计 ≥ 柱高+标签）
     xAxis: { type: 'category', data: tenors.map(t => t.tenor), axisLabel: { color: colors.muted, fontSize: 10 }, axisLine: { lineStyle: { color: colors.border } } },
-    yAxis: { type: 'value', axisLabel: { color: colors.muted, formatter: '{value} bp' }, scale: true, splitLine: { lineStyle: { color: colors.grid } } },
+    yAxis: { type: 'value', axisLabel: { color: colors.muted, formatter: '{value} bp' }, scale: true, splitLine: { lineStyle: { color: colors.grid } }, max: v => v.max + (v.max - v.min) * 0.12 },
     series: [{
       type: 'bar', barMaxWidth: 36,
       data: tenors.map(t => ({ value: t.chg_1m, itemStyle: { color: (t.chg_1m || 0) >= 0 ? colors.green : colors.red } })),

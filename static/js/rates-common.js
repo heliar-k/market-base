@@ -26,9 +26,9 @@ const R = {
     const dark = R.isDark();
     return {
       text: dark ? '#8b949e' : '#666',
-      muted: dark ? '#484f58' : '#999',
+      muted: dark ? '#6e7681' : '#999',
       border: dark ? '#30363d' : '#e1e4e8',
-      grid: dark ? '#2d333b' : '#f0f0f0',
+      grid: dark ? '#21262d' : '#f0f0f0',
       bg: dark ? '#161b22' : '#fff',
       blue: '#3b82f6', orange: '#ff9800', green: '#26a69a',
       red: '#ef5350', gray: '#9ca3af', purple: '#a78bfa',
@@ -83,7 +83,7 @@ const R = {
         // 数值列右对齐（纯数字/百分号/负号/单位符号开头），小数位纵向对齐；首列名称保持左对齐。
         // html 模式下先剥标签再测（如 <span>-0.15</span>）；单位前允许空格（如 "+0.5 pct"）
         const plain = html ? String(cell).replace(/<[^>]+>/g, '').trim() : String(cell).trim();
-        const isNum = j > 0 && /^[-+—]?[$€¥]?[\d.,]+\s?(%|x|bp|pct|k|m|b|t)?$/i.test(plain) && plain !== '—';
+        const isNum = j > 0 && /^[-+—]?[$€¥]?[\d.,]+\s?(%|x|bp|pct|pp|k|m|b|t)?$/i.test(plain) && plain !== '—';
         pending.push([td, j, isNum]);
         if (isNum) numCol[j] = true;
         r.appendChild(td);

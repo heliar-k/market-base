@@ -7,6 +7,9 @@
 <title>利率定价 — US Macro</title>
 <link rel="stylesheet" href="/css/app.css">
 <link rel="stylesheet" href="/css/special.css">
+<style>/* KPI 8 卡固定 4×2，避免 auto-fit 7 列时第 8 卡孤行 */
+#re-cards .re-cards { grid-template-columns: repeat(4, 1fr); }
+@media (max-width: 900px) { #re-cards .re-cards { grid-template-columns: repeat(2, 1fr); } }</style>
 <script src="/vendor/echarts.min.js"></script>
 </head>
 <body>

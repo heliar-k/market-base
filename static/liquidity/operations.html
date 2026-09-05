@@ -55,11 +55,11 @@ async function load() {
     R.mkChart('rmp_chart', c => ({
       xAxis: { type: 'time', axisLabel: { color: c.muted } },
       yAxis: [
-        { type: 'value', name: '日购买', nameTextStyle: { color: c.muted }, splitLine: { lineStyle: { color: c.grid } }, axisLabel: { color: c.muted, formatter: v => '$' + v + 'B' } },
-        { type: 'value', name: '累计', nameTextStyle: { color: c.muted }, splitLine: { show: false }, axisLabel: { color: c.muted, formatter: v => '$' + v + 'B' } },
+        { type: 'value', name: '日购买', nameTextStyle: { color: c.muted, align: 'left' }, nameGap: 12, splitLine: { lineStyle: { color: c.grid } }, axisLabel: { color: c.muted, formatter: v => '$' + v + 'B' } },
+        { type: 'value', name: '累计', nameTextStyle: { color: c.muted, align: 'right' }, nameGap: 12, splitLine: { show: false }, axisLabel: { color: c.muted, formatter: v => '$' + v + 'B' } },
       ],
       tooltip: { trigger: 'axis' },
-      grid: { left: 70, right: 70, bottom: 30, top: 20, containLabel: true },
+      grid: { left: 70, right: 70, bottom: 30, top: 34, containLabel: true },
       legend: { top: 4, data: ['日购买', '累计购买'], textStyle: { color: c.text } },
       series: [
         { name: '日购买', type: 'bar', data: rs.map(p => [p.date, p.accepted_b]), itemStyle: { color: c.green }, barMaxWidth: 8 },

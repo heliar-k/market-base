@@ -57,9 +57,9 @@ async function load() {
     <div class="re-cards" style="grid-template-columns:repeat(auto-fit,minmax(140px,1fr))">
       <div class="re-card"><div class="re-corridor-label">综合分</div><div class="re-corridor-value" style="color:${rcolor}">${radar.total == null ? '—' : (radar.total >= 0 ? '+' : '') + radar.total}</div>
         <div class="re-card-sub">置信度 ${radar.confidence}/100</div></div>
-      <div class="re-card"><div class="re-corridor-label">24h 偏向</div><div class="re-corridor-value" style="color:${rcolor};font-size:15px">${radar.verdict}</div></div>
-      <div class="re-card"><div class="re-corridor-label">3-7 日结构</div><div class="re-corridor-value" style="font-size:15px">${radar.structure}</div></div>
-      <div class="re-card"><div class="re-corridor-label">杠杆风险</div><div class="re-corridor-value" style="font-size:15px">${radar.lev_risk}</div></div>
+      <div class="re-card"><div class="re-corridor-label">24h 偏向</div><div class="re-corridor-value" style="color:${rcolor};font-size:15px">${radar.verdict}</div><div class="re-card-sub">0-24h 方向</div></div>
+      <div class="re-card"><div class="re-corridor-label">3-7 日结构</div><div class="re-corridor-value" style="font-size:15px">${radar.structure}</div><div class="re-card-sub">中期趋势形态</div></div>
+      <div class="re-card"><div class="re-corridor-label">杠杆风险</div><div class="re-corridor-value" style="font-size:15px">${radar.lev_risk}</div><div class="re-card-sub">永续资金费率口径</div></div>
       <div class="re-card" style="grid-column:span 2"><div class="re-corridor-label">主导力量</div><div class="re-corridor-value" style="font-size:15px">${radar.driver}</div></div>
     </div>
     ${etfMissed ? '<div style="margin-top:10px;padding:8px 12px;border:1px solid var(--warning,#d97706);border-radius:6px;font-size:12px;color:var(--warning,#d97706)">ETF 资金流未接入，不纳入方向评分。</div>' : ''}
@@ -180,7 +180,7 @@ async function load() {
     <div style="border:1px solid ${label === 'Call Wall' ? 'var(--down,#ef5350)' : 'var(--up,#26a69a)'};border-radius:8px;padding:12px;background:var(--surface)">
       <div class="re-corridor-label">${label}</div>
       <div style="font-size:22px;font-weight:700;color:${label === 'Call Wall' ? 'var(--down,#ef5350)' : 'var(--up,#26a69a)'}">$${fmt(v, 0)}</div>
-      <div class="re-card-sub">${oi == null ? '' : `OI ${fmt(oi, 0)} · `}${dist(v, spot) == null ? '' : `距现价 ${dist(v, spot) >= 0 ? '+' : ''}${dist(v, spot).toFixed(1)}%`}</div>
+      <div class="re-card-sub">${oi == null ? '' : `OI ${fmt(oi, 0)}`}${oi != null && dist(v, spot) != null ? ' · ' : ''}${dist(v, spot) == null ? '' : `距现价 ${dist(v, spot) >= 0 ? '+' : ''}${dist(v, spot).toFixed(1)}%`}</div>
     </div>`;
   const topList = (rows) => rows && rows.length ? `
     <div style="margin-top:8px;font-size:12px"><div style="opacity:.7;margin-bottom:4px">Top ${rows.length} 墙</div>
@@ -280,8 +280,8 @@ async function load() {
         <span style="opacity:.7">Spread = 基差 60d EMA − SOFR（真实 carry alpha）；&gt;5% 套利 alpha 充足，&lt;0 为负。</span></div>
       <div class="re-cards" style="grid-template-columns:repeat(auto-fit,minmax(150px,1fr))">
         ${`<div class="re-card"><div class="re-corridor-label">当前基差年化</div><div class="re-corridor-value">${bz.current}%</div><div class="re-card-sub">${bz.latest} · 最新有效</div></div>`}
-        ${`<div class="re-card"><div class="re-corridor-label">30 日均值</div><div class="re-corridor-value">${bz.ma30}%</div></div>`}
-        ${`<div class="re-card"><div class="re-corridor-label">1 年百分位</div><div class="re-corridor-value">${bz.pct_rank}%</div></div>`}
+        ${`<div class="re-card"><div class="re-corridor-label">30 日均值</div><div class="re-corridor-value">${bz.ma30}%</div><div class="re-card-sub">近 30 个有效观测</div></div>`}
+        ${`<div class="re-card"><div class="re-corridor-label">1 年百分位</div><div class="re-corridor-value">${bz.pct_rank}%</div><div class="re-card-sub">区间内相对位置</div></div>`}
         ${`<div class="re-card"><div class="re-corridor-label">Spread（基差−SOFR）</div><div class="re-corridor-value" style="color:${bz.spread != null && bz.spread > 5 ? 'var(--up,#26a69a)' : (bz.spread != null && bz.spread < 0 ? 'var(--down,#ef5350)' : '')}">${bz.spread == null ? '—' : bz.spread + '%'}</div><div class="re-card-sub">SOFR ${bz.sofr}%</div></div>`}
       </div>
       <p class="re-source" style="margin:8px 0 0">公式：basis = (F−S)/S × 365/dte × 100%；治理：dte&lt;10 天跳过 · |basis|&gt;18% 过滤 · 最新未成熟日线跳过（数据完整性 ~35%，近月连续合约 proxy，非 CME 逐合约结算）。</p>`;
@@ -296,7 +296,7 @@ async function load() {
     const exchRows = (cg.exchanges || []).map(e => `
       <div style="display:flex;justify-content:space-between;border-bottom:1px solid var(--border,#333);padding:3px 0;font-size:12px">
         <span style="min-width:70px">${e.name}</span>
-        <span style="opacity:.7">${fmt(e.oi_btc / 1000, 1)}K BTC · $${(e.oi_usd / 1e9).toFixed(2)}B · ${e.share_pct}%</span>
+        <span style="opacity:.7;flex:1;text-align:right;margin-right:12px">${fmt(e.oi_btc / 1000, 1)}K BTC · $${(e.oi_usd / 1e9).toFixed(2)}B · ${e.share_pct}%</span>
         <span style="color:${e.chg_1d_pct >= 0 ? 'var(--up,#26a69a)' : 'var(--down,#ef5350)'}">${e.chg_1d_pct >= 0 ? '+' : ''}${e.chg_1d_pct}%</span>
       </div>`).join('');
     const ls = cg.ls_ratio || {};
