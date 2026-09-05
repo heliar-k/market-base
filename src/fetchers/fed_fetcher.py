@@ -158,15 +158,16 @@ def _fetch_items(
 
 
 def _backfill(out_csv: Path, extra: dict[str, tuple[str, object]]) -> None:
-    """重读 CSV 并回填派生列（幂等；已存在的列跳过，如 fixed 写入的 kind）。
+    """重读 CSV 并回填派生列（幂等，每次全量重算）。
 
-    extra: 列名 → (来源列, 计算函数)。
+    extra: 列名 → (来源列, 计算函数)。派生列是现有列的纯函数
+    （speaker ← id，kind ← title），无条件重算：否则 _fetch_items 追加的新行
+    拿不到派生值（历史上因此丢过新演讲的 speaker）。
     """
     df = pd.read_csv(out_csv, dtype=str)
     df["date"] = df["id"].str.extract(r"(\d{8})")
     for col, (src, fn) in extra.items():
-        if col not in df.columns:
-            df[col] = df[src].map(fn)
+        df[col] = df[src].map(fn)
     df["title"] = df["title"].map(_clean_title)
     df.to_csv(out_csv, index=False)
 

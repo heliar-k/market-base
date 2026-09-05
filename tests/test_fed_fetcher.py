@@ -117,26 +117,51 @@ class TestFetchItems:
         assert df.iloc[0]["kind"] == "minutes"
         assert df.iloc[0]["title"] == "Minutes of the Federal Open Market Committee"
 
-    def test_backfill_keeps_existing_column(self, tmp_path):
-        """已存在的 kind 列不被 _backfill 重算覆盖（fixed 写入的 minutes）。"""
+    def test_backfill_recomputes_existing_column(self, tmp_path):
+        """派生列无条件重算：修复新追加行 speaker 为空的 bug（如 waller20260903）。"""
         import pandas as pd
 
         from src.fetchers import fed_fetcher as ff
 
-        out = tmp_path / "st.csv"
+        out = tmp_path / "sp.csv"
+        pd.DataFrame(
+            [
+                {
+                    "id": "waller20260903a",
+                    "date": "",
+                    "title": "The Economic Outlook",
+                    "speaker": "",
+                    "url": "u",
+                    "body": "b",
+                },
+                {
+                    "id": "fomcminutes20260128",
+                    "date": "",
+                    "title": "Minutes of the Federal Open Market Committee",
+                    "speaker": "",
+                    "url": "v",
+                    "body": "b",
+                },
+            ]
+        ).to_csv(out, index=False)
+        ff._backfill(out, {"speaker": ("id", ff._speaker_of)})
+        df = pd.read_csv(out, dtype=str)
+        assert df.iloc[0]["speaker"] == "Waller"  # 旧逻辑下会保持空串
+        assert df.iloc[0]["date"] == "20260903"  # 日期列正常回填
+
+        # 纪要 fixed kind 与标题重算结果一致：_fetch_items 后再 _backfill 不翻转
+        st = tmp_path / "st.csv"
         pd.DataFrame(
             [
                 {
                     "id": "fomcminutes20260128",
-                    "date": "20260128",
-                    "title": "The Fed - Monetary Policy:",
+                    "date": "",
+                    "title": "Minutes of the Federal Open Market Committee",
                     "kind": "minutes",
                     "url": "u",
                     "body": "b",
                 }
             ]
-        ).to_csv(out, index=False)
-        ff._backfill(out, {"kind": ("title", ff._statement_kind)})
-        df = pd.read_csv(out, dtype=str)
-        assert df.iloc[0]["kind"] == "minutes"  # 标题不含分类词，仍保留 fixed 值
-        assert df.iloc[0]["date"] == "20260128"  # 日期列正常回填
+        ).to_csv(st, index=False)
+        ff._backfill(st, {"kind": ("title", ff._statement_kind)})
+        assert pd.read_csv(st, dtype=str).iloc[0]["kind"] == "minutes"
