@@ -163,17 +163,24 @@ a.re-badge:hover { color: var(--accent); border-color: var(--accent); }
 .proxy-card .value .unit { font-size: 13px; color: var(--text-dim); font-weight: 500; }
 .proxy-card .sub { font-size: 12px; color: var(--text-secondary); }
 .proxy-card .date { font-size: 11px; color: var(--text-dim); margin-top: 4px; }
-.regime-card { display: flex; gap: 20px; align-items: center; padding: 16px 18px; flex-wrap: wrap; }
-.regime-score { text-align: center; min-width: 130px; }
-.regime-score .score { font-size: 40px; font-weight: 800; font-variant-numeric: tabular-nums; line-height: 1; }
-.regime-score .of100 { font-size: 12px; color: var(--text-dim); }
-.regime-score .badge { display: inline-block; margin-top: 6px; padding: 2px 10px; border-radius: 999px; font-size: 12px; font-weight: 600; color: #0f172a; }
-.regime-bars { flex: 1; display: flex; flex-direction: column; gap: 6px; }
-.regime-bar { display: grid; grid-template-columns: 150px 1fr 34px; align-items: center; gap: 8px; font-size: 12px; }
-.regime-bar .track { height: 8px; border-radius: 4px; background: var(--border); overflow: hidden; }
-.regime-bar .fill { height: 100%; border-radius: 4px; }
-.regime-bar .val { text-align: right; font-variant-numeric: tabular-nums; color: var(--text); }
-.regime-bar .dim { color: var(--text-dim); }
+/* Credit Regime Score 记分卡（hero 骨架三分区：左总分块 | 右子分拆解 | 底部口径行） */
+.pos-hero.regime-hero { grid-template-columns: 250px 1fr; gap: 26px; border-left-color: var(--rc-color, #f59e0b); align-items: center; padding: 24px 28px 20px; }
+.rh-main { display: flex; flex-direction: column; gap: 10px; }
+.rh-score { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 2px; }
+.rh-score .num { font-size: 44px; font-weight: 800; font-variant-numeric: tabular-nums; line-height: 1; color: var(--rc-color, #f59e0b); }
+.rh-score .of { font-size: 13px; color: var(--text-secondary); font-weight: 500; }
+.rh-badge { padding: 3px 12px; border-radius: 999px; font-size: 12px; font-weight: 600; }
+.rh-read { font-size: 12px; line-height: 1.75; color: var(--text-secondary); }
+.rh-read .legend { display: block; margin-top: 4px; }
+.rh-bars { display: flex; flex-direction: column; gap: 9px; justify-content: center; border-left: 1px solid var(--border); padding-left: 22px; }
+.rh-bars .rg-bar { display: grid; grid-template-columns: 1fr 34px; align-items: center; gap: 10px; font-size: 12px; }
+.rh-bars .rg-name { color: var(--text); }
+.rh-bars .rg-cn { font-size: 11px; color: var(--text-dim); margin-left: 8px; }
+.rh-bars .track { height: 6px; border-radius: 3px; background: var(--border); overflow: hidden; margin-top: 3px; }
+.rh-bars .fill { height: 100%; border-radius: 3px; }
+.rh-bars .val { text-align: right; font-variant-numeric: tabular-nums; font-weight: 600; }
+.rh-bars .dim { color: var(--text-dim); font-weight: 400; }
+@media (max-width: 900px) { .pos-hero.regime-hero { grid-template-columns: 1fr; } .rh-bars { border-left: none; padding-left: 0; border-top: 1px solid var(--border); padding-top: 14px; } }
 
 @media (max-width: 640px) { .vix-row, .link-grid { grid-template-columns: 1fr; } }
 @media (max-width: 640px) { .oas-row { grid-template-columns: 1fr; } }

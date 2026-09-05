@@ -50,33 +50,47 @@ async function load() {
   ]);
   document.getElementById('re-as-of').textContent = '数据截至 ' + d.as_of;
 
-  // ── Credit Regime Score 记分卡 ──
+  // ── Credit Regime Score 记分卡（对齐持仓页 pos-hero 骨架）──
   const rg = d.regime || { score: null, regime: '—', color: '#999', components: [], missing: [] };
-  const rsec = document.createElement('div');
-  rsec.className = 're-section';
+  // 子分区间色：与后端 REGIME_ZONES 同口径（≤50 偏松绿 / 50-75 偏紧橙 / ≥75 收紧红）
+  const rgColor = v => v === null || v === undefined ? 'var(--text-dim)' : v >= 75 ? '#ef5350' : v >= 50 ? '#ff9800' : '#26a69a';
+  // 子分中文名（英文为 FRED/后端字段名，中文便于快速阅读）
+  const RG_CN = { spread_level: '利差水平', spread_mom: '利差动量', funding_cost: '融资成本', credit_supply: '信贷供给', credit_quality: '贷款质量', market_liq: '市场流动性', cross_asset: '跨资产确认' };
   const bars = rg.components.map(c => {
     const v = c.value;
     const w = v === null || v === undefined ? 0 : v;
-    const bar = `
-      <div class="regime-bar">
-        <span>${c.name}</span>
-        <div class="track"><div class="fill" style="width:${w}%;background:${rg.color}"></div></div>
-        <span class="${v === null ? 'dim' : 'val'}">${v === null ? '—' : v}</span>
+    const col = rgColor(v);
+    return `
+      <div class="rg-bar">
+        <div class="rg-name">${c.name}<span class="rg-cn">${RG_CN[c.key] || ''}</span>
+          <div class="track"><div class="fill" style="width:${w}%;background:${col};${v === null ? '' : 'min-width:2px'}"></div></div>
+        </div>
+        <span class="${v === null ? 'dim' : 'val'}" style="color:${col}">${v === null ? '—' : v}</span>
       </div>`;
-    return bar;
   }).join('');
-  rsec.innerHTML = `
-    <h2>Credit Regime Score</h2>
-    <div class="regime-card">
-      <div class="regime-score">
-        <div class="score" style="color:${rg.color}">${rg.score === null ? '—' : rg.score}</div>
-        <div class="of100">/ 100</div>
-        <div class="badge" style="background:${rg.color}">${rg.regime}</div>
+  const missingNote = rg.missing.length ? `子分数据不足（${rg.missing.join('、')}），综合分按可用子分降级计算。` : '';
+  const rc = document.createElement('div');
+  rc.className = 'pos-hero regime-hero';
+  rc.style.setProperty('--rc-color', rg.color);
+  rc.innerHTML = `
+    <div class="rh-main">
+      <div class="ph-label">CREDIT REGIME SCORE</div>
+      <div class="rh-score">
+        <span class="num">${rg.score === null ? '—' : rg.score}</span>
+        <span class="of">/ 100</span>
+        <span class="rh-badge" style="color:${rg.color};border:1px solid ${rg.color}66;background:${rg.color}1a">${rg.regime}</span>
       </div>
-      <div class="regime-bars">${bars}</div>
+      <div class="rh-read">
+        高分 = 信用压力更大，综合分为 7 子分等权平均。子分颜色随压力变化：<b style="color:#26a69a">绿</b>（≤50 偏松）→ <b style="color:#ff9800">橙</b>（50-75 偏紧）→ <b style="color:#ef5350">红</b>（≥75 收紧）。
+        <span class="legend"><b>读法：</b>Spread Level 与 Cross-Asset Confirmation 同步走高时，压力信号更可信。</span>
+      </div>
     </div>
-    <p class="note">高分 = 信用压力更大；综合分 = 7 子分等权平均。${rg.missing.length ? '子分数据不足（' + rg.missing.join('、') + '），综合分按可用子分降级计算。' : ''}口径：Spread 10Y 分位 · Momentum 22 日变化 · Funding 3Y 分位 · Supply 取 SLOOS 收紧净百分比 · Quality 逾期/核销 10Y 分位 · Liquidity ETF 动量 · Cross-Asset VIX/HY 均值。</p>`;
-  document.getElementById('regime').appendChild(rsec);
+    <div class="rh-bars">${bars}</div>
+    <div class="ph-rules">
+      <span class="ph-rules-label">口径 · 子分构成</span>
+      <span class="ph-rules-text">Spread 10Y 分位 · Momentum 22 日变化 · Funding 3Y 分位 · Supply SLOOS 收紧净百分比 · Quality 逾期/核销 10Y 分位 · Liquidity ETF 动量 · Cross-Asset VIX/HY 均值${missingNote ? ' · ⚠ ' + missingNote : ''}</span>
+    </div>`;
+  document.getElementById('regime').appendChild(rc);
 
   // ── 利差卡片行 ──
   const pctStr = c => c.pct_10y === null || c.pct_10y === undefined
