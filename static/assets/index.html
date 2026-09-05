@@ -155,6 +155,8 @@ async function load() {
             : ['#1d4ed8', '#93c5fd', '#f1f5f9', '#fca5a5', '#dc2626'],
         },
         text: ['强正相关', '强负相关'],
+        // 色带两端刻度数字（-1/1）与 text 端点文字重叠，隐藏数字由 text 表达方向
+        formatter: () => '',
         textStyle: { color: colors.muted, fontSize: 11 },
       },
       series: [{

@@ -175,7 +175,8 @@ async function load() {
   const gridLine = (c) => ({ lineStyle: { color: c.muted, type: 'dashed', width: 1 } });
   R.mkChart('vix_skew_scatter', () => ({
     tooltip: { formatter: (p) => `${p.seriesName === '今日' ? '' : ''}VIX ${p.value[0]} · SKEW ${p.value[1]}<br/>${p.value[2]}` },
-    grid: { left: 55, right: 20, top: 20, bottom: 35 },
+    // right 留 46px 防 x 轴标题（SKEW）右端被裁；markLine 标签位置 end 避免与轴刻度重叠
+    grid: { left: 55, right: 46, top: 28, bottom: 35, containLabel: true },
     xAxis: { ...axis('VIX'), scale: true,
       splitLine: { lineStyle: { color: c.grid } },
     },
@@ -187,10 +188,10 @@ async function load() {
         markLine: {
           silent: true, symbol: 'none', label: { color: c.muted, fontSize: 10 },
           data: [
-            { xAxis: 17, ...gridLine(c), label: { formatter: '17', position: 'start', color: c.muted } },
-            { xAxis: 22, ...gridLine(c), label: { formatter: '22', position: 'start', color: c.muted } },
-            { yAxis: 130, ...gridLine(c), label: { formatter: '130', position: 'start', color: c.muted } },
-            { yAxis: 150, ...gridLine(c), label: { formatter: '150', position: 'start', color: c.muted } },
+            { xAxis: 17, ...gridLine(c), label: { formatter: '17', position: 'end', color: c.muted } },
+            { xAxis: 22, ...gridLine(c), label: { formatter: '22', position: 'end', color: c.muted } },
+            { yAxis: 130, ...gridLine(c), label: { formatter: '130', position: 'end', color: c.muted } },
+            { yAxis: 150, ...gridLine(c), label: { formatter: '150', position: 'end', color: c.muted } },
           ],
         },
       },
