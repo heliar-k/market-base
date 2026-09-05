@@ -150,9 +150,23 @@ def test_etf_signal_scored_when_fresh(monkeypatch, tmp_path):
     assert "ETF" in cons["inst"]["note"]
 
 
-def test_consensus_inst_split_no_crash():
+def test_consensus_inst_split_no_crash(monkeypatch, tmp_path):
     """机构票型分裂（CME 偏多 + Spread 偏空）→ 不 KeyError，verdict 为内部分歧。"""
+    from src import assets_analysis
     from src.assets_analysis import crypto_consensus
+
+    # CME 通道注入 fixture：BTC_OI 周环比 +100% → 恒为偏多。
+    # crypto_consensus 直读真实 cot/cot.csv，不隔离的话 COT 每周 OI 涨跌一翻转
+    # 本测试就跟着翻（历史上因此红过）
+    cot = pd.DataFrame(
+        {"BTC_OI": [100.0, 200.0]},
+        index=pd.bdate_range(end=pd.Timestamp.today().normalize(), periods=2),
+    )
+    cot.index.name = "date"
+    out = tmp_path / "data" / "cot"
+    out.mkdir(parents=True)
+    cot.to_csv(out / "cot.csv")
+    monkeypatch.setattr(assets_analysis, "ROOT", tmp_path)
 
     snap = {
         "etf": {"available": False},
