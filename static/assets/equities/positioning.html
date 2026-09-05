@@ -18,8 +18,7 @@
 
   <div class="re-nav" id="re-nav"></div>
 
-  <p class="pos-rules">基于 CFTC Commitments of Traders 周报（周五收盘、周二 15:30 ET 发布），追踪投机方（对冲基金/资管）净持仓相对 2 年历史区间的极端度。
-    规则：净多头百分位 ≥90 极度看多、≥75 偏多；≤10 极度看空、≤25 偏空；其余中性。</p>
+  <p class="pos-rules">基于 CFTC Commitments of Traders 周报，追踪投机方（对冲基金 / 资管）净持仓相对 2 年历史区间的百分位极端度；每周五收盘统计、周二 15:30 ET 发布，判读规则见下方卡片底部。</p>
 
   <div id="overview"></div>
   <div id="groups"></div>
@@ -45,7 +44,7 @@ async function load() {
 
   renderOverview(d);
   d.groups.forEach(g => renderGroup(g));
-  document.getElementById('re-gen').textContent = '口径：CFTC COT · 净多头百分位 ≥90 极度看多 / ≥75 偏多；≤10 极度看空 / ≤25 偏空；其余中性。2 年窗口期。';
+  document.getElementById('re-gen').textContent = '口径：CFTC COT · 判读规则见页首卡片底部 · 研究参考非投资建议';
 }
 
 // ── Positioning Readthrough（timsun 复刻）──
@@ -61,14 +60,17 @@ function renderOverview(d) {
   <div class="pos-hero">
     <div>
       <div class="ph-label">POSITIONING READTHROUGH</div>
-      <div class="ph-title">${crowdLabel}</div>
-      <div class="ph-sub">拥挤度 ${c == null ? '—' : c.toFixed(1)}/100</div>
+      <div class="ph-title">${crowdLabel}<span class="ph-sub">拥挤度 ${c == null ? '—' : c.toFixed(1)}/100</span></div>
       <div class="ph-desc">${desc}</div>
     </div>
     <div class="ph-side">
-      <div>偏多合约 ${o.counts?.bull ?? '—'} 个，偏空合约 ${o.counts?.bear ?? '—'} 个，极端仓位 ${o.counts?.extreme ?? '—'} 个。</div>
-      <div>百分位越靠近 0 或 100，越说明仓位拥挤；拥挤不是反转信号，但会放大数据反向时的波动。</div>
-      <div><b>读法：</b>价格上涨且净仓增加是趋势确认；价格上涨但净仓下降，是仓位不再追随价格的早期背离。</div>
+      <div>偏多 ${o.counts?.bull ?? '—'} · 偏空 ${o.counts?.bear ?? '—'} · 极端 ${o.counts?.extreme ?? '—'} 个</div>
+      <div>百分位越靠近 0 或 100，仓位越拥挤；拥挤不是反转信号，但会放大反向时的波动。</div>
+      <div><b>读法：</b>价格涨且净仓增是趋势确认；价格涨但净仓降是早期背离。</div>
+    </div>
+    <div class="ph-rules">
+      <span class="ph-rules-label">判读规则 · 净多头百分位（2 年）</span>
+      <span class="ph-rules-text">≥90 极度看多 · ≥75 偏多 · ≤25 偏空 · ≤10 极度看空 · 其余中性</span>
     </div>
   </div>`;
 }

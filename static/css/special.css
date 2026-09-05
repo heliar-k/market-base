@@ -239,24 +239,35 @@ body.dark .re-expectation.hold { background: rgba(156,163,175,.15); color: #9ca3
 .kv-row .kv-k { color: var(--text-dim); font-weight: 600; }
 
 /* ── 持仓追踪（CFTC COT，timsun 复刻）── */
-.pos-rules { font-size: 12px; color: var(--text-secondary); line-height: 1.8; }
-.pos-hero { border: 1px solid var(--border); border-radius: 12px; background: var(--surface); padding: 18px 20px; display: grid; grid-template-columns: 1fr 260px; gap: 16px; border-left: 3px solid #f59e0b; }
+.pos-rules { font-size: 12px; color: var(--text-secondary); line-height: 1.8; max-width: 72ch; }
+.pos-hero { border: 1px solid var(--border); border-radius: 12px; background: var(--surface); padding: 18px 20px 14px; display: grid; grid-template-columns: 1fr 260px; gap: 16px; border-left: 3px solid #f59e0b; }
 .pos-hero .ph-label { font-size: 11px; font-weight: 600; letter-spacing: .08em; color: var(--text-dim); }
-.pos-hero .ph-title { font-size: 24px; font-weight: 800; color: #f59e0b; margin-top: 4px; }
-.pos-hero .ph-sub { font-size: 12px; color: var(--text-secondary); margin-top: 2px; }
-.pos-hero .ph-desc { font-size: 13px; line-height: 1.8; color: var(--text-secondary); margin-top: 10px; }
+.pos-hero .ph-title { font-size: 24px; font-weight: 800; color: #f59e0b; margin-top: 4px; display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.pos-hero .ph-sub { font-size: 12px; color: var(--text-secondary); font-weight: 400; }
+.pos-hero .ph-desc { font-size: 13px; line-height: 1.8; color: var(--text-secondary); margin-top: 14px; }
 .pos-hero .ph-side { font-size: 12px; line-height: 1.75; color: var(--text-secondary); border-left: 1px solid var(--border); padding-left: 16px; display: flex; flex-direction: column; gap: 8px; justify-content: center; }
+.pos-hero .ph-rules { grid-column: 1 / -1; display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 16px; border-top: 1px solid var(--border); margin-top: 12px; padding-top: 12px; }
+.pos-hero .ph-rules-label { font-size: 11px; font-weight: 600; color: var(--text-secondary); letter-spacing: .04em; flex-shrink: 0; }
+.ph-rules-text { font-size: 12px; color: var(--text-secondary); font-variant-numeric: tabular-nums; }
 .pos-group-note { background: var(--surface-alt); border: 1px solid var(--border); border-radius: 8px; padding: 10px 14px; font-size: 12px; line-height: 1.75; color: var(--text-secondary); margin-bottom: 12px; }
 .pos-contract-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+/* 奇数张时末卡通栏，避免右侧留一格空白（股指/利率/外汇组各 3 张）；
+   通栏卡内部改为图表左 / 解读右两栏，避免统计列被拉散、曲线压扁 */
+.pos-contract:last-child:nth-child(odd) { grid-column: 1 / -1; display: grid; grid-template-columns: 1.2fr 1fr; grid-template-areas: "head head" "cols cols" "chart reading" "foot foot"; align-items: center; }
+.pos-contract:last-child:nth-child(odd) .pc-head { grid-area: head; }
+.pos-contract:last-child:nth-child(odd) .pos-cols { grid-area: cols; max-width: 575px; }
+.pos-contract:last-child:nth-child(odd) .pos-chart { grid-area: chart; }
+.pos-contract:last-child:nth-child(odd) .pos-reading { grid-area: reading; }
+.pos-contract:last-child:nth-child(odd) .pos-foot { grid-area: foot; }
 .pos-contract { border: 1px solid var(--border); border-radius: 10px; background: var(--surface); padding: 14px 16px; display: flex; flex-direction: column; gap: 8px; }
 .pos-contract .pc-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; }
 .pos-contract .pc-title { font-size: 15px; font-weight: 700; }
 .pos-contract .pc-code { font-size: 11px; color: var(--text-secondary); margin-top: 2px; }
 .pos-contract .pc-pct { font-size: 11px; color: var(--text-secondary); margin-top: 3px; }
-.pos-contract .pc-badge { display: inline-block; padding: 2px 10px; border-radius: 999px; font-size: 12px; font-weight: 600; }
-.pos-contract .pc-badge.extreme { background: #f8717115; color: #f87171; }
-.pos-contract .pc-badge.bullish { background: #26a69a20; color: #14b8a6; }
-.pos-contract .pc-badge.neutral { background: #9ca3af20; color: #9ca3af; }
+.pc-badge { display: inline-block; padding: 2px 10px; border-radius: 999px; font-size: 12px; font-weight: 600; }
+.pc-badge.extreme { background: #f8717115; color: #f87171; }
+.pc-badge.bullish { background: #26a69a20; color: #14b8a6; }
+.pc-badge.neutral { background: #9ca3af20; color: #9ca3af; }
 .pos-cols { display: flex; justify-content: space-between; gap: 14px; }
 .pos-cols > div { min-width: 0; }
 .pos-cols .k { font-size: 10px; letter-spacing: .06em; color: var(--text-secondary); font-weight: 600; }
@@ -265,7 +276,7 @@ body.dark .re-expectation.hold { background: rgba(156,163,175,.15); color: #9ca3
 .pos-reading { font-size: 12px; line-height: 1.75; color: var(--text-secondary); }
 .pos-foot { font-size: 11px; color: var(--text-secondary); border-top: 1px solid var(--border-light); padding-top: 6px; display: flex; justify-content: space-between; }
 .pos-subtitle { font-size: 12px; color: var(--text-secondary); margin-bottom: 10px; }
-@media (max-width: 900px) { .pos-hero { grid-template-columns: 1fr; } .pos-hero .ph-side { border-left: none; padding-left: 0; } .pos-contract-grid { grid-template-columns: 1fr; } }
+@media (max-width: 900px) { .pos-hero { grid-template-columns: 1fr; } .pos-hero .ph-side { border-left: none; padding-left: 0; } .pos-contract-grid { grid-template-columns: 1fr; } .pos-contract:last-child:nth-child(odd) { grid-template-columns: 1fr; grid-template-areas: "head" "cols" "chart" "reading" "foot"; } }
 
 /* ── 波动率全景仪表盘（timsun 复刻）── */
 .vol-hero { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; margin-bottom: 12px; }
