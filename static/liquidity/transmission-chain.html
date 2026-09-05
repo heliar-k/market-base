@@ -48,7 +48,7 @@ async function load() {
   ].map(([t, id]) => `<a href="#${id}">${t}</a>`).join('');
 
   const d = await R.get('/api/liquidity/transmission-chain');
-  document.getElementById('re-as-of').textContent = d.data_date ? `数据日期: ${d.data_date}` : '';
+  document.getElementById('re-as-of').textContent = d.data_date ? `数据截至 ${d.data_date}` : '';
 
   // ── 主评分卡 ──
   const score = document.createElement('div');

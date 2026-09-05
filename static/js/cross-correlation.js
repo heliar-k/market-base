@@ -257,7 +257,7 @@ function levelLabel(dir, v) {
 function renderMatrix() {
   const d = crossData;
   const sub = document.getElementById('corr-matrix-sub');
-  if (sub) sub.textContent = `as of ${d.as_of} · ${d.window} 日滚动 · 点格子看滚动相关`;
+  if (sub) sub.textContent = `数据截至 ${d.as_of} · ${d.window} 日滚动 · 点格子看滚动相关`;
   const assets = d.assets.map(a => a.name);
   const labels = d.assets.map(a => a.label);
 
@@ -719,7 +719,7 @@ export function updateStatus() {
   if (mode === 'asset') {
     document.getElementById('status-count').textContent = crossData
       ? `${crossData.assets.length} 资产 · ${crossData.window}d 相关` : '';
-    document.getElementById('status-range').textContent = crossData ? `as of ${crossData.as_of}` : '';
+    document.getElementById('status-range').textContent = crossData ? `数据截至 ${crossData.as_of}` : '';
   } else {
     document.getElementById('status-count').textContent = activePreset
       ? `${activePreset.indicators.length} 指标` : '';

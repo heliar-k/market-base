@@ -880,9 +880,10 @@ def page_operations() -> dict:
     )
     liq = _liq_daily()
     srf = _csv(ROOT / "data" / "fred/liquidity/srf.csv")
-    out: dict = {"rmp": {}, "recent": [], "soma": {}, "srf": {}}
+    out: dict = {"rmp": {}, "recent": [], "soma": {}, "srf": {}, "as_of": ""}
     if ops.empty:
         return out
+    out["as_of"] = str(ops["settlement_date"].max().date())
     rmp = ops[ops["is_rmp"] == True].copy()  # noqa: E712
     if not rmp.empty:
         start = rmp["settlement_date"].min()
@@ -1119,9 +1120,11 @@ def page_subsurface() -> dict:
         "srf": {},
         "swap": {},
         "composite": {},
+        "as_of": "",
     }
     if rates.empty:
         return out
+    out["as_of"] = str(rates.index[-1])[:10]
     pct = {}
     for col, name in [
         ("SOFR1", "1分位"),

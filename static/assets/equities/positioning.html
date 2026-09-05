@@ -40,7 +40,7 @@ function num(v) { return v == null ? '—' : Number(v).toLocaleString(); }
 async function load() {
   const d = await R.get('/api/assets/positioning');
   if (!d.latest_report) { R.fail(['overview', 'groups'], new Error('COT 数据不足')); return; }
-  document.getElementById('re-as-of').textContent = '最新报告日 ' + d.latest_report + ' · 投机方：股指/利率/外汇 = 对冲基金（Leveraged Money），商品 = 管理资金（Managed Money）';
+  document.getElementById('re-as-of').textContent = `数据截至 COT 报告 ${d.latest_report} · 投机方：股指/利率/外汇 = 对冲基金（Leveraged Money），商品 = 管理资金（Managed Money）`;
 
   renderOverview(d);
   d.groups.forEach(g => renderGroup(g));

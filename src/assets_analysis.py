@@ -1188,6 +1188,7 @@ def fx() -> dict:
     return {
         "breadth": {"groups": breadth, "overall": overall, "group_pairs": group_pairs},
         "dashboard": rows,
+        "as_of": str(df.index[-1])[:10],
     }
 
 

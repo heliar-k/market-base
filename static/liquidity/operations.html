@@ -41,6 +41,7 @@ async function load() {
   ].map(([t, id]) => `<a href="#${id}">${t}</a>`).join('');
 
   const d = await R.get('/api/liquidity/operations');
+  document.getElementById('re-as-of').textContent = d.as_of ? `数据截至 ${d.as_of}` : '';
   const rmp = d.rmp || {};
   document.getElementById('re-rmp-cards').appendChild(R.cards([
     { label: '启动日期', value: rmp.start || '—', sub: '技术性操作（补充银行准备金），非 QE' },

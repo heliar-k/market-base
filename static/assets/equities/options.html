@@ -70,7 +70,7 @@ function mk(id, option) {
 async function load() {
   D = await R.get('/api/assets/equities-options');
   if (!D || !D.symbols) { R.fail(['detail', 'board'], new Error('无期权结构快照')); return; }
-  document.getElementById('re-as-of').textContent = '快照时间 · ' + (D.date || '');
+  document.getElementById('re-as-of').textContent = D.date ? `数据截至 期权快照 ${D.date}` : '';
 
   renderRegime();
   renderBoard();

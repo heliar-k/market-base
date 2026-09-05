@@ -36,6 +36,7 @@ async function load() {
   ].map(([t, id]) => `<a href="#${id}">${t}</a>`).join('');
 
   const d = await R.get('/api/liquidity/subsurface');
+  document.getElementById('re-as-of').textContent = d.as_of ? `数据截至 ${d.as_of}` : '';
   const comp = d.composite || {};
   const stateColor = comp.state === '承压' ? '#ef5350' : comp.state === '轻微' ? '#ffb74d' : '#26a69a';
   const bar = (label, v, max, color) => `
