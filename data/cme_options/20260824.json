@@ -1,1 +1,61 @@
-{"ts":"2026-08-24T21:22:12Z","title":"CME BTC 期货期权墙","as_of":"2026-08-24","call_total_oi":458,"put_total_oi":379,"total_oi":837,"pcr_oi":0.83,"call_wall":10500,"call_wall_oi":158,"put_wall":7000,"put_wall_oi":31,"top_calls":[{"strike":10500,"oi":158},{"strike":7000,"oi":29},{"strike":6700,"oi":23},{"strike":7200,"oi":20},{"strike":6500,"oi":16}],"top_puts":[{"strike":7000,"oi":31},{"strike":4850,"oi":24},{"strike":5500,"oi":24},{"strike":5900,"oi":23},{"strike":6700,"oi":20}],"max_pain":{"strike":6700,"pain":78925}}
+{
+  "ts": "2026-08-24T21:22:12Z",
+  "title": "CME BTC \u671f\u8d27\u671f\u6743\u5899",
+  "as_of": "2026-08-24",
+  "call_total_oi": 458,
+  "put_total_oi": 379,
+  "total_oi": 837,
+  "pcr_oi": 0.83,
+  "call_wall": 10500,
+  "call_wall_oi": 158,
+  "put_wall": 7000,
+  "put_wall_oi": 31,
+  "top_calls": [
+    {
+      "strike": 10500,
+      "oi": 158
+    },
+    {
+      "strike": 7000,
+      "oi": 29
+    },
+    {
+      "strike": 6700,
+      "oi": 23
+    },
+    {
+      "strike": 7200,
+      "oi": 20
+    },
+    {
+      "strike": 6500,
+      "oi": 16
+    }
+  ],
+  "top_puts": [
+    {
+      "strike": 7000,
+      "oi": 31
+    },
+    {
+      "strike": 4850,
+      "oi": 24
+    },
+    {
+      "strike": 5500,
+      "oi": 24
+    },
+    {
+      "strike": 5900,
+      "oi": 23
+    },
+    {
+      "strike": 6700,
+      "oi": 20
+    }
+  ],
+  "max_pain": {
+    "strike": 6700,
+    "pain": 78925
+  }
+}

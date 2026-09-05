@@ -28,9 +28,11 @@ from src.server import (  # noqa: PLC2701 复用路由函数
     _RANGE_MONTHS,
     HTTPException,
     _sanitize,
+    get_assets_prices,
     get_credit_cds,
     get_credit_overview,
     get_credit_stress,
+    get_cross_asset,
     get_diag,
     get_fed_overview,
     get_fomc_calendar,
@@ -192,6 +194,8 @@ def export_api() -> None:
     _safe("api/credit/cds", get_credit_cds)
     _safe("api/credit/stress", get_credit_stress)
     _safe("api/inflation/overview", get_inflation_overview)
+    _safe("api/cross-asset", get_cross_asset)
+    _safe("api/assets/prices", get_assets_prices)
     _safe("api/treasury/overview", get_treasury_overview)
     _safe("api/labor/overview", get_labor_overview)
 

@@ -1,1 +1,71 @@
-{"ts":"2026-09-04T21:21:29Z","title":"Coinglass 全市场衍生品聚合","all_open_interest_usd":138894177817,"liq24h_usd":475643251,"liq24h_chg_pct":-13.93,"ls_ratio":{"long_pct":49.61,"short_pct":50.39},"btc_oi_btc":691090.0,"btc_oi_usd":55070000000.0,"exchanges":[{"name":"CME","oi_btc":110110.0,"oi_usd":8770000000.0,"share_pct":15.92,"chg_1d_pct":5.38},{"name":"Binance","oi_btc":142980.0,"oi_usd":11390000000.0,"share_pct":20.68,"chg_1d_pct":-5.33},{"name":"OKX","oi_btc":35150.0,"oi_usd":2800000000.0,"share_pct":5.08,"chg_1d_pct":-7.82},{"name":"Bybit","oi_btc":64360.0,"oi_usd":5130000000.0,"share_pct":9.31,"chg_1d_pct":-7.38},{"name":"KuCoin","oi_btc":17070.0,"oi_usd":1360000000.0,"share_pct":2.46,"chg_1d_pct":-7.58},{"name":"Gate","oi_btc":58390.0,"oi_usd":4650000000.0,"share_pct":8.44,"chg_1d_pct":-8.77},{"name":"Bitget","oi_btc":26080.0,"oi_usd":2080000000.0,"share_pct":3.77,"chg_1d_pct":-3.94},{"name":"BingX","oi_btc":15840.0,"oi_usd":1260000000.0,"share_pct":2.29,"chg_1d_pct":-11.38}]}
+{
+  "ts": "2026-09-04T21:21:29Z",
+  "title": "Coinglass \u5168\u5e02\u573a\u884d\u751f\u54c1\u805a\u5408",
+  "all_open_interest_usd": 138894177817,
+  "liq24h_usd": 475643251,
+  "liq24h_chg_pct": -13.93,
+  "ls_ratio": {
+    "long_pct": 49.61,
+    "short_pct": 50.39
+  },
+  "btc_oi_btc": 691090.0,
+  "btc_oi_usd": 55070000000.0,
+  "exchanges": [
+    {
+      "name": "CME",
+      "oi_btc": 110110.0,
+      "oi_usd": 8770000000.0,
+      "share_pct": 15.92,
+      "chg_1d_pct": 5.38
+    },
+    {
+      "name": "Binance",
+      "oi_btc": 142980.0,
+      "oi_usd": 11390000000.0,
+      "share_pct": 20.68,
+      "chg_1d_pct": -5.33
+    },
+    {
+      "name": "OKX",
+      "oi_btc": 35150.0,
+      "oi_usd": 2800000000.0,
+      "share_pct": 5.08,
+      "chg_1d_pct": -7.82
+    },
+    {
+      "name": "Bybit",
+      "oi_btc": 64360.0,
+      "oi_usd": 5130000000.0,
+      "share_pct": 9.31,
+      "chg_1d_pct": -7.38
+    },
+    {
+      "name": "KuCoin",
+      "oi_btc": 17070.0,
+      "oi_usd": 1360000000.0,
+      "share_pct": 2.46,
+      "chg_1d_pct": -7.58
+    },
+    {
+      "name": "Gate",
+      "oi_btc": 58390.0,
+      "oi_usd": 4650000000.0,
+      "share_pct": 8.44,
+      "chg_1d_pct": -8.77
+    },
+    {
+      "name": "Bitget",
+      "oi_btc": 26080.0,
+      "oi_usd": 2080000000.0,
+      "share_pct": 3.77,
+      "chg_1d_pct": -3.94
+    },
+    {
+      "name": "BingX",
+      "oi_btc": 15840.0,
+      "oi_usd": 1260000000.0,
+      "share_pct": 2.29,
+      "chg_1d_pct": -11.38
+    }
+  ]
+}

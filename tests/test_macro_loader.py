@@ -258,3 +258,82 @@ def test_server_get_liquidity_overview_correct(tmp_path, monkeypatch):
     assert out["summary"]["RRPONTSYD"]["latest_value"] == pytest.approx(1200)
     stacked_rrp = out["stacked"]["RRPONTSYD"][-1]["value"]
     assert stacked_rrp == pytest.approx(3_300_000 + 750_000 + 1200)
+
+
+# ── 跨资产相关性面板端点（关联分析视图数据流）──────────────────────────────
+
+
+def test_server_get_cross_asset_correct(tmp_path, monkeypatch):
+    """get_cross_asset：矩阵对齐 + 报警对全字段 + as_of 提取。"""
+    monkeypatch.setattr("src.config.ROOT", tmp_path)
+
+    cross = tmp_path / "data" / "cross_asset"
+    cross.mkdir(parents=True)
+    # 矩阵 CSV 与 cross_asset.main() 输出同构：date 行 + 矩阵行
+    (cross / "correlation.csv").write_text(
+        "asset,SPX,TLT\ndate,2026-09-04,2026-09-04\nSPX,1.0,0.5\nTLT,0.5,1.0\n"
+    )
+    pd.DataFrame(
+        {
+            "date": ["2026-09-03", "2026-09-04"],
+            "SPX_TLT_30d": [0.4, 0.5],
+            "WTI_SPX_30d": [-0.6, -0.6],
+            "DXY_HYG_30d": [None, -0.4],
+            "MOVE_SPX_30d": [None, -0.3],
+        }
+    ).to_csv(cross / "alerts.csv", index=False)
+
+    from src.server import get_cross_asset
+
+    out = get_cross_asset()
+
+    assert out["as_of"] == "2026-09-04"
+    assert [a["name"] for a in out["assets"]] == ["SPX", "TLT"]
+    assert out["assets"][0]["group"] == "equity"
+    assert out["matrix"] == [[1.0, 0.5], [0.5, 1.0]]
+    assert len(out["alerts"]) == 4
+    spx_tlt = next(a for a in out["alerts"] if a["key"] == "SPX_TLT_30d")
+    assert spx_tlt["latest"] == 0.5
+    assert spx_tlt["prev"] == 0.4
+    assert spx_tlt["series"][-1] == {"date": "2026-09-04", "value": 0.5}
+
+
+def test_server_get_cross_asset_missing_file(tmp_path, monkeypatch):
+    """correlation.csv 缺失 → 404 带修复命令（README 式空状态）。"""
+    monkeypatch.setattr("src.config.ROOT", tmp_path)
+
+    from fastapi import HTTPException
+
+    from src.server import get_cross_asset
+
+    with pytest.raises(HTTPException) as e:
+        get_cross_asset()
+    assert e.value.status_code == 404
+    assert "cross_asset" in e.value.detail
+
+
+def test_server_get_assets_prices_correct(tmp_path, monkeypatch):
+    """get_assets_prices：volume 列剔除 + NaN → null + date ISO 字符串。"""
+    monkeypatch.setattr("src.config.ROOT", tmp_path)
+
+    yf = tmp_path / "data" / "yfinance"
+    yf.mkdir(parents=True)
+    pd.DataFrame(
+        {
+            "SPX": [5000.0, None],
+            "SPX_volume": [1e9, 1.1e9],
+            "BTC": [60000.0, 61000.0],
+        },
+        index=pd.to_datetime(["2026-09-03", "2026-09-04"]),
+    ).to_csv(yf / "asset_prices.csv", index_label="date")
+
+    from src.server import get_assets_prices
+
+    out = get_assets_prices()
+
+    rows = out["prices"]
+    assert len(rows) == 2
+    assert "SPX_volume" not in rows[0]
+    assert rows[0]["SPX"] == 5000.0
+    assert rows[1]["SPX"] is None  # NaN → null（JSON 序列化安全）
+    assert rows[0]["date"] == "2026-09-03"

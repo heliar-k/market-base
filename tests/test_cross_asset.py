@@ -3,7 +3,13 @@
 import numpy as np
 import pandas as pd
 
-from src.cross_asset import compute_correlation_matrix
+from src.cross_asset import (
+    ALERTS,
+    ASSETS,
+    GROUP_LABELS,
+    TICKERS,
+    compute_correlation_matrix,
+)
 
 N = 60
 K = np.arange(N)
@@ -51,3 +57,43 @@ def test_trailing_short_column_computes_with_min_periods():
     m, _ = compute_correlation_matrix(df)
     assert abs(m.loc["ETH", "SPX"] - 1.0) < 1e-6
     assert abs(m.loc["ETH", "ETH"] - 1.0) < 1e-6
+
+
+# ── 22 标的 + 4 报警对（关联分析面板数据流）────────────────────
+
+
+def test_full_ticker_set_alerts_populated():
+    """22 标的全量输入：矩阵形状 + 4 个报警对标量齐全（DXY_HYG/MOVE_SPX 回归）。"""
+    rng = np.random.default_rng(7)
+    n = 60
+    base = rng.normal(0, 0.01, n)
+    df = pd.DataFrame(
+        {
+            t: 100 * np.cumprod(1 + base * (1 if i % 2 else -1))
+            for i, t in enumerate(TICKERS)
+        },
+        index=pd.date_range("2026-01-01", periods=n),
+    )
+    m, a = compute_correlation_matrix(df)
+    assert list(m.columns) == list(TICKERS)
+    assert len(a) == 4
+    assert set(a) == {"SPX_TLT_30d", "WTI_SPX_30d", "DXY_HYG_30d", "MOVE_SPX_30d"}
+    for v in a.values():
+        assert -1 <= v <= 1
+
+
+def test_alerts_labels_match_keys():
+    """每个报警对都有中文标签（server payload 直接消费）。"""
+    assert all(len(label) > 0 for _i, _j, _key, label in ALERTS)
+    assert {key for _i, _j, key, _label in ALERTS} == {
+        "SPX_TLT_30d",
+        "WTI_SPX_30d",
+        "DXY_HYG_30d",
+        "MOVE_SPX_30d",
+    }
+
+
+def test_assets_metadata_covers_all_tickers():
+    """矩阵标的与分组元数据一一对应（热力图分组建模依赖）。"""
+    assert set(ASSETS) == set(TICKERS)
+    assert set(GROUP_LABELS) == {a["group"] for a in ASSETS.values()}

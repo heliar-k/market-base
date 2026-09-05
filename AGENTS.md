@@ -32,7 +32,7 @@ market-base/
 │   ├── bill_share.py             ← 日频 Bill 占比（MSPD 锚 + 拍卖净发行派生）
 │   ├── pricing.py                ← 定价收敛点（compute_gex / sell_put / hedge_planner 三处重复的 BS 定价收敛）
 │   ├── options_structure.py      ← 期权结构快照分析（GEX/DEX/Vanna/Charm 13 标的面板）
-│   ├── cross_asset.py            ← 跨资产 30 日相关性矩阵（派生，依赖资产快照）
+│   ├── cross_asset.py            ← 跨资产相关性面板数据（22 标的 30 日矩阵 + 4 结构报警对，派生，依赖资产快照）
 │   ├── sell_put.py               ← Sell Put 选点位（期权墙 + 技术面交叉）
 │   ├── hedge_planner.py          ← 下跌保护结构报价器（put / 价差 / 领口）
 │   ├── server.py                 ← FastAPI Web 后端（45 routes，组合根：import 全部分析层）
@@ -371,6 +371,18 @@ uv run python src/sell_put.py --symbol TSM
 - **import**: 先标准库 → 第三方 → `src.*`（`isort` 自动处理）
 - **测试**: pytest 测试套件（`tests/`，547 个测试），用 `tmp_path` 隔离 + autouse fixture 清理缓存。运行 `uv run python -m pytest`
 - **分析层约定**: 专题分析模块（`*_analysis.py`）只读 CSV 不写盘，读 CSV 统一走 `src/analysis_utils.py` 的 `read_csv_or_empty`，不各写各的 `_read`
+
+### 8. 主站 Web UI/UX 设计原则（新面板/重构对齐用）
+
+主站 = `static/index.html` SPA（仪表盘/技术/宏观/关联四视图）+ 专题静态页（rates/credit/assets/…，timsun 复刻）。新面板与重构遵守：
+
+- **主题只走 CSS 变量**：颜色一律用 `:root` / `body.dark` 定义的 `var(--bg/--surface/--border/--text/--accent/…)`（见 `static/css/app.css` 顶部），禁止硬编码背景/文字色；亮暗双主题都要可用。ECharts 图统一 `echarts-theme.js` 的 `macro`/`macroDark` 主题 + `reThemeECharts` 响应 `theme-changed` 事件
+- **复用既有类，不造平行组件**：卡片 `.chart-card`、控件条 `.controls`/`.range-controls`/`.range-btn`、数据行 `.diag-row`、语义色 `.up/.down/.neutral`、统计卡 `.dash-stat`/`.dash-card`；只给面板私有结构加 `面板名-` 前缀的新类
+- **「先看结构、再看数据」双层节奏**：面板第一屏给结论层（状态条/评分/报警/规则引擎叙事，一眼可读），下层给可交互的数据层（图/表/热力图），两层通过点击联动（点结论→定位数据，点数据→弹出明细）
+- **微观数据须有宏观锚点**：展示单资产/单指标时，附带其在全局中的坐标（分组、分位、相对强弱），避免孤立数字
+- **工具栏模式统一**：预设/模式切换按钮置顶（`.range-btn` 风格），日期范围按钮居右（`macro-common.js` 的 `MACRO_DATE_RANGES`），状态写进底部状态栏（`updateStatus()` 约定）
+- **分析层 vs 展示层**：叙事文本由 Python 规则引擎（`*_analysis.py`）或前端常量表生成，前端不做复杂计算；图表数据走 `/api/*` 端点，静态部署走 `src/export_pages.py` 预渲染（新端点必须注册）
+- **README 式空状态**：数据缺失时给出原因与修复命令（如「IBKR 未启动，运行 ./bin/fetch_xxx」），不白屏不静默
 
 ---
 

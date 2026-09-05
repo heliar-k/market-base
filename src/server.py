@@ -1209,6 +1209,84 @@ def get_assets_fx() -> dict:
     return fx()
 
 
+@app.get("/api/assets/prices")
+def get_assets_prices() -> dict:
+    """资产价格全量宽表（关联面板 drill-down 用：任意两标的滚动相关 + 归一化）。"""
+    from src.config import (
+        ROOT,  # 函数内 import：与 macro.py 同模式，测试 monkeypatch 生效
+    )
+
+    path = ROOT / "data" / "yfinance" / "asset_prices.csv"
+    if not path.exists():
+        raise HTTPException(
+            404, "asset_prices.csv 不存在（先运行 ./bin/fetch_yfinance）"
+        )
+    df = pd.read_csv(path, index_col="date", parse_dates=True)
+    df = df[[c for c in df.columns if not c.endswith("_volume")]]
+    df = df.round(4).reset_index()
+    df["date"] = df["date"].dt.strftime("%Y-%m-%d")
+    # replace 而非 where：float 列上 where(cond, None) 会把 None 当 NaN → 静默 no-op
+    return {"prices": df.replace({np.nan: None}).to_dict(orient="records")}
+
+
+@app.get("/api/cross-asset")
+def get_cross_asset() -> dict:
+    """跨资产相关性面板：30 日相关矩阵 + 结构报警对日序列（关联分析视图）。"""
+    from src.config import (
+        ROOT,  # 函数内 import：与 macro.py 同模式，测试 monkeypatch 生效
+    )
+    from src.cross_asset import ALERTS, ASSETS, GROUP_LABELS, WINDOW
+
+    matrix_path = ROOT / "data" / "cross_asset" / "correlation.csv"
+    if not matrix_path.exists():
+        raise HTTPException(
+            404, "correlation.csv 不存在（先运行 uv run python -m src.cross_asset）"
+        )
+    raw = pd.read_csv(matrix_path, index_col="asset")
+    as_of = str(raw.loc["date"].iloc[0])
+    assets = [a for a in raw.columns if a in ASSETS]
+    sub = raw.drop(index="date")[assets].loc[assets]  # 双轴对齐到已知标的
+
+    alerts_path = ROOT / "data" / "cross_asset" / "alerts.csv"
+    alerts = []
+    if alerts_path.exists():
+        adf = pd.read_csv(alerts_path, index_col="date")
+        for _i, _j, key, label in ALERTS:
+            if key not in adf.columns:
+                continue
+            s = adf[key].dropna()
+            if s.empty:
+                continue
+            latest = float(s.iloc[-1])
+            prev = float(s.iloc[-2]) if len(s) >= 2 else latest
+            alerts.append(
+                {
+                    "key": key,
+                    "label": label,
+                    "latest": latest,
+                    "prev": prev,
+                    "series": [
+                        {"date": d, "value": round(float(v), 4)} for d, v in s.items()
+                    ],
+                }
+            )
+
+    return {
+        "as_of": as_of,
+        "window": WINDOW,
+        "assets": [
+            {"name": a, "group": ASSETS[a]["group"], "label": ASSETS[a]["label"]}
+            for a in assets
+        ],
+        "groups": GROUP_LABELS,
+        "matrix": [
+            [None if pd.isna(v) else round(float(v), 4) for v in row]
+            for row in sub.values
+        ],
+        "alerts": alerts,
+    }
+
+
 # ── static files (must be last) ─────────────────────────────────────────────
 
 _static = ROOT / "static"
