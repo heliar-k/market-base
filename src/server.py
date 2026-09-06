@@ -325,6 +325,35 @@ def get_macro_presets():
                 "left_axis": ["DXY"],
                 "right_axis": ["SPREAD_2S10S"],
             },
+            # 宏观×资产对：资产序列不在 FRED CSV，由前端从 /api/assets/prices
+            # 拼接（asset 字段标注列名）
+            {
+                "id": "cpi_spx",
+                "name": "通胀 vs 美股",
+                "description": "CPI 与标普500的联动（通胀驱动 vs 盈利驱动）",
+                "indicators": ["CPI", "SPX"],
+                "left_axis": ["CPI"],
+                "right_axis": ["SPX"],
+                "asset": {"SPX": "SPX"},
+            },
+            {
+                "id": "credit_hy",
+                "name": "信用利差 vs 高收益债",
+                "description": "HY OAS 与 HYG 价格（利差走阔 = 价格下跌，负相关为常态）",  # noqa: E501
+                "indicators": ["HY_OAS", "HYG"],
+                "left_axis": ["HY_OAS"],
+                "right_axis": ["HYG"],
+                "asset": {"HYG": "HYG"},
+            },
+            {
+                "id": "rates_tlt",
+                "name": "10Y 利率 vs 长债",
+                "description": "10 年期收益率与 TLT 价格（久期负相关）",
+                "indicators": ["DGS10", "TLT"],
+                "left_axis": ["DGS10"],
+                "right_axis": ["TLT"],
+                "asset": {"TLT": "TLT"},
+            },
         ]
     }
 

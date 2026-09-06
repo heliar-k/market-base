@@ -91,7 +91,8 @@ let matrixChart = null;
 let drillChart = null;
 let corrChart = null;
 let corrObserver = null;
-let dateRange = 'all';
+let dateRange = '5y'; // 默认 5 年：78 年全量下近期联动不可读，All 保留可选
+let seriesMapCache = null; // 宏观模式最近一次渲染的 seriesMap（状态栏数据截至用）
 
 // ── init ───────────────────────────────────────────────────────────────────
 export async function initCorrelationView() {
@@ -132,7 +133,7 @@ function renderUI() {
       <button class="range-btn${mode === 'asset' ? ' active' : ''}" data-mode="asset">资产相关</button>
       <button class="range-btn${mode === 'macro' ? ' active' : ''}" data-mode="macro">宏观联动</button>
     </div>
-    <div class="corr-mode-title" id="corr-mode-title">${mode === 'asset' ? '跨资产相关性 · 结构观察' : '宏观指标联动 overlay'}</div>
+    <div class="correlation-presets" id="corr-presets" style="padding:0;border:none;flex:1"></div>
     <div class="correlation-date-toolbar" id="corr-date-toolbar" style="display:none"></div>`;
   toolbar.querySelectorAll('[data-mode]').forEach(btn => {
     btn.addEventListener('click', () => switchMode(btn.dataset.mode));
@@ -493,12 +494,29 @@ function renderInsights(d) {
   });
 }
 
-// ── 宏观联动模式（保留原 overlay 功能）─────────────────────────────────────
+// ── 宏观联动模式（重设计：结论层状态卡 + overlay 卡 + 滚动相关卡）────────────────
+// 数据双源：FRED 指标走 /api/macro/correlate，资产序列（ALL_INDICATORS.assets）走 /api/assets/prices
+const MACRO_ROLL = 90; // 滚动相关窗口（观测点数；月频指标即 90 个月）
+
 function renderMacroSkeleton(wrap) {
   wrap.innerHTML = `
-    <div class="correlation-presets" id="corr-presets"></div>
-    <div class="correlation-controls" id="corr-macro-controls"></div>
-    <div id="correlation-chart"></div>`;
+    <div class="corr-status-row" id="corr-macro-status"><div class="loading" style="height:auto;padding:24px">加载中…</div></div>
+    <div class="corr-main" style="grid-template-columns:3fr 2fr">
+      <div class="corr-matrix-pane">
+        <div class="corr-pane-head">
+          <span class="corr-pane-title" id="corr-macro-title">—</span>
+          <span class="corr-pane-sub" id="corr-macro-sub"></span>
+        </div>
+        <div class="corr-macro-chips" id="correlation-custom-controls"></div>
+        <div id="correlation-chart" class="corr-macro-chart"></div>
+        <div class="corr-pane-foot" id="corr-macro-foot">数据源：FRED · 资产序列 yfinance asset_prices · 混频按日期对齐</div>
+      </div>
+      <div class="corr-side-pane">
+        <div class="corr-pane-head"><span class="corr-pane-title">滚动相关</span><span class="corr-pane-sub">窗口自适应（≤90 观测点）</span></div>
+        <div id="corr-macro-roll" class="corr-macro-roll"><div class="loading" style="height:auto;padding:24px">加载中…</div></div>
+      </div>
+    </div>`;
+  // 预设按钮组 + 日期范围组都挂工具栏（renderUI 已建容器）
   const presetsBar = document.getElementById('corr-presets');
   presetsBar.innerHTML = presets.map(p =>
     `<button class="correlation-preset-btn" data-id="${p.id}">${p.name}</button>`
@@ -509,20 +527,14 @@ function renderMacroSkeleton(wrap) {
       if (preset) loadPreset(preset);
     });
   });
-  const controls = document.getElementById('corr-macro-controls');
   const dateToolbar = document.getElementById('corr-date-toolbar');
   dateToolbar.style.display = 'flex';
-  dateToolbar.innerHTML = MACRO_DATE_RANGES.filter(r => r.months <= 60).map(r =>
+  dateToolbar.innerHTML = MACRO_DATE_RANGES.map(r =>
     `<button class="macro-range-btn${r.value === dateRange ? ' active' : ''}" data-range="${r.value}">${r.label}</button>`
   ).join('');
   dateToolbar.querySelectorAll('.macro-range-btn').forEach(btn => {
     btn.addEventListener('click', () => setDateRange(btn.dataset.range));
   });
-  controls.appendChild(dateToolbar);
-  const custom = document.createElement('div');
-  custom.className = 'correlation-custom';
-  custom.id = 'correlation-custom-controls';
-  controls.appendChild(custom);
 }
 
 const ALL_INDICATORS = {
@@ -536,7 +548,12 @@ const ALL_INDICATORS = {
   sentiment: ['UMCSENT', 'STLFSI4'],
   fx: ['DXY'],
   derived: ['SPREAD_2S10S', 'SPREAD_3M10S', 'SPREAD_5S30S', 'NET_LIQUIDITY', 'BEI_5Y', 'BEI_7Y', 'BEI_10Y', 'BEI_20Y', 'BEI_30Y', 'SOFR_IORB_SPREAD_BP'],
+  // 资产序列（与 FRED 指标同图 overlay；数据源 /api/assets/prices）
+  assets: ['SPX', 'NDX', 'TLT', 'HYG', 'LQD', 'Gold', 'WTI', 'BTC', 'DXY', 'MOVE'],
 };
+const ASSET_LABELS = { SPX: '标普500', NDX: '纳斯达克100', TLT: '长期国债 ETF', HYG: '高收益债 ETF', LQD: '投资级债 ETF', Gold: '黄金', WTI: 'WTI 原油', BTC: '比特币', DXY: '美元指数', MOVE: 'MOVE 债市波动' };
+const indicatorLabel = (name) => ASSET_LABELS[name] || MACRO_LABELS[name] || name;
+const isAsset = (name) => !!ASSET_LABELS[name];
 
 function loadPreset(preset) {
   activePreset = { ...preset };
@@ -558,9 +575,9 @@ function renderCustomControls() {
     const dot = document.createElement('span');
     dot.style.cssText = `width:8px;height:8px;border-radius:50%;background:${MACRO_COLORS[idx % MACRO_COLORS.length]}`;
     chip.appendChild(dot);
-    const axis = activePreset.left_axis.includes(ind) ? 'L' : 'R';
+    const axis = activePreset.left_axis.includes(ind) ? '左' : '右';
     const label = document.createElement('span');
-    label.textContent = `${ind} (${axis})`;
+    label.textContent = `${indicatorLabel(ind)} (${axis}轴)`;
     chip.appendChild(label);
     if (activePreset.indicators.length > 2) {
       const remove = document.createElement('span');
@@ -585,51 +602,183 @@ function showAddIndicator(btn) {
   const existing = new Set(activePreset.indicators);
   const select = document.createElement('select');
   select.className = 'correlation-select';
+  select.appendChild(new Option('选择指标…', ''));
   for (const [cat, metrics] of Object.entries(ALL_INDICATORS)) {
     const optgroup = document.createElement('optgroup');
-    optgroup.label = cat === 'fx' ? 'FX' : cat.charAt(0).toUpperCase() + cat.slice(1);
+    optgroup.label = cat === 'fx' ? 'FX' : cat === 'assets' ? '资产' : cat.charAt(0).toUpperCase() + cat.slice(1);
     metrics.forEach(m => {
       if (!existing.has(m)) {
         const opt = document.createElement('option');
         opt.value = m;
-        opt.textContent = `${m} — ${MACRO_LABELS[m] || m}`;
+        opt.textContent = `${m} — ${indicatorLabel(m)}`;
         optgroup.appendChild(opt);
       }
     });
     if (optgroup.children.length) select.appendChild(optgroup);
   }
   btn.replaceWith(select);
+  select.focus();
   select.addEventListener('change', () => {
     if (select.value) addIndicator(select.value);
   });
+  select.addEventListener('blur', () => renderCustomControls()); // 未选时还原为 + 按钮
 }
 
 async function loadAndRender() {
   if (!activePreset) return;
   try {
-    const indicators = activePreset.indicators.join(',');
-    // 本地 dev：FastAPI 按 indicators 返回；静态版：构建期转全量 correlate.json，本地过滤
-    const res = await fetch(`/api/macro/correlate?indicators=${encodeURIComponent(indicators)}`);
-    if (!res.ok) throw new Error(`API error: ${res.status}`);
-    const all = await res.json();
-    const json = { indicators: {} };
-    for (const name of activePreset.indicators) {
-      if (all.indicators[name]) json.indicators[name] = all.indicators[name];
-    }
+    // 双源拆分：FRED 指标走 correlate，资产序列走 prices（预设 asset 字段或 ALL_INDICATORS.assets）
+    const fredNames = activePreset.indicators.filter(n => !isAsset(n));
+    const assetNames = activePreset.indicators.filter(isAsset);
 
     const seriesMap = {};
-    for (const [name, info] of Object.entries(json.indicators)) {
-      const filtered = applyDateFilter(info.data, dateRange);
-      seriesMap[name] = {
-        data: filtered.filter(d => d.value != null).map(d => [d.date, d.value]),
-        label: info.label,
-      };
+    if (fredNames.length) {
+      // 本地 dev：FastAPI 按 indicators 返回；静态版：构建期转全量 correlate.json，本地过滤
+      const res = await fetch(`/api/macro/correlate?indicators=${encodeURIComponent(fredNames.join(','))}`);
+      if (!res.ok) throw new Error(`API error: ${res.status}`);
+      const all = await res.json();
+      for (const name of fredNames) {
+        const info = all.indicators[name];
+        if (!info) continue;
+        const filtered = applyDateFilter(info.data, dateRange);
+        seriesMap[name] = {
+          data: filtered.filter(d => d.value != null).map(d => [d.date, d.value]),
+          label: info.label,
+        };
+      }
     }
+    if (assetNames.length) {
+      if (!pricesCache) {
+        const res = await fetch('/api/assets/prices');
+        if (!res.ok) throw new Error(`API error: ${res.status}`);
+        pricesCache = await res.json();
+      }
+      for (const name of assetNames) {
+        const rows = pricesCache.prices
+          .filter(r => r[name] != null)
+          .map(r => ({ date: r.date, value: r[name] }));
+        seriesMap[name] = { data: applyDateFilter(rows, dateRange).map(d => [d.date, d.value]), label: indicatorLabel(name) };
+      }
+    }
+    renderMacroStatus(seriesMap);
     renderChart(seriesMap);
+    renderRollingCorr(seriesMap);
+    seriesMapCache = seriesMap;
   } catch (e) {
     const chartEl = document.getElementById('correlation-chart');
     if (chartEl) chartEl.innerHTML = `<div class="loading">加载失败: ${e.message}</div>`;
   }
+}
+
+// 结论层状态卡：每对（左轴 × 右轴）当前区间滚动相关 + 叙事
+function corrNarrative(c) {
+  if (c == null) return '数据不足';
+  if (c >= 0.7) return '高度同向';
+  if (c >= 0.3) return '同向联动';
+  if (c > -0.3) return '弱相关 · 独立运行';
+  if (c > -0.7) return '反向联动';
+  return '高度反向';
+}
+
+function corrClass(c) {
+  if (c == null) return 'neutral';
+  if (c >= 0.7) return 'down';   // 高度同向 = 分散化失效，结构恶化
+  if (c >= 0.3) return 'neutral';
+  return 'up';                   // 负相关 = 有对冲价值
+}
+
+function rollingSeries(a, b) {
+  // 混频对齐（月频 CPI × 日频 SPX）：按 asof 语义前向填充——每个日期取各自「最新可用值」，
+  // 否则月频与日频的日期几乎不相交，精确 join 下有效对永远不足
+  const fa = ffillMap(a), fb = ffillMap(b);
+  const dates = [...new Set([...fa.dates, ...fb.dates])].sort();
+  // 窗口自适应：5Y 月频只有 60 点，固定 90 点窗口会永远凑不够 —— 取总点的 1/3，下限 12
+  const win = Math.max(12, Math.min(MACRO_ROLL, Math.floor(dates.length / 3)));
+  const out = [];
+  for (let k = win - 1; k < dates.length; k++) {
+    const xs = [], ys = [];
+    for (let m = k - win + 1; m <= k; m++) {
+      const va = asof(fa, dates[m]), vb = asof(fb, dates[m]);
+      if (va != null && vb != null) { xs.push(va); ys.push(vb); }
+    }
+    if (xs.length < Math.max(6, Math.floor(win / 2))) { out.push([dates[k], null]); continue; }
+    out.push([dates[k], pearson(xs, ys)]); // 水平相关：直接对原始值（非收益率）——宏观指标看同向性
+  }
+  return out;
+}
+
+// [date,value] 对 → {dates: 有观测日期有序数组, values: 对应非空值}（供 asof 前向查询）
+function ffillMap(pairs) {
+  const clean = pairs.filter(p => p[1] != null).sort((x, y) => x[0] < y[0] ? -1 : 1);
+  return { dates: clean.map(p => p[0]), values: clean.map(p => p[1]) };
+}
+
+// asof 查询：日期 d 之前（含）最近一次观测值；早于首个观测返回 undefined
+function asof(series, d) {
+  // 二分找最后一个 <= d 的观测
+  let lo = 0, hi = series.dates.length - 1, ans = -1;
+  while (lo <= hi) {
+    const mid = (lo + hi) >> 1;
+    if (series.dates[mid] <= d) { ans = mid; lo = mid + 1; } else { hi = mid - 1; }
+  }
+  return ans < 0 ? undefined : series.values[ans];
+}
+
+function renderMacroStatus(seriesMap) {
+  const row = document.getElementById('corr-macro-status');
+  if (!row) return;
+  const names = activePreset.indicators.filter(n => seriesMap[n]);
+  const left = names.filter(n => activePreset.left_axis.includes(n) || (activePreset.left_axis.length === 0 && n === names[0]));
+  const right = names.filter(n => !left.includes(n));
+  const cards = [];
+  for (const l of left) {
+    for (const r of right) {
+      const series = rollingSeries(seriesMap[l].data, seriesMap[r].data);
+      const valid = series.filter(s => s[1] != null);
+      const cur = valid.length ? valid[valid.length - 1][1] : null;
+      const prev = valid.length > 1 ? valid[valid.length - 2][1] : null;
+      const arrow = cur != null && prev != null ? (cur > prev ? '▲' : cur < prev ? '▼' : '—') : '';
+      cards.push(`
+        <div class="dash-stat corr-status-card" style="cursor:default">
+          <div class="dash-stat-label">${indicatorLabel(l)} × ${indicatorLabel(r)}</div>
+          <div class="dash-stat-value ${corrClass(cur)}">${cur == null ? '—' : (cur >= 0 ? '+' : '') + cur.toFixed(2)}</div>
+          <div class="dash-stat-desc">滚动相关（水平值）· ▲▼ = 较上一窗口回升/回落</div>
+          <div class="dash-stat-change">${corrNarrative(cur)} <i class="${cur != null && prev != null && cur !== prev ? (cur > prev ? 'up' : 'down') : 'neutral'}" style="font-style:normal">${arrow}</i></div>
+        </div>`);
+    }
+  }
+  row.innerHTML = cards.join('') || '<div class="loading" style="height:auto;padding:16px">至少需要两个序列</div>';
+}
+
+function renderRollingCorr(seriesMap) {
+  const box = document.getElementById('corr-macro-roll');
+  if (!box) return;
+  const names = activePreset.indicators.filter(n => seriesMap[n]);
+  const left = names.filter(n => activePreset.left_axis.includes(n));
+  const right = names.filter(n => !left.includes(n));
+  box.innerHTML = '';
+  for (const l of left) {
+    for (const r of right) {
+      const series = rollingSeries(seriesMap[l].data, seriesMap[r].data);
+      const card = document.createElement('div');
+      card.className = 'corr-insight-card';
+      card.innerHTML = `<div class="corr-insight-head"><b>${indicatorLabel(l)} × ${indicatorLabel(r)}</b></div><div class="corr-roll-chart" style="height:120px"></div>
+        <div class="corr-insight-text">${corrNarrative(series.filter(s => s[1] != null).slice(-1)[0]?.[1])} · 相关性变化比绝对水平更重要：快速上升 = 两个市场被同一力量驱动。</div>`;
+      box.appendChild(card);
+      const dom = card.querySelector('.corr-roll-chart');
+      const dark = document.body.classList.contains('dark');
+      const chart = echarts.init(dom, dark ? 'macroDark' : 'macro', { renderer: 'canvas' });
+      chart.setOption({
+        grid: { left: 28, right: 8, top: 6, bottom: 18 },
+        xAxis: { type: 'time', axisLabel: { fontSize: 9 } },
+        yAxis: { type: 'value', min: -1, max: 1, axisLabel: { fontSize: 9 }, splitLine: { show: true, lineStyle: { opacity: .4 } } },
+        visualMap: { show: false, min: -1, max: 1, inRange: { color: dark ? ['#60a5fa', '#f87171'] : ['#1d4ed8', '#dc2626'] } },
+        series: [{ type: 'line', data: series, showSymbol: false, connectNulls: true, lineStyle: { width: 1.4 } }],
+        tooltip: { trigger: 'axis', valueFormatter: v => v == null ? '—' : v.toFixed(2) },
+      });
+    }
+  }
+  if (!box.children.length) box.innerHTML = '<div class="corr-insight-text">至少需要两个序列才能计算滚动相关</div>';
 }
 
 function renderChart(seriesMap) {
@@ -640,16 +789,32 @@ function renderChart(seriesMap) {
   chartEl.innerHTML = '';
   if (!activePreset) return;
 
+  // 图例用完整指标名，不与轴名重叠：轴名去掉，左轴蓝/右轴橙由系列色区分
   const needDual = activePreset.left_axis.length > 0 && activePreset.right_axis.length > 0;
+  // 右轴多序列时量级混叠（如 HYG ~80 与 NDX ~30000 共轴）：右轴序列归一化（期初=100）
+  const rightNames = activePreset.indicators.filter(n => activePreset.right_axis.includes(n));
+  const normRight = needDual && rightNames.length > 1;
 
-  const yAxis = [{ type: 'value', scale: true, splitNumber: 4, name: activePreset.left_axis.join('/') || '' }];
-  if (needDual) {
-    yAxis.push({ type: 'value', scale: true, splitNumber: 4, name: activePreset.right_axis.join('/') || '' });
+  // 卡头：预设名 + 数据截至 + 预设描述（叙事）
+  const sub = document.getElementById('corr-macro-sub');
+  if (sub) {
+    const lastDates = Object.values(seriesMap).map(s => s.data.length ? s.data[s.data.length - 1][0] : null).filter(Boolean);
+    sub.textContent = lastDates.length ? `数据截至 ${lastDates.sort().slice(-1)[0]}` : '';
   }
+  const title = document.getElementById('corr-macro-title');
+  if (title) title.textContent = activePreset.name;
+  const desc = document.getElementById('corr-macro-foot');
+  if (desc) desc.textContent = (activePreset.description || '数据源：FRED · 资产序列 yfinance asset_prices · 混频按日期对齐') + (normRight ? ' · 右轴多序列已归一化（期初=100）' : '');
+  const yAxis = [{ type: 'value', scale: true, splitNumber: 4 }];
+  if (needDual) yAxis.push({ type: 'value', scale: true, splitNumber: 4, position: 'right' });
 
   const series = activePreset.indicators.map((name, idx) => {
-    const info = seriesMap[name];
+    let info = seriesMap[name];
     if (!info || !info.data.length) return null;
+    if (normRight && rightNames.includes(name)) {
+      const base = info.data.find(d => d[1] != null)?.[1];
+      if (base) info = { ...info, data: info.data.map(d => [d[0], d[1] == null ? null : +(d[1] / base * 100).toFixed(2)]) };
+    }
     const color = MACRO_COLORS[idx % MACRO_COLORS.length];
     const isLeft = activePreset.left_axis.includes(name);
     return {
@@ -667,8 +832,8 @@ function renderChart(seriesMap) {
   const chart = echarts.init(chartEl, document.body.classList.contains('dark') ? 'macroDark' : 'macro', { renderer: 'canvas' });
   corrChart = chart;
   chart.setOption({
-    legend: { show: series.length > 1, top: 4, right: 8 },
-    grid: { left: '3%', right: needDual ? '8%' : '4%', bottom: 56, top: series.length > 1 ? 40 : 16, containLabel: true },
+    legend: { show: series.length > 1, top: 4, left: 8, type: 'scroll', itemWidth: 14, textStyle: { fontSize: 11 } },
+    grid: { left: '3%', right: needDual ? '6%' : '4%', bottom: 56, top: series.length > 1 ? 32 : 12, containLabel: true },
     xAxis: { type: 'time', boundaryGap: false },
     yAxis,
     tooltip: { trigger: 'axis', axisPointer: { type: 'cross' } },
@@ -722,8 +887,9 @@ export function updateStatus() {
     document.getElementById('status-range').textContent = crossData ? `数据截至 ${crossData.as_of}` : '';
   } else {
     document.getElementById('status-count').textContent = activePreset
-      ? `${activePreset.indicators.length} 指标` : '';
-    document.getElementById('status-range').textContent = activePreset
-      ? activePreset.name || '' : '';
+      ? `${activePreset.indicators.length} 序列 · ${activePreset.name}` : '';
+    const lastDates = activePreset && Object.values(seriesMapCache || {}).map(s => s.data.length ? s.data[s.data.length - 1][0] : null).filter(Boolean);
+    document.getElementById('status-range').textContent = lastDates && lastDates.length
+      ? `数据截至 ${lastDates.sort().slice(-1)[0]}` : '';
   }
 }

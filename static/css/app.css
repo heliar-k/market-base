@@ -315,6 +315,13 @@ body { font-family: system-ui, -apple-system, sans-serif; background: var(--bg);
 .corr-drill-close { border: none; background: none; font-size: 18px; cursor: pointer; color: var(--text-dim); line-height: 1; }
 .corr-drill-close:hover { color: #e91e63; }
 .corr-macro-wrap { flex: 1; display: flex; flex-direction: column; min-height: 0; }
+/* 宏观联动重设计：复用资产模式卡片骨架的配套样式 */
+.corr-macro-chips { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; padding: 6px 14px 0; }
+.corr-macro-chart { flex: 1; min-height: 360px; }
+.corr-pane-foot { font-size: 11px; color: var(--text-dim); padding: 6px 14px 10px; border-top: 1px solid var(--border-light); }
+.corr-macro-roll { display: flex; flex-direction: column; gap: 8px; padding: 10px 12px; overflow-y: auto; }
+.corr-roll-chart { margin-top: 4px; }
+.correlation-presets { display: flex; gap: 6px; flex-wrap: wrap; }
 
 /* ── tech info bar ─────────────────────────────────────── */
 .tech-info-bar {
