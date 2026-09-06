@@ -3,6 +3,7 @@
 (function () {
   // 专题间 Tab（总入口）
   var TABS = [
+    ['今日研判', '/daily/'],
     ['大类资产', '/assets/'],
     ['利率', '/rates/'],
     ['通胀', '/inflation/'],

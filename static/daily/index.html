@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>今日研判 — US Macro</title>
+<link rel="stylesheet" href="/css/app.css">
+<link rel="stylesheet" href="/css/special.css">
+<script src="/js/rates-common.js"></script>
+</head>
+<body>
+<div class="re-root">
+  <div class="re-header">
+    <h1>今日研判</h1>
+    <span class="re-as-of" id="re-as-of"></span>
+  </div>
+
+  <div class="re-nav" id="re-nav"></div>
+
+  <div class="re-badges" id="db-badges"></div>
+  <p class="re-source" id="db-note"></p>
+
+  <div class="re-h2">同一组事实，三种可能解释</div>
+  <div class="re-cards" id="db-scenarios"><div class="re-loading">加载中…</div></div>
+
+  <div class="re-badges" id="db-fomc"></div>
+
+  <div class="re-h2" id="sec-table">跨资产变化</div>
+  <p class="re-source">先看价格事实，再解释背后的机制。涨跌颜色只表示数值方向；变化按各序列最近 5 / 20 个有效观测计算，迷你趋势使用独立纵轴，不比较振幅大小。</p>
+  <div id="db-table"><div class="re-loading">加载中…</div></div>
+
+  <div id="sec-alerts" style="display:none">
+    <div class="re-h2">跨资产结构报警</div>
+    <div class="re-cards" id="db-alerts"></div>
+  </div>
+
+  <div class="re-h2">沿着问题，进入专题</div>
+  <div class="link-grid">
+    <a class="link-card" href="/rates/">
+      <span class="icon">🏦</span>
+      <div><div class="t">宏观主线：利率</div><div class="d">曲线形态研判、实际利率与联储预期四段文</div></div>
+    </a>
+    <a class="link-card" href="/credit/">
+      <span class="icon">💳</span>
+      <div><div class="t">信用周期</div><div class="d">OAS 分层 + SLOOS + 压力仪表盘</div></div>
+    </a>
+    <a class="link-card" href="/inflation/">
+      <span class="icon">📈</span>
+      <div><div class="t">通胀</div><div class="d">CPI/PCE 分项、预期与 Shapiro 供需分解</div></div>
+    </a>
+    <a class="link-card" href="/liquidity/">
+      <span class="icon">💧</span>
+      <div><div class="t">美元流动性</div><div class="d">净流动性、RRP/TGA 与 LPI 压力指数</div></div>
+    </a>
+    <a class="link-card" href="/volatility/">
+      <span class="icon">🌪️</span>
+      <div><div class="t">波动率</div><div class="d">VIX 水平、期限结构与 30 指数全景</div></div>
+    </a>
+    <a class="link-card" href="/assets/">
+      <span class="icon">🌍</span>
+      <div><div class="t">大类资产</div><div class="d">股/债/商品/ETF/外汇/加密六板块快照</div></div>
+    </a>
+  </div>
+
+  <div class="re-gen" id="db-gen"></div>
+</div>
+
+<script src="/js/nav.js"></script>
+<script>
+// ── 格式化 ──
+function fmtLast(unit, v) {
+  if (v == null) return '—';
+  if (unit === 'bn') return v >= 1e6 ? '$' + (v / 1e6).toFixed(2) + 'T' : v >= 1e3 ? '$' + Math.round(v / 1e3 * 10) / 10 + 'B' : '$' + Math.round(v).toLocaleString('en-US') + 'M';
+  if (unit === 'pct_bp') return Number(v).toFixed(2) + '%';
+  if (unit === 'bp') return Number(v).toFixed(1) + 'bp';
+  if (unit === 'pt') return Number(v).toFixed(2);
+  return Number(v).toLocaleString('en-US', { maximumFractionDigits: 2 });
+}
+function fmtChg(unit, v) {
+  if (v == null) return '<span style="color:var(--text-muted)">—</span>';
+  const s = v > 0 ? '+' : '';
+  if (unit === 'pct_bp' || unit === 'bp') return `<span class="${v > 0 ? 'up' : v < 0 ? 'down' : ''}">${s}${v.toFixed(1)}bp</span>`;
+  if (unit === 'pt') return `<span class="${v > 0 ? 'up' : v < 0 ? 'down' : ''}">${s}${v.toFixed(2)}pt</span>`;
+  if (unit === 'bn') { const a = Math.abs(v); const f = a >= 1e6 ? (v / 1e6).toFixed(2) + 'T' : a >= 1e3 ? '$' + Math.round(v / 1e3) + 'B' : '$' + Math.round(v) + 'M'; return `<span class="${v > 0 ? 'up' : v < 0 ? 'down' : ''}">${s}${f}</span>`; }
+  return `<span class="${v > 0 ? 'up' : v < 0 ? 'down' : ''}">${s}${v.toFixed(2)}%</span>`;
+}
+// 涨跌着色语义：价格上行=up 绿（与全站一致）；VIX/OAS 上行是风险信号，但颜色只表示方向（见页首说明）
+function sparkSVG(points) {
+  if (!points || points.length < 2) return '';
+  const vals = points.map(p => p[1]);
+  const min = Math.min(...vals), max = Math.max(...vals), span = max - min || 1;
+  const W = 110, H = 30, step = W / (points.length - 1);
+  const xy = points.map((p, i) => `${(i * step).toFixed(1)},${(H - 2 - (p[1] - min) / span * (H - 4)).toFixed(1)}`);
+  const up = vals[vals.length - 1] >= vals[0];
+  return `<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" style="vertical-align:middle">
+    <polyline points="${xy.join(' ')}" fill="none" stroke="${up ? '#26a69a' : '#ef5350'}" stroke-width="1.5"/></svg>`;
+}
+// 时效：行数据日期距全表最新 ≤4 自然日 → 正常（覆盖周末），否则滞后
+function freshness(rowAsOf, maxAsOf) {
+  if (!rowAsOf || !maxAsOf) return ['—', ''];
+  const lag = (new Date(maxAsOf) - new Date(rowAsOf)) / 86400000;
+  return lag <= 4 ? ['时效正常', ''] : [`滞后 ${Math.round(lag)} 天`, 'down'];
+}
+
+const LINKS = {
+  SPX: '/assets/equities.html', DXY: '/assets/fx.html', BTC: '/assets/crypto.html',
+  WTI: '/assets/commodities.html', Gold: '/assets/commodities.html',
+  Y10: '/rates/yield-curve.html', VIX: '/volatility/vix.html', HY_OAS: '/credit/',
+  RRP: '/liquidity/rrp-tga.html', TGA: '/liquidity/rrp-tga.html',
+  NET_LIQ: '/liquidity/fed-balance-sheet.html',
+};
+
+async function load() {
+  const [brief, rex] = await Promise.allSettled([
+    R.get('/api/daily-brief'),
+    R.get('/api/rate-expectations'),
+  ]);
+  if (brief.status !== 'fulfilled') {
+    document.getElementById('db-scenarios').innerHTML =
+      '<div class="re-error">今日研判数据加载失败，请确认服务已启动（uv run python -m src.server）</div>';
+    document.getElementById('db-table').innerHTML = '';
+    return;
+  }
+  const d = brief.value;
+  const ind = d.indicators || { as_of: null, rows: [] };
+
+  document.getElementById('re-as-of').textContent = `数据截至 ${ind.as_of ?? '—'}`;
+  document.getElementById('db-gen').textContent =
+    `研判生成：${d.generator === 'llm' ? 'LLM' : '规则引擎（LLM 预留）'} · 情景为规则匹配结果，不是发生概率；经济机制仍需原始数据与事件验证`;
+
+  // ── 定调徽章行 ──
+  const matched = (d.scenarios || []).filter(s => s.matched);
+  const headline = matched.length
+    ? `主导情景：${matched.map(s => s.title).join(' + ')}`
+    : '跨资产信号分化，无主导情景';
+  document.getElementById('db-badges').innerHTML = `
+    <span class="re-badge ${matched.length ? 'bull' : 'flat'}">${headline}</span>
+    <span class="re-badge chip">命中 ${matched.length} / ${(d.scenarios || []).length} 个解释框架</span>`;
+  document.getElementById('db-note').textContent =
+    '以下情景按共同观测日期对齐，用最近 5 个观测间隔检验价格方向。先核验再形成方向判断。';
+
+  // ── 情景卡 ──
+  document.getElementById('db-scenarios').innerHTML = (d.scenarios || []).map(s => `
+    <div class="re-card" style="${s.matched ? 'border-color:#26a69a' : 'opacity:.75'}">
+      <div class="re-corridor-label">${s.title}
+        <span class="re-badge ${s.matched ? 'on' : 'chip'}" style="margin-left:6px">${s.matched ? '规则命中' : '未触发'}</span></div>
+      <div class="re-card-sub" style="white-space:normal">${s.desc}</div>
+      <div class="re-analysis" style="margin:8px 0 0">
+        <ul style="margin:0">
+          ${(s.evidence || []).map(e => `<li>${e}</li>`).join('')}
+          ${s.window ? `<li style="color:var(--text-muted)">观测窗口 ${s.window[0]} → ${s.window[1]}</li>` : ''}
+        </ul>
+        <p style="margin:6px 0 0;font-style:italic">${s.refute}</p>
+      </div>
+    </div>`).join('');
+
+  // ── FOMC 倒计时 ──
+  const fomcEl = document.getElementById('db-fomc');
+  const fomc = d.fomc;
+  if (fomc?.next) {
+    const days = Math.round((new Date(fomc.next.year, fomc.next.month - 1, fomc.next.end_day) - new Date()) / 86400000);
+    const next = `${fomc.next.year}-${String(fomc.next.month).padStart(2, '0')}-${String(fomc.next.end_day).padStart(2, '0')}`;
+    let exp = '';
+    if (rex.status === 'fulfilled' && rex.value?.meetings?.length) {
+      const m = rex.value.meetings[0];
+      const p = Math.max(m.prob_cut, m.prob_hold, m.prob_hike);
+      const k = p === m.prob_cut ? '降息' : p === m.prob_hike ? '加息' : '按兵不动';
+      exp = `<span class="re-badge chip">市场隐含：${k} ${(p * 100).toFixed(0)}%</span>`;
+    }
+    fomcEl.innerHTML = `
+      <span class="re-badge ${days <= 7 ? 'bear' : 'chip'}">下一次 FOMC 决议 · ${next}（${days > 0 ? days + ' 天后' : '进行中'}）</span>
+      ${exp}
+      <span class="re-badge chip">关注政策措辞与 2Y / 美元 / 信用的反应</span>`;
+  }
+
+  // ── 跨资产变化表 ──
+  const maxAsOf = ind.as_of;
+  const html = `
+    <div class="re-table-wrap"><table class="re-table">
+      <thead><tr><th>指标 / 研究入口</th><th>最新值</th><th>Δ5 观测</th><th>Δ20 观测</th><th>近 20 观测</th><th>数据截至</th><th>时效</th></tr></thead>
+      <tbody>${ind.rows.map(r => {
+        const [fresh, cls] = freshness(r.as_of, maxAsOf);
+        const link = LINKS[r.key];
+        const nameCell = link ? `<a href="${link}">${r.name} ↗</a>` : r.name;
+        return `<tr title="${r.note || ''}">
+          <td>${nameCell}</td>
+          <td style="font-weight:600">${fmtLast(r.unit, r.last)}</td>
+          <td>${fmtChg(r.unit, r.chg?.d5)}</td>
+          <td>${fmtChg(r.unit, r.chg?.d20)}</td>
+          <td>${sparkSVG(r.spark)}</td>
+          <td style="color:var(--text-muted)">${r.as_of ?? '—'}</td>
+          <td class="${cls}" style="font-size:.85em">${fresh}</td>
+        </tr>`;
+      }).join('')}</tbody>
+    </table></div>`;
+  document.getElementById('db-table').innerHTML = html;
+
+  // ── 报警 ──
+  if (d.alerts?.length) {
+    document.getElementById('sec-alerts').style.display = '';
+    document.getElementById('db-alerts').innerHTML = d.alerts.map(a => `
+      <div class="re-card" style="border-left:3px solid #ef5350">
+        <div class="re-corridor-label">${a.title}</div>
+        <div class="re-card-sub">${a.text}</div>
+      </div>`).join('');
+  }
+}
+load();
+</script>
+</body>
+</html>

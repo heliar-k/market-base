@@ -33,6 +33,7 @@ from src.server import (  # noqa: PLC2701 复用路由函数
     get_credit_overview,
     get_credit_stress,
     get_cross_asset,
+    get_daily_brief,
     get_diag,
     get_fed_overview,
     get_fomc_calendar,
@@ -76,6 +77,7 @@ _PATH_PREFIXES = (
     "rates",
     "credit",
     "assets",
+    "daily",
 )
 
 _PREFIX_RE = re.compile(r'(["\'\x60])/(' + "|".join(_PATH_PREFIXES) + r")/")
@@ -154,8 +156,9 @@ def export_api() -> None:
     for range_ in ["all", *_RANGE_MONTHS]:
         _safe(f"api/liquidity/overview_{range_}.json", get_liquidity_overview, range_)
 
-    # 专题页（FOMC / rates / volatility / fed / credit）
+    # 专题页（FOMC / rates / volatility / fed / credit / daily-brief）
     _safe("api/fomc/calendar", get_fomc_calendar)
+    _safe("api/daily-brief", get_daily_brief)
     _safe("api/rate-expectations", get_rate_expectations)
     # 流动性专题（复刻 timsun.net/liquidity 主页面 + 7 子页）
     from src.liquidity_analysis import (

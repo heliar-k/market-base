@@ -40,8 +40,10 @@ const NAV = [
 ];
 
 // 核心入口：SPA 视图（switch-tab 事件）或专题页（iframe）
+// 今日研判 = 默认落地页（renderDetail 初始 URL），复刻 timsun.net 首页决策台
+const DEFAULT_PAGE = '/daily/';
 const CORE = [
-  { label: '今日判断', view: 'macro' },
+  { label: '今日研判', page: DEFAULT_PAGE },
   { label: '市场仪表盘', view: 'dashboard' },
   { label: '技术分析', view: 'tech' },
   { label: '关联分析', view: 'correlation' },
@@ -55,6 +57,9 @@ NAV.forEach(g => {
   KEYS.set(g.page, g.key);
   (g.items || []).forEach(it => { PAGES.set(it.key, it.page); KEYS.set(it.page, it.key); });
 });
+// 核心入口里的专题页（今日研判）也注册 hash 路由
+PAGES.set('daily', DEFAULT_PAGE);
+KEYS.set(DEFAULT_PAGE, 'daily');
 
 const esc = s => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
@@ -199,7 +204,7 @@ function renderDetail(container) {
   container.appendChild(detailEl);
 
   const initialKey = location.hash.slice(1);
-  selectUrl(PAGES.get(initialKey) || NAV[0].page, false);
+  selectUrl(PAGES.get(initialKey) || DEFAULT_PAGE, false);
 }
 
 // ── init ──
@@ -218,7 +223,7 @@ export function openTopic(id) {
 
 // ── status ──
 export function updateStatus() {
-  document.getElementById('status-symbol').textContent = '宏观';
+  document.getElementById('status-symbol').textContent = '今日研判';
   document.getElementById('status-count').textContent = `${NAV.length} 专题 · ${PAGES.size} 页面`;
   document.getElementById('status-range').textContent = '';
 }

@@ -744,6 +744,22 @@ def get_rate_expectations() -> dict:
     }
 
 
+# ── daily brief（复刻 timsun.net 首页「今日宏观决策台」）────────────────────
+
+
+@app.get("/api/daily-brief")
+def get_daily_brief() -> dict:
+    """今日研判：跨资产变化表 + 三种可能解释 + 结构报警 + FOMC 倒计时。"""
+    from src.daily_brief import generate_daily_brief
+
+    out = generate_daily_brief()
+    try:
+        out["fomc"] = get_fomc_calendar()
+    except Exception:  # 日历缺失不阻断研判
+        pass
+    return out
+
+
 # ── fed hub（复刻 timsun.net/fed）────────────────────────────────────────────
 
 
