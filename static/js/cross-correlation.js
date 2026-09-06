@@ -498,7 +498,6 @@ const MACRO_ROLL = 90; // 滚动相关窗口（观测点数；月频指标即 90
 
 function renderMacroSkeleton(wrap) {
   wrap.innerHTML = `
-    <div class="corr-status-row" id="corr-macro-status"><div class="loading" style="height:auto;padding:24px">加载中…</div></div>
     <div class="corr-main" style="grid-template-columns:3fr 2fr">
       <div class="corr-matrix-pane">
         <div class="corr-pane-head">
@@ -510,8 +509,8 @@ function renderMacroSkeleton(wrap) {
         <div class="corr-pane-foot" id="corr-macro-foot">数据源：FRED · 资产序列 yfinance asset_prices · 混频按日期对齐</div>
       </div>
       <div class="corr-side-pane">
-        <div class="corr-pane-head"><span class="corr-pane-title">滚动相关</span><span class="corr-pane-sub">窗口自适应（≤90 观测点）</span></div>
-        <div id="corr-macro-roll" class="corr-macro-roll"><div class="loading" style="height:auto;padding:24px">加载中…</div></div>
+        <div class="corr-pane-head"><span class="corr-pane-title">解读</span><span class="corr-pane-sub">规则引擎 · 数据驱动</span></div>
+        <div id="corr-macro-narr" class="corr-macro-narr"><div class="loading" style="height:auto;padding:24px">加载中…</div></div>
       </div>
     </div>`;
   // 预设按钮组挂工具栏（renderUI 已建容器）
@@ -547,6 +546,7 @@ const isAsset = (name) => !!ASSET_LABELS[name];
 
 function loadPreset(preset) {
   activePreset = { ...preset };
+  narrPairIdx = 0;
   document.querySelectorAll('.correlation-preset-btn').forEach(btn =>
     btn.classList.toggle('active', btn.dataset.id === preset.id));
   renderCustomControls();
@@ -649,9 +649,8 @@ async function loadAndRender() {
         seriesMap[name] = { data: rows.map(d => [d.date, d.value]), label: indicatorLabel(name) };
       }
     }
-    renderMacroStatus(seriesMap);
+    renderNarrative(seriesMap);
     renderChart(seriesMap);
-    renderRollingCorr(seriesMap);
     seriesMapCache = seriesMap;
   } catch (e) {
     const chartEl = document.getElementById('correlation-chart');
@@ -713,61 +712,61 @@ function asof(series, d) {
   return ans < 0 ? undefined : series.values[ans];
 }
 
-function renderMacroStatus(seriesMap) {
-  const row = document.getElementById('corr-macro-status');
-  if (!row) return;
+// 右栏规则引擎叙事（方案 C）：当前状态大数字 + 三段解读；多对指标时顶部 chips 切换
+let narrPairIdx = 0; // 当前展示的指标对
+
+function corrZoneMeaning(c) {
+  if (c == null) return '数据不足，无法判读。';
+  if (c >= 0.7) return '两个序列几乎同步运动，单一宏观力量主导两者定价；此时用其中一个对冲另一个基本无效。';
+  if (c >= 0.3) return '两者受相似因素驱动，同向为主但保留独立波动；组合分散化效果有限。';
+  if (c > -0.3) return '两者各自独立运行，互相对冲或搭配都有效，宏观叙事上需分开解读。';
+  if (c > -0.7) return '两者呈跷跷板关系，一方上涨往往对应另一方承压，可互作部分对冲。';
+  return '强负相关，经典的避险/风险切换结构，组合中互相保护的效果最强。';
+}
+
+function renderNarrative(seriesMap) {
+  const box = document.getElementById('corr-macro-narr');
+  if (!box) return;
   const names = activePreset.indicators.filter(n => seriesMap[n]);
   const left = names.filter(n => activePreset.left_axis.includes(n) || (activePreset.left_axis.length === 0 && n === names[0]));
   const right = names.filter(n => !left.includes(n));
-  const cards = [];
-  for (const l of left) {
-    for (const r of right) {
-      const series = rollingSeries(seriesMap[l].data, seriesMap[r].data);
-      const valid = series.filter(s => s[1] != null);
-      const cur = valid.length ? valid[valid.length - 1][1] : null;
-      const prev = valid.length > 1 ? valid[valid.length - 2][1] : null;
-      const arrow = cur != null && prev != null ? (cur > prev ? '▲' : cur < prev ? '▼' : '—') : '';
-      cards.push(`
-        <div class="dash-stat corr-status-card" style="cursor:default">
-          <div class="dash-stat-label">${indicatorLabel(l)} × ${indicatorLabel(r)}</div>
-          <div class="dash-stat-value ${corrClass(cur)}">${cur == null ? '—' : (cur >= 0 ? '+' : '') + cur.toFixed(2)}</div>
-          <div class="dash-stat-desc">滚动相关（水平值）· ▲▼ = 较上一窗口回升/回落</div>
-          <div class="dash-stat-change">${corrNarrative(cur)} <i class="${cur != null && prev != null && cur !== prev ? (cur > prev ? 'up' : 'down') : 'neutral'}" style="font-style:normal">${arrow}</i></div>
-        </div>`);
-    }
-  }
-  row.innerHTML = cards.join('') || '<div class="loading" style="height:auto;padding:16px">至少需要两个序列</div>';
-}
+  const pairs = [];
+  for (const l of left) for (const r of right) pairs.push([l, r]);
+  if (!pairs.length) { box.innerHTML = '<div class="corr-insight-text">至少需要两个序列才能解读联动</div>'; return; }
+  if (narrPairIdx >= pairs.length) narrPairIdx = 0;
+  const [l, r] = pairs[narrPairIdx];
+  const series = rollingSeries(seriesMap[l].data, seriesMap[r].data);
+  const valid = series.filter(s => s[1] != null);
+  const cur = valid.length ? valid[valid.length - 1][1] : null;
+  const prev = valid.length > 1 ? valid[valid.length - 2][1] : null;
+  const arrow = cur != null && prev != null ? (cur > prev ? '▲' : cur < prev ? '▼' : '—') : '';
+  const tagCls = cur == null ? 'neutral' : corrClass(cur);
 
-function renderRollingCorr(seriesMap) {
-  const box = document.getElementById('corr-macro-roll');
-  if (!box) return;
-  const names = activePreset.indicators.filter(n => seriesMap[n]);
-  const left = names.filter(n => activePreset.left_axis.includes(n));
-  const right = names.filter(n => !left.includes(n));
-  box.innerHTML = '';
-  for (const l of left) {
-    for (const r of right) {
-      const series = rollingSeries(seriesMap[l].data, seriesMap[r].data);
-      const card = document.createElement('div');
-      card.className = 'corr-insight-card';
-      card.innerHTML = `<div class="corr-insight-head"><b>${indicatorLabel(l)} × ${indicatorLabel(r)}</b></div><div class="corr-roll-chart" style="height:120px"></div>
-        <div class="corr-insight-text">${corrNarrative(series.filter(s => s[1] != null).slice(-1)[0]?.[1])} · 相关性变化比绝对水平更重要：快速上升 = 两个市场被同一力量驱动。</div>`;
-      box.appendChild(card);
-      const dom = card.querySelector('.corr-roll-chart');
-      const dark = document.body.classList.contains('dark');
-      const chart = echarts.init(dom, dark ? 'macroDark' : 'macro', { renderer: 'canvas' });
-      chart.setOption({
-        grid: { left: 28, right: 8, top: 6, bottom: 18 },
-        xAxis: { type: 'time', axisLabel: { fontSize: 9 } },
-        yAxis: { type: 'value', min: -1, max: 1, axisLabel: { fontSize: 9 }, splitLine: { show: true, lineStyle: { opacity: .4 } } },
-        visualMap: { show: false, min: -1, max: 1, inRange: { color: dark ? ['#60a5fa', '#f87171'] : ['#1d4ed8', '#dc2626'] } },
-        series: [{ type: 'line', data: series, showSymbol: false, connectNulls: true, lineStyle: { width: 1.4 } }],
-        tooltip: { trigger: 'axis', valueFormatter: v => v == null ? '—' : v.toFixed(2) },
-      });
-    }
+  // 历史分布：全序列区间占比 + 上一次出现当前水平（±0.05）的日期
+  let hist = '有效观测不足，历史分布暂缺。';
+  if (valid.length >= 10 && cur != null) {
+    const pctPos = Math.round(valid.filter(s => s[1] >= 0.3).length / valid.length * 100);
+    const pctNeg = Math.round(valid.filter(s => s[1] <= -0.3).length / valid.length * 100);
+    const span = `${valid[0][0].slice(0, 7)} – ${valid[valid.length - 1][0].slice(0, 7)}`;
+    const last = valid.slice(0, -1).reverse().find(s => Math.abs(s[1] - cur) <= 0.05);
+    hist = `${span} 期间：${pctPos}% 的时间高度同向、${pctNeg}% 的时间高度反向` +
+      (last ? `；上一次出现当前水平是 ${last[0].slice(0, 7)}。` : '；当前水平在此前未曾出现过。');
   }
-  if (!box.children.length) box.innerHTML = '<div class="corr-insight-text">至少需要两个序列才能计算滚动相关</div>';
+
+  box.innerHTML = `
+    <div class="narr-now">
+      <div class="narr-big ${tagCls}">${cur == null ? '—' : (cur >= 0 ? '+' : '') + cur.toFixed(2)} <i class="narr-arrow">${arrow}</i><span class="narr-tag ${tagCls}">${corrNarrative(cur)}</span></div>
+      <div class="narr-sub">${indicatorLabel(l)} × ${indicatorLabel(r)} · 当前滚动相关（30 日窗口）· ▲▼ = 较上一窗口回升/回落</div>
+    </div>
+    ${pairs.length > 1 ? `<div class="narr-pairs">${pairs.map((p, i) =>
+      `<button class="correlation-preset-btn${i === narrPairIdx ? ' active' : ''}" data-pair="${i}">${indicatorLabel(p[0])} × ${indicatorLabel(p[1])}</button>`).join('')}</div>` : ''}
+    <div class="narr-block"><b>这意味着什么</b><p>${corrZoneMeaning(cur)}</p></div>
+    <div class="narr-block"><b>怎么读这幅图</b><p>上带是两序列各自轨迹（左右双轴，右轴多序列时已归一化）；中带滚动相关 &gt;0 即同向、&lt;0 反向；下带 5 年分位表示当前联动强度在历史中的位置。三带共享十字线与缩放。</p></div>
+    <div class="narr-block"><b>历史上何时出现过</b><p>${hist}</p></div>`;
+  box.querySelectorAll('[data-pair]').forEach(btn => btn.addEventListener('click', () => {
+    narrPairIdx = +btn.dataset.pair;
+    renderNarrative(seriesMapCache);
+  }));
 }
 
 function renderChart(seriesMap) {

@@ -292,7 +292,7 @@ body { font-family: system-ui, -apple-system, sans-serif; background: var(--bg);
 .corr-status-card { padding: 12px; cursor: pointer; }
 .corr-status-card .dash-stat-value { font-size: 22px; }
 @media (max-width: 1100px) { .corr-status-row { grid-template-columns: repeat(2, 1fr); } .corr-main { grid-template-columns: 1fr; } }
-.corr-main { display: grid; grid-template-columns: 3fr 2fr; gap: 10px; min-height: 560px; }
+.corr-main { display: grid; grid-template-columns: 3fr 2fr; gap: 10px; min-height: 560px; flex: 1; }
 .corr-matrix-pane, .corr-side-pane { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; display: flex; flex-direction: column; min-height: 0; overflow: hidden; }
 .corr-pane-head { display: flex; justify-content: space-between; align-items: baseline; padding: 10px 14px 6px; border-bottom: 1px solid var(--border-light); gap: 8px; }
 .corr-pane-title { font-size: 13px; font-weight: 600; color: var(--text-secondary); }
@@ -319,8 +319,23 @@ body { font-family: system-ui, -apple-system, sans-serif; background: var(--bg);
 .corr-macro-chips { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; padding: 6px 14px 0; }
 .corr-macro-chart { flex: 1; min-height: 360px; }
 .corr-pane-foot { font-size: 11px; color: var(--text-dim); padding: 6px 14px 10px; border-top: 1px solid var(--border-light); }
-.corr-macro-roll { display: flex; flex-direction: column; gap: 8px; padding: 10px 12px; overflow-y: auto; }
-.corr-roll-chart { margin-top: 4px; }
+
+/* 宏观联动右栏：规则引擎叙事（当前状态 + 三段解读） */
+.corr-macro-narr { padding: 12px 14px; flex: 1; }
+.narr-now { padding: 2px 0 12px; border-bottom: 1px solid var(--border-light); margin-bottom: 12px; }
+.narr-big { font-size: 26px; font-weight: 700; font-family: 'SF Mono', monospace; color: var(--text); }
+.narr-big.up { color: #26a69a; }
+.narr-big.down { color: #ef5350; }
+.narr-arrow { font-style: normal; font-size: 14px; color: var(--text-dim); margin-left: 4px; }
+.narr-tag { padding: 2px 8px; border-radius: 4px; font-size: 12px; margin-left: 8px; font-family: -apple-system, sans-serif; font-weight: 400; vertical-align: middle; }
+.narr-tag.up { background: rgba(38,166,154,.12); color: #26a69a; }
+.narr-tag.down { background: rgba(239,83,80,.12); color: #ef5350; }
+.narr-tag.neutral { background: rgba(156,163,175,.15); color: var(--text-secondary); }
+.narr-sub { font-size: 12px; color: var(--text-dim); margin-top: 4px; }
+.narr-pairs { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 12px; }
+.narr-block { margin-bottom: 14px; }
+.narr-block b { font-size: 13px; color: var(--text); }
+.narr-block p { font-size: 12px; color: var(--text-secondary); line-height: 1.7; margin: 4px 0 0; }
 
 /* ── tech info bar ─────────────────────────────────────── */
 .tech-info-bar {
