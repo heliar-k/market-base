@@ -34,6 +34,28 @@ class TestIndicators:
         assert d["rows"][0].get("last") is None
 
 
+class TestReadings:
+    def test_real_data_signal_refute(self):
+        out = db._readings(db._series())
+        assert out and all("signal" in r and "refute" in r for r in out)
+
+    def test_spx_confirmed_vs_unconfirmed(self):
+        up = [100 + i for i in range(7)]
+        s = {"SPX": _mk_series(up), "HY_OAS": _mk_series(up), "VIX": _mk_series(up)}
+        # 上行 + 利差走扩 + VIX 抬升 → 反弹质量待核验分支
+        r = {x["key"]: x for x in db._readings(s)}["SPX"]
+        assert "待核验" in r["signal"]
+
+    def test_vix_up_uses_direction_not_only_percentile(self):
+        # VIX 自低位急升但 1Y 分位仍低 → 不能显示「平静」
+        s = _mk_series([14.0] * 70 + [15.0, 16.0, 17.0, 18.0, 19.0, 20.0])
+        r = {x["key"]: x for x in db._readings({"VIX": s})}["VIX"]
+        assert "平静" not in r["signal"]
+
+    def test_pct1y_short_series(self):
+        assert db._pct1y(_mk_series([1.0] * 10)) is None
+
+
 class TestScenarios:
     def _base(self) -> dict[str, pd.Series]:
         up = [100 + i for i in range(7)]  # 7 天上行

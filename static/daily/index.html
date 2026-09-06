@@ -46,8 +46,8 @@
   <div id="db-table"><div class="re-loading">加载中…</div></div>
 
   <div id="sec-readings" class="db-sec" style="display:none">
-    <div class="re-h2">各指标的正反两面</div>
-    <p class="re-source">每个指标同时给出支持与反对的读法：方向为近 5 个有效观测，分位为 1 年窗口（微观锚点）。正反并列不代表等概率，需结合上方情景与反证条件核验。</p>
+    <div class="re-h2">各指标的信号与证伪条件</div>
+    <p class="re-source">单指标相容不代表机制成立：信号按跨资产条件表述（方向为近 5 个有效观测，分位为 1 年窗口），需结合上方情景与反证条件核验；证伪列给出什么情况下这个读法失效。</p>
     <div id="db-readings"></div>
   </div>
 
@@ -255,12 +255,12 @@ function renderReadings(list) {
       </div>
       <div style="display:flex;gap:12px;flex-wrap:wrap;margin-top:10px">
         <div class="db-bull" style="flex:1;min-width:260px">
-          <div style="font-size:11px;font-weight:600;margin-bottom:4px" class="up">多方读法</div>
-          <div style="font-size:12px">${r.bull}</div>
+          <div style="font-size:11px;font-weight:600;margin-bottom:4px" class="up">信号</div>
+          <div style="font-size:12px">${r.signal}</div>
         </div>
         <div class="db-bear" style="flex:1;min-width:260px">
-          <div style="font-size:11px;font-weight:600;margin-bottom:4px" class="down">空方读法</div>
-          <div style="font-size:12px">${r.bear}</div>
+          <div style="font-size:11px;font-weight:600;margin-bottom:4px" class="down">证伪条件</div>
+          <div style="font-size:12px">${r.refute}</div>
         </div>
       </div>
     </div>`).join('');

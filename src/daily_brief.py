@@ -145,7 +145,7 @@ def _indicators(series: dict[str, pd.Series]) -> dict:
     return {"as_of": max(dates) if dates else None, "groups": groups, "rows": rows}
 
 
-# ── 各指标的正反两面（多方/空方读法，规则模板）────────────────────────────
+# ── 各指标的信号与证伪条件（timsun 方法论：单指标相容 ≠ 机制成立）────────
 
 
 def _pct1y(s: pd.Series) -> float | None:
@@ -156,133 +156,143 @@ def _pct1y(s: pd.Series) -> float | None:
     return round(float((s < s.iloc[-1]).mean() * 100))
 
 
-# key → (方向 d, 1Y 分位 p) → (多方读法, 空方读法)；文字定性，数字由前端展示
+# 每个指标给两条：
+#   signal —— 当前读数的机制解读，按跨资产条件表述（需其他指标方向确认，而非单指标翻转）
+#   refute —— 证伪条件：什么情况下这个读法失效/需要重新核验
+# d = 近 5 观测方向（+1/-1/0），p = 1Y 分位，ctx = 全部指标的近 5 观测方向表
 READING_RULES: dict[str, object] = {
-    "SPX": lambda d, p: (
-        "近 5 观测上行，风险偏好改善有价格支撑"
+    "SPX": lambda d, p, ctx: (
+        "近 5 观测上行；信用利差未走扩、VIX 未抬升，改善有广度"
+        if d == 1 and ctx.get("HY_OAS") in (-1, 0) and ctx.get("VIX") in (-1, 0)
+        else "近 5 观测上行，但信用/波动率未同步放松，反弹质量待核验"
         if d == 1
-        else "回调提供更佳介入位（若基本面未恶化）"
+        else "下跌伴随利差走扩或 VIX 抬升，压力在扩散"
+        if d == -1 and (ctx.get("HY_OAS") == 1 or ctx.get("VIX") == 1)
+        else "回调未传导至信用与波动率，更像局部仓位调整"
         if d == -1
         else "窄幅震荡，方向待选择",
-        "连续上行后估值抬升，追价风险上升"
-        if d == 1
-        else "下跌若传导至信用与波动率，压力将放大"
-        if d == -1
-        else "横盘久悬，突破方向未明",
+        "上行若伴随利差与 VIX 同步走扩，非健康 risk-on；信用波动双稳的下跌多为噪音",
     ),
-    "DXY": lambda d, p: (
+    "DXY": lambda d, p, ctx: (
         "美元走弱减轻全球融资压力，利好新兴与大宗"
-        if d <= 0
-        else "强美元反映美国相对增长优势",
-        "弱美元常伴避险情绪或通胀担忧，需分辨驱动"
-        if d <= 0
-        else "强美元抽紧全球流动性，压制大宗与新兴市场",
+        if d == -1
+        else "强美元抽紧全球美元流动性，压制大宗与新兴市场"
+        if d == 1
+        else "美元横盘，方向待选择",
+        "弱美元若源于避险或通胀担忧（金油同步急涨）则非利好；强美元若由利差走阔驱动（美国相对增长占优），未必压制风险资产",
     ),
-    "BTC": lambda d, p: (
-        "风险偏好回升的放大器，杠杆资金回流"
-        if d >= 1
-        else "回调消化杠杆，持仓结构更健康"
+    "BTC": lambda d, p, ctx: (
+        "与其他风险资产同步上行，反映风险偏好回升的杠杆端放大"
+        if d == 1 and ctx.get("SPX") == 1
+        else "独立于美股走强，驱动多来自加密内部（ETF 流/杠杆）"
+        if d == 1
+        else "回调若与美股同步，是全市场去杠杆的一部分"
+        if d == -1 and ctx.get("SPX") == -1
+        else "独立下跌，更多是加密原生事件而非宏观信号"
         if d == -1
         else "横盘蓄势",
-        "高 beta：回调时跌幅领先，清算连锁放大波动"
-        if d >= 1
-        else "下跌伴随去杠杆，短期趋势向下",
+        "清算连锁与资金费率放大短期方向；ETF 大额单日流出入常先于价格转向，先查资金面",
     ),
-    "WTI": lambda d, p: (
-        "需求定价占优，能源股与通胀交易受益"
-        if d >= 1
-        else "油价回落缓解通胀与企业成本压力"
+    "WTI": lambda d, p, ctx: (
+        "油价上行伴随股市走弱、长端利率上行，更像成本冲击而非需求改善"
+        if d == 1 and ctx.get("SPX") == -1
+        else "需求定价占优，能源股与再通胀交易受益"
+        if d == 1
+        else "回落若是需求走弱信号，周期性风险上升"
+        if d == -1 and ctx.get("SPX") == -1
+        else "回落缓解通胀与企业成本压力"
         if d == -1
         else "供需再平衡中",
-        "成本压力传导至利润率，挤压消费"
-        if d >= 1
-        else "下跌或是需求走弱信号，周期性风险上升"
-        if d == -1
-        else "方向不明，依赖供给事件",
+        "近月换月与供给事件可扭曲 5 观测方向，核对近月/次月价差与库存再定方向",
     ),
-    "Gold": lambda d, p: (
-        "避险与央行购金需求提供支撑"
-        if d >= 1
-        else "实际利率回落降低持有成本"
+    "Gold": lambda d, p, ctx: (
+        "与长端利率同涨，定价的是通胀尾部或去美元化，而非单纯避险"
+        if d == 1 and ctx.get("Y10") == 1
+        else "避险与央行购金需求提供支撑"
+        if d == 1
+        else "实际利率回落降低持有成本，或避险退潮资金回流风险资产"
         if d == -1
         else "区间盘整",
-        "实际利率上行会压制无息资产"
-        if d >= 1
-        else "避险需求退潮，资金回流风险资产"
-        if d == -1
-        else "缺乏方向性催化",
+        "若美元走强而金价仍涨，头寸可能拥挤；避险溢价随事件降温回吐，跟踪 ETF 持仓",
     ),
-    "Y10": lambda d, p: (
-        "长端上行多为增长/再通胀定价，景气预期改善"
-        if d >= 1
-        else "宽松预期升温，成长股与久期资产受益"
+    "Y10": lambda d, p, ctx: (
+        "长端上行需拆分：增长/再通胀定价还是期限溢价，曲线熊陡指向后者"
+        if d == 1
+        else "下行多为宽松预期或增长走弱定价，看曲线形态分辨"
         if d == -1
         else "收益率企稳",
-        "贴现率上升，估值与久期资产承压"
-        if d >= 1
-        else "市场在定价增长走弱"
+        "若仅名义利率动而盈亏平衡持平，是实际利率驱动，对成长股与久期资产压制更强，也非景气改善",
+    ),
+    "VIX": lambda d, p, ctx: (
+        "波动率自低位抬升，可能是事件冲击的起点，确认需前端期限（VIX1D/9D）继续上行"
+        if d == 1 and (p is None or p < 50)
+        else "波动率处于 1Y 高位（{}%）且仍在抬升，去杠杆压力未除".format(p)
+        if d == 1
+        else "波动率回落；配合信用利差收窄时，风险偏好修复可信"
+        if d == -1 and ctx.get("HY_OAS") in (-1, 0)
+        else "波动率回落，但信用利差未同步收窄，修复待确认"
         if d == -1
-        else "期限溢价重定价未完",
-    ),
-    "VIX": lambda d, p: (
-        "波动率平静，风险偏好健康"
+        else "波动率平静（1Y 分位 {}%）".format(p)
         if (p is None or p < 50)
-        else "恐慌高位常是反向机会（需企稳信号）",
-        "低波动易滋生自满，尾部对冲便宜应配置"
-        if (p is None or p < 50)
-        else "抬升伴随去杠杆与流动性收缩，压力未除",
+        else "波动率高位盘整（1Y 分位 {}%）".format(p),
+        "VIX 是波动预期不是方向；现货信用平稳而 VIX 单独抬升，先查 ETP 仓位",
     ),
-    "HY_OAS": lambda d, p: (
-        "信用宽松，融资成本低，利差未预警"
-        if (p is None or p < 50)
-        else "利差走扩后风险补偿改善（若非危机）",
-        "利差过窄，风险补偿不足，尾部脆弱"
-        if (p is None or p < 50)
-        else "信用条件收紧，领先于盈利与违约周期",
+    "HY_OAS": lambda d, p, ctx: (
+        "利差连续走扩，信用条件收紧，领先于盈利与违约周期"
+        if d == 1
+        else "利差收窄且处 1Y 低位（{}%），信用宽松但风险补偿偏薄".format(p)
+        if d == -1 and (p is None or p < 50)
+        else "利差收窄，融资成本下降"
+        if d == -1
+        else "利差平稳",
+        "单日 1-2bp 多为噪声，连续走扩或 IG 同步走扩才算确认；过窄本身即补偿不足",
     ),
-    "RRP": lambda d, p: (
-        "余额下降 = 资金从工具释放回市场" if d <= 0 else "余额回升提供资金缓冲",
-        "缓冲垫耗尽后，流动性冲击无缓冲"
-        if d <= 0
-        else "资金淤积回工具，市场流动性收紧",
+    "RRP": lambda d, p, ctx: (
+        "余额下降，资金从工具释放回市场；余额近零后此缓冲消失"
+        if d == -1
+        else "资金回淤工具，市场流动性边际收紧"
+        if d == 1
+        else "余额平稳",
+        "RRP 下降不等于同额资金流入风险资产，准备金总量与银行体系分布才是约束",
     ),
-    "TGA": lambda d, p: (
-        "财政花钱向市场净注资" if d <= 0 else "现金充裕，短端违约担忧远去",
-        "现金重建（发债）将抽走准备金" if d <= 0 else "TGA 重建等于从市场抽水",
+    "TGA": lambda d, p, ctx: (
+        "余额下降=财政净支出向市场注资"
+        if d == -1
+        else "发债重建现金，从市场抽水"
+        if d == 1
+        else "余额平稳",
+        "TGA 影响取决于发债结构与支出节奏，税收/结算日常见单日跳变，勿据单日定方向",
     ),
-    "NET_LIQ": lambda d, p: (
-        "净流动性扩张，风险资产顺风"
-        if d >= 1
-        else "回落若是缩表自然节奏，未必利空"
+    "NET_LIQ": lambda d, p, ctx: (
+        "净流动性扩张，风险资产顺风；若靠被动扩表则质量待验证"
+        if d == 1
+        else "净流动性回落，若为缩表自然节奏未必利空"
         if d == -1
         else "流动性平台期",
-        "扩张若靠被动扩表，质量存疑"
-        if d >= 1
-        else "收缩历史上一一对应风险资产回撤"
-        if d == -1
-        else "边际方向待确认",
+        "净流动性是资产负债表代理量，与股价无稳定倍数关系；单周急降比缓降信号强",
     ),
 }
 
 
 def _readings(series: dict[str, pd.Series]) -> list[dict]:
-    """每个指标的正反两面：多方/空方读法 + 1Y 分位锚点。"""
+    """每个指标：信号（机制解读，跨资产条件化）+ 证伪条件。"""
+    d_all = {k: _dir(s) for k, s in series.items()}
     out = []
     for key, name, _, _ in INDICATORS:
         rule = READING_RULES.get(key)
         s = series.get(key)
         if rule is None or s is None or s.empty:
             continue
-        d, p = _dir(s), _pct1y(s)
-        bull, bear = rule(d, p)  # type: ignore[operator]
+        p = _pct1y(s)
+        signal, refute = rule(d_all.get(key), p, d_all)  # type: ignore[operator]
         out.append(
             {
                 "key": key,
                 "name": name,
-                "dir": d,
+                "dir": d_all.get(key),
                 "pct_1y": p,
-                "bull": bull,
-                "bear": bear,
+                "signal": signal,
+                "refute": refute,
             }
         )
     return out
