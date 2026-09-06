@@ -789,9 +789,8 @@ function renderChart(seriesMap) {
   chartEl.innerHTML = '';
   if (!activePreset) return;
 
-  // 图例用完整指标名，不与轴名重叠：轴名去掉，左轴蓝/右轴橙由系列色区分
-  const needDual = activePreset.left_axis.length > 0 && activePreset.right_axis.length > 0;
   // 右轴多序列时量级混叠（如 HYG ~80 与 NDX ~30000 共轴）：右轴序列归一化（期初=100）
+  const needDual = activePreset.left_axis.length > 0 && activePreset.right_axis.length > 0;
   const rightNames = activePreset.indicators.filter(n => activePreset.right_axis.includes(n));
   const normRight = needDual && rightNames.length > 1;
 
@@ -801,47 +800,105 @@ function renderChart(seriesMap) {
     const lastDates = Object.values(seriesMap).map(s => s.data.length ? s.data[s.data.length - 1][0] : null).filter(Boolean);
     sub.textContent = lastDates.length ? `数据截至 ${lastDates.sort().slice(-1)[0]}` : '';
   }
-  const title = document.getElementById('corr-macro-title');
-  if (title) title.textContent = activePreset.name;
   const desc = document.getElementById('corr-macro-foot');
   if (desc) desc.textContent = (activePreset.description || '数据源：FRED · 资产序列 yfinance asset_prices · 混频按日期对齐') + (normRight ? ' · 右轴多序列已归一化（期初=100）' : '');
-  const yAxis = [{ type: 'value', scale: true, splitNumber: 4 }];
-  if (needDual) yAxis.push({ type: 'value', scale: true, splitNumber: 4, position: 'right' });
 
-  const series = activePreset.indicators.map((name, idx) => {
-    let info = seriesMap[name];
-    if (!info || !info.data.length) return null;
-    if (normRight && rightNames.includes(name)) {
-      const base = info.data.find(d => d[1] != null)?.[1];
-      if (base) info = { ...info, data: info.data.map(d => [d[0], d[1] == null ? null : +(d[1] / base * 100).toFixed(2)]) };
+  // 序列整理（undefined 归 null —— echarts sampling processor 对 undefined 值崩溃）
+  const items = activePreset.indicators
+    .map(name => {
+      let info = seriesMap[name];
+      if (!info || !info.data.length) return null;
+      if (normRight && rightNames.includes(name)) {
+        const base = info.data.find(d => d[1] != null)?.[1];
+        if (base) info = { ...info, data: info.data.map(d => [d[0], d[1] == null ? null : +(d[1] / base * 100).toFixed(2)]) };
+      }
+      return { name, info, color: MACRO_COLORS[activePreset.indicators.indexOf(name) % MACRO_COLORS.length], isLeft: activePreset.left_axis.includes(name) };
+    })
+    .filter(Boolean);
+  const series = items.map(x => ({
+    name: x.info.label || x.name,
+    type: 'line',
+    data: x.info.data,
+    lineStyle: { color: x.color, width: 2 },
+    itemStyle: { color: x.color },
+    showSymbol: false,
+    yAxisIndex: (needDual && !x.isLeft) ? 1 : 0,
+    emphasis: { focus: 'series' },
+  }));
+
+  // ── 三带（联动全景）：上=overlay｜中=滚动相关｜下=5年分位；dataZoom/十字线三带联动 ──
+  // 中/下带只画第一对（自由添加多序列时避免轴爆炸）；单序列时退化为普通 overlay
+  const left0 = items.find(x => x.isLeft) || items[0];
+  const right0 = items.find(x => !x.isLeft && x !== left0);
+  const corr = left0 && right0 ? rollingSeries(seriesMap[left0.name].data, seriesMap[right0.name].data) : [];
+  const corrValid = corr.filter(x => x[1] != null);
+  const curCorr = corrValid.length ? corrValid[corrValid.length - 1][1] : null;
+  const title2 = document.getElementById('corr-macro-title');
+  if (title2) title2.textContent = curCorr != null
+    ? `${activePreset.name} · ${indicatorLabel(left0.name)}×${indicatorLabel(right0.name)} 滚动相关 ${curCorr >= 0 ? '+' : ''}${curCorr.toFixed(2)}`
+    : activePreset.name;
+
+  if (corrValid.length) {
+    series.push({
+      name: '滚动相关', type: 'line', xAxisIndex: 1, yAxisIndex: 2,
+      data: corr, showSymbol: false, connectNulls: true,
+      lineStyle: { width: 1.4, color: '#9c27b0' }, itemStyle: { color: '#9c27b0' },
+      areaStyle: { opacity: .12, color: '#9c27b0' },
+      markLine: { silent: true, symbol: 'none', lineStyle: { opacity: .4, type: 'dashed' }, label: { show: false }, data: [{ yAxis: 0 }] },
+    });
+    for (const x of [left0, right0].filter(Boolean)) {
+      series.push({
+        name: `${x.info.label || x.name} 分位`, type: 'line', xAxisIndex: 2, yAxisIndex: 3,
+        data: pctRank(x.info.data), showSymbol: false,
+        lineStyle: { width: 1.2, color: x.color }, itemStyle: { color: x.color },
+      });
     }
-    const color = MACRO_COLORS[idx % MACRO_COLORS.length];
-    const isLeft = activePreset.left_axis.includes(name);
-    return {
-      name: info.label || name,
-      type: 'line',
-      data: info.data,
-      lineStyle: { color, width: 2 },
-      itemStyle: { color },
-      showSymbol: false,
-      yAxisIndex: (needDual && !isLeft) ? 1 : 0,
-      emphasis: { focus: 'series' },
-    };
-  }).filter(Boolean);
+  }
+
+  const hasBands = corrValid.length > 0;
+  const grid = hasBands
+    ? [{ left: 56, right: needDual ? 56 : 24, top: 34, height: '44%' }, { left: 56, right: needDual ? 56 : 24, top: '60%', height: '17%' }, { left: 56, right: needDual ? 56 : 24, top: '82%', height: '13%' }]
+    : { left: '3%', right: needDual ? '6%' : '4%', bottom: 56, top: 32, containLabel: true };
+  const xAxis = hasBands
+    ? [{ type: 'time', gridIndex: 0, axisLabel: { show: false } }, { type: 'time', gridIndex: 1, axisLabel: { show: false } }, { type: 'time', gridIndex: 2 }]
+    : [{ type: 'time', boundaryGap: false }];
+  const yAxis = hasBands
+    ? [
+        { type: 'value', gridIndex: 0, scale: true, splitNumber: 4 },
+        { type: 'value', gridIndex: 0, scale: true, position: 'right', splitNumber: 4 },
+        { type: 'value', gridIndex: 1, min: -1, max: 1, name: '相关', nameTextStyle: { fontSize: 10 } },
+        { type: 'value', gridIndex: 2, min: 0, max: 100, interval: 50, axisLabel: { fontSize: 9 } },
+      ]
+    : [{ type: 'value', scale: true, splitNumber: 4 }];
+  if (!hasBands && needDual) yAxis.push({ type: 'value', scale: true, splitNumber: 4, position: 'right' });
+  const dataZoom = hasBands
+    ? [{ type: 'inside', xAxisIndex: [0, 1, 2] }, { type: 'slider', xAxisIndex: [0, 1, 2], bottom: 4, height: 16 }]
+    : [{ type: 'inside' }, { type: 'slider', bottom: 8, height: 20 }];
 
   const chart = echarts.init(chartEl, document.body.classList.contains('dark') ? 'macroDark' : 'macro', { renderer: 'canvas' });
   corrChart = chart;
   chart.setOption({
     legend: { show: series.length > 1, top: 4, left: 8, type: 'scroll', itemWidth: 14, textStyle: { fontSize: 11 } },
-    grid: { left: '3%', right: needDual ? '6%' : '4%', bottom: 56, top: series.length > 1 ? 32 : 12, containLabel: true },
-    xAxis: { type: 'time', boundaryGap: false },
+    grid,
+    xAxis,
     yAxis,
-    tooltip: { trigger: 'axis', axisPointer: { type: 'cross' } },
-    dataZoom: [{ type: 'inside' }, { type: 'slider', bottom: 8, height: 20 }],
+    tooltip: { trigger: 'axis', axisPointer: { type: 'cross', link: hasBands ? [{ xAxisIndex: 'all' }] : [] } },
+    dataZoom,
     series,
   });
   corrObserver = new ResizeObserver(() => chart.resize());
   corrObserver.observe(chartEl);
+}
+
+// [date,value] 对的 5 年（1260 观测点）滚动百分位
+function pctRank(pairs, lookback = 1260) {
+  const out = [];
+  for (let k = 0; k < pairs.length; k++) {
+    const hist = pairs.slice(Math.max(0, k - lookback + 1), k + 1).map(p => p[1]).filter(v => v != null);
+    if (hist.length < 30) { out.push([pairs[k][0], null]); continue; }
+    out.push([pairs[k][0], +(hist.filter(h => h <= pairs[k][1]).length / hist.length * 100).toFixed(1)]);
+  }
+  return out;
 }
 
 function addIndicator(name) {
