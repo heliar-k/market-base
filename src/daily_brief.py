@@ -102,9 +102,18 @@ def _chg(s: pd.Series, n: int, mode: str) -> float | None:
 
 
 def _spark(s: pd.Series, n: int = SPARK_N) -> list[list]:
-    """近 n 个观测的 [date, value]（迷你趋势，独立纵轴）。"""
-    s = s.tail(n)
+    """近 n 个观测间隔的 [date, value]（n+1 个点，首点即 Δn 基准，
+    颜色与 Δn 列语义一致，不会出现曲线方向与数字颜色矛盾）。"""
+    s = s.tail(n + 1)
     return [[d.strftime("%Y-%m-%d"), round(float(v), 2)] for d, v in s.items()]
+
+
+# 数据截至分组（页头多源分段用）
+AS_OF_GROUPS = {
+    "资产": ("SPX", "DXY", "BTC", "WTI", "Gold"),
+    "利率/利差": ("Y10", "VIX", "HY_OAS"),
+    "流动性": ("RRP", "TGA", "NET_LIQ"),
+}
 
 
 def _indicators(series: dict[str, pd.Series]) -> dict:
@@ -126,7 +135,157 @@ def _indicators(series: dict[str, pd.Series]) -> dict:
         }
         rows.append(row)
     dates = [r["as_of"] for r in rows if r.get("as_of")]
-    return {"as_of": max(dates) if dates else None, "rows": rows}
+    by_key = {r["key"]: r.get("as_of") for r in rows}
+    # 多源「数据截至」分段（页头 re-as-of 统一格式：源 · 源）
+    groups = {}
+    for g, keys in AS_OF_GROUPS.items():
+        ds = [by_key[k] for k in keys if by_key.get(k)]
+        if ds:
+            groups[g] = max(ds)
+    return {"as_of": max(dates) if dates else None, "groups": groups, "rows": rows}
+
+
+# ── 各指标的正反两面（多方/空方读法，规则模板）────────────────────────────
+
+
+def _pct1y(s: pd.Series) -> float | None:
+    """最新值在近 1 年窗口内的分位（宏观锚点）。"""
+    s = s.tail(252)
+    if len(s) < 60:
+        return None
+    return round(float((s < s.iloc[-1]).mean() * 100))
+
+
+# key → (方向 d, 1Y 分位 p) → (多方读法, 空方读法)；文字定性，数字由前端展示
+READING_RULES: dict[str, object] = {
+    "SPX": lambda d, p: (
+        "近 5 观测上行，风险偏好改善有价格支撑"
+        if d == 1
+        else "回调提供更佳介入位（若基本面未恶化）"
+        if d == -1
+        else "窄幅震荡，方向待选择",
+        "连续上行后估值抬升，追价风险上升"
+        if d == 1
+        else "下跌若传导至信用与波动率，压力将放大"
+        if d == -1
+        else "横盘久悬，突破方向未明",
+    ),
+    "DXY": lambda d, p: (
+        "美元走弱减轻全球融资压力，利好新兴与大宗"
+        if d <= 0
+        else "强美元反映美国相对增长优势",
+        "弱美元常伴避险情绪或通胀担忧，需分辨驱动"
+        if d <= 0
+        else "强美元抽紧全球流动性，压制大宗与新兴市场",
+    ),
+    "BTC": lambda d, p: (
+        "风险偏好回升的放大器，杠杆资金回流"
+        if d >= 1
+        else "回调消化杠杆，持仓结构更健康"
+        if d == -1
+        else "横盘蓄势",
+        "高 beta：回调时跌幅领先，清算连锁放大波动"
+        if d >= 1
+        else "下跌伴随去杠杆，短期趋势向下",
+    ),
+    "WTI": lambda d, p: (
+        "需求定价占优，能源股与通胀交易受益"
+        if d >= 1
+        else "油价回落缓解通胀与企业成本压力"
+        if d == -1
+        else "供需再平衡中",
+        "成本压力传导至利润率，挤压消费"
+        if d >= 1
+        else "下跌或是需求走弱信号，周期性风险上升"
+        if d == -1
+        else "方向不明，依赖供给事件",
+    ),
+    "Gold": lambda d, p: (
+        "避险与央行购金需求提供支撑"
+        if d >= 1
+        else "实际利率回落降低持有成本"
+        if d == -1
+        else "区间盘整",
+        "实际利率上行会压制无息资产"
+        if d >= 1
+        else "避险需求退潮，资金回流风险资产"
+        if d == -1
+        else "缺乏方向性催化",
+    ),
+    "Y10": lambda d, p: (
+        "长端上行多为增长/再通胀定价，景气预期改善"
+        if d >= 1
+        else "宽松预期升温，成长股与久期资产受益"
+        if d == -1
+        else "收益率企稳",
+        "贴现率上升，估值与久期资产承压"
+        if d >= 1
+        else "市场在定价增长走弱"
+        if d == -1
+        else "期限溢价重定价未完",
+    ),
+    "VIX": lambda d, p: (
+        "波动率平静，风险偏好健康"
+        if (p is None or p < 50)
+        else "恐慌高位常是反向机会（需企稳信号）",
+        "低波动易滋生自满，尾部对冲便宜应配置"
+        if (p is None or p < 50)
+        else "抬升伴随去杠杆与流动性收缩，压力未除",
+    ),
+    "HY_OAS": lambda d, p: (
+        "信用宽松，融资成本低，利差未预警"
+        if (p is None or p < 50)
+        else "利差走扩后风险补偿改善（若非危机）",
+        "利差过窄，风险补偿不足，尾部脆弱"
+        if (p is None or p < 50)
+        else "信用条件收紧，领先于盈利与违约周期",
+    ),
+    "RRP": lambda d, p: (
+        "余额下降 = 资金从工具释放回市场" if d <= 0 else "余额回升提供资金缓冲",
+        "缓冲垫耗尽后，流动性冲击无缓冲"
+        if d <= 0
+        else "资金淤积回工具，市场流动性收紧",
+    ),
+    "TGA": lambda d, p: (
+        "财政花钱向市场净注资" if d <= 0 else "现金充裕，短端违约担忧远去",
+        "现金重建（发债）将抽走准备金" if d <= 0 else "TGA 重建等于从市场抽水",
+    ),
+    "NET_LIQ": lambda d, p: (
+        "净流动性扩张，风险资产顺风"
+        if d >= 1
+        else "回落若是缩表自然节奏，未必利空"
+        if d == -1
+        else "流动性平台期",
+        "扩张若靠被动扩表，质量存疑"
+        if d >= 1
+        else "收缩历史上一一对应风险资产回撤"
+        if d == -1
+        else "边际方向待确认",
+    ),
+}
+
+
+def _readings(series: dict[str, pd.Series]) -> list[dict]:
+    """每个指标的正反两面：多方/空方读法 + 1Y 分位锚点。"""
+    out = []
+    for key, name, _, _ in INDICATORS:
+        rule = READING_RULES.get(key)
+        s = series.get(key)
+        if rule is None or s is None or s.empty:
+            continue
+        d, p = _dir(s), _pct1y(s)
+        bull, bear = rule(d, p)  # type: ignore[operator]
+        out.append(
+            {
+                "key": key,
+                "name": name,
+                "dir": d,
+                "pct_1y": p,
+                "bull": bull,
+                "bear": bear,
+            }
+        )
+    return out
 
 
 # ── 三种可能解释（规则匹配）─────────────────────────────────────────────────
@@ -231,6 +390,7 @@ def generate_daily_brief() -> dict:
     return {
         "generator": "rules",
         "indicators": _indicators(series),
+        "readings": _readings(series),
         "scenarios": _scenarios(series),
         "alerts": _alerts(),
     }

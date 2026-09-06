@@ -24,7 +24,9 @@ class TestIndicators:
 
     def test_spark_n(self):
         s = _mk_series([float(i) for i in range(30)])
-        assert len(db._spark(s)) == db.SPARK_N
+        assert (
+            len(db._spark(s)) == db.SPARK_N + 1
+        )  # n 个间隔 = n+1 个点（首点即 Δn 基准）
 
     def test_indicators_missing_series(self):
         d = db._indicators({})  # 全缺失 → 行保留但不带数值

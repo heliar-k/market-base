@@ -8,6 +8,19 @@
 <link rel="stylesheet" href="/css/app.css">
 <link rel="stylesheet" href="/css/special.css">
 <script src="/js/rates-common.js"></script>
+<style>
+/* 今日研判页私有样式（面板名前缀 db-）；语义色与全站 .up/.down 同源 */
+.db-spark.up { stroke: #26a69a; }
+.db-spark.down { stroke: #ef5350; }
+.db-hit { border-color: #26a69a; }
+.db-flat { opacity: .75; }
+.db-alert-card { border-left: 3px solid #ef5350; }
+.db-bull { border-left: 3px solid #26a69a; padding-left: 8px; }
+.db-bear { border-left: 3px solid #ef5350; padding-left: 8px; }
+.db-click { cursor: pointer; }
+@keyframes db-flash { 0% { background: var(--accent-light); } 100% { background: transparent; } }
+.db-flash { animation: db-flash 1.6s ease-out; }
+</style>
 </head>
 <body>
 <div class="re-root">
@@ -27,8 +40,14 @@
   <div class="re-badges" id="db-fomc"></div>
 
   <div class="re-h2" id="sec-table">跨资产变化</div>
-  <p class="re-source">先看价格事实，再解释背后的机制。涨跌颜色只表示数值方向；变化按各序列最近 5 / 20 个有效观测计算，迷你趋势使用独立纵轴，不比较振幅大小。</p>
+  <p class="re-source">先看价格事实，再解释背后的机制。涨跌颜色只表示数值方向；变化按各序列最近 5 / 20 个有效观测计算，迷你趋势使用独立纵轴，不比较振幅大小。点击行可展开该指标的正反两面。</p>
   <div id="db-table"><div class="re-loading">加载中…</div></div>
+
+  <div id="sec-readings" style="display:none">
+    <div class="re-h2">各指标的正反两面</div>
+    <p class="re-source">每个指标同时给出支持与反对的读法：方向为近 5 个有效观测，分位为 1 年窗口（微观锚点）。正反并列不代表等概率，需结合上方情景与反证条件核验。</p>
+    <div id="db-readings"></div>
+  </div>
 
   <div id="sec-alerts" style="display:none">
     <div class="re-h2">跨资产结构报警</div>
@@ -93,8 +112,8 @@ function sparkSVG(points) {
   const W = 110, H = 30, step = W / (points.length - 1);
   const xy = points.map((p, i) => `${(i * step).toFixed(1)},${(H - 2 - (p[1] - min) / span * (H - 4)).toFixed(1)}`);
   const up = vals[vals.length - 1] >= vals[0];
-  return `<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" style="vertical-align:middle">
-    <polyline points="${xy.join(' ')}" fill="none" stroke="${up ? '#26a69a' : '#ef5350'}" stroke-width="1.5"/></svg>`;
+  return `<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" style="vertical-align:middle" class="${up ? 'db-spark up' : 'db-spark down'}">
+    <polyline points="${xy.join(' ')}" fill="none" stroke-width="1.5"/></svg>`;
 }
 // 时效：行数据日期距全表最新 ≤4 自然日 → 正常（覆盖周末），否则滞后
 function freshness(rowAsOf, maxAsOf) {
@@ -102,6 +121,9 @@ function freshness(rowAsOf, maxAsOf) {
   const lag = (new Date(maxAsOf) - new Date(rowAsOf)) / 86400000;
   return lag <= 4 ? ['时效正常', ''] : [`滞后 ${Math.round(lag)} 天`, 'down'];
 }
+// 读法行方向语义：风险指标（VIX/OAS）上行 = 压力 = down 红；其余上行 = up 绿
+function dirCls(key, d) { return d === 0 || d == null ? 'neutral' : (d === 1) === !RISK_KEYS.has(key) ? 'up' : 'down'; }
+const RISK_KEYS = new Set(['VIX', 'HY_OAS']);
 
 const LINKS = {
   SPX: '/assets/equities.html', DXY: '/assets/fx.html', BTC: '/assets/crypto.html',
@@ -123,9 +145,13 @@ async function load() {
     return;
   }
   const d = brief.value;
-  const ind = d.indicators || { as_of: null, rows: [] };
+  const ind = d.indicators || { as_of: null, groups: {}, rows: [] };
 
-  document.getElementById('re-as-of').textContent = `数据截至 ${ind.as_of ?? '—'}`;
+  // 页头多源「数据截至」分段（AGENTS 规范：数据截至 源 date · 源 date）
+  const g = ind.groups || {};
+  const segs = Object.entries(g).map(([k, v]) => `${k} ${v}`);
+  document.getElementById('re-as-of').textContent =
+    `数据截至 ${segs.length ? segs.join(' · ') : (ind.as_of ?? '—')}`;
   document.getElementById('db-gen').textContent =
     `研判生成：${d.generator === 'llm' ? 'LLM' : '规则引擎（LLM 预留）'} · 情景为规则匹配结果，不是发生概率；经济机制仍需原始数据与事件验证`;
 
@@ -142,7 +168,7 @@ async function load() {
 
   // ── 情景卡 ──
   document.getElementById('db-scenarios').innerHTML = (d.scenarios || []).map(s => `
-    <div class="re-card" style="${s.matched ? 'border-color:#26a69a' : 'opacity:.75'}">
+    <div class="re-card db-click ${s.matched ? 'db-hit' : 'db-flat'}" data-scen="${s.key}">
       <div class="re-corridor-label">${s.title}
         <span class="re-badge ${s.matched ? 'on' : 'chip'}" style="margin-left:6px">${s.matched ? '规则命中' : '未触发'}</span></div>
       <div class="re-card-sub" style="white-space:normal">${s.desc}</div>
@@ -154,6 +180,15 @@ async function load() {
         <p style="margin:6px 0 0;font-style:italic">${s.refute}</p>
       </div>
     </div>`).join('');
+  // 点情景卡 → 定位到相关指标的正反两面（双层联动：结论层 → 数据层）
+  const SCEN_KEYS = {
+    'risk-on': ['SPX', 'HY_OAS', 'VIX'],
+    'risk-off': ['SPX', 'HY_OAS', 'VIX'],
+    'energy-cost': ['WTI', 'SPX', 'Y10'],
+  };
+  document.querySelectorAll('#db-scenarios .re-card').forEach(c => {
+    c.addEventListener('click', () => focusReading(SCEN_KEYS[c.dataset.scen]?.[0]));
+  });
 
   // ── FOMC 倒计时 ──
   const fomcEl = document.getElementById('db-fomc');
@@ -169,13 +204,15 @@ async function load() {
       exp = `<span class="re-badge chip">市场隐含：${k} ${(p * 100).toFixed(0)}%</span>`;
     }
     fomcEl.innerHTML = `
-      <span class="re-badge ${days <= 7 ? 'bear' : 'chip'}">下一次 FOMC 决议 · ${next}（${days > 0 ? days + ' 天后' : '进行中'}）</span>
+      <span class="re-badge chip">下一次 FOMC 决议 · ${next}（${days > 0 ? days + ' 天后' : '进行中'}）</span>
       ${exp}
       <span class="re-badge chip">关注政策措辞与 2Y / 美元 / 信用的反应</span>`;
   }
 
-  // ── 跨资产变化表 ──
+  // ── 跨资产变化表 + 读法行联动 ──
   const maxAsOf = ind.as_of;
+  const readings = {};
+  (d.readings || []).forEach(r => readings[r.key] = r);
   const html = `
     <div class="re-table-wrap"><table class="re-table">
       <thead><tr><th>指标 / 研究入口</th><th>最新值</th><th>Δ5 观测</th><th>Δ20 观测</th><th>近 20 观测</th><th>数据截至</th><th>时效</th></tr></thead>
@@ -183,26 +220,70 @@ async function load() {
         const [fresh, cls] = freshness(r.as_of, maxAsOf);
         const link = LINKS[r.key];
         const nameCell = link ? `<a href="${link}">${r.name} ↗</a>` : r.name;
-        return `<tr title="${r.note || ''}">
+        const spark = sparkSVG(r.spark);
+        const dirTag = r.chg?.d5 != null
+          ? `<span class="${dirCls(r.key, Math.sign(r.chg.d5))}">${r.chg.d5 > 0 ? '↑' : r.chg.d5 < 0 ? '↓' : '→'}</span>` : '';
+        return `<tr class="db-click" title="${r.note || ''}" data-k="${r.key}">
           <td>${nameCell}</td>
           <td style="font-weight:600">${fmtLast(r.unit, r.last)}</td>
           <td>${fmtChg(r.unit, r.chg?.d5)}</td>
           <td>${fmtChg(r.unit, r.chg?.d20)}</td>
-          <td>${sparkSVG(r.spark)}</td>
+          <td>${spark}</td>
           <td style="color:var(--text-muted)">${r.as_of ?? '—'}</td>
           <td class="${cls}" style="font-size:.85em">${fresh}</td>
         </tr>`;
       }).join('')}</tbody>
     </table></div>`;
   document.getElementById('db-table').innerHTML = html;
+  renderReadings(d.readings || []);
+  document.querySelectorAll('#db-table tr[data-k]').forEach(tr => {
+    tr.addEventListener('click', () => focusReading(tr.dataset.k));
+  });
+
+// ── 各指标的正反两面 ──
+function renderReadings(list) {
+  const sec = document.getElementById('sec-readings');
+  if (!list.length) { sec.style.display = 'none'; return; }
+  sec.style.display = '';
+  document.getElementById('db-readings').innerHTML = list.map(r => `
+    <div class="re-card db-click" id="rd-${r.key}" data-k="${r.key}" style="margin-bottom:8px">
+      <div class="re-corridor-label">${r.name}
+        <span class="re-badge chip" style="margin-left:6px">1Y 分位 ${r.pct_1y ?? '—'}%</span>
+        <span class="re-badge chip" style="margin-left:4px">方向 <span class="${dirCls(r.key, r.dir)}">${r.dir === 1 ? '↑ 上行' : r.dir === -1 ? '↓ 下行' : r.dir === 0 ? '→ 持平' : '数据不足'}</span></span>
+      </div>
+      <div style="display:flex;gap:12px;flex-wrap:wrap;margin-top:10px">
+        <div class="db-bull" style="flex:1;min-width:260px">
+          <div style="font-size:11px;font-weight:600;margin-bottom:4px" class="up">多方读法</div>
+          <div style="font-size:12px">${r.bull}</div>
+        </div>
+        <div class="db-bear" style="flex:1;min-width:260px">
+          <div style="font-size:11px;font-weight:600;margin-bottom:4px" class="down">空方读法</div>
+          <div style="font-size:12px">${r.bear}</div>
+        </div>
+      </div>
+    </div>`).join('');
+  document.querySelectorAll('#db-readings .re-card').forEach(c => {
+    c.addEventListener('click', () => {
+      const tr = document.querySelector(`#db-table tr[data-k="${c.dataset.k}"]`);
+      tr?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    });
+  });
+}
+function focusReading(key) {
+  const card = document.getElementById(`rd-${key}`);
+  if (!card) return;
+  card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  card.classList.remove('db-flash'); void card.offsetWidth;
+  card.classList.add('db-flash');
+}
 
   // ── 报警 ──
   if (d.alerts?.length) {
     document.getElementById('sec-alerts').style.display = '';
     document.getElementById('db-alerts').innerHTML = d.alerts.map(a => `
-      <div class="re-card" style="border-left:3px solid #ef5350">
+      <div class="re-card db-alert-card">
         <div class="re-corridor-label">${a.title}</div>
-        <div class="re-card-sub">${a.text}</div>
+        <div class="re-card-sub" style="white-space:normal">${a.text}</div>
       </div>`).join('');
   }
 }
