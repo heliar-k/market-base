@@ -103,42 +103,5 @@ jobs:
           echo "以下步骤失败，数据已照常 commit:$FAILED_LIST"
           exit 1
 
-  # 网页静态站点：预渲染 API → site/ → GitHub Pages 部署
-  # 首次启用需在仓库 Settings → Pages → Build and deployment → Source: GitHub Actions
-  deploy-pages:
-    needs: fetch
-    # fetch 部分数据源失败也照常部署（数据已 commit，站点镜像仓库现状；
-    # 仅基础设施故障如 checkout/uv sync 失败时渲染旧仓库，无害）
-    if: always()
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      pages: write
-      id-token: write
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-    steps:
-      # ref: main 必需：schedule 触发时 github.sha 是 fetch 前旧 HEAD，
-      # 不指定会部署上一轮数据（fetch job 新 push 的 commit 不在构建里）
-      - uses: actions/checkout@v5
-        with:
-          ref: main
-
-      - uses: astral-sh/setup-uv@v9.0.0
-        with:
-          python-version: "3.13"
-          enable-cache: false
-
-      - name: Install deps
-        run: uv sync
-
-      - name: Build static site
-        run: uv run python -m src.export_pages
-
-      - uses: actions/configure-pages@v5
-      - uses: actions/upload-pages-artifact@v3
-        with:
-          path: site
-      - id: deployment
-        uses: actions/deploy-pages@v4
+  # Pages 部署已拆为独立 workflow：.github/workflows/deploy-pages.yml
+  # 由本 workflow push 数据 commit 自动触发（push paths 过滤 data/**），也可手动触发

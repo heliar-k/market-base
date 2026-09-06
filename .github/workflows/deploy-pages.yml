@@ -1,0 +1,55 @@
+name: deploy-pages
+
+# 静态站点预渲染 + GitHub Pages 部署（独立于 daily-fetch，可单独触发）：
+# - daily-fetch 每日 push 数据 commit → 自动触发（渲染最新数据）
+# - 手动 push static/src 改动 → 自动触发（无需重跑数据拉取）
+# - 手动触发：gh workflow run deploy-pages.yml
+on:
+  push:
+    branches: [main]
+    paths:
+      - "data/**"
+      - "static/**"
+      - "src/**"
+      - "pyproject.toml"
+      - ".github/workflows/deploy-pages.yml"
+  workflow_dispatch: {}
+
+# 数据 push 与手动 push 接近时串行执行，避免两个部署互相覆盖
+concurrency:
+  group: github-pages
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+jobs:
+  deploy-pages:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: main
+
+      - uses: astral-sh/setup-uv@v9.0.0
+        with:
+          python-version: "3.13"
+          enable-cache: false
+
+      - name: Install deps
+        run: uv sync
+
+      - name: Build static site
+        run: uv run python -m src.export_pages
+
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+      - id: deployment
+        uses: actions/deploy-pages@v4
