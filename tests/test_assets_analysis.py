@@ -40,6 +40,34 @@ class TestHelpers:
         assert rows[0]["chg_pct"] == pytest.approx(1.0)
         assert rows[0]["date"] == "2026-08-02"
 
+    def test_price_rows_strips_placeholder_rows(self):
+        """快照管线周末原样续写最新价 → 剥离占位行，不产生假 0 涨跌。"""
+        df = pd.DataFrame(
+            {"SPX": [100.0, 101.0, 101.0, 101.0]},
+            index=pd.date_range("2026-08-01", periods=4),
+        )
+        rows = _price_rows(df, [("SPX", "标普500")])
+        assert rows[0]["last"] == 101.0
+        assert rows[0]["chg_pct"] == pytest.approx(1.0)  # 100 → 101，不是 0
+        assert rows[0]["date"] == "2026-08-02"
+
+    def test_price_rows_weekend_revision(self):
+        """周末快照行带收盘修订 → 修订并入最后交易日，涨跌按交易日算。"""
+        idx = pd.to_datetime(["2026-09-03", "2026-09-04", "2026-09-05", "2026-09-06"])
+        df = pd.DataFrame({"USDKRW": [1356.0, 1345.99, 1351.10, 1351.10]}, index=idx)
+        rows = _price_rows(df, [("USDKRW", "美元/韩元")])
+        assert rows[0]["last"] == 1351.10
+        assert rows[0]["chg_pct"] == pytest.approx(-0.36, abs=0.01)
+        assert rows[0]["date"] == "2026-09-04"
+
+    def test_price_rows_crypto_keeps_weekend(self):
+        """7×24 标的周末行是真实行情，保留且按相邻观测算涨跌。"""
+        idx = pd.to_datetime(["2026-09-04", "2026-09-05", "2026-09-06"])
+        df = pd.DataFrame({"BTC": [100.0, 101.0, 102.0]}, index=idx)
+        rows = _price_rows(df, [("BTC", "BTC")])
+        assert rows[0]["chg_pct"] == pytest.approx(0.99, abs=0.01)
+        assert rows[0]["date"] == "2026-09-06"
+
 
 class TestEquityAnalysis:
     def test_healthy_breadth(self):

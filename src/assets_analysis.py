@@ -89,6 +89,9 @@ FX_ROWS = [
 ]
 CRYPTO_ROWS = [("BTC", "BTC"), ("ETH", "ETH")]
 
+# 7 天全天候交易：周末行是真实行情，不做周末占位剥离
+SEVEN_DAY = frozenset({"BTC", "ETH"})
+
 
 # ── 读数据 ───────────────────────────────────────────────────────────────────
 
@@ -133,6 +136,23 @@ def _price_rows(df: pd.DataFrame, rows: list[tuple[str, str]]) -> list[dict]:
         s = df[key].dropna()
         if s.empty:
             continue
+        # 快照管线每日运行：周末把最新已知价续写占位（有时带收盘修订噪声）。
+        # 非 7×24 标的：用周末行最新值修订最后一个交易日（盘中价被收盘价
+        # 修订的情形），再剥掉周末行；否则相邻相减会得到假 0 涨跌、日期
+        # 标成非交易日。ponytail: 节假日（周中停市）占位不处理，周末覆盖
+        # 常见情形；周一节假日若出现会在次日自愈
+        if (
+            key not in SEVEN_DAY
+            and s.index[-1].weekday() >= 5
+            and (s.index.weekday < 5).any()
+        ):
+            wknd = s.index.weekday >= 5
+            last_wd = s.index[~wknd][-1]
+            s.loc[last_wd] = s[s.index > last_wd].iloc[-1]
+            s = s[~wknd]
+        # 剥离精确重复的尾部行（同值续写；7×24 标的唯一可能出现的占位）
+        while len(s) >= 2 and s.iloc[-1] == s.iloc[-2]:
+            s = s.iloc[:-1]
         chg = None
         if len(s) >= 2:
             chg = (s.iloc[-1] / s.iloc[-2] - 1) * 100
