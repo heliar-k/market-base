@@ -120,7 +120,7 @@ export function initGlobalNav() {
   navEl.innerHTML = `
     <div class="macro-nav-brand">
       <div>
-        <div class="macro-nav-brand-name">K 线分析</div>
+        <div class="macro-nav-brand-name">观澜台</div>
         <div class="macro-nav-brand-sub">美国宏观研究平台</div>
       </div>
       <button class="theme-toggle" id="theme-toggle" title="切换暗色/亮色模式">🌙</button>
