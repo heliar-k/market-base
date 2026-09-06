@@ -120,7 +120,7 @@ market-base/
 │   ├── fetch_refunding                 ← Treasury 季度再融资声明 + QRA 估算（增量）
 │   ├── fetch_cgb                       ← 中国国债收益率 10Y/30Y（chinamoney，FRED 无）
 │   ├── fetch_fx                        ← 外汇对日线 16 对（timsun /assets/fx 数据源）
-│   ├── fetch_etf                       ← ETF 全量清单 + 精选池 25 只日线（timsun /assets/etfs）
+│   ├── fetch_etf                       ← ETF 全量清单 + 精选池 37 只日线（timsun /assets/etfs）
 │   ├── fetch_options_structure         ← 13 标的期权结构快照（GEX/DEX/Vanna/Charm，yfinance 降级源）
 │   ├── fetch_crypto_derivatives        ← 加密衍生品快照（OKX + Deribit + CME 基差）
 │   ├── fetch_crypto_basis               ← CME BTC 基差日序列（Yahoo BTC=F，timsun V1 治理）
@@ -170,7 +170,7 @@ market-base/
 │   │   └── speeches.csv                    ← 官员演讲（近 2 年）
 │   ├── fx/fx_pairs.csv                  ← 外汇对日线宽表 16 对（timsun /assets/fx）
 │   ├── etf/universe.csv                 ← Nasdaq Trader 全量 ETF 清单（~5600 只）+ 分类
-│   ├── etf/pool_prices.csv              ← 精选池 25 只 ETF 日线（timsun /assets/etfs）
+│   ├── etf/pool_prices.csv              ← 精选池 37 只 ETF 日线（timsun /assets/etfs）
 │   ├── options_structure/{date}.json    ← 13 标的期权结构快照（GEX/DEX/Vanna/Charm）
 │   ├── crypto_derivatives/{date}.json   ← 加密衍生品快照（OKX/Deribit/CME）
 │   ├── crypto_basis/basis.csv          ← CME BTC 基差日序列（观测日 upsert，治理后 ~35% 完整）

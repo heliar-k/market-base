@@ -429,8 +429,9 @@ FX_PAIRS: dict[str, tuple[str, str, str]] = {
     "EURJPY": ("EURJPY=X", "欧元/日元", "交叉盘"),
 }
 
-# ── ETF 精选池（timsun /assets/etfs 研究池 25 只；独立管线 data/etf/）──
+# ── ETF 精选池（timsun /assets/etfs 研究池 37 只；独立管线 data/etf/）──
 # ticker → (中文名, 分类)；分类与 timsun ETF 页筛选器一致
+# 覆盖全部 13 类筛选：补齐 crypto / currency / factor_income / leveraged_inverse
 ETF_POOL: dict[str, tuple[str, str]] = {
     "SMH": ("半导体核心", "ai_semis"),
     "SOXX": ("半导体核心", "ai_semis"),
@@ -457,6 +458,22 @@ ETF_POOL: dict[str, tuple[str, str]] = {
     "ROBO": ("机器人自动化", "theme"),
     "ARKW": ("互联网主题", "theme"),
     "ARKK": ("高 beta 主题", "high_beta"),
+    # 加密（现货 ETF）
+    "IBIT": ("比特币现货", "crypto"),
+    "ETHA": ("以太坊现货", "crypto"),
+    # 货币
+    "UUP": ("美元指数多头", "currency"),
+    "FXE": ("欧元", "currency"),
+    # 因子/收益
+    "SCHD": ("红利", "factor_income"),
+    "VYM": ("高股息", "factor_income"),
+    "QUAL": ("质量", "factor_income"),
+    "MTUM": ("动量", "factor_income"),
+    "USMV": ("低波动", "factor_income"),
+    # 杠杆/反向
+    "TQQQ": ("纳指 3 倍做多", "leveraged_inverse"),
+    "SQQQ": ("纳指 3 倍反向", "leveraged_inverse"),
+    "SOXL": ("半导体 3 倍做多", "leveraged_inverse"),
 }
 
 # ETF 全量清单名称关键词 → 分类（Nasdaq Trader 清单 + 规则分类，timsun 口径简化版）

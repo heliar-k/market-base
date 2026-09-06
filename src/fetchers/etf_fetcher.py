@@ -5,7 +5,7 @@ ETF 数据管线（timsun /assets/etfs 面板数据源）。
   - data/etf/universe.csv   全量美国上市 ETF 清单（Nasdaq Trader Symbol Directory，
                             nasdaqlisted + otherlisted，ETF=Y 过滤），名称关键词
                             规则分类（config.ETF_KEYWORDS，timsun 口径简化版）
-  - data/etf/pool_prices.csv  精选池 25 只日线收盘宽表（yfinance，回填 1y）
+  - data/etf/pool_prices.csv  精选池（ETF_POOL，37 只）日线收盘宽表（yfinance，回填 1y）
 
 纯公开数据，无 IBKR 依赖；Actions 每日跑。
 """
