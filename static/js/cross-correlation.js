@@ -634,7 +634,7 @@ async function loadAndRender() {
     const seriesMap = {};
     if (fredNames.length) {
       // 本地 dev：FastAPI 按 indicators 返回；静态版：构建期转全量 correlate.json，本地过滤
-      const res = await fetch(`/api/macro/correlate?indicators=${encodeURIComponent(fredNames.join(','))}`);
+      const res = await fetch(`/api/macro/correlate?indicators=${encodeURIComponent(fredNames.join())}`);
       if (!res.ok) throw new Error(`API error: ${res.status}`);
       const all = await res.json();
       for (const name of fredNames) {
