@@ -213,7 +213,6 @@ body.dark .re-expectation.hold { background: rgba(156,163,175,.15); color: #9ca3
 #asset-groups .re-table td:last-child { white-space: nowrap; }
 
 /* ── 期权市场结构（timsun 复刻样式）── */
-.opt-note { font-size: 12px; color: var(--text-dim); }
 .opt-regime { border: 1px solid var(--border); border-radius: 12px; background: var(--surface); padding: 20px 24px; display: flex; flex-direction: column; gap: 8px; }
 .opt-regime .rg-label { font-size: 11px; font-weight: 600; letter-spacing: .08em; color: var(--text-dim); }
 .opt-regime .rg-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; flex-wrap: wrap; }
@@ -254,7 +253,6 @@ body.dark .re-expectation.hold { background: rgba(156,163,175,.15); color: #9ca3
 .kv-row .kv-k { color: var(--text-dim); font-weight: 600; }
 
 /* ── 持仓追踪（CFTC COT，timsun 复刻）── */
-.pos-rules { font-size: 12px; color: var(--text-secondary); line-height: 1.8; max-width: 72ch; }
 .pos-hero { border: 1px solid var(--border); border-radius: 12px; background: var(--surface); padding: 20px 24px 16px; display: grid; grid-template-columns: 1fr 260px; gap: 16px; border-left: 3px solid #f59e0b; }
 .pos-hero .ph-label { font-size: 11px; font-weight: 600; letter-spacing: .08em; color: var(--text-dim); }
 .pos-hero .ph-title { font-size: 24px; font-weight: 800; color: #f59e0b; margin-top: 4px; display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }

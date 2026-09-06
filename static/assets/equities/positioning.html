@@ -18,8 +18,6 @@
 
   <div class="re-nav" id="re-nav"></div>
 
-  <p class="pos-rules">基于 CFTC Commitments of Traders 周报，追踪投机方（对冲基金 / 资管）净持仓相对 2 年历史区间的百分位极端度；每周五收盘统计、周二 15:30 ET 发布，判读规则见下方卡片底部。</p>
-
   <div id="overview"></div>
   <div id="groups"></div>
   <div class="re-gen" id="re-gen"></div>
@@ -40,11 +38,11 @@ function num(v) { return v == null ? '—' : Number(v).toLocaleString(); }
 async function load() {
   const d = await R.get('/api/assets/positioning');
   if (!d.latest_report) { R.fail(['overview', 'groups'], new Error('COT 数据不足')); return; }
-  document.getElementById('re-as-of').textContent = `数据截至 COT 报告 ${d.latest_report} · 投机方：股指/利率/外汇 = 对冲基金（Leveraged Money），商品 = 管理资金（Managed Money）`;
+  document.getElementById('re-as-of').textContent = `数据截至 COT 报告 ${d.latest_report}`;
 
   renderOverview(d);
   d.groups.forEach(g => renderGroup(g));
-  document.getElementById('re-gen').textContent = '口径：CFTC COT · 判读规则见页首卡片底部 · 研究参考非投资建议';
+  document.getElementById('re-gen').textContent = '口径：CFTC COT 周报（周五收盘统计、周二 15:30 ET 发布）· 投机方：股指/利率/外汇 = 对冲基金（Leveraged Money），商品 = 管理资金（Managed Money）· 判读规则见页首卡片底部 · 研究参考非投资建议';
 }
 
 // ── Positioning Readthrough（timsun 复刻）──

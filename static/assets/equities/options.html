@@ -24,7 +24,6 @@
   </div>
 
   <div class="re-nav" id="re-nav"></div>
-  <p class="opt-note">期权链快照口径。OI/GEX 按最近可得未平仓数据计算；GEX/DEX/Vanna 为模型估算，非交易所官方利用率或持仓方向。</p>
 
   <div id="detail"></div>
 
@@ -70,7 +69,7 @@ function mk(id, option) {
 async function load() {
   D = await R.get('/api/assets/equities-options');
   if (!D || !D.symbols) { R.fail(['detail', 'board'], new Error('无期权结构快照')); return; }
-  document.getElementById('re-as-of').textContent = D.date ? `数据截至 期权快照 ${D.date}` : '';
+  document.getElementById('re-as-of').textContent = D.date ? `数据截至 期权快照 ${D.date.slice(0, 10)}` : '';
 
   renderRegime();
   renderBoard();

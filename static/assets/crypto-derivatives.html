@@ -17,7 +17,6 @@
 
   <div class="re-nav" id="re-nav"></div>
 
-  <div id="stale"></div>
   <div id="radar"></div>
   <div id="kpi"></div>
   <div id="walls"></div>
@@ -36,13 +35,8 @@ const P = { up: '#26a69a', down: '#ef5350', flat: '#9ca3af' };
 async function load() {
   const d = await R.get('/api/assets/crypto-derivatives');
   if (!d || !d.ts) { R.fail(['radar', 'kpi', 'walls', 'retail', 'consensus'], new Error('无快照')); return; }
-  document.getElementById('re-as-of').textContent = '数据截至 ' + d.ts.slice(0, 10);
-
-  // ── 数据时效（timsun 同款多源时效条）──
-  const age = (iso) => ((Date.now() - new Date(iso).getTime()) / 3600e3).toFixed(1);
-  const stale = document.getElementById('stale');
-  const cmeAge = d.cme && d.cme.as_of ? ` (${age(d.cme.as_of + 'T12:00:00Z')}h)` : '';
-  stale.innerHTML = `<div class="re-explain">📡 数据时效：衍生品 KPI ${age(d.ts)}h · CME 基差 ${cmeAge || '—'} · 日频按美股交易日，小时级按 24/72h · 每日 cron 自动刷新</div>`;
+  const cmeAsOf = d.cme && d.cme.as_of ? ' · CME 基差 ' + d.cme.as_of : '';
+  document.getElementById('re-as-of').textContent = '数据截至 衍生品快照 ' + d.ts.slice(0, 10) + cmeAsOf;
 
   // ── BTC FORWARD RADAR（timsun 同款：综合分 + 4 列 + 信号权重）──
   const radar = d.radar || { total: null, confidence: 0, verdict: '数据不足', structure: '—', lev_risk: '—', driver: '—', signals: [] };
