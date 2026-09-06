@@ -4,12 +4,12 @@
 //   - 结构层：风险偏好/股票 dispersion/防御资产/利率波动 四状态卡（先看结构）
 //   - 数据层：分组建模热力图（点 cell → 滚动相关 drill-down，再看数据）
 //   - 洞察层：消费 /api/cross-asset alerts 的规则引擎叙事
-// 宏观联动模式：保留原有 FRED 指标 overlay（预设 + 自由加指标 + 日期范围）
+// 宏观联动模式：FRED 指标 overlay（预设 + 自由加指标；全量历史，图内 dataZoom 缩放区间）
 //
 // UI 原则见 AGENTS.md「主站 Web UI/UX 设计原则」。
 
 import { registerMacroTheme } from './echarts-theme.js';
-import { MACRO_COLORS, MACRO_LABELS, MACRO_DATE_RANGES, applyDateFilter } from './macro-common.js';
+import { MACRO_COLORS, MACRO_LABELS } from './macro-common.js';
 
 // ── constants ──────────────────────────────────────────────────────────────
 const GROUP_ORDER = ['equity', 'bond', 'credit', 'commodity', 'crypto', 'fx', 'vol'];
@@ -91,7 +91,6 @@ let matrixChart = null;
 let drillChart = null;
 let corrChart = null;
 let corrObserver = null;
-let dateRange = '5y'; // 默认 5 年：78 年全量下近期联动不可读，All 保留可选
 let seriesMapCache = null; // 宏观模式最近一次渲染的 seriesMap（状态栏数据截至用）
 
 // ── init ───────────────────────────────────────────────────────────────────
@@ -133,8 +132,7 @@ function renderUI() {
       <button class="range-btn${mode === 'asset' ? ' active' : ''}" data-mode="asset">资产相关</button>
       <button class="range-btn${mode === 'macro' ? ' active' : ''}" data-mode="macro">宏观联动</button>
     </div>
-    <div class="correlation-presets" id="corr-presets" style="padding:0;border:none;flex:1"></div>
-    <div class="correlation-date-toolbar" id="corr-date-toolbar" style="display:none"></div>`;
+    <div class="correlation-presets" id="corr-presets" style="padding:0;border:none;flex:1;min-width:0"></div>`;
   toolbar.querySelectorAll('[data-mode]').forEach(btn => {
     btn.addEventListener('click', () => switchMode(btn.dataset.mode));
   });
@@ -516,7 +514,7 @@ function renderMacroSkeleton(wrap) {
         <div id="corr-macro-roll" class="corr-macro-roll"><div class="loading" style="height:auto;padding:24px">加载中…</div></div>
       </div>
     </div>`;
-  // 预设按钮组 + 日期范围组都挂工具栏（renderUI 已建容器）
+  // 预设按钮组挂工具栏（renderUI 已建容器）
   const presetsBar = document.getElementById('corr-presets');
   presetsBar.innerHTML = presets.map(p =>
     `<button class="correlation-preset-btn" data-id="${p.id}">${p.name}</button>`
@@ -526,14 +524,6 @@ function renderMacroSkeleton(wrap) {
       const preset = presets.find(p => p.id === btn.dataset.id);
       if (preset) loadPreset(preset);
     });
-  });
-  const dateToolbar = document.getElementById('corr-date-toolbar');
-  dateToolbar.style.display = 'flex';
-  dateToolbar.innerHTML = MACRO_DATE_RANGES.map(r =>
-    `<button class="macro-range-btn${r.value === dateRange ? ' active' : ''}" data-range="${r.value}">${r.label}</button>`
-  ).join('');
-  dateToolbar.querySelectorAll('.macro-range-btn').forEach(btn => {
-    btn.addEventListener('click', () => setDateRange(btn.dataset.range));
   });
 }
 
@@ -640,9 +630,8 @@ async function loadAndRender() {
       for (const name of fredNames) {
         const info = all.indicators[name];
         if (!info) continue;
-        const filtered = applyDateFilter(info.data, dateRange);
         seriesMap[name] = {
-          data: filtered.filter(d => d.value != null).map(d => [d.date, d.value]),
+          data: info.data.filter(d => d.value != null).map(d => [d.date, d.value]),
           label: info.label,
         };
       }
@@ -657,7 +646,7 @@ async function loadAndRender() {
         const rows = pricesCache.prices
           .filter(r => r[name] != null)
           .map(r => ({ date: r.date, value: r[name] }));
-        seriesMap[name] = { data: applyDateFilter(rows, dateRange).map(d => [d.date, d.value]), label: indicatorLabel(name) };
+        seriesMap[name] = { data: rows.map(d => [d.date, d.value]), label: indicatorLabel(name) };
       }
     }
     renderMacroStatus(seriesMap);
@@ -919,14 +908,6 @@ function removeIndicator(name) {
   activePreset.id = 'custom';
   document.querySelectorAll('.correlation-preset-btn').forEach(btn => btn.classList.remove('active'));
   renderCustomControls();
-  loadAndRender();
-}
-
-function setDateRange(range) {
-  if (dateRange === range) return;
-  dateRange = range;
-  document.querySelectorAll('.correlation-date-toolbar .macro-range-btn').forEach(btn =>
-    btn.classList.toggle('active', btn.dataset.range === range));
   loadAndRender();
 }
 

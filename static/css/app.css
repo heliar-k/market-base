@@ -269,12 +269,10 @@ body { font-family: system-ui, -apple-system, sans-serif; background: var(--bg);
 }
 
 /* ── correlation view（关联分析面板：双模式）────── */
-.correlation-presets { display: flex; gap: 6px; padding: 8px 12px; border-bottom: 1px solid var(--border); flex-wrap: wrap; }
-.correlation-preset-btn { padding: 4px 12px; border: 1px solid var(--btn-border); border-radius: 4px; background: var(--surface); font-size: 12px; cursor: pointer; transition: all .15s; color: var(--text-secondary); }
+.correlation-preset-btn { padding: 4px 12px; border: 1px solid var(--btn-border); border-radius: 4px; background: var(--surface); font-size: 12px; cursor: pointer; transition: all .15s; color: var(--text-secondary); white-space: nowrap; flex: 0 0 auto; }
 .correlation-preset-btn:hover { background: var(--surface-hover); }
 .correlation-preset-btn.active { background: var(--accent); color: #fff; border-color: var(--accent); }
 .correlation-controls { display: flex; gap: 8px; padding: 8px 12px; border-bottom: 1px solid var(--border); align-items: center; flex-wrap: wrap; }
-.correlation-date-toolbar { display: flex; gap: 4px; }
 .correlation-custom { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; flex: 1; }
 .correlation-select { padding: 4px 8px; border: 1px solid var(--btn-border); border-radius: 4px; font-size: 12px; background: var(--surface); min-width: 120px; color: var(--text); }
 .correlation-indicator-chip { display: flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 4px; font-size: 12px; border: 1px solid var(--btn-border); background: var(--surface-alt); }
@@ -285,7 +283,9 @@ body { font-family: system-ui, -apple-system, sans-serif; background: var(--bg);
 #correlation-chart { flex: 1; min-height: 400px; position: relative; }
 
 /* 面板骨架（资产相关模式：结构层 + 数据层 + 洞察层） */
-.corr-toolbar { display: flex; align-items: center; gap: 10px; padding: 8px 12px; border-bottom: 1px solid var(--border); flex-wrap: wrap; }
+/* 工具栏单排：预设组占满剩余宽度，溢出横向滚动不折行 */
+.corr-toolbar { display: flex; align-items: center; gap: 10px; padding: 8px 12px; border-bottom: 1px solid var(--border); flex-wrap: nowrap; }
+.correlation-presets { display: flex; gap: 6px; flex-wrap: nowrap; overflow-x: auto; flex: 1; min-width: 0; scrollbar-width: thin; }
 .corr-mode-title { font-size: 12px; color: var(--text-dim); }
 .corr-asset-wrap { flex: 1; display: flex; flex-direction: column; gap: 10px; padding: 10px 12px; overflow-y: auto; min-height: 0; }
 .corr-status-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
@@ -321,7 +321,6 @@ body { font-family: system-ui, -apple-system, sans-serif; background: var(--bg);
 .corr-pane-foot { font-size: 11px; color: var(--text-dim); padding: 6px 14px 10px; border-top: 1px solid var(--border-light); }
 .corr-macro-roll { display: flex; flex-direction: column; gap: 8px; padding: 10px 12px; overflow-y: auto; }
 .corr-roll-chart { margin-top: 4px; }
-.correlation-presets { display: flex; gap: 6px; flex-wrap: wrap; }
 
 /* ── tech info bar ─────────────────────────────────────── */
 .tech-info-bar {
