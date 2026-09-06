@@ -671,8 +671,8 @@ function corrNarrative(c) {
 function corrClass(c) {
   if (c == null) return 'neutral';
   if (c >= 0.7) return 'down';   // 高度同向 = 分散化失效，结构恶化
-  if (c >= 0.3) return 'neutral';
-  return 'up';                   // 负相关 = 有对冲价值
+  if (c > -0.3) return 'neutral'; // 同向联动/弱相关 = 无强信号（与 corrNarrative 分界一致）
+  return 'up';                   // 反向 = 有对冲价值（-0.3~-0.7 部分、≤-0.7 强）
 }
 
 function rollingSeries(a, b) {
@@ -756,7 +756,7 @@ function renderNarrative(seriesMap) {
   box.innerHTML = `
     <div class="narr-now">
       <div class="narr-big ${tagCls}">${cur == null ? '—' : (cur >= 0 ? '+' : '') + cur.toFixed(2)} <i class="narr-arrow">${arrow}</i><span class="narr-tag ${tagCls}">${corrNarrative(cur)}</span></div>
-      <div class="narr-sub">${indicatorLabel(l)} × ${indicatorLabel(r)} · 当前滚动相关（30 日窗口）· ▲▼ = 较上一窗口回升/回落</div>
+      <div class="narr-sub">${indicatorLabel(l)} × ${indicatorLabel(r)} · 当前滚动相关（30 日窗口）· ▲▼ = 较上一窗口回升/回落 · 颜色=对冲语义：绿=可对冲、红=同向集中、灰=中性</div>
     </div>
     ${pairs.length > 1 ? `<div class="narr-pairs">${pairs.map((p, i) =>
       `<button class="correlation-preset-btn${i === narrPairIdx ? ' active' : ''}" data-pair="${i}">${indicatorLabel(p[0])} × ${indicatorLabel(p[1])}</button>`).join('')}</div>` : ''}
