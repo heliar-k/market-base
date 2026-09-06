@@ -18,6 +18,8 @@
 .db-bull { border-left: 3px solid #26a69a; padding-left: 8px; }
 .db-bear { border-left: 3px solid #ef5350; padding-left: 8px; }
 .db-click { cursor: pointer; }
+/* 包裹式小节（隐藏切换）内部节奏：.re-root 的 flex gap 管不到 wrapper 内部 */
+.db-sec { display: flex; flex-direction: column; gap: 8px; }
 @keyframes db-flash { 0% { background: var(--accent-light); } 100% { background: transparent; } }
 .db-flash { animation: db-flash 1.6s ease-out; }
 </style>
@@ -43,13 +45,13 @@
   <p class="re-source">先看价格事实，再解释背后的机制。涨跌颜色只表示数值方向；变化按各序列最近 5 / 20 个有效观测计算，迷你趋势使用独立纵轴，不比较振幅大小。点击行可展开该指标的正反两面。</p>
   <div id="db-table"><div class="re-loading">加载中…</div></div>
 
-  <div id="sec-readings" style="display:none">
+  <div id="sec-readings" class="db-sec" style="display:none">
     <div class="re-h2">各指标的正反两面</div>
     <p class="re-source">每个指标同时给出支持与反对的读法：方向为近 5 个有效观测，分位为 1 年窗口（微观锚点）。正反并列不代表等概率，需结合上方情景与反证条件核验。</p>
     <div id="db-readings"></div>
   </div>
 
-  <div id="sec-alerts" style="display:none">
+  <div id="sec-alerts" class="db-sec" style="display:none">
     <div class="re-h2">跨资产结构报警</div>
     <div class="re-cards" id="db-alerts"></div>
   </div>
@@ -244,7 +246,7 @@ async function load() {
 function renderReadings(list) {
   const sec = document.getElementById('sec-readings');
   if (!list.length) { sec.style.display = 'none'; return; }
-  sec.style.display = '';
+  sec.style.display = 'flex';
   document.getElementById('db-readings').innerHTML = list.map(r => `
     <div class="re-card db-click" id="rd-${r.key}" data-k="${r.key}" style="margin-bottom:8px">
       <div class="re-corridor-label">${r.name}
@@ -279,7 +281,7 @@ function focusReading(key) {
 
   // ── 报警 ──
   if (d.alerts?.length) {
-    document.getElementById('sec-alerts').style.display = '';
+    document.getElementById('sec-alerts').style.display = 'flex';
     document.getElementById('db-alerts').innerHTML = d.alerts.map(a => `
       <div class="re-card db-alert-card">
         <div class="re-corridor-label">${a.title}</div>
