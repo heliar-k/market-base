@@ -177,8 +177,8 @@ function renderAssetSkeleton(wrap) {
           <span class="corr-pane-title">跨资产相关性矩阵</span>
           <span class="corr-pane-sub" id="corr-matrix-sub"></span>
         </div>
-        <div id="corr-heatmap" class="corr-heatmap"></div>
         <div class="corr-group-legend" id="corr-group-legend"></div>
+        <div id="corr-heatmap" class="corr-heatmap"></div>
       </div>
       <div class="corr-side-pane">
         <div class="corr-pane-head"><span class="corr-pane-title">结构洞察</span></div>
