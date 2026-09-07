@@ -127,7 +127,9 @@ def export_api() -> None:
     # 导出成 2016→2023-09-07 的数据，静态站 SPX 停在 4451.14）
     cutoff = (date.today() - timedelta(days=365 * KLINE_YEARS)).isoformat()
     for s in symbols:
-        records = get_kline(s["name"], interval="1d", days=0)
+        # 直接函数调用（非 HTTP）时 as_of 必须显式传 None：
+        # FastAPI Query(None) 默认对象不能直接当值用（先例：get_diag）
+        records = get_kline(s["name"], as_of=None, interval="1d", days=0)
         records = [r for r in records if r["date"] >= cutoff]
         records = [
             {k: v for k, v in r.items() if not k.startswith("CDL_")} for r in records
