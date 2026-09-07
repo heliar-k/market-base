@@ -54,6 +54,10 @@ body { font-family: system-ui, -apple-system, sans-serif; background: var(--bg);
 [data-view="dashboard"] .dashboard-view { display: flex; }
 [data-view="tech"] .tech-view { display: flex; }
 [data-view="tech"] .sidebar { display: flex; }
+.sidebar-collapse-btn { width: 14px; background: var(--surface); border: none; border-right: 1px solid var(--border); cursor: pointer; color: var(--text-dim); font-size: 10px; display: none; align-items: center; justify-content: center; flex-shrink: 0; padding: 0; }
+[data-view="tech"] .sidebar-collapse-btn { display: flex; }
+.sidebar-collapse-btn:hover { background: var(--surface-hover); color: var(--accent); }
+.app.sidebar-hidden .sidebar { display: none; }
 [data-view="macro"] .macro-view { display: flex; min-height: 0; }
 [data-view="correlation"] .correlation-view { display: flex; min-height: 0; }
 

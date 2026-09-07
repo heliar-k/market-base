@@ -91,6 +91,18 @@ function initDiagToggle() {
 }
 
 // ── symbols sidebar ────────────────────────────────────────────────────────
+// collapse toggle — ResizeObserver on chart containers handles chart resize
+const app = document.querySelector('.app');
+const sidebarBtn = document.getElementById('sidebar-collapse-btn');
+const app = document.querySelector('.app');
+const sidebarBtn = document.getElementById('sidebar-collapse-btn');
+function setSidebarHidden(hidden) {
+  app.classList.toggle('sidebar-hidden', hidden);
+  sidebarBtn.textContent = hidden ? '▶' : '◀';
+  localStorage.setItem('sidebar-hidden', hidden ? '1' : '');
+}
+sidebarBtn.addEventListener('click', () => setSidebarHidden(!app.classList.contains('sidebar-hidden')));
+setSidebarHidden(localStorage.getItem('sidebar-hidden') === '1');
 const ETF_LIKE = new Set(['SPY', 'QQQ']); // grouped with indices even though type=stock
 
 async function loadSymbols() {
