@@ -1,5 +1,23 @@
 // 专题导航注入 — 新专题页只需 <div class="re-nav" id="re-nav"></div> + 本脚本；
 // 改导航结构只改这里（rates/volatility 两套 + 专题间 Tab；fed/credit/treasury 已合并单页）
+
+// 静态部署后数据更新，浏览器可能还拿着 max-age=600 的旧 JSON ——
+// 全站 fetch 统一改为 ETag 协商（no-cache 指命中后再验证，304 免流量），
+// SPA 入口 app.js 与专题页 nav.js 两个注入点各装一次
+(function () {
+  if (window.__fetchNoCache) return;
+  window.__fetchNoCache = true;
+  var _fetch = window.fetch;
+  window.fetch = function (input, init) {
+    var url = typeof input === 'string' ? input : (input && input.url) || '';
+    if (url.indexOf('/api/') !== -1) {
+      init = init || {};
+      if (!init.cache) init.cache = 'no-cache';
+    }
+    return _fetch.call(this, input, init);
+  };
+})();
+
 (function () {
   // 专题间 Tab（总入口）
   var TABS = [

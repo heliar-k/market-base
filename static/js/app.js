@@ -1,5 +1,21 @@
 // app.js — entry point: tab routing + global init
 
+// /api/ 数据请求统一 ETag 协商（与 nav.js 同款 patch；SPA 视图的 fetch
+// 都从这里过），部署后浏览器不再用 max-age=600 的旧 JSON
+(function () {
+  if (window.__fetchNoCache) return;
+  window.__fetchNoCache = true;
+  const _fetch = window.fetch;
+  window.fetch = function (input, init) {
+    const url = typeof input === 'string' ? input : (input && input.url) || '';
+    if (url.includes('/api/')) {
+      init = init || {};
+      if (!init.cache) init.cache = 'no-cache';
+    }
+    return _fetch.call(this, input, init);
+  };
+})();
+
 import { initDashboard, refresh as dashRefresh, cleanup as dashCleanup, updateStatus as dashStatus } from './dashboard.js';
 import { initTechView, selectSymbol as techSelectSymbol, updateStatus as techStatus } from './tech-view.js';
 import { initMacroView, initGlobalNav, updateStatus as macroStatus } from './macro-view.js';
