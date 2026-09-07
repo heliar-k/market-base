@@ -98,6 +98,13 @@ function setSidebarHidden(hidden) {
   app.classList.toggle('sidebar-hidden', hidden);
   sidebarBtn.textContent = hidden ? '▶' : '◀';
   localStorage.setItem('sidebar-hidden', hidden ? '1' : '');
+  // 兜底：display:none 即时生效，下一帧容器宽度已变；显式 resize 防部分浏览器 RO 不触发
+  requestAnimationFrame(() => {
+    [mainChart, rsiChart, macdChart].forEach((c, i) => {
+      const el = document.getElementById(['main-chart', 'rsi-chart', 'macd-chart'][i]);
+      if (c && el) c.applyOptions({ width: el.clientWidth });
+    });
+  });
 }
 sidebarBtn.addEventListener('click', () => setSidebarHidden(!app.classList.contains('sidebar-hidden')));
 setSidebarHidden(localStorage.getItem('sidebar-hidden') === '1');

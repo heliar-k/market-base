@@ -88,6 +88,7 @@ let presets = null;
 let activePreset = null;
 let crossData = null; // /api/cross-asset payload
 let matrixChart = null;
+let matrixObserver = null;
 let drillChart = null;
 let corrChart = null;
 let corrObserver = null;
@@ -316,6 +317,10 @@ function renderMatrix() {
     }],
   });
   hookMatrixEvents(matrixChart);
+  // 容器高度变化（窗口缩放/布局稳定）时重绘，否则 canvas 停在 init 尺寸、底部图例被 overflow:hidden 裁掉
+  if (matrixObserver) matrixObserver.disconnect();
+  matrixObserver = new ResizeObserver(() => matrixChart?.resize());
+  matrixObserver.observe(dom);
 
   // 图例行
   const legend = document.getElementById('corr-group-legend');
@@ -911,6 +916,7 @@ function removeIndicator(name) {
 }
 
 function disposeMatrixCharts() {
+  if (matrixObserver) { matrixObserver.disconnect(); matrixObserver = null; }
   if (matrixChart) { matrixChart.dispose(); matrixChart = null; }
   if (drillChart) { drillChart.dispose(); drillChart = null; }
 }
