@@ -276,7 +276,7 @@ function renderMatrix() {
         return `${labels[p.value[1]]} × ${labels[p.value[0]]}<br>${v == null ? '—' : Number(v).toFixed(2)}`;
       },
     },
-    grid: { left: 8, right: 16, top: 8, bottom: 90, containLabel: true },
+    grid: { left: 8, right: 16, top: 8, bottom: 44, containLabel: true },
     xAxis: {
       type: 'category', data: assets, position: 'top',
       axisLabel: { color: '#737373', fontSize: 10, rotate: 50, interval: 0 },
@@ -288,7 +288,7 @@ function renderMatrix() {
       axisLine: { show: false }, axisTick: { show: false },
     },
     visualMap: {
-      min: -1, max: 1, calculable: true, orient: 'horizontal', left: 'center', bottom: 4,
+      min: -1, max: 1, calculable: true, orient: 'horizontal', left: 'center', bottom: 4, itemWidth: 14,
       inRange: {
         color: dark
           ? ['#60a5fa', '#1e3a5f', '#1f2937', '#7f1d1d', '#f87171']
