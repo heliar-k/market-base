@@ -94,8 +94,6 @@ function initDiagToggle() {
 // collapse toggle — ResizeObserver on chart containers handles chart resize
 const app = document.querySelector('.app');
 const sidebarBtn = document.getElementById('sidebar-collapse-btn');
-const app = document.querySelector('.app');
-const sidebarBtn = document.getElementById('sidebar-collapse-btn');
 function setSidebarHidden(hidden) {
   app.classList.toggle('sidebar-hidden', hidden);
   sidebarBtn.textContent = hidden ? '▶' : '◀';
