@@ -483,15 +483,48 @@ function renderInsights(d) {
     if (!a || a.series.length < 3) return;
     const spark = document.createElement('div');
     spark.className = 'corr-spark';
-    spark.style.height = '42px';
+    spark.style.height = '60px';
     el.appendChild(spark);
     const dark = document.body.classList.contains('dark');
     const chart = echarts.init(spark, dark ? 'macroDark' : 'macro', { renderer: 'canvas' });
+    const dates = a.series.map(s => s.date);
+    const lastIdx = a.series.length - 1;
+    const dim = dark ? '#8b949e' : '#a3a3a3';
     chart.setOption({
-      grid: { left: 0, right: 0, top: 2, bottom: 0 },
-      xAxis: { type: 'category', show: false, data: a.series.map(s => s.date) },
-      yAxis: { type: 'value', show: false, min: -1, max: 1 },
-      series: [{ type: 'line', data: a.series.map(s => s.value), showSymbol: false, lineStyle: { width: 1.2 }, areaStyle: { opacity: 0.12 } }],
+      grid: { left: 16, right: 18, top: 6, bottom: 16 },
+      tooltip: {
+        trigger: 'axis',
+        formatter: p => `${p[0].axisValue}<br>30日相关 ${p[0].value == null ? '—' : Number(p[0].value).toFixed(2)}`,
+      },
+      xAxis: {
+        type: 'category', data: dates,
+        axisLine: { show: false }, axisTick: { show: false },
+        // 只显首尾日期（MM-DD，年份在页头 as-of 里），给出时间范围
+        axisLabel: { fontSize: 9, color: dim, interval: i => i === 0 || i === lastIdx, formatter: v => v.slice(5) },
+      },
+      yAxis: {
+        type: 'value', min: -1, max: 1,
+        splitLine: { show: false }, axisLabel: { show: false },
+      },
+      series: [{
+        type: 'line', data: a.series.map(s => s.value), showSymbol: false,
+        lineStyle: { width: 1.4 },
+        areaStyle: { opacity: 0.10 },
+        // 0 轴虚线：相关性正/负分界，没有它曲线无法解读
+        markLine: {
+          silent: true, symbol: 'none',
+          lineStyle: { type: 'dashed', width: 1, color: dim },
+          label: { show: false },
+          data: [{ yAxis: 0 }],
+        },
+        // 当前值端点
+        markPoint: {
+          symbol: 'circle', symbolSize: 6,
+          itemStyle: { color: dark ? '#f87171' : '#1a73e8' },
+          label: { show: false },
+          data: [{ coord: [lastIdx, a.series[lastIdx].value] }],
+        },
+      }],
     });
     // 面板销毁随 innerHTML 重建，无需单独管理实例
   });
