@@ -119,18 +119,23 @@ def export_api() -> None:
     symbols = get_symbols()
     _dump("api/symbols", symbols)
 
-    # K 线：近 3 年（as_of 截断）；days=2/5 变体自动兼容（前端只取尾部）
+    # K 线：近 3 年（导出侧按日期过滤，cutoff 之前的老数据不进静态包）；
+    # days=2/5 变体取过滤后尾部（静态托管忽略 query，前端预取价格只用尾部几行）
     # CDL_* 62 列前端未使用，剔除控体积（约 -45%）
-    as_of = (date.today() - timedelta(days=365 * KLINE_YEARS)).isoformat()
+    # 注意：不能用 get_kline 的 as_of 参数——那是「数据截至」语义（保留
+    # cutoff 之前），传「今天-3年」会把近 3 年全部切丢（2026-09 曾因此
+    # 导出成 2016→2023-09-07 的数据，静态站 SPX 停在 4451.14）
+    cutoff = (date.today() - timedelta(days=365 * KLINE_YEARS)).isoformat()
     for s in symbols:
-        records = get_kline(s["name"], as_of=as_of, interval="1d", days=0)
+        records = get_kline(s["name"], interval="1d", days=0)
+        records = [r for r in records if r["date"] >= cutoff]
         records = [
             {k: v for k, v in r.items() if not k.startswith("CDL_")} for r in records
         ]
         _dump(f"api/kline/{s['name']}", records)
         # 尾部小文件：?days=N 变体（静态托管忽略 query，前端预取价格只用尾部几行）
         for n in (2, 5):
-            tail = get_kline(s["name"], as_of=as_of, interval="1d", days=n)
+            tail = records[-n:]
             tail = [
                 {k: v for k, v in r.items() if not k.startswith("CDL_")} for r in tail
             ]
