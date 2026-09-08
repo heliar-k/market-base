@@ -330,26 +330,9 @@ function renderMatrix() {
   });
   hookMatrixEvents(matrixChart);
 
-  // 对角块分隔框：markArea 在 heatmap 上不渲染，改用 graphic 覆盖层按像素坐标画
-  function drawGroupBoxes() {
-    if (!matrixChart) return;
-    const boxes = groups.map((g, gi) => {
-      const tl = matrixChart.convertToPixel({ seriesIndex: 0 }, [g.start - 0.5, g.start - 0.5]);
-      const br = matrixChart.convertToPixel({ seriesIndex: 0 }, [g.end + 0.5, g.end + 0.5]);
-      if (!tl || !br) return null;
-      return {
-        type: 'rect', silent: true, z: 5, id: 'grpbx' + gi,
-        shape: { x: Math.min(tl[0], br[0]), y: Math.min(tl[1], br[1]), width: Math.abs(br[0] - tl[0]), height: Math.abs(br[1] - tl[1]) },
-        style: { fill: 'transparent', stroke: GROUP_COLORS[g.group], lineWidth: 1.5, opacity: 0.65 },
-      };
-    }).filter(Boolean);
-    matrixChart.setOption({ graphic: boxes });
-  }
-  drawGroupBoxes();
-
   // 容器高度变化（窗口缩放/布局稳定）时重绘，否则 canvas 停在 init 尺寸、底部图例被 overflow:hidden 裁掉
   if (matrixObserver) matrixObserver.disconnect();
-  matrixObserver = new ResizeObserver(() => { matrixChart?.resize(); drawGroupBoxes(); });
+  matrixObserver = new ResizeObserver(() => matrixChart?.resize());
   matrixObserver.observe(dom);
 
   // 图例行
