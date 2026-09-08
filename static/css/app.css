@@ -367,8 +367,8 @@ body.dark .dash-badge.alert { background: rgba(248,113,113,.08); color: #f87171;
 .corr-insight-val i { font-style: normal; font-size: 10px; }
 .corr-insight-title { font-size: 12px; font-weight: 600; }
 .corr-insight-text { font-size: 11px; color: var(--text-secondary); margin-top: 2px; line-height: 1.5; }
-.corr-spark { margin-top: 4px; }
-.corr-spark-cap { font-size: 10px; color: var(--text-dim); margin-top: 2px; }
+.corr-spark { margin-top: 10px; }
+.corr-spark-cap { font-size: 10px; color: var(--text-dim); margin-top: 6px; }
 .corr-drill-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.45); z-index: 60; display: flex; align-items: center; justify-content: center; }
 .corr-drill-panel { width: min(880px, 92vw); max-height: 86vh; overflow-y: auto; padding-bottom: 10px; }
 .corr-drill-charts { display: flex; gap: 12px; padding: 8px 14px; flex-direction: column; }

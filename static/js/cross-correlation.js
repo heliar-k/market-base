@@ -496,7 +496,7 @@ function renderInsights(d) {
     if (!a || a.series.length < 3) return;
     const spark = document.createElement('div');
     spark.className = 'corr-spark';
-    spark.style.height = '50px';
+    spark.style.height = '60px';
     el.appendChild(spark);
     const dark = document.body.classList.contains('dark');
     const chart = echarts.init(spark, dark ? 'macroDark' : 'macro', { renderer: 'canvas' });
