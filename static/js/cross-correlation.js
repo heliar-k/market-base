@@ -269,6 +269,18 @@ function renderMatrix() {
   const data = [];
   d.matrix.forEach((row, i) => row.forEach((v, j) => data.push([j, i, v])));
 
+  // 分组：资产已按 group 连续排列，算出每组起止索引，用于轴标签分色 + 对角块分隔框
+  const assetGroup = d.assets.map(a => a.group);
+  const groups = [];
+  assetGroup.forEach((g, i) => {
+    const last = groups[groups.length - 1];
+    if (last && last.group === g) last.end = i;
+    else groups.push({ group: g, start: i, end: i });
+  });
+  const rich = {};
+  groups.forEach(g => { rich[g.group] = { color: GROUP_COLORS[g.group], fontSize: 10 }; });
+  const labelFmt = (v, i) => `{${assetGroup[i]}|${v}}`;
+
   matrixChart.setOption({
     tooltip: {
       position: 'top',
@@ -280,12 +292,12 @@ function renderMatrix() {
     grid: { left: 8, right: 16, top: 8, bottom: 44, containLabel: true },
     xAxis: {
       type: 'category', data: assets, position: 'top',
-      axisLabel: { color: '#737373', fontSize: 10, rotate: 50, interval: 0 },
+      axisLabel: { fontSize: 10, rotate: 50, interval: 0, rich, formatter: labelFmt },
       axisLine: { show: false }, axisTick: { show: false },
     },
     yAxis: {
       type: 'category', data: assets,
-      axisLabel: { color: '#737373', fontSize: 10 },
+      axisLabel: { fontSize: 10, rich, formatter: labelFmt },
       axisLine: { show: false }, axisTick: { show: false },
     },
     visualMap: {
@@ -317,9 +329,27 @@ function renderMatrix() {
     }],
   });
   hookMatrixEvents(matrixChart);
+
+  // 对角块分隔框：markArea 在 heatmap 上不渲染，改用 graphic 覆盖层按像素坐标画
+  function drawGroupBoxes() {
+    if (!matrixChart) return;
+    const boxes = groups.map((g, gi) => {
+      const tl = matrixChart.convertToPixel({ seriesIndex: 0 }, [g.start - 0.5, g.start - 0.5]);
+      const br = matrixChart.convertToPixel({ seriesIndex: 0 }, [g.end + 0.5, g.end + 0.5]);
+      if (!tl || !br) return null;
+      return {
+        type: 'rect', silent: true, z: 5, id: 'grpbx' + gi,
+        shape: { x: Math.min(tl[0], br[0]), y: Math.min(tl[1], br[1]), width: Math.abs(br[0] - tl[0]), height: Math.abs(br[1] - tl[1]) },
+        style: { fill: 'transparent', stroke: GROUP_COLORS[g.group], lineWidth: 1.5, opacity: 0.65 },
+      };
+    }).filter(Boolean);
+    matrixChart.setOption({ graphic: boxes });
+  }
+  drawGroupBoxes();
+
   // 容器高度变化（窗口缩放/布局稳定）时重绘，否则 canvas 停在 init 尺寸、底部图例被 overflow:hidden 裁掉
   if (matrixObserver) matrixObserver.disconnect();
-  matrixObserver = new ResizeObserver(() => matrixChart?.resize());
+  matrixObserver = new ResizeObserver(() => { matrixChart?.resize(); drawGroupBoxes(); });
   matrixObserver.observe(dom);
 
   // 图例行
