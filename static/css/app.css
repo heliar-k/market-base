@@ -352,7 +352,7 @@ body.dark .dash-badge.alert { background: rgba(248,113,113,.08); color: #f87171;
 .corr-status-card { padding: 12px; cursor: pointer; }
 .corr-status-card .dash-stat-value { font-size: 22px; }
 @media (max-width: 1100px) { .corr-status-row { grid-template-columns: repeat(2, 1fr); } .corr-main { grid-template-columns: 1fr; } }
-.corr-main { display: grid; grid-template-columns: 3fr 2fr; gap: 10px; min-height: 560px; flex: 1; }
+.corr-main { display: grid; grid-template-columns: 5fr 4fr; gap: 10px; min-height: 560px; flex: 1; }
 .corr-matrix-pane, .corr-side-pane { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; display: flex; flex-direction: column; min-height: 0; overflow: hidden; }
 .corr-pane-head { display: flex; justify-content: space-between; align-items: baseline; padding: 10px 14px 6px; border-bottom: 1px solid var(--border-light); gap: 8px; }
 .corr-pane-title { font-size: 13px; font-weight: 600; color: var(--text-secondary); }
