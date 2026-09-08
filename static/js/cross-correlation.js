@@ -477,7 +477,7 @@ function renderInsights(d) {
   }
   box.innerHTML = cards.join('') || '<div class="corr-insight-text">暂无报警数据（等下个交易日 cross_asset 运行）</div>';
 
-  // 报警对迷你趋势（每张洞察卡下方 spark）
+  // 报警对迷你趋势（每张洞察卡下方 spark）：自适应趋势线 + 分位/区间文字
   box.querySelectorAll('.corr-insight-card').forEach((el, idx) => {
     const a = d.alerts.filter(x => ALERT_RULES[x.key])[idx];
     if (!a || a.series.length < 3) return;
@@ -487,11 +487,16 @@ function renderInsights(d) {
     el.appendChild(spark);
     const dark = document.body.classList.contains('dark');
     const chart = echarts.init(spark, dark ? 'macroDark' : 'macro', { renderer: 'canvas' });
+    const vals = a.series.map(s => s.value);
     const dates = a.series.map(s => s.date);
-    const lastIdx = a.series.length - 1;
+    const lastIdx = vals.length - 1;
+    const lo = Math.min(...vals), hi = Math.max(...vals);
+    const pad = Math.max((hi - lo) * 0.25, 0.05);
+    const showZero = lo < 0 && hi > 0; // 0 轴仅在落入数据区间时才有意义
+    const accent = dark ? '#60a5fa' : '#1a73e8';
     const dim = dark ? '#8b949e' : '#a3a3a3';
     chart.setOption({
-      grid: { left: 16, right: 18, top: 6, bottom: 16 },
+      grid: { left: 30, right: 38, top: 6, bottom: 16 },
       tooltip: {
         trigger: 'axis',
         formatter: p => `${p[0].axisValue}<br>30日相关 ${p[0].value == null ? '—' : Number(p[0].value).toFixed(2)}`,
@@ -499,33 +504,40 @@ function renderInsights(d) {
       xAxis: {
         type: 'category', data: dates,
         axisLine: { show: false }, axisTick: { show: false },
-        // 只显首尾日期（MM-DD，年份在页头 as-of 里），给出时间范围
+        // 只显首尾日期（MM-DD，年份在页头 as-of 里）
         axisLabel: { fontSize: 9, color: dim, interval: i => i === 0 || i === lastIdx, formatter: v => v.slice(5) },
       },
+      // y 轴按数据缩放（不再固定 -1~1 把窄区间压成直线），留刻度供读数
       yAxis: {
-        type: 'value', min: -1, max: 1,
-        splitLine: { show: false }, axisLabel: { show: false },
+        type: 'value', min: +(lo - pad).toFixed(2), max: +(hi + pad).toFixed(2), splitNumber: 2,
+        splitLine: { lineStyle: { color: dark ? '#2d333b' : '#eef1f5' } },
+        axisLabel: { fontSize: 9, color: dim, formatter: v => v.toFixed(1) },
       },
       series: [{
-        type: 'line', data: a.series.map(s => s.value), showSymbol: false,
-        lineStyle: { width: 1.4 },
-        areaStyle: { opacity: 0.10 },
-        // 0 轴虚线：相关性正/负分界，没有它曲线无法解读
-        markLine: {
+        type: 'line', data: vals, showSymbol: false,
+        lineStyle: { width: 1.6, color: accent },
+        areaStyle: { opacity: 0.10, color: accent },
+        markLine: showZero ? {
           silent: true, symbol: 'none',
           lineStyle: { type: 'dashed', width: 1, color: dim },
           label: { show: false },
           data: [{ yAxis: 0 }],
-        },
-        // 当前值端点
+        } : undefined,
+        // 当前值端点 + 右侧标值
         markPoint: {
-          symbol: 'circle', symbolSize: 6,
-          itemStyle: { color: dark ? '#f87171' : '#1a73e8' },
-          label: { show: false },
-          data: [{ coord: [lastIdx, a.series[lastIdx].value] }],
+          symbol: 'circle', symbolSize: 7,
+          itemStyle: { color: accent },
+          label: { show: true, position: 'right', formatter: () => a.latest.toFixed(2), fontSize: 10, color: accent, fontWeight: 600 },
+          data: [{ coord: [lastIdx, vals[lastIdx]] }],
         },
       }],
     });
+    // 分位 + 区间文字：补上自适应缩放丢掉的“绝对位置”信息
+    const rank = Math.round(vals.filter(v => v <= a.latest).length / vals.length * 100);
+    const cap = document.createElement('div');
+    cap.className = 'corr-spark-cap';
+    cap.textContent = `近${vals.length}期 ${rank}% 分位 · 区间 ${lo.toFixed(2)}~${hi.toFixed(2)}`;
+    el.appendChild(cap);
     // 面板销毁随 innerHTML 重建，无需单独管理实例
   });
 }
