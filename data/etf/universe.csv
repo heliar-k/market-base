@@ -13,6 +13,8 @@ AAXJ,iShares MSCI All Country Asia ex Japan ETF,global
 ABCS,Alpha Blue Capital US Small-Mid Cap Dynamic ETF,broad
 ABI,VictoryShares Pioneer Asset-Based Income ETF,factor_income
 ABIG,Argent Large Cap ETF,broad
+ACBE,Pacer Metaurus Enhanced Core Income Autocallable ETF,factor_income
+ACBH,Pacer Metaurus High Income Autocallable ETF,factor_income
 ACEP,ARS Core Equity Portfolio ETF,broad
 ACQQ,ProShares Nasdaq-100 Autocallable Income ETF,factor_income
 ACRT,ProShares Russell 2000 Autocallable Income ETF,factor_income
@@ -31,6 +33,8 @@ AGZD,WisdomTree Interest Rate Hedged U.S. Aggregate Bond Fund,bond
 AHD,GraniteShares Autocallable HOOD ETF,broad
 AIA,iShares Asia 50 ETF,global
 AIFD,TCW Artificial Intelligence ETF,broad
+AIFR,Defiance Global Foundries ETF,broad
+AIMG,Defiance AI Magnificent 10 ETF,theme
 AIMS,Acuitas Small Cap Active ETF,broad
 AINF,Defiance Inference AI Chip ETF,theme
 AIPI,REX AI Equity Premium Income ETF,factor_income
@@ -241,6 +245,7 @@ CPAG,F/m Compoundr U.S. Aggregate Bond ETF,bond
 CPHY,F/m Compoundr High Yield Bond ETF,bond
 CPLS,AB Core Plus Bond ETF,bond
 CPTL,Global X Morningstar Capital Allocation Leaders ETF,broad
+CRAM,Defiance China Memory ETF,global
 CRCG,Leverage Shares 2X Long CRCL Daily ETF,leveraged_inverse
 CRMG,Leverage Shares 2X Long CRM Daily ETF,leveraged_inverse
 CRMU,Leverage Shares 2x Long CRML Daily ETF,leveraged_inverse
@@ -1168,6 +1173,7 @@ VCIT,Vanguard Intermediate-Term Corporate Bond ETF,bond
 VCLT,Vanguard Long-Term Corporate Bond ETF,bond
 VCRB,Vanguard Core Bond ETF,bond
 VCSH,Vanguard Short-Term Corporate Bond ETF,bond
+VEEM,VanEck MSCI EM Analyst Sentiment ETF,broad
 VEFA,VanEck MSCI EAFE Analyst Sentiment ETF,broad
 VFLO,VictoryShares Free Cash Flow ETF,broad
 VGIT,Vanguard Intermediate-Term Treasury ETF,bond
@@ -3733,10 +3739,12 @@ MFDX,PIMCO RAFI Dynamic Multi-Factor International Equity ETF,global
 MFEB,Pacer Swan SOS Moderate (February) ETF,broad
 MFEM,PIMCO RAFI Dynamic Multi-Factor Emerging Markets Equity ETF,global
 MFSB,MFS Active Core Plus Bond ETF,bond
+MFSD,MFS Active Short Duration Income ETF,factor_income
 MFSG,MFS Active Growth ETF,high_beta
 MFSI,MFS Active International ETF,global
 MFSM,MFS Active Intermediate Muni Bond ETF,bond
 MFSV,MFS Active Value ETF,factor_income
+MFSX,MFS Active Short Muni Bond ETF,bond
 MFUL,Mindful Conservative ETF,broad
 MFUS,PIMCO RAFI Dynamic Multi-Factor U.S. Equity ETF,broad
 MFUT,Cambria Chesapeake Pure Trend ETF,broad
@@ -3950,6 +3958,7 @@ NOVZ,TrueShares Structured Outcome (November) ETF,broad
 NOWX,Corgi NOW 2x Daily ETF,leveraged_inverse
 NPFE,NPF Core Equity ETF,broad
 NQLT,Neuberger Quality Select ETF,factor_income
+NRAM,Yorkville America Next Generation Memory Index ETF,broad
 NRGD,"MicroSectors U.S. Big Oil -3 Inverse Leveraged ETNs due February 17, 2045",commodity
 NRGU,"MicroSectors U.S. Big Oil 3 Leveraged ETNs due February 17, 2045",commodity
 NRSH,Aztlan North America Nearshoring Stock Selection ETF,broad
@@ -5290,6 +5299,7 @@ VEA,Vanguard FTSE Developed Markets ETF,global
 VEGA,AdvisorShares STAR Global Buy-Write ETF,broad
 VEGI,iShares MSCI Agriculture Producers ETF,commodity
 VEGN,US Vegan Climate ETF,broad
+VEGX,International Vegan Climate ETF,global
 VELL,Defiance Daily Target 2X Long VELO ETF,leveraged_inverse
 VEM,Virtus Emerging Markets Dividend ETF,factor_income
 VEMY,Virtus Stone Harbor Emerging Markets High Yield Bond ETF,bond
@@ -5498,7 +5508,9 @@ XLB,State Street Materials Select Sector SPDR ETF,broad
 XLBI,State Street Materials Select Sector SPDR Premium Income ETF,factor_income
 XLBX,Corgi U.S. Materials 2x Daily ETF,leveraged_inverse
 XLC,State Street Communication Services Select Sector SPDR ETF,broad
+XLCD,MicroSectors -3x Short Communication Services (XLC) ETNs,leveraged_inverse
 XLCI,State Street Communication Services Select Sector SPDR Premium Income ETF,factor_income
+XLCU,MicroSectors 3x Long Communication Services (XLC) ETNs,leveraged_inverse
 XLE,State Street Energy Select Sector SPDR ETF,commodity
 XLEI,State Street Energy Select Sector SPDR Premium Income ETF,commodity
 XLEX,Corgi U.S. Energy 2x Daily ETF,commodity
@@ -5513,6 +5525,8 @@ XLK,State Street Technology Select Sector SPDR ETF,broad
 XLKI,State Street Technology Select Sector SPDR Premium Income ETF,factor_income
 XLKX,Corgi U.S. Technology 2x Daily ETF,leveraged_inverse
 XLP,State Street Consumer Staples Select Sector SPDR ETF,broad
+XLPD,MicroSectors -3x Short Consumer Staples (XLP) ETNs,leveraged_inverse
+XLPU,MicroSectors 3x Long Consumer Staples (XLP) ETNs,leveraged_inverse
 XLPX,Corgi U.S. Consumer Staples 2x Daily ETF,leveraged_inverse
 XLRE,State Street Real Estate Select Sector SPDR ETF,broad
 XLRI,State Street Real Estate Select Sector SPDR Premium Income ETF,factor_income
