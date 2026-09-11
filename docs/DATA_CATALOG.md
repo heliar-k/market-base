@@ -715,7 +715,7 @@ API 响应 `generator` 字段标记 `rules` / `llm`，前端无感。
 | `data/fx/fx_pairs.csv` | 16 个外汇对日线收盘宽表（2y） | yfinance · `./bin/fetch_fx` |
 | `data/etf/universe.csv` | Nasdaq Trader 全量 ETF 清单（ETF=Y，~5600 只）+ 名称关键词分类 | Nasdaq Trader · `./bin/fetch_etf` |
 | `data/etf/pool_prices.csv` | 精选池 37 只 ETF 日线收盘宽表（1y） | yfinance · `./bin/fetch_etf` |
-| `data/options_structure/{date}.json` | 13 标的期权结构快照（Net GEX/DEX、Gamma Flip、Call/Put Wall、25Δ Skew、IV 期限结构、Vanna/Charm、OI Top20） | yfinance 期权链 + BS · `./bin/fetch_options_structure` |
+| `data/options_structure/{date}.json` | 22 标的期权结构快照（Net GEX/DEX、Gamma Flip、Call/Put Wall、25Δ Skew、IV 期限结构、Vanna/Charm、OI Top20） | yfinance 期权链 + BS · `./bin/fetch_options_structure` |
 | `data/crypto_derivatives/{date}.json` | OKX 永续（资金费率/OI/现价）+ Deribit 期权（墙/PCR/Max Pain）+ CME 基差 + taker 多空比 | OKX/Deribit 公开 API · `./bin/fetch_crypto_derivatives` |
 
 其余复用既有数据：`data/yfinance/asset_prices.csv`（指数/债券/商品/加密价格）、

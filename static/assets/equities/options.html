@@ -7,7 +7,7 @@
 <title>期权市场结构 — 观澜台</title>
 <link rel="stylesheet" href="/css/app.css">
 <link rel="stylesheet" href="/css/special.css">
-<style>/* 13 标的看板：三张表（指数/ETF · Mag 7 · 重点个股）列宽统一。
+<style>/* 期权结构看板：三张表（指数/ETF · Mag 7 · 重点个股）列宽统一。
    各表 auto-layout 按自身内容定宽，同名列会错位 20-45px → 固定百分比列宽对齐 */
 #board .re-table { table-layout: fixed; }
 #board .re-table th:nth-child(1), #board .re-table td:nth-child(1) { width: 15%; }
@@ -134,16 +134,16 @@ function flipDistText(v) {
   return `${Math.abs(v.flip_dist).toFixed(2)}%`;
 }
 
-// ── 13 标的看板 ──
+// ── 期权结构看板 ──
 function renderBoard() {
   const syms = D.symbols;
   const groups = [
     ['指数 / ETF', ['SPY', 'QQQ', 'IWM']],
     ['Mag 7', ['NVDA', 'AAPL', 'MSFT', 'AMZN', 'META', 'TSLA', 'GOOGL']],
-    ['重点个股', ['AVGO', 'BRK-B', 'JPM']],
+    ['重点个股', ['AVGO', 'BRK-B', 'JPM', 'AMD', 'INTC', 'MU', 'MSTR', 'SNDK', 'CRCL', 'BMNR', 'AEHR', 'SPCX']],
   ];
   const board = document.getElementById('board');
-  board.innerHTML = '<h2 class="re-h2" style="margin:0 0 8px">13 标的看板</h2>';
+  board.innerHTML = `<h2 class="re-h2" style="margin:0 0 8px">${Object.keys(syms).length} 标的看板</h2>`;
   groups.forEach(([title, list]) => {
     const sec = document.createElement('div');
     sec.className = 're-section';

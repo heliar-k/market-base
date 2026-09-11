@@ -1468,7 +1468,7 @@ def etfs() -> dict:
 
 
 def options_board() -> dict | None:
-    """读取最新期权结构快照（13 标的看板），附加每标的规则引擎结构解读。"""
+    """读取最新期权结构快照（22 标的看板），附加每标的规则引擎结构解读。"""
     files = sorted((ROOT / "data" / "options_structure").glob("20*.json"))
     if not files:
         return None

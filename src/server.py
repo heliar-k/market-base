@@ -1192,7 +1192,7 @@ def get_assets_equities() -> dict:
 
 @app.get("/api/assets/equities-options")
 def get_assets_equities_options() -> dict:
-    """期权市场结构：13 标的看板 + SPY GEX/DEX/Vanna/Charm 详图（快照 JSON）。"""
+    """期权市场结构：22 标的看板 + SPY GEX/DEX/Vanna/Charm 详图（快照 JSON）。"""
     from src.assets_analysis import options_board
 
     return options_board()

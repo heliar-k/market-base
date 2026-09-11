@@ -33,7 +33,7 @@ market-base/
 │   ├── macro.py                  ← 宏观派生指标（2s10s / 净流动性 / BEI / SOFR-IORB）
 │   ├── bill_share.py             ← 日频 Bill 占比（MSPD 锚 + 拍卖净发行派生）
 │   ├── pricing.py                ← 定价收敛点（compute_gex / sell_put / hedge_planner 三处重复的 BS 定价收敛）
-│   ├── options_structure.py      ← 期权结构快照分析（GEX/DEX/Vanna/Charm 13 标的面板）
+│   ├── options_structure.py      ← 期权结构快照分析（GEX/DEX/Vanna/Charm 22 标的面板）
 │   ├── cross_asset.py            ← 跨资产相关性面板数据（22 标的 30 日矩阵 + 4 结构报警对，派生，依赖资产快照）
 │   ├── sell_put.py               ← Sell Put 选点位（期权墙 + 技术面交叉）
 │   ├── hedge_planner.py          ← 下跌保护结构报价器（put / 价差 / 领口）
@@ -123,7 +123,7 @@ market-base/
 │   ├── fetch_cgb                       ← 中国国债收益率 10Y/30Y（chinamoney，FRED 无）
 │   ├── fetch_fx                        ← 外汇对日线 16 对（timsun /assets/fx 数据源）
 │   ├── fetch_etf                       ← ETF 全量清单 + 精选池 37 只日线（timsun /assets/etfs）
-│   ├── fetch_options_structure         ← 13 标的期权结构快照（GEX/DEX/Vanna/Charm，yfinance 降级源）
+│   ├── fetch_options_structure         ← 22 标的期权结构快照（GEX/DEX/Vanna/Charm，yfinance 降级源）
 │   ├── fetch_crypto_derivatives        ← 加密衍生品快照（OKX + Deribit + CME 基差）
 │   ├── fetch_crypto_basis               ← CME BTC 基差日序列（Yahoo BTC=F，timsun V1 治理）
 │   ├── fetch_coinglass                  ← Coinglass 全市场聚合快照（经 Jina Reader）
@@ -173,7 +173,7 @@ market-base/
 │   ├── fx/fx_pairs.csv                  ← 外汇对日线宽表 16 对（timsun /assets/fx）
 │   ├── etf/universe.csv                 ← Nasdaq Trader 全量 ETF 清单（~5600 只）+ 分类
 │   ├── etf/pool_prices.csv              ← 精选池 37 只 ETF 日线（timsun /assets/etfs）
-│   ├── options_structure/{date}.json    ← 13 标的期权结构快照（GEX/DEX/Vanna/Charm）
+│   ├── options_structure/{date}.json    ← 22 标的期权结构快照（GEX/DEX/Vanna/Charm）
 │   ├── crypto_derivatives/{date}.json   ← 加密衍生品快照（OKX/Deribit/CME）
 │   ├── crypto_basis/basis.csv          ← CME BTC 基差日序列（观测日 upsert，治理后 ~35% 完整）
 │   ├── coinglass/{date}.json           ← Coinglass 全市场聚合快照（OI/清算/交易所分布）
@@ -259,7 +259,7 @@ uv run python -m src.cross_asset     # 跨资产 30 日相关性矩阵（派生�
 ./bin/fetch_yfinance                # yfinance 资产价格
 ./bin/fetch_fx                     # 外汇对日线 16 对（timsun /assets/fx）
 ./bin/fetch_etf                    # ETF 全量清单 + 精选池（timsun /assets/etfs）
-./bin/fetch_options_structure      # 13 标的期权结构快照（GEX/DEX/Vanna/Charm，~3min）
+./bin/fetch_options_structure      # 22 标的期权结构快照（GEX/DEX/Vanna/Charm，~3min）
 ./bin/fetch_crypto_derivatives     # 加密衍生品快照（OKX + Deribit + CME）
 ./bin/fetch_crypto_basis             # CME BTC 基差日序列（Yahoo BTC=F proxy）
 ./bin/fetch_coinglass                 # Coinglass 全市场聚合（Jina Reader，OI/清算/交易所分布）

@@ -52,7 +52,7 @@ def _pcr_oi_atm(c: pd.DataFrame, spot: float) -> float | None:
     return round(float(a[a["right"] == "P"]["oi"].sum() / call_oi), 2)
 
 
-# 13 标的看板（指数/ETF + Mag7 + 重点个股）
+# 期权结构看板（指数/ETF + Mag7 + 重点个股）
 SYMBOLS: list[str] = [
     "SPY",
     "QQQ",
@@ -67,6 +67,15 @@ SYMBOLS: list[str] = [
     "AVGO",
     "BRK-B",
     "JPM",
+    "AMD",
+    "INTC",
+    "MU",
+    "MSTR",
+    "SNDK",
+    "CRCL",
+    "BMNR",
+    "AEHR",
+    "SPCX",
 ]
 
 
@@ -463,7 +472,9 @@ def main() -> None:
 
     parser = argparse.ArgumentParser(description="期权结构快照（yfinance 降级源）")
     parser.add_argument(
-        "--symbols", default="", help="逗号分隔标的列表（默认 13 标的）"
+        "--symbols",
+        default="",
+        help=f"逗号分隔标的列表（默认全部 {len(SYMBOLS)} 标的）",
     )
     parser.add_argument("--no-cache", action="store_true", help="不复用当日 raw 链缓存")
     args = parser.parse_args()
