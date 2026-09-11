@@ -213,6 +213,14 @@ market-base/
 > 部分数据源失败时：成功的数据照常 commit，失败列表写进当日 commit message 的「失败:」段
 > （`git log -1` 即见），job 标红，Pages 照常部署。不用再 grep Actions 日志找 `FAIL`。
 
+> **两个 cron**：`daily-fetch` 北京 05:00（全量，含收盘后的价格类）；
+> `fetch-refresh` 北京 23:15（只跑下午才发布昨日观测的源：`fetch_fred` / `fetch_cboe` /
+> `fetch_fsi`，~3min）。upsert 幂等，无新数据即不 commit。两者跑完都由 `deploy-pages` 的
+> `workflow_run` 触发部署（数据由 GITHUB_TOKEN 推送，不触发 push 事件，`paths: data/**` 无效）。
+
+> **时效断言 ≠ 退出码**：`uv run python -m src.data_freshness`（44 个数据集，预算表在文件内）
+> 两个 workflow 收尾都会跑，超预算则记入 FAILED_LIST 标红。加新 fetcher 时在那张表补一行。
+
 **本地手动（先启动 TWS 或 IB Gateway，端口 4001 实盘 / 4002 模拟）**：只有依赖 IBKR 的才需要本地跑：
 `ibkr`（日线，可选——Actions yfinance 已覆盖，IBKR 用于权威覆盖与更深回溯）/ `options` / `commodities` / `index` / `stock` / `rate_expectations`（ZQ 期货来自 commodities）。
 日线/分钟线均已由 Actions 用 yfinance 覆盖；本地 IBKR 拉取（`--bar-size all`）只用于补深。
