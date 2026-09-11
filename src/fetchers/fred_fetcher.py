@@ -58,11 +58,14 @@ def fetch_all_fred() -> dict[str, "object"]:
                 logger.warning(f"  {metric}({series_id}): 拉取失败 → {e}")
                 continue
             try:
+                # fredapi 0.5.x 的 get_series_info 返回 pandas Series（旧版是 dict）；
+                # `if info` 对 Series 求布尔会抛「truth value is ambiguous」，
+                # 导致全部系列进不了 releases → _release_dates.csv 冻结在旧日期，
+                # 通胀/信用/拍卖页的「发布时间」从此不再更新。
                 info = fred.get_series_info(series_id)
-                if info and info.get("last_updated"):
-                    releases.append(
-                        {"series_id": series_id, "last_updated": info["last_updated"]}
-                    )
+                lu = info.get("last_updated") if info is not None else None
+                if lu is not None and str(lu) not in ("", "NaT", "nan"):
+                    releases.append({"series_id": series_id, "last_updated": str(lu)})
             except Exception as e:
                 logger.warning(f"  {metric}({series_id}): 元数据拉取失败 → {e}")
         if dfs:
