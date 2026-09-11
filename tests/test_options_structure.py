@@ -81,3 +81,20 @@ def test_flip_none_when_no_crossing():
     )
     assert out["gamma_flip"] is None
     assert out["flip_dist"] is None
+
+
+def test_flip_ignores_deep_itm_junk_outside_band():
+    """回归：高价新标的链含 $5 级深 ITM 存量（如 MU 20260911 flip=105 @ spot=977）。
+    带外（现价 ±50%~200% 之外）的噪声穿越不得成为 flip。"""
+    out = compute_structure(
+        _chain(
+            [
+                (10.0, "P", 200000),  # 带外深 ITM：巨量 put 拉负
+                (20.0, "C", 200000),  # 带外噪声穿越（旧逻辑会返回 20）
+                (60.0, "C", 30000),  # 带内累计回正，此后无负→正穿越
+                (100.0, "C", 30000),
+            ]
+        ),
+        100.0,
+    )
+    assert out["gamma_flip"] is None

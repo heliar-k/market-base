@@ -208,6 +208,13 @@ def compute_structure(df: pd.DataFrame, spot: float) -> dict:
     )
     wall = wall.sort_values("strike").reset_index(drop=True)
 
+    # 行权价带：剔除远端噪声。新高价股的链含 $5 级深 ITM 存量（yfinance 全链返回），
+    # 其累计穿越/idxmin 会把 flip/wall 拉飞（MU 20260911：flip=105 @ spot=977）。
+    # 与 compute_gex.filter_options 同思想，带取 ±100%（timsun 墙位可离现价 ±20%+，
+    # 不能照搬 12%）。仅作用于 walls；flip 保持全链累计曲线口径（基线不能带内重置，
+    # 否则带底第一个大 OI 深 ITM call 直接把累计抬正，穿越结构全部消失）。
+    cb = c[c["strike"].between(spot * 0.5, spot * 2.0)]
+
     # Gamma Flip：累计 GEX 由负转正的穿越点中，按现价处累计符号取位——
     # 现价处累计 ≥0 → 取现价下方最后一个翻转点；<0 → 取现价上方第一个。
     # 只找现价下方第一个穿越有两个坑：①现价处累计已转负、翻转点在现价上方时
@@ -217,6 +224,7 @@ def compute_structure(df: pd.DataFrame, spot: float) -> dict:
     # sign(flip_dist) == sign(现价处累计 GEX)，与前端分布图黑线一致；
     # 全链无负→正穿越时返回 None，此时 sign(net_gex) 即现价处符号，
     # 前端与 narrative 引擎同款回退（勿兜底最低行权价，0DTE 链远端价权会失真）。
+    # 带内重置累计基线：flip 的穿越判定只看带内曲线，不被带外深 ITM 存量污染。
     wall["cum"] = wall["gex"].cumsum()
     spot_rows = wall.loc[wall["strike"] <= spot, "cum"]
     spot_cum = float(spot_rows.iloc[-1]) if not spot_rows.empty else 0.0
@@ -233,10 +241,15 @@ def compute_structure(df: pd.DataFrame, spot: float) -> dict:
     else:
         above = [k for k in flips if k > spot]
         flip = above[0] if above else None
+    # 距离护栏：取到的 flip 离现价过远 = 陈旧/噪声穿越而非市场关键位（MU flip=105
+    # @ spot=977；SPY 现价穿过真 flip 后取到下方 415 的旧穿越），按无 flip 处理，
+    # 前端/narrative 回退 sign(net_gex)。
+    if flip is not None and abs(spot - flip) / spot > 0.30:
+        flip = None
 
-    # Walls：每点 $M（Σ γ·OI·100 / 1e6）按 call/put 两端
-    call_wall = c[c["right"] == "C"].groupby("strike")["gex"].sum()
-    put_wall = c[c["right"] == "P"].groupby("strike")["gex"].sum()
+    # Walls：每点 $M（Σ γ·OI·100 / 1e6）按 call/put 两端（同带内取位）
+    call_wall = cb[cb["right"] == "C"].groupby("strike")["gex"].sum()
+    put_wall = cb[cb["right"] == "P"].groupby("strike")["gex"].sum()
     cw = call_wall.idxmax() if not call_wall.empty else None
     pw = put_wall.idxmin() if not put_wall.empty else None
 
