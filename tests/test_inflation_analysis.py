@@ -8,6 +8,7 @@ from src.inflation_analysis import (
     _dir_label,
     _yoy_series,
     generate_inflation_overview,
+    recent_rows,
     signal_level,
 )
 
@@ -68,6 +69,27 @@ class TestSignalLevel:
             "core_pce": {"value": 1.9, "chg_1m": -0.1, "as_of": "2026-06-01"},
         }
         assert "约束基本解除" in signal_level(cards)
+
+
+def test_recent_rows_keeps_ppi_only_month():
+    """PPI 比 CPI 早一期发布：只有 PPI 有值的最新月也要出现在表首行。"""
+    idx = pd.date_range("2024-01-01", periods=30, freq="MS")
+    df = pd.DataFrame(
+        {
+            "CPI": range(100, 129),
+            "CORE_CPI": range(100, 129),
+            "CORE_PCE": range(100, 129),
+        },
+        index=idx[:-1],  # CPI 只到 2026-05
+    ).astype(float)
+    ppi = pd.DataFrame({"PPI_FD": [*range(100, 129), 130.0]}, index=idx)
+
+    rows = recent_rows(df, ppi, n=12)
+
+    assert rows[0]["date"] == "2026-06-01"
+    assert rows[0]["cpi_yoy"] is None
+    assert rows[0]["ppi_yoy"] == pytest.approx(11.11)  # 130/117-1
+    assert len(rows) == 12
 
 
 def test_generate_smoke():

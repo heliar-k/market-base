@@ -298,9 +298,14 @@ def recent_rows(df: pd.DataFrame, ppi: pd.DataFrame, n: int = 12) -> list[dict]:
     }
     if not ppi.empty and "PPI_FD" in ppi:
         yoy["ppi_yoy"] = _yoy_series(ppi["PPI_FD"])
-    base = yoy["cpi_yoy"].tail(n).iloc[::-1]
+    # 月份轴取各列并集（不是只看 CPI）：PPI/FDI 比 CPI 早半个月发布，
+    # 比如 8 月 PPI（9/10 已发）对 CPI（9/11 才发），以 CPI 为骨架会把表里
+    # 最新一行整体丢掉。
+    months = yoy["cpi_yoy"].index
+    for s in yoy.values():
+        months = months.union(s.index)
     rows = []
-    for d in base.index:
+    for d in sorted(months, reverse=True)[:n]:
         row = {"date": d.strftime("%Y-%m-%d")}
         for k, s in yoy.items():
             v = s.get(d)
