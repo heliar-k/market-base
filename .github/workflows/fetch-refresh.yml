@@ -55,7 +55,7 @@ jobs:
             echo "no data changes, skip commit"
           else
             NL=$'\n\n'
-            MSG="data: refresh auto-fetch ($(date -u +%F %H:%M) UTC)"
+            MSG="data: refresh auto-fetch ($(date -u "+%F %H:%M") UTC)"
             [ -n "$FAILED_LIST" ] && MSG="$MSG${NL}失败:$FAILED_LIST"
             git commit -m "$MSG"
             git pull --rebase origin main
