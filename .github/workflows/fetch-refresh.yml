@@ -1,0 +1,71 @@
+name: fetch-refresh
+
+# 轻量补抓（15:15 UTC = 北京 23:15）：只跑「上游当天下午才发布昨日观测」的三个源，
+# 让宏观/信用/通胀/波动率页在北京夜里 23:15 就看到 T-1，而不是等次日 05:06 的主跑。
+#
+# 发布时刻实测（UTC）：FRED 日频 ~14:18（如 VIXCLS/BAMLH0A0HYM2，即 10:18 ET）、
+# CBOE daily_prices ~12:01（VIX；OVX/SKEW ~01:50）、OFR FSI 不定期。
+# 主跑在 21:06 UTC，抓到的也是这批数据——本 job 只是提前 ~6-9 小时，不改数据完整度。
+#
+# 不做的事：拉价格/分钟线（yfinance 收盘后要 20:00 UTC 才有当天 bar，本 job 更早，
+# 抓了反而空跑）、派生指标（cross_asset/bill_share/options_structure 依赖价格快照）。
+# 其余源（SCE/Shapiro/Treasury 等）由主跑覆盖，需要时加进下面的 for 列表即可。
+#
+# upsert 幂等：无新数据时 diff 为空 → 不 commit → 不触发部署，周末空跑零成本。
+
+on:
+  schedule:
+    - cron: "15 15 * * *"   # 每天 UTC 15:15（北京 23:15）
+  workflow_dispatch: {}
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: astral-sh/setup-uv@v9.0.0
+        with:
+          python-version: "3.13"
+          enable-cache: false
+
+      - name: Install deps
+        run: uv sync
+
+      - name: Fetch late-publishing sources
+        env:
+          FRED_API_KEY: ${{ secrets.FRED_API_KEY }}
+        run: |
+          set +e  # 单个失败不阻断，末尾统一判红
+          for f in fetch_fred fetch_cboe fetch_fsi; do
+            echo "===== START $f ====="
+            bash "bin/$f" || FAILED="$FAILED $f"
+          done
+          [ -n "$FAILED" ] && echo "失败:$FAILED" && echo "FAILED_LIST=$FAILED" >> "$GITHUB_ENV"
+          exit 0
+
+      - name: Commit and push updates
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add data/
+          if git diff --cached --quiet; then
+            echo "no data changes, skip commit"
+          else
+            NL=$'\n\n'
+            MSG="data: refresh auto-fetch ($(date -u +%F %H:%M) UTC)"
+            [ -n "$FAILED_LIST" ] && MSG="$MSG${NL}失败:$FAILED_LIST"
+            git commit -m "$MSG"
+            git pull --rebase origin main
+            git push
+          fi
+
+      - name: 失败汇总（有失败则 job 红）
+        if: env.FAILED_LIST != ''
+        run: |
+          echo "以下步骤失败，数据已照常 commit:$FAILED_LIST"
+          exit 1
+
+  # 部署由 deploy-pages.yml 的 workflow_run（含本 workflow 名）触发

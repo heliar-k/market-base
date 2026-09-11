@@ -1,7 +1,7 @@
 name: deploy-pages
 
 # 静态站点预渲染 + GitHub Pages 部署（独立于 daily-fetch，可单独触发）：
-# - daily-fetch 完成 → workflow_run 触发（渲染最新数据）
+# - daily-fetch / fetch-refresh 跑完 → workflow_run 触发（渲染最新数据）
 #   注意：daily-fetch 的数据 push 用的是 GITHUB_TOKEN，GitHub 不会为它再触发 push 事件
 #   （recursive workflow trigger 限制），所以必须用 workflow_run，光靠 paths: data/** 不生效
 # - 手动 push static/src 改动 → push 事件自动触发（无需重跑数据拉取）
@@ -16,7 +16,7 @@ on:
       - "pyproject.toml"
       - ".github/workflows/deploy-pages.yml"
   workflow_run:
-    workflows: ["daily-fetch"]
+    workflows: ["daily-fetch", "fetch-refresh"]
     types: [completed]
     branches: [main]
   workflow_dispatch: {}
