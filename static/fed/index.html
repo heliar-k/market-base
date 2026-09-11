@@ -112,15 +112,34 @@ function renderSpeeches(root, data) {
   root.appendChild(sec);
   const ALL = data.speeches;
   const list = sec.querySelector('#sp-list');
+  // 按月份分组折叠（仅最近一个月展开），复用声明页的 fed-group 组件
   const render = (filter = 'all') => {
     list.innerHTML = '';
-    for (const d of ALL) {
-      if (filter !== 'all' && d.speaker !== filter) continue;
-      const el = docCard(d, d.url);
-      el.querySelector('.fed-doc-head').insertAdjacentHTML('beforeend',
-        `<span class="fed-doc-meta">${d.speaker}</span>`);
-      list.appendChild(el);
+    const docs = filter === 'all' ? ALL : ALL.filter(d => d.speaker === filter);
+    const byMonth = new Map();
+    for (const d of docs) {
+      const m = d.date.slice(0, 6);
+      if (!byMonth.has(m)) byMonth.set(m, []);
+      byMonth.get(m).push(d);
     }
+    [...byMonth.entries()].forEach(([m, arr], i) => {
+      const g = document.createElement('div');
+      g.className = 'fed-group' + (i === 0 ? '' : ' fed-group-closed');
+      const head = document.createElement('div');
+      head.className = 'fed-group-head';
+      head.innerHTML = `<span class="fed-group-arr">▼</span>${m.slice(0, 4)} 年 ${+m.slice(4)} 月<span class="fed-group-cnt">${arr.length} 场 · 最近 ${arr[0].date}</span>`;
+      const body = document.createElement('div');
+      body.className = 'fed-group-body';
+      for (const d of arr) {
+        const el = docCard(d, d.url);
+        el.querySelector('.fed-doc-head').insertAdjacentHTML('beforeend',
+          `<span class="fed-doc-meta">${d.speaker}</span>`);
+        body.appendChild(el);
+      }
+      head.onclick = () => g.classList.toggle('fed-group-closed');
+      g.append(head, body);
+      list.appendChild(g);
+    });
   };
   const speakers = [...new Set(ALL.map(d => d.speaker))];
   const labels = { ['全部 (' + ALL.length + ')']: 'all' };
