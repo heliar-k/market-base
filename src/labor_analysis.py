@@ -84,7 +84,11 @@ def signal_current(cards: dict, sahm: dict) -> str:
     if sahm.get("value") is not None:
         text += f"Sahm 指标 {sahm['value']:.2f}"
         if sahm["value"] >= 0.5:
-            text += "，已触发 0.5 衰退阈值——历史上该信号触发后失业率均持续上行。"
+            text += (
+                "，已触发 0.5 衰退阈值。1948 年以来共触发 15 轮，"
+                "12 个月后失业率更高的有 13 轮；"
+                "1990 年后 6 轮里仅 3/6 在 3 个月后走高——大概率，非必然。"
+            )
         elif sahm["value"] >= 0.3:
             text += "，接近 0.5 衰退阈值，就业降温在加快，密切跟踪下期数据。"
         else:
