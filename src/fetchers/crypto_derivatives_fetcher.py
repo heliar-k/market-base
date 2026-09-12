@@ -145,6 +145,39 @@ def _max_pain(df: pd.DataFrame) -> float | None:
     return float(best_k) if best_k is not None else None
 
 
+def _gex_summary(df: pd.DataFrame, spot: float) -> dict:
+    """净 GEX + Gamma Flip（FRL 2026：到期效应由 gamma 暴露驱动，max pain 被证伪）。
+
+    gamma 用 Deribit mark_iv 反推 BS（src/pricing.bs_greeks）；
+    GEX_1pct = Σ gamma×OI×spot²×1e-4（call 正 / put 负，Deribit BTC 乘数 1 BTC/张）。
+    Flip = 按行权价累计 GEX 曲线过零点中离现价最近的一个。
+    """
+    from src.pricing import bs_greeks
+
+    now = datetime.now(timezone.utc)
+    rows: list[dict] = []
+    for r in df.itertuples():
+        exp = _parse_exp(r.expiration)
+        if not r.iv or not r.oi or not exp or spot <= 0:
+            continue
+        t_yr = (exp.replace(tzinfo=timezone.utc) - now).total_seconds() / (365 * 86400)
+        if t_yr <= 0:
+            continue
+        gamma, _ = bs_greeks(spot, r.strike, t_yr, r.iv / 100)
+        signed = gamma * r.oi * spot * spot * 1e-4
+        rows.append({"strike": r.strike, "gex": signed if r.right == "C" else -signed})
+    if not rows:
+        return {}
+    g = pd.DataFrame(rows).groupby("strike")["gex"].sum().sort_index()
+    cum_sign = (g.cumsum() > 0).astype(int)
+    cross = g.index[1:][cum_sign.values[1:] != cum_sign.values[:-1]]
+    flip = float(min(cross, key=lambda k: abs(k - spot))) if len(cross) else None
+    return {
+        "net_gex_musd": round(float(g.sum()) / 1e6, 1),
+        "gamma_flip": flip,
+    }
+
+
 def fetch_options(currency: str = "BTC") -> dict:
     """Deribit options book summary（全到期）；返回按行权价/到期聚合。"""
     rows = _deribit("get_book_summary_by_currency", currency=currency, kind="option")
@@ -165,6 +198,7 @@ def fetch_options(currency: str = "BTC") -> dict:
                 "oi": float(r.get("open_interest", 0) or 0),
                 "volume": float(r.get("volume", 0) or 0),
                 "underlying": float(r.get("underlying_price", 0) or 0),
+                "iv": float(r.get("mark_iv", 0) or 0) or None,
             }
         )
     if not parsed:
@@ -194,6 +228,8 @@ def fetch_options(currency: str = "BTC") -> dict:
 
     pain = _max_pain(df)
 
+    gex = _gex_summary(df, spot)
+
     # 最近到期月度口径（timsun Strike Wall 模块）：按 DDMYY 到期段解析取最早
     df["_exp_date"] = df["expiration"].map(_parse_exp)
     near = df.dropna(subset=["_exp_date"])
@@ -216,6 +252,7 @@ def fetch_options(currency: str = "BTC") -> dict:
         "put_wall": put_wall,
         "pcr": round(pcr, 2) if pcr else None,
         "max_pain": pain,
+        "gex": gex,
         "total_oi": round(call_oi + put_oi, 0),
         "d_exp": int(df["expiration"].nunique()),
         "nearest_exp": nearest_exp,

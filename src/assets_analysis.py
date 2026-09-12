@@ -31,6 +31,7 @@ from __future__ import annotations
 
 import json
 import logging
+from datetime import datetime, timedelta
 from pathlib import Path
 
 import numpy as np
@@ -1733,15 +1734,70 @@ def _crypto_basis() -> dict:
     }
 
 
+def _coinglass_series() -> list[dict]:
+    """Coinglass 快照序列（日期升序），跳过空快照（抓取失败只剩 ts/title）。"""
+    out: list[dict] = []
+    for f in sorted((ROOT / "data" / "coinglass").glob("20*.json")):
+        try:
+            j = json.loads(f.read_text(encoding="utf-8"))
+        except Exception:
+            continue
+        if not (j.get("ls_ratio") or j.get("all_open_interest_usd")):
+            continue
+        j["_date"] = f.stem
+        out.append(j)
+    return out
+
+
+def _chg_nd(series: list[dict], get, days: int = 7) -> float | None:
+    """最新快照 vs 距 N 天最近的快照，get() 取值的变化率（%）。不足返回 None。"""
+    if len(series) < 2:
+        return None
+    last_v = get(series[-1])
+    if not last_v:
+        return None
+    target = datetime.strptime(series[-1]["_date"], "%Y%m%d") - timedelta(days=days)
+    ref = min(
+        series[:-1], key=lambda s: abs(datetime.strptime(s["_date"], "%Y%m%d") - target)
+    )
+    ref_v = get(ref)
+    if not ref_v:
+        return None
+    return (last_v / ref_v - 1) * 100
+
+
+def _cme_oi(j: dict) -> float | None:
+    """Coinglass exchanges 列表里的 CME OI（BTC）。"""
+    for e in j.get("exchanges") or []:
+        if str(e.get("name", "")).upper() == "CME":
+            return e.get("oi_btc")
+    return None
+
+
+def _perp_oi_series() -> list[dict]:
+    """crypto_derivatives 快照的 OKX BTC 永续 oi_usd 序列（永续 OI 7d 变化用）。"""
+    out: list[dict] = []
+    for f in sorted((ROOT / "data" / "crypto_derivatives").glob("20*.json")):
+        try:
+            j = json.loads(f.read_text(encoding="utf-8"))
+        except Exception:
+            continue
+        oi = ((j.get("perp") or {}).get("BTC") or {}).get("oi_usd")
+        if oi:
+            out.append({"_date": f.stem, "oi": float(oi)})
+    return out
+
+
 def _coinglass() -> dict:
-    """Coinglass 全市场聚合（衍生日页 Coinglass 模块）；读取最新快照 json。"""
-    files = sorted((ROOT / "data" / "coinglass").glob("20*.json"))
-    if not files:
+    """Coinglass 全市场聚合（衍生日页 Coinglass 模块）。
+
+    取最近**非空**快照：抓取失败日只写 ts/title，直接取 files[-1] 会静默失效，
+    须回退到前一有效日（雷达/多空比都靠它）。
+    """
+    series = _coinglass_series()
+    if not series:
         return {"available": False}
-    try:
-        return json.loads(files[-1].read_text(encoding="utf-8"))
-    except Exception:
-        return {"available": False}
+    return series[-1]
 
 
 # ── LAYER 1 · NOW（8 个核心 KPI：当前值 + 1 年百分位 + 1d 变化） ──────────────
@@ -2131,28 +2187,29 @@ def _stance(value: float | None, thr: float) -> str:
 
 
 def crypto_consensus(snap: dict, radar: dict) -> dict:
-    """机构 vs 散户方向对照：机构=CME OI 周变化（+ETF 预留）；
-    散户=资金费率 + 多空比 + PCR。返回双方立场与对照结论。"""
-    cot = _csv("cot/cot.csv")
-    chg = None
-    if "BTC_OI" in cot.columns:
-        oi = cot["BTC_OI"].dropna()
-        if len(oi) >= 2:
-            chg = (float(oi.iloc[-1]) / float(oi.iloc[-2]) - 1) * 100
+    """机构 vs 散户方向对照：机构=CME 头寸信号（直接复用雷达结果，不另算一套）+ETF；
+    散户=资金费率 + 多空账户比（Coinglass） + PCR。返回双方立场与对照结论。"""
+    cme_sig = next(
+        (s for s in (radar or {}).get("signals", []) if s["name"] == "CME 机构头寸"), {}
+    )
+    chg = cme_sig.get(
+        "value"
+    )  # 中性带已应用：要么 None，要么 0 / ±10%（CFTC）/ ±1%（OI）
     inst_stance = _stance(chg, 0.5)
 
     perp = (snap.get("perp") or {}).get("BTC") or {}
-    taker = (snap.get("taker") or {}).get("BTC") or []
     opt = snap.get("options_BTC") or {}
     ann = perp.get("funding_annual")
     # 年化 >15% 视为多头拥挤（decimal → %）
     fr_stance = _stance((ann or 0) * 100 if ann is not None else None, 15)
-    ls = None
-    if len(taker) >= 3:
-        buy = sum(r["buy"] for r in taker[:3])
-        sell = sum(r["sell"] for r in taker[:3])
-        ls = buy / sell if sell else None
-    ls_stance = _stance((ls - 1) * 100 if ls is not None else None, 20)  # ±20%
+    # 多空账户比（Coinglass，与雷达同源）：>1.5 多头拥挤 / <0.67 空头拥挤
+    lsr = (snap.get("coinglass") or {}).get("ls_ratio") or {}
+    ls = (
+        lsr["long_pct"] / lsr["short_pct"]
+        if lsr.get("long_pct") and lsr.get("short_pct")
+        else None
+    )
+    ls_stance = _stance(ls, 1.5) if ls is not None else "中性"
     pcr = opt.get("pcr")
     pcr_stance = "中性"
     if pcr is not None:
@@ -2232,9 +2289,7 @@ def crypto_consensus(snap: dict, radar: dict) -> dict:
             "stance": inst_stance,
             "votes": votes(inst_stances),
             "note": note_inst,
-            "text": f"CME OI 周变化 {chg:+.1f}%"
-            if chg is not None
-            else "CME COT 数据待积累",
+            "text": cme_sig.get("desc") or "CME 头寸数据待积累",
         },
         "retail": {
             "stance": retail_stances[0] if len(set(retail_stances)) == 1 else "分化",
@@ -2256,8 +2311,11 @@ def crypto_consensus(snap: dict, radar: dict) -> dict:
 def crypto_radar(snap: dict) -> dict:
     """7 信号加权雷达（规则引擎；LLM 预留——_llm_generate 返回 dict 则直接使用）。
 
-    信号权重（缺失信号不纳入评分）：CME 机构头寸 15 / 资金费率 15 / 基差 carry 20 /
-    期权牵引 10 / 永续 OI 10 / 散户多空比 10 / ETF 资金流 15（数据源未接入时置 null）。
+    信号权重（缺失信号不纳入评分，合计 95）：ETF 资金流 25（SSRN 2026：唯一有
+    次日预测力的信号）/ 基差 carry 20 / CME 机构头寸 15（CFTC 大投机净头寸 4 周
+    变化，回退 Coinglass OI 7d）/ 期权牵引 10（Gamma Flip，回退 Max Pain）/
+    永续 OI 10 / 散户多空比 10（Coinglass 多空账户比，反向）/ 资金费率 5
+    （Presto 2024：无方向预测力，仅年化 ±15% 超出时反向计分）。
     总分 = Σsign(信号)·权重 / Σ权重，映射到 -4..+4。
     """
     llm = _llm_generate("radar")
@@ -2295,43 +2353,51 @@ def crypto_radar(snap: dict) -> dict:
 
     perp = (snap.get("perp") or {}).get("BTC") or {}
     opt = snap.get("options_BTC") or {}
-    taker = (snap.get("taker") or {}).get("BTC") or []
     cme = snap.get("cme") or {}
 
-    # CME 机构头寸：CME BTC 期货 OI 周环比（CFTC COT，timsun 口径 CME OI 7d 变化）
+    # CME 机构头寸：CFTC 大投机（leveraged funds）净头寸 4 周变化——OI 是双边
+    # 匹配持仓无方向含义，净头寸才有；COT 缺失时回退 Coinglass CME OI 7d 变化
+    cme_val: float | None = None
+    cme_desc = ""
     cot = _csv("cot/cot.csv")
-    cme_oi_chg = None
-    if "BTC_OI" in cot.columns:
-        oi = cot["BTC_OI"].dropna()
-        if len(oi) >= 2:
-            cme_oi_chg = (float(oi.iloc[-1]) / float(oi.iloc[-2]) - 1) * 100
-    add(
-        "CME 机构头寸",
-        15,
-        cme_oi_chg,
-        f"CME OI 周变化 {cme_oi_chg:+.1f}%（CFTC）"
-        if cme_oi_chg is not None
-        else "CFTC COT 更新前待积累",
-    )
+    if {"BTC_ASSET_L", "BTC_ASSET_S"} <= set(cot.columns):
+        net = (cot["BTC_ASSET_L"] - cot["BTC_ASSET_S"]).dropna()
+        if len(net) >= 5:
+            chg = float(net.iloc[-1]) - float(net.iloc[-5])
+            pct = chg / max(abs(float(net.iloc[-5])), 1.0) * 100
+            cme_val = pct if abs(pct) >= 10 else 0.0  # ±10% 中性带
+            cme_desc = f"CFTC 大投机净头寸 4 周变化 {chg:+,.0f} 张（{pct:+.0f}%）"
+    if cme_val is None:
+        chg = _chg_nd(_coinglass_series(), _cme_oi)
+        if chg is not None:
+            cme_val = chg if abs(chg) >= 1 else 0.0
+            cme_desc = f"CME OI 7d 变化 {chg:+.1f}%（Coinglass，±1% 中性带）"
+    add("CME 机构头寸", 15, cme_val, cme_desc or "CFTC/Coinglass 数据待积累")
 
     # 杠杆风险（资金费率年化；timsun 口径：>30% 高 / >15% 中 / 其余低）
     fr = perp.get("funding_annual") or 0
     lev_risk = "高" if abs(fr * 100) >= 30 else ("中" if abs(fr * 100) >= 15 else "低")
     # 主导力量（timsun 口径：机构增减仓 vs 现货驱动）
-    driver = (
-        f"CME 机构头寸: {'机构增仓' if (cme_oi_chg or 0) > 0 else '机构减仓'}"
-        if cme_oi_chg is not None
-        else "现货驱动 · CFTC 数据待积累"
-    )
+    if cme_val is None:
+        driver = "现货驱动 · CME 头寸数据待积累"
+    else:
+        cme_move = (
+            "机构增仓" if cme_val > 0 else ("机构减仓" if cme_val < 0 else "头寸稳定")
+        )
+        driver = f"CME 机构头寸: {cme_move}"
 
-    # 资金费率（年化）
+    # 资金费率（Presto 2024：对下一期无方向预测力 → 降权为拥挤度过滤器，
+    # 仅年化 ±15% 超出时反向计分）
     funding = perp.get("funding_annual")
+    ann_pct = (funding or 0) * 100
     add(
         "资金费率",
-        15,
-        funding,
+        5,
+        None
+        if funding is None
+        else (-1.0 if ann_pct >= 15 else (1.0 if ann_pct <= -15 else 0.0)),
         f"Funding {(perp.get('funding_rate') or 0) * 100:.4f}%/8h，"
-        f"年化约 {(funding or 0) * 100:.1f}%",
+        f"年化约 {ann_pct:.1f}%（仅年化 ±15% 超出时反向计分）",
     )
 
     # 基差 carry（Spread = EMA60 − SOFR 判向：>0 机构 carry 有吸引力 → 正分；
@@ -2360,64 +2426,91 @@ def crypto_radar(snap: dict) -> dict:
             else "CME 基差不可用",
         )
 
-    # 期权牵引（Call Wall 上方压制 / Put Wall 支撑）
-    # 口径（与 timsun 显示一致，pcr=0.59 时给出正分）：低 PCR = call 拥挤 =
-    # 看涨期权集中；分值 = (1 − PCR)×10，pcr<1 → 正分
-    pcr = opt.get("pcr")
-    call_wall = opt.get("call_wall")
+    # 期权牵引（FRL 2026：到期效应由 gamma 暴露驱动，max pain 被证伪）：
+    # 现价在 Gamma Flip 上方 → 正 gamma 稳定区计正分；
+    # 旧快照无 gex → 回退 Max Pain 距现价
     spot_a = opt.get("spot_anchor")
-    dist = (call_wall / spot_a - 1) * 100 if call_wall and spot_a else None
-    direction = None
-    if pcr is not None:
-        direction = (1.0 - pcr) * 10  # 见上：PCR 越低 → 正分（timsun 口径）
-    add(
-        "期权牵引",
-        10,
-        direction,
-        f"PCR {pcr:.2f}，Call Wall ${call_wall}（距现价 {dist:+.1f}%），"
-        f"Put Wall ${opt.get('put_wall')}"
-        if pcr is not None and call_wall and dist is not None
-        else (
-            f"PCR {pcr:.2f}，Call Wall/Put Wall 数据不足"
-            if pcr is not None
-            else "期权数据不可用"
-        ),
-    )
+    gex = opt.get("gex") or {}
+    flip = gex.get("gamma_flip")
+    if flip and spot_a:
+        dist = (spot_a / flip - 1) * 100
+        add(
+            "期权牵引",
+            10,
+            1.0 if dist > 0.5 else (-1.0 if dist < -0.5 else 0.0),
+            f"Gamma Flip ${flip:,.0f}，现价 {dist:+.1f}%"
+            f"（Net GEX {gex.get('net_gex_musd'):,.0f} M/1%）",
+        )
+    else:
+        near_mp = opt.get("near_max_pain")
+        mp_dist = (near_mp / spot_a - 1) * 100 if near_mp and spot_a else None
+        if mp_dist is None:
+            add("期权牵引", 10, None, "GEX/Max Pain 数据不足")
+        else:
+            add(
+                "期权牵引",
+                10,
+                mp_dist if abs(mp_dist) >= 0.5 else 0.0,
+                f"Max Pain ${near_mp:,.0f} 距现价 {mp_dist:+.1f}%"
+                "（GEX 待积累，回退旧口径）",
+            )
 
-    # 永续 OI（7d 变化需历史快照积累；未积累前不纳入评分）
+    # 永续 OI：OKX BTC 永续 OI 7d 变化（±5% 中性带，大幅增减杠杆才计方向）
     oi_usd = perp.get("oi_usd")
-    add(
-        "永续 OI",
-        10,
-        None,
-        f"OI ${(oi_usd or 0) / 1e9:.1f}B（7d 变化待历史积累）"
-        if oi_usd
-        else "永续 OI 不可用",
-    )
+    perp_oi_chg = _chg_nd(_perp_oi_series(), lambda j: j["oi"])
+    if perp_oi_chg is None:
+        add(
+            "永续 OI",
+            10,
+            None,
+            f"OI ${(oi_usd or 0) / 1e9:.1f}B（历史快照不足 7d）"
+            if oi_usd
+            else "永续 OI 不可用",
+        )
+    else:
+        add(
+            "永续 OI",
+            10,
+            perp_oi_chg if abs(perp_oi_chg) >= 5 else 0.0,
+            f"永续 OI 7d 变化 {perp_oi_chg:+.1f}%（±5% 中性带）",
+        )
 
-    # 散户多空比（OKX taker 3 日买/卖成交额比）
-    if len(taker) >= 3:
-        buy = sum(r["buy"] for r in taker[:3])
-        sell = sum(r["sell"] for r in taker[:3])
-        ls = buy / sell if sell else None
+    # 散户多空比（timsun 口径：Coinglass 全局多空账户比，反向拥挤度：
+    # ≥1.5 多头拥挤 → 负分，≤0.67 空头拥挤 → 正分，中间中性）
+    # ponytail: 固定阈值；快照满 90d 后改滚动分位（分位语境比绝对值可靠）
+    lsr = (snap.get("coinglass") or {}).get("ls_ratio") or {}
+    ls_ratio = (
+        lsr["long_pct"] / lsr["short_pct"]
+        if lsr.get("long_pct") and lsr.get("short_pct")
+        else None
+    )
+    if ls_ratio is None:
+        add("散户多空比", 10, None, "Coinglass 多空账户比不可用")
+    else:
+        cg_date = (snap.get("coinglass") or {}).get("_date") or ""
+        crowd = (
+            "多头拥挤，反向信号"
+            if ls_ratio >= 1.5
+            else ("空头拥挤，反向信号" if ls_ratio <= 0.67 else "中性带内")
+        )
         add(
             "散户多空比",
             10,
-            (-(ls - 1) * 5 if ls is not None else None),  # 买盘过热 → 反向信号
-            f"L/S {ls:.2f}（3 日 taker 买/卖成交额）"
-            if ls is not None
-            else "taker 数据不可用",
+            -1.0 if ls_ratio >= 1.5 else (1.0 if ls_ratio <= 0.67 else 0.0),
+            f"L/S {ls_ratio:.2f}，约 {lsr['long_pct']:.0f}% 多头"
+            f"（Coinglass 全局{cg_date[:4]}-{cg_date[4:6]}-{cg_date[6:]}，{crowd}）"
+            if cg_date
+            else f"L/S {ls_ratio:.2f}（Coinglass 全局，{crowd}）",
         )
-    else:
-        add("散户多空比", 10, None, "taker 数据不可用")
 
     # ETF 资金流（Farside：5d 净流入，B USD；stale 时不计分）
+    # SSRN 2026：解释 21% 日收益变动且 Granger 预测次日 → 雷达里证据最强，权重最高
     etf = snap.get("etf") or {}
     if etf.get("available") and not etf.get("stale"):
         v = etf.get("sum5d_busd")
         add(
             "ETF 资金流",
-            15,
+            25,
             v,
             f"近 5 日净流入 {v:+.2f} B USD（Farside，截至 {etf.get('latest')}）"
             if v is not None
@@ -2429,7 +2522,7 @@ def crypto_radar(snap: dict) -> dict:
             if etf.get("stale")
             else "公开免费源未接入（Farside）"
         )
-        add("ETF 资金流", 15, None, reason)
+        add("ETF 资金流", 25, None, reason)
 
     total = round(score / weight_total * 100 / 25) if weight_total else None
     verdict = (

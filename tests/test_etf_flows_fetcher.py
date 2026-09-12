@@ -132,7 +132,7 @@ def test_etf_signal_scored_when_fresh(monkeypatch, tmp_path):
     assert snap["etf"]["available"] and not snap["etf"]["stale"]
     radar = crypto_radar(snap)
     etf_sig = [s for s in radar["signals"] if s["name"] == "ETF 资金流"][0]
-    assert etf_sig["dir"] == 1 and etf_sig["weight"] == 15
+    assert etf_sig["dir"] == 1 and etf_sig["weight"] == 25
 
     # stale 时不纳入（dir=0）
     snap["etf"]["stale"] = True
@@ -151,21 +151,12 @@ def test_etf_signal_scored_when_fresh(monkeypatch, tmp_path):
 
 
 def test_consensus_inst_split_no_crash(monkeypatch, tmp_path):
-    """机构票型分裂（CME 偏多 + Spread 偏空）→ 不 KeyError，verdict 为内部分歧。"""
+    """机构票型分裂（CME 偏多 + Spread 偏空）→ 不 KeyError，verdict 为内部分歧。
+
+    consensus 现在直接复用雷达的 CME 信号（不再自读 cot.csv），注入 radar 即可。"""
     from src import assets_analysis
     from src.assets_analysis import crypto_consensus
 
-    # CME 通道注入 fixture：BTC_OI 周环比 +100% → 恒为偏多。
-    # crypto_consensus 直读真实 cot/cot.csv，不隔离的话 COT 每周 OI 涨跌一翻转
-    # 本测试就跟着翻（历史上因此红过）
-    cot = pd.DataFrame(
-        {"BTC_OI": [100.0, 200.0]},
-        index=pd.bdate_range(end=pd.Timestamp.today().normalize(), periods=2),
-    )
-    cot.index.name = "date"
-    out = tmp_path / "data" / "cot"
-    out.mkdir(parents=True)
-    cot.to_csv(out / "cot.csv")
     monkeypatch.setattr(assets_analysis, "ROOT", tmp_path)
 
     snap = {
@@ -175,6 +166,17 @@ def test_consensus_inst_split_no_crash(monkeypatch, tmp_path):
         "options_BTC": {"pcr": 0.8},
         "taker": {"BTC": [{"buy": 1.0, "sell": 1.0}] * 5},
     }
-    cons = crypto_consensus(snap, {"signals": []})
+    radar = {
+        "signals": [
+            {
+                "name": "CME 机构头寸",
+                "weight": 15,
+                "dir": 1,
+                "value": 5.0,
+                "desc": "CME OI 7d 变化 +5.0%（Coinglass，±1% 中性带）",
+            }
+        ]
+    }
+    cons = crypto_consensus(snap, radar)
     assert cons["verdict"]  # 不崩
     assert "分歧" in cons["verdict"] or "多空" in cons["verdict"]

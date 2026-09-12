@@ -43,8 +43,8 @@ async function load() {
   const rcolor = radar.verdict === '偏多' ? P.up : (radar.verdict === '偏空' ? P.down : P.flat);
   const rsec = document.createElement('div');
   rsec.className = 're-section';
-  const missed = (radar.signals || []).filter(s => s.dir === 0).map(s => s.name);
-  const etfMissed = (radar.signals || []).some(s => s.name === 'ETF 资金流' && s.dir === 0);
+  const missed = (radar.signals || []).filter(s => s.dir === 0 && s.value === undefined).map(s => s.name);
+  const etfMissed = (radar.signals || []).some(s => s.name === 'ETF 资金流' && s.value === undefined);
   rsec.innerHTML = `
     <h2>BTC FORWARD RADAR <span style="font-size:12px;font-weight:400;opacity:.7">— BTC 前瞻雷达</span></h2>
     <p style="margin:0 0 8px">把 ETF、CME、基差、永续杠杆和期权信号压缩为 0-24h / 1-7d 判断。</p>
@@ -56,8 +56,8 @@ async function load() {
       <div class="re-card"><div class="re-corridor-label">杠杆风险</div><div class="re-corridor-value" style="font-size:15px">${radar.lev_risk}</div><div class="re-card-sub">永续资金费率口径</div></div>
       <div class="re-card" style="grid-column:span 2"><div class="re-corridor-label">主导力量</div><div class="re-corridor-value" style="font-size:15px">${radar.driver}</div></div>
     </div>
-    ${etfMissed ? '<div style="margin-top:10px;padding:8px 12px;border:1px solid var(--warning,#d97706);border-radius:6px;font-size:12px;color:var(--warning,#d97706)">ETF 资金流未接入，不纳入方向评分。</div>' : ''}
-    <p class="re-source" style="margin:10px 0 6px">信号权重（缺失信号不纳入评分）${missed.length ? ' · 缺：' + missed.join(' / ') : ''}</p>`;
+    ${etfMissed ? '<div style="margin-top:10px;padding:8px 12px;border:1px solid var(--warning,#d97706);border-radius:6px;font-size:12px;color:var(--warning,#d97706)">ETF 资金流未纳入方向评分（stale 或未接入）。</div>' : ''}
+    <p class="re-source" style="margin:10px 0 6px">信号权重（缺失信号不纳入评分，中性带内计 0 分）${missed.length ? ' · 缺：' + missed.join(' / ') : ''}</p>`;
   const rows = (radar.signals || []).map(s => {
     const sc = s.dir * s.weight;
     const c = sc > 0 ? P.up : (sc < 0 ? P.down : P.flat);
@@ -71,9 +71,9 @@ async function load() {
   rsec.querySelector('.re-render').innerHTML = rows;
   rsec.insertAdjacentHTML('beforeend', `
     <div class="re-badges" style="margin-top:10px">
-      <span class="re-badge flat">触发条件 · 资金费率年化 &gt;15% 或基差 &gt;0.3% 且 PCR &lt;0.7</span>
+      <span class="re-badge flat">触发条件 · 现价上穿 Gamma Flip 且 ETF 5d 净流入转正</span>
     </div>
-    <p class="re-source" style="margin:8px 0 0">反证条件：基差转负 &gt;0.3% 或 Call Wall 上移后跌破。</p>`);
+    <p class="re-source" style="margin:8px 0 0">反证条件：基差 Spread 转负，或资金费率年化超 ±15% 触发拥挤反转。</p>`);
   document.getElementById('radar').appendChild(rsec);
 
   // ── LAYER 1 · NOW（8 个核心 KPI · 当前值 + 1 年百分位 + 1d 变化方向）──
