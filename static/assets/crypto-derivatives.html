@@ -28,13 +28,13 @@
 <script src="/js/rates-common.js"></script>
 <script>
 function fmt(v, d = 2) { return v == null ? '—' : Number(v === 0 ? 0 : v).toLocaleString(undefined, { maximumFractionDigits: d }); }
-function stance(ann) { const a = Math.abs((ann || 0) * 100); if (ann < 0) return '偏空'; return a >= 30 ? '偏高' : (a >= 15 ? '偏多' : '中性'); }
+function stance(ann) { const a = Math.abs((ann || 0) * 100); if (ann < 0) return '偏空'; return a >= 30 ? '偏多（拥挤）' : (a >= 15 ? '偏多' : '中性'); }
 function pcrStance(p) { return p == null ? '中性' : (p < 0.4 ? '偏多' : (p > 1.5 ? '偏空' : '中性')); }
 const P = { up: '#26a69a', down: '#ef5350', flat: '#9ca3af' };
 
 async function load() {
   const d = await R.get('/api/assets/crypto-derivatives');
-  if (!d || !d.ts) { R.fail(['radar', 'kpi', 'walls', 'retail', 'consensus'], new Error('无快照')); return; }
+  if (!d || !d.ts) { R.fail(['radar', 'kpi', 'walls', 'retail', 'consensus'], new Error('无加密衍生品快照 · 运行 ./bin/fetch_crypto_derivatives 后刷新')); return; }
   const cmeAsOf = d.cme && d.cme.as_of ? ' · CME 基差 ' + d.cme.as_of : '';
   document.getElementById('re-as-of').textContent = '数据截至 衍生品快照 ' + d.ts.slice(0, 10) + cmeAsOf;
 
@@ -56,7 +56,7 @@ async function load() {
       <div class="re-card"><div class="re-corridor-label">杠杆风险</div><div class="re-corridor-value" style="font-size:15px">${radar.lev_risk}</div><div class="re-card-sub">永续资金费率口径</div></div>
       <div class="re-card" style="grid-column:span 2"><div class="re-corridor-label">主导力量</div><div class="re-corridor-value" style="font-size:15px">${radar.driver}</div></div>
     </div>
-    ${etfMissed ? '<div style="margin-top:10px;padding:8px 12px;border:1px solid var(--warning,#d97706);border-radius:6px;font-size:12px;color:var(--warning,#d97706)">ETF 资金流未纳入方向评分（stale 或未接入）。</div>' : ''}
+    ${etfMissed ? '<div style="margin-top:10px;padding:8px 12px;border:1px solid var(--warning,#d97706);border-radius:6px;font-size:12px;color:var(--warning,#d97706)">ETF 资金流数据过期或未接入，未纳入方向评分。</div>' : ''}
     <p class="re-source" style="margin:10px 0 6px">信号权重（缺失信号不纳入评分，中性带内计 0 分）${missed.length ? ' · 缺：' + missed.join(' / ') : ''}</p>`;
   const rows = (radar.signals || []).map(s => {
     const sc = s.dir * s.weight;
@@ -92,7 +92,7 @@ async function load() {
         <div style="display:flex;justify-content:space-between;font-size:10px;opacity:.6;margin-top:2px;min-height:13px">
           ${q.length === 3 ? `<span>${fq(q[0])}</span><span>${fq(q[1])}</span><span>${fq(q[2])}</span>` : ''}</div>`;
     };
-    lsec.innerHTML = `<h2>LAYER 1 · NOW 现在市场情况 <span style="font-size:12px;font-weight:400;opacity:.7">8 个核心 KPI · 当前值 + 1 年百分位 + 1d 变化方向</span></h2>
+    lsec.innerHTML = `<h2>NOW 现在市场情况 <span style="font-size:12px;font-weight:400;opacity:.7">8 个核心 KPI · 当前值 + 1 年百分位 + 1d 变化方向</span></h2>
       <div class="re-cards" style="grid-template-columns:repeat(auto-fit,minmax(170px,1fr))">
         ${l1.kpis.map(k => `<div class="re-card" style="padding:12px 14px" title="${(k.note || '').replace(/"/g, '&quot;')}">
           <div class="re-corridor-label">${k.label}</div>
@@ -128,7 +128,7 @@ async function load() {
         ${fcard('最近有效净流入', fst(etf.last_flow_musd == null ? null : etf.last_flow_musd / 1000), etf.latest + ' · Farside 更新', fcol(etf.last_flow_musd))}
         ${fcard('5 天累计', fst(v5), etf.stale ? '暂停判读' : '参与方向评分', fcol(v5))}
         ${fcard('30 天累计', fst(v30), etf.stale ? '暂停判读' : '趋势参考', fcol(v30))}
-        ${fcard('累计 AUM', (etf.cum_aum_busd ?? '—') + ' B', '净流入 cumsum 近似（自 2024-01-11）')}
+        ${fcard('累计 AUM', (etf.cum_aum_busd ?? '—') + ' B', '净流入逐日累加近似（自 2024-01-11）')}
         ${fcard('Top 3', (etf.top || []).join(' · '), '累计净流入最高')}
       </div>
       <p class="re-source" style="margin:8px 0 0">Farside 每日 ~21:00 UTC 更新；负数 = 净流出。4 象限：流入+高基差=健康牛市 · 流出+低基差=共识看空 · 背离罕见。</p>`;
@@ -219,11 +219,11 @@ async function load() {
     ['永续资金费率', `资金费率 ${stFr} → 永续多空成本${stance(ann)}`],
     ['永续多空比', `散户多空比 ${stLS} → 散户立场${lsWord}`],
     ['期权 PCR', `期权 PCR ${fmt(optB.pcr, 2)} → 散户期权立场${pcrW}`],
-    ['永续 OI', `BTC 永续 OI $${((BTC.oi_usd || 0) / 1e9).toFixed(2)} B → 7d 变化待历史积累`],
+    ['永续 OI', `BTC 永续 OI $${((BTC.oi_usd || 0) / 1e9).toFixed(2)} B → 7 日变化需再积累历史`],
   ];
   const rsec2 = document.createElement('div');
   rsec2.className = 're-section';
-  rsec2.innerHTML = `<h2>散户在想这件事 <span style="font-size:12px;font-weight:400;opacity:.7">LAYER 3 · RETAIL — 永续 / 期权（基于当前数据，非"看多/看空"判断）</span></h2>`;
+  rsec2.innerHTML = `<h2>RETAIL 散户仓位读数 <span style="font-size:12px;font-weight:400;opacity:.7">永续 / 期权（基于当前数据，非「看多/看空」判断）</span></h2>`;
   const ret = document.createElement('div');
   ret.className = 're-render';
   ret.style.display = 'grid';
@@ -259,7 +259,7 @@ async function load() {
           <div style="font-size:15px;font-weight:600">${c.verdict}</div>
           <div class="re-card-sub" style="white-space:normal">${c.detail}</div></div>
       </div>
-      <p class="re-source" style="margin:8px 0 0">注：此对照仅描述"现在机构和散户立场是否一致"，非"BTC 即将上涨/下跌"的预测信号。共识不等于赚钱，分歧不等于反转，以独立判断为准。</p>`;
+      <p class="re-source" style="margin:8px 0 0">注：此对照只说明机构和散户立场是否一致，不是 BTC 涨跌预测。</p>`;
     document.getElementById('consensus').appendChild(csec);
   }
 
@@ -271,7 +271,7 @@ async function load() {
     bsec.innerHTML = `<h2>机构基差专题 <span style="font-size:12px;font-weight:400;opacity:.7">CME BTC 期货年化基差（Yahoo BTC=F proxy · timsun V1 治理口径）</span></h2>
       <div class="re-explain" style="margin-bottom:10px">
         <b>如何解读</b> — 基差代表机构愿意为远期 BTC 支付的溢价。基差高不等于立刻上涨，但说明 carry/套利资金愿意留在场内。
-        <span style="opacity:.7">Spread = 基差 60d EMA − SOFR（真实 carry alpha）；&gt;5% 套利 alpha 充足，&lt;0 为负。</span></div>
+        <span style="opacity:.7">Spread = 基差 60d EMA − SOFR（套利价差）；&gt;5% 套利空间充足，&lt;0 为负。</span></div>
       <div class="re-cards" style="grid-template-columns:repeat(auto-fit,minmax(150px,1fr))">
         ${`<div class="re-card"><div class="re-corridor-label">当前基差年化</div><div class="re-corridor-value">${bz.current}%</div><div class="re-card-sub">${bz.latest} · 最新有效</div></div>`}
         ${`<div class="re-card"><div class="re-corridor-label">30 日均值</div><div class="re-corridor-value">${bz.ma30}%</div><div class="re-card-sub">近 30 个有效观测</div></div>`}
@@ -304,11 +304,11 @@ async function load() {
         ${ls.long_pct != null ? `<div class="re-card"><div class="re-corridor-label">24h 多空比</div><div class="re-corridor-value">${ls.long_pct}% / ${ls.short_pct}%</div><div class="re-card-sub">${ls.long_pct > 50 ? '偏多' : (ls.long_pct < 50 ? '偏空' : '中性')}</div></div>` : ''}
       </div>
       ${exchRows ? `<div style="margin-top:10px;font-size:12px;opacity:.9"><div style="opacity:.7;margin-bottom:4px">交易所 OI 分布 · Top ${(cg.exchanges || []).length}（24h 变化）</div>${exchRows}</div>` : ''}
-      <p class="re-source" style="margin:8px 0 0">数据源：Coinglass（经 Jina Reader）· 快照 ${cg.ts || ''} · 单项失败容忍。</p>`;
+      <p class="re-source" style="margin:8px 0 0">数据源：Coinglass（经 Jina Reader）· 快照 ${cg.ts || ''} · 单项取不到时留空，不影响其他指标。</p>`;
     document.getElementById('re-gen').insertAdjacentElement('beforebegin', gsec);
   }
 
-  document.getElementById('re-gen').textContent = '规则引擎生成（LLM 预留）· 数据源：OKX API / Deribit API / Yahoo Finance CME / CFTC COT / Farside / Coinglass(经 Jina)';
+  document.getElementById('re-gen').textContent = '规则引擎（LLM 预留）· 数据源：OKX API / Deribit API / Yahoo Finance CME / CFTC COT / Farside / Coinglass(经 Jina)';
 }
 
 load().catch(e => R.fail(['radar', 'kpi', 'walls', 'retail', 'consensus'], e));

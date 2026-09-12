@@ -56,7 +56,7 @@ async function load() {
     <span class="re-spread">2s10s: ${R.fmtBp(s['2s10s'])}bp</span>
     <span class="re-spread">3m10s: ${R.fmtBp(s['3m10s'])}bp</span>
     <span class="re-spread">5s30s: ${R.fmtBp(s['5s30s'])}bp</span>
-    <span class="re-spread">确认度 ${d.confidence}</span>`;
+    <span class="re-spread">验证通过 ${d.confidence}</span>`;
 
   // ── 四线对比 ──
   const tenors = d.tenors;
@@ -137,12 +137,12 @@ async function load() {
   // ── 解读：形态 / 驱动 / 关键利差信号 / 验证指标 / 交易含义 / 失效条件 / 时间框架 ──
   const a = document.getElementById('re-analysis');
   a.innerHTML = `
-    <h3>【曲线形态】</h3><p>${d.shape}：10Y 1月 ${R.fmtBp(d.spreads['10y_1m_chg'])}bp，2Y ${R.fmtBp(d.spreads['2y_1m_chg'])}bp，2s10s ${R.fmtBp(d.spreads['2s10s_1m_chg'])}bp。</p>
+    <h3>【曲线形态】</h3><p>${d.shape}：10Y 近 1 月 ${R.fmtBp(d.spreads['10y_1m_chg'])}bp，2Y ${R.fmtBp(d.spreads['2y_1m_chg'])}bp，2s10s ${R.fmtBp(d.spreads['2s10s_1m_chg'])}bp。</p>
     <h3>【变动驱动】</h3><p>${d.driver}。</p>
     <h3>【关键利差信号】</h3><ul>${d.spread_notes.map(n => `<li>${n}</li>`).join('')}</ul>
     <h3>【验证指标】</h3>
     ${d.validation.map(v => `<div class="re-check"><span class="${v.ok ? 'ok' : 'no'}">${v.ok ? '✓' : '✗'}</span><span>${v.name} ${v.value}</span><span class="note">— ${v.note}</span></div>`).join('')}
-    <p style="margin-top:4px">确认度：${d.confidence}</p>
+    <p style="margin-top:4px">验证通过：${d.confidence}</p>
     <h3>【交易含义】</h3><ul>${d.trades.map(t => `<li>${t}</li>`).join('')}</ul>
     <h3>【失效条件】</h3><ul>${d.invalidation.map(t => `<li>${t}</li>`).join('')}</ul>
     <h3>【时间框架】</h3><p>${d.time_frame}</p>`;

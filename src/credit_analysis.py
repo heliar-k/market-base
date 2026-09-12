@@ -427,7 +427,7 @@ def _overview_signals(
             f"企业融资的绝对成本仍处于高位（HY all-in yield {hy_yield:.2f}%）"
         )
     if hy_p is not None and hy_p < 30:
-        why_parts.append("利差水位本身偏低，可能低估尾部风险")
+        why_parts.append("利差水位偏低，尾部风险定价不足")
     if std:
         if std["value"] > 0:
             why_parts.append("银行信贷正在收紧，企业融资可得性恶化")
@@ -438,9 +438,9 @@ def _overview_signals(
     else:
         why = "信用数据不足以形成判断。"
     if std and std["value"] > 0 and funding.get("hy"):
-        why += "融资成本高位叠加银行收紧，估值弹性会先被压缩。"
+        why += "融资成本高位叠加银行收紧，估值端先承压。"
     elif why_parts and std and std["value"] <= 0:
-        why += "信用没有确认压力时，通常支持风险偏好。"
+        why += "信用端未确认压力时，风险偏好暂有支撑。"
 
     # ── What to watch next：前瞻 ──
     watch: list[str] = []
@@ -467,7 +467,7 @@ def _overview_signals(
             + "。"
         )
     else:
-        what_to_watch = "下一步看 SLOOS 与 HY OAS 数据是否延续。"
+        what_to_watch = "下一步看 SLOOS 与 HY OAS 是否延续当前方向。"
 
     return {
         "framework": "What changed / Why it matters / What to watch next",

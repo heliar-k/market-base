@@ -85,7 +85,7 @@ function switchTab(tab) {
     document.getElementById('status-range').textContent = '';
     document.getElementById('status-count').textContent = '';
   }
-  document.getElementById('status-refresh').textContent = '更新: ' + new Date().toLocaleTimeString('zh-CN');
+  document.getElementById('status-refresh').textContent = '页面刷新 ' + new Date().toLocaleTimeString('zh-CN');
 }
 
 // Cross-module tab switching (dashboard mini-charts, watchlist clicks, 左侧导航)

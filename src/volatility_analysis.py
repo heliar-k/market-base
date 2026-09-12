@@ -131,11 +131,11 @@ def signal_vix_level(card: dict) -> str:
     # 趋势注解
     if card["chg_1w_pct"] is not None and card["chg_1w_pct"] <= -10:
         text += (
-            "周跌幅超 10% 表明风险溢价正在快速消退，但绝对值未跌破 12 的"
-            "超低波区域，需确认下行动能是否持续。"
+            "周跌超 10%，风险溢价快速消退，但绝对值未跌破 12 的"
+            "超低波区域，是否继续下行待确认。"
         )
     elif card["chg_1w_pct"] is not None and card["chg_1w_pct"] >= 10:
-        text += "周涨幅超 10% 说明市场恐慌情绪升温，关注 25 上方警戒区的持续性。"
+        text += "周涨超 10%，恐慌情绪升温，关注 25 上方警戒区的持续性。"
     elif card["value"] < 15:
         text += "低于 15 属于低波动区，市场情绪平稳，警惕低波动本身积累的下行风险。"
     else:
@@ -160,11 +160,11 @@ def signal_term(term: dict) -> str:
         text += (
             f"近端 1D {ts[0]}、9D {ts[1]}、30D {ts[2]} 低于远端 "
             f"3M {ts[3]}、6M {ts[4]}，"
-            "近低远高说明市场对近期风险的定价温和，而中长期不确定性仍存。"
+            "近低远高：市场对近期风险的定价温和，而中长期不确定性仍存。"
         )
         if ts[0] is not None and ts[0] < 10:
             text += (
-                "前端 VIX1D 处个位数，意味着市场预期未来一日实际波动极低，"
+                "VIX1D 在个位数，市场几乎不给明日波动定价，"
                 "若出现突发性负面新闻，隐含波动可能急速上升。"
             )
     else:
@@ -212,8 +212,7 @@ def signal_outlook(df: pd.DataFrame, card: dict) -> str:
             skew_txt = "低于 130，尾部对冲需求低迷"
         parts.append(f"SKEW {sk:.0f} {skew_txt}")
     parts.append(
-        "遇突发新闻（地缘 / 非农）可能脉冲上行，关注 VIX9D 与 OVX "
-        "是否同步抬升确认波动率回升周期。"
+        "遇突发新闻（地缘 / 非农）可能脉冲上行，关注 VIX9D 与 OVX 是否同步抬升。"
     )
     return "。".join(parts)
 
@@ -230,9 +229,7 @@ def skew_quadrant(vix: float | None, skew: float | None) -> dict:
             "恐慌区",
             f"VIX {vix:.1f} 处 22 上方且 SKEW {skew:.0f}，波动与尾部担忧同步升温。",
         )
-        advice = (
-            "降低风险敞口，优先买入保护性 put；波动率高企时卖出期权收权利金更划算。"
-        )
+        advice = "降低风险敞口，优先买入保护性 put。"
         risk = "VIX 跳升阶段追空风险大，gamma 挤压可能进一步推升波动。"
     elif vix >= 17:
         state, text = (
@@ -254,11 +251,8 @@ def skew_quadrant(vix: float | None, skew: float | None) -> dict:
             f"VIX {vix:.1f} 低于 17，SKEW {skew:.0f} 低于 150，"
             "波动与尾部担忧均处低位。",
         )
-        advice = (
-            "低波动环境可持有风险敞口，用领口或价差控制回撤；"
-            "警惕低波动本身积累的下行风险。"
-        )
-        risk = "VIX 从低位跳升往往剧烈（均值回归），关注 VIX9D 是否先行抬升。"
+        advice = "低波动环境可持有风险敞口，用领口或价差控制回撤。"
+        risk = "VIX 从低位跳升往往剧烈，关注 VIX9D 是否先行抬升。"
     return {"state": state, "text": text, "advice": advice, "risk": risk}
 
 

@@ -68,7 +68,7 @@ function mk(id, option) {
 
 async function load() {
   D = await R.get('/api/assets/equities-options');
-  if (!D || !D.symbols) { R.fail(['detail', 'board'], new Error('无期权结构快照')); return; }
+  if (!D || !D.symbols) { R.fail(['detail', 'board'], new Error('无期权结构快照 · 运行 ./bin/fetch_options_structure 后刷新')); return; }
   document.getElementById('re-as-of').textContent = D.date ? `数据截至 期权快照 ${D.date.slice(0, 10)}` : '';
 
   renderRegime();
@@ -117,7 +117,7 @@ function renderRegime() {
   <div class="re-cards" style="grid-template-columns:repeat(auto-fit,minmax(180px,1fr));margin-top:12px">
     <div class="re-card"><div class="re-corridor-label">Gamma Flip</div>
       <div class="re-corridor-value">${v.gamma_flip == null ? '—' : fmtNum(v.gamma_flip, 1)}</div>
-      <div class="re-card-sub">${v.flip_dist == null ? '全链累计无翻转点' : `现价 ${flipSign} ${flipText}%`}</div></div>
+      <div class="re-card-sub">${v.flip_dist == null ? '全链累计无翻转点' : `较 Gamma Flip ${flipSign} ${flipText}%`}</div></div>
     <div class="re-card"><div class="re-corridor-label">Call Wall · 阻力</div>
       <div class="re-corridor-value">${fmtNum(v.call_wall?.strike, 1)}</div>
       <div class="re-card-sub">${v.call_wall ? '+' + fmtNum(v.call_wall.per_point_m, 1) + ' M / 点' : '—'}</div></div>
@@ -202,7 +202,7 @@ function pGex(panel, v) {
     <div class="chart" id="gex-chart" style="height:300px"></div>
     <h3 style="margin-top:16px">到期日 Gamma 集中度</h3>
     <div id="buckets"></div>
-    <p class="re-source" style="margin:8px 0 0">GEX 分布较均衡，walls 在多个时间尺度上都有部分约束力。</p>`;
+    <p class="re-source" style="margin:8px 0 0">占比越集中在单一到期段，该段的 wall 约束力越强；分布越分散，各时间尺度上的墙越弱。</p>`;
   curChartOpt = colors => {
     const g0 = (v.wall && v.wall.length ? v.wall : (v.gex_dist || [])).slice().sort((a, b) => a.strike - b.strike);
     // timsun 同款：只画有效区间（|gex| 显著的行权价，两端 0 值远端不挤占 x 轴）
@@ -285,7 +285,7 @@ function pDex(panel, v) {
     <div class="re-cards" style="grid-template-columns:repeat(auto-fit,minmax(200px,1fr))">
       <div class="re-card"><div class="re-corridor-label">Net DEX</div>
         <div class="re-corridor-value" style="color:${pos ? '#26a69a' : '#ef5350'}">${pos ? '+' : ''}${fmtNum(v.net_dex)} <span style="font-size:13px">B</span></div>
-        <div class="re-card-sub">市场 dealer book 净${pos ? '做多' : '做空'}，delta 敞口偏向上行${pos ? '' : '下行'}。</div></div>
+        <div class="re-card-sub">市场 dealer book 净${pos ? '做多' : '做空'}，delta 敞口${pos ? '偏向上行' : '偏向下行'}。</div></div>
       <div class="re-card"><div class="re-corridor-label">Call 端 DEX</div>
         <div class="re-corridor-value">${v.net_dex >= 0 ? '+' : ''}${fmtNum(v.call_dex)} <span style="font-size:13px">B</span></div>
         <div class="re-card-sub">call 端按正向 delta 敞口折算</div></div>
@@ -303,7 +303,7 @@ function pIv(panel, v) {
     <h3>${S} · ATM IV 期限结构</h3>
     <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:8px">
       <div class="re-badges">
-        <span class="re-badge ${contango ? 'bull' : 'bear'}">${contango ? 'Contango（远月溢价 · 正常风险定价）' : 'Backwardation（近端升水）'}</span>
+        <span class="re-badge ${contango ? 'bull' : 'bear'}">${contango ? 'Contango（远月升水 · 正常风险定价）' : 'Backwardation（近月升水）'}</span>
         <span class="re-spread">斜率 ${v.iv_slope == null ? '—' : fmtNum(v.iv_slope)} pt</span>
       </div>
       <div style="display:flex;gap:18px;font-size:13px">

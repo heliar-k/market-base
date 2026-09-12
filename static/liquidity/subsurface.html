@@ -94,7 +94,7 @@ async function load() {
     <h2>SRF 与央行互换</h2>
     <p style="margin:0">SRF 近 30 天激活天数 <b>${d.srf?.active_30d ?? 0}</b> 天 · 最新 <b>$${d.srf?.latest_m ?? 0}M</b>。
     央行互换余额 <b>$${Number(d.swap?.balance_m ?? 0).toLocaleString()}M</b>（30日变化 ${(d.swap?.chg_30d_m ?? 0) >= 0 ? '+' : ''}${(d.swap?.chg_30d_m ?? 0).toLocaleString()}M）。</p>
-    <p style="margin:8px 0 0;font-size:12px;color:var(--text-dim)">主流指标（SOFR 中位数/RRP/总资产）反映均衡态；次表层是未被均衡吸收的摩擦——SOFR 99 分位暴露最紧张交易对手的边际定价，成交量 z-score 捕捉市场结构骤变，SRF 是绝对硬约束，央行互换是海外美元压力的被动读数。通常领先主流指标 3-10 个交易日。${zHtml}</p></div>`;
+    <p style="margin:8px 0 0;font-size:12px;color:var(--text-dim)">主流指标（SOFR 中位数/RRP/总资产）是均衡后的读数；次表层看的是没被均衡吸收的摩擦——SOFR 99 分位是最紧张一批机构的边际融资价，成交量 z-score 捕捉市场结构突变，SRF 动用即说明融资端已紧张，央行互换是海外美元压力的被动读数。通常领先主流指标 3-10 个交易日。${zHtml}</p></div>`;
 
   document.getElementById('re-gen').textContent =
     '数据源：FRED（SOFR 分位 / SOFRVOL 成交额）· NY Fed Markets（SRF）· FRED H.4.1（SWPT 央行互换）· SOFRVOL 单位为十亿美元';

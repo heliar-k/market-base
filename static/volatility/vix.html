@@ -115,7 +115,7 @@ async function load() {
       {
         label: '7 日动量',
         value: `${dot(momColor)}${v.chg_1w === null || v.chg_1w === undefined ? '—' : (v.chg_1w > 0 ? '+' : '') + v.chg_1w.toFixed(2) + ' pt'}`,
-        sub: momDir ? `波动率${momDir}，${momDir === '走平' ? '方向不明继续观察' : momDir === '上行' ? '风险溢价回升' : '风险溢价回落'}` : '',
+        sub: momDir ? `波动率${momDir}，${momDir === '走平' ? '暂不给方向' : momDir === '上行' ? '风险溢价回升' : '风险溢价回落'}` : '',
       },
     ])
   );

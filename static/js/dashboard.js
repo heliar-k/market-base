@@ -17,9 +17,6 @@ const LINKS = {
   NET_LIQ: '/liquidity/fed-balance-sheet.html',
 };
 
-// 风险指标：上行 = 压力 = 红（与今日研判页同一着色语义）
-const RISK_KEYS = new Set(['VIX', 'HY_OAS']);
-
 // 自选清单（localStorage，默认参考 timsun：10Y/信用/VIX 类核心指标）
 const WATCH_KEY = 'guanlan-watchlist';
 const DEFAULT_WATCH = ['SPX', 'NVDA'];
@@ -115,7 +112,7 @@ function renderAsOf() {
   const elx = document.getElementById('dash-asof');
   if (!elx) return;
   const d = data.brief;
-  if (d.status !== 'fulfilled') { elx.textContent = '数据截至 —（/api/daily-brief 不可用）'; return; }
+  if (d.status !== 'fulfilled') { elx.textContent = '数据截至 —（brief 数据不可用，确认服务已启动）'; return; }
   const g = d.value.indicators?.groups || {};
   const segs = Object.entries(g).map(([k, v]) => `${k} ${v}`);
   elx.textContent = '数据截至 ' + (segs.length ? segs.join(' · ') : d.value.indicators?.as_of ?? '—');
@@ -205,7 +202,7 @@ function renderAssetSnapshots() {
   const res = data.assets;
   if (!grid) return;
   if (res.status !== 'fulfilled' || !res.value?.tables) {
-    grid.innerHTML = '<div class="loading">资产快照加载失败</div>';
+    grid.innerHTML = '<div class="loading">资产快照加载失败 · 运行 ./bin/fetch_yfinance 后刷新</div>';
     return;
   }
   const boards = [

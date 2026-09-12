@@ -45,13 +45,13 @@ const STATUS_CARDS = [
   },
 ];
 
-// 报警对叙事（规则引擎）：level → 标题/正文；与 assets 页报警卡口径一致
+// 报警对叙事（规则引擎）：level → 标题/正文；与 assets 页报警卡（后端 _corr_alerts）为同事件的另一套分区口径，文案不要求逐字一致
 const ALERT_RULES = {
   SPX_TLT_30d: {
     label: '股债相关性',
     zones: [
       { min: 0.3, title: '股债同涨同跌 — 60/40 分散化失效', text: '通胀/利率是当前主导驱动，债券失去对冲属性，股票回撤时久期不再保护组合。' },
-      { min: 0, title: '股债正相关 — 对冲属性减弱', text: '长债与股票同向，传统 60/40 的分散化效果打折扣，关注组合久期暴露。' },
+      { min: 0, title: '股债正相关 — 对冲属性减弱', text: '长债与股票同向，传统 60/40 的分散化效果打折扣，核对组合的长久期暴露。' },
       { min: -0.3, title: '弱负相关 — 对冲属性中性', text: '股债关系处于过渡区，分散化效果一般。' },
       { min: -1.01, title: '股债负相关 — 对冲属性回归', text: '增长担忧主导定价，长债在股票下跌时提供保护，经典股债跷跷板。' },
     ],
@@ -61,15 +61,15 @@ const ALERT_RULES = {
     zones: [
       { min: 0.3, title: '油股同涨 — 需求驱动', text: '油价与股市同步走强，扩张期需求叙事主导。' },
       { min: -0.3, title: '油股脱钩', text: '油价与股市相关性弱，能源波动暂未传导至风险偏好。' },
-      { min: -1.01, title: '油股深负相关 — 滞胀/供给冲击', text: '油价上行而股票承压，供给冲击或滞胀叙事主导，防御结构优先。' },
+      { min: -1.01, title: '油股深负相关 — 滞胀/供给冲击', text: '油价上行而股票承压，供给冲击或滞胀叙事主导时防御资产更占优。' },
     ],
   },
   DXY_HYG_30d: {
     label: '美元-信用',
     zones: [
-      { min: 0.3, title: '美元与信用同强 — 避险但分化', text: '美元走强伴随高收益债走强，信用利差收紧主导，金融条件未恶化。' },
+      { min: 0.3, title: '美元与信用同强 — 利差收紧主导', text: '美元走强伴随高收益债走强，信用利差收紧主导，金融条件未恶化。' },
       { min: -0.3, title: '美元-信用中性', text: '美元与信用资产相关性弱。' },
-      { min: -1.01, title: '美元强 + 信用走弱 — 金融条件收紧', text: '美元升、高收益债跌的组合是经典收紧信号，警惕信用利差走阔向股市传导。' },
+      { min: -1.01, title: '美元强 + 信用走弱 — 金融条件收紧', text: '美元升、高收益债跌的组合是经典收紧信号，跟踪 HY 利差走阔是否向股市传导。' },
     ],
   },
   MOVE_SPX_30d: {
@@ -488,7 +488,7 @@ function renderInsights(d) {
         <div class="corr-insight-text">${zone.text}</div>
       </div>`);
   }
-  box.innerHTML = cards.join('') || '<div class="corr-insight-text">暂无报警数据（等下个交易日 cross_asset 运行）</div>';
+  box.innerHTML = cards.join('') || '<div class="corr-insight-text">暂无报警数据 · 待下一交易日 cross_asset 生成（uv run python -m src.cross_asset）</div>';
 
   // 报警对迷你趋势（每张洞察卡下方 spark）：自适应趋势线 + 分位/区间文字
   box.querySelectorAll('.corr-insight-card').forEach((el, idx) => {
@@ -572,7 +572,7 @@ function renderMacroSkeleton(wrap) {
         <div class="corr-pane-foot" id="corr-macro-foot">数据源：FRED · 资产序列 yfinance asset_prices · 混频按日期对齐</div>
       </div>
       <div class="corr-side-pane">
-        <div class="corr-pane-head"><span class="corr-pane-title">解读</span><span class="corr-pane-sub">规则引擎 · 数据驱动</span></div>
+        <div class="corr-pane-head"><span class="corr-pane-title">解读</span><span class="corr-pane-sub">规则引擎（LLM 预留）</span></div>
         <div id="corr-macro-narr" class="corr-macro-narr"><div class="loading" style="height:auto;padding:24px">加载中…</div></div>
       </div>
     </div>`;
@@ -819,11 +819,11 @@ function renderNarrative(seriesMap) {
   box.innerHTML = `
     <div class="narr-now">
       <div class="narr-big ${tagCls}">${cur == null ? '—' : (cur >= 0 ? '+' : '') + cur.toFixed(2)} <i class="narr-arrow">${arrow}</i><span class="narr-tag ${tagCls}">${corrNarrative(cur)}</span></div>
-      <div class="narr-sub">${indicatorLabel(l)} × ${indicatorLabel(r)} · 当前滚动相关（30 日窗口）· ▲▼ = 较上一窗口回升/回落 · 颜色=对冲语义：绿=可对冲、红=同向集中、灰=中性</div>
+      <div class="narr-sub">${indicatorLabel(l)} × ${indicatorLabel(r)} · 当前滚动相关（窗口最长 30 期，低频指标自动缩短）· ▲▼ = 较上一窗口回升/回落 · 颜色=对冲语义：绿=可对冲、红=同向集中、灰=中性</div>
     </div>
     ${pairs.length > 1 ? `<div class="narr-pairs">${pairs.map((p, i) =>
       `<button class="correlation-preset-btn${i === narrPairIdx ? ' active' : ''}" data-pair="${i}">${indicatorLabel(p[0])} × ${indicatorLabel(p[1])}</button>`).join('')}</div>` : ''}
-    <div class="narr-block"><b>这意味着什么</b><p>${corrZoneMeaning(cur)}</p></div>
+    <div class="narr-block"><b>这个数怎么读</b><p>${corrZoneMeaning(cur)}</p></div>
     <div class="narr-block"><b>怎么读这幅图</b><p>上带是两序列各自轨迹（左右双轴，右轴多序列时已归一化）；中带滚动相关 &gt;0 即同向、&lt;0 反向；下带 5 年分位表示当前联动强度在历史中的位置。三带共享十字线与缩放。</p></div>
     <div class="narr-block"><b>历史上何时出现过</b><p>${hist}</p></div>`;
   box.querySelectorAll('[data-pair]').forEach(btn => btn.addEventListener('click', () => {

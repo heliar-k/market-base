@@ -72,7 +72,7 @@ async function load() {
     <span class="re-spread">2s10s: ${R.fmtBp(s['2s10s'])}bp</span>
     <span class="re-spread">3m10s: ${R.fmtBp(s['3m10s'])}bp</span>
     <span class="re-spread">5s30s: ${R.fmtBp(s['5s30s'])}bp</span>
-    <span class="re-spread">确认度 ${d.confidence}</span>`;
+    <span class="re-spread">验证通过 ${d.confidence}</span>`;
 
   // ── 统计卡（变动着色：涨绿跌红，与全站一致）──
   const t = Object.fromEntries(d.tenors.map(x => [x.tenor, x]));
@@ -119,7 +119,7 @@ async function load() {
   });
 
   // ── 小节锚点导航：页面不长，四段研判合并为一项 ──
-  const tocItems = [['概览', 're-cards'], ['曲线快照', 'sec-shape'], ['研判', 're-sections'], ['深挖子页', 're-links']];
+  const tocItems = [['概览', 're-cards'], ['曲线快照', 'sec-shape'], ['研判', 're-sections'], ['子页入口', 're-links']];
   document.getElementById('page-toc').innerHTML =
     tocItems.map(([label, id]) => `<a href="#${id}">${label}</a>`).join('');
 }

@@ -68,7 +68,7 @@ async function load() {
         <span class="${v === null ? 'dim' : 'val'}" style="color:${col}">${v === null ? '—' : v}</span>
       </div>`;
   }).join('');
-  const missingNote = rg.missing.length ? `子分数据不足（${rg.missing.join('、')}），综合分按可用子分降级计算。` : '';
+  const missingNote = rg.missing.length ? `子分数据不足（${rg.missing.join('、')}），综合分只用有数据的子分重算。` : '';
   const rc = document.createElement('div');
   rc.className = 'pos-hero regime-hero';
   rc.style.setProperty('--rc-color', rg.color);
@@ -171,7 +171,7 @@ async function load() {
   // ── 贷款质量 ──
   const qsec = document.createElement('div');
   qsec.className = 're-section';
-  qsec.innerHTML = '<h2>贷款质量（逾期率 / 核销率，季度）</h2><p style="margin:0">滞后但更硬的信用质量指标，验证利差是否低估基本面损伤。</p>';
+  qsec.innerHTML = '<h2>贷款质量（逾期率 / 核销率，季度）</h2><p style="margin:0">滞后但更可靠的信用质量指标，用来检验利差是否低估了基本面恶化。</p>';
   qsec.appendChild(R.table(['指标', '当前', '10Y 分位', '观测期', '发布'],
     d.quality.map(q => ({ 指标: q.name, 当前: q.value, 分位: q.pct_10y, 观测期: q.as_of, 发布: q.released || '—' })),
     { 当前: v => `${v.toFixed(2)}%`, 分位: v => v === null || v === undefined ? '—' : `${v}%` }));
@@ -201,7 +201,7 @@ async function load() {
   const etfStr = (e, name) => e
     ? `$<b>${name}</b> ${'$' + e.value} · vol ${e.volume != null ? e.volume.toLocaleString() : '—'}`
     : `${name} —`;
-  lsec2.innerHTML += `<p style="margin:0">${etfStr(hyg, 'HYG')} · ${etfStr(lqd, 'LQD')}（Yahoo Finance 日频快照，TRACE 真实成交量预留）</p>`;
+  lsec2.innerHTML += `<p style="margin:0">${etfStr(hyg, 'HYG')} · ${etfStr(lqd, 'LQD')}（成交量为 Yahoo 日频快照，TRACE 真实成交量尚未接入）</p>`;
   document.getElementById('liq-etf').appendChild(lsec2);
 
   // ── CDS 专题（原 cds.html 并入）──
@@ -222,7 +222,7 @@ function renderCds(root, d) {
   let sov = '<div class="proxy-card"><div class="label">主权 CDS 代理（10Y UST 收益率）</div>';
   if (d.sovereign) {
     sov += `<div class="value">${d.sovereign.value}<span class="unit">%</span></div>
-      <div class="sub">当 10Y 显著上行，通常反映市场对美元信用 / 财政可持续性的定价变化</div>
+      <div class="sub">10Y 收益率明显上行时，本页把它作为美元信用 / 财政可持续性定价变化的代理读数</div>
       <div class="date">${d.sovereign.as_of}</div>`;
   } else {
     sov += '<div class="sub">数据缺失</div>';

@@ -139,7 +139,7 @@ def signal_countries(holdings: list[dict]) -> str:
     if isinstance(cn.get("chg_1y_b"), (int, float)) and cn["chg_1y_b"] < 0:
         text += (
             "中国持仓延续下降趋势，储备多元化（黄金/非美资产）方向未变；"
-            "海湾国家（沙特/阿联酋）持仓与油价财政盈余联动，作为边际买家稳定性较弱。"
+            "海湾国家（沙特/阿联酋）持仓随油价财政盈余同变动，作为边际买家稳定性较弱。"
         )
     else:
         text += "中国持仓企稳，国别层面暂无系统性减持信号。"
@@ -163,7 +163,7 @@ def signal_issuance(cards: dict, refunding: dict) -> str:
     if refunding.get("quarter"):
         text += (
             f"最新季度再融资声明（{refunding['quarter']}）维持附息债拍卖规模不变的指引，"
-            "长端供给压力暂缓。"
+            "长端暂无增量供给压力。"
         )
     return text
 

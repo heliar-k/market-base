@@ -86,7 +86,7 @@ def signal_current(cards: dict, sahm: dict) -> str:
         if sahm["value"] >= 0.5:
             text += "，已触发 0.5 衰退阈值——历史上该信号触发后失业率均持续上行。"
         elif sahm["value"] >= 0.3:
-            text += "，接近 0.5 衰退阈值，就业降温斜率需密切跟踪。"
+            text += "，接近 0.5 衰退阈值，就业降温在加快，密切跟踪下期数据。"
         else:
             text += "，距 0.5 衰退阈值仍有缓冲。"
     if nfp["avg_3m"] < 100:
@@ -140,7 +140,7 @@ def signal_outlook(cards: dict, sahm: dict) -> str:
     if weakening:
         return (
             "降温信号：" + "、".join(weakening) + "。"
-            "就业是美联储双重使命的短板侧，若降温信号持续叠加，"
+            "就业是美联储双重使命中更弱的一边，若降温信号持续叠加，"
             "政策反应函数将偏向宽松；关注下周初请与下月非农是否确认。"
         )
     return (

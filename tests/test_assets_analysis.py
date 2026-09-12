@@ -280,7 +280,9 @@ class TestOptionsNarrative:
         n = _options_narrative(self._sym())
         assert n["gamma"]["title"] == "正 Gamma：波动更容易被压制"
         assert "上方" in n["gamma"]["text"]
-        assert "Net GEX -0.75B" in n["gamma"]["text"]  # 保留 2 位小数，非 -1B
+        assert (
+            "Net GEX（全合约合计）-0.75B" in n["gamma"]["text"]
+        )  # 保留 2 位小数，非 -1B
         assert n["range"]["invalid"].endswith("负 Gamma 框架")
         assert len(n["levels"]) == 3
 

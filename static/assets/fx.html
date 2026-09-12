@@ -26,7 +26,7 @@
 <script>
 async function load() {
   const d = await R.get('/api/assets/fx');
-  if (!d.breadth) { R.fail(['breadth', 'dashboard'], new Error('外汇数据不足')); return; }
+  if (!d.breadth) { R.fail(['breadth', 'dashboard'], new Error('外汇数据不足 · 运行 ./bin/fetch_fx 后刷新')); return; }
 
   // ── 美元广度 ──
   const o = d.breadth.overall;
@@ -69,12 +69,12 @@ async function load() {
   });
 
   document.getElementById('re-as-of').textContent = d.as_of ? `数据截至 ${d.as_of}` : '';
-  document.getElementById('re-gen').textContent = '读法：美元压力 = 各对 20 日涨跌统一换算美元强弱；亚洲/EM 同向走弱 = 美元融资压力抬升；JPY carry（USDJPY 与 EURJPY 同步下行）警惕套息平仓。';
+  document.getElementById('re-gen').textContent = '读法：美元压力 = 各对 20 日涨跌统一换算美元强弱；亚洲/EM 同向走弱 = 美元融资压力抬升；日元套息（USDJPY 与 EURJPY 同步走弱）时，留意套息平仓风险。';
 }
 function avgPressure(groups) {
   if (!groups.length) return '';  // 无分组数据时不掺入标题（避免 NaN%）；空值安全
   const vals = groups.map(g => g.avg_pressure);
-  return ` · 20日美元压力均值 ${(vals.reduce((a, b) => a + b, 0) / vals.length).toFixed(2)}%`;
+  return ` · 20 日美元压力均值 ${(vals.reduce((a, b) => a + b, 0) / vals.length).toFixed(2)}%`;
 }
 function pctColor(v) { return v == null ? '—' : `<span style="color:${v >= 0 ? '#26a69a' : '#ef5350'}">${v >= 0 ? '+' : ''}${v.toFixed(2)}%</span>`; }
 function fmt(v, d) { return v == null ? '—' : Number(v).toLocaleString(undefined, { maximumFractionDigits: d }); }

@@ -55,7 +55,7 @@ async function load() {
   const s = d.series || {};
   const fill = (id, key) => {
     const data = (s[key] || []).map(p => [p.date, p.value]);
-    if (!data.length) { document.getElementById(id).innerHTML = '<div class="re-error">暂无数据</div>'; return; }
+    if (!data.length) { document.getElementById(id).innerHTML = '<div class="re-error">暂无数据 · 运行 ./bin/fetch_fred 更新利率走廊数据后刷新</div>'; return; }
     R.mkChart(id, c => ({ ...base(c), series: [{ ...base(c).series[0], data }] }));
   };
   fill('chart1', 'sofr_tbill3m_bp');

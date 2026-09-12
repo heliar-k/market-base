@@ -947,25 +947,21 @@ COT_TIPS = {
 def _cot_reading(label: str, week_dir: str | None) -> str:
     """合约解读第一句：按判读桶给出方向含义（timsun 口径）。"""
     if label.startswith("极度偏多"):
-        return (
-            "仓位处在极度偏多区间，说明趋势资金已经明显站队；继续上涨需要新增买盘确认。"
-        )
+        return "仓位处在极度偏多区间，趋势资金已经明显站队；继续上涨需要新增买盘确认。"
     if label.startswith("极度偏空"):
-        return (
-            "仓位处在极度偏空区间，说明市场共识很悲观；若价格抗跌，容易出现空头回补。"
-        )
+        return "仓位处在极度偏空区间，市场共识悲观；若价格抗跌，容易出现空头回补。"
     if label == "偏多":
         return "仓位偏多，趋势资金倾向支持上行，但并未到最拥挤状态。"
     if label == "偏空":
-        return "仓位偏空，说明资金仍偏防御；若价格转强，需要观察净空是否开始回补。"
+        return "仓位偏空，资金仍偏防御；若价格转强，需要观察净空是否开始回补。"
     return "仓位处在中性区间，单独看 CFTC 还不能给出强方向结论。"
 
 
 def _cot_week_text(week_dir: str | None) -> str:
     if week_dir == "增仓":
-        return "本周净仓增加，说明资金边际上在加多或减空。"
+        return "本周净仓增加，资金边际上在加多或减空。"
     if week_dir == "减仓":
-        return "本周净仓下降，说明资金边际上在减多或加空。"
+        return "本周净仓下降，资金边际上在减多或加空。"
     return ""
 
 
@@ -1385,7 +1381,7 @@ def crypto() -> dict:
                     f"当前脉冲为正（+{round(pulse):.0f}B），加密流动性顺风延续。"
                 )
         if div and "回撤风险" in div.get("verdict", ""):
-            parts.append("注意：净流动性收缩但 BTC 上涨，警惕回撤风险。")
+            parts.append("净流动性收缩但 BTC 上涨，警惕回撤风险。")
         out["liquidity"] = {
             "net": round(float(nl.iloc[-1]) / 1e6, 2),  # T
             "fed": round(float(wide["WALCL"].dropna().iloc[-1]) / 1e6, 2),  # T
@@ -1518,13 +1514,13 @@ def _options_narrative(s: dict) -> dict:
     if local_pos:
         gamma_text = (
             f"{name} 现价位于 Gamma Flip 上方，局部处于正 Gamma 环境。"
-            f"全部期权合约合计的 Net GEX {gex_text} 仅作为强度参考，价格更容易"
+            f"Net GEX（全合约合计）{gex_text} 只作强度参考，价格更容易"
             f"围绕关键墙位震荡，优先观察 {range_text}"
         )
     else:
         gamma_text = (
             f"{name} 现价位于 Gamma Flip 下方，局部处于负 Gamma 环境。"
-            f"全部期权合约合计的 Net GEX {gex_text} 仅作为强度参考，价格更容易"
+            f"Net GEX（全合约合计）{gex_text} 只作强度参考，价格更容易"
             f"放大波动，跌破关键支撑后波动扩散风险上升，优先观察 {range_text}"
         )
 
@@ -1532,7 +1528,7 @@ def _options_narrative(s: dict) -> dict:
     if local_pos:
         meaning = (
             f"Put Wall {fv(pw)} 与 Call Wall {fv(cw)} "
-            "更适合被当作结构边界观察，突破前不宜把贴边波动直接外推成趋势。"
+            "更适合被当作结构边界观察，突破前的贴边波动不算趋势。"
         )
         invalid = f"跌破 Gamma Flip {flip_txt} 后切换为负 Gamma 框架"
         risk = f"若跌破 Gamma Flip {flip_txt}，原有区间压制逻辑失效"
@@ -1541,9 +1537,9 @@ def _options_narrative(s: dict) -> dict:
             f"接近 Put Wall {fv(pw)} 时下方支撑需要重新验证"
         )
         avoid = [
-            f"不宜把站上 {fv(cw)} 前的贴边波动直接解读为有效突破",
-            "不宜把低波动环境误读成宏观风险消失；正 Gamma 只是短期结构压制",
-            "不宜在区间中部给出强方向结论，关键是价格相对 Flip 和墙位的位置",
+            f"站上 {fv(cw)} 前的贴边波动不算有效突破",
+            "低波动不等于宏观风险消失；正 Gamma 只是短期结构压制",
+            "区间中部给不出强方向结论，要看价格相对 Flip 和墙位的位置",
         ]
         vol_meaning = (
             "正 Gamma 且远离 Flip 时，隐含波动率通常更容易被压制；"
@@ -1555,7 +1551,7 @@ def _options_narrative(s: dict) -> dict:
     else:
         meaning = (
             f"现价位于 Gamma Flip {flip_txt} 下方，负 Gamma 环境下波动易被放大；"
-            "突破前的贴边波动不宜直接外推成趋势。"
+            "突破前的贴边波动不算趋势。"
         )
         invalid = f"站上 Gamma Flip {flip_txt} 后切换为正 Gamma 框架"
         risk = f"若站上 Gamma Flip {flip_txt}，原有波动放大逻辑失效"
@@ -1564,9 +1560,9 @@ def _options_narrative(s: dict) -> dict:
             f"接近 Call Wall {fv(cw)} 时关注负 Gamma 带来的快速反弹"
         )
         avoid = [
-            "负 Gamma 环境下不宜在贴近墙位处追空，反弹容易快速",
-            f"不宜把跌破 Gamma Flip {flip_txt} 后的加速下跌直接外推至趋势",
-            "不宜忽视正 Delta 敞口的支撑；负 Gamma 放大的是双向波动",
+            "负 Gamma 贴近墙位处追空风险大，反弹可以很快",
+            f"跌破 Gamma Flip {flip_txt} 后的加速下跌不算趋势确认",
+            "别忽略正 Delta 敞口的支撑；负 Gamma 放大的是双向波动",
         ]
         vol_meaning = (
             "负 Gamma 环境中隐含波动率通常被放大；"

@@ -39,7 +39,7 @@ function fmt(v) { return v == null ? '—' : Number(v).toLocaleString(undefined,
 
 async function load() {
   D = await R.get('/api/assets/etfs');
-  if (!D.pool || !D.pool.length) { R.fail(['stats', 'pool'], new Error('精选池数据不足')); return; }
+  if (!D.pool || !D.pool.length) { R.fail(['stats', 'pool'], new Error('精选池数据不足 · 运行 ./bin/fetch_etf 后刷新')); return; }
 
   if (D.as_of) document.getElementById('re-as-of').textContent = '数据截至 ' + D.as_of;
   renderStats();
@@ -74,7 +74,7 @@ function renderUniverse() {
     .sort((a, b) => b[1] - a[1])
     .map(([c, n]) => `${categories(c)} (${n})`);
   document.getElementById('universe').innerHTML =
-    `<div class="re-explain">覆盖 Nasdaq Trader symbol directory 中 ETF 标记为 Y 的美国挂牌产品；价格为本系统已增强的精选池子集。分类统计：${cats.join(' · ')}</div>`;
+    `<div class="re-explain">范围：Nasdaq Trader 名单中标记为 Y 的美国上市 ETF；价格只覆盖已积累历史的精选池。分类统计：${cats.join(' · ')}</div>`;
 }
 
 function renderFilters() {
@@ -83,7 +83,7 @@ function renderFilters() {
   const f = document.getElementById('filters');
   f.innerHTML = `<div class="re-section">
     <h2>ETF 市场温度与筛选</h2>
-    <p style="margin:0 0 8px">价格不是孤立数字：用 1周 / 1月 / 3月动量、20日年化波动率和距3月高点回撤，区分趋势与风险。</p>
+    <p style="margin:0 0 8px">用 1 周 / 1 月 / 3 月动量、20 日年化波动率和距 3 月高点回撤，区分趋势与风险。</p>
     ${chips(cats, curCat, 'f-cat')}${chips(trends, curTrend, 'f-trend', 'margin-top:14px')}
   </div>`;
   f.querySelectorAll('a[data-v]').forEach(a => a.addEventListener('click', () => {

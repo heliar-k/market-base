@@ -63,7 +63,7 @@ async function load() {
     <div style="flex:1;min-width:260px;font-size:13px;line-height:1.7;color:var(--text-secondary)">
       评分边界：0-3 宽松 · 3-5 中性 · 5-7 警戒观察 · 7+ 压力确认。
       LPI 是规则型监测指数而非危机概率模型；总分受融资市场与风险资产确认约束，
-      能源/地缘仅作外部冲击输入。阈值与权重为研究规则，尚未做完整历史统计校准——优势是透明、可解释、可复盘。
+      能源/地缘仅作外部冲击输入。阈值与权重为研究规则，尚未做完整历史统计校准。
     </div>`;
   document.getElementById('re-score').appendChild(score);
 
@@ -94,9 +94,9 @@ async function load() {
     </div>`;
   };
   document.getElementById('re-layers').innerHTML =
-    layerCard('structure', '结构性缓冲压力', '系统水位是不是变薄？准备金 / 净流动性 / TGA-RRP 缓冲') +
-    layerCard('funding', '融资市场确认', '缺钱有没有出现在融资市场？Repo 定价 / SRF / 离岸美元 basis') +
-    layerCard('transmission', '风险资产传导', '市场有没有开始承认压力？VIX / MOVE / 信用利差 / NFCI');
+    layerCard('structure', '结构性缓冲压力', '看系统水位是否变薄：准备金 / 净流动性 / TGA-RRP 缓冲') +
+    layerCard('funding', '融资市场确认', '看融资端有没有缺钱：Repo 定价 / SRF / 离岸美元 basis') +
+    layerCard('transmission', '风险资产传导', '看风险资产有没有跟上：VIX / MOVE / 信用利差 / NFCI');
 
   // ── LPI 历史走势（快照积累，<2 点显示占位）──
   const hist = d.history || [];
@@ -123,7 +123,7 @@ async function load() {
         <span style="color:var(--text)">${x.title}</span>
         <span style="color:var(--text-dim);font-size:12px">${x.detail || ''}</span>
       </div>`).join('') +
-      `<p style="margin:8px 0 0;font-size:12px;color:var(--text-dim)">以上任一条件满足即说明压力从结构性偏紧升级为系统性；当前全部未确认 → 更适合等待确认信号，而不是直接按危机交易。</p></div>`;
+      `<p style="margin:8px 0 0;font-size:12px;color:var(--text-dim)">以上任一条件满足即说明压力从结构性偏紧升级为系统性；当前全部未确认，本指数不下系统性压力结论，等待确认信号。</p></div>`;
 
   // ── 离岸 + 外部 ──
   const off = d.offshore || {};
@@ -163,7 +163,7 @@ async function load() {
     ev += evSection('能源（外生）', `<p style="margin:0">WTI <b>${(e.energy.wti ?? 0).toFixed(2)}</b>（5日 ${(e.energy.wti_5d_pct ?? 0) >= 0 ? '+' : ''}${(e.energy.wti_5d_pct ?? 0).toFixed(1)}%）；天然气 ${e.energy.ng ?? '—'}。先看油价是否站上关键位、波动是否维持，再看冲击是否传到 CNH/JPY basis。</p>`);
   }
   if (e.intermediary) {
-    ev += evSection('中介能力', `<p style="margin:0">VIX <b>${(e.intermediary.vix ?? 0).toFixed(2)}</b>；MOVE <b>${(e.intermediary.move ?? 0).toFixed(0)}</b>；HY OAS(BB) <b>${(e.intermediary.bb_oas ?? 0).toFixed(0)}bp</b>；IG OAS <b>${(e.intermediary.ig_oas ?? 0).toFixed(0)}bp</b>；NFCI <b>${e.intermediary.nfci ?? '—'}</b>（${(e.intermediary.nfci ?? 1) < 0 ? '宽松' : '收紧'}）。该层分数低说明风险资产还没承认上游压力。</p>`);
+    ev += evSection('中介能力', `<p style="margin:0">VIX <b>${(e.intermediary.vix ?? 0).toFixed(2)}</b>；MOVE <b>${(e.intermediary.move ?? 0).toFixed(0)}</b>；HY OAS(BB) <b>${(e.intermediary.bb_oas ?? 0).toFixed(0)}bp</b>；IG OAS <b>${(e.intermediary.ig_oas ?? 0).toFixed(0)}bp</b>；NFCI <b>${e.intermediary.nfci ?? '—'}</b>（${(e.intermediary.nfci ?? 1) < 0 ? '宽松' : '收紧'}）。该层分数低说明风险资产还没把上游压力计入价格。</p>`);
   }
   if (e.prices) {
     ev += evSection('资产价格反应', `<p style="margin:0">SPX <b>${(e.prices.spx ?? 0).toLocaleString()}</b>；10Y <b>${(e.prices.dgs10 ?? 0).toFixed(2)}%</b>；DXY <b>${(e.prices.dxy ?? 0).toFixed(2)}</b>；黄金 <b>${(e.prices.gold ?? 0).toLocaleString()}</b>；BTC <b>${(e.prices.btc ?? 0).toLocaleString()}</b>。资产价格是结果层，不参与加权，用于验证压力是否已传导。</p>`);

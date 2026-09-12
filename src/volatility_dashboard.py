@@ -147,7 +147,7 @@ def _hero(rows: list[dict]) -> dict:
         and vix < 15
         and (move is None or ovx is None or move > 60 or ovx > 40)
     ):
-        verdict = "当前更像结构性波动（商品/利率高波），而非全面系统性风险。"
+        verdict = "当前更像结构性波动——高波集中在商品/利率，全面系统性风险未扩散。"
     elif vix is not None and vix >= 25:
         verdict = "权益波动进入警戒区，跨资产波动同步抬升，系统性风险升温。"
     elif vix is not None and vix < 15:
@@ -171,7 +171,7 @@ def _signals(rows: list[dict]) -> list[dict]:
                 "title": "尾部保护与现货 VIX 背离",
                 "metric": f"VIX {vix['value']:.2f}, VVIX {vvix['value']:.2f}"
                 f" ({chg(vvix)} 1D)",
-                "text": "VIX 温和但 VVIX 偏高，说明市场并未为日常波动付高价，"
+                "text": "VIX 温和但 VVIX 偏高：市场没为日常波动付高价，"
                 "却仍在买波动率跳升风险。",
                 "advice": "不适合裸卖波动；若做多保护，优先用价差控制 carry。",
             }
@@ -182,7 +182,7 @@ def _signals(rows: list[dict]) -> list[dict]:
         if m1m is not None and m1m < -5:
             title, text = (
                 "利率波动降温",
-                f"债券波动率月跌 {abs(m1m):.1f}%，说明当前不是利率端主导的系统性恐慌。"
+                f"债券波动率月跌 {abs(m1m):.1f}%，当前不是利率端主导的系统性恐慌。"
                 "股债波动联动减弱，组合对冲要更多看商品与尾部风险。",
             )
         elif m1m is not None and m1m > 5:
@@ -270,8 +270,7 @@ def _trade_map(rows: list[dict]) -> dict:
             conf = "低"
         return {
             "title": "VIX contango carry",
-            "strategy": "只考虑定义风险的卖波动结构：Iron condor / covered call "
-            "overwrite / defined-risk short vol",
+            "strategy": "只考虑最大亏损可控的卖波动结构：Iron condor / covered call。",
             "trigger": f"VXV−VIX 维持 +2pt 以上（当前 {spread:+.1f}pt），VIX 不上破 20",
             "invalidate": "VIX9D 或 VIXD 跳升并压平期限结构",
             "confidence": conf,
@@ -343,7 +342,7 @@ def _narr_overview(rows: list[dict], st: dict) -> str:
                 f"OVX {ovx['value']:.1f} 拉高绝对水平，但并非股票市场恐慌。"
             )
         parts.append(
-            "总体看，这是「权益低波、商品利率高波」的结构性环境，而非全面性的系统性恐慌。"
+            "这是「权益低波、商品利率高波」的结构性环境，不是全面性的系统性恐慌。"
             if vix["value"] < 15
             else "权益与商品利率波动同处高位，属于全面系统性风险阶段。"
         )
@@ -359,18 +358,24 @@ def _narr_source(rows: list[dict]) -> str:
         hi = max(vxn, vix, vxd, key=lambda r: r["value"])
         parts.append(
             f"股票波动中 {hi['name']} 最大（{hi['value']:.2f}），高于标普 VIX "
-            f"{vix['value']:.2f} 和道指 VIX {vxd['value']:.2f}，说明科技板块仍是"
-            "风险偏好和估值敏感度最高的部分。"
+            f"{vix['value']:.2f} 和道指 VIX {vxd['value']:.2f}。"
+            + (
+                "科技板块仍是风险偏好和估值敏感度最高的部分。"
+                if hi["symbol"] == "VXN"
+                else ""
+            )
         )
     stocks = [by[s] for s in ("VXIB", "VXAZ", "VXGO", "VXAP")]
-    if all(r["value"] for r in stocks) and all(r["chg1m"] is not None for r in stocks):
+    if all(r["value"] for r in stocks) and all(
+        r["chg1m"] is not None and r["chg1m"] < 0 for r in stocks
+    ):
         worst = min(stocks, key=lambda r: r["chg1m"])
         parts.append(
             f"个股波动中 IBM({by['VXIB']['value']:.2f})、"
             f"亚马逊({by['VXAZ']['value']:.2f})、"
             f"谷歌({by['VXGO']['value']:.2f})和苹果({by['VXAP']['value']:.2f})"
-            f"绝对水平偏高，但月变化普遍达 {worst['chg1m']:+.0f}% 左右，"
-            "显示财报或事件扰动后正在去波动。"
+            f"绝对水平偏高，但月变化均在回落（降幅最大 {worst['name']} "
+            f"{worst['chg1m']:.0f}%），财报或事件扰动后的波动在消退。"
         )
     # 商品
     ovx, gvz = by["OVX"], by["GVZ"]
@@ -403,8 +408,8 @@ def _narr_source(rows: list[dict]) -> str:
     if vvix["value"] and vvix["chg1m"] is not None:
         parts.append(
             f"VVIX 为 {vvix['value']:.2f}，日周月均"
-            f"{'回落' if vvix['chg1m'] < 0 else '抬升'}，表明市场对波动率尾部风险的"
-            f"恐惧{'减弱' if vvix['chg1m'] < 0 else '加剧'}，"
+            f"{'回落' if vvix['chg1m'] < 0 else '抬升'}，市场对波动率尾部风险的"
+            f"担忧{'减弱' if vvix['chg1m'] < 0 else '加剧'}，"
             + (
                 "但绝对水平仍不低，投资者尚未完全放松对冲需求。"
                 if vvix["value"] > 80
@@ -428,7 +433,7 @@ def _narr_term(df: pd.DataFrame, term: dict) -> str:
         body = (
             "近低远高，远端对近端的风险溢价显著，市场把近期风险定价很低，"
             "却为中期不确定性（政策路径、通胀粘性、盈利周期）支付高溢价。"
-            "若短端跌幅远大于长端，曲线变陡，通常意味着短期压力释放、"
+            "若短端跌幅远大于长端，曲线变陡，对应的是短期压力释放，"
             "但中期风险并未同等下降，近端减压与远端防御之间形成背离。"
         )
     else:
@@ -447,8 +452,8 @@ def _narr_cross(rows: list[dict]) -> str:
     if all(r["value"] for r in (vix, ovx)):
         parts.append(
             f"股票与商品波动明显分化：VIX 已降至 {vix['value']:.2f}，而 OVX 仍达 "
-            f"{ovx['value']:.2f}、GVZ {gvz['value']:.2f}，这不是同涨的系统性风险信号，"
-            "而是集中在能源、贵金属和通胀链条上的结构性风险。"
+            f"{ovx['value']:.2f}、GVZ {gvz['value']:.2f}。风险集中在能源、贵金属"
+            "和通胀链条上，不是同涨的系统性信号。"
         )
     if all(r["value"] for r in (vix, move)):
         parts.append(
@@ -457,7 +462,7 @@ def _narr_cross(rows: list[dict]) -> str:
             + (
                 f"长端国债 VTLT 日涨 {vtlx['chg1d']:+.1f}%、"
                 f"月涨 {vtlx['chg1m']:+.1f}%，"
-                "高收益债 VXHY 同步升温，说明利率市场不确定性"
+                "高收益债 VXHY 同步升温，利率市场不确定性"
                 "显著高于股票市场。"
                 if vtlx["chg1m"]
                 else ""
@@ -469,7 +474,7 @@ def _narr_cross(rows: list[dict]) -> str:
     if len(vals) > 5:
         parts.append(
             f"样本内最高与最低波动离散度很大（{max(vals):.1f} vs {min(vals):.1f}），"
-            "说明当前波动并非全面扩散，而是局部和结构性扰动。总体交叉信号指向："
+            "当前波动是局部和结构性扰动，不是全面扩散。交叉信号指向："
             "近期股市平静可能是局部现象，跨资产中利率和商品压力尚未完全消除。"
         )
     return "".join(parts)
@@ -519,7 +524,7 @@ def _narr_risk(rows: list[dict], term: dict) -> tuple[str, int]:
         )
         parts.append(
             "未来 1-2 周权益波动率继续下探空间有限，9日 VIX 已接近低位，"
-            "可能出现低位震荡甚至反弹。需关注的风险事件包括 FOMC 政策信号、"
+            "可能出现低位震荡甚至反弹。风险事件的催化剂：FOMC 政策信号、"
             "通胀与就业数据、国债拍卖和长端利率波动，以及原油地缘供给和新兴市场资金流。"
         )
     if vxn["value"] and vxn["value"] > 18:
@@ -537,7 +542,7 @@ def _narr_trade(rows: list[dict], term: dict, skew: float | None) -> str:
     parts = []
     if vix["value"] and vix9["value"] and vix["value"] < 20:
         parts.append(
-            f"当前最值得关注的是权益波动率保护：VIX {vix['value']:.2f} 和 9 日 VIX "
+            f"权益保护正处低成本窗口：VIX {vix['value']:.2f} 和 9 日 VIX "
             f"{vix9['value']:.2f} 已较低，买入股票指数看跌保护成本相对便宜"
             + (
                 f"，科技股尤需防 VXN 从 {vxn['value']:.1f} 反弹。"
@@ -548,9 +553,9 @@ def _narr_trade(rows: list[dict], term: dict, skew: float | None) -> str:
     if term["state"] == "contango":
         parts.append(
             "期限结构 contango 下，做空近端波动率的展期收益为正但已有限，"
-            "且一旦事件冲击近端反弹最剧烈，不宜过度裸空 9D 或 VIX。更稳妥的策略"
-            "可构建日历价差，做多 3 个月至 1 年远端波动并部分对冲近端空头，"
-            "或用 VXTH 等尾部对冲工具管理黑天鹅风险。"
+            "且一旦事件冲击近端反弹最剧烈，不宜过度裸空 9D 或 VIX。更稳妥的做法"
+            "是构建日历价差，做多 3 个月至 1 年远端波动并部分对冲近端空头，"
+            "或用 VXTH 等尾部对冲工具应对极端行情。"
         )
     if ovx["value"] and ovx["chg1m"] is not None:
         ovx_dir = "快速回落" if ovx["chg1m"] < 0 else "仍在抬升"
@@ -564,13 +569,13 @@ def _narr_trade(rows: list[dict], term: dict, skew: float | None) -> str:
         )
     if move["value"] and move["value"] > 60:
         parts.append(
-            "债券端 MOVE 高企说明利率期权定价昂贵，但在长端债波动确认见顶前"
+            "债券端 MOVE 处于高位，利率期权定价昂贵，但在长端债波动确认见顶前"
             "不宜单边做空债券波动。跨资产配置需警惕股债波动背离收敛：若长端利率"
             "波动继续上升，高估值科技股和信用债可能同时承受波动与估值压力。"
         )
     if skew is not None and skew >= 140:
         parts.append(
-            f"SKEW {skew:.0f} 偏高，尾部对冲需求旺盛，保护仓位应适度提前布局。"
+            f"SKEW {skew:.0f} 偏高，尾部对冲需求旺盛，保护仓位可在波动脉冲前提前布局。"
         )
     return "".join(parts)
 
@@ -583,9 +588,9 @@ def _narr_basic(rows: list[dict], term: dict, card: dict) -> list[dict]:
     outlook = (
         (
             f"本周 VIX 大概率在 {max(0, center - 3):.0f}-{center + 3:.0f} 区间波动。"
-            "拐点催化剂是通胀与就业数据：若核心通胀超预期，VIX 将瞬间跳升并触发"
+            "拐点催化剂是通胀与就业数据：若核心通胀超预期，VIX 可能跳升并触发"
             "期限结构前端陡峭；若数据温和且无地缘升级，VIX 将回探下沿，"
-            "但远端高溢价不会消退，持续压制风险偏好。"
+            "但远端高溢价难以消退，持续压制风险偏好。"
             f"若原油供给端出现实质性断供威胁，VIX 将突破 {center + 7:.0f}。"
         )
         if center is not None
@@ -614,7 +619,7 @@ def _narr_basic(rows: list[dict], term: dict, card: dict) -> list[dict]:
     vix_txt += (
         f"，近一年 {pct}% 分位，绝对水平处于"
         f"{'平静区间下沿' if vix['value'] < 15 else '正常区间'}，"
-        "市场定价的近期波动预期低迷，但下一份宏观数据将直接考验这一安逸定价。"
+        "市场定价的近期波动预期低迷，但下一份宏观数据发布将检验这一低迷定价。"
         if pct is not None and vix["value"] is not None
         else "。"
     )
@@ -638,8 +643,8 @@ def _narrative(
         {"title": "风险评估与前瞻", "text": risk_txt, "score": score},
         {"title": "交易含义", "text": _narr_trade(rows, term, skew)},
         {
-            "title": "波动率 AI 基础分析",
-            "text": "规则引擎生成的三段式基础分析。",
+            "title": "波动率基础分析（规则引擎）",
+            "text": "三段解读：本周展望 / 期限结构 / VIX 水平。",
             "parts": _narr_basic(rows, term, card),
         },
     ]

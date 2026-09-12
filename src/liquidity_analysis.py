@@ -191,17 +191,17 @@ def _narrative(liq: pd.DataFrame, rates: pd.DataFrame) -> dict:
     if nl_1m is None:
         nl_dir = "方向未知"
     elif nl_1m >= 0:
-        nl_dir = "净流动性处于扩张方向"
+        nl_dir = "在扩张"
     else:
-        nl_dir = "净流动性处于收缩方向"
+        nl_dir = "在收缩"
     nl_text = (
         f"截至{nl.index[-1].date()}，联储总资产{_txt(_last(walcl))}万亿，"
-        f"TGA为{_txt(tga_latest)}万亿，RRP仅{rrp_latest:.1f}十亿，"
+        f"TGA为{_txt(tga_latest)}万亿，RRP 为{rrp_latest:.1f}十亿，"
         f"净流动性为{_txt(nl_latest)}万亿。"
         f"TGA 1个月{'上升' if tga_1m is not None and tga_1m > 2e4 else '回落/平稳'}"
         f"{'（财政存款在抽水）' if tga_1m is not None and tga_1m > 2e4 else ''}，"
         f"RRP 缓冲{'接近耗尽' if (rrp_latest or 0) < 25 else '仍有余量'}，"
-        f"净流动性1个月变化{nl_1m / 1000:+.0f}十亿，{nl_dir}而非扩张。"
+        f"净流动性1个月变化{nl_1m / 1000:+.0f}十亿，{nl_dir}。"
         if nl_1m is not None
         else f"截至{nl.index[-1].date()}，净流动性数据不足。"
     )

@@ -37,7 +37,7 @@ function num(v) { return v == null ? '—' : Number(v).toLocaleString(); }
 
 async function load() {
   const d = await R.get('/api/assets/positioning');
-  if (!d.latest_report) { R.fail(['overview', 'groups'], new Error('COT 数据不足')); return; }
+  if (!d.latest_report) { R.fail(['overview', 'groups'], new Error('COT 数据不足 · 运行 ./bin/fetch_cot 后刷新')); return; }
   document.getElementById('re-as-of').textContent = `数据截至 COT 报告 ${d.latest_report}`;
 
   renderOverview(d);
@@ -52,7 +52,7 @@ function renderOverview(d) {
   const crowdLabel = c == null ? '数据不足' : c >= 50 ? '仓位偏拥挤' : c >= 30 ? '仓位中性' : '仓位分散';
   const extremes = (o.extremes || []).map(x => `${x.name}(${x.pct_2y.toFixed(1)})`).join('、');
   const desc = c == null ? ''
-    : `当前 CFTC 投机仓位整体为「${crowdLabel}」，方向上${o.bias || '中性'}。最极端的合约是 ${extremes}。这说明仓位本身已经包含了一部分市场共识，后续更重要的是看价格是否继续确认，而不是只看净多净空绝对值。`;
+    : `当前 CFTC 投机仓位整体为「${crowdLabel}」，方向上${o.bias || '中性'}。最极端的合约是 ${extremes}。仓位已包含一部分市场共识，接下来看价格是否继续确认，不只看净多净空绝对值。`;
   const el = document.getElementById('overview');
   el.innerHTML = `
   <div class="pos-hero">
@@ -96,8 +96,8 @@ function renderGroup(g) {
 
 const TIPS = {
   index_vol: '股指仓位主要看风险偏好是否拥挤。',
-  rates: '美债仓位主要看市场是在押注利率下行，还是继续押注收益率上行。',
-  fx: '外汇仓位看美元与非美货币的拥挤方向。',
+  rates: '美债仓位看市场在押注收益率下行，还是继续押注收益率上行。',
+  fx: '外汇仓位看美元与非美货币哪边更挤。',
   commodities: '商品仓位看再通胀交易是否拥挤，以及趋势资金有没有追随。',
 };
 

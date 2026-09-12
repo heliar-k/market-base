@@ -128,7 +128,7 @@ def signal_drivers(comp: dict, shapiro: dict) -> str:
     )
     goods = comp.get("CORE_GOODS", {}).get("value")
     if isinstance(goods, float) and goods < 0:
-        text += "核心商品处于通缩，对 headline 形成拖累；"
+        text += "核心商品处于通缩，对整体 CPI 形成拖累；"
     shelter = comp.get("CPI_SHELTER", {})
     if shelter.get("chg_1m") is not None and shelter["chg_1m"] < 0:
         text += "住所通胀继续降温，滞后租金口径仍在向市场租金收敛；"
@@ -140,9 +140,9 @@ def signal_drivers(comp: dict, shapiro: dict) -> str:
             f"供给贡献 {core['supply']}pp、需求贡献 {core['demand']}pp，"
             f"当前通胀以{driver}驱动为主——"
             + (
-                "需求驱动意味着货币政策收紧仍是对症工具。"
+                "通胀由需求驱动，货币政策收紧仍是对症工具。"
                 if driver == "需求"
-                else "供给驱动对利率不敏感，紧缩的边际效用最弱。"
+                else "供给驱动对利率不敏感，紧缩的边际效用有限。"
             )
         )
     return text

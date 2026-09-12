@@ -107,7 +107,7 @@ async function load() {
   document.getElementById('re-eval').appendChild(box);
 
   document.getElementById('re-gen').textContent =
-    '数据源 FRED（H.4.1 / 利率走廊 / NFCI）· DTS 日度现金流 · Treasury 拍卖 · CFETS 掉期点 · 央行互换（SWPT）· 金额单位：百万美元（原始），前端换算万亿/十亿';
+    '数据源 FRED（H.4.1 / 利率走廊 / NFCI）· DTS 日度现金流 · Treasury 拍卖 · CFETS 掉期点 · 央行互换（SWPT）· 金额单位：百万美元（原始），页面按万亿/十亿显示';
 }
 load().catch(e => R.fail(['re-cards', 're-eval'], e));
 </script>

@@ -132,7 +132,7 @@ async function load() {
     const assets = d.corr.assets;
     const now = d.as_of;
     csec.innerHTML = `<h2>CORRELATION 跨资产相关性</h2>
-      <p style="margin:0">${now} · 30 日滚动相关系数：蓝 负相关 → 中性 → 红 正相关。ETH/NG/EURUSD 历史不足 30 日，按窗口内可得观测计算。</p>
+      <p style="margin:0">${now} · 30 日滚动相关系数：蓝 负相关 → 中性 → 红 正相关。ETH/NG/EURUSD 历史不足 30 日，按窗口内实际有数据的天数计算。</p>
       <div class="chart" id="corr-chart" style="height:520px"></div>`;
     document.getElementById('correlation').appendChild(csec);
     R.mkChart('corr-chart', colors => ({
@@ -199,7 +199,7 @@ async function load() {
   });
   document.getElementById('cross-analysis').appendChild(asec);
 
-  document.getElementById('re-gen').textContent = '规则引擎生成（LLM 预留）· 数据源：yfinance / FRED / Nasdaq Trader';
+  document.getElementById('re-gen').textContent = '规则引擎（LLM 预留）· 数据源：yfinance / FRED / Nasdaq Trader';
 }
 
 load().catch(e => R.fail(['asset-groups', 'correlation', 'cross-analysis'], e));

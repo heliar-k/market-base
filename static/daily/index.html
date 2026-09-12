@@ -47,7 +47,7 @@
 
   <div id="sec-readings" class="db-sec" style="display:none">
     <div class="re-h2">各指标的信号与证伪条件</div>
-    <p class="re-source">单指标相容不代表机制成立：信号按跨资产条件表述（方向为近 5 个有效观测，分位为 1 年窗口），需结合上方情景与反证条件核验；证伪列给出什么情况下这个读法失效。</p>
+    <p class="re-source">单指标相容不代表机制成立：信号按跨资产条件表述（方向为近 5 个有效观测，分位为 1 年窗口），先对照上方情景，再看该行证伪条件是否已触发。</p>
     <div id="db-readings"></div>
   </div>
 
@@ -208,7 +208,7 @@ async function load() {
     fomcEl.innerHTML = `
       <span class="re-badge chip">下一次 FOMC 决议 · ${next}（${days > 0 ? days + ' 天后' : '进行中'}）</span>
       ${exp}
-      <span class="re-badge chip">关注政策措辞与 2Y / 美元 / 信用的反应</span>`;
+      <span class="re-badge chip">会后看 2Y、美元、信用利差对政策措辞的反应</span>`;
   }
 
   // ── 跨资产变化表 + 读法行联动 ──

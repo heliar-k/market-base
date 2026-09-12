@@ -17,7 +17,7 @@ const R = {
   fail(ids, e) {
     ids.forEach(id => {
       const el = document.getElementById(id);
-      if (el) el.innerHTML = `<div class="re-error">加载失败: ${e.message}</div>`;
+      if (el) el.innerHTML = `<div class="re-error">加载失败：${e.message}<br>请确认服务已启动（uv run python -m src.server）或数据已拉取，刷新重试</div>`;
     });
   },
 

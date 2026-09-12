@@ -386,7 +386,7 @@ async function fetchDiag() {
     const d = await res.json();
     renderDiag(d);
   } catch(e) {
-    document.getElementById('diag-content').innerHTML = `<div class="loading">加载失败</div>`;
+    document.getElementById('diag-content').innerHTML = `<div class="loading">诊断加载失败 —— 请确认服务已启动（uv run python -m src.server）</div>`;
   }
 }
 
@@ -403,7 +403,7 @@ function renderDiag(d) {
         <span style="color:#666;font-size:13px">${d.last_date}</span>
       </div>
       <div class="score-bar"><div class="score-fill" style="width:${pct}%;background:${scoreColor}"></div></div>
-      <div style="font-size:20px;font-weight:600">¥${d.last_price?.toFixed(2) ?? '—'}</div>
+      <div style="font-size:20px;font-weight:600">${d.last_price != null ? '$' + d.last_price.toFixed(2) : '—'}</div>
     </div>
 
     <div class="diag-section">

@@ -43,7 +43,7 @@ async function load() {
   const L = d.liquidity || {};
   const lsec = document.createElement('div');
   lsec.className = 're-section';
-  lsec.innerHTML = '<h2>宏观 × 加密流动性溢出</h2><p style="margin:0 0 8px">Net Liquidity = Fed − TGA − RRP</p>';
+  lsec.innerHTML = '<h2>宏观 × 加密流动性溢出</h2><p style="margin:0 0 8px">净流动性 = WALCL − TGA − RRP</p>';
   if (L.net != null) {
     const pulseColor = L.pulse_state === '扩张' ? '#26a69a' : '#ef5350';
     const dv = L.divergence || null;
@@ -153,7 +153,7 @@ async function load() {
   rsec.appendChild(R.table(['日期'].concat(rkeys), rows, fmts));
   document.getElementById('recent').appendChild(rsec);
 
-  document.getElementById('re-gen').textContent = '规则引擎生成（LLM 预留）· 流动性口径：WALCL − TGA − RRP；β 为 90 日 NL 变化对资产日收益率回归；收盘价 source: yfinance';
+  document.getElementById('re-gen').textContent = '规则引擎（LLM 预留）· 流动性口径：WALCL − TGA − RRP；β 为 90 日净流动性变化对资产日收益率回归；收盘价数据源 yfinance';
 }
 const CRYPTO_NAME = { BTC: 'BTC', ETH: 'ETH' };
 const TREND_COLORS = { BTC: '#f59e0b', ETH: '#26a69a' };

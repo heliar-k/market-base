@@ -80,7 +80,7 @@ async function load() {
   renderAnalyst();
   renderRadar();
   renderRecent();
-  document.getElementById('re-gen').textContent = '规则引擎生成（LLM 预留）· 广度 source: yfinance 批量 / 目标价 source: yfinance / 成分股 source: Wikipedia';
+  document.getElementById('re-gen').textContent = '规则引擎（LLM 预留）· 数据源：yfinance（广度/目标价）+ Wikipedia（成分股）';
 }
 
 function renderIndices() {
@@ -142,7 +142,7 @@ function renderBreadth() {
         <div class="re-card-sub">中小盘广度代表累计涨跌</div></div>
       <div class="re-card"><div class="re-corridor-label">SPX − RUT 差距</div>
         <div class="re-corridor-value ${cls1(b.gap)}">${b.gap == null ? '—' : (b.gap >= 0 ? '+' : '') + Number(b.gap).toFixed(2) + ' pp'}</div>
-        <div class="re-card-sub">正值 = 大盘领涨 / 广度差</div></div>
+        <div class="re-card-sub">正值 = 大盘领涨，广度偏弱</div></div>
     </div>
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px;margin-top:10px">${[
       { label: '200 日均线上方占比', v: b.abv200, chg: b.abv200_chg },
@@ -187,11 +187,11 @@ function renderAbvChart() {
 function renderAnalysis() {
   const asec = document.createElement('div');
   asec.className = 're-section';
-  asec.innerHTML = '<h2>AI 分析 · 动能集中度</h2>';
+  asec.innerHTML = '<h2>规则引擎解读 · 动能集中度</h2>';
   const blks = Object.values(D.analysis || {}).filter(v => v && v.text && v.title).map(v => `
     <div class="sig-block"><div class="sig-title">${v.title}</div><p>${v.text}</p></div>`).join('');
   asec.innerHTML += `<div class="ai-box">${blks}
-    <div class="ai-meta"><span>${D.breadth?.abv_date || ''}</span><span class="ai-tag">规则引擎 · LLM 预留</span></div></div>`;
+    <div class="ai-meta"><span>${D.breadth?.abv_date || ''}</span><span class="ai-tag">规则引擎（LLM 预留）</span></div></div>`;
   document.getElementById('analysis').appendChild(asec);
 }
 
@@ -207,7 +207,7 @@ function renderAnalyst() {
     { label: '平均隐含空间', value: fp(a.avg_upside), cls: a.avg_upside > 0 ? 'up' : '', sub: '等权平均，不按市值加权' },
     { label: '中位隐含空间', value: fp(a.med_upside), cls: a.med_upside > 0 ? 'up' : '', sub: '去掉极值后的典型股票' },
     { label: '上行空间占比', value: `${a.above_share == null ? '—' : a.above_share}%`, sub: `${a.above_cnt}/${a.rows} 目标价高于现价` },
-    { label: '平均分析数', value: `${a.avg_analysts == null ? '—' : a.avg_analysts}`, sub: '样本越高，单票越可靠' },
+    { label: '平均分析数', value: `${a.avg_analysts == null ? '—' : a.avg_analysts}`, sub: '覆盖的分析师越多，共识越不易被单家机构带偏' },
   ]);
   const rankBlocks = [['tops', '上行空间 Top 10'], ['bottoms', '下行风险 Top 10'], ['divs', '目标价分歧 Top 10']]
     .map(([k, title]) => `<div class="re-colbox">
@@ -262,13 +262,13 @@ function renderRadar() {
     <span class="eq-actions"><a href="equities/options.html" class="eq-btn">QQQ 期权结构</a>
     <a href="equities/positioning.html" class="eq-btn">CFTC 仓位</a></span></h2>
     <div class="src-note">上涨家数 ${r.today_up_pct ?? '—'}%，50 日均线上方占比 ${r.above50_pct ?? '—'}%；${r.verdict == '全面强势' ? '全面强势特征明显' : r.verdict == '内部走弱' ? '结构修复尚未完成' : '更像结构分化而非全面趋势'}。
-      source: Wikipedia Nasdaq-100 current components · price date ${r.date}</div>`;
+      数据来源：Wikipedia Nasdaq-100 当前成分股 · 价格日期 ${r.date}</div>`;
   sec.innerHTML += statCards([
     { label: '覆盖率', value: `${r.price_share == null ? '—' : r.price_share.toFixed(1)}%`, sub: `${r.rows}/${r.total} ticker 有价格` },
     { label: '上涨家数', value: `${r.today_up_pct == null ? '—' : r.today_up_pct.toFixed(1)}%`, sub: `${r.today_up}/${r.rows} 今日上涨` },
     { label: '50DMA 上方', value: `${r.above50_pct == null ? '—' : r.above50_pct.toFixed(1)}%`, sub: '短中期内部动能' },
     { label: '200DMA 上方', value: `${r.above200_pct == null ? '—' : r.above200_pct.toFixed(1)}%`, sub: '长期趋势健康度' },
-    { label: '20 日中位数', value: fp(r.med20), cls: (r.med20 || 0) > 0 ? 'up' : 'down', sub: '去权重后的典型股票表现' },
+    { label: '20 日中位数', value: fp(r.med20), cls: (r.med20 || 0) > 0 ? 'up' : 'down', sub: '不按市值权重的典型个股 20 日表现' },
   ]);
 
   // 行业强弱（2/3 宽）+ 右列 20D 最强/最弱（timsun 布局）
