@@ -61,6 +61,12 @@ NAV.forEach(g => {
 PAGES.set('daily', DEFAULT_PAGE);
 KEYS.set(DEFAULT_PAGE, 'daily');
 
+// hash 键名容错：分组前缀猜错时按最后一段回退（导航 key 末段无重名）
+// 例：#macro/fed → fed；#equities/crypto → assets/crypto
+const pageOf = key =>
+  PAGES.get(key) ??
+  PAGES.get([...PAGES.keys()].find(k => k.split('/').pop() === key?.split('/').pop()));
+
 const esc = s => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
 // ── state ──
@@ -170,7 +176,7 @@ export function initGlobalNav() {
   });
 
   window.addEventListener('hashchange', () => {
-    const page = PAGES.get(location.hash.slice(1));
+    const page = pageOf(location.hash.slice(1));
     if (page && page !== activeUrl) selectUrl(page, false);
   });
 
@@ -204,7 +210,7 @@ function renderDetail(container) {
   container.appendChild(detailEl);
 
   const initialKey = location.hash.slice(1);
-  selectUrl(PAGES.get(initialKey) || DEFAULT_PAGE, false);
+  selectUrl(pageOf(initialKey) || DEFAULT_PAGE, false);
 }
 
 // ── init ──
@@ -216,7 +222,7 @@ export function initMacroView() {
 
 // 外部跳转指定专题（如仪表盘净流动性小卡片）：未初始化靠 hash 兜底
 export function openTopic(id) {
-  const page = PAGES.get(id);
+  const page = pageOf(id);
   if (page && detailEl) selectUrl(page);
   else location.hash = id;
 }
