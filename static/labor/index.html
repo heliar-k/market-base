@@ -79,7 +79,7 @@ async function load() {
     }
   });
   R.mkChart('nfp-chart', (colors) => ({
-    legend: { top: 4, left: 'center', textStyle: { color: colors.text } },
+    legend: { top: 4, left: 'center', textStyle: { color: colors.text }, icon: 'roundRect' },
     grid: { left: '3%', right: '3%', bottom: 24, top: 36, containLabel: true },
     xAxis: { type: 'time', axisLabel: { color: colors.text } },
     yAxis: [

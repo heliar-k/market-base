@@ -73,7 +73,7 @@ async function load() {
     document.getElementById('liquidity').appendChild(csec);
     R.mkChart('liq-chart', colors => ({
       tooltip: { trigger: 'axis', axisPointer: { type: 'cross' } },
-      legend: { data: ['净流动性 (T)', 'BTC 价格'], textStyle: { color: colors.text }, top: 0 },
+      legend: { data: ['净流动性 (T)', 'BTC 价格'], textStyle: { color: colors.text }, top: 0, icon: 'rect', itemWidth: 12, itemHeight: 3 },
       grid: { left: '5%', right: '5%', top: 35, bottom: 40, containLabel: true },
       xAxis: { type: 'category', data: L.nl_dates, axisLine: { lineStyle: { color: colors.border } },
         axisLabel: { color: colors.muted, fontSize: 10, rotate: 30 } },

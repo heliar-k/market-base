@@ -93,7 +93,7 @@ async function load() {
   // ── 曲线四线快照（tenors 自带 1周/1月/3月前，零新请求）──
   const tenors = d.tenors;
   R.mkChart('yc_compare', (colors) => ({
-    legend: { data: ['当前', '1周前', '1月前', '3月前'], top: 4, right: 8, textStyle: { color: colors.text, fontSize: 11 } },
+    legend: { data: ['当前', '1周前', '1月前', '3月前'], top: 4, right: 8, textStyle: { color: colors.text, fontSize: 11 }, icon: 'rect', itemWidth: 12, itemHeight: 3 },
     tooltip: { trigger: 'axis', valueFormatter: v => `${Number(v).toFixed(2)}%` },
     grid: { top: 36, left: 48, right: 16, bottom: 24 },
     xAxis: { type: 'category', data: tenors.map(x => x.tenor), axisLabel: { color: colors.muted, fontSize: 10 }, axisLine: { lineStyle: { color: colors.border } } },

@@ -450,7 +450,7 @@ function renderDrillCharts(a, b, rows) {
       { name: labelOf(a), type: 'line', data: norm(a), showSymbol: false, lineStyle: { width: 1.5 }, color: MACRO_COLORS[0] },
       { name: labelOf(b), type: 'line', data: norm(b), showSymbol: false, lineStyle: { width: 1.5 }, color: MACRO_COLORS[1] },
     ],
-    legend: { top: 0, right: 8 },
+    legend: { top: 0, right: 8, icon: 'rect', itemWidth: 12, itemHeight: 3 },
     tooltip: { trigger: 'axis' },
   });
 }
@@ -929,7 +929,7 @@ function renderChart(seriesMap) {
   const chart = echarts.init(chartEl, document.body.classList.contains('dark') ? 'macroDark' : 'macro', { renderer: 'canvas' });
   corrChart = chart;
   chart.setOption({
-    legend: { show: series.length > 1, top: 4, left: 8, type: 'scroll', itemWidth: 14, textStyle: { fontSize: 11 } },
+    legend: { show: series.length > 1, top: 4, left: 8, type: 'scroll', textStyle: { fontSize: 11 }, icon: 'rect', itemWidth: 12, itemHeight: 3 },
     grid,
     xAxis,
     yAxis,

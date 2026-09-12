@@ -250,7 +250,7 @@ function renderCds(root, d) {
     const c = d.bank.chart;
     R.mkChart('bank-chart', colors => ({
       tooltip: { trigger: 'axis' },
-      legend: { data: ['KBWB', '^GSPC'], textStyle: { color: colors.text }, top: 0 },
+      legend: { data: ['KBWB', '^GSPC'], textStyle: { color: colors.text }, top: 0, icon: 'rect', itemWidth: 12, itemHeight: 3 },
       grid: { left: 48, right: 16, top: 32, bottom: 28 },
       xAxis: { type: 'category', data: c.dates, axisLine: { lineStyle: { color: colors.border } }, axisLabel: { color: colors.muted, fontSize: 11 } },
       yAxis: { type: 'value', scale: true, axisLabel: { color: colors.muted, fontSize: 11 }, splitLine: { lineStyle: { color: colors.grid } } },

@@ -61,7 +61,7 @@ async function load() {
       ],
       tooltip: { trigger: 'axis' },
       grid: { left: 70, right: 70, bottom: 30, top: 34, containLabel: true },
-      legend: { top: 4, data: ['日购买', '累计购买'], textStyle: { color: c.text } },
+      legend: { top: 4, data: ['日购买', '累计购买'], textStyle: { color: c.text }, icon: 'roundRect' },
       series: [
         { name: '日购买', type: 'bar', data: rs.map(p => [p.date, p.accepted_b]), itemStyle: { color: c.green }, barMaxWidth: 8 },
         { name: '累计购买', type: 'line', yAxisIndex: 1, data: rs.map(p => [p.date, p.cum_b]), lineStyle: { color: c.blue, width: 2 }, showSymbol: false },

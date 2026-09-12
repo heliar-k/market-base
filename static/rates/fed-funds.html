@@ -58,7 +58,7 @@ async function load() {
 
   // ── 走廊图：EFFR/SOFR/TGCR/BGCR/ONRRP 五利率 + 目标区间 ──
   R.mkChart('corridor_chart', (colors) => ({
-    legend: { data: ['EFFR', 'SOFR', 'TGCR', 'BGCR', 'ONRRP', '目标上限', '目标下限'], top: 4, right: 8, textStyle: { color: colors.text, fontSize: 11 } },
+    legend: { data: ['EFFR', 'SOFR', 'TGCR', 'BGCR', 'ONRRP', '目标上限', '目标下限'], top: 4, right: 8, textStyle: { color: colors.text, fontSize: 11 }, icon: 'rect', itemWidth: 12, itemHeight: 3 },
     tooltip: { trigger: 'axis', valueFormatter: v => `${Number(v).toFixed(2)}%` },
     grid: { top: 36, left: 48, right: 16, bottom: 56 },
     dataZoom: [{ type: 'inside' }, { type: 'slider', bottom: 16, height: 18 }],

@@ -82,7 +82,7 @@ async function load() {
     lineStyle: { width: 1.5 }, itemStyle: { color },
   });
   R.mkChart('yoy-chart', (colors) => ({
-    legend: { top: 4, right: 8, textStyle: { color: colors.text } },
+    legend: { top: 4, right: 8, textStyle: { color: colors.text }, icon: 'rect', itemWidth: 12, itemHeight: 3 },
     grid: { left: '3%', right: '4%', bottom: 24, top: 36, containLabel: true },
     xAxis: { type: 'time', boundaryGap: false, axisLabel: { color: colors.text } },
     yAxis: { type: 'value', scale: true, splitNumber: 4, axisLabel: { color: colors.text, formatter: '{value}%' }, splitLine: { lineStyle: { color: colors.grid } } },

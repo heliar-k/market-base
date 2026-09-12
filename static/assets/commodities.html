@@ -72,7 +72,7 @@ async function load() {
   document.getElementById('chart').appendChild(csec);
   R.mkChart('com-chart', colors => ({
     tooltip: { trigger: 'axis' },
-    legend: { data: keys, textStyle: { color: colors.text }, top: 0 },
+    legend: { data: keys, textStyle: { color: colors.text }, top: 0, icon: 'rect', itemWidth: 12, itemHeight: 3 },
     grid: { left: 44, right: 16, top: 28, bottom: 40 },
     xAxis: { type: 'category', data: n.dates, axisLine: { lineStyle: { color: colors.border } }, axisLabel: { color: colors.muted, fontSize: 10 } },
     yAxis: { type: 'value', axisLabel: { color: colors.muted, fontSize: 11 }, splitLine: { lineStyle: { color: colors.grid } } },

@@ -58,6 +58,8 @@ async function load() {
         return i === 3 ? `${name}（点划线）` : `${name}${t[['solid', 'dashed', 'dotted'][i]] || ''}`;
       },
       textStyle: { color: colors.text }, top: 0,
+      // 图例用短线段（rect），去掉默认 line icon 中间的圆点
+      icon: 'rect', itemWidth: 12, itemHeight: 3, itemGap: 10,
     },
     grid: { left: 44, right: 16, top: 28, bottom: 28 },
     xAxis: { type: 'category', data: rc.dates, axisLine: { lineStyle: { color: colors.border } }, axisLabel: { color: colors.muted, fontSize: 10 } },

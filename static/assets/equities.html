@@ -165,7 +165,7 @@ function renderAbvChart() {
   document.getElementById('abv-chart').appendChild(csec);
   R.mkChart('abv-chart-el', colors => ({
     tooltip: { trigger: 'axis', valueFormatter: v => v == null ? '—' : Number(v).toFixed(1) + '%' },
-    legend: { data: ['50日均线上方占比', '200日均线上方占比'], textStyle: { color: colors.text }, top: 0 },
+    legend: { data: ['50日均线上方占比', '200日均线上方占比'], textStyle: { color: colors.text }, top: 0, icon: 'rect', itemWidth: 12, itemHeight: 3 },
     grid: { left: 48, right: 16, top: 28, bottom: 28 },
     xAxis: { type: 'category', data: b.abv_dates, axisLine: { lineStyle: { color: colors.border } },
       axisLabel: { color: colors.muted, fontSize: 11,

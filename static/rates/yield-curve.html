@@ -61,7 +61,7 @@ async function load() {
   // ── 四线对比 ──
   const tenors = d.tenors;
   R.mkChart('yc_compare', (colors) => ({
-    legend: { data: ['当前', '1周前', '1月前', '3月前'], top: 4, right: 8, textStyle: { color: colors.text, fontSize: 11 } },
+    legend: { data: ['当前', '1周前', '1月前', '3月前'], top: 4, right: 8, textStyle: { color: colors.text, fontSize: 11 }, icon: 'rect', itemWidth: 12, itemHeight: 3 },
     tooltip: { trigger: 'axis', valueFormatter: v => `${Number(v).toFixed(2)}%` },
     grid: { top: 36, left: 48, right: 16, bottom: 24 },
     xAxis: { type: 'category', data: tenors.map(t => t.tenor), axisLabel: { color: colors.muted, fontSize: 10 }, axisLine: { lineStyle: { color: colors.border } } },
@@ -106,7 +106,7 @@ async function load() {
   // ── 利差时序 ──
   const sh = d0.yield_curve.spreads_history;
   R.mkChart('yc_spreads', (colors) => ({
-    legend: { data: ['2s10s', '3m10s', '5s30s'], top: 4, right: 8, textStyle: { color: colors.text, fontSize: 11 } },
+    legend: { data: ['2s10s', '3m10s', '5s30s'], top: 4, right: 8, textStyle: { color: colors.text, fontSize: 11 }, icon: 'rect', itemWidth: 12, itemHeight: 3 },
     tooltip: { trigger: 'axis', valueFormatter: v => `${v} bp` },
     grid: { top: 36, left: 48, right: 16, bottom: 56 },
     dataZoom: [{ type: 'inside' }, { type: 'slider', bottom: 8, height: 18 }],
@@ -122,7 +122,7 @@ async function load() {
   // ── 名义 vs TIPS vs 盈亏平衡 ──
   const tips = d.tips;
   R.mkChart('yc_tips', (colors) => ({
-    legend: { data: ['名义收益率', 'TIPS 实际利率', '盈亏平衡通胀'], top: 4, right: 8, textStyle: { color: colors.text, fontSize: 11 } },
+    legend: { data: ['名义收益率', 'TIPS 实际利率', '盈亏平衡通胀'], top: 4, right: 8, textStyle: { color: colors.text, fontSize: 11 }, icon: 'rect', itemWidth: 12, itemHeight: 3 },
     tooltip: { trigger: 'axis', valueFormatter: v => `${Number(v).toFixed(2)}%` },
     grid: { top: 36, left: 48, right: 16, bottom: 24 },
     xAxis: { type: 'category', data: tips.map(t => t.tenor), axisLabel: { color: colors.muted, fontSize: 10 }, axisLine: { lineStyle: { color: colors.border } } },

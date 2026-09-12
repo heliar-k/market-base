@@ -110,7 +110,7 @@ async function load() {
   // ── 名义/实际/BEI + 期限溢价 ──
   const tpByDate = Object.fromEntries(d.term_premium.map(p => [p.date, p.value]));
   R.mkChart('triple_chart', (colors) => ({
-    legend: { data: ['10Y 名义利率', '10Y 实际利率(TIPS)', '10Y 盈亏平衡通胀', '10Y 期限溢价(ACM)'], top: 4, left: 'center', textStyle: { color: colors.text, fontSize: 11 } },
+    legend: { data: ['10Y 名义利率', '10Y 实际利率(TIPS)', '10Y 盈亏平衡通胀', '10Y 期限溢价(ACM)'], top: 4, left: 'center', textStyle: { color: colors.text, fontSize: 11 }, icon: 'rect', itemWidth: 12, itemHeight: 3 },
     tooltip: { trigger: 'axis', valueFormatter: v => `${Number(v).toFixed(2)}%` },
     grid: { top: 36, left: 48, right: 48, bottom: 56 },
     dataZoom: [{ type: 'inside' }, { type: 'slider', bottom: 8, height: 18 }],
@@ -129,7 +129,7 @@ async function load() {
 
   // ── 2Y vs 10Y：间隙填充图（阴影带 = 2s10s 利差，倒挂时两线交叉）──
   R.mkChart('spread_2_10_chart', (colors) => ({
-    legend: { data: ['2Y', '10Y', '2s10s 利差'], top: 4, right: 8, textStyle: { color: colors.text, fontSize: 11 } },
+    legend: { data: ['2Y', '10Y', '2s10s 利差'], top: 4, right: 8, textStyle: { color: colors.text, fontSize: 11 }, icon: 'rect', itemWidth: 12, itemHeight: 3 },
     tooltip: {
       trigger: 'axis',
       formatter: (ps) => {
