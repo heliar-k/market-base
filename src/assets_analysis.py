@@ -373,24 +373,22 @@ def cross_analysis() -> dict:
 
     # 3. 展望（流动性分层 → TGA/RRP 主收紧点）
     parts = []
-    net = None
     if {"WALCL", "RRPONTSYD", "WTREGEN"}.issubset(liq.columns):
         last = liq[["WALCL", "RRPONTSYD", "WTREGEN"]].dropna().iloc[-1]
-        net = (
-            float(last["WALCL"])
-            - float(last["RRPONTSYD"]) * 1000
-            - float(last["WTREGEN"])
-        ) / 1000
-        tga = float(last["WTREGEN"]) / 1000
-        rrp = float(last["RRPONTSYD"]) * 1000 / 1000
+        # 单位：WALCL/WTREGEN 百万美元，RRPONTSYD 十亿美元（macro.py 权威口径）
+        walcl_m = float(last["WALCL"])
+        tga_m = float(last["WTREGEN"])
+        rrp_b = float(last["RRPONTSYD"])
+        net_t = (walcl_m - rrp_b * 1000 - tga_m) / 1e6
+        tga_t = tga_m / 1e6
         parts.append(
-            f"净流动性 {net:,.1f}T（WALCL {float(last['WALCL']) / 1000:,.1f}T − "
-            f"TGA {tga:,.1f}T − RRP {rrp:,.1f}B）"
+            f"净流动性 {net_t:,.2f}万亿（WALCL {walcl_m / 1e6:,.2f}万亿 − "
+            f"TGA {tga_t:,.2f}万亿 − RRP {rrp_b * 10:,.0f}亿）"
         )
-        if tga > 700:
-            parts.append(f"TGA 达 {tga:,.0f}B 是主要收紧点")
-        if rrp < 100:
-            parts.append(f"RRP 仅 {rrp:,.1f}B 缓冲耗尽")
+        if tga_t > 0.7:
+            parts.append(f"TGA 达 {tga_t:.2f}万亿，是主要收紧点")
+        if rrp_b < 100:
+            parts.append(f"RRP 仅 {rrp_b * 10:,.0f}亿，缓冲耗尽")
     if spx_tlt is not None and spx_tlt > 0.3:
         parts.append("股债相关性为正，若 10Y 快速上行警惕股债双杀")
     out["outlook"] = {
@@ -1374,7 +1372,7 @@ def crypto() -> dict:
         if pulse is not None:
             if pulse < 0:
                 parts.append(
-                    f"当前脉冲为负（{round(pulse):.0f}B），历史经验下建议等待脉冲转正信号再建仓。"
+                    f"当前脉冲为负（{round(pulse):.0f}B），期间不新增仓位（规则设定）。"
                 )
             else:
                 parts.append(

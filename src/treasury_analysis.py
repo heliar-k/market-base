@@ -96,17 +96,18 @@ def official_share_series(tic: pd.DataFrame, mspd: pd.DataFrame) -> pd.Series:
 def signal_foreign(cards: dict, net_12m: float | None) -> str:
     """信号一：海外需求（持仓趋势 + 净买入 + 官方占比）。"""
     h, share, net = cards["hold_total"], cards["official_share"], cards["net_total"]
-    text = f"海外持仓总额 ${h['value']:.2f} 万亿"
+    text = f"海外持仓总额 {h['value']:.2f} 万亿美元"
     if h.get("chg_1y_b") is not None:
-        d = h["chg_1y_b"]
-        text += f"，近一年{'增持' if d >= 0 else '减持'} ${abs(d):.0f}B"
+        d = h["chg_1y_b"] * 10  # $B → 亿
+        text += f"，近一年{'增持' if d >= 0 else '减持'} {abs(d):,.0f}亿"
     text += (
-        f"；当月净{'买入' if net['value'] >= 0 else '卖出'} ${abs(net['value']):.1f}B"
+        f"；当月净{'买入' if net['value'] >= 0 else '卖出'} "
+        f"{abs(net['value']) * 10:,.0f}亿"
     )
     if net_12m is not None:
         text += (
             f"，近 12 个月累计净{'买入' if net_12m >= 0 else '卖出'} "
-            f"${abs(net_12m):.0f}B"
+            f"{abs(net_12m) * 10:,.0f}亿"
         )
     text += "。"
     if share.get("value") is not None:
@@ -126,14 +127,18 @@ def signal_countries(holdings: list[dict]) -> str:
     """信号二：国别结构（日本/中国/海湾）。"""
     d = {r["key"]: r for r in holdings}
     jp, cn = d.get("TIC_HOLD_JAPAN", {}), d.get("TIC_HOLD_CHINA", {})
+
+    def _t_or_dash(b):
+        return "—" if b is None else f"{b / 1000:.2f} 万亿"
+
     text = (
-        f"日本仍是最大海外持有国（${jp.get('value_b', '—')}B），"
-        f"中国 ${cn.get('value_b', '—')}B"
+        f"日本仍是最大海外持有国（{_t_or_dash(jp.get('value_b'))}美元），"
+        f"中国 {_t_or_dash(cn.get('value_b'))}美元"
     )
     if cn.get("chg_1y_b") is not None:
         text += (
             f"（近一年{'增持' if cn['chg_1y_b'] >= 0 else '减持'} "
-            f"${abs(cn['chg_1y_b']):.0f}B）"
+            f"{abs(cn['chg_1y_b']) * 10:,.0f}亿）"
         )
     text += "。"
     if isinstance(cn.get("chg_1y_b"), (int, float)) and cn["chg_1y_b"] < 0:

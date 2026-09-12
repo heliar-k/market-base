@@ -25,13 +25,13 @@ def _zone(v):
 class TestZone:
     def test_zones(self):
         assert _zone(12.0)[0] == "平静"
-        assert _zone(15.0)[0] == "正常"
+        assert _zone(17.0)[0] == "偏高"
         assert _zone(30.0)[0] == "警戒"
         assert _zone(40.0)[0] == "恐慌"
 
     def test_boundary(self):
-        # 15 恰好落入正常区（含下界）
-        assert _zone(15.0)[0] == "正常"
+        # 17 恰好落入偏高区（含下界），与象限判据一致
+        assert _zone(17.0)[0] == "偏高"
 
 
 class TestChgPct:
@@ -103,7 +103,7 @@ class TestSignals:
     def test_signal_vix_level(self, sig_df):
         card = vix_card(sig_df)
         text = signal_vix_level(card)
-        assert "15.86" in text and "正常区间" in text and "周跌" in text
+        assert "15.86" in text and "平静区间" in text and "周跌" in text
 
     def test_signal_term_contango(self, sig_df):
         text = signal_term(term_structure(sig_df))
@@ -135,7 +135,7 @@ class TestSignals:
 class TestSkewQuadrant:
     def test_panic(self):
         q = skew_quadrant(25.0, 152.0)
-        assert q["state"] == "恐慌区"
+        assert q["state"] == "警戒区"
         assert "advice" in q and "risk" in q
 
     def test_elevated_vol(self):

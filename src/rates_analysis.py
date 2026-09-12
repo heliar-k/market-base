@@ -475,8 +475,9 @@ def overview_analysis() -> dict:
         f"（利差 {gap * _BP:+.0f}bp），"
         f"市场已定价{'加息' if gap > 0 else '降息'}预期"
         f"{'（与点阵图一致）' if abs(gap) < 0.25 else '（与点阵图背离）'}。"
-        f"验证指标：若 2Y-EFFR 利差维持 {abs(gap) * _BP:.0f}bp 以上"
-        f"且 FOMC 未释放信号，前端波动大概率加剧。"
+        f"验证指标：若 2Y-EFFR 利差反转（"
+        f"{'加息定价被撤销' if gap > 0 else '降息定价被撤销'}），本判断失效；"
+        f"若定价维持而 FOMC 不表态，前端波动大概率加剧。"
     )
 
     # ── 4. 展望 ──

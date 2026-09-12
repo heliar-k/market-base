@@ -473,8 +473,8 @@ def _narr_cross(rows: list[dict]) -> str:
     vals = [r["value"] for r in rows if r["value"] is not None]
     if len(vals) > 5:
         parts.append(
-            f"样本内最高与最低波动离散度很大（{max(vals):.1f} vs {min(vals):.1f}），"
-            "当前波动是局部和结构性扰动，不是全面扩散。交叉信号指向："
+            f"样本内最高与最低波动离散度很大（{max(vals):.1f} vs {min(vals):.1f}）。"
+            "交叉信号指向："
             "近期股市平静可能是局部现象，跨资产中利率和商品压力尚未完全消除。"
         )
     return "".join(parts)

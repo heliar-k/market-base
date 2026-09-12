@@ -26,11 +26,11 @@ from src.analysis_utils import latest as _latest
 from src.analysis_utils import read_csv_or_empty, zone
 from src.config import ROOT
 
-# 区间阈值（VIX 水平参考，与 timsun 一致）
+# 区间阈值：与 VIX×SKEW 象限判据（17/22）统一，>35 另设恐慌档
 ZONES = [
-    ("平静", 0, 15, "#26a69a"),
-    ("正常", 15, 25, "#ff9800"),
-    ("警戒", 25, 35, "#ff9800"),
+    ("平静", 0, 17, "#26a69a"),
+    ("偏高", 17, 22, "#ff9800"),
+    ("警戒", 22, 35, "#ff9800"),
     ("恐慌", 35, 1e9, "#ef5350"),
 ]
 
@@ -126,7 +126,7 @@ def signal_vix_level(card: dict) -> str:
     pct_txt = f"，处于近一年 {pct}% 分位" if pct is not None else ""
     text = (
         "，".join(parts) + f"。绝对值处于{zone_name}区间"
-        "（<15 平静 / 15-25 正常 / 25-35 警戒 / >35 恐慌）" + pct_txt + "。"
+        "（<17 平静 / 17-22 偏高 / 22-35 警戒 / >35 恐慌）" + pct_txt + "。"
     )
     # 趋势注解
     if card["chg_1w_pct"] is not None and card["chg_1w_pct"] <= -10:
@@ -135,9 +135,9 @@ def signal_vix_level(card: dict) -> str:
             "超低波区域，是否继续下行待确认。"
         )
     elif card["chg_1w_pct"] is not None and card["chg_1w_pct"] >= 10:
-        text += "周涨超 10%，恐慌情绪升温，关注 25 上方警戒区的持续性。"
-    elif card["value"] < 15:
-        text += "低于 15 属于低波动区，市场情绪平稳，警惕低波动本身积累的下行风险。"
+        text += "周涨超 10%，恐慌情绪升温，关注 22 上方警戒区的持续性。"
+    elif card["value"] < 17:
+        text += "低于 17 属于低波动区，市场情绪平稳，警惕低波动本身积累的下行风险。"
     else:
         text += "处于历史中位附近，风险溢价定价中性。"
     return text
@@ -226,7 +226,7 @@ def skew_quadrant(vix: float | None, skew: float | None) -> dict:
         return {"state": "—", "text": "数据缺失", "advice": "—", "risk": "—"}
     if vix >= 22:
         state, text = (
-            "恐慌区",
+            "警戒区",
             f"VIX {vix:.1f} 处 22 上方且 SKEW {skew:.0f}，波动与尾部担忧同步升温。",
         )
         advice = "降低风险敞口，优先买入保护性 put。"
