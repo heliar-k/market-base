@@ -42,7 +42,7 @@ async function load() {
 
   renderOverview(d);
   d.groups.forEach(g => renderGroup(g));
-  document.getElementById('re-gen').textContent = '口径：CFTC COT 周报（周五收盘统计、周二 15:30 ET 发布）· 投机方：股指/利率/外汇 = 对冲基金（Leveraged Money），商品 = 管理资金（Managed Money）· 判读规则见页首卡片底部 · 研究参考非投资建议';
+  document.getElementById('re-gen').textContent = '口径：CFTC COT 周报（持仓统计截至周二收盘，周五 15:30 ET 才公布，故数据比盘面晚约一周）· 投机方：股指/利率/外汇 = 对冲基金（Leveraged Money），商品 = 管理资金（Managed Money）· 判读规则见页首卡片底部 · 研究参考非投资建议';
 }
 
 // ── Positioning Readthrough（timsun 复刻）──
