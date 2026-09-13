@@ -5,6 +5,7 @@
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>美联储 — 观澜台</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap">
 <link rel="stylesheet" href="/css/app.css">
 <link rel="stylesheet" href="/css/special.css">
 <script src="/js/site-nav.js"></script>
@@ -163,7 +164,7 @@ function renderHawkish(root, data) {
   const hawkN = roster.filter(r => r.score > 0).length;
   const doveN = roster.filter(r => r.score < 0).length;
   const midN = roster.length - hawkN - doveN;
-  const hdColor = (v) => v > 0 ? '#ef5350' : v < 0 ? '#26a69a' : '#9ca3af';
+  const hdColor = (v) => v > 0 ? 'var(--color-hawk)' : v < 0 ? 'var(--color-dove)' : 'var(--color-neutral)';
   s1.innerHTML = `<h2>${data.voting_year} 年 FOMC 投票成员立场分布
     <span style="font-weight:400;font-size:12px;color:var(--text-dim)">${hawkN} 鹰 · ${doveN} 鸽 · ${midN} 中性（红 = 鹰，绿 = 鸽，灰 = 无近期演讲）</span></h2>`;
   wrap.appendChild(s1);

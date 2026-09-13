@@ -34,6 +34,7 @@ HEAD_TEMPLATE = """<head>
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>{title} — {brand}</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap">
 <link rel="stylesheet" href="/css/app.css">
 <link rel="stylesheet" href="/css/special.css">
 <script src="/js/site-nav.js"></script>
@@ -43,6 +44,7 @@ FIXED = (
     '<meta charset="UTF-8">',
     '<link rel="icon" href="/favicon.svg" type="image/svg+xml">',
     '<meta name="viewport" content="width=device-width, initial-scale=1.0">',
+    '<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap">',
     '<link rel="stylesheet" href="/css/app.css">',
     '<link rel="stylesheet" href="/css/special.css">',
     '<script src="/js/site-nav.js"></script>',

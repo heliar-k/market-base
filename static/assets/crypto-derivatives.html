@@ -5,6 +5,7 @@
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>加密衍生品市场 — 观澜台</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap">
 <link rel="stylesheet" href="/css/app.css">
 <link rel="stylesheet" href="/css/special.css">
 <script src="/js/site-nav.js"></script>
@@ -87,10 +88,10 @@ async function load() {
     const pctBar = k => {
       // 固定占位（无 rank 也渲染空 bar + 空四分位行），保证所有卡片高度/对齐一致；marker 只在有 rank 时显示
       const q = k.quartiles || [];
-      const ticks = [25, 50, 75].map(p => `<div style="position:absolute;left:${p}%;top:0;bottom:0;width:1px;background:var(--border,#555)"></div>`).join('');
-      const marker = k.pct_rank == null ? '' : `<div style="position:absolute;left:calc(${Math.max(0, Math.min(100, k.pct_rank))}% - 1px);top:-2px;bottom:-2px;width:3px;background:var(--text,#111);border-radius:1px"></div>`;
+      const ticks = [25, 50, 75].map(p => `<div style="position:absolute;left:${p}%;top:0;bottom:0;width:1px;background:var(--border)"></div>`).join('');
+      const marker = k.pct_rank == null ? '' : `<div style="position:absolute;left:calc(${Math.max(0, Math.min(100, k.pct_rank))}% - 1px);top:-2px;bottom:-2px;width:3px;background:var(--text);border-radius:1px"></div>`;
       const fq = v => Math.abs(v) < 0.01 ? v.toFixed(4) : v.toLocaleString(undefined, { maximumFractionDigits: 2 });
-      return `<div style="position:relative;height:12px;margin-top:8px;background:var(--surface,#161616);border:1px solid var(--border,#333);border-radius:3px">${ticks}${marker}</div>
+      return `<div style="position:relative;height:12px;margin-top:8px;background:var(--surface);border:1px solid var(--border);border-radius:3px">${ticks}${marker}</div>
         <div style="display:flex;justify-content:space-between;font-size:10px;opacity:.6;margin-top:2px;min-height:13px">
           ${q.length === 3 ? `<span>${fq(q[0])}</span><span>${fq(q[1])}</span><span>${fq(q[2])}</span>` : ''}</div>`;
     };
@@ -180,7 +181,7 @@ async function load() {
     </div>`;
   const topList = (rows) => rows && rows.length ? `
     <div style="margin-top:8px;font-size:12px"><div style="opacity:.7;margin-bottom:4px">Top ${rows.length} 墙</div>
-      ${rows.map(r => `<div style="display:flex;justify-content:space-between;border-bottom:1px solid var(--border,#333);padding:2px 0"><span>$${fmt(r.strike, 0)}</span><span style="opacity:.7">OI ${fmt(r.oi, 0)}</span></div>`).join('')}</div>` : '';
+      ${rows.map(r => `<div style="display:flex;justify-content:space-between;border-bottom:1px solid var(--border);padding:2px 0"><span>$${fmt(r.strike, 0)}</span><span style="opacity:.7">OI ${fmt(r.oi, 0)}</span></div>`).join('')}</div>` : '';
   const wallCard = (title, o, spot) => `
     <div class="re-card"><div class="re-corridor-label">${title}</div>
       <div class="re-card-sub" style="white-space:normal">现货锚 $${fmt(spot, 0)} · 最近到期 ${o.nearest_exp || (o.d_exp + ' 个到期月')}</div>
@@ -290,7 +291,7 @@ async function load() {
     const gsec = document.createElement('div');
     gsec.className = 're-section';
     const exchRows = (cg.exchanges || []).map(e => `
-      <div style="display:flex;justify-content:space-between;border-bottom:1px solid var(--border,#333);padding:3px 0;font-size:12px">
+      <div style="display:flex;justify-content:space-between;border-bottom:1px solid var(--border);padding:3px 0;font-size:12px">
         <span style="min-width:70px">${e.name}</span>
         <span style="opacity:.7;flex:1;text-align:right;margin-right:12px">${fmt(e.oi_btc / 1000, 1)}K BTC · $${(e.oi_usd / 1e9).toFixed(2)}B · ${e.share_pct}%</span>
         <span style="color:${e.chg_1d_pct >= 0 ? 'var(--up)' : 'var(--down)'}">${e.chg_1d_pct >= 0 ? '+' : ''}${e.chg_1d_pct}%</span>

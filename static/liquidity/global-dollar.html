@@ -5,6 +5,7 @@
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>全球美元流动性 — 观澜台</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap">
 <link rel="stylesheet" href="/css/app.css">
 <link rel="stylesheet" href="/css/special.css">
 <script src="/js/site-nav.js"></script>
@@ -61,7 +62,7 @@ async function load() {
       '方向': (v, row) => {
         const m = row['1M'];
         if (m == null) return '—';
-        return `<span style="color:${m < 0 ? '#ffb74d' : '#26a69a'}">${m < 0 ? '美元偏紧' : '美元充裕'}</span>`;
+        return `<span style="color:${m < 0 ? 'var(--color-warn)' : 'var(--color-up)'}">${m < 0 ? '美元偏紧' : '美元充裕'}</span>`;
       } },
     ['pair', '1W', '1M', '3M', '6M', '1Y', '方向'],
     true,

@@ -5,6 +5,7 @@
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>ETF — 观澜台</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap">
 <link rel="stylesheet" href="/css/app.css">
 <link rel="stylesheet" href="/css/special.css">
 <script src="/js/site-nav.js"></script>
@@ -33,7 +34,8 @@ let curCat = '全部';
 let curTrend = '全部';
 
 const CATS = { ai_semis: 'AI 半导体', ai_software: 'AI 软件', bond: '债券', broad: '宽基', commodity: '商品', crypto: '加密', currency: '货币', factor_income: '因子/收益', global: '全球', high_beta: '高贝塔', leveraged_inverse: '杠杆/反向', theme: '主题' };
-const UP = '#26a69a', DOWN = '#ef5350';
+// 涨跌色单源：本页 UP/DOWN 只进 DOM 内联样式（var() 即时跟随主题），不进 canvas
+const UP = 'var(--color-up)', DOWN = 'var(--color-down)';
 
 function categories(c) { return CATS[c] || c; }
 function pctColor(v) { return v == null ? '—' : `<span style="color:${v >= 0 ? UP : DOWN}">${v >= 0 ? '+' : ''}${v.toFixed(2)}%</span>`; }
@@ -116,7 +118,7 @@ function renderPool() {
     m3: v => pctColor(v),
     vol20d: v => v == null ? '—' : v.toFixed(1) + '%',
     dd3m: v => pctColor(v),
-    trend: (v, row) => `<span style="color:${row.trend === '趋势向上' ? UP : row.trend === '趋势向下' ? DOWN : '#9ca3af'}">${v}</span>`,
+    trend: (v, row) => `<span style="color:${row.trend === '趋势向上' ? UP : row.trend === '趋势向下' ? DOWN : 'var(--color-neutral)'}">${v}</span>`,
   }, ['ticker', 'name', 'last', 'w1', 'm1', 'm3', 'vol20d', 'dd3m', 'trend'], true));
   const sec = document.getElementById('pool');
   const old = sec.querySelector('.re-section');

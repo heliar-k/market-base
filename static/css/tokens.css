@@ -34,6 +34,11 @@
   --chart-cyan: #00bcd4;
   --chart-violet: #7c4dff;
   --chart-slate: #607d8b;
+  --chart-pink: #e91e63;
+  /* 等宽数字字体（timsun 数字排版纪律）：Google Fonts 加载失败时整条 fallback 仍成立 */
+  --font-mono: 'JetBrains Mono', 'SF Mono', ui-monospace, Menlo, Consolas, monospace;
+  /* tooltip/浮层背景：卡片层加 12% 透明，配合 backdrop-filter 制造浮层纵深（第 4 层） */
+  --tooltip-bg: color-mix(in srgb, var(--surface-alt) 88%, transparent);
 }
 body.dark {
   --color-up: #34d399;

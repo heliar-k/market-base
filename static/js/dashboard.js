@@ -8,14 +8,25 @@
 
 // reThemeECharts 为 echarts-theme.js 经典脚本全局（Phase 2 单轨化，见 index.html 引入）
 
-// 跨资产表行 → 专题页跳转（与今日研判页同款映射）
-const LINKS = {
-  SPX: '/assets/equities.html', DXY: '/assets/fx.html', BTC: '/assets/crypto.html',
-  WTI: '/assets/commodities.html', Gold: '/assets/commodities.html',
-  Y10: '/rates/yield-curve.html', VIX: '/volatility/vix.html', HY_OAS: '/credit/',
-  RRP: '/liquidity/rrp-tga.html', TGA: '/liquidity/rrp-tga.html',
-  NET_LIQ: '/liquidity/fed-balance-sheet.html',
-};
+// 跨资产表行 → 专题页跳转（与今日研判页同款映射）：
+// 路径不重复硬编码——指标键 → SITE_NAV 导航键（site-nav.js 唯一数据源），再由索引解出 page
+const LINKS = (() => {
+  const NAV_KEY = {
+    SPX: 'assets/equities', DXY: 'assets/fx', BTC: 'assets/crypto',
+    WTI: 'assets/commodities', Gold: 'assets/commodities',
+    Y10: 'rates/yield-curve', VIX: 'volatility/vix', HY_OAS: 'credit',
+    RRP: 'liquidity/rrp-tga', TGA: 'liquidity/rrp-tga',
+    NET_LIQ: 'liquidity/fed-balance-sheet',
+  };
+  const pages = new Map();
+  for (const g of SITE_NAV.groups) {
+    pages.set(g.key, g.page);
+    (g.items || []).forEach(i => pages.set(i.key, i.page));
+  }
+  return Object.fromEntries(
+    Object.entries(NAV_KEY).filter(([, nk]) => pages.has(nk)).map(([k, nk]) => [k, pages.get(nk)]),
+  );
+})();
 
 // 自选清单（localStorage，默认参考 timsun：10Y/信用/VIX 类核心指标）
 const WATCH_KEY = 'guanlan-watchlist';
@@ -390,7 +401,7 @@ function sparkSVG(points) {
   const W = 110, H = 30, step = W / (points.length - 1);
   const xy = points.map((p, i) => `${(i * step).toFixed(1)},${(H - 2 - (p[1] - min) / span * (H - 4)).toFixed(1)}`);
   const up = vals[vals.length - 1] >= vals[0];
-  const color = up ? 'var(--up, #26a69a)' : 'var(--down, #ef5350)';
+  const color = up ? 'var(--color-up)' : 'var(--color-down)';
   return `<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" style="vertical-align:middle">
     <polyline points="${xy.join(' ')}" fill="none" stroke="${color}" stroke-width="1.5"/></svg>`;
 }

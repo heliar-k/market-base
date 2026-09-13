@@ -5,6 +5,7 @@
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>通胀 — 观澜台</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap">
 <link rel="stylesheet" href="/css/app.css">
 <link rel="stylesheet" href="/css/special.css">
 <script src="/js/site-nav.js"></script>
@@ -82,8 +83,7 @@ async function load() {
     data: h.dates.map((dt, i) => [dt, data[i]]),
     lineStyle: { width: 1.5 }, itemStyle: { color },
   });
-  R.mkChart('yoy-chart', (colors) => ({
-    legend: { top: 4, right: 8, textStyle: { color: colors.text }, icon: 'rect', itemWidth: 12, itemHeight: 3 },
+  R.mkChart('yoy-chart', (colors) => R.lineOption({
     grid: { left: '3%', right: '4%', bottom: 24, top: 36, containLabel: true },
     xAxis: { type: 'time', boundaryGap: false, axisLabel: { color: colors.text } },
     yAxis: { type: 'value', scale: true, splitNumber: 4, axisLabel: { color: colors.text, formatter: '{value}%' }, splitLine: { lineStyle: { color: colors.grid } } },
@@ -93,7 +93,7 @@ async function load() {
       line('核心 CPI', h.core_cpi, colors.orange),
       line('核心 PCE', h.core_pce, colors.green),
     ],
-  }));
+  }, colors));
 
   // ── CPI 分项 ──
   const csec = document.createElement('div');

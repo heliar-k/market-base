@@ -1,6 +1,6 @@
 // tech-view.js — K-line charts, sidebar, diagnosis, overlays + volume + range
 
-import { CHART_OPTS, darkChartOpts, addLine } from './charts-common.js';
+import { CHART_OPTS, darkChartOpts, addLine, cssVar } from './charts-common.js';
 
 // ── state ──────────────────────────────────────────────────────────────────
 let currentSymbol = null;
@@ -14,8 +14,12 @@ let rsiSeries, rsiUpper, rsiLower;
 let macdHistSeries, macdLineSeries, macdSignalSeries;
 let crosshairDate = null;
 let debounceTimer = null;
-const MA_COLORS = { MA5:'#00bcd4', MA10:'#2196f3', MA20:'#ff9800', MA60:'#9c27b0', MA120:'#9e9e9e' };
-const BB_COLOR = '#78909c';
+// 调色板全部回读 tokens.css（每次调用重取，主题切换后生效）；键名与 MA 列名对应
+const MA_COLORS = () => ({
+  MA5: cssVar('--chart-cyan'), MA10: cssVar('--color-brand'), MA20: cssVar('--color-warn'),
+  MA60: cssVar('--chart-purple'), MA120: cssVar('--color-neutral'),
+});
+const BB_COLOR = () => cssVar('--chart-slate');
 
 // ── init ───────────────────────────────────────────────────────────────────
 export function initTechView() {
@@ -221,28 +225,24 @@ function initCharts() {
 
   mainChart = LightweightCharts.createChart(mainEl, { ...CHART_OPTS, width: mainEl.clientWidth, height: mainEl.clientHeight });
   mainChart.priceScale('right').applyOptions({ autoScale: true, scaleMargins: { top: 0.1, bottom: 0.15 } });
-  candleSeries = mainChart.addCandlestickSeries({
-    upColor: '#26a69a', downColor: '#ef5350', borderUpColor: '#26a69a', borderDownColor: '#ef5350',
-    wickUpColor: '#26a69a', wickDownColor: '#ef5350',
-    priceFormat: { type: 'price', precision: 2, minMove: 0.01 },
-  });
+  candleSeries = mainChart.addCandlestickSeries(candleColors());
   // ponytail: thin volume overlay on main chart for quick visual reference
   volumeOverlaySeries = mainChart.addHistogramSeries({
     priceFormat: { type: 'volume' }, priceScaleId: 'vol',
-    color: '#90caf9',
+    color: volumeColor(),
   });
   mainChart.priceScale('vol').applyOptions({ scaleMargins: { top: 0.85, bottom: 0 }, visible: true });
 
   rsiChart = LightweightCharts.createChart(rsiEl, { ...CHART_OPTS, width: rsiEl.clientWidth, height: rsiEl.clientHeight });
   rsiChart.priceScale('right').applyOptions({ minimum: 0, maximum: 100 });
-  rsiSeries = rsiChart.addLineSeries({ color: '#7c4dff', lineWidth: 1.5 });
-  rsiUpper = rsiChart.addLineSeries({ color: '#ef5350', lineWidth: 1, lineStyle: 2, priceLineVisible: false, lastValueVisible: false });
-  rsiLower = rsiChart.addLineSeries({ color: '#26a69a', lineWidth: 1, lineStyle: 2, priceLineVisible: false, lastValueVisible: false });
+  rsiSeries = rsiChart.addLineSeries({ color: cssVar('--chart-violet'), lineWidth: 1.5 });
+  rsiUpper = rsiChart.addLineSeries({ color: cssVar('--color-down'), lineWidth: 1, lineStyle: 2, priceLineVisible: false, lastValueVisible: false });
+  rsiLower = rsiChart.addLineSeries({ color: cssVar('--color-up'), lineWidth: 1, lineStyle: 2, priceLineVisible: false, lastValueVisible: false });
 
   macdChart = LightweightCharts.createChart(macdEl, { ...CHART_OPTS, width: macdEl.clientWidth, height: macdEl.clientHeight });
   macdHistSeries = macdChart.addHistogramSeries({ priceFormat: { type: 'price', precision: 2 } });
-  macdLineSeries = macdChart.addLineSeries({ color: '#2196f3', lineWidth: 1.5 });
-  macdSignalSeries = macdChart.addLineSeries({ color: '#ff9800', lineWidth: 1.5 });
+  macdLineSeries = macdChart.addLineSeries({ color: cssVar('--color-brand'), lineWidth: 1.5 });
+  macdSignalSeries = macdChart.addLineSeries({ color: cssVar('--color-warn'), lineWidth: 1.5 });
 
   // resize observer — auto-adapt when container size changes (panel toggle, window resize)
   _chartContainers.forEach(ro => ro?.disconnect());
@@ -264,10 +264,11 @@ function initCharts() {
     _chartContainers.push(ro);
   });
 
-  // 主题热切换
-  window.addEventListener('theme-changed', e => {
-    const darkOpts = darkChartOpts();
-    [mainChart, rsiChart, macdChart].forEach(c => c.applyOptions(darkOpts));
+  // 主题热切换：布局 + 各 series 颜色都重新从当前主题 token 取，再重绘（renderCharts 内含 overlay/逐点色重算）
+  window.addEventListener('theme-changed', () => {
+    [mainChart, rsiChart, macdChart].forEach(c => c.applyOptions(darkChartOpts()));
+    applySeriesColors();
+    renderCharts();
   });
   // 应用初始主题
   if (document.body.classList.contains('dark')) {
@@ -298,6 +299,29 @@ function syncCrosshairToChart(chart, param) {
   chart.setCrosshairPosition(NaN, NaN, param.time);
 }
 
+// ── 图表颜色：单源 tokens.css ───────────────────────────────────────────────
+function candleColors() {
+  const up = cssVar('--color-up'), down = cssVar('--color-down');
+  return {
+    upColor: up, downColor: down, borderUpColor: up, borderDownColor: down,
+    wickUpColor: up, wickDownColor: down,
+    priceFormat: { type: 'price', precision: 2, minMove: 0.01 },
+  };
+}
+// 量能柱：品牌蓝半透明（8 位十六进制后缀，承接原浅蓝量能色的语义位）
+function volumeColor() { return cssVar('--color-brand') + '99'; }
+
+// 主题切换后把新色应用到非逐点着色的 series（逐点色由 renderCharts/refreshOverlays 重算）
+function applySeriesColors() {
+  candleSeries.applyOptions(candleColors());
+  volumeOverlaySeries.applyOptions({ color: volumeColor() });
+  rsiSeries.applyOptions({ color: cssVar('--chart-violet') });
+  rsiUpper.applyOptions({ color: cssVar('--color-down') });
+  rsiLower.applyOptions({ color: cssVar('--color-up') });
+  macdLineSeries.applyOptions({ color: cssVar('--color-brand') });
+  macdSignalSeries.applyOptions({ color: cssVar('--color-warn') });
+}
+
 function renderCharts() {
   const data = filteredData;
   if (!data || !data.length) return;
@@ -305,7 +329,7 @@ function renderCharts() {
   const volumes = data.map(d => ({
     time: d.date,
     value: d.volume ?? 0,
-    color: d.close >= d.open ? 'rgba(38,166,154,0.3)' : 'rgba(239,83,80,0.3)',
+    color: (d.close >= d.open ? cssVar('--color-up') : cssVar('--color-down')) + '4D',
   }));
   candleSeries.setData(candles);
   volumeOverlaySeries.setData(volumes);
@@ -323,7 +347,7 @@ function renderCharts() {
   // MACD
   const hist = data.filter(d => d.MACD_hist != null).map(d => ({
     time: d.date, value: d.MACD_hist,
-    color: d.MACD_hist >= 0 ? '#26a69a' : '#ef5350',
+    color: d.MACD_hist >= 0 ? cssVar('--color-up') : cssVar('--color-down'),
   }));
   const macdLine = data.filter(d => d.MACD != null).map(d => ({ time: d.date, value: d.MACD }));
   const signalLine = data.filter(d => d.MACD_signal != null).map(d => ({ time: d.date, value: d.MACD_signal }));
@@ -353,20 +377,21 @@ function refreshOverlays() {
 
   active.forEach(key => {
     if (key === 'BB') {
+      const bb = BB_COLOR();
       const upper = data.filter(d => d.BB_upper != null).map(d => ({ time: d.date, value: d.BB_upper }));
       const lower = data.filter(d => d.BB_lower != null).map(d => ({ time: d.date, value: d.BB_lower }));
       const mid = data.filter(d => d.BB_mid != null).map(d => ({ time: d.date, value: d.BB_mid }));
-      maSeries['BB_upper'] = addLine(mainChart, upper, BB_COLOR, 1, 2);
-      maSeries['BB_lower'] = addLine(mainChart, lower, BB_COLOR, 1, 2);
-      maSeries['BB_mid'] = addLine(mainChart, mid, BB_COLOR, 1, 0);
+      maSeries['BB_upper'] = addLine(mainChart, upper, bb, 1, 2);
+      maSeries['BB_lower'] = addLine(mainChart, lower, bb, 1, 2);
+      maSeries['BB_mid'] = addLine(mainChart, mid, bb, 1, 0);
     } else if (key === 'ST') {
       const stUp = data.filter(d => d.SUPERT_dir === 1 && d.SUPERT != null).map(d => ({ time: d.date, value: d.SUPERT }));
       const stDn = data.filter(d => d.SUPERT_dir === -1 && d.SUPERT != null).map(d => ({ time: d.date, value: d.SUPERT }));
-      maSeries['ST_up'] = addLine(mainChart, stUp, '#26a69a', 2, 0);
-      maSeries['ST_dn'] = addLine(mainChart, stDn, '#ef5350', 2, 0);
+      maSeries['ST_up'] = addLine(mainChart, stUp, cssVar('--color-up'), 2, 0);
+      maSeries['ST_dn'] = addLine(mainChart, stDn, cssVar('--color-down'), 2, 0);
     } else {
       const d2 = data.filter(d => d[key] != null).map(d => ({ time: d.date, value: d[key] }));
-      maSeries[key] = addLine(mainChart, d2, MA_COLORS[key] || '#333', 1.5, 0);
+      maSeries[key] = addLine(mainChart, d2, MA_COLORS()[key] || cssVar('--text-secondary'), 1.5, 0);
     }
   });
 }
@@ -394,13 +419,13 @@ function renderDiag(d) {
   const el = document.getElementById('diag-content');
   const maxScore = 20;
   const pct = Math.max(0, Math.min(100, ((d.total_score + maxScore) / (2 * maxScore)) * 100));
-  const scoreColor = d.total_score > 5 ? '#26a69a' : d.total_score < -5 ? '#ef5350' : '#ff9800';
+  const scoreColor = d.total_score > 5 ? cssVar('--color-up') : d.total_score < -5 ? cssVar('--color-down') : cssVar('--color-warn');
 
   let html = `
     <div class="diag-section">
       <div style="display:flex;align-items:baseline;gap:12px">
         <span class="score-text" style="color:${scoreColor}">${d.total_score > 0 ? '+' : ''}${d.total_score}</span>
-        <span style="color:#666;font-size:13px">${d.last_date}</span>
+        <span style="color:var(--text-secondary);font-size:13px">${d.last_date}</span>
       </div>
       <div class="score-bar"><div class="score-fill" style="width:${pct}%;background:${scoreColor}"></div></div>
       <div style="font-size:20px;font-weight:600">${d.last_price != null ? '$' + d.last_price.toFixed(2) : '—'}</div>
@@ -486,7 +511,7 @@ function renderDiag(d) {
       <div class="cdl-list">
         ${(d.cdl_bullish || []).map(n => `<span class="tag tag-bull">${n}</span>`).join('')}
         ${(d.cdl_bearish || []).map(n => `<span class="tag tag-bear">${n}</span>`).join('')}
-        ${!(d.cdl_bullish?.length || d.cdl_bearish?.length) ? '<span style="color:#999;font-size:12px">无信号</span>' : ''}
+        ${!(d.cdl_bullish?.length || d.cdl_bearish?.length) ? '<span style="color:var(--text-dim);font-size:12px">无信号</span>' : ''}
       </div>
     </div>
 

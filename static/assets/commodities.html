@@ -5,6 +5,7 @@
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>大宗商品 — 观澜台</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap">
 <link rel="stylesheet" href="/css/app.css">
 <link rel="stylesheet" href="/css/special.css">
 <script src="/js/site-nav.js"></script>
@@ -58,7 +59,7 @@ async function load() {
       code: r.symbol, name: r.name, last: r.last, chg: r.chg_pct,
     })), {
       last: v => Number(v).toLocaleString(undefined, { maximumFractionDigits: 2 }),
-      chg: v => v == null ? '—' : `<span style="color:${v >= 0 ? '#26a69a' : '#ef5350'}">${v >= 0 ? '▲ +' : '▼ '}${Number(v).toFixed(2)}%</span>`,
+      chg: v => v == null ? '—' : `<span style="color:${v >= 0 ? 'var(--color-up)' : 'var(--color-down)'}">${v >= 0 ? '▲ +' : '▼ '}${Number(v).toFixed(2)}%</span>`,
     }, ['code', 'name', 'last', 'chg'], true));
     grid.appendChild(sec);
   });
@@ -72,9 +73,9 @@ async function load() {
   csec.className = 're-section';
   csec.innerHTML = '<h2>商品走势（归一化 %）· 近 1 年</h2><div class="chart" id="com-chart" style="height:300px"></div>';
   document.getElementById('chart').appendChild(csec);
-  R.mkChart('com-chart', colors => ({
+  R.mkChart('com-chart', colors => R.lineOption({
     tooltip: { trigger: 'axis' },
-    legend: { data: keys, textStyle: { color: colors.text }, top: 0, icon: 'rect', itemWidth: 12, itemHeight: 3 },
+    legend: { data: keys, top: 0 },
     grid: { left: 44, right: 16, top: 28, bottom: 40 },
     xAxis: { type: 'category', data: n.dates, axisLine: { lineStyle: { color: colors.border } }, axisLabel: { color: colors.muted, fontSize: 10 } },
     yAxis: { type: 'value', axisLabel: { color: colors.muted, fontSize: 11 }, splitLine: { lineStyle: { color: colors.grid } } },
@@ -82,7 +83,7 @@ async function load() {
       name: k, type: 'line', data: n.series[k], showSymbol: false, smooth: true,
       lineStyle: { width: 2, color: [colors.blue, colors.orange, colors.green, colors.red, colors.purple][i % 5] },
     })),
-  }));
+  }, colors));
 
   // 20 日表
   const rc = d.recent || { dates: [], series: {} };
@@ -103,7 +104,7 @@ async function load() {
 }
 function keys2(rc) { return Object.keys(rc.series || {}); }
 function fmt(v) { return v == null ? '—' : Number(v).toLocaleString(undefined, { maximumFractionDigits: 4 }); }
-function chg(v) { return v == null ? '—' : `<span style="color:${v >= 0 ? '#26a69a' : '#ef5350'}">${v >= 0 ? '▲ +' : '▼ '}${Number(v).toFixed(2)}%</span>`; }
+function chg(v) { return v == null ? '—' : `<span style="color:${v >= 0 ? 'var(--color-up)' : 'var(--color-down)'}">${v >= 0 ? '▲ +' : '▼ '}${Number(v).toFixed(2)}%</span>`; }
 
 load().catch(e => R.fail(['cards', 'asset-compare', 'chart', 'recent'], e));
 </script>

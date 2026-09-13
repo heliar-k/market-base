@@ -5,6 +5,7 @@
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>加密货币 — 观澜台</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap">
 <link rel="stylesheet" href="/css/app.css">
 <link rel="stylesheet" href="/css/special.css">
 <script src="/js/site-nav.js"></script>
@@ -47,10 +48,10 @@ async function load() {
   lsec.className = 're-section';
   lsec.innerHTML = '<h2>宏观 × 加密流动性溢出</h2><p style="margin:0 0 8px">净流动性 = WALCL − TGA − RRP</p>';
   if (L.net != null) {
-    const pulseColor = L.pulse_state === '扩张' ? '#26a69a' : '#ef5350';
+    const pulseColor = L.pulse_state === '扩张' ? 'var(--color-up)' : 'var(--color-down)';
     const dv = L.divergence || null;
     const warn = !!(dv && dv.warn);
-    const divColor = dv ? (warn ? '#ef5350' : '#26a69a') : '#9ca3af';
+    const divColor = dv ? (warn ? 'var(--color-down)' : 'var(--color-up)') : 'var(--color-neutral)';
     const divText = dv ? dv.verdict : '—';
     lsec.innerHTML += `
       <div class="re-cards" style="grid-template-columns:repeat(auto-fit,minmax(150px,1fr))">
@@ -73,25 +74,25 @@ async function load() {
     csec.className = 're-section';
     csec.innerHTML = '<h2>净流动性 vs BTC（180 日）</h2><div class="chart" id="liq-chart" style="height:320px"></div>';
     document.getElementById('liquidity').appendChild(csec);
-    R.mkChart('liq-chart', colors => ({
+    R.mkChart('liq-chart', colors => R.lineOption({
       tooltip: { trigger: 'axis', axisPointer: { type: 'cross' } },
-      legend: { data: ['净流动性 (T)', 'BTC 价格'], textStyle: { color: colors.text }, top: 0, icon: 'rect', itemWidth: 12, itemHeight: 3 },
+      legend: { data: ['净流动性 (T)', 'BTC 价格'], top: 0 },
       grid: { left: '5%', right: '5%', top: 35, bottom: 40, containLabel: true },
       xAxis: { type: 'category', data: L.nl_dates, axisLine: { lineStyle: { color: colors.border } },
         axisLabel: { color: colors.muted, fontSize: 10, rotate: 30 } },
       yAxis: [
-        { type: 'value', scale: true, position: 'left', name: '净流动性 (T)', nameTextStyle: { color: '#06b6d4' },
-          axisLabel: { color: '#06b6d4', fontSize: 10 }, splitLine: { lineStyle: { color: colors.grid, type: 'dashed' } } },
-        { type: 'value', scale: true, position: 'right', name: 'BTC ($)', nameTextStyle: { color: '#f59e0b' },
-          axisLabel: { color: '#f59e0b', fontSize: 10 }, splitLine: { show: false } },
+        { type: 'value', scale: true, position: 'left', name: '净流动性 (T)', nameTextStyle: { color: NL_CYAN },
+          axisLabel: { color: NL_CYAN, fontSize: 10 }, splitLine: { lineStyle: { color: colors.grid, type: 'dashed' } } },
+        { type: 'value', scale: true, position: 'right', name: 'BTC ($)', nameTextStyle: { color: colors.orange },
+          axisLabel: { color: colors.orange, fontSize: 10 }, splitLine: { show: false } },
       ],
       series: [
         { name: '净流动性 (T)', type: 'line', data: L.nl_series, showSymbol: false, smooth: true,
-          lineStyle: { width: 2, color: '#06b6d4' }, itemStyle: { color: '#06b6d4' }, areaStyle: { color: '#06b6d4', opacity: 0.1 } },
+          lineStyle: { width: 2, color: NL_CYAN }, itemStyle: { color: NL_CYAN }, areaStyle: { color: NL_CYAN, opacity: 0.1 } },
         { name: 'BTC 价格', type: 'line', yAxisIndex: 1, data: L.btc_series, showSymbol: false, smooth: true, connectNulls: true,
-          lineStyle: { width: 2, color: '#f59e0b' }, itemStyle: { color: '#f59e0b' } },
+          lineStyle: { width: 2, color: colors.orange }, itemStyle: { color: colors.orange } },
       ],
-    }));
+    }, colors));
   }
 
   // ── 交易含义（规则引擎生成，LLM 预留）──
@@ -111,9 +112,12 @@ async function load() {
     nsec.className = 're-section';
     nsec.innerHTML = '<h2>加密走势（归一化 %）</h2><div class="chart" id="crypto-trend" style="height:320px"></div>';
     document.getElementById('trend').appendChild(nsec);
-    R.mkChart('crypto-trend', colors => ({
+    R.mkChart('crypto-trend', colors => {
+      // 每次渲染从当前主题取色（主题切换后 R.mkChart 重跑 optionFn，避免锁定初始主题）
+      const TREND_COLORS = { BTC: colors.orange, ETH: colors.green };
+      return R.lineOption({
       tooltip: { trigger: 'axis', valueFormatter: v => v == null ? '—' : Number(v).toFixed(2) },
-      legend: { top: 0, data: keys.map(k => CRYPTO_NAME[k] || k).concat(['BTC/ETH 价比']), textStyle: { color: colors.text }, icon: 'rect', itemWidth: 12, itemHeight: 3 },
+      legend: { top: 0, data: keys.map(k => CRYPTO_NAME[k] || k).concat(['BTC/ETH 价比']) },
       grid: { left: 48, right: 60, top: 32, bottom: 64 },
       xAxis: { type: 'category', data: tr.dates, axisLine: { lineStyle: { color: colors.border } },
         axisLabel: { color: colors.muted, fontSize: 11,
@@ -136,7 +140,8 @@ async function load() {
         name: 'BTC/ETH 价比', type: 'line', yAxisIndex: 1, data: tr.series.RATIO, showSymbol: false, smooth: true, connectNulls: true,
         lineStyle: { width: 1.4, type: 'dashed', color: colors.purple }, itemStyle: { color: colors.purple },
       }]),
-    }));
+      });
+    });
   }
 
   // ── 近期收盘价（最近 20 个交易日）──
@@ -157,10 +162,11 @@ async function load() {
 
   document.getElementById('re-gen').textContent = '规则引擎（LLM 预留）· 流动性口径：WALCL − TGA − RRP；β 为 90 日净流动性变化对资产日收益率回归；收盘价数据源 yfinance';
 }
+// 分类色单源：净流动性青线走 --chart-cyan（两主题同值）；BTC/ETH 趋势线在 optionFn 内随主题取色
+const NL_CYAN = reCssVar('--chart-cyan');
 const CRYPTO_NAME = { BTC: 'BTC', ETH: 'ETH' };
-const TREND_COLORS = { BTC: '#f59e0b', ETH: '#26a69a' };
 function fmt(v) { return v == null ? '—' : Number(v === 0 ? 0 : v).toLocaleString(undefined, { maximumFractionDigits: 2 }); }
-function chg(v) { return v == null ? '—' : `<span style="color:${v >= 0 ? '#26a69a' : '#ef5350'}">${v >= 0 ? '▲ +' : '▼ '}${Number(v).toFixed(2)}%</span>`; }
+function chg(v) { return v == null ? '—' : `<span style="color:${v >= 0 ? 'var(--color-up)' : 'var(--color-down)'}">${v >= 0 ? '▲ +' : '▼ '}${Number(v).toFixed(2)}%</span>`; }
 
 load().catch(e => R.fail(['cards', 'liquidity', 'trend', 'recent'], e));
 </script>

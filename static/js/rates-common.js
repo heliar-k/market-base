@@ -145,8 +145,9 @@ const R = {
       tbody.appendChild(r);
     });
     table.appendChild(tbody);
-    // 统一应用：数值列的所有单元格（含 — 占位）与表头都右对齐，保证列内成线
-    pending.forEach(([td, j, isNum]) => { if (isNum || numCol[j]) td.style.textAlign = 'right'; });
+    // 统一应用：数值列的所有单元格（含 — 占位）与表头都右对齐，保证列内成线；
+    // num 类另挂等宽字体（special.css .re-table td.num，timsun 数字排版纪律）
+    pending.forEach(([td, j, isNum]) => { if (isNum || numCol[j]) { td.style.textAlign = 'right'; td.classList.add('num'); } });
     numCol.forEach((isNum, j) => { if (isNum) thead.rows[0].cells[j].style.textAlign = 'right'; });
     wrap.appendChild(table);
     return wrap;

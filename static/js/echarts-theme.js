@@ -25,8 +25,9 @@ function buildTheme() {
   const textMuted = reCssVar('--text-dim');
   const borderColor = reCssVar('--border');
   const borderSubtle = reCssVar('--border-light');
-  const bg = reCssVar('--surface');
-  const axisLabel = { color: textMuted, fontSize: 10 };
+  const bg = reCssVar('--tooltip-bg'); // 浮层层（surface-alt 半透明化，配合 blur 制造纵深）
+  const mono = reCssVar('--font-mono');
+  const axisLabel = { color: textMuted, fontSize: 10, fontFamily: mono };
   const splitLine = { lineStyle: { color: borderSubtle } };
   return {
     backgroundColor: 'transparent',
@@ -35,8 +36,8 @@ function buildTheme() {
     legend: { textStyle: { color: textSecondary, fontSize: 11 }, itemWidth: 14, itemHeight: 8 },
     tooltip: {
       backgroundColor: bg, borderColor: borderColor, borderWidth: 1,
-      textStyle: { color: text, fontSize: 12, fontFamily: "'SF Mono', ui-monospace, monospace" },
-      extraCssText: 'border-radius: 6px; box-shadow: 0 2px 8px rgba(0,0,0,0.12);',
+      textStyle: { color: text, fontSize: 12, fontFamily: mono },
+      extraCssText: 'border-radius: 8px; box-shadow: 0 4px 16px rgba(0,0,0,0.25); backdrop-filter: blur(8px);',
     },
     categoryAxis: {
       axisLine: { lineStyle: { color: borderColor } }, axisTick: { lineStyle: { color: borderColor } },
@@ -66,6 +67,20 @@ function registerMacroTheme() {
   const theme = buildTheme();
   echarts.registerTheme('macro', theme);
   echarts.registerTheme('macroDark', theme);
+}
+
+/** 相关热力图发散色带（单源）：两端 = --color-brand / --color-down（语义蓝/红），
+ *  中段 = --surface-alt，过渡色由端点插值生成；本文件仍无色值字面量。
+ *  消费方：js/cross-correlation.js 与 assets/index.html 相关矩阵。 */
+function reCorrRamp() {
+  const neg = reCssVar('--color-brand'), pos = reCssVar('--color-down'), mid = reCssVar('--surface-alt');
+  return [neg, mixHex(neg, mid, 0.72), mid, mixHex(pos, mid, 0.72), pos];
+}
+// 6 位十六进制颜色线性插值（仅供 reCorrRamp 生成过渡带）
+function mixHex(a, b, t) {
+  const p = (h) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16));
+  const [pa, pb] = [p(a), p(b)];
+  return '#' + pa.map((x, i) => Math.round(x + (pb[i] - x) * t).toString(16).padStart(2, '0')).join('');
 }
 
 /** Re-render an existing ECharts instance with the current dark/light theme.

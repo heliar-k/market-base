@@ -5,6 +5,7 @@
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>利率 — 观澜台</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap">
 <link rel="stylesheet" href="/css/app.css">
 <link rel="stylesheet" href="/css/special.css">
 <script src="/js/site-nav.js"></script>
@@ -80,7 +81,7 @@ async function load() {
   const t = Object.fromEntries(d.tenors.map(x => [x.tenor, x]));
   const tips10 = d.tips.find(x => x.tenor === '10Y');
   const chgSub = (v, label) => v === null || v === undefined ? ''
-    : `<span style="color:${v > 0 ? '#26a69a' : v < 0 ? '#ef5350' : '#9ca3af'}">${v > 0 ? '▲ +' : v < 0 ? '▼ ' : ''}${Number(v).toFixed(0)}bp</span> · ${label}`;
+    : `<span style="color:${v > 0 ? 'var(--color-up)' : v < 0 ? 'var(--color-down)' : 'var(--color-neutral)'}">${v > 0 ? '▲ +' : v < 0 ? '▼ ' : ''}${Number(v).toFixed(0)}bp</span> · ${label}`;
   const h = ff.effr_history;
   const effr1w = h && h.length > 5 ? (h[h.length - 1].value - h[h.length - 6].value) * 100 : null;
   document.getElementById('re-cards').replaceChildren(R.cards([
@@ -94,8 +95,8 @@ async function load() {
 
   // ── 曲线四线快照（tenors 自带 1周/1月/3月前，零新请求）──
   const tenors = d.tenors;
-  R.mkChart('yc_compare', (colors) => ({
-    legend: { data: ['当前', '1周前', '1月前', '3月前'], top: 4, right: 8, textStyle: { color: colors.text, fontSize: 11 }, icon: 'rect', itemWidth: 12, itemHeight: 3 },
+  R.mkChart('yc_compare', (colors) => R.lineOption({
+    legend: { data: ['当前', '1周前', '1月前', '3月前'] },
     tooltip: { trigger: 'axis', valueFormatter: v => `${Number(v).toFixed(2)}%` },
     grid: { top: 36, left: 48, right: 16, bottom: 24 },
     xAxis: { type: 'category', data: tenors.map(x => x.tenor), axisLabel: { color: colors.muted, fontSize: 10 }, axisLine: { lineStyle: { color: colors.border } } },
@@ -106,7 +107,7 @@ async function load() {
       { name: '1月前', type: 'line', data: tenors.map(x => x.prev_1m), symbol: 'none', lineStyle: { color: colors.orange, type: 'dashed', width: 1.5 }, connectNulls: true },
       { name: '3月前', type: 'line', data: tenors.map(x => x.prev_3m), symbol: 'none', lineStyle: { color: colors.red, type: 'dashed', width: 1.5 }, connectNulls: true },
     ],
-  }));
+  }, colors));
 
   // ── 四段研判 ──
   const root = document.getElementById('re-sections');

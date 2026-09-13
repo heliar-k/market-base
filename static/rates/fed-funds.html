@@ -5,6 +5,7 @@
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>联邦基金利率 — 观澜台</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap">
 <link rel="stylesheet" href="/css/app.css">
 <link rel="stylesheet" href="/css/special.css">
 <script src="/js/site-nav.js"></script>
@@ -59,8 +60,8 @@ async function load() {
   ]));
 
   // ── 走廊图：EFFR/SOFR/TGCR/BGCR/ONRRP 五利率 + 目标区间 ──
-  R.mkChart('corridor_chart', (colors) => ({
-    legend: { data: ['EFFR', 'SOFR', 'TGCR', 'BGCR', 'ONRRP', '目标上限', '目标下限'], top: 4, right: 8, textStyle: { color: colors.text, fontSize: 11 }, icon: 'rect', itemWidth: 12, itemHeight: 3 },
+  R.mkChart('corridor_chart', (colors) => R.lineOption({
+    legend: { data: ['EFFR', 'SOFR', 'TGCR', 'BGCR', 'ONRRP', '目标上限', '目标下限'] },
     tooltip: { trigger: 'axis', valueFormatter: v => `${Number(v).toFixed(2)}%` },
     grid: { top: 36, left: 48, right: 16, bottom: 56 },
     dataZoom: [{ type: 'inside' }, { type: 'slider', bottom: 16, height: 18 }],
@@ -75,7 +76,7 @@ async function load() {
       { name: '目标上限', type: 'line', data: R.vs(c.target_hi), symbol: 'none', lineStyle: { color: colors.red, type: 'dashed', width: 1 } },
       { name: '目标下限', type: 'line', data: R.vs(c.target_lo), symbol: 'none', lineStyle: { color: colors.red, type: 'dashed', width: 1 } },
     ],
-  }));
+  }, colors));
 
   // ── SOFR 成交量 ──
   R.mkChart('sofr_vol_chart', (colors) => ({

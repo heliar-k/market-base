@@ -5,6 +5,7 @@
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>美股 — 观澜台</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap">
 <link rel="stylesheet" href="/css/app.css">
 <link rel="stylesheet" href="/css/special.css">
 <script src="/js/site-nav.js"></script>
@@ -103,9 +104,9 @@ function renderIndexChart() {
   csec.className = 're-section';
   csec.innerHTML = '<h2>美股指数走势（归一化 %）</h2><div class="chart chart-lg" id="idx-chart-el"></div>';
   document.getElementById('index-chart').appendChild(csec);
-  R.mkChart('idx-chart-el', colors => ({
+  R.mkChart('idx-chart-el', colors => R.lineOption({
     tooltip: { trigger: 'axis', valueFormatter: v => v == null ? '—' : Number(v).toFixed(2) + '%' },
-    legend: { top: 0, data: Object.keys(ch.series).map(k => T[k] || k), textStyle: { color: colors.text }, icon: 'rect', itemWidth: 12, itemHeight: 3, itemGap: 10 },
+    legend: { top: 0, data: Object.keys(ch.series).map(k => T[k] || k), itemGap: 10 },
     grid: { left: 48, right: 20, top: 32, bottom: 64 },
     xAxis: { type: 'category', data: ch.dates, axisLine: { lineStyle: { color: colors.border } },
       axisLabel: { color: colors.muted, fontSize: 11,
@@ -121,7 +122,7 @@ function renderIndexChart() {
       name: T[k] || k, type: 'line', data: ch.series[k], showSymbol: false, smooth: true,
       lineStyle: { width: 1.6 }, emphasis: { focus: 'series' },
     })),
-  }));
+  }, colors));
 }
 
 function renderBreadth() {
@@ -165,9 +166,9 @@ function renderAbvChart() {
     <div class="src-note">低于 50% 阈值 = 市场内部走弱，即使指数仍在高位。</div>
     <div class="chart chart-md" id="abv-chart-el"></div>`;
   document.getElementById('abv-chart').appendChild(csec);
-  R.mkChart('abv-chart-el', colors => ({
+  R.mkChart('abv-chart-el', colors => R.lineOption({
     tooltip: { trigger: 'axis', valueFormatter: v => v == null ? '—' : Number(v).toFixed(1) + '%' },
-    legend: { data: ['50日均线上方占比', '200日均线上方占比'], textStyle: { color: colors.text }, top: 0, icon: 'rect', itemWidth: 12, itemHeight: 3 },
+    legend: { data: ['50日均线上方占比', '200日均线上方占比'], top: 0 },
     grid: { left: 48, right: 16, top: 28, bottom: 28 },
     xAxis: { type: 'category', data: b.abv_dates, axisLine: { lineStyle: { color: colors.border } },
       axisLabel: { color: colors.muted, fontSize: 11,
@@ -183,7 +184,7 @@ function renderAbvChart() {
       { name: '200日均线上方占比', type: 'line', data: b.abv200_series, showSymbol: false, smooth: true,
         lineStyle: { width: 2, color: colors.blue } },
     ],
-  }));
+  }, colors));
 }
 
 function renderAnalysis() {

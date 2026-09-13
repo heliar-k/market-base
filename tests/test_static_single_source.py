@@ -93,6 +93,21 @@ def test_nav_consumers_read_site_nav() -> None:
         assert not hardcoded, f"{js} 里仍有硬编码专题路径：{hardcoded}"
 
 
+def test_dashboard_links_use_site_nav() -> None:
+    """dashboard.js 跨资产表跳转（导航消费方第 4 处）：路径不得重复硬编码，
+    指标键→导航键映射里的每个键必须真实存在于 SITE_NAV。"""
+    text = (STATIC / "js" / "dashboard.js").read_text(encoding="utf-8")
+    assert "SITE_NAV" in text, "dashboard.js LINKS 未从 SITE_NAV 派生"
+    hardcoded = [p for p in _nav_pages() if f"'{p}'" in text]
+    assert not hardcoded, f"dashboard.js 里仍有硬编码专题路径：{hardcoded}"
+    m = re.search(r"const NAV_KEY = \{(.*?)\n  \};", text, re.S)
+    assert m, "dashboard.js 里没解析到 NAV_KEY 映射"
+    used = set(re.findall(r": '([a-z][a-z0-9/_-]*)'", m.group(1)))
+    assert used, "NAV_KEY 映射为空"
+    missing = used - set(re.findall(r"key: '([^']+)'", _site_nav_js()))
+    assert not missing, f"dashboard.js 引用了不存在的 SITE_NAV 键：{sorted(missing)}"
+
+
 def test_as_of_text_only_via_r_asof() -> None:
     """「数据截至」文案只能由 R.asOf 组装（rates-common.js 是唯一出处）。"""
     offenders = []

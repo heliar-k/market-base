@@ -5,6 +5,7 @@
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>逆回购与财政部账户 — 观澜台</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap">
 <link rel="stylesheet" href="/css/app.css">
 <link rel="stylesheet" href="/css/special.css">
 <script src="/js/site-nav.js"></script>
@@ -34,7 +35,11 @@
 <script src="/js/rates-common.js"></script>
 <script>
 const BUCKET_LABEL = { extreme: '极端抽水', strong: '强', mild: '温和', smooth: '平稳', injection: '注入' };
-const BUCKET_COLOR = { extreme: '#ef5350', strong: '#ff7043', mild: '#ffb74d', smooth: '#9ca3af', injection: '#26a69a' };
+// 抽水力度五档梯度：两端走涨跌 token，中间 strong/mild 暂无对应 token（保留字面，色阶信息不丢）
+const BUCKET_COLOR = {
+  extreme: reCssVar('--color-down'), strong: '#ff7043', mild: '#ffb74d',
+  smooth: reCssVar('--color-neutral'), injection: reCssVar('--color-up'),
+};
 
 async function load() {
   document.getElementById('page-toc').innerHTML = [
@@ -46,12 +51,13 @@ async function load() {
   document.getElementById('re-as-of').textContent = R.asOf(d.data_date);
 
   const pos = (a.sofr_iorb_bp ?? 0) >= 0;
-  document.getElementById('re-alert').innerHTML = `<div class="re-section" style="border-color:${pos ? '#ef5350' : '#26a69a'};border-width:1.5px">
+  const posColor = pos ? 'var(--color-down)' : 'var(--color-up)';
+  document.getElementById('re-alert').innerHTML = `<div class="re-section" style="border-color:${posColor};border-width:1.5px">
     <h2>PRESSURE ALERT 流动性压力预警</h2>
     <div style="display:flex;gap:24px;align-items:baseline;flex-wrap:wrap">
-      <span style="font-size:30px;font-weight:700;color:${pos ? '#ef5350' : '#26a69a'}">${a.sofr_iorb_bp == null ? '—' : a.sofr_iorb_bp.toFixed(1)}bp</span>
+      <span style="font-size:30px;font-weight:700;color:${posColor}">${a.sofr_iorb_bp == null ? '—' : a.sofr_iorb_bp.toFixed(1)}bp</span>
       <span style="font-size:14px">SOFR ${a.sofr ?? '—'}% · IORB ${a.iorb ?? '—'}% · FFR 上限 ${a.ffr_upper ?? '—'}%</span>
-      <span style="font-size:12px;color:${pos ? '#ef5350' : '#26a69a'}">${a.state || ''}</span>
+      <span style="font-size:12px;color:${posColor}">${a.state || ''}</span>
     </div></div>`;
 
   const cur = d.current || {};
@@ -76,7 +82,7 @@ async function load() {
     </tr>`).join('');
   document.getElementById('re-heat').innerHTML = `
     <div class="re-section">
-      <p style="margin:0 0 6px;font-size:12px;color:var(--text-dim)">未来 7 日净冲击 <b style="color:${(net7 ?? 0) < 0 ? '#ef5350' : '#26a69a'}">${net7 == null ? '—' : net7.toFixed(0)}B</b> · 未来 14 日净冲击 <b style="color:${(net14 ?? 0) < 0 ? '#ef5350' : '#26a69a'}">${net14 == null ? '—' : net14.toFixed(0)}B</b>（估算 = 下方逐日之和）</p>
+      <p style="margin:0 0 6px;font-size:12px;color:var(--text-dim)">未来 7 日净冲击 <b style="color:${(net7 ?? 0) < 0 ? 'var(--color-down)' : 'var(--color-up)'}">${net7 == null ? '—' : net7.toFixed(0)}B</b> · 未来 14 日净冲击 <b style="color:${(net14 ?? 0) < 0 ? 'var(--color-down)' : 'var(--color-up)'}">${net14 == null ? '—' : net14.toFixed(0)}B</b>（估算 = 下方逐日之和）</p>
       <table class="re-table"><thead><tr><th>日期</th><th>资金流</th><th style="text-align:right">净冲击</th><th style="text-align:right">级别</th></tr></thead><tbody>${heat}</tbody></table>
       <p style="margin:8px 0 0;font-size:12px;color:var(--text-dim)">${cal.source_note || ''} 图例：极端抽水 ≤-200B · 强 ≤-80B · 温和 ≤-30B · 平稳 · 注入</p>
     </div>`;

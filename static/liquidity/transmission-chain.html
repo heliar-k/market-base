@@ -5,6 +5,7 @@
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>美元流动性压力指数 — 观澜台</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap">
 <link rel="stylesheet" href="/css/app.css">
 <link rel="stylesheet" href="/css/special.css">
 <script src="/js/site-nav.js"></script>
@@ -35,10 +36,11 @@
 <script src="/js/echarts-theme.js"></script>
 <script src="/js/rates-common.js"></script>
 <script>
-const BAND_COLORS = { 宽松: '#26a69a', 中性: '#3b82f6', 警戒观察: '#ff9800', 压力确认: '#ef5350' };
+// 压力分档色：全部回读 tokens.css（徽章拼接十六进制透明度后缀，需实际色值而非 var()）
+const BAND_COLORS = { 宽松: reCssVar('--color-up'), 中性: reCssVar('--color-brand'), 警戒观察: reCssVar('--color-warn'), 压力确认: reCssVar('--color-down') };
 const bandBadge = (band) => {
   const [label, colorKey] = band;
-  const c = BAND_COLORS[label] || '#999';
+  const c = BAND_COLORS[label] || reCssVar('--text-dim');
   return `<span style="display:inline-block;padding:2px 12px;border-radius:999px;border:1px solid ${c}66;background:${c}18;color:${c};font-size:13px;margin-left:14px">${label}</span>`;
 };
 const scoreCell = v => (v == null ? '—' : `<b>${v}</b>`);
@@ -80,7 +82,7 @@ async function load() {
         <div class="value">${scoreCell(p.score)}<span class="unit">/10</span></div>
         <div class="pcts">${p.value == null ? '—' : (typeof p.value === 'number' ? p.value.toFixed(2) : p.value)}</div>
       </div>`).join('');
-    const c = L.score >= 7 ? '#ef5350' : L.score >= 5 ? '#ff9800' : L.score >= 3 ? '#3b82f6' : '#26a69a';
+    const c = L.score >= 7 ? 'var(--color-down)' : L.score >= 5 ? 'var(--color-warn)' : L.score >= 3 ? 'var(--color-brand)' : 'var(--color-up)';
     return `<div class="oas-row" style="margin-bottom:12px">
       <div style="grid-column:1/-1">
         <div style="display:flex;justify-content:space-between;align-items:baseline">
@@ -121,7 +123,7 @@ async function load() {
   document.getElementById('re-confirm').innerHTML =
     `<div class="re-section">` + conf.map(x =>
       `<div style="display:flex;gap:8px;align-items:baseline;padding:4px 0;font-size:13px">
-        <span style="color:${x.met ? '#26a69a' : '#9ca3af'};font-weight:700">${x.met ? '●' : '○'}</span>
+        <span style="color:${x.met ? 'var(--color-up)' : 'var(--color-neutral)'};font-weight:700">${x.met ? '●' : '○'}</span>
         <span style="color:var(--text)">${x.title}</span>
         <span style="color:var(--text-dim);font-size:12px">${x.detail || ''}</span>
       </div>`).join('') +

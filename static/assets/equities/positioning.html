@@ -5,6 +5,7 @@
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>持仓追踪（CFTC COT） — 观澜台</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap">
 <link rel="stylesheet" href="/css/app.css">
 <link rel="stylesheet" href="/css/special.css">
 <script src="/js/site-nav.js"></script>
@@ -106,8 +107,8 @@ const TIPS = {
 function contractCard(c) {
   const card = document.createElement('div');
   card.className = 'pos-contract';
-  const netColor = c.net >= 0 ? '#26a69a' : '#ef5350';
-  const wkColor = c.week_dir == '增仓' ? '#26a69a' : (c.week_dir == '减仓' ? '#ef5350' : 'var(--text-secondary)');
+  const netColor = c.net >= 0 ? 'var(--color-up)' : 'var(--color-down)';
+  const wkColor = c.week_dir == '增仓' ? 'var(--color-up)' : (c.week_dir == '减仓' ? 'var(--color-down)' : 'var(--text-secondary)');
   card.innerHTML = `
     <div class="pc-head">
       <div>
@@ -121,7 +122,7 @@ function contractCard(c) {
     </div>
     <div class="pos-cols">
       <div><div class="k">净持仓</div><div class="v" style="color:${netColor}">${c.net >= 0 ? '+' : ''}${num(c.net)}</div></div>
-      <div><div class="k">多 / 空</div><div class="v"><span style="color:#26a69a">${num(c.long)}</span> / <span style="color:#ef5350">${num(c.short)}</span></div></div>
+      <div><div class="k">多 / 空</div><div class="v"><span style="color:var(--color-up)">${num(c.long)}</span> / <span style="color:var(--color-down)">${num(c.short)}</span></div></div>
       <div><div class="k">周环比</div><div class="v" style="color:${wkColor}">${c.week_dir == '增仓' ? '▲ ' : (c.week_dir == '减仓' ? '▼ ' : '—')}${c.week_chg == null ? '' : (c.week_chg > 0 ? '+' : '') + Number(c.week_chg).toLocaleString()}</div></div>
     </div>
     <div class="pos-chart"></div>
@@ -135,9 +136,9 @@ function sparkChart(dom, s) {
   // 纵轴标签宽度：大数值（如 3,836,283）会超出固定 left:50 被裁切，按最大绝对值动态扩左边距
   const maxAbs = Math.max(1, ...[...(s.spec || []), ...(s.asset || [])].filter(v => v != null).map(Math.abs));
   const yLeft = Math.max(50, maxAbs.toLocaleString('en-US').length * 6.5 + 12);
-  R.mkChart(dom.id || (dom.id = 'spark-' + Math.random().toString(36).slice(2)), colors => ({
+  R.mkChart(dom.id || (dom.id = 'spark-' + Math.random().toString(36).slice(2)), colors => R.lineOption({
     tooltip: { trigger: 'axis' },
-    legend: { data: hasAsset ? ['投机方净持仓', '资管净持仓'] : ['投机方净持仓'], textStyle: { color: '#9ca3af', fontSize: 10 }, top: 0, icon: 'rect', itemWidth: 14, itemHeight: 2, itemGap: 14 },
+    legend: { data: hasAsset ? ['投机方净持仓', '资管净持仓'] : ['投机方净持仓'], top: 0, itemWidth: 14, itemHeight: 2, itemGap: 14, textStyle: { fontSize: 10 } },
     grid: { left: yLeft, right: 12, top: 28, bottom: 24 },
     xAxis: {
       type: 'category', data: s.dates, boundaryGap: false,
@@ -149,12 +150,13 @@ function sparkChart(dom, s) {
     series: [
       {
         name: '投机方净持仓', type: 'line', data: s.spec, showSymbol: false,
-        color: '#60a5fa', lineStyle: { width: 2, color: '#60a5fa' },
-        areaStyle: { color: { type: 'linear', x: 0, y: 0, x2: 0, y2: 1, colorStops: [{ offset: 0, color: 'rgba(96,165,250,0.28)' }, { offset: 1, color: 'rgba(96,165,250,0.02)' }] } },
+        color: colors.blue, lineStyle: { width: 2, color: colors.blue },
+        // 面积渐变：主题蓝 + 8 位十六进制透明度（canvas 支持 #RRGGBBAA）
+        areaStyle: { color: { type: 'linear', x: 0, y: 0, x2: 0, y2: 1, colorStops: [{ offset: 0, color: colors.blue + '47' }, { offset: 1, color: colors.blue + '05' }] } },
       },
-      ...(hasAsset ? [{ name: '资管净持仓', type: 'line', data: s.asset, showSymbol: false, color: '#a3a3a3', lineStyle: { width: 1.5, color: '#a3a3a3' } }] : []),
+      ...(hasAsset ? [{ name: '资管净持仓', type: 'line', data: s.asset, showSymbol: false, color: colors.gray, lineStyle: { width: 1.5, color: colors.gray } }] : []),
     ],
-  }));
+  }, colors));
 }
 
 load().catch(e => R.fail(['overview', 'groups'], e));

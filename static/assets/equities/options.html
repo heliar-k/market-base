@@ -5,6 +5,7 @@
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>期权市场结构 — 观澜台</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap">
 <link rel="stylesheet" href="/css/app.css">
 <link rel="stylesheet" href="/css/special.css">
 <script src="/js/site-nav.js"></script>
@@ -110,8 +111,8 @@ function renderRegime() {
         <div class="rg-sub">现价 ${fmtNum(v.spot)} · ${localPos ? '局部正 Gamma' : '局部负 Gamma'} · ${v.net_dex >= 0 ? '正 Delta' : '负 Delta'}</div>
       </div>
       <div class="rg-gex">
-        <div><div class="k">NET GEX</div><div class="v" style="color:${v.net_gex >= 0 ? '#26a69a' : '#ef5350'}">${v.net_gex >= 0 ? '+' : ''}${fmtNum(v.net_gex)} B</div></div>
-        <div><div class="k">NET DEX</div><div class="v" style="color:${v.net_dex >= 0 ? '#26a69a' : '#ef5350'}">${v.net_dex >= 0 ? '+' : ''}${fmtNum(v.net_dex)} B</div></div>
+        <div><div class="k">NET GEX</div><div class="v" style="color:${v.net_gex >= 0 ? 'var(--color-up)' : 'var(--color-down)'}">${v.net_gex >= 0 ? '+' : ''}${fmtNum(v.net_gex)} B</div></div>
+        <div><div class="k">NET DEX</div><div class="v" style="color:${v.net_dex >= 0 ? 'var(--color-up)' : 'var(--color-down)'}">${v.net_dex >= 0 ? '+' : ''}${fmtNum(v.net_dex)} B</div></div>
       </div>
     </div>
     <div class="rg-desc">${ri.desc}${flipText ? ` 距 Gamma Flip ${flipDistText(v)}。` : ''}${opposite ? '全部期权合约合计的 Net GEX 与现价附近的 Gamma 状态相反，短线判断优先看现价附近的 Gamma 状态。' : ''}</div>
@@ -157,7 +158,7 @@ function renderBoard() {
     });
     sec.appendChild(R.table(['标的', '现价', 'Net GEX (B)', 'Regime'], rows, {
       symbol: (v2, row) => `<a href="javascript:pick('${row._sym}')" style="color:var(--accent)">${v2}</a>`,
-      gex: v2 => `<span style="color:${v2 >= 0 ? '#26a69a' : '#ef5350'}">${v2 >= 0 ? '+' : ''}${fmtNum(v2)}</span>`,
+      gex: v2 => `<span style="color:${v2 >= 0 ? 'var(--color-up)' : 'var(--color-down)'}">${v2 >= 0 ? '+' : ''}${fmtNum(v2)}</span>`,
       key: v2 => `<span class="opt-chip ${v2}">${REGIME_INFO[v2].label}</span>`,
     }, ['symbol', 'spot', 'gex', 'key'], true));
     board.appendChild(sec);
@@ -237,7 +238,7 @@ function pGex(panel, v) {
       series: [
         {
           name: 'Call GEX', type: 'bar', data: g.map(x => x.call_gex_m),
-          itemStyle: { color: '#26a69a' },
+          itemStyle: { color: colors.green },
           markLine: {
             silent: true, symbol: 'none',
             data: [
@@ -246,7 +247,7 @@ function pGex(panel, v) {
             ],
           },
         },
-        { name: 'Put GEX', type: 'bar', data: g.map(x => x.put_gex_m), itemStyle: { color: '#ef5350' } },
+        { name: 'Put GEX', type: 'bar', data: g.map(x => x.put_gex_m), itemStyle: { color: colors.red } },
         // 累计 GEX 曲线（右轴）：穿越 0 线 = 累计翻正，即 Gamma Flip 所在区间
         { name: '累计 GEX', type: 'line', yAxisIndex: 1, data: cum,
           showSymbol: false, smooth: true, lineStyle: { width: 2, color: colors.text },
@@ -267,10 +268,10 @@ function pGex(panel, v) {
     if (pct > domPct) { domPct = pct; domLabel = k; }
     const contracts = b.contracts >= 1e6 ? (b.contracts / 1e6).toFixed(1) + 'M' : b.contracts >= 1e3 ? Math.round(b.contracts / 1e3) + 'K' : String(b.contracts);
     const gexTxt = m == null ? '—' : `${m >= 0 ? '+' : ''}${Math.abs(m) >= 1000 ? (m / 1e3).toFixed(1) + 'B' : m.toFixed(0)}M`;
-    const col = m != null ? (pos ? '#26a69a' : '#ef5350') : '';
+    const col = m != null ? (pos ? 'var(--color-up)' : 'var(--color-down)') : '';
     return `<div class="range-row">
       <span>${BUCKET_NAMES[k] || k}</span>
-      <div class="range-track"><div class="range-fill" style="width:${(pct / maxPct * 100).toFixed(1)}%;background:${m != null ? (pos ? '#26a69a' : '#ef5350') : ''}"></div></div>
+      <div class="range-track"><div class="range-fill" style="width:${(pct / maxPct * 100).toFixed(1)}%;background:${m != null ? (pos ? 'var(--color-up)' : 'var(--color-down)') : ''}"></div></div>
       <span class="range-val" style="color:${col}"><b>${pct.toFixed(1)}%</b></span>
       <span class="range-val" style="color:${col}">${gexTxt}</span>
       <span class="range-val">${contracts} 合约</span>
@@ -286,7 +287,7 @@ function pDex(panel, v) {
     <h3>${S} · Net DEX</h3>
     <div class="re-cards" style="grid-template-columns:repeat(auto-fit,minmax(200px,1fr))">
       <div class="re-card"><div class="re-corridor-label">Net DEX</div>
-        <div class="re-corridor-value" style="color:${pos ? '#26a69a' : '#ef5350'}">${pos ? '+' : ''}${fmtNum(v.net_dex)} <span style="font-size:13px">B</span></div>
+        <div class="re-corridor-value" style="color:${pos ? 'var(--color-up)' : 'var(--color-down)'}">${pos ? '+' : ''}${fmtNum(v.net_dex)} <span style="font-size:13px">B</span></div>
         <div class="re-card-sub">市场 dealer book 净${pos ? '做多' : '做空'}，delta 敞口${pos ? '偏向上行' : '偏向下行'}。</div></div>
       <div class="re-card"><div class="re-corridor-label">Call 端 DEX</div>
         <div class="re-corridor-value">${v.net_dex >= 0 ? '+' : ''}${fmtNum(v.call_dex)} <span style="font-size:13px">B</span></div>
@@ -356,7 +357,7 @@ function pVanna(panel, v) {
     <h3>${S} · Vanna / Charm</h3>
     <div class="re-cards" style="grid-template-columns:1fr 1fr">
       <div class="re-card"><div class="re-corridor-label">Net Vanna (dealer)</div>
-        <div class="re-corridor-value" style="color:${vpos ? '#26a69a' : '#ef5350'}">${vpos ? '+' : ''}${fmtNum(v.net_vanna)} <span style="font-size:13px">B</span></div>
+        <div class="re-corridor-value" style="color:${vpos ? 'var(--color-up)' : 'var(--color-down)'}">${vpos ? '+' : ''}${fmtNum(v.net_vanna)} <span style="font-size:13px">B</span></div>
         <div class="re-card-sub">${vpos ? '正 Vanna（IV 下降助推上涨）' : '负 Vanna（IV 下降削弱上涨）'}</div></div>
       <div class="re-card"><div class="re-corridor-label">Total Charm</div>
         <div class="re-corridor-value">${fmtNum(v.net_charm)} <span style="font-size:13px">B</span></div>

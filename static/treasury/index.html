@@ -5,6 +5,7 @@
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>美债 — 观澜台</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap">
 <link rel="stylesheet" href="/css/app.css">
 <link rel="stylesheet" href="/css/special.css">
 <script src="/js/site-nav.js"></script>
@@ -265,9 +266,9 @@ async function load() {
       line('英国', h.uk, colors.orange),
       line('法国', h.france, colors.purple),
       line('比利时', h.belgium, colors.green),
-      line('爱尔兰', h.ireland, '#00bcd4'),
-      line('卢森堡', h.luxembourg, '#607d8b'),
-      line('瑞士', h.swiss, '#e91e63'),
+      line('爱尔兰', h.ireland, reCssVar('--chart-cyan')),
+      line('卢森堡', h.luxembourg, reCssVar('--chart-slate')),
+      line('瑞士', h.swiss, reCssVar('--chart-pink')),
     ],
   }, colors));
 

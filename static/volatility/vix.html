@@ -5,6 +5,7 @@
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>VIX — 观澜台</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap">
 <link rel="stylesheet" href="/css/app.css">
 <link rel="stylesheet" href="/css/special.css">
 <script src="/js/site-nav.js"></script>
@@ -111,7 +112,7 @@ async function load() {
       },
       {
         label: '期限结构',
-        value: `${dot(t.state === 'backwardation' ? '#f87171' : t.state === 'contango' ? '#34d399' : c.gray)}${t.state === 'contango' ? 'Contango' : t.state === 'backwardation' ? 'Backwardation' : '—'}`,
+        value: `${dot(t.state === 'backwardation' ? 'var(--color-down)' : t.state === 'contango' ? 'var(--color-up)' : c.gray)}${t.state === 'contango' ? 'Contango' : t.state === 'backwardation' ? 'Backwardation' : '—'}`,
         sub: ratio ? `VIX / VIX3M = ${ratio.toFixed(3)}` : '比值缺失',
       },
       {
@@ -217,9 +218,9 @@ async function load() {
       markLine: {
         silent: true, symbol: 'none',
         data: [
-          { yAxis: 130, label: { color: '#ff9800', formatter: '偏低 130' }, lineStyle: { color: '#ff9800', type: 'dashed', width: 1 } },
-          { yAxis: 140, label: { color: '#ff9800', formatter: '偏高 140' }, lineStyle: { color: '#ff9800', type: 'dashed', width: 1 } },
-          { yAxis: 150, label: { color: '#ef5350', formatter: '极端 150' }, lineStyle: { color: '#ef5350', type: 'dashed', width: 1 } },
+          { yAxis: 130, label: { color: c.orange, formatter: '偏低 130' }, lineStyle: { color: c.orange, type: 'dashed', width: 1 } },
+          { yAxis: 140, label: { color: c.orange, formatter: '偏高 140' }, lineStyle: { color: c.orange, type: 'dashed', width: 1 } },
+          { yAxis: 150, label: { color: c.red, formatter: '极端 150' }, lineStyle: { color: c.red, type: 'dashed', width: 1 } },
         ],
       },
     }],

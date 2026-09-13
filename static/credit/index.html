@@ -5,6 +5,7 @@
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>信用 — 观澜台</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap">
 <link rel="stylesheet" href="/css/app.css">
 <link rel="stylesheet" href="/css/special.css">
 <script src="/js/site-nav.js"></script>
@@ -53,9 +54,9 @@ async function load() {
   document.getElementById('re-as-of').textContent = R.asOf(d.as_of);
 
   // ── Credit Regime Score 记分卡（对齐持仓页 pos-hero 骨架）──
-  const rg = d.regime || { score: null, regime: '—', color: '#999', components: [], missing: [] };
+  const rg = d.regime || { score: null, regime: '—', color: reCssVar('--text-dim'), components: [], missing: [] };
   // 子分区间色：与后端 REGIME_ZONES 同口径（≤50 偏松绿 / 50-75 偏紧橙 / ≥75 收紧红）
-  const rgColor = v => v === null || v === undefined ? 'var(--text-dim)' : v >= 75 ? '#ef5350' : v >= 50 ? '#ff9800' : '#26a69a';
+  const rgColor = v => v === null || v === undefined ? 'var(--text-dim)' : v >= 75 ? 'var(--color-down)' : v >= 50 ? 'var(--color-warn)' : 'var(--color-up)';
   // 子分中文名（英文为 FRED/后端字段名，中文便于快速阅读）
   const RG_CN = { spread_level: '利差水平', spread_mom: '利差动量', funding_cost: '融资成本', credit_supply: '信贷供给', credit_quality: '贷款质量', market_liq: '市场流动性', cross_asset: '跨资产确认' };
   const bars = rg.components.map(c => {
@@ -83,7 +84,7 @@ async function load() {
         <span class="rh-badge" style="color:${rg.color};border:1px solid ${rg.color}66;background:${rg.color}1a">${rg.regime}</span>
       </div>
       <div class="rh-read">
-        高分 = 信用压力更大，综合分为 7 子分等权平均。子分颜色随压力变化：<b style="color:#26a69a">绿</b>（≤50 偏松）→ <b style="color:#ff9800">橙</b>（50-75 偏紧）→ <b style="color:#ef5350">红</b>（≥75 收紧）。
+        高分 = 信用压力更大，综合分为 7 子分等权平均。子分颜色随压力变化：<b style="color:var(--color-up)">绿</b>（≤50 偏松）→ <b style="color:var(--color-warn)">橙</b>（50-75 偏紧）→ <b style="color:var(--color-down)">红</b>（≥75 收紧）。
         <span class="legend"><b>读法：</b>Spread Level 与 Cross-Asset Confirmation 同步走高时，压力信号更可信。</span>
       </div>
     </div>
@@ -250,9 +251,9 @@ function renderCds(root, d) {
   if (d.bank && d.bank.chart) {
     sec.innerHTML += '<h3 style="margin:12px 0 6px">KBWB vs ^GSPC · 近 30 日归一化 = 100</h3><div class="chart" id="bank-chart"></div>';
     const c = d.bank.chart;
-    R.mkChart('bank-chart', colors => ({
+    R.mkChart('bank-chart', colors => R.lineOption({
       tooltip: { trigger: 'axis' },
-      legend: { data: ['KBWB', '^GSPC'], textStyle: { color: colors.text }, top: 0, icon: 'rect', itemWidth: 12, itemHeight: 3 },
+      legend: { data: ['KBWB', '^GSPC'], top: 0 },
       grid: { left: 48, right: 16, top: 32, bottom: 28 },
       xAxis: { type: 'category', data: c.dates, axisLine: { lineStyle: { color: colors.border } }, axisLabel: { color: colors.muted, fontSize: 11 } },
       yAxis: { type: 'value', scale: true, axisLabel: { color: colors.muted, fontSize: 11 }, splitLine: { lineStyle: { color: colors.grid } } },
@@ -260,7 +261,7 @@ function renderCds(root, d) {
         { name: 'KBWB', type: 'line', data: c.kbwb, smooth: true, showSymbol: false, lineStyle: { width: 2, color: colors.orange } },
         { name: '^GSPC', type: 'line', data: c.spx, smooth: true, showSymbol: false, lineStyle: { width: 2, color: colors.blue } },
       ],
-    }));
+    }, colors));
   }
   // 用 insertAdjacentHTML 追加，不能 innerHTML +=（会重建全部子节点，把上面已建好的 bank-chart 图表 div 换成一个空白新节点）
   sec.insertAdjacentHTML('beforeend', '<p style="margin:0;font-size:12px">真实 Markit CDX IG / CDX HY / 主权 CDS 为付费数据源（Bloomberg / Refinitiv 授权），本页使用公开代理指标。</p>');
@@ -306,8 +307,8 @@ function renderStress(root, d) {
         markLine: {
           silent: true, symbol: 'none',
           data: [
-            { yAxis: 30, lineStyle: { color: '#26a69a', type: 'dashed' }, label: { formatter: '30', color: colors.muted, fontSize: 10, position: 'insideEndTop' } },
-            { yAxis: 70, lineStyle: { color: '#ef5350', type: 'dashed' }, label: { formatter: '70', color: colors.muted, fontSize: 10, position: 'insideEndTop' } },
+            { yAxis: 30, lineStyle: { color: colors.green, type: 'dashed' }, label: { formatter: '30', color: colors.muted, fontSize: 10, position: 'insideEndTop' } },
+            { yAxis: 70, lineStyle: { color: colors.red, type: 'dashed' }, label: { formatter: '70', color: colors.muted, fontSize: 10, position: 'insideEndTop' } },
           ],
         },
       }],

@@ -5,6 +5,7 @@
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>债券 — 观澜台</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap">
 <link rel="stylesheet" href="/css/app.css">
 <link rel="stylesheet" href="/css/special.css">
 <script src="/js/site-nav.js"></script>
@@ -49,7 +50,7 @@ async function load() {
   csec.className = 're-section';
   csec.innerHTML = '<h2>近期收盘价（最近 20 个交易日）</h2><div class="chart" id="bond-chart" style="height:280px"></div>';
   document.getElementById('chart').appendChild(csec);
-  R.mkChart('bond-chart', colors => ({
+  R.mkChart('bond-chart', colors => R.lineOption({
     tooltip: { trigger: 'axis' },
     // ECharts legend icon 不跟随 series 线型（5.6 已验证），改用 formatter 在文字后标注线型（色盲友好）
     legend: {
@@ -59,9 +60,8 @@ async function load() {
         const i = keys.indexOf(name);
         return i === 3 ? `${name}（点划线）` : `${name}${t[['solid', 'dashed', 'dotted'][i]] || ''}`;
       },
-      textStyle: { color: colors.text }, top: 0,
-      // 图例用短线段（rect），去掉默认 line icon 中间的圆点
-      icon: 'rect', itemWidth: 12, itemHeight: 3, itemGap: 10,
+      top: 0,
+      itemGap: 10,
     },
     grid: { left: 44, right: 16, top: 28, bottom: 28 },
     xAxis: { type: 'category', data: rc.dates, axisLine: { lineStyle: { color: colors.border } }, axisLabel: { color: colors.muted, fontSize: 10 } },
@@ -73,7 +73,7 @@ async function load() {
       // 线型差异（实线/虚线/点线/点划线）+ 粗细分层，不依赖颜色也能区分（色盲友好）
       lineStyle: { width: [2.5, 2, 2, 2][i], type: ['solid', 'dashed', 'dotted', [6, 3, 2, 3]][i], color: [colors.blue, colors.orange, colors.green, colors.red][i % 4] },
     })),
-  }));
+  }, colors));
 
   const rows = rc.dates.map((dt, i) => {
     const row = { 日期: dt };
@@ -92,7 +92,7 @@ async function load() {
 }
 
 function fmt(v) { return v == null ? '—' : Number(v).toLocaleString(undefined, { maximumFractionDigits: 2 }); }
-function chg(v) { return v == null ? '—' : `<span style="color:${v >= 0 ? '#26a69a' : '#ef5350'}">${v >= 0 ? '▲ +' : '▼ '}${Number(v).toFixed(2)}%</span>`; }
+function chg(v) { return v == null ? '—' : `<span style="color:${v >= 0 ? 'var(--color-up)' : 'var(--color-down)'}">${v >= 0 ? '▲ +' : '▼ '}${Number(v).toFixed(2)}%</span>`; }
 
 load().catch(e => R.fail(['cards', 'chart', 'recent'], e));
 </script>

@@ -5,6 +5,7 @@
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>波动率全景仪表盘 — 观澜台</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap">
 <link rel="stylesheet" href="/css/app.css">
 <link rel="stylesheet" href="/css/special.css">
 <script src="/js/site-nav.js"></script>
@@ -104,9 +105,9 @@
 <script src="/js/echarts-theme.js"></script>
 <script src="/js/rates-common.js"></script>
 <script>
-const UP = '#26a69a', DOWN = '#ef5350', FLAT = '#9ca3af';
+// 涨跌色：DOM 内联样式用 var()（主题切换即时生效）；ECharts canvas 处用 reCssVar 取实际值
 const chgClass = (v) => v === null || v === undefined || v === 0 ? 'flat' : v > 0 ? 'up' : 'down';
-const chgColor = (v) => v > 0 ? UP : v < 0 ? DOWN : FLAT;
+const chgColor = (v) => v > 0 ? 'var(--color-up)' : v < 0 ? 'var(--color-down)' : 'var(--color-neutral)';
 const pct = (v) => v === null || v === undefined ? '—' : `${v > 0 ? '+' : ''}${v.toFixed(2)}%`;
 
 async function load() {
@@ -237,7 +238,7 @@ async function load() {
     series: [{
       type: 'bar', data: sorted.map(r => ({
         value: r.chg1d,
-        itemStyle: { color: r.chg1d > 0 ? UP : DOWN, borderRadius: r.chg1d > 0 ? [0, 4, 4, 0] : [4, 0, 0, 4] },
+        itemStyle: { color: r.chg1d > 0 ? reCssVar('--color-up') : reCssVar('--color-down'), borderRadius: r.chg1d > 0 ? [0, 4, 4, 0] : [4, 0, 0, 4] },
       })),
       barMaxWidth: 14,
       label: { show: true, position: 'right', color: c.muted, fontSize: 10, formatter: (p) => pct(p.value) },

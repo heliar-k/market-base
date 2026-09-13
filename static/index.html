@@ -5,6 +5,7 @@
   <link rel="icon" href="/favicon.svg" type="image/svg+xml">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>观澜台</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap">
 <link rel="stylesheet" href="/css/app.css">
 <script src="/vendor/lightweight-charts.standalone.production.js"></script>
 <script src="/vendor/echarts.min.js"></script>
@@ -37,13 +38,13 @@
     <!-- Tech view -->
     <div class="tech-view" style="flex-direction:column;gap:8px;flex:1">
       <div class="controls" id="controls">
-        <label><input type="checkbox" data-ma="MA5" checked> <span style="color:#00bcd4">MA5</span></label>
-        <label><input type="checkbox" data-ma="MA10" checked> <span style="color:#2196f3">MA10</span></label>
-        <label><input type="checkbox" data-ma="MA20" checked> <span style="color:#ff9800">MA20</span></label>
-        <label><input type="checkbox" data-ma="MA60" checked> <span style="color:#9c27b0">MA60</span></label>
-        <label><input type="checkbox" data-ma="MA120"> <span style="color:#9e9e9e">MA120</span></label>
-        <label><input type="checkbox" data-ma="BB" checked> <span style="color:#78909c">BB</span></label>
-        <label><input type="checkbox" data-ma="ST"> <span style="color:#e91e63">SuperTrend</span></label>
+        <label><input type="checkbox" data-ma="MA5" checked> <span style="color:var(--chart-cyan)">MA5</span></label>
+        <label><input type="checkbox" data-ma="MA10" checked> <span style="color:var(--color-brand)">MA10</span></label>
+        <label><input type="checkbox" data-ma="MA20" checked> <span style="color:var(--color-warn)">MA20</span></label>
+        <label><input type="checkbox" data-ma="MA60" checked> <span style="color:var(--chart-purple)">MA60</span></label>
+        <label><input type="checkbox" data-ma="MA120"> <span style="color:var(--color-neutral)">MA120</span></label>
+        <label><input type="checkbox" data-ma="BB" checked> <span style="color:var(--chart-slate)">BB</span></label>
+        <label><input type="checkbox" data-ma="ST"> <span style="color:var(--chart-pink)">SuperTrend</span></label>
         <span class="range-controls">
           <button class="range-btn active" data-range="365">365天</button>
           <button class="range-btn" data-range="90">90天</button>

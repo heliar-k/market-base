@@ -17,10 +17,11 @@ const GROUP_LABELS = {
   equity: '美股', bond: '国债', credit: '信用', commodity: '商品',
   crypto: '加密', fx: '美元/FX', vol: '波动率',
 };
-const GROUP_COLORS = {
-  equity: '#1a73e8', bond: '#9c27b0', credit: '#7c4dff', commodity: '#ff9800',
-  crypto: '#26a69a', fx: '#00bcd4', vol: '#ef5350',
-};
+// 分组分类色：全部回读 tokens.css（reCssVar 为 echarts-theme.js 全局）；每次渲染重取，主题切换后自动跟随
+const GROUP_COLORS = () => ({
+  equity: reCssVar('--color-brand'), bond: reCssVar('--chart-purple'), credit: reCssVar('--chart-violet'),
+  commodity: reCssVar('--color-warn'), crypto: reCssVar('--color-up'), fx: reCssVar('--chart-cyan'), vol: reCssVar('--color-down'),
+});
 // drill-down 滚动相关参数（与 cross_asset.py 同口径；前端重算避免每对导一个静态文件）
 const ROLLING_WINDOW = 30;
 const MIN_OBS = 10;
@@ -278,7 +279,8 @@ function renderMatrix() {
     else groups.push({ group: g, start: i, end: i });
   });
   const rich = {};
-  groups.forEach(g => { rich[g.group] = { color: GROUP_COLORS[g.group], fontSize: 10 }; });
+  const GC = GROUP_COLORS();
+  groups.forEach(g => { rich[g.group] = { color: GC[g.group], fontSize: 10 }; });
   const labelFmt = (v, i) => `{${assetGroup[i]}|${v}}`;
 
   matrixChart.setOption({
@@ -302,24 +304,21 @@ function renderMatrix() {
     },
     visualMap: {
       min: -1, max: 1, calculable: true, orient: 'horizontal', left: 'center', bottom: 4, itemWidth: 14,
-      inRange: {
-        color: dark
-          ? ['#60a5fa', '#1e3a5f', '#1f2937', '#7f1d1d', '#f87171']
-          : ['#1d4ed8', '#93c5fd', '#f1f5f9', '#fca5a5', '#dc2626'],
-      },
+      inRange: { color: reCorrRamp() },
       text: ['强正相关', '强负相关'],
       formatter: () => '',
-      textStyle: { color: '#737373', fontSize: 11 },
+      textStyle: { color: reCssVar('--text-dim'), fontSize: 11 },
     },
     series: [{
       type: 'heatmap', data,
       itemStyle: { borderColor: 'transparent', borderWidth: 1 },
-      emphasis: { itemStyle: { borderColor: '#1a73e8', borderWidth: 2 } },
+      emphasis: { itemStyle: { borderColor: reCssVar('--color-brand'), borderWidth: 2 } },
       label: {
         show: true, fontSize: 9,
+        // s/n = 饱和格/中性格上的文字对比色：黑白遮罩类结构色，非语义色，保留字面
         rich: dark
-          ? { s: { color: '#1f2937', fontSize: 9 }, n: { color: '#8b949e', fontSize: 9 } }
-          : { s: { color: '#fff', fontSize: 9 }, n: { color: '#334155', fontSize: 9 } },
+          ? { s: { color: '#1f2937', fontSize: 9 }, n: { color: reCssVar('--text-dim'), fontSize: 9 } }
+          : { s: { color: '#fff', fontSize: 9 }, n: { color: reCssVar('--text-dim'), fontSize: 9 } },
         formatter: p => {
           const v = p.value && p.value[2];
           if (v == null) return '';
@@ -340,7 +339,7 @@ function renderMatrix() {
   if (legend) {
     legend.innerHTML = GROUP_ORDER
       .filter(g => d.assets.some(a => a.group === g))
-      .map(g => `<span class="corr-group-item"><i style="background:${GROUP_COLORS[g]}"></i>${GROUP_LABELS[g]}</span>`)
+      .map(g => `<span class="corr-group-item"><i style="background:${GROUP_COLORS()[g]}"></i>${GROUP_LABELS[g]}</span>`)
       .join('');
   }
 }
@@ -431,7 +430,7 @@ function renderDrillCharts(a, b, rows) {
     yAxis: { type: 'value', min: -1, max: 1 },
     visualMap: {
       show: false, min: -1, max: 1,
-      inRange: { color: dark ? ['#60a5fa', '#f87171'] : ['#1d4ed8', '#dc2626'] },
+      inRange: { color: [reCssVar('--color-brand'), reCssVar('--color-down')] },
     },
     series: [{
       type: 'line', data: corrSeries, showSymbol: false, connectNulls: true,
@@ -506,8 +505,8 @@ function renderInsights(d) {
     const lo = Math.min(...vals), hi = Math.max(...vals);
     const pad = Math.max((hi - lo) * 0.25, 0.05);
     const showZero = lo < 0 && hi > 0; // 0 轴仅在落入数据区间时才有意义
-    const accent = dark ? '#60a5fa' : '#1a73e8';
-    const dim = dark ? '#8b949e' : '#a3a3a3';
+    const accent = reCssVar('--color-brand');
+    const dim = reCssVar('--text-dim');
     chart.setOption({
       grid: { left: 30, right: 38, top: 6, bottom: 16 },
       tooltip: {
@@ -523,7 +522,7 @@ function renderInsights(d) {
       // y 轴按数据缩放（不再固定 -1~1 把窄区间压成直线），留刻度供读数
       yAxis: {
         type: 'value', min: +(lo - pad).toFixed(2), max: +(hi + pad).toFixed(2), splitNumber: 2,
-        splitLine: { lineStyle: { color: dark ? '#2d333b' : '#eef1f5' } },
+        splitLine: { lineStyle: { color: reCssVar('--border-light') } },
         axisLabel: { fontSize: 9, color: dim, formatter: v => v.toFixed(1) },
       },
       series: [{
@@ -893,8 +892,8 @@ function renderChart(seriesMap) {
     series.push({
       name: '滚动相关', type: 'line', xAxisIndex: 1, yAxisIndex: 2,
       data: corr, showSymbol: false, connectNulls: true,
-      lineStyle: { width: 1.4, color: '#9c27b0' }, itemStyle: { color: '#9c27b0' },
-      areaStyle: { opacity: .12, color: '#9c27b0' },
+      lineStyle: { width: 1.4, color: reCssVar('--chart-purple') }, itemStyle: { color: reCssVar('--chart-purple') },
+      areaStyle: { opacity: .12, color: reCssVar('--chart-purple') },
       markLine: { silent: true, symbol: 'none', lineStyle: { opacity: .4, type: 'dashed' }, label: { show: false }, data: [{ yAxis: 0 }] },
     });
     for (const x of [left0, right0].filter(Boolean)) {

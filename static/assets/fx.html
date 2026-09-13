@@ -5,6 +5,7 @@
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>外汇 — 观澜台</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap">
 <link rel="stylesheet" href="/css/app.css">
 <link rel="stylesheet" href="/css/special.css">
 <script src="/js/site-nav.js"></script>
@@ -117,9 +118,9 @@ function renderChart(d) {
     </div>
     <div class="re-chart fx-chart" id="fx-chart-el" style="margin-top:10px"></div>`;
   document.getElementById('fxchart').appendChild(sec);
-  R.mkChart('fx-chart-el', colors => ({
+  R.mkChart('fx-chart-el', colors => R.lineOption({
     tooltip: { trigger: 'axis', valueFormatter: v => v == null ? '—' : Number(v).toFixed(2) + '%' },
-    legend: { top: 0, data: Object.keys(ch.series).map(k => CH_T[k] || k), textStyle: { color: colors.text }, icon: 'rect', itemWidth: 12, itemHeight: 3, itemGap: 10 },
+    legend: { top: 0, data: Object.keys(ch.series).map(k => CH_T[k] || k), itemGap: 10 },
     grid: { left: 48, right: 20, top: 32, bottom: 40 },
     xAxis: { type: 'category', data: ch.dates, axisLine: { lineStyle: { color: colors.border } },
       axisLabel: { color: colors.muted, fontSize: 11,
@@ -130,7 +131,7 @@ function renderChart(d) {
       name: CH_T[k] || k, type: 'line', data: ch.series[k], showSymbol: false, smooth: true,
       lineStyle: { width: k === 'DXY' ? 2.2 : 1.4 }, emphasis: { focus: 'series' },
     })),
-  }));
+  }, colors));
 }
 
 // ── 分组表格（symbol 两行 / 数字列右对齐等宽 / pressure 反向着色） ──

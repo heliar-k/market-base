@@ -1,7 +1,7 @@
 // charts-common.js — shared chart utilities（lightweight-charts，SPA K线专用；
 // 非 ECharts 库，不并入 ECharts 主题，但色值统一回读 tokens.css / app.css 的 CSS 变量）
 
-function cssVar(name) {
+export function cssVar(name) {
   return getComputedStyle(document.body).getPropertyValue(name).trim();
 }
 

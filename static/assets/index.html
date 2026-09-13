@@ -5,6 +5,7 @@
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>大类资产 — 观澜台</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap">
 <link rel="stylesheet" href="/css/app.css">
 <link rel="stylesheet" href="/css/special.css">
 <script src="/js/site-nav.js"></script>
@@ -121,7 +122,7 @@ async function load() {
     }));
     sec.appendChild(R.table(['代码', '名称', '最新价', '日涨跌幅', '日期'], data, {
       last: v => Number(v).toLocaleString(undefined, { maximumFractionDigits: 2 }),
-      chg: v => v === null || v === undefined ? '—' : `<span style="color:${v >= 0 ? '#26a69a' : '#ef5350'}">${v >= 0 ? '▲ +' : '▼ '}${Number(v).toFixed(2)}%</span>`,
+      chg: v => v === null || v === undefined ? '—' : `<span style="color:${v >= 0 ? 'var(--color-up)' : 'var(--color-down)'}">${v >= 0 ? '▲ +' : '▼ '}${Number(v).toFixed(2)}%</span>`,
     }, null, true));
     wrap.appendChild(sec);
   });
@@ -150,12 +151,8 @@ async function load() {
       yAxis: { type: 'category', data: assets, axisLabel: { color: colors.muted, fontSize: 11 }, axisLine: { lineStyle: { color: colors.border } } },
       visualMap: {
         min: -1, max: 1, calculable: true, orient: 'horizontal', left: 'center', bottom: 0,
-        // 发散色带（0 为中心）：浅色/深色主题分段取中性底色，避免深红蓝团块
-        inRange: {
-          color: R.isDark()
-            ? ['#60a5fa', '#1e3a5f', '#1f2937', '#7f1d1d', '#f87171']
-            : ['#1d4ed8', '#93c5fd', '#f1f5f9', '#fca5a5', '#dc2626'],
-        },
+        // 发散色带（0 为中心）：单源 reCorrRamp()（端点=语义蓝/红 token，中段=浮层背景）
+        inRange: { color: reCorrRamp() },
         text: ['强正相关', '强负相关'],
         // 色带两端刻度数字（-1/1）与 text 端点文字重叠，隐藏数字由 text 表达方向
         formatter: () => '',
@@ -165,9 +162,11 @@ async function load() {
         type: 'heatmap', data: d.corr.matrix.flatMap((row, i) => row.map((v, j) => [j, i, v])),
         label: {
           show: true,
-          rich: R.isDark()
-            ? { s: { color: '#1f2937', fontSize: 11 }, n: { color: '#c9d1d9', fontSize: 11 } }
-            : { s: { color: '#fff', fontSize: 11 }, n: { color: '#334155', fontSize: 11 } },
+          // s = 饱和格上的黑白反色字（结构性遮罩色，非语义色）；n = 主题文字色 token
+          rich: {
+            s: { color: R.isDark() ? '#1f2937' : '#fff', fontSize: 11 },
+            n: { color: reCssVar('--text'), fontSize: 11 },
+          },
           formatter: p => {
             const v = p.value && p.value[2];
             if (v == null) return '';
