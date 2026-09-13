@@ -1146,10 +1146,24 @@ def positioning() -> dict:
 # ── fx 子页 ──────────────────────────────────────────────────────────────────
 
 
+# fx 归一化走势图序列（近 6 个月，timsun FX Dashboard 同款 9 条）
+FX_CHART_ROWS: list[tuple[str, str]] = [
+    ("DXY", "美元指数"),
+    ("EURUSD", "EUR/USD"),
+    ("GBPUSD", "GBP/USD"),
+    ("AUDUSD", "AUD/USD"),
+    ("USDJPY", "USD/JPY"),
+    ("USDCNH", "USD/CNH"),
+    ("USDKRW", "USD/KRW"),
+    ("USDMXN", "USD/MXN"),
+    ("EURJPY", "EUR/JPY"),
+]
+
+
 def fx() -> dict:
     df = fx_series()
     if df.empty:
-        return {"breadth": None, "dashboard": []}
+        return {"breadth": None, "dashboard": [], "chart": {"dates": [], "series": {}}}
     # 20D USD 压力：直接报价（USDXXX）= 原始 20D 变化；间接（XXXUSD）= 取负
     INDIRECT = {"EURUSD", "GBPUSD", "AUDUSD", "NZDUSD"}  # 美元在分母
     rows = []
@@ -1196,13 +1210,87 @@ def fx() -> dict:
     )
     total_pairs = sum(1 for r in rows if r["pressure"] is not None)
     overall = _fx_verdict(weak_count, strong_count, total_pairs)
+    # verdict/note 规则引擎：阈值固定、无随机；数据缺失时 verdict 降级为「—」
+    all_pressures = [r["pressure"] for r in rows if r["pressure"] is not None]
+    if all_pressures:
+        avg_all = sum(all_pressures) / len(all_pressures)
+        overall["note"] = f"20日美元压力均值 {avg_all:+.2f}%"
+    else:
+        overall["note"] = "数据不足"
+
+    def _d20(key: str) -> float | None:
+        return next((r["d20"] for r in rows if r["key"] == key), None)
+
+    def _generic(vals: list[float]) -> tuple[str, str]:
+        """通用组内一致性判定：σ>1 分化；|均值|≤0.5 震荡；否则美元同步走强/走弱。"""
+        if not vals:
+            return "—", "数据不足，先运行 ./bin/fetch_fx"
+        m = sum(vals) / len(vals)
+        sd = float(np.std(vals))
+        if sd > 1.0:
+            return "分化", f"组内美元压力标准差 {sd:.2f}，强弱不齐，勿以均值代表全组"
+        if abs(m) <= 0.5:
+            return "震荡", f"组内美元压力均值 {m:+.2f}%，方向未定，等待突破确认"
+        word = "美元同步走强" if m > 0 else "美元同步走弱"
+        return word, f"组内美元压力均值 {m:+.2f}%，走势一致，顺势观察"
+
+    # G10 与商品货币在展示上合并成一张卡：verdict 按合并池计算，两组共用
+    g10_verdict = _generic(groups.get("G10", []) + groups.get("商品货币", []))
+    cnh = _d20("USDCNH")
+    if cnh is None:
+        asia_verdict = "—"
+    elif abs(cnh) <= 0.5:
+        asia_verdict = "CNH 区间震荡"
+    elif cnh > 0:
+        asia_verdict = "CNH 承压"
+    else:
+        asia_verdict = "CNH 走强"
+    hb = groups.get("高贝塔EM", [])
+    asia_note = f"高贝塔EM 美元压力 {sum(hb) / len(hb):+.2f}%" if hb else "数据不足"
+    # JPY carry 卡（非表格分组）：USDJPY 与 EURJPY 双腿同向阈值判定
+    uj, ej = _d20("USDJPY"), _d20("EURJPY")
+    if uj is None or ej is None:
+        jpy = {"verdict": "—", "note": "数据不足，先运行 ./bin/fetch_fx", "d20": uj}
+    elif uj < -1 and ej < -1:
+        jpy = {
+            "verdict": "日元回补压力",
+            "note": f"日元双腿同步下行（{uj:+.2f}% / {ej:+.2f}%），警惕套息平仓",
+            "d20": uj,
+        }
+    elif uj > 1 and ej > 1:
+        jpy = {
+            "verdict": "套息交易活跃",
+            "note": f"日元双腿同步上行（{uj:+.2f}% / {ej:+.2f}%），套息交易活跃",
+            "d20": uj,
+        }
+    else:
+        jpy = {
+            "verdict": "中性",
+            "note": f"USD/JPY 与 EUR/JPY 未同向越过 ±1%（{uj:+.2f}% / {ej:+.2f}%）",
+            "d20": uj,
+        }
+    for b in breadth:
+        g = b["group"]
+        if g in ("G10", "商品货币"):
+            b["verdict"], b["note"] = g10_verdict
+        elif g == "亚洲/EM":
+            b["verdict"], b["note"] = asia_verdict, asia_note
+        else:
+            b["verdict"], b["note"] = _generic(groups.get(g, []))
     # 各组全量对数量（前端“有数据 N/M”分母；dashboard 只含有历史深度的对）
     group_pairs: dict[str, int] = {}
     for _t, _n, g in FX_PAIRS.values():
         group_pairs[g] = group_pairs.get(g, 0) + 1
     return {
-        "breadth": {"groups": breadth, "overall": overall, "group_pairs": group_pairs},
+        "breadth": {
+            "groups": breadth,
+            "overall": overall,
+            "group_pairs": group_pairs,
+            "jpy_carry": jpy,
+        },
         "dashboard": rows,
+        # 近 6 个月归一化走势（窗口首日 0%，各对自身涨跌幅，equities 同款结构）
+        "chart": _index_normalized(df.tail(126), FX_CHART_ROWS),
         "as_of": str(df.index[-1])[:10],
     }
 

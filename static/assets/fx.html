@@ -7,6 +7,37 @@
 <title>外汇 — 观澜台</title>
 <link rel="stylesheet" href="/css/app.css">
 <link rel="stylesheet" href="/css/special.css">
+<script src="/vendor/echarts.min.js"></script>
+<style>
+/* ── fx 页私有样式（对齐 timsun /assets/fx：4 verdict 卡 + FX Dashboard 图） ── */
+.fx-crumb { font-size: 12px; color: var(--text-dim); margin-top: 10px; }
+.fx-crumb a { color: var(--text-secondary); text-decoration: none; }
+.fx-crumb a:hover { color: var(--accent); }
+/* 顶部 4 张 verdict 卡：一排 4 列，移动端 1 列 */
+.fx-verdict-cards { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+@media (max-width: 900px) { .fx-verdict-cards { grid-template-columns: 1fr; } }
+.fx-verdict-card { display: flex; flex-direction: column; }
+.fx-verdict-top { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+.fx-verdict-num { font-size: 12px; color: var(--text-secondary); white-space: nowrap; }
+.fx-verdict-num.fx-mono { font-family: 'SF Mono', monospace; }
+.fx-verdict-value { font-size: 20px; font-weight: 700; margin: 8px 0 6px; line-height: 1.25; }
+.fx-verdict-note { font-size: 11px; color: var(--text-secondary); line-height: 1.5; margin-top: auto; }
+.fx-up { color: #ef5350; }    /* 美元走强方向 → 红 */
+.fx-down { color: #26a69a; }  /* 美元走弱方向 → 绿 */
+.fx-flat { color: var(--text-secondary); }
+body.dark .fx-up { color: #f87171; }
+body.dark .fx-down { color: #34d399; }
+/* FX Dashboard 头栏：左小标 + h2，右 11px meta */
+.fx-dash-head { display: flex; justify-content: space-between; align-items: flex-end; gap: 12px; flex-wrap: wrap; }
+.fx-dash-meta { font-size: 11px; color: var(--text-dim); padding-bottom: 6px; }
+.fx-chart { height: 420px; }
+/* 品种列两行：粗体名 + 10px 等宽 ticker */
+.fx-sym { line-height: 1.4; }
+.fx-sym b { font-weight: 600; }
+.fx-sym-cn { font-size: 11px; color: var(--text-dim); margin-left: 4px; }
+.fx-sym-t { display: block; font-family: 'SF Mono', monospace; font-size: 10px; color: var(--text-dim); }
+.fx-mono { font-family: 'SF Mono', monospace; }
+</style>
 </head>
 <body>
 <div class="re-root">
@@ -16,70 +47,136 @@
   </div>
 
   <div class="re-nav" id="re-nav"></div>
+  <div class="fx-crumb"><a href="/">首页</a> / <a href="/assets/">大类资产</a> / 外汇</div>
 
-  <div id="breadth"></div>
+  <div id="verdicts"></div>
+  <div id="fxchart"></div>
   <div id="dashboard"></div>
+  <div id="explain"></div>
   <div class="re-gen" id="re-gen"></div>
 </div>
 
 <script src="/js/rates-common.js"></script>
 <script>
+// verdict 文案 → 颜色方向（以美元为主体：走强红 / 走弱绿 / 无方向灰）
+const VD = { '美元走强': 'fx-up', '美元同步走强': 'fx-up', 'CNH 承压': 'fx-up', '日元回补压力': 'fx-up',
+  '美元走弱': 'fx-down', '美元同步走弱': 'fx-down', 'CNH 走强': 'fx-down',
+  '分化': 'fx-flat', '震荡': 'fx-flat', 'CNH 区间震荡': 'fx-flat', '套息交易活跃': 'fx-flat', '中性': 'fx-flat', '美元中性': 'fx-flat', '—': 'fx-flat' };
+const sg = v => v == null ? '—' : (v >= 0 ? '+' : '') + Number(v).toFixed(2) + '%';
+const mono = s => `<span class="fx-mono">${s}</span>`;
+
 async function load() {
   const d = await R.get('/api/assets/fx');
-  if (!d.breadth) { R.fail(['breadth', 'dashboard'], new Error('外汇数据不足 · 运行 ./bin/fetch_fx 后刷新')); return; }
+  if (!d.breadth) { R.fail(['verdicts', 'fxchart', 'dashboard'], new Error('外汇数据不足 · 运行 ./bin/fetch_fx 后刷新')); return; }
+  renderVerdicts(d);
+  renderChart(d);
+  renderTables(d);
+  renderExplain();
+  document.getElementById('re-as-of').textContent = d.as_of ? `数据截至 ${d.as_of}` : '';
+  document.getElementById('re-gen').textContent = '规则引擎（LLM 预留）· 数据源：yfinance 外汇日线';
+}
 
-  // ── 美元广度 ──
-  const o = d.breadth.overall;
-  const bsec = document.createElement('div');
-  bsec.className = 're-section';
-  bsec.innerHTML = '<h2>美元广度</h2>';
-  const color = o.verdict === '美元走弱' ? '#26a69a' : (o.verdict === '美元走强' ? '#ef5350' : '#9ca3af');
-  bsec.innerHTML += `
-    <div class="re-badges" style="margin-bottom:10px">
-      <span class="re-badge" style="background:${color}22;color:${color}">${o.verdict}</span>
-      <span class="re-spread">走弱货币对 ${o.weak}/${o.total} · 走强货币对 ${o.strong}/${o.total}${avgPressure(d.breadth.groups)}</span>
+// ── 顶部 4 张 verdict 卡 ──
+function renderVerdicts(d) {
+  const b = d.breadth, o = b.overall;
+  const g = name => (b.groups || []).find(x => x.group === name) || {};
+  const g10 = g('G10'), comm = g('商品货币'), asia = g('亚洲/EM'), jp = b.jpy_carry || {};
+  // G10/商品合并卡的右上数字 = 两组合并 pressure 均值（按 n 加权）
+  const gn = (g10.n || 0) + (comm.n || 0);
+  const gavg = gn ? ((g10.avg_pressure || 0) * (g10.n || 0) + (comm.avg_pressure || 0) * (comm.n || 0)) / gn : null;
+  const card = (label, num, numMono, verdict, note) => `
+    <div class="re-card fx-verdict-card">
+      <div class="fx-verdict-top"><div class="re-corridor-label">${label}</div>
+        <div class="fx-verdict-num${numMono ? ' fx-mono' : ''}">${num}</div></div>
+      <div class="fx-verdict-value ${VD[verdict] || 'fx-flat'}">${verdict || '—'}</div>
+      <div class="fx-verdict-note">${note || ''}</div>
     </div>`;
-  const cards = d.breadth.groups.map(g => `
-    <div class="re-card"><div class="re-corridor-label">${g.group}</div>
-      <div class="re-corridor-value" style="color:${g.avg_pressure < -1 ? '#26a69a' : (g.avg_pressure > 1 ? '#ef5350' : 'var(--text)')}">${g.avg_pressure >= 0 ? '+' : ''}${g.avg_pressure.toFixed(2)}%</div>
-      <div class="re-card-sub">${g.label} · ${g.n} 对</div></div>`).join('');
-  bsec.insertAdjacentHTML('beforeend', `<div class="re-cards">${cards}</div>`);
-  document.getElementById('breadth').appendChild(bsec);
+  const sec = document.createElement('div');
+  sec.className = 're-section';
+  sec.innerHTML = `<h2>美元广度与结构判定</h2>
+    <div class="fx-verdict-cards">${[
+      card('美元广度', `${o.weak}/${o.total} 对走弱`, false, o.verdict, o.note),
+      card('G10 / 商品货币', sg(gavg), false, g10.verdict, g10.note),
+      card('亚洲 / EM', sg(asia.avg_pressure), false, asia.verdict, asia.note),
+      card('JPY Carry', sg(jp.d20), true, jp.verdict, jp.note),
+    ].join('')}</div>`;
+  document.getElementById('verdicts').appendChild(sec);
+}
 
-  // ── FX Dashboard ──
-  const gname = { '美元锚': '美元锚', G10: 'G10', '商品货币': '商品货币', '亚洲/EM': '亚洲/EM', '高贝塔EM': '高贝塔EM', '交叉盘': '交叉盘' };
+// ── FX Dashboard 归一化走势图（近 6 个月，首日 = 0%） ──
+const CH_T = { DXY: 'DXY', EURUSD: 'EUR/USD', GBPUSD: 'GBP/USD', AUDUSD: 'AUD/USD', USDJPY: 'USD/JPY', USDCNH: 'USD/CNH', USDKRW: 'USD/KRW', USDMXN: 'USD/MXN', EURJPY: 'EUR/JPY' };
+function renderChart(d) {
+  const ch = d.chart || {};
+  if (!ch.dates || !ch.dates.length) return;
+  const sec = document.createElement('div');
+  sec.className = 're-section';
+  sec.innerHTML = `<div class="fx-dash-head">
+      <div><div class="re-corridor-label">FX Dashboard</div>
+        <h2 style="margin:2px 0 0">美元、G10、亚洲/EM 与套息交易同屏</h2></div>
+      <div class="fx-dash-meta">最新行情 ${d.as_of || '—'} · 20D USD pressure 为「对美元强弱」的统一读数</div>
+    </div>
+    <div class="re-chart fx-chart" id="fx-chart-el" style="margin-top:10px"></div>`;
+  document.getElementById('fxchart').appendChild(sec);
+  R.mkChart('fx-chart-el', colors => ({
+    tooltip: { trigger: 'axis', valueFormatter: v => v == null ? '—' : Number(v).toFixed(2) + '%' },
+    legend: { top: 0, data: Object.keys(ch.series).map(k => CH_T[k] || k), textStyle: { color: colors.text }, icon: 'rect', itemWidth: 12, itemHeight: 3, itemGap: 10 },
+    grid: { left: 48, right: 20, top: 32, bottom: 40 },
+    xAxis: { type: 'category', data: ch.dates, axisLine: { lineStyle: { color: colors.border } },
+      axisLabel: { color: colors.muted, fontSize: 11,
+        interval: (i) => i === 0 || i === ch.dates.length - 1 || ch.dates[i].slice(0, 7) !== ch.dates[i - 1].slice(0, 7),
+        formatter: v => { const [, m] = v.split('-'); return Number(m) + '月'; } } },
+    yAxis: { type: 'value', axisLabel: { color: colors.muted, fontSize: 11, formatter: v => v + '%' }, splitLine: { lineStyle: { color: colors.grid } } },
+    series: Object.keys(ch.series).map(k => ({
+      name: CH_T[k] || k, type: 'line', data: ch.series[k], showSymbol: false, smooth: true,
+      lineStyle: { width: k === 'DXY' ? 2.2 : 1.4 }, emphasis: { focus: 'series' },
+    })),
+  }));
+}
+
+// ── 分组表格（symbol 两行 / 数字列右对齐等宽 / pressure 反向着色） ──
+function renderTables(d) {
   const wrap = document.getElementById('dashboard');
   const order = ['美元锚', 'G10', '商品货币', '亚洲/EM', '高贝塔EM', '交叉盘'];
+  const pair = k => k === 'DXY' ? 'DXY' : k.slice(0, 3) + '/' + k.slice(3);
   order.forEach(gn => {
     const rows = d.dashboard.filter(r => r.group === gn);
     if (!rows.length) return;
     const sec = document.createElement('div');
     sec.className = 're-section';
     sec.style.marginBottom = '12px';
-    // 分母 = 全组配置对数（group_pairs），非当前有数据行数——后者恒等于分子
+    // 分母 = 全组配置对数量（group_pairs），非当前有数据行数——后者恒等于分子
     const total = (d.breadth.group_pairs || {})[gn] ?? rows.length;
     sec.innerHTML = `<h2>${gn} · ${rows.length} / ${total} 有数据</h2>`;
+    // pressure 反向着色：美元走强（正）红、走弱（负）绿，逐格计算，走 .fx-up/.fx-down 类（支持暗色变体）
     sec.appendChild(R.table(['品种', '最新', '1D', '5D', '20D', '60D', '20D USD压力'], rows, {
-      symbol: v => `${String(v).replace(/=X$/, '')} · ${rows.find(r => r.symbol === v)?.name || ''}`,
-      last: v => fmt(v, 4),
+      symbol: (v, row) => `<div class="fx-sym"><b>${pair(row.key)}</b><span class="fx-sym-cn">${row.name || ''}</span><span class="fx-sym-t">${v}</span></div>`,
+      last: v => v == null ? '—' : `<span class="fx-mono">${fmt(v, 4)}</span>`,
       d1: (v, row) => pctColor(v), d5: (v, row) => pctColor(v), d20: (v, row) => pctColor(v), d60: (v, row) => pctColor(v),
-      pressure: (v, row) => `<b style="color:${v < -1 ? '#26a69a' : (v > 1 ? '#ef5350' : 'var(--text)')}">${v == null ? '—' : (v >= 0 ? '+' : '') + v.toFixed(2) + '%'}</b>`,
+      pressure: (v) => {
+        if (v == null || v === 0) return '<span class="fx-flat">—</span>';
+        const c = v > 0 ? 'fx-up' : 'fx-down';
+        return `<b class="${c}">${mono((v >= 0 ? '+' : '') + v.toFixed(2) + '%')}</b>`;
+      },
     }, ['symbol', 'last', 'd1', 'd5', 'd20', 'd60', 'pressure'], true));
     wrap.appendChild(sec);
   });
+}
 
-  document.getElementById('re-as-of').textContent = d.as_of ? `数据截至 ${d.as_of}` : '';
-  document.getElementById('re-gen').textContent = '读法：美元压力 = 各对 20 日涨跌统一换算美元强弱；亚洲/EM 同向走弱 = 美元融资压力抬升；日元套息（USDJPY 与 EURJPY 同步走弱）时，留意套息平仓风险。';
+// ── 读法说明 ──
+function renderExplain() {
+  const sec = document.createElement('div');
+  sec.className = 're-section';
+  sec.innerHTML = `<h2>读法</h2><div class="re-explain">
+    <p><b>美元压力口径</b>：20D USD pressure = 各货币对 20 日涨跌统一换算成「美元强弱」——直接报价（USD/XXX）取原始涨跌，间接报价（XXX/USD）取负。正值 = 美元走强（该货币对相对美元贬值），负值 = 美元走弱。</p>
+    <p><b>亚洲/EM 同向走弱</b>：当亚洲与高贝塔 EM 货币（CNH/HKD/KRW/INR/MXN/BRL/ZAR）对美元同向贬值时，往往意味着美元融资压力抬升，历史上与新兴市场资本外流、风险资产回调同步。</p>
+    <p><b>JPY carry 平仓提示</b>：USD/JPY 与 EUR/JPY 同步下行 = 日元被动升值，是套息交易（借日元买高息资产）平仓的典型信号；若与其他风险资产同步下挫，需警惕去杠杆传导。</p>
+  </div>`;
+  document.getElementById('explain').appendChild(sec);
 }
-function avgPressure(groups) {
-  if (!groups.length) return '';  // 无分组数据时不掺入标题（避免 NaN%）；空值安全
-  const vals = groups.map(g => g.avg_pressure);
-  return ` · 20 日美元压力均值 ${(vals.reduce((a, b) => a + b, 0) / vals.length).toFixed(2)}%`;
-}
-function pctColor(v) { return v == null ? '—' : `<span style="color:${v >= 0 ? '#26a69a' : '#ef5350'}">${v >= 0 ? '+' : ''}${v.toFixed(2)}%</span>`; }
+function pctColor(v) { return v == null ? '—' : `<span class="fx-mono" style="color:${v >= 0 ? '#26a69a' : '#ef5350'}">${(v >= 0 ? '+' : '') + v.toFixed(2) + '%'}</span>`; }
 function fmt(v, d) { return v == null ? '—' : Number(v).toLocaleString(undefined, { maximumFractionDigits: d }); }
 
-load().catch(e => R.fail(['breadth', 'dashboard'], e));
+load().catch(e => R.fail(['verdicts', 'fxchart', 'dashboard'], e));
 </script>
 <script src="/js/nav.js"></script>
 </body>
