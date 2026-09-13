@@ -2,11 +2,12 @@
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
-  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>逆回购与财政部账户 — 观澜台</title>
 <link rel="stylesheet" href="/css/app.css">
 <link rel="stylesheet" href="/css/special.css">
+<script src="/js/site-nav.js"></script>
 <script src="/vendor/echarts.min.js"></script>
 </head>
 <body>
@@ -42,7 +43,7 @@ async function load() {
 
   const d = await R.get('/api/liquidity/rrp-tga');
   const a = d.alert || {};
-  document.getElementById('re-as-of').textContent = d.data_date ? `数据截至 ${d.data_date}` : '';
+  document.getElementById('re-as-of').textContent = R.asOf(d.data_date);
 
   const pos = (a.sofr_iorb_bp ?? 0) >= 0;
   document.getElementById('re-alert').innerHTML = `<div class="re-section" style="border-color:${pos ? '#ef5350' : '#26a69a'};border-width:1.5px">

@@ -8,12 +8,17 @@
   --color-neutral: #9ca3af;
   --color-warn: #ff9800;
   --color-brand: #1a73e8; /* 品牌蓝（= 主题 accent，暗色见下方 body.dark） */
+  /* 鹰鸽语义色（美联储专题专用，与涨跌独立：鹰=偏紧=红、鸽=偏松=绿，色相偏亮以保证徽章可读） */
+  --color-hawk: #ef4444;
+  --color-dove: #10b981;
   /* 12% 透明底（color-mix，Chrome 111+；本地工具站可用） */
   --color-up-bg: color-mix(in srgb, var(--color-up) 12%, transparent);
   --color-down-bg: color-mix(in srgb, var(--color-down) 12%, transparent);
   --color-neutral-bg: color-mix(in srgb, var(--color-neutral) 12%, transparent);
   --color-warn-bg: color-mix(in srgb, var(--color-warn) 12%, transparent);
   --color-brand-bg: color-mix(in srgb, var(--color-brand) 12%, transparent);
+  --color-hawk-bg: color-mix(in srgb, var(--color-hawk) 15%, transparent);
+  --color-dove-bg: color-mix(in srgb, var(--color-dove) 15%, transparent);
   /* 历史短名别名（SPA dashboard / crypto 页内联样式在用） */
   --up: var(--color-up);
   --down: var(--color-down);
@@ -36,4 +41,6 @@ body.dark {
   --color-neutral: #9ca3af;
   --color-warn: #ff9800;
   --color-brand: #58a6ff;
+  --color-hawk: #f87171;
+  --color-dove: #34d399;
 }

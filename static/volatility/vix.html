@@ -2,11 +2,12 @@
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
-  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>VIX — 观澜台</title>
 <link rel="stylesheet" href="/css/app.css">
 <link rel="stylesheet" href="/css/special.css">
+<script src="/js/site-nav.js"></script>
 <script src="/vendor/echarts.min.js"></script>
 </head>
 <body>
@@ -86,7 +87,7 @@ async function load() {
   ].map(([t, id]) => `<a href="#${id}">${t}</a>`).join('');
 
   const data = await R.get('/api/volatility/analysis');
-  document.getElementById('re-as-of').textContent = '数据截至 ' + data.as_of;
+  document.getElementById('re-as-of').textContent = R.asOf(data.as_of);
 
   const c = R.colors();
   const axis = (name) => ({

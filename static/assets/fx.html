@@ -2,12 +2,12 @@
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
-  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>外汇 — 观澜台</title>
 <link rel="stylesheet" href="/css/app.css">
 <link rel="stylesheet" href="/css/special.css">
-<script src="/vendor/echarts.min.js"></script>
+<script src="/js/site-nav.js"></script>
 <style>
 /* ── fx 页私有样式（对齐 timsun /assets/fx：4 verdict 卡 + FX Dashboard 图） ── */
 .fx-crumb { font-size: 12px; color: var(--text-dim); margin-top: 10px; }
@@ -36,6 +36,7 @@
 .fx-sym-t { display: block; font-family: 'SF Mono', monospace; font-size: 10px; color: var(--text-dim); }
 .fx-mono { font-family: 'SF Mono', monospace; }
 </style>
+<script src="/vendor/echarts.min.js"></script>
 </head>
 <body>
 <div class="re-root">
@@ -71,7 +72,7 @@ async function load() {
   renderChart(d);
   renderTables(d);
   renderExplain();
-  document.getElementById('re-as-of').textContent = d.as_of ? `数据截至 ${d.as_of}` : '';
+  document.getElementById('re-as-of').textContent = R.asOf(d.as_of);
   document.getElementById('re-gen').textContent = '规则引擎（LLM 预留）· 数据源：yfinance 外汇日线';
 }
 

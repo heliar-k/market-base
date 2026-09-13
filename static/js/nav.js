@@ -19,19 +19,10 @@
 })();
 
 (function () {
-  // 专题间 Tab（总入口）
-  var TABS = [
-    ['今日研判', '/daily/'],
-    ['大类资产', '/assets/'],
-    ['利率', '/rates/'],
-    ['通胀', '/inflation/'],
-    ['就业', '/labor/'],
-    [ '美债', '/treasury/' ],
-    ['流动性', '/liquidity/'],
-    ['信用', '/credit/'],
-    ['美联储', '/fed/'],
-    ['波动率', '/volatility/'],
-  ];
+  // 专题间 Tab（总入口）— 数据源：/js/site-nav.js（全站导航唯一来源，只取组这一层）
+  var TABS = [SITE_NAV.home].concat(SITE_NAV.groups).map(function (g) {
+    return [g.label, g.page];
+  });
 
   // 内嵌（SPA 宏观分栏的 iframe）时不渲染主题按钮与专题间 Tab/仪表盘链接
   var embedded = window.self !== window.top;

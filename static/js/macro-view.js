@@ -1,53 +1,13 @@
 // macro-view.js — 全局左侧专题导航（timsun 风格）+ 宏观详情 iframe（懒加载缓存）
 
-// ── 全站专题导航 ──
-// 结构：核心入口（视图级）+ 全部专题（分组，可展开/收起）；与网站页面一一对应
-// 子项 sub: true → 二级缩进（timsun 同款：美股下的 ETF/期权/持仓、加密货币下的衍生品）
-const NAV = [
-  { key: 'assets', label: '大类资产', page: '/assets/', items: [
-    { key: 'assets/equities', label: '美股', page: '/assets/equities.html' },
-    { key: 'assets/etfs', label: 'ETF 看板', page: '/assets/etfs.html', sub: true },
-    { key: 'equities/options', label: '期权 / GEX', page: '/assets/equities/options.html', sub: true },
-    { key: 'equities/positioning', label: '持仓追踪 · CFTC', page: '/assets/equities/positioning.html', sub: true },
-    { key: 'assets/bonds', label: '债券', page: '/assets/bonds.html' },
-    { key: 'assets/commodities', label: '商品', page: '/assets/commodities.html' },
-    { key: 'assets/fx', label: '外汇', page: '/assets/fx.html' },
-    { key: 'assets/crypto', label: '加密货币', page: '/assets/crypto.html' },
-    { key: 'assets/crypto-derivatives', label: '衍生品 · OKX+Deribit', page: '/assets/crypto-derivatives.html', sub: true },
-  ]},
-  { key: 'rates', label: '利率', page: '/rates/', items: [
-    { key: 'rates/fed-funds', label: '联邦基金利率', page: '/rates/fed-funds.html' },
-    { key: 'rates/yield-curve', label: '收益率曲线', page: '/rates/yield-curve.html' },
-    { key: 'rates/pricing', label: '利率定价', page: '/rates/pricing.html' },
-  ]},
-  { key: 'inflation', label: '通胀', page: '/inflation/' },
-  { key: 'labor', label: '就业', page: '/labor/' },
-  { key: 'treasury', label: '美债', page: '/treasury/' },
-  { key: 'liquidity', label: '流动性', page: '/liquidity/', items: [
-    { key: 'liquidity/transmission-chain', label: '压力指数', page: '/liquidity/transmission-chain.html' },
-    { key: 'liquidity/fed-balance-sheet', label: '资产负债表', page: '/liquidity/fed-balance-sheet.html' },
-    { key: 'liquidity/operations', label: '公开市场操作', page: '/liquidity/operations.html' },
-    { key: 'liquidity/rrp-tga', label: 'RRP & TGA', page: '/liquidity/rrp-tga.html' },
-    { key: 'liquidity/reserves', label: '准备金', page: '/liquidity/reserves.html' },
-    { key: 'liquidity/global-dollar', label: '全球美元', page: '/liquidity/global-dollar.html' },
-    { key: 'liquidity/subsurface', label: '次表层资金流', page: '/liquidity/subsurface.html' },
-  ]},
-  { key: 'credit', label: '信用', page: '/credit/' },
-  { key: 'fed', label: '美联储', page: '/fed/' },
-  { key: 'vol', label: '波动率', page: '/volatility/', items: [
-    { key: 'volatility/vix', label: 'VIX', page: '/volatility/vix.html' },
-  ]},
-];
+// ── 全站专题导航（唯一数据源：/js/site-nav.js 的全局 SITE_NAV，与专题页顶栏 Tab 同源）──
+// home = 今日研判（SPA 默认落地页）；groups = 专题分组（可展开/收起，items 为二级页）
+const SITE = window.SITE_NAV;
+const NAV = SITE.groups;
 
-// 核心入口：SPA 视图（switch-tab 事件）或专题页（iframe）
-// 今日研判 = 默认落地页（renderDetail 初始 URL），复刻 timsun.net 首页决策台
-const DEFAULT_PAGE = '/daily/';
-const CORE = [
-  { label: '今日研判', page: DEFAULT_PAGE },
-  { label: '市场仪表盘', view: 'dashboard' },
-  { label: '技术分析', view: 'tech' },
-  { label: '关联分析', view: 'correlation' },
-];
+// 核心入口：专题页（home）+ SPA 自有视图
+const DEFAULT_PAGE = SITE.home.page;
+const CORE = [{ label: SITE.home.label, page: DEFAULT_PAGE }].concat(SITE.spaViews);
 
 // key ↔ page 双向映射（key 也用于 URL hash / openTopic）
 const PAGES = new Map(); // key → page
@@ -58,8 +18,8 @@ NAV.forEach(g => {
   (g.items || []).forEach(it => { PAGES.set(it.key, it.page); KEYS.set(it.page, it.key); });
 });
 // 核心入口里的专题页（今日研判）也注册 hash 路由
-PAGES.set('daily', DEFAULT_PAGE);
-KEYS.set(DEFAULT_PAGE, 'daily');
+PAGES.set(SITE.home.key, DEFAULT_PAGE);
+KEYS.set(DEFAULT_PAGE, SITE.home.key);
 
 // hash 键名容错：分组前缀猜错时按最后一段回退（导航 key 末段无重名）
 // 例：#macro/fed → fed；#equities/crypto → assets/crypto

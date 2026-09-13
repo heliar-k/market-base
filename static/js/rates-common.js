@@ -10,6 +10,25 @@ const R = {
   fmtB: (v) => (v === null || v === undefined ? '—' : `$${Number(v).toFixed(0)}B`),
   // 生成器类型 → 界面文案（避免内部枚举 rules/llm 泄漏到页面，见审计 D2）
   genText: (g) => (g === 'llm' ? 'LLM' : '规则引擎（LLM 预留）'),
+
+  // ── 时效标签（re-as-of）文案唯一组装处 ──
+  // AGENTS 规范：前缀固定「数据截至」，多源用 ` · ` 分段，日期一律 ISO，月频区间写「月频 起–止」。
+  //   R.asOf(date)                        → 「数据截至 2026-09-04」
+  //   R.asOf([['TIC', d1], ['拍卖', d2]])   → 「数据截至 TIC d1 · 拍卖 d2」
+  //   R.asOf([R.asMonth([a, b]), ['盈亏平衡', c]]) → 「数据截至 月频 a–b · 盈亏平衡 c」
+  // 段值为空（null / '' / false / [label, null]）自动丢弃，全空返回 ''（页面不显示前缀）。
+  asOf(src) {
+    const list = typeof src === 'string' ? [src] : src || [];
+    const segs = list
+      .map((s) => (Array.isArray(s) ? (s[1] ? `${s[0]} ${s[1]}` : '') : s || ''))
+      .filter(Boolean);
+    return segs.length ? `数据截至 ${segs.join(' · ')}` : '';
+  },
+  // 月频发布滞后：取一组观测日的最早–最晚，拼成「月频 起–止」时效段（配合 asOf 用）
+  asMonth: (dates) => {
+    const d = (dates || []).filter(Boolean).sort();
+    return d.length ? `月频 ${d[0]}–${d[d.length - 1]}` : '';
+  },
   ts: (arr) => (arr || []).map(p => p.date),
   vs: (arr) => (arr || []).map(p => p.value),
 

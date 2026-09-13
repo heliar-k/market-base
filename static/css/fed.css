@@ -2,9 +2,9 @@
 
 /* 鹰鸽徽章 */
 .fed-badge { display: inline-block; padding: 1px 8px; border-radius: 10px; font-size: 11px; font-weight: 600; }
-.fed-badge.hawk { background: rgba(248,113,113,.15); color: #ef4444; }
-.fed-badge.dove { background: rgba(52,211,153,.15); color: #10b981; }
-.fed-badge.mid { background: rgba(156,163,175,.15); color: var(--text-secondary); }
+.fed-badge.hawk { background: var(--color-hawk-bg); color: var(--color-hawk); }
+.fed-badge.dove { background: var(--color-dove-bg); color: var(--color-dove); }
+.fed-badge.mid { background: var(--color-neutral-bg); color: var(--text-secondary); }
 
 /* 文档条目（声明/演讲列表） */
 .fed-doc { border: 1px solid var(--border); border-radius: 8px; background: var(--surface); padding: 16px 20px; }

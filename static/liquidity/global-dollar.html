@@ -2,11 +2,12 @@
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
-  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>全球美元流动性 — 观澜台</title>
 <link rel="stylesheet" href="/css/app.css">
 <link rel="stylesheet" href="/css/special.css">
+<script src="/js/site-nav.js"></script>
 <script src="/vendor/echarts.min.js"></script>
 </head>
 <body>
@@ -35,7 +36,7 @@ async function load() {
 
   const d = await R.get('/api/liquidity/global-dollar');
   const sw = d.swap || {};
-  document.getElementById('re-as-of').textContent = sw.date ? `数据截至 央行互换 ${sw.date}` : '';
+  document.getElementById('re-as-of').textContent = R.asOf([['央行互换', sw.date]]);
 
   const dxy = d.dxy || {};
   document.getElementById('re-cards').appendChild(R.cards([

@@ -2,11 +2,12 @@
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
-  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>债券 — 观澜台</title>
 <link rel="stylesheet" href="/css/app.css">
 <link rel="stylesheet" href="/css/special.css">
+<script src="/js/site-nav.js"></script>
 <script src="/vendor/echarts.min.js"></script>
 </head>
 <body>
@@ -37,7 +38,7 @@ async function load() {
   document.getElementById('cards').innerHTML = cards.map(c => `
     <div class="re-card"><div class="re-corridor-label">${c.label}</div>
     <div class="re-corridor-value">${c.value}</div><div class="re-card-sub">${c.sub}</div></div>`).join('');
-  if (d.cards && d.cards.length) document.getElementById('re-as-of').textContent = '数据截至 ' + d.cards[0].date;
+  if (d.cards && d.cards.length) document.getElementById('re-as-of').textContent = R.asOf(d.cards[0].date);
 
   // 20 日收盘图/表
   const rc = d.recent || { dates: [], series: {} };

@@ -2,11 +2,12 @@
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
-  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>ETF — 观澜台</title>
 <link rel="stylesheet" href="/css/app.css">
 <link rel="stylesheet" href="/css/special.css">
+<script src="/js/site-nav.js"></script>
 </head>
 <body>
 <div class="re-root">
@@ -42,7 +43,7 @@ async function load() {
   D = await R.get('/api/assets/etfs');
   if (!D.pool || !D.pool.length) { R.fail(['stats', 'pool'], new Error('精选池数据不足 · 运行 ./bin/fetch_etf 后刷新')); return; }
 
-  if (D.as_of) document.getElementById('re-as-of').textContent = '数据截至 ' + D.as_of;
+  if (D.as_of) document.getElementById('re-as-of').textContent = R.asOf(D.as_of);
   renderStats();
   renderUniverse();
   renderFilters();

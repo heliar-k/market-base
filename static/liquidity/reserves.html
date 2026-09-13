@@ -2,11 +2,12 @@
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
-  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>银行准备金 — 观澜台</title>
 <link rel="stylesheet" href="/css/app.css">
 <link rel="stylesheet" href="/css/special.css">
+<script src="/js/site-nav.js"></script>
 <script src="/vendor/echarts.min.js"></script>
 </head>
 <body>
@@ -47,7 +48,7 @@ async function load() {
 
   const d = await R.get('/api/liquidity/reserves');
   const r = d.cards?.reserves || {};
-  document.getElementById('re-as-of').textContent = r.date ? `数据截至 ${r.date}` : '';
+  document.getElementById('re-as-of').textContent = R.asOf(r.date);
   document.getElementById('re-cards').appendChild(R.cards([
     { label: '银行准备金余额', value: r.value_b == null ? '—' : (r.value_b / 1000).toFixed(2) + ' 万亿', sub: `4周 ${(r.chg_4w_pct ?? 0) >= 0 ? '+' : ''}${(r.chg_4w_pct ?? 0).toFixed(2)}%` },
     { label: '银行中介意愿', value: d.cards?.intermediation?.state || '—', sub: 'SOFR−3M T-Bill 走扩说明担保融资变贵' },

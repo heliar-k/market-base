@@ -39,6 +39,7 @@ market-base/
 │   ├── hedge_planner.py          ← 下跌保护结构报价器（put / 价差 / 领口）
 │   ├── server.py                 ← FastAPI Web 后端（45 routes，组合根：import 全部分析层）
 │   ├── export_pages.py           ← 静态站点导出（GitHub Pages，site/ 预渲染）
+│   ├── sync_pages_head.py        ← 专题页 <head> 样板单源（模板渲染 + --check 防漂移）
 │   ├── *_analysis.py             ← 专题分析引擎（9 个，规则引擎生成叙事，只读 CSV 不写盘）：
 │   │     rates / credit / inflation / labor / treasury / fed / volatility /
 │   │     assets / liquidity —— 读 CSV 统一走 src/analysis_utils.py
@@ -398,7 +399,13 @@ uv run python src/sell_put.py --symbol TSM
 - **数据时效提示统一格式**：页面页头 `re-as-of` 统一为「**数据截至** [源] YYYY-MM-DD[ · 源 date]」——
   前缀固定「数据截至」，多源/双时点用 ` · ` 分段（如 treasury「TIC 2026-06-01 · Bill 占比/拍卖 2026-09-04」、
   inflation「月频 2026-07-01–2026-07-01 · 盈亏平衡 2026-09-04」）；月频区间写「月频 {起}–{止}」；
-  日期一律 ISO。数据缺失显示空，不要自造前缀（「数据日期:」「快照时间 ·」等已废弃）
+  日期一律 ISO。数据缺失显示空，不要自造前缀（「数据日期:」「快照时间 ·」等已废弃）。
+  **文案只能由 `rates-common.js` 的 `R.asOf(...)` / `R.asMonth(...)` 组装**，页面不写模板串
+- **head / 导航单源（Phase 3）**：专题页 `<head>` 样板唯一来源 = `src/sync_pages_head.py` 的
+  `HEAD_TEMPLATE`（跑 `uv run python -m src.sync_pages_head` 重放覆盖，手改 head 会被 pytest 拦下）；
+  顶栏 Tab + SPA 侧栏专题树唯一数据源 = `static/js/site-nav.js` 的全局 `SITE_NAV`。
+  新专题：写页面 → 跑 head 同步 → 在 `SITE_NAV` 登记 → （若引入新顶层目录）补
+  `src/export_pages.py._PATH_PREFIXES`（漏补则 `tests/test_static_single_source.py` 红）
 
 ---
 

@@ -2,11 +2,12 @@
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
-  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>波动率全景仪表盘 — 观澜台</title>
 <link rel="stylesheet" href="/css/app.css">
 <link rel="stylesheet" href="/css/special.css">
+<script src="/js/site-nav.js"></script>
 <script src="/vendor/echarts.min.js"></script>
 </head>
 <body>
@@ -120,9 +121,9 @@ async function load() {
   const data = await R.get('/api/volatility/dashboard');
   // CBOE 期限结构滞后一天（CDN 次晨更新），Barchart 快照日频不滞后，双时点如实标注
   document.getElementById('re-as-of').textContent =
-    data.as_of_snapshot && data.as_of_snapshot > data.as_of
-      ? `数据截至 CBOE ${data.as_of} · 快照 ${data.as_of_snapshot}`
-      : '数据截至 ' + data.as_of;
+    R.asOf(data.as_of_snapshot && data.as_of_snapshot > data.as_of
+      ? [['CBOE', data.as_of], ['快照', data.as_of_snapshot]]
+      : data.as_of);
   const c = R.colors();
   const axis = (name) => ({
     type: 'value', name, nameTextStyle: { color: c.muted },

@@ -2,11 +2,12 @@
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
-  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>通胀 — 观澜台</title>
 <link rel="stylesheet" href="/css/app.css">
 <link rel="stylesheet" href="/css/special.css">
+<script src="/js/site-nav.js"></script>
 <script src="/vendor/echarts.min.js"></script>
 </head>
 <body>
@@ -44,10 +45,9 @@ async function load() {
 
   const d = await R.get('/api/inflation/overview');
   // 月频卡片（CPI/PCE/PPI）滞后，盈亏平衡为日频，页头显示双时点
-  const md = [d.cards.cpi.as_of, d.cards.core_pce.as_of].filter(Boolean).sort();
   const bei = d.expectations.market[0]?.as_of;
   document.getElementById('re-as-of').textContent =
-    `数据截至 月频 ${md[0]}–${md[md.length - 1]}${bei ? ` · 盈亏平衡 ${bei}` : ''}`;
+    R.asOf([R.asMonth([d.cards.cpi.as_of, d.cards.core_pce.as_of]), bei && ['盈亏平衡', bei]]);
 
   // ── YoY 卡片行 ──
   const c = d.cards;

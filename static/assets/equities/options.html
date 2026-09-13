@@ -2,11 +2,12 @@
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
-  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>期权市场结构 — 观澜台</title>
 <link rel="stylesheet" href="/css/app.css">
 <link rel="stylesheet" href="/css/special.css">
+<script src="/js/site-nav.js"></script>
 <style>/* 期权结构看板：三张表（指数/ETF · Mag 7 · 重点个股）列宽统一。
    各表 auto-layout 按自身内容定宽，同名列会错位 20-45px → 固定百分比列宽对齐 */
 #board .re-table { table-layout: fixed; }
@@ -70,7 +71,7 @@ function mk(id, option) {
 async function load() {
   D = await R.get('/api/assets/equities-options');
   if (!D || !D.symbols) { R.fail(['detail', 'board'], new Error('无期权结构快照 · 运行 ./bin/fetch_options_structure 后刷新')); return; }
-  document.getElementById('re-as-of').textContent = D.date ? `数据截至 期权快照 ${D.date.slice(0, 10)}` : '';
+  document.getElementById('re-as-of').textContent = R.asOf([['期权快照', D.date && D.date.slice(0, 10)]]);
 
   renderRegime();
   renderBoard();

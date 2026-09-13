@@ -2,13 +2,12 @@
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
-  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>今日研判 — 观澜台</title>
 <link rel="stylesheet" href="/css/app.css">
 <link rel="stylesheet" href="/css/special.css">
-<script src="/js/echarts-theme.js"></script>
-<script src="/js/rates-common.js"></script>
+<script src="/js/site-nav.js"></script>
 <style>
 /* 今日研判页私有样式（面板名前缀 db-）；语义色走 tokens.css */
 .db-spark.up { stroke: var(--color-up); }
@@ -24,6 +23,8 @@
 @keyframes db-flash { 0% { background: var(--accent-light); } 100% { background: transparent; } }
 .db-flash { animation: db-flash 1.6s ease-out; }
 </style>
+<script src="/js/echarts-theme.js"></script>
+<script src="/js/rates-common.js"></script>
 </head>
 <body>
 <div class="re-root">
@@ -150,11 +151,10 @@ async function load() {
   const d = brief.value;
   const ind = d.indicators || { as_of: null, groups: {}, rows: [] };
 
-  // 页头多源「数据截至」分段（AGENTS 规范：数据截至 源 date · 源 date）
+  // 页头多源时效标签（各分组观测日一段，文案组装见 R.asOf）
   const g = ind.groups || {};
-  const segs = Object.entries(g).map(([k, v]) => `${k} ${v}`);
   document.getElementById('re-as-of').textContent =
-    `数据截至 ${segs.length ? segs.join(' · ') : (ind.as_of ?? '—')}`;
+    R.asOf(Object.entries(g).length ? Object.entries(g) : (ind.as_of ?? '—'));
   document.getElementById('db-gen').textContent =
     `研判生成：${d.generator === 'llm' ? 'LLM' : '规则引擎（LLM 预留）'} · 情景为规则匹配结果，不是发生概率；经济机制仍需原始数据与事件验证`;
 

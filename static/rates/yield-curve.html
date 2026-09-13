@@ -2,11 +2,12 @@
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
-  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>收益率曲线 — 观澜台</title>
 <link rel="stylesheet" href="/css/app.css">
 <link rel="stylesheet" href="/css/special.css">
+<script src="/js/site-nav.js"></script>
 <script src="/vendor/echarts.min.js"></script>
 </head>
 <body>
@@ -46,7 +47,7 @@
 async function load() {
   const d0 = await R.get('/api/rates/yield-curve');
   const d = d0.yield_curve;
-  document.getElementById('re-as-of').textContent = `数据截至 ${d.as_of}`;
+  document.getElementById('re-as-of').textContent = R.asOf(d.as_of);
 
   // ── 形态徽章 + 利差 ──
   const badges = document.getElementById('re-badges');

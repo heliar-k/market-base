@@ -2,11 +2,12 @@
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
-  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>美联储 — 观澜台</title>
 <link rel="stylesheet" href="/css/app.css">
 <link rel="stylesheet" href="/css/special.css">
+<script src="/js/site-nav.js"></script>
 <link rel="stylesheet" href="/css/fed.css">
 </head>
 <body>
@@ -289,7 +290,7 @@ async function load() {
   const ind = data.indicator;
   const fmtD = s => s ? `${s.date.slice(0,4)}-${s.date.slice(4,6)}-${s.date.slice(6)}` : '—';
   document.getElementById('re-as-of').textContent =
-    `数据截至 声明 ${fmtD(data.statements[0])} · 演讲 ${fmtD(data.speeches[0])}`;
+    R.asOf([['声明', fmtD(data.statements[0])], ['演讲', fmtD(data.speeches[0])]]);
   document.getElementById('re-gen').textContent =
     `鹰鸽评分：${R.genText(data.generator)}`;
 

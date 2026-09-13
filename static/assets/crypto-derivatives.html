@@ -2,11 +2,12 @@
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
-  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>加密衍生品市场 — 观澜台</title>
 <link rel="stylesheet" href="/css/app.css">
 <link rel="stylesheet" href="/css/special.css">
+<script src="/js/site-nav.js"></script>
 </head>
 <body>
 <div class="re-root">
@@ -36,8 +37,8 @@ const P = { up: 'var(--color-up)', down: 'var(--color-down)', flat: 'var(--color
 async function load() {
   const d = await R.get('/api/assets/crypto-derivatives');
   if (!d || !d.ts) { R.fail(['radar', 'kpi', 'walls', 'retail', 'consensus'], new Error('无加密衍生品快照 · 运行 ./bin/fetch_crypto_derivatives 后刷新')); return; }
-  const cmeAsOf = d.cme && d.cme.as_of ? ' · CME 基差 ' + d.cme.as_of : '';
-  document.getElementById('re-as-of').textContent = '数据截至 衍生品快照 ' + d.ts.slice(0, 10) + cmeAsOf;
+  document.getElementById('re-as-of').textContent =
+    R.asOf([['衍生品快照', d.ts.slice(0, 10)], d.cme && ['CME 基差', d.cme.as_of]]);
 
   // ── BTC FORWARD RADAR（timsun 同款：综合分 + 4 列 + 信号权重）──
   const radar = d.radar || { total: null, confidence: 0, verdict: '数据不足', structure: '—', lev_risk: '—', driver: '—', signals: [] };
