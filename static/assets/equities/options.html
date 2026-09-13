@@ -35,6 +35,7 @@
   <div class="re-gen" id="re-gen"></div>
 </div>
 
+<script src="/js/echarts-theme.js"></script>
 <script src="/js/rates-common.js"></script>
 <script>
 let D = null;
@@ -58,12 +59,12 @@ function fmtNum(v, d = 2) {
 function chgSpan(v) {
   return Number(v).toLocaleString(undefined, { maximumFractionDigits: 2 });
 }
-function disposeCharts() { charts.forEach(c => { try { c.dispose(); } catch (e) {} }); charts = []; }
+function disposeCharts() { charts.forEach(id => { const c = R.getChart(id); if (c) c.dispose(); }); charts = []; }
 function mk(id, option) {
   const el = document.getElementById(id);
   if (!el) return;
   const c = R.mkChart(id, option);
-  if (c) charts.push(c);
+  if (c) charts.push(id); // 存 id 而非实例：主题重建后 R.getChart 才能取到当前实例
 }
 
 async function load() {

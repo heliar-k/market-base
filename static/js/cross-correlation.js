@@ -8,8 +8,8 @@
 //
 // UI 原则见 AGENTS.md「主站 Web UI/UX 设计原则」。
 
-import { registerMacroTheme } from './echarts-theme.js';
 import { MACRO_COLORS, MACRO_LABELS } from './macro-common.js';
+// registerMacroTheme / reThemeECharts 为 echarts-theme.js 经典脚本全局（Phase 2 单轨化）
 
 // ── constants ──────────────────────────────────────────────────────────────
 const GROUP_ORDER = ['equity', 'bond', 'credit', 'commodity', 'crypto', 'fx', 'vol'];

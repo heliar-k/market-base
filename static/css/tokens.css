@@ -1,0 +1,39 @@
+/* tokens.css — 全站语义色 token 唯一来源（Phase 1 单轨化）。
+ * 规则：涨跌/中性/警示/品牌等 primitive 字面色值只允许出现在本文件的 :root / body.dark 里；
+ * app.css / special.css / 页面内联样式 / JS 调色板一律引用 var(--color-*) 或经 getComputedStyle 回读。
+ * 由 app.css 顶部 @import 引入（全部页面都 link app.css，专题页与 SPA 一处覆盖）。 */
+:root {
+  --color-up: #26a69a;
+  --color-down: #ef5350;
+  --color-neutral: #9ca3af;
+  --color-warn: #ff9800;
+  --color-brand: #1a73e8; /* 品牌蓝（= 主题 accent，暗色见下方 body.dark） */
+  /* 12% 透明底（color-mix，Chrome 111+；本地工具站可用） */
+  --color-up-bg: color-mix(in srgb, var(--color-up) 12%, transparent);
+  --color-down-bg: color-mix(in srgb, var(--color-down) 12%, transparent);
+  --color-neutral-bg: color-mix(in srgb, var(--color-neutral) 12%, transparent);
+  --color-warn-bg: color-mix(in srgb, var(--color-warn) 12%, transparent);
+  --color-brand-bg: color-mix(in srgb, var(--color-brand) 12%, transparent);
+  /* 历史短名别名（SPA dashboard / crypto 页内联样式在用） */
+  --up: var(--color-up);
+  --down: var(--color-down);
+  --flat: var(--color-neutral);
+  --warning: var(--color-warn);
+  /* 专题页 chips（原 special.css 私有 tokens，语义并入上表） */
+  --chip-up-bg: var(--color-up-bg);
+  --chip-up-fg: var(--color-up);
+  --chip-flat-bg: var(--color-neutral-bg);
+  --chip-flat-fg: var(--color-neutral);
+  /* ECharts 序列分类色板（前四位即 --color-brand/-warn/-up/-down，见 echarts-theme.js） */
+  --chart-purple: #9c27b0;
+  --chart-cyan: #00bcd4;
+  --chart-violet: #7c4dff;
+  --chart-slate: #607d8b;
+}
+body.dark {
+  --color-up: #34d399;
+  --color-down: #f87171;
+  --color-neutral: #9ca3af;
+  --color-warn: #ff9800;
+  --color-brand: #58a6ff;
+}

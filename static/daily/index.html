@@ -7,16 +7,17 @@
 <title>今日研判 — 观澜台</title>
 <link rel="stylesheet" href="/css/app.css">
 <link rel="stylesheet" href="/css/special.css">
+<script src="/js/echarts-theme.js"></script>
 <script src="/js/rates-common.js"></script>
 <style>
-/* 今日研判页私有样式（面板名前缀 db-）；语义色与全站 .up/.down 同源 */
-.db-spark.up { stroke: #26a69a; }
-.db-spark.down { stroke: #ef5350; }
-.db-hit { border-color: #26a69a; }
+/* 今日研判页私有样式（面板名前缀 db-）；语义色走 tokens.css */
+.db-spark.up { stroke: var(--color-up); }
+.db-spark.down { stroke: var(--color-down); }
+.db-hit { border-color: var(--color-up); }
 .db-flat { opacity: .75; }
-.db-alert-card { border-left: 3px solid #ef5350; }
-.db-bull { border-left: 3px solid #26a69a; padding-left: 8px; }
-.db-bear { border-left: 3px solid #ef5350; padding-left: 8px; }
+.db-alert-card { border-left: 3px solid var(--color-down); }
+.db-bull { border-left: 3px solid var(--color-up); padding-left: 8px; }
+.db-bear { border-left: 3px solid var(--color-down); padding-left: 8px; }
 .db-click { cursor: pointer; }
 /* 包裹式小节（隐藏切换）内部节奏：.re-root 的 flex gap 管不到 wrapper 内部 */
 .db-sec { display: flex; flex-direction: column; gap: 8px; }

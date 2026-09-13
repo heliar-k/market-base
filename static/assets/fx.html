@@ -22,11 +22,9 @@
 .fx-verdict-num.fx-mono { font-family: 'SF Mono', monospace; }
 .fx-verdict-value { font-size: 20px; font-weight: 700; margin: 8px 0 6px; line-height: 1.25; }
 .fx-verdict-note { font-size: 11px; color: var(--text-secondary); line-height: 1.5; margin-top: auto; }
-.fx-up { color: #ef5350; }    /* 美元走强方向 → 红 */
-.fx-down { color: #26a69a; }  /* 美元走弱方向 → 绿 */
+.fx-up { color: var(--color-down); }    /* 美元走强方向 → 红 */
+.fx-down { color: var(--color-up); }     /* 美元走弱方向 → 绿（亮暗由 tokens.css 接管） */
 .fx-flat { color: var(--text-secondary); }
-body.dark .fx-up { color: #f87171; }
-body.dark .fx-down { color: #34d399; }
 /* FX Dashboard 头栏：左小标 + h2，右 11px meta */
 .fx-dash-head { display: flex; justify-content: space-between; align-items: flex-end; gap: 12px; flex-wrap: wrap; }
 .fx-dash-meta { font-size: 11px; color: var(--text-dim); padding-bottom: 6px; }
@@ -56,6 +54,7 @@ body.dark .fx-down { color: #34d399; }
   <div class="re-gen" id="re-gen"></div>
 </div>
 
+<script src="/js/echarts-theme.js"></script>
 <script src="/js/rates-common.js"></script>
 <script>
 // verdict 文案 → 颜色方向（以美元为主体：走强红 / 走弱绿 / 无方向灰）
@@ -173,7 +172,7 @@ function renderExplain() {
   </div>`;
   document.getElementById('explain').appendChild(sec);
 }
-function pctColor(v) { return v == null ? '—' : `<span class="fx-mono" style="color:${v >= 0 ? '#26a69a' : '#ef5350'}">${(v >= 0 ? '+' : '') + v.toFixed(2) + '%'}</span>`; }
+function pctColor(v) { return v == null ? '—' : `<span class="fx-mono" style="color:${v >= 0 ? 'var(--color-up)' : 'var(--color-down)'}">${(v >= 0 ? '+' : '') + v.toFixed(2) + '%'}</span>`; }
 function fmt(v, d) { return v == null ? '—' : Number(v).toLocaleString(undefined, { maximumFractionDigits: d }); }
 
 load().catch(e => R.fail(['verdicts', 'fxchart', 'dashboard'], e));

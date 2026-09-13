@@ -44,7 +44,7 @@ html { scroll-padding-top: 52px; }
 .re-section p { font-size: 13px; line-height: 1.7; color: var(--text-secondary); }
 .re-gen { font-size: 11px; color: var(--text-dim); text-align: right; }
 .re-loading { text-align: center; padding: 60px 20px; color: var(--text-dim); font-size: 14px; }
-.re-error { text-align: center; padding: 40px 20px; color: #ef5350; }
+.re-error { text-align: center; padding: 40px 20px; color: var(--color-down); }
 .re-chart { height: 300px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); }
 /* re-section 内部衆多子块（KPI 行/图表/表格）与父卡边框保持呼吸距离 */
 .re-section > .re-cards, .re-section > .re-chart, .re-section > .re-table, .re-section > .re-table-wrap { margin-left: 8px; margin-right: 8px; }
@@ -57,10 +57,8 @@ html { scroll-padding-top: 52px; }
 .re-table th { background: var(--surface-alt); padding: 8px 12px; text-align: left; font-size: 12px; color: var(--text-dim); font-weight: 600; border-bottom: 1px solid var(--border); position: sticky; top: 0; }
 .re-table td { padding: 7px 12px; border-bottom: 1px solid var(--border-light); color: var(--text); font-variant-numeric: tabular-nums; }
 /* 表格内涨跌着色：.re-table td 的 color 会覆盖全局 .up/.down（特异性 0,1,1 > 0,1,0），此处提升 */
-.re-table td.up { color: #26a69a; }
-.re-table td.down { color: #ef5350; }
-body.dark .re-table td.up { color: #34d399; }
-body.dark .re-table td.down { color: #f87171; }
+.re-table td.up { color: var(--color-up); }
+.re-table td.down { color: var(--color-down); }
 .re-table-wrap .re-scroll { overflow-x: auto; }
 .re-source { font-size: 11px; color: var(--text-dim); }
 .re-badges { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
@@ -77,7 +75,7 @@ body.dark .re-table td.down { color: #f87171; }
 .chart.chart-md { height: 340px; }
 .re-badge { padding: 6px 14px; border-radius: 999px; font-size: 13px; font-weight: 600; color: var(--text-secondary); }
 /* .re-badge 基础类必需显式颜色：a 元素（如 ETF 筛选 chip）不设色时落浏览器默认链接蓝，暗色下不可读 */
-.re-badge.bear { background: #ffebee; color: #c62828; }
+.re-badge.bear { background: var(--color-down-bg); color: var(--color-down); }
 .re-badge.bull { background: var(--chip-up-bg); color: var(--chip-up-fg); }
 .re-badge.flat { background: var(--chip-flat-bg); color: var(--chip-flat-fg); }
 /* 可点击筛选 chip（etfs 页）：选中态与其他页 active 一致（accent 描边 + 浅底） */
@@ -87,8 +85,8 @@ a.re-badge:hover { color: var(--accent); border-color: var(--accent); }
 .re-badge.on { background: var(--accent-light); color: var(--accent); border: 1px solid var(--accent); }
 .re-spread { font-size: 13px; color: var(--text-secondary); }
 .re-check { display: flex; align-items: baseline; gap: 8px; padding: 5px 0; font-size: 13px; }
-.re-check .ok { color: #2e7d32; font-weight: 700; }
-.re-check .no { color: #c62828; font-weight: 700; }
+.re-check .ok { color: var(--color-up); font-weight: 700; }
+.re-check .no { color: var(--color-down); font-weight: 700; }
 .re-check .note { color: var(--text-dim); font-size: 12px; }
 .re-analysis { border: 1px solid var(--border); border-radius: 8px; background: var(--surface); padding: 16px 20px; display: flex; flex-direction: column; gap: 8px; }
 .re-analysis h3 { font-size: 13px; font-weight: 700; }
@@ -101,13 +99,13 @@ a.re-badge:hover { color: var(--accent); border-color: var(--accent); }
 .re-table tbody tr:hover { background: var(--surface-hover); }
 .re-table .re-bar-cell { min-width: 200px; }
 .re-table .re-bar-wrap { display: flex; height: 20px; border-radius: 4px; overflow: hidden; gap: 1px; }
-.re-table .re-bar-cut { background: #26a69a; }
-.re-table .re-bar-hold { background: #78909c; }
-.re-table .re-bar-hike { background: #ef5350; }
+.re-table .re-bar-cut { background: var(--color-up); }
+.re-table .re-bar-hold { background: var(--color-neutral); }
+.re-table .re-bar-hike { background: var(--color-down); }
 .re-expectation { font-size: 12px; font-weight: 600; padding: 2px 8px; border-radius: 4px; }
-.re-expectation.cut { background: #e8f5e9; color: #2e7d32; }
-.re-expectation.hike { background: #ffebee; color: #c62828; }
-.re-expectation.hold { background: #eceff1; color: #546e7a; }
+.re-expectation.cut { background: var(--color-up-bg); color: var(--color-up); }
+.re-expectation.hike { background: var(--color-down-bg); color: var(--color-down); }
+.re-expectation.hold { background: var(--color-neutral-bg); color: var(--color-neutral); }
 /* VIX 卡片 */ .vix-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 /* 状态卡圆点（timsun 风格） */
 .status-dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 8px; vertical-align: 1px; }
@@ -147,8 +145,8 @@ a.re-badge:hover { color: var(--accent); border-color: var(--accent); }
 .gx-legend .gl i { display: inline-block; width: 12px; height: 12px; border-radius: 2px; flex: 0 0 auto; }
 .term-head { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; margin-bottom: 10px; }
 .term-badge { font-size: 12px; padding: 2px 10px; border-radius: 999px; border: 1px solid; }
-.term-badge.contango { color: #34d399; border-color: #34d39955; background: #34d39915; }
-.term-badge.backwardation { color: #f87171; border-color: #f8717155; background: #f8717115; }
+.term-badge.contango { color: var(--color-up); border-color: color-mix(in srgb, var(--color-up) 33%, transparent); background: var(--color-up-bg); }
+.term-badge.backwardation { color: var(--color-down); border-color: color-mix(in srgb, var(--color-down) 33%, transparent); background: var(--color-down-bg); }
 .term-slope { font-size: 12px; color: var(--text-dim); }
 .re-table tr:hover td { background: var(--surface-hover); }
 .oas-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
@@ -172,10 +170,10 @@ a.re-badge:hover { color: var(--accent); border-color: var(--accent); }
 .proxy-card .sub { font-size: 12px; color: var(--text-secondary); }
 .proxy-card .date { font-size: 11px; color: var(--text-dim); margin-top: 4px; }
 /* Credit Regime Score 记分卡（hero 骨架三分区：左总分块 | 右子分拆解 | 底部口径行） */
-.pos-hero.regime-hero { grid-template-columns: 250px 1fr; gap: 26px; border-left-color: var(--rc-color, #f59e0b); align-items: start; padding: 24px 28px 20px; }
+.pos-hero.regime-hero { grid-template-columns: 250px 1fr; gap: 26px; border-left-color: var(--rc-color, var(--color-warn)); align-items: start; padding: 24px 28px 20px; }
 .rh-main { display: flex; flex-direction: column; gap: 10px; }
 .rh-score { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 2px; }
-.rh-score .num { font-size: 44px; font-weight: 800; font-variant-numeric: tabular-nums; line-height: 1; color: var(--rc-color, #f59e0b); }
+.rh-score .num { font-size: 44px; font-weight: 800; font-variant-numeric: tabular-nums; line-height: 1; color: var(--rc-color, var(--color-warn)); }
 .rh-score .of { font-size: 13px; color: var(--text-secondary); font-weight: 500; }
 .rh-badge { padding: 3px 12px; border-radius: 999px; font-size: 12px; font-weight: 600; }
 .rh-read { font-size: 12px; line-height: 1.75; color: var(--text-secondary); }
@@ -194,11 +192,7 @@ a.re-badge:hover { color: var(--accent); border-color: var(--accent); }
 @media (max-width: 640px) { .oas-row { grid-template-columns: 1fr; } }
 @media (max-width: 640px) { .proxy-row { grid-template-columns: 1fr; } }
 
-/* ── dark 主题徽章变体 ── */
-body.dark .re-badge.bear { background: rgba(248,113,113,.15); color: #f87171; }
-body.dark .re-expectation.cut { background: rgba(52,211,153,.15); color: #34d399; }
-body.dark .re-expectation.hike { background: rgba(248,113,113,.15); color: #f87171; }
-body.dark .re-expectation.hold { background: rgba(156,163,175,.15); color: #9ca3af; }
+/* ── 涨跌/中性语义色已由 tokens.css 接管，亮暗双主题无需再写 body.dark 覆写 ── */
 
 /* 专题页悬浮主题切换按钮 */
 .theme-float { position: fixed; top: 12px; right: 12px; z-index: 100; width: 34px; height: 34px; border-radius: 50%; border: 1px solid var(--btn-border); background: var(--surface); cursor: pointer; font-size: 15px; line-height: 1; box-shadow: 0 1px 4px rgba(0,0,0,.12); }
@@ -217,9 +211,9 @@ body.dark .re-expectation.hold { background: rgba(156,163,175,.15); color: #9ca3
 .opt-regime .rg-label { font-size: 11px; font-weight: 600; letter-spacing: .08em; color: var(--text-dim); }
 .opt-regime .rg-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; flex-wrap: wrap; }
 .opt-regime .rg-title { font-size: 28px; font-weight: 800; letter-spacing: .01em; line-height: 1.15; }
-.opt-regime .rg-title.pp { color: #14b8a6; }
-.opt-regime .rg-title.nn { color: #ef5350; }
-.opt-regime .rg-title.pn, .opt-regime .rg-title.np { color: #f59e0b; }
+.opt-regime .rg-title.pp { color: var(--color-up); }
+.opt-regime .rg-title.nn { color: var(--color-down); }
+.opt-regime .rg-title.pn, .opt-regime .rg-title.np { color: var(--color-warn); }
 .opt-regime .rg-sub { font-size: 13px; color: var(--text-secondary); }
 .opt-regime .rg-gex { display: flex; gap: 28px; text-align: right; }
 .opt-regime .rg-gex .k { font-size: 11px; letter-spacing: .06em; color: var(--text-dim); font-weight: 600; }
@@ -227,9 +221,9 @@ body.dark .re-expectation.hold { background: rgba(156,163,175,.15); color: #9ca3
 .opt-regime .rg-desc { font-size: 13px; line-height: 1.8; color: var(--text-secondary); }
 /* regime 胶囊（13 标的看板） */
 .opt-chip { display: inline-block; padding: 3px 10px; border-radius: 999px; font-size: 12px; font-weight: 600; border: 1px solid; white-space: nowrap; }
-.opt-chip.pp { color: #14b8a6; border-color: #14b8a655; background: #14b8a615; }
-.opt-chip.nn { color: #f87171; border-color: #f8717155; background: #f8717115; }
-.opt-chip.pn, .opt-chip.np { color: #f59e0b; border-color: #f59e0b55; background: #f59e0b15; }
+.opt-chip.pp { color: var(--color-up); border-color: color-mix(in srgb, var(--color-up) 33%, transparent); background: var(--color-up-bg); }
+.opt-chip.nn { color: var(--color-down); border-color: color-mix(in srgb, var(--color-down) 33%, transparent); background: var(--color-down-bg); }
+.opt-chip.pn, .opt-chip.np { color: var(--color-warn); border-color: color-mix(in srgb, var(--color-warn) 33%, transparent); background: var(--color-warn-bg); }
 /* 板块 Tab */
 .opt-tabs { display: flex; gap: 2px; border-bottom: 1px solid var(--border); margin: 14px 0 0; flex-wrap: wrap; }
 .opt-tabs button { padding: 8px 14px; border: 1px solid transparent; border-bottom: none; background: none; cursor: pointer; font-size: 13px; color: var(--text-secondary); border-radius: 6px 6px 0 0; }
@@ -253,9 +247,9 @@ body.dark .re-expectation.hold { background: rgba(156,163,175,.15); color: #9ca3
 .kv-row .kv-k { color: var(--text-dim); font-weight: 600; }
 
 /* ── 持仓追踪（CFTC COT，timsun 复刻）── */
-.pos-hero { border: 1px solid var(--border); border-radius: 12px; background: var(--surface); padding: 20px 24px 16px; display: grid; grid-template-columns: 1fr 260px; gap: 16px; border-left: 3px solid #f59e0b; }
+.pos-hero { border: 1px solid var(--border); border-radius: 12px; background: var(--surface); padding: 20px 24px 16px; display: grid; grid-template-columns: 1fr 260px; gap: 16px; border-left: 3px solid var(--color-warn); }
 .pos-hero .ph-label { font-size: 11px; font-weight: 600; letter-spacing: .08em; color: var(--text-dim); }
-.pos-hero .ph-title { font-size: 24px; font-weight: 800; color: #f59e0b; margin-top: 4px; display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.pos-hero .ph-title { font-size: 24px; font-weight: 800; color: var(--color-warn); margin-top: 4px; display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
 .pos-hero .ph-sub { font-size: 12px; color: var(--text-secondary); font-weight: 400; }
 .pos-hero .ph-desc { font-size: 13px; line-height: 1.8; color: var(--text-secondary); margin-top: 14px; }
 .pos-hero .ph-side { font-size: 12px; line-height: 1.75; color: var(--text-secondary); border-left: 1px solid var(--border); padding-left: 16px; display: flex; flex-direction: column; gap: 8px; justify-content: center; }
@@ -278,9 +272,9 @@ body.dark .re-expectation.hold { background: rgba(156,163,175,.15); color: #9ca3
 .pos-contract .pc-code { font-size: 11px; color: var(--text-secondary); margin-top: 2px; }
 .pos-contract .pc-pct { font-size: 11px; color: var(--text-secondary); margin-top: 3px; }
 .pc-badge { display: inline-block; padding: 2px 10px; border-radius: 999px; font-size: 12px; font-weight: 600; }
-.pc-badge.extreme { background: #f8717115; color: #f87171; }
-.pc-badge.bullish { background: #26a69a20; color: #14b8a6; }
-.pc-badge.neutral { background: #9ca3af20; color: #9ca3af; }
+.pc-badge.extreme { background: var(--color-down-bg); color: var(--color-down); }
+.pc-badge.bullish { background: var(--color-up-bg); color: var(--color-up); }
+.pc-badge.neutral { background: var(--color-neutral-bg); color: var(--color-neutral); }
 .pos-cols { display: flex; justify-content: space-between; gap: 14px; }
 .pos-cols > div { min-width: 0; }
 .pos-cols .k { font-size: 10px; letter-spacing: .06em; color: var(--text-secondary); font-weight: 600; }
@@ -297,11 +291,9 @@ body.dark .re-expectation.hold { background: rgba(156,163,175,.15); color: #9ca3
 .vol-hero-card .vh-label { font-size: 11px; font-weight: 600; letter-spacing: .05em; color: var(--accent); opacity: .85; margin-bottom: 6px; }
 .vol-hero-card .vh-value { font-size: 30px; font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1.1; }
 .vol-hero-card .vh-chg { display: inline-block; margin-top: 6px; font-size: 12px; font-weight: 600; padding: 1px 8px; border-radius: 999px; }
-.vol-hero-card .vh-chg.up { color: #26a69a; background: #26a69a1a; }
-.vol-hero-card .vh-chg.down { color: #ef5350; background: #ef53501a; }
-.vol-hero-card .vh-chg.flat { color: #9ca3af; background: #9ca3af1a; }
-body.dark .vol-hero-card .vh-chg.up { color: #34d399; }
-body.dark .vol-hero-card .vh-chg.down { color: #f87171; }
+.vol-hero-card .vh-chg.up { color: var(--color-up); background: var(--color-up-bg); }
+.vol-hero-card .vh-chg.down { color: var(--color-down); background: var(--color-down-bg); }
+.vol-hero-card .vh-chg.flat { color: var(--color-neutral); background: var(--color-neutral-bg); }
 .vol-verdict { font-size: 14px; line-height: 1.7; color: var(--text); background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 12px 16px; margin-bottom: 14px; }
 .vol-verdict b { color: var(--accent); }
 
@@ -316,11 +308,9 @@ body.dark .vol-hero-card .vh-chg.down { color: #f87171; }
 .vol-risk-cell { border: 1px solid var(--border); border-radius: 10px; background: var(--surface); padding: 12px 14px; display: flex; flex-direction: column; gap: 6px; }
 .vol-risk-cell .vr-name { font-size: 12px; font-weight: 700; color: var(--text); }
 .vol-risk-cell .vr-line { font-size: 12px; font-variant-numeric: tabular-nums; color: var(--text-secondary); }
-.vol-risk-cell .vr-line b.up { color: #26a69a; }
-.vol-risk-cell .vr-line b.down { color: #ef5350; }
-.vol-risk-cell .vr-line b.flat { color: #9ca3af; }
-body.dark .vol-risk-cell .vr-line b.up { color: #34d399; }
-body.dark .vol-risk-cell .vr-line b.down { color: #f87171; }
+.vol-risk-cell .vr-line b.up { color: var(--color-up); }
+.vol-risk-cell .vr-line b.down { color: var(--color-down); }
+.vol-risk-cell .vr-line b.flat { color: var(--color-neutral); }
 .vol-risk-cell .vr-check { font-size: 11px; line-height: 1.6; color: var(--text-dim); }
 
 .vol-trade { border: 1px solid var(--border); border-radius: 10px; background: var(--surface); padding: 14px 16px; }
@@ -334,10 +324,8 @@ body.dark .vol-risk-cell .vr-line b.down { color: #f87171; }
 .vol-stat { border: 1px solid var(--border); border-radius: 10px; background: var(--surface); padding: 10px 14px; text-align: center; }
 .vol-stat .st-label { font-size: 11px; color: var(--text-dim); margin-bottom: 4px; }
 .vol-stat .st-value { font-size: 20px; font-weight: 700; font-variant-numeric: tabular-nums; }
-.vol-stat .st-value.up { color: #26a69a; }
-.vol-stat .st-value.down { color: #ef5350; }
-body.dark .vol-stat .st-value.up { color: #34d399; }
-body.dark .vol-stat .st-value.down { color: #f87171; }
+.vol-stat .st-value.up { color: var(--color-up); }
+.vol-stat .st-value.down { color: var(--color-down); }
 
 .vol-heat { display: grid; grid-template-columns: repeat(auto-fill, minmax(132px, 1fr)); gap: 8px; }
 .vol-heat-cell { border-radius: 8px; padding: 8px 10px; display: flex; flex-direction: column; gap: 2px; }
@@ -345,23 +333,19 @@ body.dark .vol-stat .st-value.down { color: #f87171; }
 .vol-heat-cell .ht-name { font-size: 10px; color: var(--text-secondary); opacity: .85; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .vol-heat-cell .ht-value { font-size: 15px; font-weight: 700; font-variant-numeric: tabular-nums; color: var(--text); }
 .vol-heat-cell .ht-chg { font-size: 11px; font-weight: 600; font-variant-numeric: tabular-nums; }
-.vol-heat-cell.up { border: 1px solid #26a69a55; }
-.vol-heat-cell.down { border: 1px solid #ef535055; }
+.vol-heat-cell.up { border: 1px solid color-mix(in srgb, var(--color-up) 33%, transparent); }
+.vol-heat-cell.down { border: 1px solid color-mix(in srgb, var(--color-down) 33%, transparent); }
 .vol-heat-cell.flat { border: 1px solid var(--border); }
-body.dark .vol-heat-cell.up { border-color: #34d39955; }
-body.dark .vol-heat-cell.down { border-color: #f8717155; }
 
 .vol-top-row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
 .vol-top-row > div { min-width: 0; } /* 窄屏时表格在 re-table-wrap 内横向滚动，而不是把栅格撑破 */
 .vol-top-row h3 { font-size: 13px; font-weight: 700; margin: 0 0 8px; }
-.vol-top-row h3.hot { color: #26a69a; }
-.vol-top-row h3.cool { color: #ef5350; }
-body.dark .vol-top-row h3.hot { color: #34d399; }
-body.dark .vol-top-row h3.cool { color: #f87171; }
+.vol-top-row h3.hot { color: var(--color-up); }
+.vol-top-row h3.cool { color: var(--color-down); }
 
 .vol-narrative .re-analysis { margin-bottom: 10px; }
 .vol-narrative .re-analysis h3 { font-size: 13px; font-weight: 700; display: flex; align-items: center; gap: 8px; }
-.vol-score { font-size: 12px; font-weight: 700; padding: 2px 10px; border-radius: 999px; border: 1px solid #ff9800; color: #ff9800; }
+.vol-score { font-size: 12px; font-weight: 700; padding: 2px 10px; border-radius: 999px; border: 1px solid var(--color-warn); color: var(--color-warn); }
 .vol-basic-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 10px; }
 .vol-basic-grid .sig-block { border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; margin: 0; }
 
@@ -398,13 +382,10 @@ body.dark .vol-top-row h3.cool { color: #f87171; }
 .re-scroll-y .re-table th { padding: 7px 8px; white-space: nowrap; }
 .re-scroll-y .re-table th { top: 0; background: var(--surface-alt); }
 .rt-pill { display: inline-block; padding: 2px 10px; border-radius: 4px; font-size: 11px; font-weight: 700; letter-spacing: .04em; }
-/* 共享色板：re-badge.bull/flat 与 rt-*、tr-pill.on 同源（明/暗各自定义一次） */
-:root { --chip-up-bg: #e8f5e9; --chip-up-fg: #2e7d32; --chip-flat-bg: #eceff1; --chip-flat-fg: #546e7a; }
-body.dark { --chip-up-bg: rgba(52,211,153,.15); --chip-up-fg: #34d399; --chip-flat-bg: rgba(156,163,175,.15); --chip-flat-fg: #9ca3af; }
+/* 共享 chips 色板 --chip-* 已在 tokens.css 定义（语义并入 --color-up / --color-neutral） */
 .rt-sb { background: var(--chip-up-bg); color: var(--chip-up-fg); }
-.rt-b { background: #e3f2fd; color: #1565c0; }
+.rt-b { background: var(--color-brand-bg); color: var(--color-brand); }
 .rt-h { background: var(--chip-flat-bg); color: var(--chip-flat-fg); }
-body.dark .rt-b { background: rgba(96,165,250,.15); color: #60a5fa; }
 .eq-actions { float: right; display: flex; gap: 8px; }
 .eq-btn { display: inline-block; padding: 4px 12px; border: 1px solid var(--border); border-radius: 6px; font-size: 12px;
   color: var(--text-secondary); text-decoration: none; transition: all .15s; }

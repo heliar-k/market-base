@@ -30,6 +30,7 @@
   <div class="re-gen" id="re-gen"></div>
 </div>
 
+<script src="/js/echarts-theme.js"></script>
 <script src="/js/rates-common.js"></script>
 <script>
 async function load() {
@@ -93,11 +94,11 @@ async function load() {
   // ── BTC 趋势（真实时间轴：间距=实际天数；重开=空心点）──
   const names = ['2Y', '5Y', '10Y', '30Y'];
   const trendNames = names.map(n => `${n}（均 ${(auc.trend[n].reduce((s, p) => s + p.value, 0) / auc.trend[n].length).toFixed(2)}）`);
-  R.mkChart('trend_chart', (colors) => ({
+  R.mkChart('trend_chart', (colors) => R.lineOption({
     legend: { data: trendNames, top: 8, right: '2%', icon: 'roundRect', itemWidth: 14, itemHeight: 4, textStyle: { color: colors.text, fontSize: 12 } },
     tooltip: { trigger: 'axis', valueFormatter: v => `${Number(v).toFixed(2)}x` },
     grid: { top: 44, left: 48, right: 64, bottom: 24 },
-    xAxis: { type: 'time', axisLabel: { color: colors.muted, fontSize: 10, formatter: v => { const t = new Date(v); return `${t.getMonth() + 1}/${t.getDate()}`; } }, axisLine: { lineStyle: { color: colors.border } } },
+    xAxis: { type: 'time', axisLabel: { color: colors.muted, fontSize: 10, formatter: R.md }, axisLine: { lineStyle: { color: colors.border } } },
     yAxis: { type: 'value', min: 1.5, axisLabel: { color: colors.muted, formatter: '{value}x' }, splitLine: { lineStyle: { color: colors.grid } } },
     series: names.map((n) => {
       const m = { '2Y': colors.blue, '5Y': colors.orange, '10Y': colors.red, '30Y': colors.purple }[n];
@@ -125,7 +126,7 @@ async function load() {
         },
       };
     }),
-  }));
+  }, colors));
 
   // ── Tail 趋势（散点：x=时间 y=tail bp，点大小=发行规模，重开空心，虚线=各期限均值）──
   const tailMean = (pts) => pts.length ? pts.reduce((s, p) => s + p.value, 0) / pts.length : 0;
@@ -141,7 +142,7 @@ async function load() {
       return `${p.seriesName} ${v[0]}<br/>Tail ${Number(v[1]).toFixed(1)} bp${v[2] != null ? `<br/>规模 $${v[2]}B` : ''}${v[3] ? '<br/>重开' : ''}`;
     } },
     grid: { top: 36, left: 48, right: 16, bottom: 24 },
-    xAxis: { type: 'time', axisLabel: { color: colors.muted, fontSize: 10, formatter: v => { const t = new Date(v); return `${t.getMonth() + 1}/${t.getDate()}`; } }, axisLine: { lineStyle: { color: colors.border } } },
+    xAxis: { type: 'time', axisLabel: { color: colors.muted, fontSize: 10, formatter: R.md }, axisLine: { lineStyle: { color: colors.border } } },
     yAxis: { type: 'value', name: 'tail bp', scale: true, axisLabel: { color: colors.muted, formatter: '{value}' }, splitLine: { lineStyle: { color: colors.grid } } },
     series: names.map(n => {
       const m = { '2Y': colors.blue, '5Y': colors.orange, '10Y': colors.red, '30Y': colors.purple }[n];
@@ -165,11 +166,11 @@ async function load() {
 
   // ── 间接投标占比趋势 ──
   const indNames = ['10Y', '30Y'];
-  R.mkChart('indirect_chart', (colors) => ({
+  R.mkChart('indirect_chart', (colors) => R.lineOption({
     legend: { data: indNames, top: 8, right: '2%', icon: 'roundRect', itemWidth: 14, itemHeight: 4, textStyle: { color: colors.text, fontSize: 12 } },
     tooltip: { trigger: 'axis', valueFormatter: v => `${Number(v).toFixed(0)}%` },
     grid: { top: 44, left: 48, right: 16, bottom: 24 },
-    xAxis: { type: 'time', axisLabel: { color: colors.muted, fontSize: 10, formatter: v => { const t = new Date(v); return `${t.getMonth() + 1}/${t.getDate()}`; } }, axisLine: { lineStyle: { color: colors.border } } },
+    xAxis: { type: 'time', axisLabel: { color: colors.muted, fontSize: 10, formatter: R.md }, axisLine: { lineStyle: { color: colors.border } } },
     yAxis: { type: 'value', scale: true, axisLabel: { color: colors.muted, formatter: '{value}%' }, splitLine: { lineStyle: { color: colors.grid } } },
     series: indNames.map(n => {
       const m = { '10Y': colors.red, '30Y': colors.purple }[n];
@@ -198,7 +199,7 @@ async function load() {
         },
       };
     }),
-  }));
+  }, colors));
 
   // ── Bill 占比 ──
   R.mkChart('bill_chart', (colors) => ({
@@ -209,7 +210,7 @@ async function load() {
     series: [{
       type: 'line', data: R.vs(auc.bill_share), symbol: 'none',
       lineStyle: { color: colors.blue, width: 2 },
-      areaStyle: { color: { type: 'linear', x: 0, y: 0, x2: 0, y2: 1, colorStops: [{ offset: 0, color: 'rgba(59,130,246,0.15)' }, { offset: 1, color: 'rgba(59,130,246,0)' }] } },
+      areaStyle: { color: { type: 'linear', x: 0, y: 0, x2: 0, y2: 1, colorStops: [{ offset: 0, color: colors.blue + '26' }, { offset: 1, color: colors.blue + '00' }] } },
     }],
   }));
 
@@ -252,8 +253,7 @@ async function load() {
     data: h.dates.map((dt, i) => [dt, data[i]]),
     lineStyle: { width: 1.5 }, itemStyle: { color },
   });
-  R.mkChart('hold-chart', (colors) => ({
-    legend: { top: 4, right: 8, textStyle: { color: colors.text }, icon: 'rect', itemWidth: 12, itemHeight: 3 },
+  R.mkChart('hold-chart', (colors) => R.lineOption({
     grid: { left: '3%', right: '4%', bottom: 24, top: 36, containLabel: true },
     xAxis: { type: 'time', boundaryGap: false, axisLabel: { color: colors.text } },
     yAxis: { type: 'value', scale: true, splitNumber: 4, axisLabel: { color: colors.text }, splitLine: { lineStyle: { color: colors.grid } } },
@@ -268,7 +268,7 @@ async function load() {
       line('卢森堡', h.luxembourg, '#607d8b'),
       line('瑞士', h.swiss, '#e91e63'),
     ],
-  }));
+  }, colors));
 
   // ── 持仓明细 ──
   const tsec = document.createElement('div');
@@ -286,26 +286,30 @@ async function load() {
     msec.innerHTML = '<h2>未偿债务结构（MSPD，月度）</h2><p style="margin:0">占比累积堆叠（%）；绝对值见下表。</p><div id="mspd-chart" style="height:340px"></div>';
     document.getElementById('mspd').appendChild(msec);
     const mh = d.mspd_history || {};
+    // 分类色走 R.colors() token 键名（亮暗随主题重建）
     const comps = [
-      ['短期国债', mh.pct_bills, '#1a73e8'],
-      ['中期国债', mh.pct_notes, '#ff9800'],
-      ['长期国债', mh.pct_bonds, '#26a69a'],
-      ['TIPS', mh.pct_tips, '#ef5350'],
-      ['FRN', mh.pct_frn, '#9c27b0'],
+      ['短期国债', mh.pct_bills, 'blue'],
+      ['中期国债', mh.pct_notes, 'orange'],
+      ['长期国债', mh.pct_bonds, 'green'],
+      ['TIPS', mh.pct_tips, 'red'],
+      ['FRN', mh.pct_frn, 'purple'],
     ];
-    R.mkChart('mspd-chart', (colors) => ({
-      legend: { top: 4, left: 'center', textStyle: { color: colors.text }, icon: 'rect', itemWidth: 12, itemHeight: 3 },
+    R.mkChart('mspd-chart', (colors) => R.lineOption({
+      legend: { top: 4, left: 'center' },
       grid: { left: '3%', right: '4%', bottom: 24, top: 36, containLabel: true },
       xAxis: { type: 'time', boundaryGap: false, axisLabel: { color: colors.text } },
       yAxis: { type: 'value', min: 0, max: 100, splitNumber: 4, axisLabel: { color: colors.text, formatter: '{value}%' }, splitLine: { lineStyle: { color: colors.grid } } },
       tooltip: { trigger: 'axis', valueFormatter: v => v != null ? v.toFixed(1) + '%' : '—' },
-      series: comps.map(([name, data, color]) => ({
-        name, type: 'line', showSymbol: false, stack: 'total',
-        data: (mh.dates || []).map((dt, i) => [dt, data[i]]),
-        lineStyle: { color, width: 1 }, itemStyle: { color }, areaStyle: { color: color + '44' },
-        emphasis: { focus: 'series' },
-      })),
-    }));
+      series: comps.map(([name, data, colorKey]) => {
+        const color = colors[colorKey];
+        return {
+          name, type: 'line', showSymbol: false, stack: 'total',
+          data: (mh.dates || []).map((dt, i) => [dt, data[i]]),
+          lineStyle: { color, width: 1 }, itemStyle: { color }, areaStyle: { color: color + '44' },
+          emphasis: { focus: 'series' },
+        };
+      }),
+    }, colors));
     msec.appendChild(R.table(['品种', '规模', '占比', '观测期'],
       d.mspd.map(x => ({ 品种: x.name, 规模: x.value_t, 占比: x.share, 观测期: x.as_of })),
       { 规模: v => `$${v.toFixed(2)}万亿`, 占比: v => v === null ? '—' : `${v}%` }));

@@ -25,12 +25,13 @@
   <div class="re-gen" id="re-gen"></div>
 </div>
 
+<script src="/js/echarts-theme.js"></script>
 <script src="/js/rates-common.js"></script>
 <script>
 function fmt(v, d = 2) { return v == null ? '—' : Number(v === 0 ? 0 : v).toLocaleString(undefined, { maximumFractionDigits: d }); }
 function stance(ann) { const a = Math.abs((ann || 0) * 100); if (ann < 0) return '偏空'; return a >= 30 ? '偏多（拥挤）' : (a >= 15 ? '偏多' : '中性'); }
 function pcrStance(p) { return p == null ? '中性' : (p < 0.4 ? '偏多' : (p > 1.5 ? '偏空' : '中性')); }
-const P = { up: '#26a69a', down: '#ef5350', flat: '#9ca3af' };
+const P = { up: 'var(--color-up)', down: 'var(--color-down)', flat: 'var(--color-neutral)' };
 
 async function load() {
   const d = await R.get('/api/assets/crypto-derivatives');
@@ -56,7 +57,7 @@ async function load() {
       <div class="re-card"><div class="re-corridor-label">杠杆风险</div><div class="re-corridor-value" style="font-size:15px">${radar.lev_risk}</div><div class="re-card-sub">永续资金费率口径</div></div>
       <div class="re-card" style="grid-column:span 2"><div class="re-corridor-label">主导力量</div><div class="re-corridor-value" style="font-size:15px">${radar.driver}</div></div>
     </div>
-    ${etfMissed ? '<div style="margin-top:10px;padding:8px 12px;border:1px solid var(--warning,#d97706);border-radius:6px;font-size:12px;color:var(--warning,#d97706)">ETF 资金流数据过期或未接入，未纳入方向评分。</div>' : ''}
+    ${etfMissed ? '<div style="margin-top:10px;padding:8px 12px;border:1px solid var(--warning);border-radius:6px;font-size:12px;color:var(--warning)">ETF 资金流数据过期或未接入，未纳入方向评分。</div>' : ''}
     <p class="re-source" style="margin:10px 0 6px">信号权重（缺失信号不纳入评分，中性带内计 0 分）${missed.length ? ' · 缺：' + missed.join(' / ') : ''}</p>`;
   const rows = (radar.signals || []).map(s => {
     const sc = s.dir * s.weight;
@@ -81,7 +82,7 @@ async function load() {
   if (l1 && (l1.kpis || []).length) {
     const lsec = document.createElement('div');
     lsec.className = 're-section';
-    const kArrow = s => s == null ? '' : `<span style="color:${s[0] === '↑' ? 'var(--up,#26a69a)' : (s[0] === '↓' ? 'var(--down,#ef5350)' : 'var(--flat,#9ca3af)')};font-weight:600">${s}</span>`;
+    const kArrow = s => s == null ? '' : `<span style="color:${s[0] === '↑' ? 'var(--up)' : (s[0] === '↓' ? 'var(--down)' : 'var(--flat)')};font-weight:600">${s}</span>`;
     const pctBar = k => {
       // 固定占位（无 rank 也渲染空 bar + 空四分位行），保证所有卡片高度/对齐一致；marker 只在有 rank 时显示
       const q = k.quartiles || [];
@@ -113,7 +114,7 @@ async function load() {
     esec.className = 're-section';
     const v5 = etf.sum5d_busd, v30 = etf.sum30d_busd;
     const fst = v => v == null ? '暂停判读' : `${v >= 0 ? '+' : ''}${v.toFixed(2)} B`;
-    const fcol = v => v == null ? '' : (v >= 0 ? 'color:var(--up,#26a69a)' : 'color:var(--down,#ef5350)');
+    const fcol = v => v == null ? '' : (v >= 0 ? 'color:var(--up)' : 'color:var(--down)');
     const fcard = (label, value, sub, color) => `
       <div class="re-card"><div class="re-corridor-label">${label}</div>
       <div class="re-corridor-value" style="${color || ''}">${value}</div>
@@ -123,7 +124,7 @@ async function load() {
         <b>如何解读</b> — ETF 是最干净的现货资金通道：价格上涨 + ETF 流入 = 现货确认；
         价格上涨但 ETF 流出 = 更可能是杠杆或短线挤压。
         <span style="opacity:.7">数据源：Farside Investors（12 ETF + Total，2024-01-11 起，M USD）</span></div>
-      ${etf.stale ? '<div style="padding:8px 12px;border:1px solid var(--warning,#d97706);border-radius:6px;font-size:12px;color:var(--warning,#d97706);margin-bottom:10px">⚠ ETF 资金流超过时效阈值（最新 ' + etf.latest + '），本区保留最近有效值，不参与方向判断。</div>' : ''}
+      ${etf.stale ? '<div style="padding:8px 12px;border:1px solid var(--warning);border-radius:6px;font-size:12px;color:var(--warning);margin-bottom:10px">⚠ ETF 资金流超过时效阈值（最新 ' + etf.latest + '），本区保留最近有效值，不参与方向判断。</div>' : ''}
       <div class="re-cards" style="grid-template-columns:repeat(auto-fit,minmax(160px,1fr))">
         ${fcard('最近有效净流入', fst(etf.last_flow_musd == null ? null : etf.last_flow_musd / 1000), etf.latest + ' · Farside 更新', fcol(etf.last_flow_musd))}
         ${fcard('5 天累计', fst(v5), etf.stale ? '暂停判读' : '参与方向评分', fcol(v5))}
@@ -171,9 +172,9 @@ async function load() {
   wsec.className = 're-section';
   const dist = (wall, spot) => wall == null || !spot ? null : (wall / spot - 1) * 100;
   const wallBox = (label, v, oi, spot) => v == null ? '' : `
-    <div style="border:1px solid ${label === 'Call Wall' ? 'var(--down,#ef5350)' : 'var(--up,#26a69a)'};border-radius:8px;padding:12px;background:var(--surface)">
+    <div style="border:1px solid ${label === 'Call Wall' ? 'var(--down)' : 'var(--up)'};border-radius:8px;padding:12px;background:var(--surface)">
       <div class="re-corridor-label">${label}</div>
-      <div style="font-size:22px;font-weight:700;color:${label === 'Call Wall' ? 'var(--down,#ef5350)' : 'var(--up,#26a69a)'}">$${fmt(v, 0)}</div>
+      <div style="font-size:22px;font-weight:700;color:${label === 'Call Wall' ? 'var(--down)' : 'var(--up)'}">$${fmt(v, 0)}</div>
       <div class="re-card-sub">${oi == null ? '' : `OI ${fmt(oi, 0)}`}${oi != null && dist(v, spot) != null ? ' · ' : ''}${dist(v, spot) == null ? '' : `距现价 ${dist(v, spot) >= 0 ? '+' : ''}${dist(v, spot).toFixed(1)}%`}</div>
     </div>`;
   const topList = (rows) => rows && rows.length ? `
@@ -276,7 +277,7 @@ async function load() {
         ${`<div class="re-card"><div class="re-corridor-label">当前基差年化</div><div class="re-corridor-value">${bz.current}%</div><div class="re-card-sub">${bz.latest} · 最新有效</div></div>`}
         ${`<div class="re-card"><div class="re-corridor-label">30 日均值</div><div class="re-corridor-value">${bz.ma30}%</div><div class="re-card-sub">近 30 个有效观测</div></div>`}
         ${`<div class="re-card"><div class="re-corridor-label">1 年百分位</div><div class="re-corridor-value">${bz.pct_rank}%</div><div class="re-card-sub">区间内相对位置</div></div>`}
-        ${`<div class="re-card"><div class="re-corridor-label">Spread（基差−SOFR）</div><div class="re-corridor-value" style="color:${bz.spread != null && bz.spread > 5 ? 'var(--up,#26a69a)' : (bz.spread != null && bz.spread < 0 ? 'var(--down,#ef5350)' : '')}">${bz.spread == null ? '—' : bz.spread + '%'}</div><div class="re-card-sub">SOFR ${bz.sofr}%</div></div>`}
+        ${`<div class="re-card"><div class="re-corridor-label">Spread（基差−SOFR）</div><div class="re-corridor-value" style="color:${bz.spread != null && bz.spread > 5 ? 'var(--up)' : (bz.spread != null && bz.spread < 0 ? 'var(--down)' : '')}">${bz.spread == null ? '—' : bz.spread + '%'}</div><div class="re-card-sub">SOFR ${bz.sofr}%</div></div>`}
       </div>
       <p class="re-source" style="margin:8px 0 0">公式：basis = (F−S)/S × 365/dte × 100%；治理：dte&lt;10 天跳过 · |basis|&gt;18% 过滤 · 最新未成熟日线跳过（数据完整性 ~35%，近月连续合约 proxy，非 CME 逐合约结算）。</p>`;
     document.getElementById('re-gen').insertAdjacentElement('beforebegin', bsec);
@@ -291,7 +292,7 @@ async function load() {
       <div style="display:flex;justify-content:space-between;border-bottom:1px solid var(--border,#333);padding:3px 0;font-size:12px">
         <span style="min-width:70px">${e.name}</span>
         <span style="opacity:.7;flex:1;text-align:right;margin-right:12px">${fmt(e.oi_btc / 1000, 1)}K BTC · $${(e.oi_usd / 1e9).toFixed(2)}B · ${e.share_pct}%</span>
-        <span style="color:${e.chg_1d_pct >= 0 ? 'var(--up,#26a69a)' : 'var(--down,#ef5350)'}">${e.chg_1d_pct >= 0 ? '+' : ''}${e.chg_1d_pct}%</span>
+        <span style="color:${e.chg_1d_pct >= 0 ? 'var(--up)' : 'var(--down)'}">${e.chg_1d_pct >= 0 ? '+' : ''}${e.chg_1d_pct}%</span>
       </div>`).join('');
     const ls = cg.ls_ratio || {};
     gsec.innerHTML = `<h2>Coinglass 全市场聚合 <span style="font-size:12px;font-weight:400;opacity:.7">全市场杠杆分布 + 清算压力（经 Jina Reader）</span></h2>
@@ -300,7 +301,7 @@ async function load() {
       <div class="re-cards" style="grid-template-columns:repeat(auto-fit,minmax(170px,1fr))">
         ${`<div class="re-card"><div class="re-corridor-label">BTC 全市场期货 OI</div><div class="re-corridor-value">$${((cg.btc_oi_usd || 0) / 1e9).toFixed(2)} B</div><div class="re-card-sub">${fmt((cg.btc_oi_btc || 0) / 1000, 1)}K BTC</div></div>`}
         ${`<div class="re-card"><div class="re-corridor-label">全加密期货 OI</div><div class="re-corridor-value">$${((cg.all_open_interest_usd || 0) / 1e9).toFixed(2)} B</div><div class="re-card-sub">所有币种合计</div></div>`}
-        ${`<div class="re-card"><div class="re-corridor-label">24h 清算总额</div><div class="re-corridor-value" style="color:var(--down,#ef5350)">$${((cg.liq24h_usd || 0) / 1e6).toFixed(1)} M</div><div class="re-card-sub">${cg.liq24h_chg_pct >= 0 ? '+' : ''}${cg.liq24h_chg_pct}%</div></div>`}
+        ${`<div class="re-card"><div class="re-corridor-label">24h 清算总额</div><div class="re-corridor-value" style="color:var(--down)">$${((cg.liq24h_usd || 0) / 1e6).toFixed(1)} M</div><div class="re-card-sub">${cg.liq24h_chg_pct >= 0 ? '+' : ''}${cg.liq24h_chg_pct}%</div></div>`}
         ${ls.long_pct != null ? `<div class="re-card"><div class="re-corridor-label">24h 多空比</div><div class="re-corridor-value">${ls.long_pct}% / ${ls.short_pct}%</div><div class="re-card-sub">${ls.long_pct > 50 ? '偏多' : (ls.long_pct < 50 ? '偏空' : '中性')}</div></div>` : ''}
       </div>
       ${exchRows ? `<div style="margin-top:10px;font-size:12px;opacity:.9"><div style="opacity:.7;margin-bottom:4px">交易所 OI 分布 · Top ${(cg.exchanges || []).length}（24h 变化）</div>${exchRows}</div>` : ''}

@@ -21,31 +21,66 @@ const R = {
     });
   },
 
-  // ECharts 主题色（跟随 Cmd+T 切换）
+  // ECharts 配色：全部回读 tokens.css / app.css 的 CSS 变量（单一来源，禁止字面色值）。
+  // 键名保持不变，各页 optionFn 调用点不动；主题切换时重新调用即拿到新主题值。
   colors() {
-    const dark = R.isDark();
+    const v = (n) => getComputedStyle(document.body).getPropertyValue(n).trim();
     return {
-      text: dark ? '#8b949e' : '#666',
-      muted: dark ? '#6e7681' : '#999',
-      border: dark ? '#30363d' : '#e1e4e8',
-      grid: dark ? '#21262d' : '#f0f0f0',
-      bg: dark ? '#161b22' : '#fff',
-      blue: '#3b82f6', orange: '#ff9800', green: '#26a69a',
-      red: '#ef5350', gray: '#9ca3af', purple: '#a78bfa',
+      text: v('--text-secondary'),
+      muted: v('--text-dim'),
+      border: v('--border'),
+      grid: v('--border-light'),
+      bg: v('--surface'),
+      blue: v('--color-brand'), orange: v('--color-warn'), green: v('--color-up'),
+      red: v('--color-down'), gray: v('--color-neutral'), purple: v('--chart-purple'),
     };
   },
 
-  // 建图 + 注册主题联动（Cmd+T 时自动重渲染）
+  // 时间轴标签简写 M/D（各页 time 轴 axisLabel.formatter 共用，免逐页重写）
+  md: (v) => { const t = new Date(v); return `${t.getMonth() + 1}/${t.getDate()}`; },
+
+  // 图表默认项骨架（顶层浅合并；legend/grid 深一层）：统一 legend 样板与 grid 边距，
+  // 页面只传差异部分：R.mkChart(id, (colors) => R.lineOption({ legend: { data: [...] }, series: [...] }, colors))
+  lineOption(over, colors) {
+    const c = colors || R.colors();
+    const base = {
+      legend: { top: 4, right: 8, icon: 'rect', itemWidth: 12, itemHeight: 3, textStyle: { color: c.text, fontSize: 11 } },
+      grid: { top: 36, left: 48, right: 16, bottom: 24 },
+    };
+    const out = Object.assign({}, base, over);
+    if (over && over.legend) out.legend = Object.assign({}, base.legend, over.legend);
+    if (over && over.grid) out.grid = Object.assign({}, base.grid, over.grid);
+    return out;
+  },
+
+  // 建图 + 注册主题联动（Cmd+T 时自动重渲染）：按主题名 init（未显式配色的 series
+  // 走主题 color 数组兜底，不再漏出 ECharts 默认紫）；切换时重注册 + dispose 重建
+  // （ECharts 主题只在 init 生效，同实例 setOption 换不掉主题默认值）。
+  // 重建后页面持有的旧引用会失效，故按 id 登记当前实例，页面用 R.getChart(id) 取最新。
   mkChart(id, option) {
     const dom = document.getElementById(id);
     if (!dom) return null;
-    const chart = echarts.init(dom);
-    chart.setOption(option(R.colors()));
-    window.addEventListener('theme-changed', () => {
+    const render = () => {
+      if (window.registerMacroTheme) registerMacroTheme();
+      const chart = echarts.init(dom, R.isDark() ? 'macroDark' : 'macro');
       chart.setOption(option(R.colors()));
+      R._charts.set(id, chart);
+      return chart;
+    };
+    let chart = render();
+    window.addEventListener('theme-changed', () => {
+      try { chart.dispose(); } catch (e) { /* 已被外部 dispose */ }
+      chart = render();
     });
     new ResizeObserver(() => chart.resize()).observe(dom);
     return chart;
+  },
+
+  // id → 当前实例（主题重建后仍有效）；外部 dispose 过的返回 null
+  _charts: new Map(),
+  getChart(id) {
+    const c = R._charts.get(id);
+    return c && !c.isDisposed() ? c : null;
   },
 
   // 请求 + 错误处理

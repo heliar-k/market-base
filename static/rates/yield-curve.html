@@ -40,6 +40,7 @@
   <div id="re-tenors"></div>
 </div>
 
+<script src="/js/echarts-theme.js"></script>
 <script src="/js/rates-common.js"></script>
 <script>
 async function load() {
@@ -60,10 +61,9 @@ async function load() {
 
   // ── 四线对比 ──
   const tenors = d.tenors;
-  R.mkChart('yc_compare', (colors) => ({
-    legend: { data: ['当前', '1周前', '1月前', '3月前'], top: 4, right: 8, textStyle: { color: colors.text, fontSize: 11 }, icon: 'rect', itemWidth: 12, itemHeight: 3 },
+  R.mkChart('yc_compare', (colors) => R.lineOption({
+    legend: { data: ['当前', '1周前', '1月前', '3月前'] },
     tooltip: { trigger: 'axis', valueFormatter: v => `${Number(v).toFixed(2)}%` },
-    grid: { top: 36, left: 48, right: 16, bottom: 24 },
     xAxis: { type: 'category', data: tenors.map(t => t.tenor), axisLabel: { color: colors.muted, fontSize: 10 }, axisLine: { lineStyle: { color: colors.border } } },
     yAxis: { type: 'value', scale: true, axisLabel: { color: colors.muted, formatter: '{value}%' }, splitLine: { lineStyle: { color: colors.grid } } },
     series: [
@@ -72,7 +72,7 @@ async function load() {
       { name: '1月前', type: 'line', data: tenors.map(t => t.prev_1m), symbol: 'none', lineStyle: { color: colors.orange, type: 'dashed', width: 1.5 }, connectNulls: true },
       { name: '3月前', type: 'line', data: tenors.map(t => t.prev_3m), symbol: 'none', lineStyle: { color: colors.red, type: 'dashed', width: 1.5 }, connectNulls: true },
     ],
-  }));
+  }, colors));
 
   // 全局长端对照表：显式 keys（6 列头 ↔ 6 键），
   // 修复 Object.keys 取列时第 6 列“来源”错渲染成 spread30 的问题（审计 P1-③）
@@ -90,10 +90,10 @@ async function load() {
   ));
 
   // ── 1 月变化柱状图 ──
-  R.mkChart('yc_change', (colors) => ({
+  R.mkChart('yc_change', (colors) => R.lineOption({
     tooltip: { trigger: 'axis', valueFormatter: v => `${v} bp` },
-    grid: { top: 28, left: 48, right: 16, bottom: 24, containLabel: false },
-    // 顶部留 16px 防柱顶标签裁切（含 grid.top 合计 ≥ 柱高+标签）
+    // 顶部留 16px 防柱顶标签裁切（含 grid.top 合计 ≥ 柱高+标签）；legend 此图不需要
+    legend: { show: false }, grid: { top: 28, bottom: 24, containLabel: false },
     xAxis: { type: 'category', data: tenors.map(t => t.tenor), axisLabel: { color: colors.muted, fontSize: 10 }, axisLine: { lineStyle: { color: colors.border } } },
     yAxis: { type: 'value', axisLabel: { color: colors.muted, formatter: '{value} bp' }, scale: true, splitLine: { lineStyle: { color: colors.grid } }, max: v => v.max + (v.max - v.min) * 0.12 },
     series: [{
@@ -101,14 +101,14 @@ async function load() {
       data: tenors.map(t => ({ value: t.chg_1m, itemStyle: { color: (t.chg_1m || 0) >= 0 ? colors.green : colors.red } })),
       label: { show: true, position: 'top', fontSize: 10, color: colors.muted, formatter: p => (p.value === null || p.value === undefined ? '' : p.value) },
     }],
-  }));
+  }, colors));
 
   // ── 利差时序 ──
   const sh = d0.yield_curve.spreads_history;
-  R.mkChart('yc_spreads', (colors) => ({
-    legend: { data: ['2s10s', '3m10s', '5s30s'], top: 4, right: 8, textStyle: { color: colors.text, fontSize: 11 }, icon: 'rect', itemWidth: 12, itemHeight: 3 },
+  R.mkChart('yc_spreads', (colors) => R.lineOption({
+    legend: { data: ['2s10s', '3m10s', '5s30s'] },
     tooltip: { trigger: 'axis', valueFormatter: v => `${v} bp` },
-    grid: { top: 36, left: 48, right: 16, bottom: 56 },
+    grid: { bottom: 56 },
     dataZoom: [{ type: 'inside' }, { type: 'slider', bottom: 8, height: 18 }],
     xAxis: { type: 'category', data: R.ts(sh['2s10s']), axisLabel: { color: colors.muted, fontSize: 10 }, axisLine: { lineStyle: { color: colors.border } } },
     yAxis: { type: 'value', axisLabel: { color: colors.muted, formatter: '{value} bp' }, scale: true, splitLine: { lineStyle: { color: colors.grid } } },
@@ -117,14 +117,13 @@ async function load() {
       { name: '3m10s', type: 'line', data: R.vs(sh['3m10s']), symbol: 'none', lineStyle: { color: colors.orange, width: 1.5 } },
       { name: '5s30s', type: 'line', data: R.vs(sh['5s30s']), symbol: 'none', lineStyle: { color: colors.purple, width: 1.5 } },
     ],
-  }));
+  }, colors));
 
   // ── 名义 vs TIPS vs 盈亏平衡 ──
   const tips = d.tips;
-  R.mkChart('yc_tips', (colors) => ({
-    legend: { data: ['名义收益率', 'TIPS 实际利率', '盈亏平衡通胀'], top: 4, right: 8, textStyle: { color: colors.text, fontSize: 11 }, icon: 'rect', itemWidth: 12, itemHeight: 3 },
+  R.mkChart('yc_tips', (colors) => R.lineOption({
+    legend: { data: ['名义收益率', 'TIPS 实际利率', '盈亏平衡通胀'] },
     tooltip: { trigger: 'axis', valueFormatter: v => `${Number(v).toFixed(2)}%` },
-    grid: { top: 36, left: 48, right: 16, bottom: 24 },
     xAxis: { type: 'category', data: tips.map(t => t.tenor), axisLabel: { color: colors.muted, fontSize: 10 }, axisLine: { lineStyle: { color: colors.border } } },
     yAxis: { type: 'value', scale: true, axisLabel: { color: colors.muted, formatter: '{value}%' }, splitLine: { lineStyle: { color: colors.grid } } },
     series: [
@@ -132,7 +131,7 @@ async function load() {
       { name: 'TIPS 实际利率', type: 'line', data: tips.map(t => t.real), symbol: 'circle', symbolSize: 6, lineStyle: { color: colors.orange, width: 2 }, itemStyle: { color: colors.orange } },
       { name: '盈亏平衡通胀', type: 'line', data: tips.map(t => t.breakeven), symbol: 'circle', symbolSize: 6, lineStyle: { color: colors.green, width: 2 }, itemStyle: { color: colors.green } },
     ],
-  }));
+  }, colors));
 
   // ── 解读：形态 / 驱动 / 关键利差信号 / 验证指标 / 交易含义 / 失效条件 / 时间框架 ──
   const a = document.getElementById('re-analysis');
@@ -149,7 +148,7 @@ async function load() {
 
   // ── 明细表 ──
   const bpHtml = v => v === null || v === undefined ? '—'
-    : `<span style="color:${v > 0 ? '#26a69a' : v < 0 ? '#ef5350' : '#9ca3af'}">${Number(v) > 0 ? '+' : ''}${Number(v).toFixed(1)}</span>`;
+    : `<span style="color:${v > 0 ? 'var(--color-up)' : v < 0 ? 'var(--color-down)' : 'var(--color-neutral)'}">${Number(v) > 0 ? '+' : ''}${Number(v).toFixed(1)}</span>`;
   document.getElementById('re-tenors').replaceChildren(R.table(
     ['期限', '当前', '1周前', '1月前', '3月前', 'vs 1周', 'vs 1月', 'vs 3月'],
     tenors.map(t => ({ t: t.tenor, cur: t.current, w1: t.prev_1w, m1: t.prev_1m, m3: t.prev_3m, c1: t.chg_1w, c2: t.chg_1m, c3: t.chg_3m })),

@@ -6,7 +6,7 @@
 //   /api/volatility/dashboard → 波动率 hero 4 卡 + 信号卡
 //   /api/symbols + /api/kline/{sym}?days=5 → 自选清单（localStorage 持久化）
 
-import { reThemeECharts } from './echarts-theme.js';
+// reThemeECharts 为 echarts-theme.js 经典脚本全局（Phase 2 单轨化，见 index.html 引入）
 
 // 跨资产表行 → 专题页跳转（与今日研判页同款映射）
 const LINKS = {

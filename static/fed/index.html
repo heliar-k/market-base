@@ -27,6 +27,7 @@
 </div>
 
 <script src="/vendor/echarts.min.js"></script>
+<script src="/js/echarts-theme.js"></script>
 <script src="/js/rates-common.js"></script>
 <script>
 const KIND_LABEL = { statement: '声明', minutes: '会议纪要', sep: '经济预测', discount: '贴现率纪要', other: '其他' };
@@ -249,8 +250,10 @@ function renderHawkish(root, data) {
   chartDiv.style.height = '500px';
   s2.appendChild(chartDiv);
   const draw = () => {
-    if (!chart) chart = R.mkChart('chart-timeline', (c) => opt(c, winDays));
-    else chart.setOption(opt(R.colors(), winDays), true);
+    // 用 R.getChart 取当前实例：主题切换后 mkChart 会重建，旧局部引用已 dispose
+    const existing = R.getChart('chart-timeline');
+    if (!existing) chart = R.mkChart('chart-timeline', (c) => opt(c, winDays));
+    else { chart = existing; chart.setOption(opt(R.colors(), winDays), true); }
   };
   mkFilter(s2.querySelector('#tl-filter'), { '近半年': 183, '近一年': 365, '全部': 0 }, (k) => { winDays = k; draw(); });
   draw();
