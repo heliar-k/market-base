@@ -22,6 +22,8 @@ ACSP,ProShares S&P 500 Autocallable Income ETF,factor_income
 ACWI,iShares MSCI ACWI ETF,broad
 ACWX,iShares MSCI ACWI ex U.S. ETF,broad
 ADBG,Leverage Shares 2X Long ADBE Daily ETF,leveraged_inverse
+AFDM,First Trust Active Factor International ETF,global
+AFEM,First Trust Active Factor Emerging Markets ETF,global
 AFOS,ARS Focused Opportunity Strategy ETF,broad
 AFSC,abrdn Focused U.S. Small Cap Active ETF,broad
 AGEM,abrdn Emerging Markets Dividend Active ETF,factor_income
@@ -927,8 +929,6 @@ REAI,Intelligent Real Estate ETF,broad
 REIT,ALPS Active REIT ETF,broad
 REMG,Russell Investments Emerging Markets Equity ETF,global
 REXC,Sprott Rare Earths Ex-China ETF,global
-RFDI,First Trust RiverFront Dynamic Developed International ETF,global
-RFEM,First Trust RiverFront Dynamic Emerging Markets ETF,global
 RGLO,Russell Investments Global Equity ETF,broad
 RGTX,Defiance Daily Target 2X Long RGTI ETF,leveraged_inverse
 RGTZ,Defiance Daily Target 2x Short RGTI ETF,leveraged_inverse
@@ -1284,6 +1284,7 @@ ABFL,Abacus FCF Leaders ETF,broad
 ABLD,Abacus FCF Real Assets Leaders ETF,broad
 ABLG,Abacus FCF International Leaders ETF,global
 ABLS,Abacus FCF Small Cap Leaders ETF,broad
+ABND,American Century Core Plus Income ETF,factor_income
 ABOT,Abacus FCF Innovation Leaders ETF,high_beta
 ABUF,Aptus Laddered Buffer ETF,broad
 ABXB,Abacus Flexible Bond Leaders ETF,bond
@@ -1792,7 +1793,7 @@ CAML,Congress Large Cap Growth ETF,high_beta
 CAMX,Cambiar Aggressive Value ETF,bond
 CANE,Teucrium Sugar Fund ETV,broad
 CAOS,Alpha Architect Tail Risk ETF,theme
-CAPA,Defiance AI Capacitors Leaders ETF,theme
+CAPA,Defiance AI Capacitors & MLCC ETF,theme
 CAPE,DoubleLine Shiller CAPE U.S. Equities ETF,broad
 CARD,MAX Auto Industry -3x Inverse Leveraged ETN,leveraged_inverse
 CARK,CastleArk Large Growth ETF,high_beta
@@ -2208,6 +2209,7 @@ DMAX,iShares Large Cap Max Buffer Dec ETF,broad
 DMAY,FT Vest U.S. Equity Deep Buffer ETF - May,broad
 DMBS,DoubleLine Mortgage ETF,broad
 DMX,DoubleLine Multi-Sector Income ETF,factor_income
+DMXU,Xtrackers Bloomberg Developed Markets ex US Equity ETF,global
 DNL,WisdomTree Global ex-U.S. Quality Growth Fund,factor_income
 DNOV,FT Vest U.S. Equity Deep Buffer ETF - November,broad
 DOCK,"Corgi Ports, Rail & Freight ETF",theme
@@ -2284,7 +2286,6 @@ EAGG,iShares ESG Aware U.S. Aggregate Bond ETF,bond
 EAGL,Eagle Capital Select Equity ETF,broad
 EALT,Innovator U.S. Equity 5 to 15 Buffer ETF - Quarterly,broad
 EAPR,Innovator Emerging Markets Power Buffer ETF April,global
-EASG,Xtrackers MSCI EAFE Selection Equity ETF,broad
 EBIT,Harbor AlphaEdge Small Cap Earners ETF,broad
 EBND,State Street SPDR Bloomberg Emerging Markets Local Bond ETF,bond
 EBUF,Innovator Emerging Markets 10 Buffer ETF - Quarterly,global
@@ -2749,7 +2750,7 @@ FTSD,Franklin Short Duration U.S. Government ETF,broad
 FTWO,Strive Natural Resources and Security ETF,broad
 FUMB,First Trust Ultra Short Duration Municipal ETF,bond
 FUSD,Federated Hermes Ultrashort Bond ETF,bond
-FUSI,American Century Multisector Floating Income ETF,bond
+FUSI,American Century Ultrashort Income ETF,factor_income
 FUTY,Fidelity MSCI Utilities Index ETF,broad
 FVAL,Fidelity Value Factor ETF,factor_income
 FVD,First Trust VL Dividend,factor_income
@@ -3066,7 +3067,7 @@ HYLB,Xtrackers USD High Yield Corporate Bond ETF,bond
 HYMB,State Street SPDR Nuveen ICE High Yield Municipal Bond ETF,bond
 HYNX,T-REX 2X Long SKHY Daily Target ETF,leveraged_inverse
 HYS,PIMCO 0-5 Year High Yield Corporat Bond Index Exchange-Traded Fund,bond
-HYSA,BondBloxx USD High Yield Bond Sector Rotation ETF,bond
+HYSA,BondBloxx High Yield Income ETF,bond
 HYSD,Columbia Short Duration High Yield ETF,bond
 HYTI,FT Vest High Yield & Target Income ETF,bond
 HYTR,Counterpoint High Yield Trend ETF,bond
@@ -3871,7 +3872,6 @@ MUNJ,Northern Trust 2031 Tax-Exempt Distributing Ladder ETF,broad
 MUNX,AMG GW&K Muni Income ETF,factor_income
 MUNY,Vanguard New York Tax-Exempt Bond ETF,bond
 MUSE,TCW Multisector Credit Income ETF,bond
-MUSI,American Century Multisector Income ETF,factor_income
 MUSQ,MUSQ Global Music Industry Index ETF,broad
 MUST,Columbia Multi-Sector Municipal Income ETF,bond
 MUZ,Defiance Daily Target 2X Short MU ETF,leveraged_inverse
@@ -4247,7 +4247,7 @@ PQX,PGIM S&P 500 Quarterly Buffer 10 ETF,broad
 PQXV,PGIM S&P 500 Quarterly Buffer 15 ETF,broad
 PQXX,PGIM S&P 500 Quarterly Buffer 20 ETF,broad
 PRAB,State Street IG Public & Private ABS ETF,broad
-PRAE,PlanRock Alternative Growth ETF,high_beta
+PRAE,PlanRock Equity Plus Alternatives ETF,broad
 PRAM,Defiance Memory & Photonics ETF,broad
 PRAY,FIS Christian Stock Fund,broad
 PRCS,Parnassus Core Select ETF,broad
@@ -5039,6 +5039,7 @@ TIPG,Northern Trust 2046 Inflation-Linked Distributing Ladder ETF,broad
 TIPH,Northern Trust 2056 Inflation-Linked Distributing Ladder ETF,broad
 TIPX,State Street SPDR Bloomberg 1a??10 Year TIPS ETF,broad
 TIPZ,PIMCO Broad U.S. TIPS Index Exchange-Traded Fund,broad
+TIZE,TCW Securitized Income ETF,factor_income
 TJAN,Innovator Equity Defined Protection ETF - 2 Yr to January 2027,broad
 TJUL,Innovator Equity Defined Protection ETF - 2 Yr to July 2027,broad
 TJUN,FT Vest Emerging Markets Buffer ETF - June,global
@@ -5675,3 +5676,5 @@ ZSEP,Innovator Equity Defined Protection ETF - 1 Yr September,broad
 ZSL,ProShares UltraShort Silver,commodity
 ZTAX,X-Square Municipal Income ETF,bond
 ZVOL,Volatility Premium Plus ETF,broad
+ZZZTE,TXSE Test Stk 2 ETF,broad
+ZZZTT,ETF,broad
