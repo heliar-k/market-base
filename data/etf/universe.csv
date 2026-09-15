@@ -751,6 +751,7 @@ NSI,National Security Emerging Markets Index ETF,global
 NTAL,GraniteShares 2x Long NTAP Daily ETF,leveraged_inverse
 NUG,Leverage Shares 2X Long NU Daily ETF,leveraged_inverse
 NUGY,GraniteShares YieldBOOST Gold Miners ETF,commodity
+NUIB,Nuveen Impact Bond ETF,bond
 NUIF,Nuveen US Infrastructure ETF,broad
 NUSB,Nuveen Ultra Short Income ETF,factor_income
 NVD,GraniteShares 2x Short NVDA Daily ETF,leveraged_inverse
@@ -1246,6 +1247,7 @@ XRPT,Volatility Shares Trust XRP 2X ETF,leveraged_inverse
 XSPC,VegaShares SpaceX & Beyond Earth ETF,theme
 XSPI,NEOS Boosted S&P 500 High Income ETF,factor_income
 XT,iShares Future Exponential Technologies ETF,broad
+XUSM,MarketDesk International Momentum ETF,factor_income
 XXX,CYBER HORNET S&P 500 and XRP 75/25 Strategy ETF,theme
 XYZG,Leverage Shares 2X Long XYZ Daily ETF,leveraged_inverse
 YBST,GraniteShares YieldBoost Single Stock Universe ETF,broad
@@ -1470,6 +1472,7 @@ ASTT,Corgi ASTS 2x Daily ETF,leveraged_inverse
 ASTX,Tradr 2X Long ASTS Daily ETF,leveraged_inverse
 ASTY,Defiance Daily Target 2X Long ASTS ETF,leveraged_inverse
 ASUP,T-REX 2X Long ASTS Daily Target ETF,leveraged_inverse
+AT,Defiance Robotics Actuators ETF,theme
 ATCL,REX Autocallable Income ETF,factor_income
 ATFV,Alger 35 ETF,broad
 ATTR,Arin Tactical Tail Risk ETF,theme
@@ -1995,6 +1998,7 @@ CRWU,T-REX 2X Long CRWV Daily Target ETF,leveraged_inverse
 CRWX,Corgi CRWV 2x Daily ETF,leveraged_inverse
 CRXP,Columbia Core Plus Bond ETF,bond
 CSD,Invesco S&P Spin-Off ETF,broad
+CSEP,Corgi U.S. Equities 15% Structured Buffer ETF - September Series,broad
 CSEX,Tradr 2X Long CLS Daily ETF,leveraged_inverse
 CSHI,NEOS Enhanced Income 1-3 Month T-Bill ETF,factor_income
 CSHP,iShares Dynamic Short-Term Active ETF,broad
@@ -2016,6 +2020,7 @@ CTIF,Castellan Targeted Income ETF,factor_income
 CTJL,Corgi U.S. Equities 30% Structured Buffer ETF - July Series,broad
 CTJN,Corgi U.S. Equities 30% Structured Buffer ETF - June Series,broad
 CTMA,Corgi U.S. Equities 30% Structured Buffer ETF - May Series,broad
+CTSE,Corgi U.S. Equities 30% Structured Buffer ETF - September Series,broad
 CTWO,Common units,broad
 CURE,Direxion Daily Healthcare Bull 3X ETF,leveraged_inverse
 CUST,Corgi 1-3 Year Treasury Bond ETF,bond
@@ -2375,6 +2380,7 @@ EMOP,AB Emerging Markets Opportunities ETF,global
 EMOT,First Trust S&P 500 Economic Moat ETF,broad
 EMPB,Efficient Market Portfolio Plus ETF,broad
 EMQQ,EMQQ The Emerging Markets Internet ETF,global
+EMSE,Corgi Emerging Markets Equities 15% Structured Buffer ETF - September Series,global
 EMSF,Matthews Emerging Markets Sustainable Future Active ETF,global
 EMTY,ProShares Decline of the Retail Store ETF,theme
 EMXX,Corgi Emerging Markets 2x Daily ETF,global
@@ -3032,6 +3038,7 @@ HPEL,Leverage Shares 2X Long HPE Daily ETF,leveraged_inverse
 HRSK,Toews Agility Shares Hedged Risk ETF,broad
 HSBH,HSBC Holdings plc ADRhedged,broad
 HSCZ,iShares Currency Hedged MSCI EAFE Small-Cap ETF,currency
+HSEP,Corgi U.S. Equities 100% Structured Buffer ETF - September Series,broad
 HSMV,First Trust Horizon Managed Volatility Small/Mid ETF,broad
 HTAB,Hartford Schroders Tax-Aware Bond ETF,bond
 HTAX,Nomura National High-Yield Municipal Bond ETF,bond
@@ -3152,6 +3159,7 @@ IDMY,Corgi International Developed Equities 15% Structured Buffer ETF - May Seri
 IDNA,iShares Genomics Immunology and Healthcare ETF,broad
 IDOG,ALPS International Sector Dividend Dogs ETF,factor_income
 IDRV,iShares Self-Driving EV and Tech ETF,broad
+IDSE,Corgi International Developed Equities 15% Structured Buffer ETF - September Series,global
 IDU,iShares U.S. Utilities ETF,broad
 IDUB,Aptus International Enhanced Yield ETF,global
 IDV,iShares International Select Dividend ETF,factor_income
@@ -3496,6 +3504,7 @@ KBUF,KraneShares 90% KWEB Defined Outcome January 2027 ETF,broad
 KCAI,KraneShares China Alpha Index ETF,global
 KCCA,KraneShares California Carbon Allowance Strategy ETF,broad
 KCE,State Street SPDR S&P Capital Markets ETF,broad
+KCHP,KICK Korea Semiconductor Index ETF,theme
 KCOP,Kurv Copper & Mining Enhanced Income ETF,commodity
 KCSH,KraneShares Sustainable Ultra Short Duration Index ETF,theme
 KDEC,Innovator U.S. Small Cap Power Buffer ETF - December,broad
@@ -3637,6 +3646,7 @@ LOPP,Gabelli Love Our Planet & People ETF Gabelli Love Our Planet & People ETF,b
 LOUP,Innovator Deepwater Frontier Tech ETF,theme
 LOWV,AB US Low Volatility Equity ETF,factor_income
 LPRE,Long Pond Real Estate Select ETF,broad
+LPSV,Lone Peak SMID Value ETF,factor_income
 LQAI,LG QRAFT AI-Powered U.S. Large Cap Core ETF,theme
 LQD,iShares iBoxx $ Investment Grade Corporate Bond ETF,bond
 LQDB,iShares BBB Rated Corporate Bond ETF,bond
@@ -4149,6 +4159,7 @@ PCLG,Polen Focus Growth ETF,high_beta
 PCLN,Pictet Cleaner Planet ETF,theme
 PCLO,VIRTUS SEIX AAA Private Credit CLO ETF,bond
 PCOV,Principal Equity Premium Income ETF,factor_income
+PCPC,Porter & Company Property & Casualty Index ETF,broad
 PCPP,Porter & Company Porter Portfolio Index ETF,broad
 PCR,Simplify VettaFi Private Credit Strategy ETF,bond
 PCS,PGIM Corporate Bond 0-5 Year ETF,bond
@@ -4388,6 +4399,8 @@ QQJN,Corgi Growth & Technology 15% Structured Buffer ETF - June Series,high_beta
 QQMY,Corgi Growth & Technology 15% Structured Buffer ETF - May Series,high_beta
 QQQD,Direxion Daily Magnificent 7 Bear 1X ETF,theme
 QQQU,Direxion Daily Magnificent 7 Bull 2X ETF,leveraged_inverse
+QQSE,Corgi Growth & Technology 15% Structured Buffer ETF - September Series,high_beta
+QSE,Corgi Growth & Technology 10% Structured Buffer ETF - September Series,high_beta
 QSIG,WisdomTree U.S. Short Term Corporate Bond Fund,bond
 QSOL,Invesco Galaxy Solana ETF,broad
 QSPT,FT Vest Nasdaq-100 Buffer ETF - September,broad
@@ -4566,6 +4579,7 @@ RZG,Invesco S&P SmallCap 600 Pure Growth ETF,high_beta
 RZV,Invesco S&P SmallCap 600 Pure Value ETF,factor_income
 SAA,ProShares Ultra SmallCap600,broad
 SAGP,Strategas Global Policy Opportunities ETF,broad
+SALI,Schroders US Autocallable Ladder Income ETF,factor_income
 SAMM,Strategas Macro Momentum ETF,factor_income
 SAMT,Strategas Macro Thematic Opportunities ETF,broad
 SAPH,SAP SE ADRhedged,broad
@@ -4621,6 +4635,7 @@ SCO,ProShares UltraShort Bloomberg Crude Oil,commodity
 SCOP,Sprott Physical Copper Trust Units,commodity
 SCOW,Pacer S&P SmallCap 600 Quality FCF Aristocrats ETF,factor_income
 SCSB,Sterling Capital Short Duration Bond ETF,bond
+SCSE,Corgi U.S. Small-Cap 15% Structured Buffer ETF - September Series,broad
 SCUB,Sterling Capital Ultra Short Bond ETF,bond
 SCUS,Schwab Ultra-Short Income ETF,factor_income
 SCYB,Schwab High Yield Bond ETF,bond
@@ -4650,6 +4665,7 @@ SEIX,Virtus Seix Senior Loan ETF,broad
 SELV,SEI Enhanced Low Volatility U.S. Large Cap ETF,factor_income
 SEMG,Suncoast Select Growth ETF,high_beta
 SEMI,Columbia Select Technology ETF,broad
+SEPC,Corgi U.S. Equities 10% Structured Buffer ETF - September Series,broad
 SEPI,Shelton Equity Premium Income ETF,factor_income
 SEPM,FT Vest U.S. Equity Max Buffer ETF - September,broad
 SEPP,PGIM S&P 500 Buffer 12 ETF - September,broad
