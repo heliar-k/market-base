@@ -595,6 +595,20 @@ EDGAR 内部人持股变动（T+2 免费公开），`./bin/fetch_insider` 拉取
 
 CLI 结尾打印每标的近 90 天 open-market 净买入汇总（仅 P/S 计信号）。
 
+## 12.7 Polymarket 预测市场 — `data/polymarket/`
+
+预测市场概率监测（gamma-api 直连免 key），`./bin/fetch_polymarket` 每日拉取，
+监测对象由 `config.POLYMARKET_*` 规则发现（series + 关键词 + 成交量地板），
+不维护 slug 清单：事件结束自动退出、新事件自动进入。
+
+| 文件 | 说明 |
+|------|------|
+| `{YYYYMMDD}.json` | 当日事件快照（覆盖写）：分类/24h量/流动性/嵌套市场概率 |
+| `history.csv` | 概率时序宽表（date 索引 × 市场id 列，upsert）：每日从 prices-history 回拉 1 个月，取 UTC 日终值 |
+
+分类：fed（FOMC 决议/升坠息）、data（CPI/就业/GDP/衰退）、policy（shutdown/tariff/选举）、
+geo（地缘冲突/停火）、crypto（BTC/ETH 价位市场）。
+
 ## 速查：怎么用
 
 ```python

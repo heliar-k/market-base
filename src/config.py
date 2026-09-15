@@ -366,6 +366,59 @@ COMMODITY_FUTURES = {
     "ZQ": ("FedFunds", "CBOT"),
 }
 
+# ── Polymarket 预测市场监测（gamma-api 直连免 key）──
+# 监测对象由规则发现，不维护 slug 清单：事件结束自动退出、新事件自动进入。
+# series: 官方系列 ticker（fomc/fed-rate-hike 等，运行时 /series?slug= 解析 id），
+#         命中 series 直接入选（不看成交量，FOMC 静默期也要监测）
+# keywords: 分类 → 标题/slug 词边界关键词（\b 匹配，避免 confirmed 误命中 fed），
+#           命中后还需过成交量地板（关键词太宽，用成交量收口）
+POLYMARKET_SERIES: list[str] = [
+    "fomc",
+    "fed-rate-hike",
+    "fed-rate-cut",
+    "bitcoin-hit-price-monthly",
+    "ethereum-hit-price-monthly",
+]
+POLYMARKET_KEYWORDS: dict[str, list[str]] = {
+    "fed": ["fed", "fomc", "powell", "rate cut", "rate hike", "interest rate"],
+    "data": [
+        "cpi",
+        "inflation",
+        "jobs",
+        "payroll",
+        "gdp",
+        "recession",
+        "unemployment",
+    ],
+    "policy": [
+        "shutdown",
+        "tariff",
+        "debt ceiling",
+        "government funding",
+        "election",
+        "midterm",
+        "sanction",
+        "impeach",
+    ],
+    "geo": [
+        "iran",
+        "israel",
+        "hormuz",
+        "taiwan",
+        "ukraine",
+        "russia",
+        "ceasefire",
+        "war",
+        "putin",
+        "invade",
+        "nato",
+    ],
+    "crypto": ["bitcoin", "ethereum", "btc", "eth", "solana", "xrp", "stablecoin"],
+}
+# 成交量地板（关键词通道用，二选一达标即保留）：24h 活跃 或 累计已确立
+POLYMARKET_MIN_VOL24H = 5_000
+POLYMARKET_MIN_VOLUME = 500_000
+
 # ── yfinance 单品价格快照（独立于 OHLCV 管线）──
 YF_TICKERS = {
     "SPX": "^GSPC",

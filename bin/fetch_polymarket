@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+# Polymarket 预测市场监测快照（gamma-api 直连免 key）
+set -euo pipefail
+cd "$(dirname "$0")/.."
+uv run python -m src.fetchers.polymarket_fetcher "$@"

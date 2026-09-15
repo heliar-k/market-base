@@ -129,6 +129,7 @@ market-base/
 │   ├── fetch_crypto_basis               ← CME BTC 基差日序列（Yahoo BTC=F，timsun V1 治理）
 │   ├── fetch_coinglass                  ← Coinglass 全市场聚合快照（经 Jina Reader）
 │   ├── fetch_cme_options                ← CME 期权墙快照（官网 volume/options 页经 Jina）
+│   ├── fetch_polymarket                 ← Polymarket 预测市场监测（gamma-api 直连免 key）
 │   ├── fetch_etf_flows                 ← BTC 现货 ETF 资金流（Farside via Jina Reader）
 │   ├── fetch_breadth                   ← 市场广度 ABV（SPX 成分股在均线上方占比）
 │   ├── fetch_dts                       ← Treasury Daily Statement 现金流（Fiscal Data API）
@@ -265,6 +266,7 @@ uv run python -m src.cross_asset     # 跨资产 30 日相关性矩阵（派生�
 ./bin/fetch_crypto_basis             # CME BTC 基差日序列（Yahoo BTC=F proxy）
 ./bin/fetch_coinglass                 # Coinglass 全市场聚合（Jina Reader，OI/清算/交易所分布）
 ./bin/fetch_cme_options                 # CME 期权墙（官方 volume/options 页经 Jina）
+./bin/fetch_polymarket                 # Polymarket 预测市场监测（免 key 直连）
 ./bin/fetch_etf_flows                 # BTC 现货 ETF 资金流（Farside via Jina Reader）
 ./bin/fetch_commodities             # 全部期货（整条曲线）
 ./bin/fetch_commodities --front-month  # 仅主力合约
