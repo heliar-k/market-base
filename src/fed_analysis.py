@@ -16,7 +16,9 @@ src/rates_analysis.py 的 `_llm_generate()`。
 from __future__ import annotations
 
 import ast
+import json
 import re
+from datetime import date
 from pathlib import Path
 
 import pandas as pd
@@ -25,6 +27,8 @@ from src.config import FOMC_MEETINGS, ROOT
 
 STATEMENTS_CSV = ROOT / "data" / "fed" / "statements.csv"
 SPEECHES_CSV = ROOT / "data" / "fed" / "speeches.csv"
+POLYMARKET_DIR = ROOT / "data" / "polymarket"
+POLYMARKET_HISTORY = POLYMARKET_DIR / "history.csv"
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # 词表：短语 → 分数（命中累加，声明/演讲共用）
@@ -450,6 +454,123 @@ def fed_analysis(n_sample: int = 20) -> dict:
         "timeline": timeline,
         "voting_year": VOTING_YEAR,
     }
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# 市场预期（Polymarket 预测市场，fed 分类）
+# ═══════════════════════════════════════════════════════════════════════════════
+
+
+def market_odds() -> dict | None:
+    """Polymarket fed 分类快照 + 概率时序（无数据返回 None，页面显示空状态）。
+
+    快照取最新**可解析且含 fed 事件**的日期文件（同 assets_analysis._coinglass
+    模式：抓取失败日回退前一有效日）；history.csv 只提取 fed 市场 id 的列，
+    值为 0-1 概率，升序供走势图。只读不写盘。
+    """
+    for f in sorted(POLYMARKET_DIR.glob("20*.json"), reverse=True):
+        try:
+            snap = json.loads(f.read_text(encoding="utf-8"))
+        except Exception:
+            continue
+        events = [e for e in snap.get("events") or [] if e.get("category") == "fed"]
+        if not events:
+            continue
+        ids = {m["id"] for e in events for m in e["markets"]}
+        history: dict[str, list[dict]] = {}
+        if POLYMARKET_HISTORY.exists():
+            h = pd.read_csv(POLYMARKET_HISTORY)
+            for col in h.columns:
+                if col != "date" and col in ids:
+                    s = h[["date", col]].dropna(subset=[col])
+                    history[col] = [
+                        {"date": d, "value": round(float(v), 4)}
+                        for d, v in zip(s["date"], s[col])
+                    ]
+        return {"as_of": snap.get("as_of"), "events": events, "history": history}
+    return None
+
+
+# ── FOMC 会议概率对照（rates/pricing 页复用）──────────────────────────────────
+
+_MONTHS: dict[str, int] = {
+    "january": 1,
+    "february": 2,
+    "march": 3,
+    "april": 4,
+    "may": 5,
+    "june": 6,
+    "july": 7,
+    "august": 8,
+    "september": 9,
+    "october": 10,
+    "november": 11,
+    "december": 12,
+}
+
+
+def _question_bucket(question: str) -> str | None:
+    """问题文本 → cut/hold/hike 档位（与 fed 页 oddsCls 同关键词口径）。"""
+    q = question.lower()
+    if "decrease" in q:
+        return "cut"
+    if "no change" in q:
+        return "hold"
+    if "increase" in q:
+        return "hike"
+    return None
+
+
+def _decision_event_ym(event: dict) -> tuple[int, int] | None:
+    """「Fed Decision in {Month}?」事件 → (年, 月)。
+
+    年份优先取市场问题文本（"... after the September 2026 meeting"），缺失回退
+    事件 end_date 的年份（决策类事件的 end_date 即会议日）。跨年并存
+    （December 2026 vs January 2027）由显式年份天然区分。
+    """
+    m = re.search(r"fed decision in ([a-z]+)\?", event.get("title") or "", re.I)
+    month = _MONTHS.get(m.group(1).lower()) if m else None
+    if month is None:
+        return None
+    for mk in event.get("markets") or []:
+        y = re.search(r"(\d{4}) meeting", mk.get("question") or "")
+        if y:
+            return int(y.group(1)), month
+    end = str(event.get("end_date") or "")
+    return (int(end[:4]), month) if end[:4].isdigit() else None
+
+
+def polymarket_fomc_odds(
+    events: list[dict] | None, meeting_dates: list[str]
+) -> dict[str, dict[str, float]]:
+    """把 "Fed Decision in {Month}?" 事件按 (年, 月) 匹配会议日期并聚合各档概率。
+
+    cut = Σ decrease、hold = no change、hike = Σ increase，与 ZQ 的
+    prob_cut/hold/hike 同口径（negRisk 互斥事件，个别档缺失以 markets 实际为准）。
+    events 传 market_odds()["events"]（或空）；返回 {meeting_date: {cut, hold, hike}}，
+    未匹配的会议不在返回值中（调用方以 None 补位）。纯函数，不读盘。
+    """
+    by_ym: dict[tuple[int, int], dict[str, float]] = {}
+    for e in events or []:
+        ym = _decision_event_ym(e)
+        if ym is None:
+            continue
+        agg = {"cut": 0.0, "hold": 0.0, "hike": 0.0}
+        for mk in e.get("markets") or []:
+            bucket = _question_bucket(mk.get("question") or "")
+            if bucket:
+                agg[bucket] += float(mk.get("prob_yes") or 0.0)
+        by_ym[ym] = {k: round(v, 4) for k, v in agg.items()}
+
+    out: dict[str, dict[str, float]] = {}
+    for d in meeting_dates:
+        try:
+            ymd = date.fromisoformat(str(d)[:10])
+        except ValueError:
+            continue
+        if (ymd.year, ymd.month) in by_ym:
+            out[d] = by_ym[(ymd.year, ymd.month)]
+    return out
 
 
 # ═══════════════════════════════════════════════════════════════════════════════

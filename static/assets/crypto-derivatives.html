@@ -22,6 +22,7 @@
   <div id="radar"></div>
   <div id="kpi"></div>
   <div id="walls"></div>
+  <div id="polymarket"></div>
   <div id="retail"></div>
   <div id="consensus"></div>
   <div class="re-gen" id="re-gen"></div>
@@ -37,7 +38,7 @@ const P = { up: 'var(--color-up)', down: 'var(--color-down)', flat: 'var(--color
 
 async function load() {
   const d = await R.get('/api/assets/crypto-derivatives');
-  if (!d || !d.ts) { R.fail(['radar', 'kpi', 'walls', 'retail', 'consensus'], new Error('无加密衍生品快照 · 运行 ./bin/fetch_crypto_derivatives 后刷新')); return; }
+  if (!d || !d.ts) { R.fail(['radar', 'kpi', 'walls', 'polymarket', 'retail', 'consensus'], new Error('无加密衍生品快照 · 运行 ./bin/fetch_crypto_derivatives 后刷新')); return; }
   document.getElementById('re-as-of').textContent =
     R.asOf([['衍生品快照', d.ts.slice(0, 10)], d.cme && ['CME 基差', d.cme.as_of]]);
 
@@ -213,6 +214,53 @@ async function load() {
     <p class="re-source" style="margin:8px 0 0">口径：Deribit 最近到期月度（near wall）为主，全到期聚合为回退；CME 为官方每日结算当前月（经 Jina Reader，到期月切换暂不可用）。</p>`;
   document.getElementById('walls').appendChild(wsec);
 
+  // ── POLYMARKET 加密价位市场（hit-price 系列：预测市场隐含的触及概率）──
+  {
+    const msec = document.createElement('div');
+    msec.className = 're-section';
+    const pm = d.polymarket;
+    if (pm && (pm.groups || []).length) {
+      // 概率条：≥60% 用 up 色，其余 flat；<20% 淡显为长尾（两行布局：标签独占一行防价位截断）
+      const prow = m => {
+        const pct = m.prob_yes == null ? null : m.prob_yes * 100;
+        const chgColor = m.chg7d > 0 ? 'var(--up)' : m.chg7d < 0 ? 'var(--down)' : 'var(--flat)';
+        const chg = m.chg7d == null ? '<span style="min-width:52px"></span>'
+          : `<span style="min-width:52px;text-align:right;font-size:11px;color:${chgColor}">${m.chg7d > 0 ? '+' : ''}${m.chg7d}pp</span>`;
+        return `<div style="padding:4px 0;border-bottom:1px solid var(--border);font-size:12px">
+          <div style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${(m.label || '').replace(/"/g, '&quot;')}">${m.label}</div>
+          <div style="display:flex;align-items:center;gap:8px;margin-top:2px">
+            <span style="flex:1;height:8px;background:var(--surface);border:1px solid var(--border);border-radius:4px;overflow:hidden;display:block">
+              <span style="display:block;height:100%;width:${pct == null ? 0 : Math.min(100, pct)}%;background:${pct >= 60 ? 'var(--up)' : 'var(--flat)'};opacity:${pct < 20 ? 0.55 : 1}"></span></span>
+            <span style="min-width:46px;text-align:right;font-weight:600">${pct == null ? '—' : pct.toFixed(1) + '%'}</span>
+            ${chg}
+          </div>
+        </div>`;
+      };
+      const evBlocks = evs => evs.map(ev => `
+        <div style="margin-top:10px">
+          <div style="font-size:12px;font-weight:600;margin-bottom:4px">${ev.title}
+            <span style="font-weight:400;opacity:.6"> · 截止 ${ev.end_date} · 累计量 ${ev.volume == null ? '—' : '$' + fmt(ev.volume / 1e6, 1) + 'M'}</span></div>
+          ${ev.markets.map(prow).join('')}
+        </div>`).join('');
+      msec.innerHTML = `<h2>POLYMARKET 加密价位市场 <span style="font-size:12px;font-weight:400;opacity:.7">预测市场隐含的触及概率（hit-price 系列）</span></h2>
+        <div class="re-explain" style="margin-bottom:6px">
+          <b>如何解读</b> — 每行是市场对「触及该价位」的隐含概率：≥60% 接近共识，&lt;20% 淡显为长尾；7 日变化（pp）看概率动能，与期权墙互为佐证。
+          <span style="opacity:.7">数据源：Polymarket gamma-api（无 key 直连）</span></div>
+        <div class="re-cards" style="grid-template-columns:repeat(auto-fit,minmax(340px,1fr))">
+          ${(pm.groups || []).map(g => `
+          <div class="re-card" style="padding:12px 14px">
+            <div class="re-corridor-label">${g.name} <span style="opacity:.6">· ${g.events.length} 个价位事件</span></div>
+            ${evBlocks(g.events)}
+          </div>`).join('')}
+        </div>
+        <p class="re-source" style="margin:8px 0 0">口径：category=crypto · series 含 hit-price（月度/周度价位阶梯）；prob_yes 为 0-1 概率；7 日变化来自 history.csv 概率时序（新市场无历史则留空）。</p>`;
+    } else {
+      msec.innerHTML = `<h2>POLYMARKET 加密价位市场</h2>
+        <div class="re-explain">无 Polymarket 快照 —— 运行 <code>./bin/fetch_polymarket</code> 拉取后刷新。</div>`;
+    }
+    document.getElementById('polymarket').appendChild(msec);
+  }
+
   // ── LAYER 3 · RETAIL 散户立场 ──
   const stFr = `${BTC.funding_rate == null ? 0 : BTC.funding_rate * 100 >= 0 ? '+' : ''}${(BTC.funding_rate || 0) * 100}%`;
   const stLS = ls == null ? '—' : `${ls.toFixed(2)} (${Math.round(ls / (1 + ls) * 100)}% 多)`;
@@ -314,7 +362,7 @@ async function load() {
   document.getElementById('re-gen').textContent = '规则引擎（LLM 预留）· 数据源：OKX API / Deribit API / Yahoo Finance CME / CFTC COT / Farside / Coinglass(经 Jina)';
 }
 
-load().catch(e => R.fail(['radar', 'kpi', 'walls', 'retail', 'consensus'], e));
+load().catch(e => R.fail(['radar', 'kpi', 'walls', 'polymarket', 'retail', 'consensus'], e));
 </script>
 <script src="/js/nav.js"></script>
 </body>

@@ -24,6 +24,7 @@ LLM 钩子只装在叙事段（cross_analysis / equity_analysis / crypto_radar�
   data/analyst/ndx_targets.csv         Nasdaq 100 分析师目标价
   data/options_structure/*.json        期权结构快照（src/options_structure.py）
   data/crypto_derivatives/*.json       加密衍生品快照
+  data/polymarket/*.json               Polymarket 预测市场快照（衍日页价位市场卡）
   data/fred/liquidity/liquidity.csv    净流动性（crypto 页溢出分析）
 """
 
@@ -2243,6 +2244,103 @@ def _cme_options() -> dict:
         return {"available": False}
 
 
+# ── Polymarket 加密价位市场（衍生日页 Polymarket 模块）────────────────────────
+
+
+def _polymarket_underlying(series: str) -> str:
+    """series 前缀 → 标的分组（BTC / ETH / 其它）。"""
+    s = (series or "").lower()
+    if s.startswith(("bitcoin", "btc")):
+        return "BTC"
+    if s.startswith(("ethereum", "eth")):
+        return "ETH"
+    return "其它"
+
+
+def _polymarket_chg7d(points: list[dict] | None) -> float | None:
+    """概率 7 日变化（百分点）：最新值 − 距 7 天前最近的观测；不足 2 点返回 None。"""
+    if not points or len(points) < 2:
+        return None
+    last = points[-1]
+    t0 = datetime.strptime(last["date"], "%Y-%m-%d") - timedelta(days=7)
+    ref = min(
+        points[:-1], key=lambda p: abs(datetime.strptime(p["date"], "%Y-%m-%d") - t0)
+    )
+    return round((last["value"] - ref["value"]) * 100, 1)
+
+
+def _polymarket() -> dict | None:
+    """Polymarket crypto 分类快照（加密价位市场卡片）；缺失返回 None，只读不写盘。
+
+    读取模式同 fed_analysis.market_odds（各自维护，category 口径不同）：取最新
+    **含 crypto 事件**的可解析快照（坏 JSON 跳过、无 crypto 事件回退前一日）。
+    只保留 hit-price 系列事件（"What price will X hit …" 价位阶梯；一个没有则
+    回退全部 crypto 事件），按标的分组、组内事件按 volume 降序、市场按 prob_yes
+    降序；history.csv 顺带提取这些市场 id 的概率时序，算 7 日变化（百分点）。
+    """
+    pdir = ROOT / "data" / "polymarket"
+    for f in sorted(pdir.glob("20*.json"), reverse=True):
+        try:
+            snap = json.loads(f.read_text(encoding="utf-8"))
+        except Exception:
+            continue
+        events = [e for e in snap.get("events") or [] if e.get("category") == "crypto"]
+        if not events:
+            continue
+        ladder = [e for e in events if "hit-price" in (e.get("series") or "")] or events
+        groups: dict[str, list[dict]] = {}
+        for e in sorted(ladder, key=lambda x: x.get("volume") or 0, reverse=True):
+            g = groups.setdefault(_polymarket_underlying(e.get("series") or ""), [])
+            g.append(
+                {
+                    "title": e.get("title"),
+                    "end_date": e.get("end_date"),
+                    "volume": e.get("volume"),
+                    "markets": [
+                        {
+                            "id": m["id"],
+                            "label": (m.get("question") or "")
+                            .removeprefix("Will ")
+                            .removesuffix("?"),
+                            "prob_yes": m.get("prob_yes"),
+                            "volume24hr": m.get("volume24hr"),
+                        }
+                        for m in e.get("markets") or []
+                        if m.get("prob_yes") is not None
+                    ],
+                }
+            )
+        # 概率时序（history.csv 宽表：date 索引 × 市场 id 列）→ 7 日变化
+        history: dict[str, list[dict]] = {}
+        h_path = pdir / "history.csv"
+        if h_path.exists():
+            h = pd.read_csv(h_path)
+            ids = {
+                str(m["id"]) for g in groups.values() for ev in g for m in ev["markets"]
+            }
+            for col in h.columns:
+                if col != "date" and col in ids:
+                    s = h[["date", col]].dropna(subset=[col])
+                    history[col] = [
+                        {"date": d, "value": round(float(v), 4)}
+                        for d, v in zip(s["date"], s[col])
+                    ]
+        for g in groups.values():
+            for ev in g:
+                ev["markets"].sort(key=lambda m: m["prob_yes"], reverse=True)
+                for m in ev["markets"]:
+                    m["chg7d"] = _polymarket_chg7d(history.get(str(m["id"])))
+        order = {"BTC": 0, "ETH": 1}  # 其它（XRP/SOL/…）按字典序殿后
+        return {
+            "as_of": snap.get("as_of"),
+            "groups": [
+                {"name": k, "events": groups[k]}
+                for k in sorted(groups, key=lambda x: (order.get(x, 9), x))
+            ],
+        }
+    return None
+
+
 def crypto_derivatives() -> dict | None:
     files = sorted((ROOT / "data" / "crypto_derivatives").glob("20*.json"))
     if not files:
@@ -2252,6 +2350,7 @@ def crypto_derivatives() -> dict | None:
     snap["basis"] = _crypto_basis()
     snap["coinglass"] = _coinglass()
     snap["cme_options"] = _cme_options()
+    snap["polymarket"] = _polymarket()  # None 不阻断（独立数据源）
     snap["layer1"] = _layer1_kpis()
     snap["radar"] = crypto_radar(snap)
     snap["consensus"] = crypto_consensus(snap, snap["radar"])

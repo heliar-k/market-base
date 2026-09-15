@@ -9,9 +9,21 @@
 <link rel="stylesheet" href="/css/app.css">
 <link rel="stylesheet" href="/css/special.css">
 <script src="/js/site-nav.js"></script>
-<style>/* KPI 8 卡固定 4×2，避免 auto-fit 7 列时第 8 卡孤行 */
+<style>/* KPI 8 卡固定 4×2，避免 auto-fit 7 列时第 8 卡孤行；re-pm-* 为 Polymarket 对照行 */
 #re-cards .re-cards { grid-template-columns: repeat(4, 1fr); }
-@media (max-width: 900px) { #re-cards .re-cards { grid-template-columns: repeat(2, 1fr); } }</style>
+@media (max-width: 900px) { #re-cards .re-cards { grid-template-columns: repeat(2, 1fr); } }
+/* PM 对照行：附在 ZQ 行下方，字号/配色降一级，与主行结成一对 */
+.re-table tr.re-zq td { border-bottom: none; }
+.re-table .re-pm-row td { padding-top: 2px; padding-bottom: 6px; font-size: 12px; color: var(--text-secondary); }
+.re-table .re-pm-row .pm-src { color: var(--text-dim); white-space: nowrap; }
+.re-table .re-pm-row .re-bar-wrap { height: 8px; }
+.re-table .re-pm-row .pm-none { color: var(--text-dim); }
+/* 两源分歧 ≥5pp：数值高亮 + 差值角标（≥20pp 加重一档）；数值 span 固定宽防角标推挤错位 */
+.re-table .re-pm-row td.pm-div { color: var(--accent); font-weight: 600; }
+.re-table .re-pm-row td.pm-div-big { color: var(--accent); font-weight: 700; background: var(--surface-alt); }
+.re-table .re-pm-row .pm-num { display: inline-block; min-width: 42px; text-align: right; }
+.re-table .re-pm-row .pm-delta { font-size: 11px; font-weight: 500; margin-left: 3px; color: var(--accent); }
+</style>
 <script src="/vendor/echarts.min.js"></script>
 </head>
 <body>
@@ -86,7 +98,8 @@ async function load() {
   const re = await reRes.json();
   const fomc = fomcRes.ok ? await fomcRes.json() : null;
 
-  document.getElementById('re-as-of').textContent = R.asOf(d.as_of);
+  document.getElementById('re-as-of').textContent =
+    R.asOf(re.polymarket_as_of ? [d.as_of, ['Polymarket', re.polymarket_as_of]] : d.as_of);
 
   // ── 页首概览卡（政策路径 2 张 + 长端分解 6 张）──
   const last = (arr) => (arr.length ? arr[arr.length - 1].value : null);
@@ -162,7 +175,7 @@ function renderTable(meetings) {
     const hikeW = (m.prob_hike * 100).toFixed(1);
     const label = m.expectation;
     const cls = label === '降息' ? 'cut' : label === '加息' ? 'hike' : 'hold';
-    return `<tr>
+    const zqRow = `<tr class="re-zq">
       <td>${m.meeting_date}</td>
       <td>${m.contract}</td>
       <td>${m.implied_rate.toFixed(3)}%</td>
@@ -179,6 +192,32 @@ function renderTable(meetings) {
       <td>${fmtPct(m.prob_hike)}</td>
       <td><span class="re-expectation ${cls}">${label}</span></td>
     </tr>`;
+    // Polymarket 对照行：同一套三色概率条；与 ZQ 分歧 ≥5pp 的档位高亮 + 差值角标
+    let pmRow;
+    const pm = m.polymarket;
+    if (pm) {
+      const cell = (k, zk) => {
+        const d = pm[k] - m[zk];
+        if (Math.abs(d) < 0.05) return `<td><span class="pm-num">${fmtPct(pm[k])}</span></td>`;
+        const big = Math.abs(d) >= 0.20;
+        return `<td class="${big ? 'pm-div-big' : 'pm-div'}"><span class="pm-num">${fmtPct(pm[k])}</span><span class="pm-delta">${d > 0 ? '+' : ''}${(d * 100).toFixed(1)}pp</span></td>`;
+      };
+      pmRow = `<tr class="re-pm-row">
+        <td colspan="4" class="pm-src">Polymarket</td>
+        <td class="re-bar-cell">
+          <div class="re-bar-wrap">
+            <div class="re-bar-cut" style="width:${(pm.cut * 100).toFixed(1)}%"></div>
+            <div class="re-bar-hold" style="width:${(pm.hold * 100).toFixed(1)}%"></div>
+            <div class="re-bar-hike" style="width:${(pm.hike * 100).toFixed(1)}%"></div>
+          </div>
+        </td>
+        ${cell('cut', 'prob_cut')}${cell('hold', 'prob_hold')}${cell('hike', 'prob_hike')}
+        <td></td>
+      </tr>`;
+    } else {
+      pmRow = `<tr class="re-pm-row"><td colspan="4" class="pm-src">Polymarket</td><td colspan="5" class="pm-none">—</td></tr>`;
+    }
+    return zqRow + pmRow;
   }).join('');
 }
 

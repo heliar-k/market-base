@@ -196,3 +196,124 @@ class TestPreMeetingIndicator:
             _pre_meeting_indicator(pd.DataFrame(), today=pd.Timestamp("2026-07-29"))
             is None
         )
+
+
+class TestMarketOdds:
+    """Polymarket fed 分类快照读取（缺失/回退/过滤/时序提取）。"""
+
+    def _mk_snap(self, fed=True):
+        events = []
+        if fed:
+            events.append(
+                {
+                    "id": "1",
+                    "slug": "fed-decision-in-september",
+                    "title": "Fed Decision in September?",
+                    "category": "fed",
+                    "end_date": "2026-09-16",
+                    "volume24hr": 100.0,
+                    "volume": 200.0,
+                    "markets": [
+                        {
+                            "id": "111",
+                            "question": (
+                                "Will there be no change in Fed interest rates?"
+                            ),
+                            "prob_yes": 0.6,
+                            "end_date": "2026-09-16",
+                        },
+                        {
+                            "id": "112",
+                            "question": (
+                                "Will the Fed decrease interest rates by 25 bps?"
+                            ),
+                            "prob_yes": 0.4,
+                            "end_date": "2026-09-16",
+                        },
+                    ],
+                }
+            )
+        else:  # 非 fed 快照（抓取日无 fed 事件）→ 应回退前一有效日
+            events.append(
+                {
+                    "id": "2",
+                    "slug": "some-geo",
+                    "title": "Geo",
+                    "category": "geo",
+                    "end_date": "2026-10-01",
+                    "volume24hr": 1.0,
+                    "markets": [
+                        {
+                            "id": "999",
+                            "question": "?",
+                            "prob_yes": 0.5,
+                            "end_date": "2026-10-01",
+                        }
+                    ],
+                }
+            )
+        return {"as_of": "2099-01-01", "events": events}
+
+    def _patch(self, monkeypatch, tmp_path):
+        import src.fed_analysis as fa
+
+        monkeypatch.setattr(fa, "POLYMARKET_DIR", tmp_path)
+        monkeypatch.setattr(fa, "POLYMARKET_HISTORY", tmp_path / "history.csv")
+
+    def test_missing_dir_returns_none(self, tmp_path, monkeypatch):
+        import src.fed_analysis as fa
+
+        self._patch(monkeypatch, tmp_path)
+        assert fa.market_odds() is None
+
+    def test_fed_filter_and_history_extraction(self, tmp_path, monkeypatch):
+        import json
+
+        import src.fed_analysis as fa
+
+        (tmp_path / "20260915.json").write_text(
+            json.dumps(self._mk_snap()), encoding="utf-8"
+        )
+        pd.DataFrame(
+            {
+                "date": ["2026-09-13", "2026-09-14", "2026-09-15"],
+                "111": [0.5, None, 0.6],  # 缺失日剔除
+                "999": [0.1, 0.2, 0.3],  # 非 fed 市场 → 不提取
+            }
+        ).to_csv(tmp_path / "history.csv", index=False)
+        self._patch(monkeypatch, tmp_path)
+
+        out = fa.market_odds()
+        assert out["as_of"] == "2099-01-01"
+        assert len(out["events"]) == 1  # 只留 fed 分类
+        assert out["events"][0]["title"].startswith("Fed Decision")
+        # 只提取 fed 市场 id 的列；无历史列的 fed 市场（112）不出现（前端 || [] 兜底）
+        assert set(out["history"]) == {"111"}
+        assert out["history"]["111"] == [
+            {"date": "2026-09-13", "value": 0.5},
+            {"date": "2026-09-15", "value": 0.6},
+        ]
+
+    def test_falls_back_to_older_snapshot_without_fed(self, tmp_path, monkeypatch):
+        import json
+
+        import src.fed_analysis as fa
+
+        (tmp_path / "20260914.json").write_text(
+            json.dumps(self._mk_snap(fed=True)), encoding="utf-8"
+        )
+        (tmp_path / "20260915.json").write_text(
+            json.dumps(self._mk_snap(fed=False)), encoding="utf-8"
+        )
+        self._patch(monkeypatch, tmp_path)
+
+        out = fa.market_odds()
+        assert out is not None
+        assert out["events"][0]["category"] == "fed"
+
+    def test_corrupt_json_skipped(self, tmp_path, monkeypatch):
+        import src.fed_analysis as fa
+
+        (tmp_path / "20260915.json").write_text("{not json", encoding="utf-8")
+        self._patch(monkeypatch, tmp_path)
+        assert fa.market_odds() is None

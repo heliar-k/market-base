@@ -29,7 +29,7 @@ from src.credit_analysis import (
     generate_credit_overview,
     generate_credit_stress,
 )
-from src.fed_analysis import generate_fed_analysis
+from src.fed_analysis import generate_fed_analysis, market_odds, polymarket_fomc_odds
 from src.inflation_analysis import generate_inflation_overview
 from src.labor_analysis import generate_labor_overview
 from src.macro import (
@@ -738,8 +738,18 @@ def get_rate_expectations() -> dict:
             }
         )
 
+    # Polymarket 对照：fed 分类 "Fed Decision in {Month}?" 事件按 (年, 月) 匹配会议。
+    # market_odds 无数据返回 None → 对照列整体为空（前端显「—」），不影响 ZQ 渲染。
+    pm = market_odds()
+    pm_odds = polymarket_fomc_odds(
+        pm["events"] if pm else [], [m["meeting_date"] for m in meetings]
+    )
+    for m in meetings:
+        m["polymarket"] = pm_odds.get(m["meeting_date"])
+
     return {
         "as_of": latest_date.strftime("%Y-%m-%d"),
+        "polymarket_as_of": pm["as_of"] if pm else None,
         "meetings": meetings,
     }
 
@@ -765,10 +775,12 @@ def get_daily_brief() -> dict:
 
 @app.get("/api/fed/overview")
 def get_fed_overview() -> dict:
-    """美联储鹰鸽面板：指示器 + 声明/演讲列表 + 官员立场 + 时间线。"""
+    """美联储鹰鸽面板：指示器 + 声明/演讲列表 + 官员立场 + 时间线 + 市场预期。"""
     out = generate_fed_analysis()
     if "error" in out:
         raise HTTPException(404, out["error"])
+    # Polymarket 缺失不阻断页面（None 时前端显示空状态）
+    out["market_odds"] = market_odds()
     return out
 
 

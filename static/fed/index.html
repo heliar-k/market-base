@@ -25,6 +25,7 @@
   <div id="sec-stmts"></div>
   <div id="sec-speeches"></div>
   <div id="sec-hawk"></div>
+  <div id="sec-odds"></div>
   <div class="re-gen" id="re-gen"></div>
 </div>
 
@@ -278,10 +279,139 @@ function renderHawkish(root, data) {
   wrap.appendChild(s4);
 }
 
+// ── 市场预期（Polymarket）：fed 分类事件卡 + 三色概率条 + 高量事件走势 ──
+
+// 市场问题 → 短标签（决策事件的降息/不变/加息档；其余保留原文去头部疑问词）
+function oddsLabel(q) {
+  const m = q.match(/(decrease|increase)[^.]*?by (\d+)(\+)? bps/i);
+  if (m) return (m[1].toLowerCase() === 'decrease' ? '降息 ' : '加息 ') + m[2] + 'bp' + (m[3] ? '+' : '');
+  if (/no change/i.test(q)) return '不变';
+  return q.replace(/^Will /, '').replace(/\?$/, '');
+}
+
+// 档位语义色：降息 = 涨色（宽松利多）、加息 = 跌色、不变 = 中性，其余用强调色
+function oddsCls(q) {
+  if (/decrease/i.test(q)) return 'cut';
+  if (/no change/i.test(q)) return 'hold';
+  if (/increase/i.test(q)) return 'hike';
+  return 'other';
+}
+
+function renderOdds(root, data) {
+  const wrap = document.createElement('div');
+  root.appendChild(wrap);  // 先挂 DOM 再建图（R.mkChart 按 id 查 DOM）
+  const sec = document.createElement('div');
+  sec.className = 're-section';
+  sec.innerHTML = '<h2>市场预期（Polymarket）<span style="font-weight:400;font-size:12px;color:var(--text-dim)">预测市场对 Fed 路径的定价，绿 = 降息 / 灰 = 不变 / 红 = 加息，蓝 = 其它问题；虚线 = 50bp+ 档</span></h2>';
+  wrap.appendChild(sec);
+
+  const od = data.market_odds;
+  if (!od || !od.events || !od.events.length) {
+    sec.insertAdjacentHTML('beforeend',
+      '<div class="fed-doc">Polymarket 快照缺失——运行 <code>./bin/fetch_polymarket</code> 拉取后刷新（数据在 data/polymarket/，每日 cron 自动更新）</div>');
+    return;
+  }
+
+  const fmtVol = (v) => v >= 1e6 ? `$${(v / 1e6).toFixed(1)}M` : v >= 1e3 ? `$${(v / 1e3).toFixed(0)}K` : `$${v}`;
+  const fmtPct = (v) => (v * 100).toFixed(1) + '%';
+  const byVol = [...od.events].sort((a, b) => b.volume24hr - a.volume24hr);
+  // 配走势图的事件：24h 量前 2 且至少一档有 ≥2 个历史点
+  const chartEvents = new Set(
+    byVol.filter(e => e.markets.some(m => (od.history[m.id] || []).length > 1)).slice(0, 2).map(e => e.id)
+  );
+
+  for (const e of byVol) {
+    const card = document.createElement('div');
+    card.className = 'fed-doc';
+    card.style.marginBottom = '10px';
+    card.innerHTML = `
+      <div class="fed-doc-head">
+        <a class="fed-doc-title" href="https://polymarket.com/event/${e.slug}" target="_blank">${e.title}</a>
+        <span class="fed-odds-meta">到期 ${e.end_date} · 24h 量 ${fmtVol(e.volume24hr)}</span>
+      </div>`;
+    // 决策类事件：三色堆叠概率条（降息|不变|加息，仿 rates/pricing renderTable）
+    if (/^fed-decision/.test(e.slug)) {
+      const segs = ['cut', 'hold', 'hike'].map(cls => ({ cls, p: e.markets
+        .filter(m => oddsCls(m.question) === cls)
+        .reduce((s, m) => s + m.prob_yes, 0) }));
+      card.insertAdjacentHTML('beforeend', `<div class="fed-odds-stack">${segs
+        .filter(s => s.p > 0.0005)
+        .map(s => `<div class="fed-odds-seg ${s.cls}" style="width:${(s.p * 100).toFixed(1)}%"></div>`)
+        .join('')}</div>`);
+    }
+    // 各档明细行（概率降序；条宽 = 概率，颜色按档位语义色）
+    const rows = document.createElement('div');
+    for (const m of [...e.markets].sort((a, b) => b.prob_yes - a.prob_yes).slice(0, 6)) {
+      const cls = oddsCls(m.question);
+      const lab = oddsLabel(m.question);
+      const r = document.createElement('div');
+      r.className = 'fed-odds-row';
+      r.title = m.question;
+      r.innerHTML = `<span class="fed-odds-lab">${lab}</span>
+        <div class="fed-odds-track"><div class="fed-odds-fill ${cls}" style="width:${(m.prob_yes * 100).toFixed(1)}%"></div></div>
+        <span class="fed-odds-pct">${fmtPct(m.prob_yes)}</span>`;
+      rows.appendChild(r);
+    }
+    card.appendChild(rows);
+    // 高量事件：近 30 天概率走势（每档一条线，降息绿/不变灰/加息红）
+    if (chartEvents.has(e.id)) {
+      const chartDiv = document.createElement('div');
+      chartDiv.className = 'fed-chart';
+      chartDiv.id = `odds-chart-${e.id}`;
+      card.insertAdjacentHTML('beforeend', '<div class="fed-odds-meta" style="margin:6px 0 2px">近 30 天概率走势（%）</div>');
+      card.appendChild(chartDiv);
+      wrap.appendChild(card);
+      const withHist = e.markets.filter(m => (od.history[m.id] || []).length > 1);
+      // 各档日期可能不齐（市场上线晚/中间缺日）：union 轴 + 按日期对齐，缺失填 null（防索引错位）
+      const dates = [...new Set(withHist.flatMap(m => R.ts(od.history[m.id])))].sort();
+      const byDate = Object.fromEntries(withHist.map(m =>
+        [m.id, Object.fromEntries(od.history[m.id].map(p => [p.date, p.value]))]));
+      const palette = [R.colors().blue, R.colors().orange, R.colors().purple, R.colors().green, R.colors().gray];
+      let pi = 0;
+      R.mkChart(`odds-chart-${e.id}`, (c) => ({
+        backgroundColor: 'transparent',
+        legend: { top: 0, textStyle: { color: c.text, fontSize: 11 } },
+        tooltip: {
+          trigger: 'axis',
+          valueFormatter: (v) => (v * 100).toFixed(1) + '%',
+        },
+        grid: { left: 44, right: 12, top: 30, bottom: 24 },
+        xAxis: {
+          type: 'category',
+          data: dates,
+          axisLabel: { color: c.muted, fontSize: 10, hideOverlap: true },
+          axisLine: { lineStyle: { color: c.border } },
+        },
+        yAxis: {
+          type: 'value', max: 1,
+          axisLabel: { color: c.muted, fontSize: 10, formatter: (v) => (v * 100).toFixed(0) + '%' },
+          splitLine: { lineStyle: { color: c.grid } },
+        },
+        series: withHist.map(m => {
+          const cls = oddsCls(m.question);
+          const color = cls === 'other' ? palette[pi++ % palette.length]
+            : cls === 'cut' ? c.green : cls === 'hike' ? c.red : c.gray;
+          return {
+            name: oddsLabel(m.question),
+            type: 'line',
+            data: dates.map(d => byDate[m.id][d] ?? null),
+            symbol: 'none',
+            // 同色双线区分幅度：25bp 实线，50bp+ 虚线
+            lineStyle: { color, width: 1.6, type: /50bp/.test(oddsLabel(m.question)) ? 'dashed' : 'solid' },
+            itemStyle: { color },
+          };
+        }),
+      }));
+    } else {
+      wrap.appendChild(card);
+    }
+  }
+}
+
 async function load() {
   // 小节锚点导航（长页快速跳转；sticky 见 special.css .page-toc）
   document.getElementById('page-toc').innerHTML = [
-    ['概览', 'cards'], ['演讲', 'sec-speeches'], ['鹰鸽追踪', 'sec-hawk'],
+    ['概览', 'cards'], ['演讲', 'sec-speeches'], ['鹰鸽追踪', 'sec-hawk'], ['市场预期', 'sec-odds'],
   ].map(([t, id]) => `<a href="#${id}">${t}</a>`).join('');
 
   const [data, cal] = await Promise.all([
@@ -291,7 +421,7 @@ async function load() {
   const ind = data.indicator;
   const fmtD = s => s ? `${s.date.slice(0,4)}-${s.date.slice(4,6)}-${s.date.slice(6)}` : '—';
   document.getElementById('re-as-of').textContent =
-    R.asOf([['声明', fmtD(data.statements[0])], ['演讲', fmtD(data.speeches[0])]]);
+    R.asOf([['声明', fmtD(data.statements[0])], ['演讲', fmtD(data.speeches[0])], ['预测市场', data.market_odds?.as_of]]);
   document.getElementById('re-gen').textContent =
     `鹰鸽评分：${R.genText(data.generator)}`;
 
@@ -317,9 +447,10 @@ async function load() {
   renderStatements(document.getElementById('sec-stmts'), data);
   renderSpeeches(document.getElementById('sec-speeches'), data);
   renderHawkish(document.getElementById('sec-hawk'), data);
+  renderOdds(document.getElementById('sec-odds'), data);
 }
 
-load().catch(e => R.fail(['cards', 'sec-stmts', 'sec-speeches', 'sec-hawk'], e));
+load().catch(e => R.fail(['cards', 'sec-stmts', 'sec-speeches', 'sec-hawk', 'sec-odds'], e));
 </script>
 <script src="/js/nav.js"></script>
 </body>
