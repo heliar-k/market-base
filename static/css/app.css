@@ -8,7 +8,7 @@
   --bg: #f5f6f8; --surface: #fff; --surface-hover: #f0f2f5;
   --surface-alt: #fafbfc; --border: #e1e4e8; --border-light: #f0f0f0;
   --text: #1a1a2e; --text-secondary: #595959; --text-dim: #737373;
-  --accent: var(--color-brand); --accent-light: #e8f0fe;
+  --accent-light: #e8f0fe; /* --accent 由 --color-brand 派生，见 tokens.css 的 :root, body.dark 段 */
   --btn-border: #d1d5db;
 }
 body.dark {

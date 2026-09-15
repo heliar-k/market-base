@@ -11,6 +11,30 @@
   /* 鹰鸽语义色（美联储专题专用，与涨跌独立：鹰=偏紧=红、鸽=偏松=绿，色相偏亮以保证徽章可读） */
   --color-hawk: #ef4444;
   --color-dove: #10b981;
+  /* 派生 token（原语 → 透明底 / 别名 / 浮层底色）见本文件末尾 `:root, body.dark` 段 */
+  /* ECharts 序列分类色板（前四位即 --color-brand/-warn/-up/-down，见 echarts-theme.js） */
+  --chart-purple: #9c27b0;
+  --chart-cyan: #00bcd4;
+  --chart-violet: #7c4dff;
+  --chart-slate: #607d8b;
+  --chart-pink: #e91e63;
+  /* 等宽数字字体（timsun 数字排版纪律）：Google Fonts 加载失败时整条 fallback 仍成立 */
+  --font-mono: 'JetBrains Mono', 'SF Mono', ui-monospace, Menlo, Consolas, monospace;
+}
+body.dark {
+  --color-up: #34d399;
+  --color-down: #f87171;
+  --color-neutral: #9ca3af;
+  --color-warn: #ff9800;
+  --color-brand: #58a6ff;
+  --color-hawk: #f87171;
+  --color-dove: #34d399;
+}
+/* 派生 token：值由上面的主题原语经 var()/color-mix 生成。选择器必须带上 body.dark——
+ * var() 在声明所在元素上做替换，写在 :root(html) 里的派生值看不到 body.dark 的原语覆写，
+ * 夜间模式会退回亮色（全站 ECharts tooltip 白底、chips 亮色即此 bug）。
+ * 新增「由主题原语派生」的 token 一律放这里，不要放回上面的 :root。 */
+:root, body.dark {
   /* 12% 透明底（color-mix，Chrome 111+；本地工具站可用） */
   --color-up-bg: color-mix(in srgb, var(--color-up) 12%, transparent);
   --color-down-bg: color-mix(in srgb, var(--color-down) 12%, transparent);
@@ -29,23 +53,8 @@
   --chip-up-fg: var(--color-up);
   --chip-flat-bg: var(--color-neutral-bg);
   --chip-flat-fg: var(--color-neutral);
-  /* ECharts 序列分类色板（前四位即 --color-brand/-warn/-up/-down，见 echarts-theme.js） */
-  --chart-purple: #9c27b0;
-  --chart-cyan: #00bcd4;
-  --chart-violet: #7c4dff;
-  --chart-slate: #607d8b;
-  --chart-pink: #e91e63;
-  /* 等宽数字字体（timsun 数字排版纪律）：Google Fonts 加载失败时整条 fallback 仍成立 */
-  --font-mono: 'JetBrains Mono', 'SF Mono', ui-monospace, Menlo, Consolas, monospace;
+  /* 主题 accent（结构层 app.css 只留 --accent-light） */
+  --accent: var(--color-brand);
   /* tooltip/浮层背景：卡片层加 12% 透明，配合 backdrop-filter 制造浮层纵深（第 4 层） */
   --tooltip-bg: color-mix(in srgb, var(--surface-alt) 88%, transparent);
-}
-body.dark {
-  --color-up: #34d399;
-  --color-down: #f87171;
-  --color-neutral: #9ca3af;
-  --color-warn: #ff9800;
-  --color-brand: #58a6ff;
-  --color-hawk: #f87171;
-  --color-dove: #34d399;
 }
