@@ -42,7 +42,33 @@ async function load() {
   document.getElementById('cards').innerHTML = cards.map(c => `
     <div class="re-card"><div class="re-corridor-label">${c.label}</div>
     <div class="re-corridor-value">${c.value}</div><div class="re-card-sub">${c.sub}</div></div>`).join('');
-  if (d.cards && d.cards.length) document.getElementById('re-as-of').textContent = R.asOf(d.cards[0].date);
+  if (d.cards && d.cards.length) document.getElementById('re-as-of').textContent =
+    R.asOf([d.cards[0].date, ['Polymarket', d.polymarket?.as_of]]);
+
+  // ── 地缘风险 · 霍尔木兹海峡（Polymarket 预测市场锚点）──
+  if (d.polymarket?.events?.length) {
+    const gsec = document.createElement('div');
+    gsec.className = 're-section';
+    gsec.innerHTML = '<h2>地缘风险 · 霍尔木兹海峡</h2><p style="margin:0 0 10px">预测市场（Polymarket）对海峡通行/收费/协议的概率定价，与油价互为锚点。</p>';
+    const ggrid = document.createElement('div');
+    ggrid.style.display = 'grid';
+    ggrid.style.gridTemplateColumns = 'repeat(auto-fit, minmax(320px, 1fr))';
+    ggrid.style.gap = '12px';
+    d.polymarket.events.forEach(e => {
+      const ev = document.createElement('div');
+      ev.innerHTML = `<h3 style="font-size:13px;font-weight:700;margin:0 0 6px">${esc(e.title)} <small style="font-weight:400">至 ${e.end_date}</small></h3>`;
+      ev.appendChild(R.table(['市场', '概率', '7日变化'], (e.markets || []).map(m => ({
+        mkt: m.label, prob: m.prob, chg: m.chg7d,
+      })), {
+        mkt: v => v,
+        prob: v => v == null ? '—' : (v * 100).toFixed(1) + '%',
+        chg: v => v == null ? '—' : `<span class="${v > 0 ? 'up' : v < 0 ? 'down' : ''}">${v > 0 ? '+' : ''}${v.toFixed(1)}pp</span>`,
+      }, ['mkt', 'prob', 'chg'], true));
+      ggrid.appendChild(ev);
+    });
+    gsec.appendChild(ggrid);
+    document.getElementById('cards').after(gsec);
+  }
 
   // ── 大类资产价格同屏（全部 6 组）──
   const wrap = document.createElement('div');
@@ -105,6 +131,7 @@ async function load() {
 function keys2(rc) { return Object.keys(rc.series || {}); }
 function fmt(v) { return v == null ? '—' : Number(v).toLocaleString(undefined, { maximumFractionDigits: 4 }); }
 function chg(v) { return v == null ? '—' : `<span style="color:${v >= 0 ? 'var(--color-up)' : 'var(--color-down)'}">${v >= 0 ? '▲ +' : '▼ '}${Number(v).toFixed(2)}%</span>`; }
+function esc(s) { return String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
 
 load().catch(e => R.fail(['cards', 'asset-compare', 'chart', 'recent'], e));
 </script>

@@ -150,11 +150,21 @@ function renderAlerts() {
     fomcHTML = `<span class="dash-chip">FOMC ${next}${days > 0 ? `（${days} 天后）` : '（进行中）'}</span>`;
   }
 
+  // 预测市场锚点：衰退概率（Polymarket）
+  let pmHTML = '';
+  const pm = v.polymarket?.recession;
+  if (pm?.prob != null) {
+    const pct = (pm.prob * 100).toFixed(1).replace(/\.0$/, '');
+    const y = (pm.end_date || '').slice(0, 4);
+    pmHTML = `<span class="dash-chip" title="${esc(pm.title)}（Polymarket ${esc(v.polymarket.as_of || '')}）">衰退 ${y} ${pct}%</span>`;
+  }
+
   elx.innerHTML = `
     <div class="dash-conclusion">
       <span class="dash-badge ${matched.length ? 'bull' : 'flat'}">${headline}</span>
       ${alerts.map(a => `<span class="dash-badge alert" title="${esc(a.text)}">⚠ ${esc(a.title)}</span>`).join('')}
       ${fomcHTML}
+      ${pmHTML}
     </div>`;
 }
 

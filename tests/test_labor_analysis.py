@@ -59,5 +59,7 @@ def test_generate_smoke():
     assert "error" not in out
     assert out["cards"]["unrate"]["value"] > 0
     assert out["cards"]["jolts"]["vu"] is not None
-    assert len(out["signals"]) == 3
+    assert (
+        len(out["signals"]) >= 3
+    )  # 第 4 段「预测市场」数据驱动，有 Polymarket 快照才出现
     assert len(out["nfp_history"]["dates"]) == 36

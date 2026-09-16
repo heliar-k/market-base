@@ -131,6 +131,26 @@ def signal_structure(
     return text
 
 
+def polymarket_signal() -> str | None:
+    """信号四：预测市场（Polymarket 失业率峰值阶梯）；无数据返回 None（不渲染）。"""
+    from src.polymarket_analysis import events_matching, prob_ladder, snapshot
+
+    snap = snapshot()
+    evs = events_matching(
+        snap, pattern=r"how high will .*unemployment", categories=("data",)
+    )
+    if not evs:
+        return None
+    ladder = prob_ladder(evs[0])
+    if not ladder:
+        return None
+    fmt = "、".join(f"{t:g}% 以上 {p * 100:.0f}%" for t, p in ladder[:3])
+    return (
+        f"预测市场（Polymarket {snap.get('as_of')}）：2026 年失业率升至 "
+        f"{fmt}；与 Sahm 规则阈值对照，若兑现将触发衰退信号。"
+    )
+
+
 def signal_outlook(cards: dict, sahm: dict) -> str:
     """信号三：展望（初请趋势 + NFP 减速 + Sahm 合成）。"""
     icsa, nfp = cards["icsa"], cards["nfp"]
@@ -272,6 +292,11 @@ def generate_labor_overview() -> dict:
             {"title": "就业现状", "text": signal_current(cards, sahm)},
             {"title": "结构", "text": signal_structure(cards, vu, eci_yoy, quits_chg)},
             {"title": "展望", "text": signal_outlook(cards, sahm)},
+            *(
+                [{"title": "预测市场", "text": pm}]
+                if (pm := polymarket_signal())
+                else []
+            ),
         ],
         "nfp_history": nfp_history(labor),
         "indicators": indicators_table(labor, lm),

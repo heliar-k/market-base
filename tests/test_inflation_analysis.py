@@ -97,6 +97,8 @@ def test_generate_smoke():
     out = generate_inflation_overview()
     assert "error" not in out
     assert out["cards"]["core_pce"]["value"] is not None
-    assert len(out["signals"]) == 3
+    assert (
+        len(out["signals"]) >= 3
+    )  # 第 4 段「预测市场」数据驱动，有 Polymarket 快照才出现
     assert len(out["yoy_history"]["dates"]) > 60
     assert out["shapiro"]["core"]["supply"] is not None

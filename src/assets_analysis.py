@@ -1328,6 +1328,42 @@ def bonds() -> dict:
     }
 
 
+def _polymarket_energy() -> dict | None:
+    """Polymarket 能源地缘风险（霍尔木兹海峡事件卡）；无快照/无事件返回 None。
+
+    标题含 hormuz 的事件全部纳入，市场按概率降序；7 日变化来自 history.csv
+    （共享读取层，同 fed/crypto 口径）。只读不写盘。
+    """
+    from src.polymarket_analysis import chg7d, events_matching, series_for, snapshot
+
+    snap = snapshot()
+    evs = events_matching(snap, pattern=r"hormuz")
+    if not evs:
+        return None
+    ids = {str(m["id"]) for e in evs for m in e.get("markets") or []}
+    hist = series_for(ids)
+    events_out = []
+    for e in evs[:6]:
+        mkts = [
+            {
+                "label": (m.get("question") or "").removesuffix("?"),
+                "prob": m["prob_yes"],
+                "chg7d": chg7d(hist.get(str(m["id"]))),
+            }
+            for m in e.get("markets") or []
+            if m.get("prob_yes") is not None
+        ]
+        events_out.append(
+            {
+                "title": e["title"],
+                "end_date": e.get("end_date"),
+                "volume24hr": e.get("volume24hr"),
+                "markets": sorted(mkts, key=lambda x: x["prob"], reverse=True),
+            }
+        )
+    return {"as_of": snap.get("as_of"), "events": events_out}
+
+
 def commodities() -> dict:
     p = asset_prices()
     cols = [k for k, _ in COMMODITY_ROWS]
@@ -1343,6 +1379,7 @@ def commodities() -> dict:
         "cards": _price_rows(p, COMMODITY_ROWS),
         "recent": _recent_prices(p, cols),
         "normalized": {"dates": [str(d.date()) for d in sub.index], "series": norm},
+        "polymarket": _polymarket_energy(),  # None 不阻断（独立数据源）
     }
 
 
@@ -2257,18 +2294,6 @@ def _polymarket_underlying(series: str) -> str:
     return "其它"
 
 
-def _polymarket_chg7d(points: list[dict] | None) -> float | None:
-    """概率 7 日变化（百分点）：最新值 − 距 7 天前最近的观测；不足 2 点返回 None。"""
-    if not points or len(points) < 2:
-        return None
-    last = points[-1]
-    t0 = datetime.strptime(last["date"], "%Y-%m-%d") - timedelta(days=7)
-    ref = min(
-        points[:-1], key=lambda p: abs(datetime.strptime(p["date"], "%Y-%m-%d") - t0)
-    )
-    return round((last["value"] - ref["value"]) * 100, 1)
-
-
 def _polymarket() -> dict | None:
     """Polymarket crypto 分类快照（加密价位市场卡片）；缺失返回 None，只读不写盘。
 
@@ -2278,6 +2303,8 @@ def _polymarket() -> dict | None:
     回退全部 crypto 事件），按标的分组、组内事件按 volume 降序、市场按 prob_yes
     降序；history.csv 顺带提取这些市场 id 的概率时序，算 7 日变化（百分点）。
     """
+    from src.polymarket_analysis import chg7d
+
     pdir = ROOT / "data" / "polymarket"
     for f in sorted(pdir.glob("20*.json"), reverse=True):
         try:
@@ -2329,7 +2356,7 @@ def _polymarket() -> dict | None:
             for ev in g:
                 ev["markets"].sort(key=lambda m: m["prob_yes"], reverse=True)
                 for m in ev["markets"]:
-                    m["chg7d"] = _polymarket_chg7d(history.get(str(m["id"])))
+                    m["chg7d"] = chg7d(history.get(str(m["id"])))
         order = {"BTC": 0, "ETH": 1}  # 其它（XRP/SOL/…）按字典序殿后
         return {
             "as_of": snap.get("as_of"),

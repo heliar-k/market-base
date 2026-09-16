@@ -175,6 +175,26 @@ def signal_expectations(market: list, survey: list) -> str:
     return text
 
 
+def polymarket_signal() -> str | None:
+    """信号四：预测市场（Polymarket 阈值阶梯）；无数据返回 None（不渲染）。"""
+    from src.polymarket_analysis import events_matching, prob_ladder, snapshot
+
+    snap = snapshot()
+    evs = events_matching(
+        snap, pattern=r"how high will .*inflation", categories=("data",)
+    )
+    if not evs:
+        return None
+    ladder = prob_ladder(evs[0])
+    if not ladder:
+        return None
+    fmt = "、".join(f"{t:g}% 以上 {p * 100:.0f}%" for t, p in ladder[:3])
+    return (
+        f"预测市场（Polymarket {snap.get('as_of')}）：2026 年通胀最高触及 "
+        f"{fmt}，尾部情形（{ladder[-1][0]:g}% 以上）{ladder[-1][1] * 100:.0f}%。"
+    )
+
+
 def yoy_history(df: pd.DataFrame, months: int = 120) -> dict:
     """CPI / 核心 CPI / 核心 PCE YoY 近 months 个月（对齐 CPI 日期轴）。"""
     cpi = _yoy_series(df["CPI"]).tail(months)
@@ -366,6 +386,11 @@ def generate_inflation_overview() -> dict:
             {"title": "通胀现状", "text": signal_level(cards)},
             {"title": "结构驱动", "text": signal_drivers(comp, shapiro_out)},
             {"title": "通胀预期", "text": signal_expectations(market, survey)},
+            *(
+                [{"title": "预测市场", "text": pm}]
+                if (pm := polymarket_signal())
+                else []
+            ),
         ],
         "yoy_history": yoy_history(df),
         "components": [
