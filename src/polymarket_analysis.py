@@ -175,6 +175,105 @@ def geo_topic_of(event: dict) -> tuple[str, str]:
     return "other", "其它"
 
 
+# 主题内语义归类：(key, 中文名, 关键词)，
+# 匹配「事件标题 + 市场问题」小写包含，先命中先归类。
+# 目的：页面不直接展示 Polymarket 英文原文，而是按中文语义分组聚合后画线。
+# ⚠ 关键词规则会被新事件击穿：未命中市场归 MISC_CLUSTER，geo_overview 会把它们
+#   记入返回值 unmatched 并生成⚠叙事——看到告警就回来往对应主题的元组里补词。
+MISC_CLUSTER = ("misc", "其它事件")
+
+GEO_CLUSTERS: dict[str, list[tuple[str, str, tuple[str, ...]]]] = {
+    "iran": [
+        ("hormuz", "霍尔木兹航运", ("hormuz",)),
+        (
+            "military",
+            "停火与军事行动",
+            (
+                "ceasefire",
+                "ground operation",
+                "declare war",
+                "invade",
+                "airspace closure",
+                "military",
+                "target ukraine",
+            ),
+        ),
+        ("nuclear", "核问题", ("uranium", "enrich", "nuclear")),
+        (
+            "regime",
+            "政权走向",
+            ("leadership", "pahlavi", "khamenei", "leader", "enter iran"),
+        ),
+        ("talks", "美伊谈判", ("peace talks", "deal", "us-iran", "agreement")),
+    ],
+    "israel": [
+        ("lebanon", "黎巴嫩战线", ("lebanon",)),
+        ("yemen", "也门方向", ("yemen",)),
+        ("politics", "以国内政局", ("prime minister", "election")),
+        ("strike", "空袭与外交承认", ("airspace", "strike", "recognize")),
+    ],
+    "taiwan": [("clash", "军事冲突", ("invade", "clash", "military"))],
+    "russia_ukraine": [
+        (
+            "ceasefire",
+            "停火与和平协议",
+            (
+                "ceasefire",
+                "peace deal",
+                "peace combo",
+                "peace referendum",
+                "cede territory",
+                "sovereignty over",
+            ),
+        ),
+        (
+            "talks",
+            "外交接触",
+            (
+                "diplomatic meeting",
+                "peace talks",
+                "talk to putin",
+                "visit ukraine",
+                "meet",
+            ),
+        ),
+        ("nato", "北约与军事对抗", ("nato", "military clash")),
+        ("advance", "俄军占领推进", ("capture",)),
+        ("regime", "俄乌政局", ("putin out", "zelenskyy out")),
+        (
+            "election",
+            "俄议会选举",
+            (
+                "parliamentary",
+                "legislative",
+                "duma",
+                "united russia",
+                "yabloko",
+                "seats",
+            ),
+        ),
+    ],
+    "election": [
+        ("us_midterm", "美国中期选举", ("midterm", "senate seats", "governor")),
+        ("france", "法国大选", ("french",)),
+        ("brazil", "巴西大选", ("brazil",)),
+        ("us2028", "2028 美国大选", ("2028",)),
+        ("local", "地方选举", ("berlin", "mayor", "state election", "primary")),
+        ("presidential", "总统大选", ("president",)),
+    ],
+    "other": [("muscle", "美军领土动作", ("invade", "cuba", "greenland"))],
+}
+
+
+def geo_cluster_of(topic_key: str, event: dict, market: dict) -> tuple[str, str]:
+    """市场 → 主题内中文归类；无命中归 MISC_CLUSTER（unmatched 告警源）。"""
+    text = f"{event.get('title') or ''} {market.get('question') or ''}".lower()
+    for key, name, kws in GEO_CLUSTERS.get(topic_key, []):
+        if any(k in text for k in kws):
+            return key, name
+    return MISC_CLUSTER
+
+
 def active_markets(event: dict, as_of: str | None) -> list[dict]:
     """事件内未过期市场（end_date ≥ 快照日）；到期市场的概率滞留旧值（常是 0/1），
     会污染焦点提取与阶梯展示。无 end_date 视为活跃。"""
@@ -190,10 +289,15 @@ def active_markets(event: dict, as_of: str | None) -> list[dict]:
 def geo_overview() -> dict | None:
     """地缘与政治风险总览（geo 页数据源）；无快照/无 geo+policy 事件返回 None。
 
-    结构：{as_of, signals, topics: [{key, name, volume24hr, headline, events}]}。
-    事件卡同 commodities 能源块形状（label/prob/chg7d）+ slug（外链）
-    + question（title 提示）；焦点 headline = 主题内 24h 量最大事件的最高概率市场。
-    signals 为规则引擎叙事（LLM 预留：返回 None 时不渲染）。只读不写盘。
+    结构：{as_of, signals, topics: [{key, name, volume24hr,
+    clusters, headline, events}]}。
+    页面主视图是 clusters（主题内中文语义归类）：同归类内市场概率均值 +
+    history.csv 逐日均值线（series）；headline = |chg7d| 最大的归类。
+    events 为原始英文明细（前端折叠展示）：同 commodities 能源块形状
+    （label/prob/chg7d/cluster）+ slug（外链）+ question（title 提示）。
+    signals 为规则引擎叙事（LLM 预留：返回 None 时不渲染）；
+    unmatched = {count, samples} 收录未命中归类关键词的合约，驱动⚠补词提醒。
+    只读不写盘。
     """
     snap = snapshot()
     evs = events_matching(snap, categories=("geo", "policy"))
@@ -214,6 +318,7 @@ def geo_overview() -> dict | None:
                     "question": m.get("question"),
                     "prob": m["prob_yes"],
                     "chg7d": chg7d(hist.get(str(m["id"]))),
+                    "cluster": geo_cluster_of(key, e, m)[1],
                 }
                 for m in active_markets(e, a)
             ),
@@ -239,15 +344,49 @@ def geo_overview() -> dict | None:
         )
 
     topics = sorted(by_topic.values(), key=lambda t: t["volume24hr"], reverse=True)
-    history: dict[str, list[dict]] = {}
+    # 主题内按中文归类聚合：均值概率 + 逐日均值线（history.csv 对齐取均值）。
+    # 未命中关键词的市场归「其它事件」（miss 标记）并记入 unmatched：
+    # 新事件会不断击穿关键词规则，必须显式提醒补 GEO_CLUSTERS 而非静默兜底。
+    unmatched: list[dict] = []
     for t in topics:
-        top = t["events"][0]
-        t["headline"] = (
-            {"title": top["title"], **top["markets"][0]} if top["markets"] else None
+        groups: dict[str, dict] = {}
+        for e in t["events"]:
+            for m in e["markets"]:
+                g = groups.setdefault(
+                    m["cluster"], {"name": m["cluster"], "markets": []}
+                )
+                g["markets"].append(m)
+        tcls = []
+        for g in groups.values():
+            ms = g["markets"]
+            by_date: dict[str, list[float]] = {}
+            for m in ms:
+                for p in hist.get(m["id"], []):
+                    by_date.setdefault(p["date"], []).append(p["value"])
+            series = [
+                {"date": d, "value": round(sum(v) / len(v), 4)}
+                for d, v in sorted(by_date.items())
+            ]
+            chgs = [m["chg7d"] for m in ms if m["chg7d"] is not None]
+            miss = g["name"] == MISC_CLUSTER[1]
+            if miss:
+                unmatched.extend({"topic": t["name"], "label": m["label"]} for m in ms)
+            tcls.append(
+                {
+                    "name": g["name"],
+                    "count": len(ms),
+                    "prob": round(sum(m["prob"] for m in ms) / len(ms), 4),
+                    "chg7d": round(sum(chgs) / len(chgs), 1) if chgs else None,
+                    "series": series,
+                    "miss": miss,
+                }
+            )
+        # 叙事/焦点取本周变动最大的归类（无变动数据时退而取概率最高）
+        t["clusters"] = sorted(
+            tcls,
+            key=lambda c: (c["chg7d"] is None, -abs(c["chg7d"] or 0), -c["prob"]),
         )
-        hid = t["headline"].get("id") if t["headline"] else None
-        if hid and hid in hist:
-            history[hid] = hist[hid]  # 焦点走势图（每主题一条，控制体积）
+        t["headline"] = t["clusters"][0] if t["clusters"] else None
 
     total_vol = sum(t["volume24hr"] for t in topics)
     total_events = sum(len(t["events"]) for t in topics)
@@ -259,7 +398,8 @@ def geo_overview() -> dict | None:
         share = t["volume24hr"] / total_vol * 100 if total_vol else 0
         head = t["headline"]
         focus = (
-            f"焦点「{head['label']}」{head['prob'] * 100:.0f}%"
+            f"焦点归类「{head['name']}」均概率 {head['prob'] * 100:.0f}%"
+            + (f"（7日 {head['chg7d']:+.1f}pp）" if head["chg7d"] is not None else "")
             if head
             else "暂无活跃市场"
         )
@@ -267,11 +407,20 @@ def geo_overview() -> dict | None:
             f"{t['name']}：{len(t['events'])} 事件 · 24h ${t['volume24hr'] / 1e6:.2f}M"
             f"（占 {share:.0f}%），{focus}。"
         )
+    if unmatched:
+        sample = "、".join(u["label"][:40] for u in unmatched[:3])
+        sig.append(
+            f"⚠ 归类规则未命中 {len(unmatched)} 个合约（如：{sample}）——"
+            "新事件需要往 src/polymarket_analysis.py 的 GEO_CLUSTERS 补关键词。"
+        )
     return {
         "as_of": snap.get("as_of"),
         "signals": sig,
         "topics": topics,
-        "history": history,
+        "unmatched": {
+            "count": len(unmatched),
+            "samples": unmatched[:12],
+        },
     }
 
 

@@ -254,3 +254,39 @@ def test_geo_overview_none(fake_dir):
         encoding="utf-8",
     )
     assert geo_overview() is None
+
+
+def test_geo_overview_unmatched_alert(fake_dir):
+    """新事件击穿关键词规则 → 归入「其它事件」兜底组并产出 ⚠ 提醒 + unmatched 清单。"""
+    snap = _snap(
+        [
+            _event(
+                "Iran foreign policy watch?",
+                "geo",
+                markets=[
+                    {
+                        "id": "1",
+                        "question": "Will Iran resume missile production?",
+                        "prob_yes": 0.3,
+                    },
+                ],
+            ),
+        ]
+    )
+    (fake_dir / "20260916.json").write_text(json.dumps(snap), encoding="utf-8")
+    out = geo_overview()
+    # 标题+问题均无关键词 → miss 归类 + 告警
+    assert out["unmatched"]["count"] == 1
+    assert (
+        out["unmatched"]["samples"][0]["label"] == "Will Iran resume missile production"
+    )
+    iran = out["topics"][0]
+    misc = [c for c in iran["clusters"] if c["miss"]]
+    assert len(misc) == 1 and misc[0]["name"] == "其它事件"
+    assert any("GEO_CLUSTERS" in s for s in out["signals"])
+    # 正常归类的主题不产告警
+    snap["events"][0]["markets"][0]["question"] = "Will Iran enrich uranium to 90%?"
+    (fake_dir / "20260916.json").write_text(json.dumps(snap), encoding="utf-8")
+    out2 = geo_overview()
+    assert out2["unmatched"]["count"] == 0
+    assert not any("GEO_CLUSTERS" in s for s in out2["signals"])
