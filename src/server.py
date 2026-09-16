@@ -724,12 +724,19 @@ def get_rate_expectations() -> dict:
                     {"lo": float(lo), "hi": float(hi), "prob": round(float(p), 4)}
                 )
 
+        # 旧快照无 contract_used / zq_as_of 列 → 回退 contract / None
+        contract_used = row.get("contract_used")
+        zq_as_of = row.get("zq_as_of")
         meetings.append(
             {
                 "meeting_date": meeting_date,
                 "contract": row["contract"],
+                "contract_used": (
+                    str(contract_used) if pd.notna(contract_used) else row["contract"]
+                ),
                 "implied_rate": float(row["implied_rate"]),
                 "post_meeting_rate": float(row["post_meeting_rate"]),
+                "zq_as_of": str(zq_as_of) if pd.notna(zq_as_of) else None,
                 "prob_cut": float(row["prob_cut"]),
                 "prob_hold": float(row["prob_hold"]),
                 "prob_hike": float(row["prob_hike"]),
@@ -749,6 +756,10 @@ def get_rate_expectations() -> dict:
 
     return {
         "as_of": latest_date.strftime("%Y-%m-%d"),
+        # 期货数据实际日期（最早值）：任一合约陈旧即在此暴露，与快照日 as_of 区分
+        "zq_as_of": min(
+            (m["zq_as_of"] for m in meetings if m["zq_as_of"]), default=None
+        ),
         "polymarket_as_of": pm["as_of"] if pm else None,
         "meetings": meetings,
     }

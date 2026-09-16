@@ -23,6 +23,8 @@
 .re-table .re-pm-row td.pm-div-big { color: var(--accent); font-weight: 700; background: var(--surface-alt); }
 .re-table .re-pm-row .pm-num { display: inline-block; min-width: 42px; text-align: right; }
 .re-table .re-pm-row .pm-delta { font-size: 11px; font-weight: 500; margin-left: 3px; color: var(--accent); }
+/* 月末会议改用下月合约定价时的角标（contract_used ≠ contract） */
+.re-table .re-next-tag { font-size: 11px; margin-left: 4px; color: var(--text-dim); white-space: nowrap; }
 </style>
 <script src="/vendor/echarts.min.js"></script>
 </head>
@@ -75,6 +77,9 @@
   <div class="re-explain">
     <b>政策路径：</b>FOMC 概率基于 ZQ 30 天联邦基金期货结算价反推，采用 CME FedWatch 方法论近似，
     每日北京时间凌晨更新；目标利率来自 FRED DFEDTARL/DFEDTARU。
+    <b>口径提示：</b>ZQ 列 = 期货隐含的会议后利率水平（<b>累计口径</b>，含此前会议的加息/降息）；
+    Polymarket 列 = 该场会议本身的决定概率（<b>边际口径</b>）——两列直接对比时 ZQ 加息概率天然偏高。
+    合约列标注「下月合约」= 月末会议会后采样不足 10 天，改用下月合约整月采样定价（FedWatch 官方方法）。
     <b>长端分解：</b>名义 = 实际 + 盈亏平衡。若收益率上行主要由实际利率推动 → 金融条件收紧（紧缩交易）；
     若主要由盈亏平衡推动 → 通胀交易。盈亏平衡通胀 = DGS10 − DFII10（本地计算）。
     期限溢价 = NY Fed ACM 估计（ACMTP10，右轴虚线）：<b>BEI 不动而期限溢价上行 → 供给/风险溢价交易</b>；
@@ -98,8 +103,10 @@ async function load() {
   const re = await reRes.json();
   const fomc = fomcRes.ok ? await fomcRes.json() : null;
 
-  document.getElementById('re-as-of').textContent =
-    R.asOf(re.polymarket_as_of ? [d.as_of, ['Polymarket', re.polymarket_as_of]] : d.as_of);
+  const segs = [d.as_of];
+  if (re.polymarket_as_of) segs.push(['Polymarket', re.polymarket_as_of]);
+  if (re.zq_as_of) segs.push(['ZQ', re.zq_as_of]);
+  document.getElementById('re-as-of').textContent = R.asOf(segs);
 
   // ── 页首概览卡（政策路径 2 张 + 长端分解 6 张）──
   const last = (arr) => (arr.length ? arr[arr.length - 1].value : null);
@@ -175,9 +182,13 @@ function renderTable(meetings) {
     const hikeW = (m.prob_hike * 100).toFixed(1);
     const label = m.expectation;
     const cls = label === '降息' ? 'cut' : label === '加息' ? 'hike' : 'hold';
+    // 合约列显示实际定价合约；月末会议换下月合约时加角标（与会议月 contract 不同）
+    const contractCell = m.contract_used && m.contract_used !== m.contract
+      ? `${m.contract_used}<span class="re-next-tag" title="月末会议，改用下月合约整月采样定价">下月合约</span>`
+      : m.contract;
     const zqRow = `<tr class="re-zq">
       <td>${m.meeting_date}</td>
-      <td>${m.contract}</td>
+      <td>${contractCell}</td>
       <td>${m.implied_rate.toFixed(3)}%</td>
       <td>${m.post_meeting_rate.toFixed(3)}%</td>
       <td class="re-bar-cell">

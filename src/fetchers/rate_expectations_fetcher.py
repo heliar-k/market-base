@@ -31,40 +31,82 @@ def _zq_label(meeting_year: int, meeting_month: int) -> str:
     return f"ZQ_{meeting_year}{meeting_month:02d}"
 
 
-def _read_zq_close(meeting_year: int, meeting_month: int) -> tuple[float, str] | None:
-    """从本地 CSV 读取 ZQ 合约最新收盘价（= 日结算价）。
+def _read_zq_last(path: Path) -> tuple[float, str] | None:
+    """读单个 ZQ 合约 CSV 的最新收盘价，返回 (settlement, date) 或 None。"""
+    if not path.exists():
+        return None
+    df = pd.read_csv(path, dtype={"date": str})
+    if df.empty:
+        return None
+    last = df.iloc[-1]
+    return float(last["close"]), str(last["date"])
 
-    优先级：IBKR commodities 本地数据（质量更高）→ Barchart 降级
-    （data/barchart/commodities/ZQ/，由 ./bin/fetch_barchart_futures 写入）。
 
-    Returns (settlement, as_of_date) 或 None（文件不存在/无数据）。
+def _pick_fresher(
+    ibkr: tuple[float, str] | None, barchart: tuple[float, str] | None
+) -> tuple[float, str] | None:
+    """两源取数据日期更新者；同日优先 IBKR（质量更高）。"""
+    if ibkr is None:
+        return barchart
+    if barchart is None:
+        return ibkr
+    # date 为 ISO 字符串，字典序即时间序
+    return barchart if barchart[1] > ibkr[1] else ibkr
+
+
+def _read_zq_close(
+    meeting_year: int, meeting_month: int, root: Path | None = None
+) -> tuple[float, str] | None:
+    """读取 ZQ 合约最新结算价，两源（IBKR / Barchart）取日期更新者。
+
+    IBKR 本地文件可能停更（TWS 未启动），日期落后于 Barchart 降级源时
+    必须用新数据，否则概率基于过期期货价。
+
+    Returns (settlement, as_of_date) 或 None（两源均无数据）。
     """
+    root = root or ROOT
     label = _zq_label(meeting_year, meeting_month)
-    candidates = [
-        ROOT / "data" / "commodities" / "ZQ" / f"{label}.csv",
-        ROOT / "data" / "barchart" / "commodities" / "ZQ" / f"{label}.csv",
-    ]
-    for path in candidates:
-        if not path.exists():
-            continue
-        df = pd.read_csv(path, dtype={"date": str})
-        if df.empty:
-            continue
-        last = df.iloc[-1]
-        return float(last["close"]), str(last["date"])
-    logger.warning(
-        f"ZQ {meeting_year}-{meeting_month:02d}: 无本地数据（IBKR: {candidates[0]}, "
-        f"Barchart: {candidates[1]})"
+    result = _pick_fresher(
+        _read_zq_last(root / "data" / "commodities" / "ZQ" / f"{label}.csv"),
+        _read_zq_last(
+            root / "data" / "barchart" / "commodities" / "ZQ" / f"{label}.csv"
+        ),
     )
-    logger.warning(
-        "  请先运行: ./bin/fetch_commodities --symbols ZQ 或 "
-        "./bin/fetch_barchart_futures --symbols ZQ"
-    )
-    return None
+    if result is None:
+        logger.warning(f"ZQ {meeting_year}-{meeting_month:02d}: 两源均无本地数据")
+        logger.warning(
+            "  请先运行: ./bin/fetch_commodities --symbols ZQ 或 "
+            "./bin/fetch_barchart_futures --symbols ZQ"
+        )
+    return result
 
 
 def _days_in_month(year: int, month: int) -> int:
     return calendar.monthrange(year, month)[1]
+
+
+def _next_month(year: int, month: int) -> tuple[int, int]:
+    return (year + 1, 1) if month == 12 else (year, month + 1)
+
+
+def _has_fomc_meeting(year: int, month: int) -> bool:
+    return any(m.year == year and m.month == month for m in FOMC_MEETINGS)
+
+
+def _use_next_month_contract(
+    days_after: int, meeting_year: int, meeting_month: int, next_readable: bool
+) -> bool:
+    """月末会议定约判定（CME FedWatch 官方方法）。
+
+    会议后本月采样天数 <10 时，本月合约结算价 1bp 噪声被放大 ~10 倍；
+    改用下月合约（整月在会后，implied 直接就是 post-meeting rate）。
+    下月有 FOMC 会议（合约被污染）或下月合约不可读时回退本月方法。
+    days_after == 0 不走此路（现状已直接用 implied）。
+    """
+    if not (0 < days_after < 10) or not next_readable:
+        return False
+    ny, nm = _next_month(meeting_year, meeting_month)
+    return not _has_fomc_meeting(ny, nm)
 
 
 def _current_target_range() -> tuple[float, float]:
@@ -148,8 +190,9 @@ def _expectation_label(current_lo: float, current_hi: float, probs: dict) -> str
 def fetch_rate_expectations() -> tuple[pd.DataFrame, pd.DataFrame]:
     """拉取 ZQ 期货并计算 FOMC 概率。
 
-    使用注意：post-meeting 隐含利率取自 ZQ 结算价，
-    `days_after=3` 采样对结算噪声敏感，概率结果 ±5pp 内波动属正常。
+    使用注意：post-meeting 隐含利率取自 ZQ 结算价，`days_after=3` 采样对
+    结算噪声敏感；月末会议（会后采样 <10 天）自动改用下月合约定价
+    （FedWatch 官方方法，消除噪声放大）。
 
     Returns:
       (fomc_df, zq_df) — FOMC 概率表 + ZQ 合约快照表
@@ -188,13 +231,35 @@ def fetch_rate_expectations() -> tuple[pd.DataFrame, pd.DataFrame]:
         days_before = meeting.end_day
         days_after = total_days - days_before
 
-        # 分解出 post-meeting 隐含利率
-        if days_after > 0:
-            post_rate = round(
-                (implied * total_days - days_before * prev_post_rate) / days_after, 4
-            )
-        else:
-            post_rate = implied  # 会议在月末最后一天
+        # ── 定价输入：默认本月合约；月末会议换下月合约（免噪声放大）──
+        price_settle, price_as_of, price_implied = settle, as_of, implied
+        contract_used = contract
+        post_rate: float | None = None
+        if 0 < days_after < 10:
+            ny, nm = _next_month(meeting.year, meeting.month)
+            nxt = _read_zq_close(ny, nm)
+            if _use_next_month_contract(
+                days_after, meeting.year, meeting.month, nxt is not None
+            ):
+                price_settle, price_as_of = nxt
+                price_implied = round(100.0 - nxt[0], 4)
+                contract_used = _zq_label(ny, nm)
+                # 下月整月在会后，implied 直接就是 post-meeting rate
+                post_rate = price_implied
+                logger.info(
+                    f"  月末会议（会后仅 {days_after} 天采样）→ 改用下月合约 "
+                    f"{contract_used}: settle={price_settle:.4f} "
+                    f"(as of {price_as_of}) → post={post_rate:.4f}%"
+                )
+        if contract_used == contract:
+            # 本月合约方法：从月均 implied 中剥离会前部分
+            if days_after > 0:
+                post_rate = round(
+                    (implied * total_days - days_before * prev_post_rate) / days_after,
+                    4,
+                )
+            else:
+                post_rate = implied  # 会议在月末最后一天
 
         # 构建可能的利率范围（当前区间 ± 2 步）
         ranges = []
@@ -210,9 +275,11 @@ def fetch_rate_expectations() -> tuple[pd.DataFrame, pd.DataFrame]:
                     f"{meeting.year}-{meeting.month:02d}-{meeting.end_day:02d}"
                 ),
                 "contract": contract,
-                "settlement": settle,
-                "implied_rate": implied,
+                "contract_used": contract_used,
+                "settlement": price_settle,
+                "implied_rate": price_implied,
                 "post_meeting_rate": post_rate,
+                "zq_as_of": price_as_of,
                 "prob_cut": sum(
                     v for k, v in probs.items() if float(k.split("-")[0]) < current_lo
                 ),
@@ -300,8 +367,9 @@ if __name__ == "__main__":
     # ── 打印摘要 ──
     print()
     for _, r in fomc_df.iterrows():
+        used = f"→ {r['contract_used']} " if r["contract_used"] != r["contract"] else ""
         print(
-            f"  {r['meeting_date']}  {r['contract']:10s}  "
+            f"  {r['meeting_date']}  {r['contract']:10s} {used} "
             f"implied={r['implied_rate']:.4f}%  "
             f"cut={r['prob_cut']:.1%}  hold={r['prob_hold']:.1%}  "
             f"hike={r['prob_hike']:.1%}  → {r['expectation']}"
