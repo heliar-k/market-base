@@ -8,6 +8,8 @@ from src.polymarket_analysis import (
     DATA,
     chg7d,
     events_matching,
+    geo_overview,
+    geo_topic_of,
     prob_ladder,
     series_for,
     snapshot,
@@ -162,3 +164,110 @@ def test_real_data_unparsed_idempotent():
         return
     s = snapshot()
     assert s is None or isinstance(s.get("events"), list)
+
+
+def test_geo_topic_of_priority():
+    # 热战主题优先于选举：「以色列总理选举」归以色列战线
+    assert geo_topic_of(
+        {"title": "Prime Minister of Israel after the next election?"}
+    ) == (
+        "israel",
+        "以色列战线",
+    )
+    assert geo_topic_of({"title": "Strait of Hormuz traffic returns to normal"}) == (
+        "iran",
+        "伊朗与霍尔木兹",
+    )
+    assert geo_topic_of({"title": "Will China invade Taiwan by end of 2026?"}) == (
+        "taiwan",
+        "台海",
+    )
+    assert geo_topic_of({"title": "Russia x Ukraine ceasefire agreement by...?"}) == (
+        "russia_ukraine",
+        "俄乌",
+    )
+    assert geo_topic_of({"title": "Next French Presidential Election"}) == (
+        "election",
+        "选举",
+    )
+    assert geo_topic_of({"title": "Will the U.S. invade Greenland in 2026?"}) == (
+        "other",
+        "其它",
+    )
+
+
+def test_geo_overview(fake_dir):
+    snap = _snap(
+        [
+            _event(
+                "US x Iran Effective Ceasefire begins by...?",
+                "geo",
+                vol=700_000.0,
+                markets=[
+                    {
+                        "id": "1",
+                        "question": "US x Iran Effective Ceasefire by September 30?",
+                        "prob_yes": 0.34,
+                    },
+                    # 已到期市场：概率滞留 100%，必须被过滤
+                    {
+                        "id": "9",
+                        "question": "US x Iran Effective Ceasefire by September 4?",
+                        "prob_yes": 1.0,
+                        "end_date": "2026-09-04",
+                    },
+                ],
+            ),
+            _event(
+                "Next French Presidential Election",
+                "policy",
+                vol=712_000.0,
+                markets=[
+                    {
+                        "id": "2",
+                        "question": "Will X win the French Presidential Election?",
+                        "prob_yes": 0.55,
+                    }
+                ],
+            ),
+            # 全部市场到期 → 事件卡整体不渲染
+            _event(
+                "Strait of Hormuz traffic returns to normal by September 15?",
+                "geo",
+                vol=23_000.0,
+                markets=[
+                    {
+                        "id": "3",
+                        "question": "traffic normal by September 15?",
+                        "prob_yes": 0.0005,
+                        "end_date": "2026-09-15",
+                    }
+                ],
+            ),
+            _event(
+                "Will the U.S. invade Greenland in 2026?", "geo", vol=10.0, markets=[]
+            ),
+        ]
+    )
+    (fake_dir / "20260916.json").write_text(json.dumps(snap), encoding="utf-8")
+    out = geo_overview()
+    assert out["as_of"] == "2026-09-16"
+    # 主题按 24h 量降序：选举 712k > 伊朗 700k；过期事件与零市场事件（格陵兰）剔除
+    assert [t["key"] for t in out["topics"]] == ["election", "iran"]
+    iran = out["topics"][1]
+    # 到期 100% 市场被过滤，焦点取活跃的 34%
+    assert iran["headline"]["prob"] == 0.34
+    assert len(iran["events"][0]["markets"]) == 1
+    # 叙事：总览 + 每主题一句（剩 2 个有效事件）
+    assert len(out["signals"]) == 3
+    assert "2 个事件在监测" in out["signals"][0]
+
+
+def test_geo_overview_none(fake_dir):
+    # 无快照 / 无 geo 事件 → None
+    assert geo_overview() is None
+    (fake_dir / "20260916.json").write_text(
+        json.dumps(_snap([_event("Fed Decision in September?", "fed")])),
+        encoding="utf-8",
+    )
+    assert geo_overview() is None

@@ -810,6 +810,17 @@ def get_daily_brief() -> dict:
 # ── fed hub（复刻 timsun.net/fed）────────────────────────────────────────────
 
 
+@app.get("/api/geo")
+def get_geo_overview() -> dict:
+    """地缘与政治风险专题：Polymarket geo+policy 事件主题聚类 + 概率时序。"""
+    from src.polymarket_analysis import geo_overview
+
+    out = geo_overview()
+    if out is None:
+        raise HTTPException(404, "无地缘事件快照，先运行 ./bin/fetch_polymarket")
+    return out
+
+
 @app.get("/api/fed/overview")
 def get_fed_overview() -> dict:
     """美联储鹰鸽面板：指示器 + 声明/演讲列表 + 官员立场 + 时间线 + 市场预期。"""

@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>地缘与政治风险 — 观澜台</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap">
+<link rel="stylesheet" href="/css/app.css">
+<link rel="stylesheet" href="/css/special.css">
+<script src="/js/site-nav.js"></script>
+<style>
+/* geo 页私有结构（通用卡片/表格/语义色复用 app.css / special.css） */
+.geo-topic-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 12px; }
+.geo-topic-card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; cursor: pointer; transition: border-color .15s; }
+.geo-topic-card:hover { border-color: var(--accent); }
+.geo-topic-name { font-weight: 700; font-size: 15px; }
+.geo-topic-meta { font-size: 12px; color: var(--text-dim); margin: 4px 0 8px; }
+.geo-topic-focus { font-size: 12px; color: var(--text-secondary); line-height: 1.5; }
+.geo-topic-focus b { color: var(--text); }
+.geo-odds-row { display: flex; align-items: center; gap: 8px; margin: 3px 0; }
+.geo-odds-lab { flex: 0 0 46%; font-size: 11px; color: var(--text-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.geo-odds-track { flex: 1; height: 8px; background: var(--bg); border-radius: 4px; overflow: hidden; }
+.geo-odds-fill { height: 100%; background: var(--accent); border-radius: 4px; }
+.geo-odds-pct { flex: 0 0 44px; text-align: right; font-size: 11px; font-variant-numeric: tabular-nums; }
+.geo-odds-chg { flex: 0 0 52px; text-align: right; font-size: 11px; font-variant-numeric: tabular-nums; }
+</style>
+</head>
+<body>
+<div class="re-root">
+  <div class="re-header">
+    <h1>地缘与政治风险</h1>
+    <span class="re-as-of" id="re-as-of"></span>
+  </div>
+
+  <div class="re-nav" id="re-nav"></div>
+
+  <!-- 结论层：主题状态卡（点击定位到下方数据层） -->
+  <div id="geo-topics" class="geo-topic-grid"></div>
+
+  <!-- 规则引擎叙事 -->
+  <div id="re-signals"></div>
+
+  <!-- 数据层：按主题分组的事件卡 + 概率条 + 焦点走势 -->
+  <div id="geo-events"></div>
+
+  <div class="re-gen" id="re-gen"></div>
+</div>
+
+<script src="/vendor/echarts.min.js"></script>
+<script src="/js/echarts-theme.js"></script>
+<script src="/js/rates-common.js"></script>
+<script>
+const fmtVol = v => v >= 1e6 ? '$' + (v / 1e6).toFixed(1) + 'M' : v >= 1e3 ? '$' + (v / 1e3).toFixed(0) + 'K' : '$' + (v || 0).toFixed(0);
+const fmtPct = v => v == null ? '—' : (v * 100).toFixed(1) + '%';
+const fmtChg = v => v == null ? '<span style="color:var(--text-dim)">—</span>'
+  : `<span class="${v > 0 ? 'up' : v < 0 ? 'down' : ''}">${v > 0 ? '+' : ''}${v.toFixed(1)}pp</span>`;
+function esc(s) { return String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
+
+async function load() {
+  const d = await R.get('/api/geo');
+  if (!d || !d.topics || !d.topics.length) {
+    R.fail(['geo-topics', 're-signals', 'geo-events'], new Error('无地缘事件快照 · 运行 ./bin/fetch_polymarket 拉取后刷新'));
+    return;
+  }
+  document.getElementById('re-as-of').textContent = R.asOf(['Polymarket', d.as_of]);
+
+  // ── 结论层：主题状态卡 ──
+  const total = d.topics.reduce((s, t) => s + t.volume24hr, 0) || 1;
+  document.getElementById('geo-topics').innerHTML = d.topics.map(t => {
+    const h = t.headline;
+    return `<div class="geo-topic-card" onclick="location.hash='geo-${t.key}'">
+      <div class="geo-topic-name">${esc(t.name)}</div>
+      <div class="geo-topic-meta">${t.events.length} 事件 · 24h ${fmtVol(t.volume24hr)} · 占 ${(t.volume24hr / total * 100).toFixed(0)}%</div>
+      <div class="geo-topic-focus">焦点 ${h ? `<b>${esc(h.label)}</b> <b>${fmtPct(h.prob)}</b> ${h.chg7d != null ? `（7日 ${h.chg7d > 0 ? '+' : ''}${h.chg7d.toFixed(1)}pp）` : ''}` : '—'}</div>
+    </div>`;
+  }).join('');
+
+  // ── 叙事 ──
+  (d.signals || []).forEach(s => {
+    const sec = document.createElement('div');
+    sec.className = 're-signal';
+    sec.textContent = s;
+    document.getElementById('re-signals').appendChild(sec);
+  });
+
+  // ── 数据层：每主题一节（事件卡 + 概率条；焦点事件配 30 天走势）──
+  for (const t of d.topics) {
+    const sec = document.createElement('div');
+    sec.className = 're-section';
+    sec.id = 'geo-' + t.key;
+    sec.innerHTML = `<h2>${esc(t.name)} <small style="font-weight:400;color:var(--text-dim)">${t.events.length} 事件 · 24h ${fmtVol(t.volume24hr)}</small></h2>`;
+    const grid = document.createElement('div');
+    grid.style.cssText = 'display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:12px';
+    for (const e of t.events) {
+      const card = document.createElement('div');
+      card.className = 're-card';
+      card.innerHTML = `
+        <div class="re-corridor-label">
+          <a href="https://polymarket.com/event/${esc(e.slug)}" target="_blank" style="color:inherit">${esc(e.title)}</a>
+        </div>
+        <div style="font-size:11px;color:var(--text-dim);margin:2px 0 8px">到期 ${esc(e.end_date)} · 24h ${fmtVol(e.volume24hr)}</div>`;
+      // 概率条行（前 6 档，prob 降序；后端已排序）
+      for (const m of (e.markets || []).slice(0, 6)) {
+        card.insertAdjacentHTML('beforeend', `
+          <div class="geo-odds-row" title="${esc(m.question)}">
+            <span class="geo-odds-lab">${esc(m.label)}</span>
+            <div class="geo-odds-track"><div class="geo-odds-fill" style="width:${(m.prob * 100).toFixed(1)}%"></div></div>
+            <span class="geo-odds-pct">${fmtPct(m.prob)}</span>
+            <span class="geo-odds-chg">${fmtChg(m.chg7d)}</span>
+          </div>`);
+      }
+      if ((e.markets || []).length > 6) {
+        card.insertAdjacentHTML('beforeend', `<div style="font-size:11px;color:var(--text-dim);margin-top:4px">… 其余 ${e.markets.length - 6} 档见 Polymarket</div>`);
+      }
+      grid.appendChild(card);
+    }
+    sec.appendChild(grid);
+
+    // 先挂 DOM 再建图（R.mkChart 按 id 查 DOM，0 尺寸容器初始化不出 canvas）
+    document.getElementById('geo-events').appendChild(sec);
+
+    // 焦点事件 30 天概率走势（history.csv 时序；无时序的市场不画）
+    const h = t.headline;
+    const pts = d.history?.[h?.id] || [];
+    if (h && pts.length > 1) {
+      const chartId = `geo-chart-${t.key}`;
+      sec.insertAdjacentHTML('beforeend', `<div style="font-size:12px;color:var(--text-dim);margin:10px 0 2px">焦点「${esc(h.label)}」概率走势 · 30 天</div><div class="chart" id="${chartId}" style="height:200px"></div>`);
+      R.mkChart(chartId, c => R.lineOption({
+        tooltip: { trigger: 'axis', valueFormatter: v => (v * 100).toFixed(1) + '%' },
+        grid: { left: 44, right: 12, top: 12, bottom: 24 },
+        xAxis: { type: 'category', data: R.ts(pts), axisLabel: { color: c.muted, fontSize: 10, hideOverlap: true }, axisLine: { lineStyle: { color: c.border } } },
+        yAxis: { type: 'value', max: 1, axisLabel: { color: c.muted, fontSize: 10, formatter: v => (v * 100).toFixed(0) + '%' }, splitLine: { lineStyle: { color: c.grid } } },
+        series: [{ type: 'line', data: R.vs(pts), showSymbol: false, smooth: true, lineStyle: { width: 2, color: c.blue }, areaStyle: { opacity: .08 } }],
+      }, c));
+    }
+  }
+
+  document.getElementById('re-gen').textContent = '数据源：Polymarket gamma/clob API（每日快照 + 概率时序）· 主题聚类为关键词规则';
+}
+
+load().catch(e => R.fail(['geo-topics', 're-signals', 'geo-events'], e));
+</script>
+<script src="/js/nav.js"></script>
+</body>
+</html>

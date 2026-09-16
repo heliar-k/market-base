@@ -108,6 +108,142 @@ def chg7d(points: list[dict] | None) -> float | None:
 
 _THRESHOLD_RX = re.compile(r"(?:more than|at least|above)\s+(\d+(?:\.\d+)?)\s*%")
 
+# ── 地缘与政治风险专题（geo 页）─────────────────────────────────────────
+
+# 主题聚类：关键词 → (key, 名称)；匹配 title 小写包含，先命中先归类。
+# 热战主题在前、选举居后（「Israel 总理选举」归以色列战线而非选举）；
+# 均未命中归「其它」（美国入侵古巴/格陵兰等孤立事件）。
+GEO_TOPICS: list[tuple[str, str, tuple[str, ...]]] = [
+    ("iran", "伊朗与霍尔木兹", ("iran", "hormuz", "pahlavi", "uranium")),
+    ("israel", "以色列战线", ("israel", "lebanon", "yemen", "gaza")),
+    ("taiwan", "台海", ("taiwan",)),
+    ("russia_ukraine", "俄乌", ("russia", "ukraine", "putin", "zelenskyy", "nato")),
+    (
+        "election",
+        "选举",
+        (
+            "election",
+            "president",
+            "senate",
+            "governor",
+            "mayor",
+            "parliament",
+            "duma",
+            "seat",
+            "primary",
+        ),
+    ),
+]
+
+
+def geo_topic_of(event: dict) -> tuple[str, str]:
+    """geo/policy 事件 → (主题 key, 名称)；无命中归 (other, 其它)。"""
+    t = (event.get("title") or "").lower()
+    for key, name, kws in GEO_TOPICS:
+        if any(k in t for k in kws):
+            return key, name
+    return "other", "其它"
+
+
+def active_markets(event: dict, as_of: str | None) -> list[dict]:
+    """事件内未过期市场（end_date ≥ 快照日）；到期市场的概率滞留旧值（常是 0/1），
+    会污染焦点提取与阶梯展示。无 end_date 视为活跃。"""
+    a = str(as_of or "")[:10]
+    return [
+        m
+        for m in event.get("markets") or []
+        if m.get("prob_yes") is not None
+        and (not a or not m.get("end_date") or str(m["end_date"])[:10] >= a)
+    ]
+
+
+def geo_overview() -> dict | None:
+    """地缘与政治风险总览（geo 页数据源）；无快照/无 geo+policy 事件返回 None。
+
+    结构：{as_of, signals, topics: [{key, name, volume24hr, headline, events}]}。
+    事件卡同 commodities 能源块形状（label/prob/chg7d）+ slug（外链）
+    + question（title 提示）；焦点 headline = 主题内 24h 量最大事件的最高概率市场。
+    signals 为规则引擎叙事（LLM 预留：返回 None 时不渲染）。只读不写盘。
+    """
+    snap = snapshot()
+    evs = events_matching(snap, categories=("geo", "policy"))
+    if not evs:
+        return None
+    ids = {str(m["id"]) for e in evs for m in e.get("markets") or []}
+    hist = series_for(ids)
+    a = str(snap.get("as_of") or "")[:10]
+
+    by_topic: dict[str, dict] = {}
+    for e in evs:  # evs 已按 24h 量降序
+        key, name = geo_topic_of(e)
+        mkts = sorted(
+            (
+                {
+                    "id": str(m["id"]),
+                    "label": (m.get("question") or "").removesuffix("?"),
+                    "question": m.get("question"),
+                    "prob": m["prob_yes"],
+                    "chg7d": chg7d(hist.get(str(m["id"]))),
+                }
+                for m in active_markets(e, a)
+            ),
+            key=lambda x: x["prob"],
+            reverse=True,
+        )
+        if not mkts:  # 市场全到期（如「by September 15」已过）→ 事件卡不渲染
+            continue
+        t = by_topic.setdefault(
+            key,
+            {"key": key, "name": name, "volume24hr": 0.0, "events": []},
+        )
+        t["volume24hr"] += e.get("volume24hr") or 0.0
+        t["events"].append(
+            {
+                "title": e["title"],
+                "slug": e.get("slug"),
+                "category": e.get("category"),
+                "end_date": e.get("end_date"),
+                "volume24hr": e.get("volume24hr"),
+                "markets": mkts,
+            }
+        )
+
+    topics = sorted(by_topic.values(), key=lambda t: t["volume24hr"], reverse=True)
+    history: dict[str, list[dict]] = {}
+    for t in topics:
+        top = t["events"][0]
+        t["headline"] = (
+            {"title": top["title"], **top["markets"][0]} if top["markets"] else None
+        )
+        hid = t["headline"].get("id") if t["headline"] else None
+        if hid and hid in hist:
+            history[hid] = hist[hid]  # 焦点走势图（每主题一条，控制体积）
+
+    total_vol = sum(t["volume24hr"] for t in topics)
+    total_events = sum(len(t["events"]) for t in topics)
+    sig = [
+        f"地缘与政治风险：{total_events} 个事件在监测（geo+policy），"
+        f"24h 成交合计 ${total_vol / 1e6:.1f}M。"
+    ]
+    for t in topics:
+        share = t["volume24hr"] / total_vol * 100 if total_vol else 0
+        head = t["headline"]
+        focus = (
+            f"焦点「{head['label']}」{head['prob'] * 100:.0f}%"
+            if head
+            else "暂无活跃市场"
+        )
+        sig.append(
+            f"{t['name']}：{len(t['events'])} 事件 · 24h ${t['volume24hr'] / 1e6:.2f}M"
+            f"（占 {share:.0f}%），{focus}。"
+        )
+    return {
+        "as_of": snap.get("as_of"),
+        "signals": sig,
+        "topics": topics,
+        "history": history,
+    }
+
 
 def prob_ladder(event: dict) -> list[tuple[float, float]]:
     """阈值阶梯事件 → [(阈值%, 概率), …] 按阈值升序。

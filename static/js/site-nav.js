@@ -50,5 +50,6 @@ var SITE_NAV = {
     { key: 'vol', label: '波动率', page: '/volatility/', items: [
       { key: 'volatility/vix', label: 'VIX', page: '/volatility/vix.html' },
     ] },
+    { key: 'geo', label: '地缘风险', page: '/geo/' },
   ],
 };

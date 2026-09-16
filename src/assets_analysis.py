@@ -1334,7 +1334,13 @@ def _polymarket_energy() -> dict | None:
     标题含 hormuz 的事件全部纳入，市场按概率降序；7 日变化来自 history.csv
     （共享读取层，同 fed/crypto 口径）。只读不写盘。
     """
-    from src.polymarket_analysis import chg7d, events_matching, series_for, snapshot
+    from src.polymarket_analysis import (
+        active_markets,
+        chg7d,
+        events_matching,
+        series_for,
+        snapshot,
+    )
 
     snap = snapshot()
     evs = events_matching(snap, pattern=r"hormuz")
@@ -1350,8 +1356,7 @@ def _polymarket_energy() -> dict | None:
                 "prob": m["prob_yes"],
                 "chg7d": chg7d(hist.get(str(m["id"]))),
             }
-            for m in e.get("markets") or []
-            if m.get("prob_yes") is not None
+            for m in active_markets(e, snap.get("as_of"))
         ]
         events_out.append(
             {

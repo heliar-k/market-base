@@ -37,6 +37,7 @@ from src.server import (  # noqa: PLC2701 复用路由函数
     get_diag,
     get_fed_overview,
     get_fomc_calendar,
+    get_geo_overview,
     get_inflation_overview,
     get_kline,
     get_labor_overview,
@@ -70,6 +71,7 @@ _PATH_PREFIXES = (
     "vendor",
     "favicon",
     "fed",
+    "geo",
     "inflation",
     "labor",
     "treasury",
@@ -202,6 +204,7 @@ def export_api() -> None:
 
     _safe("api/volatility/dashboard", generate_dashboard)
     _safe("api/fed/overview", get_fed_overview)
+    _safe("api/geo", get_geo_overview)
     _safe("api/credit/overview", get_credit_overview)
     _safe("api/credit/cds", get_credit_cds)
     _safe("api/credit/stress", get_credit_stress)
