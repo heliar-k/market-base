@@ -133,6 +133,8 @@ def signal_structure(
 
 def polymarket_signal() -> str | None:
     """信号四：预测市场（Polymarket 失业率峰值阶梯）；无数据返回 None（不渲染）。"""
+    import re
+
     from src.polymarket_analysis import events_matching, prob_ladder, snapshot
 
     snap = snapshot()
@@ -144,10 +146,13 @@ def polymarket_signal() -> str | None:
     ladder = prob_ladder(evs[0])
     if not ladder:
         return None
+    # 年份取自事件标题，跨年市场不靠硬编码
+    y = re.search(r"(\d{4})", evs[0]["title"])
+    yr = y.group(1) + " 年" if y else "年内"
     fmt = "、".join(f"{t:g}% 以上 {p * 100:.0f}%" for t, p in ladder[:3])
     return (
-        f"预测市场（Polymarket {snap.get('as_of')}）：2026 年失业率升至 "
-        f"{fmt}；与 Sahm 规则阈值对照，若兑现将触发衰退信号。"
+        f"预测市场（Polymarket {snap.get('as_of')}）：{yr}失业率升至 "
+        f"{fmt}；可对照 Sahm 规则（3M 均值较 12M 低点 +0.5pp）评估衰退信号距离。"
     )
 
 

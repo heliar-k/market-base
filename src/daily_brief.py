@@ -392,8 +392,9 @@ def _alerts() -> list[dict]:
 def _polymarket() -> dict | None:
     """预测市场锚点：衰退概率 + 地缘热点主题事件（结论层 chip 素材）。
 
-    衰退事件取 data 分类里标题含 "recession" 的最新一个（多了取 24h 量最大）；
-    地缘热点取 geo 分类按 24h 量前 5 事件。无快照返回 None（前端不渲染）。
+    衰退事件取 data 分类里标题含 "recession" 的 24h 量最大者，概率取其
+    24h 量最大市场（主市场；多档事件不会被任意序带错档）；地缘热点取
+    geo 分类前 5。无快照返回 None（前端不渲染）。
     """
     from src.polymarket_analysis import events_matching, snapshot
 
@@ -404,17 +405,15 @@ def _polymarket() -> dict | None:
     rec = events_matching(snap, pattern=r"recession", categories=("data",))
     if rec:
         e = rec[0]
+        main = max(
+            e.get("markets") or [],
+            key=lambda m: m.get("volume24hr") or 0,
+            default=None,
+        )
         out["recession"] = {
             "title": e["title"],
             "end_date": e.get("end_date"),
-            "prob": next(
-                (
-                    m.get("prob_yes")
-                    for m in e.get("markets") or []
-                    if m.get("prob_yes") is not None
-                ),
-                None,
-            ),
+            "prob": main.get("prob_yes") if main else None,
         }
     out["geo_hot"] = [
         {

@@ -47,7 +47,6 @@ def _event(title, category, vol=1000.0, markets=None, series=None):
 
 def test_snapshot_none_when_missing(fake_dir):
     assert snapshot() is None
-    assert snapshot(categories=("fed",)) is None
 
 
 def test_snapshot_falls_back_on_unparseable(fake_dir):
@@ -55,24 +54,8 @@ def test_snapshot_falls_back_on_unparseable(fake_dir):
     (fake_dir / "20260916.json").write_text(
         json.dumps(_snap([_event("Fed x", "fed")])), encoding="utf-8"
     )
-    s = snapshot(categories=("fed",))
+    s = snapshot()
     assert s is not None and s["as_of"] == "2026-09-16"
-
-
-def test_snapshot_category_filter_falls_back_days(fake_dir):
-    # 最新一日只有 geo，无 fed → 回退前一日取含 fed 的
-    (fake_dir / "20260917.json").write_text(
-        json.dumps(_snap([_event("Hormuz", "geo")], as_of="2026-09-17")),
-        encoding="utf-8",
-    )
-    (fake_dir / "20260916.json").write_text(
-        json.dumps(_snap([_event("Fed Decision in September?", "fed")])),
-        encoding="utf-8",
-    )
-    s = snapshot(categories=("fed",))
-    assert s["as_of"] == "2026-09-16"
-    # 不过滤分类则取最新
-    assert snapshot()["as_of"] == "2026-09-17"
 
 
 def test_events_matching_filters_and_sorts(fake_dir):
@@ -85,8 +68,8 @@ def test_events_matching_filters_and_sorts(fake_dir):
     )
     out = events_matching(snap, categories=("data", "policy"))
     assert [e["title"] for e in out] == ["US recession by end of 2026?"]
-    # 正则 + series 过滤，volume 降序
-    out = events_matching(snap, pattern=r"hormuz", series=("hormuz",))
+    # 正则过滤 + volume 降序
+    out = events_matching(snap, pattern=r"hormuz")
     assert len(out) == 1 and out[0]["category"] == "geo"
     # 字符串 pattern 大小写不敏感
     assert events_matching(snap, pattern="recession")[0]["category"] == "data"

@@ -177,6 +177,8 @@ def signal_expectations(market: list, survey: list) -> str:
 
 def polymarket_signal() -> str | None:
     """信号四：预测市场（Polymarket 阈值阶梯）；无数据返回 None（不渲染）。"""
+    import re
+
     from src.polymarket_analysis import events_matching, prob_ladder, snapshot
 
     snap = snapshot()
@@ -188,9 +190,12 @@ def polymarket_signal() -> str | None:
     ladder = prob_ladder(evs[0])
     if not ladder:
         return None
+    # 年份取自事件标题（…in 2026），跨年市场不靠硬编码
+    y = re.search(r"(\d{4})", evs[0]["title"])
+    yr = y.group(1) + " 年" if y else "年内"
     fmt = "、".join(f"{t:g}% 以上 {p * 100:.0f}%" for t, p in ladder[:3])
     return (
-        f"预测市场（Polymarket {snap.get('as_of')}）：2026 年通胀最高触及 "
+        f"预测市场（Polymarket {snap.get('as_of')}）：{yr}通胀最高触及 "
         f"{fmt}，尾部情形（{ladder[-1][0]:g}% 以上）{ladder[-1][1] * 100:.0f}%。"
     )
 

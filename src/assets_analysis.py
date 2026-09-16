@@ -1328,48 +1328,9 @@ def bonds() -> dict:
     }
 
 
-def _polymarket_energy() -> dict | None:
-    """Polymarket 能源地缘风险（霍尔木兹海峡事件卡）；无快照/无事件返回 None。
-
-    标题含 hormuz 的事件全部纳入，市场按概率降序；7 日变化来自 history.csv
-    （共享读取层，同 fed/crypto 口径）。只读不写盘。
-    """
-    from src.polymarket_analysis import (
-        active_markets,
-        chg7d,
-        events_matching,
-        series_for,
-        snapshot,
-    )
-
-    snap = snapshot()
-    evs = events_matching(snap, pattern=r"hormuz")
-    if not evs:
-        return None
-    ids = {str(m["id"]) for e in evs for m in e.get("markets") or []}
-    hist = series_for(ids)
-    events_out = []
-    for e in evs[:6]:
-        mkts = [
-            {
-                "label": (m.get("question") or "").removesuffix("?"),
-                "prob": m["prob_yes"],
-                "chg7d": chg7d(hist.get(str(m["id"]))),
-            }
-            for m in active_markets(e, snap.get("as_of"))
-        ]
-        events_out.append(
-            {
-                "title": e["title"],
-                "end_date": e.get("end_date"),
-                "volume24hr": e.get("volume24hr"),
-                "markets": sorted(mkts, key=lambda x: x["prob"], reverse=True),
-            }
-        )
-    return {"as_of": snap.get("as_of"), "events": events_out}
-
-
 def commodities() -> dict:
+    from src.polymarket_analysis import energy_block
+
     p = asset_prices()
     cols = [k for k, _ in COMMODITY_ROWS]
     # 归一化走势（1 年）
@@ -1384,7 +1345,7 @@ def commodities() -> dict:
         "cards": _price_rows(p, COMMODITY_ROWS),
         "recent": _recent_prices(p, cols),
         "normalized": {"dates": [str(d.date()) for d in sub.index], "series": norm},
-        "polymarket": _polymarket_energy(),  # None 不阻断（独立数据源）
+        "polymarket": energy_block(),  # None 不阻断（独立数据源）
     }
 
 

@@ -1,10 +1,11 @@
 """Polymarket 分析层共享读取（供 daily_brief / 专题分析 / geo 页复用）。
 
-职责：读 data/polymarket/ 最新快照 + history.csv 概率时序，提供事件过滤与
-7 日变化。不做聚类叙事（那部分在 geo_overview 等"给人看"的入口里）。
+职责：读 data/polymarket/ 最新快照 + history.csv 概率时序，提供事件过滤、
+7 日变化、阈值阶梯、到期市场过滤、geo 主题聚类与能源地缘块。
+"给人看"的叙事入口也在这里（规则引擎，只读不写盘）。
 
-fed_analysis.market_odds 与 assets_analysis._polymarket 维护各自的读取路径
-（前者含 `.1` 后缀 bfill 归一），本模块是新消费方的统一入口，不回收旧代码。
+fed_analysis.market_odds 与 assets_analysis._polymarket 维护各自的快照
+读取路径（前者含 `.1` 后缀 bfill 归一）；chg7d 已回收共享。
 
 用法:
     from src.polymarket_analysis import snapshot, series_for, chg7d
@@ -23,21 +24,15 @@ from src.config import ROOT
 DATA = ROOT / "data" / "polymarket"
 
 
-def snapshot(categories: tuple[str, ...] | None = None) -> dict | None:
-    """最新可解析且含指定分类事件的快照（坏 JSON / 无目标事件回退前一日）。
-
-    返回原样 dict（含 events / as_of）；无文件或全不匹配返回 None。
-    categories=None 不做分类过滤。
+def snapshot() -> dict | None:
+    """最新可解析快照（坏 JSON 回退前一日）；无文件返回 None。
+    分类过滤由 events_matching 做（geo_overview 等消费方自行过滤）。
     """
     for f in sorted(DATA.glob("20*.json"), reverse=True):
         try:
-            snap = json.loads(f.read_text(encoding="utf-8"))
+            return json.loads(f.read_text(encoding="utf-8"))
         except Exception:
             continue
-        if categories is None:
-            return snap
-        if any(e.get("category") in categories for e in snap.get("events") or []):
-            return snap
     return None
 
 
@@ -45,11 +40,10 @@ def events_matching(
     snap: dict | None,
     pattern: str | re.Pattern | None = None,
     categories: tuple[str, ...] = (),
-    series: tuple[str, ...] = (),
 ) -> list[dict]:
-    """快照事件过滤：分类 + series + 标题正则（不区分大小写）。
+    """快照事件过滤：分类 + 标题正则（不区分大小写）。
 
-    按事件 volume 降序返回。pattern 是纯字符串时按词不敏感包含处理
+    按事件 volume 降序返回。pattern 是纯字符串时按不区分大小写包含处理
     （调用方传已编译正则可控制词边界）。
     """
     if not snap:
@@ -58,8 +52,6 @@ def events_matching(
     out = []
     for e in snap.get("events") or []:
         if categories and e.get("category") not in categories:
-            continue
-        if series and (e.get("series") or "") not in series:
             continue
         if rx and not rx.search(e.get("title") or ""):
             continue
@@ -107,6 +99,44 @@ def chg7d(points: list[dict] | None) -> float | None:
 
 
 _THRESHOLD_RX = re.compile(r"(?:more than|at least|above)\s+(\d+(?:\.\d+)?)\s*%")
+
+
+def energy_block() -> dict | None:
+    """能源地缘风险（霍尔木兹海峡事件卡，commodities 页数据源）。
+
+    标题含 hormuz 的事件全部纳入（上限 6 个），市场按概率降序、
+    到期市场过滤；7 日变化来自 history.csv。无快照/无事件返回 None。
+    """
+    snap = snapshot()
+    evs = events_matching(snap, pattern=r"hormuz")
+    if not evs:
+        return None
+    ids = {str(m["id"]) for e in evs for m in e.get("markets") or []}
+    hist = series_for(ids)
+    events_out = []
+    for e in evs[:6]:
+        mkts = sorted(
+            (
+                {
+                    "label": (m.get("question") or "").removesuffix("?"),
+                    "prob": m["prob_yes"],
+                    "chg7d": chg7d(hist.get(str(m["id"]))),
+                }
+                for m in active_markets(e, snap.get("as_of"))
+            ),
+            key=lambda x: x["prob"],
+            reverse=True,
+        )
+        events_out.append(
+            {
+                "title": e["title"],
+                "end_date": e.get("end_date"),
+                "volume24hr": e.get("volume24hr"),
+                "markets": mkts,
+            }
+        )
+    return {"as_of": snap.get("as_of"), "events": events_out}
+
 
 # ── 地缘与政治风险专题（geo 页）─────────────────────────────────────────
 

@@ -63,7 +63,7 @@ async function load() {
     R.fail(['geo-topics', 're-signals', 'geo-events'], new Error('无地缘事件快照 · 运行 ./bin/fetch_polymarket 拉取后刷新'));
     return;
   }
-  document.getElementById('re-as-of').textContent = R.asOf(['Polymarket', d.as_of]);
+  document.getElementById('re-as-of').textContent = R.asOf([['Polymarket', d.as_of]]);
 
   // ── 结论层：主题状态卡 ──
   const total = d.topics.reduce((s, t) => s + t.volume24hr, 0) || 1;
