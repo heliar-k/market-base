@@ -16,8 +16,8 @@ from src.indicators import compute_all_indicators, detect_cdl_hits
 def test_detect_cdl_hits_with_as_of_uses_that_row(real_aapl_csv):
     """as_of 那天的命中应被返回，即使最后一行不命中该形态。
 
-    AAPL 2016-10-21 命中 CDL_HAMMER（锤子线），而最后一行（2026-06-26）不命中
-    任何关注形态。这是验证回看正确性的黄金场景。
+    AAPL 2016-10-21 命中 CDL_HAMMER（锤子线），而末行（截断后固定为 2016-10-24）
+    不命中任何看多形态。这是验证回看正确性的黄金场景。
     """
     if real_aapl_csv is None:
         pytest.skip("需要 data/stocks/AAPL.csv")
@@ -26,6 +26,10 @@ def test_detect_cdl_hits_with_as_of_uses_that_row(real_aapl_csv):
         .sort_values("date")
         .set_index("date")
     )
+    # 截断到固定历史窗口：真实 CSV 每日自动追加，「最后一行」会随数据漂移
+    # （曾漂移成锤子线日导致断言失败）。截断后末行恒为 2016-10-24（非锤子线），
+    # CDL 形态无未来函数，2016-10-21 的命中不受影响。
+    df = df.loc[:"2016-10-24"]
     df.columns = df.columns.str.lower()
     df = compute_all_indicators(df)
 
@@ -48,11 +52,14 @@ def test_analyze_as_of_wires_cdl_hits(real_aapl_csv):
         .sort_values("date")
         .set_index("date")
     )
+    # 截断到固定历史窗口（同上）：真实 CSV 每日追加会使「最后一行」漂移，
+    # 截断后无 as_of 时取的末行恒为 2016-10-24，断言不再随数据漂移失败。
+    df = df.loc[:"2016-10-24"]
     df.columns = df.columns.str.lower()
     df = compute_all_indicators(df)
 
     result = analyze(df, "AAPL", as_of="2016-10-21")
     assert "锤子线" in result["cdl_bullish"]
-    # 最后一行不含该形态
+    # 末行（截断后固定为 2016-10-24）不含该形态
     full = analyze(df, "AAPL")
     assert "锤子线" not in full["cdl_bullish"]
