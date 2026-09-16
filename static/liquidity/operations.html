@@ -56,7 +56,7 @@ async function load() {
   // RMP 日度与累计
   const rs = d.rmp_series || [];
   if (rs.length) {
-    R.mkChart('rmp_chart', c => ({
+    R.mkChart('rmp_chart', c => reSyncLegend({
       xAxis: { type: 'time', axisLabel: { color: c.muted } },
       yAxis: [
         { type: 'value', name: '日购买', nameTextStyle: { color: c.muted, align: 'left' }, nameGap: 12, splitLine: { lineStyle: { color: c.grid } }, axisLabel: { color: c.muted, formatter: v => '$' + v + 'B' } },
@@ -64,7 +64,7 @@ async function load() {
       ],
       tooltip: { trigger: 'axis' },
       grid: { left: 70, right: 70, bottom: 30, top: 34, containLabel: true },
-      legend: { top: 4, data: ['日购买', '累计购买'], textStyle: { color: c.text }, icon: 'roundRect' },
+      legend: { top: 4, data: ['日购买', '累计购买'], textStyle: { color: c.text } },
       series: [
         { name: '日购买', type: 'bar', data: rs.map(p => [p.date, p.accepted_b]), itemStyle: { color: c.green }, barMaxWidth: 8 },
         { name: '累计购买', type: 'line', yAxisIndex: 1, data: rs.map(p => [p.date, p.cum_b]), lineStyle: { color: c.blue, width: 2 }, showSymbol: false },

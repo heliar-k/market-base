@@ -138,7 +138,7 @@ function sparkChart(dom, s) {
   const yLeft = Math.max(50, maxAbs.toLocaleString('en-US').length * 6.5 + 12);
   R.mkChart(dom.id || (dom.id = 'spark-' + Math.random().toString(36).slice(2)), colors => R.lineOption({
     tooltip: { trigger: 'axis' },
-    legend: { data: hasAsset ? ['投机方净持仓', '资管净持仓'] : ['投机方净持仓'], top: 0, itemWidth: 14, itemHeight: 2, itemGap: 14, textStyle: { fontSize: 10 } },
+    legend: { data: hasAsset ? ['投机方净持仓', '资管净持仓'] : ['投机方净持仓'], top: 0, itemGap: 14, textStyle: { fontSize: 10 } },
     grid: { left: yLeft, right: 12, top: 28, bottom: 24 },
     xAxis: {
       type: 'category', data: s.dates, boundaryGap: false,

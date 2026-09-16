@@ -368,7 +368,7 @@ function renderOdds(root, data) {
         [m.id, Object.fromEntries(od.history[m.id].map(p => [p.date, p.value]))]));
       const palette = [R.colors().blue, R.colors().orange, R.colors().purple, R.colors().green, R.colors().gray];
       let pi = 0;
-      R.mkChart(`odds-chart-${e.id}`, (c) => ({
+      R.mkChart(`odds-chart-${e.id}`, (c) => reSyncLegend({
         backgroundColor: 'transparent',
         legend: { top: 0, textStyle: { color: c.text, fontSize: 11 } },
         tooltip: {

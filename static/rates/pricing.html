@@ -143,9 +143,8 @@ const BUCKETS = [
   ['cut50', '-50bp', 'cut'], ['cut25', '-25bp', 'cut'], ['hold', '维持', 'hold'],
   ['hike25', '+25bp', 'hike'], ['hike50', '+50bp', 'hike'],
 ];
-// 折线图图例统一纯线形（无圆点无色块）：实线/虚线 path 自绘（rect 表达不了虚线）
-const LEGEND_SOLID = 'path://M0,3 L20,3 L20,5 L0,5 Z';
-const LEGEND_DASH = 'path://M0,3 L8,3 L8,5 L0,5 Z M12,3 L20,3 L20,5 L12,5 Z';
+// 折线图图例色标统一由 echarts-theme.js 的 RE_LEGEND + reSyncLegend 按 series 线型自动推导，
+// 页面不再手写 icon / formatter。
 
 const pct1 = (v) => (v * 100).toFixed(1) + '%';
 const money = (v) => (v == null ? '—' : v >= 1e6 ? '$' + (v / 1e6).toFixed(1) + 'M' : '$' + (v / 1e3).toFixed(0) + 'K');
@@ -227,7 +226,7 @@ async function load() {
   // ── 名义/实际/BEI + 期限溢价 ──
   const tpByDate = Object.fromEntries(d.term_premium.map(p => [p.date, p.value]));
   R.mkChart('triple_chart', (colors) => R.lineOption({
-    legend: { data: [{ name: '10Y 名义利率', icon: LEGEND_SOLID }, { name: '10Y 实际利率(TIPS)', icon: LEGEND_SOLID }, { name: '10Y 盈亏平衡通胀', icon: LEGEND_SOLID }, { name: '10Y 期限溢价(ACM)', icon: LEGEND_DASH }] },
+    legend: { data: ['10Y 名义利率', '10Y 实际利率(TIPS)', '10Y 盈亏平衡通胀', '10Y 期限溢价(ACM)'] },
     tooltip: { trigger: 'axis', valueFormatter: v => `${Number(v).toFixed(2)}%` },
     grid: { top: 36, left: 48, right: 48, bottom: 56 },
     dataZoom: [{ type: 'inside' }, { type: 'slider', bottom: 8, height: 18 }],
@@ -246,7 +245,7 @@ async function load() {
 
   // ── 2Y vs 10Y：间隙填充图（阴影带 = 2s10s 利差，倒挂时两线交叉）──
   R.mkChart('spread_2_10_chart', (colors) => R.lineOption({
-    legend: { data: ['2Y', '10Y', '2s10s 利差'].map((name) => ({ name, icon: LEGEND_SOLID })) },
+    legend: { data: ['2Y', '10Y', '2s10s 利差'] },
     tooltip: {
       trigger: 'axis',
       formatter: (ps) => {
@@ -260,7 +259,7 @@ async function load() {
     yAxis: { type: 'value', scale: true, axisLabel: { color: colors.muted, formatter: '{value}%' }, splitLine: { lineStyle: { color: colors.grid } } },
     series: [
       { name: '2Y', type: 'line', stack: 'spread', data: R.vs(d.y2), symbol: 'none', lineStyle: { color: colors.orange, width: 2 }, areaStyle: { opacity: 0 } },
-      { name: '2s10s 利差', type: 'line', stack: 'spread', data: R.vs(d.spread_2s10), symbol: 'none', lineStyle: { opacity: 0 },
+      { name: '2s10s 利差', type: 'line', stack: 'spread', color: colors.blue + '80', data: R.vs(d.spread_2s10), symbol: 'none', lineStyle: { opacity: 0 },
         areaStyle: { color: { type: 'linear', x: 0, y: 0, x2: 0, y2: 1, colorStops: [{ offset: 0, color: colors.blue + '40' }, { offset: 1, color: colors.blue + '0D' }] } } },
       { name: '10Y', type: 'line', data: R.vs(d.nominal_10y), symbol: 'none', lineStyle: { color: colors.blue, width: 2 } },
     ],
@@ -351,17 +350,17 @@ function renderConvChart(meetings, hist) {
     const series = [];
     withHist.slice(0, 2).forEach((x, i) => {
       const dash = i > 0;
-      const icon = dash ? LEGEND_DASH : LEGEND_SOLID;
       for (const [key, name, color] of [['hike', '加息', colors.red], ['hold', '维持', colors.gray]]) {
         const sname = `${x.label}·${name}`;
-        legend.push({ name: sname, icon });
+        // 本图不走 lineOption（图例在底部），icon 与尺寸手动对齐全局图例样板
+        legend.push({ name: sname, icon: dash ? RE_LEGEND.dashed : RE_LEGEND.solid });
         series.push({ name: sname, type: 'line', data: dates.map((dt) => byDate(x, key)[dt] ?? null),
           symbol: 'none', connectNulls: true, lineStyle: { color, width: 2, type: dash ? 'dashed' : 'solid' }, itemStyle: { color } });
       }
     });
     return {
       tooltip: { trigger: 'axis', valueFormatter: (v) => (typeof v === 'number' ? (v * 100).toFixed(1) + '%' : v) },
-      legend: { bottom: 2, itemWidth: 18, itemHeight: 6, data: legend },
+      legend: { bottom: 2, data: legend },
       grid: { top: 24, left: 44, right: 16, bottom: 52 },
       xAxis: { type: 'category', data: dates.map((dt) => dt.slice(5)), axisLabel: { fontSize: 10 } },
       yAxis: { type: 'value', max: 1, axisLabel: { formatter: (v) => v * 100 + '%' } },

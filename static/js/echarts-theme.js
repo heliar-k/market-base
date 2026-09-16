@@ -33,7 +33,7 @@ function buildTheme() {
     backgroundColor: 'transparent',
     textStyle: { color: textSecondary, fontFamily: "system-ui, -apple-system, sans-serif", fontSize: 12 },
     title: { textStyle: { color: text, fontSize: 14, fontWeight: 600 }, subtextStyle: { color: textMuted, fontSize: 11 } },
-    legend: { textStyle: { color: textSecondary, fontSize: 11 }, itemWidth: 14, itemHeight: 8 },
+    legend: { textStyle: { color: textSecondary, fontSize: 11 }, itemWidth: 18, itemHeight: 6 },
     tooltip: {
       backgroundColor: bg, borderColor: borderColor, borderWidth: 1,
       textStyle: { color: text, fontSize: 12, fontFamily: mono },
@@ -57,6 +57,55 @@ function buildTheme() {
     line: { lineStyle: { width: 2 }, symbol: 'none' },
     bar: { itemStyle: { borderRadius: [2, 2, 0, 0] } },
   };
+}
+
+/** 折线图图例色标单源（path 自绘：rect 表达不了线型与阴影带）。
+ *  SPA（cross-correlation.js）与专题页（rates-common.js）共用，故定义在本文件。
+ *  统一 20×6 坐标系：线型占 y=2..4（渲染后 2px），阴影带填满整格（6px），两者拉开 3 倍。
+ *  页面不手写 icon：reSyncLegend 按 series 线型自动挑（图例尺寸走主题默认 18×6）。 */
+const RE_LEGEND = {
+  solid: 'path://M0,2 L20,2 L20,4 L0,4 Z',
+  dashed: 'path://M0,2 L8,2 L8,4 L0,4 Z M12,2 L20,2 L20,4 L12,4 Z',
+  dotted: 'path://M0,2 L2.5,2 L2.5,4 L0,4 Z M6,2 L8.5,2 L8.5,4 L6,4 Z M12,2 L14.5,2 L14.5,4 L12,4 Z M17.5,2 L20,2 L20,4 L17.5,4 Z',
+  dashdot: 'path://M0,2 L7,2 L7,4 L0,4 Z M9.5,2 L11.5,2 L11.5,4 L9.5,4 Z M14,2 L20,2 L20,4 L14,4 Z',
+  band: 'path://M0,0 L20,0 L20,6 L0,6 Z',
+  // 带圆点的实线（图上画 symbol: 'circle' 的那类，如曲线对比的「当前」）
+  dotline: 'path://M0,2 L20,2 L20,4 L0,4 Z M7,2 A2,2 0 1,0 11,2 A2,2 0 1,0 7,2 Z',
+};
+
+// series → 图例色标：不透明阴影面积用色块（如 2s10s 利差带），否则按线型取
+// 实线/虚线/点线/点划线（lineStyle.type 为数组 = 自定义 dash → 点划线）；线上有圆点则带点。
+function reLegendIcon(s) {
+  const a = s.areaStyle;
+  if (a && a.opacity !== 0) return RE_LEGEND.band;
+  const t = (s.lineStyle || {}).type;
+  if (Array.isArray(t)) return RE_LEGEND.dashdot;
+  const icon = RE_LEGEND[t === 'dashed' || t === 'dotted' ? t : 'solid'];
+  return icon === RE_LEGEND.solid && s.symbol === 'circle' && s.showSymbol !== false ? RE_LEGEND.dotline : icon;
+}
+
+/** 图例与曲线对齐（所有 ECharts 折线图统一，页面零改动）：
+ *  1) 色块颜色 = series 线色。ECharts 图例只读 series.color，不补就会落到主题调色板
+ *     （第 2 条线永远显示成 palette 第 2 色）。
+ *  2) 色块形状 = series 线型/阴影带；页面已显式给 icon 的项不覆盖，非 line 系列（柱/散点）不动。
+ *  就地改 option 并返回它，包一层即可：chart.setOption(reSyncLegend(opt))。 */
+function reSyncLegend(option) {
+  const series = option.series || [];
+  const byName = new Map(series.map((s) => [s.name, s]));
+  series.forEach((s) => {
+    if (s.type !== 'line' || s.color) return;
+    const c = (s.lineStyle || {}).color || (s.itemStyle || {}).color;
+    if (typeof c === 'string') s.color = c;
+  });
+  const lg = option.legend;
+  if (!lg || lg.show === false) return option;
+  const items = lg.data || series.map((s) => ({ name: s.name }));
+  lg.data = items.map((it) => {
+    const o = typeof it === 'string' ? { name: it } : it;
+    const s = byName.get(o.name);
+    return s && !o.icon && s.type === 'line' ? { ...o, icon: reLegendIcon(s) } : o;
+  });
+  return option;
 }
 
 // 按当前亮暗状态注册主题。CSS 变量只在“当前主题”下可取，故 macro/macroDark 注册同一份

@@ -60,15 +60,17 @@ const R = {
 
   // 图表默认项骨架（顶层浅合并；legend/grid 深一层）：统一 legend 样板与 grid 边距，
   // 页面只传差异部分：R.mkChart(id, (colors) => R.lineOption({ legend: { data: [...] }, series: [...] }, colors))
+  // 图例色标（形状 + 取色）由 echarts-theme.js 的 reSyncLegend 统一推导，尺寸走主题默认 18×6。
   lineOption(over, colors) {
     const c = colors || R.colors();
     const base = {
-      legend: { top: 4, right: 8, icon: 'rect', itemWidth: 12, itemHeight: 3, textStyle: { color: c.text, fontSize: 11 } },
+      legend: { top: 4, right: 8, icon: 'rect', textStyle: { color: c.text, fontSize: 11 } },
       grid: { top: 36, left: 48, right: 16, bottom: 24 },
     };
     const out = Object.assign({}, base, over);
     if (over && over.legend) out.legend = Object.assign({}, base.legend, over.legend);
     if (over && over.grid) out.grid = Object.assign({}, base.grid, over.grid);
+    reSyncLegend(out);
     return out;
   },
 

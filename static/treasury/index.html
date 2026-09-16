@@ -97,7 +97,7 @@ async function load() {
   const names = ['2Y', '5Y', '10Y', '30Y'];
   const trendNames = names.map(n => `${n}（均 ${(auc.trend[n].reduce((s, p) => s + p.value, 0) / auc.trend[n].length).toFixed(2)}）`);
   R.mkChart('trend_chart', (colors) => R.lineOption({
-    legend: { data: trendNames, top: 8, right: '2%', icon: 'roundRect', itemWidth: 14, itemHeight: 4, textStyle: { color: colors.text, fontSize: 12 } },
+    legend: { data: trendNames, top: 8, right: '2%', textStyle: { color: colors.text, fontSize: 12 } },
     tooltip: { trigger: 'axis', valueFormatter: v => `${Number(v).toFixed(2)}x` },
     grid: { top: 44, left: 48, right: 64, bottom: 24 },
     xAxis: { type: 'time', axisLabel: { color: colors.muted, fontSize: 10, formatter: R.md }, axisLine: { lineStyle: { color: colors.border } } },
@@ -138,7 +138,7 @@ async function load() {
     return v => v == null ? 8 : 6 + ((v - min) / (max - min || 1)) * 14;
   })();
   R.mkChart('tail_chart', (colors) => ({
-    legend: { top: 4, left: 'center', icon: 'circle', textStyle: { color: colors.text, fontSize: 11 } },
+    legend: { top: 4, left: 'center', icon: 'circle', itemWidth: 10, itemHeight: 10, textStyle: { color: colors.text, fontSize: 11 } },
     tooltip: { trigger: 'item', formatter: p => {
       const v = p.value;
       return `${p.seriesName} ${v[0]}<br/>Tail ${Number(v[1]).toFixed(1)} bp${v[2] != null ? `<br/>规模 $${v[2]}B` : ''}${v[3] ? '<br/>重开' : ''}`;
@@ -169,7 +169,7 @@ async function load() {
   // ── 间接投标占比趋势 ──
   const indNames = ['10Y', '30Y'];
   R.mkChart('indirect_chart', (colors) => R.lineOption({
-    legend: { data: indNames, top: 8, right: '2%', icon: 'roundRect', itemWidth: 14, itemHeight: 4, textStyle: { color: colors.text, fontSize: 12 } },
+    legend: { data: indNames, top: 8, right: '2%', textStyle: { color: colors.text, fontSize: 12 } },
     tooltip: { trigger: 'axis', valueFormatter: v => `${Number(v).toFixed(0)}%` },
     grid: { top: 44, left: 48, right: 16, bottom: 24 },
     xAxis: { type: 'time', axisLabel: { color: colors.muted, fontSize: 10, formatter: R.md }, axisLine: { lineStyle: { color: colors.border } } },

@@ -392,6 +392,10 @@ uv run python src/sell_put.py --symbol TSM
 主站 = `static/index.html` SPA（仪表盘/技术/宏观/关联四视图）+ 专题静态页（rates/credit/assets/…，timsun 复刻）。新面板与重构遵守：
 
 - **主题只走 CSS 变量**：颜色一律用 `:root` / `body.dark` 定义的 `var(--bg/--surface/--border/--text/--accent/…)`（见 `static/css/app.css` 顶部），禁止硬编码背景/文字色；亮暗双主题都要可用。ECharts 图统一 `echarts-theme.js` 的 `macro`/`macroDark` 主题 + `reThemeECharts` 响应 `theme-changed` 事件
+- **图例色标单源**：`echarts-theme.js` 的 `RE_LEGEND`（实线/虚线/点线/点划线/阴影带/带圆点实线，path 自绘）+ `reSyncLegend(option)`（按 series 线型推形状、把图例色块对齐到线色——ECharts 图例只读 `series.color`，
+  不读 `lineStyle.color`）。`R.lineOption` 已内置；不走 lineOption 的图包一层 `setOption(reSyncLegend({...}))`。
+  页面**禁止**手写 `legend.data[i].icon` 或 `legend.formatter` 标注线型；尺寸走主题默认 18×6（散点图例自行给正方形尺寸）。
+  回归测试：`tests/test_legend_sync.py`
 - **复用既有类，不造平行组件**：卡片 `.chart-card`、控件条 `.controls`/`.range-controls`/`.range-btn`、数据行 `.diag-row`、语义色 `.up/.down/.neutral`、统计卡 `.dash-stat`/`.dash-card`；只给面板私有结构加 `面板名-` 前缀的新类
 - **「先看结构、再看数据」双层节奏**：面板第一屏给结论层（状态条/评分/报警/规则引擎叙事，一眼可读），下层给可交互的数据层（图/表/热力图），两层通过点击联动（点结论→定位数据，点数据→弹出明细）
 - **微观数据须有宏观锚点**：展示单资产/单指标时，附带其在全局中的坐标（分组、分位、相对强弱），避免孤立数字

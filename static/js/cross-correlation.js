@@ -441,7 +441,7 @@ function renderDrillCharts(a, b, rows) {
 
   const pDom = document.getElementById('corr-drill-price');
   const pChart = echarts.init(pDom, theme, { renderer: 'canvas' });
-  pChart.setOption({
+  pChart.setOption(reSyncLegend({
     grid: { left: 8, right: 16, top: 12, bottom: 40, containLabel: true },
     xAxis: { type: 'category', data: dates, axisLabel: { fontSize: 10 } },
     yAxis: { type: 'value', scale: true },
@@ -449,9 +449,9 @@ function renderDrillCharts(a, b, rows) {
       { name: labelOf(a), type: 'line', data: norm(a), showSymbol: false, lineStyle: { width: 1.5 }, color: MACRO_COLORS[0] },
       { name: labelOf(b), type: 'line', data: norm(b), showSymbol: false, lineStyle: { width: 1.5 }, color: MACRO_COLORS[1] },
     ],
-    legend: { top: 0, right: 8, icon: 'rect', itemWidth: 12, itemHeight: 3 },
+    legend: { top: 0, right: 8 },
     tooltip: { trigger: 'axis' },
-  });
+  }));
 }
 
 function pearson(xs, ys) {
@@ -927,15 +927,15 @@ function renderChart(seriesMap) {
 
   const chart = echarts.init(chartEl, document.body.classList.contains('dark') ? 'macroDark' : 'macro', { renderer: 'canvas' });
   corrChart = chart;
-  chart.setOption({
-    legend: { show: series.length > 1, top: 4, left: 8, type: 'scroll', textStyle: { fontSize: 11 }, icon: 'rect', itemWidth: 12, itemHeight: 3 },
+  chart.setOption(reSyncLegend({
+    legend: { show: series.length > 1, top: 4, left: 8, type: 'scroll', textStyle: { fontSize: 11 } },
     grid,
     xAxis,
     yAxis,
     tooltip: { trigger: 'axis', axisPointer: { type: 'cross', link: hasBands ? [{ xAxisIndex: 'all' }] : [] } },
     dataZoom,
     series,
-  });
+  }));
   corrObserver = new ResizeObserver(() => chart.resize());
   corrObserver.observe(chartEl);
 }
