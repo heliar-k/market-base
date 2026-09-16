@@ -294,6 +294,35 @@ class TestMarketOdds:
             {"date": "2026-09-15", "value": 0.6},
         ]
 
+    def test_duplicate_market_id_columns(self, tmp_path, monkeypatch):
+        """重复 market id 列的 pandas `.1` 后缀列不被丢弃，归一到真实 id 并合并。"""
+        import json
+
+        import src.fed_analysis as fa
+
+        (tmp_path / "20260915.json").write_text(
+            json.dumps(self._mk_snap()), encoding="utf-8"
+        )
+        # 两列同名 "111"（模拟同一 market 被写两次）：第一列缺一天，重复列补上
+        h = pd.concat(
+            [
+                pd.DataFrame(
+                    {"date": ["09-13", "09-14", "09-15"], "111": [0.5, None, 0.6]}
+                ),
+                pd.DataFrame({"111": [None, 0.55, None]}),
+            ],
+            axis=1,
+        )
+        h.to_csv(tmp_path / "history.csv", index=False)
+        self._patch(monkeypatch, tmp_path)
+
+        out = fa.market_odds()
+        assert out["history"]["111"] == [
+            {"date": "09-13", "value": 0.5},
+            {"date": "09-14", "value": 0.55},
+            {"date": "09-15", "value": 0.6},
+        ]
+
     def test_falls_back_to_older_snapshot_without_fed(self, tmp_path, monkeypatch):
         import json
 

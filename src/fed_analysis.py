@@ -20,6 +20,7 @@ import json
 import re
 from datetime import date
 from pathlib import Path
+from typing import Any
 
 import pandas as pd
 
@@ -480,18 +481,32 @@ def market_odds() -> dict | None:
         history: dict[str, list[dict]] = {}
         if POLYMARKET_HISTORY.exists():
             h = pd.read_csv(POLYMARKET_HISTORY)
+            # 同日重复 market id → pandas 给后一列加 `.1` 后缀；剥后缀归一到真实 id，
+            # 同 id 多列 bfill 取首个非空（否则 `.1` 列在 `col in ids` 处被静默丢弃）。
+            cols_by_id: dict[str, list[str]] = {}
             for col in h.columns:
-                if col != "date" and col in ids:
-                    s = h[["date", col]].dropna(subset=[col])
-                    history[col] = [
-                        {"date": d, "value": round(float(v), 4)}
-                        for d, v in zip(s["date"], s[col])
-                    ]
+                if col == "date":
+                    continue
+                base = str(col).split(".")[0]
+                if base in ids:
+                    cols_by_id.setdefault(base, []).append(col)
+            for base, cols in cols_by_id.items():
+                val = h[cols].bfill(axis=1).iloc[:, 0]
+                s = pd.DataFrame({"date": h["date"], "value": val}).dropna(
+                    subset=["value"]
+                )
+                history[base] = [
+                    {"date": d, "value": round(float(v), 4)}
+                    for d, v in zip(s["date"], s["value"])
+                ]
         return {"as_of": snap.get("as_of"), "events": events, "history": history}
     return None
 
 
 # ── FOMC 会议概率对照（rates/pricing 页复用）──────────────────────────────────
+
+# 五档键（25/50 分档）——odds 聚合与 ZQ 分档共用，单源
+_BUCKET5 = ("cut50", "cut25", "hold", "hike25", "hike50")
 
 _MONTHS: dict[str, int] = {
     "january": 1,
@@ -509,15 +524,19 @@ _MONTHS: dict[str, int] = {
 }
 
 
-def _question_bucket(question: str) -> str | None:
-    """问题文本 → cut/hold/hike 档位（与 fed 页 oddsCls 同关键词口径）。"""
+def _question_bucket5(question: str) -> str | None:
+    """问题文本 → 五档（cut50/cut25/hold/hike25/hike50）。
+
+    25/50 按问题文本中的 bps 数区分（"50+ bps" 归 50 档）；无数字的
+    decrease/increase 归 25 档。hold 只认 "no change"。
+    """
     q = question.lower()
-    if "decrease" in q:
-        return "cut"
     if "no change" in q:
         return "hold"
+    if "decrease" in q:
+        return "cut50" if "50" in q else "cut25"
     if "increase" in q:
-        return "hike"
+        return "hike50" if "50" in q else "hike25"
     return None
 
 
@@ -542,27 +561,39 @@ def _decision_event_ym(event: dict) -> tuple[int, int] | None:
 
 def polymarket_fomc_odds(
     events: list[dict] | None, meeting_dates: list[str]
-) -> dict[str, dict[str, float]]:
+) -> dict[str, dict[str, Any]]:
     """把 "Fed Decision in {Month}?" 事件按 (年, 月) 匹配会议日期并聚合各档概率。
 
-    cut = Σ decrease、hold = no change、hike = Σ increase，与 ZQ 的
-    prob_cut/hold/hike 同口径（negRisk 互斥事件，个别档缺失以 markets 实际为准）。
-    events 传 market_odds()["events"]（或空）；返回 {meeting_date: {cut, hold, hike}}，
-    未匹配的会议不在返回值中（调用方以 None 补位）。纯函数，不读盘。
+    返回 {meeting_date: {cut, hold, hike, buckets, title, volume24hr, liquidity,
+    open_interest}}：cut/hold/hike 为三档聚合（cut = Σ decrease、hold = no change、
+    hike = Σ increase，negRisk 互斥事件，个别档缺失以 markets 实际为准）；
+    buckets 为五档 {cut50, cut25, hold, hike25, hike50}；市场深度字段取事件级。
+    events 传 market_odds()["events"]（或空）；未匹配的会议不在返回值中
+    （调用方以 None 补位）。纯函数，不读盘。
     """
-    by_ym: dict[tuple[int, int], dict[str, float]] = {}
+    by_ym: dict[tuple[int, int], dict] = {}
     for e in events or []:
         ym = _decision_event_ym(e)
         if ym is None:
             continue
-        agg = {"cut": 0.0, "hold": 0.0, "hike": 0.0}
+        buckets = dict.fromkeys(_BUCKET5, 0.0)
         for mk in e.get("markets") or []:
-            bucket = _question_bucket(mk.get("question") or "")
+            bucket = _question_bucket5(mk.get("question") or "")
             if bucket:
-                agg[bucket] += float(mk.get("prob_yes") or 0.0)
-        by_ym[ym] = {k: round(v, 4) for k, v in agg.items()}
+                buckets[bucket] += float(mk.get("prob_yes") or 0.0)
+        buckets = {k: round(v, 4) for k, v in buckets.items()}
+        by_ym[ym] = {
+            "cut": round(buckets["cut25"] + buckets["cut50"], 4),
+            "hold": buckets["hold"],
+            "hike": round(buckets["hike25"] + buckets["hike50"], 4),
+            "buckets": buckets,
+            "title": e.get("title"),
+            "volume24hr": e.get("volume24hr"),
+            "liquidity": e.get("liquidity"),
+            "open_interest": e.get("open_interest"),
+        }
 
-    out: dict[str, dict[str, float]] = {}
+    out: dict[str, dict] = {}
     for d in meeting_dates:
         try:
             ymd = date.fromisoformat(str(d)[:10])
@@ -571,6 +602,78 @@ def polymarket_fomc_odds(
         if (ymd.year, ymd.month) in by_ym:
             out[d] = by_ym[(ymd.year, ymd.month)]
     return out
+
+
+def polymarket_fomc_history() -> dict[str, Any]:
+    """Polymarket 决策事件日频历史。
+
+    返回 {as_of, meetings: {YYYY-MM: [{date, cut, hold, hike}]}}；
+    history.csv 列名 = market id（market_odds 已将重复列的 pandas
+    `.1` 后缀归一到真实 id）；
+    id → (会议年月, 档位) 由最新快照的决策事件问题文本判定（_decision_event_ym）。
+    五档聚合为三档（cut25+cut50 → cut 等），按日期升序。无数据返回空 meetings。
+    """
+    pm = market_odds()
+    if not pm:
+        return {"as_of": None, "meetings": {}}
+    id_map: dict[str, tuple[str, str]] = {}
+    for e in pm["events"]:
+        ym = _decision_event_ym(e)
+        if ym is None:
+            continue
+        for mk in e.get("markets") or []:
+            bucket = _question_bucket5(mk.get("question") or "")
+            if bucket:
+                id_map[str(mk["id"])] = (f"{ym[0]:04d}-{ym[1]:02d}", bucket)
+
+    agg: dict[str, dict[str, dict[str, float]]] = {}
+    for col, series in pm["history"].items():
+        hit = id_map.get(str(col))
+        if not hit:
+            continue
+        ym_key, bucket = hit
+        three = (
+            "hold"
+            if bucket == "hold"
+            else ("cut" if bucket.startswith("cut") else "hike")
+        )
+        for point in series:
+            cell = agg.setdefault(ym_key, {}).setdefault(
+                point["date"], {"cut": 0.0, "hold": 0.0, "hike": 0.0}
+            )
+            cell[three] += point["value"]
+    meetings = {
+        ym: [
+            {"date": d, **{k: round(v, 4) for k, v in cell.items()}}
+            for d, cell in sorted(days.items())
+        ]
+        for ym, days in sorted(agg.items())
+    }
+    return {"as_of": pm.get("as_of"), "meetings": meetings}
+
+
+def zq_buckets_from_probs(
+    probs: list[dict], target_lower: float | None, target_upper: float | None
+) -> dict[str, float] | None:
+    """ZQ range 概率 → 五档（相对当前目标区间），口径同 CME FedWatch 档位划分。
+
+    区间上沿 ≤ target_lower → cut、下沿 ≥ target_upper → hike、跨区间 → hold；
+    25/50 按与区间边界的 25bp 步数分档（≥2 步归 50 档）。目标区间缺失返回 None。
+    """
+    if target_lower is None or target_upper is None:
+        return None
+    out = dict.fromkeys(_BUCKET5, 0.0)
+    for p in probs:
+        lo, hi, prob = float(p["lo"]), float(p["hi"]), float(p["prob"])
+        if hi <= target_lower:
+            steps = round((target_lower - hi) / 0.25) + 1
+            out["cut50" if steps >= 2 else "cut25"] += prob
+        elif lo >= target_upper:
+            steps = round((lo - target_upper) / 0.25) + 1
+            out["hike50" if steps >= 2 else "hike25"] += prob
+        else:
+            out["hold"] += prob
+    return {k: round(v, 4) for k, v in out.items()}
 
 
 # ═══════════════════════════════════════════════════════════════════════════════

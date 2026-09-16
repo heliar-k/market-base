@@ -98,11 +98,6 @@ a.re-badge:hover { color: var(--accent); border-color: var(--accent); }
 .re-corridor { display: flex; gap: 24px; padding: 16px 20px; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; color: var(--text); flex-wrap: wrap; }
 .re-table th:first-child, .re-table td:first-child { text-align: left; }
 .re-table tbody tr:hover { background: var(--surface-hover); }
-.re-table .re-bar-cell { min-width: 200px; }
-.re-table .re-bar-wrap { display: flex; height: 20px; border-radius: 4px; overflow: hidden; gap: 1px; }
-.re-table .re-bar-cut { background: var(--color-up); }
-.re-table .re-bar-hold { background: var(--color-neutral); }
-.re-table .re-bar-hike { background: var(--color-down); }
 .re-expectation { font-size: 12px; font-weight: 600; padding: 2px 10px; border-radius: 999px; }
 .re-expectation.cut { background: var(--color-up-bg); color: var(--color-up); }
 .re-expectation.hike { background: var(--color-down-bg); color: var(--color-down); }

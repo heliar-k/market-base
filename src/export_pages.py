@@ -44,6 +44,7 @@ from src.server import (  # noqa: PLC2701 复用路由函数
     get_macro,
     get_macro_correlate,
     get_macro_presets,
+    get_polymarket_history,
     get_rate_expectations,
     get_rates_analysis,
     get_rates_auctions,
@@ -167,6 +168,7 @@ def export_api() -> None:
     _safe("api/fomc/calendar", get_fomc_calendar)
     _safe("api/daily-brief", get_daily_brief)
     _safe("api/rate-expectations", get_rate_expectations)
+    _safe("api/polymarket/history", get_polymarket_history)
     # 流动性专题（复刻 timsun.net/liquidity 主页面 + 7 子页）
     from src.liquidity_analysis import (
         liquidity_snapshot,

@@ -9,22 +9,65 @@
 <link rel="stylesheet" href="/css/app.css">
 <link rel="stylesheet" href="/css/special.css">
 <script src="/js/site-nav.js"></script>
-<style>/* KPI 8 卡固定 4×2，避免 auto-fit 7 列时第 8 卡孤行；re-pm-* 为 Polymarket 对照行 */
+<style>/* KPI 8 卡固定 4×2，避免 auto-fit 7 列时第 8 卡孤行 */
 #re-cards .re-cards { grid-template-columns: repeat(4, 1fr); }
 @media (max-width: 900px) { #re-cards .re-cards { grid-template-columns: repeat(2, 1fr); } }
-/* PM 对照行：附在 ZQ 行下方，字号/配色降一级，与主行结成一对 */
-.re-table tr.re-zq td { border-bottom: none; }
-.re-table .re-pm-row td { padding-top: 2px; padding-bottom: 6px; font-size: 12px; color: var(--text-secondary); }
-.re-table .re-pm-row .pm-src { color: var(--text-dim); white-space: nowrap; }
-.re-table .re-pm-row .re-bar-wrap { height: 8px; }
-.re-table .re-pm-row .pm-none { color: var(--text-dim); }
-/* 两源分歧 ≥5pp：数值高亮 + 差值角标（≥20pp 加重一档）；数值 span 固定宽防角标推挤错位 */
-.re-table .re-pm-row td.pm-div { color: var(--accent); font-weight: 600; }
-.re-table .re-pm-row td.pm-div-big { color: var(--accent); font-weight: 700; background: var(--surface-alt); }
-.re-table .re-pm-row .pm-num { display: inline-block; min-width: 42px; text-align: right; }
-.re-table .re-pm-row .pm-delta { font-size: 11px; font-weight: 500; margin-left: 3px; color: var(--accent); }
+/* ── 政策路径定价 hero：决策卡 + PM 收敛路径图并排 ── */
+.hero { display: grid; grid-template-columns: 400px 1fr; gap: 14px; }
+@media (max-width: 980px) { .hero { grid-template-columns: 1fr; } }
+.hero-card { border: 1px solid var(--accent); border-radius: 10px; background: var(--surface); padding: 16px; display: flex; flex-direction: column; gap: 12px; box-shadow: 0 0 0 1px var(--accent); }
+.hc-head { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+.hc-date { font-size: 20px; font-weight: 800; font-family: var(--font-mono); }
+.hc-tag { font-size: 11px; color: var(--text-dim); border: 1px solid var(--border); border-radius: 4px; padding: 1px 6px; }
+.hc-verdict .duel { display: grid; grid-template-columns: 1fr auto 1fr; gap: 12px; align-items: center; }
+.hc-verdict .side { text-align: center; }
+.hc-verdict .side .lbl { font-size: 11px; color: var(--text-dim); margin-bottom: 2px; }
+.hc-verdict .side .num { font-size: 26px; font-weight: 800; font-family: var(--font-mono); line-height: 1.1; }
+.hc-verdict .side .num.up { color: var(--color-up); }
+.hc-verdict .side .num.down { color: var(--color-down); }
+.hc-verdict .side .num.neutral { color: var(--color-neutral); }
+.hc-verdict .side .sub { font-size: 11px; color: var(--text-dim); }
+.hc-verdict .vs { font-size: 11px; color: var(--text-dim); text-align: center; }
+.hc-bk { display: flex; flex-direction: column; gap: 5px; }
+.hc-bk .row { display: grid; grid-template-columns: 56px 1fr 104px 62px; gap: 8px; align-items: center; font-size: 12px; }
+.hc-bk .lab { text-align: right; font-family: var(--font-mono); }
+.hc-bk .lab.cut { color: var(--color-up); } .hc-bk .lab.hold { color: var(--color-neutral); } .hc-bk .lab.hike { color: var(--color-down); }
+.hc-bk .track { height: 9px; background: var(--surface-alt); border-radius: 3px; position: relative; overflow: hidden; }
+.hc-bk .f-zq { position: absolute; inset: 0 auto 0 0; border-radius: 3px; opacity: .95; }
+.hc-bk .f-pm { position: absolute; inset: 0 auto 0 0; border-radius: 3px; opacity: .45; }
+/* 数值列以「/」为轴心三列对齐：左数右靠、斜杠居中、右数左靠（整列定宽） */
+.hc-bk .val { font-family: var(--font-mono); white-space: nowrap; display: grid; grid-template-columns: 1fr 12px 1fr; }
+.hc-bk .val i { text-align: right; font-style: normal; }
+.hc-bk .val s { text-align: center; color: var(--text-dim); text-decoration: none; }
+.hc-bk .val u { text-align: left; font-style: normal; text-decoration: none; color: var(--text-secondary); }
+.hc-bk .chip { text-align: left; white-space: nowrap; }
+.hc-bk .chip .dchip { margin-left: 0; }
+.hc-foot { font-size: 11px; color: var(--text-dim); border-top: 1px dashed var(--border); padding-top: 8px; display: flex; gap: 12px; flex-wrap: wrap; }
+.hc-foot b { color: var(--text-secondary); font-family: var(--font-mono); font-weight: 500; }
+.chart-box { border: 1px solid var(--border); border-radius: 8px; background: var(--surface); padding: 10px 12px 4px; }
+.chart-box h3 { font-size: 13px; font-weight: 700; margin: 2px 0 4px; }
+.chart-box h3 small { color: var(--text-dim); font-weight: 400; }
+#conv-chart { height: 268px; }
+/* ── 三色概率条 / 分歧角标（hero 与明细表共用）── */
+.pb { display: flex; height: 10px; border-radius: 3px; overflow: hidden; gap: 1px; background: var(--surface-alt); }
+.pb > div { min-width: 0; }
+.pb .s-cut { background: var(--color-up); } .pb .s-hold { background: var(--color-neutral); } .pb .s-hike { background: var(--color-down); }
+.dchip { display: inline-block; font-size: 11px; font-weight: 600; padding: 0 6px; border-radius: 999px; margin-left: 6px; }
+.dchip.big { background: var(--color-warn-bg, var(--surface-alt)); color: var(--color-warn, var(--accent)); border: 1px solid currentColor; }
+.dchip.mid { color: var(--text-dim); border: 1px solid var(--border); }
+/* ── 概率分布明细表：每会议一行，ZQ/PM 同格双条 ── */
+.re-table .dual { min-width: 220px; }
+.dual-row { display: flex; align-items: center; gap: 6px; margin: 2px 0; }
+.dual-row .src { width: 22px; font-size: 10px; color: var(--text-dim); text-align: right; }
+.dual-row .pb { flex: 1; }
+.re-table td.numcell { font-family: var(--font-mono); white-space: nowrap; }
+.numcell .z { font-size: 13px; }
+.numcell .p { font-size: 13px; color: var(--text-dim); }
+.numcell .p.hot { color: var(--accent); font-weight: 600; }
+.rp-date { font-weight: 700; font-family: var(--font-mono); }
+.rp-sub { font-size: 11px; color: var(--text-dim); }
 /* 月末会议改用下月合约定价时的角标（contract_used ≠ contract） */
-.re-table .re-next-tag { font-size: 11px; margin-left: 4px; color: var(--text-dim); white-space: nowrap; }
+.re-next-tag { font-size: 11px; margin-left: 4px; color: var(--text-dim); white-space: nowrap; }
 </style>
 <script src="/vendor/echarts.min.js"></script>
 </head>
@@ -37,30 +80,33 @@
 
   <div class="re-nav" id="re-nav"></div>
   <div class="page-toc" id="page-toc">
-    <a href="#re-cards">概览</a><a href="#sec-prob">会议概率</a><a href="#sec-table">概率分布表</a><a href="#sec-triple">名义/实际/BEI</a><a href="#sec-2y10y">2Y/10Y 与利差</a>
+    <a href="#re-cards">概览</a><a href="#sec-policy">政策路径</a><a href="#sec-table">概率分布明细</a><a href="#sec-triple">名义/实际/BEI</a><a href="#sec-2y10y">2Y/10Y 与利差</a>
   </div>
 
   <div id="re-cards"></div>
 
-  <!-- ── 政策路径定价 ── -->
+  <!-- ── 政策路径定价：hero 决策卡 + PM 概率收敛路径 ── -->
   <div class="re-group" id="sec-policy">政策路径定价</div>
-  <div class="re-h2" id="sec-prob">FOMC 会议概率（ZQ 期货反推）</div>
-  <div class="re-chart" id="re-prob-chart"></div>
+  <div class="hero">
+    <div class="hero-card" id="rp-hero"></div>
+    <div class="chart-box">
+      <h3>Polymarket 概率收敛路径 <small>日频快照 · 会议前市场如何定价（ZQ 无此历史源）</small></h3>
+      <div id="conv-chart"></div>
+    </div>
+  </div>
 
-  <div class="re-h2" id="sec-table">概率分布明细</div>
+  <div class="re-h2" id="sec-table" style="margin-top:18px">概率分布明细</div>
   <div class="re-table-wrap">
     <table class="re-table">
       <thead>
         <tr>
-          <th>会议日期</th>
-          <th>合约</th>
-          <th>隐含利率</th>
-          <th>会议后利率</th>
-          <th>概率分布</th>
+          <th>会议</th>
+          <th>合约 / 隐含利率</th>
+          <th>概率分布（ZQ ▾ / PM ▾）</th>
           <th>降息</th>
           <th>维持</th>
           <th>加息</th>
-          <th>预期</th>
+          <th>研判</th>
         </tr>
       </thead>
       <tbody id="re-tbody"></tbody>
@@ -69,17 +115,19 @@
 
   <!-- ── 长端分解 ── -->
   <div class="re-group" id="sec-decomp">长端分解</div>
-  <div class="re-h2" id="sec-triple">10Y 名义 / 实际(TIPS) / 盈亏平衡通胀（近 1 年）</div>
+  <div class="re-h2" id="sec-triple">10Y 名义 / 实际(TIPS) / 盈亏平衡通胀 + 期限溢价（近 1 年）</div>
   <div class="re-chart" id="triple_chart"></div>
-  <div class="re-h2" id="sec-2y10y">2Y vs 10Y 与 2s10s 利差（近 1 年，阴影带 = 利差）</div>
+  <div class="re-h2" style="margin-top:14px" id="sec-2y10y">2Y vs 10Y 与 2s10s 利差（近 1 年，阴影带 = 利差）</div>
   <div class="re-chart" id="spread_2_10_chart"></div>
 
   <div class="re-explain">
     <b>政策路径：</b>FOMC 概率基于 ZQ 30 天联邦基金期货结算价反推，采用 CME FedWatch 方法论近似，
-    每日北京时间凌晨更新；目标利率来自 FRED DFEDTARL/DFEDTARU。
-    <b>口径提示：</b>ZQ 列 = 期货隐含的会议后利率水平（<b>累计口径</b>，含此前会议的加息/降息）；
-    Polymarket 列 = 该场会议本身的决定概率（<b>边际口径</b>）——两列直接对比时 ZQ 加息概率天然偏高。
+    每日北京时间凌晨更新；Polymarket 为该场会议「Fed Decision in {Month}?」事件的真实下注概率，
+    与 ZQ 并列为两源平权数据；目标利率来自 FRED DFEDTARL/DFEDTARU。
+    <b>口径提示：</b>ZQ = 期货隐含的会议后利率水平（<b>累计口径</b>，含此前会议的加息/降息）；
+    PM = 该场会议本身的决定概率（<b>边际口径</b>）——两源直接对比时 ZQ 加息概率天然偏高。
     合约列标注「下月合约」= 月末会议会后采样不足 10 天，改用下月合约整月采样定价（FedWatch 官方方法）。
+    <b>分歧角标：</b>|PM−ZQ|≥5pp 出现（▲/▼ = PM 相对 ZQ 高/低），≥20pp 橙色加重。
     <b>长端分解：</b>名义 = 实际 + 盈亏平衡。若收益率上行主要由实际利率推动 → 金融条件收紧（紧缩交易）；
     若主要由盈亏平衡推动 → 通胀交易。盈亏平衡通胀 = DGS10 − DFII10（本地计算）。
     期限溢价 = NY Fed ACM 估计（ACMTP10，右轴虚线）：<b>BEI 不动而期限溢价上行 → 供给/风险溢价交易</b>；
@@ -90,18 +138,63 @@
 <script src="/js/echarts-theme.js"></script>
 <script src="/js/rates-common.js"></script>
 <script>
+// 五档定义：键 / 标签 / 语义色（cut=up 绿 hold=neutral hike=down 红）
+const BUCKETS = [
+  ['cut50', '-50bp', 'cut'], ['cut25', '-25bp', 'cut'], ['hold', '维持', 'hold'],
+  ['hike25', '+25bp', 'hike'], ['hike50', '+50bp', 'hike'],
+];
+// 折线图图例统一纯线形（无圆点无色块）：实线/虚线 path 自绘（rect 表达不了虚线）
+const LEGEND_SOLID = 'path://M0,3 L20,3 L20,5 L0,5 Z';
+const LEGEND_DASH = 'path://M0,3 L8,3 L8,5 L0,5 Z M12,3 L20,3 L20,5 L12,5 Z';
+
+const pct1 = (v) => (v * 100).toFixed(1) + '%';
+const money = (v) => (v == null ? '—' : v >= 1e6 ? '$' + (v / 1e6).toFixed(1) + 'M' : '$' + (v / 1e3).toFixed(0) + 'K');
+const triBar = (cut, hold, hike) => `<div class="pb">
+  <div class="s-cut" style="width:${(cut || 0) * 100}%"></div>
+  <div class="s-hold" style="width:${(hold || 0) * 100}%"></div>
+  <div class="s-hike" style="width:${(hike || 0) * 100}%"></div></div>`;
+// 分歧计算单源：PM 相对 ZQ，高=▲ 低=▼；|Δ|≥5pp 为显著分歧（hot），≥20pp 加重（big）
+const delta = (zq, pm) => {
+  const a = Math.abs(pm - zq) * 100;
+  return { arrow: pm > zq ? '▲' : '▼', pp: a, hot: a >= 5, big: a >= 20 };
+};
+// 预期标签 → 语义色类（研判列 / hero 徽章共用）
+const expCls = (label) => (label === '降息' ? 'cut' : label === '加息' ? 'hike' : 'hold');
+// 档位语义 → CSS 色变量后缀（cut=up 绿 hold=neutral hike=down 红，单源）
+const CLS_COLOR = { cut: 'up', hold: 'neutral', hike: 'down' };
+// 分歧角标（五档行 / hero 对垒）：|Δ|<5pp 不出现
+const dchip = (zq, pm) => {
+  const x = delta(zq, pm);
+  if (!x.hot) return '';
+  return `<span class="dchip ${x.big ? 'big' : 'mid'}">${x.arrow}${x.pp.toFixed(0)}pp</span>`;
+};
+// PM 五档 → 三档聚合（与 ZQ prob_cut/hold/hike 同口径）
+const pmAgg = (m) => {
+  const b = m.polymarket?.buckets;
+  return b ? { cut: b.cut25 + b.cut50, hold: b.hold, hike: b.hike25 + b.hike50 } : null;
+};
+// T-N 倒计时标签（基准日 = rate-expectations 快照日，load 里赋值）
+let AS_OF = null;
+const dLabelGlobal = (dd) => {
+  const n = Math.round((new Date(dd + 'T00:00:00') - new Date(AS_OF + 'T00:00:00')) / 864e5);
+  return n <= 0 ? '今天' : n === 1 ? '明天' : 'T-' + n;
+};
+
 async function load() {
   const el = document.getElementById('re-tbody');
-  el.innerHTML = '<tr><td colspan="9" class="re-loading">加载中…</td></tr>';
+  el.innerHTML = '<tr><td colspan="7" class="re-loading">加载中…</td></tr>';
 
-  const [reRes, fomcRes, d] = await Promise.all([
+  const [reRes, fomcRes, histRes, d] = await Promise.all([
     fetch('/api/rate-expectations'),
     fetch('/api/fomc/calendar'),
+    fetch('/api/polymarket/history').then((r) => (r.ok ? r.json() : null)).catch(() => null),
     R.get('/api/rates/real-rates'),
   ]);
   if (!reRes.ok) throw new Error((await reRes.json().catch(() => ({}))).detail || '数据不可用');
   const re = await reRes.json();
   const fomc = fomcRes.ok ? await fomcRes.json() : null;
+  const hist = (histRes && histRes.meetings) || {};
+  AS_OF = re.as_of;
 
   const segs = [d.as_of];
   if (re.polymarket_as_of) segs.push(['Polymarket', re.polymarket_as_of]);
@@ -127,13 +220,14 @@ async function load() {
     card('10Y-2Y 利差', last(d.spread_2s10), '(10Y−2Y) %'),
   ]));
 
+  renderHero(re.meetings[0]);
   renderTable(re.meetings);
-  renderProbChart(re.meetings);
+  renderConvChart(re.meetings, hist);
 
   // ── 名义/实际/BEI + 期限溢价 ──
   const tpByDate = Object.fromEntries(d.term_premium.map(p => [p.date, p.value]));
   R.mkChart('triple_chart', (colors) => R.lineOption({
-    legend: { data: ['10Y 名义利率', '10Y 实际利率(TIPS)', '10Y 盈亏平衡通胀', '10Y 期限溢价(ACM)'], left: 'center', right: undefined },
+    legend: { data: [{ name: '10Y 名义利率', icon: LEGEND_SOLID }, { name: '10Y 实际利率(TIPS)', icon: LEGEND_SOLID }, { name: '10Y 盈亏平衡通胀', icon: LEGEND_SOLID }, { name: '10Y 期限溢价(ACM)', icon: LEGEND_DASH }] },
     tooltip: { trigger: 'axis', valueFormatter: v => `${Number(v).toFixed(2)}%` },
     grid: { top: 36, left: 48, right: 48, bottom: 56 },
     dataZoom: [{ type: 'inside' }, { type: 'slider', bottom: 8, height: 18 }],
@@ -143,16 +237,16 @@ async function load() {
       { type: 'value', scale: true, axisLabel: { color: colors.muted, formatter: '{value}%' }, splitLine: { show: false } },
     ],
     series: [
-      { name: '10Y 名义利率', type: 'line', data: R.vs(d.nominal_10y), symbol: 'none', lineStyle: { color: colors.blue, width: 2 } },
-      { name: '10Y 实际利率(TIPS)', type: 'line', data: R.vs(d.real_10y), symbol: 'none', lineStyle: { color: colors.orange, width: 2 } },
-      { name: '10Y 盈亏平衡通胀', type: 'line', data: R.vs(d.breakeven_10y), symbol: 'none', lineStyle: { color: colors.green, width: 2 } },
-      { name: '10Y 期限溢价(ACM)', type: 'line', data: R.ts(d.nominal_10y).map(dt => tpByDate[dt] ?? null), yAxisIndex: 1, symbol: 'none', lineStyle: { color: colors.purple, width: 1.5, type: 'dashed' } },
+      { name: '10Y 名义利率', type: 'line', data: R.vs(d.nominal_10y), symbol: 'none', lineStyle: { color: colors.blue, width: 2 }, itemStyle: { color: colors.blue } },
+      { name: '10Y 实际利率(TIPS)', type: 'line', data: R.vs(d.real_10y), symbol: 'none', lineStyle: { color: colors.orange, width: 2 }, itemStyle: { color: colors.orange } },
+      { name: '10Y 盈亏平衡通胀', type: 'line', data: R.vs(d.breakeven_10y), symbol: 'none', lineStyle: { color: colors.green, width: 2 }, itemStyle: { color: colors.green } },
+      { name: '10Y 期限溢价(ACM)', type: 'line', data: R.ts(d.nominal_10y).map(dt => tpByDate[dt] ?? null), yAxisIndex: 1, symbol: 'none', lineStyle: { color: colors.purple, width: 1.5, type: 'dashed' }, itemStyle: { color: colors.purple } },
     ],
   }, colors));
 
   // ── 2Y vs 10Y：间隙填充图（阴影带 = 2s10s 利差，倒挂时两线交叉）──
   R.mkChart('spread_2_10_chart', (colors) => R.lineOption({
-    legend: { data: ['2Y', '10Y', '2s10s 利差'] },
+    legend: { data: ['2Y', '10Y', '2s10s 利差'].map((name) => ({ name, icon: LEGEND_SOLID })) },
     tooltip: {
       trigger: 'axis',
       formatter: (ps) => {
@@ -173,103 +267,112 @@ async function load() {
   }, colors));
 }
 
+// ── hero 决策卡：选举夜对垒（PM vs ZQ 两栏平权 + Δ 徽章）+ 五档双条 ──
+function renderHero(m) {
+  const el = document.getElementById('rp-hero');
+  if (!m) { el.innerHTML = '<div class="re-loading">暂无会议数据</div>'; return; }
+  const agg = pmAgg(m);
+  const pmB = m.polymarket?.buckets || {};
+  const zqB = m.zq_buckets || {};
+  // 对垒方向 = ZQ 三档中概率最大者（当前场景即「加息」）
+  const dirs = [['cut', '降息'], ['hold', '维持'], ['hike', '加息']];
+  const [dk, dl] = dirs.map(([k, l]) => [k, l, m['prob_' + k]]).sort((a, b) => b[2] - a[2])[0];
+  const zqV = m['prob_' + dk];
+  const pmV = agg ? agg[dk] : null;
+  // 对垒徽章固定加重样式（demo 定稿）：箭头表方向，保留 1 位小数
+  const duelX = pmV == null ? null : delta(zqV, pmV);
+  const duelChip = duelX ? `<span class="dchip big">${duelX.arrow}${duelX.pp.toFixed(1)}pp</span>` : '';
+  const duel = `<div class="side"><div class="lbl">Polymarket</div>
+      <div class="num ${CLS_COLOR[dk]}">${pmV == null ? '—' : pct1(pmV)}</div><div class="sub">${dl}概率</div></div>
+    <div class="vs">vs ${duelChip}</div>
+    <div class="side"><div class="lbl">ZQ 期货</div><div class="num">${pct1(zqV)}</div><div class="sub">隐含${dl}概率</div></div>`;
+  const rows = BUCKETS.map(([k, label, cls]) => {
+    const z = zqB[k] ?? 0, p = pmB[k] ?? 0;
+    const color = `var(--color-${CLS_COLOR[cls]})`;
+    return `<div class="row"><span class="lab ${cls}">${label}</span>
+      <div class="track"><div class="f-zq" style="width:${z * 100}%;background:${color}"></div>
+        <div class="f-pm" style="width:${p * 100}%;background:${color}"></div></div>
+      <span class="val"><i>${pct1(z)}</i><s>/</s><u>${pct1(p)}</u></span>
+      <span class="chip">${agg ? dchip(z, p) : ''}</span></div>`;
+  }).join('');
+  const exp = expCls(m.expectation);
+  el.innerHTML = `
+    <div class="hc-head" style="position:relative"><span class="hc-date">${m.meeting_date}</span>
+      <span class="hc-tag">${dLabelGlobal(m.meeting_date)} · ${m.contract}</span>
+      <span class="re-expectation ${exp}" style="position:absolute;right:0;top:2px">${m.expectation}</span></div>
+    <div class="hc-verdict"><div class="duel">${duel}</div></div>
+    <div class="hc-bk">${rows}</div>
+    <div class="hc-foot"><span>PM 24h成交 <b>${money(m.polymarket?.volume24hr)}</b></span>
+      <span>流动性 <b>${money(m.polymarket?.liquidity)}</b></span>
+      <span>未平仓 <b>${money(m.polymarket?.open_interest)}</b></span></div>`;
+}
+
+// ── 概率分布明细表：每会议一行，ZQ/PM 同格双条 ──
+function numCell(zq, p) {
+  if (p == null) return `<td class="numcell"><span class="z">${pct1(zq)}</span><br><span class="p">—</span></td>`;
+  const x = delta(zq, p);
+  return `<td class="numcell"><span class="z">${pct1(zq)}</span><br><span class="p${x.hot ? ' hot' : ''}">${pct1(p)}${x.hot ? ' ' + x.arrow + x.pp.toFixed(0) + 'pp' : ''}</span></td>`;
+}
 function renderTable(meetings) {
-  const fmtPct = (v) => (v * 100).toFixed(1) + '%';
   const el = document.getElementById('re-tbody');
-  el.innerHTML = meetings.map(m => {
-    const cutW = (m.prob_cut * 100).toFixed(1);
-    const holdW = (m.prob_hold * 100).toFixed(1);
-    const hikeW = (m.prob_hike * 100).toFixed(1);
-    const label = m.expectation;
-    const cls = label === '降息' ? 'cut' : label === '加息' ? 'hike' : 'hold';
-    // 合约列显示实际定价合约；月末会议换下月合约时加角标（与会议月 contract 不同）
-    const contractCell = m.contract_used && m.contract_used !== m.contract
+  el.innerHTML = meetings.map((m) => {
+    const agg = pmAgg(m);
+    // 最大档位分歧（研判列徽章：≥20pp 才出现，同 delta.big 阈值）
+    const divPp = agg ? Math.max(delta(m.prob_cut, agg.cut).pp, delta(m.prob_hold, agg.hold).pp, delta(m.prob_hike, agg.hike).pp) : 0;
+    const contract = m.contract_used !== m.contract
       ? `${m.contract_used}<span class="re-next-tag" title="月末会议，改用下月合约整月采样定价">下月合约</span>`
       : m.contract;
-    const zqRow = `<tr class="re-zq">
-      <td>${m.meeting_date}</td>
-      <td>${contractCell}</td>
-      <td>${m.implied_rate.toFixed(3)}%</td>
-      <td>${m.post_meeting_rate.toFixed(3)}%</td>
-      <td class="re-bar-cell">
-        <div class="re-bar-wrap">
-          <div class="re-bar-cut" style="width:${cutW}%"></div>
-          <div class="re-bar-hold" style="width:${holdW}%"></div>
-          <div class="re-bar-hike" style="width:${hikeW}%"></div>
-        </div>
-      </td>
-      <td>${fmtPct(m.prob_cut)}</td>
-      <td>${fmtPct(m.prob_hold)}</td>
-      <td>${fmtPct(m.prob_hike)}</td>
-      <td><span class="re-expectation ${cls}">${label}</span></td>
-    </tr>`;
-    // Polymarket 对照行：同一套三色概率条；与 ZQ 分歧 ≥5pp 的档位高亮 + 差值角标
-    let pmRow;
-    const pm = m.polymarket;
-    if (pm) {
-      const cell = (k, zk) => {
-        const d = pm[k] - m[zk];
-        if (Math.abs(d) < 0.05) return `<td><span class="pm-num">${fmtPct(pm[k])}</span></td>`;
-        const big = Math.abs(d) >= 0.20;
-        return `<td class="${big ? 'pm-div-big' : 'pm-div'}"><span class="pm-num">${fmtPct(pm[k])}</span><span class="pm-delta">${d > 0 ? '+' : ''}${(d * 100).toFixed(1)}pp</span></td>`;
-      };
-      pmRow = `<tr class="re-pm-row">
-        <td colspan="4" class="pm-src">Polymarket</td>
-        <td class="re-bar-cell">
-          <div class="re-bar-wrap">
-            <div class="re-bar-cut" style="width:${(pm.cut * 100).toFixed(1)}%"></div>
-            <div class="re-bar-hold" style="width:${(pm.hold * 100).toFixed(1)}%"></div>
-            <div class="re-bar-hike" style="width:${(pm.hike * 100).toFixed(1)}%"></div>
-          </div>
-        </td>
-        ${cell('cut', 'prob_cut')}${cell('hold', 'prob_hold')}${cell('hike', 'prob_hike')}
-        <td></td>
-      </tr>`;
-    } else {
-      pmRow = `<tr class="re-pm-row"><td colspan="4" class="pm-src">Polymarket</td><td colspan="5" class="pm-none">—</td></tr>`;
-    }
-    return zqRow + pmRow;
+    const pmBar = agg ? `<div class="dual-row"><span class="src">PM</span>${triBar(agg.cut, agg.hold, agg.hike)}</div>`
+      : `<div class="dual-row"><span class="src">PM</span><span class="rp-sub">无对应事件</span></div>`;
+    const exp = expCls(m.expectation);
+    return `<tr>
+      <td><div class="rp-date">${m.meeting_date}</div><div class="rp-sub">${dLabelGlobal(m.meeting_date)}</div></td>
+      <td><div>${contract}</div><div class="rp-sub">隐含 ${m.implied_rate.toFixed(3)}% → 会后 ${m.post_meeting_rate.toFixed(3)}%</div></td>
+      <td class="dual"><div class="dual-row"><span class="src">ZQ</span>${triBar(m.prob_cut, m.prob_hold, m.prob_hike)}</div>${pmBar}</td>
+      ${numCell(m.prob_cut, agg?.cut)}${numCell(m.prob_hold, agg?.hold)}${numCell(m.prob_hike, agg?.hike)}
+      <td><span class="re-expectation ${exp}">${m.expectation}</span>
+        ${divPp >= 20 ? `<span class="dchip big">分歧${divPp.toFixed(0)}pp</span>` : ''}</td></tr>`;
   }).join('');
 }
 
-function renderProbChart(meetings) {
-  // 与全站一致走 R.mkChart：自动主题联动 + ResizeObserver（原自实现已删，见审计 E4）
-  R.mkChart('re-prob-chart', (colors) => ({
-    tooltip: {
-      trigger: 'axis',
-      axisPointer: { type: 'shadow' },
-      formatter: (params) => {
-        let s = '<b>' + params[0].axisValue + '</b>';
-        params.forEach(p => {
-          s += '<br/>' + p.marker + ' ' + p.seriesName + ': ' + (p.value * 100).toFixed(1) + '%';
-        });
-        return s;
-      },
-    },
-    legend: { bottom: 0, data: ['降息', '维持', '加息'], textStyle: { color: colors.text } },
-    grid: { left: 60, right: 20, top: 20, bottom: 40 },
-    xAxis: {
-      type: 'category',
-      data: meetings.map(m => m.meeting_date),
-      axisLabel: { color: colors.text, fontSize: 11 },
-    },
-    yAxis: {
-      type: 'value',
-      max: 1,
-      axisLabel: { formatter: (v) => (v * 100) + '%', color: colors.text },
-      splitLine: { lineStyle: { color: colors.grid } },
-    },
-    series: [
-      { name: '降息', type: 'bar', stack: 'total', data: meetings.map(m => m.prob_cut), itemStyle: { color: colors.green }, barWidth: '40%' },
-      { name: '维持', type: 'bar', stack: 'total', data: meetings.map(m => m.prob_hold), itemStyle: { color: colors.gray } },
-      { name: '加息', type: 'bar', stack: 'total', data: meetings.map(m => m.prob_hike), itemStyle: { color: colors.red } },
-    ],
-  }));
+// ── PM 概率收敛路径：有日频历史的会议各画 hike/hold 两条，首场实线、次场虚线 ──
+function renderConvChart(meetings, hist) {
+  const withHist = meetings
+    .map((m) => ({ ym: m.meeting_date.slice(0, 7), label: (+m.meeting_date.slice(5, 7)) + '月', series: hist[m.meeting_date.slice(0, 7)] }))
+    .filter((x) => x.series && x.series.length);
+  if (!withHist.length) {
+    document.getElementById('conv-chart').innerHTML = '<div class="re-loading" style="height:100%">暂无 Polymarket 日频历史（运行 ./bin/fetch_polymarket）</div>';
+    return;
+  }
+  const dates = [...new Set(withHist.flatMap((x) => x.series.map((p) => p.date)))].sort();
+  const byDate = (x, key) => Object.fromEntries(x.series.map((p) => [p.date, p[key]]));
+  R.mkChart('conv-chart', (colors) => {
+    const legend = [];
+    const series = [];
+    withHist.slice(0, 2).forEach((x, i) => {
+      const dash = i > 0;
+      const icon = dash ? LEGEND_DASH : LEGEND_SOLID;
+      for (const [key, name, color] of [['hike', '加息', colors.red], ['hold', '维持', colors.gray]]) {
+        const sname = `${x.label}·${name}`;
+        legend.push({ name: sname, icon });
+        series.push({ name: sname, type: 'line', data: dates.map((dt) => byDate(x, key)[dt] ?? null),
+          symbol: 'none', connectNulls: true, lineStyle: { color, width: 2, type: dash ? 'dashed' : 'solid' }, itemStyle: { color } });
+      }
+    });
+    return {
+      tooltip: { trigger: 'axis', valueFormatter: (v) => (typeof v === 'number' ? (v * 100).toFixed(1) + '%' : v) },
+      legend: { bottom: 2, itemWidth: 18, itemHeight: 6, data: legend },
+      grid: { top: 24, left: 44, right: 16, bottom: 52 },
+      xAxis: { type: 'category', data: dates.map((dt) => dt.slice(5)), axisLabel: { fontSize: 10 } },
+      yAxis: { type: 'value', max: 1, axisLabel: { formatter: (v) => v * 100 + '%' } },
+      series,
+    };
+  });
 }
 
 load().catch(e => {
-  document.getElementById('re-tbody').innerHTML = '<tr><td colspan="9" class="re-error">' + e.message + '</td></tr>';
-  R.fail(['re-cards'], e);
+  document.getElementById('re-tbody').innerHTML = '<tr><td colspan="7" class="re-error">' + e.message + '</td></tr>';
+  R.fail(['re-cards', 'rp-hero'], e);
 });
 </script>
 <script src="/js/nav.js"></script>

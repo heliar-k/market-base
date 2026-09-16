@@ -29,7 +29,13 @@ from src.credit_analysis import (
     generate_credit_overview,
     generate_credit_stress,
 )
-from src.fed_analysis import generate_fed_analysis, market_odds, polymarket_fomc_odds
+from src.fed_analysis import (
+    generate_fed_analysis,
+    market_odds,
+    polymarket_fomc_history,
+    polymarket_fomc_odds,
+    zq_buckets_from_probs,
+)
 from src.inflation_analysis import generate_inflation_overview
 from src.labor_analysis import generate_labor_overview
 from src.macro import (
@@ -751,8 +757,13 @@ def get_rate_expectations() -> dict:
     pm_odds = polymarket_fomc_odds(
         pm["events"] if pm else [], [m["meeting_date"] for m in meetings]
     )
+    # ZQ 五档：range 概率相对当前目标区间分档（区间取 /api/fomc/calendar 同源）
+    cal = get_fomc_calendar()
     for m in meetings:
         m["polymarket"] = pm_odds.get(m["meeting_date"])
+        m["zq_buckets"] = zq_buckets_from_probs(
+            m["probs"], cal.get("target_lower"), cal.get("target_upper")
+        )
 
     return {
         "as_of": latest_date.strftime("%Y-%m-%d"),
@@ -763,6 +774,21 @@ def get_rate_expectations() -> dict:
         "polymarket_as_of": pm["as_of"] if pm else None,
         "meetings": meetings,
     }
+
+
+@app.get("/api/polymarket/history")
+def get_polymarket_history(
+    meeting: str | None = None,
+) -> dict[str, Any] | list[dict[str, Any]]:
+    """Polymarket 决策事件日频概率历史（收敛路径图数据源）。
+
+    无参返回全量 {as_of, meetings: {YYYY-MM: [{date, cut, hold, hike}]}}（静态导出用）；
+    meeting=YYYY-MM 只返回该场序列（无则空列表）。
+    """
+    out = polymarket_fomc_history()
+    if meeting:
+        return out["meetings"].get(str(meeting)[:7], [])
+    return out
 
 
 # ── daily brief（复刻 timsun.net 首页「今日宏观决策台」）────────────────────
