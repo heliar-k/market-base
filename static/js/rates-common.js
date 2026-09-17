@@ -58,6 +58,68 @@ const R = {
   // 时间轴标签简写 M/D（各页 time 轴 axisLabel.formatter 共用，免逐页重写）
   md: (v) => { const t = new Date(v); return `${t.getMonth() + 1}/${t.getDate()}`; },
 
+  // HTML 转义（Polymarket / SEC 等外部原文入 innerHTML 前必过）
+  esc: (s) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;').replace(/"/g, '&quot;'),
+
+  // 迷你走势缩略图（状态卡里的均值线缩略，SVG polyline，不建 ECharts 实例）
+  // pts: [{date, value}, …]；少于 2 点返回 ''（无走势可言）
+  spark(pts, w = 96, h = 30) {
+    if (!pts || pts.length < 2) return '';
+    const vs = pts.map((p) => p.value);
+    const min = Math.min(...vs), max = Math.max(...vs), span = (max - min) || 1e-9;
+    const xy = (i, v) => `${(i / (pts.length - 1) * w).toFixed(1)},${(h - 3 - (v - min) / span * (h - 6)).toFixed(1)}`;
+    const [lx, ly] = xy(vs.length - 1, vs[vs.length - 1]).split(',');
+    return `<svg class="pm-spark" viewBox="0 0 ${w} ${h}" preserveAspectRatio="none">
+      <polyline points="${vs.map((v, i) => xy(i, v)).join(' ')}" fill="none" stroke="var(--accent)" stroke-width="1.5" opacity=".85"/>
+      <circle cx="${lx}" cy="${ly}" r="2" fill="var(--accent)"/></svg>`;
+  },
+
+  // 价位格式化：$80K / $2.6K / $2.89（价位阶梯用，避免 5 位数挤爆窄列）
+  usd: (v) => (v == null ? '' : v >= 1e6 ? `$${(v / 1e6).toFixed(2)}M`
+    : v >= 1e3 ? `$${(v / 1e3).toFixed(v >= 1e5 ? 0 : 1)}K` : `$${v.toFixed(2)}`),
+  // 距锚点（现价）偏离：+13.5% / -8.2%；无锚点或无价位返回 ''
+  dist: (v, anchor) => (v == null || !anchor ? '' : `${(v / anchor - 1) >= 0 ? '+' : ''}${((v / anchor - 1) * 100).toFixed(1)}%`),
+
+  // 归类 chips（预测市场面板共用：中文名 + 均概率 + 7 日变动 + 合约数 + 中位触及档）
+  pmChip(c) {
+    const pct = (v) => (v == null ? '—' : `${(v * 100).toFixed(1)}%`);
+    const chg = c.chg7d == null ? '' : `${c.chg7d > 0 ? '+' : ''}${c.chg7d.toFixed(1)}pp`;
+    const pv = c.pivot
+      ? `<span class="pv" title="归类内概率最接近 50% 的档位（市场对赌的价位）${c.pivot.dist ? ` · 距现价 ${c.pivot.dist}` : ''}">${R.usd(c.pivot.strike)}</span>`
+      : '';
+    return `<span class="pm-chip${c.miss ? ' miss' : ''}"${c.miss ? ' title="未命中归类规则，请补归类关键词"' : ''}>${R.esc(c.name)} <b>${pct(c.prob)}</b>` +
+      `<span class="chg ${c.chg7d > 0 ? 'up' : c.chg7d < 0 ? 'down' : ''}">${chg}</span>` + pv +
+      `<span class="n">${c.count} 档</span></span>`;
+  },
+
+  // 归类均值概率多线图（预测市场面板共用）：日期轴取并集，每归类一条线，y 轴 0–100%。
+  // 用法：R.mkChart(id, c => R.probLines(clusters, c))（clusters 需带 series）
+  probLines(clusters, colors) {
+    const c = colors || R.colors();
+    const dates = [...new Set(clusters.flatMap(x => x.series.map(p => p.date)))].sort();
+    return R.lineOption({
+      legend: { data: clusters.map(x => x.name), type: 'scroll', textStyle: { color: c.text, fontSize: 11 } },
+      tooltip: { trigger: 'axis', valueFormatter: v => (v == null ? '—' : `${(v * 100).toFixed(1)}%`) },
+      grid: { left: 44, right: 12, top: 36, bottom: 24 },
+      xAxis: {
+        type: 'category', data: dates,
+        axisLabel: { color: c.muted, fontSize: 10, formatter: v => R.md(v) },
+        axisLine: { lineStyle: { color: c.border } },
+      },
+      yAxis: {
+        type: 'value', max: 1,
+        axisLabel: { color: c.muted, fontSize: 10, formatter: v => `${(v * 100).toFixed(0)}%` },
+        splitLine: { lineStyle: { color: c.grid } },
+      },
+      series: clusters.map(x => {
+        const m = Object.fromEntries(x.series.map(p => [p.date, p.value]));
+        return { name: x.name, type: 'line', showSymbol: false, smooth: true, lineStyle: { width: 2 }, data: dates.map(dt => m[dt] ?? null) };
+      }),
+    }, c);
+  },
+
+
   // 图表默认项骨架（顶层浅合并；legend/grid 深一层）：统一 legend 样板与 grid 边距，
   // 页面只传差异部分：R.mkChart(id, (colors) => R.lineOption({ legend: { data: [...] }, series: [...] }, colors))
   // 图例色标（形状 + 取色）由 echarts-theme.js 的 reSyncLegend 统一推导，尺寸走主题默认 18×6。

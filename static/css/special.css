@@ -405,3 +405,60 @@ a.re-badge:hover { color: var(--accent); border-color: var(--accent); }
 @media (max-width: 900px) {
   .eq-radar-grid { grid-template-columns: 1fr; }
 }
+
+/* ── 预测市场面板（Polymarket 共用：geo 页 + 加密衍生品页价位专题）──
+   单源在此，页面不再各写一份：主题状态卡 / 归类 chips / 概率条 / 原始明细折叠。 */
+.pm-topics { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; }
+.pm-topic-card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; cursor: pointer; transition: border-color .15s; }
+.pm-topic-card:hover { border-color: var(--accent); }
+.pm-topic-top { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+.pm-topic-name { font-weight: 700; font-size: 15px; }
+.pm-topic-share { font-size: 11px; color: var(--text-dim); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.pm-topic-meta { font-size: 12px; color: var(--text-dim); margin: 3px 0 8px; }
+.pm-topic-body { display: flex; align-items: center; gap: 10px; }
+.pm-topic-focus { flex: 1; min-width: 0; font-size: 12px; color: var(--text-secondary); line-height: 1.5; }
+.pm-topic-focus b { color: var(--text); }
+.pm-spark { flex: 0 0 96px; height: 30px; }
+.pm-sharebar { height: 3px; background: var(--bg); border-radius: 2px; margin-top: 10px; overflow: hidden; }
+.pm-sharebar-fill { height: 100%; min-width: 4px; background: var(--accent); border-radius: 2px; opacity: .7; }
+/* 归类 chips（一行一个语义归类：中文名 + 均概率 + 7日变动） */
+.pm-chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0 10px; }
+.pm-chip { display: inline-flex; align-items: baseline; gap: 6px; font-size: 12px; padding: 3px 10px; border: 1px solid var(--border); border-radius: 999px; background: var(--surface); color: var(--text-secondary); }
+.pm-chip b { color: var(--text); font-variant-numeric: tabular-nums; }
+.pm-chip .chg { font-size: 11px; font-variant-numeric: tabular-nums; }
+.pm-chip .chg.up { color: var(--color-up); }
+.pm-chip .chg.down { color: var(--color-down); }
+.pm-chip .n { font-size: 10px; color: var(--text-dim); }
+/* 未命中归类规则的兜底组：虚线 + 告警色，提醒补归类规则 */
+.pm-chip.miss { border-style: dashed; border-color: var(--color-down); }
+.pm-chip.miss b { color: var(--color-down); }
+.pm-alert { border: 1px dashed var(--color-down); border-radius: 8px; background: var(--surface); padding: 10px 16px; font-size: 12px; color: var(--text-secondary); line-height: 1.7; }
+.pm-alert h3 { font-size: 13px; color: var(--color-down); margin: 2px 0 4px; }
+.pm-alert code { font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--text); }
+/* 概率条：标签 + 迷你条 + 数字 + 7 日变动（.strong 高共识 / .weak 长尾淡显为页面语义修饰） */
+.pm-odds-row { display: flex; align-items: center; gap: 8px; margin: 3px 0; }
+.pm-odds-lab { flex: 0 0 46%; min-width: 0; font-size: 11px; color: var(--text-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pm-odds-track { flex: 1; height: 8px; background: var(--bg); border-radius: 4px; overflow: hidden; }
+.pm-odds-fill { height: 100%; background: var(--accent); border-radius: 4px; }
+.pm-odds-fill.strong { background: var(--color-up); }
+.pm-odds-fill.weak { opacity: .55; }
+.pm-odds-pct { flex: 0 0 44px; text-align: right; font-size: 11px; font-variant-numeric: tabular-nums; }
+.pm-odds-chg { flex: 0 0 52px; text-align: right; font-size: 11px; font-variant-numeric: tabular-nums; }
+/* 归类 chips 里的「中位触及档」价位（归类内概率最接近 50% 的那一档） */
+.pm-chip .pv { font-size: 11px; color: var(--accent); font-variant-numeric: tabular-nums; }
+/* 价位阶梯行标签后的距现价偏离 + 阶梯内跨现价的分隔线 */
+.pm-dist { font-style: normal; font-family: var(--font-mono); font-size: 10px; color: var(--text-dim); margin-left: 6px; }
+.pm-spot { display: flex; justify-content: space-between; gap: 8px; border-top: 1px dashed var(--accent); margin: 6px 0 2px; padding-top: 3px; font-size: 10px; color: var(--accent); opacity: .85; font-variant-numeric: tabular-nums; }
+/* 表内概率格 = 迷你条 + 数字 */
+.pm-prob-cell { display: flex; align-items: center; gap: 8px; min-width: 130px; }
+.pm-prob-cell .pm-odds-track { flex: 1; height: 6px; }
+.pm-prob-num { flex: 0 0 46px; text-align: right; }
+.pm-ev-link { color: inherit; text-decoration: none; }
+.pm-ev-link:hover { color: var(--accent); }
+/* 原始英文明细：默认折叠，只作出处引用 */
+.pm-raw { margin-top: 12px; border: 1px dashed var(--border); border-radius: 8px; padding: 8px 12px; }
+.pm-raw > summary { cursor: pointer; font-size: 12px; color: var(--text-dim); user-select: none; }
+.pm-raw[open] > summary { margin-bottom: 10px; color: var(--text-secondary); }
+.pm-ladder-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 12px; }
+/* 阶梯卡窄，价位标签多给宽度（标签里带 reach/dip 动词，不能截掉） */
+.pm-ladder-grid .pm-odds-lab { flex-basis: 52%; }

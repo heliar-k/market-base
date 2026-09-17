@@ -286,6 +286,56 @@ def active_markets(event: dict, as_of: str | None) -> list[dict]:
     ]
 
 
+def aggregate_clusters(
+    events: list[dict],
+    hist: dict[str, list[dict]],
+    misc_name: str,
+    topic_name: str,
+    unmatched: list[dict],
+) -> list[dict]:
+    """事件列表 → 中文归类列表（geo 页 / 加密价位页共用）。
+
+    同归类内市场概率取均值，并按 history.csv 逐日取均值得 series（前端画线）；
+    排序：有变动的在前、|7日变动| 降序、再按概率降序（首位即 headline 焦点）。
+    未命中归类规则的市场归 misc_name（miss 标记）并追加到 unmatched——
+    新事件会不断击穿规则，必须显式提醒补规则而不是静默兜底。
+    """
+    groups: dict[str, dict] = {}
+    for e in events:
+        for m in e["markets"]:
+            g = groups.setdefault(m["cluster"], {"name": m["cluster"], "markets": []})
+            g["markets"].append(m)
+    out: list[dict] = []
+    for g in groups.values():
+        ms = g["markets"]
+        by_date: dict[str, list[float]] = {}
+        for m in ms:
+            for p in hist.get(m["id"], []):
+                by_date.setdefault(p["date"], []).append(p["value"])
+        series = [
+            {"date": d, "value": round(sum(v) / len(v), 4)}
+            for d, v in sorted(by_date.items())
+        ]
+        chgs = [m["chg7d"] for m in ms if m["chg7d"] is not None]
+        miss = g["name"] == misc_name
+        if miss:
+            unmatched.extend({"topic": topic_name, "label": m["label"]} for m in ms)
+        out.append(
+            {
+                "name": g["name"],
+                "count": len(ms),
+                "prob": round(sum(m["prob"] for m in ms) / len(ms), 4),
+                "chg7d": round(sum(chgs) / len(chgs), 1) if chgs else None,
+                "series": series,
+                "miss": miss,
+            }
+        )
+    return sorted(
+        out,
+        key=lambda c: (c["chg7d"] is None, -abs(c["chg7d"] or 0), -c["prob"]),
+    )
+
+
 def geo_overview() -> dict | None:
     """地缘与政治风险总览（geo 页数据源）；无快照/无 geo+policy 事件返回 None。
 
@@ -344,47 +394,11 @@ def geo_overview() -> dict | None:
         )
 
     topics = sorted(by_topic.values(), key=lambda t: t["volume24hr"], reverse=True)
-    # 主题内按中文归类聚合：均值概率 + 逐日均值线（history.csv 对齐取均值）。
-    # 未命中关键词的市场归「其它事件」（miss 标记）并记入 unmatched：
-    # 新事件会不断击穿关键词规则，必须显式提醒补 GEO_CLUSTERS 而非静默兜底。
+    # 主题内按中文归类聚合（均值概率 + 逐日均值线，见 aggregate_clusters）
     unmatched: list[dict] = []
     for t in topics:
-        groups: dict[str, dict] = {}
-        for e in t["events"]:
-            for m in e["markets"]:
-                g = groups.setdefault(
-                    m["cluster"], {"name": m["cluster"], "markets": []}
-                )
-                g["markets"].append(m)
-        tcls = []
-        for g in groups.values():
-            ms = g["markets"]
-            by_date: dict[str, list[float]] = {}
-            for m in ms:
-                for p in hist.get(m["id"], []):
-                    by_date.setdefault(p["date"], []).append(p["value"])
-            series = [
-                {"date": d, "value": round(sum(v) / len(v), 4)}
-                for d, v in sorted(by_date.items())
-            ]
-            chgs = [m["chg7d"] for m in ms if m["chg7d"] is not None]
-            miss = g["name"] == MISC_CLUSTER[1]
-            if miss:
-                unmatched.extend({"topic": t["name"], "label": m["label"]} for m in ms)
-            tcls.append(
-                {
-                    "name": g["name"],
-                    "count": len(ms),
-                    "prob": round(sum(m["prob"] for m in ms) / len(ms), 4),
-                    "chg7d": round(sum(chgs) / len(chgs), 1) if chgs else None,
-                    "series": series,
-                    "miss": miss,
-                }
-            )
-        # 叙事/焦点取本周变动最大的归类（无变动数据时退而取概率最高）
-        t["clusters"] = sorted(
-            tcls,
-            key=lambda c: (c["chg7d"] is None, -abs(c["chg7d"] or 0), -c["prob"]),
+        t["clusters"] = aggregate_clusters(
+            t["events"], hist, MISC_CLUSTER[1], t["name"], unmatched
         )
         t["headline"] = t["clusters"][0] if t["clusters"] else None
 
@@ -422,6 +436,262 @@ def geo_overview() -> dict | None:
             "samples": unmatched[:12],
         },
     }
+
+
+# ── 加密价位触及专题（crypto-derivatives 页）──────────────────────────
+
+# 价位阶梯市场（"What price will X hit …" / "X above ___ on …"）按「方向 × 周期」
+# 归类——规则是结构性的（读 series 后缀 + question 动词），不像 geo 靠关键词表，
+# 新事件几乎不会击穿；Polymarket 改了命名才会落进 HIT_MISC（虚线 chip + ⚠叙事）。
+HIT_MISC = "其它"
+
+_HIT_DIRECTIONS = (("reach", "上行"), ("dip", "下行"), ("above", "高于"))
+
+_HIT_UNDERLYINGS = (
+    ("bitcoin", "BTC"),
+    ("btc", "BTC"),
+    ("ethereum", "ETH"),
+    ("eth", "ETH"),
+    ("solana", "SOL"),
+    ("xrp", "XRP"),
+    ("dogecoin", "DOGE"),
+    ("cardano", "ADA"),
+)
+
+
+def hit_underlying(series: str) -> str:
+    """series 前缀 → 标的分组（BTC / ETH / SOL / …）；无法识别归 HIT_MISC。"""
+    s = (series or "").lower()
+    for pre, key in _HIT_UNDERLYINGS:
+        if s.startswith(pre):
+            return key
+    return HIT_MISC
+
+
+def hit_cluster_of(event: dict, question: str) -> str:
+    """价位阶梯市场 → 「方向·周期」中文归类（如「上行·月度」）。"""
+    q = (question or "").lower()
+    direction = next((cn for kw, cn in _HIT_DIRECTIONS if kw in q), None)
+    if direction is None:
+        return HIT_MISC
+    s = (event.get("series") or "").lower()
+    if direction == "高于":  # multi-strikes 快照：只有「到期价高于某档」，都是短窗口
+        return "高于·短线"
+    if "daily" in s or "weekly" in s:
+        return f"{direction}·短线"
+    if "monthly" in s:
+        annual = "december 31" in q or re.search(r"\bby 20\d\d\b", q) is not None
+        return f"{direction}·{'年度' if annual else '月度'}"
+    return HIT_MISC
+
+
+_HIT_STRIKE_RX = re.compile(r"\$([\d,]+(?:\.\d+)?)")
+_HIT_MONTH_RX = re.compile(
+    r"\s+(?:January|February|March|April|May|June|July|August|September|October|November"
+    r"|December)\b.*$",
+    re.I,
+)
+
+
+def hit_strike(question: str) -> float | None:
+    """价位阶梯问题 → 档位价格（$80,000 → 80000）；无金额返回 None。"""
+    m = _HIT_STRIKE_RX.search(question or "")
+    return float(m.group(1).replace(",", "")) if m else None
+
+
+def hit_label(question: str) -> str:
+    """价位阶梯问题 → 行内短标签（「reach $80,000」/「dip to $25,000」）。
+
+    标的名与截止日已在事件卡标题/元信息里，行内只留「方向 + 价位」，否则窄卡里
+    整列都被 ellipsis 截断。全句另存 question（行内 title 提示）。
+    """
+    s = (question or "").removesuffix("?").strip()
+    s = re.sub(r"^Will (the price of )?\S+( be)?\s+", "", s)  # 去主语
+    # 去句尾时间短语：带介词的（by/in/on …）与裸月份区间（… September 14-20）
+    s = re.sub(r"\s+(by|in|on|before|between)\s+\S.*$", "", s)
+    s = _HIT_MONTH_RX.sub("", s)
+    return s.strip()
+
+
+def crossing_series(
+    markets: list[dict],
+    hist: dict[str, list[dict]],
+    rising: bool,
+    min_points: int = 3,
+) -> list[dict]:
+    """归类内「概率过 50% 的价位」逐日线（相邻两档线性插值，不被档距卡住）。
+
+    上行/高于档概率随价位递减、下行档递增；逐日先把同价位概率取均值，再在跨过
+    0.5 的相邻两档间插值。整条阶梯都在 0.5 同侧（市场没有对赌档）或当日档位
+    不足 min_points 时该日留空——宁缺，不外推到阶梯端点假装有个价位。
+    """
+    by_date: dict[str, dict[float, list[float]]] = {}
+    for m in markets:
+        if m.get("strike") is None:
+            continue
+        for pt in hist.get(m["id"], []):
+            by_date.setdefault(pt["date"], {}).setdefault(m["strike"], []).append(
+                pt["value"]
+            )
+    out: list[dict] = []
+    for d in sorted(by_date):
+        rung = {s: sum(v) / len(v) for s, v in by_date[d].items()}
+        pts = sorted(rung.items())
+        if len(pts) < min_points:
+            continue
+        for (s1, p1), (s2, p2) in zip(pts, pts[1:]):
+            crossed = (p1 <= 0.5 <= p2) if rising else (p1 >= 0.5 >= p2)
+            if crossed and p1 != p2:
+                w = (p1 - 0.5) / (p1 - p2)
+                out.append({"date": d, "value": round(s1 + (s2 - s1) * w, 1)})
+                break
+    return out
+
+
+def crypto_hit_overview() -> dict | None:
+    """加密价位触及总览（crypto-derivatives 页数据源），形状对齐 geo_overview。
+
+    取最新**含 crypto 事件**的可解析快照（坏 JSON / 无 crypto 事件回退前一日），
+    只留价位阶梯系列（hit-price / multi-strikes，一个没有则回退全部 crypto 事件）。
+    topics = 标的（BTC/ETH/…）；clusters = 「方向·周期」归类（均值概率 + history.csv
+    逐日均值线 series，前端画多线图）；headline = |7日变动| 最大的归类；
+    events = 原始英文明细（前端折叠，带 slug 外链）。只读不写盘。
+    """
+    for f in sorted(DATA.glob("20*.json"), reverse=True):
+        try:
+            snap = json.loads(f.read_text(encoding="utf-8"))
+        except Exception:
+            continue
+        evs = events_matching(snap, categories=("crypto",))
+        if not evs:
+            continue
+        ladder = [
+            e
+            for e in evs
+            if "hit-price" in (e.get("series") or "")
+            or "multi-strikes" in (e.get("series") or "")
+        ] or evs
+        ids = {str(m["id"]) for e in ladder for m in e.get("markets") or []}
+        hist = series_for(ids)
+        a = str(snap.get("as_of") or "")[:10]
+
+        by_topic: dict[str, dict] = {}
+        for e in sorted(ladder, key=lambda x: x.get("volume24hr") or 0, reverse=True):
+            key = hit_underlying(e.get("series") or "")
+            mkts = sorted(
+                (
+                    {
+                        "id": str(m["id"]),
+                        "label": hit_label(m.get("question") or ""),
+                        "question": m.get("question"),
+                        "prob": m["prob_yes"],
+                        "strike": hit_strike(m.get("question") or ""),
+                        "chg7d": chg7d(hist.get(str(m["id"]))),
+                        "cluster": hit_cluster_of(e, m.get("question") or ""),
+                    }
+                    for m in active_markets(e, a)
+                ),
+                key=lambda x: (x["strike"] is None, x["strike"]),  # 阶梯按价位升序读
+            )
+            if not mkts:  # 全到期（如日度阶梯隔日失效）→ 事件卡不渲染
+                continue
+            t = by_topic.setdefault(
+                key,
+                {
+                    "key": key,
+                    "name": key,
+                    "volume24hr": 0.0,
+                    "volume": 0.0,
+                    "events": [],
+                },
+            )
+            t["volume24hr"] += e.get("volume24hr") or 0.0
+            t["volume"] += e.get("volume") or 0.0
+            t["events"].append(
+                {
+                    "title": e["title"],
+                    "slug": e.get("slug"),
+                    "series": e.get("series"),
+                    "end_date": e.get("end_date"),
+                    "volume": e.get("volume"),
+                    "volume24hr": e.get("volume24hr"),
+                    "markets": mkts,
+                }
+            )
+
+        order = {"BTC": 0, "ETH": 1}  # 其它标的按 24h 量殿后
+        topics = sorted(
+            by_topic.values(),
+            key=lambda t: (order.get(t["key"], 9), -t["volume24hr"], t["key"]),
+        )
+        unmatched: list[dict] = []
+        for t in topics:
+            t["clusters"] = aggregate_clusters(
+                t["events"], hist, HIT_MISC, t["name"], unmatched
+            )
+            # 归类内按中文归类分桶，供「中位触及档」与「隐含价位日线」复用
+            by_cluster: dict[str, list[dict]] = {}
+            for e in t["events"]:
+                for m in e["markets"]:
+                    by_cluster.setdefault(m["cluster"], []).append(m)
+            for c in t["clusters"]:
+                ms = by_cluster[c["name"]]
+                # 中位触及档：归类内概率最接近 50% 的那一档价位，把均值概率翻译回
+                # 具体价格。离 0.5 太远（整条阶梯都 <25% 或 >75%）时市场根本没有
+                # 对赌档，宁可不显示也不给个假锚点。
+                cand = [
+                    m
+                    for m in ms
+                    if m["strike"] is not None and abs(m["prob"] - 0.5) <= 0.25
+                ]
+                best = min(cand, key=lambda m: abs(m["prob"] - 0.5), default=None)
+                c["pivot"] = (
+                    {"strike": best["strike"], "prob": best["prob"]} if best else None
+                )
+                # 隐含价位日线：该归类概率过 50% 的价位随时间怎么漂
+                c["level_series"] = crossing_series(
+                    ms, hist, rising=c["name"].startswith("下行")
+                )
+            t["headline"] = t["clusters"][0] if t["clusters"] else None
+
+        total_vol = sum(t["volume24hr"] for t in topics)
+        total_events = sum(len(t["events"]) for t in topics)
+        sig = [
+            f"加密价位触及：{total_events} 个价位事件在监测（"
+            f"{' / '.join(t['name'] for t in topics)}），"
+            f"24h 成交合计 ${total_vol / 1e6:.1f}M。"
+        ]
+        for t in topics:
+            share = t["volume24hr"] / total_vol * 100 if total_vol else 0
+            head = t["headline"]
+            focus = (
+                f"动能最大归类「{head['name']}」均概率 {head['prob'] * 100:.0f}%"
+                + (
+                    f"（7日 {head['chg7d']:+.1f}pp）"
+                    if head and head["chg7d"] is not None
+                    else ""
+                )
+                if head
+                else "暂无活跃市场"
+            )
+            sig.append(
+                f"{t['name']}：{len(t['events'])} 事件 · "
+                f"24h ${t['volume24hr'] / 1e6:.2f}M（占 {share:.0f}%），{focus}。"
+            )
+        if unmatched:
+            sample = "、".join(u["label"][:40] for u in unmatched[:3])
+            sig.append(
+                f"⚠ 归类规则未命中 {len(unmatched)} 个合约（如：{sample}）——"
+                "Polymarket 改了 series/问题命名，需补 "
+                "src/polymarket_analysis.py 的 hit_cluster_of。"
+            )
+        return {
+            "as_of": snap.get("as_of"),
+            "signals": sig,
+            "topics": topics,
+            "unmatched": {"count": len(unmatched), "samples": unmatched[:12]},
+        }
+    return None
 
 
 def prob_ladder(event: dict) -> list[tuple[float, float]]:

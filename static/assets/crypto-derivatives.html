@@ -9,6 +9,7 @@
 <link rel="stylesheet" href="/css/app.css">
 <link rel="stylesheet" href="/css/special.css">
 <script src="/js/site-nav.js"></script>
+<script src="/vendor/echarts.min.js"></script>
 </head>
 <body>
 <div class="re-root">
@@ -35,6 +36,156 @@ function fmt(v, d = 2) { return v == null ? '—' : Number(v === 0 ? 0 : v).toLo
 function stance(ann) { const a = Math.abs((ann || 0) * 100); if (ann < 0) return '偏空'; return a >= 30 ? '偏多（拥挤）' : (a >= 15 ? '偏多' : '中性'); }
 function pcrStance(p) { return p == null ? '中性' : (p < 0.4 ? '偏多' : (p > 1.5 ? '偏空' : '中性')); }
 const P = { up: 'var(--color-up)', down: 'var(--color-down)', flat: 'var(--color-neutral)' };
+
+// 隐含价位趋势：每归类一条线 = 该阶梯里概率过 50% 的价位（档间线性插值），
+// 叠一条现价日线收盘做锚；y 轴 scale:true（价位区间窄，从 0 起会压成直线）
+function levelOption(clusters, spot, c) {
+  const dates = [...new Set(clusters.flatMap(x => x.level_series.map(p => p.date)))].sort();
+  const sp = (spot || []).filter(p => p.date >= dates[0]);
+  const all = [...new Set(dates.concat(sp.map(p => p.date)))].sort();
+  const usd = v => (v == null ? '—' : '$' + Number(v).toLocaleString('en-US', { maximumFractionDigits: 0 }));
+  const line = (name, pts, extra) => {
+    const m = Object.fromEntries(pts.map(p => [p.date, p.value]));
+    return Object.assign({ name, type: 'line', showSymbol: false, smooth: false, connectNulls: true, lineStyle: { width: 2 }, data: all.map(d => m[d] ?? null) }, extra);
+  };
+  return R.lineOption({
+    legend: { data: clusters.map(x => x.name).concat(sp.length ? ['现价'] : []), type: 'scroll', textStyle: { color: c.text, fontSize: 11 } },
+    tooltip: { trigger: 'axis', valueFormatter: usd },
+    grid: { left: 58, right: 14, top: 36, bottom: 24 },
+    xAxis: {
+      type: 'category', data: all,
+      axisLabel: { color: c.muted, fontSize: 10, formatter: v => R.md(v) },
+      axisLine: { lineStyle: { color: c.border } },
+    },
+    yAxis: {
+      type: 'value', scale: true,
+      axisLabel: { color: c.muted, fontSize: 10, formatter: v => '$' + (v / 1e3).toFixed(0) + 'K' },
+      splitLine: { lineStyle: { color: c.grid } },
+    },
+    series: clusters.map(x => line(x.name, x.level_series)).concat(
+      sp.length ? [line('现价', sp, { z: 1, lineStyle: { width: 1.5, type: 'dashed', color: c.gray }, itemStyle: { color: c.gray } })] : []),
+  }, c);
+}
+
+// ── POLYMARKET 加密价位触及：结构对齐 geo 页（结论层状态卡 → 隐含价位趋势 → 原始事件折叠）
+function renderPolymarket(pm, spot) {
+  const host = document.getElementById('polymarket');
+  if (!pm || !(pm.topics || []).length) {
+    host.innerHTML = `<div class="re-section"><h2>POLYMARKET 加密价位市场</h2>
+      <div class="re-explain">无 Polymarket 快照 —— 运行 <code>./bin/fetch_polymarket</code> 拉取后刷新。</div></div>`;
+    return;
+  }
+  const pct = v => (v == null ? '—' : `${(v * 100).toFixed(1)}%`);
+  const vol = v => (v >= 1e6 ? `$${(v / 1e6).toFixed(1)}M` : v >= 1e3 ? `$${(v / 1e3).toFixed(0)}K` : `$${(v || 0).toFixed(0)}`);
+  const chg = v => (v == null ? '<span style="color:var(--text-dim)">—</span>'
+    : `<span class="${v > 0 ? 'up' : v < 0 ? 'down' : ''}">${v > 0 ? '+' : ''}${v.toFixed(1)}pp</span>`);
+  const total = pm.topics.reduce((s, t) => s + (t.volume24hr || 0), 0) || 1;
+  // 阶梯行按价位升序，跨过现价处插一条分隔线；无现价的标的（SOL/XRP）不显示距离
+  const anchor = k => spot && spot[k];
+  const rowsOf = (ev, px) => {
+    const out = [];
+    ev.markets.forEach((m, i) => {
+      const prev = ev.markets[i - 1];
+      if (px && prev && prev.strike != null && m.strike != null && prev.strike < px && m.strike >= px) {
+        out.push(`<div class="pm-spot"><span>现价 ${R.usd(px)}</span><span>↑上方档 / ↓下方档</span></div>`);
+      }
+      out.push(`<div class="pm-odds-row" title="${R.esc(m.question)}">
+        <span class="pm-odds-lab">${R.esc(m.label)}${px && m.strike != null ? `<i class="pm-dist">${R.dist(m.strike, px)}</i>` : ''}</span>
+        <div class="pm-odds-track"><div class="pm-odds-fill${m.prob >= 0.6 ? ' strong' : ''}${m.prob < 0.2 ? ' weak' : ''}" style="width:${(m.prob * 100).toFixed(1)}%"></div></div>
+        <span class="pm-odds-pct">${pct(m.prob)}</span>
+        <span class="pm-odds-chg">${chg(m.chg7d)}</span>
+      </div>`);
+    });
+    return out.join('');
+  };
+
+  // 结论层：标的状态卡（动能最大归类 + 走势缩略 + 24h 成交占比，点击定位数据层）
+  const head = document.createElement('div');
+  head.className = 're-section';
+  head.innerHTML = `<h2>POLYMARKET 加密价位市场 <small style="font-weight:400;color:var(--text-dim)">预测市场隐含的触及概率（hit-price 系列）</small></h2>
+    <div class="re-explain" style="margin-bottom:10px">
+      <b>如何解读</b> — 图上每条线是那个归类里「概率过 50% 的价位」逐日记到哪（档间线性插值），
+      灰虚线是现价日线收盘：线在现价上方 = 市场觉得这个方向还得往上走才能摸到，线与现价的缺口就是预期差。
+      折叠明细里每档是市场对「触及该价位」的隐含概率（≥60% 接近共识，&lt;20% 淡显为长尾），价位后括注距现价偏离。
+      <span style="opacity:.7">月度/年度阶梯跨月切换时档位重置，曲线会有结构性跳档。</span></div>
+    <p class="re-source" style="margin:0 0 10px">口径：category=crypto · series 含 hit-price / multi-strikes（日/周/月/年度价位阶梯）；prob 为 0-1 隐含概率。过 50% 档按相邻两档线性插值，整条阶梯都在 0.5 同侧时该日留空（没有对赌档，不外推端点）；现价线取 yfinance 日线收盘，与 Deribit 现货锚可差几十美元。history.csv 只收录达量门槛的合约，新市场无历史则留空。</p>
+    <div class="pm-topics">${pm.topics.map(t => {
+    const h = t.headline;
+    const share = ((t.volume24hr || 0) / total * 100).toFixed(0);
+    return `<div class="pm-topic-card" onclick="location.hash='pm-${t.key}'">
+      <div class="pm-topic-top"><span class="pm-topic-name">${R.esc(t.name)}</span>
+        <span class="pm-topic-share">占 24h 成交 ${share}%</span></div>
+      <div class="pm-topic-meta">${t.events.length} 事件 · ${t.clusters.length} 归类 · 24h ${vol(t.volume24hr)}</div>
+      <div class="pm-topic-body">
+        <div class="pm-topic-focus">动能最大 ${h ? `<b>${R.esc(h.name)}</b><br>${h.pivot ? `<b>${R.usd(h.pivot.strike)}</b> 对赌档 · ` : ''}均概率 ${pct(h.prob)}${h.chg7d != null ? `（7日 ${h.chg7d > 0 ? '+' : ''}${h.chg7d.toFixed(1)}pp）` : ''}` : '—'}</div>
+        ${R.spark(h && (h.level_series || []).length > 1 ? h.level_series : h.series)}
+      </div>
+      <div class="pm-sharebar"><div class="pm-sharebar-fill" style="width:${share}%"></div></div>
+    </div>`;
+  }).join('')}</div>`;
+  host.appendChild(head);
+
+  // 规则引擎叙事（LLM 预留）
+  if ((pm.signals || []).length) {
+    const [lead, ...rest] = pm.signals;
+    const sec = document.createElement('div');
+    sec.className = 're-analysis';
+    sec.innerHTML = `<h3>盘面解读</h3><p>${R.esc(lead)}</p>` +
+      (rest.length
+      ? `<ul>${rest.map(s => `<li${s.startsWith('⚠') ? ' style="color:var(--color-down);font-weight:600"' : ''}>${R.esc(s)}</li>`).join('')}</ul>`
+      : '');
+    host.appendChild(sec);
+  }
+
+  // 数据层：每标的一节（归类 chips → 归类均值多线图 → 原始价位阶梯折叠）
+  for (const t of pm.topics) {
+    const sec = document.createElement('div');
+    sec.className = 're-section';
+    sec.id = `pm-${t.key}`;
+    const px = anchor(t.key);
+    t.clusters.forEach(c => { if (c.pivot && px) c.pivot.dist = R.dist(c.pivot.strike, px); });
+    sec.innerHTML = `<h2>${R.esc(t.name)} 价位阶梯 <small style="font-weight:400;color:var(--text-dim)">${t.events.length} 事件 · ${t.clusters.length} 归类 · 24h ${vol(t.volume24hr)} · 累计 ${vol(t.volume)}${px ? ` · 现价 ${R.usd(px)}` : ''}</small></h2>
+      <div class="pm-chips">${t.clusters.map(R.pmChip).join('')}</div>`;
+    host.appendChild(sec); // 先挂 DOM 再建图（R.mkChart 按 id 查 DOM，0 尺寸容器初始化不出 canvas）
+
+    const lv = t.clusters.filter(c => (c.level_series || []).length > 1);
+    if (lv.length) {
+      const cid = `pm-chart-${t.key}`;
+      sec.insertAdjacentHTML('beforeend', `<div class="chart" id="${cid}" style="height:${Math.max(240, 34 + lv.length * 26)}px"></div>`);
+      R.mkChart(cid, c => levelOption(lv, (pm.spot_series || {})[t.key], c));
+      // 有归类却没线 = 那条阶梯没有跨过 50% 的对赌档（或合约未进 history.csv），点名而不是让人猜
+      const nolv = t.clusters.filter(c => !lv.includes(c)).map(c => c.name);
+      if (nolv.length) {
+        sec.insertAdjacentHTML('beforeend', `<p class="re-source" style="margin:4px 0 0">图上无线的归类：${nolv.join('、')}（该阶梯没有跨过 50% 的对赌档，或合约未进 history.csv）</p>`);
+      }
+    } else {
+      sec.insertAdjacentHTML('beforeend', '<div class="re-explain">暂无隐含价位日线——该标的阶梯里没有跨过 50% 的对赌档，或合约未进 history.csv（只收录达量门槛的合约）</div>');
+    }
+
+    // 原始价位阶梯（Polymarket 英文原文，默认折叠，仅作出处引用）
+    const det = document.createElement('details');
+    det.className = 'pm-raw';
+    det.innerHTML = `<summary>原始价位阶梯 · Polymarket 英文源（${t.events.length} 事件，按价位升序，外链可跳官方页）</summary>
+      <div class="pm-ladder-grid">${t.events.map(ev => `
+        <div class="re-card">
+          <div class="re-corridor-label"><a class="pm-ev-link" href="https://polymarket.com/event/${R.esc(ev.slug)}" target="_blank">${R.esc(ev.title)}</a></div>
+          <div style="font-size:11px;color:var(--text-dim);margin:2px 0 8px">截止 ${String(ev.end_date || '').slice(0, 10)} · 24h ${vol(ev.volume24hr)} · 累计 ${vol(ev.volume)}</div>
+          ${rowsOf(ev, px)}
+        </div>`).join('')}</div>`;
+    sec.appendChild(det);
+  }
+
+  // 归类规则未命中告警（新 series/问题命名击穿规则时的 actionable 清单）
+  if (pm.unmatched && pm.unmatched.count) {
+    const el = document.createElement('div');
+    el.className = 'pm-alert';
+    el.innerHTML = `<h3>⚠ ${pm.unmatched.count} 个合约未命中「方向·周期」归类</h3>
+      <div>下列合约被兜底归入虚线的「其它」组。维护方式：往
+      <code>src/polymarket_analysis.py → hit_cluster_of</code> 补方向动词或 series 周期后缀：</div>
+      <div style="margin-top:4px">${pm.unmatched.samples.map(u => `<div>· <b>${R.esc(u.topic)}</b> — ${R.esc(u.label)}</div>`).join('')}</div>`;
+    host.appendChild(el);
+  }
+}
 
 async function load() {
   const d = await R.get('/api/assets/crypto-derivatives');
@@ -214,52 +365,8 @@ async function load() {
     <p class="re-source" style="margin:8px 0 0">口径：Deribit 最近到期月度（near wall）为主，全到期聚合为回退；CME 为官方每日结算当前月（经 Jina Reader，到期月切换暂不可用）。</p>`;
   document.getElementById('walls').appendChild(wsec);
 
-  // ── POLYMARKET 加密价位市场（hit-price 系列：预测市场隐含的触及概率）──
-  {
-    const msec = document.createElement('div');
-    msec.className = 're-section';
-    const pm = d.polymarket;
-    if (pm && (pm.groups || []).length) {
-      // 概率条：≥60% 用 up 色，其余 flat；<20% 淡显为长尾（两行布局：标签独占一行防价位截断）
-      const prow = m => {
-        const pct = m.prob_yes == null ? null : m.prob_yes * 100;
-        const chgColor = m.chg7d > 0 ? 'var(--up)' : m.chg7d < 0 ? 'var(--down)' : 'var(--flat)';
-        const chg = m.chg7d == null ? '<span style="min-width:52px"></span>'
-          : `<span style="min-width:52px;text-align:right;font-size:11px;color:${chgColor}">${m.chg7d > 0 ? '+' : ''}${m.chg7d}pp</span>`;
-        return `<div style="padding:4px 0;border-bottom:1px solid var(--border);font-size:12px">
-          <div style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${(m.label || '').replace(/"/g, '&quot;')}">${m.label}</div>
-          <div style="display:flex;align-items:center;gap:8px;margin-top:2px">
-            <span style="flex:1;height:8px;background:var(--surface);border:1px solid var(--border);border-radius:4px;overflow:hidden;display:block">
-              <span style="display:block;height:100%;width:${pct == null ? 0 : Math.min(100, pct)}%;background:${pct >= 60 ? 'var(--up)' : 'var(--flat)'};opacity:${pct < 20 ? 0.55 : 1}"></span></span>
-            <span style="min-width:46px;text-align:right;font-weight:600">${pct == null ? '—' : pct.toFixed(1) + '%'}</span>
-            ${chg}
-          </div>
-        </div>`;
-      };
-      const evBlocks = evs => evs.map(ev => `
-        <div style="margin-top:10px">
-          <div style="font-size:12px;font-weight:600;margin-bottom:4px">${ev.title}
-            <span style="font-weight:400;opacity:.6"> · 截止 ${ev.end_date} · 累计量 ${ev.volume == null ? '—' : '$' + fmt(ev.volume / 1e6, 1) + 'M'}</span></div>
-          ${ev.markets.map(prow).join('')}
-        </div>`).join('');
-      msec.innerHTML = `<h2>POLYMARKET 加密价位市场 <span style="font-size:12px;font-weight:400;opacity:.7">预测市场隐含的触及概率（hit-price 系列）</span></h2>
-        <div class="re-explain" style="margin-bottom:6px">
-          <b>如何解读</b> — 每行是市场对「触及该价位」的隐含概率：≥60% 接近共识，&lt;20% 淡显为长尾；7 日变化（pp）看概率动能，与期权墙互为佐证。
-          <span style="opacity:.7">数据源：Polymarket gamma-api（无 key 直连）</span></div>
-        <div class="re-cards" style="grid-template-columns:repeat(auto-fit,minmax(340px,1fr))">
-          ${(pm.groups || []).map(g => `
-          <div class="re-card" style="padding:12px 14px">
-            <div class="re-corridor-label">${g.name} <span style="opacity:.6">· ${g.events.length} 个价位事件</span></div>
-            ${evBlocks(g.events)}
-          </div>`).join('')}
-        </div>
-        <p class="re-source" style="margin:8px 0 0">口径：category=crypto · series 含 hit-price（月度/周度价位阶梯）；prob_yes 为 0-1 概率；7 日变化来自 history.csv 概率时序（新市场无历史则留空）。</p>`;
-    } else {
-      msec.innerHTML = `<h2>POLYMARKET 加密价位市场</h2>
-        <div class="re-explain">无 Polymarket 快照 —— 运行 <code>./bin/fetch_polymarket</code> 拉取后刷新。</div>`;
-    }
-    document.getElementById('polymarket').appendChild(msec);
-  }
+  // ── POLYMARKET 加密价位市场（geo 同款结构：归类趋势线 + 原始事件折叠）──
+  renderPolymarket(d.polymarket, { BTC: optB.spot_anchor, ETH: optE.spot_anchor });
 
   // ── LAYER 3 · RETAIL 散户立场 ──
   const stFr = `${BTC.funding_rate == null ? 0 : BTC.funding_rate * 100 >= 0 ? '+' : ''}${(BTC.funding_rate || 0) * 100}%`;
@@ -359,7 +466,7 @@ async function load() {
     document.getElementById('re-gen').insertAdjacentElement('beforebegin', gsec);
   }
 
-  document.getElementById('re-gen').textContent = '规则引擎（LLM 预留）· 数据源：OKX API / Deribit API / Yahoo Finance CME / CFTC COT / Farside / Coinglass(经 Jina)';
+  document.getElementById('re-gen').textContent = '规则引擎（LLM 预留）· 数据源：OKX API / Deribit API / Yahoo Finance CME / CFTC COT / Farside / Coinglass(经 Jina) / Polymarket gamma-api';
 }
 
 load().catch(e => R.fail(['radar', 'kpi', 'walls', 'polymarket', 'retail', 'consensus'], e));

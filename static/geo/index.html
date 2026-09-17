@@ -9,52 +9,6 @@
 <link rel="stylesheet" href="/css/app.css">
 <link rel="stylesheet" href="/css/special.css">
 <script src="/js/site-nav.js"></script>
-<style>
-/* geo 页私有结构（通用卡片/表格/叙事/语义色复用 app.css / special.css） */
-.geo-topic-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 12px; }
-.geo-topic-card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; cursor: pointer; transition: border-color .15s; }
-.geo-topic-card:hover { border-color: var(--accent); }
-.geo-topic-top { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
-.geo-topic-name { font-weight: 700; font-size: 15px; }
-.geo-topic-share { font-size: 11px; color: var(--text-dim); font-variant-numeric: tabular-nums; white-space: nowrap; }
-.geo-topic-meta { font-size: 12px; color: var(--text-dim); margin: 3px 0 8px; }
-.geo-topic-body { display: flex; align-items: center; gap: 10px; }
-.geo-topic-focus { flex: 1; min-width: 0; font-size: 12px; color: var(--text-secondary); line-height: 1.5; }
-.geo-topic-focus b { color: var(--text); }
-.geo-spark { flex: 0 0 96px; height: 30px; }
-.geo-sharebar { height: 3px; background: var(--bg); border-radius: 2px; margin-top: 10px; overflow: hidden; }
-.geo-sharebar-fill { height: 100%; background: var(--accent); border-radius: 2px; opacity: .7; }
-/* 归类 chips（一行一个语义归类：中文名 + 均概率 + 7日变动） */
-.geo-chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0 10px; }
-.geo-chip { display: inline-flex; align-items: baseline; gap: 6px; font-size: 12px; padding: 3px 10px; border: 1px solid var(--border); border-radius: 999px; background: var(--surface); color: var(--text-secondary); }
-.geo-chip b { color: var(--text); font-variant-numeric: tabular-nums; }
-.geo-chip .chg { font-size: 11px; font-variant-numeric: tabular-nums; }
-.geo-chip .chg.up { color: var(--color-up); }
-.geo-chip .chg.down { color: var(--color-down); }
-.geo-chip .n { font-size: 10px; color: var(--text-dim); }
-/* 未命中归类关键词的兜底组：虚线 + 告警色，提醒补 GEO_CLUSTERS */
-.geo-chip.miss { border-style: dashed; border-color: var(--color-down); }
-.geo-chip.miss b { color: var(--color-down); }
-.geo-alert { border: 1px dashed var(--color-down); border-radius: 8px; background: var(--surface); padding: 10px 16px; font-size: 12px; color: var(--text-secondary); line-height: 1.7; }
-.geo-alert h3 { font-size: 13px; color: var(--color-down); margin: 2px 0 4px; }
-.geo-alert code { font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--text); }
-.geo-odds-row { display: flex; align-items: center; gap: 8px; margin: 3px 0; }
-.geo-odds-lab { flex: 0 0 46%; font-size: 11px; color: var(--text-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.geo-odds-track { flex: 1; height: 8px; background: var(--bg); border-radius: 4px; overflow: hidden; }
-.geo-odds-fill { height: 100%; background: var(--accent); border-radius: 4px; }
-.geo-odds-pct { flex: 0 0 44px; text-align: right; font-size: 11px; font-variant-numeric: tabular-nums; }
-.geo-odds-chg { flex: 0 0 52px; text-align: right; font-size: 11px; font-variant-numeric: tabular-nums; }
-/* 单合约事件表：概率格 = 迷你条 + 数字 */
-.geo-prob-cell { display: flex; align-items: center; gap: 8px; min-width: 130px; }
-.geo-prob-cell .geo-odds-track { flex: 1; height: 6px; }
-.geo-prob-num { flex: 0 0 46px; text-align: right; }
-.geo-ev-link { color: inherit; text-decoration: none; }
-.geo-ev-link:hover { color: var(--accent); }
-/* 原始英文明细：默认折叠，只作出处引用 */
-.geo-raw { margin-top: 12px; border: 1px dashed var(--border); border-radius: 8px; padding: 8px 12px; }
-.geo-raw > summary { cursor: pointer; font-size: 12px; color: var(--text-dim); user-select: none; }
-.geo-raw[open] > summary { margin-bottom: 10px; color: var(--text-secondary); }
-</style>
 </head>
 <body>
 <div class="re-root">
@@ -66,7 +20,7 @@
   <div class="re-nav" id="re-nav"></div>
 
   <!-- 结论层：主题状态卡（中文归类焦点 + 30 天走势缩略 + 成交占比，点击定位数据层） -->
-  <div id="geo-topics" class="geo-topic-grid"></div>
+  <div id="geo-topics" class="pm-topics"></div>
 
   <!-- 规则引擎叙事 -->
   <div id="re-signals"></div>
@@ -92,24 +46,9 @@ const fmtPct = v => v == null ? '—' : (v * 100).toFixed(1) + '%';
 const fmtChg = v => v == null ? '<span style="color:var(--text-dim)">—</span>'
   : `<span class="${v > 0 ? 'up' : v < 0 ? 'down' : ''}">${v > 0 ? '+' : ''}${v.toFixed(1)}pp</span>`;
 const str10 = s => String(s ?? '').slice(0, 10);
-function esc(s) { return String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
+const esc = R.esc;
 
-// 迷你走势缩略图（SVG polyline，主题卡归类均值线缩略）
-function sparkSvg(pts) {
-  if (!pts || pts.length < 2) return '';
-  const w = 96, h = 30, vs = pts.map(p => p.value);
-  const min = Math.min(...vs), max = Math.max(...vs), span = (max - min) || 1e-9;
-  const xy = (i, v) => `${(i / (pts.length - 1) * w).toFixed(1)},${(h - 3 - (v - min) / span * (h - 6)).toFixed(1)}`;
-  const line = vs.map((v, i) => xy(i, v)).join(' ');
-  const [lx, ly] = xy(vs.length - 1, vs[vs.length - 1]).split(',');
-  return `<svg class="geo-spark" viewBox="0 0 ${w} ${h}" preserveAspectRatio="none">
-    <polyline points="${line}" fill="none" stroke="var(--accent)" stroke-width="1.5" opacity=".85"/>
-    <circle cx="${lx}" cy="${ly}" r="2" fill="var(--accent)"/></svg>`;
-}
-
-const chip = c => `<span class="geo-chip${c.miss ? ' miss' : ''}"${c.miss ? ' title="未命中归类关键词，请在 GEO_CLUSTERS 补词"' : ''}>${esc(c.name)} <b>${fmtPct(c.prob)}</b>` +
-  `<span class="chg ${c.chg7d > 0 ? 'up' : c.chg7d < 0 ? 'down' : ''}">${c.chg7d == null ? '' : (c.chg7d > 0 ? '+' : '') + c.chg7d.toFixed(1) + 'pp'}</span>` +
-  `<span class="n">${c.count} 档</span></span>`;
+const chip = R.pmChip;
 
 async function load() {
   const d = await R.get('/api/geo');
@@ -123,17 +62,17 @@ async function load() {
   const total = d.topics.reduce((s, t) => s + t.volume24hr, 0) || 1;
   document.getElementById('geo-topics').innerHTML = d.topics.map(t => {
     const h = t.headline;
-    return `<div class="geo-topic-card" onclick="location.hash='geo-${t.key}'">
-      <div class="geo-topic-top">
-        <span class="geo-topic-name">${esc(t.name)}</span>
-        <span class="geo-topic-share">占 24h 成交 ${(t.volume24hr / total * 100).toFixed(0)}%</span>
+    return `<div class="pm-topic-card" onclick="location.hash='geo-${t.key}'">
+      <div class="pm-topic-top">
+        <span class="pm-topic-name">${esc(t.name)}</span>
+        <span class="pm-topic-share">占 24h 成交 ${(t.volume24hr / total * 100).toFixed(0)}%</span>
       </div>
-      <div class="geo-topic-meta">${t.events.length} 事件 · ${t.clusters.length} 归类 · 24h ${fmtVol(t.volume24hr)}</div>
-      <div class="geo-topic-body">
-        <div class="geo-topic-focus">本周焦点 ${h ? `<b>${esc(h.name)}</b><br>均概率 <b>${fmtPct(h.prob)}</b>${h.chg7d != null ? `（7日 ${h.chg7d > 0 ? '+' : ''}${h.chg7d.toFixed(1)}pp）` : ''}` : '—'}</div>
-        ${sparkSvg(h && h.series)}
+      <div class="pm-topic-meta">${t.events.length} 事件 · ${t.clusters.length} 归类 · 24h ${fmtVol(t.volume24hr)}</div>
+      <div class="pm-topic-body">
+        <div class="pm-topic-focus">本周焦点 ${h ? `<b>${esc(h.name)}</b><br>均概率 <b>${fmtPct(h.prob)}</b>${h.chg7d != null ? `（7日 ${h.chg7d > 0 ? '+' : ''}${h.chg7d.toFixed(1)}pp）` : ''}` : '—'}</div>
+        ${R.spark(h && h.series)}
       </div>
-      <div class="geo-sharebar"><div class="geo-sharebar-fill" style="width:${(t.volume24hr / total * 100).toFixed(1)}%"></div></div>
+      <div class="pm-sharebar"><div class="pm-sharebar-fill" style="width:${(t.volume24hr / total * 100).toFixed(1)}%"></div></div>
     </div>`;
   }).join('');
 
@@ -164,7 +103,7 @@ async function load() {
         <tbody>${movers.slice(0, 8).map(m => `<tr style="cursor:pointer" onclick="location.hash='geo-${m.topic.key}'">
           <td>${esc(m.topic.name)}</td>
           <td>${esc(m.name)}</td>
-          <td><div class="geo-prob-cell"><div class="geo-odds-track"><div class="geo-odds-fill" style="width:${(m.prob * 100).toFixed(1)}%"></div></div><span class="geo-prob-num">${fmtPct(m.prob)}</span></div></td>
+          <td><div class="pm-prob-cell"><div class="pm-odds-track"><div class="pm-odds-fill" style="width:${(m.prob * 100).toFixed(1)}%"></div></div><span class="pm-prob-num">${fmtPct(m.prob)}</span></div></td>
           <td class="${m.chg7d > 0 ? 'up' : 'down'}">${m.chg7d > 0 ? '+' : ''}${m.chg7d.toFixed(1)}pp</td>
           <td style="color:var(--text-dim)">${m.count}</td>
         </tr>`).join('')}</tbody>
@@ -178,56 +117,41 @@ async function load() {
     sec.className = 're-section';
     sec.id = 'geo-' + t.key;
     sec.innerHTML = `<h2>${esc(t.name)} <small style="font-weight:400;color:var(--text-dim)">${t.events.length} 事件 · ${t.clusters.length} 归类 · 24h ${fmtVol(t.volume24hr)}</small></h2>
-      <div class="geo-chips">${t.clusters.map(chip).join('')}</div>`;
+      <div class="pm-chips">${t.clusters.map(chip).join('')}</div>`;
     // 先挂 DOM 再建图（R.mkChart 按 id 查 DOM，0 尺寸容器初始化不出 canvas）
     document.getElementById('geo-events').appendChild(sec);
 
-    // 归类均值概率多线图（每归类一条线，日期轴取并集，先对齐再建图——
-    // 主题切换时 mkChart 会拿原 option 重建，数据必须在闭包里）
+    // 归类均值概率多线图（每归类一条线，日期轴取并集——图样板在 R.probLines）
     const lined = t.clusters.filter(c => c.series.length > 1);
     if (lined.length) {
       const chartId = `geo-chart-${t.key}`;
       sec.insertAdjacentHTML('beforeend', `<div class="chart" id="${chartId}" style="height:${Math.max(220, 30 + lined.length * 28)}px"></div>`);
-      const dates = [...new Set(lined.flatMap(c => c.series.map(p => p.date)))].sort();
-      R.mkChart(chartId, c => R.lineOption({
-        legend: { data: lined.map(x => x.name), type: 'scroll' },
-        tooltip: { trigger: 'axis', valueFormatter: v => v == null ? '—' : (v * 100).toFixed(1) + '%' },
-        grid: { left: 44, right: 12, top: 36, bottom: 24 },
-        xAxis: { type: 'category', data: dates, axisLabel: { color: c.muted, fontSize: 10, formatter: v => R.md(v) }, axisLine: { lineStyle: { color: c.border } } },
-        yAxis: { type: 'value', max: 1, axisLabel: { color: c.muted, fontSize: 10, formatter: v => (v * 100).toFixed(0) + '%' }, splitLine: { lineStyle: { color: c.grid } } },
-        series: lined.map(x => {
-          const m = Object.fromEntries(x.series.map(p => [p.date, p.value]));
-          return {
-            name: x.name, type: 'line', showSymbol: false, smooth: true,
-            lineStyle: { width: 2 }, data: dates.map(dt => m[dt] ?? null),
-          };
-        }),
-      }, c));
+      R.mkChart(chartId, c => R.probLines(lined, c));
     }
 
     // 原始事件明细（Polymarket 英文原文，默认折叠，仅作出处引用）
     const det = document.createElement('details');
-    det.className = 'geo-raw';
+    det.className = 'pm-raw';
     det.innerHTML = `<summary>原始事件明细 · Polymarket 英文源（${t.events.length} 事件，外链可跳官方页）</summary>`;
     const multi = t.events.filter(e => (e.markets || []).length >= 2);
     const single = t.events.filter(e => (e.markets || []).length === 1);
     if (multi.length) {
       const grid = document.createElement('div');
-      grid.style.cssText = 'display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:12px';
+      grid.className = 'pm-ladder-grid';
       for (const e of multi) {
         const card = document.createElement('div');
         card.className = 're-card';
         card.innerHTML = `
           <div class="re-corridor-label">
-            <a class="geo-ev-link" href="https://polymarket.com/event/${esc(e.slug)}" target="_blank">${esc(e.title)}</a>
+            <a class="pm-ev-link" href="https://polymarket.com/event/${esc(e.slug)}" target="_blank">${esc(e.title)}</a>
           </div>
           <div style="font-size:11px;color:var(--text-dim);margin:2px 0 8px">${esc(e.markets[0].cluster)} · 到期 ${str10(e.end_date)} · 24h ${fmtVol(e.volume24hr)}</div>`;
         card.insertAdjacentHTML('beforeend', e.markets.slice(0, 6).map(m => `
-          <div class="geo-odds-row" title="${esc(m.question)}">
-            <span class="geo-odds-lab">${esc(m.label)}</span>
-            <div class="geo-odds-track"><div class="geo-odds-fill" style="width:${(m.prob * 100).toFixed(1)}%"></div></div>
-            <span class="geo-odds-pct">${fmtPct(m.prob)}</span>
-            <span class="geo-odds-chg">${fmtChg(m.chg7d)}</span>
+          <div class="pm-odds-row" title="${esc(m.question)}">
+            <span class="pm-odds-lab">${esc(m.label)}</span>
+            <div class="pm-odds-track"><div class="pm-odds-fill" style="width:${(m.prob * 100).toFixed(1)}%"></div></div>
+            <span class="pm-odds-pct">${fmtPct(m.prob)}</span>
+            <span class="pm-odds-chg">${fmtChg(m.chg7d)}</span>
           </div>`).join(''));
         if (e.markets.length > 6) {
           card.insertAdjacentHTML('beforeend', `<div style="font-size:11px;color:var(--text-dim);margin-top:4px">… 其余 ${e.markets.length - 6} 档见 Polymarket</div>`);
@@ -243,9 +167,9 @@ async function load() {
         <tbody>${single.map(e => {
           const m = e.markets[0];
           return `<tr title="${esc(m.question)}">
-            <td style="max-width:380px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"><a class="geo-ev-link" href="https://polymarket.com/event/${esc(e.slug)}" target="_blank">${esc(e.title)}</a></td>
+            <td style="max-width:380px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"><a class="pm-ev-link" href="https://polymarket.com/event/${esc(e.slug)}" target="_blank">${esc(e.title)}</a></td>
             <td style="color:var(--text-secondary);white-space:nowrap">${esc(m.cluster)}</td>
-            <td><div class="geo-prob-cell"><div class="geo-odds-track"><div class="geo-odds-fill" style="width:${(m.prob * 100).toFixed(1)}%"></div></div><span class="geo-prob-num">${fmtPct(m.prob)}</span></div></td>
+            <td><div class="pm-prob-cell"><div class="pm-odds-track"><div class="pm-odds-fill" style="width:${(m.prob * 100).toFixed(1)}%"></div></div><span class="pm-prob-num">${fmtPct(m.prob)}</span></div></td>
             <td>${fmtChg(m.chg7d)}</td>
             <td style="color:var(--text-dim)">${str10(e.end_date)}</td>
           </tr>`;
@@ -258,7 +182,7 @@ async function load() {
   // ── 归类未命中告警：新事件击穿关键词规则时的 actionable 清单 ──
   if (d.unmatched && d.unmatched.count) {
     const el = document.getElementById('geo-unmatched');
-    el.innerHTML = `<div class="geo-alert"><h3>⚠ ${d.unmatched.count} 个合约未命中中文归类关键词</h3>
+    el.innerHTML = `<div class="pm-alert"><h3>⚠ ${d.unmatched.count} 个合约未命中中文归类关键词</h3>
       <div>下列合约被兜底归入虚线的「其它事件」组。维护方式：往
       <code>src/polymarket_analysis.py → GEO_CLUSTERS</code> 对应主题补关键词（命中一条即归类）：</div>
       <div style="margin-top:4px">${d.unmatched.samples.map(u => `<div>· <b>${esc(u.topic)}</b> — ${esc(u.label)}</div>`).join('')}</div>
