@@ -1048,6 +1048,7 @@ TCHI,iShares MSCI China Multisector Tech ETF,global
 TDCL,GraniteShares 2x Long TDC Daily ETF,leveraged_inverse
 TDI,Touchstone Dynamic International ETF,global
 TDIV,First Trust NASDAQ Technology Dividend Index Fund,factor_income
+TDNA,T. Rowe Price Biotech ETF,theme
 TDOG,21shares Dogecoin ETF,broad
 TDOT,21shares Polkadot Staking ETF,broad
 TDSB,ETC Cabana Target Beta ETF,broad
@@ -1074,6 +1075,7 @@ TLG,Touchstone Large Company Growth ETF,high_beta
 TLT,iShares 20+ Year Treasury Bond ETF,bond
 TMB,Thornburg Multi Sector Bond ETF,bond
 TMED,T. Rowe Price Health Care ETF,broad
+TMID,T. Rowe Price Mid Cap Equity Research ETF,broad
 TMNL,T. Rowe Price Long Municipal Income ETF,bond
 TMNS,T. Rowe Price Short Municipal Income ETF,bond
 TMSF,T. Rowe Price Multi-Sector Income ETF,factor_income
@@ -1096,6 +1098,7 @@ TRUT,VanEck Technology TruSector ETF,broad
 TRUU,VanEck Utilities TruSector ETF,broad
 TSCM,TimesSquare Quality Mid Cap Growth ETF,factor_income
 TSDD,GraniteShares 2x Short TSLA Daily ETF,leveraged_inverse
+TSEE,T. Rowe Price Small Cap ETF,broad
 TSEL,Touchstone Sands Capital US Select Growth ETF,high_beta
 TSL,GraniteShares 1.25x Long TSLA Daily ETF,theme
 TSLG,Leverage Shares 2X Long TSLA Daily ETF,leveraged_inverse
@@ -1741,7 +1744,7 @@ BSV,Vanguard Short-Term Bond ETF,bond
 BTA,Beacon Tactical Alternatives Risk ETF,broad
 BTAL,AGF U.S. Market Neutral Anti-Beta Fund,broad
 BTC,Grayscale Bitcoin Mini Trust (BTC),crypto
-BTCC,Grayscale Bitcoin Covered Call ETF,crypto
+BTCC,Grayscale Bitcoin High Income ETF,crypto
 BTCI,NEOS Bitcoin High Income ETF,crypto
 BTCK,7RCC Spot Bitcoin and Carbon Credit Futures ETF,bond
 BTCL,T-Rex 2X Long Bitcoin Daily Target ETF,crypto
@@ -1860,6 +1863,7 @@ CGCP,Capital Group Core Plus Income ETF,factor_income
 CGCV,Capital Group Conservative Equity ETF,broad
 CGDG,Capital Group Dividend Growers ETF,factor_income
 CGDV,Capital Group Dividend Value ETF,factor_income
+CGFS,CG Flagship Equity ETF,broad
 CGGE,Capital Group Global Equity ETF,broad
 CGGG,Capital Group U.S. Large Growth ETF,high_beta
 CGGO,Capital Group Global Growth Equity ETF,high_beta
@@ -2429,7 +2433,7 @@ ESLV,Eventide Large Cap Value ETF,factor_income
 ESML,iShares ESG Aware MSCI USA Small-Cap ETF,broad
 ESSC,Eventide Small Cap ETF,broad
 ESUM,Eventide US Market ETF,broad
-ETCO,Grayscale Ethereum Covered Call ETF,crypto
+ETCO,Grayscale Ethereum High Income ETF,crypto
 ETFT,Fundsmith Equity ETF,broad
 ETH,Grayscale Ethereum Staking Mini ETF Shares,crypto
 ETHD,ProShares UltraShort Ether ETF,leveraged_inverse
@@ -3051,6 +3055,7 @@ HTEC,ROBO Global Healthcare Technology and Innovation ETF,high_beta
 HTRB,Hartford Total Return Bond ETF,bond
 HTUS,Hull Tactical US ETF,broad
 HULL,Corgi Shipping & Global Logistics ETF,broad
+HUMM,800VDC AI Datacenter Ecosystem ETF,theme
 HUMN,Roundhill Humanoid Robotics ETF,theme
 HUSV,First Trust Horizon Managed Volatility Domestic ETF,broad
 HVAC,AdvisorShares HVAC and Industrials ETF,broad
@@ -3818,6 +3823,7 @@ MMTM,State Street SPDR S&P 1500 Momentum Tilt ETF,factor_income
 MNA,NYLIM Merger Arbitrage ETF,broad
 MNBD,ALPS BBH Intermediate Municipal Bond ETF,bond
 MNGU,MicroSectors 3x Long MANGOS+ ex Private Companies ETNs,leveraged_inverse
+MNGZ,Yorkville America 2X Long MANGOS Plus Daily Target ETF,leveraged_inverse
 MNRS,Grayscale Bitcoin Miners ETF,commodity
 MNSX,Corgi MNST 2x Daily ETF,leveraged_inverse
 MNVR,Pacer Swan SOS Moderate (November) ETF,broad
@@ -4323,6 +4329,7 @@ PVEX,TrueShares ConVex Protect ETF,broad
 PVI,Invesco Floating Rate Municipal Income ETF,bond
 PWB,Invesco Large Cap Growth ETF,high_beta
 PWER,Nomura Energy Transition ETF,commodity
+PWRX,Westwood Salient Enhanced Power & Infrastructure ETF,broad
 PWRZ,TrueShares Eagle Global Renewable Energy Income ETF,commodity
 PWS,Pacer WealthShield ETF,broad
 PWV,Invesco Large Cap Value ETF,factor_income
