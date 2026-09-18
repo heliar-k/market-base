@@ -53,7 +53,7 @@ const REGIME_INFO = {
   np: { label: '负 Gamma + 正 Delta', desc: '现价在 Gamma Flip 下方，波动易放大，多头 delta 占优。' },
   nn: { label: '负 Gamma + 负 Delta', desc: '现价在 Gamma Flip 下方，delta 偏空，双重压力。' },
 };
-const BUCKET_NAMES = { '0DTE': '0DTE · 当日', '本周': '本周 · 1-7d', '月度': '月度 · 8-35d', '季度+': '季度+ · >35d' };
+const BUCKET_NAMES = { '0DTE': '0DTE · 快照当日', '本周': '本周 · 快照起 1-7d', '月度': '月度 · 8-35d', '季度+': '季度+ · >35d' };
 
 function fmtNum(v, d = 2) {
   return v === null || v === undefined ? '—' : Number(v).toLocaleString(undefined, { maximumFractionDigits: d });

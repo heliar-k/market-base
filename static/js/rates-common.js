@@ -55,8 +55,16 @@ const R = {
     };
   },
 
+  // 用户本地今天（ISO YYYY-MM-DD，可传偏移天数）：展示给用户的时间节点基准
+  // （倒计时/窗口过滤）。不用数据 as_of（可能滞后），也不用 toISOString()（UTC 在西区时区差一天）
+  todayISO: (offsetDays = 0) => {
+    const t = new Date(Date.now() + offsetDays * 864e5);
+    return `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, '0')}-${String(t.getDate()).padStart(2, '0')}`;
+  },
+
   // 时间轴标签简写 M/D（各页 time 轴 axisLabel.formatter 共用，免逐页重写）
-  md: (v) => { const t = new Date(v); return `${t.getMonth() + 1}/${t.getDate()}`; },
+  // 纯日期串按本地午夜解析（new Date("YYYY-MM-DD") 是 UTC 午夜，西区时区会错位一天）
+  md: (v) => { const t = new Date(typeof v === 'string' && v.length === 10 ? v + 'T00:00:00' : v); return `${t.getMonth() + 1}/${t.getDate()}`; },
 
   // HTML 转义（Polymarket / SEC 等外部原文入 innerHTML 前必过）
   esc: (s) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;')

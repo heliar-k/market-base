@@ -197,9 +197,11 @@ async function load() {
   // ── FOMC 倒计时 ──
   const fomcEl = document.getElementById('db-fomc');
   const fomc = d.fomc;
-  if (fomc?.next) {
-    const days = Math.round((new Date(fomc.next.year, fomc.next.month - 1, fomc.next.end_day) - new Date()) / 86400000);
-    const next = `${fomc.next.year}-${String(fomc.next.month).padStart(2, '0')}-${String(fomc.next.end_day).padStart(2, '0')}`;
+  // 静态 JSON 冻结了构建期日历：按打开页面时间重选下一场；口径统一 end_day + ceil
+  const nx = (fomc?.meetings || [fomc?.next]).find((m) => m && m.end_day >= R.todayISO());
+  if (nx) {
+    const days = Math.ceil((new Date(nx.year, nx.month - 1, nx.end_day) - new Date()) / 86400000);
+    const next = `${nx.year}-${String(nx.month).padStart(2, '0')}-${String(nx.end_day).padStart(2, '0')}`;
     let exp = '';
     if (rex.status === 'fulfilled' && rex.value?.meetings?.length) {
       const m = rex.value.meetings[0];

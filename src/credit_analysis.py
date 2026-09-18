@@ -507,6 +507,8 @@ def cds(df_rates: pd.DataFrame, df_yf: pd.DataFrame) -> dict:
                 "kbwb_chg": kb_chg,
                 "spx_chg": sp_chg,
                 "days": days,
+                # 快照末点日期：前端标注，避免停更时用户当成近期行情
+                "as_of": kb.index[-1].strftime("%Y-%m-%d"),
             }
             # 近 30 日归一化序列（起=100），供双线图
             n = min(30, len(kb), len(sp))

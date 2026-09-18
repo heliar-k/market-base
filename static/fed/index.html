@@ -199,7 +199,8 @@ function renderHawkish(root, data) {
   // 默认只绘近一年：立场随周期漂移，更早的分数对判断当前鹰鸽参考意义有限（可切全部）
   const ts = (d) => new Date(+d.slice(0, 4), +d.slice(4, 6) - 1, +d.slice(6, 8)).getTime();
   const fmtDate = (d) => `${d.slice(0, 4)}-${d.slice(4, 6)}-${d.slice(6, 8)}`;
-  const anchor = ts(tl.reduce((m, x) => (x.date > m ? x.date : m), '0'));
+  // 窗口锚 = max(打开页面日, 数据末点)：数据停更时「近一年」仍符合用户感知
+  const anchor = Math.max(Date.now(), ts(tl.reduce((m, x) => (x.date > m ? x.date : m), '0')));
   const mk = (arr, type, jitterIt = false) => {
     let pts = arr.filter(x => x.type === type).map(x => ({ name: x.name || '—', date: x.date, score: x.score }));
     if (jitterIt) {
@@ -363,7 +364,10 @@ function renderOdds(root, data) {
       wrap.appendChild(card);
       const withHist = e.markets.filter(m => (od.history[m.id] || []).length > 1);
       // 各档日期可能不齐（市场上线晚/中间缺日）：union 轴 + 按日期对齐，缺失填 null（防索引错位）
-      const dates = [...new Set(withHist.flatMap(m => R.ts(od.history[m.id])))].sort();
+      let dates = [...new Set(withHist.flatMap(m => R.ts(od.history[m.id])))].sort();
+      // 「近 30 天」以打开页面日为基准；数据比 30 天更旧时退回全量（防空图）
+      const recent = dates.filter((d) => d >= R.todayISO(-30));
+      if (recent.length >= 2) dates = recent;
       const byDate = Object.fromEntries(withHist.map(m =>
         [m.id, Object.fromEntries(od.history[m.id].map(p => [p.date, p.value]))]));
       const palette = [R.colors().blue, R.colors().orange, R.colors().purple, R.colors().green, R.colors().gray];
@@ -425,12 +429,13 @@ async function load() {
   document.getElementById('re-gen').textContent =
     `鹰鸽评分：${R.genText(data.generator)}`;
 
-  // 下次 FOMC 会议倒计时
-  const nx = cal.next;
+  // 下次 FOMC 会议倒计时：静态 JSON 冻结了构建期日历，按打开页面时间重选下一场；
+  // 天数口径统一为 end_day（决议日）+ ceil，与 dashboard/daily 页一致
+  const nx = (cal.meetings || [cal.next]).find((m) => m && m.end_day >= R.todayISO()) || null;
   const latestStmt = data.statements.find(s => s.kind === 'statement');
   let days = '—';
   if (nx) {
-    const target = new Date(nx.year, nx.month - 1, nx.start_day);
+    const target = new Date(nx.year, nx.month - 1, nx.end_day);
     days = Math.ceil((target - new Date()) / 86400000);
   }
   const nextTxt = nx ? `${nx.month} 月 ${nx.start_day}-${nx.end_day} 日` : '—';
@@ -438,7 +443,7 @@ async function load() {
   // ── 统计卡 ──
   document.getElementById('cards').replaceChildren(R.cards([
     { label: '鹰鸽指示器', value: `${ind.score > 0 ? '+' : ''}${ind.score} 分`, sub: `${ind.label} · 范围 −5 ~ +5（最近 ${ind.sample} 条）`, accent: true },
-    { label: '下次 FOMC', value: days > 0 ? `${days} 天` : '会议中', sub: nextTxt },
+    { label: '下次 FOMC', value: nx ? (days > 0 ? `${days} 天` : '会议中') : '—', sub: nextTxt },
     { label: '目标利率', value: `${Number(cal.target_lower).toFixed(2)}–${Number(cal.target_upper).toFixed(2)}%`, sub: '联邦基金目标区间' },
     { label: '最新声明', value: latestStmt?.label, sub: latestStmt?.date },
     { label: '最新演讲', value: data.speeches[0]?.label, sub: data.speeches[0]?.speaker },

@@ -395,6 +395,19 @@ def get_fomc_calendar() -> dict:
             target_lower = float(tarl.iloc[-1])
             target_upper = float(taru.iloc[-1])
 
+    # 未来会议列表（end_day >= 今天，含进行中场）：静态站 JSON 会被固化，
+    # 前端按打开页面时间从此列表重选下一场；next 保留兼容旧页面
+    upcoming_meetings = [
+        {
+            "year": m.year,
+            "month": m.month,
+            "start_day": m.start_day,
+            "end_day": m.end_day,
+        }
+        for m in sorted(FOMC_MEETINGS)
+        if date(m.year, m.month, m.end_day) >= today
+    ][:4]
+
     return {
         "current": (
             {
@@ -418,6 +431,7 @@ def get_fomc_calendar() -> dict:
         ),
         "target_lower": target_lower,
         "target_upper": target_upper,
+        "meetings": upcoming_meetings,
     }
 
 
@@ -1187,8 +1201,9 @@ def get_rates_auctions() -> dict:
     upcoming = []
     if upcoming_path.exists():
         up = pd.read_csv(upcoming_path, index_col="auction_date", parse_dates=True)
-        # 按日期窗口过滤（未来 21 天），源文件含历史记录不能按行数截断
-        window_end = today + pd.Timedelta(days=21)
+        # 按日期窗口过滤，源文件含历史记录不能按行数截断。
+        # 窗口给 45 天（展示口径 21 天）：静态站构建期固化，前端按打开时间重切 21 天
+        window_end = today + pd.Timedelta(days=45)
         up = up.loc[(up.index >= today) & (up.index <= window_end)].sort_index()
         for d, r in up.iterrows():
             upcoming.append(

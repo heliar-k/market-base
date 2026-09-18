@@ -78,11 +78,15 @@ async function load() {
   asec.className = 're-section';
   const good = auc.avg_cover_10_coupon !== null && auc.avg_cover_10_coupon >= 2.5;
   const borrow = auc.borrowing;
+  // 拍卖日历按打开页面时间重切 21 天（构建期窗口给 45 天，静态站不会停在旧窗口）
+  const upc = (auc.upcoming || []).filter(
+    (u) => u.auction_date >= R.todayISO() && u.auction_date <= R.todayISO(21),
+  );
   asec.innerHTML = `<h2>国债拍卖</h2><p style="margin:0">Bid-to-Cover = 投标倍数（>2.5x 需求良好，<2.0x 警戒）；间接% = 外国官方+国际机构接受占比；Tail = 中标利率 − 中位投标利率（bp，正 = 弱于预期）。</p>`;
   document.getElementById('auctions').appendChild(asec);
   asec.appendChild(R.cards([
     { label: '近 10 场付息券平均 Bid-to-Cover', value: auc.avg_cover_10_coupon === null ? '—' : `${auc.avg_cover_10_coupon.toFixed(2)}x`, sub: good ? '需求良好' : '需求偏弱', accent: true },
-    { label: '未来 3 周拍卖场次', value: auc.upcoming_count, sub: '按拍卖日排序见下方日历' },
+    { label: '未来 3 周拍卖场次', value: upc.length, sub: '按拍卖日排序见下方日历' },
     ...(borrow && borrow.current_b ? [{ label: `QRA 借款估算（${borrow.quarter}）`, value: `$${borrow.current_b}B`, sub: borrow.chg_b ? `较上次 ${borrow.chg_b}B ${borrow.chg_dir === 'higher' ? '↑' : '↓'}（${borrow.date}）` : borrow.date, accent: borrow.chg_dir === 'higher' }] : []),
   ]));
 
@@ -219,7 +223,7 @@ async function load() {
   // ── 未来日历 ──
   document.getElementById('re-upcoming').replaceChildren(R.table(
     ['拍卖日', '类型', '期限', '发行额', '结算日', '重开'],
-    auc.upcoming.map(u => ({ date: u.auction_date, type: u.security_type, term: u.security_term, amt: u.offering_b, issue: u.issue_date, rep: u.reopening })),
+    upc.map(u => ({ date: u.auction_date, type: u.security_type, term: u.security_term, amt: u.offering_b, issue: u.issue_date, rep: u.reopening })),
     { amt: R.fmtB, rep: v => (v === 'Yes' ? '✓' : '') },
   ));
 

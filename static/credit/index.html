@@ -238,7 +238,7 @@ function renderCds(root, d) {
     const color = dv < -0.5 ? 'var(--accent)' : 'var(--text)';
     bank += `<div class="value" style="color:${color}">${dv > 0 ? '+' : ''}${dv.toFixed(2)}<span class="unit">pct</span></div>
       <div class="sub">KBWB ${d.bank.days} 日 ${d.bank.kbwb_chg > 0 ? '+' : ''}${d.bank.kbwb_chg.toFixed(2)}% · ^GSPC ${d.bank.spx_chg > 0 ? '+' : ''}${d.bank.spx_chg.toFixed(2)}% · ${dir}</div>
-      <div class="date">近 ${d.bank.days} 个交易日（快照数据积累中，14 日口径需约 15 个交易日）</div>`;
+      <div class="date">近 ${d.bank.days} 个交易日 · 截至 ${d.bank.as_of || '—'}（快照数据积累中，14 日口径需约 15 个交易日）</div>`;
   } else {
     bank += '<div class="sub">KBWB / SPX 快照不足（需 ≥2 个交易日）</div>';
   }

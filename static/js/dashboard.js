@@ -144,9 +144,11 @@ function renderAlerts() {
 
   let fomcHTML = '';
   const fomc = v.fomc;
-  if (fomc?.next) {
-    const days = Math.round((new Date(fomc.next.year, fomc.next.month - 1, fomc.next.end_day) - new Date()) / 86400000);
-    const next = `${fomc.next.year}-${String(fomc.next.month).padStart(2, '0')}-${String(fomc.next.end_day).padStart(2, '0')}`;
+  const nx = (fomc?.meetings || [fomc?.next]).find((m) => m && m.end_day >= new Date().toLocaleDateString('sv'));
+  if (nx) {
+    // 静态 JSON 冻结了构建期日历：按打开页面时间重选下一场；口径统一 end_day + ceil
+    const days = Math.ceil((new Date(nx.year, nx.month - 1, nx.end_day) - new Date()) / 86400000);
+    const next = `${nx.year}-${String(nx.month).padStart(2, '0')}-${String(nx.end_day).padStart(2, '0')}`;
     fomcHTML = `<span class="dash-chip">FOMC ${next}${days > 0 ? `（${days} 天后）` : '（进行中）'}</span>`;
   }
 
@@ -195,12 +197,11 @@ function renderTable() {
     return;
   }
   const rows = d.value.indicators?.rows || [];
-  const maxAsOf = d.value.indicators?.as_of;
   wrap.innerHTML = `
     <div class="dash-table-wrap"><table class="dash-table">
       <thead><tr><th>指标 / 研究入口</th><th>最新值</th><th>Δ5 观测</th><th>Δ20 观测</th><th>近 20 观测</th><th>数据截至</th><th>时效</th></tr></thead>
       <tbody>${rows.map(r => {
-        const [fresh, cls] = freshness(r.as_of, maxAsOf);
+        const [fresh, cls] = freshness(r.as_of);
         const link = LINKS[r.key];
         const nameCell = link ? `<a href="${link}" target="_blank">${r.name} ↗</a>` : r.name;
         const spark = sparkSVG(r.spark);
@@ -397,10 +398,11 @@ function fmtChg(unit, v) {
   return `<span class="${v > 0 ? 'up' : v < 0 ? 'down' : ''}">${s}${v.toFixed(2)}%</span>`;
 }
 
-// 时效：行数据日期距全表最新 ≤4 自然日 → 正常（覆盖周末），否则滞后
-function freshness(rowAsOf, maxAsOf) {
-  if (!rowAsOf || !maxAsOf) return ['—', ''];
-  const lag = (new Date(maxAsOf) - new Date(rowAsOf)) / 86400000;
+// 时效：行数据日期距打开页面当天 ≤4 自然日 → 正常（覆盖周末），否则滞后。
+// 基准是用户「今天」而非全表最新日——整表停更时不能误报「时效正常」
+function freshness(rowAsOf) {
+  if (!rowAsOf) return ['—', ''];
+  const lag = (Date.now() - new Date(rowAsOf + 'T00:00:00')) / 86400000;
   return lag <= 4 ? ['时效正常', ''] : [`滞后 ${Math.round(lag)} 天`, 'down'];
 }
 

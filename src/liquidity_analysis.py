@@ -981,7 +981,8 @@ def page_rrp_tga() -> dict:
         "iorb": iorb,
         "ffr_upper": dff,
     }
-    out["calendar"] = forward_calendar(14)
+    # 给 21 天（展示口径 14 天）：静态站构建期固化，前端按打开时间重切 14 天
+    out["calendar"] = forward_calendar(21)
     out["data_date"] = _data_date(dts_tga) if not dts_tga.empty else None
     srf = _csv(ROOT / "data" / "fred/liquidity/srf.csv")
     # TGA 优先 DTS 日度余额（更实时）；净流动性口径用 WTREGEN（与定义一致）

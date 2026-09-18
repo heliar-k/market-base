@@ -268,7 +268,7 @@ function renderRadar() {
       数据来源：Wikipedia Nasdaq-100 当前成分股 · 价格日期 ${r.date}</div>`;
   sec.innerHTML += statCards([
     { label: '覆盖率', value: `${r.price_share == null ? '—' : r.price_share.toFixed(1)}%`, sub: `${r.rows}/${r.total} ticker 有价格` },
-    { label: '上涨家数', value: `${r.today_up_pct == null ? '—' : r.today_up_pct.toFixed(1)}%`, sub: `${r.today_up}/${r.rows} 今日上涨` },
+    { label: '上涨家数', value: `${r.today_up_pct == null ? '—' : r.today_up_pct.toFixed(1)}%`, sub: `${r.today_up}/${r.rows} 最近交易日上涨` },
     { label: '50DMA 上方', value: `${r.above50_pct == null ? '—' : r.above50_pct.toFixed(1)}%`, sub: '短中期内部动能' },
     { label: '200DMA 上方', value: `${r.above200_pct == null ? '—' : r.above200_pct.toFixed(1)}%`, sub: '长期趋势健康度' },
     { label: '20 日中位数', value: fp(r.med20), cls: (r.med20 || 0) > 0 ? 'up' : 'down', sub: '不按市值权重的典型个股 20 日表现' },

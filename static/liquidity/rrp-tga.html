@@ -69,11 +69,18 @@ async function load() {
     { label: 'SRF 使用', value: fmtCur(cur.srf_m, ' 百万'), sub: '银行正使用 SRF 即为紧张信号' },
   ]));
 
-  // ── 未来 14 天热力 ──
+  // ── 未来 14 天热力：按打开页面时间重切窗口（构建期给 21 天），净冲击由前端重算 ──
   const cal = d.calendar || {};
-  const net7 = cal.net_7d_b, net14 = cal.net_14d_b;
+  const heatDays = (cal.days || []).filter(
+    (r) => r.date >= R.todayISO() && r.date <= R.todayISO(14),
+  );
+  const sumNet = (n) => {
+    const s = heatDays.filter((r) => r.date <= R.todayISO(n));
+    return s.length ? s.reduce((a, r) => a + (r.net_b || 0), 0) : null;
+  };
+  const net7 = sumNet(7), net14 = sumNet(14);
   const f1 = v => (v >= 0 ? '+' : '') + v.toFixed(1) + 'B';
-  const heat = (cal.days || []).map(r => `
+  const heat = heatDays.map(r => `
     <tr>
       <td style="white-space:nowrap">${r.date} <span style="color:var(--text-dim)">${r.weekday}</span></td>
       <td style="white-space:nowrap;color:var(--text-secondary);font-size:12px">${(r.flows || []).map(f => `${f.label} ${f.amount_b >= 0 ? '+' : ''}${f.amount_b.toFixed(1)}B`).join(' · ') || '—'}</td>

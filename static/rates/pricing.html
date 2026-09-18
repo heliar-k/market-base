@@ -172,7 +172,7 @@ const pmAgg = (m) => {
   const b = m.polymarket?.buckets;
   return b ? { cut: b.cut25 + b.cut50, hold: b.hold, hike: b.hike25 + b.hike50 } : null;
 };
-// T-N 倒计时标签（基准日 = rate-expectations 快照日，load 里赋值）
+// T-N 倒计时基准 = 打开页面当天（load 里赋值；数据 as_of 可能滞后，不能当今天用）
 let AS_OF = null;
 const dLabelGlobal = (dd) => {
   const n = Math.round((new Date(dd + 'T00:00:00') - new Date(AS_OF + 'T00:00:00')) / 864e5);
@@ -193,8 +193,7 @@ async function load() {
   const re = await reRes.json();
   const fomc = fomcRes.ok ? await fomcRes.json() : null;
   const hist = (histRes && histRes.meetings) || {};
-  // T-N 倒计时基准 = 构建/请求日（数据停更时 as_of 会滞后，倒计时失真），旧 JSON 回退 as_of
-  AS_OF = re.today || re.as_of;
+  AS_OF = R.todayISO();
 
   const segs = [d.as_of];
   if (re.polymarket_as_of) segs.push(['Polymarket', re.polymarket_as_of]);
