@@ -219,9 +219,10 @@ async function load() {
     card('10Y-2Y 利差', last(d.spread_2s10), '(10Y−2Y) %'),
   ]));
 
-  // hero 取下一场未结束会议（快照含刚结束的会议行，meetings[0] 可能是历史场）
-  renderHero(re.meetings.find((m) => m.meeting_date >= AS_OF) || re.meetings[re.meetings.length - 1]);
-  renderTable(re.meetings);
+  // hero 取下一场未结束会议；全部过期（数据停更）时显空态，不回退到已结束会议
+  // （回退会重现「会后仍显示旧会议定价」原 bug）
+  renderHero(re.meetings.find((m) => m.meeting_date >= AS_OF) || null);
+  renderTable(re.meetings.filter((m) => m.meeting_date >= AS_OF));
   renderConvChart(re.meetings, hist);
 
   // ── 名义/实际/BEI + 期限溢价 ──

@@ -143,10 +143,10 @@ function renderAlerts() {
     : '跨资产信号分化，无主导情景';
 
   let fomcHTML = '';
-  const fomc = v.fomc;
-  const nx = (fomc?.meetings || [fomc?.next]).find((m) => m && m.end_day >= new Date().toLocaleDateString('sv'));
+  const nx = R.nextMeeting(v.fomc);
   if (nx) {
-    // 静态 JSON 冻结了构建期日历：按打开页面时间重选下一场；口径统一 end_day + ceil
+    // 静态 JSON 冻结了构建期日历：按打开页面时间重选下一场（R.nextMeeting 单源）；
+    // 天数口径统一 end_day + ceil
     const days = Math.ceil((new Date(nx.year, nx.month - 1, nx.end_day) - new Date()) / 86400000);
     const next = `${nx.year}-${String(nx.month).padStart(2, '0')}-${String(nx.end_day).padStart(2, '0')}`;
     fomcHTML = `<span class="dash-chip">FOMC ${next}${days > 0 ? `（${days} 天后）` : '（进行中）'}</span>`;

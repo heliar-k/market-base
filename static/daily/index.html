@@ -120,10 +120,12 @@ function sparkSVG(points) {
   return `<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" style="vertical-align:middle" class="${up ? 'db-spark up' : 'db-spark down'}">
     <polyline points="${xy.join(' ')}" fill="none" stroke-width="1.5"/></svg>`;
 }
-// 时效：行数据日期距全表最新 ≤4 自然日 → 正常（覆盖周末），否则滞后
-function freshness(rowAsOf, maxAsOf) {
-  if (!rowAsOf || !maxAsOf) return ['—', ''];
-  const lag = (new Date(maxAsOf) - new Date(rowAsOf)) / 86400000;
+// 时效：行数据日期距打开页面当天 ≤4 自然日 → 正常（覆盖周末），否则滞后。
+// 基准是用户「今天」而非全表最新日——整表停更时不能误报「时效正常」
+// （与 dashboard.js freshness 同逻辑：SPA 不加载本页脚本，两处同步维护）
+function freshness(rowAsOf) {
+  if (!rowAsOf) return ['—', ''];
+  const lag = (Date.now() - new Date(rowAsOf + 'T00:00:00')) / 86400000;
   return lag <= 4 ? ['时效正常', ''] : [`滞后 ${Math.round(lag)} 天`, 'down'];
 }
 // 读法行方向语义：风险指标（VIX/OAS）上行 = 压力 = down 红；其余上行 = up 绿
@@ -197,8 +199,7 @@ async function load() {
   // ── FOMC 倒计时 ──
   const fomcEl = document.getElementById('db-fomc');
   const fomc = d.fomc;
-  // 静态 JSON 冻结了构建期日历：按打开页面时间重选下一场；口径统一 end_day + ceil
-  const nx = (fomc?.meetings || [fomc?.next]).find((m) => m && m.end_day >= R.todayISO());
+  const nx = R.nextMeeting(fomc);
   if (nx) {
     const days = Math.ceil((new Date(nx.year, nx.month - 1, nx.end_day) - new Date()) / 86400000);
     const next = `${nx.year}-${String(nx.month).padStart(2, '0')}-${String(nx.end_day).padStart(2, '0')}`;
@@ -216,14 +217,13 @@ async function load() {
   }
 
   // ── 跨资产变化表 + 读法行联动 ──
-  const maxAsOf = ind.as_of;
   const readings = {};
   (d.readings || []).forEach(r => readings[r.key] = r);
   const html = `
     <div class="re-table-wrap"><table class="re-table">
       <thead><tr><th>指标 / 研究入口</th><th>最新值</th><th>Δ5 观测</th><th>Δ20 观测</th><th>近 20 观测</th><th>数据截至</th><th>时效</th></tr></thead>
       <tbody>${ind.rows.map(r => {
-        const [fresh, cls] = freshness(r.as_of, maxAsOf);
+        const [fresh, cls] = freshness(r.as_of);
         const link = LINKS[r.key];
         const nameCell = link ? `<a href="${link}">${r.name} ↗</a>` : r.name;
         const spark = sparkSVG(r.spark);

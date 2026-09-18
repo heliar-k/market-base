@@ -770,8 +770,6 @@ def get_rate_expectations() -> dict:
 
     return {
         "as_of": latest_date.strftime("%Y-%m-%d"),
-        # 构建/请求日：前端 T-N 倒计时与会议过滤的基准（不用 as_of，数据可能滞后）
-        "today": date.today().strftime("%Y-%m-%d"),
         # 期货数据实际日期（最早值）：任一合约陈旧即在此暴露，与快照日 as_of 区分
         "zq_as_of": min(
             (m["zq_as_of"] for m in meetings if m["zq_as_of"]), default=None

@@ -69,10 +69,11 @@ async function load() {
     { label: 'SRF 使用', value: fmtCur(cur.srf_m, ' 百万'), sub: '银行正使用 SRF 即为紧张信号' },
   ]));
 
-  // ── 未来 14 天热力：按打开页面时间重切窗口（构建期给 21 天），净冲击由前端重算 ──
+  // ── 未来 14 天热力：按打开页面时间重切窗口（构建期给 21 天），净冲击由前端重算。
+  // 口径与 forward_calendar 同步维护：窗口 = (今天, 今天+N]，不含今天 ──
   const cal = d.calendar || {};
   const heatDays = (cal.days || []).filter(
-    (r) => r.date >= R.todayISO() && r.date <= R.todayISO(14),
+    (r) => r.date > R.todayISO() && r.date <= R.todayISO(14),
   );
   const sumNet = (n) => {
     const s = heatDays.filter((r) => r.date <= R.todayISO(n));

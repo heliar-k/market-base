@@ -431,7 +431,7 @@ async function load() {
 
   // 下次 FOMC 会议倒计时：静态 JSON 冻结了构建期日历，按打开页面时间重选下一场；
   // 天数口径统一为 end_day（决议日）+ ceil，与 dashboard/daily 页一致
-  const nx = (cal.meetings || [cal.next]).find((m) => m && m.end_day >= R.todayISO()) || null;
+  const nx = R.nextMeeting(cal);
   const latestStmt = data.statements.find(s => s.kind === 'statement');
   let days = '—';
   if (nx) {

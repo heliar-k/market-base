@@ -62,6 +62,16 @@ const R = {
     return `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, '0')}-${String(t.getDate()).padStart(2, '0')}`;
   },
 
+  // 下一场未结束会议（end_day >= 今天）：静态 JSON 冻结了构建期日历，按打开时间从
+  // meetings 重选；旧 JSON 无 meetings 时回退 next。注意 end_day 是日号（int），
+  // 必须先拼成完整 ISO 串再与 todayISO 比较（int 对日期串是 NaN 比较恒 false）
+  nextMeeting: (fomc) => {
+    const list = fomc?.meetings || (fomc?.next ? [fomc.next] : []);
+    const today = R.todayISO();
+    const isoEnd = (m) => `${m.year}-${String(m.month).padStart(2, '0')}-${String(m.end_day).padStart(2, '0')}`;
+    return list.find((m) => m && isoEnd(m) >= today) || null;
+  },
+
   // 时间轴标签简写 M/D（各页 time 轴 axisLabel.formatter 共用，免逐页重写）
   // 纯日期串按本地午夜解析（new Date("YYYY-MM-DD") 是 UTC 午夜，西区时区会错位一天）
   md: (v) => { const t = new Date(typeof v === 'string' && v.length === 10 ? v + 'T00:00:00' : v); return `${t.getMonth() + 1}/${t.getDate()}`; },
