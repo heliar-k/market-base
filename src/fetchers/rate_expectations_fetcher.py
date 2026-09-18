@@ -202,8 +202,11 @@ def fetch_rate_expectations() -> tuple[pd.DataFrame, pd.DataFrame]:
     logger.info(f"当前目标区间: {current_lo:.2f}%-{current_hi:.2f}%")
 
     # ── 筛选未来 FOMC 会议 ──
+    # 按会议结束日比较（非月份）：会后当月合约定价已无意义，不能再入选
     future = [
-        m for m in FOMC_MEETINGS if (m.year, m.month) >= (today.year, today.month)
+        m
+        for m in FOMC_MEETINGS
+        if (m.year, m.month, m.end_day) >= (today.year, today.month, today.day)
     ]
     if not future:
         logger.warning("无未来 FOMC 会议")
@@ -221,6 +224,10 @@ def fetch_rate_expectations() -> tuple[pd.DataFrame, pd.DataFrame]:
         if result is None:
             continue
         settle, as_of = result
+        # 结算日晚于会议结束日 = 价格已反映决议，概率无意义，不写入快照
+        if as_of > f"{meeting.year}-{meeting.month:02d}-{meeting.end_day:02d}":
+            logger.info(f"  {contract}: 会议已结束（结算 {as_of}），跳过")
+            continue
         logger.info(
             f"  {contract}: settle={settle:.4f} (as of {as_of})"
             f" → implied={100 - settle:.4f}%"

@@ -703,6 +703,9 @@ def get_rate_expectations() -> dict:
     latest = latest.drop_duplicates(subset=["meeting_date"])
     # 会议按日期升序：最近的一场排在最上
     latest = latest.sort_values("meeting_date")
+    # 过滤已结束会议：基准 = 页面构建/请求时的今天（非数据快照日——数据停更时
+    # 快照日会早于会议结束，导致会后行继续显示）。会议当天凌晨采样时尚未开会，保留。
+    latest = latest[latest["meeting_date"] >= date.today().strftime("%Y-%m-%d")]
 
     meetings = []
     for _, row in latest.iterrows():
@@ -753,6 +756,8 @@ def get_rate_expectations() -> dict:
 
     return {
         "as_of": latest_date.strftime("%Y-%m-%d"),
+        # 构建/请求日：前端 T-N 倒计时与会议过滤的基准（不用 as_of，数据可能滞后）
+        "today": date.today().strftime("%Y-%m-%d"),
         # 期货数据实际日期（最早值）：任一合约陈旧即在此暴露，与快照日 as_of 区分
         "zq_as_of": min(
             (m["zq_as_of"] for m in meetings if m["zq_as_of"]), default=None

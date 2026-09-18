@@ -193,7 +193,8 @@ async function load() {
   const re = await reRes.json();
   const fomc = fomcRes.ok ? await fomcRes.json() : null;
   const hist = (histRes && histRes.meetings) || {};
-  AS_OF = re.as_of;
+  // T-N 倒计时基准 = 构建/请求日（数据停更时 as_of 会滞后，倒计时失真），旧 JSON 回退 as_of
+  AS_OF = re.today || re.as_of;
 
   const segs = [d.as_of];
   if (re.polymarket_as_of) segs.push(['Polymarket', re.polymarket_as_of]);
@@ -220,7 +221,7 @@ async function load() {
   ]));
 
   // hero 取下一场未结束会议（快照含刚结束的会议行，meetings[0] 可能是历史场）
-  renderHero(re.meetings.find((m) => m.meeting_date >= re.as_of) || re.meetings[re.meetings.length - 1]);
+  renderHero(re.meetings.find((m) => m.meeting_date >= AS_OF) || re.meetings[re.meetings.length - 1]);
   renderTable(re.meetings);
   renderConvChart(re.meetings, hist);
 
