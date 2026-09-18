@@ -380,34 +380,20 @@ def get_fomc_calendar() -> dict:
         elif next_meeting is None:
             next_meeting = m
 
-    # 从 rates CSV 中查找 current meeting 对应的目标利率
+    # 当前目标区间 = CSV 最后一个非空 DFEDTARL/U（与 /api/rates/fed-funds 同口径）。
+    # 不能锚定会议结束日：FRED 在决议次日才切换新区间，结束日当天取到的永远是旧区间。
     target_lower = None
     target_upper = None
-    if current_meeting:
-        try:
-            df = read_macro_category("rates")
-        except FileNotFoundError:
-            df = None
-        if df is not None:
-            meeting_date = pd.Timestamp(
-                year=current_meeting.year,
-                month=current_meeting.month,
-                day=current_meeting.end_day,
-            )
-            # 找 meeting 结束后最近的非空目标利率
-            if meeting_date in df.index:
-                row = df.loc[meeting_date]
-                if pd.notna(row.get("DFEDTARL")):
-                    target_lower = float(row["DFEDTARL"])
-                if pd.notna(row.get("DFEDTARU")):
-                    target_upper = float(row["DFEDTARU"])
-            if target_lower is None or target_upper is None:
-                # fallback: 向后查找最近的非空值
-                after = df.loc[meeting_date:].dropna(subset=["DFEDTARL", "DFEDTARU"])
-                if not after.empty:
-                    r = after.iloc[0]
-                    target_lower = target_lower or float(r["DFEDTARL"])
-                    target_upper = target_upper or float(r["DFEDTARU"])
+    try:
+        df = read_macro_category("rates")
+    except FileNotFoundError:
+        df = None
+    if df is not None:
+        tarl = df["DFEDTARL"].dropna() if "DFEDTARL" in df else pd.Series(dtype=float)
+        taru = df["DFEDTARU"].dropna() if "DFEDTARU" in df else pd.Series(dtype=float)
+        if not tarl.empty and not taru.empty:
+            target_lower = float(tarl.iloc[-1])
+            target_upper = float(taru.iloc[-1])
 
     return {
         "current": (

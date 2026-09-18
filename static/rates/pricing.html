@@ -219,7 +219,8 @@ async function load() {
     card('10Y-2Y 利差', last(d.spread_2s10), '(10Y−2Y) %'),
   ]));
 
-  renderHero(re.meetings[0]);
+  // hero 取下一场未结束会议（快照含刚结束的会议行，meetings[0] 可能是历史场）
+  renderHero(re.meetings.find((m) => m.meeting_date >= re.as_of) || re.meetings[re.meetings.length - 1]);
   renderTable(re.meetings);
   renderConvChart(re.meetings, hist);
 
@@ -297,7 +298,7 @@ function renderHero(m) {
   const exp = expCls(m.expectation);
   el.innerHTML = `
     <div class="hc-head" style="position:relative"><span class="hc-date">${m.meeting_date}</span>
-      <span class="hc-tag">${dLabelGlobal(m.meeting_date)} · ${m.contract}</span>
+      <span class="hc-tag">${dLabelGlobal(m.meeting_date)} · ${m.contract_used || m.contract}</span>
       <span class="re-expectation ${exp}" style="position:absolute;right:0;top:2px">${m.expectation}</span></div>
     <div class="hc-verdict"><div class="duel">${duel}</div></div>
     <div class="hc-bk">${rows}</div>
