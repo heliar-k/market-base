@@ -647,7 +647,6 @@ LEGR,First Trust Indxx Innovative Transaction & Process ETF,broad
 LEND,SEI High Yield Bond & Alternative Credit ETF,bond
 LEXI,Alexis Practical Tactical ETF,broad
 LFSC,F/m Emerald Life Sciences Innovation ETF,high_beta
-LGCF,Themes US Cash Flow Champions ETF,broad
 LGDS,JPMorgan Fundamental Data Science Large Growth ETF,high_beta
 LGRO,Level Four Large Cap Growth Active ETF,high_beta
 LINT,Direxion Daily INTC Bull 2X ETF,leveraged_inverse
@@ -896,6 +895,7 @@ QQLV,Invesco QQQ Low Volatility ETF,factor_income
 QQMG,Invesco ESG NASDAQ 100 ETF,broad
 QQQ,"Invesco QQQ Trust, Series 1",broad
 QQQA,ProShares Nasdaq-100 Dorsey Wright Momentum ETF,factor_income
+QQQB,VistaShares Shield Nasdaq 100 Enhanced Protection ETF,broad
 QQQE,Direxion NASDAQ-100 Equal Weighted Index ETF,factor_income
 QQQG,Pacer Nasdaq 100 Top 50 Cash Cows Growth Leaders ETF,high_beta
 QQQH,NEOS Nasdaq-100 Hedged Equity Income ETF,factor_income
@@ -989,7 +989,6 @@ SKYY,First Trust Cloud Computing ETF,theme
 SLQD,iShares 0-5 Year Investment Grade Corporate Bond ETF,bond
 SLVO,"ETRACS Silver Shares Covered Call ETNs due April 21, 2033",commodity
 SLVR,Sprott Silver Miners & Physical Silver ETF,commodity
-SMCF,Themes US Small Cap Cash Flow Champions ETF,broad
 SMCL,GraniteShares 2x Long SMCI Daily ETF,leveraged_inverse
 SMCO,Hilton Small-MidCap Opportunity ETF,broad
 SMCX,Defiance Daily Target 2X Long SMCI ETF,leveraged_inverse
@@ -1197,6 +1196,7 @@ VOLT,Tema Electrification ETF,broad
 VONE,Vanguard Russell 1000 ETF,broad
 VONG,Vanguard Russell 1000 Growth ETF,high_beta
 VONV,Vanguard Russell 1000 Value ETF,factor_income
+VOOB,VistaShares Shield S&P 500 Enhanced Protection ETF,broad
 VOTE,TCW Transform 500 ETF,broad
 VPLS,Vanguard Core Plus Bond ETF,bond
 VRIG,Invesco Variable Rate Investment Grade ETF,bond
@@ -2398,6 +2398,7 @@ EMTY,ProShares Decline of the Retail Store ETF,theme
 EMXX,Corgi Emerging Markets 2x Daily ETF,global
 ENFR,Alerian Energy Infrastructure ETF,commodity
 ENOR,iShares MSCI Norway ETF,broad
+ENRG,Ninepoint North American Energy Independence ETF,commodity
 ENTL,Leverage Shares 2X Long ENTG Daily ETF,leveraged_inverse
 EO,Corgi EOSE 2x Daily ETF,leveraged_inverse
 EOCT,Innovator Emerging Markets Power Buffer ETF - October,global
@@ -2816,6 +2817,7 @@ GCLO,Guggenheim Investment Grade CLO ETF,bond
 GCOR,Goldman Sachs Access U.S. Aggregate Bond ETF,bond
 GCOW,Pacer Global Cash Cows Dividend ETF,factor_income
 GCPB,Goldman Sachs Core Plus Bond ETF,bond
+GCPU,Grayscale AI Compute ETF,theme
 GCSH,Guggenheim Ultra Short Income ETF,factor_income
 GDE,WisdomTree Efficient Gold Plus Equity Strategy Fund,commodity
 GDEC,FT Vest U.S. Equity Moderate Buffer ETF - December,broad
@@ -3632,7 +3634,6 @@ LIAM,LifeX 2055 Inflation-Protected Longevity Income ETF,factor_income
 LIAU,LifeX 2060 Inflation-Protected Longevity Income ETF,factor_income
 LIBD,LifeX 2065 Inflation-Protected Longevity Income ETF,factor_income
 LIFT,LifeX 2028 Income Bucket ETF,factor_income
-LIMI,Themes Lithium & Battery Metal Miners ETF,commodity
 LIT,Global X Lithium & Battery Tech ETF,broad
 LITC,Corgi LITE 2x Daily ETF,leveraged_inverse
 LITG,Leverage Shares 2X Long LITE Daily ETF,leveraged_inverse
@@ -3825,9 +3826,9 @@ MMSD,NYLIM MacKay Muni Short Duration ETF,broad
 MMTM,State Street SPDR S&P 1500 Momentum Tilt ETF,factor_income
 MNA,NYLIM Merger Arbitrage ETF,broad
 MNBD,ALPS BBH Intermediate Municipal Bond ETF,bond
+MNGB,Yorkville America 2X Inverse MANGOS Plus Daily Target ETF,leveraged_inverse
 MNGU,MicroSectors 3x Long MANGOS+ ex Private Companies ETNs,leveraged_inverse
 MNGZ,Yorkville America 2X Long MANGOS Plus Daily Target ETF,leveraged_inverse
-MNRS,Grayscale Bitcoin Miners ETF,commodity
 MNSX,Corgi MNST 2x Daily ETF,leveraged_inverse
 MNVR,Pacer Swan SOS Moderate (November) ETF,broad
 MOAT,VanEck Morningstar Wide Moat ETF,broad
