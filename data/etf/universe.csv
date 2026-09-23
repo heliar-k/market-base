@@ -221,6 +221,7 @@ CFA,VictoryShares US 500 Volatility Wtd ETF,broad
 CFO,VictoryShares US 500 Enhanced Volatility Wtd ETF,broad
 CGPT,VegaShares AI Inference ETF,theme
 CHGX,Stance Sustainable Beta ETF,theme
+CHIP,REX AI Chipmaking ETF,theme
 CHPS,Xtrackers Semiconductor Select Equity ETF,theme
 CHPX,Global X AI Semiconductor & Quantum ETF,theme
 CHRI,Global X S&P 500 Christian Values ETF,factor_income
@@ -718,17 +719,20 @@ MYCL,State Street My2032 Corporate Bond ETF,bond
 MYCM,State Street My2033 Corporate Bond ETF,bond
 MYCN,State Street My2034 Corporate Bond ETF,bond
 MYCO,State Street My2035 Corporate Bond ETF,bond
+MYCP,State Street My2036 Corporate Bond ETF,bond
 MYHA,State Street My2027 High Yield Corporate Bond ETF,bond
 MYHB,State Street My2028 High Yield Corporate Bond ETF,bond
 MYHC,State Street My2029 High Yield Corporate Bond ETF,bond
 MYHD,State Street My2030 High Yield Corporate Bond ETF,bond
 MYHE,State Street My2031 High Yield Corporate Bond ETF,bond
+MYHF,State Street My2032 High Yield Corporate Bond ETF,bond
 MYMF,State Street My2026 Municipal Bond ETF,bond
 MYMG,State Street My2027 Municipal Bond ETF,bond
 MYMH,State Street My2028 Municipal Bond ETF,bond
 MYMI,State Street My2029 Municipal Bond ETF,bond
 MYMJ,State Street My2030 Municipal Bond ETF,bond
 MYMK,State Street My2031 Municipal Bond ETF,bond
+MYML,State Street My2032 Municipal Bond ETF,bond
 NATO,Themes Transatlantic Defense ETF,broad
 NBIG,Leverage Shares 2X Long NBIS Daily ETF,leveraged_inverse
 NBIL,GraniteShares 2x Long NBIS Daily ETF,leveraged_inverse
@@ -891,6 +895,7 @@ QQA,Invesco QQQ Income Advantage ETF,factor_income
 QQDN,ProShares UltraShort QQQ Mega,leveraged_inverse
 QQEW,First Trust Nasdaq-100 Select Equal Weight ETF,factor_income
 QQHG,Invesco QQQ Hedged Advantage ETF,broad
+QQI,Invesco Nasdaq International Innovators 100 ETF,global
 QQLV,Invesco QQQ Low Volatility ETF,factor_income
 QQMG,Invesco ESG NASDAQ 100 ETF,broad
 QQQ,"Invesco QQQ Trust, Series 1",broad
@@ -1117,6 +1122,8 @@ TTEQ,T. Rowe Price Technology ETF,broad
 TUG,STF Tactical Growth ETF,high_beta
 TUR,iShares MSCI Turkey ETF,broad
 TURF,T. Rowe Price Natural Resources ETF,broad
+TXCA,Northern Trust California Intermediate Tax-Exempt Bond ETF,bond
+TXNY,Northern Trust New York Intermediate Tax-Exempt Bond ETF,bond
 TXUE,Thornburg International Equity ETF,global
 TXUG,Thornburg International Growth Fund ETF,global
 TXXD,21Shares 2x Long Dogecoin ETF,leveraged_inverse
@@ -1191,6 +1198,8 @@ VGSR,Vert Global Sustainable Real Estate ETF,theme
 VGUS,Vanguard Ultra-Short Treasury ETF,bond
 VIGI,Vanguard International Dividend Appreciation ETF,factor_income
 VMBS,Vanguard Mortgage-Backed Securities ETF,broad
+VMHY,VictoryShares Municipal High Yield ETF,bond
+VMSD,VictoryShares Short-Duration Municipal ETF,bond
 VNQI,Vanguard Global ex-U.S. Real Estate ETF,broad
 VOLT,Tema Electrification ETF,broad
 VONE,Vanguard Russell 1000 ETF,broad
@@ -1361,6 +1370,7 @@ AHBM,Amplify Top 10 Asia Memory ETF,global
 AHLT,AHL Trend ETF,broad
 AHYB,American Century Select High Yield ETF,bond
 AIBD,Direxion Daily AI and Big Data Bear 2X ETF,leveraged_inverse
+AIBF,iShares Future AI Beneficiaries ETF,theme
 AIBU,Direxion Daily AI and Big Data Bull 2X ETF,leveraged_inverse
 AIEQ,Amplify AI Powered Equity ETF,theme
 AIHY,Defiance AI Hyperscale Leaders ETF,theme
@@ -3943,6 +3953,7 @@ NDIV,Amplify Energy & Natural Resources Covered Call ETF,commodity
 NDOW,Anydrus Advantage ETF,broad
 NEAR,iShares Short Duration Bond Active ETF,bond
 NEBX,Tradr 2X Long NBIS Daily ETF,leveraged_inverse
+NECK,xETFs AI Bottlenecks ETF,theme
 NEHI,NEOS Ethereum High Income ETF,crypto
 NELS,Nelson Select ETF,broad
 NEMD,Neuberger Emerging Markets Debt Hard Currency ETF,currency
@@ -5638,8 +5649,14 @@ XTWY,BondBloxx Bloomberg Twenty Year Target Duration US Treasury ETF,bond
 XUDV,Franklin U.S. Dividend Booster Index ETF,factor_income
 XUSP,Innovator Uncapped Accelerated U.S. Equity ETF,broad
 XV,Simplify Target 15 Distribution ETF,broad
+XVAD,FT Vest AMD & Target Income ETF,factor_income
 XVAP,FT Vest AAPL & Target Income ETF,factor_income
+XVAZ,FT Vest AMZN & Target Income ETF,factor_income
+XVGL,FT Vest GOOG & Target Income ETF,factor_income
+XVMS,FT Vest MSFT & Target Income ETF,factor_income
+XVMT,FT Vest META & Target Income ETF,factor_income
 XVNV,FT Vest NVDA & Target Income ETF,factor_income
+XVPT,FT Vest PLTR & Target Income ETF,factor_income
 XVSP,FT Vest SPCX & Target Income ETF,factor_income
 XVTS,FT Vest TSLA & Target Income ETF,factor_income
 XVV,iShares ESG Select Screened S&P 500 ETF,broad
