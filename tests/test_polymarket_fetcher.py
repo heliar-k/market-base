@@ -166,3 +166,12 @@ def test_build_snapshot_shape_and_sort():
         ]
         == []
     )
+
+
+def test_history_sort_key_decision_markets_first():
+    """Fed Decision 市场不被 24h 量上限挤掉（2026-09 12月 hold 断更回归）。"""
+    from src.fetchers.polymarket_fetcher import _history_sort_key
+
+    dec = ({"volume24hr": 1.0}, {"title": "Fed Decision in December?"})
+    other = ({"volume24hr": 1e9}, {"title": "Strait of Hormuz by December 31?"})
+    assert _history_sort_key(dec) < _history_sort_key(other)

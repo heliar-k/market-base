@@ -255,6 +255,15 @@ def discover_events() -> dict[str, dict]:
     return found
 
 
+def _history_sort_key(item):
+    """历史拉取排序：Fed Decision 事件永远排前（不被 24h 量上限挤掉），其余按量降序。"""
+    m, e = item
+    return (
+        not str(e.get("title", "")).startswith("Fed Decision in "),
+        -float(m["volume24hr"] or 0),
+    )
+
+
 def fetch_polymarket() -> dict:
     """主流程：发现 → 过滤 → 快照 + 概率时序 upsert。返回快照 dict。"""
     candidates = discover_events()
@@ -277,14 +286,16 @@ def fetch_polymarket() -> dict:
     )
 
     # ── 概率时序：全市场按 24h 量取前 _MAX_HISTORY_MARKETS 个 ──
+    # Fed Decision 事件是定价页收敛路径的数据源，排最前，不被量上限挤掉
+    # （2026-09 曾因此 12月 hold 市场掉出 top80 → history 断更显示为 0）
     all_markets = [(m, e) for e in snapshot["events"] for m in e["markets"]]
-    all_markets.sort(key=lambda x: -x[0]["volume24hr"])
+    all_markets.sort(key=_history_sort_key)
     if len(all_markets) > _MAX_HISTORY_MARKETS:
         logger.warning(
             f"市场数 {len(all_markets)} 超上限，"
             f"仅拉取 24h 量前 {_MAX_HISTORY_MARKETS} 个的历史"
         )
-        all_markets = all_markets[:_MAX_HISTORY_MARKETS]
+    capped = all_markets[:_MAX_HISTORY_MARKETS]
 
     # 需要原始 token id → 从候选事件里按市场 id 建 token 索引
     token_by_mid = {
@@ -293,8 +304,14 @@ def fetch_polymarket() -> dict:
         for m in (e.get("markets") or [])
     }
 
+    # 快照 prob_yes 先写入当日行（覆盖全部市场，上限外市场每日也有一个点自愈）
     history_rows: dict[str, dict[str, float]] = {}
-    for m, _ev in all_markets:
+    today_utc = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    for m, _e in all_markets:
+        if m.get("prob_yes") is not None:
+            history_rows.setdefault(today_utc, {})[m["id"]] = float(m["prob_yes"])
+
+    for m, _ev in capped:
         tokens = token_by_mid.get(m["id"])
         if not tokens:
             continue

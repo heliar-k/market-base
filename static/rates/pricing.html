@@ -336,7 +336,7 @@ function renderTable(meetings) {
   }).join('');
 }
 
-// ── PM 概率收敛路径：有日频历史的会议各画 hike/hold 两条，首场实线、次场虚线 ──
+// ── PM 概率收敛路径：有日频历史的会议各画 cut/hike/hold 三条，首场实线、次场虚线 ──
 function renderConvChart(meetings, hist) {
   const withHist = meetings
     .map((m) => ({ ym: m.meeting_date.slice(0, 7), label: (+m.meeting_date.slice(5, 7)) + '月', series: hist[m.meeting_date.slice(0, 7)] }))
@@ -352,7 +352,7 @@ function renderConvChart(meetings, hist) {
     const series = [];
     withHist.slice(0, 2).forEach((x, i) => {
       const dash = i > 0;
-      for (const [key, name, color] of [['hike', '加息', colors.red], ['hold', '维持', colors.gray]]) {
+      for (const [key, name, color] of [['cut', '降息', colors.green], ['hike', '加息', colors.red], ['hold', '维持', colors.gray]]) {
         const sname = `${x.label}·${name}`;
         // 本图不走 lineOption（图例在底部），icon 与尺寸手动对齐全局图例样板
         legend.push({ name: sname, icon: dash ? RE_LEGEND.dashed : RE_LEGEND.solid });
