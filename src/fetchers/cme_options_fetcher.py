@@ -65,22 +65,28 @@ def fetch_page() -> str:
     """
     from playwright.sync_api import sync_playwright
 
-    with sync_playwright() as pw:
-        browser = pw.chromium.launch(headless=True)
-        try:
-            page = browser.new_page()
-            page.goto(
-                f"{PAGE_URL}?productId=8875",
-                wait_until="domcontentloaded",
-                timeout=90_000,
-            )
-            page.wait_for_selector("table", timeout=45_000)
-            page.wait_for_timeout(5_000)
-            if not _looks_like_btc(page):
-                _select_bitcoin_product(page)
-            return _extract_markdown(page)
-        finally:
-            browser.close()
+    last_err: Exception | None = None
+    for _ in range(3):  # Akamai 对数据中心 IP 间歇性 HTTP2 reset，换 context 重试
+        with sync_playwright() as pw:
+            browser = pw.chromium.launch(headless=True)
+            try:
+                page = browser.new_page()
+                page.goto(
+                    f"{PAGE_URL}?productId=8875",
+                    wait_until="domcontentloaded",
+                    timeout=90_000,
+                )
+                page.wait_for_selector("table", timeout=45_000)
+                page.wait_for_timeout(5_000)
+                if not _looks_like_btc(page):
+                    _select_bitcoin_product(page)
+                return _extract_markdown(page)
+            except Exception as e:
+                last_err = e
+                logger.warning("CME 页面抓取重试：%s", str(e)[:120])
+            finally:
+                browser.close()
+    raise last_err  # type: ignore[misc]
 
 
 def _table_rows(page) -> list[list[str]]:
