@@ -77,7 +77,7 @@ async function load() {
     R.mkChart('liq-chart', colors => R.lineOption({
       tooltip: { trigger: 'axis', axisPointer: { type: 'cross' } },
       legend: { data: ['净流动性 (T)', 'BTC 价格'], top: 0 },
-      grid: { left: '5%', right: '5%', top: 35, bottom: 40, containLabel: true },
+      grid: { left: '5%', right: '5%', top: 52, bottom: 40, containLabel: true },  // top 留足：图例占 0-14px，右轴名 BTC ($) 在 grid 顶沿，35 会撞图例
       xAxis: { type: 'category', data: L.nl_dates, axisLine: { lineStyle: { color: colors.border } },
         axisLabel: { color: colors.muted, fontSize: 10, rotate: 30 } },
       yAxis: [
