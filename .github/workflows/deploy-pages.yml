@@ -1,11 +1,15 @@
 name: deploy-pages
 
-# 静态站点预渲染 + GitHub Pages 部署（独立于 daily-fetch，可单独触发）：
-# - daily-fetch / fetch-refresh 跑完 → workflow_run 触发（渲染最新数据）
-#   注意：daily-fetch 的数据 push 用的是 GITHUB_TOKEN，GitHub 不会为它再触发 push 事件
+# 静态站点预渲染 + Cloudflare Pages 部署（独立于数据拉取，可单独触发）：
+# - daily-fetch / fetch-refresh / fast-refresh 跑完 → workflow_run 触发（渲染最新数据）
+#   注意：数据 push 用的是 GITHUB_TOKEN，GitHub 不会为它再触发 push 事件
 #   （recursive workflow trigger 限制），所以必须用 workflow_run，光靠 paths: data/** 不生效
 # - 手动 push static/src 改动 → push 事件自动触发（无需重跑数据拉取）
 # - 手动触发：gh workflow run deploy-pages.yml
+#
+# 2026-09-28：GitHub Pages 部署已下线（原站 heliar-k.github.io/market-base 停在最后一次
+# 部署，仅作冻结备份）。CF 侧走根路径（PAGES_BASE=""），wrangler 按内容哈希增量上传，
+# 未变更文件不重传，部署秒级。
 on:
   push:
     branches: [main]
@@ -23,7 +27,7 @@ on:
 
 # 数据 push 与手动 push 接近时串行执行，避免两个部署互相覆盖
 concurrency:
-  group: github-pages
+  group: pages
   cancel-in-progress: false
 
 env:
@@ -32,15 +36,10 @@ env:
 
 permissions:
   contents: read
-  pages: write
-  id-token: write
 
 jobs:
   deploy-pages:
     runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v5
         with:
@@ -55,28 +54,14 @@ jobs:
       - name: Install deps
         run: uv sync
 
+      # CF Pages 走根路径，无 /market-base 子路径前缀
       - name: Build static site
-        run: uv run python -m src.export_pages
-
-      - uses: actions/configure-pages@v5
-      - uses: actions/upload-pages-artifact@v3
-        with:
-          path: site
-      - id: deployment
-        uses: actions/deploy-pages@v4
-
-      # —— Cloudflare Pages 双写（secrets 未配时自动跳过）——
-      # 根路径重建一份（PAGES_BASE=""），wrangler 按内容哈希增量上传，秒级完成
-      - name: Build site-cf (root path)
-        if: env.CLOUDFLARE_API_TOKEN != ''
         env:
-          PAGES_OUT: site-cf
           PAGES_BASE: ""
         run: uv run python -m src.export_pages
 
       - name: Deploy to Cloudflare Pages
-        if: env.CLOUDFLARE_API_TOKEN != ''
         uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          command: pages deploy site-cf --project-name=market-base
+          command: pages deploy site --project-name=market-base

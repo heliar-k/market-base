@@ -1,7 +1,7 @@
 """GitHub Pages 静态站点生成：预渲染 API 为 JSON + 复制前端 + 注入部署路径前缀。
 
 用法：uv run python -m src.export_pages
-（输出到 site/，供 upload-pages-artifact 部署）
+（输出到 site/；PAGES_BASE="" 即根路径，供 wrangler 部署到 Cloudflare Pages）
 
 原理：
 - 直接调用 src.server 的路由函数（与 HTTP 同一代码路径），结果 _sanitize 后写 JSON

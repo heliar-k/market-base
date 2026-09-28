@@ -221,10 +221,11 @@ market-base/
 > fred/cboe/yfinance/rate_expectations/barchart_vol/加密/polymarket）。upsert 幂等，
 > 无新数据即不 commit。三者跑完都由 `deploy-pages` 的 `workflow_run` 触发部署
 > （数据由 GITHUB_TOKEN 推送，不触发 push 事件，`paths: data/**` 无效）。
-> 部署双写 GitHub Pages + Cloudflare Pages（https://market-base.pages.dev ，根路径，
-> 导出用 `PAGES_BASE="" PAGES_OUT=site-cf` + wrangler 增量上传；
-> secrets：`CLOUDFLARE_API_TOKEN` / `CLOUDFLARE_ACCOUNT_ID`，
-> token 需 Pages Edit + User→Memberships Read，wrangler-action v3 参数名是驼峰 `apiToken`）。
+> 部署已切到 Cloudflare Pages 单目标（https://market-base.pages.dev ，根路径，
+> 导出用 `PAGES_BASE=""` + wrangler 哈希增量上传；secrets：`CLOUDFLARE_API_TOKEN` /
+> `CLOUDFLARE_ACCOUNT_ID`，token 需 Pages Edit + User→Memberships Read，
+> wrangler-action v3 参数名是驼峰 `apiToken`）。GitHub Pages 已下线，
+> 原站 heliar-k.github.io/market-base 停在最后一次部署作冻结备份。
 
 > **时效断言 ≠ 退出码**：`uv run python -m src.data_freshness`（44 个数据集，预算表在文件内）
 > 两个 workflow 收尾都会跑，超预算则记入 FAILED_LIST 标红。加新 fetcher 时在那张表补一行。
