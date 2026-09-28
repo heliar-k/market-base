@@ -16,7 +16,7 @@ on:
       - "pyproject.toml"
       - ".github/workflows/deploy-pages.yml"
   workflow_run:
-    workflows: ["daily-fetch", "fetch-refresh"]
+    workflows: ["daily-fetch", "fetch-refresh", "fast-refresh"]
     types: [completed]
     branches: [main]
   workflow_dispatch: {}

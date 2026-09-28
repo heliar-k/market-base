@@ -215,10 +215,16 @@ market-base/
 > 部分数据源失败时：成功的数据照常 commit，失败列表写进当日 commit message 的「失败:」段
 > （`git log -1` 即见），job 标红，Pages 照常部署。不用再 grep Actions 日志找 `FAIL`。
 
-> **两个 cron**：`daily-fetch` 北京 05:00（全量，含收盘后的价格类）；
+> **三个 cron**：`daily-fetch` 北京 05:00（全量，含收盘后的价格类）；
 > `fetch-refresh` 北京 23:15（只跑下午才发布昨日观测的源：`fetch_fred` / `fetch_cboe` /
-> `fetch_fsi`，~3min）。upsert 幂等，无新数据即不 commit。两者跑完都由 `deploy-pages` 的
-> `workflow_run` 触发部署（数据由 GITHUB_TOKEN 推送，不触发 push 事件，`paths: data/**` 无效）。
+> `fetch_fsi`，~3min）；`fast-refresh` 工作日 UTC 13-20 点每 15 分钟（盘中源：
+> fred/cboe/yfinance/rate_expectations/barchart_vol/加密/polymarket）。upsert 幂等，
+> 无新数据即不 commit。三者跑完都由 `deploy-pages` 的 `workflow_run` 触发部署
+> （数据由 GITHUB_TOKEN 推送，不触发 push 事件，`paths: data/**` 无效）。
+> 部署双写 GitHub Pages + Cloudflare Pages（https://market-base.pages.dev ，根路径，
+> 导出用 `PAGES_BASE="" PAGES_OUT=site-cf` + wrangler 增量上传；
+> secrets：`CLOUDFLARE_API_TOKEN` / `CLOUDFLARE_ACCOUNT_ID`，
+> token 需 Pages Edit + User→Memberships Read，wrangler-action v3 参数名是驼峰 `apiToken`）。
 
 > **时效断言 ≠ 退出码**：`uv run python -m src.data_freshness`（44 个数据集，预算表在文件内）
 > 两个 workflow 收尾都会跑，超预算则记入 FAILED_LIST 标红。加新 fetcher 时在那张表补一行。

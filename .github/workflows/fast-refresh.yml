@@ -1,0 +1,81 @@
+name: fast-refresh
+
+# 盘中高频刷新（工作日每 15 分钟，UTC 13:07–20:52 = 美东盘前至盘后）：
+# 只跑盘中会变、且拉取便宜的源——宏观日内修订（FRED/CBOE）、资产快照（yfinance）、
+# FOMC 概率（rate_expectations，Barchart ZQ 降级源）、波动率指数（barchart_vol）、
+# 加密衍生品（crypto_derivatives/coinglass/etf_flows）、预测市场（polymarket）。
+#
+# 不跑：分钟线（yfinance 盘中拉 5m 全量太重）、IBKR 依赖源（本地 cron）、
+# 派生指标（cross_asset/options_structure/bill_share，跟 daily-fetch 日频即可）、
+# 财报/SEC/拍卖等日更源。
+#
+# upsert 幂等：无新数据 → diff 为空 → 不 commit → 不触发部署，空跑零成本。
+# 部署链：deploy-pages.yml 的 workflow_run 列表含本 workflow 名
+# （数据 push 走 GITHUB_TOKEN，不触发 push 事件，只能靠 workflow_run）。
+# 错峰：分钟取 7/22/37/52，避开整点 Actions schedule 排队高峰。
+
+on:
+  schedule:
+    - cron: "7,22,37,52 13-20 * * 1-5"
+  workflow_dispatch: {}
+
+concurrency:
+  group: fast-refresh
+  cancel-in-progress: true
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: astral-sh/setup-uv@v9.0.0
+        with:
+          python-version: "3.13"
+          enable-cache: false
+
+      - name: Install deps
+        run: uv sync
+
+      # rate_expectations/barchart_vol 直连失败时降级无头浏览器（barchart_client）
+      - name: Install playwright chromium
+        run: uv run playwright install --with-deps chromium
+
+      - name: Fetch intraday sources
+        env:
+          FRED_API_KEY: ${{ secrets.FRED_API_KEY }}
+          YF_NO_PROXY: "1"        # Actions 无 socks5 代理，yfinance 直连
+        run: |
+          set +e  # 单个失败不阻断，末尾统一判红
+          for f in fetch_fred fetch_cboe fetch_yfinance fetch_rate_expectations fetch_barchart_vol fetch_crypto_derivatives fetch_coinglass fetch_etf_flows fetch_polymarket; do
+            echo "===== START $f ====="
+            bash "bin/$f" || FAILED="$FAILED $f"
+          done
+          [ -n "$FAILED" ] && echo "失败:$FAILED" && echo "FAILED_LIST=$FAILED" >> "$GITHUB_ENV"
+          exit 0
+
+      - name: Commit and push updates
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add data/
+          if git diff --cached --quiet; then
+            echo "no data changes, skip commit"
+          else
+            NL=$'\n\n'
+            MSG="data: fast refresh ($(date -u "+%F %H:%M") UTC)"
+            [ -n "$FAILED_LIST" ] && MSG="$MSG${NL}失败:$FAILED_LIST"
+            git commit -m "$MSG"
+            git pull --rebase origin main
+            git push
+          fi
+
+      - name: 失败汇总（有失败则 job 红）
+        if: env.FAILED_LIST != ''
+        run: |
+          echo "以下步骤失败，数据已照常 commit:$FAILED_LIST"
+          exit 1
+
+  # 部署由 deploy-pages.yml 的 workflow_run（含本 workflow 名）触发
