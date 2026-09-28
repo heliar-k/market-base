@@ -15,6 +15,7 @@
 from __future__ import annotations
 
 import json
+import os
 import re
 import shutil
 from datetime import date, timedelta
@@ -57,9 +58,10 @@ from src.server import (  # noqa: PLC2701 复用路由函数
     get_volatility_analysis,
 )
 
-SITE = ROOT / "site"
+SITE = ROOT / os.environ.get("PAGES_OUT", "site")
 STATIC = ROOT / "static"
-BASE = "/market-base"  # Pages 部署子路径；repo 改名需同步
+# Pages 部署子路径；repo 改名需同步。Cloudflare Pages 走根路径，用 PAGES_BASE="" 覆盖
+BASE = os.environ.get("PAGES_BASE", "/market-base")
 KLINE_YEARS = 3
 CORRELATE_YEARS = 5  # 全指标合并文件体积大，截 5 年（10Y/30Y/All 按钮显示止于此处）
 

@@ -26,6 +26,10 @@ concurrency:
   group: github-pages
   cancel-in-progress: false
 
+env:
+  CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+  CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+
 permissions:
   contents: read
   pages: write
@@ -60,3 +64,19 @@ jobs:
           path: site
       - id: deployment
         uses: actions/deploy-pages@v4
+
+      # —— Cloudflare Pages 双写（secrets 未配时自动跳过）——
+      # 根路径重建一份（PAGES_BASE=""），wrangler 按内容哈希增量上传，秒级完成
+      - name: Build site-cf (root path)
+        if: env.CLOUDFLARE_API_TOKEN != ''
+        env:
+          PAGES_OUT: site-cf
+          PAGES_BASE: ""
+        run: uv run python -m src.export_pages
+
+      - name: Deploy to Cloudflare Pages
+        if: env.CLOUDFLARE_API_TOKEN != ''
+        uses: cloudflare/wrangler-action@v3
+        with:
+          api_tokens: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          command: pages deploy site-cf --project-name=market-base
