@@ -1,8 +1,9 @@
 """CME BTC 期货期权墙快照（timsun 衍生品页"CME 机构期权"模块数据源）。
 
-CME 官网反爬，经 Jina Reader (r.jina.ai) 抓取
-https://www.cmegroup.com/markets/cryptocurrencies/bitcoin/bitcoin/volume/options
-的 Markdown 渲染文本并解析（页面 Expiration 默认当前月，Trade Date 为空）：
+CME 官网是 Akamai + 重 JS（产品选择器不交互时表格渲染默认产品 KC 小麦），
+经 Playwright 无头浏览器抓取
+https://www.cmegroup.com/markets/cryptocurrencies/bitcoin/bitcoin/volume/options?productId=8875
+（页面 Expiration 默认当前月，Trade Date 为空）：
 
   - Call/Put Total OI（Total 行第 8 个数值列）+ pcr_oi
   - call_wall/put_wall（按行权价聚合 OI 最大的行权价，同 strike 同侧 groupby 求和）
@@ -13,11 +14,14 @@ https://www.cmegroup.com/markets/cryptocurrencies/bitcoin/bitcoin/volume/options
 写入 data/cme_options/{date}.json（覆盖写，每日 Actions 跑）。
 解析失败/空内容返回 {}（不抛），单字段缺失只跳过该字段。
 
-⚠ 2026-09 起发现：CME 页面经 Jina 渲染时表格组件回落到默认产品（KC 小麦）
-的已到期月份表（strike 2,500-18,750，与 BTC ~$83K 完全不匹配，OI 清零）。
-该 fetcher 自 2026-08-23 上线起解析的一直是小麦期权，从未拿到 BTC 数据。
-parse_options() 末端因此加了 sanity guard（total_oi>0 + 墙位 vs BTC 现价区间），
-校验不过拒绝落盘；真正的修复（真浏览器点产品选择器）见 git 历史与页面注记。
+⚠ 2026-09 事故：此 fetcher 曾用 Jina Reader 抓页面，JS 不交互时表格永远渲染
+默认产品（KC 小麦）——自 2026-08-23 上线起解析的一直是小麦期权（strike
+2,500-18,750）。已改为 Playwright 真浏览器（daily-fetch 已装 chromium），
+并保留 parse_options() 末端 sanity guard（total_oi>0 + 墙位 vs BTC 现价区间）
+双保险，校验不过拒绝落盘。
+
+本地注意：cmegroup.com 在本机网络不可直连（HTTP2 reset），此 fetcher 设计为
+Actions（美国 IP）运行；本地调试需能访问 CME 的网络环境。
 
 用法:
     uv run python -m src.fetchers.cme_options_fetcher
@@ -27,12 +31,10 @@ from __future__ import annotations
 
 import json
 import logging
-import os
 import re
 from datetime import datetime, timezone
 
 import pandas as pd
-import requests
 
 from src.config import ROOT
 
@@ -52,18 +54,114 @@ _UPDATED_RE = re.compile(r"Last Updated\s+(\d{1,2}\s+[A-Za-z]{3}\s+\d{4})")
 
 
 def fetch_page() -> str:
-    """经 Jina Reader 抓取 CME BTC 期权页，返回 Markdown 文本。"""
-    proxies = (
-        {"https": os.environ["HTTPS_PROXY"]} if os.environ.get("HTTPS_PROXY") else None
+    """Playwright 真浏览器抓 CME BTC 期权页，返回 Jina Markdown 同构文本。
+
+    CME volume/options 页是 Akamai + 重 JS：产品选择器不交互时表格渲染默认
+    产品（KC 小麦）——Jina 快照永远是小麦（该源曾因此发了一个月小麦数据）。
+    真浏览器带 productId=8875 加载，若表格仍非 BTC 量级则尝试原生 select
+    选择「Options on Bitcoin Futures」，最后把 DOM 行合成为 Jina Markdown
+    同构文本（`| strike Call | …9 列… |` / `Call Total …` / `Last Updated …`），
+    parse_options 与 sanity guard 不变。渲染结果仍由 guard 兜底，错产品拒落盘。
+    """
+    from playwright.sync_api import sync_playwright
+
+    with sync_playwright() as pw:
+        browser = pw.chromium.launch(headless=True)
+        try:
+            page = browser.new_page()
+            page.goto(
+                f"{PAGE_URL}?productId=8875",
+                wait_until="domcontentloaded",
+                timeout=90_000,
+            )
+            page.wait_for_selector("table", timeout=45_000)
+            page.wait_for_timeout(5_000)
+            if not _looks_like_btc(page):
+                _select_bitcoin_product(page)
+            return _extract_markdown(page)
+        finally:
+            browser.close()
+
+
+def _table_rows(page) -> list[list[str]]:
+    """提取页面表格行（含 Total 行）。"""
+    return page.evaluate(
+        """() => Array.from(document.querySelectorAll('table tr'))
+            .map(r => Array.from(r.querySelectorAll('td,th'))
+                .map(c => c.innerText.trim()))
+            .filter(cells => cells.length >= 2)"""
     )
-    resp = requests.get(
-        f"https://r.jina.ai/{PAGE_URL}",
-        timeout=60,
-        headers={"User-Agent": "Mozilla/5.0", "x-timeout": "30", "x-no-cache": "true"},
-        proxies=proxies,
+
+
+def _looks_like_btc(page) -> bool:
+    """表格 strike 量级校验：BTC 期权 strike ≥ 20000；小麦表最大 ~18750。"""
+    for cells in _table_rows(page):
+        m = re.match(r"^([\d,]+(?:\.\d+)?)\s+(Call|Put)$", cells[0])
+        if m and float(m.group(1).replace(",", "")) >= 20_000:
+            return True
+    return False
+
+
+def _row_oi(cells: list[str]) -> str:
+    """CME 表 OI 在倒数第二列（「At Close」，末列是 Change 可能为负数/粘连）。"""
+    for c in (cells[-2:-1] or []) + list(reversed(cells[1:-2])):
+        v = c.replace(",", "")
+        if v.isdigit():
+            return v
+    return "0"
+
+
+def _select_bitcoin_product(page) -> None:
+    """原生 select 里选「Options on Bitcoin Futures」并等表格重渲染。"""
+    changed = page.evaluate(
+        """() => {
+            const want = o => /Options on Bitcoin Futures/i.test(o.text);
+            const sel = Array.from(document.querySelectorAll('select'))
+                .find(s => Array.from(s.options).some(want));
+            if (!sel) return false;
+            sel.value = Array.from(sel.options).find(want).value;
+            sel.dispatchEvent(new Event('change', {bubbles: true}));
+            return true;
+        }"""
     )
-    resp.raise_for_status()
-    return resp.text
+    if not changed:
+        logger.warning("CME 页未找到产品下拉，表格保持默认产品")
+        return
+    for _ in range(10):  # 最多等 20s 表格切到 BTC 量级
+        page.wait_for_timeout(2_000)
+        if _looks_like_btc(page):
+            return
+    logger.warning("选择 Bitcoin 产品后表格仍未切到 BTC 量级")
+
+
+def _extract_markdown(page) -> str:
+    """DOM 行 → Jina Markdown 同构文本（parse_options 不变）。
+
+    Jina 表格行格式：`| {strike} {Call|Put} | {8 列数值，OI 为第 8 列} |`；
+    只保 parser 用到的列（OI / Total OI），其余列补 0。CME DOM 行首列形如
+    「105000 Call」，Total 行含「Call Total」。
+    """
+    lines: list[str] = []
+    for cells in _table_rows(page):
+        first = cells[0].replace("\n", " ")
+        m = re.match(r"^([\d,]+(?:\.\d+)?)\s+(Call|Put)$", first)
+        if m:
+            strike_f = float(m.group(1).replace(",", ""))
+            # parser 的 _ROW_RE 只认整数 strike（CME BTC 行权价均为整数）
+            strike = str(int(strike_f)) if strike_f.is_integer() else str(strike_f)
+            oi = _row_oi(cells)
+            lines.append(
+                f"| {strike} {m.group(2)} | 0 | 0 | 0 | 0 | 0 | 0 | 0 | {oi} | 0 |"
+            )
+            continue
+        mt = re.match(r"^(Call|Put)\s+Total$", first)
+        if mt:
+            lines.append(f"{mt.group(1)} Total 0 0 0 0 0 0 0 {_row_oi(cells)} 0")
+    body = page.evaluate("document.body.innerText")
+    upd = re.search(r"Last Updated\s+(\d{1,2}\s+[A-Za-z]{3}\s+\d{4})", body or "")
+    if upd:
+        lines.insert(0, f"Last Updated {upd.group(1)} 12:00:00 AM CT.")
+    return "\n".join(lines)
 
 
 def _strike_rows(content: str) -> list[tuple[int, str, int]]:
@@ -217,7 +315,11 @@ def parse_options(content: str) -> dict:
 
 
 def main() -> None:
-    content = fetch_page()
+    try:
+        content = fetch_page()
+    except Exception as e:  # 浏览器/网络失败：保昨日快照，freshness 监控会报红
+        logger.error("CME 页面抓取失败：%s", e)
+        return
     snap = parse_options(content)
     if not snap:
         logger.error("解析失败：页面为空或无表格结构")

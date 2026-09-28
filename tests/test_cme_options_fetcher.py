@@ -199,3 +199,33 @@ def test_total_row_na_tolerated():
 def test_incomplete_returns_empty():
     """totals 与墙都缺 → 返回 {}（不覆盖好快照）。"""
     assert parse_options("No table here at all") == {}
+
+
+def test_browser_extract_contract():
+    """浏览器路径合成文本 → parse_options 闭环（_row_oi 取倒数第二列）。
+
+    模拟 _extract_markdown 的输入（CME DOM 行：首列「strike Call」，
+    末列 Change 可能为负/0/粘连），验证合成行能被 parser 正确解析。
+    """
+    from src.fetchers.cme_options_fetcher import _row_oi
+
+    # _row_oi：OI 是倒数第二列；末列 Change 为 0 时不得误取
+    assert _row_oi(["105000 Call", "0", "0", "158", "0"]) == "158"
+    assert _row_oi(["105000 Call", "3", "158", "-16"]) == "158"
+    assert _row_oi(["Call Total", "0", "458", "0-660"]) == "458"
+
+    # 合成文本（与 _extract_markdown 同构）走 parser 闭环
+    synth = "\n".join(
+        [
+            "Last Updated 25 Sep 2026 12:00:00 AM CT.",
+            "| 100000 Call | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 158 | 0 |",
+            "| 85000 Put | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 90 | 0 |",
+            "Call Total 0 0 0 0 0 0 0 458 0",
+            "Put Total 0 0 0 0 0 0 0 379 0",
+        ]
+    )
+    snap = parse_options(synth)
+    assert snap["call_wall"] == 100000 and snap["call_wall_oi"] == 158
+    assert snap["put_wall"] == 85000
+    assert snap["total_oi"] == 837
+    assert snap["as_of"] == "2026-09-25"
