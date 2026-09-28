@@ -32,6 +32,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 from datetime import datetime, timedelta
 from pathlib import Path
 
@@ -1398,6 +1399,391 @@ def _funding_diff_series() -> list[dict]:
     return out
 
 
+def _pcr_diff_series() -> list[dict]:
+    """逐日 ETH−BTC 期权 PCR 差（全市场口径），取自 crypto_derivatives 快照历史。
+
+    ETH PCR 相对 BTC 抬升 = 期权市场对 ETH 的保护需求相对上升。
+    """
+    out: list[dict] = []
+    for f in sorted((ROOT / "data" / "crypto_derivatives").glob("20*.json")):
+        try:
+            j = json.loads(f.read_text(encoding="utf-8"))
+        except Exception:
+            continue
+        b = (j.get("options_BTC") or {}).get("pcr")
+        e = (j.get("options_ETH") or {}).get("pcr")
+        if b is None or e is None:
+            continue
+        out.append(
+            {
+                "date": f"{f.stem[:4]}-{f.stem[4:6]}-{f.stem[6:]}",
+                "btc": round(float(b), 3),
+                "eth": round(float(e), 3),
+                "diff": round(float(e) - float(b), 3),
+            }
+        )
+    return out
+
+
+def _ratio_corr(p: pd.DataFrame) -> dict:
+    """BTC-ETH 30 日滚动相关性（日收益率，window=30/min_periods=10 对齐 cross_asset）。
+
+    correlation.csv 只存最新矩阵快照（覆盖写、无历史），当前值与 30 日前对比
+    同源自 asset_prices 计算（BTC/ETH 为 7×24 日频，30 观测 = 30 日历日）。
+    判读：相关性高位（>0.8）+ 价比横盘 = 无轮动；相关性回落 + 价比动量 = 轮动确认。
+    """
+    if not {"BTC", "ETH"}.issubset(p.columns):
+        return {"available": False}
+    rets = p[["BTC", "ETH"]].pct_change()
+    c = rets["BTC"].rolling(30, min_periods=10).corr(rets["ETH"]).dropna()
+    if len(c) < 2:
+        return {"available": False}
+    cur = float(c.iloc[-1])
+    past = c[c.index <= c.index[-1] - pd.Timedelta(days=30)]
+    prev = float(past.iloc[-1]) if len(past) else None
+    chg = round(cur - prev, 2) if prev is not None else None
+    # ponytail: 固定阈值（高位 0.8、回落 0.05）；历史序列满 1y 后改滚动分位
+    if cur > 0.8 and (chg is None or chg > -0.05):
+        verdict = "相关性高位同涨同跌：无轮动基础"
+    elif chg is not None and chg <= -0.05:
+        verdict = "相关性回落：BTC/ETH 脱钩中，价比动量有效时即轮动确认"
+    elif chg is not None and chg >= 0.05:
+        verdict = "相关性抬升：重新同向，轮动信号减弱"
+    else:
+        verdict = "相关性中位平稳：轮动证据不足"
+    return {
+        "available": True,
+        "as_of": str(c.index[-1].date()),
+        "cur": round(cur, 2),
+        "prev": round(prev, 2) if prev is not None else None,
+        "chg_30d": chg,
+        "verdict": verdict,
+    }
+
+
+def _ratio_nl_beta(r: pd.Series) -> dict:
+    """价比日收益率 × NL 20 日脉冲：回归 β + 滞后 0/10/20 日相关性（找主导滞后）。
+
+    ETH 是高 β 资产：NL 扩张先推 BTC、后外溢 ETH，价比（BTC/ETH）对 NL 脉冲的
+    响应若在正滞后上负相关最强（价比滞后触底）= 外溢确认。
+    网格口径同 _reg_beta（日历日 + NL ffill）；β 单位：NL 20 日脉冲每 +$1T
+    对应的价比日收益率（%）。NL 序列构造与 crypto() 流动性块同口径。
+    """
+    liq = _csv("fred/liquidity/liquidity.csv")
+    if not {"WALCL", "RRPONTSYD", "WTREGEN"}.issubset(liq.columns):
+        return {"available": False}
+    wide = pd.DataFrame(index=liq.index)
+    for c in ("WALCL", "WTREGEN"):
+        wide[c] = liq[c].ffill()
+    nl = (wide["WALCL"] - liq["RRPONTSYD"] * 1000 - wide["WTREGEN"]).dropna()  # M USD
+    if len(nl) < 130:  # 90 日回归窗口 + 20 日脉冲 + 20 日滞后的最小覆盖
+        return {"available": False}
+    end = nl.index[-1]
+    grid = pd.date_range(end - pd.Timedelta(days=179), end)
+    df = pd.DataFrame(
+        {
+            "ret": r.reindex(grid).pct_change(),
+            "chg": nl.reindex(grid).ffill().diff(20) / 1e6,  # T USD / 20 日
+        }
+    ).dropna()
+    if len(df) < 50 or df["chg"].std() == 0 or df["ret"].std() == 0:
+        return {"available": False}
+    beta = float(np.cov(df["ret"], df["chg"])[0, 1] / np.var(df["chg"]))
+    r2 = float(np.corrcoef(df["ret"], df["chg"])[0, 1] ** 2)
+    lags: dict[int, float | None] = {}
+    for lag in (0, 10, 20):
+        pair = pd.DataFrame({"ret": df["ret"], "x": df["chg"].shift(lag)}).dropna()
+        lags[lag] = (
+            round(float(pair["ret"].corr(pair["x"])), 2)
+            if len(pair) >= 50 and pair["x"].std() > 0
+            else None
+        )
+    valid = {k: v for k, v in lags.items() if v is not None}
+    if not valid:
+        return {"available": False}
+    dom = max(valid, key=lambda k: abs(valid[k]))
+    if dom > 0 and valid[dom] < 0:
+        verdict = (
+            f"NL 脉冲领先价比约 {dom} 日（负相关最强）：扩张先 BTC 后 ETH，外溢确认"
+        )
+    elif dom == 0:
+        verdict = "主导滞后为 0：价比对 NL 脉冲同步响应，无外溢时滞"
+    else:
+        verdict = f"主导滞后 {dom} 日但为正相关：NL 扩张期 BTC 先强，非典型外溢形态"
+    return {
+        "available": True,
+        "as_of": str(end.date()),
+        "beta": round(beta * 100, 2),  # % 日收益率 / +$1T NL 脉冲
+        "r2": round(r2, 2),
+        "lags": {str(k): v for k, v in lags.items()},
+        "dominant_lag": dom,
+        "verdict": verdict,
+    }
+
+
+def _pm_implied(p: pd.DataFrame) -> dict:
+    """Polymarket 年终对赌阶梯 → P≈50% 隐含年终价位 → 隐含涨幅比（ETH/BTC）。
+
+    取「What price will BTC/ETH hit in <year>?」事件的上行阶梯（reach $X）市场，
+    概率随价位递减，相邻两档跨过 50% 处线性插值（复用 polymarket_analysis
+    .crossing_series，合成单日 hist 取最新值）。整条阶梯都在 50% 同侧（市场
+    没给对赌档）时该腿留 None——宁缺不造假锚点。现货锚 = asset_prices 最新收盘。
+    """
+    from src.polymarket_analysis import (
+        active_markets,
+        crossing_series,
+        hit_strike,
+        snapshot,
+    )
+
+    snap = snapshot()
+    if not snap:
+        return {"available": False}
+    as_of = str(snap.get("as_of") or "")[:10]
+    legs: dict[str, dict] = {}
+    for sym, rx in (
+        ("BTC", r"What price will Bitcoin hit in \d{4}\?"),
+        ("ETH", r"What price will Ethereum hit in \d{4}\?"),
+    ):
+        leg: dict = {}
+        if sym in p.columns:
+            s = p[sym].dropna()
+            if len(s):
+                leg["spot"] = round(float(s.iloc[-1]), 2)
+        ev = next(
+            (
+                e
+                for e in snap.get("events") or []
+                if re.fullmatch(rx, e.get("title") or "")
+            ),
+            None,
+        )
+        if ev is not None:
+            mkts = []
+            for m in active_markets(ev, as_of):
+                q = (m.get("question") or "").lower()
+                if "reach" not in q or m.get("prob_yes") is None:
+                    continue
+                st = hit_strike(m.get("question") or "")
+                if st is not None:
+                    mkts.append(
+                        {"id": str(m["id"]), "strike": st, "prob": float(m["prob_yes"])}
+                    )
+            hist = {m["id"]: [{"date": as_of, "value": m["prob"]}] for m in mkts}
+            pts = crossing_series(mkts, hist, rising=False)
+            if pts:
+                leg["implied"] = round(pts[-1]["value"])
+                if leg.get("spot"):
+                    leg["up_pct"] = round((leg["implied"] / leg["spot"] - 1) * 100, 1)
+        legs[sym] = leg
+    b, e = legs["BTC"], legs["ETH"]
+    if b.get("implied") is None and e.get("implied") is None:
+        return {"available": False, "as_of": as_of}
+    ratio = None
+    if b.get("up_pct") is not None and e.get("up_pct") is not None and b["up_pct"] > 0:
+        ratio = round(e["up_pct"] / b["up_pct"], 2)
+    if ratio is not None and ratio > 1.2:
+        verdict = "Polymarket 押注 ETH 隐含涨幅显著大于 BTC：市场在定价山寨季"
+    elif ratio is not None and ratio < 0.8:
+        verdict = "Polymarket 押注 BTC 隐含涨幅更大：资金预期偏向避险集中"
+    elif ratio is not None:
+        verdict = "两者隐含涨幅接近：市场对轮动无显著定价"
+    else:
+        missing = "ETH" if e.get("implied") is None else "BTC"
+        verdict = f"{missing} 上行阶梯整体概率未跨 50%（无对赌档），缺腿不报价"
+    return {
+        "available": True,
+        "as_of": as_of,
+        "btc": b,
+        "eth": e,
+        "ratio": ratio,
+        "verdict": verdict,
+    }
+
+
+def _btcd_block() -> dict:
+    """BTC Dominance 卡（契约驱动：data/btc_dominance/btc_dominance.csv）。
+
+    列：btc_dominance / eth_dominance（百分数）。BTCD 下行 + 价比上行 = 轮动扩散
+    确认（山寨季强信号）；BTCD 上行 = 避险集中。文件未落盘（fetcher 未上线）
+    → available False，前端显示 README 式空状态。
+    """
+    df = _csv("btc_dominance/btc_dominance.csv")
+    if df.empty or "btc_dominance" not in df.columns:
+        return {"available": False}
+    s = df["btc_dominance"].dropna()
+    if s.empty:
+        return {"available": False}
+    cur = float(s.iloc[-1])
+    past = s[s.index <= s.index[-1] - pd.Timedelta(days=30)]
+    chg30 = round(cur - float(past.iloc[-1]), 2) if len(past) else None
+    ethd = None
+    if "eth_dominance" in df.columns:
+        e = df["eth_dominance"].dropna()
+        ethd = round(float(e.iloc[-1]), 2) if len(e) else None
+    # ponytail: 固定 ±0.5pp 阈值；历史满 6m 后改滚动分位
+    if chg30 is None:
+        verdict = "BTCD 30 日变化待历史积累（快照未满 30 天）"
+    elif chg30 < -0.5:
+        verdict = "BTCD 下行：资金自 BTC 向外扩散，轮动确认（山寨季强信号）"
+    elif chg30 is not None and chg30 > 0.5:
+        verdict = "BTCD 上行：避险集中 BTC，山寨承压"
+    else:
+        verdict = "BTCD 横盘：无显著扩散/集中"
+    return {
+        "available": True,
+        "date": str(s.index[-1].date()),
+        "btcd": round(cur, 2),
+        "ethd": ethd,
+        "chg_30d": chg30,
+        "verdict": verdict,
+    }
+
+
+def _etf_flow_ratio() -> dict:
+    """ETH/BTC 现货 ETF 5 日净流入比（Farside 双表同构，M USD）。
+
+    ETH 腿为契约新源（data/etf_flows_eth/etf_flows_eth.csv），缺失 → available
+    False（前端 README 式空状态指向 ./bin/fetch_etf_flows_eth）；BTC 腿缺而
+    ETH 腿在则降级为单边展示。流量比与价比共振 = 强确认。
+    """
+    eth = _csv("etf_flows_eth/etf_flows_eth.csv")
+    btc = _csv("etf_flows/etf_flows.csv")
+
+    def _sum5(df: pd.DataFrame) -> float | None:
+        if df.empty or "Total" not in df.columns:
+            return None
+        s = df["Total"].dropna().tail(5)
+        return round(float(s.sum()), 1) if len(s) else None
+
+    e5, b5 = _sum5(eth), _sum5(btc)
+    if e5 is None:
+        return {"available": False}
+    date = None
+    if "Total" in eth.columns:
+        t = eth["Total"].dropna()
+        date = str(t.index[-1].date()) if len(t) else None
+    # 流量比只在 BTC 净流入为正时有意义（分母 ≤0 时方向信息在 verdict 里直说）
+    ratio = round(e5 / b5, 2) if b5 and b5 > 0 else None
+    if e5 > 0 and (b5 is None or b5 <= 0):
+        verdict = "ETH 净流入而 BTC 无净流入：资金强分化偏向 ETH"
+    elif ratio is not None and ratio > 1:
+        verdict = "ETH 5 日净流入强于 BTC：流量与价比共振，强确认"
+    elif ratio is not None:
+        verdict = "BTC 5 日净流入强于 ETH：流量未确认轮动"
+    elif e5 <= 0 and (b5 or 0) > 0:
+        verdict = "ETH 净流出 / BTC 净流入：流量方向与轮动背离"
+    else:
+        verdict = "双双净流出：流量层无轮动证据"
+    return {
+        "available": True,
+        "date": date,
+        "eth_5d_musd": e5,
+        "btc_5d_musd": b5,
+        "ratio": ratio,
+        "verdict": verdict,
+    }
+
+
+def _cross_summary(cross: dict, funding: dict | None) -> str:
+    """交叉验证综合判定（一句话）：funding 差 / PCR 差 / 相关性 / BTCD / ETF 流量
+    五项逐项给证据，缺项跳过不崩；可用数写进括号（降级可见）。
+    """
+    frags: list[str] = []
+    n = 0
+    if funding:
+        n += 1
+        d7 = funding.get("diff_chg_7d")
+        frags.append(
+            "funding 差走阔（杠杆推动，脆弱）"
+            if d7 is not None and d7 > 2
+            else "funding 差平稳（现货驱动）"
+        )
+    pcr = cross.get("pcr") or {}
+    if pcr.get("available"):
+        n += 1
+        c7 = pcr.get("diff_chg_7d")
+        if c7 is not None and c7 > 0.05:
+            frags.append("PCR 差抬升（ETH 保护需求上升）")
+        elif c7 is not None and c7 < -0.05:
+            frags.append("PCR 差回落（追涨心态占优）")
+        else:
+            frags.append("PCR 差平稳")
+    corr = cross.get("corr") or {}
+    if corr.get("available"):
+        n += 1
+        chg = corr.get("chg_30d")
+        if corr.get("cur", 0) > 0.8 and (chg is None or chg > -0.05):
+            frags.append("相关性高位（无轮动基础）")
+        elif chg is not None and chg <= -0.05:
+            frags.append("相关性回落（轮动确认）")
+        else:
+            frags.append("相关性中位平稳")
+    btcd = cross.get("btcd") or {}
+    if btcd.get("available"):
+        n += 1
+        c = btcd.get("chg_30d")
+        if c is None:
+            frags.append("BTCD 已监测（历史不足）")
+        elif c < -0.5:
+            frags.append("BTCD 下行（扩散确认）")
+        elif c is not None and c > 0.5:
+            frags.append("BTCD 上行（避险集中）")
+        else:
+            frags.append("BTCD 横盘")
+    etf = cross.get("etf_flow") or {}
+    if etf.get("available"):
+        n += 1
+        r = etf.get("ratio")
+        e5 = etf.get("eth_5d_musd") or 0
+        b5 = etf.get("btc_5d_musd") or 0
+        if (r is not None and r > 1) or (r is None and e5 > 0 and b5 <= 0):
+            frags.append("ETF 流量偏 ETH（共振确认）")
+        else:
+            frags.append("ETF 流量偏 BTC")
+    if not frags:
+        return ""
+    return "；".join(frags) + f"。（{n}/5 项交叉指标可用）"
+
+
+def _ratio_cross(p: pd.DataFrame, r: pd.Series, funding: dict | None) -> dict:
+    """价比交叉验证层（crypto 页价比面板「交叉验证」子区数据源）。
+
+    六项：PCR 差（B2）/ BTC-ETH 30d 相关性（B3）/ 价比×NL 脉冲（B4）/
+    Polymarket 隐含涨幅比（C3）/ BTC Dominance（C1，契约）/ ETH-BTC ETF 流量比
+    （C2，契约）。逐项降级：任一源缺失只影响该项，summary 跳过缺项不崩。
+    """
+    cross: dict = {}
+    try:
+        series = _pcr_diff_series()
+        pcr: dict = {"available": False}
+        if series:
+            pcr = dict(series[-1])
+            pcr["available"] = True
+            cutoff = datetime.strptime(pcr["date"], "%Y-%m-%d") - timedelta(days=7)
+            past = [
+                s for s in series if datetime.strptime(s["date"], "%Y-%m-%d") <= cutoff
+            ]
+            chg7 = round(pcr["diff"] - past[-1]["diff"], 3) if past else None
+            pcr["diff_chg_7d"] = chg7
+            if chg7 is not None and chg7 > 0.05:
+                pcr["verdict"] = "ETH PCR 相对抬升：期权市场对 ETH 保护需求相对上升"
+            elif chg7 is not None and chg7 < -0.05:
+                pcr["verdict"] = "ETH PCR 相对回落：保护需求下降，追涨心态占优"
+            else:
+                pcr["verdict"] = "PCR 差平稳：期权市场无显著偏向"
+        cross["pcr"] = pcr
+        cross["corr"] = _ratio_corr(p)
+        cross["nl_beta"] = _ratio_nl_beta(r)
+        cross["pm"] = _pm_implied(p)
+        cross["btcd"] = _btcd_block()
+        cross["etf_flow"] = _etf_flow_ratio()
+        cross["summary"] = _cross_summary(cross, funding)
+    except Exception as e:  # 交叉层是增强信息，异常不拖垮价比主块
+        logger.warning("价比交叉验证计算失败: %s", e)
+    return cross
+
+
 def _ratio_block(p: pd.DataFrame) -> dict | None:
     """BTC/ETH 价比分析块（crypto 页「价比」面板数据源）。
 
@@ -1446,6 +1832,9 @@ def _ratio_block(p: pd.DataFrame) -> dict | None:
             round(funding["diff"] - past[-1]["diff"], 2) if past else None
         )
 
+    # 交叉验证层：PCR 差 / 相关性 / NL 脉冲 / Polymarket 隐含涨幅比 / BTCD / ETF 流量比
+    cross = _ratio_cross(p, r, funding)
+
     # 轮动质量判定：价比动量方向 × funding 差变化。
     # ponytail: 固定阈值（动量 ±1% 横盘带、funding 差 7d ±2pp）；快照满 90d 后改滚动分位
     rotation = None
@@ -1476,6 +1865,9 @@ def _ratio_block(p: pd.DataFrame) -> dict | None:
                 "warn": False,
                 "text": "价比横盘：BTC/ETH 无显著相对强弱，暂不判轮动。",
             }
+    if rotation is not None and cross.get("summary"):
+        # 综合判定：轮动质量（动量×funding）+ 交叉验证五项证据一句话
+        rotation["cross_summary"] = cross["summary"]
 
     # 规则引擎叙事（LLM 预留：同构 dict 可直接覆盖）
     parts: list[str] = []
@@ -1502,6 +1894,8 @@ def _ratio_block(p: pd.DataFrame) -> dict | None:
             parts.append(f"价比 RSI(14) {rsi14:.0f} 超买，BTC 相对动能超买。")
     if rotation:
         parts.append(rotation["text"])
+    if cross.get("summary"):
+        parts.append(f"交叉验证：{cross['summary']}")
 
     # 图表序列：近 1 年（7×24 标的 365 行 ≈ 1 日历年）
     tail = r.tail(365)
@@ -1524,6 +1918,7 @@ def _ratio_block(p: pd.DataFrame) -> dict | None:
         "mom_30d": round(mom30, 2) if mom30 is not None else None,
         "funding": funding,
         "rotation": rotation,
+        "cross": cross,
         "narrative": " ".join(parts) or None,
         "dates": [str(d.date()) for d in tail.index],
         "series": _rnd(tail),

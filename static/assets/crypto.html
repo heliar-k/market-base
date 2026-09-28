@@ -41,8 +41,13 @@ async function load() {
   document.getElementById('cards').innerHTML = cards.map(c => `
     <div class="re-card"><div class="re-corridor-label">${c.label}</div>
     <div class="re-corridor-value">${c.value}</div><div class="re-card-sub">${c.sub}</div></div>`).join('');
+  const cx0 = (d.ratio && d.ratio.cross) || {};
   if (d.cards && d.cards.length) document.getElementById('re-as-of').textContent =
-    R.asOf([d.cards[0].date, ['资金费率', d.ratio && d.ratio.funding ? d.ratio.funding.date : null]]);
+    R.asOf([d.cards[0].date,
+      ['资金费率/PCR', d.ratio && d.ratio.funding ? d.ratio.funding.date : (cx0.pcr || {}).date],
+      ['Polymarket', (cx0.pm || {}).as_of],
+      ['BTCD', (cx0.btcd || {}).date],
+      ['ETF 流量', (cx0.etf_flow || {}).date]]);
 
   // ── 宏观 × 加密流动性溢出（timsun 同款 4 KPI：净流动性 / 20 日脉冲 / BTC Beta / 背离监控）──
   const L = d.liquidity || {};
@@ -177,7 +182,42 @@ async function load() {
         <div class="re-card"><div class="re-corridor-label">Funding 差（ETH−BTC 年化）</div>
           <div class="re-corridor-value" style="color:${f ? dir(f.diff) : 'var(--color-neutral)'}">${f ? pp(f.diff) : '—'}</div>
           <div class="re-card-sub">${f ? `BTC ${f.btc}% · ETH ${f.eth}% · 7d ${pp(f.diff_chg_7d)}` : '衍生品快照缺失'}</div>
-          ${rot ? `<div class="re-card-sub" style="color:${rot.warn ? 'var(--color-down)' : 'var(--color-up)'}">● 轮动质量：${rot.quality}</div>` : ''}</div>
+          ${rot ? `<div class="re-card-sub" style="color:${rot.warn ? 'var(--color-down)' : 'var(--color-up)'};white-space:normal">● 综合判定：${rot.quality}${rot.cross_summary ? '｜' + rot.cross_summary : ''}</div>` : ''}</div>
+      </div>`;
+    // ── 交叉验证（6 项：PCR 差 / 30d 相关性 / NL 脉冲 / Polymarket 隐含涨幅比 / BTCD / ETF 流量比；缺源卡片降级为空状态说明）──
+    const cx = ra.cross || {};
+    const xcard = (label, value, sub, verdict, color) => `
+      <div class="re-card"><div class="re-corridor-label">${label}</div>
+      <div class="re-corridor-value"${color ? ` style="color:${color}"` : ''}>${value}</div>
+      <div class="re-card-sub" style="white-space:normal">${sub}</div>
+      ${verdict ? `<div class="re-card-sub" style="white-space:normal">${verdict}</div>` : ''}</div>`;
+    const signed = (v, nd = 2) => v == null ? '—' : `${v > 0 ? '+' : ''}${Number(v).toFixed(nd)}`;
+    const pc = cx.pcr || {}, co = cx.corr || {}, nb = cx.nl_beta || {};
+    const pm = cx.pm || {}, bd = cx.btcd || {}, ef = cx.etf_flow || {};
+    const pmLeg = (leg, sym) => leg && leg.implied != null
+      ? `${sym} ${signed(leg.up_pct, 1)}% → $${fmt(leg.implied)}`
+      : `${sym} 无 50% 对赌档`;
+    rasec.innerHTML += `
+      <p style="margin:14px 0 8px;font-size:13px"><b>交叉验证</b></p>
+      <div class="re-cards" style="grid-template-columns:repeat(auto-fit,minmax(190px,1fr))">
+        ${pc.available
+          ? xcard('PCR 差（ETH−BTC）', signed(pc.diff, 3), `BTC ${pc.btc} · ETH ${pc.eth} · 7d ${signed(pc.diff_chg_7d, 3)}`, pc.verdict, dir(pc.diff))
+          : xcard('PCR 差（ETH−BTC）', '—', '衍生品快照缺失', null)}
+        ${co.available
+          ? xcard('BTC-ETH 30d 相关性', co.cur, `30 日前 ${co.prev ?? '—'}（Δ ${signed(co.chg_30d)}）`, co.verdict, null)
+          : xcard('BTC-ETH 30d 相关性', '—', '资产快照缺失：运行 ./bin/fetch_yfinance', null)}
+        ${nb.available
+          ? xcard('价比 × NL 脉冲 β', `${nb.beta}%`, `主导滞后 ${nb.dominant_lag}d（r=${nb.lags[String(nb.dominant_lag)]}）· R² ${nb.r2}`, nb.verdict, dir(nb.beta))
+          : xcard('价比 × NL 脉冲 β', '—', '流动性数据不足：运行 ./bin/fetch_fred', null)}
+        ${pm.available
+          ? xcard('Polymarket 隐含涨幅比', pm.ratio != null ? pm.ratio + 'x' : '—', `${pmLeg(pm.btc, 'BTC')} · ${pmLeg(pm.eth, 'ETH')}`, pm.verdict, pm.ratio != null ? dir(pm.ratio - 1) : null)
+          : xcard('Polymarket 隐含涨幅比', '—', '年终对赌阶梯缺失（Polymarket 快照无年度事件）', null)}
+        ${bd.available
+          ? xcard('BTC Dominance', bd.btcd + '%', `30d ${bd.chg_30d == null ? '积累中' : signed(bd.chg_30d) + 'pp'}${bd.ethd != null ? ' · ETHD ' + bd.ethd + '%' : ''}`, bd.verdict, null)
+          : xcard('BTC Dominance', '—', '数据未就绪：运行 ./bin/fetch_btc_dominance', null)}
+        ${ef.available
+          ? xcard('ETF 流量比（ETH/BTC 5d）', ef.ratio != null ? ef.ratio + 'x' : '—', `ETH ${signed(ef.eth_5d_musd, 1)}M · BTC ${ef.btc_5d_musd == null ? '—' : signed(ef.btc_5d_musd, 1) + 'M'}`, ef.verdict, ef.ratio != null ? dir(ef.ratio - 1) : null)
+          : xcard('ETF 流量比（ETH/BTC 5d）', '—', '数据未就绪：运行 ./bin/fetch_etf_flows_eth', null)}
       </div>`;
     if (ra.dates && ra.dates.length) {
       rasec.innerHTML += '<div class="chart" id="ratio-chart" style="height:320px;margin-top:12px"></div>';
@@ -233,7 +273,7 @@ async function load() {
   rsec.appendChild(R.table(['日期'].concat(rkeys), rows, fmts));
   document.getElementById('recent').appendChild(rsec);
 
-  document.getElementById('re-gen').textContent = '规则引擎（LLM 预留）· 流动性口径：WALCL − TGA − RRP；β 为 90 日净流动性变化对资产日收益率回归；价比指标算在 BTC/ETH 序列上（图取倒数轴）；funding 差 = ETH−BTC 永续年化；收盘价数据源 yfinance';
+  document.getElementById('re-gen').textContent = '规则引擎（LLM 预留）· 流动性口径：WALCL − TGA − RRP；β 为 90 日净流动性变化对资产日收益率回归；价比指标算在 BTC/ETH 序列上（图取倒数轴）；funding 差 = ETH−BTC 永续年化；交叉验证 = PCR 差（衍生品快照历史）/ 30d 相关性（asset_prices 滚动）/ NL 脉冲 β（价比日收益 × NL 20 日脉冲，0/10/20 日滞后取主导）/ Polymarket 隐含涨幅比（年终 reach 阶梯 P≈50% 插值）/ BTCD / ETF 流量比（5d）；收盘价数据源 yfinance';
 }
 // 分类色单源：净流动性青线走 --chart-cyan（两主题同值）；BTC/ETH 趋势线在 optionFn 内随主题取色
 const NL_CYAN = reCssVar('--chart-cyan');

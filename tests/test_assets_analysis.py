@@ -1,15 +1,23 @@
 """assets_analysis 规则引擎单元测试（不依赖网络，纯函数验证）。"""
 
+import json
+
 import numpy as np
 import pandas as pd
 import pytest
 
 from src.assets_analysis import (
+    _btcd_block,
     _chg,
+    _etf_flow_ratio,
     _fx_verdict,
     _ls_cols,
     _options_narrative,
+    _pm_implied,
     _price_rows,
+    _ratio_corr,
+    _ratio_cross,
+    _ratio_nl_beta,
     _reg_beta,
     crypto,
     equity_analysis,
@@ -511,6 +519,8 @@ class TestCryptoRatio:
         monkeypatch.setattr(
             "src.assets_analysis._funding_diff_series", lambda: funding or []
         )
+        # 交叉验证层读真实快照/契约 CSV，这里整体打桩保证用例与仓库数据解耦
+        monkeypatch.setattr("src.assets_analysis._ratio_cross", lambda *a, **k: {})
         return ratio
 
     def test_ratio_block_fields(self, monkeypatch):
@@ -548,3 +558,298 @@ class TestCryptoRatio:
     def test_insufficient_history_returns_none(self, monkeypatch):
         self._fixtures(monkeypatch, 35.0, 30.0, days=30)
         assert crypto()["ratio"] is None
+
+
+class TestRatioCross:
+    """价比交叉验证层：PCR 差 / 30d 相关性 / NL 脉冲 / Polymarket / BTCD / ETF 流量。"""
+
+    @staticmethod
+    def _px(days=400, ratio_start=35.0, ratio_end=30.0):
+        idx = pd.date_range("2025-08-01", periods=days)
+        ratio = pd.Series(np.linspace(ratio_start, ratio_end, days), index=idx)
+        return pd.DataFrame({"BTC": ratio * 100.0, "ETH": 100.0}, index=idx), ratio
+
+    # ── B(2) PCR 差 ──
+
+    def test_pcr_diff_series_and_7d(self, monkeypatch, tmp_path):
+        d = tmp_path / "data" / "crypto_derivatives"
+        d.mkdir(parents=True)
+        for day, bpcr, epcr in (("20260920", 0.50, 0.52), ("20260928", 0.53, 0.60)):
+            (d / f"{day}.json").write_text(
+                json.dumps({"options_BTC": {"pcr": bpcr}, "options_ETH": {"pcr": epcr}})
+            )
+        # 坏 JSON 与缺腿快照被跳过
+        (d / "20260927.json").write_text("{oops")
+        (d / "20260926.json").write_text(json.dumps({"options_BTC": {"pcr": 0.5}}))
+        monkeypatch.setattr("src.assets_analysis.ROOT", tmp_path)
+        # 隔离不相关源（_pm_implied 走 polymarket_analysis 自己的 ROOT，不吃 tmp_path）
+        monkeypatch.setattr(
+            "src.assets_analysis._pm_implied", lambda *a, **k: {"available": False}
+        )
+        cross = _ratio_cross(self._px()[0], self._px()[1], None)
+        pcr = cross["pcr"]
+        assert pcr["available"] and pcr["date"] == "2026-09-28"
+        assert pcr["diff"] == pytest.approx(0.07)
+        assert pcr["diff_chg_7d"] == pytest.approx(0.05)
+        assert "PCR 差平稳" in pcr["verdict"]  # 阈值是 >0.05，0.05 不触发抬升
+
+    def test_pcr_diff_rising_verdict(self, monkeypatch, tmp_path):
+        d = tmp_path / "data" / "crypto_derivatives"
+        d.mkdir(parents=True)
+        for day, bpcr, epcr in (("20260920", 0.50, 0.50), ("20260928", 0.50, 0.62)):
+            (d / f"{day}.json").write_text(
+                json.dumps({"options_BTC": {"pcr": bpcr}, "options_ETH": {"pcr": epcr}})
+            )
+        monkeypatch.setattr("src.assets_analysis.ROOT", tmp_path)
+        monkeypatch.setattr(
+            "src.assets_analysis._pm_implied", lambda *a, **k: {"available": False}
+        )
+        cross = _ratio_cross(self._px()[0], self._px()[1], None)
+        assert cross["pcr"]["diff_chg_7d"] == pytest.approx(0.12)
+        assert "保护需求相对上升" in cross["pcr"]["verdict"]
+        assert "PCR 差抬升" in cross["summary"]
+
+    def test_pcr_empty_snapshots(self, monkeypatch, tmp_path):
+        monkeypatch.setattr("src.assets_analysis.ROOT", tmp_path)
+        cross = _ratio_cross(self._px()[0], self._px()[1], None)
+        assert cross["pcr"]["available"] is False
+
+    # ── B(3) BTC-ETH 30d 相关性 ──
+
+    def test_corr_high_no_rotation(self):
+        # BTC/ETH 完全同幅波动（ETH = BTC/10）→ 相关性恒 1，判「无轮动基础」
+        idx = pd.date_range("2026-01-01", periods=120)
+        btc = 100 + np.sin(np.arange(120) / 5).cumsum()
+        p = pd.DataFrame({"BTC": btc, "ETH": btc / 10}, index=idx)
+        out = _ratio_corr(p)
+        assert out["available"]
+        assert out["cur"] == pytest.approx(1.0, abs=0.01)
+        assert out["prev"] is not None
+        assert "无轮动基础" in out["verdict"]
+
+    def test_corr_unavailable(self):
+        assert _ratio_corr(pd.DataFrame({"BTC": [1.0, 2.0]}))["available"] is False
+
+    # ── B(4) 价比 × NL 脉冲 ──
+
+    def test_nl_beta_dominant_lag(self, monkeypatch):
+        idx = pd.date_range("2026-01-01", periods=200)
+        nl = 6_000_000.0 + pd.Series(np.sin(np.arange(200) / 8) * 30_000, index=idx)
+        liq = pd.DataFrame({"WALCL": nl, "RRPONTSYD": 0.0, "WTREGEN": 0.0}, index=idx)
+        # 价比日收益 = -0.5 × NL 20d 脉冲（T）的 10 日前值 → 主导滞后 10、强负相关
+        chg = nl.diff(20) / 1e6
+        ret = (-0.5 * chg.shift(10)).fillna(0)
+        r = 30 * (1 + ret).cumprod()
+        monkeypatch.setattr("src.assets_analysis._csv", lambda _p, **_kw: liq)
+        out = _ratio_nl_beta(r)
+        assert out["available"]
+        assert out["dominant_lag"] == 10
+        assert out["lags"]["10"] < -0.9
+        assert "外溢确认" in out["verdict"]
+
+    def test_nl_beta_unavailable(self, monkeypatch):
+        monkeypatch.setattr(
+            "src.assets_analysis._csv", lambda _p, **_kw: pd.DataFrame()
+        )
+        assert _ratio_nl_beta(self._px()[1])["available"] is False
+
+    # ── C(3) Polymarket 隐含涨幅比 ──
+
+    @staticmethod
+    def _pm_snap():
+        def m(i, q, p):
+            return {
+                "id": i,
+                "question": q,
+                "prob_yes": p,
+                "end_date": "2027-01-01",
+            }
+
+        return {
+            "as_of": "2026-09-28",
+            "events": [
+                {
+                    "title": "What price will Bitcoin hit in 2026?",
+                    "markets": [
+                        m("1", "Will Bitcoin reach $80,000 by December 31, 2026?", 0.7),
+                        m("2", "Will Bitcoin reach $90,000 by December 31, 2026?", 0.4),
+                        m(
+                            "3",
+                            "Will Bitcoin reach $100,000 by December 31, 2026?",
+                            0.2,
+                        ),
+                        m(
+                            "4",
+                            "Will Bitcoin dip to $50,000 by December 31, 2026?",
+                            0.3,
+                        ),
+                    ],
+                },
+                {
+                    "title": "What price will Ethereum hit in 2026?",
+                    "markets": [
+                        m("5", "Will Ethereum reach $3,000 by December 31, 2026?", 0.6),
+                        m("6", "Will Ethereum reach $4,000 by December 31, 2026?", 0.4),
+                        m("7", "Will Ethereum reach $5,000 by December 31, 2026?", 0.2),
+                    ],
+                },
+            ],
+        }
+
+    def test_pm_implied_ratio(self, monkeypatch):
+        monkeypatch.setattr("src.polymarket_analysis.snapshot", lambda: self._pm_snap())
+        p = pd.DataFrame(
+            {"BTC": [80_000.0], "ETH": [2_500.0]},
+            index=pd.date_range("2026-09-28", periods=1),
+        )
+        out = _pm_implied(p)
+        assert out["available"]
+        # BTC 50% 档：80k(0.7)~90k(0.4) 插值 → 86,666.7 → +8.3%
+        assert out["btc"]["implied"] == pytest.approx(86_666.7, abs=0.5)
+        # ETH 50% 档：3k(0.6)~4k(0.4) 插值 → 3,500 → +40%
+        assert out["eth"]["implied"] == pytest.approx(3_500.0)
+        assert out["ratio"] == pytest.approx(40.0 / 8.3, abs=0.05)
+        assert "山寨季" in out["verdict"]
+
+    def test_pm_missing_leg(self, monkeypatch):
+        snap = self._pm_snap()
+        # ETH 上行阶梯整体 <50%（无对赌档）→ 缺腿不报价
+        for mkt in snap["events"][1]["markets"]:
+            mkt["prob_yes"] *= 0.3
+        monkeypatch.setattr("src.polymarket_analysis.snapshot", lambda: snap)
+        p = pd.DataFrame(
+            {"BTC": [80_000.0], "ETH": [2_500.0]},
+            index=pd.date_range("2026-09-28", periods=1),
+        )
+        out = _pm_implied(p)
+        assert out["available"]  # BTC 腿在
+        assert out["eth"].get("implied") is None
+        assert out["ratio"] is None
+        assert "缺腿" in out["verdict"]
+
+    def test_pm_no_snapshot(self, monkeypatch):
+        monkeypatch.setattr("src.polymarket_analysis.snapshot", lambda: None)
+        assert _pm_implied(self._px()[0])["available"] is False
+
+    # ── C(1) BTC Dominance（契约驱动）──
+
+    def test_btcd_declining_confirms_rotation(self, monkeypatch):
+        idx = pd.date_range("2026-08-20", periods=40)
+        df = pd.DataFrame(
+            {"btc_dominance": np.linspace(60.0, 58.0, 40), "eth_dominance": 11.0},
+            index=idx,
+        )
+        monkeypatch.setattr("src.assets_analysis._csv", lambda _p, **_kw: df)
+        out = _btcd_block()
+        assert out["available"]
+        assert out["btcd"] == pytest.approx(58.0)
+        assert out["chg_30d"] < -0.5
+        assert "扩散" in out["verdict"]
+
+    def test_btcd_contract_missing(self, monkeypatch):
+        monkeypatch.setattr(
+            "src.assets_analysis._csv", lambda _p, **_kw: pd.DataFrame()
+        )
+        assert _btcd_block()["available"] is False
+
+    # ── C(2) ETH/BTC ETF 流量比（契约驱动）──
+
+    @staticmethod
+    def _flow_df(vals):
+        idx = pd.date_range("2026-09-22", periods=len(vals))
+        return pd.DataFrame({"Total": vals}, index=idx)
+
+    def test_etf_flow_ratio(self, monkeypatch):
+        dfs = {
+            "etf_flows_eth/etf_flows_eth.csv": self._flow_df([100.0] * 5),
+            "etf_flows/etf_flows.csv": self._flow_df([50.0] * 5),
+        }
+        monkeypatch.setattr(
+            "src.assets_analysis._csv", lambda p, **_kw: dfs.get(p, pd.DataFrame())
+        )
+        out = _etf_flow_ratio()
+        assert out["available"]
+        assert out["ratio"] == pytest.approx(2.0)
+        assert out["eth_5d_musd"] == 500.0 and out["btc_5d_musd"] == 250.0
+        assert "共振" in out["verdict"]
+
+    def test_etf_flow_eth_leg_missing(self, monkeypatch):
+        dfs = {"etf_flows/etf_flows.csv": self._flow_df([50.0] * 5)}
+        monkeypatch.setattr(
+            "src.assets_analysis._csv", lambda p, **_kw: dfs.get(p, pd.DataFrame())
+        )
+        assert _etf_flow_ratio()["available"] is False
+
+    # ── 综合判定 + 集成（空数据降级不崩）──
+
+    def test_summary_skips_missing(self, monkeypatch):
+        for fn in (
+            "_ratio_corr",
+            "_ratio_nl_beta",
+            "_pm_implied",
+            "_btcd_block",
+            "_etf_flow_ratio",
+        ):
+            monkeypatch.setattr(
+                f"src.assets_analysis.{fn}", lambda *a, **k: {"available": False}
+            )
+        monkeypatch.setattr(
+            "src.assets_analysis._pcr_diff_series",
+            lambda: [
+                {"date": "2026-09-20", "btc": 0.5, "eth": 0.5, "diff": 0.0},
+                {"date": "2026-09-28", "btc": 0.5, "eth": 0.6, "diff": 0.1},
+            ],
+        )
+        cross = _ratio_cross(self._px()[0], self._px()[1], None)
+        assert "PCR 差抬升" in cross["summary"]
+        assert "BTCD" not in cross["summary"]  # 缺项跳过
+        assert "（1/5" in cross["summary"]  # funding None（不计），仅 PCR 可用
+
+    def test_summary_all_missing(self, monkeypatch):
+        for fn in (
+            "_ratio_corr",
+            "_ratio_nl_beta",
+            "_pm_implied",
+            "_btcd_block",
+            "_etf_flow_ratio",
+        ):
+            monkeypatch.setattr(
+                f"src.assets_analysis.{fn}", lambda *a, **k: {"available": False}
+            )
+        monkeypatch.setattr("src.assets_analysis._pcr_diff_series", lambda: [])
+        cross = _ratio_cross(self._px()[0], self._px()[1], None)
+        assert cross["summary"] == ""
+
+    def test_crypto_integration_cross_block(self, monkeypatch):
+        p, _ = self._px()
+        monkeypatch.setattr("src.assets_analysis.asset_prices", lambda: p)
+        monkeypatch.setattr(
+            "src.assets_analysis._csv", lambda _p, **_kw: pd.DataFrame()
+        )
+        monkeypatch.setattr("src.assets_analysis._funding_diff_series", lambda: [])
+        monkeypatch.setattr(
+            "src.assets_analysis._pcr_diff_series",
+            lambda: [
+                {"date": "2026-09-28", "btc": 0.5, "eth": 0.6, "diff": 0.1},
+            ],
+        )
+        monkeypatch.setattr(
+            "src.assets_analysis._btcd_block",
+            lambda: {
+                "available": True,
+                "date": "2026-09-28",
+                "btcd": 58.0,
+                "ethd": 11.0,
+                "chg_30d": -1.2,
+                "verdict": "v",
+            },
+        )
+        for fn in ("_ratio_nl_beta", "_pm_implied", "_etf_flow_ratio"):
+            monkeypatch.setattr(
+                f"src.assets_analysis.{fn}", lambda *a, **k: {"available": False}
+            )
+        r = crypto()["ratio"]
+        assert r["cross"]["pcr"]["available"]
+        assert "BTCD 下行（扩散确认）" in r["cross"]["summary"]
+        assert r["rotation"]["cross_summary"] == r["cross"]["summary"]
+        assert "交叉验证" in r["narrative"]

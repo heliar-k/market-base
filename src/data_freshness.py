@@ -97,6 +97,12 @@ CHECKS: list[Check] = [
     _c("data/fx/fx_pairs.csv", D, "外汇 16 对日线"),
     _c("data/etf/pool_prices.csv", D, "精选池 ETF 日线"),
     _c("data/etf_flows/etf_flows.csv", 8, "BTC 现货 ETF 资金流"),
+    _c("data/etf_flows_eth/etf_flows_eth.csv", 8, "ETH 现货 ETF 资金流"),
+    _c(
+        "data/btc_dominance/btc_dominance.csv",
+        D,
+        "BTC/ETH Dominance（CoinGecko 日快照）",
+    ),
     _c("data/crypto_basis/basis.csv", 10, "CME BTC 基差（丢末根未完成 bar）"),
     _c("data/short_selling/finra_daily.csv", 8, "FINRA 卖空量（源约 T+1）"),
     _c("data/rate_expectations/fomc_probabilities.csv", D, "FOMC 概率"),

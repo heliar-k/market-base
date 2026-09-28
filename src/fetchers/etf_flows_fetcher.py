@@ -65,33 +65,48 @@ def _to_float(tok: str) -> float | None:
     return sign * float(m.group(2).replace(",", ""))
 
 
-def _parse_table(content: str) -> pd.DataFrame:
+def _parse_table(content: str, columns: list[str]) -> pd.DataFrame:
     """解析 Jina Markdown 管道表（2026-08 起 Jina 把 Farside 表渲染成 | a | b | 形式）：
-    每行 | 日期 | 13 值 |，列序即 COLUMNS（与 Farside 表头一致）。"""
+    每行 | 日期 | N 值 |，列序即 columns（与 Farside 表头一致）。
+    表头行（首个含 "Total" 的管道行）与 columns 不一致 → 告警后仍按 columns 解析。"""
     records = []
+    header_checked = False
     for ln in content.splitlines():
         if "|" not in ln:
             continue
         cells = [c.strip() for c in ln.strip().strip("|").split("|")]
-        if len(cells) < 3 or not _DATE_RE.match(cells[0]):
+        if len(cells) < 3:
             continue
-        nums = [_to_float(v) for v in cells[1 : 1 + len(COLUMNS)]]
-        nums += [None] * (len(COLUMNS) - len(nums))
+        if not header_checked and "Total" in cells:
+            header_checked = True
+            page_cols = [c for c in cells[1:] if c]
+            if page_cols != columns:
+                logger.warning(
+                    "Farside 表头与预期不一致: %s…（按内置列序解析）",
+                    str(page_cols[:5]),
+                )
+            continue
+        if not _DATE_RE.match(cells[0]):
+            continue
+        nums = [_to_float(v) for v in cells[1 : 1 + len(columns)]]
+        nums += [None] * (len(columns) - len(nums))
         d = pd.to_datetime(cells[0], format="%d %b %Y").strftime("%Y-%m-%d")
-        records.append({"date": d, **dict(zip(COLUMNS, nums))})
+        records.append({"date": d, **dict(zip(columns, nums))})
     if not records:
         return pd.DataFrame()
     df = pd.DataFrame(records).set_index("date")
     return df[~df.index.duplicated(keep="last")].sort_index()
 
 
-def parse_farside(content: str) -> pd.DataFrame:
+def parse_farside(content: str, columns: list[str] | None = None) -> pd.DataFrame:
     """解析 Jina 渲染的 Farside 全表（M USD）。
 
-    新格式：Markdown 管道表（每行 | 日期 | 13 值 |）；
-    旧格式（历史/测试）：每 token 一行（日期行 + 13 值行）。
+    columns 缺省用 BTC 页 COLUMNS；ETH 页等变体传自己的列清单。
+    新格式：Markdown 管道表（每行 | 日期 | N 值 |）；
+    旧格式（历史/测试）：每 token 一行（日期行 + N 值行）。
     """
-    df = _parse_table(content)
+    columns = columns or COLUMNS
+    df = _parse_table(content, columns)
     if not df.empty:
         return df
     tokens = [ln.strip() for ln in content.splitlines() if ln.strip()]
@@ -102,12 +117,12 @@ def parse_farside(content: str) -> pd.DataFrame:
     last_date = max((i for i, t in enumerate(tokens[:idx]) if t == "Date"), default=-1)
     if last_date >= 0:
         header = [t for t in tokens[last_date + 1 : idx] if _DATE_RE.match(t) is None]
-    # 表头与 COLUMNS 数量一致但内容不同（Jina 列序变化/噪声）→ 回退并告警；
+    # 表头与 columns 数量一致但内容不同（Jina 列序变化/噪声）→ 回退并告警；
     # 数量不同的小样本/变体页仍按页面自身 header 解析
-    if header and len(header) == len(COLUMNS) and header != COLUMNS:
+    if header and len(header) == len(columns) and header != columns:
         logger.warning("Farside 表头与预期不一致: %s…（回退默认列序）", str(header[:5]))
         header = []
-    cols = header if header else COLUMNS
+    cols = header if header else columns
     rows: list[dict] = []
     cur_date, cur_vals = None, []
     for tok in tokens[idx:]:
@@ -135,10 +150,10 @@ def parse_farside(content: str) -> pd.DataFrame:
     return df
 
 
-def fetch_flows() -> pd.DataFrame:
+def fetch_flows(url: str = PAGE_URL, columns: list[str] | None = None) -> pd.DataFrame:
     """经 Jina Reader 拉取 Farside 全表并解析。"""
-    content = jina_fetch(PAGE_URL)
-    df = parse_farside(content)
+    content = jina_fetch(url)
+    df = parse_farside(content, columns)
     if df.empty:
         raise RuntimeError(f"Farside 解析为空（响应 {len(content)} 字符）")
     return df
