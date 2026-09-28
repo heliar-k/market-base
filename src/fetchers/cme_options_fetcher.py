@@ -13,6 +13,12 @@ https://www.cmegroup.com/markets/cryptocurrencies/bitcoin/bitcoin/volume/options
 写入 data/cme_options/{date}.json（覆盖写，每日 Actions 跑）。
 解析失败/空内容返回 {}（不抛），单字段缺失只跳过该字段。
 
+⚠ 2026-09 起发现：CME 页面经 Jina 渲染时表格组件回落到默认产品（KC 小麦）
+的已到期月份表（strike 2,500-18,750，与 BTC ~$83K 完全不匹配，OI 清零）。
+该 fetcher 自 2026-08-23 上线起解析的一直是小麦期权，从未拿到 BTC 数据。
+parse_options() 末端因此加了 sanity guard（total_oi>0 + 墙位 vs BTC 现价区间），
+校验不过拒绝落盘；真正的修复（真浏览器点产品选择器）见 git 历史与页面注记。
+
 用法:
     uv run python -m src.fetchers.cme_options_fetcher
 """
@@ -25,6 +31,7 @@ import os
 import re
 from datetime import datetime, timezone
 
+import pandas as pd
 import requests
 
 from src.config import ROOT
@@ -105,6 +112,35 @@ def _parse_max_pain(
     return best
 
 
+def _btc_spot() -> float | None:
+    """BTC 现价锚（yfinance 资产日线，与全站价格面板同源）；取不到返回 None。"""
+    path = ROOT / "data" / "yfinance" / "asset_prices.csv"
+    if not path.exists():
+        return None
+    try:
+        s = pd.read_csv(path)["BTC"].dropna()
+        return float(s.iloc[-1]) if len(s) else None
+    except Exception:
+        return None
+
+
+def snapshot_plausible(out: dict, spot: float | None) -> bool:
+    """快照合理性校验：CME 表格回落到默认产品（小麦）时 strike 量级完全不符。
+
+    规则：total_oi 解析出且为 0（已到期月份清零）→ 拒；无现价锚 → 拒
+    （本源已失信，宁可空缺不可误导）；墙位须在 [0.15x, 6x] 现价区间内。
+    """
+    if "total_oi" in out and not out["total_oi"]:
+        return False
+    if not spot:
+        return False
+    return all(
+        0.15 * spot <= out[k] <= 6 * spot
+        for k in ("call_wall", "put_wall")
+        if out.get(k) is not None
+    )
+
+
 def parse_options(content: str) -> dict:
     """解析 Jina 渲染的 CME Markdown → 快照 dict（字段可缺，空内容返回 {}）。"""
     rows = _strike_rows(content)
@@ -167,6 +203,15 @@ def parse_options(content: str) -> dict:
         return {}
     if not totals and not call_oi and not put_oi:
         logger.warning("CME 期权解析不完整（rows=%d），放弃写入", len(rows))
+        return {}
+    if not snapshot_plausible(out, _btc_spot()):
+        logger.error(
+            "CME 期权快照未通过合理性校验（total_oi=%s call_wall=%s put_wall=%s）"
+            "——疑似页面回落到默认产品表，拒绝落盘",
+            out.get("total_oi"),
+            out.get("call_wall"),
+            out.get("put_wall"),
+        )
         return {}
     return out
 

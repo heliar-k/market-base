@@ -230,7 +230,9 @@ def fetch_options(currency: str = "BTC") -> dict:
 
     gex = _gex_summary(df, spot)
 
-    # 最近到期月度口径（timsun Strike Wall 模块）：按 DDMYY 到期段解析取最早
+    # 最近到期口径（timsun Strike Wall 模块）：按 DDMYY 到期段解析。
+    # 优先取最近的周五到期（Deribit 周度/月度合约均为周五，OI 远厚于 daily；
+    # 直接取 min 会选中 OI 仅几百张的 daily 合约，墙无指导意义），无周五才回退最近日。
     df["_exp_date"] = df["expiration"].map(_parse_exp)
     near = df.dropna(subset=["_exp_date"])
     nearest_exp, near_call_wall, near_put_wall = None, None, None
@@ -239,7 +241,9 @@ def fetch_options(currency: str = "BTC") -> dict:
     top_puts: list[dict] = []
     near_max_pain = None
     if not near.empty:
-        min_d = near["_exp_date"].min()
+        days = sorted(near["_exp_date"].unique())
+        fridays = [d for d in days if pd.Timestamp(d).weekday() == 4]
+        min_d = fridays[0] if fridays else days[0]
         nearest_exp = min_d.strftime("%Y-%m-%d")
         near = near[near["_exp_date"] == min_d]
         near_call_wall, near_call_wall_oi, top_calls = _wall(near, "C")

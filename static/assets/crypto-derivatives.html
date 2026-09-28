@@ -59,7 +59,8 @@ function levelOption(clusters, spot, c) {
     },
     yAxis: {
       type: 'value', scale: true,
-      axisLabel: { color: c.muted, fontSize: 10, formatter: v => '$' + (v / 1e3).toFixed(0) + 'K' },
+      // 按量级自适应：BTC 用 $85K，ETH/SOL/XRP 用 $2,677 原值（原 toFixed(0)+'K' 对 ETH 会产生重复刻度）
+      axisLabel: { color: c.muted, fontSize: 10, formatter: v => v >= 10000 ? '$' + (v / 1e3).toFixed(0) + 'K' : '$' + Number(v.toPrecision(3)).toLocaleString('en-US') },
       splitLine: { lineStyle: { color: c.grid } },
     },
     series: clusters.map(x => line(x.name, x.level_series)).concat(
@@ -191,7 +192,7 @@ async function load() {
   const d = await R.get('/api/assets/crypto-derivatives');
   if (!d || !d.ts) { R.fail(['radar', 'kpi', 'walls', 'polymarket', 'retail', 'consensus'], new Error('无加密衍生品快照 · 运行 ./bin/fetch_crypto_derivatives 后刷新')); return; }
   document.getElementById('re-as-of').textContent =
-    R.asOf([['衍生品快照', d.ts.slice(0, 10)], d.cme && ['CME 基差', d.cme.as_of]]);
+    R.asOf([['衍生品快照', d.ts.slice(0, 10)], d.cme && ['CME 期货 OI', d.cme.as_of], d.basis && d.basis.available && ['基差', d.basis.latest]]);
 
   // ── BTC FORWARD RADAR（timsun 同款：综合分 + 4 列 + 信号权重）──
   const radar = d.radar || { total: null, confidence: 0, verdict: '数据不足', structure: '—', lev_risk: '—', driver: '—', signals: [] };
@@ -224,11 +225,27 @@ async function load() {
   }).join('');
   rsec.insertAdjacentHTML('beforeend', `<div class="re-render" style="display:grid;gap:6px"></div>`);
   rsec.querySelector('.re-render').innerHTML = rows;
+  // 触发/反证条件按当前数据实时计算（统一 ✓ 成立 / ✗ 不成立 / — 数据缺；
+  // 反证条件用正常态措辞，✗ = 风险触发）
+  const gFlip = ((d.options_BTC || {}).gex || {}).gamma_flip;
+  const spotNow = (d.options_BTC || {}).spot_anchor;
+  const etf5 = d.etf && d.etf.available && !d.etf.stale ? d.etf.sum5d_busd : null;
+  const spreadV = d.basis && d.basis.available ? d.basis.spread : null;
+  const annFrRaw = ((d.perp || {}).BTC || {}).funding_annual;
+  const annFr = annFrRaw == null ? null : annFrRaw * 100;
+  const cond = (ok, label, invert) => `<span class="re-badge ${ok == null ? 'flat' : ok ? 'bull' : (invert ? 'bear' : 'flat')}">${ok == null ? '—' : ok ? '✓' : '✗'} ${label}</span>`;
   rsec.insertAdjacentHTML('beforeend', `
     <div class="re-badges" style="margin-top:10px">
-      <span class="re-badge flat">触发条件 · 现价上穿 Gamma Flip 且 ETF 5d 净流入转正</span>
+      <span style="font-size:11px;opacity:.7">触发条件</span>
+      ${cond(spotNow != null && gFlip != null ? spotNow > gFlip : null, `现价上穿 Gamma Flip${gFlip ? `（$${fmt(gFlip, 0)}）` : ''}`)}
+      ${cond(etf5 == null ? null : etf5 > 0, `ETF 5d 净流入转正${etf5 != null ? `（${etf5 >= 0 ? '+' : ''}${etf5.toFixed(2)}B）` : '（数据过期）'}`)}
     </div>
-    <p class="re-source" style="margin:8px 0 0">反证条件：基差 Spread 转负，或资金费率年化超 ±15% 触发拥挤反转。</p>`);
+    <div class="re-badges" style="margin-top:6px">
+      <span style="font-size:11px;opacity:.7">反证条件</span>
+      ${cond(spreadV == null ? null : spreadV > 0, `基差 Spread 为正${spreadV != null ? `（当前 ${spreadV}%）` : ''}`, true)}
+      ${cond(annFr == null ? null : Math.abs(annFr) < 15, `资金费率年化在 ±15% 内${annFr != null ? `（当前 ${annFr.toFixed(1)}%）` : ''}`, true)}
+    </div>
+    <p class="re-source" style="margin:8px 0 0">触发两项同向 = 结构确认；反证任一 ✗ = 降杠杆信号。状态按上方数据实时计算，非静态文本。</p>`);
   document.getElementById('radar').appendChild(rsec);
 
   // ── LAYER 1 · NOW（8 个核心 KPI · 当前值 + 1 年百分位 + 1d 变化方向）──
@@ -284,7 +301,7 @@ async function load() {
         ${fcard('5 天累计', fst(v5), etf.stale ? '暂停判读' : '参与方向评分', fcol(v5))}
         ${fcard('30 天累计', fst(v30), etf.stale ? '暂停判读' : '趋势参考', fcol(v30))}
         ${fcard('累计 AUM', (etf.cum_aum_busd ?? '—') + ' B', '净流入逐日累加近似（自 2024-01-11）')}
-        ${fcard('Top 3', (etf.top || []).join(' · '), '累计净流入最高')}
+        ${fcard('Top 3', (etf.top || []).map(x => x === 'BTC' ? 'BTC(灰度迷你)' : x).join(' · '), '累计净流入最高')}
       </div>
       <p class="re-source" style="margin:8px 0 0">Farside 每日 ~21:00 UTC 更新；负数 = 净流出。4 象限：流入+高基差=健康牛市 · 流出+低基差=共识看空 · 背离罕见。</p>`;
     document.getElementById('kpi').insertAdjacentElement('beforebegin', esec);
@@ -319,6 +336,28 @@ async function load() {
       ${kpi('BTC 指数价格', optB.spot_anchor == null ? '—' : '$' + fmt(optB.spot_anchor, 0), 'Deribit btc_usd 合成指数')}
     </div>`;
   document.getElementById('kpi').appendChild(ksec);
+
+  // ── 资金费率走势（OKX BTC 永续 8h，~90 天；数据已在快照内，timsun 历史图区同款）──
+  const fh = d.funding_hist_series || [];
+  if (fh.length > 30) {
+    const fsec = document.createElement('div');
+    fsec.className = 're-section';
+    fsec.innerHTML = `<h2>资金费率走势 <span style="font-size:12px;font-weight:400;opacity:.7">OKX BTC 永续 8h 费率 % · &gt;0 做多付费 / &lt;0 空头付费 · 近 ${Math.round(fh.length / 3)} 天</span></h2>
+      <div class="chart" id="funding-hist" style="height:260px"></div>
+      <p class="re-source" style="margin:8px 0 0">口径：OKX funding-rate-history（8h 结算）；时间轴按 8h 网格从快照时间回推。持续抬升 + OI 扩张 = 杠杆堆积；年化超 ±15%（8h ≈ ±0.0137%）为拥挤反转区。</p>`;
+    document.getElementById('kpi').appendChild(fsec);
+    R.mkChart('funding-hist', c => R.lineOption({
+      tooltip: { trigger: 'axis', valueFormatter: v => (v == null ? '—' : Number(v).toFixed(4) + '%') },
+      grid: { left: 58, right: 14, top: 20, bottom: 24 },
+      xAxis: { type: 'category', data: fh.map(p => p.date), axisLabel: { color: c.muted, fontSize: 10, formatter: v => v.slice(5, 10) }, axisLine: { lineStyle: { color: c.border } } },
+      yAxis: { type: 'value', axisLabel: { color: c.muted, fontSize: 10, formatter: v => Number(v).toFixed(3) + '%' }, splitLine: { lineStyle: { color: c.grid } } },
+      series: [{
+        name: '资金费率', type: 'line', showSymbol: false, data: fh.map(p => p.value),
+        lineStyle: { width: 1.5 },
+        markLine: { silent: true, symbol: 'none', label: { show: false }, lineStyle: { color: c.gray, type: 'dashed' }, data: [{ yAxis: 0 }] },
+      }],
+    }, c));
+  }
 
   // ── 🧱 期权价格墙 · Strike Wall（Deribit 最近到期口径 + Top 5；CME 机构期权无 OI 源暂缺）──
   const wsec = document.createElement('div');
@@ -360,16 +399,20 @@ async function load() {
           ${topList(cmo.top_calls)}${topList(cmo.top_puts)}
         </div>
         ${cmo.max_pain ? `<div class="re-card-sub" style="margin-top:6px">Max Pain $${fmt(cmo.max_pain.strike, 0)}</div>` : ''}
-      </div>` : ''}
+      </div>` : `
+      <div class="re-card" style="opacity:.65"><div class="re-corridor-label">CME 机构期权</div>
+        <div class="re-card-sub" style="white-space:normal">⚠ 数据暂缺：CME 页面经 Jina 渲染回落到默认产品（非 BTC）表，快照未通过 strike/现价合理性校验，已拒绝入库。待修复数据源（需真浏览器选产品）。</div>
+      </div>`}
     </div>
-    <p class="re-source" style="margin:8px 0 0">口径：Deribit 最近到期月度（near wall）为主，全到期聚合为回退；CME 为官方每日结算当前月（经 Jina Reader，到期月切换暂不可用）。</p>`;
+    <p class="re-source" style="margin:8px 0 0">口径：Deribit 最近到期月度（near wall）为主，全到期聚合为回退；CME 为官方每日结算当前月（经 Jina Reader；源异常时该卡按不可用隐藏）。</p>`;
   document.getElementById('walls').appendChild(wsec);
 
   // ── POLYMARKET 加密价位市场（geo 同款结构：归类趋势线 + 原始事件折叠）──
   renderPolymarket(d.polymarket, { BTC: optB.spot_anchor, ETH: optE.spot_anchor });
 
   // ── LAYER 3 · RETAIL 散户立场 ──
-  const stFr = `${BTC.funding_rate == null ? 0 : BTC.funding_rate * 100 >= 0 ? '+' : ''}${(BTC.funding_rate || 0) * 100}%`;
+  const frPct = BTC.funding_rate == null ? null : BTC.funding_rate * 100;
+  const stFr = frPct == null ? '—' : `${frPct >= 0 ? '+' : ''}${frPct.toFixed(4)}%`;
   const stLS = ls == null ? '—' : `${ls.toFixed(2)} (${Math.round(ls / (1 + ls) * 100)}% 多)`;
   const lsWord = ls == null ? '中性' : (ls > 1.2 ? '偏多' : (ls < 0.8 ? '偏空' : '中性'));
   const pcrW = pcrStance(optB.pcr);
@@ -426,7 +469,11 @@ async function load() {
   if (bz.available) {
     const bsec = document.createElement('div');
     bsec.className = 're-section';
+    // 基差数据陈旧警告：Yahoo BTC=F 治理过滤严格（完整性 ~35%），最新有效日常停在一两周前
+    const bzStaleDays = bz.latest ? Math.round((new Date(R.todayISO()) - new Date(bz.latest)) / 864e5) : null;
+    const bzStale = bzStaleDays != null && bzStaleDays > 5;
     bsec.innerHTML = `<h2>机构基差专题 <span style="font-size:12px;font-weight:400;opacity:.7">CME BTC 期货年化基差（Yahoo BTC=F proxy · timsun V1 治理口径）</span></h2>
+      ${bzStale ? `<div style="padding:8px 12px;border:1px solid var(--warning);border-radius:6px;font-size:12px;color:var(--warning);margin-bottom:10px">⚠ 基差数据停在 ${bz.latest}（${bzStaleDays} 天前）——Yahoo BTC=F 最新日线多为临时价格触发治理跳过，下方读数非最新，不参与方向判断。</div>` : ''}
       <div class="re-explain" style="margin-bottom:10px">
         <b>如何解读</b> — 基差代表机构愿意为远期 BTC 支付的溢价。基差高不等于立刻上涨，但说明 carry/套利资金愿意留在场内。
         <span style="opacity:.7">Spread = 基差 60d EMA − SOFR（套利价差）；&gt;5% 套利空间充足，&lt;0 为负。</span></div>

@@ -15,21 +15,26 @@ def _row(name: str, oi: float, price: float = 60000.0) -> dict:
 
 
 def _sample_rows() -> list[dict]:
-    """最近到期 23AUG26 + 远期 25DEC26；全到期墙与最近到期墙刻意不同。"""
+    """近端 daily 25AUG26（周二）+ 周度 28AUG26（周五）+ 远期季度 25DEC26（周五）。
+
+    故意让 daily 墙与周五墙不同：验证「最近到期优先取周五」规则（daily OI 薄）。
+    """
     return [
-        # 最近到期 23AUG26（call 墙 110000/300、put 墙 90000/300）
-        _row("BTC-23AUG26-100000-C", 100),
-        _row("BTC-23AUG26-110000-C", 300),
-        _row("BTC-23AUG26-120000-C", 200),
-        _row("BTC-23AUG26-90000-P", 300),
-        _row("BTC-23AUG26-80000-P", 50),
-        _row("BTC-23AUG26-70000-P", 150),
-        # 远期 25DEC26（全到期 call 墙 100000/600、put 墙 80000/950）
+        # daily 25AUG26（周二；call 墙 110000/300、put 墙 90000/300）
+        _row("BTC-25AUG26-100000-C", 100),
+        _row("BTC-25AUG26-110000-C", 300),
+        _row("BTC-25AUG26-90000-P", 300),
+        _row("BTC-25AUG26-80000-P", 50),
+        # 周度 28AUG26（周五；call 墙 120000/800、put 墙 85000/700）
+        _row("BTC-28AUG26-120000-C", 800),
+        _row("BTC-28AUG26-115000-C", 200),
+        _row("BTC-28AUG26-85000-P", 700),
+        _row("BTC-28AUG26-95000-P", 100),
+        # 远期 25DEC26（周五）
         _row("BTC-25DEC26-100000-C", 500),
-        _row("BTC-25DEC26-95000-C", 0),
         _row("BTC-25DEC26-80000-P", 900),
         # instrument_name 段数不对，应被跳过（不影响 OI 统计）
-        {"instrument_name": "BTC-23AUG26-100000", "open_interest": 9999},
+        {"instrument_name": "BTC-25AUG26-100000", "open_interest": 9999},
     ]
 
 
@@ -54,41 +59,53 @@ def test_deribit_called_with_currency_kind(monkeypatch):
 
 
 def test_nearest_exp_walls_and_tops(monkeypatch):
-    """最近到期取最早、near 墙与全到期墙不同时两边都对、top5 降序、OI 统计。"""
+    """最近到期优先取最近的周五到期（daily 让位周度）；near 墙与全到期墙不同。"""
     _patch_deribit(monkeypatch, _sample_rows())
     out = cdf.fetch_options("BTC")
 
-    # 最近到期取最早（23AUG26 < 25DEC26）
-    assert out["nearest_exp"] == "2026-08-23"
-    assert out["d_exp"] == 2
+    # 最近到期：跳过周二 daily（25AUG26），取周五周度（28AUG26）
+    assert out["nearest_exp"] == "2026-08-28"
+    assert out["d_exp"] == 3
 
     # 全到期口径（原有字段，值不变）
-    assert out["call_wall"] == 100000.0  # 100+500
+    assert out["call_wall"] == 120000.0  # 800 最大
     assert out["put_wall"] == 80000.0  # 50+900
     assert out["max_pain"] is not None
-    assert out["total_oi"] == 2500.0  # call 1100 + put 1400
-    assert out["pcr"] == round(1400 / 1100, 2)
+    assert out["total_oi"] == 3950.0  # call 1900 + put 2050
+    assert out["pcr"] == round(2050 / 1900, 2)
 
-    # 最近到期口径：call 墙 110000/300、put 墙 90000/300（与全到期不同）
-    assert out["near_call_wall"] == 110000.0
-    assert out["near_call_wall_oi"] == 300.0
-    assert out["near_put_wall"] == 90000.0
-    assert out["near_put_wall_oi"] == 300.0
+    # 最近到期口径：周五周度的 call 墙 120000/800、put 墙 85000/700（与 daily 不同）
+    assert out["near_call_wall"] == 120000.0
+    assert out["near_call_wall_oi"] == 800.0
+    assert out["near_put_wall"] == 85000.0
+    assert out["near_put_wall_oi"] == 700.0
 
-    # top5 按 OI 降序
+    # top5 按 OI 降序（周五合约）
     assert out["top_calls"] == [
-        {"strike": 110000.0, "oi": 300.0},
-        {"strike": 120000.0, "oi": 200.0},
-        {"strike": 100000.0, "oi": 100.0},
+        {"strike": 120000.0, "oi": 800.0},
+        {"strike": 115000.0, "oi": 200.0},
     ]
     assert out["top_puts"] == [
-        {"strike": 90000.0, "oi": 300.0},
-        {"strike": 70000.0, "oi": 150.0},
-        {"strike": 80000.0, "oi": 50.0},
+        {"strike": 85000.0, "oi": 700.0},
+        {"strike": 95000.0, "oi": 100.0},
     ]
 
-    # near max pain：K=90000 时 call 全 OTM、put 买方价外，支付 0 为全局最小
-    assert out["near_max_pain"] == 90000.0
+    # near max pain：K=95000 时 call 全 OTM、put 买方价外，支付 0 为全局最小
+    assert out["near_max_pain"] == 95000.0
+
+
+def test_nearest_exp_fallback_without_friday(monkeypatch):
+    """没有周五到期时回退最近日（如周一只挂了周中 daily）。"""
+    rows = [
+        _row("BTC-25AUG26-110000-C", 300),
+        _row("BTC-26AUG26-120000-C", 500),
+        _row("BTC-25AUG26-90000-P", 300),
+        _row("BTC-26AUG26-85000-P", 600),
+    ]
+    _patch_deribit(monkeypatch, rows)
+    out = cdf.fetch_options("BTC")
+    assert out["nearest_exp"] == "2026-08-25"  # 周二/周三都不是周五 → 取最早
+    assert out["near_call_wall"] == 110000.0
 
 
 def test_legacy_fields_present_for_backward_compat(monkeypatch):
@@ -122,9 +139,9 @@ def test_eth_same_walls_shape(monkeypatch, currency):
     """ETH 同口径：字段结构一致。"""
     _patch_deribit(monkeypatch, _sample_rows())
     out = cdf.fetch_options(currency)
-    assert out["nearest_exp"] == "2026-08-23"
-    assert out["near_call_wall_oi"] == 300.0
-    assert len(out["top_puts"]) == 3
+    assert out["nearest_exp"] == "2026-08-28"
+    assert out["near_call_wall_oi"] == 800.0
+    assert len(out["top_puts"]) == 2
 
 
 def test_yahoo_quote_oi_parses(monkeypatch):

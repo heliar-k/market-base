@@ -2237,14 +2237,24 @@ def _layer1_kpis() -> dict:
 
 
 def _cme_options() -> dict:
-    """CME 期权墙（衍生日页 CME 机构期权模块）；读取最新快照 json。"""
+    """CME 期权墙（衍生日页 CME 机构期权模块）；读取最新快照 json。
+
+    读取侧 sanity guard：历史快照里混有 CME 页面回落到默认产品（小麦）的
+    垃圾数据（strike 量级不符 / OI 全 0），与 fetcher 端 snapshot_plausible 同规则，
+    不合格按 unavailable 处理（页面隐藏该卡，不误导）。
+    """
+    from src.fetchers.cme_options_fetcher import _btc_spot, snapshot_plausible
+
     files = sorted((ROOT / "data" / "cme_options").glob("20*.json"))
     if not files:
         return {"available": False}
     try:
-        return json.loads(files[-1].read_text(encoding="utf-8"))
+        snap = json.loads(files[-1].read_text(encoding="utf-8"))
     except Exception:
         return {"available": False}
+    if not snapshot_plausible(snap, _btc_spot()):
+        return {"available": False, "reason": "快照未通过合理性校验（疑似默认产品表）"}
+    return snap
 
 
 # ── Polymarket 加密价位触及（衍生日页 Polymarket 模块）───────────────────
@@ -2291,9 +2301,36 @@ def crypto_derivatives() -> dict | None:
     snap["cme_options"] = _cme_options()
     snap["polymarket"] = _polymarket()  # None 不阻断（独立数据源）
     snap["layer1"] = _layer1_kpis()
+    snap["funding_hist_series"] = _funding_hist_series(snap)
     snap["radar"] = crypto_radar(snap)
     snap["consensus"] = crypto_consensus(snap, snap["radar"])
     return snap
+
+
+def _funding_hist_series(snap: dict) -> list[dict]:
+    """快照 funding_hist（8h 一条升序 float，% 单位）→ [{date, value}] 图表序列。
+
+    fetcher 只存数值不存时间戳（KPI 百分位够用）；时间轴按 OKX 8h 结算网格
+    （00/08/16 UTC）从快照 ts 回推重建——8h 粒度的潜在偏移在 ~90 天趋势图上不可见。
+    """
+    fh = snap.get("funding_hist") or []
+    if not fh:
+        return []
+    try:
+        end = datetime.fromisoformat(str(snap["ts"]).replace("Z", "+00:00"))
+    except Exception:
+        return []
+    end = end.replace(minute=0, second=0, microsecond=0)
+    end = end - timedelta(hours=end.hour % 8)
+    return [
+        {
+            "date": (end - timedelta(hours=8 * (len(fh) - 1 - i))).strftime(
+                "%Y-%m-%d %H:%M"
+            ),
+            "value": round(v, 4),
+        }
+        for i, v in enumerate(fh)
+    ]
 
 
 # ── 机构 vs 散户对照（衍生品页；规则引擎，LLM 预留） ──────────────────────────
@@ -2373,9 +2410,19 @@ def crypto_consensus(snap: dict, radar: dict) -> dict:
         names.append("Spread")
     note_inst = f"({' / '.join(names)} 综合)" if names else "(CME 数据待积累)"
     short = {"偏多": "多", "偏空": "空", "中性": "中性"}
-    # 机构侧以全体投票判向（CME/ETF/Spread 任一偏多即非全中性）
+
+    # 立场口径单源：非中性票同向 → 取之；无方向票 → 中性；对立 → 分化。
+    # 卡片 stance、votes、verdict 三处必须同口径（历史上 stance 看 CME 单信号、
+    # verdict 看 lean，曾出现「机构中性 + 同向偏多」自相矛盾）。
+    def lean_of(stances: list[str]) -> str:
+        dirs = [s for s in stances if s != "中性"]
+        if not dirs:
+            return "中性"
+        return dirs[0] if len(set(dirs)) == 1 else "分化"
+
+    inst_lean = lean_of(inst_stances)
+    retail_lean = lean_of(retail_stances)
     inst_dirs = [s for s in inst_stances if s != "中性"]
-    inst_lean = inst_dirs[0] if len(set(inst_dirs)) == 1 else "分化"
     short_inst = short.get(inst_lean, "分化")  # 分化时避免 KeyError
     both_neutral = not inst_dirs and all(s == "中性" for s in retail_stances)
     if both_neutral:
@@ -2387,32 +2434,34 @@ def crypto_consensus(snap: dict, radar: dict) -> dict:
         verdict = "机构按兵不动，散户有方向 — 看散户拥挤度"
         detail = (
             f"机构（{note_inst}）全体中性，散户（资金费率/多空比/PCR）"
-            f"偏{short[retail_stances[0]]}——散户信号仅作反向拥挤度参考。"
+            f"偏{short.get(retail_lean, '分化')}——散户信号仅作反向拥挤度参考。"
         )
     elif inst_lean == "分化":
         verdict = "机构内部分歧 — 以 CME/ETF/Spread 通道对立为线索"
         detail = (
-            f"机构通道分歧（{note_inst}），散户偏{short[retail_stances[0]]}。"
+            f"机构通道分歧（{note_inst}），散户偏{short.get(retail_lean, '分化')}。"
             "通道对立时以 ETF 现货通道为锚，Spread 作 carry 参考。"
         )
     elif all(s == inst_lean or s == "中性" for s in retail_stances) and inst_lean:
         verdict = f"机构与散户同向偏{short_inst[:1]} — 趋势延续概率上升"
         detail = f"机构（{note_inst}）偏{short_inst}且散户未反向，方向性信号同向。"
     else:
-        verdict = f"机构偏{short_inst}，散户偏{short[retail_stances[0]]} — 分歧看定价权"
+        verdict = (
+            f"机构偏{short_inst}，散户偏{short.get(retail_lean, '分化')} — 分歧看定价权"
+        )
         detail = (
             "机构与散户立场不一致：以机构（CME/ETF/Spread）定价权为锚，"
             "散户信号仅作反向拥挤度参考。"
         )
     return {
         "inst": {
-            "stance": inst_stance,
+            "stance": inst_lean,
             "votes": votes(inst_stances),
             "note": note_inst,
             "text": cme_sig.get("desc") or "CME 头寸数据待积累",
         },
         "retail": {
-            "stance": retail_stances[0] if len(set(retail_stances)) == 1 else "分化",
+            "stance": retail_lean,
             "votes": votes(retail_stances),
             "note": "(资金费率 / 多空比 / PCR 综合)",
             "text": f"资金费率年化 {ann * 100:.1f}% · 多空比 {ls:.2f} · PCR {pcr}"
