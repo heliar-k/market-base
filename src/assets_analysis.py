@@ -1371,8 +1371,169 @@ def _reg_beta(
     return None, None
 
 
+def _funding_diff_series() -> list[dict]:
+    """逐日 ETH−BTC 永续 funding 年化差（pp），取自 crypto_derivatives 快照历史。
+
+    funding_annual 源为十进制小数（0.05 = 5%），此处统一 ×100 成 %。
+    """
+    out: list[dict] = []
+    for f in sorted((ROOT / "data" / "crypto_derivatives").glob("20*.json")):
+        try:
+            j = json.loads(f.read_text(encoding="utf-8"))
+        except Exception:
+            continue
+        perp = j.get("perp") or {}
+        b = (perp.get("BTC") or {}).get("funding_annual")
+        e = (perp.get("ETH") or {}).get("funding_annual")
+        if b is None or e is None:
+            continue
+        out.append(
+            {
+                "date": f"{f.stem[:4]}-{f.stem[4:6]}-{f.stem[6:]}",
+                "btc": round(float(b) * 100, 2),
+                "eth": round(float(e) * 100, 2),
+                "diff": round((float(e) - float(b)) * 100, 2),
+            }
+        )
+    return out
+
+
+def _ratio_block(p: pd.DataFrame) -> dict | None:
+    """BTC/ETH 价比分析块（crypto 页「价比」面板数据源）。
+
+    价比 = BTC/ETH（市场通行报价口径，如 31.19）；指标全部算在价比序列上。
+    前端图改画 ETH/BTC 倒数轴（上行 = ETH 强，符合山寨季直觉），指标卡仍报价比口径。
+    动量符号 = 价比方向：下行（负）= ETH 跑赢 = 风险偏好外移；上行 = 避险回流 BTC。
+    """
+    if not {"BTC", "ETH"}.issubset(p.columns):
+        return None
+    r = (p["BTC"] / p["ETH"]).replace([np.inf, -np.inf], np.nan).dropna()
+    if len(r) < 60:  # MA50 + RSI(14) 的起步样本
+        return None
+    cur = float(r.iloc[-1])
+    ma20 = r.rolling(20).mean()
+    ma50 = r.rolling(50).mean()
+    # 1 年窗口 z-score + 百分位（与 LAYER1 KPI 卡同口径：_window_1y + _rank_pct）
+    win = _window_1y(r)
+    z = None
+    if len(win) >= 30 and float(win.std()) > 0:
+        z = round(float((cur - win.mean()) / win.std()), 2)
+    pctile, _ = _rank_pct(win, cur)
+    # RSI(14) on 价比（pandas_ta Wilder 口径，与 indicators.add_rsi 一致）
+    import pandas_ta_classic as ta
+
+    rsi_s = ta.rsi(r, length=14)
+    rsi14 = (
+        round(float(rsi_s.iloc[-1]), 1)
+        if rsi_s is not None and len(rsi_s) and pd.notna(rsi_s.iloc[-1])
+        else None
+    )
+    mom7 = _chg(r, 7)
+    mom30 = _chg(r, 30)
+    bias20 = (cur / float(ma20.iloc[-1]) - 1) * 100 if pd.notna(ma20.iloc[-1]) else None
+    bias50 = (cur / float(ma50.iloc[-1]) - 1) * 100 if pd.notna(ma50.iloc[-1]) else None
+
+    # funding 差（ETH − BTC 年化，pp）+ 7 日变化（日频快照历史）
+    fseries = _funding_diff_series()
+    funding = None
+    if fseries:
+        funding = dict(fseries[-1])
+        cutoff = datetime.strptime(funding["date"], "%Y-%m-%d") - timedelta(days=7)
+        past = [
+            s for s in fseries if datetime.strptime(s["date"], "%Y-%m-%d") <= cutoff
+        ]
+        funding["diff_chg_7d"] = (
+            round(funding["diff"] - past[-1]["diff"], 2) if past else None
+        )
+
+    # 轮动质量判定：价比动量方向 × funding 差变化。
+    # ponytail: 固定阈值（动量 ±1% 横盘带、funding 差 7d ±2pp）；快照满 90d 后改滚动分位
+    rotation = None
+    if mom30 is not None:
+        d7 = funding.get("diff_chg_7d") if funding else None
+        if mom30 < -1:
+            if d7 is not None and d7 > 2:
+                rotation = {
+                    "quality": "杠杆推动",
+                    "warn": True,
+                    "text": "ETH 跑赢且 funding 差走阔：杠杆推动的轮动，脆弱易反转。",
+                }
+            else:
+                rotation = {
+                    "quality": "现货驱动",
+                    "warn": False,
+                    "text": "ETH 跑赢但 funding 差平稳：无人杠杆追多，现货驱动更健康。",
+                }
+        elif mom30 > 1:
+            rotation = {
+                "quality": "回流 BTC",
+                "warn": False,
+                "text": "价比上行（BTC 跑赢）：加密内部避险回流 BTC，回调期典型特征。",
+            }
+        else:
+            rotation = {
+                "quality": "无轮动",
+                "warn": False,
+                "text": "价比横盘：BTC/ETH 无显著相对强弱，暂不判轮动。",
+            }
+
+    # 规则引擎叙事（LLM 预留：同构 dict 可直接覆盖）
+    parts: list[str] = []
+    if mom30 is not None:
+        if mom30 < -1:
+            parts.append(
+                f"价比 30 日动量 {mom30:+.1f}%（ETH 跑赢 BTC）：风险偏好自 BTC 外移，"
+                "牛市中后段特征；动量持续走低是山寨季信号。"
+            )
+        elif mom30 > 1:
+            parts.append(
+                f"价比 30 日动量 {mom30:+.1f}%（BTC 跑赢）：避险回流 BTC，回调期典型。"
+            )
+        else:
+            parts.append(f"价比 30 日动量 {mom30:+.1f}%，横盘无明确轮动。")
+    if z is not None and pctile is not None:
+        parts.append(
+            f"价比 {cur:.2f}，近 1 年 z-score {z:+.2f}（第 {pctile:g} 百分位）。"
+        )
+    if rsi14 is not None:
+        if rsi14 <= 30:
+            parts.append(f"价比 RSI(14) {rsi14:.0f} 超卖，ETH 相对动能超跌。")
+        elif rsi14 >= 70:
+            parts.append(f"价比 RSI(14) {rsi14:.0f} 超买，BTC 相对动能超买。")
+    if rotation:
+        parts.append(rotation["text"])
+
+    # 图表序列：近 1 年（7×24 标的 365 行 ≈ 1 日历年）
+    tail = r.tail(365)
+
+    def _rnd(s: pd.Series) -> list:
+        return [round(float(v), 2) if pd.notna(v) else None for v in s]
+
+    return {
+        "as_of": str(r.index[-1].date()),
+        "last": round(cur, 2),
+        "ma20": round(float(ma20.iloc[-1]), 2) if pd.notna(ma20.iloc[-1]) else None,
+        "ma50": round(float(ma50.iloc[-1]), 2) if pd.notna(ma50.iloc[-1]) else None,
+        "bias_ma20": round(bias20, 2) if bias20 is not None else None,
+        "bias_ma50": round(bias50, 2) if bias50 is not None else None,
+        "z_1y": z,
+        "pctile_1y": pctile,
+        "pct_label": _pct_label(len(win), pctile),
+        "rsi14": rsi14,
+        "mom_7d": round(mom7, 2) if mom7 is not None else None,
+        "mom_30d": round(mom30, 2) if mom30 is not None else None,
+        "funding": funding,
+        "rotation": rotation,
+        "narrative": " ".join(parts) or None,
+        "dates": [str(d.date()) for d in tail.index],
+        "series": _rnd(tail),
+        "ma20_series": _rnd(ma20.reindex(tail.index)),
+        "ma50_series": _rnd(ma50.reindex(tail.index)),
+    }
+
+
 def crypto() -> dict:
-    """加密货币页：BTC/ETH 卡片 + 净流动性溢出 + 走势归一化。
+    """加密货币页：BTC/ETH 卡片 + 净流动性溢出 + 走势归一化 + 价比面板。
 
     口径：NL = WALCL − TGA − RRP（市场通行标准口径）。注意 timsun /assets/crypto
     用的是剔除外国官方回购池的调整口径（≈准备金+流通货币），其 Fed 腿会比本页
@@ -1397,6 +1558,8 @@ def crypto() -> dict:
             else None
             for b, e in zip(bp, ep)
         ]
+    # BTC/ETH 价比分析块（指标层 + funding 差交叉 + 规则引擎叙事）
+    out["ratio"] = _ratio_block(p)
     # 净流动性溢出
     liq = _csv("fred/liquidity/liquidity.csv")
     btc = p["BTC"].dropna() if "BTC" in p.columns else pd.Series(dtype=float)

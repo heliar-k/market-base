@@ -23,6 +23,7 @@
   <div id="cards" class="re-cards"></div>
   <div id="liquidity"></div>
   <div id="trend"></div>
+  <div id="ratio"></div>
   <div id="recent"></div>
   <div class="re-gen" id="re-gen"></div>
 </div>
@@ -40,7 +41,8 @@ async function load() {
   document.getElementById('cards').innerHTML = cards.map(c => `
     <div class="re-card"><div class="re-corridor-label">${c.label}</div>
     <div class="re-corridor-value">${c.value}</div><div class="re-card-sub">${c.sub}</div></div>`).join('');
-  if (d.cards && d.cards.length) document.getElementById('re-as-of').textContent = R.asOf(d.cards[0].date);
+  if (d.cards && d.cards.length) document.getElementById('re-as-of').textContent =
+    R.asOf([d.cards[0].date, ['资金费率', d.ratio && d.ratio.funding ? d.ratio.funding.date : null]]);
 
   // ── 宏观 × 加密流动性溢出（timsun 同款 4 KPI：净流动性 / 20 日脉冲 / BTC Beta / 背离监控）──
   const L = d.liquidity || {};
@@ -144,6 +146,77 @@ async function load() {
     });
   }
 
+  // ── BTC/ETH 价比（指标卡 + ETH/BTC 倒数轴图 + funding 差卡 + 规则引擎叙事）──
+  const ra = d.ratio;
+  const rasec = document.createElement('div');
+  rasec.className = 're-section';
+  rasec.innerHTML = '<h2>BTC/ETH 价比</h2>';
+  if (!ra) {
+    rasec.innerHTML += '<p>价比数据不足（需 BTC/ETH 日线 ≥ 60 行）：运行 <code>./bin/fetch_yfinance</code> 补齐 asset_prices.csv。</p>';
+  } else {
+    const dir = v => v == null ? 'var(--color-neutral)' : (v > 0 ? 'var(--color-up)' : v < 0 ? 'var(--color-down)' : 'var(--color-neutral)');
+    const pct = (v, nd = 2) => v == null ? '—' : `${v > 0 ? '+' : ''}${Number(v).toFixed(nd)}%`;
+    const pp = v => v == null ? '—' : `${v > 0 ? '+' : ''}${Number(v).toFixed(2)}pp`;
+    const rsiState = ra.rsi14 == null ? '—' : (ra.rsi14 >= 70 ? '超买' : ra.rsi14 <= 30 ? '超卖' : '中性');
+    const f = ra.funding || null;
+    const rot = ra.rotation || null;
+    rasec.innerHTML += `
+      <div class="re-cards" style="grid-template-columns:repeat(auto-fit,minmax(150px,1fr))">
+        <div class="re-card"><div class="re-corridor-label">价比（BTC/ETH）</div><div class="re-corridor-value">${fmt(ra.last)}</div>
+          <div class="re-card-sub">MA20 ${fmt(ra.ma20)} · MA50 ${fmt(ra.ma50)}</div></div>
+        <div class="re-card"><div class="re-corridor-label">乖离率（vs MA50）</div>
+          <div class="re-corridor-value" style="color:${dir(ra.bias_ma50)}">${pct(ra.bias_ma50)}</div>
+          <div class="re-card-sub">vs MA20 ${pct(ra.bias_ma20)}</div></div>
+        <div class="re-card"><div class="re-corridor-label">1 年 z-score</div><div class="re-corridor-value">${ra.z_1y == null ? '—' : ra.z_1y.toFixed(2)}</div>
+          <div class="re-card-sub">${ra.pct_label || '历史不足'}</div></div>
+        <div class="re-card"><div class="re-corridor-label">RSI(14)</div><div class="re-corridor-value">${ra.rsi14 ?? '—'}</div>
+          <div class="re-card-sub">${rsiState}</div></div>
+        <div class="re-card"><div class="re-corridor-label">30 日动量</div>
+          <div class="re-corridor-value" style="color:${dir(ra.mom_30d)}">${pct(ra.mom_30d, 1)}</div>
+          <div class="re-card-sub">7d ${pct(ra.mom_7d, 1)} · 负值=ETH 跑赢</div></div>
+        <div class="re-card"><div class="re-corridor-label">Funding 差（ETH−BTC 年化）</div>
+          <div class="re-corridor-value" style="color:${f ? dir(f.diff) : 'var(--color-neutral)'}">${f ? pp(f.diff) : '—'}</div>
+          <div class="re-card-sub">${f ? `BTC ${f.btc}% · ETH ${f.eth}% · 7d ${pp(f.diff_chg_7d)}` : '衍生品快照缺失'}</div>
+          ${rot ? `<div class="re-card-sub" style="color:${rot.warn ? 'var(--color-down)' : 'var(--color-up)'}">● 轮动质量：${rot.quality}</div>` : ''}</div>
+      </div>`;
+    if (ra.dates && ra.dates.length) {
+      rasec.innerHTML += '<div class="chart" id="ratio-chart" style="height:320px;margin-top:12px"></div>';
+    }
+    if (ra.narrative) {
+      rasec.innerHTML += `<div style="border:1px solid var(--accent);border-radius:8px;padding:14px 16px;background:var(--surface);margin-top:12px">
+        <b style="font-size:13px">价比解读</b><p style="margin:6px 0 0;font-size:13px;line-height:1.7">${ra.narrative}</p></div>`;
+    }
+  }
+  document.getElementById('ratio').appendChild(rasec);
+  if (ra && ra.dates && ra.dates.length) {
+    // 倒数轴：ETH/BTC = 1/价比，上行 = ETH 强（山寨季直觉）；指标卡仍报价比口径
+    const inv = arr => (arr || []).map(v => v == null ? null : 1 / v);
+    R.mkChart('ratio-chart', colors => R.lineOption({
+      tooltip: { trigger: 'axis', valueFormatter: v => v == null ? '—' : Number(v).toFixed(4) },
+      legend: { data: ['ETH/BTC', 'MA20', 'MA50'] },
+      grid: { left: 48, right: 16, top: 32, bottom: 64 },
+      xAxis: { type: 'category', data: ra.dates, axisLine: { lineStyle: { color: colors.border } },
+        axisLabel: { color: colors.muted, fontSize: 11,
+          interval: (i) => i === 0 || i === ra.dates.length - 1 || ra.dates[i].slice(0, 7) !== ra.dates[i - 1].slice(0, 7),
+          formatter: v => { const [y, m] = v.split('-'); return m === '01' ? y : Number(m) + '月'; } } },
+      yAxis: { type: 'value', scale: true, axisLabel: { color: colors.muted, fontSize: 11, formatter: v => Number(v).toFixed(4) },
+        splitLine: { lineStyle: { color: colors.grid } } },
+      dataZoom: [
+        { type: 'inside', start: 0, end: 100 },
+        { type: 'slider', height: 20, bottom: 12, borderColor: colors.border, handleStyle: { color: colors.accent },
+          textStyle: { color: colors.muted }, dataBackground: { lineStyle: { color: colors.border }, areaStyle: { color: colors.grid } } },
+      ],
+      series: [
+        { name: 'ETH/BTC', type: 'line', data: inv(ra.series), showSymbol: false, smooth: true, connectNulls: true,
+          lineStyle: { width: 2, color: colors.green }, itemStyle: { color: colors.green } },
+        { name: 'MA20', type: 'line', data: inv(ra.ma20_series), showSymbol: false, smooth: true, connectNulls: true,
+          lineStyle: { width: 1.2, type: 'dashed', color: colors.orange }, itemStyle: { color: colors.orange } },
+        { name: 'MA50', type: 'line', data: inv(ra.ma50_series), showSymbol: false, smooth: true, connectNulls: true,
+          lineStyle: { width: 1.2, type: 'dashed', color: colors.purple }, itemStyle: { color: colors.purple } },
+      ],
+    }, colors));
+  }
+
   // ── 近期收盘价（最近 20 个交易日）──
   const rc = d.recent || { dates: [], series: {} };
   const rkeys = Object.keys(rc.series);
@@ -160,7 +233,7 @@ async function load() {
   rsec.appendChild(R.table(['日期'].concat(rkeys), rows, fmts));
   document.getElementById('recent').appendChild(rsec);
 
-  document.getElementById('re-gen').textContent = '规则引擎（LLM 预留）· 流动性口径：WALCL − TGA − RRP；β 为 90 日净流动性变化对资产日收益率回归；收盘价数据源 yfinance';
+  document.getElementById('re-gen').textContent = '规则引擎（LLM 预留）· 流动性口径：WALCL − TGA − RRP；β 为 90 日净流动性变化对资产日收益率回归；价比指标算在 BTC/ETH 序列上（图取倒数轴）；funding 差 = ETH−BTC 永续年化；收盘价数据源 yfinance';
 }
 // 分类色单源：净流动性青线走 --chart-cyan（两主题同值）；BTC/ETH 趋势线在 optionFn 内随主题取色
 const NL_CYAN = reCssVar('--chart-cyan');
@@ -168,7 +241,7 @@ const CRYPTO_NAME = { BTC: 'BTC', ETH: 'ETH' };
 function fmt(v) { return v == null ? '—' : Number(v === 0 ? 0 : v).toLocaleString(undefined, { maximumFractionDigits: 2 }); }
 function chg(v) { return v == null ? '—' : `<span style="color:${v >= 0 ? 'var(--color-up)' : 'var(--color-down)'}">${v >= 0 ? '▲ +' : '▼ '}${Number(v).toFixed(2)}%</span>`; }
 
-load().catch(e => R.fail(['cards', 'liquidity', 'trend', 'recent'], e));
+load().catch(e => R.fail(['cards', 'liquidity', 'trend', 'ratio', 'recent'], e));
 </script>
 <script src="/js/nav.js"></script>
 </body>

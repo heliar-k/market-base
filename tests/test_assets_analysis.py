@@ -492,3 +492,59 @@ class TestCryptoLiquidity:
             assert "敏感度" in (out["trading"] or "")
         else:
             assert "敏感度" not in (out["trading"] or "")
+
+
+class TestCryptoRatio:
+    """crypto() 价比块：指标口径 + funding 差 + 轮动质量规则。"""
+
+    @staticmethod
+    def _fixtures(monkeypatch, ratio_start, ratio_end, funding=None, days=400):
+        # 线性价比路径（start→end），BTC = ratio × ETH，ETH 恒 100
+        idx = pd.date_range("2025-08-01", periods=days)
+        ratio = pd.Series(np.linspace(ratio_start, ratio_end, days), index=idx)
+        px = pd.DataFrame({"BTC": ratio * 100.0, "ETH": 100.0}, index=idx)
+        monkeypatch.setattr("src.assets_analysis.asset_prices", lambda: px)
+        # 流动性块读空 CSV 直接跳过，不干扰价比断言
+        monkeypatch.setattr(
+            "src.assets_analysis._csv", lambda _p, **_kw: pd.DataFrame()
+        )
+        monkeypatch.setattr(
+            "src.assets_analysis._funding_diff_series", lambda: funding or []
+        )
+        return ratio
+
+    def test_ratio_block_fields(self, monkeypatch):
+        self._fixtures(monkeypatch, 35.0, 30.0)
+        r = crypto()["ratio"]
+        assert r["last"] == pytest.approx(30.0, abs=0.05)
+        assert r["ma50"] is not None and r["bias_ma50"] < 0  # 下行末端低于 MA50
+        assert r["z_1y"] is not None and r["z_1y"] < 0
+        assert 0 <= r["pctile_1y"] <= 100
+        assert r["rsi14"] is not None and 0 <= r["rsi14"] <= 100
+        assert r["mom_7d"] < 0 and r["mom_30d"] < 0
+        assert len(r["dates"]) == len(r["series"]) == len(r["ma50_series"]) == 365
+        assert r["rotation"]["quality"] == "现货驱动"  # 无 funding 数据 → 差非走阔
+        assert "风险偏好" in r["narrative"]
+
+    def test_leverage_driven_rotation_warns(self, monkeypatch):
+        # ETH 跑赢（价比下行）+ funding 差 7 日走阔 >2pp → 杠杆推动（脆弱）
+        funding = [
+            {"date": "2026-08-17", "btc": 5.0, "eth": 4.0, "diff": -1.0},
+            {"date": "2026-08-24", "btc": 5.0, "eth": 8.0, "diff": 3.0},
+        ]
+        self._fixtures(monkeypatch, 35.0, 30.0, funding=funding)
+        r = crypto()["ratio"]
+        assert r["funding"]["diff_chg_7d"] == pytest.approx(4.0)
+        assert r["rotation"]["quality"] == "杠杆推动"
+        assert r["rotation"]["warn"] is True
+
+    def test_btc_outperform_branch(self, monkeypatch):
+        self._fixtures(monkeypatch, 30.0, 35.0)
+        r = crypto()["ratio"]
+        assert r["mom_30d"] > 1
+        assert r["rotation"]["quality"] == "回流 BTC"
+        assert "避险回流" in r["narrative"]
+
+    def test_insufficient_history_returns_none(self, monkeypatch):
+        self._fixtures(monkeypatch, 35.0, 30.0, days=30)
+        assert crypto()["ratio"] is None
