@@ -79,7 +79,7 @@ market-base/
 │   │   ├── acm_fetcher.py        ← NY Fed ACM 10Y 期限溢价（合并进 rates.csv）
 │   │   ├── bgcr_fetcher.py       ← BGCR 利率（NY Fed Markets API）
 │   │   ├── cgb_fetcher.py        ← 中国国债 10Y/30Y（chinamoney）
-│   │   ├── cme_options_fetcher.py ← CME BTC 期权墙快照（官网经 Jina）
+│   │   ├── cme_futures_fetcher.py  ← CME BTC 期货仓位快照（官方 Settlements API）
 │   │   ├── coinglass_fetcher.py  ← Coinglass 全市场聚合快照（经 Jina）
 │   │   ├── crypto_basis_fetcher.py ← CME BTC 基差日序列（Yahoo BTC=F）
 │   │   ├── crypto_derivatives_fetcher.py ← 加密衍生品快照（OKX + Deribit + CME）
@@ -128,7 +128,7 @@ market-base/
 │   ├── fetch_crypto_derivatives        ← 加密衍生品快照（OKX + Deribit + CME 基差）
 │   ├── fetch_crypto_basis               ← CME BTC 基差日序列（Yahoo BTC=F，timsun V1 治理）
 │   ├── fetch_coinglass                  ← Coinglass 全市场聚合快照（经 Jina Reader）
-│   ├── fetch_cme_options                ← CME 期权墙快照（官网 volume/options 页经 Jina）
+│   ├── fetch_cme_futures               ← CME BTC 期货仓位快照（Settlements API，curl_cffi/Jina）
 │   ├── fetch_polymarket                 ← Polymarket 预测市场监测（gamma-api 直连免 key）
 │   ├── fetch_etf_flows                 ← BTC 现货 ETF 资金流（Farside via Jina Reader）
 │   ├── fetch_breadth                   ← 市场广度 ABV（SPX 成分股在均线上方占比）
@@ -179,7 +179,7 @@ market-base/
 │   ├── crypto_derivatives/{date}.json   ← 加密衍生品快照（OKX/Deribit/CME）
 │   ├── crypto_basis/basis.csv          ← CME BTC 基差日序列（观测日 upsert，治理后 ~35% 完整）
 │   ├── coinglass/{date}.json           ← Coinglass 全市场聚合快照（OI/清算/交易所分布）
-│   ├── cme_options/{date}.json         ← CME 期权墙快照（逐 strike OI/PCR/Max Pain，当前月）
+│   ├── cme_futures/{date}.json         ← CME BTC 期货仓位快照（全月份 OI + 期限结构）
 │   ├── etf_flows/etf_flows.csv         ← BTC 现货 ETF 资金流（Farside，12 ETF + Total，M USD）
 │   └── cache/{SYMBOL}_indicators.parquet ← 指标缓存（派生产物，mtime 失效）
 │
@@ -272,7 +272,7 @@ uv run python -m src.cross_asset     # 跨资产 30 日相关性矩阵（派生�
 ./bin/fetch_crypto_derivatives     # 加密衍生品快照（OKX + Deribit + CME）
 ./bin/fetch_crypto_basis             # CME BTC 基差日序列（Yahoo BTC=F proxy）
 ./bin/fetch_coinglass                 # Coinglass 全市场聚合（Jina Reader，OI/清算/交易所分布）
-./bin/fetch_cme_options                 # CME 期权墙（官方 volume/options 页经 Jina）
+./bin/fetch_cme_futures                # CME BTC 期货仓位（官方 Settlements API）
 ./bin/fetch_polymarket                 # Polymarket 预测市场监测（免 key 直连）
 ./bin/fetch_etf_flows                 # BTC 现货 ETF 资金流（Farside via Jina Reader）
 ./bin/fetch_commodities             # 全部期货（整条曲线）
@@ -374,11 +374,11 @@ uv run python src/sell_put.py --symbol TSM
 
 | 工具 | 适用场景 | 参考实现 |
 |------|---------|---------|
-| `jina_reader.jina_fetch(url)` | Cloudflare 拦截 / JS 渲染页（页面→Markdown） | `cme_options_fetcher` / `coinglass_fetcher` / `etf_flows_fetcher`（Farside） |
+| `jina_reader.jina_fetch(url)` | Cloudflare 拦截 / JS 渲染页（页面→Markdown） | `coinglass_fetcher` / `etf_flows_fetcher`（Farside） |
 | `barchart_client.core_get(params, referer, auth)` | Barchart core-api（期货曲线/波动率快照/远期点/期权链）；直连失败**自动降级** playwright 无头浏览器（进程单例） | `barchart_futures_fetcher` / `barchart_vol_fetcher` / `cfets_fetcher` |
 | `curl_cffi requests.Session(impersonate="chrome")` | TLS 指纹检测的直连 JSON API | `news_fetcher`（Yahoo NCP） |
 
-- Jina 免费额度 ~20 RPM，日频 cron 量够；慢加载页加 `x-timeout` / `x-no-cache` / `x-wait-for-time` 头（见 `cme_options_fetcher.fetch_page`）
+- Jina 免费额度 ~20 RPM，日频 cron 量够；慢加载页加 `x-timeout` / `x-no-cache` / `x-wait-for-time` 头
 - AWS WAF（JS challenge + aws-waf-token）只有真浏览器能过；Jina 能过 WAF 但拿不到 cookie，所以 Barchart 用 playwright 页内 fetch 而非 Jina
 - 测试环境：`tests/conftest.py` autouse 禁用浏览器通道（真起 chromium 会污染 TUI 测试的 event loop）
 - Actions 已预装 chromium（daily-fetch workflow 的 "Install playwright chromium" step）

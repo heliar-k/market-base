@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+# CME BTC 期货仓位快照（官方 Settlements API）
+set -euo pipefail
+cd "$(dirname "$0")/.."
+uv run python -m src.fetchers.cme_futures_fetcher "$@"

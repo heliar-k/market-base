@@ -2794,24 +2794,33 @@ def _layer1_kpis() -> dict:
     return {"kpis": kpis}
 
 
-def _cme_options() -> dict:
-    """CME 期权墙（衍生日页 CME 机构期权模块）；读取最新快照 json。
+def _cme_futures() -> dict:
+    """CME BTC 期货仓位（衍生日页 CME 机构卡）；读取最新快照 json。
 
-    读取侧 sanity guard：历史快照里混有 CME 页面回落到默认产品（小麦）的
-    垃圾数据（strike 量级不符 / OI 全 0），与 fetcher 端 snapshot_plausible 同规则，
-    不合格按 unavailable 处理（页面隐藏该卡，不误导）。
+    读取侧校验同 fetcher 端 snapshot_plausible（total_oi>0 + 主力结算价 vs
+    BTC 现价区间），不合格按 unavailable 处理。附加 OI 日变化（vs 前一快照）。
     """
-    from src.fetchers.cme_options_fetcher import _btc_spot, snapshot_plausible
+    from src.fetchers.cme_futures_fetcher import _btc_spot, snapshot_plausible
 
-    files = sorted((ROOT / "data" / "cme_options").glob("20*.json"))
+    files = sorted((ROOT / "data" / "cme_futures").glob("20*.json"))
     if not files:
         return {"available": False}
     try:
         snap = json.loads(files[-1].read_text(encoding="utf-8"))
     except Exception:
         return {"available": False}
-    if not snapshot_plausible(snap, _btc_spot()):
-        return {"available": False, "reason": "快照未通过合理性校验（疑似默认产品表）"}
+    if not snap.get("months") or not snapshot_plausible(snap, _btc_spot()):
+        return {"available": False, "reason": "快照未通过合理性校验"}
+    # OI 日变化（前一快照同口径合计；无则 None）
+    snap["oi_chg_1d"] = None
+    if len(files) >= 2:
+        try:
+            prev = json.loads(files[-2].read_text(encoding="utf-8"))
+            if prev.get("total_oi"):
+                snap["oi_chg_1d"] = snap["total_oi"] - prev["total_oi"]
+        except Exception:
+            pass
+    snap["available"] = True
     return snap
 
 
@@ -2856,7 +2865,7 @@ def crypto_derivatives() -> dict | None:
     snap["etf"] = _etf_flows()
     snap["basis"] = _crypto_basis()
     snap["coinglass"] = _coinglass()
-    snap["cme_options"] = _cme_options()
+    snap["cme_futures"] = _cme_futures()
     snap["polymarket"] = _polymarket()  # None 不阻断（独立数据源）
     snap["layer1"] = _layer1_kpis()
     snap["funding_hist_series"] = _funding_hist_series(snap)

@@ -127,7 +127,7 @@ CHECKS: list[Check] = [
     _c("data/crypto_derivatives", D, "加密衍生品快照（7×24）", kind="json_dir"),
     _c("data/coinglass", D, "Coinglass 聚合快照", kind="json_dir"),
     _c("data/polymarket", D, "Polymarket 预测市场快照", kind="json_dir"),
-    _c("data/cme_options", 8, "CME 期权墙快照", kind="json_dir"),
+    _c("data/cme_futures", 8, "CME BTC 期货仓位快照", kind="json_dir"),
 ]
 
 

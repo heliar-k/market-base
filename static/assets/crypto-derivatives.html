@@ -359,9 +359,9 @@ async function load() {
     }, c));
   }
 
-  // ── 🧱 期权价格墙 · Strike Wall（Deribit 最近到期口径 + Top 5；CME 机构期权无 OI 源暂缺）──
+  // ── 🧱 期权价格墙 · Strike Wall（Deribit 最近到期口径 + Top 5）+ CME 机构期货仓位卡 ──
   const wsec = document.createElement('div');
-  const cmo = d.cme_options || {};
+  const cf = d.cme_futures || {};
   wsec.className = 're-section';
   const dist = (wall, spot) => wall == null || !spot ? null : (wall / spot - 1) * 100;
   const wallBox = (label, v, oi, spot) => v == null ? '' : `
@@ -389,22 +389,23 @@ async function load() {
     <div class="re-cards" style="grid-template-columns:repeat(auto-fit,minmax(260px,1fr))">
       ${wallCard('Deribit 全市场期权 · BTC', optB, optB.spot_anchor)}
       ${wallCard('Deribit 全市场期权 · ETH', optE, optE.spot_anchor)}
-      ${cmo.available !== false && cmo.call_wall ? `
-      <div class="re-card"><div class="re-corridor-label">CME 机构期权 · ${cmo.as_of ? (cmo.as_of + ' 到期月') : '当前月'}</div>
-        <div class="re-card-sub" style="white-space:normal">官方每日结算（经 Jina）· 总 OI ${fmt(cmo.total_oi, 0)} · P/C ${fmt(cmo.pcr_oi, 2)}</div>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px">
-          ${wallBox('Call Wall', cmo.call_wall, cmo.call_wall_oi, null)}${wallBox('Put Wall', cmo.put_wall, cmo.put_wall_oi, null)}
-        </div>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
-          ${topList(cmo.top_calls)}${topList(cmo.top_puts)}
-        </div>
-        ${cmo.max_pain ? `<div class="re-card-sub" style="margin-top:6px">Max Pain $${fmt(cmo.max_pain.strike, 0)}</div>` : ''}
-      </div>` : `
-      <div class="re-card" style="opacity:.65"><div class="re-corridor-label">CME 机构期权</div>
-        <div class="re-card-sub" style="white-space:normal">⚠ 数据暂缺：CME 页面经 Jina 渲染回落到默认产品（非 BTC）表，快照未通过 strike/现价合理性校验，已拒绝入库。待修复数据源（需真浏览器选产品）。</div>
+      ${cf.available !== false && cf.total_oi ? (() => {
+        const top3 = (cf.months || []).slice().sort((a, b) => b.oi - a.oi).slice(0, 3);
+        const termWord = { contango: '升水', backwardation: '贴水', flat: '平水' }[cf.term] || '—';
+        return `
+      <div class="re-card"><div class="re-corridor-label">CME 机构期货仓位 · ${cf.as_of || ''}</div>
+        <div class="re-corridor-value">${fmt(cf.total_oi, 0)} 张</div>
+        <div class="re-card-sub">≈ ${fmt(cf.total_oi_btc, 0)} BTC${cf.oi_chg_1d != null ? ` · 日变化 ${cf.oi_chg_1d >= 0 ? '+' : ''}${fmt(cf.oi_chg_1d, 0)} 张` : ''}</div>
+        <div class="re-card-sub" style="white-space:normal">主力 ${cf.front.month} $${fmt(cf.front.settle, 0)}${cf.basis_ann_pct != null ? ` · ${termWord}（年化 ${cf.basis_ann_pct >= 0 ? '+' : ''}${cf.basis_ann_pct}%）` : ''}</div>
+        <div style="margin-top:8px;font-size:12px"><div style="opacity:.7;margin-bottom:4px">OI 前三月份</div>
+          ${top3.map(m => `<div style="display:flex;justify-content:space-between;border-bottom:1px solid var(--border);padding:2px 0"><span>${m.month}</span><span style="opacity:.7">OI ${fmt(m.oi, 0)}</span></div>`).join('')}</div>
+      </div>`;
+      })() : `
+      <div class="re-card" style="opacity:.65"><div class="re-corridor-label">CME 机构期货仓位</div>
+        <div class="re-card-sub" style="white-space:normal">数据暂缺：运行 ./bin/fetch_cme_futures（官方 Settlements API，curl_cffi 直连 / Jina 降级）。原 CME 期权墙卡已废弃：该页面产品选择需 JS 交互，Jina 无法选中 BTC，替代为同源的期货仓位卡。</div>
       </div>`}
     </div>
-    <p class="re-source" style="margin:8px 0 0">口径：Deribit 最近到期月度（near wall）为主，全到期聚合为回退；CME 为官方每日结算当前月（经 Jina Reader；源异常时该卡按不可用隐藏）。</p>`;
+    <p class="re-source" style="margin:8px 0 0">口径：Deribit 最近到期月度（near wall）为主，全到期聚合为回退；CME 卡为官方 Settlements 期货仓位（全月份 OI + 期限结构），非期权墙。</p>`;
   document.getElementById('walls').appendChild(wsec);
 
   // ── POLYMARKET 加密价位市场（geo 同款结构：归类趋势线 + 原始事件折叠）──

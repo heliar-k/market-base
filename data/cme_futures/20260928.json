@@ -1,0 +1,103 @@
+{
+  "ts": "2026-09-28T14:57:20Z",
+  "title": "CME BTC \u671f\u8d27\u4ed3\u4f4d",
+  "as_of": "2026-09-25",
+  "months": [
+    {
+      "month": "SEP 26",
+      "expiry": "2026-09-25",
+      "settle": 83671.72,
+      "volume": 688,
+      "oi": 3584
+    },
+    {
+      "month": "OCT 26",
+      "expiry": "2026-10-30",
+      "settle": 84420.0,
+      "volume": 8674,
+      "oi": 17676
+    },
+    {
+      "month": "NOV 26",
+      "expiry": "2026-11-27",
+      "settle": 84800.0,
+      "volume": 351,
+      "oi": 603
+    },
+    {
+      "month": "DEC 26",
+      "expiry": "2026-12-25",
+      "settle": 85175.0,
+      "volume": 20,
+      "oi": 439
+    },
+    {
+      "month": "JAN 27",
+      "expiry": "2027-01-29",
+      "settle": 85630.0,
+      "volume": 0,
+      "oi": 195
+    },
+    {
+      "month": "FEB 27",
+      "expiry": "2027-02-26",
+      "settle": 85985.0,
+      "volume": 0,
+      "oi": 0
+    },
+    {
+      "month": "MAR 27",
+      "expiry": "2027-03-26",
+      "settle": 86325.0,
+      "volume": 0,
+      "oi": 0
+    },
+    {
+      "month": "JUN 27",
+      "expiry": "2027-06-25",
+      "settle": 87490.0,
+      "volume": 0,
+      "oi": 0
+    },
+    {
+      "month": "SEP 27",
+      "expiry": "2027-09-24",
+      "settle": 88640.0,
+      "volume": 0,
+      "oi": 0
+    },
+    {
+      "month": "DEC 27",
+      "expiry": "2027-12-31",
+      "settle": 89885.0,
+      "volume": 0,
+      "oi": 0
+    },
+    {
+      "month": "MAR 28",
+      "expiry": "2028-03-31",
+      "settle": 91035.0,
+      "volume": 0,
+      "oi": 0
+    }
+  ],
+  "total_oi": 22497,
+  "total_oi_btc": 112485,
+  "front": {
+    "month": "SEP 26",
+    "expiry": "2026-09-25",
+    "settle": 83671.72,
+    "volume": 688,
+    "oi": 3584
+  },
+  "next": {
+    "month": "OCT 26",
+    "expiry": "2026-10-30",
+    "settle": 84420.0,
+    "volume": 8674,
+    "oi": 17676
+  },
+  "basis_ann_pct": 9.33,
+  "term": "contango",
+  "source": "CME Settlements API\uff08\u5b98\u65b9\u6bcf\u65e5\u7ed3\u7b97\uff09"
+}
