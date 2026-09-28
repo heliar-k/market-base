@@ -66,7 +66,8 @@ async function load() {
     grid: { top: 36, left: 48, right: 16, bottom: 56 },
     dataZoom: [{ type: 'inside' }, { type: 'slider', bottom: 16, height: 18 }],
     xAxis: { type: 'category', data: R.ts(c.sofr), axisLabel: { color: colors.muted, fontSize: 10 }, axisLine: { lineStyle: { color: colors.border } } },
-    yAxis: { type: 'value', scale: true, axisLabel: { color: colors.muted, formatter: '{value}%' }, splitLine: { lineStyle: { color: colors.grid } } },
+    // scale:true 会把上下限贴死在数据边界（目标区间线压轴），两侧各留 8% 余量；函数式随缩放重算
+    yAxis: { type: 'value', scale: true, min: v => +(v.min - (v.max - v.min) * 0.08).toFixed(2), max: v => +(v.max + (v.max - v.min) * 0.08).toFixed(2), axisLabel: { color: colors.muted, formatter: '{value}%' }, splitLine: { lineStyle: { color: colors.grid } } },
     series: [
       { name: 'EFFR', type: 'line', data: R.vs(c.effr), symbol: 'none', lineStyle: { color: colors.green, width: 2 } },
       { name: 'SOFR', type: 'line', data: R.vs(c.sofr), symbol: 'none', lineStyle: { color: colors.blue, width: 2 } },
