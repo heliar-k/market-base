@@ -26,7 +26,8 @@ var SITE_NAV = {
       { key: 'assets/commodities', label: '商品', page: '/assets/commodities.html' },
       { key: 'assets/fx', label: '外汇', page: '/assets/fx.html' },
       { key: 'assets/crypto', label: '加密货币', page: '/assets/crypto.html' },
-      { key: 'assets/crypto-derivatives', label: '衍生品 · OKX+Deribit', page: '/assets/crypto-derivatives.html', sub: true },
+      { key: 'assets/crypto-derivatives', label: '衍生品 · 资金与杠杆', page: '/assets/crypto-derivatives.html', sub: true },
+      { key: 'assets/crypto-options', label: '期权 · 预测市场', page: '/assets/crypto-options.html', sub: true },
     ] },
     { key: 'rates', label: '利率', page: '/rates/', items: [
       { key: 'rates/fed-funds', label: '联邦基金利率', page: '/rates/fed-funds.html' },

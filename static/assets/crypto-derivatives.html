@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>加密衍生品市场 — 观澜台</title>
+<title>加密衍生品 · 资金与杠杆 — 观澜台</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap">
 <link rel="stylesheet" href="/css/app.css">
 <link rel="stylesheet" href="/css/special.css">
@@ -14,18 +14,30 @@
 <body>
 <div class="re-root">
   <div class="re-header">
-    <h1>加密衍生品市场</h1>
+    <h1>加密衍生品 · 资金与杠杆</h1>
     <span class="re-as-of" id="re-as-of"></span>
   </div>
 
   <div class="re-nav" id="re-nav"></div>
+  <div class="page-toc">
+    <a href="#sec-now">NOW</a>
+    <a href="#sec-etf">ETF 资金流</a>
+    <a href="#sec-kpi">衍生品 KPI</a>
+    <a href="#sec-funding">资金费率</a>
+    <a href="#sec-retail">散户</a>
+    <a href="#sec-basis">基差</a>
+    <a href="#sec-cg">Coinglass</a>
+    <a href="/assets/crypto.html">‹ 加密总览</a>
+    <a href="/assets/crypto-options.html">期权 · 预测市场 ›</a>
+  </div>
 
-  <div id="radar"></div>
+  <div id="now"></div>
+  <div id="etf"></div>
   <div id="kpi"></div>
-  <div id="walls"></div>
-  <div id="polymarket"></div>
+  <div id="funding"></div>
   <div id="retail"></div>
-  <div id="consensus"></div>
+  <div id="basis"></div>
+  <div id="coinglass"></div>
   <div class="re-gen" id="re-gen"></div>
 </div>
 
@@ -35,224 +47,24 @@
 function fmt(v, d = 2) { return v == null ? '—' : Number(v === 0 ? 0 : v).toLocaleString(undefined, { maximumFractionDigits: d }); }
 function stance(ann) { const a = Math.abs((ann || 0) * 100); if (ann < 0) return '偏空'; return a >= 30 ? '偏多（拥挤）' : (a >= 15 ? '偏多' : '中性'); }
 function pcrStance(p) { return p == null ? '中性' : (p < 0.4 ? '偏多' : (p > 1.5 ? '偏空' : '中性')); }
-const P = { up: 'var(--color-up)', down: 'var(--color-down)', flat: 'var(--color-neutral)' };
-
-// 隐含价位趋势：每归类一条线 = 该阶梯里概率过 50% 的价位（档间线性插值），
-// 叠一条现价日线收盘做锚；y 轴 scale:true（价位区间窄，从 0 起会压成直线）
-function levelOption(clusters, spot, c) {
-  const dates = [...new Set(clusters.flatMap(x => x.level_series.map(p => p.date)))].sort();
-  const sp = (spot || []).filter(p => p.date >= dates[0]);
-  const all = [...new Set(dates.concat(sp.map(p => p.date)))].sort();
-  const usd = v => (v == null ? '—' : '$' + Number(v).toLocaleString('en-US', { maximumFractionDigits: 0 }));
-  const line = (name, pts, extra) => {
-    const m = Object.fromEntries(pts.map(p => [p.date, p.value]));
-    return Object.assign({ name, type: 'line', showSymbol: false, smooth: false, connectNulls: true, lineStyle: { width: 2 }, data: all.map(d => m[d] ?? null) }, extra);
-  };
-  return R.lineOption({
-    legend: { data: clusters.map(x => x.name).concat(sp.length ? ['现价'] : []), type: 'scroll', textStyle: { color: c.text, fontSize: 11 } },
-    tooltip: { trigger: 'axis', valueFormatter: usd },
-    grid: { left: 58, right: 14, top: 36, bottom: 24 },
-    xAxis: {
-      type: 'category', data: all,
-      axisLabel: { color: c.muted, fontSize: 10, formatter: v => R.md(v) },
-      axisLine: { lineStyle: { color: c.border } },
-    },
-    yAxis: {
-      type: 'value', scale: true,
-      // 按量级自适应：BTC 用 $85K，ETH/SOL/XRP 用 $2,677 原值（原 toFixed(0)+'K' 对 ETH 会产生重复刻度）
-      axisLabel: { color: c.muted, fontSize: 10, formatter: v => v >= 10000 ? '$' + (v / 1e3).toFixed(0) + 'K' : '$' + Number(v.toPrecision(3)).toLocaleString('en-US') },
-      splitLine: { lineStyle: { color: c.grid } },
-    },
-    series: clusters.map(x => line(x.name, x.level_series)).concat(
-      sp.length ? [line('现价', sp, { z: 1, lineStyle: { width: 1.5, type: 'dashed', color: c.gray }, itemStyle: { color: c.gray } })] : []),
-  }, c);
-}
-
-// ── POLYMARKET 加密价位触及：结构对齐 geo 页（结论层状态卡 → 隐含价位趋势 → 原始事件折叠）
-function renderPolymarket(pm, spot) {
-  const host = document.getElementById('polymarket');
-  if (!pm || !(pm.topics || []).length) {
-    host.innerHTML = `<div class="re-section"><h2>POLYMARKET 加密价位市场</h2>
-      <div class="re-explain">无 Polymarket 快照 —— 运行 <code>./bin/fetch_polymarket</code> 拉取后刷新。</div></div>`;
-    return;
-  }
-  const pct = v => (v == null ? '—' : `${(v * 100).toFixed(1)}%`);
-  const vol = v => (v >= 1e6 ? `$${(v / 1e6).toFixed(1)}M` : v >= 1e3 ? `$${(v / 1e3).toFixed(0)}K` : `$${(v || 0).toFixed(0)}`);
-  const chg = v => (v == null ? '<span style="color:var(--text-dim)">—</span>'
-    : `<span class="${v > 0 ? 'up' : v < 0 ? 'down' : ''}">${v > 0 ? '+' : ''}${v.toFixed(1)}pp</span>`);
-  const total = pm.topics.reduce((s, t) => s + (t.volume24hr || 0), 0) || 1;
-  // 阶梯行按价位升序，跨过现价处插一条分隔线；无现价的标的（SOL/XRP）不显示距离
-  const anchor = k => spot && spot[k];
-  const rowsOf = (ev, px) => {
-    const out = [];
-    ev.markets.forEach((m, i) => {
-      const prev = ev.markets[i - 1];
-      if (px && prev && prev.strike != null && m.strike != null && prev.strike < px && m.strike >= px) {
-        out.push(`<div class="pm-spot"><span>现价 ${R.usd(px)}</span><span>↑上方档 / ↓下方档</span></div>`);
-      }
-      out.push(`<div class="pm-odds-row" title="${R.esc(m.question)}">
-        <span class="pm-odds-lab">${R.esc(m.label)}${px && m.strike != null ? `<i class="pm-dist">${R.dist(m.strike, px)}</i>` : ''}</span>
-        <div class="pm-odds-track"><div class="pm-odds-fill${m.prob >= 0.6 ? ' strong' : ''}${m.prob < 0.2 ? ' weak' : ''}" style="width:${(m.prob * 100).toFixed(1)}%"></div></div>
-        <span class="pm-odds-pct">${pct(m.prob)}</span>
-        <span class="pm-odds-chg">${chg(m.chg7d)}</span>
-      </div>`);
-    });
-    return out.join('');
-  };
-
-  // 结论层：标的状态卡（动能最大归类 + 走势缩略 + 24h 成交占比，点击定位数据层）
-  const head = document.createElement('div');
-  head.className = 're-section';
-  head.innerHTML = `<h2>POLYMARKET 加密价位市场 <small style="font-weight:400;color:var(--text-dim)">预测市场隐含的触及概率（hit-price 系列）</small></h2>
-    <div class="re-explain" style="margin-bottom:10px">
-      <b>如何解读</b> — 图上每条线是那个归类里「概率过 50% 的价位」逐日记到哪（档间线性插值），
-      灰虚线是现价日线收盘：线在现价上方 = 市场觉得这个方向还得往上走才能摸到，线与现价的缺口就是预期差。
-      折叠明细里每档是市场对「触及该价位」的隐含概率（≥60% 接近共识，&lt;20% 淡显为长尾），价位后括注距现价偏离。
-      <span style="opacity:.7">月度/年度阶梯跨月切换时档位重置，曲线会有结构性跳档。</span></div>
-    <p class="re-source" style="margin:0 0 10px">口径：category=crypto · series 含 hit-price / multi-strikes（日/周/月/年度价位阶梯）；prob 为 0-1 隐含概率。过 50% 档按相邻两档线性插值，整条阶梯都在 0.5 同侧时该日留空（没有对赌档，不外推端点）；现价线取 yfinance 日线收盘，与 Deribit 现货锚可差几十美元。history.csv 只收录达量门槛的合约，新市场无历史则留空。</p>
-    <div class="pm-topics">${pm.topics.map(t => {
-    const h = t.headline;
-    const share = ((t.volume24hr || 0) / total * 100).toFixed(0);
-    return `<div class="pm-topic-card" onclick="location.hash='pm-${t.key}'">
-      <div class="pm-topic-top"><span class="pm-topic-name">${R.esc(t.name)}</span>
-        <span class="pm-topic-share">占 24h 成交 ${share}%</span></div>
-      <div class="pm-topic-meta">${t.events.length} 事件 · ${t.clusters.length} 归类 · 24h ${vol(t.volume24hr)}</div>
-      <div class="pm-topic-body">
-        <div class="pm-topic-focus">动能最大 ${h ? `<b>${R.esc(h.name)}</b><br>${h.pivot ? `<b>${R.usd(h.pivot.strike)}</b> 对赌档 · ` : ''}均概率 ${pct(h.prob)}${h.chg7d != null ? `（7日 ${h.chg7d > 0 ? '+' : ''}${h.chg7d.toFixed(1)}pp）` : ''}` : '—'}</div>
-        ${R.spark(h && (h.level_series || []).length > 1 ? h.level_series : h.series)}
-      </div>
-      <div class="pm-sharebar"><div class="pm-sharebar-fill" style="width:${share}%"></div></div>
-    </div>`;
-  }).join('')}</div>`;
-  host.appendChild(head);
-
-  // 规则引擎叙事（LLM 预留）
-  if ((pm.signals || []).length) {
-    const [lead, ...rest] = pm.signals;
-    const sec = document.createElement('div');
-    sec.className = 're-analysis';
-    sec.innerHTML = `<h3>盘面解读</h3><p>${R.esc(lead)}</p>` +
-      (rest.length
-      ? `<ul>${rest.map(s => `<li${s.startsWith('⚠') ? ' style="color:var(--color-down);font-weight:600"' : ''}>${R.esc(s)}</li>`).join('')}</ul>`
-      : '');
-    host.appendChild(sec);
-  }
-
-  // 数据层：每标的一节（归类 chips → 归类均值多线图 → 原始价位阶梯折叠）
-  for (const t of pm.topics) {
-    const sec = document.createElement('div');
-    sec.className = 're-section';
-    sec.id = `pm-${t.key}`;
-    const px = anchor(t.key);
-    t.clusters.forEach(c => { if (c.pivot && px) c.pivot.dist = R.dist(c.pivot.strike, px); });
-    sec.innerHTML = `<h2>${R.esc(t.name)} 价位阶梯 <small style="font-weight:400;color:var(--text-dim)">${t.events.length} 事件 · ${t.clusters.length} 归类 · 24h ${vol(t.volume24hr)} · 累计 ${vol(t.volume)}${px ? ` · 现价 ${R.usd(px)}` : ''}</small></h2>
-      <div class="pm-chips">${t.clusters.map(R.pmChip).join('')}</div>`;
-    host.appendChild(sec); // 先挂 DOM 再建图（R.mkChart 按 id 查 DOM，0 尺寸容器初始化不出 canvas）
-
-    const lv = t.clusters.filter(c => (c.level_series || []).length > 1);
-    if (lv.length) {
-      const cid = `pm-chart-${t.key}`;
-      sec.insertAdjacentHTML('beforeend', `<div class="chart" id="${cid}" style="height:${Math.max(240, 34 + lv.length * 26)}px"></div>`);
-      R.mkChart(cid, c => levelOption(lv, (pm.spot_series || {})[t.key], c));
-      // 有归类却没线 = 那条阶梯没有跨过 50% 的对赌档（或合约未进 history.csv），点名而不是让人猜
-      const nolv = t.clusters.filter(c => !lv.includes(c)).map(c => c.name);
-      if (nolv.length) {
-        sec.insertAdjacentHTML('beforeend', `<p class="re-source" style="margin:4px 0 0">图上无线的归类：${nolv.join('、')}（该阶梯没有跨过 50% 的对赌档，或合约未进 history.csv）</p>`);
-      }
-    } else {
-      sec.insertAdjacentHTML('beforeend', '<div class="re-explain">暂无隐含价位日线——该标的阶梯里没有跨过 50% 的对赌档，或合约未进 history.csv（只收录达量门槛的合约）</div>');
-    }
-
-    // 原始价位阶梯（Polymarket 英文原文，默认折叠，仅作出处引用）
-    const det = document.createElement('details');
-    det.className = 'pm-raw';
-    det.innerHTML = `<summary>原始价位阶梯 · Polymarket 英文源（${t.events.length} 事件，按价位升序，外链可跳官方页）</summary>
-      <div class="pm-ladder-grid">${t.events.map(ev => `
-        <div class="re-card">
-          <div class="re-corridor-label"><a class="pm-ev-link" href="https://polymarket.com/event/${R.esc(ev.slug)}" target="_blank">${R.esc(ev.title)}</a></div>
-          <div style="font-size:11px;color:var(--text-dim);margin:2px 0 8px">截止 ${String(ev.end_date || '').slice(0, 10)} · 24h ${vol(ev.volume24hr)} · 累计 ${vol(ev.volume)}</div>
-          ${rowsOf(ev, px)}
-        </div>`).join('')}</div>`;
-    sec.appendChild(det);
-  }
-
-  // 归类规则未命中告警（新 series/问题命名击穿规则时的 actionable 清单）
-  if (pm.unmatched && pm.unmatched.count) {
-    const el = document.createElement('div');
-    el.className = 'pm-alert';
-    el.innerHTML = `<h3>⚠ ${pm.unmatched.count} 个合约未命中「方向·周期」归类</h3>
-      <div>下列合约被兜底归入虚线的「其它」组。维护方式：往
-      <code>src/polymarket_analysis.py → hit_cluster_of</code> 补方向动词或 series 周期后缀：</div>
-      <div style="margin-top:4px">${pm.unmatched.samples.map(u => `<div>· <b>${R.esc(u.topic)}</b> — ${R.esc(u.label)}</div>`).join('')}</div>`;
-    host.appendChild(el);
-  }
-}
 
 async function load() {
   const d = await R.get('/api/assets/crypto-derivatives');
-  if (!d || !d.ts) { R.fail(['radar', 'kpi', 'walls', 'polymarket', 'retail', 'consensus'], new Error('无加密衍生品快照 · 运行 ./bin/fetch_crypto_derivatives 后刷新')); return; }
+  if (!d || !d.ts) { R.fail(['now', 'etf', 'kpi', 'funding', 'retail', 'basis', 'coinglass'], new Error('无加密衍生品快照 · 运行 ./bin/fetch_crypto_derivatives 后刷新')); return; }
   document.getElementById('re-as-of').textContent =
     R.asOf([['衍生品快照', d.ts.slice(0, 10)], d.cme && ['CME 期货 OI', d.cme.as_of], d.basis && d.basis.available && ['基差', d.basis.latest]]);
 
-  // ── BTC FORWARD RADAR（timsun 同款：综合分 + 4 列 + 信号权重）──
-  const radar = d.radar || { total: null, confidence: 0, verdict: '数据不足', structure: '—', lev_risk: '—', driver: '—', signals: [] };
-  const rcolor = radar.verdict === '偏多' ? P.up : (radar.verdict === '偏空' ? P.down : P.flat);
-  const rsec = document.createElement('div');
-  rsec.className = 're-section';
-  const missed = (radar.signals || []).filter(s => s.dir === 0 && s.value === undefined).map(s => s.name);
-  const etfMissed = (radar.signals || []).some(s => s.name === 'ETF 资金流' && s.value === undefined);
-  rsec.innerHTML = `
-    <h2>BTC FORWARD RADAR <span style="font-size:12px;font-weight:400;opacity:.7">— BTC 前瞻雷达</span></h2>
-    <p style="margin:0 0 8px">把 ETF、CME、基差、永续杠杆和期权信号压缩为 0-24h / 1-7d 判断。</p>
-    <div class="re-cards" style="grid-template-columns:repeat(auto-fit,minmax(140px,1fr))">
-      <div class="re-card"><div class="re-corridor-label">综合分</div><div class="re-corridor-value" style="color:${rcolor}">${radar.total == null ? '—' : (radar.total >= 0 ? '+' : '') + radar.total}</div>
-        <div class="re-card-sub">置信度 ${radar.confidence}/100</div></div>
-      <div class="re-card"><div class="re-corridor-label">24h 偏向</div><div class="re-corridor-value" style="color:${rcolor};font-size:15px">${radar.verdict}</div><div class="re-card-sub">0-24h 方向</div></div>
-      <div class="re-card"><div class="re-corridor-label">3-7 日结构</div><div class="re-corridor-value" style="font-size:15px">${radar.structure}</div><div class="re-card-sub">中期趋势形态</div></div>
-      <div class="re-card"><div class="re-corridor-label">杠杆风险</div><div class="re-corridor-value" style="font-size:15px">${radar.lev_risk}</div><div class="re-card-sub">永续资金费率口径</div></div>
-      <div class="re-card" style="grid-column:span 2"><div class="re-corridor-label">主导力量</div><div class="re-corridor-value" style="font-size:15px">${radar.driver}</div></div>
-    </div>
-    ${etfMissed ? '<div style="margin-top:10px;padding:8px 12px;border:1px solid var(--warning);border-radius:6px;font-size:12px;color:var(--warning)">ETF 资金流数据过期或未接入，未纳入方向评分。</div>' : ''}
-    <p class="re-source" style="margin:10px 0 6px">信号权重（缺失信号不纳入评分，中性带内计 0 分）${missed.length ? ' · 缺：' + missed.join(' / ') : ''}</p>`;
-  const rows = (radar.signals || []).map(s => {
-    const sc = s.dir * s.weight;
-    const c = sc > 0 ? P.up : (sc < 0 ? P.down : P.flat);
-    return `<div class="re-card" style="display:flex;align-items:baseline;gap:10px;padding:10px 14px">
-      <span style="min-width:110px;font-weight:600">${s.name}</span>
-      <span style="font-size:11px;opacity:.7;flex:1">${s.desc}</span>
-      <span style="font-weight:700;color:${c}">${sc > 0 ? '+' + sc : sc}</span>
-      <span style="font-size:11px;opacity:.6;min-width:36px;text-align:right">权 ${s.weight}</span></div>`;
-  }).join('');
-  rsec.insertAdjacentHTML('beforeend', `<div class="re-render" style="display:grid;gap:6px"></div>`);
-  rsec.querySelector('.re-render').innerHTML = rows;
-  // 触发/反证条件按当前数据实时计算（统一 ✓ 成立 / ✗ 不成立 / — 数据缺；
-  // 反证条件用正常态措辞，✗ = 风险触发）
-  const gFlip = ((d.options_BTC || {}).gex || {}).gamma_flip;
-  const spotNow = (d.options_BTC || {}).spot_anchor;
-  const etf5 = d.etf && d.etf.available && !d.etf.stale ? d.etf.sum5d_busd : null;
-  const spreadV = d.basis && d.basis.available ? d.basis.spread : null;
-  const annFrRaw = ((d.perp || {}).BTC || {}).funding_annual;
-  const annFr = annFrRaw == null ? null : annFrRaw * 100;
-  const cond = (ok, label, invert) => `<span class="re-badge ${ok == null ? 'flat' : ok ? 'bull' : (invert ? 'bear' : 'flat')}">${ok == null ? '—' : ok ? '✓' : '✗'} ${label}</span>`;
-  rsec.insertAdjacentHTML('beforeend', `
-    <div class="re-badges" style="margin-top:10px">
-      <span style="font-size:11px;opacity:.7">触发条件</span>
-      ${cond(spotNow != null && gFlip != null ? spotNow > gFlip : null, `现价上穿 Gamma Flip${gFlip ? `（$${fmt(gFlip, 0)}）` : ''}`)}
-      ${cond(etf5 == null ? null : etf5 > 0, `ETF 5d 净流入转正${etf5 != null ? `（${etf5 >= 0 ? '+' : ''}${etf5.toFixed(2)}B）` : '（数据过期）'}`)}
-    </div>
-    <div class="re-badges" style="margin-top:6px">
-      <span style="font-size:11px;opacity:.7">反证条件</span>
-      ${cond(spreadV == null ? null : spreadV > 0, `基差 Spread 为正${spreadV != null ? `（当前 ${spreadV}%）` : ''}`, true)}
-      ${cond(annFr == null ? null : Math.abs(annFr) < 15, `资金费率年化在 ±15% 内${annFr != null ? `（当前 ${annFr.toFixed(1)}%）` : ''}`, true)}
-    </div>
-    <p class="re-source" style="margin:8px 0 0">触发两项同向 = 结构确认；反证任一 ✗ = 降杠杆信号。状态按上方数据实时计算，非静态文本。</p>`);
-  document.getElementById('radar').appendChild(rsec);
+  const p = d.perp || {};
+  const optB = d.options_BTC || {}, optE = d.options_ETH || {};
+  const BTC = p.BTC || {}, ETH = p.ETH || {};
+  const ann = BTC.funding_annual;
 
   // ── LAYER 1 · NOW（8 个核心 KPI · 当前值 + 1 年百分位 + 1d 变化方向）──
   const l1 = d.layer1 || null;
   if (l1 && (l1.kpis || []).length) {
     const lsec = document.createElement('div');
     lsec.className = 're-section';
+    lsec.id = 'sec-now';
     const kArrow = s => s == null ? '' : `<span style="color:${s[0] === '↑' ? 'var(--up)' : (s[0] === '↓' ? 'var(--down)' : 'var(--flat)')};font-weight:600">${s}</span>`;
     const pctBar = k => {
       // 固定占位（无 rank 也渲染空 bar + 空四分位行），保证所有卡片高度/对齐一致；marker 只在有 rank 时显示
@@ -265,7 +77,7 @@ async function load() {
           ${q.length === 3 ? `<span>${fq(q[0])}</span><span>${fq(q[1])}</span><span>${fq(q[2])}</span>` : ''}</div>`;
     };
     lsec.innerHTML = `<h2>NOW 现在市场情况 <span style="font-size:12px;font-weight:400;opacity:.7">8 个核心 KPI · 当前值 + 1 年百分位 + 1d 变化方向</span></h2>
-      <div class="re-cards" style="grid-template-columns:repeat(auto-fit,minmax(170px,1fr))">
+      <div class="re-cards" style="grid-template-columns:repeat(auto-fit,minmax(250px,1fr))">
         ${l1.kpis.map(k => `<div class="re-card" style="padding:12px 14px" title="${(k.note || '').replace(/"/g, '&quot;')}">
           <div class="re-corridor-label">${k.label}</div>
           <div class="re-corridor-value" style="font-size:17px;margin:2px 0">${k.value}</div>
@@ -274,8 +86,9 @@ async function load() {
           <div style="margin-top:4px;font-size:11px;opacity:.65;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${k.pct_label || ''}</div>
         </div>`).join('')}
       </div>
-      <p class="re-source" style="margin:8px 0 0">口径：百分位 = 当前值在近 1 年序列中的位置（&lt;30 个点标历史不足）；历史源：OKX（funding/taker）/ CFTC COT / 日线快照 / 期权快照。部分 KPI 因源上限窗口不足 1 年（funding 92 天 / taker 10 日 / PCR 快照积累中）。</p>`;
-    document.getElementById('kpi').insertAdjacentElement('beforebegin', lsec);
+      <details class="re-fold"><summary>口径说明</summary>
+      <p class="re-source" style="margin:8px 0 0">口径：百分位 = 当前值在近 1 年序列中的位置（&lt;30 个点标历史不足）；历史源：OKX（funding/taker）/ CFTC COT / 日线快照 / 期权快照。部分 KPI 因源上限窗口不足 1 年（funding 92 天 / taker 10 日 / PCR 快照积累中）。</p></details>`;
+    document.getElementById('now').appendChild(lsec);
   }
 
   // ── ETF FLOWS（Farside via Jina；stale 时只展示最近值不参与方向）──
@@ -283,48 +96,47 @@ async function load() {
   if (etf.available) {
     const esec = document.createElement('div');
     esec.className = 're-section';
+    esec.id = 'sec-etf';
     const v5 = etf.sum5d_busd, v30 = etf.sum30d_busd;
     const fst = v => v == null ? '暂停判读' : `${v >= 0 ? '+' : ''}${v.toFixed(2)} B`;
     const fcol = v => v == null ? '' : (v >= 0 ? 'color:var(--up)' : 'color:var(--down)');
-    const fcard = (label, value, sub, color) => `
+    const fcard = (label, value, sub, color, vstyle) => `
       <div class="re-card"><div class="re-corridor-label">${label}</div>
-      <div class="re-corridor-value" style="${color || ''}">${value}</div>
+      <div class="re-corridor-value" style="${color || ''}${vstyle || ''}">${value}</div>
       <div class="re-card-sub">${sub}</div></div>`;
     esec.innerHTML = `<h2>ETF FLOWS 机构资金流入对照（BTC Spot ETF）</h2>
-      <div class="re-explain" style="margin-bottom:10px">
-        <b>如何解读</b> — ETF 是最干净的现货资金通道：价格上涨 + ETF 流入 = 现货确认；
-        价格上涨但 ETF 流出 = 更可能是杠杆或短线挤压。
-        <span style="opacity:.7">数据源：Farside Investors（12 ETF + Total，2024-01-11 起，M USD）</span></div>
       ${etf.stale ? '<div style="padding:8px 12px;border:1px solid var(--warning);border-radius:6px;font-size:12px;color:var(--warning);margin-bottom:10px">⚠ ETF 资金流超过时效阈值（最新 ' + etf.latest + '），本区保留最近有效值，不参与方向判断。</div>' : ''}
       <div class="re-cards" style="grid-template-columns:repeat(auto-fit,minmax(160px,1fr))">
         ${fcard('最近有效净流入', fst(etf.last_flow_musd == null ? null : etf.last_flow_musd / 1000), etf.latest + ' · Farside 更新', fcol(etf.last_flow_musd))}
         ${fcard('5 天累计', fst(v5), etf.stale ? '暂停判读' : '参与方向评分', fcol(v5))}
         ${fcard('30 天累计', fst(v30), etf.stale ? '暂停判读' : '趋势参考', fcol(v30))}
         ${fcard('累计 AUM', (etf.cum_aum_busd ?? '—') + ' B', '净流入逐日累加近似（自 2024-01-11）')}
-        ${fcard('Top 3', (etf.top || []).map(x => x === 'BTC' ? 'BTC(灰度迷你)' : x).join(' · '), '累计净流入最高')}
+        ${fcard('Top 3', (etf.top || []).map(x => x === 'BTC' ? 'BTC(灰度迷你)' : x).join(' · '), '累计净流入最高', '', ';font-size:14px;white-space:normal;line-height:1.5')}
       </div>
-      <p class="re-source" style="margin:8px 0 0">Farside 每日 ~21:00 UTC 更新；负数 = 净流出。4 象限：流入+高基差=健康牛市 · 流出+低基差=共识看空 · 背离罕见。</p>`;
-    document.getElementById('kpi').insertAdjacentElement('beforebegin', esec);
+      <details class="re-fold"><summary>解读 · 口径</summary>
+      <div class="re-explain" style="margin-top:8px">
+        <b>如何解读</b> — ETF 是最干净的现货资金通道：价格上涨 + ETF 流入 = 现货确认；
+        价格上涨但 ETF 流出 = 更可能是杠杆或短线挤压。
+        <span style="opacity:.7">数据源：Farside Investors（12 ETF + Total，2024-01-11 起，M USD）</span></div>
+      <p class="re-source" style="margin:8px 0 0">Farside 每日 ~21:00 UTC 更新；负数 = 净流出。4 象限：流入+高基差=健康牛市 · 流出+低基差=共识看空 · 背离罕见。</p></details>`;
+    document.getElementById('etf').appendChild(esec);
   }
 
   // ── 衍生品 KPI 卡（timsun 同款 7 卡：资金费率 / 多空比 / ETH OI / PCR / 期权 OI / Max Pain / 指数价）──
-  const p = d.perp || {};
-  const optB = d.options_BTC || {}, optE = d.options_ETH || {};
-  const BTC = p.BTC || {}, ETH = p.ETH || {};
   const taker = (d.taker || {}).BTC || [];
   let tarb = 0, tars = 0;
   taker.slice(0, 3).forEach(r => { tarb += r.buy; tars += r.sell; });
   const ls = tars ? tarb / tars : null;
-  const ann = BTC.funding_annual;
   const kpi = (label, value, sub, color) => `
     <div class="re-card"><div class="re-corridor-label">${label}</div>
-    <div class="re-corridor-value" style="${color ? 'color:' + color + ';' : ''}${String(value).length > 8 ? 'font-size:18px' : ''}">${value}</div>
+    <div class="re-corridor-value"${color ? ` style="color:${color}"` : ''}>${value}</div>
     <div class="re-card-sub" style="white-space:normal">${sub}</div></div>`;
   const ksec = document.createElement('div');
   ksec.className = 're-section';
+  ksec.id = 'sec-kpi';
   const cmeK = d.cme || {};
   ksec.innerHTML = `<h2>衍生品 KPI（OKX 永续 + Deribit 期权 + CME 期货）</h2>
-    <div class="re-cards" style="grid-template-columns:repeat(auto-fit,minmax(170px,1fr))">
+    <div class="re-cards" style="grid-template-columns:repeat(auto-fit,minmax(300px,1fr))">
       ${cmeK.fut_oi != null ? kpi('CME BTC 期货 OI', fmt(cmeK.fut_oi, 0) + ' 份', `≈ ${fmt(cmeK.fut_oi * 5, 0)} BTC · ${(cmeK.fut_contract || '').replace('Bitcoin Futures, ', '')} · Yahoo 免费`): ''}
       ${cmeK.micro_oi != null ? kpi('Micro BTC OI', fmt(cmeK.micro_oi, 0) + ' 份', `≈ ${fmt(cmeK.micro_oi / 10, 0)} BTC · ${(cmeK.micro_contract || '').replace('Micro Bitcoin Futures, ', '')}`): ''}
       ${kpi('BTC 永续资金费率', (BTC.funding_rate == null ? '—' : (BTC.funding_rate * 100).toFixed(4) + '%'), `年化 ${ann == null ? '—' : (ann * 100).toFixed(1) + '%'} · ${stance(ann)}`)}
@@ -342,10 +154,12 @@ async function load() {
   if (fh.length > 30) {
     const fsec = document.createElement('div');
     fsec.className = 're-section';
+    fsec.id = 'sec-funding';
     fsec.innerHTML = `<h2>资金费率走势 <span style="font-size:12px;font-weight:400;opacity:.7">OKX BTC 永续 8h 费率 % · &gt;0 做多付费 / &lt;0 空头付费 · 近 ${Math.round(fh.length / 3)} 天</span></h2>
       <div class="chart" id="funding-hist" style="height:260px"></div>
-      <p class="re-source" style="margin:8px 0 0">口径：OKX funding-rate-history（8h 结算）；时间轴按 8h 网格从快照时间回推。持续抬升 + OI 扩张 = 杠杆堆积；年化超 ±15%（8h ≈ ±0.0137%）为拥挤反转区。</p>`;
-    document.getElementById('kpi').appendChild(fsec);
+      <details class="re-fold"><summary>口径说明</summary>
+      <p class="re-source" style="margin:8px 0 0">口径：OKX funding-rate-history（8h 结算）；时间轴按 8h 网格从快照时间回推。持续抬升 + OI 扩张 = 杠杆堆积；年化超 ±15%（8h ≈ ±0.0137%）为拥挤反转区。</p></details>`;
+    document.getElementById('funding').appendChild(fsec);
     R.mkChart('funding-hist', c => R.lineOption({
       tooltip: { trigger: 'axis', valueFormatter: v => (v == null ? '—' : Number(v).toFixed(4) + '%') },
       grid: { left: 58, right: 14, top: 20, bottom: 24 },
@@ -358,58 +172,6 @@ async function load() {
       }],
     }, c));
   }
-
-  // ── 🧱 期权价格墙 · Strike Wall（Deribit 最近到期口径 + Top 5）+ CME 机构期货仓位卡 ──
-  const wsec = document.createElement('div');
-  const cf = d.cme_futures || {};
-  wsec.className = 're-section';
-  const dist = (wall, spot) => wall == null || !spot ? null : (wall / spot - 1) * 100;
-  const wallBox = (label, v, oi, spot) => v == null ? '' : `
-    <div style="border:1px solid ${label === 'Call Wall' ? 'var(--down)' : 'var(--up)'};border-radius:8px;padding:12px;background:var(--surface)">
-      <div class="re-corridor-label">${label}</div>
-      <div style="font-size:22px;font-weight:700;color:${label === 'Call Wall' ? 'var(--down)' : 'var(--up)'}">$${fmt(v, 0)}</div>
-      <div class="re-card-sub">${oi == null ? '' : `OI ${fmt(oi, 0)}`}${oi != null && dist(v, spot) != null ? ' · ' : ''}${dist(v, spot) == null ? '' : `距现价 ${dist(v, spot) >= 0 ? '+' : ''}${dist(v, spot).toFixed(1)}%`}</div>
-    </div>`;
-  const topList = (rows) => rows && rows.length ? `
-    <div style="margin-top:8px;font-size:12px"><div style="opacity:.7;margin-bottom:4px">Top ${rows.length} 墙</div>
-      ${rows.map(r => `<div style="display:flex;justify-content:space-between;border-bottom:1px solid var(--border);padding:2px 0"><span>$${fmt(r.strike, 0)}</span><span style="opacity:.7">OI ${fmt(r.oi, 0)}</span></div>`).join('')}</div>` : '';
-  const wallCard = (title, o, spot) => `
-    <div class="re-card"><div class="re-corridor-label">${title}</div>
-      <div class="re-card-sub" style="white-space:normal">现货锚 $${fmt(spot, 0)} · 最近到期 ${o.nearest_exp || (o.d_exp + ' 个到期月')}</div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px">
-        ${wallBox('Call Wall', o.near_call_wall ?? o.call_wall, o.near_call_wall_oi ?? null, spot)}${wallBox('Put Wall', o.near_put_wall ?? o.put_wall, o.near_put_wall_oi ?? null, spot)}
-      </div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
-        ${topList(o.top_calls || [])}${topList(o.top_puts || [])}
-      </div></div>`;
-  wsec.innerHTML = `<h2>期权价格墙 · Strike Wall</h2>
-    <p style="margin:0 0 8px;font-size:12px;opacity:.75">Call Wall 偏上方压制 / Put Wall 偏下方支撑；用于短线磁吸与失效条件，不单独代表方向。</p>
-    <div class="re-explain" style="margin-bottom:10px">
-      <b>如何解读</b> — Strike Wall 是短期价格磁吸/压制区，尤其在临近到期时更有用。它不是趋势信号，更像短线地图。</div>
-    <div class="re-cards" style="grid-template-columns:repeat(auto-fit,minmax(260px,1fr))">
-      ${wallCard('Deribit 全市场期权 · BTC', optB, optB.spot_anchor)}
-      ${wallCard('Deribit 全市场期权 · ETH', optE, optE.spot_anchor)}
-      ${cf.available !== false && cf.total_oi ? (() => {
-        const top3 = (cf.months || []).slice().sort((a, b) => b.oi - a.oi).slice(0, 3);
-        const termWord = { contango: '升水', backwardation: '贴水', flat: '平水' }[cf.term] || '—';
-        return `
-      <div class="re-card"><div class="re-corridor-label">CME 机构期货仓位 · ${cf.as_of || ''}</div>
-        <div class="re-corridor-value">${fmt(cf.total_oi, 0)} 张</div>
-        <div class="re-card-sub">≈ ${fmt(cf.total_oi_btc, 0)} BTC${cf.oi_chg_1d != null ? ` · 日变化 ${cf.oi_chg_1d >= 0 ? '+' : ''}${fmt(cf.oi_chg_1d, 0)} 张` : ''}</div>
-        <div class="re-card-sub" style="white-space:normal">主力 ${cf.front.month} $${fmt(cf.front.settle, 0)}${cf.basis_ann_pct != null ? ` · ${termWord}（年化 ${cf.basis_ann_pct >= 0 ? '+' : ''}${cf.basis_ann_pct}%）` : ''}</div>
-        <div style="margin-top:8px;font-size:12px"><div style="opacity:.7;margin-bottom:4px">OI 前三月份</div>
-          ${top3.map(m => `<div style="display:flex;justify-content:space-between;border-bottom:1px solid var(--border);padding:2px 0"><span>${m.month}</span><span style="opacity:.7">OI ${fmt(m.oi, 0)}</span></div>`).join('')}</div>
-      </div>`;
-      })() : `
-      <div class="re-card" style="opacity:.65"><div class="re-corridor-label">CME 机构期货仓位</div>
-        <div class="re-card-sub" style="white-space:normal">数据暂缺：运行 ./bin/fetch_cme_futures（官方 Settlements API，curl_cffi 直连 / Jina 降级）。原 CME 期权墙卡已废弃：该页面产品选择需 JS 交互，Jina 无法选中 BTC，替代为同源的期货仓位卡。</div>
-      </div>`}
-    </div>
-    <p class="re-source" style="margin:8px 0 0">口径：Deribit 最近到期月度（near wall）为主，全到期聚合为回退；CME 卡为官方 Settlements 期货仓位（全月份 OI + 期限结构），非期权墙。</p>`;
-  document.getElementById('walls').appendChild(wsec);
-
-  // ── POLYMARKET 加密价位市场（geo 同款结构：归类趋势线 + 原始事件折叠）──
-  renderPolymarket(d.polymarket, { BTC: optB.spot_anchor, ETH: optE.spot_anchor });
 
   // ── LAYER 3 · RETAIL 散户立场 ──
   const frPct = BTC.funding_rate == null ? null : BTC.funding_rate * 100;
@@ -425,6 +187,7 @@ async function load() {
   ];
   const rsec2 = document.createElement('div');
   rsec2.className = 're-section';
+  rsec2.id = 'sec-retail';
   rsec2.innerHTML = `<h2>RETAIL 散户仓位读数 <span style="font-size:12px;font-weight:400;opacity:.7">永续 / 期权（基于当前数据，非「看多/看空」判断）</span></h2>`;
   const ret = document.createElement('div');
   ret.className = 're-render';
@@ -442,50 +205,29 @@ async function load() {
   rsec2.appendChild(ret);
   document.getElementById('retail').appendChild(rsec2);
 
-  // ── CONSENSUS · DIVERGENCE 机构 vs 散户 ──
-  const c = d.consensus || null;
-  if (c) {
-    const csec = document.createElement('div');
-    csec.className = 're-section';
-    csec.innerHTML = `<h2>机构 vs 散户 · 对照 <span style="margin-left:6px;font-size:12px;font-weight:400;opacity:.7;border:1px solid var(--border);padding:2px 8px;border-radius:4px">${c.verdict}</span></h2>
-      <div class="re-cards" style="grid-template-columns:repeat(auto-fit,minmax(180px,1fr))">
-        <div class="re-card"><div class="re-corridor-label">🏛 机构方向</div>
-          <div style="font-size:15px;font-weight:600">立场${c.inst.stance}</div>
-          <div class="re-card-sub" style="white-space:normal">${c.inst.votes} <span style="opacity:.6">${c.inst.note}</span></div>
-          <div class="re-card-sub" style="white-space:normal">${c.inst.text}</div></div>
-        <div class="re-card"><div class="re-corridor-label">🆚 散户方向</div>
-          <div style="font-size:15px;font-weight:600">立场${c.retail.stance}</div>
-          <div class="re-card-sub" style="white-space:normal">${c.retail.votes} <span style="opacity:.6">${c.retail.note}</span></div>
-          <div class="re-card-sub" style="white-space:normal">${c.retail.text}</div></div>
-        <div class="re-card"><div class="re-corridor-label">📊 当前对照</div>
-          <div style="font-size:15px;font-weight:600">${c.verdict}</div>
-          <div class="re-card-sub" style="white-space:normal">${c.detail}</div></div>
-      </div>
-      <p class="re-source" style="margin:8px 0 0">注：此对照只说明机构和散户立场是否一致，不是 BTC 涨跌预测。</p>`;
-    document.getElementById('consensus').appendChild(csec);
-  }
-
   // ── 🏛 机构基差专题（CME BTC 期货年化基差 + SOFR Spread）──
   const bz = d.basis || {};
   if (bz.available) {
     const bsec = document.createElement('div');
     bsec.className = 're-section';
+    bsec.id = 'sec-basis';
     // 基差数据陈旧警告：Yahoo BTC=F 治理过滤严格（完整性 ~35%），最新有效日常停在一两周前
     const bzStaleDays = bz.latest ? Math.round((new Date(R.todayISO()) - new Date(bz.latest)) / 864e5) : null;
     const bzStale = bzStaleDays != null && bzStaleDays > 5;
     bsec.innerHTML = `<h2>机构基差专题 <span style="font-size:12px;font-weight:400;opacity:.7">CME BTC 期货年化基差（Yahoo BTC=F proxy · timsun V1 治理口径）</span></h2>
       ${bzStale ? `<div style="padding:8px 12px;border:1px solid var(--warning);border-radius:6px;font-size:12px;color:var(--warning);margin-bottom:10px">⚠ 基差数据停在 ${bz.latest}（${bzStaleDays} 天前）——Yahoo BTC=F 最新日线多为临时价格触发治理跳过，下方读数非最新，不参与方向判断。</div>` : ''}
-      <div class="re-explain" style="margin-bottom:10px">
-        <b>如何解读</b> — 基差代表机构愿意为远期 BTC 支付的溢价。基差高不等于立刻上涨，但说明 carry/套利资金愿意留在场内。
-        <span style="opacity:.7">Spread = 基差 60d EMA − SOFR（套利价差）；&gt;5% 套利空间充足，&lt;0 为负。</span></div>
       <div class="re-cards" style="grid-template-columns:repeat(auto-fit,minmax(150px,1fr))">
         ${`<div class="re-card"><div class="re-corridor-label">当前基差年化</div><div class="re-corridor-value">${bz.current}%</div><div class="re-card-sub">${bz.latest} · 最新有效</div></div>`}
         ${`<div class="re-card"><div class="re-corridor-label">30 日均值</div><div class="re-corridor-value">${bz.ma30}%</div><div class="re-card-sub">近 30 个有效观测</div></div>`}
         ${`<div class="re-card"><div class="re-corridor-label">1 年百分位</div><div class="re-corridor-value">${bz.pct_rank}%</div><div class="re-card-sub">区间内相对位置</div></div>`}
         ${`<div class="re-card"><div class="re-corridor-label">Spread（基差−SOFR）</div><div class="re-corridor-value" style="color:${bz.spread != null && bz.spread > 5 ? 'var(--up)' : (bz.spread != null && bz.spread < 0 ? 'var(--down)' : '')}">${bz.spread == null ? '—' : bz.spread + '%'}</div><div class="re-card-sub">SOFR ${bz.sofr}%</div></div>`}
       </div>
-      <p class="re-source" style="margin:8px 0 0">公式：basis = (F−S)/S × 365/dte × 100%；治理：dte&lt;10 天跳过 · |basis|&gt;18% 过滤 · 最新未成熟日线跳过（数据完整性 ~35%，近月连续合约 proxy，非 CME 逐合约结算）。</p>`;
-    document.getElementById('re-gen').insertAdjacentElement('beforebegin', bsec);
+      <details class="re-fold"><summary>解读 · 口径</summary>
+      <div class="re-explain" style="margin-top:8px">
+        <b>如何解读</b> — 基差代表机构愿意为远期 BTC 支付的溢价。基差高不等于立刻上涨，但说明 carry/套利资金愿意留在场内。
+        <span style="opacity:.7">Spread = 基差 60d EMA − SOFR（套利价差）；&gt;5% 套利空间充足，&lt;0 为负。</span></div>
+      <p class="re-source" style="margin:8px 0 0">公式：basis = (F−S)/S × 365/dte × 100%；治理：dte&lt;10 天跳过 · |basis|&gt;18% 过滤 · 最新未成熟日线跳过（数据完整性 ~35%，近月连续合约 proxy，非 CME 逐合约结算）。</p></details>`;
+    document.getElementById('basis').appendChild(bsec);
   }
 
   // ── 🌐 Coinglass 全市场聚合 ──
@@ -493,6 +235,7 @@ async function load() {
   if (cg.available !== false && (cg.all_open_interest_usd || (cg.exchanges || []).length)) {
     const gsec = document.createElement('div');
     gsec.className = 're-section';
+    gsec.id = 'sec-cg';
     const exchRows = (cg.exchanges || []).map(e => `
       <div style="display:flex;justify-content:space-between;border-bottom:1px solid var(--border);padding:3px 0;font-size:12px">
         <span style="min-width:70px">${e.name}</span>
@@ -501,8 +244,6 @@ async function load() {
       </div>`).join('');
     const ls = cg.ls_ratio || {};
     gsec.innerHTML = `<h2>Coinglass 全市场聚合 <span style="font-size:12px;font-weight:400;opacity:.7">全市场杠杆分布 + 清算压力（经 Jina Reader）</span></h2>
-      <div class="re-explain" style="margin-bottom:10px">
-        <b>如何解读</b> — 回答的是：风险是否来自交易所杠杆而非现货资金。OI 快速上升 + 清算低 = 杠杆堆积；清算放大后 OI 下降 = 去杠杆完成。</div>
       <div class="re-cards" style="grid-template-columns:repeat(auto-fit,minmax(170px,1fr))">
         ${`<div class="re-card"><div class="re-corridor-label">BTC 全市场期货 OI</div><div class="re-corridor-value">$${((cg.btc_oi_usd || 0) / 1e9).toFixed(2)} B</div><div class="re-card-sub">${fmt((cg.btc_oi_btc || 0) / 1000, 1)}K BTC</div></div>`}
         ${`<div class="re-card"><div class="re-corridor-label">全加密期货 OI</div><div class="re-corridor-value">$${((cg.all_open_interest_usd || 0) / 1e9).toFixed(2)} B</div><div class="re-card-sub">所有币种合计</div></div>`}
@@ -510,14 +251,17 @@ async function load() {
         ${ls.long_pct != null ? `<div class="re-card"><div class="re-corridor-label">24h 多空比</div><div class="re-corridor-value">${ls.long_pct}% / ${ls.short_pct}%</div><div class="re-card-sub">${ls.long_pct > 50 ? '偏多' : (ls.long_pct < 50 ? '偏空' : '中性')}</div></div>` : ''}
       </div>
       ${exchRows ? `<div style="margin-top:10px;font-size:12px;opacity:.9"><div style="opacity:.7;margin-bottom:4px">交易所 OI 分布 · Top ${(cg.exchanges || []).length}（24h 变化）</div>${exchRows}</div>` : ''}
-      <p class="re-source" style="margin:8px 0 0">数据源：Coinglass（经 Jina Reader）· 快照 ${cg.ts || ''} · 单项取不到时留空，不影响其他指标。</p>`;
-    document.getElementById('re-gen').insertAdjacentElement('beforebegin', gsec);
+      <details class="re-fold"><summary>解读 · 口径</summary>
+      <div class="re-explain" style="margin-top:8px">
+        <b>如何解读</b> — 回答的是：风险是否来自交易所杠杆而非现货资金。OI 快速上升 + 清算低 = 杠杆堆积；清算放大后 OI 下降 = 去杠杆完成。</div>
+      <p class="re-source" style="margin:8px 0 0">数据源：Coinglass（经 Jina Reader）· 快照 ${cg.ts || ''} · 单项取不到时留空，不影响其他指标。</p></details>`;
+    document.getElementById('coinglass').appendChild(gsec);
   }
 
-  document.getElementById('re-gen').textContent = '规则引擎（LLM 预留）· 数据源：OKX API / Deribit API / Yahoo Finance CME / CFTC COT / Farside / Coinglass(经 Jina) / Polymarket gamma-api';
+  document.getElementById('re-gen').textContent = '规则引擎（LLM 预留）· 数据源：OKX API / Deribit API / Yahoo Finance CME / CFTC COT / Farside / Coinglass(经 Jina)';
 }
 
-load().catch(e => R.fail(['radar', 'kpi', 'walls', 'polymarket', 'retail', 'consensus'], e));
+load().catch(e => R.fail(['now', 'etf', 'kpi', 'funding', 'retail', 'basis', 'coinglass'], e));
 </script>
 <script src="/js/nav.js"></script>
 </body>

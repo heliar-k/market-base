@@ -21,7 +21,7 @@ body.embedded .re-header h1 { display: none; } /* 内嵌时左卡已有标题 */
 .re-card-accent { background: var(--surface); border: 1px solid var(--border); color: var(--text); }
 .re-card-accent .re-corridor-label { color: var(--text-secondary); }
 .re-corridor-label { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; opacity: .7; }
-.re-corridor-value { font-size: 22px; font-weight: 700; margin-top: 10px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.re-corridor-value { font-size: 22px; font-weight: 700; margin-top: 10px; font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .re-card-sub { font-size: 11px; opacity: .7; margin-top: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 /* 页内锚点导航（长页如美债） */
@@ -47,8 +47,7 @@ html { scroll-padding-top: 52px; }
 .re-loading { text-align: center; padding: 60px 20px; color: var(--text-dim); font-size: 14px; }
 .re-error { text-align: center; padding: 40px 20px; color: var(--color-down); }
 .re-chart { height: 300px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); }
-/* re-section 内部衆多子块（KPI 行/图表/表格）与父卡边框保持呼吸距离 */
-.re-section > .re-cards, .re-section > .re-chart, .re-section > .re-table, .re-section > .re-table-wrap { margin-left: 8px; margin-right: 8px; }
+/* re-section 内部的图表/表格与父卡底对齐（margin-bottom），左右与文字同一条边线 */
 .re-section > .re-chart:last-child, .re-section > .re-table:last-child { margin-bottom: 2px; }
 .re-h2 { font-size: 15px; font-weight: 700; }
 /* 页内分组分隔标题（如利率定价页的政策路径 / 长端分解） */
@@ -455,6 +454,10 @@ a.re-badge:hover { color: var(--accent); border-color: var(--accent); }
 .pm-prob-num { flex: 0 0 46px; text-align: right; }
 .pm-ev-link { color: inherit; text-decoration: none; }
 .pm-ev-link:hover { color: var(--accent); }
+/* 解读/口径长文：默认折叠成一行，保持首屏密度（ crypto 衍生品/期权页） */
+.re-fold { margin: 10px 0 0; }
+.re-fold > summary { cursor: pointer; font-size: 12px; color: var(--text-dim); user-select: none; }
+.re-fold[open] > summary { margin-bottom: 4px; color: var(--text-secondary); }
 /* 原始英文明细：默认折叠，只作出处引用 */
 .pm-raw { margin-top: 12px; border: 1px dashed var(--border); border-radius: 8px; padding: 8px 12px; }
 .pm-raw > summary { cursor: pointer; font-size: 12px; color: var(--text-dim); user-select: none; }
