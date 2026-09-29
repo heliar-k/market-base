@@ -22,7 +22,7 @@
   <div class="page-toc" id="page-toc"></div>
 
   <div id="re-cards"></div>
-  <div class="re-h2" id="sec-corridor">短期利率走廊（SOFR 分位 + 目标区间）</div>
+  <div class="re-h2" id="sec-corridor">短期利率走廊（五利率 + 目标区间）</div>
   <div class="re-chart" id="corridor_chart"></div>
   <div class="re-h2" id="sec-sofr">SOFR 每日成交量（十亿美元）</div>
   <div class="re-chart" id="sofr_vol_chart"></div>
@@ -46,12 +46,9 @@ async function load() {
 
   // ── 卡片 ──
   const l = d.latest;
-  const last = (arr) => (arr.length ? arr[arr.length - 1].value : null);
   const c = d.corridor;
-  const p2575 = (last(c.sofr_p75) !== null && last(c.sofr_p25) !== null)
-    ? ((last(c.sofr_p75) - last(c.sofr_p25)) * 100).toFixed(1) : '—';
-  const p199 = (last(c.sofr_p99) !== null && last(c.sofr_p1) !== null)
-    ? ((last(c.sofr_p99) - last(c.sofr_p1)) * 100).toFixed(1) : '—';
+  const p2575 = l.sofr_p2575_bp != null ? l.sofr_p2575_bp.toFixed(1) : '—';
+  const p199 = l.sofr_p199_bp != null ? l.sofr_p199_bp.toFixed(1) : '—';
   document.getElementById('re-cards').replaceChildren(R.cards([
     { label: '联邦基金有效利率', value: R.fmtPct(l.effr?.value), sub: l.effr?.as_of, accent: true },
     { label: 'SOFR 利率', value: R.fmtPct(l.sofr?.value), sub: l.sofr?.as_of },

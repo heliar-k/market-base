@@ -291,26 +291,24 @@ function renderConvChart(meetings, hist) {
   const dates = [...new Set(withHist.flatMap((x) => x.series.map((p) => p.date)))].sort();
   const byDate = (x, key) => Object.fromEntries(x.series.map((p) => [p.date, p[key]]));
   R.mkChart('conv-chart', (colors) => {
-    const legend = [];
     const series = [];
     withHist.slice(0, 2).forEach((x, i) => {
       const dash = i > 0;
       for (const [key, name, color] of [['cut', '降息', colors.green], ['hike', '加息', colors.red], ['hold', '维持', colors.gray]]) {
         const sname = `${x.label}·${name}`;
-        // 本图不走 lineOption（图例在底部），icon 与尺寸手动对齐全局图例样板
-        legend.push({ name: sname, icon: dash ? RE_LEGEND.dashed : RE_LEGEND.solid });
         series.push({ name: sname, type: 'line', data: dates.map((dt) => byDate(x, key)[dt] ?? null),
           symbol: 'none', connectNulls: true, lineStyle: { color, width: 2, type: dash ? 'dashed' : 'solid' }, itemStyle: { color } });
       }
     });
-    return {
+    // 图例在底部不走 lineOption；icon 交给 reSyncLegend 按 series 线型推导（全站单源）
+    return reSyncLegend({
       tooltip: { trigger: 'axis', valueFormatter: (v) => (typeof v === 'number' ? (v * 100).toFixed(1) + '%' : v) },
-      legend: { bottom: 2, data: legend },
+      legend: { bottom: 2, data: series.map((s) => s.name) },
       grid: { top: 24, left: 44, right: 16, bottom: 52 },
       xAxis: { type: 'category', data: dates.map((dt) => dt.slice(5)), axisLabel: { fontSize: 10 } },
       yAxis: { type: 'value', max: 1, axisLabel: { formatter: (v) => v * 100 + '%' } },
       series,
-    };
+    });
   });
 }
 

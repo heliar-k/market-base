@@ -55,30 +55,11 @@ async function load() {
   document.getElementById('re-as-of').textContent = R.asOf(d.as_of);
 
   // ── 形态徽章 + 利差 ──
-  const badges = document.getElementById('re-badges');
-  const shapeCls = d.shape.includes('熊') ? 'bear' : d.shape.includes('牛') ? 'bull' : 'flat';
-  const s = d.spreads;
-  badges.innerHTML = `
-    <span class="re-badge ${shapeCls}">${d.shape} · ${d.driver}</span>
-    <span class="re-spread">2s10s: ${R.fmtBp(s['2s10s'])}bp</span>
-    <span class="re-spread">3m10s: ${R.fmtBp(s['3m10s'])}bp</span>
-    <span class="re-spread">5s30s: ${R.fmtBp(s['5s30s'])}bp</span>
-    <span class="re-spread">验证通过 ${d.confidence}</span>`;
+  document.getElementById('re-badges').innerHTML = R.curveBadges(d);
 
   // ── 四线对比 ──
   const tenors = d.tenors;
-  R.mkChart('yc_compare', (colors) => R.lineOption({
-    legend: { data: ['当前', '1周前', '1月前', '3月前'] },
-    tooltip: { trigger: 'axis', valueFormatter: v => `${Number(v).toFixed(2)}%` },
-    xAxis: { type: 'category', data: tenors.map(t => t.tenor), axisLabel: { color: colors.muted, fontSize: 10 }, axisLine: { lineStyle: { color: colors.border } } },
-    yAxis: { type: 'value', scale: true, axisLabel: { color: colors.muted, formatter: '{value}%' }, splitLine: { lineStyle: { color: colors.grid } } },
-    series: [
-      { name: '当前', type: 'line', data: tenors.map(t => t.current), symbol: 'circle', symbolSize: 6, lineStyle: { color: colors.blue, width: 2 }, itemStyle: { color: colors.blue }, connectNulls: true },
-      { name: '1周前', type: 'line', data: tenors.map(t => t.prev_1w), symbol: 'none', lineStyle: { color: colors.gray, type: 'dashed', width: 1.5 }, connectNulls: true },
-      { name: '1月前', type: 'line', data: tenors.map(t => t.prev_1m), symbol: 'none', lineStyle: { color: colors.orange, type: 'dashed', width: 1.5 }, connectNulls: true },
-      { name: '3月前', type: 'line', data: tenors.map(t => t.prev_3m), symbol: 'none', lineStyle: { color: colors.red, type: 'dashed', width: 1.5 }, connectNulls: true },
-    ],
-  }, colors));
+  R.curveCompare('yc_compare', tenors);
 
   // 全局长端对照表：显式 keys（6 列头 ↔ 6 键），
   // 修复 Object.keys 取列时第 6 列“来源”错渲染成 spread30 的问题（审计 P1-③）

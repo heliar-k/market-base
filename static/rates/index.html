@@ -57,10 +57,8 @@
 <script src="/js/rates-common.js"></script>
 <script>
 async function load() {
-  const [data, ff] = await Promise.all([
-    R.get('/api/rates/analysis'),
-    R.get('/api/rates/fed-funds'),
-  ]);
+  // EFFR 卡片值/1周变动由 analysis 的 overview.effr 提供，不再拉整个 fed-funds（~84KB）
+  const data = await R.get('/api/rates/analysis');
   document.getElementById('re-as-of').textContent = R.asOf(data.overview.as_of);
   document.getElementById('re-gen').textContent =
     `研判生成：${R.genText(data.generator)}`;
@@ -68,24 +66,17 @@ async function load() {
   const d = data.yield_curve;
 
   // ── 形态徽章行（与收益率曲线页同款定调）──
-  const shapeCls = d.shape.includes('熊') ? 'bear' : d.shape.includes('牛') ? 'bull' : 'flat';
-  const s = d.spreads;
-  document.getElementById('re-badges').innerHTML = `
-    <span class="re-badge ${shapeCls}">${d.shape} · ${d.driver}</span>
-    <span class="re-spread">2s10s: ${R.fmtBp(s['2s10s'])}bp</span>
-    <span class="re-spread">3m10s: ${R.fmtBp(s['3m10s'])}bp</span>
-    <span class="re-spread">5s30s: ${R.fmtBp(s['5s30s'])}bp</span>
-    <span class="re-spread">验证通过 ${d.confidence}</span>`;
+  document.getElementById('re-badges').innerHTML = R.curveBadges(d);
 
   // ── 统计卡（变动着色：涨绿跌红，与全站一致）──
   const t = Object.fromEntries(d.tenors.map(x => [x.tenor, x]));
   const tips10 = d.tips.find(x => x.tenor === '10Y');
+  const s = d.spreads;
   const chgSub = (v, label) => v === null || v === undefined ? ''
     : `<span style="color:${v > 0 ? 'var(--color-up)' : v < 0 ? 'var(--color-down)' : 'var(--color-neutral)'}">${v > 0 ? '▲ +' : v < 0 ? '▼ ' : ''}${Number(v).toFixed(0)}bp</span> · ${label}`;
-  const h = ff.effr_history;
-  const effr1w = h && h.length > 5 ? (h[h.length - 1].value - h[h.length - 6].value) * 100 : null;
+  const effr = data.overview.effr || {};
   document.getElementById('re-cards').replaceChildren(R.cards([
-    { label: '联邦基金有效利率', value: R.fmtPct(ff.latest.effr?.value), sub: chgSub(effr1w, '1周'), accent: true },
+    { label: '联邦基金有效利率', value: R.fmtPct(effr.value), sub: chgSub(effr.chg_1w, '1周'), accent: true },
     { label: '2Y', value: R.fmtPct(t['2Y'].current), sub: chgSub(t['2Y'].chg_1w, '1周') },
     { label: '10Y', value: R.fmtPct(t['10Y'].current), sub: chgSub(t['10Y'].chg_1w, '1周') },
     { label: '30Y', value: R.fmtPct(t['30Y'].current), sub: chgSub(t['30Y'].chg_1w, '1周') },
@@ -94,20 +85,7 @@ async function load() {
   ]));
 
   // ── 曲线四线快照（tenors 自带 1周/1月/3月前，零新请求）──
-  const tenors = d.tenors;
-  R.mkChart('yc_compare', (colors) => R.lineOption({
-    legend: { data: ['当前', '1周前', '1月前', '3月前'] },
-    tooltip: { trigger: 'axis', valueFormatter: v => `${Number(v).toFixed(2)}%` },
-    grid: { top: 36, left: 48, right: 16, bottom: 24 },
-    xAxis: { type: 'category', data: tenors.map(x => x.tenor), axisLabel: { color: colors.muted, fontSize: 10 }, axisLine: { lineStyle: { color: colors.border } } },
-    yAxis: { type: 'value', scale: true, axisLabel: { color: colors.muted, formatter: '{value}%' }, splitLine: { lineStyle: { color: colors.grid } } },
-    series: [
-      { name: '当前', type: 'line', data: tenors.map(x => x.current), symbol: 'circle', symbolSize: 6, lineStyle: { color: colors.blue, width: 2 }, itemStyle: { color: colors.blue }, connectNulls: true },
-      { name: '1周前', type: 'line', data: tenors.map(x => x.prev_1w), symbol: 'none', lineStyle: { color: colors.gray, type: 'dashed', width: 1.5 }, connectNulls: true },
-      { name: '1月前', type: 'line', data: tenors.map(x => x.prev_1m), symbol: 'none', lineStyle: { color: colors.orange, type: 'dashed', width: 1.5 }, connectNulls: true },
-      { name: '3月前', type: 'line', data: tenors.map(x => x.prev_3m), symbol: 'none', lineStyle: { color: colors.red, type: 'dashed', width: 1.5 }, connectNulls: true },
-    ],
-  }, colors));
+  R.curveCompare('yc_compare', d.tenors);
 
   // ── 四段研判 ──
   const root = document.getElementById('re-sections');

@@ -976,22 +976,26 @@ def get_rates_fed_funds() -> dict:
     taru = df["DFEDTARU"].dropna() if "DFEDTARU" in df else pd.Series(dtype=float)
     if not tarl.empty and not taru.empty:
         latest["target"] = [float(tarl.iloc[-1]), float(taru.iloc[-1])]
+    # SOFR 分位价差只服务两张卡片，服务端算好 2 个数（原下发 4×90 点序列给前端算）
+    for lo, hi, key in [
+        ("SOFR25", "SOFR75", "sofr_p2575_bp"),
+        ("SOFR1", "SOFR99", "sofr_p199_bp"),
+    ]:
+        lo_s = df[lo].dropna() if lo in df.columns else pd.Series(dtype=float)
+        hi_s = df[hi].dropna() if hi in df.columns else pd.Series(dtype=float)
+        if not lo_s.empty and not hi_s.empty:
+            latest[key] = round(float(hi_s.iloc[-1] - lo_s.iloc[-1]) * 100, 1)
 
     return {
         "as_of": df.index.max().strftime("%Y-%m-%d"),
         "latest": latest,
         # 利率走廊（近 90 天）：EFFR/SOFR/TGCR/BGCR/ONRRP 五利率 + 目标区间
         "corridor": {
-            "dates": [d.strftime("%Y-%m-%d") for d in df.tail(90).index],
             "effr": _series(df, effr_col, 90),
             "sofr": _series(df, "SOFR", 90),
             "tgcr": _series(df, "TGCR", 90),
             "bgcr": _series(df, "BGCR", 90),
             "onrrp": _series(df, "ONRRP", 90),
-            "sofr_p1": _series(df, "SOFR1", 90),
-            "sofr_p25": _series(df, "SOFR25", 90),
-            "sofr_p75": _series(df, "SOFR75", 90),
-            "sofr_p99": _series(df, "SOFR99", 90),
             "target_lo": _series(df, "DFEDTARL", 90),
             "target_hi": _series(df, "DFEDTARU", 90),
         },
@@ -1009,6 +1013,7 @@ def get_rates_yield_curve() -> dict:
     """收益率曲线：四线对比 + 变化 + 利差时序 + 解读（规则引擎）。"""
     df = _macro_df("rates")
     out = generate_analysis()
+    out.pop("overview", None)  # 该页只渲染 yield_curve（overview 四段文不下发）
     # 近 6 个月三大利差时序（bp）
     spread_hist = {}
     for name, a, b in [

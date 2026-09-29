@@ -32,11 +32,38 @@ const R = {
   ts: (arr) => (arr || []).map(p => p.date),
   vs: (arr) => (arr || []).map(p => p.value),
 
-  // 请求失败时向多个容器注入错误提示
+  // 曲线形态徽章行（rates 入口页 + 收益率曲线页共用，同一份定调）
+  curveBadges(d) {
+    const shapeCls = d.shape.includes('熊') ? 'bear' : d.shape.includes('牛') ? 'bull' : 'flat';
+    const s = d.spreads;
+    return `<span class="re-badge ${shapeCls}">${d.shape} · ${d.driver}</span>
+      <span class="re-spread">2s10s: ${R.fmtBp(s['2s10s'])}bp</span>
+      <span class="re-spread">3m10s: ${R.fmtBp(s['3m10s'])}bp</span>
+      <span class="re-spread">5s30s: ${R.fmtBp(s['5s30s'])}bp</span>
+      <span class="re-spread">验证通过 ${d.confidence}</span>`;
+  },
+
+  // 四线曲线快照（当前 / 1周前 / 1月前 / 3月前，rates 入口页 + 收益率曲线页共用）
+  curveCompare(id, tenors) {
+    return R.mkChart(id, (colors) => R.lineOption({
+      legend: { data: ['当前', '1周前', '1月前', '3月前'] },
+      tooltip: { trigger: 'axis', valueFormatter: v => `${Number(v).toFixed(2)}%` },
+      xAxis: { type: 'category', data: tenors.map(t => t.tenor), axisLabel: { color: colors.muted, fontSize: 10 }, axisLine: { lineStyle: { color: colors.border } } },
+      yAxis: { type: 'value', scale: true, axisLabel: { color: colors.muted, formatter: '{value}%' }, splitLine: { lineStyle: { color: colors.grid } } },
+      series: [
+        { name: '当前', type: 'line', data: tenors.map(t => t.current), symbol: 'circle', symbolSize: 6, lineStyle: { color: colors.blue, width: 2 }, itemStyle: { color: colors.blue }, connectNulls: true },
+        { name: '1周前', type: 'line', data: tenors.map(t => t.prev_1w), symbol: 'none', lineStyle: { color: colors.gray, type: 'dashed', width: 1.5 }, connectNulls: true },
+        { name: '1月前', type: 'line', data: tenors.map(t => t.prev_1m), symbol: 'none', lineStyle: { color: colors.orange, type: 'dashed', width: 1.5 }, connectNulls: true },
+        { name: '3月前', type: 'line', data: tenors.map(t => t.prev_3m), symbol: 'none', lineStyle: { color: colors.red, type: 'dashed', width: 1.5 }, connectNulls: true },
+      ],
+    }, colors));
+  },
+
+  // 请求失败时向多个容器注入错误提示（线上为静态导出，本地为 server）
   fail(ids, e) {
     ids.forEach(id => {
       const el = document.getElementById(id);
-      if (el) el.innerHTML = `<div class="re-error">加载失败：${e.message}<br>请确认服务已启动（uv run python -m src.server）或数据已拉取，刷新重试</div>`;
+      if (el) el.innerHTML = `<div class="re-error">加载失败：${e.message}<br>本地请确认 uv run python -m src.server 已启动；线上请检查数据导出（./bin/fetch_fred 后重新部署）</div>`;
     });
   },
 

@@ -34,22 +34,37 @@ _BP = 100  # 百分数 → bp
 # ═══════════════════════════════════════════════════════════════════════════════
 
 
+_LOAD_PATHS = (
+    (ROOT / "data" / "fred" / "rates" / "rates.csv", "date"),
+    (ROOT / "data" / "fred" / "tips" / "tips.csv", "date"),
+    (ROOT / "data" / "fred" / "inflation" / "inflation.csv", "date"),
+    (ROOT / "data" / "rate_expectations" / "fomc_probabilities.csv", "date"),
+    (ROOT / "data" / "treasury" / "auction_results.csv", "auction_date"),
+    (ROOT / "data" / "fred" / "rates" / "cgb.csv", "date"),  # chinamoney，FRED 无
+)
+
+_load_cache: dict[tuple, tuple] = {}
+
+
 def _load() -> tuple[
     pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame
 ]:
     """rates / tips / inflation / rate_expectations / auction_results / cgb
-    六张本地表。"""
-    rates = _read(ROOT / "data" / "fred" / "rates" / "rates.csv")
-    tips = _read(ROOT / "data" / "fred" / "tips" / "tips.csv")
-    infl = _read(ROOT / "data" / "fred" / "inflation" / "inflation.csv")
-    rex = _read(ROOT / "data" / "rate_expectations" / "fomc_probabilities.csv")
-    auc = _read(ROOT / "data" / "treasury" / "auction_results.csv", "auction_date")
-    cgb = _read(ROOT / "data" / "fred" / "rates" / "cgb.csv")  # chinamoney，FRED 无
-    return rates, tips, infl, rex, auc, cgb
+    六张本地表。按文件 mtime 记忆：同一请求 overview + yield_curve 只读一次盘
+    （rates.csv ~2MB，原实现每请求读两遍）。返回的 DataFrame 共享，调用方只读。"""
+    key = tuple(p.stat().st_mtime_ns if p.exists() else -1 for p, _ in _LOAD_PATHS)
+    hit = _load_cache.get(key)
+    if hit is None:
+        hit = tuple(_read(p, idx) for p, idx in _LOAD_PATHS)
+        _load_cache.clear()  # 只留当前版本，防旧版 DataFrame 堆积
+        _load_cache[key] = hit
+    return hit
 
 
 def _snapshot(rates: pd.DataFrame, col: str, window: int) -> float | None:
-    """col 序列在 last_date − window 天前最近一个非空值。"""
+    """col 序列在 last_date − window 天前最近一个非空值；列缺失/全空返回 None。"""
+    if col not in rates.columns:
+        return None
     s = rates[col].dropna()
     if s.empty:
         return None
@@ -84,6 +99,23 @@ def _spread_vs_us(local: float | None, us: float | None) -> float | None:
     """该市场相对美国的利差（bp）。约定 美国 − 该市场（与 timsun 符号一致，
     审计 P1-④）；复用 _spread_vals 核心公式（审计 D-5），缺失不伪造 0。"""
     return _spread_vals(us, local)
+
+
+def _effr_col(rates: pd.DataFrame) -> str:
+    """EFFR 日频列：DFF（1999-03 起）优先；FEDFUNDS 是月频均值，仅作回退
+    （与 server /api/rates/fed-funds 同口径，审计 P1-②；原研判文本用月频
+    FEDFUNDS，与页首卡片的 DFF 日频值同屏不一致）。"""
+    return "DFF" if "DFF" in rates.columns else "FEDFUNDS"
+
+
+def _last_with_date(df: pd.DataFrame, col: str) -> tuple[float | None, str | None]:
+    """列的最新非空值 + 观测日（ISO）；列缺失/全空返回 (None, None)。"""
+    if col not in df.columns:
+        return None, None
+    s = df[col].dropna()
+    if s.empty:
+        return None, None
+    return float(s.iloc[-1]), s.index[-1].strftime("%Y-%m-%d")
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -225,13 +257,9 @@ def yield_curve_analysis() -> dict:
         s2s10_1m = round(s2s10 - prev_s2s10, 1) if prev_s2s10 is not None else None
     shape = _shape_label(s2s10_1m, y10_1m)
 
-    # 驱动归因：1 月内实际利率 vs 盈亏平衡变动
-    real_1m = (
-        _bp_change(tips, "DFII10", 30) if not tips.empty and "DFII10" in tips else None
-    )
-    be_1m = (
-        _bp_change(infl, "T10YIE", 30) if not infl.empty and "T10YIE" in infl else None
-    )
+    # 驱动归因：1 月内实际利率 vs 盈亏平衡变动（_bp_change 已列缺失安全）
+    real_1m = _bp_change(tips, "DFII10", 30)
+    be_1m = _bp_change(infl, "T10YIE", 30)
     if real_1m is not None and be_1m is not None and abs(real_1m) >= abs(be_1m):
         driver = "实际利率/期限溢价主导"
     elif real_1m is not None and be_1m is not None:
@@ -253,7 +281,7 @@ def yield_curve_analysis() -> dict:
                 else "明显上行，通胀驱动占优",
             }
         )
-    d10 = _snapshot(tips, "DFII10", 0) if not tips.empty and "DFII10" in tips else None
+    d10 = _snapshot(tips, "DFII10", 0)
     if d10 is not None:
         checks.append(
             {
@@ -265,7 +293,7 @@ def yield_curve_analysis() -> dict:
                 else "低于 2%，压制长端",
             }
         )
-    effr = _snapshot(rates, "FEDFUNDS", 0)
+    effr = _snapshot(rates, _effr_col(rates), 0)
     y2 = _snapshot(rates, "DGS2", 0)
     if effr is not None and y2 is not None:
         # 短端定价与曲线形态的一致性（审计 P1-⑥）：
@@ -316,17 +344,12 @@ def yield_curve_analysis() -> dict:
     # 全球长端对照（美/日/中 10Y + 30Y）：
     # spread = 美国 − 该市场（bp，与 timsun 符号一致）；缺数据返回 None 不伪造
     us10, us30 = _snapshot(rates, "DGS10", 0), _snapshot(rates, "DGS30", 0)
-    jp10 = _snapshot(rates, "JP10Y", 0) if "JP10Y" in rates.columns else None
-    cn10 = (
-        _snapshot(cgb, "cgb_10y", 0)
-        if not cgb.empty and "cgb_10y" in cgb.columns
-        else None
-    )
-    cn30 = (
-        _snapshot(cgb, "cgb_30y", 0)
-        if not cgb.empty and "cgb_30y" in cgb.columns
-        else None
-    )
+    jp10, jp10_d = _last_with_date(rates, "JP10Y")
+    cn10, cn10_d = _last_with_date(cgb, "cgb_10y") if not cgb.empty else (None, None)
+    cn30, _ = _last_with_date(cgb, "cgb_30y") if not cgb.empty else (None, None)
+    # 来源标注观测日：日本是月频序列，与日频的美/中同列比利差时必须亮出时点
+    jp_src = "FRED IRLTLT01JPM156N · monthly" + (f" · {jp10_d}" if jp10_d else "")
+    cn_src = "chinamoney RtimeYldCurv · daily" + (f" · {cn10_d}" if cn10_d else "")
 
     return {
         "as_of": as_of,
@@ -388,7 +411,7 @@ def yield_curve_analysis() -> dict:
                 "rate30": us30,
                 "spread_vs_us": 0.0,
                 "spread30_vs_us": 0.0,
-                "source": "FRED DGS10 · daily",
+                "source": f"FRED DGS10 · daily · {as_of}",
             },
             {
                 "market": "日本",
@@ -397,7 +420,7 @@ def yield_curve_analysis() -> dict:
                 "rate30": None,
                 "spread_vs_us": _spread_vs_us(jp10, us10),
                 "spread30_vs_us": None,
-                "source": "FRED IRLTLT01JPM156N · monthly",
+                "source": jp_src,
             },
             {
                 "market": "中国",
@@ -406,7 +429,7 @@ def yield_curve_analysis() -> dict:
                 "rate30": cn30,
                 "spread_vs_us": _spread_vs_us(cn10, us10),
                 "spread30_vs_us": _spread_vs_us(cn30, us30),
-                "source": "chinamoney RtimeYldCurv · daily",
+                "source": cn_src,
             },
         ],
     }
@@ -417,8 +440,76 @@ def yield_curve_analysis() -> dict:
 # ═══════════════════════════════════════════════════════════════════════════════
 
 
+def _curve_text(
+    shape: str,
+    s2s10: float | None,
+    s2s10_1w: float | None,
+    y10: float | None,
+    driver_side: str,
+) -> str:
+    """曲线形态段。验证方向与形态一致：陡化看突破、平化看收窄（修复：原模板
+    不分形态恒写「陡峭化大概率延续」，熊平/牛平时自相矛盾——同类 bug 在
+    _invalidation 已修过，此路径漏修且无测试覆盖）。"""
+    if s2s10 is None or y10 is None:
+        return "收益率曲线数据不足（检查 ./bin/fetch_fred rates 分类）。"
+    w_txt = (
+        f"（1 周 {'走扩' if s2s10_1w > 0 else '收窄'} {abs(s2s10_1w):.0f}bp）"
+        if s2s10_1w is not None
+        else ""
+    )
+    head = (
+        f"曲线呈{shape}形态：2s10s 利差现报 {s2s10:.0f}bp{w_txt}，"
+        f"10Y 报 {y10:.2f}%。驱动来自{driver_side}。"
+    )
+    if shape in ("熊陡", "牛陡"):
+        return head + (
+            f"验证指标——若 2s10s 突破 {s2s10 + 15:.0f}bp 且拍卖需求未见恶化，"
+            "陡峭化大概率延续。"
+        )
+    if shape in ("熊平", "牛平"):
+        return head + (
+            f"验证指标——若 2s10s 收窄至 {s2s10 - 15:.0f}bp 以下且短端政策预期未转向，"
+            "平坦化大概率延续。"
+        )
+    return head + "验证指标——2s10s 单方向突破 ±8bp 前，形态信号中性，等待方向确认。"
+
+
+def _fed_expectation_text(
+    rates: pd.DataFrame,
+    rex: pd.DataFrame,
+    effr: float | None,
+    y2: float | None,
+) -> str:
+    """联储预期段：EFFR + 目标区间 + ZQ 期货隐含的下一场 FOMC 概率（rex）。
+    原实现用 2Y−EFFR 符号猜加/降息并断言「与点阵图一致/背离」——宽松周期里
+    2Y 高于 EFFR 是期限溢价而非加息定价，且数据里根本没有点阵图，两处均为伪推论。"""
+    effr_txt = f"联邦基金有效利率 {effr:.2f}%" if effr is not None else "EFFR 数据缺失"
+    tarl, taru = _snapshot(rates, "DFEDTARL", 0), _snapshot(rates, "DFEDTARU", 0)
+    if tarl is not None and taru is not None:
+        effr_txt += f"（目标区间 {tarl:.2f}–{taru:.2f}%）"
+    if y2 is not None:
+        effr_txt += f"，2Y 收益率 {y2:.2f}%"
+    mkt_txt = "ZQ 期货定价数据缺失（检查 ./bin/fetch_rate_expectations）"
+    cols = {"meeting_date", "prob_cut", "prob_hold", "prob_hike", "expectation"}
+    if not rex.empty and cols.issubset(rex.columns):
+        snap = rex.index.max()
+        rows = rex.loc[rex.index == snap].sort_values("meeting_date")
+        if not rows.empty:
+            m = rows.iloc[0]  # 最新快照日的最近一场会议
+            if all(pd.notna(m[c]) for c in ("prob_cut", "prob_hold", "prob_hike")):
+                exp = m["expectation"] if pd.notna(m["expectation"]) else "主导方向"
+                mkt_txt = (
+                    f"市场定价 {str(m['meeting_date'])[:10]} FOMC："
+                    f"降息 {m['prob_cut']:.0%} / 维持 {m['prob_hold']:.0%} / "
+                    f"加息 {m['prob_hike']:.0%}（ZQ 期货隐含，截至 {snap:%Y-%m-%d}）。"
+                    f"验证指标：若该场「{exp}」概率跌破 50%，市场定价反转，本判断失效"
+                )
+    return f"{effr_txt}。{mkt_txt}。"
+
+
 def overview_analysis() -> dict:
-    """四段研判：曲线形态 / 实际利率 / 联储预期 / 展望。"""
+    """四段研判：曲线形态 / 实际利率 / 联储预期 / 展望。
+    任一数据源缺失降级为占位文案（不伪造数值，不让入口页 500）。"""
     rates, tips, infl, rex, auc, cgb = _load()
     if rates.empty:
         return {"sections": []}
@@ -426,66 +517,68 @@ def overview_analysis() -> dict:
 
     # ── 1. 曲线形态 ──
     s2s10 = _spread(rates, "DGS10", "DGS2")
-    s2s10_1w = None
-    if s2s10 is not None:
-        prev = _spread(rates, "DGS10", "DGS2", 7)
-        s2s10_1w = round(s2s10 - prev, 1) if prev is not None else None
+    prev_1w = _spread(rates, "DGS10", "DGS2", 7)
+    prev_1m = _spread(rates, "DGS10", "DGS2", 30)
+    s2s10_1w = (
+        round(s2s10 - prev_1w, 1) if s2s10 is not None and prev_1w is not None else None
+    )
+    s2s10_1m = (
+        round(s2s10 - prev_1m, 1) if s2s10 is not None and prev_1m is not None else None
+    )
     y10 = _snapshot(rates, "DGS10", 0)
     y2 = _snapshot(rates, "DGS2", 0)
     y10_1m = _bp_change(rates, "DGS10", 30)
     y2_1m = _bp_change(rates, "DGS2", 30)
-    s2s10_1m = None
-    if s2s10 is not None:
-        prev_s2s10 = _spread(rates, "DGS10", "DGS2", 30)
-        s2s10_1m = round(s2s10 - prev_s2s10, 1) if prev_s2s10 is not None else None
     shape = _shape_label(s2s10_1m, y10_1m)
     # 驱动侧：1 月内 10Y 涨幅 ≥ 2Y → 长端驱动；否则短端驱动（避免水平比较恒真）
     if y10_1m is not None and y2_1m is not None:
         driver_side = "长端风险溢价重定价" if y10_1m >= y2_1m else "短端政策预期"
     else:
         driver_side = "驱动方向待确认"
-    curve_text = (
-        f"曲线呈{shape}形态：2s10s 利差现报 {s2s10 or 0:.0f}bp"
-        f"（1 周 {'走扩' if (s2s10_1w or 0) > 0 else '收窄'} "
-        f"{abs(s2s10_1w or 0):.0f}bp），10Y 报 {y10 or 0:.2f}%。"
-        f"驱动来自{driver_side}："
-        f"验证指标——若 2s10s 突破 {s2s10 + 15:.0f}bp"
-        f"且拍卖需求未见恶化，陡峭化大概率延续。"
-    )
+    curve_text = _curve_text(shape, s2s10, s2s10_1w, y10, driver_side)
 
     # ── 2. 实际利率 ──
-    d10 = _snapshot(tips, "DFII10", 0) if not tips.empty and "DFII10" in tips else None
-    d10_1w = (
-        _bp_change(tips, "DFII10", 7) if not tips.empty and "DFII10" in tips else None
-    )
-    be = _snapshot(infl, "T10YIE", 0) if not infl.empty and "T10YIE" in infl else None
-    real_text = (
-        f"10Y TIPS 实际利率报 {d10:.2f}%（1 周 {d10_1w:+.0f}bp），"
-        f"盈亏平衡通胀 {be:.2f}%——长端上行的"
-        f"{'实际利率贡献更大' if (d10_1w or 0) > 0 else '通胀预期贡献更大'}。"
-        f"触发条件：若实际利率跌破 {d10 - 0.15:.2f}%，"
-        f"将推升黄金与长端债券。"
-    )
+    d10 = _snapshot(tips, "DFII10", 0)
+    d10_1w = _bp_change(tips, "DFII10", 7)
+    be = _snapshot(infl, "T10YIE", 0)
+    if d10 is None or be is None:
+        real_text = (
+            "TIPS 实际利率或盈亏平衡通胀数据缺失"
+            "（检查 ./bin/fetch_fred tips、inflation 分类）。"
+        )
+    else:
+        real_text = (
+            f"10Y TIPS 实际利率报 {d10:.2f}%"
+            + (f"（1 周 {d10_1w:+.0f}bp）" if d10_1w is not None else "")
+            + f"，盈亏平衡通胀 {be:.2f}%——长端上行的"
+            f"{'实际利率贡献更大' if (d10_1w or 0) > 0 else '通胀预期贡献更大'}。"
+            f"触发条件：若实际利率跌破 {d10 - 0.15:.2f}%，将推升黄金与长端债券。"
+        )
 
     # ── 3. 联储预期 ──
-    effr = _snapshot(rates, "FEDFUNDS", 0)
-    gap = (y2 or 0) - (effr or 0)
-    fed_text = (
-        f"联邦基金有效利率 {effr:.2f}%，2Y 收益率 {y2:.2f}%"
-        f"（利差 {gap * _BP:+.0f}bp），"
-        f"市场已定价{'加息' if gap > 0 else '降息'}预期"
-        f"{'（与点阵图一致）' if abs(gap) < 0.25 else '（与点阵图背离）'}。"
-        f"验证指标：若 2Y-EFFR 利差反转（"
-        f"{'加息定价被撤销' if gap > 0 else '降息定价被撤销'}），本判断失效；"
-        f"若定价维持而 FOMC 不表态，前端波动大概率加剧。"
-    )
+    effr_col = _effr_col(rates)
+    effr, effr_d = _last_with_date(rates, effr_col)
+    fed_text = _fed_expectation_text(rates, rex, effr, y2)
 
     # ── 4. 展望 ──
     m1 = _snapshot(rates, "DGS1MO", 0)
-    short_txt = (
-        f"1M 国库券 {m1:.2f}%"
-        f"{'高于' if (m1 or 0) > (effr or 0) else '低于'}联邦基金利率"
-        f"{'，短端流动性分层' if (m1 or 0) > (effr or 0) else '，短端平稳'}"
+    taru = _snapshot(rates, "DFEDTARU", 0)
+    if m1 is None:
+        short_txt = "1M 国库券数据缺失"
+    elif taru is None:
+        short_txt = f"1M 国库券 {m1:.2f}%"
+    else:
+        # 与目标区间上限比（不与月频 EFFR 比）：bill 略高于 EFFR 是常态，
+        # 突破区间上限才说明短端流动性分层（修复原判据的常态误报）
+        short_txt = (
+            f"1M 国库券 {m1:.2f}%{'高于' if m1 > taru else '低于'}"
+            f"目标区间上限（{taru:.2f}%）"
+            f"{'，短端流动性分层' if m1 > taru else '，短端平稳'}"
+        )
+    long_txt = (
+        f"长端：10Y 在 {y10:.2f}%，供给与期限溢价主导，关注季度再融资与 TGA 余额变化"
+        if y10 is not None
+        else "长端：10Y 数据缺失"
     )
     if not auc.empty:
         avg = _coupon_cover(auc)
@@ -498,14 +591,18 @@ def overview_analysis() -> dict:
     else:
         auc_txt = "拍卖数据待接入"
     outlook_text = (
-        f"短端：{short_txt}。长端：10Y 在 {y10:.2f}%，供给与期限溢价主导，"
-        f"关注季度再融资与 TGA 余额变化。{auc_txt}。关键触发点："
-        f"2s10s 利差单方向移动超 15bp 或 FOMC 措辞变化"
-        f"将决定下一阶段方向。"
+        f"短端：{short_txt}。{long_txt}。{auc_txt}。关键触发点："
+        "2s10s 利差单方向移动超 15bp 或 FOMC 措辞变化将决定下一阶段方向。"
     )
 
     return {
         "as_of": as_of,
+        # 入口页 EFFR 卡片用（原前端为此拉整个 /api/rates/fed-funds ~84KB）
+        "effr": {
+            "value": effr,
+            "as_of": effr_d,
+            "chg_1w": _bp_change(rates, effr_col, 7),
+        },
         "sections": [
             {"title": "曲线形态", "body": curve_text},
             {"title": "实际利率", "body": real_text},

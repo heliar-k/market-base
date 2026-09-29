@@ -187,7 +187,7 @@ market-base/
 │   ├── fed/                         ← 美联储鹰鸽专题页（timsun.net/fed 复刻，单页：声明+演讲+鹰鸽追踪）
 │   ├── index.html                ← 主仪表盘 SPA
 │   ├── js/                       ← 前端 JS（echarts-theme / rates-common 等）
-│   ├── rates/                    ← 利率专题页（timsun.net/rates 复刻，4 子页）
+│   ├── rates/                    ← 利率专题页（timsun.net/rates 复刻，3 子页）
 │   ├── credit/                   ← 信用专题页（单页：总览+CDS+压力仪表盘）
 │   ├── assets/                   ← 大类资产专题页（timsun.net/assets 复刻，主页 + 9 子页）
 │   └── volatility/               ← 波动率专题页（timsun.net/volatility 复刻，2 页）
@@ -298,7 +298,7 @@ uv run python -m src.server                        # 启动 Web，浏览器打�
 # 触发链：daily-fetch 跑完 → workflow_run 触发部署（数据 push 由 GITHUB_TOKEN 提交，
 #   不会触发 push 事件，所以 paths: data/** 对每日数据无效，只能靠 workflow_run）
 # 限制：K 线仅近 3 年、相关性页仅近 5 年、诊断面板无光标回看（静态预渲染的固有降级）
-# 利率专题（timsun.net/rates 复刻）：/rates/ 入口页 → 联邦基金/收益率曲线/利率定价/拍卖
+# 利率专题（timsun.net/rates 复刻）：/rates/ 入口页 → 联邦基金/收益率曲线/利率定价（拍卖已并入 /treasury/）
 # 研判由 src/rates_analysis.py 规则引擎生成，LLM 接入点：generate_analysis() → _llm_generate()
 
 # 测试

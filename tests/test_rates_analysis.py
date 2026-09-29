@@ -3,9 +3,12 @@
 import pandas as pd
 import pytest
 
+import src.rates_analysis as ra
 from src.rates_analysis import (
     _breakeven,
     _coupon_cover,
+    _curve_text,
+    _fed_expectation_text,
     _invalidation,
     _shape_label,
     _spread_vs_us,
@@ -124,6 +127,108 @@ class TestCouponCover:
 
     def test_empty_returns_none(self):
         assert _coupon_cover(pd.DataFrame()) is None
+
+
+class TestCurveText:
+    """形态叙事的方向必须与形态一致（修复：原模板熊平时仍写「陡峭化延续」）。"""
+
+    def test_flattening_points_to_narrowing(self):
+        t = _curve_text("熊平", 36.0, 11.0, 5.17, "短端政策预期")
+        assert "收窄至 21bp 以下" in t and "平坦化大概率延续" in t
+        assert "陡峭化" not in t
+
+    def test_steepening_points_to_breakout(self):
+        t = _curve_text("熊陡", 36.0, 11.0, 5.17, "长端风险溢价重定价")
+        assert "突破 51bp" in t and "陡峭化大概率延续" in t
+
+    def test_flat_is_neutral(self):
+        t = _curve_text("走平", 36.0, None, 5.17, "驱动方向待确认")
+        assert "信号中性" in t and "陡峭化" not in t and "平坦化" not in t
+
+    def test_missing_spread_degrades(self):
+        assert "数据不足" in _curve_text("数据不足", None, None, None, "驱动方向待确认")
+
+
+class TestFedExpectationText:
+    """联储预期段用 ZQ 期货隐含概率，不得再用 2Y−EFFR 符号猜加/降息。"""
+
+    @staticmethod
+    def _rates() -> pd.DataFrame:
+        idx = pd.date_range("2026-09-21", periods=5)
+        return pd.DataFrame({"DFEDTARL": [3.75] * 5, "DFEDTARU": [4.0] * 5}, index=idx)
+
+    @staticmethod
+    def _rex() -> pd.DataFrame:
+        return pd.DataFrame(
+            {
+                "meeting_date": ["2026-10-28", "2026-12-09"],
+                "prob_cut": [0.0, 0.0],
+                "prob_hold": [0.3, 0.0],
+                "prob_hike": [0.7, 1.0],
+                "expectation": ["加息", "加息"],
+            },
+            index=pd.to_datetime(["2026-09-28", "2026-09-28"]),
+        )
+
+    def test_uses_rex_probabilities(self):
+        t = _fed_expectation_text(self._rates(), self._rex(), 3.88, 4.81)
+        assert "联邦基金有效利率 3.88%（目标区间 3.75–4.00%）" in t
+        assert "2026-10-28 FOMC" in t  # 取最新快照日的最近一场会议
+        assert "加息 70%" in t
+        assert "点阵图" not in t  # 数据里无点阵图，不得断言一致/背离
+
+    def test_missing_rex_degrades(self):
+        t = _fed_expectation_text(self._rates(), pd.DataFrame(), 3.88, 4.81)
+        assert "3.88%" in t and "定价数据缺失" in t
+
+    def test_missing_effr_degrades(self):
+        t = _fed_expectation_text(self._rates(), self._rex(), None, None)
+        assert "EFFR 数据缺失" in t and "加息 70%" in t
+
+
+def _synthetic_rates() -> pd.DataFrame:
+    """overview 所需最小 rates 表（40 个交易日）。"""
+    idx = pd.date_range("2026-08-10", periods=40, freq="B")
+    cols = [
+        "DGS10",
+        "DGS2",
+        "DGS3MO",
+        "DGS30",
+        "DGS5",
+        "DFF",
+        "DGS1MO",
+        "DFEDTARL",
+        "DFEDTARU",
+    ]
+    return pd.DataFrame({c: 4.0 for c in cols}, index=idx)
+
+
+class TestOverviewDegradation:
+    """tips/inflation/rex/auction 全缺时 overview 不得 500（原为 TypeError 崩溃）。"""
+
+    def test_all_secondary_missing(self, monkeypatch):
+        empty = pd.DataFrame()
+        monkeypatch.setattr(
+            ra, "_load", lambda: (_synthetic_rates(), empty, empty, empty, empty, empty)
+        )
+        out = ra.overview_analysis()
+        assert len(out["sections"]) == 4
+        assert "数据缺失" in out["sections"][1]["body"]  # 实际利率段
+        assert "定价数据缺失" in out["sections"][2]["body"]  # 联储预期段
+        assert out["effr"]["value"] == 4.0  # DFF 兜底仍在
+
+    def test_dff_preferred_over_fedfunds(self, monkeypatch):
+        """EFFR 口径与 /api/rates/fed-funds 一致：DFF 优先于月频 FEDFUNDS。"""
+        rates = _synthetic_rates()
+        rates["FEDFUNDS"] = 3.63
+        empty6 = [pd.DataFrame()] * 5
+        monkeypatch.setattr(
+            ra,
+            "_load",
+            lambda: (rates, *empty6),
+        )
+        # DFF=4.0，非 FEDFUNDS=3.63
+        assert ra.overview_analysis()["effr"]["value"] == 4.0
 
 
 def test_yield_curve_analysis_has_global_long_end():
