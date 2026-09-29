@@ -1,6 +1,6 @@
 {
  "as_of": "2026-09-29",
- "generated_at": "2026-09-29T17:48:09.877948+00:00",
+ "generated_at": "2026-09-29T17:58:25.208387+00:00",
  "events": [
   {
    "id": "606422",
@@ -10,10 +10,10 @@
    "series": "fomc",
    "neg_risk": true,
    "end_date": "2026-10-29",
-   "volume24hr": 549084.93,
-   "volume": 16166158.74,
-   "liquidity": 2385608.0,
-   "open_interest": 2783954.16,
+   "volume24hr": 539116.83,
+   "volume": 16167949.08,
+   "liquidity": 2379767.85,
+   "open_interest": 2783966.22,
    "icon": "https://polymarket-upload.s3.us-east-2.amazonaws.com/fed-decision-in-september-762-c4RyWuxRPo1L.jpg",
    "markets": [
     {
@@ -22,16 +22,7 @@
      "slug": "will-the-fed-increase-interest-rates-by-50-bps-after-the-october-2026-meeting-20260617190324033",
      "prob_yes": 0.0085,
      "volume24hr": 129831.94,
-     "liquidity": 396674.17,
-     "end_date": "2026-10-29"
-    },
-    {
-     "id": "2589812",
-     "question": "Will there be no change in Fed interest rates after the October 2026 meeting?",
-     "slug": "will-there-be-no-change-in-fed-interest-rates-after-the-october-2026-meeting-20260617190324031",
-     "prob_yes": 0.315,
-     "volume24hr": 126037.51,
-     "liquidity": 356881.76,
+     "liquidity": 396249.65,
      "end_date": "2026-10-29"
     },
     {
@@ -40,7 +31,7 @@
      "slug": "will-the-fed-decrease-interest-rates-by-50-bps-after-the-october-2026-meeting-20260617190324029",
      "prob_yes": 0.0025,
      "volume24hr": 120677.45,
-     "liquidity": 767920.24,
+     "liquidity": 769360.46,
      "end_date": "2026-10-29"
     },
     {
@@ -48,8 +39,17 @@
      "question": "Will the Fed increase interest rates by 25 bps after the October 2026 meeting?",
      "slug": "will-the-fed-increase-interest-rates-by-25-bps-after-the-october-2026-meeting-20260617190324032",
      "prob_yes": 0.675,
-     "volume24hr": 119219.18,
-     "liquidity": 416553.1,
+     "volume24hr": 119455.93,
+     "liquidity": 412773.16,
+     "end_date": "2026-10-29"
+    },
+    {
+     "id": "2589812",
+     "question": "Will there be no change in Fed interest rates after the October 2026 meeting?",
+     "slug": "will-there-be-no-change-in-fed-interest-rates-after-the-october-2026-meeting-20260617190324031",
+     "prob_yes": 0.315,
+     "volume24hr": 115393.26,
+     "liquidity": 357017.51,
      "end_date": "2026-10-29"
     },
     {
@@ -57,8 +57,8 @@
      "question": "Will the Fed decrease interest rates by 25 bps after the October 2026 meeting?",
      "slug": "will-the-fed-decrease-interest-rates-by-25-bps-after-the-october-2026-meeting-20260617190324030",
      "prob_yes": 0.0045,
-     "volume24hr": 53318.85,
-     "liquidity": 445553.99,
+     "volume24hr": 53758.26,
+     "liquidity": 446302.28,
      "end_date": "2026-10-29"
     }
    ]
@@ -71,10 +71,10 @@
    "series": "fomc",
    "neg_risk": true,
    "end_date": "2026-12-10",
-   "volume24hr": 41809.23,
+   "volume24hr": 39753.85,
    "volume": 1787102.76,
-   "liquidity": 756597.44,
-   "open_interest": 313232.99,
+   "liquidity": 746311.56,
+   "open_interest": 313356.36,
    "icon": "https://polymarket-upload.s3.us-east-2.amazonaws.com/fed-decision-in-september-762-c4RyWuxRPo1L.jpg",
    "markets": [
     {
@@ -83,7 +83,16 @@
      "slug": "will-the-fed-decrease-interest-rates-by-50-bps-after-the-december-2026-meeting-20260729232808633",
      "prob_yes": 0.0045,
      "volume24hr": 25750.02,
-     "liquidity": 137721.09,
+     "liquidity": 138881.59,
+     "end_date": "2026-12-09"
+    },
+    {
+     "id": "3215006",
+     "question": "Will the Fed decrease interest rates by 25 bps after the December 2026 meeting?",
+     "slug": "will-the-fed-decrease-interest-rates-by-25-bps-after-the-december-2026-meeting-20260729232808634",
+     "prob_yes": 0.017,
+     "volume24hr": 5545.46,
+     "liquidity": 171488.2,
      "end_date": "2026-12-09"
     },
     {
@@ -91,17 +100,8 @@
      "question": "Will there be no change in Fed interest rates after the December 2026 meeting?",
      "slug": "will-there-be-no-change-in-fed-interest-rates-after-the-december-2026-meeting-20260729232808635",
      "prob_yes": 0.195,
-     "volume24hr": 7119.12,
-     "liquidity": 174208.99,
-     "end_date": "2026-12-09"
-    },
-    {
-     "id": "3215006",
-     "question": "Will the Fed decrease interest rates by 25 bps after the December 2026 meeting?",
-     "slug": "will-the-fed-decrease-interest-rates-by-25-bps-after-the-december-2026-meeting-20260729232808634",
-     "prob_yes": 0.016,
-     "volume24hr": 5565.46,
-     "liquidity": 174577.5,
+     "volume24hr": 5083.74,
+     "liquidity": 173484.92,
      "end_date": "2026-12-09"
     },
     {
@@ -110,7 +110,7 @@
      "slug": "will-the-fed-increase-interest-rates-by-50-bps-after-the-december-2026-meeting-20260729232808637",
      "prob_yes": 0.0215,
      "volume24hr": 2061.47,
-     "liquidity": 137654.14,
+     "liquidity": 134750.78,
      "end_date": "2026-12-09"
     },
     {
@@ -119,7 +119,7 @@
      "slug": "will-the-fed-increase-interest-rates-by-25-bps-after-the-december-2026-meeting-20260729232808636",
      "prob_yes": 0.765,
      "volume24hr": 1313.16,
-     "liquidity": 132864.17,
+     "liquidity": 132443.32,
      "end_date": "2026-12-09"
     }
    ]
@@ -132,10 +132,10 @@
    "series": null,
    "neg_risk": true,
    "end_date": "2027-01-01",
-   "volume24hr": 37605.93,
-   "volume": 53619383.34,
-   "liquidity": 3973562.1,
-   "open_interest": 1960398.35,
+   "volume24hr": 36554.65,
+   "volume": 53619388.42,
+   "liquidity": 3975437.13,
+   "open_interest": 1959353.31,
    "icon": "https://polymarket-upload.s3.us-east-2.amazonaws.com/how-many-fed-rate-cuts-in-2025-9qstZkSL1dn0.jpg",
    "markets": [
     {
@@ -143,8 +143,8 @@
      "question": "Will no Fed rate cuts happen in 2026?",
      "slug": "will-no-fed-rate-cuts-happen-in-2026",
      "prob_yes": 0.9635,
-     "volume24hr": 24758.03,
-     "liquidity": 382938.62,
+     "volume24hr": 24646.26,
+     "liquidity": 382615.35,
      "end_date": "2027-01-01"
     },
     {
@@ -152,8 +152,8 @@
      "question": "Will 2 Fed rate cuts happen in 2026?",
      "slug": "will-2-fed-rate-cuts-happen-in-2026",
      "prob_yes": 0.0055,
-     "volume24hr": 9235.45,
-     "liquidity": 172812.03,
+     "volume24hr": 8503.2,
+     "liquidity": 173323.95,
      "end_date": "2027-01-01"
     },
     {
@@ -161,8 +161,8 @@
      "question": "Will 1 Fed rate cut happen in 2026?",
      "slug": "will-1-fed-rate-cut-happen-in-2026",
      "prob_yes": 0.0175,
-     "volume24hr": 1375.61,
-     "liquidity": 170733.24,
+     "volume24hr": 1172.14,
+     "liquidity": 170174.26,
      "end_date": "2027-01-01"
     },
     {
@@ -171,7 +171,7 @@
      "slug": "will-5-fed-rate-cuts-happen-in-2026",
      "prob_yes": 0.0015,
      "volume24hr": 1080.63,
-     "liquidity": 249836.07,
+     "liquidity": 249830.08,
      "end_date": "2027-01-01"
     },
     {
@@ -188,8 +188,8 @@
      "question": "Will 3 Fed rate cuts happen in 2026?",
      "slug": "will-3-fed-rate-cuts-happen-in-2026",
      "prob_yes": 0.0025,
-     "volume24hr": 487.45,
-     "liquidity": 303397.98,
+     "volume24hr": 483.64,
+     "liquidity": 303877.27,
      "end_date": "2027-01-01"
     },
     {
@@ -198,7 +198,7 @@
      "slug": "will-12-or-more-fed-rate-cuts-happen-in-2026",
      "prob_yes": 0.0005,
      "volume24hr": 149.77,
-     "liquidity": 245330.03,
+     "liquidity": 244746.66,
      "end_date": "2027-01-01"
     },
     {
@@ -207,7 +207,7 @@
      "slug": "will-8-fed-rate-cuts-happen-in-2026",
      "prob_yes": 0.0005,
      "volume24hr": 6.1,
-     "liquidity": 307159.84,
+     "liquidity": 307680.64,
      "end_date": "2027-01-01"
     },
     {
@@ -216,7 +216,7 @@
      "slug": "will-10-fed-rate-cuts-happen-in-2026",
      "prob_yes": 0.0005,
      "volume24hr": 3.9,
-     "liquidity": 524779.4,
+     "liquidity": 524755.44,
      "end_date": "2027-01-01"
     },
     {
@@ -225,7 +225,7 @@
      "slug": "will-9-fed-rate-cuts-happen-in-2026",
      "prob_yes": 0.0005,
      "volume24hr": 3.7,
-     "liquidity": 493944.25,
+     "liquidity": 493419.08,
      "end_date": "2027-01-01"
     },
     {
@@ -234,7 +234,7 @@
      "slug": "will-6-fed-rate-cuts-happen-in-2026",
      "prob_yes": 0.0005,
      "volume24hr": 0.0,
-     "liquidity": 156107.09,
+     "liquidity": 156673.04,
      "end_date": "2027-01-01"
     },
     {
@@ -243,7 +243,7 @@
      "slug": "will-7-fed-rate-cuts-happen-in-2026",
      "prob_yes": 0.0005,
      "volume24hr": 0.0,
-     "liquidity": 176627.4,
+     "liquidity": 177095.0,
      "end_date": "2027-01-01"
     }
    ]
@@ -256,9 +256,9 @@
    "series": "fed-rate-hike",
    "neg_risk": false,
    "end_date": "2026-12-09",
-   "volume24hr": 7163.58,
+   "volume24hr": 13733.7,
    "volume": 190930.26,
-   "liquidity": 294041.78,
+   "liquidity": 251824.5,
    "open_interest": 125380.54,
    "icon": "https://polymarket-upload.s3.us-east-2.amazonaws.com/will-the-fed-raise-interest-rates-in-2025-PQTEYZMvmAGr.jpg",
    "markets": [
@@ -266,9 +266,9 @@
      "id": "4620900",
      "question": "Another Fed rate hike in 2026?",
      "slug": "another-fed-rate-hike-in-2026",
-     "prob_yes": 0.915,
-     "volume24hr": 7163.58,
-     "liquidity": 296417.12,
+     "prob_yes": 0.92,
+     "volume24hr": 13733.7,
+     "liquidity": 285243.3,
      "end_date": "2026-12-09"
     }
    ]
@@ -281,10 +281,10 @@
    "series": null,
    "neg_risk": true,
    "end_date": "2027-01-01",
-   "volume24hr": 6947.35,
-   "volume": 707766.24,
-   "liquidity": 204815.11,
-   "open_interest": 128881.26,
+   "volume24hr": 7422.8,
+   "volume": 708265.59,
+   "liquidity": 204332.46,
+   "open_interest": 128839.83,
    "icon": "https://polymarket-upload.s3.us-east-2.amazonaws.com/how-many-fed-rate-hikes-in-2026-20260623190717369-4jkAPcKtJbqP.jpg",
    "markets": [
     {
@@ -292,8 +292,8 @@
      "question": "Will 1 Fed rate hike happen in 2026?",
      "slug": "will-1-fed-rate-hike-happen-in-2026-20260623190852890",
      "prob_yes": 0.085,
-     "volume24hr": 3934.37,
-     "liquidity": 135026.24,
+     "volume24hr": 4409.82,
+     "liquidity": 132403.0,
      "end_date": "2026-12-31"
     },
     {
@@ -302,7 +302,7 @@
      "slug": "will-2-fed-rate-hikes-happen-in-2026-20260623190852891",
      "prob_yes": 0.485,
      "volume24hr": 1074.75,
-     "liquidity": 14238.2,
+     "liquidity": 14270.55,
      "end_date": "2026-12-31"
     },
     {
@@ -311,25 +311,25 @@
      "slug": "will-4-fed-rate-hikes-happen-in-2026-20260623190852893",
      "prob_yes": 0.0175,
      "volume24hr": 1070.23,
-     "liquidity": 19009.9,
+     "liquidity": 19070.34,
      "end_date": "2026-12-31"
     },
     {
      "id": "2657591",
      "question": "Will 3 Fed rate hikes happen in 2026?",
      "slug": "will-3-fed-rate-hikes-happen-in-2026-20260623190852892",
-     "prob_yes": 0.4215,
+     "prob_yes": 0.4225,
      "volume24hr": 500.0,
-     "liquidity": 12194.29,
+     "liquidity": 12802.19,
      "end_date": "2026-12-31"
     },
     {
      "id": "2657593",
      "question": "Will 5 or more Fed rate hikes happen in 2026?",
      "slug": "will-5-or-more-fed-rate-hikes-happen-in-2026-20260623190852894",
-     "prob_yes": 0.0055,
+     "prob_yes": 0.006,
      "volume24hr": 368.0,
-     "liquidity": 24312.3,
+     "liquidity": 24518.83,
      "end_date": "2026-12-31"
     }
    ]
@@ -344,7 +344,7 @@
    "end_date": "2026-12-09",
    "volume24hr": 6813.03,
    "volume": 161250.31,
-   "liquidity": 175167.24,
+   "liquidity": 176025.49,
    "open_interest": 40170.52,
    "icon": "https://polymarket-upload.s3.us-east-2.amazonaws.com/arch-fed-decisions-in-2025-Vowt-IlTgfPc.jpg",
    "markets": [
@@ -354,7 +354,7 @@
      "slug": "will-the-fed-hikehikehike-in-the-next-three-decisions-sepoctdec",
      "prob_yes": 0.465,
      "volume24hr": 5287.3,
-     "liquidity": 43363.06,
+     "liquidity": 43706.55,
      "end_date": "2026-12-09"
     },
     {
@@ -363,7 +363,7 @@
      "slug": "will-the-fed-hikehikepause-in-the-next-three-decisions-sepoctdec",
      "prob_yes": 0.165,
      "volume24hr": 1417.48,
-     "liquidity": 35561.6,
+     "liquidity": 35775.49,
      "end_date": "2026-12-09"
     },
     {
@@ -372,7 +372,7 @@
      "slug": "will-the-fed-decide-differently-in-the-next-three-decisions-sepoctdec",
      "prob_yes": 0.018,
      "volume24hr": 80.75,
-     "liquidity": 46466.16,
+     "liquidity": 46483.07,
      "end_date": "2026-12-09"
     },
     {
@@ -381,7 +381,7 @@
      "slug": "will-the-fed-hikepausepause-in-the-next-three-decisions-sepoctdec",
      "prob_yes": 0.075,
      "volume24hr": 27.5,
-     "liquidity": 22611.03,
+     "liquidity": 21918.95,
      "end_date": "2026-12-09"
     },
     {
@@ -390,7 +390,7 @@
      "slug": "will-the-fed-hikepausehike-in-the-next-three-decisions-sepoctdec",
      "prob_yes": 0.27,
      "volume24hr": 0.0,
-     "liquidity": 29130.16,
+     "liquidity": 28797.04,
      "end_date": "2026-12-09"
     }
    ]
@@ -405,7 +405,7 @@
    "end_date": "2028-01-29",
    "volume24hr": 6786.61,
    "volume": 3704628.09,
-   "liquidity": 227355.52,
+   "liquidity": 227310.87,
    "open_interest": 133037.15,
    "icon": "https://polymarket-upload.s3.us-east-2.amazonaws.com/fed-rate-cut-by-629-5NVm8vGZZ6U6.jpg",
    "markets": [
@@ -422,18 +422,18 @@
      "id": "1439555",
      "question": "Fed rate cut by December 2026 meeting?",
      "slug": "fed-rate-cut-by-december-2026-meeting",
-     "prob_yes": 0.0285,
+     "prob_yes": 0.028,
      "volume24hr": 1644.34,
-     "liquidity": 61365.47,
+     "liquidity": 61268.57,
      "end_date": "2027-01-29"
     },
     {
      "id": "4617381",
      "question": "Fed rate cut by March 2027 meeting?",
      "slug": "fed-rate-cut-by-march-2027-meeting",
-     "prob_yes": 0.215,
+     "prob_yes": 0.23,
      "volume24hr": 396.66,
-     "liquidity": 9236.39,
+     "liquidity": 9230.0,
      "end_date": "2027-04-08"
     },
     {
@@ -460,14 +460,14 @@
      "slug": "fed-rate-cut-by-april-2027-meeting",
      "prob_yes": 0.39,
      "volume24hr": 0.0,
-     "liquidity": 4049.76,
+     "liquidity": 4047.78,
      "end_date": "2027-05-08"
     },
     {
      "id": "4617383",
      "question": "Fed rate cut by June 2027 meeting?",
      "slug": "fed-rate-cut-by-june-2027-meeting",
-     "prob_yes": 0.435,
+     "prob_yes": 0.42,
      "volume24hr": 0.0,
      "liquidity": 3933.29,
      "end_date": "2027-07-08"
@@ -484,7 +484,7 @@
    "end_date": "2027-01-28",
    "volume24hr": 450.77,
    "volume": 158807.92,
-   "liquidity": 383186.27,
+   "liquidity": 373829.29,
    "open_interest": 42638.29,
    "icon": "https://polymarket-upload.s3.us-east-2.amazonaws.com/fed-decision-in-september-762-c4RyWuxRPo1L.jpg",
    "markets": [
@@ -494,7 +494,7 @@
      "slug": "will-the-fed-decrease-interest-rates-by-25-bps-after-the-january-2027-meeting-20260729233815504",
      "prob_yes": 0.045,
      "volume24hr": 232.32,
-     "liquidity": 63710.11,
+     "liquidity": 63614.97,
      "end_date": "2027-01-28"
     },
     {
@@ -503,7 +503,7 @@
      "slug": "will-the-fed-increase-interest-rates-by-25-bps-after-the-january-2027-meeting-20260729233815506",
      "prob_yes": 0.465,
      "volume24hr": 200.03,
-     "liquidity": 85380.02,
+     "liquidity": 76852.76,
      "end_date": "2027-01-28"
     },
     {
@@ -512,7 +512,7 @@
      "slug": "will-there-be-no-change-in-fed-interest-rates-after-the-january-2027-meeting-20260729233815505",
      "prob_yes": 0.465,
      "volume24hr": 18.42,
-     "liquidity": 76376.01,
+     "liquidity": 75712.76,
      "end_date": "2027-01-28"
     },
     {
@@ -530,7 +530,7 @@
      "slug": "will-the-fed-increase-interest-rates-by-50-bps-after-the-january-2027-meeting-20260729233815507",
      "prob_yes": 0.018,
      "volume24hr": 0.0,
-     "liquidity": 68833.13,
+     "liquidity": 67018.63,
      "end_date": "2027-01-28"
     }
    ]
@@ -545,7 +545,7 @@
    "end_date": "2027-04-01",
    "volume24hr": 17587.45,
    "volume": 543073.98,
-   "liquidity": 17480.63,
+   "liquidity": 18226.36,
    "open_interest": 112576.72,
    "icon": "https://polymarket-upload.s3.us-east-2.amazonaws.com/march-unemployment-rate-wpcB-Q7lTi_r.jpg",
    "markets": [
@@ -564,7 +564,7 @@
      "slug": "will-us-unemployment-reach-at-least-7pt0-in-2026",
      "prob_yes": 0.0115,
      "volume24hr": 1874.82,
-     "liquidity": 2602.35,
+     "liquidity": 2624.59,
      "end_date": "2027-02-01"
     },
     {
@@ -573,16 +573,16 @@
      "slug": "will-us-unemployment-reach-at-least-10pt0-in-2026",
      "prob_yes": 0.004,
      "volume24hr": 1425.28,
-     "liquidity": 1409.77,
+     "liquidity": 1406.53,
      "end_date": "2027-02-01"
     },
     {
      "id": "1087309",
      "question": "Will US unemployment reach at least 5.0% in 2026?",
      "slug": "will-us-unemployment-reach-at-least-5pt0-in-2026",
-     "prob_yes": 0.0415,
+     "prob_yes": 0.041,
      "volume24hr": 1.49,
-     "liquidity": 2774.32,
+     "liquidity": 3760.06,
      "end_date": "2027-02-01"
     },
     {
@@ -591,7 +591,7 @@
      "slug": "will-us-unemployment-reach-at-least-5pt5-in-2026",
      "prob_yes": 0.024,
      "volume24hr": 0.0,
-     "liquidity": 4521.64,
+     "liquidity": 4690.94,
      "end_date": "2027-02-01"
     }
    ]
@@ -606,7 +606,7 @@
    "end_date": "2026-12-31",
    "volume24hr": 2574.33,
    "volume": 2228806.84,
-   "liquidity": 99832.36,
+   "liquidity": 104549.07,
    "open_interest": 615314.3,
    "icon": "https://polymarket-upload.s3.us-east-2.amazonaws.com/us-recession-in-2025-01ZjnLjvO4a3.jpg",
    "markets": [
@@ -616,7 +616,7 @@
      "slug": "us-recession-by-end-of-2026",
      "prob_yes": 0.085,
      "volume24hr": 2574.33,
-     "liquidity": 99832.36,
+     "liquidity": 105095.07,
      "end_date": "2027-01-31"
     }
    ]
@@ -631,7 +631,7 @@
    "end_date": "2027-02-01",
    "volume24hr": 898.7,
    "volume": 917389.58,
-   "liquidity": 103006.42,
+   "liquidity": 102989.68,
    "open_interest": 93019.12,
    "icon": "https://polymarket-upload.s3.us-east-2.amazonaws.com/will-china-gdp-growth-in-q4-2025-be-negative-mpYbadqFFIsm.jpg",
    "markets": [
@@ -650,7 +650,7 @@
      "slug": "will-chinas-2026-annual-gdp-growth-yy-be-between-5pt0-and-6pt0",
      "prob_yes": 0.0575,
      "volume24hr": 144.94,
-     "liquidity": 10875.91,
+     "liquidity": 11233.73,
      "end_date": "2027-01-31"
     },
     {
@@ -659,7 +659,7 @@
      "slug": "will-chinas-2026-annual-gdp-growth-yy-be-between-4pt0-and-5pt0",
      "prob_yes": 0.92,
      "volume24hr": 1.28,
-     "liquidity": 12319.26,
+     "liquidity": 12383.04,
      "end_date": "2027-01-31"
     },
     {
@@ -668,7 +668,7 @@
      "slug": "will-chinas-2026-annual-gdp-growth-yy-be-between-3pt0-and-4pt0",
      "prob_yes": 0.0085,
      "volume24hr": 1.19,
-     "liquidity": 8051.63,
+     "liquidity": 8075.46,
      "end_date": "2027-01-31"
     },
     {
@@ -686,7 +686,7 @@
      "slug": "will-chinas-2026-annual-gdp-growth-yy-be-below-1pt0",
      "prob_yes": 0.001,
      "volume24hr": 0.0,
-     "liquidity": 8746.98,
+     "liquidity": 8698.53,
      "end_date": "2027-01-31"
     },
     {
@@ -713,7 +713,7 @@
      "slug": "will-chinas-2026-annual-gdp-growth-yy-be-between-8pt0-and-9pt0",
      "prob_yes": 0.006,
      "volume24hr": 0.0,
-     "liquidity": 2899.08,
+     "liquidity": 2923.01,
      "end_date": "2027-01-31"
     },
     {
@@ -737,7 +737,7 @@
    "end_date": "2027-02-01",
    "volume24hr": 0.0,
    "volume": 1463285.7,
-   "liquidity": 57136.51,
+   "liquidity": 57076.28,
    "open_interest": 206096.12,
    "icon": "https://polymarket-upload.s3.us-east-2.amazonaws.com/how-high-will-inflation-get-in-2025-uvsYb27mqBpZ.jpg",
    "markets": [
@@ -747,7 +747,7 @@
      "slug": "will-inflation-reach-more-than-4pt5-in-2026",
      "prob_yes": 0.165,
      "volume24hr": 0.0,
-     "liquidity": 14081.19,
+     "liquidity": 13928.33,
      "end_date": "2027-01-01"
     },
     {
@@ -756,7 +756,7 @@
      "slug": "will-inflation-reach-more-than-5-in-2026-282-763",
      "prob_yes": 0.085,
      "volume24hr": 0.0,
-     "liquidity": 20182.92,
+     "liquidity": 19906.95,
      "end_date": "2027-01-01"
     },
     {
@@ -783,7 +783,7 @@
      "slug": "will-inflation-reach-more-than-10-in-2026-741",
      "prob_yes": 0.028,
      "volume24hr": 0.0,
-     "liquidity": 14308.54,
+     "liquidity": 14318.54,
      "end_date": "2027-01-01"
     }
    ]
@@ -796,10 +796,10 @@
    "series": null,
    "neg_risk": true,
    "end_date": "2027-04-19",
-   "volume24hr": 907230.67,
-   "volume": 140039436.84,
-   "liquidity": 17943051.7,
-   "open_interest": 1805969.37,
+   "volume24hr": 908988.53,
+   "volume": 140040690.67,
+   "liquidity": 17919581.42,
+   "open_interest": 1804252.66,
    "icon": "https://polymarket-upload.s3.us-east-2.amazonaws.com/france-presidential-election-2027-U5QY3acvfubZ.png",
    "markets": [
     {
@@ -808,7 +808,7 @@
      "slug": "will-manuel-bompard-win-the-2027-french-presidential-election",
      "prob_yes": 0.0005,
      "volume24hr": 200000.0,
-     "liquidity": 399291.9,
+     "liquidity": 399331.35,
      "end_date": "2027-04-19"
     },
     {
@@ -816,8 +816,8 @@
      "question": "Will Marine Le Pen win the 2027 French presidential election?",
      "slug": "will-marine-le-pen-win-the-2027-french-presidential-election",
      "prob_yes": 0.4325,
-     "volume24hr": 77684.2,
-     "liquidity": 396232.81,
+     "volume24hr": 77662.89,
+     "liquidity": 395119.15,
      "end_date": "2027-04-19"
     },
     {
@@ -826,7 +826,7 @@
      "slug": "will-ric-zemmour-win-the-2027-french-presidential-election",
      "prob_yes": 0.0115,
      "volume24hr": 63751.66,
-     "liquidity": 248848.51,
+     "liquidity": 250864.51,
      "end_date": "2027-04-19"
     },
     {
@@ -834,8 +834,8 @@
      "question": "Will Jean-Luc Mélenchon win the 2027 French presidential election?",
      "slug": "will-jean-luc-mlenchon-win-the-2027-french-presidential-election",
      "prob_yes": 0.145,
-     "volume24hr": 60031.92,
-     "liquidity": 297507.13,
+     "volume24hr": 60014.68,
+     "liquidity": 304289.74,
      "end_date": "2027-04-19"
     },
     {
@@ -844,7 +844,7 @@
      "slug": "will-bernard-cazeneuve-win-the-2027-french-presidential-election",
      "prob_yes": 0.0005,
      "volume24hr": 60000.0,
-     "liquidity": 261489.01,
+     "liquidity": 260862.32,
      "end_date": "2027-04-19"
     },
     {
@@ -853,7 +853,7 @@
      "slug": "will-christine-lagarde-win-the-2027-french-presidential-election",
      "prob_yes": 0.0035,
      "volume24hr": 55306.29,
-     "liquidity": 254026.21,
+     "liquidity": 252040.43,
      "end_date": "2027-04-19"
     },
     {
@@ -861,8 +861,8 @@
      "question": "Will David Lisnard win the 2027 French presidential election?",
      "slug": "will-david-lisnard-win-the-2027-french-presidential-election",
      "prob_yes": 0.0765,
-     "volume24hr": 46506.46,
-     "liquidity": 362823.26,
+     "volume24hr": 46481.35,
+     "liquidity": 359595.8,
      "end_date": "2027-04-19"
     },
     {
@@ -871,7 +871,16 @@
      "slug": "will-olivier-faure-win-the-2027-french-presidential-election",
      "prob_yes": 0.0015,
      "volume24hr": 36271.03,
-     "liquidity": 301543.03,
+     "liquidity": 302086.98,
+     "end_date": "2027-04-19"
+    },
+    {
+     "id": "679035",
+     "question": "Will Ségolène Royal win the 2027 French presidential election?",
+     "slug": "will-sgolne-royal-win-the-2027-french-presidential-election",
+     "prob_yes": 0.005,
+     "volume24hr": 32595.85,
+     "liquidity": 253295.63,
      "end_date": "2027-04-19"
     },
     {
@@ -880,16 +889,7 @@
      "slug": "will-sbastien-lecornu-win-the-2027-french-presidential-election",
      "prob_yes": 0.005,
      "volume24hr": 32541.95,
-     "liquidity": 240421.42,
-     "end_date": "2027-04-19"
-    },
-    {
-     "id": "679035",
-     "question": "Will Ségolène Royal win the 2027 French presidential election?",
-     "slug": "will-sgolne-royal-win-the-2027-french-presidential-election",
-     "prob_yes": 0.003,
-     "volume24hr": 30609.18,
-     "liquidity": 259917.19,
+     "liquidity": 237369.91,
      "end_date": "2027-04-19"
     },
     {
@@ -898,7 +898,7 @@
      "slug": "will-jordan-bardella-win-the-2027-french-presidential-election",
      "prob_yes": 0.0135,
      "volume24hr": 27646.31,
-     "liquidity": 210432.91,
+     "liquidity": 209932.21,
      "end_date": "2027-04-19"
     },
     {
@@ -907,7 +907,7 @@
      "slug": "will-dominique-de-villepin-win-the-2027-french-presidential-election",
      "prob_yes": 0.0045,
      "volume24hr": 25108.79,
-     "liquidity": 260126.44,
+     "liquidity": 259619.26,
      "end_date": "2027-04-19"
     }
    ]
@@ -920,19 +920,28 @@
    "series": null,
    "neg_risk": true,
    "end_date": "2026-10-05",
-   "volume24hr": 550977.78,
-   "volume": 157006966.38,
-   "liquidity": 21177729.56,
-   "open_interest": 7307343.3,
+   "volume24hr": 638421.41,
+   "volume": 157094539.81,
+   "liquidity": 21204248.9,
+   "open_interest": 7347413.97,
    "icon": "https://polymarket-upload.s3.us-east-2.amazonaws.com/brazil-presidential-election-37lx5Jgvkbr8.png",
    "markets": [
+    {
+     "id": "601825",
+     "question": "Will Renan Santos win the 2026 Brazilian presidential election?",
+     "slug": "will-renan-santos-win-the-2026-brazilian-presidential-election",
+     "prob_yes": 0.007,
+     "volume24hr": 166541.24,
+     "liquidity": 531268.81,
+     "end_date": "2026-10-05"
+    },
     {
      "id": "601826",
      "question": "Will Flávio Bolsonaro win the 2026 Brazilian presidential election?",
      "slug": "will-flvio-bolsonaro-win-the-2026-brazilian-presidential-election",
      "prob_yes": 0.5975,
-     "volume24hr": 139801.84,
-     "liquidity": 374421.17,
+     "volume24hr": 140079.37,
+     "liquidity": 369112.57,
      "end_date": "2026-10-05"
     },
     {
@@ -941,7 +950,7 @@
      "slug": "will-jair-bolsonaro-win-the-2026-brazilian-presidential-election",
      "prob_yes": 0.0005,
      "volume24hr": 118231.83,
-     "liquidity": 324819.29,
+     "liquidity": 323685.44,
      "end_date": "2026-10-05"
     },
     {
@@ -949,17 +958,8 @@
      "question": "Will Luiz Inácio Lula da Silva win the 2026 Brazilian presidential election?",
      "slug": "will-luiz-incio-lula-da-silva-win-the-2026-brazilian-presidential-election",
      "prob_yes": 0.405,
-     "volume24hr": 116381.3,
-     "liquidity": 362049.87,
-     "end_date": "2026-10-05"
-    },
-    {
-     "id": "601825",
-     "question": "Will Renan Santos win the 2026 Brazilian presidential election?",
-     "slug": "will-renan-santos-win-the-2026-brazilian-presidential-election",
-     "prob_yes": 0.0075,
-     "volume24hr": 79331.42,
-     "liquidity": 487188.21,
+     "volume24hr": 116337.59,
+     "liquidity": 362493.99,
      "end_date": "2026-10-05"
     },
     {
@@ -968,7 +968,7 @@
      "slug": "will-augusto-cury-win-the-2026-brazilian-presidential-election",
      "prob_yes": 0.0005,
      "volume24hr": 51720.06,
-     "liquidity": 287923.94,
+     "liquidity": 288057.95,
      "end_date": "2026-10-05"
     },
     {
@@ -977,7 +977,7 @@
      "slug": "will-geraldo-alckmin-win-the-2026-brazilian-presidential-election",
      "prob_yes": 0.0015,
      "volume24hr": 45253.2,
-     "liquidity": 332589.98,
+     "liquidity": 329919.35,
      "end_date": "2026-10-05"
     },
     {
@@ -986,7 +986,7 @@
      "slug": "will-romeu-zema-win-the-2026-brazilian-presidential-election",
      "prob_yes": 0.0005,
      "volume24hr": 150.93,
-     "liquidity": 654685.82,
+     "liquidity": 656467.22,
      "end_date": "2026-10-05"
     },
     {
@@ -995,7 +995,7 @@
      "slug": "will-ronaldo-caiado-win-the-2026-brazilian-presidential-election",
      "prob_yes": 0.0005,
      "volume24hr": 94.77,
-     "liquidity": 1183035.24,
+     "liquidity": 1183679.79,
      "end_date": "2026-10-05"
     },
     {
@@ -1004,7 +1004,7 @@
      "slug": "will-pablo-marcal-win-the-2026-brazilian-presidential-election",
      "prob_yes": 0.0005,
      "volume24hr": 8.33,
-     "liquidity": 621533.69,
+     "liquidity": 622405.24,
      "end_date": "2026-10-05"
     },
     {
@@ -1013,7 +1013,7 @@
      "slug": "will-fernando-haddad-win-the-2026-brazilian-presidential-election",
      "prob_yes": 0.0005,
      "volume24hr": 4.1,
-     "liquidity": 579628.19,
+     "liquidity": 581331.62,
      "end_date": "2026-10-05"
     },
     {
@@ -1022,7 +1022,7 @@
      "slug": "will-tarcisio-de-frietas-win-the-2026-brazilian-presidential-election",
      "prob_yes": 0.0005,
      "volume24hr": 0.0,
-     "liquidity": 1480265.72,
+     "liquidity": 1480242.63,
      "end_date": "2026-10-05"
     },
     {
@@ -1031,7 +1031,7 @@
      "slug": "will-michelle-bolsonaro-win-the-2026-brazilian-presidential-election",
      "prob_yes": 0.0005,
      "volume24hr": 0.0,
-     "liquidity": 1440709.97,
+     "liquidity": 1440991.28,
      "end_date": "2026-10-05"
     }
    ]
@@ -1044,10 +1044,10 @@
    "series": null,
    "neg_risk": true,
    "end_date": "2028-11-08",
-   "volume24hr": 222554.95,
-   "volume": 710023918.67,
-   "liquidity": 60000413.9,
-   "open_interest": 44214464.4,
+   "volume24hr": 222514.91,
+   "volume": 710024072.67,
+   "liquidity": 60008155.3,
+   "open_interest": 44068125.4,
    "icon": "https://polymarket-upload.s3.us-east-2.amazonaws.com/presidential-election-winner-2024-afdda358-219d-448a-abb5-ba4d14118d71.png",
    "markets": [
     {
@@ -1056,7 +1056,7 @@
      "slug": "will-person-ae-win-the-2028-us-presidential-election",
      "prob_yes": 0.0025,
      "volume24hr": 92025.21,
-     "liquidity": 173092.2,
+     "liquidity": 170722.99,
      "end_date": "2028-11-08"
     },
     {
@@ -1064,8 +1064,8 @@
      "question": "Will Elon Musk win the 2028 US Presidential Election?",
      "slug": "will-elon-musk-win-the-2028-us-presidential-election",
      "prob_yes": 0.0015,
-     "volume24hr": 42342.59,
-     "liquidity": 1578939.75,
+     "volume24hr": 42358.59,
+     "liquidity": 1580332.06,
      "end_date": "2028-11-08"
     },
     {
@@ -1082,8 +1082,8 @@
      "question": "Will Michelle Obama win the 2028 US Presidential Election?",
      "slug": "will-michelle-obama-win-the-2028-us-presidential-election",
      "prob_yes": 0.0015,
-     "volume24hr": 10923.49,
-     "liquidity": 1097317.01,
+     "volume24hr": 10953.49,
+     "liquidity": 1097506.12,
      "end_date": "2028-11-08"
     },
     {
@@ -1092,7 +1092,7 @@
      "slug": "will-alexandria-ocasio-cortez-win-the-2028-us-presidential-election",
      "prob_yes": 0.1315,
      "volume24hr": 7757.07,
-     "liquidity": 339664.53,
+     "liquidity": 336157.57,
      "end_date": "2028-11-08"
     },
     {
@@ -1101,7 +1101,7 @@
      "slug": "will-thomas-massie-win-the-2028-us-presidential-election",
      "prob_yes": 0.0105,
      "volume24hr": 3997.91,
-     "liquidity": 347536.39,
+     "liquidity": 349594.78,
      "end_date": "2028-11-08"
     },
     {
@@ -1109,8 +1109,8 @@
      "question": "Will Pete Buttigieg win the 2028 US Presidential Election?",
      "slug": "will-pete-buttigieg-win-the-2028-us-presidential-election",
      "prob_yes": 0.0275,
-     "volume24hr": 3977.92,
-     "liquidity": 488677.48,
+     "volume24hr": 3931.18,
+     "liquidity": 486677.64,
      "end_date": "2028-11-08"
     },
     {
@@ -1119,7 +1119,7 @@
      "slug": "will-gavin-newsom-win-the-2028-us-presidential-election",
      "prob_yes": 0.0765,
      "volume24hr": 3914.66,
-     "liquidity": 344144.63,
+     "liquidity": 344195.49,
      "end_date": "2028-11-08"
     },
     {
@@ -1128,7 +1128,7 @@
      "slug": "will-jd-vance-win-the-2028-us-presidential-election",
      "prob_yes": 0.2075,
      "volume24hr": 3193.71,
-     "liquidity": 437331.19,
+     "liquidity": 437095.1,
      "end_date": "2028-11-08"
     },
     {
@@ -1137,7 +1137,7 @@
      "slug": "will-marco-rubio-win-the-2028-us-presidential-election",
      "prob_yes": 0.0845,
      "volume24hr": 3189.4,
-     "liquidity": 258045.5,
+     "liquidity": 262253.3,
      "end_date": "2028-11-08"
     },
     {
@@ -1145,8 +1145,8 @@
      "question": "Will Kamala Harris win the 2028 US Presidential Election?",
      "slug": "will-kamala-harris-win-the-2028-us-presidential-election",
      "prob_yes": 0.0405,
-     "volume24hr": 3082.0,
-     "liquidity": 367953.09,
+     "volume24hr": 3058.7,
+     "liquidity": 369798.82,
      "end_date": "2028-11-08"
     },
     {
@@ -1155,7 +1155,7 @@
      "slug": "will-andy-beshear-win-the-2028-us-presidential-election",
      "prob_yes": 0.014,
      "volume24hr": 2766.37,
-     "liquidity": 319455.14,
+     "liquidity": 321312.29,
      "end_date": "2028-11-08"
     }
    ]
@@ -1168,10 +1168,10 @@
    "series": null,
    "neg_risk": true,
    "end_date": "2026-10-28",
-   "volume24hr": 215167.42,
-   "volume": 39834307.99,
-   "liquidity": 3399936.72,
-   "open_interest": 2565115.62,
+   "volume24hr": 213585.61,
+   "volume": 39834318.2,
+   "liquidity": 3385138.78,
+   "open_interest": 2565610.42,
    "icon": "https://polymarket-upload.s3.us-east-2.amazonaws.com/who-will-be-the-next-prime-minister-of-israel-after-the-2026-election-lWDmU0z7U_Vj.png",
    "markets": [
     {
@@ -1180,7 +1180,7 @@
      "slug": "will-ayelet-shaked-be-the-next-prime-minister-of-israel",
      "prob_yes": 0.0005,
      "volume24hr": 100000.0,
-     "liquidity": 253653.9,
+     "liquidity": 253197.31,
      "end_date": "2026-10-28"
     },
     {
@@ -1189,8 +1189,8 @@
      "slug": "will-benjamin-netanyahu-be-the-next-prime-minister-of-israel",
      "prob_yes": 0.295,
      "volume24hr": 38098.33,
-     "liquidity": 420482.19,
-     "end_date": "2026-10-27"
+     "liquidity": 417688.36,
+     "end_date": "2026-10-28"
     },
     {
      "id": "682722",
@@ -1198,7 +1198,7 @@
      "slug": "will-gilad-erdan-be-the-next-prime-minister-of-israel",
      "prob_yes": 0.0005,
      "volume24hr": 26000.0,
-     "liquidity": 155340.95,
+     "liquidity": 152334.23,
      "end_date": "2026-10-28"
     },
     {
@@ -1207,7 +1207,7 @@
      "slug": "will-yariv-levin-be-the-next-prime-minister-of-israel",
      "prob_yes": 0.0005,
      "volume24hr": 21000.0,
-     "liquidity": 138429.87,
+     "liquidity": 140044.3,
      "end_date": "2026-10-28"
     },
     {
@@ -1215,8 +1215,8 @@
      "question": "Will Gadi Eizenkot be the next Prime Minister of Israel?",
      "slug": "will-gadi-eizenkot-be-the-next-prime-minister-of-israel",
      "prob_yes": 0.504,
-     "volume24hr": 12654.0,
-     "liquidity": 183491.98,
+     "volume24hr": 11072.19,
+     "liquidity": 183214.46,
      "end_date": "2026-10-28"
     },
     {
@@ -1225,7 +1225,7 @@
      "slug": "will-naftali-bennett-be-the-next-prime-minister-of-israel",
      "prob_yes": 0.125,
      "volume24hr": 6746.65,
-     "liquidity": 161564.37,
+     "liquidity": 161863.88,
      "end_date": "2026-10-28"
     },
     {
@@ -1234,7 +1234,7 @@
      "slug": "will-yair-lapid-be-the-next-prime-minister-of-israel",
      "prob_yes": 0.0005,
      "volume24hr": 3000.0,
-     "liquidity": 111837.11,
+     "liquidity": 111221.85,
      "end_date": "2026-10-28"
     },
     {
@@ -1243,7 +1243,7 @@
      "slug": "will-avigdor-lieberman-be-the-next-prime-minister-of-israel",
      "prob_yes": 0.026,
      "volume24hr": 2563.6,
-     "liquidity": 177800.3,
+     "liquidity": 183416.71,
      "end_date": "2026-10-28"
     },
     {
@@ -1252,7 +1252,7 @@
      "slug": "will-gideon-saar-be-the-next-prime-minister-of-israel",
      "prob_yes": 0.0005,
      "volume24hr": 2000.0,
-     "liquidity": 109366.2,
+     "liquidity": 109768.14,
      "end_date": "2026-10-28"
     },
     {
@@ -1261,7 +1261,7 @@
      "slug": "will-ofer-winter-be-the-next-prime-minister-of-israel",
      "prob_yes": 0.015,
      "volume24hr": 1764.02,
-     "liquidity": 111849.91,
+     "liquidity": 107056.78,
      "end_date": "2026-10-28"
     },
     {
@@ -1270,7 +1270,7 @@
      "slug": "will-yair-golan-be-the-next-prime-minister-of-israel",
      "prob_yes": 0.0025,
      "volume24hr": 522.01,
-     "liquidity": 174486.95,
+     "liquidity": 157926.14,
      "end_date": "2026-10-28"
     },
     {
@@ -1279,7 +1279,7 @@
      "slug": "will-yoaz-hendel-be-the-next-prime-minister-of-israel",
      "prob_yes": 0.002,
      "volume24hr": 483.54,
-     "liquidity": 231287.25,
+     "liquidity": 232325.02,
      "end_date": "2026-10-28"
     }
    ]
@@ -1292,10 +1292,10 @@
    "series": null,
    "neg_risk": true,
    "end_date": "2026-11-04",
-   "volume24hr": 84145.4,
-   "volume": 41541487.52,
-   "liquidity": 6845266.75,
-   "open_interest": 1273191.63,
+   "volume24hr": 84143.63,
+   "volume": 41541493.17,
+   "liquidity": 6847300.44,
+   "open_interest": 1273197.28,
    "icon": "https://polymarket-upload.s3.us-east-2.amazonaws.com/california-governor-election-2026-4b5HcLPNupez.png",
    "markets": [
     {
@@ -1303,8 +1303,8 @@
      "question": "Will Steve Hilton win the California Governor Election in 2026?",
      "slug": "will-steve-hilton-win-the-california-governor-election-in-2026",
      "prob_yes": 0.044,
-     "volume24hr": 74840.8,
-     "liquidity": 327112.67,
+     "volume24hr": 74837.73,
+     "liquidity": 328911.98,
      "end_date": "2026-11-04"
     },
     {
@@ -1313,7 +1313,7 @@
      "slug": "will-xavier-becerra-win-the-california-governor-election-in-2026",
      "prob_yes": 0.957,
      "volume24hr": 6684.7,
-     "liquidity": 91104.3,
+     "liquidity": 92641.34,
      "end_date": "2026-11-04"
     },
     {
@@ -1321,8 +1321,8 @@
      "question": "Will Tom Steyer win the California Governor Election in 2026?",
      "slug": "will-tom-steyer-win-the-california-governor-election-in-2026",
      "prob_yes": 0.0015,
-     "volume24hr": 2618.4,
-     "liquidity": 164625.42,
+     "volume24hr": 2619.7,
+     "liquidity": 164625.55,
      "end_date": "2026-11-04"
     },
     {
@@ -1331,7 +1331,7 @@
      "slug": "will-stephen-cloobeck-win-the-california-governor-election-in-2026",
      "prob_yes": 0.0005,
      "volume24hr": 1.5,
-     "liquidity": 331756.08,
+     "liquidity": 330254.31,
      "end_date": "2026-11-04"
     },
     {
@@ -1340,7 +1340,7 @@
      "slug": "will-rick-caruso-win-the-california-governor-election-in-2026",
      "prob_yes": 0.0005,
      "volume24hr": 0.0,
-     "liquidity": 374750.93,
+     "liquidity": 374773.48,
      "end_date": "2026-11-04"
     },
     {
@@ -1358,7 +1358,7 @@
      "slug": "will-katie-porter-win-the-california-governor-election-in-2026",
      "prob_yes": 0.0005,
      "volume24hr": 0.0,
-     "liquidity": 300225.25,
+     "liquidity": 300202.08,
      "end_date": "2026-11-04"
     },
     {
@@ -1385,7 +1385,7 @@
      "slug": "will-betty-yee-win-the-california-governor-election-in-2026",
      "prob_yes": 0.0005,
      "volume24hr": 0.0,
-     "liquidity": 355788.73,
+     "liquidity": 355751.21,
      "end_date": "2026-11-04"
     },
     {
@@ -1394,7 +1394,7 @@
      "slug": "will-toni-atkins-win-the-california-governor-election-in-2026",
      "prob_yes": 0.0005,
      "volume24hr": 0.0,
-     "liquidity": 353376.86,
+     "liquidity": 353404.1,
      "end_date": "2026-11-04"
     },
     {
@@ -1403,7 +1403,7 @@
      "slug": "will-kyle-langford-win-the-california-governor-election-in-2026",
      "prob_yes": 0.0005,
      "volume24hr": 0.0,
-     "liquidity": 347422.33,
+     "liquidity": 347423.73,
      "end_date": "2026-11-04"
     }
    ]
@@ -1418,7 +1418,7 @@
    "end_date": "2026-11-03",
    "volume24hr": 67816.43,
    "volume": 1170901.78,
-   "liquidity": 335211.59,
+   "liquidity": 331032.88,
    "open_interest": 470727.0,
    "icon": "https://polymarket-upload.s3.us-east-2.amazonaws.com/mi-033e1ebb70.png",
    "markets": [
@@ -1428,7 +1428,7 @@
      "slug": "will-the-democrats-win-the-michigan-senate-race-in-2026",
      "prob_yes": 0.715,
      "volume24hr": 37906.15,
-     "liquidity": 172134.53,
+     "liquidity": 167388.72,
      "end_date": ""
     },
     {
@@ -1437,7 +1437,7 @@
      "slug": "will-the-republicans-win-the-michigan-senate-race-in-2026",
      "prob_yes": 0.285,
      "volume24hr": 29910.27,
-     "liquidity": 158333.13,
+     "liquidity": 162909.94,
      "end_date": ""
     }
    ]
@@ -1450,9 +1450,9 @@
    "series": null,
    "neg_risk": true,
    "end_date": "2026-11-29",
-   "volume24hr": 29695.29,
-   "volume": 321725.76,
-   "liquidity": 171692.66,
+   "volume24hr": 29755.29,
+   "volume": 321785.76,
+   "liquidity": 168759.02,
    "open_interest": 135296.79,
    "icon": "https://polymarket-upload.s3.us-east-2.amazonaws.com/tw2026-city-taipei-3c45f7a4d7.jpg",
    "markets": [
@@ -1462,7 +1462,7 @@
      "slug": "will-chiang-wan-an-win-the-next-taipei-mayor-election-20260813125857101",
      "prob_yes": 0.815,
      "volume24hr": 14913.69,
-     "liquidity": 48717.72,
+     "liquidity": 47734.07,
      "end_date": "2026-11-29"
     },
     {
@@ -1470,8 +1470,8 @@
      "question": "Will Puma Shen win the next Taipei Mayor election?",
      "slug": "will-puma-shen-win-the-next-taipei-mayor-election-20260813125857102",
      "prob_yes": 0.1875,
-     "volume24hr": 14781.6,
-     "liquidity": 89415.47,
+     "volume24hr": 14841.6,
+     "liquidity": 90164.05,
      "end_date": "2026-11-29"
     },
     {
@@ -1486,31 +1486,6 @@
    ]
   },
   {
-   "id": "166565",
-   "slug": "will-the-2026-midterm-elections-happen-as-scheduled",
-   "title": "Will the 2026 Midterm Elections happen as scheduled?",
-   "category": "policy",
-   "series": null,
-   "neg_risk": false,
-   "end_date": "2027-01-01",
-   "volume24hr": 21700.55,
-   "volume": 476829.56,
-   "liquidity": 84810.4,
-   "open_interest": 222066.82,
-   "icon": "https://polymarket-upload.s3.us-east-2.amazonaws.com/will-the-2026-midterm-elections-happen-as-scheduled-Yu4FtUsATBIb.jpg",
-   "markets": [
-    {
-     "id": "1193650",
-     "question": "Will the 2026 Midterm Elections happen as scheduled?",
-     "slug": "will-the-2026-midterm-elections-happen-as-scheduled",
-     "prob_yes": 0.9775,
-     "volume24hr": 21700.55,
-     "liquidity": 84138.4,
-     "end_date": "2027-01-01"
-    }
-   ]
-  },
-  {
    "id": "428627",
    "slug": "netanyahu-drops-out-of-israel-election-by-july-31",
    "title": "Netanyahu drops out of Israel election by...?",
@@ -1520,7 +1495,7 @@
    "end_date": "2026-10-27",
    "volume24hr": 16596.24,
    "volume": 223289.53,
-   "liquidity": 40143.53,
+   "liquidity": 43100.56,
    "open_interest": 72497.57,
    "icon": "https://polymarket-upload.s3.us-east-2.amazonaws.com/netanyahu-drops-out-of-israel-election-by-july-31-CuB09-ujzGze.jpg",
    "markets": [
@@ -1530,8 +1505,33 @@
      "slug": "netanyahu-drops-out-of-israel-election-by-september-30",
      "prob_yes": 0.0025,
      "volume24hr": 16596.24,
-     "liquidity": 40399.87,
+     "liquidity": 41457.05,
      "end_date": "2026-10-27"
+    }
+   ]
+  },
+  {
+   "id": "166565",
+   "slug": "will-the-2026-midterm-elections-happen-as-scheduled",
+   "title": "Will the 2026 Midterm Elections happen as scheduled?",
+   "category": "policy",
+   "series": null,
+   "neg_risk": false,
+   "end_date": "2027-01-01",
+   "volume24hr": 12183.62,
+   "volume": 476829.56,
+   "liquidity": 82521.26,
+   "open_interest": 222066.82,
+   "icon": "https://polymarket-upload.s3.us-east-2.amazonaws.com/will-the-2026-midterm-elections-happen-as-scheduled-Yu4FtUsATBIb.jpg",
+   "markets": [
+    {
+     "id": "1193650",
+     "question": "Will the 2026 Midterm Elections happen as scheduled?",
+     "slug": "will-the-2026-midterm-elections-happen-as-scheduled",
+     "prob_yes": 0.9775,
+     "volume24hr": 12183.62,
+     "liquidity": 82664.41,
+     "end_date": "2027-01-01"
     }
    ]
   },
@@ -1545,7 +1545,7 @@
    "end_date": "2026-11-01",
    "volume24hr": 8862.61,
    "volume": 396993.82,
-   "liquidity": 43201.24,
+   "liquidity": 41792.87,
    "open_interest": 31135.81,
    "icon": "https://polymarket-upload.s3.us-east-2.amazonaws.com/us-reissues-iran-oil-sanction-relief-byptptpt-20260707233859432-_9sHfDKWlv_E.jpg",
    "markets": [
@@ -1555,16 +1555,16 @@
      "slug": "us-reissues-iran-oil-sanction-relief-by-september-30",
      "prob_yes": 0.0165,
      "volume24hr": 7454.66,
-     "liquidity": 23142.7,
+     "liquidity": 22402.68,
      "end_date": "2026-10-01"
     },
     {
      "id": "4346270",
      "question": "US reissues Iran oil sanction relief by October 31?",
      "slug": "us-reissues-iran-oil-sanction-relief-by-october-31",
-     "prob_yes": 0.245,
+     "prob_yes": 0.275,
      "volume24hr": 1407.96,
-     "liquidity": 4343.57,
+     "liquidity": 15742.28,
      "end_date": "2026-11-01"
     }
    ]
@@ -1577,10 +1577,10 @@
    "series": null,
    "neg_risk": true,
    "end_date": "2026-11-03",
-   "volume24hr": 4190.89,
+   "volume24hr": 4007.9,
    "volume": 3025427.59,
-   "liquidity": 440540.68,
-   "open_interest": 185317.78,
+   "liquidity": 439531.46,
+   "open_interest": 185514.21,
    "icon": "https://polymarket-upload.s3.us-east-2.amazonaws.com/will-republicans-lose-a-seat-in-the-us-senate-for-any-state-trump-won-in-2024-36T8qr8R2Va9.jpg",
    "markets": [
     {
@@ -1589,7 +1589,7 @@
      "slug": "will-the-republican-party-hold-exactly-50-senate-seats-after-the-2026-midterm-elections-968",
      "prob_yes": 0.115,
      "volume24hr": 1538.85,
-     "liquidity": 33019.89,
+     "liquidity": 32919.59,
      "end_date": ""
     },
     {
@@ -1597,8 +1597,8 @@
      "question": "Will the Republican Party hold 47 or fewer Senate seats after the 2026 midterm elections?",
      "slug": "will-the-republican-party-hold-47-or-fewer-senate-seats-after-the-2026-midterm-elections",
      "prob_yes": 0.365,
-     "volume24hr": 1195.02,
-     "liquidity": 67665.41,
+     "volume24hr": 1012.03,
+     "liquidity": 67676.84,
      "end_date": ""
     },
     {
@@ -1607,7 +1607,7 @@
      "slug": "will-the-republican-party-hold-exactly-54-senate-seats-after-the-2026-midterm-elections",
      "prob_yes": 0.0145,
      "volume24hr": 781.3,
-     "liquidity": 50740.81,
+     "liquidity": 50565.17,
      "end_date": ""
     },
     {
@@ -1616,7 +1616,7 @@
      "slug": "will-the-republican-party-hold-exactly-56-senate-seats-after-the-2026-midterm-elections",
      "prob_yes": 0.007,
      "volume24hr": 410.01,
-     "liquidity": 35857.85,
+     "liquidity": 34984.51,
      "end_date": ""
     },
     {
@@ -1625,7 +1625,7 @@
      "slug": "will-the-republican-party-hold-exactly-48-senate-seats-after-the-2026-midterm-elections-971",
      "prob_yes": 0.145,
      "volume24hr": 168.33,
-     "liquidity": 36972.91,
+     "liquidity": 36836.34,
      "end_date": ""
     },
     {
@@ -1634,7 +1634,7 @@
      "slug": "will-the-republican-party-hold-exactly-51-senate-seats-after-the-2026-midterm-elections-753",
      "prob_yes": 0.08,
      "volume24hr": 32.22,
-     "liquidity": 46355.12,
+     "liquidity": 46350.67,
      "end_date": ""
     },
     {
@@ -1643,7 +1643,7 @@
      "slug": "will-the-republican-party-hold-exactly-49-senate-seats-after-the-2026-midterm-elections-189",
      "prob_yes": 0.135,
      "volume24hr": 25.0,
-     "liquidity": 33665.04,
+     "liquidity": 33754.93,
      "end_date": ""
     },
     {
@@ -1652,7 +1652,7 @@
      "slug": "will-the-republican-party-hold-exactly-52-senate-seats-after-the-2026-midterm-elections-829",
      "prob_yes": 0.054,
      "volume24hr": 10.04,
-     "liquidity": 34940.59,
+     "liquidity": 34944.29,
      "end_date": ""
     },
     {
@@ -1661,7 +1661,7 @@
      "slug": "will-the-republican-party-hold-exactly-53-senate-seats-after-the-2026-midterm-elections",
      "prob_yes": 0.0275,
      "volume24hr": 10.04,
-     "liquidity": 31675.44,
+     "liquidity": 31664.48,
      "end_date": ""
     },
     {
@@ -1670,7 +1670,7 @@
      "slug": "will-the-republican-party-hold-exactly-55-senate-seats-after-the-2026-midterm-elections",
      "prob_yes": 0.0125,
      "volume24hr": 10.04,
-     "liquidity": 37547.21,
+     "liquidity": 37495.78,
      "end_date": ""
     },
     {
@@ -1679,7 +1679,7 @@
      "slug": "will-the-republican-party-hold-57-or-more-senate-seats-after-the-2026-midterm-elections",
      "prob_yes": 0.006,
      "volume24hr": 10.03,
-     "liquidity": 33094.24,
+     "liquidity": 32445.02,
      "end_date": ""
     }
    ]
@@ -1694,26 +1694,26 @@
    "end_date": "2026-11-04",
    "volume24hr": 5.0,
    "volume": 696967.85,
-   "liquidity": 122837.52,
-   "open_interest": 10556.76,
+   "liquidity": 112737.51,
+   "open_interest": 10571.13,
    "icon": "https://polymarket-upload.s3.us-east-2.amazonaws.com/how-many-republican-governors-after-the-2026-midterm-elections-HRxY-gXiZAZV.jpg",
    "markets": [
     {
      "id": "907688",
      "question": "Will the Republican Party hold exactly 24 or 25 governorships after the 2026 midterm elections?",
      "slug": "will-the-republican-party-hold-exactly-24-or-25-governorships-after-the-2026-midterm-elections",
-     "prob_yes": 0.22,
+     "prob_yes": 0.225,
      "volume24hr": 5.0,
-     "liquidity": 10376.22,
+     "liquidity": 10193.8,
      "end_date": "2026-11-04"
     },
     {
      "id": "907686",
      "question": "Will the Republican Party hold fewer than 22 governorships after the 2026 midterm elections?",
      "slug": "will-the-republican-party-hold-fewer-than-22-governorships-after-the-2026-midterm-elections",
-     "prob_yes": 0.19,
+     "prob_yes": 0.195,
      "volume24hr": 0.0,
-     "liquidity": 1484.92,
+     "liquidity": 1354.04,
      "end_date": "2026-11-04"
     },
     {
@@ -1722,7 +1722,7 @@
      "slug": "will-the-republican-party-hold-exactly-22-or-23-governorships-after-the-2026-midterm-elections",
      "prob_yes": 0.385,
      "volume24hr": 0.0,
-     "liquidity": 25745.66,
+     "liquidity": 25716.35,
      "end_date": "2026-11-04"
     },
     {
@@ -1731,7 +1731,7 @@
      "slug": "will-the-republican-party-hold-exactly-26-or-27-governorships-after-the-2026-midterm-elections",
      "prob_yes": 0.175,
      "volume24hr": 0.0,
-     "liquidity": 19605.82,
+     "liquidity": 19267.59,
      "end_date": "2026-11-04"
     },
     {
@@ -1740,7 +1740,7 @@
      "slug": "will-the-republican-party-hold-exactly-28-or-29-governorships-after-the-2026-midterm-elections",
      "prob_yes": 0.035,
      "volume24hr": 0.0,
-     "liquidity": 19703.82,
+     "liquidity": 19620.07,
      "end_date": "2026-11-04"
     },
     {
@@ -1749,7 +1749,7 @@
      "slug": "will-the-republican-party-hold-exactly-30-or-31-governorships-after-the-2026-midterm-elections",
      "prob_yes": 0.011,
      "volume24hr": 0.0,
-     "liquidity": 19292.19,
+     "liquidity": 19281.33,
      "end_date": "2026-11-04"
     },
     {
@@ -1758,7 +1758,7 @@
      "slug": "will-the-republican-party-hold-32-or-more-governorships-after-the-2026-midterm-elections",
      "prob_yes": 0.0055,
      "volume24hr": 0.0,
-     "liquidity": 17322.71,
+     "liquidity": 17235.69,
      "end_date": "2026-11-04"
     }
    ]
@@ -1771,10 +1771,10 @@
    "series": "hormuz-traffic-returns-to-normal",
    "neg_risk": false,
    "end_date": "2026-10-01",
-   "volume24hr": 590895.36,
-   "volume": 12109160.11,
-   "liquidity": 1169626.95,
-   "open_interest": 2806131.23,
+   "volume24hr": 591895.36,
+   "volume": 12110160.11,
+   "liquidity": 1169622.0,
+   "open_interest": 2807131.23,
    "icon": "https://polymarket-upload.s3.us-east-2.amazonaws.com/will-ships-transit-the-strait-of-hormuz-on-any-day-in-march-ERARnetK0FJm.jpg",
    "markets": [
     {
@@ -1782,8 +1782,8 @@
      "question": "Strait of Hormuz traffic returns to normal by September 30?",
      "slug": "strait-of-hormuz-traffic-returns-to-normal-by-september-30-20260702154339440",
      "prob_yes": 0.0005,
-     "volume24hr": 590895.36,
-     "liquidity": 1167622.2,
+     "volume24hr": 591895.36,
+     "liquidity": 1166122.2,
      "end_date": "2026-10-01"
     }
    ]
@@ -1796,10 +1796,10 @@
    "series": "putin-out-as-president",
    "neg_risk": false,
    "end_date": "2027-07-01",
-   "volume24hr": 515325.27,
-   "volume": 26528883.89,
-   "liquidity": 1226084.4,
-   "open_interest": 8460854.49,
+   "volume24hr": 515274.34,
+   "volume": 26528938.22,
+   "liquidity": 1229061.78,
+   "open_interest": 8460803.98,
    "icon": "https://polymarket-upload.s3.us-east-2.amazonaws.com/putin-out-as-president-of-russia-in-2025-nWuurkC8qfbi.jpg",
    "markets": [
     {
@@ -1807,8 +1807,8 @@
      "question": "Putin out as President of Russia by December 31, 2026?",
      "slug": "putin-out-before-2027-346",
      "prob_yes": 0.0205,
-     "volume24hr": 509765.39,
-     "liquidity": 953572.5,
+     "volume24hr": 509714.46,
+     "liquidity": 956457.57,
      "end_date": "2027-01-01"
     },
     {
@@ -1817,7 +1817,7 @@
      "slug": "putin-out-as-president-of-russia-by-june-30-2027",
      "prob_yes": 0.115,
      "volume24hr": 3554.88,
-     "liquidity": 122141.3,
+     "liquidity": 119997.96,
      "end_date": "2027-07-01"
     },
     {
@@ -1841,7 +1841,7 @@
    "end_date": "2027-01-01",
    "volume24hr": 252543.37,
    "volume": 70172082.69,
-   "liquidity": 927537.3,
+   "liquidity": 927825.01,
    "open_interest": 7649166.96,
    "icon": "https://polymarket-upload.s3.us-east-2.amazonaws.com/will-the-us-invade-iran-in-2025-0Eh3J0ku_Fbj.jpg",
    "markets": [
@@ -1851,7 +1851,7 @@
      "slug": "will-the-us-invade-iran-before-2027",
      "prob_yes": 0.145,
      "volume24hr": 252543.37,
-     "liquidity": 927741.84,
+     "liquidity": 928224.85,
      "end_date": "2027-01-01"
     }
    ]
@@ -1864,19 +1864,19 @@
    "series": "us-iran-ceasefire-continues",
    "neg_risk": false,
    "end_date": "2026-10-31",
-   "volume24hr": 250595.83,
-   "volume": 4774324.94,
-   "liquidity": 356951.24,
-   "open_interest": 898518.33,
+   "volume24hr": 248958.38,
+   "volume": 4774451.5,
+   "liquidity": 348210.45,
+   "open_interest": 898633.55,
    "icon": "https://polymarket-upload.s3.us-east-2.amazonaws.com/us-x-iran-ceasefire-continues-throughptptpt-fKOnupyGfr2q.jpg",
    "markets": [
     {
      "id": "4641064",
      "question": "US x Iran ceasefire continues through September 30?",
      "slug": "us-x-iran-ceasefire-continues-through-september-30-20260917",
-     "prob_yes": 0.975,
-     "volume24hr": 151860.03,
-     "liquidity": 140293.64,
+     "prob_yes": 0.973,
+     "volume24hr": 151824.94,
+     "liquidity": 140494.83,
      "end_date": "2026-09-30"
     },
     {
@@ -1885,7 +1885,7 @@
      "slug": "us-x-iran-ceasefire-continues-through-october-31-20260917",
      "prob_yes": 0.605,
      "volume24hr": 64714.18,
-     "liquidity": 116617.51,
+     "liquidity": 112338.88,
      "end_date": "2026-10-31"
     },
     {
@@ -1893,8 +1893,8 @@
      "question": "US x Iran ceasefire continues through December 31?",
      "slug": "us-x-iran-ceasefire-continues-through-december-31-20260918",
      "prob_yes": 0.355,
-     "volume24hr": 25812.69,
-     "liquidity": 54274.51,
+     "volume24hr": 24098.98,
+     "liquidity": 53146.18,
      "end_date": "2026-12-31"
     },
     {
@@ -1903,25 +1903,25 @@
      "slug": "us-x-iran-ceasefire-continues-through-november-30-20260918",
      "prob_yes": 0.405,
      "volume24hr": 8103.93,
-     "liquidity": 46480.51,
+     "liquidity": 43447.32,
      "end_date": "2026-11-30"
     },
     {
      "id": "5130977",
      "question": "US x Iran ceasefire continues through October 7?",
      "slug": "us-x-iran-ceasefire-continues-through-october-7",
-     "prob_yes": 0.775,
-     "volume24hr": 55.0,
-     "liquidity": 699.91,
+     "prob_yes": 0.78,
+     "volume24hr": 166.35,
+     "liquidity": 718.83,
      "end_date": "2026-10-08"
     },
     {
      "id": "5130978",
      "question": "US x Iran ceasefire continues through October 15?",
      "slug": "us-x-iran-ceasefire-continues-through-october-15",
-     "prob_yes": 0.705,
+     "prob_yes": 0.715,
      "volume24hr": 50.0,
-     "liquidity": 552.8,
+     "liquidity": 532.35,
      "end_date": "2026-10-16"
     }
    ]
@@ -1934,9 +1934,9 @@
    "series": null,
    "neg_risk": false,
    "end_date": "2027-01-01",
-   "volume24hr": 249584.11,
+   "volume24hr": 231679.38,
    "volume": 19142181.49,
-   "liquidity": 459369.19,
+   "liquidity": 461899.44,
    "open_interest": 2039736.17,
    "icon": "https://polymarket-upload.s3.us-east-2.amazonaws.com/us-iran-final-nuclear-deal-by-20260621201254412-2M_GeQ8diXxj.jpg",
    "markets": [
@@ -1946,7 +1946,7 @@
      "slug": "us-iran-final-nuclear-deal-by-september-30-2026",
      "prob_yes": 0.0025,
      "volume24hr": 134045.46,
-     "liquidity": 147952.03,
+     "liquidity": 146804.83,
      "end_date": "2026-10-01"
     },
     {
@@ -1954,18 +1954,9 @@
      "question": "US-Iran Final Nuclear Deal by December 31, 2026?",
      "slug": "us-iran-final-nuclear-deal-by-december-31-2026-191",
      "prob_yes": 0.135,
-     "volume24hr": 56726.62,
-     "liquidity": 185635.71,
+     "volume24hr": 52424.81,
+     "liquidity": 180621.49,
      "end_date": "2027-01-01"
-    },
-    {
-     "id": "3491459",
-     "question": "US-Iran Final Nuclear Deal by October 31, 2026?",
-     "slug": "us-iran-final-nuclear-deal-by-october-31-2026",
-     "prob_yes": 0.0395,
-     "volume24hr": 35610.02,
-     "liquidity": 75175.83,
-     "end_date": "2026-11-01"
     },
     {
      "id": "3491438",
@@ -1973,8 +1964,17 @@
      "slug": "us-iran-final-nuclear-deal-by-november-30-2026",
      "prob_yes": 0.075,
      "volume24hr": 23202.0,
-     "liquidity": 53676.02,
+     "liquidity": 54219.7,
      "end_date": "2026-12-01"
+    },
+    {
+     "id": "3491459",
+     "question": "US-Iran Final Nuclear Deal by October 31, 2026?",
+     "slug": "us-iran-final-nuclear-deal-by-october-31-2026",
+     "prob_yes": 0.0395,
+     "volume24hr": 22007.11,
+     "liquidity": 75175.83,
+     "end_date": "2026-11-01"
     }
    ]
   },
@@ -1986,9 +1986,9 @@
    "series": "us-x-iran-diplomatic-meeting",
    "neg_risk": false,
    "end_date": "2026-12-31",
-   "volume24hr": 109294.09,
+   "volume24hr": 107336.54,
    "volume": 338176.91,
-   "liquidity": 189575.44,
+   "liquidity": 187999.11,
    "open_interest": 92179.08,
    "icon": "https://polymarket-upload.s3.us-east-2.amazonaws.com/us-x-iran-meeting-by-9btZGbUg-ikA.jpg",
    "markets": [
@@ -1996,9 +1996,9 @@
      "id": "4867450",
      "question": "Next US-Iran senior diplomatic meeting by September 30, 2026?",
      "slug": "us-x-iran-diplomatic-meeting-by-march-31-2027-20260922",
-     "prob_yes": 0.085,
-     "volume24hr": 47101.69,
-     "liquidity": 55768.91,
+     "prob_yes": 0.083,
+     "volume24hr": 47155.87,
+     "liquidity": 51758.37,
      "end_date": "2026-09-30"
     },
     {
@@ -2006,8 +2006,8 @@
      "question": "Next US-Iran senior diplomatic meeting by December 31, 2026?",
      "slug": "us-x-iran-diplomatic-meeting-by-december-31-2026-20260922",
      "prob_yes": 0.695,
-     "volume24hr": 29332.16,
-     "liquidity": 66793.85,
+     "volume24hr": 27728.72,
+     "liquidity": 65713.56,
      "end_date": "2026-12-31"
     },
     {
@@ -2015,43 +2015,18 @@
      "question": "Next US-Iran senior diplomatic meeting by October 31, 2026? (copy)",
      "slug": "next-us-iran-senior-diplomatic-meeting-by-october-31-2026-copy",
      "prob_yes": 0.375,
-     "volume24hr": 25708.01,
-     "liquidity": 47167.04,
+     "volume24hr": 25339.71,
+     "liquidity": 46736.3,
      "end_date": "2026-10-31"
     },
     {
      "id": "5081322",
      "question": "Next US-Iran senior diplomatic meeting by October 5, 2026?",
      "slug": "next-us-iran-senior-diplomatic-meeting-by-october-5-2026",
-     "prob_yes": 0.085,
-     "volume24hr": 7152.23,
-     "liquidity": 25645.96,
+     "prob_yes": 0.075,
+     "volume24hr": 7112.23,
+     "liquidity": 24810.28,
      "end_date": "2026-10-05"
-    }
-   ]
-  },
-  {
-   "id": "830253",
-   "slug": "strait-of-hormuz-traffic-returns-to-normal-by-october-31-20260810151043583",
-   "title": "Strait of Hormuz traffic returns to normal by October 31?",
-   "category": "geo",
-   "series": "hormuz-traffic-returns-to-normal",
-   "neg_risk": false,
-   "end_date": "2026-11-01",
-   "volume24hr": 92996.99,
-   "volume": 1327187.11,
-   "liquidity": 173566.9,
-   "open_interest": 655582.69,
-   "icon": "https://polymarket-upload.s3.us-east-2.amazonaws.com/will-ships-transit-the-strait-of-hormuz-on-any-day-in-march-ERARnetK0FJm.jpg",
-   "markets": [
-    {
-     "id": "3501950",
-     "question": "Strait of Hormuz traffic returns to normal by October 31?",
-     "slug": "strait-of-hormuz-traffic-returns-to-normal-by-october-31-20260810151043583",
-     "prob_yes": 0.038,
-     "volume24hr": 92996.99,
-     "liquidity": 171567.24,
-     "end_date": "2026-11-01"
     }
    ]
   },
@@ -2063,10 +2038,10 @@
    "series": "hormuz-traffic-returns-to-normal",
    "neg_risk": false,
    "end_date": "2027-01-01",
-   "volume24hr": 87298.81,
-   "volume": 13518132.83,
-   "liquidity": 437573.87,
-   "open_interest": 1760049.06,
+   "volume24hr": 87352.34,
+   "volume": 13518810.84,
+   "liquidity": 433287.36,
+   "open_interest": 1759371.05,
    "icon": "https://polymarket-upload.s3.us-east-2.amazonaws.com/will-ships-transit-the-strait-of-hormuz-on-any-day-in-march-ERARnetK0FJm.jpg",
    "markets": [
     {
@@ -2074,9 +2049,34 @@
      "question": "Strait of Hormuz traffic returns to normal by December 31?",
      "slug": "strait-of-hormuz-traffic-returns-to-normal-by-december-31",
      "prob_yes": 0.215,
-     "volume24hr": 87298.81,
-     "liquidity": 437376.92,
+     "volume24hr": 87352.34,
+     "liquidity": 432807.42,
      "end_date": "2027-01-01"
+    }
+   ]
+  },
+  {
+   "id": "830253",
+   "slug": "strait-of-hormuz-traffic-returns-to-normal-by-october-31-20260810151043583",
+   "title": "Strait of Hormuz traffic returns to normal by October 31?",
+   "category": "geo",
+   "series": "hormuz-traffic-returns-to-normal",
+   "neg_risk": false,
+   "end_date": "2026-11-01",
+   "volume24hr": 81969.09,
+   "volume": 1327217.11,
+   "liquidity": 173513.87,
+   "open_interest": 655582.69,
+   "icon": "https://polymarket-upload.s3.us-east-2.amazonaws.com/will-ships-transit-the-strait-of-hormuz-on-any-day-in-march-ERARnetK0FJm.jpg",
+   "markets": [
+    {
+     "id": "3501950",
+     "question": "Strait of Hormuz traffic returns to normal by October 31?",
+     "slug": "strait-of-hormuz-traffic-returns-to-normal-by-october-31-20260810151043583",
+     "prob_yes": 0.038,
+     "volume24hr": 81969.09,
+     "liquidity": 173482.93,
+     "end_date": "2026-11-01"
     }
    ]
   },
@@ -2088,9 +2088,9 @@
    "series": null,
    "neg_risk": false,
    "end_date": "2026-12-31",
-   "volume24hr": 79974.19,
+   "volume24hr": 79889.81,
    "volume": 31879604.78,
-   "liquidity": 354289.06,
+   "liquidity": 366076.75,
    "open_interest": 1224628.63,
    "icon": "https://polymarket-upload.s3.us-east-2.amazonaws.com/israel-x-iran-ceasefire-continues-throughptptpt-20260716224448963-FEQHrNm5Q53X.jpg",
    "markets": [
@@ -2099,8 +2099,8 @@
      "question": "Israel x Iran ceasefire continues through September 30?",
      "slug": "israel-x-iran-ceasefire-continues-through-september-30",
      "prob_yes": 0.991,
-     "volume24hr": 48713.79,
-     "liquidity": 172483.64,
+     "volume24hr": 48681.41,
+     "liquidity": 175983.42,
      "end_date": "2026-09-30"
     },
     {
@@ -2109,7 +2109,7 @@
      "slug": "israel-x-iran-ceasefire-continues-through-october-31",
      "prob_yes": 0.825,
      "volume24hr": 25492.04,
-     "liquidity": 71882.3,
+     "liquidity": 78896.0,
      "end_date": "2026-10-31"
     },
     {
@@ -2117,8 +2117,8 @@
      "question": "Israel x Iran ceasefire continues through December 31?",
      "slug": "israel-x-iran-ceasefire-continues-through-december-31-415",
      "prob_yes": 0.685,
-     "volume24hr": 4508.53,
-     "liquidity": 80192.02,
+     "volume24hr": 4456.53,
+     "liquidity": 84809.21,
      "end_date": "2026-12-31"
     },
     {
@@ -2127,7 +2127,7 @@
      "slug": "israel-x-iran-ceasefire-continues-through-november-30",
      "prob_yes": 0.725,
      "volume24hr": 1259.83,
-     "liquidity": 29780.72,
+     "liquidity": 29722.64,
      "end_date": "2026-11-30"
     }
    ]
@@ -2142,7 +2142,7 @@
    "end_date": "2026-12-31",
    "volume24hr": 71593.0,
    "volume": 2122097.79,
-   "liquidity": 270792.58,
+   "liquidity": 274900.92,
    "open_interest": 617036.91,
    "icon": "https://polymarket-upload.s3.us-east-2.amazonaws.com/russia-x-ukraine-ceasefire-in-2025-w2voYOygx80B.jpg",
    "markets": [
@@ -2152,7 +2152,7 @@
      "slug": "russia-x-ukraine-ceasefire-by-october-31-2026",
      "prob_yes": 0.0485,
      "volume24hr": 53594.71,
-     "liquidity": 113481.45,
+     "liquidity": 117544.31,
      "end_date": "2026-10-31"
     },
     {
@@ -2161,8 +2161,51 @@
      "slug": "russia-x-ukraine-ceasefire-by-december-31-2026",
      "prob_yes": 0.115,
      "volume24hr": 17998.29,
-     "liquidity": 155704.83,
+     "liquidity": 153916.27,
      "end_date": "2026-12-31"
+    }
+   ]
+  },
+  {
+   "id": "634801",
+   "slug": "iran-charges-hormuz-fees-byptptpt-20260625175035466",
+   "title": "Iran charges Hormuz fees by...?",
+   "category": "geo",
+   "series": null,
+   "neg_risk": false,
+   "end_date": "2027-01-01",
+   "volume24hr": 70859.35,
+   "volume": 3235361.03,
+   "liquidity": 68864.74,
+   "open_interest": 399661.46,
+   "icon": "https://polymarket-upload.s3.us-east-2.amazonaws.com/iran-charges-hormuz-fees-byptptpt-20260625175035466-kmVwlYuGwWTM.jpg",
+   "markets": [
+    {
+     "id": "3399473",
+     "question": "Iran charges Hormuz fees by September 30?",
+     "slug": "iran-charges-hormuz-fees-by-september-30",
+     "prob_yes": 0.321,
+     "volume24hr": 53249.7,
+     "liquidity": 34887.44,
+     "end_date": "2026-10-01"
+    },
+    {
+     "id": "2757806",
+     "question": "Iran charges Hormuz fees by October 31?",
+     "slug": "iran-charges-hormuz-fees-by-october-31",
+     "prob_yes": 0.445,
+     "volume24hr": 12169.49,
+     "liquidity": 27354.25,
+     "end_date": "2026-11-01"
+    },
+    {
+     "id": "2824614",
+     "question": "Iran charges Hormuz fees by December 31?",
+     "slug": "iran-charges-hormuz-fees-by-december-31-20260706203029175-553",
+     "prob_yes": 0.49,
+     "volume24hr": 5440.15,
+     "liquidity": 29168.67,
+     "end_date": "2027-01-01"
     }
    ]
   },
@@ -2174,9 +2217,9 @@
    "series": null,
    "neg_risk": false,
    "end_date": "2027-07-01",
-   "volume24hr": 68126.92,
+   "volume24hr": 67874.92,
    "volume": 26412041.75,
-   "liquidity": 560596.1,
+   "liquidity": 562968.59,
    "open_interest": 1219872.29,
    "icon": "https://polymarket-upload.s3.us-east-2.amazonaws.com/iran-leader-ship-change-by-6HjLf457Nt35.jpg",
    "markets": [
@@ -2186,7 +2229,7 @@
      "slug": "iran-leadership-change-by-december-31-974-976-658-482-568-685-996-469-827",
      "prob_yes": 0.115,
      "volume24hr": 37716.51,
-     "liquidity": 180361.75,
+     "liquidity": 180540.73,
      "end_date": "2027-01-01"
     },
     {
@@ -2194,8 +2237,8 @@
      "question": "Iran leadership change by September 30?",
      "slug": "iran-leadership-change-by-september-30-20260629144005163-739-824",
      "prob_yes": 0.0025,
-     "volume24hr": 19614.35,
-     "liquidity": 67592.42,
+     "volume24hr": 19362.35,
+     "liquidity": 65066.42,
      "end_date": "2026-10-01"
     },
     {
@@ -2204,7 +2247,7 @@
      "slug": "iran-leadership-change-by-october-31",
      "prob_yes": 0.024,
      "volume24hr": 9273.08,
-     "liquidity": 157452.45,
+     "liquidity": 157720.9,
      "end_date": "2026-11-01"
     },
     {
@@ -2213,7 +2256,7 @@
      "slug": "iran-leadership-change-by-june-30-2027-674-937-179-655",
      "prob_yes": 0.225,
      "volume24hr": 1500.0,
-     "liquidity": 59994.7,
+     "liquidity": 59851.79,
      "end_date": "2027-07-01"
     },
     {
@@ -2222,7 +2265,7 @@
      "slug": "iran-leadership-change-by-november-30",
      "prob_yes": 0.055,
      "volume24hr": 22.98,
-     "liquidity": 95851.78,
+     "liquidity": 96235.71,
      "end_date": "2026-12-01"
     }
    ]
@@ -2237,8 +2280,8 @@
    "end_date": "2028-01-01",
    "volume24hr": 67292.12,
    "volume": 67275.55,
-   "liquidity": 253836.71,
-   "open_interest": 3706.04,
+   "liquidity": 156441.5,
+   "open_interest": 3679.03,
    "icon": "https://polymarket-upload.s3.us-east-2.amazonaws.com/will-putin-meet-with-zelenskyy-by-june-30-2026-oZqHqcIyNutL.jpg",
    "markets": [
     {
@@ -2247,16 +2290,16 @@
      "slug": "will-putin-and-zelenskyy-meet-next-in-germany",
      "prob_yes": 0.0445,
      "volume24hr": 52428.41,
-     "liquidity": 3920.7,
+     "liquidity": 3786.28,
      "end_date": "2028-01-01"
     },
     {
      "id": "5104763",
      "question": "Will Putin and Zelenskyy not meet by December 31, 2027?",
      "slug": "will-putin-and-zelenskyy-not-meet-by-december-31-2027",
-     "prob_yes": 0.68,
+     "prob_yes": 0.705,
      "volume24hr": 5275.23,
-     "liquidity": 36218.46,
+     "liquidity": 36119.01,
      "end_date": "2028-01-01"
     },
     {
@@ -2265,7 +2308,7 @@
      "slug": "will-putin-and-zelenskyy-meet-next-in-turkey",
      "prob_yes": 0.07,
      "volume24hr": 578.87,
-     "liquidity": 15028.33,
+     "liquidity": 15274.1,
      "end_date": "2028-01-01"
     },
     {
@@ -2274,34 +2317,34 @@
      "slug": "will-putin-and-zelenskyy-meet-next-in-switzerland",
      "prob_yes": 0.0575,
      "volume24hr": 373.07,
-     "liquidity": 2983.45,
+     "liquidity": 3048.2,
      "end_date": "2028-01-01"
     },
     {
      "id": "5104751",
      "question": "Will Putin and Zelenskyy meet next in Serbia?",
      "slug": "will-putin-and-zelenskyy-meet-next-in-serbia",
-     "prob_yes": 0.0725,
+     "prob_yes": 0.0715,
      "volume24hr": 373.05,
-     "liquidity": 3199.38,
+     "liquidity": 3410.32,
      "end_date": "2028-01-01"
     },
     {
      "id": "5104743",
      "question": "Will Putin and Zelenskyy meet next in Italy?",
      "slug": "will-putin-and-zelenskyy-meet-next-in-italy",
-     "prob_yes": 0.053,
+     "prob_yes": 0.0525,
      "volume24hr": 373.04,
-     "liquidity": 2737.31,
+     "liquidity": 3074.29,
      "end_date": "2028-01-01"
     },
     {
      "id": "5104736",
      "question": "Will Putin and Zelenskyy meet next in Russia?",
      "slug": "will-putin-and-zelenskyy-meet-next-in-russia",
-     "prob_yes": 0.0575,
+     "prob_yes": 0.036,
      "volume24hr": 373.04,
-     "liquidity": 2480.7,
+     "liquidity": 3049.98,
      "end_date": "2028-01-01"
     },
     {
@@ -2310,34 +2353,34 @@
      "slug": "will-putin-and-zelenskyy-meet-next-in-saudi-arabia",
      "prob_yes": 0.0515,
      "volume24hr": 373.04,
-     "liquidity": 2647.51,
+     "liquidity": 2775.21,
      "end_date": "2028-01-01"
     },
     {
      "id": "5104742",
      "question": "Will Putin and Zelenskyy meet next in Vatican City?",
      "slug": "will-putin-and-zelenskyy-meet-next-in-vatican-city",
-     "prob_yes": 0.037,
+     "prob_yes": 0.0365,
      "volume24hr": 373.04,
-     "liquidity": 3037.17,
+     "liquidity": 2933.79,
      "end_date": "2028-01-01"
     },
     {
      "id": "5104745",
      "question": "Will Putin and Zelenskyy meet next in Slovakia?",
      "slug": "will-putin-and-zelenskyy-meet-next-in-slovakia",
-     "prob_yes": 0.073,
+     "prob_yes": 0.077,
      "volume24hr": 373.04,
-     "liquidity": 16729.6,
+     "liquidity": 3795.64,
      "end_date": "2028-01-01"
     },
     {
      "id": "5104746",
      "question": "Will Putin and Zelenskyy meet next in Finland?",
      "slug": "will-putin-and-zelenskyy-meet-next-in-finland",
-     "prob_yes": 0.0805,
+     "prob_yes": 0.066,
      "volume24hr": 373.04,
-     "liquidity": 2927.99,
+     "liquidity": 3070.1,
      "end_date": "2028-01-01"
     },
     {
@@ -2346,51 +2389,8 @@
      "slug": "will-putin-and-zelenskyy-meet-next-in-south-africa",
      "prob_yes": 0.0415,
      "volume24hr": 373.04,
-     "liquidity": 2989.58,
+     "liquidity": 3161.79,
      "end_date": "2028-01-01"
-    }
-   ]
-  },
-  {
-   "id": "634801",
-   "slug": "iran-charges-hormuz-fees-byptptpt-20260625175035466",
-   "title": "Iran charges Hormuz fees by...?",
-   "category": "geo",
-   "series": null,
-   "neg_risk": false,
-   "end_date": "2027-01-01",
-   "volume24hr": 57104.74,
-   "volume": 3221606.42,
-   "liquidity": 52825.74,
-   "open_interest": 394765.44,
-   "icon": "https://polymarket-upload.s3.us-east-2.amazonaws.com/iran-charges-hormuz-fees-byptptpt-20260625175035466-kmVwlYuGwWTM.jpg",
-   "markets": [
-    {
-     "id": "3399473",
-     "question": "Iran charges Hormuz fees by September 30?",
-     "slug": "iran-charges-hormuz-fees-by-september-30",
-     "prob_yes": 0.1915,
-     "volume24hr": 44656.68,
-     "liquidity": 24849.73,
-     "end_date": "2026-10-01"
-    },
-    {
-     "id": "2757806",
-     "question": "Iran charges Hormuz fees by October 31?",
-     "slug": "iran-charges-hormuz-fees-by-october-31",
-     "prob_yes": 0.325,
-     "volume24hr": 10192.5,
-     "liquidity": 22986.83,
-     "end_date": "2026-11-01"
-    },
-    {
-     "id": "2824614",
-     "question": "Iran charges Hormuz fees by December 31?",
-     "slug": "iran-charges-hormuz-fees-by-december-31-20260706203029175-553",
-     "prob_yes": 0.38,
-     "volume24hr": 2255.56,
-     "liquidity": 25112.96,
-     "end_date": "2027-01-01"
     }
    ]
   },
@@ -2404,7 +2404,7 @@
    "end_date": "2026-11-01",
    "volume24hr": 55367.3,
    "volume": 873297.36,
-   "liquidity": 16025.94,
+   "liquidity": 15214.74,
    "open_interest": 262577.56,
    "icon": "https://polymarket-upload.s3.us-east-2.amazonaws.com/yerus-kanye-russia-173ca9f7ca.jpg",
    "markets": [
@@ -2412,9 +2412,9 @@
      "id": "3719741",
      "question": "Kanye West performs in Russia by October 31?",
      "slug": "kanye-west-performs-in-russia-by-october-31",
-     "prob_yes": 0.028,
+     "prob_yes": 0.027,
      "volume24hr": 55367.3,
-     "liquidity": 15831.73,
+     "liquidity": 15940.59,
      "end_date": "2026-11-01"
     }
    ]
@@ -2429,7 +2429,7 @@
    "end_date": "2027-01-26",
    "volume24hr": 47565.95,
    "volume": 9907284.56,
-   "liquidity": 45770.27,
+   "liquidity": 45585.18,
    "open_interest": 393025.77,
    "icon": "https://polymarket-upload.s3.us-east-2.amazonaws.com/iran-full-airspace-closure-byptptpt-20260625195253028-7rbGPCHobYvq.jpg",
    "markets": [
@@ -2438,17 +2438,17 @@
      "question": "Iran full airspace closure by September 30?",
      "slug": "iran-full-airspace-closure-by-september-30-20260727170320670",
      "prob_yes": 0.0075,
-     "volume24hr": 27722.16,
-     "liquidity": 23547.18,
+     "volume24hr": 27032.16,
+     "liquidity": 24147.0,
      "end_date": "2027-01-26"
     },
     {
      "id": "4620250",
      "question": "Iran full airspace closure by October 31, 2026?",
      "slug": "iran-full-airspace-closure-by-october-31-2026-copy",
-     "prob_yes": 0.105,
+     "prob_yes": 0.11,
      "volume24hr": 19218.28,
-     "liquidity": 9905.32,
+     "liquidity": 9780.87,
      "end_date": "2026-11-01"
     },
     {
@@ -2456,8 +2456,8 @@
      "question": "Iran full airspace closure by December 31?",
      "slug": "iran-full-airspace-closure-by-december-31-20260727170429885",
      "prob_yes": 0.23,
-     "volume24hr": 625.51,
-     "liquidity": 11473.95,
+     "volume24hr": 393.08,
+     "liquidity": 11645.95,
      "end_date": "2027-01-26"
     }
    ]
@@ -2470,10 +2470,10 @@
    "series": null,
    "neg_risk": false,
    "end_date": "2027-01-03",
-   "volume24hr": 41720.86,
-   "volume": 7941308.13,
-   "liquidity": 314094.47,
-   "open_interest": 1227276.71,
+   "volume24hr": 42576.64,
+   "volume": 7942162.73,
+   "liquidity": 309535.2,
+   "open_interest": 1226440.59,
    "icon": "https://polymarket-upload.s3.us-east-2.amazonaws.com/nato-x-russia-military-clash-in-2025-DteCDkmbVLj_.jpg",
    "markets": [
     {
@@ -2481,8 +2481,8 @@
      "question": "NATO x Russia military clash by October 31, 2026?",
      "slug": "nato-x-russia-military-clash-by-october-31-2026",
      "prob_yes": 0.135,
-     "volume24hr": 26296.65,
-     "liquidity": 132361.04,
+     "volume24hr": 27152.43,
+     "liquidity": 131961.77,
      "end_date": "2026-11-01"
     },
     {
@@ -2491,7 +2491,7 @@
      "slug": "nato-x-russia-military-clash-by-december-31-2026-244-538-582",
      "prob_yes": 0.275,
      "volume24hr": 15424.21,
-     "liquidity": 178943.39,
+     "liquidity": 175447.1,
      "end_date": "2027-01-01"
     }
    ]
@@ -2506,8 +2506,8 @@
    "end_date": "2026-12-31",
    "volume24hr": 41624.96,
    "volume": 39687637.28,
-   "liquidity": 2353831.28,
-   "open_interest": 847318.55,
+   "liquidity": 2350120.16,
+   "open_interest": 847178.3,
    "icon": "https://polymarket-upload.s3.us-east-2.amazonaws.com/khamenei-out-as-supreme-leader-of-iran-in-2025-VNDMf5RqFLwB.jpg",
    "markets": [
     {
@@ -2516,7 +2516,7 @@
      "slug": "will-maryam-rajavi-be-head-of-state-in-iran-end-of-2026",
      "prob_yes": 0.004,
      "volume24hr": 32145.48,
-     "liquidity": 88663.2,
+     "liquidity": 88896.69,
      "end_date": "2026-12-31"
     },
     {
@@ -2525,7 +2525,7 @@
      "slug": "will-mojtaba-khamenei-be-head-of-state-in-iran-end-of-2026",
      "prob_yes": 0.8795,
      "volume24hr": 7484.38,
-     "liquidity": 74374.84,
+     "liquidity": 71916.32,
      "end_date": "2026-12-31"
     },
     {
@@ -2534,7 +2534,7 @@
      "slug": "will-hassan-khomeini-be-head-of-state-in-iran-end-of-2026",
      "prob_yes": 0.0025,
      "volume24hr": 1000.0,
-     "liquidity": 75957.95,
+     "liquidity": 75966.1,
      "end_date": "2026-12-31"
     },
     {
@@ -2543,7 +2543,7 @@
      "slug": "will-masoud-pezeshkian-be-head-of-state-in-iran-end-of-2026",
      "prob_yes": 0.003,
      "volume24hr": 600.0,
-     "liquidity": 69726.27,
+     "liquidity": 70984.78,
      "end_date": "2026-12-31"
     },
     {
@@ -2552,16 +2552,16 @@
      "slug": "will-there-be-no-head-of-state-in-iran-end-of-2026",
      "prob_yes": 0.044,
      "volume24hr": 253.61,
-     "liquidity": 106393.97,
+     "liquidity": 105898.63,
      "end_date": "2026-12-31"
     },
     {
      "id": "1469739",
      "question": "Will Reza Pahlavi be head of state in Iran end of 2026?",
      "slug": "will-reza-pahlavi-be-head-of-state-in-iran-end-of-2026",
-     "prob_yes": 0.0245,
+     "prob_yes": 0.025,
      "volume24hr": 141.49,
-     "liquidity": 147558.69,
+     "liquidity": 147881.75,
      "end_date": "2026-12-31"
     },
     {
@@ -2570,7 +2570,7 @@
      "slug": "will-muhammad-mirbaqiri-be-head-of-state-in-iran-end-of-2026",
      "prob_yes": 0.0005,
      "volume24hr": 0.0,
-     "liquidity": 68069.45,
+     "liquidity": 68085.71,
      "end_date": "2026-12-31"
     },
     {
@@ -2579,7 +2579,7 @@
      "slug": "will-sadegh-larijani-be-head-of-state-in-iran-end-of-2026",
      "prob_yes": 0.0005,
      "volume24hr": 0.0,
-     "liquidity": 67117.67,
+     "liquidity": 67119.7,
      "end_date": "2026-12-31"
     },
     {
@@ -2588,7 +2588,7 @@
      "slug": "will-hassan-shariatmadari-be-head-of-state-in-iran-end-of-2026",
      "prob_yes": 0.0005,
      "volume24hr": 0.0,
-     "liquidity": 69118.83,
+     "liquidity": 68336.34,
      "end_date": "2026-12-31"
     },
     {
@@ -2597,7 +2597,7 @@
      "slug": "will-massoud-rajavi-be-head-of-state-in-iran-end-of-2026",
      "prob_yes": 0.0005,
      "volume24hr": 0.0,
-     "liquidity": 87334.05,
+     "liquidity": 87384.05,
      "end_date": "2026-12-31"
     },
     {
@@ -2606,7 +2606,7 @@
      "slug": "will-seyed-hossein-mousavian-be-head-of-state-in-iran-end-of-2026",
      "prob_yes": 0.0005,
      "volume24hr": 0.0,
-     "liquidity": 71294.94,
+     "liquidity": 70516.77,
      "end_date": "2026-12-31"
     },
     {
@@ -2615,7 +2615,7 @@
      "slug": "will-reza-pirzadeh-be-head-of-state-in-iran-end-of-2026",
      "prob_yes": 0.0005,
      "volume24hr": 0.0,
-     "liquidity": 81051.4,
+     "liquidity": 81096.55,
      "end_date": "2026-12-31"
     }
    ]
@@ -2628,10 +2628,10 @@
    "series": "china-invade-taiwan",
    "neg_risk": false,
    "end_date": "2027-01-01",
-   "volume24hr": 41612.21,
-   "volume": 43013580.74,
-   "liquidity": 681243.13,
-   "open_interest": 6166046.72,
+   "volume24hr": 41624.13,
+   "volume": 43013592.66,
+   "liquidity": 681332.23,
+   "open_interest": 6166034.8,
    "icon": "https://polymarket-upload.s3.us-east-2.amazonaws.com/china-invades-taiwan-in-2025-CCSd9dX2mrea.jpg",
    "markets": [
     {
@@ -2639,8 +2639,8 @@
      "question": "Will China invade Taiwan by end of 2026?",
      "slug": "will-china-invade-taiwan-before-2027",
      "prob_yes": 0.034,
-     "volume24hr": 41612.21,
-     "liquidity": 679056.79,
+     "volume24hr": 41624.13,
+     "liquidity": 682163.94,
      "end_date": "2027-01-01"
     }
    ]
@@ -2655,7 +2655,7 @@
    "end_date": "2026-12-31",
    "volume24hr": 37604.49,
    "volume": 1872049.29,
-   "liquidity": 45308.47,
+   "liquidity": 46280.9,
    "open_interest": 227836.02,
    "icon": "https://polymarket-upload.s3.us-east-2.amazonaws.com/iran-agrees-to-end-enrichment-of-uranium-before-july-G-riWTpXuKoj.jpg",
    "markets": [
@@ -2664,8 +2664,8 @@
      "question": " Iran agrees to end enrichment of uranium by December 31?",
      "slug": "iran-agrees-to-end-enrichment-of-uranium-by-december-31-1",
      "prob_yes": 0.095,
-     "volume24hr": 37604.49,
-     "liquidity": 46900.89,
+     "volume24hr": 35151.24,
+     "liquidity": 47522.61,
      "end_date": "2027-01-01"
     }
    ]
@@ -2678,9 +2678,9 @@
    "series": null,
    "neg_risk": false,
    "end_date": "2026-12-31",
-   "volume24hr": 34149.22,
+   "volume24hr": 32097.9,
    "volume": 994728.75,
-   "liquidity": 196169.8,
+   "liquidity": 194295.26,
    "open_interest": 193906.85,
    "icon": "https://polymarket-upload.s3.us-east-2.amazonaws.com/russia-x-ukraine-diplomatic-meeting-by-2anNp08yc15i.jpg",
    "markets": [
@@ -2688,9 +2688,9 @@
      "id": "4118937",
      "question": "Russia-Ukraine peace talks by October 31, 2026?",
      "slug": "russia-ukraine-peace-talks-by-october-31-2026",
-     "prob_yes": 0.465,
-     "volume24hr": 20589.07,
-     "liquidity": 53163.87,
+     "prob_yes": 0.46,
+     "volume24hr": 20408.3,
+     "liquidity": 52518.27,
      "end_date": "2026-10-31"
     },
     {
@@ -2698,8 +2698,8 @@
      "question": "Russia-Ukraine peace talks by October 15, 2026?",
      "slug": "russia-ukraine-peace-talks-by-october-15-2026",
      "prob_yes": 0.215,
-     "volume24hr": 6427.83,
-     "liquidity": 26285.14,
+     "volume24hr": 4557.28,
+     "liquidity": 25203.52,
      "end_date": "2026-10-15"
     },
     {
@@ -2708,7 +2708,7 @@
      "slug": "russia-ukraine-peace-talks-by-november-30-2026",
      "prob_yes": 0.605,
      "volume24hr": 2788.21,
-     "liquidity": 38615.69,
+     "liquidity": 38425.78,
      "end_date": "2026-11-30"
     },
     {
@@ -2717,7 +2717,7 @@
      "slug": "russia-ukraine-peace-talks-by-september-30-2026-20260609012542188",
      "prob_yes": 0.007,
      "volume24hr": 2205.96,
-     "liquidity": 23101.15,
+     "liquidity": 23647.71,
      "end_date": "2026-10-01"
     },
     {
@@ -2726,7 +2726,7 @@
      "slug": "russia-ukraine-peace-talks-by-december-31-2026-20260609012542189-588",
      "prob_yes": 0.685,
      "volume24hr": 2138.14,
-     "liquidity": 55166.99,
+     "liquidity": 55278.93,
      "end_date": "2027-01-01"
     }
    ]
@@ -2741,7 +2741,7 @@
    "end_date": "2026-10-01",
    "volume24hr": 30099.28,
    "volume": 95078.48,
-   "liquidity": 146066.22,
+   "liquidity": 146566.64,
    "open_interest": 15038.19,
    "icon": "https://polymarket-upload.s3.us-east-2.amazonaws.com/will-ships-transit-the-strait-of-hormuz-on-any-day-in-march-ERARnetK0FJm.jpg",
    "markets": [
@@ -2751,7 +2751,7 @@
      "slug": "will-there-be-between-5-and-10-average-daily-transits-of-the-strait-of-hormuz-on-september-30",
      "prob_yes": 0.017,
      "volume24hr": 10548.42,
-     "liquidity": 24501.94,
+     "liquidity": 24514.13,
      "end_date": "2026-10-01"
     },
     {
@@ -2760,7 +2760,7 @@
      "slug": "will-there-be-between-0-and-5-average-daily-transits-of-the-strait-of-hormuz-on-september-30",
      "prob_yes": 0.9765,
      "volume24hr": 6826.99,
-     "liquidity": 16915.04,
+     "liquidity": 16931.91,
      "end_date": "2026-10-01"
     },
     {
@@ -2769,7 +2769,7 @@
      "slug": "will-there-be-between-15-and-20-average-daily-transits-of-the-strait-of-hormuz-on-september-30",
      "prob_yes": 0.0025,
      "volume24hr": 3478.36,
-     "liquidity": 22508.62,
+     "liquidity": 22508.92,
      "end_date": "2026-10-01"
     },
     {
@@ -2778,7 +2778,7 @@
      "slug": "will-there-be-between-25-and-30-average-daily-transits-of-the-strait-of-hormuz-on-september-30",
      "prob_yes": 0.0015,
      "volume24hr": 3131.4,
-     "liquidity": 22994.88,
+     "liquidity": 23250.44,
      "end_date": "2026-10-01"
     },
     {
@@ -2787,7 +2787,7 @@
      "slug": "will-there-be-between-20-and-25-average-daily-transits-of-the-strait-of-hormuz-on-september-30",
      "prob_yes": 0.003,
      "volume24hr": 2594.2,
-     "liquidity": 22851.54,
+     "liquidity": 22852.14,
      "end_date": "2026-10-01"
     },
     {
@@ -2805,7 +2805,7 @@
      "slug": "will-there-be-30-or-more-average-daily-transits-of-the-strait-of-hormuz-on-september-30",
      "prob_yes": 0.0025,
      "volume24hr": 953.99,
-     "liquidity": 12718.97,
+     "liquidity": 13862.18,
      "end_date": "2026-10-01"
     }
    ]
@@ -2820,7 +2820,7 @@
    "end_date": "2026-12-01",
    "volume24hr": 29893.94,
    "volume": 513510.27,
-   "liquidity": 112591.31,
+   "liquidity": 110973.75,
    "open_interest": 179772.8,
    "icon": "https://polymarket-upload.s3.us-east-2.amazonaws.com/will-ships-transit-the-strait-of-hormuz-on-any-day-in-march-ERARnetK0FJm.jpg",
    "markets": [
@@ -2830,7 +2830,7 @@
      "slug": "strait-of-hormuz-traffic-returns-to-normal-by-november-30-20260810151158765",
      "prob_yes": 0.13,
      "volume24hr": 29893.94,
-     "liquidity": 111340.19,
+     "liquidity": 113023.7,
      "end_date": "2026-12-01"
     }
    ]
@@ -2845,7 +2845,7 @@
    "end_date": "2027-01-01",
    "volume24hr": 27454.39,
    "volume": 168867.07,
-   "liquidity": 103904.04,
+   "liquidity": 103611.31,
    "open_interest": 100230.12,
    "icon": "https://polymarket-upload.s3.us-east-2.amazonaws.com/will-russia-invade-a-nato-country-in-2025-VY0jfZfvLhyJ.jpg",
    "markets": [
@@ -2855,7 +2855,7 @@
      "slug": "russia-military-action-against-eu-country-by-december-31-2026",
      "prob_yes": 0.115,
      "volume24hr": 23304.0,
-     "liquidity": 65981.17,
+     "liquidity": 66456.52,
      "end_date": "2027-01-01"
     },
     {
@@ -2864,7 +2864,7 @@
      "slug": "russia-military-action-against-eu-country-by-september-30-2026",
      "prob_yes": 0.005,
      "volume24hr": 4150.39,
-     "liquidity": 39304.07,
+     "liquidity": 41568.66,
      "end_date": "2026-10-01"
     }
    ]
@@ -2877,9 +2877,9 @@
    "series": null,
    "neg_risk": false,
    "end_date": "2027-07-01",
-   "volume24hr": 19899.52,
+   "volume24hr": 19877.04,
    "volume": 8102951.47,
-   "liquidity": 1247510.02,
+   "liquidity": 1248125.94,
    "open_interest": 715511.16,
    "icon": "https://polymarket-upload.s3.us-east-2.amazonaws.com/russia-x-ukraine-ceasefire-in-2025-w2voYOygx80B.jpg",
    "markets": [
@@ -2889,7 +2889,7 @@
      "slug": "russia-x-ukraine-ceasefire-agreement-by-october-31-2026",
      "prob_yes": 0.075,
      "volume24hr": 9674.15,
-     "liquidity": 85127.62,
+     "liquidity": 85175.62,
      "end_date": "2026-11-01"
     },
     {
@@ -2898,7 +2898,7 @@
      "slug": "russia-x-ukraine-ceasefire-agreement-by-december-31-2026",
      "prob_yes": 0.185,
      "volume24hr": 3436.95,
-     "liquidity": 99804.76,
+     "liquidity": 99840.07,
      "end_date": "2027-01-01"
     },
     {
@@ -2907,25 +2907,25 @@
      "slug": "russia-x-ukraine-ceasefire-agreement-by-march-31-2027",
      "prob_yes": 0.375,
      "volume24hr": 2808.65,
-     "liquidity": 84961.83,
+     "liquidity": 85089.15,
      "end_date": "2027-04-01"
     },
     {
      "id": "3701688",
      "question": "Russia x Ukraine ceasefire agreement by June 30, 2027?",
      "slug": "russia-x-ukraine-ceasefire-agreement-by-june-30-2027",
-     "prob_yes": 0.535,
+     "prob_yes": 0.53,
      "volume24hr": 1867.13,
-     "liquidity": 118602.46,
+     "liquidity": 117882.16,
      "end_date": "2027-07-01"
     },
     {
      "id": "4338143",
      "question": "Russia x Ukraine ceasefire agreement by January 31, 2027?",
      "slug": "russia-x-ukraine-ceasefire-agreement-by-january-31-2027",
-     "prob_yes": 0.275,
+     "prob_yes": 0.28,
      "volume24hr": 1067.43,
-     "liquidity": 52016.6,
+     "liquidity": 54286.36,
      "end_date": "2027-02-01"
     },
     {
@@ -2933,8 +2933,8 @@
      "question": "Russia x Ukraine ceasefire agreement by November 30, 2026?",
      "slug": "russia-x-ukraine-ceasefire-agreement-by-november-30-2026",
      "prob_yes": 0.11,
-     "volume24hr": 435.79,
-     "liquidity": 39621.14,
+     "volume24hr": 413.32,
+     "liquidity": 39728.72,
      "end_date": "2026-12-01"
     },
     {
@@ -2943,7 +2943,7 @@
      "slug": "russia-x-ukraine-ceasefire-agreement-by-december-31-2027",
      "prob_yes": 0.7,
      "volume24hr": 336.57,
-     "liquidity": 162781.42,
+     "liquidity": 162830.67,
      "end_date": "2028-01-01"
     },
     {
@@ -2952,25 +2952,25 @@
      "slug": "russia-x-ukraine-ceasefire-agreement-by-july-31-2027",
      "prob_yes": 0.56,
      "volume24hr": 123.28,
-     "liquidity": 70427.13,
+     "liquidity": 70239.22,
      "end_date": "2027-08-01"
     },
     {
      "id": "4338135",
      "question": "Russia x Ukraine ceasefire agreement by April 30, 2027?",
      "slug": "russia-x-ukraine-ceasefire-agreement-by-april-30-2027",
-     "prob_yes": 0.425,
+     "prob_yes": 0.43,
      "volume24hr": 115.06,
-     "liquidity": 49388.07,
+     "liquidity": 49247.4,
      "end_date": "2027-05-01"
     },
     {
      "id": "4338142",
      "question": "Russia x Ukraine ceasefire agreement by November 30, 2027?",
      "slug": "russia-x-ukraine-ceasefire-agreement-by-november-30-2027",
-     "prob_yes": 0.66,
+     "prob_yes": 0.665,
      "volume24hr": 29.5,
-     "liquidity": 94817.24,
+     "liquidity": 95087.64,
      "end_date": "2027-12-01"
     },
     {
@@ -2979,7 +2979,7 @@
      "slug": "russia-x-ukraine-ceasefire-agreement-by-september-30-2027",
      "prob_yes": 0.61,
      "volume24hr": 5.0,
-     "liquidity": 87603.2,
+     "liquidity": 84859.25,
      "end_date": "2027-10-01"
     },
     {
@@ -2988,7 +2988,7 @@
      "slug": "russia-x-ukraine-ceasefire-agreement-by-may-31-2027",
      "prob_yes": 0.495,
      "volume24hr": 0.0,
-     "liquidity": 77982.09,
+     "liquidity": 78005.17,
      "end_date": "2027-06-01"
     }
    ]
@@ -3001,9 +3001,9 @@
    "series": null,
    "neg_risk": false,
    "end_date": "2027-01-01",
-   "volume24hr": 17977.87,
+   "volume24hr": 17859.2,
    "volume": 473886.02,
-   "liquidity": 191485.65,
+   "liquidity": 192474.32,
    "open_interest": 197262.82,
    "icon": "https://polymarket-upload.s3.us-east-2.amazonaws.com/will-russia-announce-a-new-forced-mobilization-byptptpt-RKQZlLMpT7x3.jpg",
    "markets": [
@@ -3013,7 +3013,7 @@
      "slug": "will-russia-announce-a-new-forced-mobilization-by-september-30-2026",
      "prob_yes": 0.0055,
      "volume24hr": 6868.14,
-     "liquidity": 41479.73,
+     "liquidity": 38450.22,
      "end_date": "2026-10-01"
     },
     {
@@ -3022,7 +3022,7 @@
      "slug": "will-russia-announce-a-new-forced-mobilization-by-october-31-2026",
      "prob_yes": 0.085,
      "volume24hr": 6227.09,
-     "liquidity": 110101.04,
+     "liquidity": 112778.66,
      "end_date": "2026-11-01"
     },
     {
@@ -3030,8 +3030,8 @@
      "question": "Will Russia announce a new forced mobilization by December 31, 2026?",
      "slug": "will-russia-announce-a-new-forced-mobilization-by-december-31-2026",
      "prob_yes": 0.215,
-     "volume24hr": 4882.63,
-     "liquidity": 38496.47,
+     "volume24hr": 4763.97,
+     "liquidity": 40327.1,
      "end_date": "2027-01-01"
     }
    ]
@@ -3046,8 +3046,8 @@
    "end_date": "2027-01-01",
    "volume24hr": 16752.95,
    "volume": 1161814.0,
-   "liquidity": 330655.63,
-   "open_interest": 219710.13,
+   "liquidity": 329513.2,
+   "open_interest": 219705.13,
    "icon": "https://polymarket-upload.s3.us-east-2.amazonaws.com/what-will-be-in-a-us-iran-deal-in-2026-20260623023158538-jEJwJvgocGYy.jpg",
    "markets": [
     {
@@ -3055,8 +3055,8 @@
      "question": "Will a 1+ Year Enrichment Moratorium be in a US-Iran deal in 2026?",
      "slug": "will-a-1-year-enrichment-moratorium-be-in-a-us-iran-deal-in-2026-20260623023201635",
      "prob_yes": 0.095,
-     "volume24hr": 7943.26,
-     "liquidity": 53328.6,
+     "volume24hr": 7640.01,
+     "liquidity": 52528.04,
      "end_date": "2027-01-01"
     },
     {
@@ -3065,7 +3065,7 @@
      "slug": "will-dilution-of-iranian-uranium-be-in-a-us-iran-deal-in-2026-20260623023201639",
      "prob_yes": 0.125,
      "volume24hr": 2871.91,
-     "liquidity": 53138.48,
+     "liquidity": 53322.52,
      "end_date": "2027-01-01"
     },
     {
@@ -3074,16 +3074,16 @@
      "slug": "will-iran-reconstruction-funding-be-in-a-us-iran-deal-in-2026-20260623023201638",
      "prob_yes": 0.135,
      "volume24hr": 2618.64,
-     "liquidity": 56298.29,
+     "liquidity": 56019.55,
      "end_date": "2027-01-01"
     },
     {
      "id": "2668004",
      "question": "Will a ≤5% Uranium Enrichment Cap (1+ Year) be in a US-Iran deal in 2026?",
      "slug": "will-a-5-uranium-enrichment-cap-1-year-be-in-a-us-iran-deal-in-2026-20260623023201637",
-     "prob_yes": 0.15,
+     "prob_yes": 0.155,
      "volume24hr": 2260.22,
-     "liquidity": 53878.24,
+     "liquidity": 53382.52,
      "end_date": "2027-01-01"
     },
     {
@@ -3092,16 +3092,16 @@
      "slug": "will-a-us-iran-deal-in-2026-include-surrender-of-iranian-enriched-uranium-20260623023201640",
      "prob_yes": 0.055,
      "volume24hr": 781.69,
-     "liquidity": 63107.89,
+     "liquidity": 58152.92,
      "end_date": "2027-01-01"
     },
     {
      "id": "2663603",
      "question": "Will any Uranium Enrichment % Cap (1+ Year) be in a US-Iran deal in 2026?",
      "slug": "will-any-uranium-enrichment-cap-1-year-be-in-a-us-iran-deal-in-2026-20260623023201636",
-     "prob_yes": 0.175,
-     "volume24hr": 277.23,
-     "liquidity": 52776.84,
+     "prob_yes": 0.165,
+     "volume24hr": 282.23,
+     "liquidity": 50355.78,
      "end_date": "2027-01-01"
     }
    ]
@@ -3116,7 +3116,7 @@
    "end_date": "2027-06-23",
    "volume24hr": 12698.24,
    "volume": 1090466.06,
-   "liquidity": 311171.21,
+   "liquidity": 309733.15,
    "open_interest": 60520.69,
    "icon": "https://polymarket-upload.s3.us-east-2.amazonaws.com/who-will-attend-the-next-us-x-iran-diplomatic-meeting-U6toAVO3j_g5.jpg",
    "markets": [
@@ -3126,16 +3126,16 @@
      "slug": "will-mohammed-bin-salman-attend-a-us-x-iran-diplomatic-meeting-by-december-31-2026",
      "prob_yes": 0.075,
      "volume24hr": 6332.81,
-     "liquidity": 23797.86,
+     "liquidity": 21501.18,
      "end_date": "2027-01-01"
     },
     {
      "id": "3553889",
      "question": "Will Masoud Pezeshkian attend a US x Iran diplomatic meeting by December 31, 2026?",
      "slug": "will-masoud-pezeshkian-attend-a-us-x-iran-diplomatic-meeting-by-december-31-2026-20260812154221271",
-     "prob_yes": 0.23,
+     "prob_yes": 0.21,
      "volume24hr": 3042.71,
-     "liquidity": 1434.1,
+     "liquidity": 14203.48,
      "end_date": "2027-06-23"
     },
     {
@@ -3144,25 +3144,25 @@
      "slug": "will-kazem-gharibabadi-attend-a-us-x-iran-diplomatic-meeting-by-december-31-2026-20260812154221273",
      "prob_yes": 0.27,
      "volume24hr": 1594.51,
-     "liquidity": 25436.18,
+     "liquidity": 25349.11,
      "end_date": "2027-01-01"
     },
     {
      "id": "3553887",
      "question": "Will Mohammad Bagher Ghalibaf attend a US x Iran diplomatic meeting by December 31, 2026?",
      "slug": "will-mohammad-bagher-ghalibaf-attend-a-us-x-iran-diplomatic-meeting-by-december-31-2026-20260812154221269",
-     "prob_yes": 0.27,
+     "prob_yes": 0.255,
      "volume24hr": 1153.71,
-     "liquidity": 18062.94,
+     "liquidity": 18233.15,
      "end_date": "2027-06-23"
     },
     {
      "id": "3553896",
      "question": "Will Ishaq Dar attend a US x Iran diplomatic meeting by December 31, 2026?",
      "slug": "will-ishaq-dar-attend-a-us-x-iran-diplomatic-meeting-by-december-31-2026-20260812154221278",
-     "prob_yes": 0.305,
+     "prob_yes": 0.275,
      "volume24hr": 396.27,
-     "liquidity": 25518.66,
+     "liquidity": 25200.35,
      "end_date": "2027-01-01"
     },
     {
@@ -3171,7 +3171,7 @@
      "slug": "will-marco-rubio-attend-a-us-x-iran-diplomatic-meeting-by-december-31-2026-20260812154221263",
      "prob_yes": 0.085,
      "volume24hr": 55.15,
-     "liquidity": 22770.12,
+     "liquidity": 22491.8,
      "end_date": "2027-01-01"
     },
     {
@@ -3180,7 +3180,7 @@
      "slug": "will-ahmad-vahidi-attend-a-us-x-iran-diplomatic-meeting-by-december-31-2026-20260812154221274",
      "prob_yes": 0.0525,
      "volume24hr": 50.0,
-     "liquidity": 30718.77,
+     "liquidity": 29520.19,
      "end_date": "2027-01-01"
     },
     {
@@ -3189,7 +3189,7 @@
      "slug": "will-rafael-grossi-attend-a-us-x-iran-diplomatic-meeting-by-december-31-2026-20260812154221279",
      "prob_yes": 0.125,
      "volume24hr": 50.0,
-     "liquidity": 14401.09,
+     "liquidity": 14360.09,
      "end_date": "2027-01-01"
     },
     {
@@ -3198,16 +3198,16 @@
      "slug": "will-mojtaba-khamenei-attend-a-us-x-iran-diplomatic-meeting-by-december-31-2026-20260812154221270",
      "prob_yes": 0.039,
      "volume24hr": 23.08,
-     "liquidity": 25489.13,
+     "liquidity": 23792.11,
      "end_date": "2027-06-23"
     },
     {
      "id": "3553880",
      "question": "Will Donald Trump attend a US x Iran diplomatic meeting by December 31, 2026?",
      "slug": "will-donald-trump-attend-a-us-x-iran-diplomatic-meeting-by-december-31-2026-20260812154221262",
-     "prob_yes": 0.101,
+     "prob_yes": 0.0935,
      "volume24hr": 0.0,
-     "liquidity": 19260.31,
+     "liquidity": 18979.33,
      "end_date": "2027-01-01"
     },
     {
@@ -3216,7 +3216,7 @@
      "slug": "will-jptdpt-vance-attend-a-us-x-iran-diplomatic-meeting-by-december-31-2026-20260812154221264",
      "prob_yes": 0.165,
      "volume24hr": 0.0,
-     "liquidity": 15383.12,
+     "liquidity": 14635.91,
      "end_date": "2027-01-01"
     },
     {
@@ -3225,7 +3225,7 @@
      "slug": "will-pete-hegseth-attend-a-us-x-iran-diplomatic-meeting-by-december-31-2026-20260812154221267",
      "prob_yes": 0.065,
      "volume24hr": 0.0,
-     "liquidity": 27760.89,
+     "liquidity": 27493.33,
      "end_date": "2027-06-23"
     }
    ]
@@ -3240,8 +3240,8 @@
    "end_date": "2026-12-31",
    "volume24hr": 12539.28,
    "volume": 93798.69,
-   "liquidity": 268134.36,
-   "open_interest": 12762.02,
+   "liquidity": 268753.84,
+   "open_interest": 12766.09,
    "icon": "https://polymarket-upload.s3.us-east-2.amazonaws.com/us-x-iran-meeting-by-9btZGbUg-ikA.jpg",
    "markets": [
     {
@@ -3249,8 +3249,8 @@
      "question": "Will no qualifying US-Iran senior diplomatic meeting take place by December 31, 2026?",
      "slug": "will-no-qualifying-diplomatic-us-iran-meeting-occur-by-september-30-2026-20260622185050763-copy",
      "prob_yes": 0.31,
-     "volume24hr": 5749.91,
-     "liquidity": 53416.21,
+     "volume24hr": 5355.91,
+     "liquidity": 53539.97,
      "end_date": "2027-01-01"
     },
     {
@@ -3258,17 +3258,17 @@
      "question": "Will the next US-Iran senior diplomatic meeting take place in the United States by December 31, 2026?",
      "slug": "will-the-next-diplomatic-us-iran-meeting-be-in-the-united-states-by-september-30-2026-20260622185050772-copy",
      "prob_yes": 0.09,
-     "volume24hr": 4041.86,
-     "liquidity": 19654.15,
+     "volume24hr": 3653.67,
+     "liquidity": 19665.25,
      "end_date": "2027-01-01"
     },
     {
      "id": "4867871",
      "question": "Will the next US-Iran senior diplomatic meeting take place in Qatar by December 31, 2026?",
      "slug": "will-the-next-diplomatic-us-iran-meeting-be-in-qatar-by-september-30-2026-20260622185050767-copy",
-     "prob_yes": 0.2145,
+     "prob_yes": 0.2155,
      "volume24hr": 1712.7,
-     "liquidity": 1617.98,
+     "liquidity": 1555.09,
      "end_date": "2027-01-01"
     },
     {
@@ -3295,16 +3295,16 @@
      "slug": "will-the-next-diplomatic-us-iran-meeting-be-in-pakistan-by-september-30-2026-20260622185050777-copy",
      "prob_yes": 0.0515,
      "volume24hr": 212.66,
-     "liquidity": 15464.79,
+     "liquidity": 15492.7,
      "end_date": "2027-01-01"
     },
     {
      "id": "4867891",
      "question": "Will the next US-Iran senior diplomatic meeting take place in another country by December 31, 2026?",
      "slug": "will-the-next-diplomatic-us-iran-meeting-be-in-another-country-by-september-30-2026-20260622185050781-copy",
-     "prob_yes": 0.0165,
+     "prob_yes": 0.017,
      "volume24hr": 101.54,
-     "liquidity": 13209.1,
+     "liquidity": 13210.1,
      "end_date": "2027-01-01"
     },
     {
@@ -3322,7 +3322,7 @@
      "slug": "will-the-next-diplomatic-us-iran-meeting-be-in-oman-by-september-30-2026-20260622185050764-copy",
      "prob_yes": 0.0365,
      "volume24hr": 10.03,
-     "liquidity": 916.79,
+     "liquidity": 919.92,
      "end_date": "2027-01-01"
     },
     {
@@ -3338,9 +3338,9 @@
      "id": "4867872",
      "question": "Will the next US-Iran senior diplomatic meeting take place in Switzerland by December 31, 2026?",
      "slug": "will-the-next-diplomatic-us-iran-meeting-be-in-switzerland-by-september-30-2026-20260622185050768-copy",
-     "prob_yes": 0.0425,
+     "prob_yes": 0.043,
      "volume24hr": 9.05,
-     "liquidity": 897.29,
+     "liquidity": 890.91,
      "end_date": "2027-01-01"
     },
     {
@@ -3362,10 +3362,10 @@
    "series": "trump-putin-meet-where",
    "neg_risk": true,
    "end_date": "2027-01-01",
-   "volume24hr": 12476.16,
-   "volume": 1636570.14,
-   "liquidity": 631407.98,
-   "open_interest": 123151.44,
+   "volume24hr": 12526.16,
+   "volume": 1636620.14,
+   "liquidity": 632881.3,
+   "open_interest": 123075.8,
    "icon": "https://polymarket-upload.s3.us-east-2.amazonaws.com/where-will-the-next-meeting-between-trump-and-putin-take-plce-ksaAP8PAZSZb.jpg",
    "markets": [
     {
@@ -3373,8 +3373,8 @@
      "question": "Will Trump and Putin meet next in China?",
      "slug": "will-trump-and-putin-meet-next-in-china-784",
      "prob_yes": 0.685,
-     "volume24hr": 5711.4,
-     "liquidity": 41062.66,
+     "volume24hr": 5761.4,
+     "liquidity": 39534.25,
      "end_date": "2027-01-01"
     },
     {
@@ -3383,7 +3383,7 @@
      "slug": "will-trump-and-putin-not-meet-432",
      "prob_yes": 0.225,
      "volume24hr": 2811.24,
-     "liquidity": 43546.45,
+     "liquidity": 44819.09,
      "end_date": "2027-01-01"
     },
     {
@@ -3392,16 +3392,16 @@
      "slug": "will-trump-and-putin-meet-next-in-another-eu-country",
      "prob_yes": 0.0015,
      "volume24hr": 2255.69,
-     "liquidity": 61835.87,
+     "liquidity": 62191.37,
      "end_date": "2027-01-01"
     },
     {
      "id": "2364952",
      "question": "Will Trump and Putin meet next in Switzerland?",
      "slug": "will-trump-and-putin-meet-next-in-switzerland",
-     "prob_yes": 0.0035,
+     "prob_yes": 0.004,
      "volume24hr": 467.43,
-     "liquidity": 48621.16,
+     "liquidity": 48398.45,
      "end_date": "2027-01-01"
     },
     {
@@ -3410,7 +3410,7 @@
      "slug": "will-trump-and-putin-meet-next-in-belarus-129",
      "prob_yes": 0.005,
      "volume24hr": 446.94,
-     "liquidity": 23919.54,
+     "liquidity": 24559.24,
      "end_date": "2027-01-01"
     },
     {
@@ -3419,7 +3419,7 @@
      "slug": "will-trump-and-putin-meet-next-in-a-gulf-country",
      "prob_yes": 0.0135,
      "volume24hr": 341.56,
-     "liquidity": 41140.94,
+     "liquidity": 40766.23,
      "end_date": "2027-01-01"
     },
     {
@@ -3428,16 +3428,16 @@
      "slug": "will-trump-and-putin-meet-next-in-finland",
      "prob_yes": 0.002,
      "volume24hr": 205.25,
-     "liquidity": 69593.0,
+     "liquidity": 69573.41,
      "end_date": "2027-01-01"
     },
     {
      "id": "2364950",
      "question": "Will Trump and Putin meet next in Turkey?",
      "slug": "will-trump-and-putin-meet-next-in-turkey-213",
-     "prob_yes": 0.006,
+     "prob_yes": 0.0065,
      "volume24hr": 96.54,
-     "liquidity": 39819.75,
+     "liquidity": 39511.29,
      "end_date": "2027-01-01"
     },
     {
@@ -3446,7 +3446,7 @@
      "slug": "will-trump-and-putin-meet-next-in-russia-991",
      "prob_yes": 0.006,
      "volume24hr": 58.0,
-     "liquidity": 41072.73,
+     "liquidity": 41072.3,
      "end_date": "2027-01-01"
     },
     {
@@ -3455,7 +3455,7 @@
      "slug": "will-trump-and-putin-meet-next-in-united-states",
      "prob_yes": 0.0525,
      "volume24hr": 43.61,
-     "liquidity": 32875.33,
+     "liquidity": 33444.47,
      "end_date": "2027-01-01"
     },
     {
@@ -3464,7 +3464,7 @@
      "slug": "will-trump-and-putin-meet-next-in-another-country-749",
      "prob_yes": 0.004,
      "volume24hr": 38.51,
-     "liquidity": 34648.9,
+     "liquidity": 34650.08,
      "end_date": "2027-01-01"
     },
     {
@@ -3473,7 +3473,7 @@
      "slug": "will-trump-and-putin-meet-next-in-south-korea",
      "prob_yes": 0.0005,
      "volume24hr": 0.0,
-     "liquidity": 35608.24,
+     "liquidity": 36322.24,
      "end_date": "2027-01-01"
     }
    ]
@@ -3488,8 +3488,8 @@
    "end_date": "2026-10-01",
    "volume24hr": 8598.51,
    "volume": 1426850.16,
-   "liquidity": 153826.36,
-   "open_interest": 115852.09,
+   "liquidity": 153878.78,
+   "open_interest": 115734.3,
    "icon": "https://polymarket-upload.s3.us-east-2.amazonaws.com/us-iran-hormuz-agreement-byptptpt-20260803235957575-P9NU_cJydPqS.png",
    "markets": [
     {
@@ -3497,8 +3497,8 @@
      "question": "US-Iran Hormuz Agreement by September 30?",
      "slug": "us-iran-hormuz-agreement-by-september-30",
      "prob_yes": 0.017,
-     "volume24hr": 6410.11,
-     "liquidity": 43105.71,
+     "volume24hr": 5978.56,
+     "liquidity": 44827.26,
      "end_date": "2026-10-01"
     },
     {
@@ -3507,7 +3507,7 @@
      "slug": "us-iran-hormuz-agreement-by-october-31",
      "prob_yes": 0.335,
      "volume24hr": 1121.6,
-     "liquidity": 27777.42,
+     "liquidity": 27758.02,
      "end_date": "2026-11-01"
     },
     {
@@ -3516,7 +3516,7 @@
      "slug": "us-iran-hormuz-agreement-by-november-30",
      "prob_yes": 0.38,
      "volume24hr": 480.96,
-     "liquidity": 17360.63,
+     "liquidity": 17362.03,
      "end_date": "2026-12-01"
     },
     {
@@ -3525,7 +3525,7 @@
      "slug": "us-iran-hormuz-agreement-by-october-7",
      "prob_yes": 0.055,
      "volume24hr": 317.92,
-     "liquidity": 17293.99,
+     "liquidity": 17584.15,
      "end_date": "2026-10-08"
     },
     {
@@ -3534,7 +3534,7 @@
      "slug": "us-iran-hormuz-agreement-by-december-31",
      "prob_yes": 0.565,
      "volume24hr": 159.98,
-     "liquidity": 30774.81,
+     "liquidity": 30737.89,
      "end_date": "2027-01-01"
     },
     {
@@ -3543,7 +3543,7 @@
      "slug": "us-iran-hormuz-agreement-by-october-15",
      "prob_yes": 0.155,
      "volume24hr": 107.94,
-     "liquidity": 16328.85,
+     "liquidity": 16506.08,
      "end_date": "2026-10-16"
     }
    ]
@@ -3558,7 +3558,7 @@
    "end_date": "2026-11-01",
    "volume24hr": 8240.27,
    "volume": 2735720.47,
-   "liquidity": 53935.82,
+   "liquidity": 55611.83,
    "open_interest": 257370.1,
    "icon": "https://polymarket-upload.s3.us-east-2.amazonaws.com/iran-oman-hormuz-agreement-byptptpt-20260804222546205-sBj_3dnyimNp.jpg",
    "markets": [
@@ -3567,8 +3567,8 @@
      "question": "Iran-Oman Hormuz Agreement by September 30?",
      "slug": "iran-oman-hormuz-agreement-by-september-30-823-929",
      "prob_yes": 0.031,
-     "volume24hr": 5753.86,
-     "liquidity": 26773.2,
+     "volume24hr": 5755.98,
+     "liquidity": 26148.29,
      "end_date": "2026-10-01"
     },
     {
@@ -3577,7 +3577,7 @@
      "slug": "iran-oman-hormuz-agreement-by-october-31",
      "prob_yes": 0.26,
      "volume24hr": 2486.41,
-     "liquidity": 28149.87,
+     "liquidity": 28076.39,
      "end_date": "2026-10-31"
     }
    ]
@@ -3592,7 +3592,7 @@
    "end_date": "2027-01-01",
    "volume24hr": 8137.2,
    "volume": 594385.12,
-   "liquidity": 38269.2,
+   "liquidity": 38437.24,
    "open_interest": 75056.9,
    "icon": "https://polymarket-upload.s3.us-east-2.amazonaws.com/will-iran-withdraw-from-the-npt-before-august-zsPmD4RHKNiN.jpg",
    "markets": [
@@ -3601,8 +3601,8 @@
      "question": "Will Iran withdraw from the NPT before 2027?",
      "slug": "will-iran-withdraw-from-the-npt-before-2027",
      "prob_yes": 0.0985,
-     "volume24hr": 8137.2,
-     "liquidity": 34473.5,
+     "volume24hr": 6183.1,
+     "liquidity": 38756.23,
      "end_date": "2027-01-01"
     }
    ]
@@ -3617,35 +3617,35 @@
    "end_date": "2028-01-01",
    "volume24hr": 6960.13,
    "volume": 6960.13,
-   "liquidity": 247706.58,
-   "open_interest": 1412.47,
+   "liquidity": 247519.56,
+   "open_interest": 1455.15,
    "icon": "https://polymarket-upload.s3.us-east-2.amazonaws.com/russia-x-ukraine-diplomatic-meeting-by-2anNp08yc15i.jpg",
    "markets": [
     {
      "id": "5105094",
      "question": "Will no qualifying Russia x Ukraine peace talks take place by December 31, 2027?",
      "slug": "will-no-qualifying-russia-x-ukraine-peace-talks-take-place-by-december-31-2027",
-     "prob_yes": 0.175,
+     "prob_yes": 0.17,
      "volume24hr": 1488.01,
-     "liquidity": 13773.37,
+     "liquidity": 13502.62,
      "end_date": "2028-01-01"
     },
     {
      "id": "5105110",
      "question": "Will the next Russia x Ukraine peace talks take place in the UAE by December 31, 2027?",
      "slug": "will-the-next-russia-x-ukraine-peace-talks-take-place-in-the-uae-by-december-31-2027",
-     "prob_yes": 0.395,
+     "prob_yes": 0.39,
      "volume24hr": 908.53,
-     "liquidity": 400.68,
+     "liquidity": 350.47,
      "end_date": "2028-01-01"
     },
     {
      "id": "5105139",
      "question": "Will the next Russia x Ukraine peace talks take place in another country by December 31, 2027?",
      "slug": "will-the-next-russia-x-ukraine-peace-talks-take-place-in-another-country-by-december-31-2027",
-     "prob_yes": 0.195,
+     "prob_yes": 0.22,
      "volume24hr": 271.45,
-     "liquidity": 1727.07,
+     "liquidity": 1640.95,
      "end_date": "2028-01-01"
     },
     {
@@ -3654,7 +3654,7 @@
      "slug": "will-the-next-russia-x-ukraine-peace-talks-take-place-in-turkey-by-december-31-2027",
      "prob_yes": 0.08,
      "volume24hr": 258.96,
-     "liquidity": 12941.42,
+     "liquidity": 12852.72,
      "end_date": "2028-01-01"
     },
     {
@@ -3663,7 +3663,7 @@
      "slug": "will-the-next-russia-x-ukraine-peace-talks-take-place-in-belarus-by-december-31-2027",
      "prob_yes": 0.0345,
      "volume24hr": 234.32,
-     "liquidity": 12590.53,
+     "liquidity": 12595.34,
      "end_date": "2028-01-01"
     },
     {
@@ -3672,7 +3672,7 @@
      "slug": "will-the-next-russia-x-ukraine-peace-talks-take-place-in-switzerland-by-december-31-2027",
      "prob_yes": 0.035,
      "volume24hr": 213.1,
-     "liquidity": 12771.51,
+     "liquidity": 12764.53,
      "end_date": "2028-01-01"
     },
     {
@@ -3681,7 +3681,7 @@
      "slug": "will-the-next-russia-x-ukraine-peace-talks-take-place-in-italy-by-december-31-2027",
      "prob_yes": 0.021,
      "volume24hr": 209.22,
-     "liquidity": 12574.9,
+     "liquidity": 12635.64,
      "end_date": "2028-01-01"
     },
     {
@@ -3690,7 +3690,7 @@
      "slug": "will-the-next-russia-x-ukraine-peace-talks-take-place-in-saudi-arabia-by-december-31-2027",
      "prob_yes": 0.035,
      "volume24hr": 201.17,
-     "liquidity": 12695.63,
+     "liquidity": 12705.8,
      "end_date": "2028-01-01"
     },
     {
@@ -3699,16 +3699,16 @@
      "slug": "will-the-next-russia-x-ukraine-peace-talks-take-place-in-qatar-by-december-31-2027",
      "prob_yes": 0.0295,
      "volume24hr": 190.32,
-     "liquidity": 12630.0,
+     "liquidity": 12603.99,
      "end_date": "2028-01-01"
     },
     {
      "id": "5105101",
      "question": "Will the next Russia x Ukraine peace talks take place in China by December 31, 2027?",
      "slug": "will-the-next-russia-x-ukraine-peace-talks-take-place-in-china-by-december-31-2027",
-     "prob_yes": 0.1935,
+     "prob_yes": 0.112,
      "volume24hr": 180.31,
-     "liquidity": 328.21,
+     "liquidity": 231.82,
      "end_date": "2028-01-01"
     },
     {
@@ -3717,7 +3717,7 @@
      "slug": "will-the-next-russia-x-ukraine-peace-talks-take-place-in-vatican-city-by-december-31-2027",
      "prob_yes": 0.081,
      "volume24hr": 180.31,
-     "liquidity": 222.02,
+     "liquidity": 196.4,
      "end_date": "2028-01-01"
     },
     {
@@ -3726,7 +3726,7 @@
      "slug": "will-the-next-russia-x-ukraine-peace-talks-take-place-in-the-united-states-by-december-31-2027",
      "prob_yes": 0.035,
      "volume24hr": 180.31,
-     "liquidity": 12557.31,
+     "liquidity": 12557.63,
      "end_date": "2028-01-01"
     }
    ]
@@ -3741,7 +3741,7 @@
    "end_date": "2027-01-01",
    "volume24hr": 6067.51,
    "volume": 17985280.36,
-   "liquidity": 143856.44,
+   "liquidity": 140796.79,
    "open_interest": 268588.25,
    "icon": "https://polymarket-upload.s3.us-east-2.amazonaws.com/iran-agrees-to-end-enrichment-of-uranium-before-july-G-riWTpXuKoj.jpg",
    "markets": [
@@ -3751,7 +3751,7 @@
      "slug": "iran-agrees-to-surrender-enriched-uranium-stockpile-by-december-31-2026-752-299",
      "prob_yes": 0.065,
      "volume24hr": 6067.51,
-     "liquidity": 63259.11,
+     "liquidity": 63475.4,
      "end_date": "2027-01-01"
     },
     {
@@ -3760,7 +3760,7 @@
      "slug": "iran-agrees-to-surrender-enriched-uranium-stockpile-by-october-31-2026",
      "prob_yes": 0.0385,
      "volume24hr": 0.0,
-     "liquidity": 76910.61,
+     "liquidity": 76279.31,
      "end_date": "2026-11-01"
     }
    ]
@@ -3773,10 +3773,10 @@
    "series": "russia-x-ukraine-diplomatic-meeting",
    "neg_risk": false,
    "end_date": "2027-01-01",
-   "volume24hr": 5684.79,
-   "volume": 328955.71,
-   "liquidity": 83465.94,
-   "open_interest": 97809.44,
+   "volume24hr": 5717.79,
+   "volume": 328988.71,
+   "liquidity": 83196.77,
+   "open_interest": 97842.44,
    "icon": "https://polymarket-upload.s3.us-east-2.amazonaws.com/russia-x-ukraine-diplomatic-meeting-by-2anNp08yc15i.jpg",
    "markets": [
     {
@@ -3785,7 +3785,7 @@
      "slug": "will-russia-and-ukraine-hold-any-diplomatic-meeting-by-october-31-2026",
      "prob_yes": 0.695,
      "volume24hr": 3134.17,
-     "liquidity": 34256.48,
+     "liquidity": 34043.28,
      "end_date": "2026-11-01"
     },
     {
@@ -3793,8 +3793,8 @@
      "question": "Will Russia and Ukraine hold any diplomatic meeting by September 30, 2026?",
      "slug": "will-russia-and-ukraine-hold-any-diplomatic-meeting-by-september-30-2026-20260819-521",
      "prob_yes": 0.05,
-     "volume24hr": 1563.82,
-     "liquidity": 20204.28,
+     "volume24hr": 1596.82,
+     "liquidity": 20252.48,
      "end_date": "2026-10-01"
     },
     {
@@ -3803,16 +3803,16 @@
      "slug": "will-russia-and-ukraine-hold-any-diplomatic-meeting-by-december-31-2026-20260819-697-428",
      "prob_yes": 0.875,
      "volume24hr": 530.22,
-     "liquidity": 27417.29,
+     "liquidity": 27469.15,
      "end_date": "2027-01-01"
     },
     {
      "id": "5080436",
      "question": "Will Russia and Ukraine hold any diplomatic meeting by October 15, 2026?",
      "slug": "will-russia-and-ukraine-hold-any-diplomatic-meeting-by-october-15-2026",
-     "prob_yes": 0.46,
+     "prob_yes": 0.45,
      "volume24hr": 456.59,
-     "liquidity": 1718.75,
+     "liquidity": 1723.81,
      "end_date": "2026-10-16"
     }
    ]
@@ -3827,7 +3827,7 @@
    "end_date": "2028-01-01",
    "volume24hr": 5165.45,
    "volume": 3284460.84,
-   "liquidity": 212462.53,
+   "liquidity": 212462.58,
    "open_interest": 1115599.74,
    "icon": "https://polymarket-upload.s3.us-east-2.amazonaws.com/china-invades-taiwan-in-2025-CCSd9dX2mrea.jpg",
    "markets": [
@@ -3837,7 +3837,7 @@
      "slug": "will-china-invade-taiwan-by-december-31-2027",
      "prob_yes": 0.125,
      "volume24hr": 5165.45,
-     "liquidity": 212462.58,
+     "liquidity": 212462.53,
      "end_date": "2028-01-01"
     }
    ]
@@ -3852,7 +3852,7 @@
    "end_date": "2027-01-01",
    "volume24hr": 3790.77,
    "volume": 3331837.74,
-   "liquidity": 87953.85,
+   "liquidity": 89193.59,
    "open_interest": 751875.94,
    "icon": "https://polymarket-upload.s3.us-east-2.amazonaws.com/zelenskyy-out-as-ukraine-president-by-october-31-vvfzvJSdhPij.jpg",
    "markets": [
@@ -3862,42 +3862,8 @@
      "slug": "zelenskyy-out-as-ukraine-president-before-2027",
      "prob_yes": 0.065,
      "volume24hr": 3790.77,
-     "liquidity": 89483.93,
+     "liquidity": 89601.99,
      "end_date": "2027-01-01"
-    }
-   ]
-  },
-  {
-   "id": "25413",
-   "slug": "will-russia-invade-a-nato-country-in-2025",
-   "title": "Will Russia invade a NATO country by...?",
-   "category": "geo",
-   "series": null,
-   "neg_risk": false,
-   "end_date": "2027-01-01",
-   "volume24hr": 1962.38,
-   "volume": 5485658.84,
-   "liquidity": 68067.15,
-   "open_interest": 247680.02,
-   "icon": "https://polymarket-upload.s3.us-east-2.amazonaws.com/will-russia-invade-a-nato-country-in-2025-VY0jfZfvLhyJ.jpg",
-   "markets": [
-    {
-     "id": "2749367",
-     "question": "Will Russia invade a NATO country by December 31, 2026?",
-     "slug": "will-russia-invade-a-nato-country-by-december-31-2026-793",
-     "prob_yes": 0.055,
-     "volume24hr": 1962.38,
-     "liquidity": 57162.61,
-     "end_date": "2027-01-01"
-    },
-    {
-     "id": "4713849",
-     "question": "Will Russia invade a NATO country by September 30, 2026?",
-     "slug": "will-russia-invade-a-nato-country-by-september-31-2026",
-     "prob_yes": 0.0015,
-     "volume24hr": 0.0,
-     "liquidity": 10904.54,
-     "end_date": "2026-10-01"
     }
    ]
   },
@@ -3911,7 +3877,7 @@
    "end_date": "2027-01-01",
    "volume24hr": 1908.11,
    "volume": 826827.29,
-   "liquidity": 37574.87,
+   "liquidity": 37480.47,
    "open_interest": 215678.81,
    "icon": "https://polymarket-upload.s3.us-east-2.amazonaws.com/will-ukraine-agree-to-cede-territory-to-russia-Cu1RIKFPKl3v.jpg",
    "markets": [
@@ -3921,7 +3887,7 @@
      "slug": "will-ukraine-agree-to-cede-territory-to-russia-before-2027",
      "prob_yes": 0.07,
      "volume24hr": 1908.11,
-     "liquidity": 37574.87,
+     "liquidity": 37457.43,
      "end_date": "2027-01-01"
     }
    ]
@@ -3936,7 +3902,7 @@
    "end_date": "2027-01-01",
    "volume24hr": 1541.44,
    "volume": 818434.85,
-   "liquidity": 386473.51,
+   "liquidity": 388154.8,
    "open_interest": 136467.01,
    "icon": "https://polymarket-upload.s3.us-east-2.amazonaws.com/which-countries-will-recognize-israel-by-june-30-A3GnpL5vZoZL.jpg",
    "markets": [
@@ -3944,9 +3910,9 @@
      "id": "2412367",
      "question": "Will Venezuela recognize Israel by December 31?",
      "slug": "will-venezuela-recognize-israel-by-december-31",
-     "prob_yes": 0.125,
+     "prob_yes": 0.12,
      "volume24hr": 1391.14,
-     "liquidity": 21255.52,
+     "liquidity": 21325.46,
      "end_date": "2027-01-01"
     },
     {
@@ -3955,7 +3921,7 @@
      "slug": "will-tunisia-recognize-israel-by-december-31",
      "prob_yes": 0.055,
      "volume24hr": 93.96,
-     "liquidity": 22608.43,
+     "liquidity": 22440.14,
      "end_date": "2027-01-01"
     },
     {
@@ -3964,7 +3930,7 @@
      "slug": "will-lebanon-recognize-israel-by-december-31",
      "prob_yes": 0.105,
      "volume24hr": 50.0,
-     "liquidity": 19228.88,
+     "liquidity": 18979.42,
      "end_date": "2027-01-01"
     },
     {
@@ -3973,7 +3939,7 @@
      "slug": "will-bangladesh-recognize-israel-by-december-31",
      "prob_yes": 0.0145,
      "volume24hr": 6.14,
-     "liquidity": 25120.42,
+     "liquidity": 25312.75,
      "end_date": "2027-01-01"
     },
     {
@@ -3982,7 +3948,7 @@
      "slug": "will-qatar-recognize-israel-by-december-31",
      "prob_yes": 0.023,
      "volume24hr": 0.2,
-     "liquidity": 23000.95,
+     "liquidity": 23272.32,
      "end_date": "2027-01-01"
     },
     {
@@ -3991,7 +3957,7 @@
      "slug": "will-north-korea-recognize-israel-by-december-31",
      "prob_yes": 0.0335,
      "volume24hr": 0.0,
-     "liquidity": 28233.96,
+     "liquidity": 28199.44,
      "end_date": "2027-01-01"
     },
     {
@@ -4000,16 +3966,16 @@
      "slug": "will-cuba-recognize-israel-by-december-31",
      "prob_yes": 0.0335,
      "volume24hr": 0.0,
-     "liquidity": 26260.17,
+     "liquidity": 26266.78,
      "end_date": "2027-01-01"
     },
     {
      "id": "2412361",
      "question": "Will Saudi Arabia recognize Israel by December 31?",
      "slug": "will-saudi-arabia-recognize-israel-by-december-31",
-     "prob_yes": 0.083,
+     "prob_yes": 0.0835,
      "volume24hr": 0.0,
-     "liquidity": 26492.4,
+     "liquidity": 26424.66,
      "end_date": "2027-01-01"
     },
     {
@@ -4018,7 +3984,7 @@
      "slug": "will-afghanistan-recognize-israel-by-december-31",
      "prob_yes": 0.0325,
      "volume24hr": 0.0,
-     "liquidity": 26038.37,
+     "liquidity": 26170.25,
      "end_date": "2027-01-01"
     },
     {
@@ -4027,7 +3993,7 @@
      "slug": "will-iraq-recognize-israel-by-december-31",
      "prob_yes": 0.0355,
      "volume24hr": 0.0,
-     "liquidity": 28206.35,
+     "liquidity": 28235.85,
      "end_date": "2027-01-01"
     },
     {
@@ -4036,7 +4002,7 @@
      "slug": "will-pakistan-recognize-israel-by-december-31",
      "prob_yes": 0.045,
      "volume24hr": 0.0,
-     "liquidity": 23595.65,
+     "liquidity": 23922.42,
      "end_date": "2027-01-01"
     },
     {
@@ -4045,7 +4011,7 @@
      "slug": "will-syria-recognize-israel-by-december-31",
      "prob_yes": 0.045,
      "volume24hr": 0.0,
-     "liquidity": 20735.32,
+     "liquidity": 20687.24,
      "end_date": "2027-01-01"
     }
    ]
@@ -4060,7 +4026,7 @@
    "end_date": "2027-01-01",
    "volume24hr": 1466.32,
    "volume": 2823350.44,
-   "liquidity": 58580.03,
+   "liquidity": 56998.2,
    "open_interest": 279190.69,
    "icon": "https://polymarket-upload.s3.us-east-2.amazonaws.com/ukraine-signs-peace-deal-with-russia-in-2025-WeLU-mVDz9Ox.png",
    "markets": [
@@ -4070,7 +4036,7 @@
      "slug": "ukraine-signs-peace-deal-with-russia-before-2027",
      "prob_yes": 0.065,
      "volume24hr": 1466.32,
-     "liquidity": 58570.03,
+     "liquidity": 58382.66,
      "end_date": "2027-01-01"
     }
    ]
@@ -4083,19 +4049,19 @@
    "series": "israel-military-action-against-lebanon",
    "neg_risk": false,
    "end_date": "2026-10-01",
-   "volume24hr": 1192.64,
-   "volume": 565336.11,
-   "liquidity": 27802.3,
-   "open_interest": 1510.49,
+   "volume24hr": 1347.73,
+   "volume": 565491.21,
+   "liquidity": 27591.49,
+   "open_interest": 1645.59,
    "icon": "https://polymarket-upload.s3.us-east-2.amazonaws.com/will-israel-strike-lebanon-on-431-QKZtCmgXI6x8.jpg",
    "markets": [
     {
      "id": "4178272",
      "question": "Israel military action against Lebanon on September 29?",
      "slug": "israel-military-action-against-lebanon-on-september-29-20260903",
-     "prob_yes": 0.9845,
-     "volume24hr": 1071.09,
-     "liquidity": 15185.48,
+     "prob_yes": 0.981,
+     "volume24hr": 1226.18,
+     "liquidity": 15183.26,
      "end_date": "2026-09-29"
     },
     {
@@ -4104,7 +4070,7 @@
      "slug": "israel-military-action-against-lebanon-on-september-30-20260903",
      "prob_yes": 0.95,
      "volume24hr": 121.55,
-     "liquidity": 12463.67,
+     "liquidity": 12462.87,
      "end_date": "2026-09-30"
     }
    ]
@@ -4129,7 +4095,7 @@
      "slug": "russia-x-ukraine-peace-parlay",
      "prob_yes": 0.0305,
      "volume24hr": 1186.47,
-     "liquidity": 12416.29,
+     "liquidity": 11916.59,
      "end_date": "2027-01-01"
     }
    ]
@@ -4144,7 +4110,7 @@
    "end_date": "2027-01-01",
    "volume24hr": 1013.91,
    "volume": 2275276.38,
-   "liquidity": 9704.53,
+   "liquidity": 9738.85,
    "open_interest": 7331.12,
    "icon": "https://polymarket-upload.s3.us-east-2.amazonaws.com/will-russia-capture-all-of-stepnohirsk-by-Gxw3aVVKySzJ.jpg",
    "markets": [
@@ -4152,9 +4118,9 @@
      "id": "2676528",
      "question": "Will Russia capture all of Stepnohirsk by December 31, 2026?",
      "slug": "will-russia-capture-all-of-stepnohirsk-by-december-31-2026",
-     "prob_yes": 0.135,
+     "prob_yes": 0.13,
      "volume24hr": 1013.91,
-     "liquidity": 1690.22,
+     "liquidity": 818.67,
      "end_date": "2027-01-01"
     },
     {
@@ -4178,7 +4144,7 @@
    "end_date": "2027-01-01",
    "volume24hr": 852.16,
    "volume": 8471906.25,
-   "liquidity": 91100.44,
+   "liquidity": 92667.42,
    "open_interest": 102823.83,
    "icon": "https://polymarket-upload.s3.us-east-2.amazonaws.com/israel-withdraws-from-lebanon-by-iSLvDOMpOkAG.jpg",
    "markets": [
@@ -4188,7 +4154,7 @@
      "slug": "israel-withdraws-from-lebanon-by-september-30-2026",
      "prob_yes": 0.006,
      "volume24hr": 515.4,
-     "liquidity": 37405.39,
+     "liquidity": 38885.15,
      "end_date": "2026-10-01"
     },
     {
@@ -4197,7 +4163,7 @@
      "slug": "israel-withdraws-from-lebanon-by-december-31-2026",
      "prob_yes": 0.045,
      "volume24hr": 336.76,
-     "liquidity": 53694.79,
+     "liquidity": 53769.21,
      "end_date": "2027-01-01"
     }
    ]
@@ -4237,7 +4203,7 @@
    "end_date": "2027-01-01",
    "volume24hr": 470.0,
    "volume": 577577.97,
-   "liquidity": 46298.89,
+   "liquidity": 46295.68,
    "open_interest": 267694.41,
    "icon": "https://polymarket-upload.s3.us-east-2.amazonaws.com/will-russia-invade-another-country-in-2026-OCAAnJhYXFy5.jpg",
    "markets": [
@@ -4247,8 +4213,42 @@
      "slug": "will-russia-invade-another-country-in-2026",
      "prob_yes": 0.065,
      "volume24hr": 470.0,
-     "liquidity": 46298.89,
+     "liquidity": 46295.68,
      "end_date": "2027-01-01"
+    }
+   ]
+  },
+  {
+   "id": "25413",
+   "slug": "will-russia-invade-a-nato-country-in-2025",
+   "title": "Will Russia invade a NATO country by...?",
+   "category": "geo",
+   "series": null,
+   "neg_risk": false,
+   "end_date": "2027-01-01",
+   "volume24hr": 363.22,
+   "volume": 5485658.84,
+   "liquidity": 68067.14,
+   "open_interest": 247680.02,
+   "icon": "https://polymarket-upload.s3.us-east-2.amazonaws.com/will-russia-invade-a-nato-country-in-2025-VY0jfZfvLhyJ.jpg",
+   "markets": [
+    {
+     "id": "2749367",
+     "question": "Will Russia invade a NATO country by December 31, 2026?",
+     "slug": "will-russia-invade-a-nato-country-by-december-31-2026-793",
+     "prob_yes": 0.055,
+     "volume24hr": 363.22,
+     "liquidity": 57162.61,
+     "end_date": "2027-01-01"
+    },
+    {
+     "id": "4713849",
+     "question": "Will Russia invade a NATO country by September 30, 2026?",
+     "slug": "will-russia-invade-a-nato-country-by-september-31-2026",
+     "prob_yes": 0.0015,
+     "volume24hr": 0.0,
+     "liquidity": 10904.54,
+     "end_date": "2026-10-01"
     }
    ]
   },
@@ -4260,9 +4260,9 @@
    "series": null,
    "neg_risk": false,
    "end_date": "2027-01-01",
-   "volume24hr": 216.39,
+   "volume24hr": 209.25,
    "volume": 552613.93,
-   "liquidity": 117740.05,
+   "liquidity": 117357.21,
    "open_interest": 8780.37,
    "icon": "https://polymarket-upload.s3.us-east-2.amazonaws.com/who-will-visit-ukraine-by-december-31-20260729205841876-HL_PGuhPaChx.jpg",
    "markets": [
@@ -4272,16 +4272,16 @@
      "slug": "will-emmanuel-macron-visit-ukraine-by-december-31-2026-20260729210126054",
      "prob_yes": 0.22,
      "volume24hr": 89.92,
-     "liquidity": 10528.41,
+     "liquidity": 10500.92,
      "end_date": "2027-01-01"
     },
     {
      "id": "3212531",
      "question": "Will Mark Rutte visit Ukraine by December 31, 2026?",
      "slug": "will-mark-rutte-visit-ukraine-by-december-31-2026-20260729210126047",
-     "prob_yes": 0.405,
+     "prob_yes": 0.4,
      "volume24hr": 60.45,
-     "liquidity": 20274.56,
+     "liquidity": 20252.36,
      "end_date": "2027-01-01"
     },
     {
@@ -4289,8 +4289,8 @@
      "question": "Will Ursula von der Leyen visit Ukraine by December 31, 2026?",
      "slug": "will-ursula-von-der-leyen-visit-ukraine-by-december-31-2026-20260729210126046",
      "prob_yes": 0.39,
-     "volume24hr": 40.01,
-     "liquidity": 21150.08,
+     "volume24hr": 32.87,
+     "liquidity": 21102.06,
      "end_date": "2027-01-01"
     },
     {
@@ -4299,16 +4299,16 @@
      "slug": "will-friedrich-merz-visit-ukraine-by-december-31-2026-20260729210126055",
      "prob_yes": 0.68,
      "volume24hr": 26.01,
-     "liquidity": 24849.34,
+     "liquidity": 24860.93,
      "end_date": "2027-01-01"
     },
     {
      "id": "3212541",
      "question": "Will Mark Carney visit Ukraine by December 31, 2026?",
      "slug": "will-mark-carney-visit-ukraine-by-december-31-2026-20260729210126057",
-     "prob_yes": 0.11,
+     "prob_yes": 0.115,
      "volume24hr": 0.0,
-     "liquidity": 12036.18,
+     "liquidity": 11939.15,
      "end_date": "2027-01-01"
     },
     {
@@ -4317,16 +4317,16 @@
      "slug": "will-antonio-guterres-visit-ukraine-by-december-31-2026-20260729210126058",
      "prob_yes": 0.105,
      "volume24hr": 0.0,
-     "liquidity": 10863.63,
+     "liquidity": 10746.98,
      "end_date": "2027-01-01"
     },
     {
      "id": "3212543",
      "question": "Will JD Vance visit Ukraine by December 31, 2026?",
      "slug": "will-jd-vance-visit-ukraine-by-december-31-2026-20260729210126059",
-     "prob_yes": 0.081,
+     "prob_yes": 0.0805,
      "volume24hr": 0.0,
-     "liquidity": 10503.97,
+     "liquidity": 10475.21,
      "end_date": "2027-01-01"
     },
     {
@@ -4335,7 +4335,7 @@
      "slug": "will-donald-trump-visit-ukraine-by-december-31-2026-20260729210126060",
      "prob_yes": 0.043,
      "volume24hr": 0.0,
-     "liquidity": 7618.56,
+     "liquidity": 7398.52,
      "end_date": "2027-01-01"
     }
    ]
@@ -4350,7 +4350,7 @@
    "end_date": "2027-01-01",
    "volume24hr": 185.52,
    "volume": 3403608.36,
-   "liquidity": 125663.97,
+   "liquidity": 125551.88,
    "open_interest": 381638.58,
    "icon": "https://polymarket-upload.s3.us-east-2.amazonaws.com/us-strike-on-cuba-by-EstR5MqlPUOe.jpg",
    "markets": [
@@ -4360,7 +4360,7 @@
      "slug": "will-the-us-invade-cuba-in-2026",
      "prob_yes": 0.055,
      "volume24hr": 185.52,
-     "liquidity": 125373.97,
+     "liquidity": 125551.88,
      "end_date": "2027-01-01"
     }
    ]
@@ -4375,7 +4375,7 @@
    "end_date": "2027-01-01",
    "volume24hr": 129.98,
    "volume": 1216480.22,
-   "liquidity": 16292.72,
+   "liquidity": 16313.32,
    "open_interest": 12890.8,
    "icon": "https://polymarket-upload.s3.us-east-2.amazonaws.com/will-russia-capture-all-of-prymorske-by-jcMx3oA7tIqU.jpg",
    "markets": [
@@ -4394,7 +4394,7 @@
      "slug": "will-russia-capture-all-of-prymorske-by-september-30-2026",
      "prob_yes": 0.0055,
      "volume24hr": 10.0,
-     "liquidity": 10575.79,
+     "liquidity": 10578.7,
      "end_date": "2026-10-01"
     }
    ]
@@ -4419,7 +4419,7 @@
      "slug": "israel-and-indonesia-normalize-relations-by-december-31-2026-618-741",
      "prob_yes": 0.05,
      "volume24hr": 86.89,
-     "liquidity": 11084.58,
+     "liquidity": 11074.58,
      "end_date": "2027-01-01"
     }
    ]
@@ -4434,7 +4434,7 @@
    "end_date": "2027-01-01",
    "volume24hr": 34.48,
    "volume": 1439489.15,
-   "liquidity": 80885.68,
+   "liquidity": 79313.1,
    "open_interest": 161598.59,
    "icon": "https://polymarket-upload.s3.us-east-2.amazonaws.com/will-the-us-invade-greenland-in-2026-TrQAKa33XUsN.jpg",
    "markets": [
@@ -4444,32 +4444,7 @@
      "slug": "will-the-us-invade-greenland-in-2026",
      "prob_yes": 0.03,
      "volume24hr": 34.48,
-     "liquidity": 80884.68,
-     "end_date": "2027-01-01"
-    }
-   ]
-  },
-  {
-   "id": "89468",
-   "slug": "will-zelenskyy-talk-to-putin-by-november-30-821",
-   "title": "Will Zelenskyy talk to Putin by...?",
-   "category": "geo",
-   "series": null,
-   "neg_risk": false,
-   "end_date": "2027-01-01",
-   "volume24hr": 30.0,
-   "volume": 968864.66,
-   "liquidity": 28276.9,
-   "open_interest": 64867.77,
-   "icon": "https://polymarket-upload.s3.us-east-2.amazonaws.com/will-zelenskyy-talk-to-putin-by-november-30-qEPinScD7cnF.jpg",
-   "markets": [
-    {
-     "id": "1301527",
-     "question": "Will Zelenskyy talk to Putin by December 31?",
-     "slug": "will-zelenskyy-talk-to-putin-by-december-31-992-711",
-     "prob_yes": 0.095,
-     "volume24hr": 30.0,
-     "liquidity": 28081.6,
+     "liquidity": 80787.07,
      "end_date": "2027-01-01"
     }
    ]
@@ -4484,7 +4459,7 @@
    "end_date": "2027-01-01",
    "volume24hr": 27.33,
    "volume": 3436587.58,
-   "liquidity": 71998.84,
+   "liquidity": 73407.57,
    "open_interest": 691002.75,
    "icon": "https://polymarket-upload.s3.us-east-2.amazonaws.com/china-x-taiwan-military-clash-by-bruNN8Tgoil0.jpg",
    "markets": [
@@ -4494,7 +4469,7 @@
      "slug": "china-x-taiwan-military-clash-before-2027",
      "prob_yes": 0.0565,
      "volume24hr": 27.33,
-     "liquidity": 73498.14,
+     "liquidity": 73370.06,
      "end_date": "2027-01-01"
     }
    ]
@@ -4519,7 +4494,7 @@
      "slug": "will-us-withdraw-from-nato-before-2027-348-975-598-224-737",
      "prob_yes": 0.0185,
      "volume24hr": 25.4,
-     "liquidity": 42501.97,
+     "liquidity": 42471.97,
      "end_date": "2027-01-01"
     }
    ]
@@ -4534,7 +4509,7 @@
    "end_date": "2026-09-30",
    "volume24hr": 5.0,
    "volume": 512646.51,
-   "liquidity": 19309.88,
+   "liquidity": 19909.65,
    "open_interest": 36252.29,
    "icon": "https://polymarket-upload.s3.us-east-2.amazonaws.com/will-iran-target-ukraine-byptptpt-20260727234956916-D7vlTc4fUJhx.jpg",
    "markets": [
@@ -4544,7 +4519,7 @@
      "slug": "will-iran-target-ukraine-by-september-30-2026-20260727234956918",
      "prob_yes": 0.0015,
      "volume24hr": 5.0,
-     "liquidity": 19309.88,
+     "liquidity": 19909.65,
      "end_date": "2026-09-30"
     }
    ]
@@ -4584,6 +4559,31 @@
    ]
   },
   {
+   "id": "89468",
+   "slug": "will-zelenskyy-talk-to-putin-by-november-30-821",
+   "title": "Will Zelenskyy talk to Putin by...?",
+   "category": "geo",
+   "series": null,
+   "neg_risk": false,
+   "end_date": "2027-01-01",
+   "volume24hr": 0.0,
+   "volume": 968864.66,
+   "liquidity": 31039.49,
+   "open_interest": 64867.77,
+   "icon": "https://polymarket-upload.s3.us-east-2.amazonaws.com/will-zelenskyy-talk-to-putin-by-november-30-qEPinScD7cnF.jpg",
+   "markets": [
+    {
+     "id": "1301527",
+     "question": "Will Zelenskyy talk to Putin by December 31?",
+     "slug": "will-zelenskyy-talk-to-putin-by-december-31-992-711",
+     "prob_yes": 0.09,
+     "volume24hr": 0.0,
+     "liquidity": 31042.17,
+     "end_date": "2027-01-01"
+    }
+   ]
+  },
+  {
    "id": "42365",
    "slug": "will-the-us-invade-venezuela-in-2025",
    "title": "Will the U.S. invade Venezuela by...?",
@@ -4593,7 +4593,7 @@
    "end_date": "2027-01-01",
    "volume24hr": 0.0,
    "volume": 14197715.29,
-   "liquidity": 55111.27,
+   "liquidity": 54886.84,
    "open_interest": 51910.89,
    "icon": "https://polymarket-upload.s3.us-east-2.amazonaws.com/will-the-us-invade-venezuela-in-2025-1rL-noxxRItP.jpg",
    "markets": [
@@ -4603,7 +4603,7 @@
      "slug": "will-the-us-invade-venezuela-by-december-31-2026",
      "prob_yes": 0.0325,
      "volume24hr": 0.0,
-     "liquidity": 55002.59,
+     "liquidity": 54804.56,
      "end_date": "2027-01-01"
     }
    ]
@@ -4618,7 +4618,7 @@
    "end_date": "2027-01-01",
    "volume24hr": 0.0,
    "volume": 1419061.44,
-   "liquidity": 14772.4,
+   "liquidity": 14778.16,
    "open_interest": 38115.96,
    "icon": "https://polymarket-upload.s3.us-east-2.amazonaws.com/will-any-country-leave-nato-in-2025-d6BB5x1Nv0DA.jpg",
    "markets": [
@@ -4628,7 +4628,7 @@
      "slug": "will-any-country-leave-nato-by-december-31-2026",
      "prob_yes": 0.03,
      "volume24hr": 0.0,
-     "liquidity": 14772.4,
+     "liquidity": 14772.34,
      "end_date": "2027-01-01"
     }
    ]
@@ -4643,7 +4643,7 @@
    "end_date": "2027-01-01",
    "volume24hr": 0.0,
    "volume": 1251312.6,
-   "liquidity": 40543.76,
+   "liquidity": 40548.86,
    "open_interest": 20010.43,
    "icon": "https://polymarket-upload.s3.us-east-2.amazonaws.com/ukraine-joins-nato-in-2025-Z7Kbc9JqzK6S.jpg",
    "markets": [
@@ -4653,7 +4653,7 @@
      "slug": "ukraine-joins-nato-before-2027",
      "prob_yes": 0.0255,
      "volume24hr": 0.0,
-     "liquidity": 40543.76,
+     "liquidity": 40528.73,
      "end_date": "2027-01-01"
     }
    ]
@@ -4666,10 +4666,10 @@
    "series": "bitcoin-hit-price-monthly",
    "neg_risk": false,
    "end_date": "2026-10-01",
-   "volume24hr": 976997.33,
-   "volume": 17354315.74,
-   "liquidity": 1703686.23,
-   "open_interest": 3666196.24,
+   "volume24hr": 964122.03,
+   "volume": 17358730.99,
+   "liquidity": 1693053.63,
+   "open_interest": 3667586.54,
    "icon": "https://polymarket-upload.s3.us-east-2.amazonaws.com/BTC+fullsize.png",
    "markets": [
     {
@@ -4677,8 +4677,8 @@
      "question": "Will Bitcoin reach $100,000 in September?",
      "slug": "will-bitcoin-reach-100k-in-september-2026",
      "prob_yes": 0.0005,
-     "volume24hr": 171320.15,
-     "liquidity": 110808.07,
+     "volume24hr": 171146.94,
+     "liquidity": 110781.82,
      "end_date": "2026-10-01"
     },
     {
@@ -4686,35 +4686,35 @@
      "question": "Will Bitcoin reach $95,000 in September?",
      "slug": "will-bitcoin-reach-95k-in-september-2026",
      "prob_yes": 0.0025,
-     "volume24hr": 120254.2,
-     "liquidity": 119948.4,
+     "volume24hr": 120079.71,
+     "liquidity": 119948.13,
      "end_date": "2026-10-01"
     },
     {
      "id": "4689727",
      "question": "Will Bitcoin dip to $80,000 in September?",
      "slug": "will-bitcoin-dip-to-80k-in-september-2026-from-september-18",
-     "prob_yes": 0.0755,
-     "volume24hr": 113993.19,
-     "liquidity": 68754.59,
+     "prob_yes": 0.08,
+     "volume24hr": 114224.31,
+     "liquidity": 63762.33,
      "end_date": "2026-10-01"
     },
     {
      "id": "4052418",
      "question": "Will Bitcoin reach $87,500 in September?",
      "slug": "will-bitcoin-reach-87pt5k-in-september-2026",
-     "prob_yes": 0.022,
-     "volume24hr": 102358.19,
-     "liquidity": 87643.78,
+     "prob_yes": 0.021,
+     "volume24hr": 102361.98,
+     "liquidity": 82375.83,
      "end_date": "2026-10-01"
     },
     {
      "id": "4797724",
      "question": "Will Bitcoin dip to $82,500 in September?",
      "slug": "will-bitcoin-dip-to-82pt5k-in-september-2026",
-     "prob_yes": 0.655,
-     "volume24hr": 88477.55,
-     "liquidity": 34598.23,
+     "prob_yes": 0.705,
+     "volume24hr": 88868.32,
+     "liquidity": 32200.36,
      "end_date": "2026-10-01"
     },
     {
@@ -4722,8 +4722,8 @@
      "question": "Will Bitcoin reach $90,000 in September?",
      "slug": "will-bitcoin-reach-90k-in-september-2026",
      "prob_yes": 0.0055,
-     "volume24hr": 81776.03,
-     "liquidity": 90556.41,
+     "volume24hr": 82629.85,
+     "liquidity": 90242.25,
      "end_date": "2026-10-01"
     },
     {
@@ -4731,35 +4731,35 @@
      "question": "Will Bitcoin reach $97,500 in September?",
      "slug": "will-bitcoin-reach-97pt5k-in-september-2026",
      "prob_yes": 0.0005,
-     "volume24hr": 70964.55,
+     "volume24hr": 70908.24,
      "liquidity": 90110.8,
-     "end_date": "2026-10-01"
-    },
-    {
-     "id": "4689728",
-     "question": "Will Bitcoin dip to $77,500 in September?",
-     "slug": "will-bitcoin-dip-to-77pt5k-in-september-2026-from-september-18",
-     "prob_yes": 0.017,
-     "volume24hr": 57061.58,
-     "liquidity": 102377.2,
      "end_date": "2026-10-01"
     },
     {
      "id": "4052416",
      "question": "Will Bitcoin reach $92,500 in September?",
      "slug": "will-bitcoin-reach-92pt5k-in-september-2026",
-     "prob_yes": 0.0055,
-     "volume24hr": 45142.57,
-     "liquidity": 93513.72,
+     "prob_yes": 0.005,
+     "volume24hr": 47502.57,
+     "liquidity": 93781.97,
+     "end_date": "2026-10-01"
+    },
+    {
+     "id": "4689728",
+     "question": "Will Bitcoin dip to $77,500 in September?",
+     "slug": "will-bitcoin-dip-to-77pt5k-in-september-2026-from-september-18",
+     "prob_yes": 0.02,
+     "volume24hr": 42733.27,
+     "liquidity": 101945.06,
      "end_date": "2026-10-01"
     },
     {
      "id": "5037412",
      "question": "Will Bitcoin reach $85,000 in September?",
      "slug": "will-bitcoin-reach-85k-in-september-2026-from-september-27",
-     "prob_yes": 0.23,
-     "volume24hr": 37571.23,
-     "liquidity": 27384.7,
+     "prob_yes": 0.2,
+     "volume24hr": 36694.69,
+     "liquidity": 27070.0,
      "end_date": "2026-10-01"
     },
     {
@@ -4768,7 +4768,7 @@
      "slug": "will-bitcoin-dip-to-75k-in-september-2026-from-september-16",
      "prob_yes": 0.0055,
      "volume24hr": 22843.68,
-     "liquidity": 101914.99,
+     "liquidity": 101919.64,
      "end_date": "2026-10-01"
     },
     {
@@ -4777,7 +4777,7 @@
      "slug": "will-bitcoin-dip-to-70k-in-september-2026",
      "prob_yes": 0.0015,
      "volume24hr": 20521.7,
-     "liquidity": 122103.31,
+     "liquidity": 122103.3,
      "end_date": "2026-10-01"
     }
    ]
@@ -4790,10 +4790,10 @@
    "series": "ethereum-hit-price-monthly",
    "neg_risk": false,
    "end_date": "2026-10-01",
-   "volume24hr": 484007.26,
-   "volume": 7478346.49,
-   "liquidity": 1065351.89,
-   "open_interest": 1737266.83,
+   "volume24hr": 495256.27,
+   "volume": 7493234.43,
+   "liquidity": 1062776.5,
+   "open_interest": 1745128.77,
    "icon": "https://polymarket-upload.s3.us-east-2.amazonaws.com/ETH+fullsize.jpg",
    "markets": [
     {
@@ -4802,43 +4802,43 @@
      "slug": "will-ethereum-reach-2900-in-september-2026",
      "prob_yes": 0.0245,
      "volume24hr": 97952.26,
-     "liquidity": 48445.96,
+     "liquidity": 48448.83,
      "end_date": "2026-10-01"
     },
     {
      "id": "4844455",
      "question": "Will Ethereum reach $2,800 in September?",
      "slug": "will-ethereum-reach-2800-in-september-2026-from-september-22",
-     "prob_yes": 0.085,
-     "volume24hr": 76288.14,
-     "liquidity": 37839.36,
+     "prob_yes": 0.075,
+     "volume24hr": 76220.14,
+     "liquidity": 28674.44,
      "end_date": "2026-10-01"
     },
     {
      "id": "4689737",
      "question": "Will Ethereum dip to $2,500 in September?",
      "slug": "will-ethereum-dip-to-2500-in-september-2026-from-september-18",
-     "prob_yes": 0.045,
-     "volume24hr": 60041.62,
-     "liquidity": 26244.02,
-     "end_date": "2026-10-01"
-    },
-    {
-     "id": "4761842",
-     "question": "Will Ethereum dip to $2,600 in September?",
-     "slug": "will-ethereum-dip-to-2600-in-september-2026-from-september-20",
-     "prob_yes": 0.27,
-     "volume24hr": 44212.46,
-     "liquidity": 26937.03,
+     "prob_yes": 0.048,
+     "volume24hr": 66956.28,
+     "liquidity": 26152.7,
      "end_date": "2026-10-01"
     },
     {
      "id": "4052448",
      "question": "Will Ethereum reach $3,000 in September?",
      "slug": "will-ethereum-reach-3000-in-september-2026",
-     "prob_yes": 0.0065,
-     "volume24hr": 43902.74,
-     "liquidity": 56193.23,
+     "prob_yes": 0.005,
+     "volume24hr": 49451.34,
+     "liquidity": 56369.49,
+     "end_date": "2026-10-01"
+    },
+    {
+     "id": "4761842",
+     "question": "Will Ethereum dip to $2,600 in September?",
+     "slug": "will-ethereum-dip-to-2600-in-september-2026-from-september-20",
+     "prob_yes": 0.29,
+     "volume24hr": 44098.84,
+     "liquidity": 30113.25,
      "end_date": "2026-10-01"
     },
     {
@@ -4846,8 +4846,8 @@
      "question": "Will Ethereum dip to $2,400 in September?",
      "slug": "will-ethereum-dip-to-2400-in-september-2026-from-september-17",
      "prob_yes": 0.0055,
-     "volume24hr": 32724.91,
-     "liquidity": 51827.04,
+     "volume24hr": 32243.91,
+     "liquidity": 51812.16,
      "end_date": "2026-10-01"
     },
     {
@@ -4864,7 +4864,7 @@
      "question": "Will Ethereum reach $3,300 in September?",
      "slug": "will-ethereum-reach-3300-in-september-2026",
      "prob_yes": 0.001,
-     "volume24hr": 21424.63,
+     "volume24hr": 21271.6,
      "liquidity": 59797.95,
      "end_date": "2026-10-01"
     },
@@ -4873,7 +4873,7 @@
      "question": "Will Ethereum dip to $2,000 in September?",
      "slug": "will-ethereum-dip-to-2000-in-september-2026",
      "prob_yes": 0.004,
-     "volume24hr": 20486.05,
+     "volume24hr": 20352.73,
      "liquidity": 51210.49,
      "end_date": "2026-10-01"
     },
@@ -4900,7 +4900,7 @@
      "question": "Will Ethereum dip to $2,100 in September?",
      "slug": "will-ethereum-dip-to-2100-in-september-2026",
      "prob_yes": 0.0055,
-     "volume24hr": 8463.88,
+     "volume24hr": 8198.6,
      "liquidity": 59999.22,
      "end_date": "2026-10-01"
     }
@@ -4914,9 +4914,9 @@
    "series": "bitcoin-hit-price-monthly",
    "neg_risk": false,
    "end_date": "2027-01-01",
-   "volume24hr": 377039.26,
-   "volume": 71501843.01,
-   "liquidity": 3667566.68,
+   "volume24hr": 374384.51,
+   "volume": 71501848.41,
+   "liquidity": 3665505.67,
    "open_interest": 13164022.07,
    "icon": "https://polymarket-upload.s3.us-east-2.amazonaws.com/BTC+fullsize.png",
    "markets": [
@@ -4926,7 +4926,7 @@
      "slug": "will-bitcoin-reach-130000-by-december-31-2026-756-151-855",
      "prob_yes": 0.057,
      "volume24hr": 97477.45,
-     "liquidity": 113143.82,
+     "liquidity": 113135.22,
      "end_date": "2027-01-01"
     },
     {
@@ -4935,7 +4935,7 @@
      "slug": "will-bitcoin-reach-120000-by-december-31-2026-625-425-562",
      "prob_yes": 0.105,
      "volume24hr": 32217.41,
-     "liquidity": 85740.59,
+     "liquidity": 85940.57,
      "end_date": "2027-01-01"
     },
     {
@@ -4944,7 +4944,7 @@
      "slug": "will-bitcoin-reach-140000-by-december-31-2026-131-829-299",
      "prob_yes": 0.045,
      "volume24hr": 31289.21,
-     "liquidity": 86701.56,
+     "liquidity": 86699.65,
      "end_date": "2027-01-01"
     },
     {
@@ -4952,8 +4952,8 @@
      "question": "Will Bitcoin dip to $35,000 by December 31, 2026?",
      "slug": "will-bitcoin-dip-to-35000-by-december-31-2026-744-877-748-219-467-465-646-211-122-947-537-552-555-361-972-954-635-887-657-996-643",
      "prob_yes": 0.0265,
-     "volume24hr": 27500.52,
-     "liquidity": 148924.39,
+     "volume24hr": 27505.92,
+     "liquidity": 147844.39,
      "end_date": "2027-01-01"
     },
     {
@@ -4962,7 +4962,7 @@
      "slug": "will-bitcoin-reach-160000-by-december-31-2026-934-934-164",
      "prob_yes": 0.0315,
      "volume24hr": 25844.73,
-     "liquidity": 111734.6,
+     "liquidity": 111743.41,
      "end_date": "2027-01-01"
     },
     {
@@ -4970,8 +4970,8 @@
      "question": "Will Bitcoin dip to $55,000 by December 31, 2026?",
      "slug": "will-bitcoin-dip-to-55000-by-december-31-2026-527-627-868-745-188-361-314-673-612-946-821-624-855-557-684-381-884-939-182-939-516",
      "prob_yes": 0.095,
-     "volume24hr": 23322.96,
-     "liquidity": 191813.35,
+     "volume24hr": 23171.07,
+     "liquidity": 191783.35,
      "end_date": "2027-01-01"
     },
     {
@@ -4979,17 +4979,17 @@
      "question": "Will Bitcoin dip to $45,000 by December 31, 2026?",
      "slug": "will-bitcoin-dip-to-45000-by-december-31-2026-674-923-755-971-998-525-926-245-316-517-544-589-965-923-986-841-815-224-586-231-289-533-573",
      "prob_yes": 0.0465,
-     "volume24hr": 19274.5,
-     "liquidity": 317951.1,
+     "volume24hr": 16841.82,
+     "liquidity": 318090.07,
      "end_date": "2027-01-01"
     },
     {
      "id": "1345531",
      "question": "Will Bitcoin reach $90,000 by December 31, 2026?",
      "slug": "will-bitcoin-reach-90000-by-december-31-2026-113-862-581-343",
-     "prob_yes": 0.66,
-     "volume24hr": 16877.91,
-     "liquidity": 55715.4,
+     "prob_yes": 0.65,
+     "volume24hr": 16819.45,
+     "liquidity": 56355.38,
      "end_date": "2027-01-01"
     },
     {
@@ -5007,7 +5007,7 @@
      "slug": "will-bitcoin-reach-150000-by-december-31-2026-557-246-971",
      "prob_yes": 0.033,
      "volume24hr": 13970.58,
-     "liquidity": 90974.18,
+     "liquidity": 89969.33,
      "end_date": "2027-01-01"
     },
     {
@@ -5016,7 +5016,7 @@
      "slug": "will-bitcoin-reach-190000-by-december-31-2026-936-485-627",
      "prob_yes": 0.013,
      "volume24hr": 13784.17,
-     "liquidity": 121417.65,
+     "liquidity": 121418.65,
      "end_date": "2027-01-01"
     },
     {
@@ -5038,10 +5038,10 @@
    "series": "bitcoin-hit-price-weekly",
    "neg_risk": false,
    "end_date": "2026-10-05",
-   "volume24hr": 217586.0,
-   "volume": 279017.88,
-   "liquidity": 416301.33,
-   "open_interest": 213276.6,
+   "volume24hr": 217799.95,
+   "volume": 280231.83,
+   "liquidity": 415757.92,
+   "open_interest": 214490.54,
    "icon": "https://polymarket-upload.s3.us-east-2.amazonaws.com/BTC+fullsize.png",
    "markets": [
     {
@@ -5050,106 +5050,106 @@
      "slug": "will-bitcoin-reach-86k-september-28-october-4-2026",
      "prob_yes": 0.375,
      "volume24hr": 48088.71,
-     "liquidity": 22700.99,
+     "liquidity": 22395.41,
      "end_date": "2026-10-05"
     },
     {
      "id": "5062280",
      "question": "Will Bitcoin dip to $78,000 September 28-October 4?",
      "slug": "will-bitcoin-dip-to-78k-september-28-october-4-2026",
-     "prob_yes": 0.125,
-     "volume24hr": 44034.41,
-     "liquidity": 22791.06,
-     "end_date": "2026-10-05"
-    },
-    {
-     "id": "5062288",
-     "question": "Will Bitcoin dip to $72,000 September 28-October 4?",
-     "slug": "will-bitcoin-dip-to-72k-september-28-october-4-2026",
-     "prob_yes": 0.0125,
-     "volume24hr": 16651.18,
-     "liquidity": 32411.73,
+     "prob_yes": 0.135,
+     "volume24hr": 44042.1,
+     "liquidity": 23028.4,
      "end_date": "2026-10-05"
     },
     {
      "id": "5062258",
      "question": "Will Bitcoin reach $90,000 September 28-October 4?",
      "slug": "will-bitcoin-reach-90k-september-28-october-4-2026",
-     "prob_yes": 0.055,
-     "volume24hr": 16011.55,
-     "liquidity": 21635.28,
+     "prob_yes": 0.045,
+     "volume24hr": 17011.55,
+     "liquidity": 24774.01,
+     "end_date": "2026-10-05"
+    },
+    {
+     "id": "5062288",
+     "question": "Will Bitcoin dip to $72,000 September 28-October 4?",
+     "slug": "will-bitcoin-dip-to-72k-september-28-october-4-2026",
+     "prob_yes": 0.0135,
+     "volume24hr": 16651.18,
+     "liquidity": 32418.42,
      "end_date": "2026-10-05"
     },
     {
      "id": "5062233",
      "question": "Will Bitcoin reach $96,000 September 28-October 4?",
      "slug": "will-bitcoin-reach-96k-september-28-october-4-2026",
-     "prob_yes": 0.01,
+     "prob_yes": 0.0095,
      "volume24hr": 15827.35,
-     "liquidity": 35403.76,
+     "liquidity": 35404.5,
      "end_date": "2026-10-05"
     },
     {
      "id": "5062240",
      "question": "Will Bitcoin reach $94,000 September 28-October 4?",
      "slug": "will-bitcoin-reach-94k-september-28-october-4-2026",
-     "prob_yes": 0.011,
+     "prob_yes": 0.0095,
      "volume24hr": 14456.19,
-     "liquidity": 37116.09,
+     "liquidity": 37883.53,
      "end_date": "2026-10-05"
     },
     {
      "id": "5062265",
      "question": "Will Bitcoin reach $88,000 September 28-October 4?",
      "slug": "will-bitcoin-reach-88k-september-28-october-4-2026",
-     "prob_yes": 0.145,
-     "volume24hr": 13697.26,
-     "liquidity": 23750.47,
+     "prob_yes": 0.135,
+     "volume24hr": 13897.26,
+     "liquidity": 23853.0,
      "end_date": "2026-10-05"
     },
     {
      "id": "5062249",
      "question": "Will Bitcoin reach $92,000 September 28-October 4?",
      "slug": "will-bitcoin-reach-92k-september-28-october-4-2026",
-     "prob_yes": 0.023,
+     "prob_yes": 0.0225,
      "volume24hr": 13571.97,
-     "liquidity": 36057.36,
+     "liquidity": 36794.98,
      "end_date": "2026-10-05"
     },
     {
      "id": "5062283",
      "question": "Will Bitcoin dip to $76,000 September 28-October 4?",
      "slug": "will-bitcoin-dip-to-76k-september-28-october-4-2026",
-     "prob_yes": 0.042,
+     "prob_yes": 0.0425,
      "volume24hr": 10219.83,
-     "liquidity": 27076.97,
+     "liquidity": 27282.55,
      "end_date": "2026-10-05"
     },
     {
      "id": "5062285",
      "question": "Will Bitcoin dip to $74,000 September 28-October 4?",
      "slug": "will-bitcoin-dip-to-74k-september-28-october-4-2026",
-     "prob_yes": 0.0185,
+     "prob_yes": 0.019,
      "volume24hr": 7413.81,
-     "liquidity": 36054.64,
+     "liquidity": 35244.31,
      "end_date": "2026-10-05"
     },
     {
      "id": "5062291",
      "question": "Will Bitcoin dip to $70,000 September 28-October 4?",
      "slug": "will-bitcoin-dip-to-70k-september-28-october-4-2026",
-     "prob_yes": 0.0085,
+     "prob_yes": 0.01,
      "volume24hr": 6772.56,
-     "liquidity": 37591.22,
+     "liquidity": 37589.65,
      "end_date": "2026-10-05"
     },
     {
      "id": "5062278",
      "question": "Will Bitcoin dip to $80,000 September 28-October 4?",
      "slug": "will-bitcoin-dip-to-80k-september-28-october-4-2026",
-     "prob_yes": 0.31,
-     "volume24hr": 4953.46,
-     "liquidity": 22512.55,
+     "prob_yes": 0.315,
+     "volume24hr": 4959.71,
+     "liquidity": 19450.75,
      "end_date": "2026-10-05"
     }
    ]
@@ -5162,46 +5162,46 @@
    "series": "btc-multi-strikes-weekly",
    "neg_risk": false,
    "end_date": "2026-09-30",
-   "volume24hr": 194593.0,
-   "volume": 289739.34,
-   "liquidity": 454920.62,
-   "open_interest": 195422.94,
+   "volume24hr": 205858.5,
+   "volume": 301728.55,
+   "liquidity": 458268.85,
+   "open_interest": 206097.99,
    "icon": "https://polymarket-upload.s3.us-east-2.amazonaws.com/BTC+fullsize.png",
    "markets": [
     {
      "id": "4882985",
      "question": "Will the price of Bitcoin be above $86,000 on September 30?",
      "slug": "bitcoin-above-86k-on-september-30-2026",
-     "prob_yes": 0.0235,
+     "prob_yes": 0.021,
      "volume24hr": 31815.79,
-     "liquidity": 34477.59,
+     "liquidity": 32833.48,
      "end_date": "2026-09-30"
     },
     {
      "id": "4882979",
      "question": "Will the price of Bitcoin be above $80,000 on September 30?",
      "slug": "bitcoin-above-80k-on-september-30-2026",
-     "prob_yes": 0.986,
-     "volume24hr": 31159.48,
-     "liquidity": 33484.61,
+     "prob_yes": 0.985,
+     "volume24hr": 30704.43,
+     "liquidity": 32804.19,
      "end_date": "2026-09-30"
     },
     {
      "id": "4882981",
      "question": "Will the price of Bitcoin be above $82,000 on September 30?",
      "slug": "bitcoin-above-82k-on-september-30-2026",
-     "prob_yes": 0.835,
-     "volume24hr": 27061.66,
-     "liquidity": 31788.61,
+     "prob_yes": 0.825,
+     "volume24hr": 30268.48,
+     "liquidity": 29635.31,
      "end_date": "2026-09-30"
     },
     {
      "id": "4882986",
      "question": "Will the price of Bitcoin be above $88,000 on September 30?",
      "slug": "bitcoin-above-88k-on-september-30-2026",
-     "prob_yes": 0.0015,
-     "volume24hr": 23926.01,
-     "liquidity": 33102.59,
+     "prob_yes": 0.0025,
+     "volume24hr": 25366.01,
+     "liquidity": 32070.48,
      "end_date": "2026-09-30"
     },
     {
@@ -5210,16 +5210,7 @@
      "slug": "bitcoin-above-74k-on-september-30-2026",
      "prob_yes": 0.9995,
      "volume24hr": 18906.52,
-     "liquidity": 100458.46,
-     "end_date": "2026-09-30"
-    },
-    {
-     "id": "4882975",
-     "question": "Will the price of Bitcoin be above $76,000 on September 30?",
-     "slug": "bitcoin-above-76k-on-september-30-2026",
-     "prob_yes": 0.9995,
-     "volume24hr": 16930.23,
-     "liquidity": 37615.15,
+     "liquidity": 101333.18,
      "end_date": "2026-09-30"
     },
     {
@@ -5227,17 +5218,26 @@
      "question": "Will the price of Bitcoin be above $78,000 on September 30?",
      "slug": "bitcoin-above-78k-on-september-30-2026",
      "prob_yes": 0.9975,
-     "volume24hr": 12155.5,
-     "liquidity": 25630.15,
+     "volume24hr": 18846.5,
+     "liquidity": 25060.94,
+     "end_date": "2026-09-30"
+    },
+    {
+     "id": "4882975",
+     "question": "Will the price of Bitcoin be above $76,000 on September 30?",
+     "slug": "bitcoin-above-76k-on-september-30-2026",
+     "prob_yes": 0.9995,
+     "volume24hr": 16723.23,
+     "liquidity": 37627.97,
      "end_date": "2026-09-30"
     },
     {
      "id": "4882983",
      "question": "Will the price of Bitcoin be above $84,000 on September 30?",
      "slug": "bitcoin-above-84k-on-september-30-2026",
-     "prob_yes": 0.245,
-     "volume24hr": 9208.41,
-     "liquidity": 20736.0,
+     "prob_yes": 0.21,
+     "volume24hr": 9795.15,
+     "liquidity": 24564.08,
      "end_date": "2026-09-30"
     },
     {
@@ -5246,7 +5246,7 @@
      "slug": "bitcoin-above-94k-on-september-30-2026",
      "prob_yes": 0.0005,
      "volume24hr": 9045.39,
-     "liquidity": 79363.16,
+     "liquidity": 80516.45,
      "end_date": "2026-09-30"
     },
     {
@@ -5254,8 +5254,8 @@
      "question": "Will the price of Bitcoin be above $90,000 on September 30?",
      "slug": "bitcoin-above-90k-on-september-30-2026",
      "prob_yes": 0.0015,
-     "volume24hr": 8974.04,
-     "liquidity": 36912.36,
+     "volume24hr": 8977.02,
+     "liquidity": 36990.76,
      "end_date": "2026-09-30"
     },
     {
@@ -5264,7 +5264,7 @@
      "slug": "bitcoin-above-92k-on-september-30-2026",
      "prob_yes": 0.001,
      "volume24hr": 5409.98,
-     "liquidity": 23781.95,
+     "liquidity": 23801.66,
      "end_date": "2026-09-30"
     }
    ]
@@ -5277,46 +5277,46 @@
    "series": "bitcoin-hit-price-daily",
    "neg_risk": false,
    "end_date": "2026-09-30",
-   "volume24hr": 175576.8,
-   "volume": 174311.94,
-   "liquidity": 267856.24,
-   "open_interest": 116712.6,
+   "volume24hr": 175764.88,
+   "volume": 174500.02,
+   "liquidity": 268082.84,
+   "open_interest": 116791.97,
    "icon": "https://polymarket-upload.s3.us-east-2.amazonaws.com/BTC+fullsize.png",
    "markets": [
     {
      "id": "5114413",
      "question": "Will Bitcoin reach $85,000 on September 29?",
      "slug": "will-bitcoin-reach-85k-on-september-29-2026",
-     "prob_yes": 0.0315,
+     "prob_yes": 0.0295,
      "volume24hr": 45952.11,
-     "liquidity": 16928.96,
+     "liquidity": 17224.75,
      "end_date": "2026-09-30"
     },
     {
      "id": "5114441",
      "question": "Will Bitcoin dip to $82,000 on September 29?",
      "slug": "will-bitcoin-dip-to-82k-on-september-29-2026",
-     "prob_yes": 0.11,
-     "volume24hr": 44617.39,
-     "liquidity": 11817.48,
+     "prob_yes": 0.131,
+     "volume24hr": 44654.1,
+     "liquidity": 5004.36,
      "end_date": "2026-09-30"
     },
     {
      "id": "5114402",
      "question": "Will Bitcoin reach $86,000 on September 29?",
      "slug": "will-bitcoin-reach-86k-on-september-29-2026",
-     "prob_yes": 0.005,
-     "volume24hr": 34055.9,
-     "liquidity": 19572.7,
+     "prob_yes": 0.0045,
+     "volume24hr": 34207.27,
+     "liquidity": 19599.34,
      "end_date": "2026-09-30"
     },
     {
      "id": "5114453",
      "question": "Will Bitcoin dip to $80,000 on September 29?",
      "slug": "will-bitcoin-dip-to-80k-on-september-29-2026",
-     "prob_yes": 0.008,
+     "prob_yes": 0.0095,
      "volume24hr": 10871.48,
-     "liquidity": 18186.59,
+     "liquidity": 18174.78,
      "end_date": "2026-09-30"
     },
     {
@@ -5325,16 +5325,16 @@
      "slug": "will-bitcoin-reach-87k-on-september-29-2026",
      "prob_yes": 0.0045,
      "volume24hr": 9299.84,
-     "liquidity": 18723.28,
+     "liquidity": 18871.08,
      "end_date": "2026-09-30"
     },
     {
      "id": "5114446",
      "question": "Will Bitcoin dip to $81,000 on September 29?",
      "slug": "will-bitcoin-dip-to-81k-on-september-29-2026",
-     "prob_yes": 0.0205,
+     "prob_yes": 0.019,
      "volume24hr": 8282.17,
-     "liquidity": 19864.29,
+     "liquidity": 19018.13,
      "end_date": "2026-09-30"
     },
     {
@@ -5343,7 +5343,7 @@
      "slug": "will-bitcoin-reach-88k-on-september-29-2026",
      "prob_yes": 0.0015,
      "volume24hr": 5094.62,
-     "liquidity": 20425.38,
+     "liquidity": 20438.88,
      "end_date": "2026-09-30"
     },
     {
@@ -5352,7 +5352,7 @@
      "slug": "will-bitcoin-dip-to-79k-on-september-29-2026",
      "prob_yes": 0.005,
      "volume24hr": 2237.5,
-     "liquidity": 19042.62,
+     "liquidity": 19034.12,
      "end_date": "2026-09-30"
     },
     {
@@ -5401,19 +5401,19 @@
    "series": "solana-hit-price-monthly",
    "neg_risk": false,
    "end_date": "2026-10-01",
-   "volume24hr": 89679.69,
-   "volume": 1250952.08,
-   "liquidity": 359674.06,
-   "open_interest": 549869.82,
+   "volume24hr": 85117.34,
+   "volume": 1251135.02,
+   "liquidity": 343550.98,
+   "open_interest": 550031.02,
    "icon": "https://polymarket-upload.s3.us-east-2.amazonaws.com/SOL-logo.png",
    "markets": [
     {
      "id": "4052471",
      "question": "Will Solana reach $130 in September?",
      "slug": "will-solana-reach-130-in-september-2026",
-     "prob_yes": 0.0265,
+     "prob_yes": 0.0245,
      "volume24hr": 19929.86,
-     "liquidity": 10146.28,
+     "liquidity": 10080.95,
      "end_date": "2026-10-01"
     },
     {
@@ -5421,7 +5421,7 @@
      "question": "Will Solana reach $150 in September?",
      "slug": "will-solana-reach-150-in-september-2026",
      "prob_yes": 0.001,
-     "volume24hr": 16695.85,
+     "volume24hr": 16492.4,
      "liquidity": 10653.98,
      "end_date": "2026-10-01"
     },
@@ -5430,17 +5430,17 @@
      "question": "Will Solana reach $170 in September?",
      "slug": "will-solana-reach-170-in-september-2026",
      "prob_yes": 0.001,
-     "volume24hr": 16088.45,
-     "liquidity": 18397.98,
+     "volume24hr": 15635.01,
+     "liquidity": 18395.99,
      "end_date": "2026-10-01"
     },
     {
      "id": "4797726",
      "question": "Will Solana dip to $110 in September?",
      "slug": "will-solana-dip-to-110-in-september-2026-from-september-21",
-     "prob_yes": 0.104,
-     "volume24hr": 9956.06,
-     "liquidity": 5749.1,
+     "prob_yes": 0.1255,
+     "volume24hr": 10139.0,
+     "liquidity": 6430.04,
      "end_date": "2026-10-01"
     },
     {
@@ -5448,7 +5448,7 @@
      "question": "Will Solana dip to $70 in September?",
      "slug": "will-solana-dip-to-70-in-september-2026",
      "prob_yes": 0.001,
-     "volume24hr": 7865.12,
+     "volume24hr": 7633.47,
      "liquidity": 11166.14,
      "end_date": "2026-10-01"
     },
@@ -5462,15 +5462,6 @@
      "end_date": "2026-10-01"
     },
     {
-     "id": "4052464",
-     "question": "Will Solana reach $200 in September?",
-     "slug": "will-solana-reach-200-in-september-2026",
-     "prob_yes": 0.001,
-     "volume24hr": 5323.38,
-     "liquidity": 22615.35,
-     "end_date": "2026-10-01"
-    },
-    {
      "id": "4641304",
      "question": "Will Solana dip to $100 in September?",
      "slug": "will-solana-dip-to-100-in-september-2026-from-september-17",
@@ -5480,11 +5471,20 @@
      "end_date": "2026-10-01"
     },
     {
+     "id": "4052464",
+     "question": "Will Solana reach $200 in September?",
+     "slug": "will-solana-reach-200-in-september-2026",
+     "prob_yes": 0.001,
+     "volume24hr": 2494.77,
+     "liquidity": 22615.35,
+     "end_date": "2026-10-01"
+    },
+    {
      "id": "4052465",
      "question": "Will Solana reach $190 in September?",
      "slug": "will-solana-reach-190-in-september-2026",
      "prob_yes": 0.001,
-     "volume24hr": 1965.86,
+     "volume24hr": 949.03,
      "liquidity": 16595.61,
      "end_date": "2026-10-01"
     },
@@ -5494,7 +5494,7 @@
      "slug": "will-solana-reach-140-in-september-2026",
      "prob_yes": 0.008,
      "volume24hr": 480.14,
-     "liquidity": 16609.34,
+     "liquidity": 16629.29,
      "end_date": "2026-10-01"
     },
     {
@@ -5502,8 +5502,8 @@
      "question": "Will Solana reach $180 in September?",
      "slug": "will-solana-reach-180-in-september-2026",
      "prob_yes": 0.003,
-     "volume24hr": 345.62,
-     "liquidity": 10079.49,
+     "volume24hr": 334.31,
+     "liquidity": 10070.0,
      "end_date": "2026-10-01"
     },
     {
@@ -5518,6 +5518,121 @@
    ]
   },
   {
+   "id": "1069699",
+   "slug": "ethereum-above-on-september-30-2026",
+   "title": "Ethereum above ___ on September 30?",
+   "category": "crypto",
+   "series": "ethereum-multi-strikes-weekly",
+   "neg_risk": false,
+   "end_date": "2026-09-30",
+   "volume24hr": 81396.64,
+   "volume": 122699.39,
+   "liquidity": 193741.95,
+   "open_interest": 92949.43,
+   "icon": "https://polymarket-upload.s3.us-east-2.amazonaws.com/ETH+fullsize.jpg",
+   "markets": [
+    {
+     "id": "4882964",
+     "question": "Will the price of Ethereum be above $2,900 on September 30?",
+     "slug": "ethereum-above-2900-on-september-30-2026",
+     "prob_yes": 0.0085,
+     "volume24hr": 15478.72,
+     "liquidity": 19201.27,
+     "end_date": "2026-09-30"
+    },
+    {
+     "id": "4882957",
+     "question": "Will the price of Ethereum be above $2,600 on September 30?",
+     "slug": "ethereum-above-2600-on-september-30-2026",
+     "prob_yes": 0.9025,
+     "volume24hr": 15344.15,
+     "liquidity": 17439.06,
+     "end_date": "2026-09-30"
+    },
+    {
+     "id": "4882955",
+     "question": "Will the price of Ethereum be above $2,500 on September 30?",
+     "slug": "ethereum-above-2500-on-september-30-2026",
+     "prob_yes": 0.9825,
+     "volume24hr": 14721.33,
+     "liquidity": 16940.4,
+     "end_date": "2026-09-30"
+    },
+    {
+     "id": "4882953",
+     "question": "Will the price of Ethereum be above $2,400 on September 30?",
+     "slug": "ethereum-above-2400-on-september-30-2026",
+     "prob_yes": 0.9925,
+     "volume24hr": 13650.51,
+     "liquidity": 16947.43,
+     "end_date": "2026-09-30"
+    },
+    {
+     "id": "4882962",
+     "question": "Will the price of Ethereum be above $2,800 on September 30?",
+     "slug": "ethereum-above-2800-on-september-30-2026",
+     "prob_yes": 0.025,
+     "volume24hr": 8228.22,
+     "liquidity": 16722.31,
+     "end_date": "2026-09-30"
+    },
+    {
+     "id": "4882966",
+     "question": "Will the price of Ethereum be above $3,000 on September 30?",
+     "slug": "ethereum-above-3000-on-september-30-2026",
+     "prob_yes": 0.0005,
+     "volume24hr": 3401.14,
+     "liquidity": 17291.17,
+     "end_date": "2026-09-30"
+    },
+    {
+     "id": "4882950",
+     "question": "Will the price of Ethereum be above $2,200 on September 30?",
+     "slug": "ethereum-above-2200-on-september-30-2026",
+     "prob_yes": 0.9955,
+     "volume24hr": 3387.5,
+     "liquidity": 19112.56,
+     "end_date": "2026-09-30"
+    },
+    {
+     "id": "4882952",
+     "question": "Will the price of Ethereum be above $2,300 on September 30?",
+     "slug": "ethereum-above-2300-on-september-30-2026",
+     "prob_yes": 0.9975,
+     "volume24hr": 3137.16,
+     "liquidity": 17546.25,
+     "end_date": "2026-09-30"
+    },
+    {
+     "id": "4882960",
+     "question": "Will the price of Ethereum be above $2,700 on September 30?",
+     "slug": "ethereum-above-2700-on-september-30-2026",
+     "prob_yes": 0.295,
+     "volume24hr": 2956.57,
+     "liquidity": 19784.32,
+     "end_date": "2026-09-30"
+    },
+    {
+     "id": "4882968",
+     "question": "Will the price of Ethereum be above $3,100 on September 30?",
+     "slug": "ethereum-above-3100-on-september-30-2026",
+     "prob_yes": 0.0005,
+     "volume24hr": 1086.33,
+     "liquidity": 18552.02,
+     "end_date": "2026-09-30"
+    },
+    {
+     "id": "4882970",
+     "question": "Will the price of Ethereum be above $3,200 on September 30?",
+     "slug": "ethereum-above-3200-on-september-30-2026",
+     "prob_yes": 0.0005,
+     "volume24hr": 5.0,
+     "liquidity": 21836.28,
+     "end_date": "2026-09-30"
+    }
+   ]
+  },
+  {
    "id": "89519",
    "slug": "what-price-will-ethereum-hit-before-2027",
    "title": "What price will Ethereum hit in 2026?",
@@ -5525,10 +5640,10 @@
    "series": "ethereum-hit-price-monthly",
    "neg_risk": false,
    "end_date": "2027-01-01",
-   "volume24hr": 79363.44,
-   "volume": 16644784.56,
-   "liquidity": 1536290.39,
-   "open_interest": 5543164.42,
+   "volume24hr": 80369.25,
+   "volume": 16645790.37,
+   "liquidity": 1536346.35,
+   "open_interest": 5543044.42,
    "icon": "https://polymarket-upload.s3.us-east-2.amazonaws.com/ETH+fullsize.jpg",
    "markets": [
     {
@@ -5537,25 +5652,25 @@
      "slug": "will-ethereum-dip-to-2000-by-december-31-2026-from-august-24",
      "prob_yes": 0.17,
      "volume24hr": 28651.05,
-     "liquidity": 21269.21,
+     "liquidity": 21176.97,
      "end_date": "2027-01-01"
     },
     {
      "id": "3866000",
      "question": "Will Ethereum dip to $2,250 by December 31, 2026?",
      "slug": "will-ethereum-dip-to-2250-by-december-31-2026",
-     "prob_yes": 0.295,
+     "prob_yes": 0.3,
      "volume24hr": 20267.51,
-     "liquidity": 19607.33,
+     "liquidity": 19576.46,
      "end_date": "2027-01-01"
     },
     {
      "id": "2467356",
      "question": "Will Ethereum reach $3,000 by December 31, 2026?",
      "slug": "will-ethereum-reach-3000-by-december-31-2026-from-june-8",
-     "prob_yes": 0.655,
+     "prob_yes": 0.65,
      "volume24hr": 10548.04,
-     "liquidity": 50153.29,
+     "liquidity": 48311.41,
      "end_date": "2027-01-01"
     },
     {
@@ -5563,17 +5678,17 @@
      "question": "Will Ethereum reach $4,500 by December 31, 2026?",
      "slug": "will-ethereum-reach-4500-by-december-31-2026",
      "prob_yes": 0.08,
-     "volume24hr": 4100.0,
-     "liquidity": 89203.81,
+     "volume24hr": 4600.0,
+     "liquidity": 89223.46,
      "end_date": "2027-01-01"
     },
     {
      "id": "701546",
      "question": "Will Ethereum reach $5,000 by December 31, 2026?",
      "slug": "will-ethereum-reach-5000-by-december-31-2026",
-     "prob_yes": 0.059,
-     "volume24hr": 3834.3,
-     "liquidity": 80157.57,
+     "prob_yes": 0.0595,
+     "volume24hr": 4340.11,
+     "liquidity": 80358.74,
      "end_date": "2027-01-01"
     },
     {
@@ -5582,7 +5697,7 @@
      "slug": "will-ethereum-reach-3500-by-december-31-2026",
      "prob_yes": 0.36,
      "volume24hr": 3106.22,
-     "liquidity": 44663.51,
+     "liquidity": 44645.25,
      "end_date": "2027-01-01"
     },
     {
@@ -5591,16 +5706,16 @@
      "slug": "will-ethereum-dip-to-1500-by-december-31-2026-865-787",
      "prob_yes": 0.066,
      "volume24hr": 2434.04,
-     "liquidity": 139910.55,
+     "liquidity": 139885.22,
      "end_date": "2027-01-01"
     },
     {
      "id": "701548",
      "question": "Will Ethereum reach $4,000 by December 31, 2026?",
      "slug": "will-ethereum-reach-4000-by-december-31-2026",
-     "prob_yes": 0.16,
+     "prob_yes": 0.165,
      "volume24hr": 2321.17,
-     "liquidity": 61910.62,
+     "liquidity": 61897.25,
      "end_date": "2027-01-01"
     },
     {
@@ -5609,7 +5724,7 @@
      "slug": "will-ethereum-reach-5500-by-december-31-2026",
      "prob_yes": 0.041,
      "volume24hr": 1417.54,
-     "liquidity": 72813.52,
+     "liquidity": 72818.52,
      "end_date": "2027-01-01"
     },
     {
@@ -5618,16 +5733,16 @@
      "slug": "will-ethereum-dip-to-1250-by-december-31-2026-from-june-8",
      "prob_yes": 0.05,
      "volume24hr": 1346.71,
-     "liquidity": 71051.15,
+     "liquidity": 71422.75,
      "end_date": "2027-01-01"
     },
     {
      "id": "3387867",
      "question": "Will Ethereum dip to $1,750 by December 31, 2026?",
      "slug": "will-ethereum-dip-to-1750-by-december-31-2026-20260806184731889",
-     "prob_yes": 0.08,
+     "prob_yes": 0.085,
      "volume24hr": 693.32,
-     "liquidity": 81793.09,
+     "liquidity": 81783.99,
      "end_date": "2027-01-01"
     },
     {
@@ -5642,121 +5757,6 @@
    ]
   },
   {
-   "id": "1069699",
-   "slug": "ethereum-above-on-september-30-2026",
-   "title": "Ethereum above ___ on September 30?",
-   "category": "crypto",
-   "series": "ethereum-multi-strikes-weekly",
-   "neg_risk": false,
-   "end_date": "2026-09-30",
-   "volume24hr": 75873.58,
-   "volume": 115166.76,
-   "liquidity": 193143.28,
-   "open_interest": 86263.94,
-   "icon": "https://polymarket-upload.s3.us-east-2.amazonaws.com/ETH+fullsize.jpg",
-   "markets": [
-    {
-     "id": "4882964",
-     "question": "Will the price of Ethereum be above $2,900 on September 30?",
-     "slug": "ethereum-above-2900-on-september-30-2026",
-     "prob_yes": 0.0085,
-     "volume24hr": 15519.66,
-     "liquidity": 19161.49,
-     "end_date": "2026-09-30"
-    },
-    {
-     "id": "4882957",
-     "question": "Will the price of Ethereum be above $2,600 on September 30?",
-     "slug": "ethereum-above-2600-on-september-30-2026",
-     "prob_yes": 0.9095,
-     "volume24hr": 15302.66,
-     "liquidity": 17667.63,
-     "end_date": "2026-09-30"
-    },
-    {
-     "id": "4882955",
-     "question": "Will the price of Ethereum be above $2,500 on September 30?",
-     "slug": "ethereum-above-2500-on-september-30-2026",
-     "prob_yes": 0.986,
-     "volume24hr": 12471.33,
-     "liquidity": 17237.57,
-     "end_date": "2026-09-30"
-    },
-    {
-     "id": "4882953",
-     "question": "Will the price of Ethereum be above $2,400 on September 30?",
-     "slug": "ethereum-above-2400-on-september-30-2026",
-     "prob_yes": 0.992,
-     "volume24hr": 12078.0,
-     "liquidity": 17026.86,
-     "end_date": "2026-09-30"
-    },
-    {
-     "id": "4882962",
-     "question": "Will the price of Ethereum be above $2,800 on September 30?",
-     "slug": "ethereum-above-2800-on-september-30-2026",
-     "prob_yes": 0.0265,
-     "volume24hr": 8228.22,
-     "liquidity": 17482.51,
-     "end_date": "2026-09-30"
-    },
-    {
-     "id": "4882966",
-     "question": "Will the price of Ethereum be above $3,000 on September 30?",
-     "slug": "ethereum-above-3000-on-september-30-2026",
-     "prob_yes": 0.0015,
-     "volume24hr": 3401.14,
-     "liquidity": 17326.27,
-     "end_date": "2026-09-30"
-    },
-    {
-     "id": "4882952",
-     "question": "Will the price of Ethereum be above $2,300 on September 30?",
-     "slug": "ethereum-above-2300-on-september-30-2026",
-     "prob_yes": 0.9975,
-     "volume24hr": 3137.16,
-     "liquidity": 17607.41,
-     "end_date": "2026-09-30"
-    },
-    {
-     "id": "4882960",
-     "question": "Will the price of Ethereum be above $2,700 on September 30?",
-     "slug": "ethereum-above-2700-on-september-30-2026",
-     "prob_yes": 0.325,
-     "volume24hr": 2886.57,
-     "liquidity": 20110.33,
-     "end_date": "2026-09-30"
-    },
-    {
-     "id": "4882950",
-     "question": "Will the price of Ethereum be above $2,200 on September 30?",
-     "slug": "ethereum-above-2200-on-september-30-2026",
-     "prob_yes": 0.9955,
-     "volume24hr": 1757.5,
-     "liquidity": 19062.97,
-     "end_date": "2026-09-30"
-    },
-    {
-     "id": "4882968",
-     "question": "Will the price of Ethereum be above $3,100 on September 30?",
-     "slug": "ethereum-above-3100-on-september-30-2026",
-     "prob_yes": 0.0005,
-     "volume24hr": 1086.33,
-     "liquidity": 18601.52,
-     "end_date": "2026-09-30"
-    },
-    {
-     "id": "4882970",
-     "question": "Will the price of Ethereum be above $3,200 on September 30?",
-     "slug": "ethereum-above-3200-on-september-30-2026",
-     "prob_yes": 0.0005,
-     "volume24hr": 5.0,
-     "liquidity": 20961.56,
-     "end_date": "2026-09-30"
-    }
-   ]
-  },
-  {
    "id": "946007",
    "slug": "what-price-will-xrp-hit-in-september-2026",
    "title": "What price will XRP hit in September?",
@@ -5764,10 +5764,10 @@
    "series": "xrp-hit-price-monthly",
    "neg_risk": false,
    "end_date": "2026-10-01",
-   "volume24hr": 57211.37,
+   "volume24hr": 57076.94,
    "volume": 872584.92,
-   "liquidity": 201752.6,
-   "open_interest": 467619.17,
+   "liquidity": 201169.16,
+   "open_interest": 467612.74,
    "icon": "https://polymarket-upload.s3.us-east-2.amazonaws.com/XRP-logo.png",
    "markets": [
     {
@@ -5784,7 +5784,7 @@
      "question": "Will XRP reach $2.00 in September?",
      "slug": "will-xrp-reach-2-in-september-2026",
      "prob_yes": 0.0055,
-     "volume24hr": 18480.24,
+     "volume24hr": 18345.81,
      "liquidity": 10916.17,
      "end_date": "2026-10-01"
     },
@@ -5792,27 +5792,27 @@
      "id": "4950801",
      "question": "Will XRP reach $1.60 in September?",
      "slug": "will-xrp-reach-1pt6-in-september-2026-from-september-25",
-     "prob_yes": 0.105,
+     "prob_yes": 0.095,
      "volume24hr": 5035.16,
-     "liquidity": 392.68,
+     "liquidity": 417.17,
      "end_date": "2026-10-01"
     },
     {
      "id": "4052490",
      "question": "Will XRP reach $1.80 in September?",
      "slug": "will-xrp-reach-1pt8-in-september-2026",
-     "prob_yes": 0.013,
+     "prob_yes": 0.0125,
      "volume24hr": 1420.89,
-     "liquidity": 10261.71,
+     "liquidity": 10342.84,
      "end_date": "2026-10-01"
     },
     {
      "id": "4797727",
      "question": "Will XRP dip to $1.40 in September?",
      "slug": "will-xrp-dip-to-1pt4-in-september-2026-from-september-21",
-     "prob_yes": 0.195,
+     "prob_yes": 0.21,
      "volume24hr": 652.79,
-     "liquidity": 3113.48,
+     "liquidity": 3085.03,
      "end_date": "2026-10-01"
     },
     {
@@ -5821,7 +5821,7 @@
      "slug": "will-xrp-reach-2pt6-in-september-2026",
      "prob_yes": 0.0015,
      "volume24hr": 485.43,
-     "liquidity": 11820.79,
+     "liquidity": 11333.75,
      "end_date": "2026-10-01"
     },
     {
@@ -5848,7 +5848,7 @@
      "slug": "will-xrp-reach-2pt4-in-september-2026",
      "prob_yes": 0.002,
      "volume24hr": 162.31,
-     "liquidity": 12728.25,
+     "liquidity": 12726.28,
      "end_date": "2026-10-01"
     },
     {
@@ -5857,7 +5857,7 @@
      "slug": "will-xrp-dip-to-1pt2-in-september-2026",
      "prob_yes": 0.003,
      "volume24hr": 88.73,
-     "liquidity": 9952.77,
+     "liquidity": 9848.8,
      "end_date": "2026-10-01"
     },
     {
@@ -5877,6 +5877,130 @@
      "volume24hr": 9.03,
      "liquidity": 17908.58,
      "end_date": "2026-10-01"
+    }
+   ]
+  },
+  {
+   "id": "1101587",
+   "slug": "what-price-will-ethereum-hit-on-september-29-2026",
+   "title": "What price will Ethereum hit on September 29?",
+   "category": "crypto",
+   "series": "ethereum-hit-price-daily",
+   "neg_risk": false,
+   "end_date": "2026-09-30",
+   "volume24hr": 41131.93,
+   "volume": 41131.93,
+   "liquidity": 123357.57,
+   "open_interest": 38262.82,
+   "icon": "https://polymarket-upload.s3.us-east-2.amazonaws.com/ETH+fullsize.jpg",
+   "markets": [
+    {
+     "id": "5114560",
+     "question": "Will Ethereum dip to $2,600 on September 29?",
+     "slug": "will-ethereum-dip-to-2600-on-september-29-2026",
+     "prob_yes": 0.0395,
+     "volume24hr": 9734.74,
+     "liquidity": 5316.89,
+     "end_date": "2026-09-30"
+    },
+    {
+     "id": "5114544",
+     "question": "Will Ethereum reach $2,800 on September 29?",
+     "slug": "will-ethereum-reach-2800-on-september-29-2026",
+     "prob_yes": 0.009,
+     "volume24hr": 9600.67,
+     "liquidity": 9533.82,
+     "end_date": "2026-09-30"
+    },
+    {
+     "id": "5114564",
+     "question": "Will Ethereum dip to $2,550 on September 29?",
+     "slug": "will-ethereum-dip-to-2550-on-september-29-2026",
+     "prob_yes": 0.016,
+     "volume24hr": 7114.43,
+     "liquidity": 9918.52,
+     "end_date": "2026-09-30"
+    },
+    {
+     "id": "5114548",
+     "question": "Will Ethereum reach $2,750 on September 29?",
+     "slug": "will-ethereum-reach-2750-on-september-29-2026",
+     "prob_yes": 0.028,
+     "volume24hr": 4734.66,
+     "liquidity": 5297.8,
+     "end_date": "2026-09-30"
+    },
+    {
+     "id": "5114540",
+     "question": "Will Ethereum reach $2,850 on September 29?",
+     "slug": "will-ethereum-reach-2850-on-september-29-2026",
+     "prob_yes": 0.0055,
+     "volume24hr": 3407.05,
+     "liquidity": 8151.86,
+     "end_date": "2026-09-30"
+    },
+    {
+     "id": "5114530",
+     "question": "Will Ethereum reach $2,950 on September 29?",
+     "slug": "will-ethereum-reach-2950-on-september-29-2026",
+     "prob_yes": 0.0035,
+     "volume24hr": 2408.96,
+     "liquidity": 15383.66,
+     "end_date": "2026-09-30"
+    },
+    {
+     "id": "5114535",
+     "question": "Will Ethereum reach $2,900 on September 29?",
+     "slug": "will-ethereum-reach-2900-on-september-29-2026",
+     "prob_yes": 0.004,
+     "volume24hr": 1165.5,
+     "liquidity": 13165.95,
+     "end_date": "2026-09-30"
+    },
+    {
+     "id": "5114524",
+     "question": "Will Ethereum reach $3,000 on September 29?",
+     "slug": "will-ethereum-reach-3000-on-september-29-2026",
+     "prob_yes": 0.0015,
+     "volume24hr": 958.0,
+     "liquidity": 10524.33,
+     "end_date": "2026-09-30"
+    },
+    {
+     "id": "5114556",
+     "question": "Will Ethereum dip to $2,650 on September 29?",
+     "slug": "will-ethereum-dip-to-2650-on-september-29-2026",
+     "prob_yes": 0.45,
+     "volume24hr": 232.8,
+     "liquidity": 3650.58,
+     "end_date": "2026-09-30"
+    },
+    {
+     "id": "5114568",
+     "question": "Will Ethereum dip to $2,500 on September 29?",
+     "slug": "will-ethereum-dip-to-2500-on-september-29-2026",
+     "prob_yes": 0.0055,
+     "volume24hr": 181.51,
+     "liquidity": 10374.24,
+     "end_date": "2026-09-30"
+    },
+    {
+     "id": "5114573",
+     "question": "Will Ethereum dip to $2,450 on September 29?",
+     "slug": "will-ethereum-dip-to-2450-on-september-29-2026",
+     "prob_yes": 0.004,
+     "volume24hr": 15.0,
+     "liquidity": 9911.03,
+     "end_date": "2026-09-30"
+    },
+    {
+     "id": "5114578",
+     "question": "Will Ethereum dip to $2,400 on September 29?",
+     "slug": "will-ethereum-dip-to-2400-on-september-29-2026",
+     "prob_yes": 0.003,
+     "volume24hr": 15.0,
+     "liquidity": 11282.67,
+     "end_date": "2026-09-30"
     }
    ]
   }
