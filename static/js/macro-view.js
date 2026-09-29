@@ -39,6 +39,9 @@ function highlight() {
   navEl.querySelectorAll('.macro-nav-item[data-url], .macro-nav-item[data-view]').forEach(a => {
     const on = a.dataset.url ? a.dataset.url === activeUrl : a.dataset.view === activeView;
     a.classList.toggle('active', on);
+    // 读屏器标注当前页（与 .active 同步）
+    if (on) a.setAttribute('aria-current', 'page');
+    else a.removeAttribute('aria-current');
   });
   // 自动展开选中项所在分组
   [...navEl.querySelectorAll('.macro-nav-item[data-url]')]
@@ -93,18 +96,18 @@ export function initGlobalNav() {
     </div>
     <div class="macro-nav-caption">核心入口</div>
     ${CORE.map(c => c.view
-      ? `<a class="macro-nav-item core" data-view="${c.view}">${esc(c.label)}</a>`
-      : `<a class="macro-nav-item core" data-url="${c.page}">${esc(c.label)}</a>`).join('')}
+      ? `<a class="macro-nav-item core" data-view="${c.view}" href="#${c.view}">${esc(c.label)}</a>`
+      : `<a class="macro-nav-item core" data-url="${c.page}" href="#${KEYS.get(c.page)}">${esc(c.label)}</a>`).join('')}
     <div class="macro-nav-sep"></div>
     <div class="macro-nav-caption">全部专题</div>
     ${NAV.map(g => `
       <div class="macro-nav-group" data-key="${g.key}">
         <div class="macro-nav-group-head">
-          <a class="macro-nav-item" data-url="${g.page}">${esc(g.label)}</a>
+          <a class="macro-nav-item" data-url="${g.page}" href="#${g.key}">${esc(g.label)}</a>
           ${g.items ? '<button class="macro-nav-toggle" title="展开 / 收起">›</button>' : ''}
         </div>
         ${g.items ? `<div class="macro-nav-sub">${g.items.map(it =>
-          `<a class="macro-nav-item child${it.sub ? ' sub' : ''}" data-url="${it.page}">${esc(it.label)}</a>`).join('')}</div>` : ''}
+          `<a class="macro-nav-item child${it.sub ? ' sub' : ''}" data-url="${it.page}" href="#${it.key}">${esc(it.label)}</a>`).join('')}</div>` : ''}
       </div>`).join('')}
     <div class="macro-nav-foot">
       <span>美东时间</span><span id="macro-nav-clock"></span>
@@ -157,6 +160,10 @@ export function initGlobalNav() {
   toggle?.addEventListener('click', () =>
     document.body.classList.toggle('side-open'));
   backdrop?.addEventListener('click', closeDrawer);
+  // Esc 关闭抽屉（与 drill 弹层的 Esc 约定一致）
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape' && document.body.classList.contains('side-open')) closeDrawer();
+  });
 }
 
 function closeDrawer() {

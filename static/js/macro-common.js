@@ -1,7 +1,8 @@
 // macro-common.js — shared constants & utilities for macro/correlation/liquidity views
 
-// 序列色板单一来源：echarts-theme.js（经典脚本，先于本模块加载）从 tokens.css 回读
-export const MACRO_COLORS = window.RE_CHART_COLORS();
+// 序列色板单一来源：echarts-theme.js（经典脚本，先于本模块加载）从 tokens.css 回读。
+// 惰性求值：每次调用实时回读当前主题 CSS 变量，主题切换后不再拿到模块加载期的旧快照
+export const MACRO_COLORS = () => window.RE_CHART_COLORS();
 
 export const MACRO_LABELS = {
   VIX: '波动率指数（恐慌指数）', HY_OAS: '高收益债信用利差', IG_OAS: '投资级债信用利差',

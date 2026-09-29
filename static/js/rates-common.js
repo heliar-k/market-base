@@ -161,10 +161,12 @@ const R = {
   mkChart(id, option) {
     const dom = document.getElementById(id);
     if (!dom) return null;
+    dom.classList.add('skeleton'); // 骨架屏占位（app.css .skeleton）：首次 setOption 后摘除，主题重建不重复挂
     const render = () => {
       if (window.registerMacroTheme) registerMacroTheme();
       const chart = echarts.init(dom, R.isDark() ? 'macroDark' : 'macro');
       chart.setOption(option(R.colors()));
+      dom.classList.remove('skeleton');
       R._charts.set(id, chart);
       return chart;
     };

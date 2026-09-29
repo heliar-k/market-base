@@ -66,7 +66,7 @@
   <!-- 跨资产 1D 变化 -->
   <div class="re-section" id="vol-cross-sec">
     <h2>跨资产波动率 1D 变化</h2>
-    <div id="vol-cross-chart" class="chart" style="height:680px"></div>
+    <div id="vol-cross-chart" class="chart" style="height:clamp(420px, 65vh, 680px)"></div>
   </div>
 
   <!-- 7 段叙事 -->
@@ -193,10 +193,12 @@ async function load() {
   data.indices.forEach(r => {
     const cls = chgClass(r.chg1d);
     const mag = r.chg1d === null ? 0 : Math.min(Math.abs(r.chg1d) / 8, 1);
+    // 涨跌底色：color-mix 引用语义 token，亮暗主题即时跟随（DOM 内联样式不随主题重建）
+    const alpha = Math.round((0.12 + 0.5 * mag) * 100);
     const tint = r.chg1d > 0
-      ? `rgba(38,166,154,${(0.12 + 0.5 * mag).toFixed(2)})`
+      ? `color-mix(in srgb, var(--color-up) ${alpha}%, transparent)`
       : r.chg1d < 0
-      ? `rgba(239,83,80,${(0.12 + 0.5 * mag).toFixed(2)})`
+      ? `color-mix(in srgb, var(--color-down) ${alpha}%, transparent)`
       : 'var(--surface)';
     const d = document.createElement('div');
     d.className = `vol-heat-cell ${cls}`;

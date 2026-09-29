@@ -36,9 +36,12 @@
   var html = '';
   if (!embedded) {
     TABS.forEach(function (t) {
-      html += '<a href="' + t[1] + '">' + t[0] + '</a>';
+      // 当前组（含其子页）标 aria-current；href 本就有，链接天然可聚焦
+      var cur = path === t[1] || (t[1] !== '/' && path.indexOf(t[1]) === 0);
+      html += '<a href="' + t[1] + '"' + (cur ? ' aria-current="page"' : '') + '>' + t[0] + '</a>';
     });
-    html += '<a href="/">← 仪表盘</a>';
+    var isHome = path === '/' || path === '/index.html';
+    html += '<a href="/"' + (isHome ? ' aria-current="page"' : '') + '>← 仪表盘</a>';
   }
   if (html) {
     el.innerHTML = html;

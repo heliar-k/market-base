@@ -266,7 +266,6 @@ function renderMatrix() {
   if (matrixChart) { matrixChart.dispose(); matrixChart = null; }
   matrixChart = echarts.init(dom, document.body.classList.contains('dark') ? 'macroDark' : 'macro', { renderer: 'canvas' });
 
-  const dark = document.body.classList.contains('dark');
   const data = [];
   d.matrix.forEach((row, i) => row.forEach((v, j) => data.push([j, i, v])));
 
@@ -315,10 +314,11 @@ function renderMatrix() {
       emphasis: { itemStyle: { borderColor: reCssVar('--color-brand'), borderWidth: 2 } },
       label: {
         show: true, fontSize: 9,
-        // s/n = 饱和格/中性格上的文字对比色：黑白遮罩类结构色，非语义色，保留字面
-        rich: dark
-          ? { s: { color: '#1f2937', fontSize: 9 }, n: { color: reCssVar('--text-dim'), fontSize: 9 } }
-          : { s: { color: '#fff', fontSize: 9 }, n: { color: reCssVar('--text-dim'), fontSize: 9 } },
+        // s/n = 饱和格/中性格上的文字对比色：s 走 token（亮白暗深灰），n 走主题弱文字色
+        rich: {
+          s: { color: reCssVar('--text-on-saturated'), fontSize: 9 },
+          n: { color: reCssVar('--text-dim'), fontSize: 9 },
+        },
         formatter: p => {
           const v = p.value && p.value[2];
           if (v == null) return '';
@@ -362,10 +362,10 @@ async function openDrilldown(a, b) {
   const overlay = document.createElement('div');
   overlay.className = 'corr-drill-overlay';
   overlay.innerHTML = `
-    <div class="corr-drill-panel chart-card">
+    <div class="corr-drill-panel chart-card" role="dialog" aria-modal="true" aria-label="${labelOf(a)} × ${labelOf(b)} 滚动相关">
       <div class="corr-pane-head">
         <span class="corr-pane-title">${labelOf(a)} × ${labelOf(b)} 滚动相关</span>
-        <button class="corr-drill-close">×</button>
+        <button class="corr-drill-close" aria-label="关闭">×</button>
       </div>
       <div class="corr-drill-charts">
         <div id="corr-drill-corr" style="flex:1;min-height:180px"></div>
@@ -373,9 +373,17 @@ async function openDrilldown(a, b) {
       </div>
       <div class="corr-drill-note">上：${ROLLING_WINDOW} 日滚动相关系数；下：两标的归一化价格（期初 = 100）。数据源 data/yfinance/asset_prices.csv</div>
     </div>`;
-  overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
-  overlay.querySelector('.corr-drill-close').addEventListener('click', () => overlay.remove());
+  // 关闭统一走 close()：点遮罩 / 点 × / 按 Esc
+  function close() {
+    overlay.remove();
+    document.removeEventListener('keydown', onKey);
+  }
+  function onKey(e) { if (e.key === 'Escape') close(); }
+  overlay.addEventListener('click', e => { if (e.target === overlay) close(); });
+  overlay.querySelector('.corr-drill-close').addEventListener('click', close);
+  document.addEventListener('keydown', onKey);
   document.getElementById('corr-asset-wrap').appendChild(overlay);
+  overlay.querySelector('.corr-drill-close').focus(); // 打开即聚焦关闭钮，键盘立即可操作
 
   try {
     if (!pricesCache) {
@@ -441,13 +449,14 @@ function renderDrillCharts(a, b, rows) {
 
   const pDom = document.getElementById('corr-drill-price');
   const pChart = echarts.init(pDom, theme, { renderer: 'canvas' });
+  const pal = MACRO_COLORS(); // 惰性取色板：主题切换后重渲染拿到的是新主题色
   pChart.setOption(reSyncLegend({
     grid: { left: 8, right: 16, top: 12, bottom: 40, containLabel: true },
     xAxis: { type: 'category', data: dates, axisLabel: { fontSize: 10 } },
     yAxis: { type: 'value', scale: true },
     series: [
-      { name: labelOf(a), type: 'line', data: norm(a), showSymbol: false, lineStyle: { width: 1.5 }, color: MACRO_COLORS[0] },
-      { name: labelOf(b), type: 'line', data: norm(b), showSymbol: false, lineStyle: { width: 1.5 }, color: MACRO_COLORS[1] },
+      { name: labelOf(a), type: 'line', data: norm(a), showSymbol: false, lineStyle: { width: 1.5 }, color: pal[0] },
+      { name: labelOf(b), type: 'line', data: norm(b), showSymbol: false, lineStyle: { width: 1.5 }, color: pal[1] },
     ],
     legend: { top: 0, right: 8 },
     tooltip: { trigger: 'axis' },
@@ -578,9 +587,9 @@ function renderMacroSkeleton(wrap) {
   // 预设按钮组挂工具栏（renderUI 已建容器）
   const presetsBar = document.getElementById('corr-presets');
   presetsBar.innerHTML = presets.map(p =>
-    `<button class="correlation-preset-btn" data-id="${p.id}">${p.name}</button>`
+    `<button class="range-btn" data-id="${p.id}">${p.name}</button>`
   ).join('');
-  presetsBar.querySelectorAll('.correlation-preset-btn').forEach(btn => {
+  presetsBar.querySelectorAll('.range-btn').forEach(btn => {
     btn.addEventListener('click', () => {
       const preset = presets.find(p => p.id === btn.dataset.id);
       if (preset) loadPreset(preset);
@@ -609,7 +618,7 @@ const isAsset = (name) => !!ASSET_LABELS[name];
 function loadPreset(preset) {
   activePreset = { ...preset };
   narrPairIdx = 0;
-  document.querySelectorAll('.correlation-preset-btn').forEach(btn =>
+  document.querySelectorAll('#corr-presets .range-btn').forEach(btn =>
     btn.classList.toggle('active', btn.dataset.id === preset.id));
   renderCustomControls();
   loadAndRender();
@@ -621,11 +630,12 @@ function renderCustomControls() {
   container.innerHTML = '';
   if (!activePreset) return;
 
+  const pal = MACRO_COLORS(); // 惰性取色板（主题切换后重渲染自动跟随）
   activePreset.indicators.forEach((ind, idx) => {
     const chip = document.createElement('div');
     chip.className = 'correlation-indicator-chip';
     const dot = document.createElement('span');
-    dot.style.cssText = `width:8px;height:8px;border-radius:50%;background:${MACRO_COLORS[idx % MACRO_COLORS.length]}`;
+    dot.style.cssText = `width:8px;height:8px;border-radius:50%;background:${pal[idx % pal.length]}`;
     chip.appendChild(dot);
     const axis = activePreset.left_axis.includes(ind) ? '左' : '右';
     const label = document.createElement('span');
@@ -821,7 +831,7 @@ function renderNarrative(seriesMap) {
       <div class="narr-sub">${indicatorLabel(l)} × ${indicatorLabel(r)} · 当前滚动相关（窗口最长 30 期，低频指标自动缩短）· ▲▼ = 较上一窗口回升/回落 · 颜色=对冲语义：绿=可对冲、红=同向集中、灰=中性</div>
     </div>
     ${pairs.length > 1 ? `<div class="narr-pairs">${pairs.map((p, i) =>
-      `<button class="correlation-preset-btn${i === narrPairIdx ? ' active' : ''}" data-pair="${i}">${indicatorLabel(p[0])} × ${indicatorLabel(p[1])}</button>`).join('')}</div>` : ''}
+      `<button class="range-btn${i === narrPairIdx ? ' active' : ''}" data-pair="${i}">${indicatorLabel(p[0])} × ${indicatorLabel(p[1])}</button>`).join('')}</div>` : ''}
     <div class="narr-block"><b>这个数怎么读</b><p>${corrZoneMeaning(cur)}</p></div>
     <div class="narr-block"><b>怎么读这幅图</b><p>上带是两序列各自轨迹（左右双轴，右轴多序列时已归一化）；中带滚动相关 &gt;0 即同向、&lt;0 反向；下带 5 年分位表示当前联动强度在历史中的位置。三带共享十字线与缩放。</p></div>
     <div class="narr-block"><b>历史上何时出现过</b><p>${hist}</p></div>`;
@@ -854,6 +864,7 @@ function renderChart(seriesMap) {
   if (desc) desc.textContent = (activePreset.description || '数据源：FRED · 资产序列 yfinance asset_prices · 混频按日期对齐') + (normRight ? ' · 右轴多序列已归一化（期初=100）' : '');
 
   // 序列整理（undefined 归 null —— echarts sampling processor 对 undefined 值崩溃）
+  const pal = MACRO_COLORS(); // 惰性取色板（主题切换后重渲染自动跟随）
   const items = activePreset.indicators
     .map(name => {
       let info = seriesMap[name];
@@ -862,7 +873,7 @@ function renderChart(seriesMap) {
         const base = info.data.find(d => d[1] != null)?.[1];
         if (base) info = { ...info, data: info.data.map(d => [d[0], d[1] == null ? null : +(d[1] / base * 100).toFixed(2)]) };
       }
-      return { name, info, color: MACRO_COLORS[activePreset.indicators.indexOf(name) % MACRO_COLORS.length], isLeft: activePreset.left_axis.includes(name) };
+      return { name, info, color: pal[activePreset.indicators.indexOf(name) % pal.length], isLeft: activePreset.left_axis.includes(name) };
     })
     .filter(Boolean);
   const series = items.map(x => ({
@@ -956,7 +967,7 @@ function addIndicator(name) {
   activePreset.indicators = [...activePreset.indicators, name];
   activePreset.right_axis = [...activePreset.right_axis, name];
   activePreset.id = 'custom';
-  document.querySelectorAll('.correlation-preset-btn').forEach(btn => btn.classList.remove('active'));
+  document.querySelectorAll('#corr-presets .range-btn').forEach(btn => btn.classList.remove('active'));
   renderCustomControls();
   loadAndRender();
 }
@@ -967,7 +978,7 @@ function removeIndicator(name) {
   activePreset.left_axis = activePreset.left_axis.filter(i => i !== name);
   activePreset.right_axis = activePreset.right_axis.filter(i => i !== name);
   activePreset.id = 'custom';
-  document.querySelectorAll('.correlation-preset-btn').forEach(btn => btn.classList.remove('active'));
+  document.querySelectorAll('#corr-presets .range-btn').forEach(btn => btn.classList.remove('active'));
   renderCustomControls();
   loadAndRender();
 }

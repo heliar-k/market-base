@@ -162,9 +162,9 @@ async function load() {
         type: 'heatmap', data: d.corr.matrix.flatMap((row, i) => row.map((v, j) => [j, i, v])),
         label: {
           show: true,
-          // s = 饱和格上的黑白反色字（结构性遮罩色，非语义色）；n = 主题文字色 token
+          // s = 饱和格上的反色字（token：亮白暗深灰）；n = 主题文字色 token
           rich: {
-            s: { color: R.isDark() ? '#1f2937' : '#fff', fontSize: 11 },
+            s: { color: reCssVar('--text-on-saturated'), fontSize: 11 },
             n: { color: reCssVar('--text'), fontSize: 11 },
           },
           formatter: p => {

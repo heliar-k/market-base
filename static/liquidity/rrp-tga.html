@@ -35,9 +35,9 @@
 <script src="/js/rates-common.js"></script>
 <script>
 const BUCKET_LABEL = { extreme: '极端抽水', strong: '强', mild: '温和', smooth: '平稳', injection: '注入' };
-// 抽水力度五档梯度：两端走涨跌 token，中间 strong/mild 暂无对应 token（保留字面，色阶信息不丢）
+// 抽水力度五档梯度：两端走涨跌 token，中间档走警示梯度 token（tokens.css --color-warn-deep/-light）
 const BUCKET_COLOR = {
-  extreme: reCssVar('--color-down'), strong: '#ff7043', mild: '#ffb74d',
+  extreme: reCssVar('--color-down'), strong: reCssVar('--color-warn-deep'), mild: reCssVar('--color-warn-light'),
   smooth: reCssVar('--color-neutral'), injection: reCssVar('--color-up'),
 };
 

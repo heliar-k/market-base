@@ -53,7 +53,7 @@ export async function initDashboard() {
   const tableCard = el('div', 'dash-card');
   tableCard.innerHTML = `
     <div class="dash-card-title">跨资产变化 <small class="dash-title-note">涨跌颜色只表示数值方向；Δ5/Δ20 按各序列有效观测计算，点击行进入专题</small></div>
-    <div class="dash-table-wrap"><div class="loading">加载中…</div></div>`;
+    <div class="dash-table-wrap"><div class="loading skeleton">加载中…</div></div>`;
   grid.appendChild(tableCard);
   root.appendChild(grid);
   root.appendChild(el('div', 'dash-grid dash-grid-2'));
@@ -368,9 +368,8 @@ async function settled(url) {
   }
 }
 
-function esc(s) {
-  return String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-}
+// HTML 转义单源走 rates-common.js 的 R.esc（本文件历史本地版已删）
+const esc = R.esc;
 
 function fmtNum(n, p = 2) {
   if (n == null || isNaN(n)) return '--';

@@ -18,6 +18,7 @@
   </div>
 
   <div class="re-nav" id="re-nav"></div>
+  <div class="page-toc" id="page-toc"></div>
 
   <!-- 结论层：主题状态卡（中文归类焦点 + 30 天走势缩略 + 成交占比，点击定位数据层） -->
   <div id="geo-topics" class="pm-topics"></div>
@@ -51,6 +52,11 @@ const esc = R.esc;
 const chip = R.pmChip;
 
 async function load() {
+  // 小节锚点导航（长页快速跳转；sticky 见 special.css .page-toc）
+  document.getElementById('page-toc').innerHTML = [
+    ['主题', 'geo-topics'], ['盘面解读', 're-signals'], ['7日异动', 'geo-movers'], ['主题明细', 'geo-events'],
+  ].map(([t, id]) => `<a href="#${id}">${t}</a>`).join('');
+
   const d = await R.get('/api/geo');
   if (!d || !d.topics || !d.topics.length) {
     R.fail(['geo-topics', 're-signals', 'geo-movers', 'geo-events'], new Error('无地缘事件快照 · 运行 ./bin/fetch_polymarket 拉取后刷新'));

@@ -19,17 +19,7 @@
   </div>
 
   <div class="re-nav" id="re-nav"></div>
-  <div class="page-toc">
-    <a href="#sec-now">NOW</a>
-    <a href="#sec-etf">ETF 资金流</a>
-    <a href="#sec-kpi">衍生品 KPI</a>
-    <a href="#sec-funding">资金费率</a>
-    <a href="#sec-retail">散户</a>
-    <a href="#sec-basis">基差</a>
-    <a href="#sec-cg">Coinglass</a>
-    <a href="/assets/crypto.html">‹ 加密总览</a>
-    <a href="/assets/crypto-options.html">期权 · 预测市场 ›</a>
-  </div>
+  <div class="page-toc" id="page-toc"></div>
 
   <div id="now"></div>
   <div id="etf"></div>
@@ -49,6 +39,13 @@ function stance(ann) { const a = Math.abs((ann || 0) * 100); if (ann < 0) return
 function pcrStance(p) { return p == null ? '中性' : (p < 0.4 ? '偏多' : (p > 1.5 ? '偏空' : '中性')); }
 
 async function load() {
+  // 小节锚点导航（全站统一 JS 填；末尾两项为跨页链接，非锚点）
+  document.getElementById('page-toc').innerHTML = [
+    ['NOW', 'sec-now'], ['ETF 资金流', 'sec-etf'], ['衍生品 KPI', 'sec-kpi'], ['资金费率', 'sec-funding'],
+    ['散户', 'sec-retail'], ['基差', 'sec-basis'], ['Coinglass', 'sec-cg'],
+  ].map(([t, id]) => `<a href="#${id}">${t}</a>`).join('')
+    + '<a href="/assets/crypto.html">‹ 加密总览</a><a href="/assets/crypto-options.html">期权 · 预测市场 ›</a>';
+
   const d = await R.get('/api/assets/crypto-derivatives');
   if (!d || !d.ts) { R.fail(['now', 'etf', 'kpi', 'funding', 'retail', 'basis', 'coinglass'], new Error('无加密衍生品快照 · 运行 ./bin/fetch_crypto_derivatives 后刷新')); return; }
   document.getElementById('re-as-of').textContent =

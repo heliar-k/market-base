@@ -19,9 +19,7 @@
   </div>
 
   <div class="re-nav" id="re-nav"></div>
-  <div class="page-toc" id="page-toc">
-    <a href="#re-badges">概览</a><a href="#sec-compare">曲线对比</a><a href="#sec-global">全球长端</a><a href="#sec-change">月度变化</a><a href="#sec-spreads">关键利差</a><a href="#sec-tips">名义/实际</a><a href="#sec-tenors">期限明细</a>
-  </div>
+  <div class="page-toc" id="page-toc"></div>
 
   <div class="re-badges" id="re-badges"></div>
 
@@ -46,6 +44,12 @@
 <script src="/js/rates-common.js"></script>
 <script>
 async function load() {
+  // 小节锚点导航（长页快速跳转；sticky 见 special.css .page-toc）
+  document.getElementById('page-toc').innerHTML = [
+    ['概览', 're-badges'], ['曲线对比', 'sec-compare'], ['全球长端', 'sec-global'], ['月度变化', 'sec-change'],
+    ['关键利差', 'sec-spreads'], ['名义/实际', 'sec-tips'], ['期限明细', 'sec-tenors'],
+  ].map(([t, id]) => `<a href="#${id}">${t}</a>`).join('');
+
   const d0 = await R.get('/api/rates/yield-curve');
   const d = d0.yield_curve;
   document.getElementById('re-as-of').textContent = R.asOf(d.as_of);

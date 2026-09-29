@@ -9,13 +9,6 @@
 <link rel="stylesheet" href="/css/app.css">
 <link rel="stylesheet" href="/css/special.css">
 <script src="/js/site-nav.js"></script>
-<style>/* 期权结构看板：三张表（指数/ETF · Mag 7 · 重点个股）列宽统一。
-   各表 auto-layout 按自身内容定宽，同名列会错位 20-45px → 固定百分比列宽对齐 */
-#board .re-table { table-layout: fixed; }
-#board .re-table th:nth-child(1), #board .re-table td:nth-child(1) { width: 15%; }
-#board .re-table th:nth-child(2), #board .re-table td:nth-child(2) { width: 18%; }
-#board .re-table th:nth-child(3), #board .re-table td:nth-child(3) { width: 24%; }
-</style>
 <script src="/vendor/echarts.min.js"></script>
 </head>
 <body>
@@ -199,13 +192,11 @@ function pGex(panel, v) {
   panel.innerHTML = `
     <h3>${S} · GEX 按行权价分布</h3>
     <p style="margin:0 0 8px;font-size:12px;color:var(--text-secondary)">绿色 = Call GEX × OI（dealer 净多，压制波动）；红色 = Put GEX × OI（dealer 净空，放大波动）；黑色曲线 = 累计 GEX（右轴，穿越 0 线即 Gamma Flip）。蓝线 = 现价。</p>
-    <div class="gx-legend"><span class="gl"><i style="background:#26a69a"></i>Call GEX</span>
-      <span class="gl"><i style="background:#ef5350"></i>Put GEX</span>
-      <span class="gl"><i style="background:var(--text);height:2px;border-radius:1px"></i>累计 GEX</span></div>
     <div class="chart" id="gex-chart" style="height:300px"></div>
     <h3 style="margin-top:16px">到期日 Gamma 集中度</h3>
     <div id="buckets"></div>
     <p class="re-source" style="margin:8px 0 0">占比越集中在单一到期段，该段的 wall 约束力越强；分布越分散，各时间尺度上的墙越弱。</p>`;
+  // 图例走 R.lineOption + reSyncLegend 单源（柱取 itemStyle 色、线取线色），不再手写 HTML 图例
   curChartOpt = colors => {
     const g0 = (v.wall && v.wall.length ? v.wall : (v.gex_dist || [])).slice().sort((a, b) => a.strike - b.strike);
     // timsun 同款：只画有效区间（|gex| 显著的行权价，两端 0 值远端不挤占 x 轴）
@@ -225,9 +216,8 @@ function pGex(panel, v) {
     let acc = 0;
     const cum = g.map(x => { acc += (x.call_gex_m || 0) + (x.put_gex_m || 0); return Math.round(acc * 10) / 10; });
     const cumMax = Math.max(...cum.map(Math.abs), 10);
-    return {
+    return R.lineOption({
       tooltip: { trigger: 'axis' },
-      legend: { show: false },
       grid: { left: 52, right: 56, top: 28, bottom: 52 },
       xAxis: { type: 'category', data: ss, axisLine: { lineStyle: { color: colors.border } }, axisLabel: { color: colors.muted, fontSize: 10, rotate: 0 }, name: '行权价', nameLocation: 'middle', nameGap: 32, nameTextStyle: { color: colors.muted, fontSize: 10 } },
       yAxis: [
@@ -253,7 +243,7 @@ function pGex(panel, v) {
           showSymbol: false, smooth: true, lineStyle: { width: 2, color: colors.text },
           areaStyle: { opacity: 0.08 } },
       ],
-    };
+    }, colors);
   };
   // 到期 Gamma 集中度水平条
   const buckets = v.buckets || {};

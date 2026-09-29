@@ -9,34 +9,6 @@
 <link rel="stylesheet" href="/css/app.css">
 <link rel="stylesheet" href="/css/special.css">
 <script src="/js/site-nav.js"></script>
-<style>
-/* ── fx 页私有样式（对齐 timsun /assets/fx：4 verdict 卡 + FX Dashboard 图） ── */
-.fx-crumb { font-size: 12px; color: var(--text-dim); margin-top: 10px; }
-.fx-crumb a { color: var(--text-secondary); text-decoration: none; }
-.fx-crumb a:hover { color: var(--accent); }
-/* 顶部 4 张 verdict 卡：一排 4 列，移动端 1 列 */
-.fx-verdict-cards { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
-@media (max-width: 900px) { .fx-verdict-cards { grid-template-columns: 1fr; } }
-.fx-verdict-card { display: flex; flex-direction: column; }
-.fx-verdict-top { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
-.fx-verdict-num { font-size: 12px; color: var(--text-secondary); white-space: nowrap; }
-.fx-verdict-num.fx-mono { font-family: 'SF Mono', monospace; }
-.fx-verdict-value { font-size: 20px; font-weight: 700; margin: 8px 0 6px; line-height: 1.25; }
-.fx-verdict-note { font-size: 11px; color: var(--text-secondary); line-height: 1.5; margin-top: auto; }
-.fx-up { color: var(--color-down); }    /* 美元走强方向 → 红 */
-.fx-down { color: var(--color-up); }     /* 美元走弱方向 → 绿（亮暗由 tokens.css 接管） */
-.fx-flat { color: var(--text-secondary); }
-/* FX Dashboard 头栏：左小标 + h2，右 11px meta */
-.fx-dash-head { display: flex; justify-content: space-between; align-items: flex-end; gap: 12px; flex-wrap: wrap; }
-.fx-dash-meta { font-size: 11px; color: var(--text-dim); padding-bottom: 6px; }
-.fx-chart { height: 420px; }
-/* 品种列两行：粗体名 + 10px 等宽 ticker */
-.fx-sym { line-height: 1.4; }
-.fx-sym b { font-weight: 600; }
-.fx-sym-cn { font-size: 11px; color: var(--text-dim); margin-left: 4px; }
-.fx-sym-t { display: block; font-family: 'SF Mono', monospace; font-size: 10px; color: var(--text-dim); }
-.fx-mono { font-family: 'SF Mono', monospace; }
-</style>
 <script src="/vendor/echarts.min.js"></script>
 </head>
 <body>

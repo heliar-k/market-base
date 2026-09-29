@@ -47,11 +47,11 @@ body { font-family: system-ui, -apple-system, sans-serif; background: var(--bg);
 
 /* ── layout ─────────────────────────────────────────────── */
 .app { display: flex; flex: 1; min-height: 0; margin-left: 240px; }
-@media (max-width: 900px) { .app { margin-left: 0; } }
+@media (max-width: 1024px) { .app { margin-left: 0; } }
 .sidebar { width: 140px; background: var(--surface); border-right: 1px solid var(--border); display: none; flex-direction: column; flex-shrink: 0; }
 .center { flex: 1; display: flex; flex-direction: column; min-width: 0; min-height: 0; padding: 12px; gap: 8px; overflow-y: auto; }
 .status-bar { height: 28px; background: var(--surface); border-top: 1px solid var(--border); display: flex; align-items: center; padding: 0 16px; font-size: 12px; color: var(--text-secondary); gap: 16px; flex-shrink: 0; margin-left: 240px; }
-@media (max-width: 900px) { .status-bar { margin-left: 0; } }
+@media (max-width: 1024px) { .status-bar { margin-left: 0; } }
 .status-bar #status-refresh { margin-left: auto; }
 
 /* ── view switching ─────────────────────────────────────── */
@@ -168,25 +168,6 @@ body { font-family: system-ui, -apple-system, sans-serif; background: var(--bg);
 .dash-watch-sym { font-weight: 600; min-width: 50px; }
 .dash-watch-price { color: var(--text); }
 
-/* liquidity snapshot（已退役：仪表盘改走 daily-brief 跨资产表） */
-.dash-liq-body { display: flex; flex-direction: column; gap: 4px; }
-.dash-liq-row {
-  display: flex; justify-content: space-between; align-items: center;
-  padding: 8px 4px; border-bottom: 1px solid var(--border-light); font-size: 13px;
-}
-.dash-liq-row:last-child { border-bottom: none; }
-.dash-liq-label { color: var(--text); font-weight: 500; }
-.dash-liq-label small { font-weight: 400; color: var(--text-dim); margin-left: 4px; font-size: 11px; }
-.dash-liq-value { font-weight: 700; font-size: 14px; }
-
-/* indices panel（已退役：同上） */
-.dash-indices { display: flex; flex-direction: column; gap: 4px; }
-.dash-idx-row {
-  display: flex; justify-content: space-between; align-items: center;
-  padding: 8px 4px; border-bottom: 1px solid var(--border-light); font-size: 13px;
-}
-.dash-idx-row:last-child { border-bottom: none; }
-
 /* ── sidebar ────────────────────────────────────────────── */
 .sidebar-content { flex: 1; overflow-y: auto; overflow-x: hidden; padding: 4px 0; scrollbar-width: none; }
 .sidebar-content::-webkit-scrollbar { display: none; }
@@ -205,12 +186,14 @@ body { font-family: system-ui, -apple-system, sans-serif; background: var(--bg);
 
 /* ── range controls (tech view) ────────────────────────── */
 .range-controls { display: flex; gap: 4px; margin-left: auto; }
-.range-btn, .macro-range-btn {
+/* 范围/预设按钮全站单类 .range-btn；预设条/叙事对按钮不折行不收缩 */
+.correlation-presets .range-btn, .narr-pairs .range-btn { white-space: nowrap; flex: 0 0 auto; }
+.range-btn {
   padding: 4px 10px; border: 1px solid var(--btn-border); border-radius: 4px;
   background: var(--surface); font-size: 12px; cursor: pointer; transition: all .15s; color: var(--text-secondary);
 }
-.range-btn:hover, .macro-range-btn:hover { background: var(--surface-hover); border-color: var(--accent); }
-.range-btn.active, .macro-range-btn.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+.range-btn:hover { background: var(--surface-hover); border-color: var(--accent); }
+.range-btn.active { background: var(--accent); color: #fff; border-color: var(--accent); }
 
 /* ── chart containers ───────────────────────────────────── */
 .chart-card { background: var(--surface); border-radius: 8px; border: 1px solid var(--border); overflow: hidden; }
@@ -252,12 +235,28 @@ body { font-family: system-ui, -apple-system, sans-serif; background: var(--bg);
 /* ── loading ────────────────────────────────────────────── */
 .loading { display: flex; align-items: center; justify-content: center; height: 100%; color: var(--text-dim); font-size: 14px; }
 
+/* ── 骨架屏（CSS-only shimmer）：数据到位前的占位扫光。挂载/摘除由 JS 集成点负责——
+   专题页走 rates-common.js 的 R.mkChart（建图挂载、首次 setOption 后摘除），
+   SPA 仪表盘加载占位（.loading）同挂。定义放 app.css 而非 special.css：SPA 不加载
+   special.css，单一定义两侧覆盖。扫光色由 --text-dim 派生，亮暗主题自动适配。 */
+.skeleton { position: relative; }
+.skeleton::after {
+  content: ''; position: absolute; inset: 0; z-index: 2; pointer-events: none;
+  border-radius: inherit;
+  background: linear-gradient(100deg, transparent 30%,
+    color-mix(in srgb, var(--text-dim) 16%, transparent) 50%, transparent 70%);
+  transform: translateX(-100%);
+  animation: skeleton-sweep 1.4s ease-in-out infinite;
+}
+@keyframes skeleton-sweep { to { transform: translateX(100%); } }
+@media (prefers-reduced-motion: reduce) { .skeleton::after { animation: none; } }
+
 /* ── 全局左侧导航（timsun 风格）── */
 .macro-nav {
   position: fixed; top: 0; left: 0; bottom: 0; width: 240px;
   display: flex; flex-direction: column;
   background: var(--surface); border-right: 1px solid var(--border);
-  overflow-y: auto; z-index: 40;
+  overflow-y: auto; z-index: var(--z-nav);
 }
 .macro-nav-brand { padding: 16px 16px 8px; display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
 .macro-nav-brand-name { font-size: 16px; font-weight: 700; letter-spacing: .08em; color: var(--text); }
@@ -310,7 +309,7 @@ body { font-family: system-ui, -apple-system, sans-serif; background: var(--bg);
   flex: 1; width: 100%; border: 1px solid var(--border);
   border-radius: 8px; background: var(--surface);
 }
-@media (max-width: 900px) {
+@media (max-width: 1024px) {
   .macro-nav {
     transform: translateX(-105%); transition: transform .2s ease;
     box-shadow: 4px 0 16px rgba(0,0,0,.15);
@@ -318,22 +317,19 @@ body { font-family: system-ui, -apple-system, sans-serif; background: var(--bg);
   }
   body.side-open .macro-nav { transform: none; }
   #macro-nav-toggle {
-    display: flex; position: fixed; top: 8px; left: 8px; z-index: 50;
+    display: flex; position: fixed; top: 8px; left: 8px; z-index: var(--z-nav-toggle);
     align-items: center; justify-content: center; width: 30px; height: 30px;
     border: 1px solid var(--btn-border); border-radius: 6px;
     background: var(--surface); color: var(--text-secondary); cursor: pointer;
     font-size: 14px;
   }
   body.side-open .macro-nav-backdrop {
-    display: block; position: fixed; inset: 0; z-index: 30;
+    display: block; position: fixed; inset: 0; z-index: var(--z-backdrop);
     background: rgba(0,0,0,.35);
   }
 }
 
 /* ── correlation view（关联分析面板：双模式）────── */
-.correlation-preset-btn { padding: 4px 12px; border: 1px solid var(--btn-border); border-radius: 4px; background: var(--surface); font-size: 12px; cursor: pointer; transition: all .15s; color: var(--text-secondary); white-space: nowrap; flex: 0 0 auto; }
-.correlation-preset-btn:hover { background: var(--surface-hover); }
-.correlation-preset-btn.active { background: var(--accent); color: #fff; border-color: var(--accent); }
 .correlation-controls { display: flex; gap: 8px; padding: 8px 12px; border-bottom: 1px solid var(--border); align-items: center; flex-wrap: wrap; }
 .correlation-custom { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; flex: 1; }
 .correlation-select { padding: 4px 8px; border: 1px solid var(--btn-border); border-radius: 4px; font-size: 12px; background: var(--surface); min-width: 120px; color: var(--text); }
@@ -353,7 +349,7 @@ body { font-family: system-ui, -apple-system, sans-serif; background: var(--bg);
 .corr-status-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
 .corr-status-card { padding: 12px; cursor: pointer; }
 .corr-status-card .dash-stat-value { font-size: 22px; }
-@media (max-width: 1100px) { .corr-status-row { grid-template-columns: repeat(2, 1fr); } .corr-main { grid-template-columns: 1fr; } }
+@media (max-width: 1024px) { .corr-status-row { grid-template-columns: repeat(2, 1fr); } .corr-main { grid-template-columns: 1fr; } }
 .corr-main { display: grid; grid-template-columns: 5fr 4fr; gap: 10px; min-height: 560px; flex: 1; }
 .corr-matrix-pane, .corr-side-pane { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; display: flex; flex-direction: column; min-height: 0; overflow: hidden; }
 .corr-pane-head { display: flex; justify-content: space-between; align-items: baseline; padding: 10px 14px 6px; border-bottom: 1px solid var(--border-light); gap: 8px; }
@@ -371,7 +367,7 @@ body { font-family: system-ui, -apple-system, sans-serif; background: var(--bg);
 .corr-insight-text { font-size: 11px; color: var(--text-secondary); margin-top: 2px; line-height: 1.5; }
 .corr-spark { margin-top: 10px; }
 .corr-spark-cap { font-size: 10px; color: var(--text-dim); margin-top: 6px; }
-.corr-drill-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.45); z-index: 60; display: flex; align-items: center; justify-content: center; }
+.corr-drill-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.45); z-index: var(--z-overlay); display: flex; align-items: center; justify-content: center; }
 .corr-drill-panel { width: min(880px, 92vw); max-height: 86vh; overflow-y: auto; padding-bottom: 10px; }
 .corr-drill-charts { display: flex; gap: 12px; padding: 8px 14px; flex-direction: column; }
 .corr-drill-note { font-size: 11px; color: var(--text-dim); padding: 4px 14px; }
@@ -424,12 +420,6 @@ body { font-family: system-ui, -apple-system, sans-serif; background: var(--bg);
 /* ── stock view ────────────────────────────────────────── */
 .stock-toolbar { flex-wrap: wrap; gap: 8px; padding: 4px 0; }
 .stock-btn-group { display: flex; gap: 4px; flex-wrap: wrap; align-items: center; }
-.stock-btn {
-  padding: 4px 10px; border: 1px solid var(--btn-border); border-radius: 4px;
-  background: var(--surface); font-size: 12px; cursor: pointer; transition: all .15s; color: var(--text-secondary);
-}
-.stock-btn:hover { background: var(--surface-hover); border-color: var(--accent); }
-.stock-btn.active { background: var(--accent); color: #fff; border-color: var(--accent); }
 .stock-indicator-label {
   font-size: 12px; display: flex; align-items: center; gap: 3px;
   cursor: pointer; padding: 4px 8px; border-radius: 4px;
@@ -474,3 +464,30 @@ body { font-family: system-ui, -apple-system, sans-serif; background: var(--bg);
 }
 .corridor-table td:first-child { text-align: left; color: var(--text-dim); white-space: nowrap; }
 .corridor-table tbody tr:hover { background: var(--surface-hover); }
+
+/* ── 窄屏（≤1024px）：技术分析三栏纵向堆叠 ──────────────── */
+/* sidebar 变横向滚动条，诊断 panel 变全宽排到图表下方；桌面端样式不受影响 */
+@media (max-width: 1024px) {
+  .app[data-view="tech"] { flex-direction: column; }
+  /* sidebar：横向滚动条（忽略桌面端 sidebar-hidden 状态，窄屏没有收起按钮） */
+  .app[data-view="tech"] .sidebar,
+  .app[data-view="tech"].sidebar-hidden .sidebar { display: flex; }
+  .app[data-view="tech"] .sidebar { width: auto; border-right: none; border-bottom: 1px solid var(--border); }
+  .app[data-view="tech"] .sidebar-content { overflow-x: auto; overflow-y: hidden; padding: 0 4px; }
+  .app[data-view="tech"] .symbol-list { display: flex; align-items: center; }
+  .app[data-view="tech"] .sidebar-section-header,
+  .app[data-view="tech"] .sidebar-row { white-space: nowrap; flex-shrink: 0; }
+  .app[data-view="tech"] .sidebar-collapse-btn { display: none; }
+  /* 诊断面板：全宽排在图表下方，限高内部滚动；collapsed 态回退为横向标题栏 */
+  .app[data-view="tech"] .panel {
+    width: auto; max-height: 45vh; border-left: none;
+    border-top: 1px solid var(--border);
+  }
+  .app[data-view="tech"] .panel.collapsed { width: auto; padding: 12px 16px; }
+  .app[data-view="tech"] .panel.collapsed .panel-header { writing-mode: horizontal-tb; }
+  /* 信息条窄屏允许折行 */
+  .tech-info-bar { flex-wrap: wrap; gap: 8px 12px; }
+  /* 仪表盘网格收敛：顶部统计 4→2 列，卡片区 2/3 列→1 列 */
+  .dash-top { grid-template-columns: repeat(2, 1fr); }
+  .dash-grid, .dash-grid-2 { grid-template-columns: 1fr; }
+}

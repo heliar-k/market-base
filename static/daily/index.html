@@ -9,21 +9,6 @@
 <link rel="stylesheet" href="/css/app.css">
 <link rel="stylesheet" href="/css/special.css">
 <script src="/js/site-nav.js"></script>
-<style>
-/* 今日研判页私有样式（面板名前缀 db-）；语义色走 tokens.css */
-.db-spark.up { stroke: var(--color-up); }
-.db-spark.down { stroke: var(--color-down); }
-.db-hit { border-color: var(--color-up); }
-.db-flat { opacity: .75; }
-.db-alert-card { border-left: 3px solid var(--color-down); }
-.db-bull { border-left: 3px solid var(--color-up); padding-left: 8px; }
-.db-bear { border-left: 3px solid var(--color-down); padding-left: 8px; }
-.db-click { cursor: pointer; }
-/* 包裹式小节（隐藏切换）内部节奏：.re-root 的 flex gap 管不到 wrapper 内部 */
-.db-sec { display: flex; flex-direction: column; gap: 8px; }
-@keyframes db-flash { 0% { background: var(--accent-light); } 100% { background: transparent; } }
-.db-flash { animation: db-flash 1.6s ease-out; }
-</style>
 <script src="/js/echarts-theme.js"></script>
 <script src="/js/rates-common.js"></script>
 </head>
@@ -145,12 +130,8 @@ async function load() {
     R.get('/api/daily-brief'),
     R.get('/api/rate-expectations'),
   ]);
-  if (brief.status !== 'fulfilled') {
-    document.getElementById('db-scenarios').innerHTML =
-      '<div class="re-error">今日研判数据加载失败，请确认服务已启动（uv run python -m src.server）</div>';
-    document.getElementById('db-table').innerHTML = '';
-    return;
-  }
+  // 主数据失败 → 抛给 load().catch 统一走 R.fail 错误态；rex 容忍失败（仅影响 FOMC 隐含概率徽章，可缺）
+  if (brief.status !== 'fulfilled') throw brief.reason;
   const d = brief.value;
   const ind = d.indicators || { as_of: null, groups: {}, rows: [] };
 
@@ -293,7 +274,7 @@ function focusReading(key) {
       </div>`).join('');
   }
 }
-load();
+load().catch(e => R.fail(['db-badges', 'db-scenarios', 'db-fomc', 'db-table'], e));
 </script>
 </body>
 </html>

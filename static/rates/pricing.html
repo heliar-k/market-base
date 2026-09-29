@@ -9,66 +9,6 @@
 <link rel="stylesheet" href="/css/app.css">
 <link rel="stylesheet" href="/css/special.css">
 <script src="/js/site-nav.js"></script>
-<style>/* KPI 8 卡固定 4×2，避免 auto-fit 7 列时第 8 卡孤行 */
-#re-cards .re-cards { grid-template-columns: repeat(4, 1fr); }
-@media (max-width: 900px) { #re-cards .re-cards { grid-template-columns: repeat(2, 1fr); } }
-/* ── 政策路径定价 hero：决策卡 + PM 收敛路径图并排 ── */
-.hero { display: grid; grid-template-columns: 400px 1fr; gap: 14px; }
-@media (max-width: 980px) { .hero { grid-template-columns: 1fr; } }
-.hero-card { border: 1px solid var(--accent); border-radius: 10px; background: var(--surface); padding: 16px; display: flex; flex-direction: column; gap: 12px; box-shadow: 0 0 0 1px var(--accent); }
-.hc-head { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
-.hc-date { font-size: 20px; font-weight: 800; font-family: var(--font-mono); }
-.hc-tag { font-size: 11px; color: var(--text-dim); border: 1px solid var(--border); border-radius: 4px; padding: 1px 6px; }
-.hc-verdict .duel { display: grid; grid-template-columns: 1fr auto 1fr; gap: 12px; align-items: center; }
-.hc-verdict .side { text-align: center; }
-.hc-verdict .side .lbl { font-size: 11px; color: var(--text-dim); margin-bottom: 2px; }
-.hc-verdict .side .num { font-size: 26px; font-weight: 800; font-family: var(--font-mono); line-height: 1.1; }
-.hc-verdict .side .num.up { color: var(--color-up); }
-.hc-verdict .side .num.down { color: var(--color-down); }
-.hc-verdict .side .num.neutral { color: var(--color-neutral); }
-.hc-verdict .side .sub { font-size: 11px; color: var(--text-dim); }
-.hc-verdict .vs { font-size: 11px; color: var(--text-dim); text-align: center; }
-.hc-bk { display: flex; flex-direction: column; gap: 5px; }
-.hc-bk .row { display: grid; grid-template-columns: 56px 1fr 104px 62px; gap: 8px; align-items: center; font-size: 12px; }
-.hc-bk .lab { text-align: right; font-family: var(--font-mono); }
-.hc-bk .lab.cut { color: var(--color-up); } .hc-bk .lab.hold { color: var(--color-neutral); } .hc-bk .lab.hike { color: var(--color-down); }
-.hc-bk .track { height: 9px; background: var(--surface-alt); border-radius: 3px; position: relative; overflow: hidden; }
-.hc-bk .f-zq { position: absolute; inset: 0 auto 0 0; border-radius: 3px; opacity: .95; }
-.hc-bk .f-pm { position: absolute; inset: 0 auto 0 0; border-radius: 3px; opacity: .45; }
-/* 数值列以「/」为轴心三列对齐：左数右靠、斜杠居中、右数左靠（整列定宽） */
-.hc-bk .val { font-family: var(--font-mono); white-space: nowrap; display: grid; grid-template-columns: 1fr 12px 1fr; }
-.hc-bk .val i { text-align: right; font-style: normal; }
-.hc-bk .val s { text-align: center; color: var(--text-dim); text-decoration: none; }
-.hc-bk .val u { text-align: left; font-style: normal; text-decoration: none; color: var(--text-secondary); }
-.hc-bk .chip { text-align: left; white-space: nowrap; }
-.hc-bk .chip .dchip { margin-left: 0; }
-.hc-foot { font-size: 11px; color: var(--text-dim); border-top: 1px dashed var(--border); padding-top: 8px; display: flex; gap: 12px; flex-wrap: wrap; }
-.hc-foot b { color: var(--text-secondary); font-family: var(--font-mono); font-weight: 500; }
-.chart-box { border: 1px solid var(--border); border-radius: 8px; background: var(--surface); padding: 10px 12px 4px; }
-.chart-box h3 { font-size: 13px; font-weight: 700; margin: 2px 0 4px; }
-.chart-box h3 small { color: var(--text-dim); font-weight: 400; }
-#conv-chart { height: 268px; }
-/* ── 三色概率条 / 分歧角标（hero 与明细表共用）── */
-.pb { display: flex; height: 10px; border-radius: 3px; overflow: hidden; gap: 1px; background: var(--surface-alt); }
-.pb > div { min-width: 0; }
-.pb .s-cut { background: var(--color-up); } .pb .s-hold { background: var(--color-neutral); } .pb .s-hike { background: var(--color-down); }
-.dchip { display: inline-block; font-size: 11px; font-weight: 600; padding: 0 6px; border-radius: 999px; margin-left: 6px; }
-.dchip.big { background: var(--color-warn-bg, var(--surface-alt)); color: var(--color-warn, var(--accent)); border: 1px solid currentColor; }
-.dchip.mid { color: var(--text-dim); border: 1px solid var(--border); }
-/* ── 概率分布明细表：每会议一行，ZQ/PM 同格双条 ── */
-.re-table .dual { min-width: 220px; }
-.dual-row { display: flex; align-items: center; gap: 6px; margin: 2px 0; }
-.dual-row .src { width: 22px; font-size: 10px; color: var(--text-dim); text-align: right; }
-.dual-row .pb { flex: 1; }
-.re-table td.numcell { font-family: var(--font-mono); white-space: nowrap; }
-.numcell .z { font-size: 13px; }
-.numcell .p { font-size: 13px; color: var(--text-dim); }
-.numcell .p.hot { color: var(--accent); font-weight: 600; }
-.rp-date { font-weight: 700; font-family: var(--font-mono); }
-.rp-sub { font-size: 11px; color: var(--text-dim); }
-/* 月末会议改用下月合约定价时的角标（contract_used ≠ contract） */
-.re-next-tag { font-size: 11px; margin-left: 4px; color: var(--text-dim); white-space: nowrap; }
-</style>
 <script src="/vendor/echarts.min.js"></script>
 </head>
 <body>
@@ -79,9 +19,7 @@
   </div>
 
   <div class="re-nav" id="re-nav"></div>
-  <div class="page-toc" id="page-toc">
-    <a href="#re-cards">概览</a><a href="#sec-policy">政策路径</a><a href="#sec-table">概率分布明细</a><a href="#sec-triple">名义/实际/BEI</a><a href="#sec-2y10y">2Y/10Y 与利差</a>
-  </div>
+  <div class="page-toc" id="page-toc"></div>
 
   <div id="re-cards"></div>
 
@@ -180,6 +118,11 @@ const dLabelGlobal = (dd) => {
 };
 
 async function load() {
+  // 小节锚点导航（长页快速跳转；sticky 见 special.css .page-toc）
+  document.getElementById('page-toc').innerHTML = [
+    ['概览', 're-cards'], ['政策路径', 'sec-policy'], ['概率分布明细', 'sec-table'], ['名义/实际/BEI', 'sec-triple'], ['2Y/10Y 与利差', 'sec-2y10y'],
+  ].map(([t, id]) => `<a href="#${id}">${t}</a>`).join('');
+
   const el = document.getElementById('re-tbody');
   el.innerHTML = '<tr><td colspan="7" class="re-loading">加载中…</td></tr>';
 

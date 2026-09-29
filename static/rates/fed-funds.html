@@ -19,9 +19,7 @@
   </div>
 
   <div class="re-nav" id="re-nav"></div>
-  <div class="page-toc" id="page-toc">
-    <a href="#re-cards">概览</a><a href="#sec-corridor">利率走廊</a><a href="#sec-sofr">SOFR 成交量</a><a href="#sec-effr">EFFR（5年）</a><a href="#sec-recent">近期数据</a>
-  </div>
+  <div class="page-toc" id="page-toc"></div>
 
   <div id="re-cards"></div>
   <div class="re-h2" id="sec-corridor">短期利率走廊（SOFR 分位 + 目标区间）</div>
@@ -38,6 +36,11 @@
 <script src="/js/rates-common.js"></script>
 <script>
 async function load() {
+  // 小节锚点导航（长页快速跳转；sticky 见 special.css .page-toc）
+  document.getElementById('page-toc').innerHTML = [
+    ['概览', 're-cards'], ['利率走廊', 'sec-corridor'], ['SOFR 成交量', 'sec-sofr'], ['EFFR（5年）', 'sec-effr'], ['近期数据', 'sec-recent'],
+  ].map(([t, id]) => `<a href="#${id}">${t}</a>`).join('');
+
   const d = await R.get('/api/rates/fed-funds');
   document.getElementById('re-as-of').textContent = R.asOf(d.as_of);
 
@@ -96,7 +99,7 @@ async function load() {
     dataZoom: [{ type: 'inside' }, { type: 'slider', bottom: 16, height: 18 }],
     xAxis: { type: 'category', data: R.ts(d.effr_history), axisLabel: { color: colors.muted, fontSize: 10 }, axisLine: { lineStyle: { color: colors.border } } },
     yAxis: { type: 'value', scale: true, axisLabel: { color: colors.muted, formatter: '{value}%' }, splitLine: { lineStyle: { color: colors.grid } } },
-    series: [{ type: 'line', data: R.vs(d.effr_history), symbol: 'none', lineStyle: { color: colors.blue, width: 2 }, areaStyle: { color: 'rgba(59,130,246,0.08)' } }],
+    series: [{ type: 'line', data: R.vs(d.effr_history), symbol: 'none', lineStyle: { color: colors.blue, width: 2 }, areaStyle: { color: colors.blue + '14' } }],
   }));
 
   // ── 近 30 条 ──

@@ -19,12 +19,7 @@
   </div>
 
   <div class="re-nav" id="re-nav"></div>
-  <div class="page-toc">
-    <a href="#sec-walls">期权价格墙</a>
-    <a href="#sec-pm">Polymarket 价位</a>
-    <a href="/assets/crypto.html">‹ 加密总览</a>
-    <a href="/assets/crypto-derivatives.html">‹ 资金与杠杆</a>
-  </div>
+  <div class="page-toc" id="page-toc"></div>
 
   <div id="walls"></div>
   <div id="polymarket"></div>
@@ -190,6 +185,12 @@ function renderPolymarket(pm, spot) {
 }
 
 async function load() {
+  // 小节锚点导航（全站统一 JS 填；末尾两项为跨页链接，非锚点）
+  document.getElementById('page-toc').innerHTML = [
+    ['期权价格墙', 'sec-walls'], ['Polymarket 价位', 'sec-pm'],
+  ].map(([t, id]) => `<a href="#${id}">${t}</a>`).join('')
+    + '<a href="/assets/crypto.html">‹ 加密总览</a><a href="/assets/crypto-derivatives.html">‹ 资金与杠杆</a>';
+
   const d = await R.get('/api/assets/crypto-derivatives');
   if (!d || !d.ts) { R.fail(['walls', 'polymarket'], new Error('无加密衍生品快照 · 运行 ./bin/fetch_crypto_derivatives 后刷新')); return; }
   document.getElementById('re-as-of').textContent =
