@@ -24,3 +24,8 @@ site-cf
 # 个人交易记录（本地保留，不公开）
 trade-journal/
 data/options_structure/raw_*.csv
+
+# pi planning-with-files 会话计划文件（每次会话重写，不入库）
+task_plan.md
+findings.md
+progress.md
