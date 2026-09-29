@@ -549,6 +549,11 @@ a.re-badge:hover { color: var(--accent); border-color: var(--accent); }
 .fx-sym-cn { font-size: 11px; color: var(--text-dim); margin-left: 4px; }
 .fx-sym-t { display: block; font-family: var(--font-mono); font-size: 10px; color: var(--text-dim); }
 .fx-mono { font-family: var(--font-mono); }
+/* 6 张分组同构表列宽统一：fixed 布局 + 首列 22%、数值列均分，跨表纵向成线；
+   窄屏（<640px 内容区）表格整体横滚而不是把列挤碎 */
+#dashboard .re-table { table-layout: fixed; min-width: 640px; }
+#dashboard .re-table th:nth-child(1) { width: 22%; }
+#dashboard .re-table th:nth-child(n+2) { width: 13%; }
 
 /* ── daily 页（今日研判，原页面内联 <style> 收编；db- 前缀为本页私有）── */
 .db-spark.up { stroke: var(--color-up); }

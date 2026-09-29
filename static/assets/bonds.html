@@ -41,28 +41,38 @@ async function load() {
     <div class="re-corridor-value">${c.value}</div><div class="re-card-sub">${c.sub}</div></div>`).join('');
   if (d.cards && d.cards.length) document.getElementById('re-as-of').textContent = R.asOf(d.cards[0].date);
 
-  // 20 日收盘图/表
+  // 20 日相对涨跌图（期初=0%）+ 绝对值明细表
   const rc = d.recent || { dates: [], series: {} };
   const names = ['20年+国债ETF', '7-10年国债ETF', '投资级债券ETF', '高收益债券ETF'];
   const keys = Object.keys(rc.series);
   const shortNames = { TLT: 'TLT', IEF: 'IEF', LQD: 'LQD', HYG: 'HYG' };
+  // recent 为最新在前倒序（明细表口径）；图改时间正序，并把绝对价归一为期初=0% 的相对涨跌，
+  // 否则 TLT(~90) 与 HYG(~80) 的绝对价曲线挤在一起看不出相对强弱
+  const cdates = [...rc.dates].reverse();
+  const norm = k => {
+    const arr = [...(rc.series[k] || [])].reverse();
+    const base = arr.find(v => v != null && v !== 0);
+    return arr.map(v => (v == null || base == null) ? null : +(((v / base) - 1) * 100).toFixed(2));
+  };
   const csec = document.createElement('div');
   csec.className = 're-section';
-  csec.innerHTML = '<h2>近期收盘价（最近 20 个交易日）</h2><div class="chart" id="bond-chart" style="height:280px"></div>';
+  csec.innerHTML = '<h2>近期相对涨跌（最近 20 个交易日，期初 = 0%）</h2><div class="chart" id="bond-chart" style="height:280px"></div>';
   document.getElementById('chart').appendChild(csec);
   R.mkChart('bond-chart', colors => R.lineOption({
-    tooltip: { trigger: 'axis' },
+    tooltip: { trigger: 'axis', valueFormatter: v => v == null ? '—' : Number(v).toFixed(2) + '%' },
     // 图例色标由 reSyncLegend 按 series 线型自动出（实/虚/点/点划线），无需手写
     legend: { data: keys, top: 0, itemGap: 10 },
     grid: { left: 44, right: 16, top: 28, bottom: 28 },
-    xAxis: { type: 'category', data: rc.dates, axisLine: { lineStyle: { color: colors.border } }, axisLabel: { color: colors.muted, fontSize: 10 } },
-    yAxis: { type: 'value', scale: true, axisLabel: { color: colors.muted, fontSize: 11 }, splitLine: { lineStyle: { color: colors.grid } } },
+    xAxis: { type: 'category', data: cdates, axisLine: { lineStyle: { color: colors.border } }, axisLabel: { color: colors.muted, fontSize: 10 } },
+    yAxis: { type: 'value', scale: true, axisLabel: { color: colors.muted, fontSize: 11, formatter: v => v + '%' }, splitLine: { lineStyle: { color: colors.grid } } },
     series: keys.map((k, i) => ({
-      name: k, type: 'line', data: rc.series[k], showSymbol: false, smooth: true,
+      name: k, type: 'line', data: norm(k), showSymbol: false, smooth: true,
       // 顶层 color 同步给图例 icon（icon 不读 lineStyle.color，只读 series.color）
       color: [colors.blue, colors.orange, colors.green, colors.red][i % 4],
       // 线型差异（实线/虚线/点线/点划线）+ 粗细分层，不依赖颜色也能区分（色盲友好）
       lineStyle: { width: [2.5, 2, 2, 2][i], type: ['solid', 'dashed', 'dotted', [6, 3, 2, 3]][i], color: [colors.blue, colors.orange, colors.green, colors.red][i % 4] },
+      // 0% 基准线（只挂第一个 series，避免图例重复）
+      ...(i === 0 ? { markLine: { silent: true, symbol: 'none', label: { show: false }, data: [{ yAxis: 0 }], lineStyle: { color: colors.border, type: 'dashed' } } } : {}),
     })),
   }, colors));
 
