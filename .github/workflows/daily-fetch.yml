@@ -22,12 +22,18 @@ jobs:
       - uses: astral-sh/setup-uv@v9.0.0
         with:
           python-version: "3.13"
-          enable-cache: false  # uv.lock 不入库，缓存永远无法命中 → 关闭避免警告
+          enable-cache: true   # uv.lock 已入库，按 lock 哈希缓存依赖，uv sync 秒级恢复
 
       - name: Install deps
         run: uv sync
 
-      # Barchart 走无头浏览器通道时需要（barchart_client 降级路径）
+      # Barchart 走无头浏览器通道时需要（barchart_client 降级路径）；
+      # 浏览器二进制按 lock 哈希缓存，命中时只剩 apt deps 安装
+      - name: Cache playwright chromium
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('uv.lock') }}
       - name: Install playwright chromium
         run: uv run playwright install --with-deps chromium
 
@@ -98,7 +104,9 @@ jobs:
             git commit -m "$MSG"
             # 并发保护：远端有新 commit（如本地手动 push）时 rebase 再推，数据文件无冲突
             git pull --rebase origin main
-            git push
+            # 用 PAT push：GITHUB_TOKEN push 不触发 push 事件，PAT 会 →
+            # deploy-pages 的 paths: data/** 过滤生效，无数据变更时不再空跑部署
+            git push "https://x-access-token:${{ secrets.DATA_PUSH_TOKEN }}@github.com/heliar-k/market-base.git" HEAD:main
           fi
 
       # 所有拉取/派生步骤跑完后统一判红：数据照常 commit、Pages 照常部署，

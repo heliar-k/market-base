@@ -1,17 +1,20 @@
 name: fast-refresh
 
-# 盘中高频刷新（工作日每 15 分钟，UTC 13:07–20:52 = 美东盘前至盘后）：
-# 只跑盘中会变、且拉取便宜的源——宏观日内修订（FRED/CBOE）、资产快照（yfinance）、
-# FOMC 概率（rate_expectations，Barchart ZQ 降级源）、波动率指数（barchart_vol）、
-# 加密衍生品（crypto_derivatives/coinglass/etf_flows）、预测市场（polymarket）。
+# 盘中高频刷新（工作日每 15 分钟，UTC 13:07–20:52 = 美东盘前至盘后）。
+# 按数据变化节奏分层（2026-09-29 拆分）：
+# - 价量快照（持续变，每班都拉）：yfinance 资产价 / CBOE VIX 族 / Barchart 波动率 30 指数 /
+#   rate_expectations（ZQ 隐含 FOMC 概率）/ polymarket
+# - FRED：发布高峰在美东上午（实测 ~14:18 UTC），只在 UTC 13-14 点的班次拉，之后跳过；
+#   daily-fetch（21:00）与 fetch-refresh（15:15）另有两道兄底
+# - 加密 7×24 源（crypto_derivatives / coinglass / etf_flows）已拆去 crypto-refresh.yml
+#   （每小时全天候，不再绑工作日盘中）
 #
 # 不跑：分钟线（yfinance 盘中拉 5m 全量太重）、IBKR 依赖源（本地 cron）、
 # 派生指标（cross_asset/options_structure/bill_share，跟 daily-fetch 日频即可）、
 # 财报/SEC/拍卖等日更源。
 #
 # upsert 幂等：无新数据 → diff 为空 → 不 commit → 不触发部署，空跑零成本。
-# 部署链：deploy-pages.yml 的 workflow_run 列表含本 workflow 名
-# （数据 push 走 GITHUB_TOKEN，不触发 push 事件，只能靠 workflow_run）。
+# 部署：PAT push 触发 push 事件 → deploy-pages.yml 的 paths: data/** 过滤。
 # 错峰：分钟取 7/22/37/52，避开整点 Actions schedule 排队高峰。
 
 on:
@@ -34,12 +37,17 @@ jobs:
       - uses: astral-sh/setup-uv@v9.0.0
         with:
           python-version: "3.13"
-          enable-cache: false
+          enable-cache: true   # uv.lock 已入库，按 lock 哈希缓存依赖
 
       - name: Install deps
         run: uv sync
 
       # rate_expectations/barchart_vol 直连失败时降级无头浏览器（barchart_client）
+      - name: Cache playwright chromium
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('uv.lock') }}
       - name: Install playwright chromium
         run: uv run playwright install --with-deps chromium
 
@@ -49,10 +57,15 @@ jobs:
           YF_NO_PROXY: "1"        # Actions 无 socks5 代理，yfinance 直连
         run: |
           set +e  # 单个失败不阻断，末尾统一判红
-          for f in fetch_fred fetch_cboe fetch_yfinance fetch_rate_expectations fetch_barchart_vol fetch_crypto_derivatives fetch_coinglass fetch_etf_flows fetch_polymarket; do
+          for f in fetch_yfinance fetch_cboe fetch_barchart_vol fetch_rate_expectations fetch_polymarket; do
             echo "===== START $f ====="
             bash "bin/$f" || FAILED="$FAILED $f"
           done
+          # FRED 发布高峰在美东上午（实测 ~14:18 UTC），只拉 UTC 13-14 点的班次，之后跳过省空跑
+          if [ "$(date -u +%H)" -le 14 ]; then
+            echo "===== START fetch_fred ====="
+            bash bin/fetch_fred || FAILED="$FAILED fetch_fred"
+          fi
           [ -n "$FAILED" ] && echo "失败:$FAILED" && echo "FAILED_LIST=$FAILED" >> "$GITHUB_ENV"
           exit 0
 
@@ -69,7 +82,8 @@ jobs:
             [ -n "$FAILED_LIST" ] && MSG="$MSG${NL}失败:$FAILED_LIST"
             git commit -m "$MSG"
             git pull --rebase origin main
-            git push
+            # PAT push：触发 push 事件 → deploy-pages paths 过滤生效，无变更不空跑部署
+            git push "https://x-access-token:${{ secrets.DATA_PUSH_TOKEN }}@github.com/heliar-k/market-base.git" HEAD:main
           fi
 
       - name: 失败汇总（有失败则 job 红）
@@ -78,4 +92,4 @@ jobs:
           echo "以下步骤失败，数据已照常 commit:$FAILED_LIST"
           exit 1
 
-  # 部署由 deploy-pages.yml 的 workflow_run（含本 workflow 名）触发
+  # 部署由 deploy-pages.yml 的 push paths: data/** 触发（PAT push 触发 push 事件）

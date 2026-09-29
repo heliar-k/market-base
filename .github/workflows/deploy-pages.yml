@@ -1,10 +1,11 @@
 name: deploy-pages
 
 # 静态站点预渲染 + Cloudflare Pages 部署（独立于数据拉取，可单独触发）：
-# - daily-fetch / fetch-refresh / fast-refresh 跑完 → workflow_run 触发（渲染最新数据）
-#   注意：数据 push 用的是 GITHUB_TOKEN，GitHub 不会为它再触发 push 事件
-#   （recursive workflow trigger 限制），所以必须用 workflow_run，光靠 paths: data/** 不生效
-# - 手动 push static/src 改动 → push 事件自动触发（无需重跑数据拉取）
+# - 数据 workflow（daily-fetch / fetch-refresh / fast-refresh / crypto-refresh）
+#   用 PAT（DATA_PUSH_TOKEN）push 数据 commit → push 事件 + paths: data/** 触发
+#   （PAT push 正常触发 push 事件，不像 GITHUB_TOKEN 受递归触发限制；
+#   无数据变更时不 commit → 不 push → 不触发，空跑部署归零）
+# - 手动 push static/src 改动 → 同一 push 事件自动触发
 # - 手动触发：gh workflow run deploy-pages.yml
 #
 # 2026-09-28：GitHub Pages 部署已下线（原站 heliar-k.github.io/market-base 停在最后一次
@@ -18,11 +19,8 @@ on:
       - "static/**"
       - "src/**"
       - "pyproject.toml"
+      - "uv.lock"
       - ".github/workflows/deploy-pages.yml"
-  workflow_run:
-    workflows: ["daily-fetch", "fetch-refresh", "fast-refresh"]
-    types: [completed]
-    branches: [main]
   workflow_dispatch: {}
 
 # 数据 push 与手动 push 接近时串行执行，避免两个部署互相覆盖
@@ -49,7 +47,7 @@ jobs:
       - uses: astral-sh/setup-uv@v9.0.0
         with:
           python-version: "3.13"
-          enable-cache: false
+          enable-cache: true   # uv.lock 已入库，按 lock 哈希缓存依赖
 
       - name: Install deps
         run: uv sync

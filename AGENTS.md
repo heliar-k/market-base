@@ -215,12 +215,16 @@ market-base/
 > 部分数据源失败时：成功的数据照常 commit，失败列表写进当日 commit message 的「失败:」段
 > （`git log -1` 即见），job 标红，Pages 照常部署。不用再 grep Actions 日志找 `FAIL`。
 
-> **三个 cron**：`daily-fetch` 北京 05:00（全量，含收盘后的价格类）；
+> **四个 cron**：`daily-fetch` 北京 05:00（全量，含收盘后的价格类）；
 > `fetch-refresh` 北京 23:15（只跑下午才发布昨日观测的源：`fetch_fred` / `fetch_cboe` /
-> `fetch_fsi`，~3min）；`fast-refresh` 工作日 UTC 13-20 点每 15 分钟（盘中源：
-> fred/cboe/yfinance/rate_expectations/barchart_vol/加密/polymarket）。upsert 幂等，
-> 无新数据即不 commit。三者跑完都由 `deploy-pages` 的 `workflow_run` 触发部署
-> （数据由 GITHUB_TOKEN 推送，不触发 push 事件，`paths: data/**` 无效）。
+> `fetch_fsi`，~3min）；`fast-refresh` 工作日 UTC 13-20 点每 15 分钟（盘中价量源：
+> yfinance/cboe/barchart_vol/rate_expectations/polymarket，另 FRED 仅 UTC 13-14 点班次拉）；
+> `crypto-refresh` 每小时全天候 7×24（加密三源：crypto_derivatives/coinglass/etf_flows，
+> 从 fast-refresh 拆出）。upsert 幂等，无新数据即不 commit。
+> 数据 commit 用 PAT（secret `DATA_PUSH_TOKEN`，fine-grained，仅本仓 contents:write）
+> push → 正常触发 push 事件 → `deploy-pages` 靠 `paths: data/**` 过滤，无变更不部署
+> （PAT 到期后数据 push 会失败标红，需续期；GITHUB_TOKEN push 不触发 push 事件，
+> 这是当初用 workflow_run 链的原因，已废弃）。
 > 部署已切到 Cloudflare Pages 单目标（https://market-base.pages.dev ，根路径，
 > 导出用 `PAGES_BASE=""` + wrangler 哈希增量上传；secrets：`CLOUDFLARE_API_TOKEN` /
 > `CLOUDFLARE_ACCOUNT_ID`，token 需 Pages Edit + User→Memberships Read，
