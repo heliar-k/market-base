@@ -1,0 +1,7 @@
+{
+  // Cloudflare 面板「连 GitHub 仓库」的 Worker（market-base）读这份配置。
+  // 只做代理，不带 assets：静态文件与 /api/* 全部来自 Pages 部署。
+  "name": "market-base",
+  "main": "worker.js",
+  "compatibility_date": "2026-09-01"
+}
