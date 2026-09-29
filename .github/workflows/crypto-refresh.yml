@@ -15,9 +15,10 @@ on:
     - cron: "12 * * * *"
   workflow_dispatch: {}
 
+# 与其余数据 workflow 共享 group：串行化 push 防 rebase 冲突（见 daily-fetch.yml 注释）
 concurrency:
-  group: crypto-refresh
-  cancel-in-progress: true
+  group: data-fetch
+  cancel-in-progress: false
 
 jobs:
   refresh:

@@ -11,6 +11,13 @@ on:
     - cron: "0 21 * * *"   # 每天 UTC 21:00（北京 05:00，覆盖美股收盘 + 周末 crypto 数据）
   workflow_dispatch: {}       # 支持手动触发
 
+# 与其余数据 workflow（fast-refresh / fetch-refresh / crypto-refresh）共享同一 group，
+# 串行化 push 防止 rebase 冲突（2026-09-28 手动 daily-fetch 与 fast-refresh 并发 push 冲突过）。
+# cancel-in-progress 必须为 false：true 会让盘中班次取消正在跑的 19min 全量拉取。
+concurrency:
+  group: data-fetch
+  cancel-in-progress: false
+
 jobs:
   fetch:
     runs-on: ubuntu-latest

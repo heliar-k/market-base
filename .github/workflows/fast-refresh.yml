@@ -22,9 +22,11 @@ on:
     - cron: "7,22,37,52 13-20 * * 1-5"
   workflow_dispatch: {}
 
+# 与其余数据 workflow 共享 group：串行化 push 防 rebase 冲突（见 daily-fetch.yml 注释）。
+# 跑着的等完再执行，排队中的班次被更新的取代（幂等，丢班次无害）。
 concurrency:
-  group: fast-refresh
-  cancel-in-progress: true
+  group: data-fetch
+  cancel-in-progress: false
 
 jobs:
   refresh:
