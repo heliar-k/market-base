@@ -1,24 +1,11 @@
-<!DOCTYPE html>
-<html lang="zh-CN">
-<head>
-<meta charset="UTF-8">
-<link rel="icon" href="/favicon.svg" type="image/svg+xml">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>利率定价 — 观澜台</title>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap">
-<link rel="stylesheet" href="/css/app.css">
-<link rel="stylesheet" href="/css/special.css">
-<script type="module" src="/js/site-nav.js"></script>
-<script src="/vendor/echarts.min.js"></script>
-</head>
-<body>
-<div class="re-root">
-  <div class="re-header">
-    <h1>利率定价</h1>
-    <span class="re-as-of" id="re-as-of"></span>
-  </div>
-
-  <div class="re-nav" id="re-nav"></div>
+---
+// 利率定价页 — 工单 #15 自 public/rates/pricing.html 迁入。
+// 结构：概览卡 + 政策路径 hero（PM/ZQ 对垒）+ 概率分布明细表 + PM 收敛路径 +
+// 长端分解三图 + 口径说明；island 脚本逐字原样（BUCKETS/delta/dchip 等页面私有单源不变）。
+// fetch('/api/rate-expectations' 等) 不变。
+import TopicLayout from '../../layouts/TopicLayout.astro';
+---
+<TopicLayout title="利率定价">
   <div class="page-toc" id="page-toc"></div>
 
   <div id="re-cards"></div>
@@ -60,7 +47,7 @@
 
   <div class="re-explain">
     <b>政策路径：</b>FOMC 概率基于 ZQ 30 天联邦基金期货结算价反推，采用 CME FedWatch 方法论近似，
-    每日北京时间凌晨更新；Polymarket 为该场会议「Fed Decision in {Month}?」事件的真实下注概率，
+    每日北京时间凌晨更新；Polymarket 为该场会议「Fed Decision in {'{Month}'}?」事件的真实下注概率，
     与 ZQ 并列为两源平权数据；目标利率来自 FRED DFEDTARL/DFEDTARU。
     <b>口径提示：</b>ZQ = 期货隐含的会议后利率水平（<b>累计口径</b>，含此前会议的加息/降息）；
     PM = 该场会议本身的决定概率（<b>边际口径</b>）——两源直接对比时 ZQ 加息概率天然偏高。
@@ -71,11 +58,8 @@
     期限溢价 = NY Fed ACM 估计（ACMTP10，右轴虚线）：<b>BEI 不动而期限溢价上行 → 供给/风险溢价交易</b>；
     溢价上行 + 名义利率上行 → 供给驱动的熊陡。10Y 名义 − 期限溢价 ≈ 市场预期的平均短端路径。
   </div>
-</div>
 
-<script src="/js/echarts-theme.js"></script>
-<script src="/js/rates-common.js"></script>
-<script>
+<script is:inline>
 // 五档定义：键 / 标签 / 语义色（cut=up 绿 hold=neutral hike=down 红）
 const BUCKETS = [
   ['cut50', '-50bp', 'cut'], ['cut25', '-25bp', 'cut'], ['hold', '维持', 'hold'],
@@ -317,6 +301,4 @@ load().catch(e => {
   R.fail(['re-cards', 'rp-hero'], e);
 });
 </script>
-<script type="module" src="/js/nav.js"></script>
-</body>
-</html>
+</TopicLayout>

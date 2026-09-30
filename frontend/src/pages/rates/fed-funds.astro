@@ -1,24 +1,10 @@
-<!DOCTYPE html>
-<html lang="zh-CN">
-<head>
-<meta charset="UTF-8">
-<link rel="icon" href="/favicon.svg" type="image/svg+xml">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>联邦基金利率 — 观澜台</title>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap">
-<link rel="stylesheet" href="/css/app.css">
-<link rel="stylesheet" href="/css/special.css">
-<script type="module" src="/js/site-nav.js"></script>
-<script src="/vendor/echarts.min.js"></script>
-</head>
-<body>
-<div class="re-root">
-  <div class="re-header">
-    <h1>联邦基金利率</h1>
-    <span class="re-as-of" id="re-as-of"></span>
-  </div>
-
-  <div class="re-nav" id="re-nav"></div>
+---
+// 联邦基金利率页 — 工单 #15 自 public/rates/fed-funds.html 迁入。
+// 结构：指标卡 + 利率走廊五线 + SOFR 成交量 + EFFR 5 年三图 + 近 30 条表；island 脚本逐字原样。
+// fetch('/api/rates/fed-funds') 不变。
+import TopicLayout from '../../layouts/TopicLayout.astro';
+---
+<TopicLayout title="联邦基金利率">
   <div class="page-toc" id="page-toc"></div>
 
   <div id="re-cards"></div>
@@ -30,11 +16,8 @@
   <div class="re-chart" id="effr_chart"></div>
   <div class="re-h2" id="sec-recent">近期数据（最近 30 条）</div>
   <div id="re-recent"></div>
-</div>
 
-<script src="/js/echarts-theme.js"></script>
-<script src="/js/rates-common.js"></script>
-<script>
+<script is:inline>
 async function load() {
   // 小节锚点导航（长页快速跳转；sticky 见 special.css .page-toc）
   document.getElementById('page-toc').innerHTML = [
@@ -106,6 +89,4 @@ async function load() {
 
 load().catch(e => R.fail(['re-cards', 're-recent'], e));
 </script>
-<script type="module" src="/js/nav.js"></script>
-</body>
-</html>
+</TopicLayout>
