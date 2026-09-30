@@ -4,12 +4,16 @@
 // 结构：状态卡×3 + 大数字区间色条 + 近 2 年走势 + VIX×SKEW 象限散点 + SKEW 走势 +
 // 期限结构 + 近 20 条表；island 脚本逐字原样。fetch('/api/volatility/analysis') 不变。
 import TopicLayout from '../../layouts/TopicLayout.astro';
+import Section from '../../components/Section.astro';
 ---
 <TopicLayout title="VIX" h1="VIX — 标普500隐含波动率指数">
   <div class="page-toc" id="page-toc"></div>
 
-  <!-- 状态卡 ×3：百分位 / 期限结构 / 7 日动量 -->
-  <div class="re-cards" id="status-cards"></div>
+  <!-- 状态卡 ×3:R.cards 自带 .re-cards 栅格,容器 class 可安全让位给 Section -->
+  <Section id="status-cards" title="状态" />
+
+  <!-- 以下 .re-section 小节:骨架已是标题卡结构(静态 h2 成在),且 chart/表格依赖卡片容器,
+       Section 化会让内容失去卡片质感 —— 保持原样 -->
 
   <!-- VIX 大数字 + 区间色条 -->
   <div class="re-section" id="sec-value">

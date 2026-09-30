@@ -4,15 +4,19 @@
 // 期限结构 + 跨资产 1D 条形 + 7 段叙事 + Top8 升降温 + 全量表 + VIX 详情 link-grid；
 // island 脚本逐字原样。fetch('/api/volatility/dashboard') 不变。
 import TopicLayout from '../../layouts/TopicLayout.astro';
+import Section from '../../components/Section.astro';
 ---
 <TopicLayout title="波动率全景仪表盘">
   <div class="page-toc" id="page-toc"></div>
 
-  <!-- Hero 四卡 + 定调 -->
+  <!-- 结论层 hero(四卡+定调),不进 Section -->
   <div id="vol-overview">
     <div class="vol-hero" id="vol-hero"></div>
     <div class="vol-verdict" id="vol-verdict"></div>
   </div>
+
+  <!-- 以下 .re-section 小节:骨架已是标题卡结构(静态 h2 成在),且 chart/表格依赖卡片容器,
+       Section 化会让内容失去卡片质感 —— 保持原样 -->
 
   <!-- 三张信号卡 -->
   <div class="re-section" id="vol-signals-sec">
@@ -32,7 +36,7 @@ import TopicLayout from '../../layouts/TopicLayout.astro';
     <div class="vol-trade" id="vol-trade"></div>
   </div>
 
-  <!-- 市场波动状态统计条 -->
+  <!-- 统计条(非小节),不进 Section -->
   <div class="vol-stats" id="vol-stats"></div>
 
   <!-- 全部指数热力图 -->
@@ -56,8 +60,10 @@ import TopicLayout from '../../layouts/TopicLayout.astro';
     <div id="vol-cross-chart" class="chart" style="height:clamp(420px, 65vh, 680px)"></div>
   </div>
 
-  <!-- 7 段叙事 -->
-  <div class="vol-narrative" id="vol-narrative"></div>
+  <!-- 7 段叙事(卡片集,卡片 h2 为各段标题);vol-narrative class 有样式规则,保留在内层 div -->
+  <Section title="七段叙事">
+    <div class="vol-narrative" id="vol-narrative"></div>
+  </Section>
 
   <!-- Top 8 升温 / 降温 -->
   <div class="re-section" id="vol-top-sec">

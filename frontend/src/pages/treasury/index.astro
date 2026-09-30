@@ -4,16 +4,19 @@
 // TIC 明细 + MSPD 占比堆叠 + QRA 声明；island 脚本逐字原样。
 // fetch('/api/treasury/overview') + /api/rates/auctions 不变。
 import TopicLayout from '../../layouts/TopicLayout.astro';
+import Section from '../../components/Section.astro';
 ---
 <TopicLayout title="美债">
   <div class="page-toc" id="page-toc"></div>
 
-  <div id="cards"></div>
-  <div id="re-signals"></div>
-  <div id="auctions"></div>
-  <div id="history"></div>
-  <div id="holdings"></div>
+  <Section id="cards" title="概览" />
+  <Section id="re-signals" title="研判" />
+  <Section id="auctions" title="拍卖" />
+  <Section id="history" title="海外持仓" />
+  <Section id="holdings" title="持仓明细" />
+  <!-- 条件性小节(MSPD 无数据时为空),不进 Section 避免空标题 -->
   <div id="mspd"></div>
+  <!-- 条件性小节(无 QRA 声明时为空),保持裸 div -->
   <div id="refunding"></div>
   <div class="re-source">数据来源：美国财政部 Fiscal Data API（auctions_query / upcoming_auctions / MSPD）+ FRED TIC 持仓，每日自动同步；Bill 占比 = MSPD 月频 + 本地日频派生；借款估算 = QRA 再融资声明。</div>
   <div class="re-gen" id="re-gen"></div>
