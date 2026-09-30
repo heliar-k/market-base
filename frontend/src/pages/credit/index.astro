@@ -1,26 +1,12 @@
-<!DOCTYPE html>
-<html lang="zh-CN">
-<head>
-<meta charset="UTF-8">
-<link rel="icon" href="/favicon.svg" type="image/svg+xml">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>信用 — 观澜台</title>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap">
-<link rel="stylesheet" href="/css/app.css">
-<link rel="stylesheet" href="/css/special.css">
-<script type="module" src="/js/site-nav.js"></script>
-<script src="/vendor/echarts.min.js"></script>
-</head>
-<body>
-<div class="re-root">
-  <div class="re-header">
-    <h1>信用</h1>
-    <span class="re-as-of" id="re-as-of"></span>
-  </div>
-
-  <div class="re-nav" id="re-nav"></div>
+---
+// credit 页 — 首个 .astro 迁移页（工单 #13 spike）。
+// 三段结构（总览 + CDS 专题 + 压力仪表盘）的 288 行内联脚本原样进 is:inline island
+// （依赖 echarts-theme/rates-common 的经典全局 R / reCssVar，is:inline 不打包、行为与迁移前逐字一致）；
+// head / 顶栏 / 页头样板在 TopicLayout。数据 fetch('/api/credit/*') 不变。
+import TopicLayout from '../../layouts/TopicLayout.astro';
+---
+<TopicLayout title="信用">
   <div class="page-toc" id="page-toc"></div>
-
   <div id="regime"></div>
   <div id="oas-row"></div>
   <div id="re-signals"></div>
@@ -33,11 +19,8 @@
   <div id="cds-sec"></div>
   <div id="stress-sec"></div>
   <div class="re-gen" id="re-gen"></div>
-</div>
 
-<script src="/js/echarts-theme.js"></script>
-<script src="/js/rates-common.js"></script>
-<script>
+<script is:inline>
 async function load() {
   // 小节锚点导航（长页快速跳转；sticky 见 special.css .page-toc）
   document.getElementById('page-toc').innerHTML = [
@@ -326,6 +309,4 @@ function renderStress(root, d) {
 
 load().catch(e => R.fail(['regime', 'oas-row', 're-signals', 'layers', 'funding', 'sloos', 'quality', 'fincond', 'liq-etf', 'cds-sec', 'stress-sec'], e));
 </script>
-<script type="module" src="/js/nav.js"></script>
-</body>
-</html>
+</TopicLayout>

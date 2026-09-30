@@ -1,0 +1,153 @@
+---
+// TopicLayout — 专题页通用骨架（工单 #13 spike 起用，ADR-0003）。
+// 职责：head 样板（CSS 变量主题 + 共享 JS，对齐 sync_pages_head.HEAD_TEMPLATE 的固定部分）、
+// 顶栏 Tab（构建期静态渲染——import site-nav.js 的 SITE_NAV，与 nav.js 运行时渲染同一份数据、
+// 同一算法，只渲染到「组」层）、页头（title + re-as-of 槽位）、运行时行为（原 nav.js 在本页的
+// 职责：主题切换 / fetch 协商缓存 / 返回顶部 / 内嵌 iframe 适配，见文件底部脚本）。
+// 页面私有结构（page-toc / 小节容器 / island 脚本）走默认插槽；页私有 head 追加走 head 插槽。
+import { SITE_NAV } from '../../public/js/site-nav.js';
+
+interface Props {
+  title: string; // 页名，渲染为 <title>{title} — 观澜台</title> 与页头 h1
+}
+const { title } = Astro.props;
+
+const BRAND = '观澜台';
+
+// 顶栏 Tab 数据：home + groups（nav.js 同款算法，aria-current 构建期静态标注）
+const path = Astro.url.pathname; // 构建期即本页最终 URL（如 /credit/）
+const isCur = (page: string) => path === page || (page !== '/' && path.startsWith(page));
+const isHome = path === '/' || path === '/index.html';
+const TABS = [SITE_NAV.home, ...SITE_NAV.groups];
+---
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{title} — {BRAND}</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap">
+<link rel="stylesheet" href="/css/app.css">
+<link rel="stylesheet" href="/css/special.css">
+<!-- 共享 JS 留在 public/js（与未迁移页同一份），is:inline = 原样输出不走打包管线（ADR-0003） -->
+<script is:inline src="/vendor/echarts.min.js"></script>
+<script is:inline src="/js/echarts-theme.js"></script>
+<script is:inline src="/js/rates-common.js"></script>
+<slot name="head" />
+</head>
+<body>
+<div class="re-root">
+  <div class="re-header">
+    <h1>{title}</h1>
+    <span class="re-as-of" id="re-as-of"></span>
+  </div>
+
+  <div class="re-nav" id="re-nav">
+    {TABS.map((g) => (
+      <a href={g.page} aria-current={isCur(g.page) ? 'page' : undefined}>{g.label}</a>
+    ))}
+    <a href="/" aria-current={isHome ? 'page' : undefined}>← 仪表盘</a>
+  </div>
+
+  <slot />
+</div>
+
+<script is:inline>
+// TopicLayout 运行时 = nav.js 在 .astro 页上的职责（顶栏 Tab 已构建期静态渲染，不再运行时注入）：
+// fetch 协商缓存 / 内嵌适配 / 主题（body.dark + theme-changed 事件，rates-common 监听重绘）/ 返回顶部。
+// 机制与 nav.js 逐字对齐（DARK_KEY 同键：SPA 内嵌与独立访问的亮暗状态跨页一致）。
+(function () {
+  // 静态部署后数据更新，浏览器可能还拿着 max-age=600 的旧 JSON ——
+  // 全站 fetch 统一改为 ETag 协商（no-cache 指命中后再验证，304 免流量）
+  if (!window.__fetchNoCache) {
+    window.__fetchNoCache = true;
+    var _fetch = window.fetch;
+    window.fetch = function (input, init) {
+      var url = typeof input === 'string' ? input : (input && input.url) || '';
+      if (url.indexOf('/api/') !== -1) {
+        init = init || {};
+        if (!init.cache) init.cache = 'no-cache';
+      }
+      return _fetch.call(this, input, init);
+    };
+  }
+
+  // 内嵌（SPA 宏观分栏的 iframe）时不渲染顶栏（静态 HTML，直接隐藏）与主题按钮
+  var embedded = window.self !== window.top;
+  if (embedded) {
+    document.body.classList.add('embedded');
+    var nav = document.getElementById('re-nav');
+    if (nav) nav.style.display = 'none';
+  }
+
+  // sticky 页内导航条高度随换行变化（44px 一行 / 79px+ 两行）→ 实时测量
+  // 并设置滚动偏移，锚点跳转目标始终落在导航条下方 12px
+  var toc = document.querySelector('.page-toc');
+  if (toc) {
+    new ResizeObserver(function () {
+      document.documentElement.style.scrollPaddingTop = (toc.offsetHeight + 12) + 'px';
+    }).observe(toc);
+  }
+
+  // 主题：默认实时跟随系统；点悬浮按钮后仅本会话固定（刷新恢复自动）。
+  // 内嵌 iframe 由父页 SPA 驱动（DARK_KEY + storage 事件）
+  var DARK_KEY = 'ticker-toolkit-dark';
+  var manual = false;
+  function resolveDark() {
+    if (embedded) return localStorage.getItem(DARK_KEY) === '1';
+    if (manual) return document.body.classList.contains('dark');
+    return window.matchMedia('(prefers-color-scheme: dark)').matches;
+  }
+  function applyTheme() {
+    document.body.classList.toggle('dark', resolveDark());
+  }
+  applyTheme();
+  window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', function () {
+    if (!embedded && !manual) {
+      applyTheme();
+      window.dispatchEvent(new Event('theme-changed'));
+    }
+  });
+  window.addEventListener('storage', function (e) {
+    if (e.key !== DARK_KEY) return;
+    applyTheme();
+    // 图表按主题重绘（rates-common 监听该事件）
+    window.dispatchEvent(new Event('theme-changed'));
+  });
+
+  // 返回顶部：专题入口页右下角悬浮，滚动超过一屏才显示（内嵌 iframe 同样生效）
+  var path = location.pathname;
+  var isIndex = path.slice(-1) === '/' || path.slice(-11) === '/index.html';
+  if (isIndex) {
+    var topBtn = document.createElement('button');
+    topBtn.className = 'back-top';
+    topBtn.title = '返回顶部';
+    topBtn.textContent = '↑';
+    topBtn.addEventListener('click', function () {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    });
+    document.body.appendChild(topBtn);
+    var syncTop = function () { topBtn.classList.toggle('show', window.scrollY > 300); };
+    window.addEventListener('scroll', syncTop, { passive: true });
+    syncTop();
+  }
+
+  // 悬浮切换按钮仅独立访问时显示（内嵌时由父页统一控制）
+  if (embedded) return;
+  var tb = document.createElement('button');
+  tb.className = 'theme-float';
+  tb.title = '切换亮暗主题';
+  tb.textContent = resolveDark() ? '☀️' : '🌙';
+  tb.addEventListener('click', function () {
+    manual = true; // 会话级覆盖：停止跟随系统，刷新恢复自动
+    document.body.classList.toggle('dark');
+    tb.textContent = document.body.classList.contains('dark') ? '☀️' : '🌙';
+    // rates-common 等已监听该事件，图表随之重绘
+    window.dispatchEvent(new CustomEvent('theme-changed', { detail: { dark: document.body.classList.contains('dark') } }));
+  });
+  document.body.appendChild(tb);
+})();
+</script>
+</body>
+</html>
