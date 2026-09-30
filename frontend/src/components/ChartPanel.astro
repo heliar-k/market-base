@@ -1,0 +1,9 @@
+---
+// ChartPanel — 图表面板排版壳:统一高度档位 + 卡片质感(继承 .re-section 的光影体系)。
+// props:
+//   h      — 高度档位:sm 260 / md 300(默认)/ lg 380 / xl 460
+//   id     — JS 填充目标 id(mkChart/getElementById 用)
+interface Props { h?: 'sm' | 'md' | 'lg' | 'xl'; id?: string }
+const { h = 'md', id } = Astro.props;
+---
+<div class={`re-chart re-chart-${h}`} id={id}></div>

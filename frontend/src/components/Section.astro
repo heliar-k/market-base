@@ -1,0 +1,20 @@
+---
+// Section — 专题页小节排版壳(2026-09 排版现代化)。
+// 职责:统一小节节奏(锚点标题 + 间距 + 分隔),替代各页裸 .re-h2 + 手调 margin。
+// JS 填充逻辑不进组件(is:inline 硬闸延续):内容区仍是一个 div,页面脚本照旧 getElementById 填。
+// 可选 props:
+//   id     — 锚点(page-toc 跳转目标;不给则不设 id)
+//   title  — 小节标题;空字符串 = 无标题小节(纯容器)
+//   sub    — 标题右侧弱化说明(如单位/口径)
+interface Props { id?: string; title?: string; sub?: string }
+const { id, title = '', sub = '' } = Astro.props;
+---
+<section class="re-sec" id={id}>
+  {title && (
+    <header class="re-sec-head">
+      <h2 class="re-sec-title">{title}</h2>
+      {sub && <span class="re-sec-sub">{sub}</span>}
+    </header>
+  )}
+  <slot />
+</section>

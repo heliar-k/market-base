@@ -4,6 +4,7 @@
 // 每主题归类 chips/概率多线图 + Polymarket 英文源折叠明细 + 未命中告警；island 脚本逐字原样。
 // fetch('/api/geo') 不变。
 import TopicLayout from '../../layouts/TopicLayout.astro';
+import Section from '../../components/Section.astro';
 ---
 <TopicLayout title="地缘与政治风险">
   <div class="page-toc" id="page-toc"></div>
@@ -11,16 +12,13 @@ import TopicLayout from '../../layouts/TopicLayout.astro';
   <!-- 结论层：主题状态卡（中文归类焦点 + 30 天走势缩略 + 成交占比，点击定位数据层） -->
   <div id="geo-topics" class="pm-topics"></div>
 
-  <!-- 规则引擎叙事 -->
-  <div id="re-signals"></div>
+  <Section id="re-signals" title="研判" />
 
-  <!-- 跨主题归类异动（7 日变动 top） -->
-  <div id="geo-movers"></div>
+  <Section id="geo-movers" title="跨主题异动" sub="近 7 日概率变动 top" />
 
-  <!-- 数据层：每主题 = 归类 chips + 归类均值概率多线图；原始事件明细折叠 -->
-  <div id="geo-events"></div>
+  <Section id="geo-events" title="主题概率走势" sub="归类均值 · 多线" />
 
-  <!-- 归类规则未命中告警（补 GEO_CLUSTERS 关键词的 actionable 清单） -->
+  <!-- 归类未命中告警(条件性内容,零命中时为空;不包 Section 避免空标题) -->
   <div id="geo-unmatched"></div>
 
   <div class="re-gen" id="re-gen"></div>

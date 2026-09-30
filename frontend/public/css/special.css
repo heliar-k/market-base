@@ -52,6 +52,16 @@ body.dark .re-section { box-shadow: inset 0 0 0 1px rgba(255,255,255,.04); }
 /* re-section 内部的图表/表格与父卡底对齐（margin-bottom），左右与文字同一条边线 */
 .re-section > .re-chart:last-child, .re-section > .re-table:last-child { margin-bottom: 2px; }
 .re-h2 { font-size: 15px; font-weight: 700; }
+/* ── 小节排版原语(2026-09 排版现代化,Section.astro 组件的样式面) ──
+ * 节奏:小节间距 28px(标题上方) / 头部行内 baseline 对齐 / 标题 15px·700 / 副注 12px 弱化。
+ * 未迁组件的页继续用裸 .re-h2(样式向后兼容,节奏变量共享)。 */
+.re-sec { margin-top: 28px; }
+.re-sec:first-child { margin-top: 0; }
+.re-sec-head { display: flex; align-items: baseline; gap: 10px; margin-bottom: 12px; }
+.re-sec-title { font-size: 15px; font-weight: 700; color: var(--text); }
+.re-sec-sub { font-size: 12px; color: var(--text-dim); }
+/* 图表面板高度档位(ChartPanel):数字对齐 special.css 既有高度,逐步归一 */
+.re-chart-sm { height: 260px; } .re-chart-md { height: 300px; } .re-chart-lg { height: 380px; } .re-chart-xl { height: 460px; }
 /* 页内分组分隔标题（如利率定价页的政策路径 / 长端分解） */
 .re-group { font-size: 16px; font-weight: 800; margin: 24px 0 4px; padding-bottom: 6px; border-bottom: 2px solid var(--accent); color: var(--text); }
 .re-table { width: 100%; border-collapse: collapse; font-size: 13px; font-variant-numeric: tabular-nums; }
