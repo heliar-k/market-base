@@ -1,34 +1,17 @@
-<!DOCTYPE html>
-<html lang="zh-CN">
-<head>
-<meta charset="UTF-8">
-<link rel="icon" href="/favicon.svg" type="image/svg+xml">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>债券 — 观澜台</title>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap">
-<link rel="stylesheet" href="/css/app.css">
-<link rel="stylesheet" href="/css/special.css">
-<script type="module" src="/js/site-nav.js"></script>
-<script src="/vendor/echarts.min.js"></script>
-</head>
-<body>
-<div class="re-root">
-  <div class="re-header">
-    <h1>债券</h1>
-    <span class="re-as-of" id="re-as-of"></span>
-  </div>
-
-  <div class="re-nav" id="re-nav"></div>
-
+---
+// 债券页 — 工单 #17 自 public/assets/bonds.html 迁入。
+// TLT/IEF/LQD/HYG 卡片 + 20 日相对涨跌（期初=0%）+ 收盘明细；island 脚本逐字原样。
+// fetch('/api/assets/bonds') 不变。
+import TopicLayout from '../../layouts/TopicLayout.astro';
+---
+<TopicLayout title="债券">
   <div id="cards" class="re-cards"></div>
   <div id="chart"></div>
   <div id="recent"></div>
   <div class="re-gen" id="re-gen"></div>
 </div>
 
-<script src="/js/echarts-theme.js"></script>
-<script src="/js/rates-common.js"></script>
-<script>
+<script is:inline>
 async function load() {
   const d = await R.get('/api/assets/bonds');
   const cards = (d.cards || []).map(i => ({
@@ -97,6 +80,4 @@ function chg(v) { return v == null ? '—' : `<span style="color:${v >= 0 ? 'var
 
 load().catch(e => R.fail(['cards', 'chart', 'recent'], e));
 </script>
-<script type="module" src="/js/nav.js"></script>
-</body>
-</html>
+</TopicLayout>
