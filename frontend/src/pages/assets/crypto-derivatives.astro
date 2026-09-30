@@ -1,24 +1,10 @@
-<!DOCTYPE html>
-<html lang="zh-CN">
-<head>
-<meta charset="UTF-8">
-<link rel="icon" href="/favicon.svg" type="image/svg+xml">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>加密衍生品 · 资金与杠杆 — 观澜台</title>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap">
-<link rel="stylesheet" href="/css/app.css">
-<link rel="stylesheet" href="/css/special.css">
-<script type="module" src="/js/site-nav.js"></script>
-<script src="/vendor/echarts.min.js"></script>
-</head>
-<body>
-<div class="re-root">
-  <div class="re-header">
-    <h1>加密衍生品 · 资金与杠杆</h1>
-    <span class="re-as-of" id="re-as-of"></span>
-  </div>
-
-  <div class="re-nav" id="re-nav"></div>
+---
+// 加密衍生品页 — 工单 #17 自 public/assets/crypto-derivatives.html 迁入。
+// NOW 8 KPI + ETF flows + 衍生品 KPI + 资金费率走势 + 散户读数 + 基差 + Coinglass；island 脚本逐字原样。
+// fetch('/api/assets/crypto-derivatives') 不变。
+import TopicLayout from '../../layouts/TopicLayout.astro';
+---
+<TopicLayout title="加密衍生品 · 资金与杠杆">
   <div class="page-toc" id="page-toc"></div>
 
   <div id="now"></div>
@@ -31,9 +17,7 @@
   <div class="re-gen" id="re-gen"></div>
 </div>
 
-<script src="/js/echarts-theme.js"></script>
-<script src="/js/rates-common.js"></script>
-<script>
+<script is:inline>
 function fmt(v, d = 2) { return v == null ? '—' : Number(v === 0 ? 0 : v).toLocaleString(undefined, { maximumFractionDigits: d }); }
 function stance(ann) { const a = Math.abs((ann || 0) * 100); if (ann < 0) return '偏空'; return a >= 30 ? '偏多（拥挤）' : (a >= 15 ? '偏多' : '中性'); }
 function pcrStance(p) { return p == null ? '中性' : (p < 0.4 ? '偏多' : (p > 1.5 ? '偏空' : '中性')); }
@@ -260,6 +244,4 @@ async function load() {
 
 load().catch(e => R.fail(['now', 'etf', 'kpi', 'funding', 'retail', 'basis', 'coinglass'], e));
 </script>
-<script type="module" src="/js/nav.js"></script>
-</body>
-</html>
+</TopicLayout>

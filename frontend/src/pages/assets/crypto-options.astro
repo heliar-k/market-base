@@ -1,24 +1,10 @@
-<!DOCTYPE html>
-<html lang="zh-CN">
-<head>
-<meta charset="UTF-8">
-<link rel="icon" href="/favicon.svg" type="image/svg+xml">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>加密期权 · 预测市场 — 观澜台</title>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap">
-<link rel="stylesheet" href="/css/app.css">
-<link rel="stylesheet" href="/css/special.css">
-<script type="module" src="/js/site-nav.js"></script>
-<script src="/vendor/echarts.min.js"></script>
-</head>
-<body>
-<div class="re-root">
-  <div class="re-header">
-    <h1>加密期权 · 预测市场</h1>
-    <span class="re-as-of" id="re-as-of"></span>
-  </div>
-
-  <div class="re-nav" id="re-nav"></div>
+---
+// 加密期权 · 预测市场页 — 工单 #17 自 public/assets/crypto-options.html 迁入。
+// Deribit 期权墙 + CME 期货仓位卡 + Polymarket 价位阶梯（geo 同款结构）；island 脚本逐字原样。
+// fetch('/api/assets/crypto-derivatives') 不变。
+import TopicLayout from '../../layouts/TopicLayout.astro';
+---
+<TopicLayout title="加密期权 · 预测市场">
   <div class="page-toc" id="page-toc"></div>
 
   <div id="walls"></div>
@@ -26,9 +12,7 @@
   <div class="re-gen" id="re-gen"></div>
 </div>
 
-<script src="/js/echarts-theme.js"></script>
-<script src="/js/rates-common.js"></script>
-<script>
+<script is:inline>
 function fmt(v, d = 2) { return v == null ? '—' : Number(v === 0 ? 0 : v).toLocaleString(undefined, { maximumFractionDigits: d }); }
 
 // 隐含价位趋势：每归类一条线 = 该阶梯里概率过 50% 的价位（档间线性插值），
@@ -262,6 +246,4 @@ async function load() {
 
 load().catch(e => R.fail(['walls', 'polymarket'], e));
 </script>
-<script type="module" src="/js/nav.js"></script>
-</body>
-</html>
+</TopicLayout>
