@@ -1,5 +1,7 @@
 // 专题导航注入 — 新专题页只需 <div class="re-nav" id="re-nav"></div> + 本脚本；
 // 改导航结构只改这里（rates/volatility 两套 + 专题间 Tab；fed/credit/treasury 已合并单页）
+// 本文件为 ES module（页面以 <script type="module"> 加载），导航数据 import 自 site-nav.js
+import { SITE_NAV } from './site-nav.js';
 
 // 静态部署后数据更新，浏览器可能还拿着 max-age=600 的旧 JSON ——
 // 全站 fetch 统一改为 ETag 协商（no-cache 指命中后再验证，304 免流量），
@@ -19,7 +21,7 @@
 })();
 
 (function () {
-  // 专题间 Tab（总入口）— 数据源：/js/site-nav.js（全站导航唯一来源，只取组这一层）
+  // 专题间 Tab（总入口）— 数据源：site-nav.js ESM import（全站导航唯一来源，只取组这一层）
   var TABS = [SITE_NAV.home].concat(SITE_NAV.groups).map(function (g) {
     return [g.label, g.page];
   });

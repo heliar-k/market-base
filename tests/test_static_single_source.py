@@ -2,7 +2,7 @@
 
 这些测试不改文件，只在有人绕过单源机制时报警：
 - 手改专题页 <head> 样板 → test_page_head_matches_template
-- 导航页路径漏进 Pages 白名单 → test_site_nav_paths_in_export_prefixes
+- 导航消费方自带页路径清单 / 绕开 ESM import → test_nav_consumers_read_site_nav
 - 页面里重新手写「数据截至」文案 → test_as_of_text_only_via_r_asof
 """
 
@@ -16,7 +16,6 @@ from pathlib import Path
 
 import pytest
 
-from src.export_pages import _PATH_PREFIXES
 from src.sync_pages_head import SPA_ENTRY, normalize_head, special_pages
 
 STATIC = Path(__file__).resolve().parent.parent / "frontend" / "public"
@@ -75,20 +74,14 @@ def test_site_nav_pages_exist() -> None:
         assert target.exists(), f"SITE_NAV 指向不存在的页面：{page}"
 
 
-def test_site_nav_paths_in_export_prefixes() -> None:
-    """SITE_NAV 用到的顶层路径必须都在 export_pages._PATH_PREFIXES 白名单里，
-    否则 Pages 子路径部署时该链接不会被注入 /market-base 前缀。"""
-    missing = {p.split("/")[1] for p in _nav_pages()} - set(_PATH_PREFIXES)
-    assert not missing, f"新顶层目录漏进 export_pages._PATH_PREFIXES：{sorted(missing)}"
-
-
 def test_nav_consumers_read_site_nav() -> None:
     """nav.js / macro-view.js 不得再自带页路径清单（两处视图共用 SITE_NAV）。"""
     pages = _nav_pages()
     assert pages
     for js in ("nav.js", "macro-view.js"):
         text = (STATIC / "js" / js).read_text(encoding="utf-8")
-        assert "SITE_NAV" in text, f"{js} 未读 SITE_NAV"
+        # 工单 #12：消费方式统一为 ESM import（site-nav.js 已改 export const）
+        assert "import { SITE_NAV" in text, f"{js} 未 import SITE_NAV"
         hardcoded = [p for p in pages if f"'{p}'" in text]
         assert not hardcoded, f"{js} 里仍有硬编码专题路径：{hardcoded}"
 

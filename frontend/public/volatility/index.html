@@ -8,7 +8,7 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap">
 <link rel="stylesheet" href="/css/app.css">
 <link rel="stylesheet" href="/css/special.css">
-<script src="/js/site-nav.js"></script>
+<script type="module" src="/js/site-nav.js"></script>
 <script src="/vendor/echarts.min.js"></script>
 </head>
 <body>
@@ -303,6 +303,6 @@ async function load() {
 }
 load().catch(e => R.fail(['vol-hero', 'vol-verdict', 'vol-signals', 'vol-risk', 'vol-trade', 'vol-stats', 'vol-heat', 'vol-term-chart', 'vol-cross-chart', 'vol-narrative', 'vol-top', 'vol-table'], e));
 </script>
-<script src="/js/nav.js"></script>
+<script type="module" src="/js/nav.js"></script>
 </body>
 </html>

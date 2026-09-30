@@ -7,6 +7,7 @@
 //   /api/symbols + /api/kline/{sym}?days=5 → 自选清单（localStorage 持久化）
 
 // reThemeECharts 为 echarts-theme.js 经典脚本全局（Phase 2 单轨化，见 index.html 引入）
+import { SITE_NAV } from './site-nav.js';
 
 // 跨资产表行 → 专题页跳转（与今日研判页同款映射）：
 // 路径不重复硬编码——指标键 → SITE_NAV 导航键（site-nav.js 唯一数据源），再由索引解出 page

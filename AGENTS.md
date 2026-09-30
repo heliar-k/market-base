@@ -424,11 +424,11 @@ uv run python src/sell_put.py --symbol TSM
   inflation「月频 2026-07-01–2026-07-01 · 盈亏平衡 2026-09-04」）；月频区间写「月频 {起}–{止}」；
   日期一律 ISO。数据缺失显示空，不要自造前缀（「数据日期:」「快照时间 ·」等已废弃）。
   **文案只能由 `rates-common.js` 的 `R.asOf(...)` / `R.asMonth(...)` 组装**，页面不写模板串
-- **head / 导航单源（Phase 3）**：专题页 `<head>` 样板唯一来源 = `src/sync_pages_head.py` 的
+- **head / 导航单源（Phase 3，工单 #12 起 ESM 化）**：专题页 `<head>` 样板唯一来源 = `src/sync_pages_head.py` 的
   `HEAD_TEMPLATE`（跑 `uv run python -m src.sync_pages_head` 重放覆盖，手改 head 会被 pytest 拦下）；
-  顶栏 Tab + SPA 侧栏专题树唯一数据源 = `frontend/public/js/site-nav.js` 的全局 `SITE_NAV`。
-  新专题：写页面 → 跑 head 同步 → 在 `SITE_NAV` 登记 → （若引入新顶层目录）补
-  `src/export_pages.py._PATH_PREFIXES`（漏补则 `tests/test_static_single_source.py` 红）
+  顶栏 Tab + SPA 侧栏专题树唯一数据源 = `frontend/public/js/site-nav.js`（ESM：`export const SITE_NAV`，
+  页面以 `<script type="module">` 加载；nav.js / macro-view.js / dashboard.js 统一 import）。
+  新专题：写页面 → 跑 head 同步 → 在 `SITE_NAV` 登记即可（无别处白名单）
 
 ---
 
