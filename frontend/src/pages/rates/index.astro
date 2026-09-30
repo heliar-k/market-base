@@ -4,17 +4,21 @@
 // （R.curveBadges / R.curveCompare / R.cards 为 rates-common 经典全局）。
 // fetch('/api/rates/analysis') 不变。
 import TopicLayout from '../../layouts/TopicLayout.astro';
+import Section from '../../components/Section.astro';
 ---
 <TopicLayout title="利率">
   <div class="page-toc" id="page-toc"></div>
 
+  <!-- 形态徽章条:结论层 chrome,不进 Section -->
   <div class="re-badges" id="re-badges"></div>
-  <div id="re-cards"></div>
-  <div class="re-h2" id="sec-shape">曲线快照（当前 / 1周前 / 1月前 / 3月前）</div>
-  <div class="re-chart" id="yc_compare"></div>
-  <div id="re-sections"></div>
+  <Section id="re-cards" title="概览" />
+  <Section id="sec-shape" title="曲线快照" sub="当前 / 1周前 / 1月前 / 3月前">
+    <div class="re-chart" id="yc_compare"></div>
+  </Section>
+  <Section id="re-sections" title="研判" />
 
-  <div class="link-grid" id="re-links">
+  <Section title="子页入口">
+    <div class="link-grid" id="re-links">
     <a class="link-card" href="fed-funds.html">
       <span class="icon">🏦</span>
       <div>
@@ -37,6 +41,7 @@ import TopicLayout from '../../layouts/TopicLayout.astro';
       </div>
     </a>
   </div>
+  </Section>
   <div class="re-gen" id="re-gen"></div>
 
 <script is:inline>

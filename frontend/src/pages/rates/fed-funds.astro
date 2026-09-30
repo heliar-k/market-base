@@ -3,19 +3,24 @@
 // 结构：指标卡 + 利率走廊五线 + SOFR 成交量 + EFFR 5 年三图 + 近 30 条表；island 脚本逐字原样。
 // fetch('/api/rates/fed-funds') 不变。
 import TopicLayout from '../../layouts/TopicLayout.astro';
+import Section from '../../components/Section.astro';
 ---
 <TopicLayout title="联邦基金利率">
   <div class="page-toc" id="page-toc"></div>
 
-  <div id="re-cards"></div>
-  <div class="re-h2" id="sec-corridor">短期利率走廊（五利率 + 目标区间）</div>
-  <div class="re-chart" id="corridor_chart"></div>
-  <div class="re-h2" id="sec-sofr">SOFR 每日成交量（十亿美元）</div>
-  <div class="re-chart" id="sofr_vol_chart"></div>
-  <div class="re-h2" id="sec-effr">联邦基金有效利率（5 年）</div>
-  <div class="re-chart" id="effr_chart"></div>
-  <div class="re-h2" id="sec-recent">近期数据（最近 30 条）</div>
-  <div id="re-recent"></div>
+  <Section id="re-cards" title="概览" />
+  <Section id="sec-corridor" title="短期利率走廊" sub="五利率 + 目标区间">
+    <div class="re-chart" id="corridor_chart"></div>
+  </Section>
+  <Section id="sec-sofr" title="SOFR 每日成交量" sub="十亿美元">
+    <div class="re-chart" id="sofr_vol_chart"></div>
+  </Section>
+  <Section id="sec-effr" title="联邦基金有效利率" sub="5 年">
+    <div class="re-chart" id="effr_chart"></div>
+  </Section>
+  <Section id="sec-recent" title="近期数据" sub="最近 30 条">
+    <div id="re-recent"></div>
+  </Section>
 
 <script is:inline>
 async function load() {

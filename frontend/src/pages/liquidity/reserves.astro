@@ -3,17 +3,21 @@
 // 结构：准备金卡片 + SOFR−3M T-Bill / SOFR−IORB 两张 60 日利差图 + 近期表；island 脚本逐字原样。
 // fetch('/api/liquidity/reserves') 不变。
 import TopicLayout from '../../layouts/TopicLayout.astro';
+import Section from '../../components/Section.astro';
 ---
 <TopicLayout title="银行准备金">
   <div class="page-toc" id="page-toc"></div>
 
-  <div id="re-cards"></div>
-  <div class="re-h2" id="sec-spread1">SOFR − 3M T-Bill 60 日（银行中介意愿替代口径）</div>
-  <div class="re-chart" id="chart1"></div>
-  <div class="re-h2" id="sec-spread2">SOFR − IORB 60 日（交叉确认）</div>
-  <div class="re-chart" id="chart2"></div>
-  <div class="re-h2" id="sec-recent">近期数据（最近 20 条）</div>
-  <div id="re-recent"></div>
+  <Section id="re-cards" title="概览" />
+  <Section id="sec-spread1" title="SOFR − 3M T-Bill" sub="60 日 · 银行中介意愿替代口径">
+    <div class="re-chart" id="chart1"></div>
+  </Section>
+  <Section id="sec-spread2" title="SOFR − IORB" sub="60 日 · 交叉确认">
+    <div class="re-chart" id="chart2"></div>
+  </Section>
+  <Section id="sec-recent" title="近期数据" sub="最近 20 条">
+    <div id="re-recent"></div>
+  </Section>
   <div class="re-gen" id="re-gen"></div>
 
 <script is:inline>

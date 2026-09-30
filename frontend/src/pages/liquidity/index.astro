@@ -3,13 +3,14 @@
 // 结构：指标卡片 + 三段评估叙事 + 子页 link-grid；island 脚本逐字原样
 // （R.cards / R.get 为 rates-common 经典全局）。fetch('/api/liquidity/snapshot') 不变。
 import TopicLayout from '../../layouts/TopicLayout.astro';
+import Section from '../../components/Section.astro';
 ---
 <TopicLayout title="流动性">
   <div class="page-toc" id="page-toc"></div>
-  <div id="re-cards"></div>
-  <div id="re-eval"></div>
-  <div class="re-h2">子页面</div>
-  <div class="link-grid" id="re-links">
+  <Section id="re-cards" title="概览" />
+  <Section id="re-eval" title="流动性评估" />
+  <Section title="子页面">
+    <div class="link-grid" id="re-links">
     <a class="link-card" href="transmission-chain.html">
       <span class="icon">⛓️</span>
       <span><span class="t">压力指数</span><br><span class="d">规则型美元流动性压力指数 LPI</span></span>
@@ -39,6 +40,7 @@ import TopicLayout from '../../layouts/TopicLayout.astro';
       <span><span class="t">次表层资金流</span><br><span class="d">SOFR 尾部 / 成交量异常 / SRF / 央行互换</span></span>
     </a>
   </div>
+  </Section>
   <div class="re-gen" id="re-gen"></div>
 
 <script is:inline>
