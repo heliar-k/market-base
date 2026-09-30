@@ -1,23 +1,10 @@
-<!DOCTYPE html>
-<html lang="zh-CN">
-<head>
-<meta charset="UTF-8">
-<link rel="icon" href="/favicon.svg" type="image/svg+xml">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>公开市场操作 — 观澜台</title>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap">
-<link rel="stylesheet" href="/css/app.css">
-<link rel="stylesheet" href="/css/special.css">
-<script type="module" src="/js/site-nav.js"></script>
-<script src="/vendor/echarts.min.js"></script>
-</head>
-<body>
-<div class="re-root">
-  <div class="re-header">
-    <h1>公开市场操作</h1>
-    <span class="re-as-of" id="re-as-of"></span>
-  </div>
-  <div class="re-nav" id="re-nav"></div>
+---
+// 公开市场操作页 — 工单 #14 自 public/liquidity/operations.html 迁入。
+// 结构：RMP 卡片 + 日度/累计双轴图 + 最近操作表 + SOMA 摘要 + SRF 说明；island 脚本逐字原样。
+// fetch('/api/liquidity/operations') 不变。
+import TopicLayout from '../../layouts/TopicLayout.astro';
+---
+<TopicLayout title="公开市场操作">
   <div class="page-toc" id="page-toc"></div>
 
   <div class="re-h2" id="sec-rmp">准备金管理购买（RMP · Reserve Management Purchases）</div>
@@ -33,11 +20,8 @@
   <div class="re-h2" id="sec-srf">常备回购便利 SRF 使用量</div>
   <div id="re-srf"></div>
   <div class="re-gen" id="re-gen"></div>
-</div>
 
-<script src="/js/echarts-theme.js"></script>
-<script src="/js/rates-common.js"></script>
-<script>
+<script is:inline>
 async function load() {
   document.getElementById('page-toc').innerHTML = [
     ['RMP', 'sec-rmp'], ['最近操作', 'sec-recent'], ['SOMA', 'sec-soma'], ['SRF', 'sec-srf'],
@@ -100,6 +84,4 @@ async function load() {
 }
 load().catch(e => R.fail(['re-rmp-cards', 'rmp_chart', 're-recent', 're-soma', 're-srf'], e));
 </script>
-<script type="module" src="/js/nav.js"></script>
-</body>
-</html>
+</TopicLayout>
