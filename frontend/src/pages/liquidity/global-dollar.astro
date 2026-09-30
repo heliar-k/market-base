@@ -8,7 +8,10 @@ import Section from '../../components/Section.astro';
 <TopicLayout title="全球美元流动性">
   <div class="page-toc" id="page-toc"></div>
   <Section id="re-cards" title="概览" />
-  <Section id="re-swap" title="央行互换" />
+  <!-- 央行互换卡:脚本 innerHTML 清容器,Section 只包壳、id 落内层 div -->
+  <Section title="央行互换">
+    <div id="re-swap"></div>
+  </Section>
   <Section id="sec-table" title="外汇掉期点一览" sub="pips">
     <div id="re-table"></div>
   </Section>

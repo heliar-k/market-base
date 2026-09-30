@@ -8,7 +8,10 @@ import Section from '../../components/Section.astro';
 <TopicLayout title="联邦基金利率">
   <div class="page-toc" id="page-toc"></div>
 
-  <Section id="re-cards" title="概览" />
+  <!-- 统计卡:脚本 replaceChildren 清容器,Section 只包壳、id 落内层 div -->
+  <Section title="概览">
+    <div id="re-cards"></div>
+  </Section>
   <Section id="sec-corridor" title="短期利率走廊" sub="五利率 + 目标区间">
     <div class="re-chart" id="corridor_chart"></div>
   </Section>

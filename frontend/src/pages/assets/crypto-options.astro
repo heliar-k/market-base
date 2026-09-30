@@ -9,7 +9,10 @@ import Section from '../../components/Section.astro';
   <div class="page-toc" id="page-toc"></div>
 
   <Section id="walls" title="期权价格墙" />
-  <Section id="polymarket" title="Polymarket 价位" />
+  <!-- Polymarket:脚本 host.innerHTML 清容器(空数据分支),Section 只包壳、id 落内层 div -->
+  <Section title="Polymarket 价位">
+    <div id="polymarket"></div>
+  </Section>
   <div class="re-gen" id="re-gen"></div>
 </div>
 

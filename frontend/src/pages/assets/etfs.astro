@@ -11,7 +11,10 @@ import Section from '../../components/Section.astro';
   </Section>
   <!-- 条件性(全量清单子源缺失时为空),不进 Section -->
   <div id="universe"></div>
-  <Section id="filters" title="市场温度与筛选" />
+  <!-- 筛选器:脚本 innerHTML 清容器,Section 只包壳、id 落内层 div -->
+  <Section title="市场温度与筛选">
+    <div id="filters"></div>
+  </Section>
   <Section id="pool" title="精选池" />
   <div class="re-gen" id="re-gen"></div>
 </div>

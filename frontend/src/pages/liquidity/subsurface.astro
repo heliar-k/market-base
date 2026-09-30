@@ -8,7 +8,10 @@ import Section from '../../components/Section.astro';
 <TopicLayout title="次表层资金流">
   <div class="page-toc" id="page-toc"></div>
 
-  <Section id="re-composite" title="综合压力评分" />
+  <!-- 综合评分卡:脚本 innerHTML 清容器,Section 只包壳、id 落内层 div -->
+  <Section title="综合压力评分">
+    <div id="re-composite"></div>
+  </Section>
   <Section id="sec-pct" title="SOFR 分位分布" sub="1/25/75/99 + 中位数 vs IORB">
     <div id="re-pct"></div>
   </Section>
