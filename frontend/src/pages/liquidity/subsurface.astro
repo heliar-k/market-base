@@ -3,17 +3,21 @@
 // 结构：综合压力评分卡（4 分量条）+ SOFR 分位表 + 成交量 60 日图 + SRF/央行互换说明；island 脚本逐字原样。
 // fetch('/api/liquidity/subsurface') 不变。
 import TopicLayout from '../../layouts/TopicLayout.astro';
+import Section from '../../components/Section.astro';
 ---
 <TopicLayout title="次表层资金流">
   <div class="page-toc" id="page-toc"></div>
 
-  <div id="re-composite"></div>
-  <div class="re-h2" id="sec-pct">SOFR 分位分布（1/25/75/99 + 中位数 vs IORB）</div>
-  <div id="re-pct"></div>
-  <div class="re-h2" id="sec-vol">SOFR 成交量 60 日</div>
-  <div class="re-chart" id="vol_chart"></div>
-  <div class="re-h2" id="sec-srf">SRF 常备回购便利使用量</div>
-  <div id="re-srf"></div>
+  <Section id="re-composite" title="综合压力评分" />
+  <Section id="sec-pct" title="SOFR 分位分布" sub="1/25/75/99 + 中位数 vs IORB">
+    <div id="re-pct"></div>
+  </Section>
+  <Section id="sec-vol" title="SOFR 成交量" sub="60 日">
+    <div class="re-chart" id="vol_chart"></div>
+  </Section>
+  <Section id="sec-srf" title="SRF 与央行互换">
+    <div id="re-srf"></div>
+  </Section>
   <div class="re-gen" id="re-gen"></div>
 
 <script is:inline>

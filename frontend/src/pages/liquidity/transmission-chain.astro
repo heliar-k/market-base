@@ -3,20 +3,25 @@
 // 结构：LPI 主评分卡 + 三层评分 + 历史走势图 + 确认条件 + 离岸/外部 + 证据层五段；island 脚本逐字原样。
 // fetch('/api/liquidity/transmission-chain') 不变。
 import TopicLayout from '../../layouts/TopicLayout.astro';
+import Section from '../../components/Section.astro';
 ---
 <TopicLayout title="美元流动性压力指数">
   <div class="page-toc" id="page-toc"></div>
 
-  <div id="re-score"></div>
-  <div id="re-layers"></div>
-  <div class="re-h2" id="sec-history">压力指数历史走势（近 30 个快照）</div>
-  <div class="re-chart" id="history_chart" style="height:220px"></div>
-  <div class="re-h2" id="sec-confirm">升级为系统性压力的确认条件</div>
-  <div id="re-confirm"></div>
-  <div class="re-h2" id="sec-offshore">离岸美元压力 &amp; 外部冲击</div>
-  <div id="re-offshore"></div>
-  <div class="re-h2" id="sec-evidence">证据层：传导链拆解</div>
-  <div id="re-evidence"></div>
+  <Section id="re-score" title="压力指数" />
+  <Section id="re-layers" title="三层评分" />
+  <Section id="sec-history" title="历史走势" sub="近 30 个快照">
+    <div class="re-chart" id="history_chart" style="height:220px"></div>
+  </Section>
+  <Section id="sec-confirm" title="升级为系统性压力的确认条件">
+    <div id="re-confirm"></div>
+  </Section>
+  <Section id="sec-offshore" title="离岸美元与外部冲击">
+    <div id="re-offshore"></div>
+  </Section>
+  <Section id="sec-evidence" title="证据层：传导链拆解">
+    <div id="re-evidence"></div>
+  </Section>
   <div class="re-gen" id="re-gen"></div>
 
 <script is:inline>

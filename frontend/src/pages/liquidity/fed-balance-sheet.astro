@@ -3,12 +3,14 @@
 // 结构：H.4.1 指标卡片 + 近 20 条对照表；island 脚本逐字原样。
 // fetch('/api/liquidity/fed-balance-sheet') 不变。
 import TopicLayout from '../../layouts/TopicLayout.astro';
+import Section from '../../components/Section.astro';
 ---
 <TopicLayout title="美联储资产负债表">
   <div class="page-toc" id="page-toc"></div>
-  <div id="re-cards"></div>
-  <div class="re-h2" id="sec-table">近期对照表（最近 20 条）</div>
-  <div id="re-table"></div>
+  <Section id="re-cards" title="概览" />
+  <Section id="sec-table" title="近期对照表" sub="最近 20 条">
+    <div id="re-table"></div>
+  </Section>
   <div class="re-gen" id="re-gen"></div>
 
 <script is:inline>

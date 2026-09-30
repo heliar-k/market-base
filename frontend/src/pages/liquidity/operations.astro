@@ -3,22 +3,27 @@
 // 结构：RMP 卡片 + 日度/累计双轴图 + 最近操作表 + SOMA 摘要 + SRF 说明；island 脚本逐字原样。
 // fetch('/api/liquidity/operations') 不变。
 import TopicLayout from '../../layouts/TopicLayout.astro';
+import Section from '../../components/Section.astro';
 ---
 <TopicLayout title="公开市场操作">
   <div class="page-toc" id="page-toc"></div>
 
-  <div class="re-h2" id="sec-rmp">准备金管理购买（RMP · Reserve Management Purchases）</div>
-  <div id="re-rmp-cards"></div>
-  <div class="re-chart" id="rmp_chart"></div>
+  <Section id="sec-rmp" title="准备金管理购买" sub="RMP · Reserve Management Purchases">
+    <div id="re-rmp-cards"></div>
+    <div class="re-chart" id="rmp_chart"></div>
+  </Section>
 
-  <div class="re-h2" id="sec-recent">最近国债公开市场操作</div>
-  <div id="re-recent"></div>
+  <Section id="sec-recent" title="最近国债公开市场操作">
+    <div id="re-recent"></div>
+  </Section>
 
-  <div class="re-h2" id="sec-soma">SOMA 持仓摘要</div>
-  <div id="re-soma"></div>
+  <Section id="sec-soma" title="SOMA 持仓摘要">
+    <div id="re-soma"></div>
+  </Section>
 
-  <div class="re-h2" id="sec-srf">常备回购便利 SRF 使用量</div>
-  <div id="re-srf"></div>
+  <Section id="sec-srf" title="常备回购便利 SRF 使用量">
+    <div id="re-srf"></div>
+  </Section>
   <div class="re-gen" id="re-gen"></div>
 
 <script is:inline>

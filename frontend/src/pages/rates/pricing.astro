@@ -4,13 +4,14 @@
 // 长端分解三图 + 口径说明；island 脚本逐字原样（BUCKETS/delta/dchip 等页面私有单源不变）。
 // fetch('/api/rate-expectations' 等) 不变。
 import TopicLayout from '../../layouts/TopicLayout.astro';
+import Section from '../../components/Section.astro';
 ---
 <TopicLayout title="利率定价">
   <div class="page-toc" id="page-toc"></div>
 
-  <div id="re-cards"></div>
+  <Section id="re-cards" title="概览" />
 
-  <!-- ── 政策路径定价：hero 决策卡 + PM 概率收敛路径 ── -->
+  <!-- .re-group 为分组分隔标题(自有节奏),保持裸 div;组内小节用 Section -->
   <div class="re-group" id="sec-policy">政策路径定价</div>
   <div class="hero">
     <div class="hero-card" id="rp-hero"></div>
@@ -20,30 +21,32 @@ import TopicLayout from '../../layouts/TopicLayout.astro';
     </div>
   </div>
 
-  <div class="re-h2" id="sec-table" style="margin-top:18px">概率分布明细</div>
-  <div class="re-table-wrap">
-    <table class="re-table">
-      <thead>
-        <tr>
-          <th>会议</th>
-          <th>合约 / 隐含利率</th>
-          <th>概率分布（ZQ ▾ / PM ▾）</th>
-          <th>降息</th>
-          <th>维持</th>
-          <th>加息</th>
-          <th>研判</th>
-        </tr>
-      </thead>
-      <tbody id="re-tbody"></tbody>
-    </table>
-  </div>
+  <Section id="sec-table" title="概率分布明细">
+    <div class="re-table-wrap">
+      <table class="re-table">
+        <thead>
+          <tr>
+            <th>会议</th>
+            <th>合约 / 隐含利率</th>
+            <th>概率分布（ZQ ▾ / PM ▾）</th>
+            <th>降息</th>
+            <th>维持</th>
+            <th>加息</th>
+            <th>研判</th>
+          </tr>
+        </thead>
+        <tbody id="re-tbody"></tbody>
+      </table>
+    </div>
+  </Section>
 
-  <!-- ── 长端分解 ── -->
   <div class="re-group" id="sec-decomp">长端分解</div>
-  <div class="re-h2" id="sec-triple">10Y 名义 / 实际(TIPS) / 盈亏平衡通胀 + 期限溢价（近 1 年）</div>
-  <div class="re-chart" id="triple_chart"></div>
-  <div class="re-h2" style="margin-top:14px" id="sec-2y10y">2Y vs 10Y 与 2s10s 利差（近 1 年，阴影带 = 利差）</div>
-  <div class="re-chart" id="spread_2_10_chart"></div>
+  <Section id="sec-triple" title="10Y 名义 / 实际 / 盈亏平衡 + 期限溢价" sub="近 1 年">
+    <div class="re-chart" id="triple_chart"></div>
+  </Section>
+  <Section id="sec-2y10y" title="2Y vs 10Y 与 2s10s 利差" sub="近 1 年 · 阴影带 = 利差">
+    <div class="re-chart" id="spread_2_10_chart"></div>
+  </Section>
 
   <div class="re-explain">
     <b>政策路径：</b>FOMC 概率基于 ZQ 30 天联邦基金期货结算价反推，采用 CME FedWatch 方法论近似，

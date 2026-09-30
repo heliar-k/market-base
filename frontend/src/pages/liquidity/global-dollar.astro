@@ -3,13 +3,15 @@
 // 结构：DXY/央行互换卡片 + 掉期点宽表；island 脚本逐字原样。
 // fetch('/api/liquidity/global-dollar') 不变。
 import TopicLayout from '../../layouts/TopicLayout.astro';
+import Section from '../../components/Section.astro';
 ---
 <TopicLayout title="全球美元流动性">
   <div class="page-toc" id="page-toc"></div>
-  <div id="re-cards"></div>
-  <div id="re-swap"></div>
-  <div class="re-h2" id="sec-table">外汇掉期点一览（pips）</div>
-  <div id="re-table"></div>
+  <Section id="re-cards" title="概览" />
+  <Section id="re-swap" title="央行互换" />
+  <Section id="sec-table" title="外汇掉期点一览" sub="pips">
+    <div id="re-table"></div>
+  </Section>
   <div class="re-gen" id="re-gen"></div>
 
 <script is:inline>

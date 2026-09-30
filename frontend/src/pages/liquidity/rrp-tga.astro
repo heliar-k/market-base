@@ -3,18 +3,22 @@
 // 结构：压力预警条 + 余额卡片 + 未来 14 天热力表 + SOFR−IORB 图 + TGA 日度现金流图；island 脚本逐字原样。
 // fetch('/api/liquidity/rrp-tga') 不变。
 import TopicLayout from '../../layouts/TopicLayout.astro';
+import Section from '../../components/Section.astro';
 ---
 <TopicLayout title="逆回购与财政部账户">
   <div class="page-toc" id="page-toc"></div>
 
-  <div id="re-alert"></div>
-  <div id="re-cur"></div>
-  <div class="re-h2" id="sec-heat">未来 14 天流动性热力（估算）</div>
-  <div id="re-heat"></div>
-  <div class="re-h2" id="sec-spread">SOFR − IORB 60 日走势</div>
-  <div class="re-chart" id="spread_chart"></div>
-  <div class="re-h2" id="sec-cash">TGA 日度现金流（DTS）</div>
-  <div class="re-chart" id="cash_chart"></div>
+  <Section id="re-alert" title="压力预警" />
+  <Section id="re-cur" title="当前余额" />
+  <Section id="sec-heat" title="未来 14 天流动性热力" sub="估算">
+    <div id="re-heat"></div>
+  </Section>
+  <Section id="sec-spread" title="SOFR − IORB 走势" sub="60 日">
+    <div class="re-chart" id="spread_chart"></div>
+  </Section>
+  <Section id="sec-cash" title="TGA 日度现金流" sub="DTS">
+    <div class="re-chart" id="cash_chart"></div>
+  </Section>
   <div class="re-gen" id="re-gen"></div>
 
 <script is:inline>
