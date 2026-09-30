@@ -19,6 +19,8 @@ import pytest
 from src.sync_pages_head import SPA_ENTRY, normalize_head, special_pages
 
 STATIC = Path(__file__).resolve().parent.parent / "frontend" / "public"
+# 迁移中的页面：public HTML 删除后以 src/pages/**.astro 存续（build 产同路径 HTML）
+ASTRO_PAGES = Path(__file__).resolve().parent.parent / "frontend" / "src" / "pages"
 
 PAGES = special_pages()
 
@@ -66,12 +68,15 @@ def _nav_pages() -> list[str]:
 
 
 def test_site_nav_pages_exist() -> None:
-    """SITE_NAV 里的每个 page 都要有对应 HTML（防止导航与页面脱节）。"""
+    """SITE_NAV 里的每个 page 都要有对应页面（public HTML 或已迁移的 .astro 源）。"""
     assert _nav_pages(), "site-nav.js 里没解析到任何 page"
     for page in _nav_pages():
-        target = STATIC / page.strip("/")
-        target = target if target.suffix else target / "index.html"
-        assert target.exists(), f"SITE_NAV 指向不存在的页面：{page}"
+        rel = page.strip("/")
+        target = STATIC / rel if Path(rel).suffix else STATIC / rel / "index.html"
+        astro = ASTRO_PAGES / (
+            rel[:-5] + ".astro" if rel.endswith(".html") else rel + "/index.astro"
+        )
+        assert target.exists() or astro.exists(), f"SITE_NAV 指向不存在的页面：{page}"
 
 
 def test_nav_consumers_read_site_nav() -> None:
@@ -112,11 +117,19 @@ def test_as_of_text_only_via_r_asof() -> None:
 
 
 def test_as_of_formatter_present() -> None:
-    """R.asOf / R.asMonth 存在且专题页确有调用（防止 formatter 被删空）。"""
+    """R.asOf / R.asMonth 存在且专题页确有调用（防止 formatter 被删空）。
+    已迁移的 .astro 页同样受管（island 脚本内的 R.asOf 调用）。"""
     js = (STATIC / "js" / "rates-common.js").read_text(encoding="utf-8")
     assert "asOf(src)" in js and "asMonth" in js
-    used = sum(1 for p in special_pages() if "R.asOf(" in p.read_text(encoding="utf-8"))
-    assert used == len(PAGES), f"仅 {used}/{len(PAGES)} 个专题页用 R.asOf 组装时效标签"
+    astro_pages = sorted(ASTRO_PAGES.rglob("*.astro"))
+    used = sum(
+        1
+        for p in special_pages() + astro_pages
+        if "R.asOf(" in p.read_text(encoding="utf-8")
+    )
+    assert used == len(PAGES) + len(astro_pages), (
+        f"仅 {used}/{len(PAGES) + len(astro_pages)} 个专题页用 R.asOf 组装时效标签"
+    )
 
 
 # ── 脚本语法（无构建工具，改完必须能直接被浏览器/Node 解析）──
