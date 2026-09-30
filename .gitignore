@@ -26,6 +26,9 @@ frontend/node_modules/
 frontend/dist/
 frontend/.astro/
 
+# export_pages 生成的 API JSON（工单 #11：astro build 拷进 dist/，不提交）
+frontend/public/api/
+
 # 个人交易记录（本地保留，不公开）
 trade-journal/
 data/options_structure/raw_*.csv
