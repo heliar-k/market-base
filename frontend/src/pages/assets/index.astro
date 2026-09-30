@@ -3,15 +3,18 @@
 // 6 分组价格表 + 跨资产相关性热力 + 交叉分析 + 子页 link-grid；island 脚本逐字原样。
 // fetch('/api/assets/overview') 不变。
 import TopicLayout from '../../layouts/TopicLayout.astro';
+import Section from '../../components/Section.astro';
 ---
 <TopicLayout title="大类资产">
   <div class="page-toc" id="page-toc"></div>
 
-  <div id="asset-groups"></div>
+  <Section id="asset-groups" title="价格总览" />
+  <!-- 条件性(相关性矩阵缺失时为空),不进 Section -->
   <div id="correlation"></div>
-  <div id="cross-analysis"></div>
+  <Section id="cross-analysis" title="交叉解读" />
 
-  <div class="link-grid" id="re-links">
+  <Section title="板块子页">
+    <div class="link-grid" id="re-links">
     <a class="link-card" href="equities.html">
       <span class="icon">📈</span>
       <div>
@@ -76,6 +79,7 @@ import TopicLayout from '../../layouts/TopicLayout.astro';
       </div>
     </a>
   </div>
+  </Section>
   <div class="re-gen" id="re-gen"></div>
 </div>
 

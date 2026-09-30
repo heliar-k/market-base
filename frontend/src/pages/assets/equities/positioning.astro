@@ -3,10 +3,11 @@
 // Positioning Readthrough 结论卡 + 4 分组合约卡 + 净持仓 spark 线；island 脚本逐字原样。
 // fetch('/api/assets/positioning') 不变。
 import TopicLayout from '../../../layouts/TopicLayout.astro';
+import Section from '../../../components/Section.astro';
 ---
 <TopicLayout title="持仓追踪（CFTC COT）">
-  <div id="overview"></div>
-  <div id="groups"></div>
+  <Section id="overview" title="仓位总览" />
+  <Section id="groups" title="分组合约" />
   <div class="re-gen" id="re-gen"></div>
 </div>
 

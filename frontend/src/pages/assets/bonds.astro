@@ -3,11 +3,14 @@
 // TLT/IEF/LQD/HYG 卡片 + 20 日相对涨跌（期初=0%）+ 收盘明细；island 脚本逐字原样。
 // fetch('/api/assets/bonds') 不变。
 import TopicLayout from '../../layouts/TopicLayout.astro';
+import Section from '../../components/Section.astro';
 ---
 <TopicLayout title="债券">
-  <div id="cards" class="re-cards"></div>
-  <div id="chart"></div>
-  <div id="recent"></div>
+  <Section title="价格总览">
+    <div id="cards" class="re-cards"></div>
+  </Section>
+  <Section id="chart" title="近期相对涨跌" />
+  <Section id="recent" title="近期数据" />
   <div class="re-gen" id="re-gen"></div>
 </div>
 

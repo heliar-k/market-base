@@ -3,12 +3,16 @@
 // 精选池指标卡 + 分类/趋势筛选 + 全量池表（无图表，echarts 由 Layout 统一带入）；island 脚本逐字原样。
 // fetch('/api/assets/etfs') 不变。
 import TopicLayout from '../../layouts/TopicLayout.astro';
+import Section from '../../components/Section.astro';
 ---
 <TopicLayout title="ETF">
-  <div id="stats" class="re-cards"></div>
+  <Section title="统计">
+    <div id="stats" class="re-cards"></div>
+  </Section>
+  <!-- 条件性(全量清单子源缺失时为空),不进 Section -->
   <div id="universe"></div>
-  <div id="filters"></div>
-  <div id="pool"></div>
+  <Section id="filters" title="市场温度与筛选" />
+  <Section id="pool" title="精选池" />
   <div class="re-gen" id="re-gen"></div>
 </div>
 

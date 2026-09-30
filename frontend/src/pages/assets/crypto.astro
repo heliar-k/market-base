@@ -3,15 +3,20 @@
 // BTC/ETH 卡 + 前瞻雷达 + 机构vs散户 + 流动性溢出 + BTC/ETH 价比交叉验证；island 脚本逐字原样。
 // fetch('/api/assets/crypto') 与 /api/assets/crypto-derivatives 双源不变。
 import TopicLayout from '../../layouts/TopicLayout.astro';
+import Section from '../../components/Section.astro';
 ---
 <TopicLayout title="加密货币">
-  <div id="cards" class="re-cards"></div>
+  <Section title="价格总览">
+    <div id="cards" class="re-cards"></div>
+  </Section>
+  <!-- 前瞻雷达/机构 vs 散户:条件性(无衍生品快照时为空),不进 Section -->
   <div id="radar"></div>
   <div id="consensus"></div>
-  <div id="liquidity"></div>
+  <Section id="liquidity" title="流动性溢出" />
+  <!-- 条件性(无归一化序列时为空),保持裸 div -->
   <div id="trend"></div>
-  <div id="ratio"></div>
-  <div id="recent"></div>
+  <Section id="ratio" title="BTC/ETH 价比" />
+  <Section id="recent" title="近期数据" />
   <div class="re-gen" id="re-gen"></div>
 </div>
 
