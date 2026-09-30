@@ -159,7 +159,7 @@ async function load() {
   // ── VIX × SKEW 散点（象限虚线 + 最新红点；仅当最新点就是今天才标「今天」）──
   const pts = data.vix_skew_scatter;
   const today = pts[pts.length - 1];
-  const isToday = today.value[2] === R.todayISO();
+  const isToday = today[2] === R.todayISO();  // 散点数据是纯数组 [vix, skew, date]（#19:原代码误用 today.value[2]）
   const gridLine = (c) => ({ lineStyle: { color: c.muted, type: 'dashed', width: 1 } });
   R.mkChart('vix_skew_scatter', () => ({
     tooltip: { formatter: (p) => `${p.seriesName === '今日' ? '' : ''}VIX ${p.value[0]} · SKEW ${p.value[1]}<br/>${p.value[2]}` },
@@ -186,7 +186,7 @@ async function load() {
       {
         name: isToday ? '今日' : '最新', type: 'scatter', symbolSize: 14, data: [today],
         itemStyle: { color: c.red, borderColor: '#fff', borderWidth: 1 },
-        label: { show: true, formatter: isToday ? '今天' : today.value[2].slice(5), position: 'top', color: c.red, fontSize: 11 },
+        label: { show: true, formatter: isToday ? '今天' : today[2].slice(5), position: 'top', color: c.red, fontSize: 11 },
       },
     ],
   }));
