@@ -63,10 +63,9 @@ jobs:
         run: npm ci
         working-directory: frontend
 
-      # API JSON 直落 frontend/public/api/（astro build 拷进 dist/）
+      # API JSON 直落 frontend/public/api/（astro build 拷进 dist/；工单 #12 起
+      # export_pages 仅剩 JSON 导出这一条链，PAGES_JSON_ONLY env 已退役）
       - name: Export API JSON
-        env:
-          PAGES_JSON_ONLY: "1"
         run: uv run python -m src.export_pages
 
       - name: Build frontend (astro)

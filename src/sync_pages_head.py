@@ -38,7 +38,7 @@ HEAD_TEMPLATE = """<head>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap">
 <link rel="stylesheet" href="/css/app.css">
 <link rel="stylesheet" href="/css/special.css">
-<script src="/js/site-nav.js"></script>
+<script type="module" src="/js/site-nav.js"></script>
 {extra}</head>"""
 
 FIXED = (
@@ -48,7 +48,7 @@ FIXED = (
     '<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap">',
     '<link rel="stylesheet" href="/css/app.css">',
     '<link rel="stylesheet" href="/css/special.css">',
-    '<script src="/js/site-nav.js"></script>',
+    '<script type="module" src="/js/site-nav.js"></script>',
 )
 
 _TITLE_RE = re.compile(r"^<title>(.+?) — (.+)</title>$")

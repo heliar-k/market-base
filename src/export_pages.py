@@ -1,27 +1,21 @@
-"""静态站点导出：预渲染 API 为 JSON（+ 复制前端注入路径前缀，旧链路）。
+"""静态站点导出：预渲染 API 为 JSON，直落 frontend/public/api/（部署链，ADR-0003）。
 
 用法：
-- PAGES_JSON_ONLY=1 uv run python -m src.export_pages
-  （部署链，工单 #11 / ADR-0003：JSON 直落 frontend/public/api/，
-   astro build 自动拷进 dist/，wrangler 部署 frontend/dist）
-- uv run python -m src.export_pages
-  （旧全量链路：复制前端 + 前缀注入 + JSON，输出到 site/；
-   PAGES_BASE="" 即根路径）
+    uv run python -m src.export_pages
+    （JSON 落 frontend/public/api/，astro build 自动拷进 dist/，
+     wrangler 部署 frontend/dist；工单 #12 删除了旧 site/ 全量链与
+     PAGES_BASE/_PATH_PREFIXES 路径改写机制——CF 根路径部署后已空转，
+     Astro base 接管子路径需求，PAGES_JSON_ONLY env 随之退役）
 
 原理：
 - 直接调用 src.server 的路由函数（与 HTTP 同一代码路径），结果 _sanitize 后写 JSON
-- 前端 fetch('/api/...') 在 Pages 子路径下会断 → 构建期把站内绝对路径
-  /api /css /js /fed /volatility /rates /credit 统一加 /market-base 前缀
-- K 线导出近 3 年全量 + _d2/_d5 尾部小文件（构建期把 ?days=N 请求转成
-  小文件，避免侧栏预取拉全量）
+- K 线导出近 3 年全量 + _d2/_d5 尾部小文件（前端预取价格只用尾部几行）
 - diag 的 as_of 变体（光标回看）无法预渲染所有日期 → 前端已降级为固定取最新
 """
 
 from __future__ import annotations
 
 import json
-import os
-import re
 import shutil
 from datetime import date, timedelta
 from typing import Callable
@@ -63,52 +57,11 @@ from src.server import (  # noqa: PLC2701 复用路由函数
     get_volatility_analysis,
 )
 
-# 工单 #11：JSON-only 模式——API JSON 直落 Astro public/（astro build 拷进
-# dist/），跳过前端复制与前缀注入；不带 env 的旧 site/ 全量链路保留供回退
-JSON_ONLY = os.environ.get("PAGES_JSON_ONLY") == "1"
-if JSON_ONLY:
-    SITE = ROOT / "frontend" / "public"
-else:
-    SITE = ROOT / os.environ.get("PAGES_OUT", "site")
-STATIC = ROOT / "frontend" / "public"  # ADR-0003：static/ 已整体迁入 Astro public/
-# Pages 部署子路径；repo 改名需同步。Cloudflare Pages 走根路径，用 PAGES_BASE="" 覆盖
-BASE = os.environ.get("PAGES_BASE", "/market-base")
+# 工单 #11：JSON 直落 Astro public/（astro build 拷进 dist/）；工单 #12：旧
+# site/ 全量链（复制前端 + PAGES_BASE 前缀注入）删除，本模块只剩 JSON 导出
+SITE = ROOT / "frontend" / "public"
 KLINE_YEARS = 3
 CORRELATE_YEARS = 5  # 全指标合并文件体积大，截 5 年（10Y/30Y/All 按钮显示止于此处）
-
-# 站内绝对路径前缀（html/js 中出现，均需加 BASE；https:// 不受影响）
-_PATH_PREFIXES = (
-    "api",
-    "css",
-    "js",
-    "vendor",
-    "favicon",
-    "fed",
-    "geo",
-    "inflation",
-    "labor",
-    "treasury",
-    "liquidity",
-    "volatility",
-    "rates",
-    "credit",
-    "assets",
-    "daily",
-)
-
-_PREFIX_RE = re.compile(r'(["\'\x60])/(' + "|".join(_PATH_PREFIXES) + r")/")
-# kline ?days=N → 尾部小文件（模板字符串与字面量两种写法）
-_KLINE_DAYS_TMPL_RE = re.compile(r"/api/kline/(\$\{[^}]+\})\?days=(\d+)")
-_KLINE_DAYS_LIT_RE = re.compile(r"/api/kline/([A-Za-z.]+)\?days=(\d+)")
-# correlate 动态查询 → 静态全量文件（本地 dev 用 FastAPI，静态版本地过滤）
-_CORRELATE_RE = re.compile(r"/api/macro/correlate\?indicators=[^'\"`]*")
-# 流动性 overview 动态 URL（range query）→ 静态文件名（静态托管忽略 query）
-# 注意：不匹配引号，替换后前缀规则再处理；模板字符串（dateRange 变量）单独一条
-_LIQ_URL_RE = re.compile(r"/api/liquidity/overview\?range=([a-z0-9]+)")
-_LIQ_URL_TMPL_RE = re.compile(
-    r"/api/liquidity/overview\?range=\$\{encodeURIComponent\(dateRange\)\}"
-)
-_HOME_RE = re.compile(r'href="/"')
 
 
 def _dump(rel: str, obj: object) -> None:
@@ -253,50 +206,18 @@ def export_api() -> None:
     _safe("api/assets/fx", fx)
 
 
-def export_frontend() -> None:
-    """复制 frontend/public/ → site/，并注入 Pages 子路径前缀。"""
-    if SITE.exists():
-        shutil.rmtree(SITE)
-    shutil.copytree(STATIC, SITE)
-    for p in SITE.rglob("*"):
-        if p.is_file() and p.suffix in (".html", ".js"):
-            text = p.read_text(encoding="utf-8")
-            # 动态 API URL → 静态文件名（本地 dev 用 FastAPI 路由，静态版用文件名）；
-            # 必须先转文件名再加前缀，否则 /market-base 前缀会被二次匹配
-            text = _CORRELATE_RE.sub(f"{BASE}/api/macro/correlate.json", text)
-            text = _LIQ_URL_TMPL_RE.sub(
-                rf"{BASE}/api/liquidity/overview_${{dateRange}}.json", text
-            )
-            text = _LIQ_URL_RE.sub(rf"{BASE}/api/liquidity/overview_\1.json", text)
-            text = _KLINE_DAYS_TMPL_RE.sub(rf"{BASE}/api/kline/\1_d\2", text)
-            text = _KLINE_DAYS_LIT_RE.sub(rf"{BASE}/api/kline/\1_d\2", text)
-            text = _PREFIX_RE.sub(rf"\1{BASE}/\2/", text)
-            # favicon.svg 在站点根目录（无目录斜杠，前缀规则匹配不到），单独替换
-            text = text.replace('href="/favicon.svg"', f'href="{BASE}/favicon.svg"')
-            text = _HOME_RE.sub(f'href="{BASE}/"', text)
-            p.write_text(text, encoding="utf-8")
-
-
 def main() -> None:
-    if JSON_ONLY:
-        # 清残留：_safe 跳过的旧 JSON 不能混进下一次 astro build 的产物
-        if (SITE / "api").exists():
-            shutil.rmtree(SITE / "api")
-        print("导出 API JSON → frontend/public/api/（astro build 拷进 dist/）...")
-        export_api()
-        total = (
-            sum(f.stat().st_size for f in (SITE / "api").rglob("*") if f.is_file())
-            / 1024
-            / 1024
-        )
-        print(f"完成：frontend/public/api/ 共 {total:.1f} MB（含未压缩 JSON）")
-        return
-    print("复制前端并注入路径前缀 → site/ ...")
-    export_frontend()
-    print("导出 API JSON → site/api/ ...")
+    # 清残留：_safe 跳过的旧 JSON 不能混进下一次 astro build 的产物
+    if (SITE / "api").exists():
+        shutil.rmtree(SITE / "api")
+    print("导出 API JSON → frontend/public/api/（astro build 拷进 dist/）...")
     export_api()
-    total = sum(f.stat().st_size for f in SITE.rglob("*") if f.is_file()) / 1024 / 1024
-    print(f"完成：site/ 共 {total:.1f} MB（含未压缩 JSON）")
+    total = (
+        sum(f.stat().st_size for f in (SITE / "api").rglob("*") if f.is_file())
+        / 1024
+        / 1024
+    )
+    print(f"完成：frontend/public/api/ 共 {total:.1f} MB（含未压缩 JSON）")
 
 
 if __name__ == "__main__":

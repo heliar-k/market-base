@@ -1,8 +1,8 @@
 // macro-view.js — 全局左侧专题导航（timsun 风格）+ 宏观详情 iframe（懒加载缓存）
 
-// ── 全站专题导航（唯一数据源：/js/site-nav.js 的全局 SITE_NAV，与专题页顶栏 Tab 同源）──
+// ── 全站专题导航（唯一数据源：site-nav.js ESM import，与专题页顶栏 Tab 同源）──
 // home = 今日研判（SPA 默认落地页）；groups = 专题分组（可展开/收起，items 为二级页）
-const SITE = window.SITE_NAV;
+import { SITE_NAV as SITE } from './site-nav.js';
 const NAV = SITE.groups;
 
 // 核心入口：专题页（home）+ SPA 自有视图

@@ -8,7 +8,7 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap">
 <link rel="stylesheet" href="/css/app.css">
 <link rel="stylesheet" href="/css/special.css">
-<script src="/js/site-nav.js"></script>
+<script type="module" src="/js/site-nav.js"></script>
 </head>
 <body>
 <div class="re-root">
@@ -201,6 +201,6 @@ async function load() {
 
 load().catch(e => R.fail(['geo-topics', 're-signals', 'geo-movers', 'geo-events'], e));
 </script>
-<script src="/js/nav.js"></script>
+<script type="module" src="/js/nav.js"></script>
 </body>
 </html>
