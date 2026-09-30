@@ -21,6 +21,11 @@ data/gex/
 site
 site-cf
 
+# 前端 Astro 脚手架（ADR-0003）
+frontend/node_modules/
+frontend/dist/
+frontend/.astro/
+
 # 个人交易记录（本地保留，不公开）
 trade-journal/
 data/options_structure/raw_*.csv

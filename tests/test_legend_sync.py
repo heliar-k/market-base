@@ -1,6 +1,6 @@
 """图例与曲线一致性（reSyncLegend）——SPA 与所有专题页折线图共用，改坏了这里红。
 
-色标单源在 static/js/echarts-theme.js（SPA 与专题页都加载的唯一 ECharts 共享脚本），
+色标单源在 frontend/public/js/echarts-theme.js（SPA 与专题页共用的 ECharts 脚本），
 R.lineOption 收尾调用它。两个文件拼进同一个临时脚本用 node 跑（浏览器 API 打桩），
 断言图例色标按 series 线型/取色推导。
 """
@@ -14,8 +14,8 @@ from pathlib import Path
 import pytest
 
 ROOT = Path(__file__).resolve().parent.parent
-THEME = ROOT / "static" / "js" / "echarts-theme.js"
-COMMON = ROOT / "static" / "js" / "rates-common.js"
+THEME = ROOT / "frontend" / "public" / "js" / "echarts-theme.js"
+COMMON = ROOT / "frontend" / "public" / "js" / "rates-common.js"
 
 # 拼在两个源文件之后执行：RE_LEGEND / reSyncLegend / R 同一模块作用域，可直接引用
 BODY = """

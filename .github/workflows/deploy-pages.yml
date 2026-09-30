@@ -5,7 +5,7 @@ name: deploy-pages
 #   用 PAT（DATA_PUSH_TOKEN）push 数据 commit → push 事件 + paths: data/** 触发
 #   （PAT push 正常触发 push 事件，不像 GITHUB_TOKEN 受递归触发限制；
 #   无数据变更时不 commit → 不 push → 不触发，空跑部署归零）
-# - 手动 push static/src 改动 → 同一 push 事件自动触发
+# - 手动 push frontend/src 改动 → 同一 push 事件自动触发
 # - 手动触发：gh workflow run deploy-pages.yml
 #
 # 2026-09-28：GitHub Pages 部署已下线（原站 heliar-k.github.io/market-base 停在最后一次
@@ -16,7 +16,7 @@ on:
     branches: [main]
     paths:
       - "data/**"
-      - "static/**"
+      - "frontend/public/**"
       - "src/**"
       - "pyproject.toml"
       - "uv.lock"

@@ -59,7 +59,7 @@ from src.server import (  # noqa: PLC2701 复用路由函数
 )
 
 SITE = ROOT / os.environ.get("PAGES_OUT", "site")
-STATIC = ROOT / "static"
+STATIC = ROOT / "frontend" / "public"  # ADR-0003：static/ 已整体迁入 Astro public/
 # Pages 部署子路径；repo 改名需同步。Cloudflare Pages 走根路径，用 PAGES_BASE="" 覆盖
 BASE = os.environ.get("PAGES_BASE", "/market-base")
 KLINE_YEARS = 3
@@ -243,7 +243,7 @@ def export_api() -> None:
 
 
 def export_frontend() -> None:
-    """复制 static/ → site/，并注入 Pages 子路径前缀。"""
+    """复制 frontend/public/ → site/，并注入 Pages 子路径前缀。"""
     if SITE.exists():
         shutil.rmtree(SITE)
     shutil.copytree(STATIC, SITE)

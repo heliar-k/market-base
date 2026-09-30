@@ -1403,7 +1403,7 @@ def get_cross_asset() -> dict:
 
 # ── static files (must be last) ─────────────────────────────────────────────
 
-_static = ROOT / "static"
+_static = ROOT / "frontend" / "public"
 _static.mkdir(exist_ok=True)
 app.mount("/", StaticFiles(directory=str(_static), html=True), name="static")
 
