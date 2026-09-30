@@ -1,4 +1,7 @@
-# 前端专题页增量迁移到 Astro
+# ADR 0003 — 前端专题页增量迁移到 Astro
+
+**状态**：已接受
+**日期**：2026-09-30
 
 32 个专题页(rates/credit/liquidity/assets/…)样板重复,靠 `sync_pages_head.py` + pytest 纪律测试当补丁维持一致性。决定:专题页增量迁移到 **Astro**(static → frontend/,先整体进 public/ 保证 URL 不变,再逐页改 .astro);主站 SPA(index.html 四视图,交互最重且无样板痛点)保留 vanilla,只预留并入口子。数据流不动:export_pages.py 继续预渲染 JSON,页面运行时 fetch 同路径——明确排除「Astro build 时注入数据」(数据日更、代码不日更,注入会把部署和数据耦合死)和「运行时动态算」(违背纯静态)。
 

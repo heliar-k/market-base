@@ -38,8 +38,7 @@ market-base/
 │   ├── sell_put.py               ← Sell Put 选点位（期权墙 + 技术面交叉）
 │   ├── hedge_planner.py          ← 下跌保护结构报价器（put / 价差 / 领口）
 │   ├── server.py                 ← FastAPI Web 后端（45 routes，组合根：import 全部分析层）
-│   ├── export_pages.py           ← 静态站点导出（API JSON 预渲染 → Astro dist，旧 site/ 链保留）
-│   ├── sync_pages_head.py        ← 专题页 <head> 样板单源（模板渲染 + --check 防漂移）
+│   ├── export_pages.py           ← 静态站点导出（API JSON 预渲染 → frontend/public/api/）
 │   ├── *_analysis.py             ← 专题分析引擎（9 个，规则引擎生成叙事，只读 CSV 不写盘）：
 │   │     rates / credit / inflation / labor / treasury / fed / volatility /
 │   │     assets / liquidity —— 读 CSV 统一走 src/analysis_utils.py
@@ -95,7 +94,7 @@ market-base/
 │       ├── screens.py            ← 屏幕组装（三栏布局 + 模式切换）
 │       └── widgets/              ← 可复用组件（kline_chart / diag_sidebar / macro_chart / _plot_common）
 │
-├── tests/                        ← pytest 测试套件（547 个测试，tmp_path 隔离 + autouse 清缓存）
+├── tests/                        ← pytest 测试套件（700 个测试，tmp_path 隔离 + autouse 清缓存）
 │
 ├── docs/adr/                     ← 架构决策记录（0001 回看交互、0002 重命名 code→src）
 │
@@ -183,18 +182,17 @@ market-base/
 │   ├── etf_flows/etf_flows.csv         ← BTC 现货 ETF 资金流（Farside，12 ETF + Total，M USD）
 │   └── cache/{SYMBOL}_indicators.parquet ← 指标缓存（派生产物，mtime 失效）
 │
-├── frontend/                     ← Web 前端（已迁 Astro，ADR-0003：static/ 整体搬入 public/，扩张阶段第一步，尚无 .astro 页）
-│   ├── public/                  ← 原 static/ 原样搬入（git mv 保历史），Astro publicDir
-│   │   ├── fed/                 ← 美联储鹰鸽专题页（timsun.net/fed 复刻，单页：声明+演讲+鹰鸽追踪）
-│   │   ├── index.html           ← 主仪表盘 SPA
-│   │   ├── js/                  ← 前端 JS（echarts-theme / rates-common 等）
-│   │   ├── rates/               ← 利率专题页（timsun.net/rates 复刻，3 子页）
-│   │   ├── credit/              ← 信用专题页（单页：总览+CDS+压力仪表盘）
-│   │   ├── assets/              ← 大类资产专题页（timsun.net/assets 复刻，主页 + 9 子页）
-│   │   └── volatility/          ← 波动率专题页（timsun.net/volatility 复刻，2 页）
-│   ├── astro.config.mjs         ← Astro 配置（output static，publicDir/outDir 用默认）
-│   ├── package.json             ← npm 依赖（仅 astro）
-│   └── .nvmrc                   ← Node 22 LTS
+├── frontend/                     ← Web 前端（Astro，ADR-0003：32 专题页已全迁 .astro，迁移完成）
+│   ├── src/
+│   │   ├── layouts/TopicLayout.astro ← 专题页通用骨架（head 样板/顶栏 Tab/页头/主题等运行时行为）
+│   │   └── pages/                ← 32 个专题页 .astro（liquidity 8 / rates 4 / 单页族 9 / assets 11）
+│   ├── public/                   ← SPA 壳 + 共享资源（原 static/ 搬入，Astro publicDir 原样拷贝）
+│   │   ├── index.html            ← 主仪表盘 SPA（vanilla，不迁）
+│   │   ├── js/                   ← 共享 JS（site-nav / echarts-theme / rates-common 等，不进打包管线）
+│   │   └── css/ vendor/ api/ favicon.svg _redirects
+│   ├── astro.config.mjs          ← Astro 配置（output static，publicDir/outDir 用默认）
+│   ├── package.json              ← npm 依赖（仅 astro）
+│   └── .nvmrc                    ← Node 22 LTS
 │
 └── docs/
     ├── DATA_CATALOG.md           ← 数据目录文档
@@ -308,7 +306,7 @@ uv run python -m src.server                        # 启动 Web，浏览器打�
 # 研判由 src/rates_analysis.py 规则引擎生成，LLM 接入点：generate_analysis() → _llm_generate()
 
 # 测试
-uv run python -m pytest                            # 全量测试（547 个）
+uv run python -m pytest                            # 全量测试（700 个）
 
 # GEX 计算（IBKR 优先，拿不到 Greeks 自动降级 yfinance）
 uv run python src/compute_gex.py                        # AAPL（默认）
@@ -401,12 +399,13 @@ uv run python src/sell_put.py --symbol TSM
 - **格式化**: ruff (select E/F/I/W) + ruff-format，`pre-commit` 在 git commit 时自动执行（`ruff --fix` + `ruff-format` 自动修并重新暂存）。**写完代码无需手动跑 ruff/pre-commit**，只验证功能正确性（代码能跑）即可；E501（行太长）不会被自动修，commit 被拦时再手动改
 - **类型提示**: 所有函数签名带类型注解，用 `|` 替代 `Optional`（Python 3.10+）
 - **import**: 先标准库 → 第三方 → `src.*`（`isort` 自动处理）
-- **测试**: pytest 测试套件（`tests/`，547 个测试），用 `tmp_path` 隔离 + autouse fixture 清理缓存。运行 `uv run python -m pytest`
+- **测试**: pytest 测试套件（`tests/`，700 个测试），用 `tmp_path` 隔离 + autouse fixture 清理缓存。运行 `uv run python -m pytest`
 - **分析层约定**: 专题分析模块（`*_analysis.py`）只读 CSV 不写盘，读 CSV 统一走 `src/analysis_utils.py` 的 `read_csv_or_empty`，不各写各的 `_read`
 
 ### 8. 主站 Web UI/UX 设计原则（新面板/重构对齐用）
 
-主站 = `frontend/public/index.html` SPA（仪表盘/技术/宏观/关联四视图）+ 专题静态页（rates/credit/assets/…，timsun 复刻）。新面板与重构遵守：
+主站 = `frontend/public/index.html` SPA（仪表盘/技术/宏观/关联四视图）+ 32 个 .astro 专题页
+（`frontend/src/pages/`，TopicLayout 骨架，timsun 复刻）。新面板与重构遵守：
 
 - **主题只走 CSS 变量**：颜色一律用 `:root` / `body.dark` 定义的 `var(--bg/--surface/--border/--text/--accent/…)`（见 `frontend/public/css/app.css` 顶部），禁止硬编码背景/文字色；亮暗双主题都要可用。ECharts 图统一 `echarts-theme.js` 的 `macro`/`macroDark` 主题 + `reThemeECharts` 响应 `theme-changed` 事件
 - **图例色标单源**：`echarts-theme.js` 的 `RE_LEGEND`（实线/虚线/点线/点划线/阴影带/带圆点实线，path 自绘）+ `reSyncLegend(option)`（按 series 线型推形状、把图例色块对齐到线色——ECharts 图例只读 `series.color`，
@@ -424,11 +423,11 @@ uv run python src/sell_put.py --symbol TSM
   inflation「月频 2026-07-01–2026-07-01 · 盈亏平衡 2026-09-04」）；月频区间写「月频 {起}–{止}」；
   日期一律 ISO。数据缺失显示空，不要自造前缀（「数据日期:」「快照时间 ·」等已废弃）。
   **文案只能由 `rates-common.js` 的 `R.asOf(...)` / `R.asMonth(...)` 组装**，页面不写模板串
-- **head / 导航单源（Phase 3，工单 #12 起 ESM 化）**：专题页 `<head>` 样板唯一来源 = `src/sync_pages_head.py` 的
-  `HEAD_TEMPLATE`（跑 `uv run python -m src.sync_pages_head` 重放覆盖，手改 head 会被 pytest 拦下）；
+- **head / 导航单源（Astro，ADR-0003）**：专题页 `<head>` 样板与顶栏 Tab 由
+  `frontend/src/layouts/TopicLayout.astro` 构建期统一渲染（页私有 head 追加走 `slot="head"`）；
   顶栏 Tab + SPA 侧栏专题树唯一数据源 = `frontend/public/js/site-nav.js`（ESM：`export const SITE_NAV`，
-  页面以 `<script type="module">` 加载；nav.js / macro-view.js / dashboard.js 统一 import）。
-  新专题：写页面 → 跑 head 同步 → 在 `SITE_NAV` 登记即可（无别处白名单）
+  TopicLayout 构建期与 macro-view.js / dashboard.js 运行时 import 同一份）。
+  新专题：写 .astro 页（套 TopicLayout）→ 在 `SITE_NAV` 登记即可（无别处白名单）
 
 ---
 

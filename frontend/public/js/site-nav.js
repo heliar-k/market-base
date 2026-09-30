@@ -1,13 +1,12 @@
 // site-nav.js — 全站导航唯一数据源（ESM 单文件：export const + 兼容挂 window）。
 //
-// 消费方（三处视图，一份数据，统一 import）：
-//   1. js/nav.js        → 专题页顶栏 Tab（只渲染到「组」这一层）
-//   2. js/macro-view.js → SPA 左侧专题树（组 + items 子页）
-//   3. js/dashboard.js  → SPA 跨资产表跳转（指标键 → 导航键 → page）
-// 页面以 <script type="module"> 加载本文件（经典 <script src> 遇 export 语法直接报错）；
+// 消费方（一份数据，统一 import）：
+//   1. src/layouts/TopicLayout.astro → 专题页顶栏 Tab（构建期渲染，只渲染到「组」这一层）
+//   2. js/macro-view.js             → SPA 左侧专题树（组 + items 子页）
+//   3. js/dashboard.js              → SPA 跨资产表跳转（指标键 → 导航键 → page）
 // 挂 window.SITE_NAV 供过渡期未改 import 的模块消费方兜底，Astro 构建期无 window 则跳过。
 //
-// 新增专题：改这里即可（页面放 frontend/public/ 对应目录，无需别处登记）。
+// 新增专题：改这里即可（页面放 frontend/src/pages/ 对应路径，无需别处登记）。
 // 字段：home=顶栏第一个入口（也是 SPA 默认落地页）；spaViews=SPA 自有视图（非页面）；
 // groups=专题分组，page=入口页，items=子页，sub=侧栏二级缩进，view=SPA 视图键。
 export const SITE_NAV = {

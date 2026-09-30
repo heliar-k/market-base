@@ -295,5 +295,5 @@ const R = {
   },
 };
 
-// 主题由 nav.js 统一管理（localStorage 'ticker-toolkit-dark'，无偏好时跟随系统）；
+// 主题由 TopicLayout（专题页）/ SPA 壳统一管理（localStorage 'ticker-toolkit-dark'，无偏好时跟随系统）；
 // 本文件只需监听 theme-changed 重绘图表（见上方监听器）

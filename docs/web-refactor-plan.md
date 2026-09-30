@@ -1,5 +1,9 @@
 # TUI → Web 重构计划
 
+> 状态注记（工单 #18，2026-09-30）：本计划为 TUI→Web 时期的记录。其中前端部分已演进：
+> 32 个专题页已全量迁移 Astro（ADR-0003，frontend/ 目录），`static/` 已投身为 `frontend/public/`；
+> 本文中 `static/index.html` 等路径按历史语境阅读。
+
 ## 目标
 
 把现有 Textual TUI 替换为浏览器端 Web 界面，分析引擎（analyze / cache / macro / indicators）**零改动**。
