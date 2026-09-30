@@ -482,6 +482,20 @@ df = compute_all_indicators(df)  # 返回带所有指标列的 DataFrame
 
 ---
 
+## Agent skills
+
+### Issue tracker
+
+Issues 与 specs 走 GitHub Issues（gh CLI 读写）。见 `docs/agents/issue-tracker.md`。
+
+### Triage labels
+
+五个默认 triage 标签（needs-triage / needs-info / ready-for-agent / ready-for-human / wontfix）。见 `docs/agents/triage-labels.md`。
+
+### Domain docs
+
+单上下文布局：根级 CONTEXT.md + docs/adr/。见 `docs/agents/domain.md`。
+
 ## 自定义 Agent 定义
 
 ### agent: 分析助手
