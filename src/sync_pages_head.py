@@ -1,7 +1,8 @@
 """专题页 <head> 单源同步 / 校验（前端风格统一 Phase 3A）。
 
-背景：static/ 下的 HTML 由 FastAPI StaticFiles 原样服务，head 不能挪到只有构建期
-才存在的模板文件里。所以 head 的单一来源 = 本脚本里的 HEAD_TEMPLATE，
+背景：frontend/public/ 下的 HTML 由 FastAPI StaticFiles 原样服务，
+head 不能挪到只有构建期才存在的模板文件里。
+所以 head 的单一来源 = 本脚本里的 HEAD_TEMPLATE，
 各页 HTML 里的 head 是它的渲染产物，可重放覆盖（body 一律不动）。
 
 用法：
@@ -22,7 +23,7 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-STATIC = ROOT / "static"
+STATIC = ROOT / "frontend" / "public"  # ADR-0003：static/ 已整体迁入 Astro public/
 # SPA 主入口 head 结构不同（不引 special.css、额外 vendor 脚本），不在收编范围
 SPA_ENTRY = STATIC / "index.html"
 

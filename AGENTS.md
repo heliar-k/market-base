@@ -183,14 +183,18 @@ market-base/
 │   ├── etf_flows/etf_flows.csv         ← BTC 现货 ETF 资金流（Farside，12 ETF + Total，M USD）
 │   └── cache/{SYMBOL}_indicators.parquet ← 指标缓存（派生产物，mtime 失效）
 │
-├── static/                       ← Web 前端（FastAPI 静态目录）
-│   ├── fed/                         ← 美联储鹰鸽专题页（timsun.net/fed 复刻，单页：声明+演讲+鹰鸽追踪）
-│   ├── index.html                ← 主仪表盘 SPA
-│   ├── js/                       ← 前端 JS（echarts-theme / rates-common 等）
-│   ├── rates/                    ← 利率专题页（timsun.net/rates 复刻，3 子页）
-│   ├── credit/                   ← 信用专题页（单页：总览+CDS+压力仪表盘）
-│   ├── assets/                   ← 大类资产专题页（timsun.net/assets 复刻，主页 + 9 子页）
-│   └── volatility/               ← 波动率专题页（timsun.net/volatility 复刻，2 页）
+├── frontend/                     ← Web 前端（已迁 Astro，ADR-0003：static/ 整体搬入 public/，扩张阶段第一步，尚无 .astro 页）
+│   ├── public/                  ← 原 static/ 原样搬入（git mv 保历史），Astro publicDir
+│   │   ├── fed/                 ← 美联储鹰鸽专题页（timsun.net/fed 复刻，单页：声明+演讲+鹰鸽追踪）
+│   │   ├── index.html           ← 主仪表盘 SPA
+│   │   ├── js/                  ← 前端 JS（echarts-theme / rates-common 等）
+│   │   ├── rates/               ← 利率专题页（timsun.net/rates 复刻，3 子页）
+│   │   ├── credit/              ← 信用专题页（单页：总览+CDS+压力仪表盘）
+│   │   ├── assets/              ← 大类资产专题页（timsun.net/assets 复刻，主页 + 9 子页）
+│   │   └── volatility/          ← 波动率专题页（timsun.net/volatility 复刻，2 页）
+│   ├── astro.config.mjs         ← Astro 配置（output static，publicDir/outDir 用默认）
+│   ├── package.json             ← npm 依赖（仅 astro）
+│   └── .nvmrc                   ← Node 22 LTS
 │
 └── docs/
     ├── DATA_CATALOG.md           ← 数据目录文档
@@ -400,9 +404,9 @@ uv run python src/sell_put.py --symbol TSM
 
 ### 8. 主站 Web UI/UX 设计原则（新面板/重构对齐用）
 
-主站 = `static/index.html` SPA（仪表盘/技术/宏观/关联四视图）+ 专题静态页（rates/credit/assets/…，timsun 复刻）。新面板与重构遵守：
+主站 = `frontend/public/index.html` SPA（仪表盘/技术/宏观/关联四视图）+ 专题静态页（rates/credit/assets/…，timsun 复刻）。新面板与重构遵守：
 
-- **主题只走 CSS 变量**：颜色一律用 `:root` / `body.dark` 定义的 `var(--bg/--surface/--border/--text/--accent/…)`（见 `static/css/app.css` 顶部），禁止硬编码背景/文字色；亮暗双主题都要可用。ECharts 图统一 `echarts-theme.js` 的 `macro`/`macroDark` 主题 + `reThemeECharts` 响应 `theme-changed` 事件
+- **主题只走 CSS 变量**：颜色一律用 `:root` / `body.dark` 定义的 `var(--bg/--surface/--border/--text/--accent/…)`（见 `frontend/public/css/app.css` 顶部），禁止硬编码背景/文字色；亮暗双主题都要可用。ECharts 图统一 `echarts-theme.js` 的 `macro`/`macroDark` 主题 + `reThemeECharts` 响应 `theme-changed` 事件
 - **图例色标单源**：`echarts-theme.js` 的 `RE_LEGEND`（实线/虚线/点线/点划线/阴影带/带圆点实线，path 自绘）+ `reSyncLegend(option)`（按 series 线型推形状、把图例色块对齐到线色——ECharts 图例只读 `series.color`，
   不读 `lineStyle.color`）。`R.lineOption` 已内置；不走 lineOption 的图包一层 `setOption(reSyncLegend({...}))`。
   页面**禁止**手写 `legend.data[i].icon` 或 `legend.formatter` 标注线型；尺寸走主题默认 18×6（散点图例自行给正方形尺寸）。
@@ -420,7 +424,7 @@ uv run python src/sell_put.py --symbol TSM
   **文案只能由 `rates-common.js` 的 `R.asOf(...)` / `R.asMonth(...)` 组装**，页面不写模板串
 - **head / 导航单源（Phase 3）**：专题页 `<head>` 样板唯一来源 = `src/sync_pages_head.py` 的
   `HEAD_TEMPLATE`（跑 `uv run python -m src.sync_pages_head` 重放覆盖，手改 head 会被 pytest 拦下）；
-  顶栏 Tab + SPA 侧栏专题树唯一数据源 = `static/js/site-nav.js` 的全局 `SITE_NAV`。
+  顶栏 Tab + SPA 侧栏专题树唯一数据源 = `frontend/public/js/site-nav.js` 的全局 `SITE_NAV`。
   新专题：写页面 → 跑 head 同步 → 在 `SITE_NAV` 登记 → （若引入新顶层目录）补
   `src/export_pages.py._PATH_PREFIXES`（漏补则 `tests/test_static_single_source.py` 红）
 

@@ -19,7 +19,7 @@ import pytest
 from src.export_pages import _PATH_PREFIXES
 from src.sync_pages_head import SPA_ENTRY, normalize_head, special_pages
 
-STATIC = Path(__file__).resolve().parent.parent / "static"
+STATIC = Path(__file__).resolve().parent.parent / "frontend" / "public"
 
 PAGES = special_pages()
 

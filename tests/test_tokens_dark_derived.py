@@ -13,7 +13,7 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
-CSS_DIR = Path(__file__).resolve().parent.parent / "static/css"
+CSS_DIR = Path(__file__).resolve().parent.parent / "frontend/public/css"
 RULE = re.compile(r"(?P<sel>[^{}]+)\{(?P<body>[^{}]*)\}")
 DERIVED = re.compile(r"--[\w-]+\s*:\s*[^;]*var\(--", re.M)
 
