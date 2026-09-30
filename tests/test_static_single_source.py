@@ -30,10 +30,12 @@ def _head(text: str) -> str:
 
 
 def test_special_pages_found() -> None:
-    """收编范围 = 除 SPA 主入口外的全部 HTML（新增页面自动纳入校验）。"""
+    """收编范围 = 除 SPA 主入口外的全部 HTML（新增页面自动纳入校验）。
+    已迁移 .astro 的页面以 src/pages 源存续（工单 #13/#14），计数合并。"""
     html = {p for p in STATIC.rglob("*.html")}
     assert html - {SPA_ENTRY} == set(PAGES)
-    assert len(PAGES) >= 30
+    astro = list(ASTRO_PAGES.rglob("*.astro"))
+    assert len(PAGES) + len(astro) >= 30
 
 
 @pytest.mark.parametrize("page", PAGES, ids=lambda p: str(p.relative_to(STATIC)))

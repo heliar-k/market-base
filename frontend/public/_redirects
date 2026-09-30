@@ -1,0 +1,12 @@
+# Cloudflare Pages 重写（ADR-0003 / 工单 #14）：astro build 默认 directory 格式，
+# 子页产物是 /liquidity/<name>/index.html，而 SITE_NAV items 与页面内链接指向
+# /liquidity/<name>.html（共享 JS 硬闸不可改）。200 重写 = 地址栏 URL 不变。
+# 后续族迁移（rates/assets/…）的非 index 子页在此各补一行。
+
+/liquidity/transmission-chain.html /liquidity/transmission-chain/ 200
+/liquidity/fed-balance-sheet.html /liquidity/fed-balance-sheet/ 200
+/liquidity/operations.html /liquidity/operations/ 200
+/liquidity/rrp-tga.html /liquidity/rrp-tga/ 200
+/liquidity/reserves.html /liquidity/reserves/ 200
+/liquidity/global-dollar.html /liquidity/global-dollar/ 200
+/liquidity/subsurface.html /liquidity/subsurface/ 200
