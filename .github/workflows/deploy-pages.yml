@@ -5,18 +5,19 @@ name: deploy-pages
 #   用 PAT（DATA_PUSH_TOKEN）push 数据 commit → push 事件 + paths: data/** 触发
 #   （PAT push 正常触发 push 事件，不像 GITHUB_TOKEN 受递归触发限制；
 #   无数据变更时不 commit → 不 push → 不触发，空跑部署归零）
-# - 手动 push frontend/src 改动 → 同一 push 事件自动触发
-# - 手动触发：gh workflow run deploy-pages.yml
+# - 手动 push 前端/后端改动 → 同一 push 事件自动触发
+# - 手动触发：gh workflow run deploy-pages.yml --ref <分支>
 #
-# 2026-09-28：GitHub Pages 部署已下线（原站 heliar-k.github.io/market-base 停在最后一次
-# 部署，仅作冻结备份）。CF 侧走根路径（PAGES_BASE=""），wrangler 按内容哈希增量上传，
-# 未变更文件不重传，部署秒级。
+# 部署链（工单 #11，ADR-0003）：export_pages 产 API JSON → frontend/public/api/
+# → astro build（public/ 原样拷贝 + 编译 .astro 页）→ frontend/dist
+# → wrangler pages deploy（内容哈希增量上传，未变更文件不重传，部署秒级）。
+# 站点：https://market-base.pages.dev （根路径）。GitHub Pages 已下线（冻结备份）。
 on:
   push:
     branches: [main]
     paths:
       - "data/**"
-      - "frontend/public/**"
+      - "frontend/**"
       - "src/**"
       - "pyproject.toml"
       - "uv.lock"
@@ -41,8 +42,8 @@ jobs:
     steps:
       - uses: actions/checkout@v5
         with:
-          # workflow_run 事件默认检出触发时的 main；显式指定避免部署旧 commit
-          ref: main
+          # workflow_dispatch 指定分支时构建该分支；push 触发时 github.ref 即 main
+          ref: ${{ github.ref }}
 
       - uses: astral-sh/setup-uv@v9.0.0
         with:
@@ -52,14 +53,28 @@ jobs:
       - name: Install deps
         run: uv sync
 
-      # CF Pages 走根路径，无 /market-base 子路径前缀
-      - name: Build static site
+      - uses: actions/setup-node@v5
+        with:
+          node-version-file: frontend/.nvmrc
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install frontend deps
+        run: npm ci
+        working-directory: frontend
+
+      # API JSON 直落 frontend/public/api/（astro build 拷进 dist/）
+      - name: Export API JSON
         env:
-          PAGES_BASE: ""
+          PAGES_JSON_ONLY: "1"
         run: uv run python -m src.export_pages
+
+      - name: Build frontend (astro)
+        run: npm run build
+        working-directory: frontend
 
       - name: Deploy to Cloudflare Pages
         uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          command: pages deploy site --project-name=market-base
+          command: pages deploy frontend/dist --project-name=market-base

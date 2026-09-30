@@ -1,7 +1,12 @@
-"""GitHub Pages 静态站点生成：预渲染 API 为 JSON + 复制前端 + 注入部署路径前缀。
+"""静态站点导出：预渲染 API 为 JSON（+ 复制前端注入路径前缀，旧链路）。
 
-用法：uv run python -m src.export_pages
-（输出到 site/；PAGES_BASE="" 即根路径，供 wrangler 部署到 Cloudflare Pages）
+用法：
+- PAGES_JSON_ONLY=1 uv run python -m src.export_pages
+  （部署链，工单 #11 / ADR-0003：JSON 直落 frontend/public/api/，
+   astro build 自动拷进 dist/，wrangler 部署 frontend/dist）
+- uv run python -m src.export_pages
+  （旧全量链路：复制前端 + 前缀注入 + JSON，输出到 site/；
+   PAGES_BASE="" 即根路径）
 
 原理：
 - 直接调用 src.server 的路由函数（与 HTTP 同一代码路径），结果 _sanitize 后写 JSON
@@ -58,7 +63,13 @@ from src.server import (  # noqa: PLC2701 复用路由函数
     get_volatility_analysis,
 )
 
-SITE = ROOT / os.environ.get("PAGES_OUT", "site")
+# 工单 #11：JSON-only 模式——API JSON 直落 Astro public/（astro build 拷进
+# dist/），跳过前端复制与前缀注入；不带 env 的旧 site/ 全量链路保留供回退
+JSON_ONLY = os.environ.get("PAGES_JSON_ONLY") == "1"
+if JSON_ONLY:
+    SITE = ROOT / "frontend" / "public"
+else:
+    SITE = ROOT / os.environ.get("PAGES_OUT", "site")
 STATIC = ROOT / "frontend" / "public"  # ADR-0003：static/ 已整体迁入 Astro public/
 # Pages 部署子路径；repo 改名需同步。Cloudflare Pages 走根路径，用 PAGES_BASE="" 覆盖
 BASE = os.environ.get("PAGES_BASE", "/market-base")
@@ -267,6 +278,19 @@ def export_frontend() -> None:
 
 
 def main() -> None:
+    if JSON_ONLY:
+        # 清残留：_safe 跳过的旧 JSON 不能混进下一次 astro build 的产物
+        if (SITE / "api").exists():
+            shutil.rmtree(SITE / "api")
+        print("导出 API JSON → frontend/public/api/（astro build 拷进 dist/）...")
+        export_api()
+        total = (
+            sum(f.stat().st_size for f in (SITE / "api").rglob("*") if f.is_file())
+            / 1024
+            / 1024
+        )
+        print(f"完成：frontend/public/api/ 共 {total:.1f} MB（含未压缩 JSON）")
+        return
     print("复制前端并注入路径前缀 → site/ ...")
     export_frontend()
     print("导出 API JSON → site/api/ ...")

@@ -38,7 +38,7 @@ market-base/
 │   ├── sell_put.py               ← Sell Put 选点位（期权墙 + 技术面交叉）
 │   ├── hedge_planner.py          ← 下跌保护结构报价器（put / 价差 / 领口）
 │   ├── server.py                 ← FastAPI Web 后端（45 routes，组合根：import 全部分析层）
-│   ├── export_pages.py           ← 静态站点导出（GitHub Pages，site/ 预渲染）
+│   ├── export_pages.py           ← 静态站点导出（API JSON 预渲染 → Astro dist，旧 site/ 链保留）
 │   ├── sync_pages_head.py        ← 专题页 <head> 样板单源（模板渲染 + --check 防漂移）
 │   ├── *_analysis.py             ← 专题分析引擎（9 个，规则引擎生成叙事，只读 CSV 不写盘）：
 │   │     rates / credit / inflation / labor / treasury / fed / volatility /
@@ -229,8 +229,10 @@ market-base/
 > push → 正常触发 push 事件 → `deploy-pages` 靠 `paths: data/**` 过滤，无变更不部署
 > （PAT 到期后数据 push 会失败标红，需续期；GITHUB_TOKEN push 不触发 push 事件，
 > 这是当初用 workflow_run 链的原因，已废弃）。
-> 部署已切到 Cloudflare Pages 单目标（https://market-base.pages.dev ，根路径，
-> 导出用 `PAGES_BASE=""` + wrangler 哈希增量上传；secrets：`CLOUDFLARE_API_TOKEN` /
+> 部署已切到 Cloudflare Pages 单目标（https://market-base.pages.dev ，根路径）。
+> 部署链（ADR-0003，工单 #11）：`export_pages`（PAGES_JSON_ONLY=1，JSON 落
+> frontend/public/api/）→ `astro build`（public/ 拷贝 + .astro 编译 → frontend/dist）
+> → wrangler 部署 frontend/dist，内容哈希增量上传；secrets：`CLOUDFLARE_API_TOKEN` /
 > `CLOUDFLARE_ACCOUNT_ID`，token 需 Pages Edit + User→Memberships Read，
 > wrangler-action v3 参数名是驼峰 `apiToken`）。GitHub Pages 已下线，
 > 原站 heliar-k.github.io/market-base 停在最后一次部署作冻结备份。
@@ -297,10 +299,10 @@ uv run python -m src.tui.app                        # 启动 TUI（技术分析 
 
 # Web（FastAPI + 利率专题页）
 uv run python -m src.server                        # 启动 Web，浏览器打开 localhost:8000
-# 静态部署（GitHub Pages，公开仓库）：uv run python -m src.export_pages 生成 site/，
-# deploy-pages workflow 自动构建部署 → https://heliar-k.github.io/market-base/
-# 触发链：daily-fetch 跑完 → workflow_run 触发部署（数据 push 由 GITHUB_TOKEN 提交，
-#   不会触发 push 事件，所以 paths: data/** 对每日数据无效，只能靠 workflow_run）
+# 静态部署（Cloudflare Pages，公开仓库）：deploy-pages workflow 部署链 =
+#   PAGES_JSON_ONLY=1 uv run python -m src.export_pages（API JSON → frontend/public/api/）
+#   → npm run build（astro，frontend/dist）→ wrangler deploy → https://market-base.pages.dev/
+#   数据 push（PAT）与前端/后端 push 均自动触发；手动：gh workflow run deploy-pages.yml --ref <分支>
 # 限制：K 线仅近 3 年、相关性页仅近 5 年、诊断面板无光标回看（静态预渲染的固有降级）
 # 利率专题（timsun.net/rates 复刻）：/rates/ 入口页 → 联邦基金/收益率曲线/利率定价（拍卖已并入 /treasury/）
 # 研判由 src/rates_analysis.py 规则引擎生成，LLM 接入点：generate_analysis() → _llm_generate()
