@@ -3,12 +3,15 @@
 // 商品卡 + 霍尔木兹 Polymarket + 大类资产同屏 + 归一化走势 + 20 日表；island 脚本逐字原样。
 // fetch('/api/assets/commodities') 与 /api/assets/overview 双源不变。
 import TopicLayout from '../../layouts/TopicLayout.astro';
+import Section from '../../components/Section.astro';
 ---
 <TopicLayout title="大宗商品">
-  <div id="cards" class="re-cards"></div>
-  <div id="asset-compare"></div>
-  <div id="chart"></div>
-  <div id="recent"></div>
+  <Section title="价格总览">
+    <div id="cards" class="re-cards"></div>
+  </Section>
+  <Section id="asset-compare" title="大类资产同屏" />
+  <Section id="chart" title="商品走势" />
+  <Section id="recent" title="近期数据" />
   <div class="re-gen" id="re-gen"></div>
 </div>
 

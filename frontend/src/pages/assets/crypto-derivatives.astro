@@ -3,15 +3,17 @@
 // NOW 8 KPI + ETF flows + 衍生品 KPI + 资金费率走势 + 散户读数 + 基差 + Coinglass；island 脚本逐字原样。
 // fetch('/api/assets/crypto-derivatives') 不变。
 import TopicLayout from '../../layouts/TopicLayout.astro';
+import Section from '../../components/Section.astro';
 ---
 <TopicLayout title="加密衍生品 · 资金与杠杆">
   <div class="page-toc" id="page-toc"></div>
 
+  <!-- NOW/ETF 资金流/资金费率/基差/Coinglass:条件性(对应子源缺失时为空),不进 Section -->
   <div id="now"></div>
   <div id="etf"></div>
-  <div id="kpi"></div>
+  <Section id="kpi" title="衍生品 KPI" />
   <div id="funding"></div>
-  <div id="retail"></div>
+  <Section id="retail" title="散户仓位" />
   <div id="basis"></div>
   <div id="coinglass"></div>
   <div class="re-gen" id="re-gen"></div>

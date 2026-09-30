@@ -3,12 +3,15 @@
 // Regime 大卡 + 22 标的看板 + 7 Tab（GEX/DEX/IV 期限/Skew/Vanna/OI 热力/结构解读）；island 脚本逐字原样。
 // fetch('/api/assets/equities-options') 不变。
 import TopicLayout from '../../../layouts/TopicLayout.astro';
+import Section from '../../../components/Section.astro';
 ---
 <TopicLayout title="期权市场结构">
-  <div id="detail"></div>
+  <Section id="detail" title="期权结构状态" />
 
+  <!-- 看板标题(h2.re-h2)由 JS 填,Section 静态标题会重复 —— 保持裸 div -->
   <div id="board"></div>
 
+  <!-- Tab 控件条 + 图表面板:控件/图表容器非小节,不进 Section -->
   <div class="opt-tabs" id="opt-tabs"></div>
   <div class="opt-panel" id="opt-panel"></div>
 

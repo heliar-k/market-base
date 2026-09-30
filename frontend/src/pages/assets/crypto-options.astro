@@ -3,12 +3,13 @@
 // Deribit 期权墙 + CME 期货仓位卡 + Polymarket 价位阶梯（geo 同款结构）；island 脚本逐字原样。
 // fetch('/api/assets/crypto-derivatives') 不变。
 import TopicLayout from '../../layouts/TopicLayout.astro';
+import Section from '../../components/Section.astro';
 ---
 <TopicLayout title="加密期权 · 预测市场">
   <div class="page-toc" id="page-toc"></div>
 
-  <div id="walls"></div>
-  <div id="polymarket"></div>
+  <Section id="walls" title="期权价格墙" />
+  <Section id="polymarket" title="Polymarket 价位" />
   <div class="re-gen" id="re-gen"></div>
 </div>
 

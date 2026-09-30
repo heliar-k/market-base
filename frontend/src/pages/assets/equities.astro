@@ -3,16 +3,20 @@
 // 指数卡 + 归一化走势 + 市场广度 ABV + 分析师目标价 + NDX 成分股雷达；island 脚本逐字原样。
 // fetch('/api/assets/equities') 不变。
 import TopicLayout from '../../layouts/TopicLayout.astro';
+import Section from '../../components/Section.astro';
 ---
 <TopicLayout title="美股">
-  <div id="indices" class="re-cards"></div>
-  <div id="index-chart"></div>
-  <div id="breadth"></div>
+  <Section title="指数总览">
+    <div id="indices" class="re-cards"></div>
+  </Section>
+  <Section id="index-chart" title="指数走势" />
+  <Section id="breadth" title="市场广度" />
+  <!-- ABV 走势/分析师目标价/成分股雷达:条件性(对应子源缺失时为空),不进 Section -->
   <div id="abv-chart"></div>
-  <div id="analysis"></div>
+  <Section id="analysis" title="规则引擎解读" />
   <div id="analyst"></div>
   <div id="radar"></div>
-  <div id="recent"></div>
+  <Section id="recent" title="近期数据" />
   <div class="re-gen" id="re-gen"></div>
 </div>
 
