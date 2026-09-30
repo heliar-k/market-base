@@ -4,17 +4,19 @@
 // Shapiro 供需分解 + 近 12 月表；island 脚本逐字原样。
 // fetch('/api/inflation/overview') 不变。
 import TopicLayout from '../../layouts/TopicLayout.astro';
+import Section from '../../components/Section.astro';
 ---
 <TopicLayout title="通胀">
   <div class="page-toc" id="page-toc"></div>
 
-  <div id="cards"></div>
-  <div id="re-signals"></div>
-  <div id="history"></div>
-  <div id="components"></div>
-  <div id="expectations"></div>
+  <Section id="cards" title="概览" />
+  <Section id="re-signals" title="研判" />
+  <Section id="history" title="走势" />
+  <Section id="components" title="分项" />
+  <Section id="expectations" title="预期" />
+  <!-- 条件性小节(Shapiro 分解无数据时为空),不进 Section 避免空标题 -->
   <div id="shapiro"></div>
-  <div id="recent"></div>
+  <Section id="recent" title="近期数据" />
   <div class="re-gen" id="re-gen"></div>
 
 <script is:inline>

@@ -4,20 +4,21 @@
 // （依赖 echarts-theme/rates-common 的经典全局 R / reCssVar，is:inline 不打包、行为与迁移前逐字一致）；
 // head / 顶栏 / 页头样板在 TopicLayout。数据 fetch('/api/credit/*') 不变。
 import TopicLayout from '../../layouts/TopicLayout.astro';
+import Section from '../../components/Section.astro';
 ---
 <TopicLayout title="信用">
   <div class="page-toc" id="page-toc"></div>
-  <div id="regime"></div>
-  <div id="oas-row"></div>
-  <div id="re-signals"></div>
-  <div id="layers"></div>
-  <div id="funding"></div>
-  <div id="sloos"></div>
-  <div id="quality"></div>
-  <div id="fincond"></div>
-  <div id="liq-etf"></div>
-  <div id="cds-sec"></div>
-  <div id="stress-sec"></div>
+  <Section id="regime" title="信用状态总览" sub="Regime Score · 高分 = 压力更大" />
+  <Section id="oas-row" title="利差水平" sub="ICE BofA OAS · bp" />
+  <Section id="re-signals" title="研判" />
+  <Section id="layers" title="利差分层" />
+  <Section id="funding" title="融资成本" />
+  <Section id="sloos" title="银行信贷" />
+  <Section id="quality" title="贷款质量" />
+  <Section id="fincond" title="金融条件" />
+  <Section id="liq-etf" title="市场流动性代理" />
+  <Section id="cds-sec" title="CDS 专题" />
+  <Section id="stress-sec" title="压力仪表盘" />
   <div class="re-gen" id="re-gen"></div>
 
 <script is:inline>

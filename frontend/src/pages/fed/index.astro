@@ -4,6 +4,7 @@
 // 声明/演讲列表（分组折叠+过滤）+ 投票成员立场表 + 鹰鸽时间线散点 + Polymarket 市场预期；
 // island 脚本逐字原样。fetch('/api/fed/overview') + /api/fomc/calendar 不变。
 import TopicLayout from '../../layouts/TopicLayout.astro';
+import Section from '../../components/Section.astro';
 ---
 <TopicLayout title="美联储">
   <Fragment slot="head">
@@ -11,11 +12,11 @@ import TopicLayout from '../../layouts/TopicLayout.astro';
   </Fragment>
   <div class="page-toc" id="page-toc"></div>
 
-  <div id="cards"></div>
-  <div id="sec-stmts"></div>
-  <div id="sec-speeches"></div>
-  <div id="sec-hawk"></div>
-  <div id="sec-odds"></div>
+  <Section id="cards" title="概览" />
+  <Section id="sec-stmts" title="声明与纪要" />
+  <Section id="sec-speeches" title="官员演讲" />
+  <Section id="sec-hawk" title="鹰鸽追踪" />
+  <Section id="sec-odds" title="市场预期" />
   <div class="re-gen" id="re-gen"></div>
 
 <script is:inline>

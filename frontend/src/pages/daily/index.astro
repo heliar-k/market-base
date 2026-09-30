@@ -4,34 +4,40 @@
 // 跨资产变化表（点行展开正反两面）+ 结构报警 + 专题 link-grid；island 脚本逐字原样。
 // fetch('/api/daily-brief') + /api/rate-expectations 不变。
 import TopicLayout from '../../layouts/TopicLayout.astro';
+import Section from '../../components/Section.astro';
 ---
 <TopicLayout title="今日研判">
-
+  <!-- 定调徽章/口径注:结论层 chrome,不进 Section -->
   <div class="re-badges" id="db-badges"></div>
   <p class="re-source" id="db-note"></p>
 
-  <div class="re-h2">同一组事实，三种可能解释</div>
-  <div class="re-cards" id="db-scenarios"><div class="re-loading">加载中…</div></div>
+  <Section title="同一组事实，三种可能解释">
+    <div class="re-cards" id="db-scenarios"><div class="re-loading">加载中…</div></div>
+  </Section>
 
+  <!-- FOMC 倒计时徽章:条件性(无临近会议时为空)+徽章条,不进 Section -->
   <div class="re-badges" id="db-fomc"></div>
 
-  <div class="re-h2" id="sec-table">跨资产变化</div>
-  <p class="re-source">先看价格事实，再解释背后的机制。涨跌颜色只表示数值方向；变化按各序列最近 5 / 20 个有效观测计算，迷你趋势使用独立纵轴，不比较振幅大小。点击行可展开该指标的正反两面。</p>
-  <div id="db-table"><div class="re-loading">加载中…</div></div>
+  <Section id="sec-table" title="跨资产变化">
+    <p class="re-source">先看价格事实，再解释背后的机制。涨跌颜色只表示数值方向；变化按各序列最近 5 / 20 个有效观测计算，迷你趋势使用独立纵轴，不比较振幅大小。点击行可展开该指标的正反两面。</p>
+    <div id="db-table"><div class="re-loading">加载中…</div></div>
+  </Section>
 
+  <!-- 条件性小节(JS 控制显隐 + 需保留 db-sec class/inline style,Section 不透传),保持裸 div -->
   <div id="sec-readings" class="db-sec" style="display:none">
     <div class="re-h2">各指标的信号与证伪条件</div>
     <p class="re-source">单指标相容不代表机制成立：信号按跨资产条件表述（方向为近 5 个有效观测，分位为 1 年窗口），先对照上方情景，再看该行证伪条件是否已触发。</p>
     <div id="db-readings"></div>
   </div>
 
+  <!-- 条件性小节(仅报警命中时显示),保持裸 div -->
   <div id="sec-alerts" class="db-sec" style="display:none">
     <div class="re-h2">跨资产结构报警</div>
     <div class="re-cards" id="db-alerts"></div>
   </div>
 
-  <div class="re-h2">沿着问题，进入专题</div>
-  <div class="link-grid">
+  <Section title="沿着问题，进入专题">
+    <div class="link-grid">
     <a class="link-card" href="/rates/">
       <span class="icon">🏦</span>
       <div><div class="t">宏观主线：利率</div><div class="d">曲线形态研判、实际利率与联储预期四段文</div></div>
@@ -57,6 +63,7 @@ import TopicLayout from '../../layouts/TopicLayout.astro';
       <div><div class="t">大类资产</div><div class="d">股/债/商品/ETF/外汇/加密六板块快照</div></div>
     </a>
   </div>
+  </Section>
 
   <div class="re-gen" id="db-gen"></div>
 

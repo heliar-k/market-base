@@ -4,14 +4,15 @@
 // 指标明细表；island 脚本逐字原样。
 // fetch('/api/labor/overview') 不变。
 import TopicLayout from '../../layouts/TopicLayout.astro';
+import Section from '../../components/Section.astro';
 ---
 <TopicLayout title="就业">
   <div class="page-toc" id="page-toc"></div>
 
-  <div id="cards"></div>
-  <div id="re-signals"></div>
-  <div id="history"></div>
-  <div id="indicators"></div>
+  <Section id="cards" title="概览" />
+  <Section id="re-signals" title="研判" />
+  <Section id="history" title="走势" />
+  <Section id="indicators" title="明细" />
   <div class="re-gen" id="re-gen"></div>
 
 <script is:inline>
