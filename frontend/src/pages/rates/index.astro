@@ -11,11 +11,16 @@ import Section from '../../components/Section.astro';
 
   <!-- 形态徽章条:结论层 chrome,不进 Section -->
   <div class="re-badges" id="re-badges"></div>
-  <Section id="re-cards" title="概览" />
+  <Section title="概览">
+    <div id="re-cards"></div>
+  </Section>
   <Section id="sec-shape" title="曲线快照" sub="当前 / 1周前 / 1月前 / 3月前">
     <div class="re-chart" id="yc_compare"></div>
   </Section>
-  <Section id="re-sections" title="研判" />
+  <!-- 研判四段卡:脚本 innerHTML='' 清容器,Section 只包壳、id 落内层 div 保标题不被抹 -->
+  <Section title="研判">
+    <div id="re-sections"></div>
+  </Section>
 
   <Section title="子页入口">
     <div class="link-grid" id="re-links">

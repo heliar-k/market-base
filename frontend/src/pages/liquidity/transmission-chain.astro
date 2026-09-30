@@ -9,7 +9,10 @@ import Section from '../../components/Section.astro';
   <div class="page-toc" id="page-toc"></div>
 
   <Section id="re-score" title="压力指数" />
-  <Section id="re-layers" title="三层评分" />
+  <!-- 三层评分:脚本 innerHTML 清容器,Section 只包壳、id 落内层 div -->
+  <Section title="三层评分">
+    <div id="re-layers"></div>
+  </Section>
   <Section id="sec-history" title="历史走势" sub="近 30 个快照">
     <div class="re-chart" id="history_chart" style="height:220px"></div>
   </Section>

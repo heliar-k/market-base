@@ -12,7 +12,10 @@ import Section from '../../components/Section.astro';
   </Fragment>
   <div class="page-toc" id="page-toc"></div>
 
-  <Section id="cards" title="概览" />
+  <!-- 统计卡:脚本 replaceChildren 清容器,Section 只包壳、id 落内层 div -->
+  <Section title="概览">
+    <div id="cards"></div>
+  </Section>
   <Section id="sec-stmts" title="声明与纪要" />
   <Section id="sec-speeches" title="官员演讲" />
   <Section id="sec-hawk" title="鹰鸽追踪" />

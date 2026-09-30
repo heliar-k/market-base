@@ -8,7 +8,10 @@ import Section from '../../components/Section.astro';
 <TopicLayout title="逆回购与财政部账户">
   <div class="page-toc" id="page-toc"></div>
 
-  <Section id="re-alert" title="压力预警" />
+  <!-- 预警卡:脚本 innerHTML 清容器,Section 只包壳、id 落内层 div -->
+  <Section title="压力预警">
+    <div id="re-alert"></div>
+  </Section>
   <Section id="re-cur" title="当前余额" />
   <Section id="sec-heat" title="未来 14 天流动性热力" sub="估算">
     <div id="re-heat"></div>

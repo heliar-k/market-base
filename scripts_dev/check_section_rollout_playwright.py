@@ -46,6 +46,11 @@ async def main(base: str) -> int:
                     content: document.querySelectorAll(sel).length,
                     errors: document.querySelectorAll('.re-error').length,
                     secs: document.querySelectorAll('.re-sec').length,
+                    // 有内容但标题头被脚本抹掉的 Section(全部 Section 均带 title)
+                    headless: [...document.querySelectorAll('.re-sec')].filter(
+                      s => !s.querySelector(':scope > .re-sec-head')
+                        && s.querySelectorAll(':scope > *:not(.re-sec-head)').length > 0
+                    ).map(s => s.id || '(无id)'),
                   };
                 }"""
             )
@@ -62,6 +67,8 @@ async def main(base: str) -> int:
                 fails.append(f"{path} pageerror: {errors[:2]}")
             if res["content"] == 0 and res["errors"] == 0:
                 fails.append(f"{path} 页面为空(无 canvas/卡片/表格)")
+            if res["headless"]:
+                fails.append(f"{path} Section 标题被抹: {res['headless']}")
             if overflow > 0:
                 fails.append(f"{path} 横向溢出 {overflow}px")
             await page.close()

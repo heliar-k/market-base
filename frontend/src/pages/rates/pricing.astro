@@ -9,7 +9,10 @@ import Section from '../../components/Section.astro';
 <TopicLayout title="利率定价">
   <div class="page-toc" id="page-toc"></div>
 
-  <Section id="re-cards" title="概览" />
+  <!-- 统计卡:脚本 replaceChildren 清容器,Section 只包壳、id 落内层 div -->
+  <Section title="概览">
+    <div id="re-cards"></div>
+  </Section>
 
   <!-- .re-group 为分组分隔标题(自有节奏),保持裸 div;组内小节用 Section -->
   <div class="re-group" id="sec-policy">政策路径定价</div>

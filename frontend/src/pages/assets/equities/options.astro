@@ -6,7 +6,10 @@ import TopicLayout from '../../../layouts/TopicLayout.astro';
 import Section from '../../../components/Section.astro';
 ---
 <TopicLayout title="期权市场结构">
-  <Section id="detail" title="期权结构状态" />
+  <!-- Regime 大卡:脚本 innerHTML 清容器,Section 只包壳、id 落内层 div -->
+  <Section title="期权结构状态">
+    <div id="detail"></div>
+  </Section>
 
   <!-- 看板标题(h2.re-h2)由 JS 填,Section 静态标题会重复 —— 保持裸 div -->
   <div id="board"></div>
