@@ -16,7 +16,7 @@
 
 ## 前端
 
-- **主站 SPA**：static/index.html 单页壳 + 四视图（市场仪表盘 / 技术分析 / 宏观 / 关联分析）。全站交互最重的部分（symbol 切换、tab 状态、图表联动），保持 vanilla JS，不迁 Astro。
-- **专题页**：挂在主站导航下的 32 个静态内容页（rates / credit / liquidity / assets / fed / treasury…），静态壳 + ECharts 图表 + 规则引擎叙事。样板重复痛点的所在，Astro 迁移的唯一对象。
+- **主站 SPA**：frontend/public/index.html 单页壳 + 四视图（市场仪表盘 / 技术分析 / 宏观 / 关联分析）。全站交互最重的部分（symbol 切换、tab 状态、图表联动），保持 vanilla JS，不迁 Astro。
+- **专题页**：挂在主站导航下的 32 个静态内容页（rates / credit / liquidity / assets / fed / treasury…），frontend/src/pages/ 下的 .astro 源 + ECharts 图表 + 规则引擎叙事。样板重复痛点的所在，Astro 迁移的唯一对象（已全部迁完，工单 #18）。
 - **island**：专题页里的交互孤岛（ECharts 图表组件）。页面其余部分为零 JS 静态 HTML，由 Layout 统一渲染 head / 导航 / 样板。
 - **预渲染数据**：export_pages.py 构建期调分析层路由产出的静态 JSON（与本地 FastAPI 的 /api/* 同路径）。页面运行时 fetch 它——数据日更与代码改动解耦的关键机制，迁移不触碰。

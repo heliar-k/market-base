@@ -1,9 +1,13 @@
-"""前端单源化防漂移测试（Phase 3：head 样板 / 导航数据 / 时效标签文案）。
+"""前端约定防漂移测试（ADR-0003 迁移收尾后存续部分）。
 
-这些测试不改文件，只在有人绕过单源机制时报警：
-- 手改专题页 <head> 样板 → test_page_head_matches_template
-- 导航消费方自带页路径清单 / 绕开 ESM import → test_nav_consumers_read_site_nav
-- 页面里重新手写「数据截至」文案 → test_as_of_text_only_via_r_asof
+机器退役、约定存活（工单 #18）：sync_pages_head 模板机器随 32 页全迁 .astro
+删除，head 样板由 TopicLayout.astro 构建期渲染。本文件只保校验「约定」的用例：
+- public/ 只剩 SPA 壳、专题页以 .astro 存续 → test_public_is_spa_shell_only
+- SITE_NAV 里的每个 page 都要有对应页面 → test_site_nav_pages_exist
+- 导航消费方不得自带页路径清单 → test_nav_consumers_read_site_nav
+- 「数据截至」文案只能由 R.asOf 组装 → test_as_of_*
+- echarts-theme.js 先于 rates-common.js 加载 → test_echarts_theme_before_rates_common
+- 脚本语法（is:inline 不打包）→ test_all_js_files_parse / test_inline_scripts_parse
 """
 
 from __future__ import annotations
@@ -16,49 +20,38 @@ from pathlib import Path
 
 import pytest
 
-from src.sync_pages_head import SPA_ENTRY, normalize_head, special_pages
-
-STATIC = Path(__file__).resolve().parent.parent / "frontend" / "public"
-# 迁移中的页面：public HTML 删除后以 src/pages/**.astro 存续（build 产同路径 HTML）
-ASTRO_PAGES = Path(__file__).resolve().parent.parent / "frontend" / "src" / "pages"
-
-PAGES = special_pages()
-
-
-def _head(text: str) -> str:
-    return re.search(r"(?s)<head>.*?</head>", text).group(0)
+ROOT = Path(__file__).resolve().parent.parent
+FRONTEND = ROOT / "frontend"
+STATIC = FRONTEND / "public"
+SPA_ENTRY = STATIC / "index.html"
+# 32 个专题页 .astro 源（build 产同路径 HTML）；head/顶栏样板唯一来源 = TopicLayout
+ASTRO_PAGES = FRONTEND / "src" / "pages"
+TOPIC_LAYOUT = FRONTEND / "src" / "layouts" / "TopicLayout.astro"
 
 
-def test_special_pages_found() -> None:
-    """收编范围 = 除 SPA 主入口外的全部 HTML（新增页面自动纳入校验）。
-    已迁移 .astro 的页面以 src/pages 源存续（工单 #13/#14），计数合并。"""
+def test_public_is_spa_shell_only() -> None:
+    """收缩完成态（工单 #18）：public/ 仅 SPA 壳与共享资源，专题页 HTML 零残留。"""
     html = {p for p in STATIC.rglob("*.html")}
-    assert html - {SPA_ENTRY} == set(PAGES)
-    astro = list(ASTRO_PAGES.rglob("*.astro"))
-    assert len(PAGES) + len(astro) >= 30
-
-
-@pytest.mark.parametrize("page", PAGES, ids=lambda p: str(p.relative_to(STATIC)))
-def test_page_head_matches_template(page: Path) -> None:
-    """head 必须等于 src/sync_pages_head.py 模板的渲染结果（改样板请改模板）。"""
-    text = page.read_text(encoding="utf-8")
-    expected = normalize_head(_head(text), page)
-    assert _head(text) == expected, (
-        f"{page.relative_to(STATIC)} head 漂移 → uv run python -m src.sync_pages_head"
+    assert html == {SPA_ENTRY}, (
+        f"public/ 混入专题页 HTML 残留：{sorted(html - {SPA_ENTRY})}"
     )
+    astro = list(ASTRO_PAGES.rglob("*.astro"))
+    assert len(astro) >= 30, f"专题页 .astro 源异常偏少：{len(astro)}"
 
 
 @pytest.mark.parametrize(
-    "page", PAGES + [SPA_ENTRY], ids=lambda p: str(p.relative_to(STATIC))
+    "src", [TOPIC_LAYOUT, SPA_ENTRY], ids=["TopicLayout.astro", "index.html"]
 )
-def test_echarts_theme_before_rates_common(page: Path) -> None:
-    """echarts-theme.js 先于 rates-common.js（同步加载、顺序敏感，Phase 2）。"""
-    text = page.read_text(encoding="utf-8")
+def test_echarts_theme_before_rates_common(src: Path) -> None:
+    """echarts-theme.js 先于 rates-common.js（同步加载、顺序敏感）。
+    .astro 页的 head 由 TopicLayout 统一渲染 → 校验 Layout 源一次覆盖
+    32 页；SPA 壳另算。"""
+    text = src.read_text(encoding="utf-8")
     theme = text.find('src="/js/echarts-theme.js"')
     common = text.find('src="/js/rates-common.js"')
-    assert theme != -1, f"{page.relative_to(STATIC)} 缺 echarts-theme.js"
+    assert theme != -1, f"{src.relative_to(ROOT)} 缺 echarts-theme.js"
     if common != -1:
-        assert theme < common, f"{page.relative_to(STATIC)} 加载顺序颠倒"
+        assert theme < common, f"{src.relative_to(ROOT)} 加载顺序颠倒"
 
 
 def _site_nav_js() -> str:
@@ -82,19 +75,18 @@ def test_site_nav_pages_exist() -> None:
 
 
 def test_nav_consumers_read_site_nav() -> None:
-    """nav.js / macro-view.js 不得再自带页路径清单（两处视图共用 SITE_NAV）。"""
+    """SPA 宏观视图不得自带页路径清单（SITE_NAV 唯一数据源）。
+    专题页顶栏 Tab 已由 TopicLayout 构建期渲染，nav.js 随工单 #18 退役。"""
     pages = _nav_pages()
     assert pages
-    for js in ("nav.js", "macro-view.js"):
-        text = (STATIC / "js" / js).read_text(encoding="utf-8")
-        # 工单 #12：消费方式统一为 ESM import（site-nav.js 已改 export const）
-        assert "import { SITE_NAV" in text, f"{js} 未 import SITE_NAV"
-        hardcoded = [p for p in pages if f"'{p}'" in text]
-        assert not hardcoded, f"{js} 里仍有硬编码专题路径：{hardcoded}"
+    text = (STATIC / "js" / "macro-view.js").read_text(encoding="utf-8")
+    assert "import { SITE_NAV" in text, "macro-view.js 未 import SITE_NAV"
+    hardcoded = [p for p in pages if f"'{p}'" in text]
+    assert not hardcoded, f"macro-view.js 里仍有硬编码专题路径：{hardcoded}"
 
 
 def test_dashboard_links_use_site_nav() -> None:
-    """dashboard.js 跨资产表跳转（导航消费方第 4 处）：路径不得重复硬编码，
+    """dashboard.js 跨资产表跳转（导航消费方）：路径不得重复硬编码，
     指标键→导航键映射里的每个键必须真实存在于 SITE_NAV。"""
     text = (STATIC / "js" / "dashboard.js").read_text(encoding="utf-8")
     assert "SITE_NAV" in text, "dashboard.js LINKS 未从 SITE_NAV 派生"
@@ -109,32 +101,28 @@ def test_dashboard_links_use_site_nav() -> None:
 
 
 def test_as_of_text_only_via_r_asof() -> None:
-    """「数据截至」文案只能由 R.asOf 组装（rates-common.js 是唯一出处）。"""
+    """「数据截至」文案只能由 R.asOf 组装（rates-common.js 是唯一出处）。
+    管辖 SPA 壳与全部 .astro 页（island 脚本同样不得手写）。"""
     offenders = []
-    for page in STATIC.rglob("*.html"):
+    for page in [SPA_ENTRY, *sorted(ASTRO_PAGES.rglob("*.astro"))]:
         text = page.read_text(encoding="utf-8")
         if re.search(r"textContent\s*=\s*[^;]*数据截至", text):
-            offenders.append(str(page.relative_to(STATIC)))
+            offenders.append(str(page.relative_to(ROOT)))
     assert not offenders, f"手写时效标签文案，请改 R.asOf(...)：{offenders}"
 
 
 def test_as_of_formatter_present() -> None:
-    """R.asOf / R.asMonth 存在且专题页确有调用（防止 formatter 被删空）。
-    已迁移的 .astro 页同样受管（island 脚本内的 R.asOf 调用）。"""
+    """R.asOf / R.asMonth 存在且每个专题页确有调用（防止 formatter 被删空）。"""
     js = (STATIC / "js" / "rates-common.js").read_text(encoding="utf-8")
     assert "asOf(src)" in js and "asMonth" in js
     astro_pages = sorted(ASTRO_PAGES.rglob("*.astro"))
-    used = sum(
-        1
-        for p in special_pages() + astro_pages
-        if "R.asOf(" in p.read_text(encoding="utf-8")
-    )
-    assert used == len(PAGES) + len(astro_pages), (
-        f"仅 {used}/{len(PAGES) + len(astro_pages)} 个专题页用 R.asOf 组装时效标签"
+    used = sum(1 for p in astro_pages if "R.asOf(" in p.read_text(encoding="utf-8"))
+    assert used == len(astro_pages), (
+        f"仅 {used}/{len(astro_pages)} 个专题页用 R.asOf 组装时效标签"
     )
 
 
-# ── 脚本语法（无构建工具，改完必须能直接被浏览器/Node 解析）──
+# ── 脚本语法（is:inline 不走打包管线，改完必须能直接被浏览器/Node 解析）──
 
 
 def _check_js(code: str, name: str) -> None:
@@ -160,10 +148,11 @@ def test_all_js_files_parse() -> None:
 
 
 def test_inline_scripts_parse() -> None:
-    """页面内联 <script> 逐个过 node --check（无构建工具，写坏了没有任何提示）。"""
+    """内联 <script> 逐个过 node --check：SPA 壳 + TopicLayout 运行时
+    + 每页 is:inline island。"""
     inline = re.compile(r"(?s)<script(?![^>]*\bsrc=)[^>]*>(.*?)</script>")
-    for page in sorted(STATIC.rglob("*.html")):
+    for page in [SPA_ENTRY, TOPIC_LAYOUT, *sorted(ASTRO_PAGES.rglob("*.astro"))]:
         code = page.read_text(encoding="utf-8")
         for n, m in enumerate(inline.finditer(code), 1):
             if m.group(1).strip():
-                _check_js(m.group(1), f"{page.relative_to(STATIC)} 内联#{n}")
+                _check_js(m.group(1), f"{page.relative_to(ROOT)} 内联#{n}")

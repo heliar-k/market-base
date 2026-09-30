@@ -1,6 +1,6 @@
 ---
 // TopicLayout — 专题页通用骨架（工单 #13 spike 起用，ADR-0003）。
-// 职责：head 样板（CSS 变量主题 + 共享 JS，对齐 sync_pages_head.HEAD_TEMPLATE 的固定部分）、
+// 职责：head 样板（CSS 变量主题 + 共享 JS；固定部分承接自已退役的 sync_pages_head.HEAD_TEMPLATE）、
 // 顶栏 Tab（构建期静态渲染——import site-nav.js 的 SITE_NAV，与 nav.js 运行时渲染同一份数据、
 // 同一算法，只渲染到「组」层）、页头（title + re-as-of 槽位）、运行时行为（原 nav.js 在本页的
 // 职责：主题切换 / fetch 协商缓存 / 返回顶部 / 内嵌 iframe 适配，见文件底部脚本）。
