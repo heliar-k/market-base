@@ -1,25 +1,11 @@
-<!DOCTYPE html>
-<html lang="zh-CN">
-<head>
-<meta charset="UTF-8">
-<link rel="icon" href="/favicon.svg" type="image/svg+xml">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>今日研判 — 观澜台</title>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap">
-<link rel="stylesheet" href="/css/app.css">
-<link rel="stylesheet" href="/css/special.css">
-<script type="module" src="/js/site-nav.js"></script>
-<script src="/js/echarts-theme.js"></script>
-<script src="/js/rates-common.js"></script>
-</head>
-<body>
-<div class="re-root">
-  <div class="re-header">
-    <h1>今日研判</h1>
-    <span class="re-as-of" id="re-as-of"></span>
-  </div>
-
-  <div class="re-nav" id="re-nav"></div>
+---
+// 今日研判页（SITE_NAV home 落地页）— 工单 #16 自 public/daily/index.html 迁入。
+// 结构最特殊：无 page-toc；定调徽章 + 三情景卡（点卡定位读法行）+ FOMC 倒计时 +
+// 跨资产变化表（点行展开正反两面）+ 结构报警 + 专题 link-grid；island 脚本逐字原样。
+// fetch('/api/daily-brief') + /api/rate-expectations 不变。
+import TopicLayout from '../../layouts/TopicLayout.astro';
+---
+<TopicLayout title="今日研判">
 
   <div class="re-badges" id="db-badges"></div>
   <p class="re-source" id="db-note"></p>
@@ -73,10 +59,8 @@
   </div>
 
   <div class="re-gen" id="db-gen"></div>
-</div>
 
-<script type="module" src="/js/nav.js"></script>
-<script>
+<script is:inline>
 // ── 格式化 ──
 function fmtLast(unit, v) {
   if (v == null) return '—';
@@ -276,5 +260,4 @@ function focusReading(key) {
 }
 load().catch(e => R.fail(['db-badges', 'db-scenarios', 'db-fomc', 'db-table'], e));
 </script>
-</body>
-</html>
+</TopicLayout>

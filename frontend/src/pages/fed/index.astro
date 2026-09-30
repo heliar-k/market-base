@@ -1,25 +1,14 @@
-<!DOCTYPE html>
-<html lang="zh-CN">
-<head>
-<meta charset="UTF-8">
-<link rel="icon" href="/favicon.svg" type="image/svg+xml">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>美联储 — 观澜台</title>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap">
-<link rel="stylesheet" href="/css/app.css">
-<link rel="stylesheet" href="/css/special.css">
-<script type="module" src="/js/site-nav.js"></script>
-<link rel="stylesheet" href="/css/fed.css">
-<script src="/vendor/echarts.min.js"></script>
-</head>
-<body>
-<div class="re-root">
-  <div class="re-header">
-    <h1>美联储</h1>
-    <span class="re-as-of" id="re-as-of"></span>
-  </div>
-
-  <div class="re-nav" id="re-nav"></div>
+---
+// 美联储页 — 工单 #16 自 public/fed/index.html 迁入。
+// 私有 fed.css（fed-badge / fed-doc / fed-group 组件）走 head slot；结构：鹰鸽指示器卡 +
+// 声明/演讲列表（分组折叠+过滤）+ 投票成员立场表 + 鹰鸽时间线散点 + Polymarket 市场预期；
+// island 脚本逐字原样。fetch('/api/fed/overview') + /api/fomc/calendar 不变。
+import TopicLayout from '../../layouts/TopicLayout.astro';
+---
+<TopicLayout title="美联储">
+  <Fragment slot="head">
+    <link rel="stylesheet" href="/css/fed.css">
+  </Fragment>
   <div class="page-toc" id="page-toc"></div>
 
   <div id="cards"></div>
@@ -28,11 +17,8 @@
   <div id="sec-hawk"></div>
   <div id="sec-odds"></div>
   <div class="re-gen" id="re-gen"></div>
-</div>
 
-<script src="/js/echarts-theme.js"></script>
-<script src="/js/rates-common.js"></script>
-<script>
+<script is:inline>
 const KIND_LABEL = { statement: '声明', minutes: '会议纪要', sep: '经济预测', discount: '贴现率纪要', other: '其他' };
 const KIND_ORDER = ['statement', 'minutes', 'sep', 'discount', 'other'];
 
@@ -457,6 +443,4 @@ async function load() {
 
 load().catch(e => R.fail(['cards', 'sec-stmts', 'sec-speeches', 'sec-hawk', 'sec-odds'], e));
 </script>
-<script type="module" src="/js/nav.js"></script>
-</body>
-</html>
+</TopicLayout>
