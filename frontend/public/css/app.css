@@ -4,21 +4,25 @@
 
 /* ── theme variables ────────────────────────────────────── */
 /* 结构性 tokens（底色/文字/描边）；涨跌等语义色见 tokens.css */
+/* 调色板（2026-09 偷脸，ADR-0003 后首次换肤）：暗色 = Grafana themes（分层骨架 +
+ * 白透明描边 + Linear 四档文字阶梯）；亮色 = Stripe Dashboard 光谱（冷蓝白底 + 蓝灰文字）。
+ * 涨跌 TradingView 对保持不动。来源：grafana themes.md / open-design Linear tokens / stripe docs。 */
 :root {
-  --bg: #f5f6f8; --surface: #fff; --surface-hover: #f0f2f5;
-  --surface-alt: #fafbfc; --border: #e1e4e8; --border-light: #f0f0f0;
-  --text: #1a1a2e; --text-secondary: #595959; --text-dim: #737373;
+  --bg: #f6f9fc; --surface: #fff; --surface-hover: #eef3f8;
+  --surface-alt: #f0f4f9; --border: #e6ebf1; --border-light: #edf1f6;
+  --text: #1a2b42; --text-secondary: #425466; --text-dim: #6b7c93;
   --accent-light: #e8f0fe; /* --accent 由 --color-brand 派生，见 tokens.css 的 :root, body.dark 段 */
-  --btn-border: #d1d5db;
+  --btn-border: #d9e2ec;
 }
 body.dark {
-  --bg: #0d1117; --surface: #161b22; --surface-hover: #1c2129;
+  --bg: #111217; --surface: #181b1f; --surface-hover: #22252b;
   /* 亮暗四层背景纵深（timsun）：页面 bg → 卡片 surface → elevated 浮层（alt，弹层/表头）
      → tooltip 再经 --tooltip-bg 半透明化；hover 保持交互反馈层不参与高度序列 */
-  --surface-alt: #1f2937; --border: #30363d; --border-light: #21262d;
-  --text: #c9d1d9; --text-secondary: #a3adba; --text-dim: #8b949e;
-  --accent-light: #1f3148;
-  --btn-border: #30363d;
+  --surface-alt: #22252b; --border: rgba(204,204,220,.2); --border-light: rgba(204,204,220,.12);
+  /* Linear 四档文字阶梯（f7f8f8 → d0d6e0 → 8a8f98 → 62666d，dim 即 tertiary 档） */
+  --text: #f7f8f8; --text-secondary: #d0d6e0; --text-dim: #8a8f98;
+  --accent-light: #1f2a3d;
+  --btn-border: rgba(204,204,220,.2);
 }
 
 body { font-family: system-ui, -apple-system, sans-serif; background: var(--bg); color: var(--text); height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
@@ -197,6 +201,8 @@ body { font-family: system-ui, -apple-system, sans-serif; background: var(--bg);
 
 /* ── chart containers ───────────────────────────────────── */
 .chart-card { background: var(--surface); border-radius: 8px; border: 1px solid var(--border); overflow: hidden; }
+/* Linear 内高光：暗色卡片 1px 边缘受光，亮色无感（rgba 白在浅底不可见） */
+body.dark .chart-card { box-shadow: inset 0 0 0 1px rgba(255,255,255,.04); }
 #macro-chart-card { overflow: visible; min-height: 0; }
 /* tech charts: distribute remaining vertical space 5:3:3 */
 .tech-view .chart-card { display: flex; flex-direction: column; }

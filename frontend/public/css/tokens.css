@@ -41,6 +41,14 @@ body.dark {
   --color-dove: #34d399;
   --color-warn-deep: #ff8a65;
   --color-warn-light: #ffcc80;
+  /* 暗色徽章底加深（偷脸 Stripe 双档）：透明底在深色表面要更高占比才可见 */
+  --color-up-bg: color-mix(in srgb, var(--color-up) 22%, transparent);
+  --color-down-bg: color-mix(in srgb, var(--color-down) 22%, transparent);
+  --color-neutral-bg: color-mix(in srgb, var(--color-neutral) 22%, transparent);
+  --color-warn-bg: color-mix(in srgb, var(--color-warn) 22%, transparent);
+  --color-brand-bg: color-mix(in srgb, var(--color-brand) 22%, transparent);
+  --color-hawk-bg: color-mix(in srgb, var(--color-hawk) 25%, transparent);
+  --color-dove-bg: color-mix(in srgb, var(--color-dove) 25%, transparent);
 }
 
 /* 层级 token（z-index 魔法数单源；与亮暗无关，:root 单侧定义 body.dark 自动继承）。
@@ -57,14 +65,16 @@ body.dark {
  * 夜间模式会退回亮色（全站 ECharts tooltip 白底、chips 亮色即此 bug）。
  * 新增「由主题原语派生」的 token 一律放这里，不要放回上面的 :root。 */
 :root, body.dark {
-  /* 12% 透明底（color-mix，Chrome 111+；本地工具站可用） */
-  --color-up-bg: color-mix(in srgb, var(--color-up) 12%, transparent);
-  --color-down-bg: color-mix(in srgb, var(--color-down) 12%, transparent);
-  --color-neutral-bg: color-mix(in srgb, var(--color-neutral) 12%, transparent);
-  --color-warn-bg: color-mix(in srgb, var(--color-warn) 12%, transparent);
-  --color-brand-bg: color-mix(in srgb, var(--color-brand) 12%, transparent);
-  --color-hawk-bg: color-mix(in srgb, var(--color-hawk) 15%, transparent);
-  --color-dove-bg: color-mix(in srgb, var(--color-dove) 15%, transparent);
+  /* 透明底（color-mix，Chrome 111+；本地工具站可用）。
+   * 2026-09 偷脸调档：亮色 16% / 暗色 22%（Stripe 徽章双档——底够深才衬得住高亮字，
+   * Grafana 同思路）；hawk/dove 略高与语义色拉开。 */
+  --color-up-bg: color-mix(in srgb, var(--color-up) 16%, transparent);
+  --color-down-bg: color-mix(in srgb, var(--color-down) 16%, transparent);
+  --color-neutral-bg: color-mix(in srgb, var(--color-neutral) 16%, transparent);
+  --color-warn-bg: color-mix(in srgb, var(--color-warn) 16%, transparent);
+  --color-brand-bg: color-mix(in srgb, var(--color-brand) 16%, transparent);
+  --color-hawk-bg: color-mix(in srgb, var(--color-hawk) 18%, transparent);
+  --color-dove-bg: color-mix(in srgb, var(--color-dove) 18%, transparent);
   /* 历史短名别名（SPA dashboard / crypto 页内联样式在用） */
   --up: var(--color-up);
   --down: var(--color-down);
