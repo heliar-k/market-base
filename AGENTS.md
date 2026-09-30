@@ -230,7 +230,7 @@ market-base/
 > （PAT 到期后数据 push 会失败标红，需续期；GITHUB_TOKEN push 不触发 push 事件，
 > 这是当初用 workflow_run 链的原因，已废弃）。
 > 部署已切到 Cloudflare Pages 单目标（https://market-base.pages.dev ，根路径）。
-> 部署链（ADR-0003，工单 #11）：`export_pages`（PAGES_JSON_ONLY=1，JSON 落
+> 部署链（ADR-0003，工单 #11/#12）：`export_pages`（JSON 落
 > frontend/public/api/）→ `astro build`（public/ 拷贝 + .astro 编译 → frontend/dist）
 > → wrangler 部署 frontend/dist，内容哈希增量上传；secrets：`CLOUDFLARE_API_TOKEN` /
 > `CLOUDFLARE_ACCOUNT_ID`，token 需 Pages Edit + User→Memberships Read，
@@ -300,7 +300,7 @@ uv run python -m src.tui.app                        # 启动 TUI（技术分析 
 # Web（FastAPI + 利率专题页）
 uv run python -m src.server                        # 启动 Web，浏览器打开 localhost:8000
 # 静态部署（Cloudflare Pages，公开仓库）：deploy-pages workflow 部署链 =
-#   PAGES_JSON_ONLY=1 uv run python -m src.export_pages（API JSON → frontend/public/api/）
+#   uv run python -m src.export_pages（API JSON → frontend/public/api/，工单 #12 起唯一模式）
 #   → npm run build（astro，frontend/dist）→ wrangler deploy → https://market-base.pages.dev/
 #   数据 push（PAT）与前端/后端 push 均自动触发；手动：gh workflow run deploy-pages.yml --ref <分支>
 # 限制：K 线仅近 3 年、相关性页仅近 5 年、诊断面板无光标回看（静态预渲染的固有降级）
