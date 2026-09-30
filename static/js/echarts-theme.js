@@ -53,6 +53,9 @@ function buildTheme() {
     },
     logAxis: { axisLabel: axisLabel, splitLine: splitLine },
     grid: { left: '3%', right: '4%', bottom: '3%', top: 48, containLabel: true },
+    // dataZoom 滑块的手柄日期标签画在手柄外侧（起点标签在手柄左、终点标签在手柄右），而滑块默认铺满
+    // 画布宽 → 两端标签必然被画框裁掉（半个日期露在框外）。缩放区间 x 轴刻度已可读，明细一律关掉。
+    dataZoom: { showDetail: false },
     color: RE_CHART_COLORS(),
     line: { lineStyle: { width: 2 }, symbol: 'none' },
     bar: { itemStyle: { borderRadius: [2, 2, 0, 0] } },

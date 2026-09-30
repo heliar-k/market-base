@@ -175,7 +175,7 @@ async function load() {
     tooltip: { trigger: 'axis', valueFormatter: v => `${Number(v).toFixed(2)}%` },
     grid: { top: 36, left: 48, right: 48, bottom: 56 },
     dataZoom: [{ type: 'inside' }, { type: 'slider', bottom: 8, height: 18 }],
-    xAxis: { type: 'category', data: R.ts(d.nominal_10y), axisLabel: { color: colors.muted, fontSize: 10 }, axisLine: { lineStyle: { color: colors.border } } },
+    xAxis: { type: 'category', data: R.ts(d.nominal_10y), axisLabel: { color: colors.muted, fontSize: 10, alignMinLabel: 'left', alignMaxLabel: 'right' }, axisLine: { lineStyle: { color: colors.border } } },
     yAxis: [
       { type: 'value', scale: true, axisLabel: { color: colors.muted, formatter: '{value}%' }, splitLine: { lineStyle: { color: colors.grid } } },
       { type: 'value', scale: true, axisLabel: { color: colors.muted, formatter: '{value}%' }, splitLine: { show: false } },
@@ -200,7 +200,7 @@ async function load() {
     },
     grid: { top: 36, left: 48, right: 16, bottom: 56 },
     dataZoom: [{ type: 'inside' }, { type: 'slider', bottom: 8, height: 18 }],
-    xAxis: { type: 'category', data: R.ts(d.y2), axisLabel: { color: colors.muted, fontSize: 10 }, axisLine: { lineStyle: { color: colors.border } } },
+    xAxis: { type: 'category', data: R.ts(d.y2), axisLabel: { color: colors.muted, fontSize: 10, alignMinLabel: 'left', alignMaxLabel: 'right' }, axisLine: { lineStyle: { color: colors.border } } },
     yAxis: { type: 'value', scale: true, axisLabel: { color: colors.muted, formatter: '{value}%' }, splitLine: { lineStyle: { color: colors.grid } } },
     series: [
       { name: '2Y', type: 'line', stack: 'spread', data: R.vs(d.y2), symbol: 'none', lineStyle: { color: colors.orange, width: 2 }, areaStyle: { opacity: 0 } },

@@ -179,7 +179,7 @@ function renderAbvChart() {
     series: [
       { name: '50日均线上方占比', type: 'line', data: b.abv50_series, showSymbol: false, smooth: true,
         lineStyle: { width: 2, color: colors.orange },
-        markLine: { silent: true, symbol: 'none', label: { formatter: '50', color: colors.muted, fontSize: 10 },
+        markLine: { silent: true, symbol: 'none', label: { formatter: '50', position: 'insideEndTop', color: colors.muted, fontSize: 10 },
           lineStyle: { color: colors.muted, type: 'dashed', width: 1 }, data: [{ yAxis: 50 }] } },
       { name: '200日均线上方占比', type: 'line', data: b.abv200_series, showSymbol: false, smooth: true,
         lineStyle: { width: 2, color: colors.blue } },

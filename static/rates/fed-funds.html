@@ -94,7 +94,7 @@ async function load() {
     tooltip: { trigger: 'axis', valueFormatter: v => `${Number(v).toFixed(2)}%` },
     grid: { top: 16, left: 48, right: 16, bottom: 56 },
     dataZoom: [{ type: 'inside' }, { type: 'slider', bottom: 16, height: 18 }],
-    xAxis: { type: 'category', data: R.ts(d.effr_history), axisLabel: { color: colors.muted, fontSize: 10 }, axisLine: { lineStyle: { color: colors.border } } },
+    xAxis: { type: 'category', data: R.ts(d.effr_history), axisLabel: { color: colors.muted, fontSize: 10, alignMinLabel: 'left', alignMaxLabel: 'right' }, axisLine: { lineStyle: { color: colors.border } } },
     yAxis: { type: 'value', scale: true, axisLabel: { color: colors.muted, formatter: '{value}%' }, splitLine: { lineStyle: { color: colors.grid } } },
     series: [{ type: 'line', data: R.vs(d.effr_history), symbol: 'none', lineStyle: { color: colors.blue, width: 2 }, areaStyle: { color: colors.blue + '14' } }],
   }));
