@@ -29,11 +29,15 @@ import Section from '../../components/Section.astro';
 
 <script is:inline>
 // 压力分档色：全部回读 tokens.css（徽章拼接十六进制透明度后缀，需实际色值而非 var()）
-const BAND_COLORS = { 宽松: reCssVar('--color-up'), 中性: reCssVar('--color-brand'), 警戒观察: reCssVar('--color-warn'), 压力确认: reCssVar('--color-down') };
+// 取色做成函数、只在渲染期调用：解析期求值会缓存住当时的主题（旧 bug：暗色下拿到亮色档）
+const bandColors = () => ({ 宽松: reCssVar('--color-up'), 中性: reCssVar('--color-brand'), 警戒观察: reCssVar('--color-warn'), 压力确认: reCssVar('--color-down') });
+// 文字档并行映射（bandColors 的 hex 要拼 ${c}66/${c}18 做徽章边框与底色，那些位置图形档是对的不能改；
+// 但同一色值做文字亮色下不达 AA，故文字位单走一份别名 token，色相不变只提对比度；brand 的文字档是 --accent-ink）
+const bandTextColors = () => ({ 宽松: 'var(--up)', 中性: 'var(--accent-ink)', 警戒观察: 'var(--warning)', 压力确认: 'var(--down)' });
 const bandBadge = (band) => {
   const [label, colorKey] = band;
-  const c = BAND_COLORS[label] || reCssVar('--text-dim');
-  return `<span style="display:inline-block;padding:2px 12px;border-radius:999px;border:1px solid ${c}66;background:${c}18;color:${c};font-size:13px;margin-left:14px">${label}</span>`;
+  const c = bandColors()[label] || reCssVar('--text-dim');
+  return `<span style="display:inline-block;padding:2px 12px;border-radius:999px;border:1px solid ${c}66;background:${c}18;color:${bandTextColors()[label] || 'var(--text-dim)'};font-size:13px;margin-left:14px">${label}</span>`;
 };
 const scoreCell = v => (v == null ? '—' : `<b>${v}</b>`);
 
@@ -47,12 +51,13 @@ async function load() {
   document.getElementById('re-as-of').textContent = R.asOf(d.data_date);
 
   // ── 主评分卡 ──
+  const BAND_TEXT = bandTextColors(); // 主评分数字走文字档（徽章填充另走 bandColors 的 hex，见 bandBadge）
   const score = document.createElement('div');
   score.className = 'score-card';
   score.innerHTML = `
     <div>
       <div class="label">规则型美元流动性压力指数 LPI</div>
-      <div class="value" style="color:${BAND_COLORS[d.band[0]] || 'var(--text)'}">${d.score ?? '—'}<span style="font-size:20px;color:var(--text-dim)">/10</span></div>
+      <div class="value" style="color:${BAND_TEXT[d.band[0]] || 'var(--text)'}">${d.score ?? '—'}<span style="font-size:20px;color:var(--text-dim)">/10</span></div>
       ${bandBadge(d.band)}
       <div style="font-size:12px;color:var(--text-dim);margin-top:8px">结构性缓冲 45% + 融资市场确认 35% + 风险资产传导 20%${d.pctile_30d != null ? ' · 过去 30 天第 ' + d.pctile_30d + ' 分位' : ''}</div>
     </div>
@@ -74,12 +79,14 @@ async function load() {
         <div class="value">${scoreCell(p.score)}<span class="unit">/10</span></div>
         <div class="pcts">${p.value == null ? '—' : (typeof p.value === 'number' ? p.value.toFixed(2) : p.value)}</div>
       </div>`).join('');
+    // c 喂进度条填充（图形档），cText 喂同一分数的文字位（亮色下图形档做文字不达 AA）
     const c = L.score >= 7 ? 'var(--color-down)' : L.score >= 5 ? 'var(--color-warn)' : L.score >= 3 ? 'var(--color-brand)' : 'var(--color-up)';
+    const cText = L.score >= 7 ? 'var(--down)' : L.score >= 5 ? 'var(--warning)' : L.score >= 3 ? 'var(--accent-ink)' : 'var(--up)';
     return `<div class="oas-row" style="margin-bottom:12px">
       <div style="grid-column:1/-1">
         <div style="display:flex;justify-content:space-between;align-items:baseline">
           <span style="font-size:14px;font-weight:700">${title} <span style="color:var(--text-dim);font-weight:400">(${pct}%)</span></span>
-          <span style="font-size:18px;font-weight:700;color:${c}">${L.score ?? '—'}<span style="font-size:12px;color:var(--text-dim)">/10</span></span>
+          <span style="font-size:18px;font-weight:700;color:${cText}">${L.score ?? '—'}<span style="font-size:12px;color:var(--text-dim)">/10</span></span>
         </div>
         <div style="height:6px;background:var(--border);border-radius:3px;margin:6px 0 12px">
           <div style="height:6px;width:${(L.score || 0) * 10}%;background:${c};border-radius:3px"></div>
@@ -115,7 +122,7 @@ async function load() {
   document.getElementById('re-confirm').innerHTML =
     `<div class="re-section">` + conf.map(x =>
       `<div style="display:flex;gap:8px;align-items:baseline;padding:4px 0;font-size:13px">
-        <span style="color:${x.met ? 'var(--color-up)' : 'var(--color-neutral)'};font-weight:700">${x.met ? '●' : '○'}</span>
+        <span style="color:${x.met ? 'var(--up)' : 'var(--flat)'};font-weight:700">${x.met ? '●' : '○'}</span>
         <span style="color:var(--text)">${x.title}</span>
         <span style="color:var(--text-dim);font-size:12px">${x.detail || ''}</span>
       </div>`).join('') +

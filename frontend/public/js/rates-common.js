@@ -79,6 +79,11 @@ const R = {
       bg: v('--surface'),
       blue: v('--color-brand'), orange: v('--color-warn'), green: v('--color-up'),
       red: v('--color-down'), gray: v('--color-neutral'), purple: v('--chart-purple'),
+      // 文字档（ECharts label / axisLabel / markLine 标注等**图上写字**用这三个）：
+      // green/red/orange 是图形档，亮色主题下做文字只有 3.6:1 不达 AA（tokens.css 已注明
+      // 「-text 档只给 color: 用」）；对比度回归测试扫不到 JS 对象键，故单源在这里给齐。
+      greenText: v('--color-up-text'), redText: v('--color-down-text'),
+      orangeText: v('--color-warn-text'),
     };
   },
 
@@ -257,7 +262,8 @@ const R = {
     table.className = 're-table';
     const thead = document.createElement('thead');
     const tr = document.createElement('tr');
-    headers.forEach(h => { const th = document.createElement('th'); th.textContent = h; tr.appendChild(th); });
+    // scope="col"：屏幕阅读器才能把单元格读成「列头 + 值」（全站 re-table 单源，改这一处即覆盖各页大表）
+    headers.forEach(h => { const th = document.createElement('th'); th.scope = 'col'; th.textContent = h; tr.appendChild(th); });
     thead.appendChild(tr);
     table.appendChild(thead);
     const tbody = document.createElement('tbody');

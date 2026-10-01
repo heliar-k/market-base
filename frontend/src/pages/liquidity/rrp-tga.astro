@@ -27,10 +27,19 @@ import Section from '../../components/Section.astro';
 <script is:inline>
 const BUCKET_LABEL = { extreme: '极端抽水', strong: '强', mild: '温和', smooth: '平稳', injection: '注入' };
 // 抽水力度五档梯度：两端走涨跌 token，中间档走警示梯度 token（tokens.css --color-warn-deep/-light）
-const BUCKET_COLOR = {
+// 取色做成函数、只在渲染期调用：本脚本解析时早于主题 class 生效（现已由 TopicLayout 提前脚本解决，
+// 但解析期求值仍会缓存住当时的主题），而徽章要拼 hex 透明度后缀（${c}66）故不能用 var() 交给浏览器解析
+const bucketColors = () => ({
   extreme: reCssVar('--color-down'), strong: reCssVar('--color-warn-deep'), mild: reCssVar('--color-warn-light'),
   smooth: reCssVar('--color-neutral'), injection: reCssVar('--color-up'),
-};
+});
+// 文字档并行映射（上表同时喂徽章 border/background 的 hex 透明度拼接，那些位置图形档是对的不能改；
+// 但同一色值做 11px 文字在亮色主题不达 AA，故 color: 单走一份 -text 档，色相不变只提对比度。
+// strong/mild 两档 tokens.css 无各自的 -text 档，统一落到 --color-warn-text，深浅差由徽章底色保留）
+const bucketTextColors = () => ({
+  extreme: reCssVar('--color-down-text'), strong: reCssVar('--color-warn-text'), mild: reCssVar('--color-warn-text'),
+  smooth: reCssVar('--color-neutral-text'), injection: reCssVar('--color-up-text'),
+});
 
 async function load() {
   document.getElementById('page-toc').innerHTML = [
@@ -42,13 +51,14 @@ async function load() {
   document.getElementById('re-as-of').textContent = R.asOf(d.data_date);
 
   const pos = (a.sofr_iorb_bp ?? 0) >= 0;
-  const posColor = pos ? 'var(--color-down)' : 'var(--color-up)';
+  const posColor = pos ? 'var(--color-down)' : 'var(--color-up)'; // 图形档：喂下面 border-color
+  const posTextColor = pos ? 'var(--down)' : 'var(--up)'; // 文字档：同一判定的 color: 用法（亮色下图形档不达 AA）
   document.getElementById('re-alert').innerHTML = `<div class="re-section" style="border-color:${posColor};border-width:1.5px">
     <h2>PRESSURE ALERT 流动性压力预警</h2>
     <div style="display:flex;gap:24px;align-items:baseline;flex-wrap:wrap">
-      <span style="font-size:30px;font-weight:700;color:${posColor}">${a.sofr_iorb_bp == null ? '—' : a.sofr_iorb_bp.toFixed(1)}bp</span>
+      <span style="font-size:30px;font-weight:700;color:${posTextColor}">${a.sofr_iorb_bp == null ? '—' : a.sofr_iorb_bp.toFixed(1)}bp</span>
       <span style="font-size:14px">SOFR ${a.sofr ?? '—'}% · IORB ${a.iorb ?? '—'}% · FFR 上限 ${a.ffr_upper ?? '—'}%</span>
-      <span style="font-size:12px;color:${posColor}">${a.state || ''}</span>
+      <span style="font-size:12px;color:${posTextColor}">${a.state || ''}</span>
     </div></div>`;
 
   const cur = d.current || {};
@@ -72,16 +82,18 @@ async function load() {
   };
   const net7 = sumNet(7), net14 = sumNet(14);
   const f1 = v => (v >= 0 ? '+' : '') + v.toFixed(1) + 'B';
+  const BUCKET_COLOR = bucketColors(); // 渲染期取色（主题 class 已生效）
+  const BUCKET_TEXT_COLOR = bucketTextColors(); // 同上，文字档一份
   const heat = heatDays.map(r => `
     <tr>
       <td style="white-space:nowrap">${r.date} <span style="color:var(--text-dim)">${r.weekday}</span></td>
       <td style="white-space:nowrap;color:var(--text-secondary);font-size:12px">${(r.flows || []).map(f => `${f.label} ${f.amount_b >= 0 ? '+' : ''}${f.amount_b.toFixed(1)}B`).join(' · ') || '—'}</td>
-      <td style="text-align:right;white-space:nowrap;color:${BUCKET_COLOR[r.bucket]};font-weight:600">${(r.flows || []).length ? f1(r.net_b) : '—'}</td>
-      <td style="text-align:right;white-space:nowrap"><span style="padding:2px 8px;border-radius:999px;font-size:11px;border:1px solid ${BUCKET_COLOR[r.bucket]}66;color:${BUCKET_COLOR[r.bucket]}">${BUCKET_LABEL[r.bucket] || r.bucket}</span></td>
+      <td style="text-align:right;white-space:nowrap;color:${BUCKET_TEXT_COLOR[r.bucket]};font-weight:600">${(r.flows || []).length ? f1(r.net_b) : '—'}</td>
+      <td style="text-align:right;white-space:nowrap"><span style="padding:2px 8px;border-radius:999px;font-size:11px;border:1px solid ${BUCKET_COLOR[r.bucket]}66;color:${BUCKET_TEXT_COLOR[r.bucket]}">${BUCKET_LABEL[r.bucket] || r.bucket}</span></td>
     </tr>`).join('');
   document.getElementById('re-heat').innerHTML = `
     <div class="re-section">
-      <p style="margin:0 0 6px;font-size:12px;color:var(--text-dim)">未来 7 日净冲击 <b style="color:${(net7 ?? 0) < 0 ? 'var(--color-down)' : 'var(--color-up)'}">${net7 == null ? '—' : net7.toFixed(0)}B</b> · 未来 14 日净冲击 <b style="color:${(net14 ?? 0) < 0 ? 'var(--color-down)' : 'var(--color-up)'}">${net14 == null ? '—' : net14.toFixed(0)}B</b>（估算 = 下方逐日之和）</p>
+      <p style="margin:0 0 6px;font-size:12px;color:var(--text-dim)">未来 7 日净冲击 <b style="color:${(net7 ?? 0) < 0 ? 'var(--down)' : 'var(--up)'}">${net7 == null ? '—' : net7.toFixed(0)}B</b> · 未来 14 日净冲击 <b style="color:${(net14 ?? 0) < 0 ? 'var(--down)' : 'var(--up)'}">${net14 == null ? '—' : net14.toFixed(0)}B</b>（估算 = 下方逐日之和）</p>
       <table class="re-table"><thead><tr><th>日期</th><th>资金流</th><th style="text-align:right">净冲击</th><th style="text-align:right">级别</th></tr></thead><tbody>${heat}</tbody></table>
       <p style="margin:8px 0 0;font-size:12px;color:var(--text-dim)">${cal.source_note || ''} 图例：极端抽水 ≤-200B · 强 ≤-80B · 温和 ≤-30B · 平稳 · 注入</p>
     </div>`;

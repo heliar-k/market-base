@@ -85,6 +85,12 @@ async function load() {
   });
 
   // ── 状态卡 ×3 ──
+  // 区间语义色映射：后端 ZONES 下发的是亮色档字面 hex（#26a69a/#ff9800/#ef5350），
+  // 直接进 inline style 会绕过主题（暗色下仍亮色，且 theme-changed 不重刷已写入的内联样式）
+  // → 前端按区间名映射到 CSS 变量，由浏览器在样式计算时解析（天然跟随主题）。
+  // 文字走 --color-*-text 档，圆点/色条背景走图形档（special.css .status-dot / .zone-seg 只吃 background）
+  const ZONE_TEXT = { 平静: 'var(--color-up-text)', 偏高: 'var(--color-warn-text)', 警戒: 'var(--color-warn-text)', 恐慌: 'var(--color-down-text)' };
+  const ZONE_BG = { 平静: 'var(--color-up)', 偏高: 'var(--color-warn)', 警戒: 'var(--color-warn)', 恐慌: 'var(--color-down)' };
   const v = data.vix, t = data.term_structure;
   const dot = (color) => `<span class="status-dot" style="background:${color}"></span>`;
   // 涨绿跌红（与波动率全景页 / 全站价格惯例一致，见 A1 审计）
@@ -95,7 +101,7 @@ async function load() {
     R.cards([
       {
         label: '百分位',
-        value: `${dot(v.zone_color)}${v.zone}`,
+        value: `${dot(ZONE_BG[v.zone] || 'var(--color-neutral)')}${v.zone}`,
         sub: `近一年 ${v.percentile_1y ?? '—'}% 分位`,
       },
       {
@@ -112,16 +118,16 @@ async function load() {
   );
 
   // ── VIX 大数字 + 区间色条 ──
-  // 色值来自后端 ZONES（与首页 vix-badge、credit/stress 同源），前端只给边界和文案
+  // 区间边界/文案来自后端 ZONES（与首页 vix-badge、credit/stress 同源），色值前端按语义映射（见 ZONE_BG）
   const zones = [
     { lo: '<17', hi: 17 },
     { lo: '17–22', hi: 22 },
     { lo: '22–35', hi: 35 },
     { lo: '>35', hi: 1e9 },
   ];
-  zones.forEach((z, i) => { z.color = data.zones[i].color; z.label = data.zones[i].label; });
+  zones.forEach((z, i) => { z.color = ZONE_BG[data.zones[i].label] || 'var(--color-neutral)'; z.label = data.zones[i].label; });
   document.getElementById('vix-big-value').textContent = v.value.toFixed(2);
-  document.getElementById('vix-big-value').style.color = v.zone_color;
+  document.getElementById('vix-big-value').style.color = ZONE_TEXT[v.zone] || 'var(--text)';
   const strip = document.getElementById('zone-strip');
   zones.forEach(z => {
     const seg = document.createElement('div');
@@ -144,7 +150,7 @@ async function load() {
       lineStyle: { width: 2, color: c.red }, itemStyle: { color: c.red },
       markLine: {
         silent: true, symbol: 'none',
-        data: [{ yAxis: 35, label: { color: c.red, formatter: '恐慌区域（>35）' }, lineStyle: { color: c.red, type: 'dashed', width: 1 } }],
+        data: [{ yAxis: 35, label: { color: c.redText, formatter: '恐慌区域（>35）' }, lineStyle: { color: c.red, type: 'dashed', width: 1 } }],
       },
     }],
   }));
@@ -190,7 +196,7 @@ async function load() {
       {
         name: isToday ? '今日' : '最新', type: 'scatter', symbolSize: 14, data: [today],
         itemStyle: { color: c.red, borderColor: '#fff', borderWidth: 1 },
-        label: { show: true, formatter: isToday ? '今天' : today[2].slice(5), position: 'top', color: c.red, fontSize: 11 },
+        label: { show: true, formatter: isToday ? '今天' : today[2].slice(5), position: 'top', color: c.redText, fontSize: 11 },
       },
     ],
   }));
@@ -207,9 +213,9 @@ async function load() {
       markLine: {
         silent: true, symbol: 'none',
         data: [
-          { yAxis: 130, label: { color: c.orange, formatter: '偏低 130' }, lineStyle: { color: c.orange, type: 'dashed', width: 1 } },
-          { yAxis: 140, label: { color: c.orange, formatter: '偏高 140' }, lineStyle: { color: c.orange, type: 'dashed', width: 1 } },
-          { yAxis: 150, label: { color: c.red, formatter: '极端 150' }, lineStyle: { color: c.red, type: 'dashed', width: 1 } },
+          { yAxis: 130, label: { color: c.orangeText, formatter: '偏低 130' }, lineStyle: { color: c.orange, type: 'dashed', width: 1 } },
+          { yAxis: 140, label: { color: c.orangeText, formatter: '偏高 140' }, lineStyle: { color: c.orange, type: 'dashed', width: 1 } },
+          { yAxis: 150, label: { color: c.redText, formatter: '极端 150' }, lineStyle: { color: c.red, type: 'dashed', width: 1 } },
         ],
       },
     }],

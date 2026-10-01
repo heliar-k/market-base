@@ -287,16 +287,26 @@ function initCharts() {
   allCharts.forEach(src => syncFrom(src, allCharts.filter(t => t !== src)));
 
   // crosshair sync → diag
+  // 副图十字光标同步：lightweight-charts v4.2.2 的签名是
+  // setCrosshairPosition(price, horizontalPosition: time, seriesApi)，第三参数必须是
+  // seriesApi 句柄（内部 xw.get(seriesApi) 查不到就静默 return）。
+  // 原实现传 (NaN, NaN, param.time) 从未生效，这里改为 [图, 该图的 seriesApi, 数据列名]。
+  const subCharts = [[rsiChart, rsiSeries, 'RSI'], [macdChart, macdHistSeries, 'MACD_hist']];
   mainChart.subscribeCrosshairMove(param => {
-    if (!param || !param.time) { crosshairDate = null; return; }
+    if (!param || !param.time) {
+      crosshairDate = null;
+      subCharts.forEach(([c]) => c.clearCrosshairPosition());
+      return;
+    }
     crosshairDate = param.time;
-    [rsiChart, macdChart].forEach(c => syncCrosshairToChart(c, param));
+    const row = filteredData ? filteredData.find(d => d.date === param.time) : null;
+    subCharts.forEach(([c, s, key]) => {
+      const v = row ? row[key] : null;
+      if (v == null) c.clearCrosshairPosition();
+      else c.setCrosshairPosition(v, param.time, s);
+    });
     debouncedDiag();
   });
-}
-
-function syncCrosshairToChart(chart, param) {
-  chart.setCrosshairPosition(NaN, NaN, param.time);
 }
 
 // ── 图表颜色：单源 tokens.css ───────────────────────────────────────────────
@@ -531,8 +541,23 @@ function renderDiag(d) {
 }
 
 // ── keyboard ───────────────────────────────────────────────────────────────
+// 方向键回看的两道守卫：
+// 1) 视图状态源 = app.js switchTab() 写入的 .app[data-view]（CSS 也靠它切换视图），
+//    离开技术视图（仪表盘/宏观/关联）不接管，否则页面滚动与仪表盘控件会被吞。
+// 2) 焦点在可输入元素上（含 contenteditable / [role=combobox]）不接管，
+//    否则搜索框、代码输入、select 里的方向键全部失效。
+const EDITABLE_TAGS = new Set(['INPUT', 'TEXTAREA', 'SELECT']);
+function isEditableTarget(el) {
+  if (!el || typeof el !== 'object') return false;
+  if (EDITABLE_TAGS.has(el.tagName)) return true;
+  if (el.isContentEditable) return true;
+  return typeof el.getAttribute === 'function' && el.getAttribute('role') === 'combobox';
+}
+
 function initKeyboard() {
   document.addEventListener('keydown', e => {
+    if (app.dataset.view !== 'tech') return;
+    if (isEditableTarget(e.target) || isEditableTarget(document.activeElement)) return;
     const data = filteredData;
     if (!data || !data.length) return;
     if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
@@ -545,7 +570,8 @@ function initKeyboard() {
       idx += e.key === 'ArrowRight' ? 1 : -1;
       idx = Math.max(0, Math.min(totalBars - 1, idx));
       crosshairDate = data[idx].date;
-      mainChart.setCrosshairPosition(data[idx].close, idx, candleSeries);
+      // horizontalPosition 是 time（不是 bar index）：传 idx 会被当成 1970 年的时间戳，光标恒停在首根
+      mainChart.setCrosshairPosition(data[idx].close, data[idx].date, candleSeries);
       debouncedDiag();
     }
   });

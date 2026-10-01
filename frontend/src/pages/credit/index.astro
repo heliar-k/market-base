@@ -41,6 +41,8 @@ async function load() {
   const rg = d.regime || { score: null, regime: '—', color: reCssVar('--text-dim'), components: [], missing: [] };
   // 子分区间色：与后端 REGIME_ZONES 同口径（≤50 偏松绿 / 50-75 偏紧橙 / ≥75 收紧红）
   const rgColor = v => v === null || v === undefined ? 'var(--text-dim)' : v >= 75 ? 'var(--color-down)' : v >= 50 ? 'var(--color-warn)' : 'var(--color-up)';
+  // 同一口径的文字档并行映射：进度条填充用上面的图形档，子分数值写字用这套（亮色过 AA）
+  const rgTextColor = v => v === null || v === undefined ? 'var(--text-dim)' : v >= 75 ? 'var(--down)' : v >= 50 ? 'var(--warning)' : 'var(--up)';
   // 子分中文名（英文为 FRED/后端字段名，中文便于快速阅读）
   const RG_CN = { spread_level: '利差水平', spread_mom: '利差动量', funding_cost: '融资成本', credit_supply: '信贷供给', credit_quality: '贷款质量', market_liq: '市场流动性', cross_asset: '跨资产确认' };
   const bars = rg.components.map(c => {
@@ -52,7 +54,7 @@ async function load() {
         <div class="rg-name">${c.name}<span class="rg-cn">${RG_CN[c.key] || ''}</span>
           <div class="track"><div class="fill" style="width:${w}%;background:${col};${v === null ? '' : 'min-width:2px'}"></div></div>
         </div>
-        <span class="${v === null ? 'dim' : 'val'}" style="color:${col}">${v === null ? '—' : v}</span>
+        <span class="${v === null ? 'dim' : 'val'}" style="color:${rgTextColor(v)}">${v === null ? '—' : v}</span>
       </div>`;
   }).join('');
   const missingNote = rg.missing.length ? `子分数据不足（${rg.missing.join('、')}），综合分只用有数据的子分重算。` : '';
@@ -208,8 +210,10 @@ function renderCds(root, d) {
   sec.innerHTML = '<h2>CDS 专题 · 信用违约互换</h2>';
   let sov = '<div class="proxy-card"><div class="label">主权 CDS 代理（10Y UST 收益率）</div>';
   if (d.sovereign) {
-    sov += `<div class="value">${d.sovereign.value}<span class="unit">%</span></div>
-      <div class="sub">10Y 收益率明显上行时，本页把它作为美元信用 / 财政可持续性定价变化的代理读数</div>
+    // 后端 src/credit_analysis.py cds() 存的是 round(DGS10 * 100, 2)，单位 bp（524.0 = 5.24%）。
+    // 卡标题写的是「10Y UST 收益率」，读者预期 %，故除回 100 显示，bp 等价值放进 .sub。
+    sov += `<div class="value">${(d.sovereign.value / 100).toFixed(2)}<span class="unit">%</span></div>
+      <div class="sub">${d.sovereign.value} bp · 10Y 收益率明显上行时，本页把它作为美元信用 / 财政可持续性定价变化的代理读数</div>
       <div class="date">${d.sovereign.as_of}</div>`;
   } else {
     sov += '<div class="sub">数据缺失</div>';

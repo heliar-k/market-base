@@ -135,7 +135,7 @@ async function load() {
 
   // ── 明细表 ──
   const bpHtml = v => v === null || v === undefined ? '—'
-    : `<span style="color:${v > 0 ? 'var(--color-up)' : v < 0 ? 'var(--color-down)' : 'var(--color-neutral)'}">${Number(v) > 0 ? '+' : ''}${Number(v).toFixed(1)}</span>`;
+    : `<span style="color:${v > 0 ? 'var(--up)' : v < 0 ? 'var(--down)' : 'var(--flat)'}">${Number(v) > 0 ? '+' : ''}${Number(v).toFixed(1)}</span>`;
   document.getElementById('re-tenors').replaceChildren(R.table(
     ['期限', '当前', '1周前', '1月前', '3月前', 'vs 1周', 'vs 1月', 'vs 3月'],
     tenors.map(t => ({ t: t.tenor, cur: t.current, w1: t.prev_1w, m1: t.prev_1m, m3: t.prev_3m, c1: t.chg_1w, c2: t.chg_1m, c3: t.chg_3m })),

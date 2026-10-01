@@ -67,7 +67,7 @@ async function load() {
   const tips10 = d.tips.find(x => x.tenor === '10Y');
   const s = d.spreads;
   const chgSub = (v, label) => v === null || v === undefined ? ''
-    : `<span style="color:${v > 0 ? 'var(--color-up)' : v < 0 ? 'var(--color-down)' : 'var(--color-neutral)'}">${v > 0 ? '▲ +' : v < 0 ? '▼ ' : ''}${Number(v).toFixed(0)}bp</span> · ${label}`;
+    : `<span style="color:${v > 0 ? 'var(--up)' : v < 0 ? 'var(--down)' : 'var(--flat)'}">${v > 0 ? '▲ +' : v < 0 ? '▼ ' : ''}${Number(v).toFixed(0)}bp</span> · ${label}`;
   const effr = data.overview.effr || {};
   document.getElementById('re-cards').replaceChildren(R.cards([
     { label: '联邦基金有效利率', value: R.fmtPct(effr.value), sub: chgSub(effr.chg_1w, '1周'), accent: true },

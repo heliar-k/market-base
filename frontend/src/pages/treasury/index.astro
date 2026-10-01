@@ -111,8 +111,8 @@ async function load() {
           label: { show: false },
           data: [
             ...(n === '2Y' ? [
-              { yAxis: 2.0, label: { show: true, formatter: '警戒 2.0x', color: colors.red, fontSize: 10 }, lineStyle: { color: colors.red, type: 'dashed', width: 1 } },
-              { yAxis: 2.5, label: { show: true, formatter: '良好 2.5x', color: colors.green, fontSize: 10 }, lineStyle: { color: colors.green, type: 'dashed', width: 1 } },
+              { yAxis: 2.0, label: { show: true, formatter: '警戒 2.0x', color: colors.redText, fontSize: 10 }, lineStyle: { color: colors.red, type: 'dashed', width: 1 } },
+              { yAxis: 2.5, label: { show: true, formatter: '良好 2.5x', color: colors.greenText, fontSize: 10 }, lineStyle: { color: colors.green, type: 'dashed', width: 1 } },
             ] : []),
             { yAxis: mean, lineStyle: { color: m, type: 'dashed', width: 1 } },
           ],

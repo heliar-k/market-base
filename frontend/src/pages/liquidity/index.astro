@@ -5,7 +5,7 @@
 import TopicLayout from '../../layouts/TopicLayout.astro';
 import Section from '../../components/Section.astro';
 ---
-<TopicLayout title="流动性">
+<TopicLayout title="流动性" chart={false}>
   <div class="page-toc" id="page-toc"></div>
   <Section id="re-cards" title="概览" />
   <Section id="re-eval" title="流动性评估" />
@@ -53,8 +53,20 @@ function fmtB(v) {
   if (v == null) return '—';
   return v.toFixed(1) + ' 十亿';
 }
-const pctHtml = p => (p == null ? '<span style="color:var(--text-dim)">—</span>'
-  : `<span class="${p > 0 ? 'up' : p < 0 ? 'down' : ''}">${p > 0 ? '+' : ''}${(p * 100).toFixed(1)}%</span>`);
+// 后端 src/liquidity_analysis.py 的 _pct_chg() 已返回百分数（4.25 = 4.25%），前端不再 *100。
+// 近零基数守卫：|p| > 300%（3 倍以上变化，实际只可能出现在 RRP 这类从 0 附近起量的序列，
+// 后端只守了基数 == 0 没守近零）时百分数无意义，改按 value 反推绝对变化
+// Δ = value - value/(1+p/100)，单位沿用该卡 value 的格式化器（万亿 / 十亿）。
+const pctHtml = (p, value, fmt) => {
+  if (p == null) return '<span style="color:var(--text-dim)">—</span>';
+  const cls = p > 0 ? 'up' : p < 0 ? 'down' : '';
+  const sign = p > 0 ? '+' : '';
+  if (Math.abs(p) > 300 && value != null) {
+    const d = value - value / (1 + p / 100);
+    return `<span class="${cls}">${sign}${fmt(d)}</span>`;
+  }
+  return `<span class="${cls}">${sign}${p.toFixed(1)}%</span>`;
+};
 
 async function load() {
   document.getElementById('page-toc').innerHTML = [
@@ -70,8 +82,8 @@ async function load() {
     const s = c[key] || {};
     return {
       label: s.label || key, accent,
-      value: (key === 'RRPONTSYD' ? fmtB : fmtT)(s.value),
-      sub: `1M ${pctHtml(s.change_1m)} · 1Y ${pctHtml(s.change_1y)}`,
+      value: fmt(s.value),
+      sub: `1M ${pctHtml(s.change_1m, s.value, fmt)} · 1Y ${pctHtml(s.change_1y, s.value, fmt)}`,
     };
   };
   document.getElementById('re-cards').appendChild(R.cards([

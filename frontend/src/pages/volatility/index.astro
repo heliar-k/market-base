@@ -97,7 +97,7 @@ import Section from '../../components/Section.astro';
 <script is:inline>
 // 涨跌色：DOM 内联样式用 var()（主题切换即时生效）；ECharts canvas 处用 reCssVar 取实际值
 const chgClass = (v) => v === null || v === undefined || v === 0 ? 'flat' : v > 0 ? 'up' : 'down';
-const chgColor = (v) => v > 0 ? 'var(--color-up)' : v < 0 ? 'var(--color-down)' : 'var(--color-neutral)';
+const chgColor = (v) => v > 0 ? 'var(--up)' : v < 0 ? 'var(--down)' : 'var(--flat)';
 const pct = (v) => v === null || v === undefined ? '—' : `${v > 0 ? '+' : ''}${v.toFixed(2)}%`;
 
 async function load() {

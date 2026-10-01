@@ -11,8 +11,9 @@ interface Props {
   title: string; // 页名，渲染为 <title>{title} — 观澜台</title> 与页头 h1
   h1?: string; // 页头 h1 覆写（默认同 title；vix 页原 h1 带「标普500隐含波动率指数」副标，工单 #16）
   desc?: string; // meta description（搜索/分享摘要）；默认给站点级描述
+  chart?: boolean; // 本页是否画图（调 R.mkChart）；false 则不加载 echarts.min.js（1 MB，同步阻塞）
 }
-const { title, h1 = title, desc = '观澜台 — 美股与宏观研究平台：每日更新的美股/指数/期权/期货技术面与利率、流动性、信用、通胀专题研判。' } = Astro.props;
+const { title, h1 = title, desc = '观澜台 — 美股与宏观研究平台：每日更新的美股/指数/期权/期货技术面与利率、流动性、信用、通胀专题研判。', chart = true } = Astro.props;
 
 const BRAND = '观澜台';
 
@@ -42,12 +43,39 @@ const TABS = [SITE_NAV.home, ...SITE_NAV.groups];
 <link rel="stylesheet" href="/css/app.css">
 <link rel="stylesheet" href="/css/special.css">
 <!-- 共享 JS 留在 public/js（与未迁移页同一份），is:inline = 原样输出不走打包管线（ADR-0003） -->
-<script is:inline src="/vendor/echarts.min.js"></script>
+<!-- echarts 只在画图页加载：无图页（卡片/表格页）不必为 1 MB 同步脚本付首屏代价。
+     echarts-theme.js 与 rates-common.js 保留——reSyncLegend 是纯 JS，且 rates-common 只在
+     mkChart 运行时才碰 echarts（已 grep 确认，echarts-theme.js:119 也有 typeof 守卫）。 -->
+{chart && <script is:inline src="/vendor/echarts.min.js"></script>}
 <script is:inline src="/js/echarts-theme.js"></script>
 <script is:inline src="/js/rates-common.js"></script>
 <slot name="head" />
 </head>
 <body>
+<!-- 主题提前应用（修暗色闪烁 + island 解析期取错色）：底部那个主题脚本在 body 结束前才执行，
+     而各专题页自己的 island 内联脚本（is:inline，走 slot 渲染在正文里）更早执行 ——
+     它们在解析期用 reCssVar()/R.colors() 取色会拿到亮色档，暗色用户看到亮色徽章。
+     故在 body 开标签之后立刻把 dark 打到 body 上（CSS 钩子是 body.dark，全站选择器依赖，
+     不改 documentElement；head 里 document.body 还不存在，所以只能放这里不能前移）。
+     实现只此一份，挂到 window 供底部脚本复用，避免两份逻辑漂移。 -->
+<script is:inline>
+window.__reTheme = (function () {
+  var DARK_KEY = 'ticker-toolkit-dark'; // 与 SPA(app.js) 同键：内嵌 iframe 靠 localStorage + storage 事件同步
+  var T = {
+    DARK_KEY: DARK_KEY,
+    embedded: window.self !== window.top, // 内嵌（SPA 宏观分栏 iframe）时主题由父页驱动
+    manual: false, // 会话级手动覆盖：点过悬浮按钮后停止跟随系统，刷新恢复自动
+    resolveDark: function () {
+      if (T.embedded) return localStorage.getItem(DARK_KEY) === '1';
+      if (T.manual) return document.body.classList.contains('dark');
+      return window.matchMedia('(prefers-color-scheme: dark)').matches;
+    },
+    apply: function () { document.body.classList.toggle('dark', T.resolveDark()); },
+  };
+  T.apply();
+  return T;
+})();
+</script>
 <a class="skip-link" href="#re-main">跳过导航，直达正文</a>
 <div class="re-root" id="re-main">
   <div class="re-header">
@@ -98,8 +126,9 @@ const TABS = [SITE_NAV.home, ...SITE_NAV.groups];
     };
   }
 
-  // 内嵌（SPA 宏观分栏的 iframe）时不渲染顶栏（静态 HTML，直接隐藏）与主题按钮
-  var embedded = window.self !== window.top;
+  // 内嵌判定与主题状态单源在提前脚本（window.__reTheme），此处只复用
+  var T = window.__reTheme;
+  var embedded = T.embedded;
   if (embedded) {
     document.body.classList.add('embedded');
     var nav = document.getElementById('re-nav');
@@ -115,28 +144,18 @@ const TABS = [SITE_NAV.home, ...SITE_NAV.groups];
     }).observe(toc);
   }
 
-  // 主题：默认实时跟随系统；点悬浮按钮后仅本会话固定（刷新恢复自动）。
-  // 内嵌 iframe 由父页 SPA 驱动（DARK_KEY + storage 事件）
-  var DARK_KEY = 'ticker-toolkit-dark';
-  var manual = false;
-  function resolveDark() {
-    if (embedded) return localStorage.getItem(DARK_KEY) === '1';
-    if (manual) return document.body.classList.contains('dark');
-    return window.matchMedia('(prefers-color-scheme: dark)').matches;
-  }
-  function applyTheme() {
-    document.body.classList.toggle('dark', resolveDark());
-  }
-  applyTheme();
+  // 主题：class 已由 body 开标签后的提前脚本应用过（island 解析期取色即生效），这里不再重复 apply
+  // （二次 toggle 会闪烁），只补监听；resolveDark/apply/manual 全部复用 window.__reTheme。
+  var DARK_KEY = T.DARK_KEY;
   window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', function () {
-    if (!embedded && !manual) {
-      applyTheme();
+    if (!embedded && !T.manual) {
+      T.apply();
       window.dispatchEvent(new Event('theme-changed'));
     }
   });
   window.addEventListener('storage', function (e) {
     if (e.key !== DARK_KEY) return;
-    applyTheme();
+    T.apply();
     // 图表按主题重绘（rates-common 监听该事件）
     window.dispatchEvent(new Event('theme-changed'));
   });
@@ -163,9 +182,9 @@ const TABS = [SITE_NAV.home, ...SITE_NAV.groups];
   var tb = document.createElement('button');
   tb.className = 'theme-float';
   tb.title = '切换亮暗主题';
-  tb.textContent = resolveDark() ? '☀️' : '🌙';
+  tb.textContent = T.resolveDark() ? '☀️' : '🌙';
   tb.addEventListener('click', function () {
-    manual = true; // 会话级覆盖：停止跟随系统，刷新恢复自动
+    T.manual = true; // 会话级覆盖：停止跟随系统，刷新恢复自动
     document.body.classList.toggle('dark');
     tb.textContent = document.body.classList.contains('dark') ? '☀️' : '🌙';
     // rates-common 等已监听该事件，图表随之重绘

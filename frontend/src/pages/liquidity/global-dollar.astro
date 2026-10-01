@@ -5,7 +5,7 @@
 import TopicLayout from '../../layouts/TopicLayout.astro';
 import Section from '../../components/Section.astro';
 ---
-<TopicLayout title="全球美元流动性">
+<TopicLayout title="全球美元流动性" chart={false}>
   <div class="page-toc" id="page-toc"></div>
   <Section id="re-cards" title="概览" />
   <!-- 央行互换卡:脚本 innerHTML 清容器,Section 只包壳、id 落内层 div -->
@@ -50,7 +50,7 @@ async function load() {
       '方向': (v, row) => {
         const m = row['1M'];
         if (m == null) return '—';
-        return `<span style="color:${m < 0 ? 'var(--color-warn)' : 'var(--color-up)'}">${m < 0 ? '美元偏紧' : '美元充裕'}</span>`;
+        return `<span style="color:${m < 0 ? 'var(--warning)' : 'var(--up)'}">${m < 0 ? '美元偏紧' : '美元充裕'}</span>`;
       } },
     ['pair', '1W', '1M', '3M', '6M', '1Y', '方向'],
     true,

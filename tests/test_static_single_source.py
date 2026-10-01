@@ -115,7 +115,10 @@ def test_as_of_formatter_present() -> None:
     """R.asOf / R.asMonth 存在且每个专题页确有调用（防止 formatter 被删空）。"""
     js = (STATIC / "js" / "rates-common.js").read_text(encoding="utf-8")
     assert "asOf(src)" in js and "asMonth" in js
-    astro_pages = sorted(ASTRO_PAGES.rglob("*.astro"))
+    # 404 页套 TopicLayout（共用主题/顶栏）但无数据源，页头时效槽恒空 → 不计入
+    astro_pages = sorted(
+        p for p in ASTRO_PAGES.rglob("*.astro") if p.name != "404.astro"
+    )
     used = sum(1 for p in astro_pages if "R.asOf(" in p.read_text(encoding="utf-8"))
     assert used == len(astro_pages), (
         f"仅 {used}/{len(astro_pages)} 个专题页用 R.asOf 组装时效标签"

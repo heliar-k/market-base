@@ -155,7 +155,7 @@ function renderHawkish(root, data) {
   const hawkN = roster.filter(r => r.score > 0).length;
   const doveN = roster.filter(r => r.score < 0).length;
   const midN = roster.length - hawkN - doveN;
-  const hdColor = (v) => v > 0 ? 'var(--color-hawk)' : v < 0 ? 'var(--color-dove)' : 'var(--color-neutral)';
+  const hdColor = (v) => v > 0 ? 'var(--color-hawk-text)' : v < 0 ? 'var(--color-dove-text)' : 'var(--flat)';
   s1.innerHTML = `<h2>${data.voting_year} 年 FOMC 投票成员立场分布
     <span style="font-weight:400;font-size:12px;color:var(--text-dim)">${hawkN} 鹰 · ${doveN} 鸽 · ${midN} 中性（红 = 鹰，绿 = 鸽，灰 = 无近期演讲）</span></h2>`;
   wrap.appendChild(s1);

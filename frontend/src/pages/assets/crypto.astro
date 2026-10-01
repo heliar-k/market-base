@@ -50,10 +50,11 @@ async function load() {
   lsec.className = 're-section';
   lsec.innerHTML = '<h2>宏观 × 加密流动性溢出</h2><p style="margin:0 0 8px">净流动性 = WALCL − TGA − RRP</p>';
   if (L.net != null) {
-    const pulseColor = L.pulse_state === '扩张' ? 'var(--color-up)' : 'var(--color-down)';
+    // pulseColor / divColor 只进 color:（卡片无填充用法），故取文字档
+    const pulseColor = L.pulse_state === '扩张' ? 'var(--up)' : 'var(--down)';
     const dv = L.divergence || null;
     const warn = !!(dv && dv.warn);
-    const divColor = dv ? (warn ? 'var(--color-down)' : 'var(--color-up)') : 'var(--color-neutral)';
+    const divColor = dv ? (warn ? 'var(--down)' : 'var(--up)') : 'var(--flat)';
     const divText = dv ? dv.verdict : '—';
     lsec.innerHTML += `
       <div class="re-cards" style="grid-template-columns:repeat(auto-fit,minmax(150px,1fr));align-items:start">
@@ -85,8 +86,8 @@ async function load() {
       yAxis: [
         { type: 'value', scale: true, position: 'left', name: '净流动性 (T)', nameTextStyle: { color: NL_CYAN },
           axisLabel: { color: NL_CYAN, fontSize: 10 }, splitLine: { lineStyle: { color: colors.grid, type: 'dashed' } } },
-        { type: 'value', scale: true, position: 'right', name: 'BTC ($)', nameTextStyle: { color: colors.orange },
-          axisLabel: { color: colors.orange, fontSize: 10 }, splitLine: { show: false } },
+        { type: 'value', scale: true, position: 'right', name: 'BTC ($)', nameTextStyle: { color: colors.orangeText },
+          axisLabel: { color: colors.orangeText, fontSize: 10 }, splitLine: { show: false } },
       ],
       series: [
         { name: '净流动性 (T)', type: 'line', data: L.nl_series, showSymbol: false, smooth: true,
@@ -154,7 +155,7 @@ async function load() {
   if (!ra) {
     rasec.innerHTML += '<p>价比数据不足（需 BTC/ETH 日线 ≥ 60 行）：运行 <code>./bin/fetch_yfinance</code> 补齐 asset_prices.csv。</p>';
   } else {
-    const dir = v => v == null ? 'var(--color-neutral)' : (v > 0 ? 'var(--color-up)' : v < 0 ? 'var(--color-down)' : 'var(--color-neutral)');
+    const dir = v => v == null ? 'var(--flat)' : (v > 0 ? 'var(--up)' : v < 0 ? 'var(--down)' : 'var(--flat)');
     const pct = (v, nd = 2) => v == null ? '—' : `${v > 0 ? '+' : ''}${Number(v).toFixed(nd)}%`;
     const pp = v => v == null ? '—' : `${v > 0 ? '+' : ''}${Number(v).toFixed(2)}pp`;
     const rsiState = ra.rsi14 == null ? '—' : (ra.rsi14 >= 70 ? '超买' : ra.rsi14 <= 30 ? '超卖' : '中性');
@@ -175,10 +176,10 @@ async function load() {
           <div class="re-corridor-value" style="color:${dir(ra.mom_30d)}">${pct(ra.mom_30d, 1)}</div>
           <div class="re-card-sub">7d ${pct(ra.mom_7d, 1)} · 负值=ETH 跑赢</div></div>
         <div class="re-card"><div class="re-corridor-label">Funding 差（ETH−BTC 年化）</div>
-          <div class="re-corridor-value" style="color:${f ? dir(f.diff) : 'var(--color-neutral)'}">${f ? pp(f.diff) : '—'}</div>
+          <div class="re-corridor-value" style="color:${f ? dir(f.diff) : 'var(--flat)'}">${f ? pp(f.diff) : '—'}</div>
           <div class="re-card-sub" style="white-space:normal">${f ? `BTC ${f.btc}% · ETH ${f.eth}% · 7d ${pp(f.diff_chg_7d)}` : '衍生品快照缺失'}</div></div>
       </div>
-      ${rot ? `<p style="margin:8px 0 0;font-size:12px;color:${rot.warn ? 'var(--color-down)' : 'var(--color-up)'}">● 综合判定：${rot.quality}${rot.cross_summary ? '｜' + rot.cross_summary : ''}</p>` : ''}`;
+      ${rot ? `<p style="margin:8px 0 0;font-size:12px;color:${rot.warn ? 'var(--down)' : 'var(--up)'}">● 综合判定：${rot.quality}${rot.cross_summary ? '｜' + rot.cross_summary : ''}</p>` : ''}`;
     // ── 交叉验证（6 项：PCR 差 / 30d 相关性 / NL 脉冲 / Polymarket 隐含涨幅比 / BTCD / ETF 流量比；缺源卡片降级为空状态说明）──
     const cx = ra.cross || {};
     const xcard = (label, value, sub, verdict, color) => `
@@ -274,9 +275,10 @@ async function load() {
 const NL_CYAN = reCssVar('--chart-cyan');
 const CRYPTO_NAME = { BTC: 'BTC', ETH: 'ETH' };
 function fmt(v) { return v == null ? '—' : Number(v === 0 ? 0 : v).toLocaleString(undefined, { maximumFractionDigits: 2 }); }
-function chg(v) { return v == null ? '—' : `<span style="color:${v >= 0 ? 'var(--color-up)' : 'var(--color-down)'}">${v >= 0 ? '▲ +' : '▼ '}${Number(v).toFixed(2)}%</span>`; }
+function chg(v) { return v == null ? '—' : `<span style="color:${v >= 0 ? 'var(--up)' : 'var(--down)'}">${v >= 0 ? '▲ +' : '▼ '}${Number(v).toFixed(2)}%</span>`; }
 
-const P = { up: 'var(--color-up)', down: 'var(--color-down)', flat: 'var(--color-neutral)' };
+// P 只喂文字色（雷达卡 / 信号行 color:），图上填充一律走图形档 token
+const P = { up: 'var(--up)', down: 'var(--down)', flat: 'var(--flat)' };
 
 // ── BTC FORWARD RADAR（timsun 同款：综合分 + 4 列 + 信号权重）──
 function renderRadar(d) {

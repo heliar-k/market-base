@@ -94,8 +94,9 @@ const TIPS = {
 function contractCard(c) {
   const card = document.createElement('div');
   card.className = 'pos-contract';
-  const netColor = c.net >= 0 ? 'var(--color-up)' : 'var(--color-down)';
-  const wkColor = c.week_dir == '增仓' ? 'var(--color-up)' : (c.week_dir == '减仓' ? 'var(--color-down)' : 'var(--text-secondary)');
+  // 两个取色变量只进 color:（卡片无填充用法），故直接取文字档
+  const netColor = c.net >= 0 ? 'var(--up)' : 'var(--down)';
+  const wkColor = c.week_dir == '增仓' ? 'var(--up)' : (c.week_dir == '减仓' ? 'var(--down)' : 'var(--text-secondary)');
   card.innerHTML = `
     <div class="pc-head">
       <div>
