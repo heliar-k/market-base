@@ -20,7 +20,7 @@ import Section from '../../components/Section.astro';
 </div>
 
 <script is:inline>
-function fmt(v, d = 2) { return v == null ? '—' : Number(v === 0 ? 0 : v).toLocaleString(undefined, { maximumFractionDigits: d }); }
+const fmt = R.num;
 function stance(ann) { const a = Math.abs((ann || 0) * 100); if (ann < 0) return '偏空'; return a >= 30 ? '偏多（拥挤）' : (a >= 15 ? '偏多' : '中性'); }
 function pcrStance(p) { return p == null ? '中性' : (p < 0.4 ? '偏多' : (p > 1.5 ? '偏空' : '中性')); }
 

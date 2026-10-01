@@ -169,6 +169,33 @@ def test_r_fail_targets_exist_on_page() -> None:
     )
 
 
+def test_escaping_only_via_r_esc() -> None:
+    """HTML 转义只能走 `R.esc`（rates-common.js 是唯一出处），页面只允许别名。
+
+    背景：macro-view.js 自写过一份 esc，少了 `"` 转义（属性位注入面）还没做 null
+    守卫；geo / dashboard.js / commodities 都是 `const esc = R.esc` 别名，合法。
+    只拦「自己重实现一遍正则」的写法。
+    """
+    offenders = []
+    srcs = [
+        SPA_ENTRY,
+        TOPIC_LAYOUT,
+        *sorted(ASTRO_PAGES.rglob("*.astro")),
+        *sorted((STATIC / "js").glob("*.js")),
+    ]
+    for page in srcs:
+        if page.name == "rates-common.js":
+            continue
+        text = page.read_text(encoding="utf-8")
+        for m in re.finditer(r"(?:const|let|function)\s+esc\b", text):
+            line = text[m.start() :].split("\n", 1)[0]
+            if "R.esc" not in line:
+                offenders.append(f"{page.relative_to(ROOT)}: {line.strip()[:60]}")
+    assert not offenders, (
+        "自写转义实现，请改 R.esc（或 const esc = R.esc 别名）：" + "; ".join(offenders)
+    )
+
+
 # ── 脚本语法（is:inline 不走打包管线，改完必须能直接被浏览器/Node 解析）──
 
 

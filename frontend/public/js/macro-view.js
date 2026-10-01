@@ -27,7 +27,9 @@ const pageOf = key =>
   PAGES.get(key) ??
   PAGES.get([...PAGES.keys()].find(k => k.split('/').pop() === key?.split('/').pop()));
 
-const esc = s => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+// 转义单源 R.esc（rates-common.js 已在 index.html:23 先于本模块加载，dashboard.js:386 同样用法）。
+// 本地那份漏了 " 转义（属性位注入风险），且没做 null 守卫（s.replace 遇 null 直接抛）。
+const esc = R.esc;
 
 // ── state ──
 let activeUrl = null;   // 当前专题页（iframe）

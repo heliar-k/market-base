@@ -121,9 +121,10 @@ async function load() {
   document.getElementById('re-gen').textContent = '数据源：Yahoo Finance 日频快照 · 归一化起点 = 1 年前收盘';
 }
 function keys2(rc) { return Object.keys(rc.series || {}); }
-function fmt(v) { return v == null ? '—' : Number(v).toLocaleString(undefined, { maximumFractionDigits: 4 }); }
-function chg(v) { return v == null ? '—' : `<span style="color:${v >= 0 ? 'var(--up)' : 'var(--down)'}">${v >= 0 ? '▲ +' : '▼ '}${Number(v).toFixed(2)}%</span>`; }
-function esc(s) { return String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
+const fmt = (v) => R.num(v, 4);
+const chg = R.chgSpan;
+// 转义单源（与 geo/index.astro:32 同法）；Polymarket 事件标题是第三方原文，入 innerHTML 前必过
+const esc = R.esc;
 
 load().catch(e => R.fail(['cards', 'asset-compare', 'chart', 'recent'], e));
 </script>

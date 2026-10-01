@@ -291,8 +291,8 @@ async function load() {
 // 分类色单源：净流动性青线走 --chart-cyan（两主题同值）；BTC/ETH 趋势线在 optionFn 内随主题取色
 const NL_CYAN = reCssVar('--chart-cyan');
 const CRYPTO_NAME = { BTC: 'BTC', ETH: 'ETH' };
-function fmt(v) { return v == null ? '—' : Number(v === 0 ? 0 : v).toLocaleString(undefined, { maximumFractionDigits: 2 }); }
-function chg(v) { return v == null ? '—' : `<span style="color:${v >= 0 ? 'var(--up)' : 'var(--down)'}">${v >= 0 ? '▲ +' : '▼ '}${Number(v).toFixed(2)}%</span>`; }
+const fmt = R.num;
+const chg = R.chgSpan;
 
 // P 只喂文字色（雷达卡 / 信号行 color:），图上填充一律走图形档 token
 const P = { up: 'var(--up)', down: 'var(--down)', flat: 'var(--flat)' };

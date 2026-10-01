@@ -34,12 +34,15 @@ function badge(label) {
 function docCard(d, href) {
   const el = document.createElement('div');
   el.className = 'fed-doc';
+  // title / excerpt 是 federalreserve.gov 抓回来的原文（excerpt = body[:400]，
+  // src/fed_analysis.py:355），第三方文本入 innerHTML 必过 R.esc；
+  // label 是自家 stance_label() 产的词，不用转义
   el.innerHTML = `
     <div class="fed-doc-head">
       <span class="fed-doc-meta">${d.date}</span>${badge(d.label)}
-      <a class="fed-doc-title" href="${href}" target="_blank">${d.title}</a>
+      <a class="fed-doc-title" href="${href}" target="_blank">${R.esc(d.title)}</a>
     </div>
-    <div class="fed-doc-excerpt">${d.excerpt}</div>`;
+    <div class="fed-doc-excerpt">${R.esc(d.excerpt)}</div>`;
   return el;
 }
 
@@ -127,7 +130,7 @@ function renderSpeeches(root, data) {
       for (const d of arr) {
         const el = docCard(d, d.url);
         el.querySelector('.fed-doc-head').insertAdjacentHTML('beforeend',
-          `<span class="fed-doc-meta">${d.speaker}</span>`);
+          `<span class="fed-doc-meta">${R.esc(d.speaker)}</span>`);
         body.appendChild(el);
       }
       head.onclick = () => g.classList.toggle('fed-group-closed');
@@ -215,7 +218,8 @@ function renderHawkish(root, data) {
       legend: { top: 0, textStyle: { color: c.text, fontSize: 11 } },
       tooltip: {
         trigger: 'item',
-        formatter: (p) => `${p.data.name}<br>${p.data.real} · ${p.data.value[1] > 0 ? '+' : ''}${p.data.value[1]}`,
+        // name = 官员姓名（speeches.csv 的 speaker，外部原文）；ECharts tooltip 走 HTML 渲染
+        formatter: (p) => `${R.esc(p.data.name)}<br>${p.data.real} · ${p.data.value[1] > 0 ? '+' : ''}${p.data.value[1]}`,
       },
       grid: { left: 40, right: 16, top: 36, bottom: 40 },
       xAxis: {
@@ -315,9 +319,10 @@ function renderOdds(root, data) {
     const card = document.createElement('div');
     card.className = 'fed-doc';
     card.style.marginBottom = '10px';
+    // slug 进属性、title 是 Polymarket 原文，都得转义（geo/index.astro:134 同法）
     card.innerHTML = `
       <div class="fed-doc-head">
-        <a class="fed-doc-title" href="https://polymarket.com/event/${e.slug}" target="_blank">${e.title}</a>
+        <a class="fed-doc-title" href="https://polymarket.com/event/${R.esc(e.slug)}" target="_blank">${R.esc(e.title)}</a>
         <span class="fed-odds-meta">到期 ${e.end_date} · 24h 量 ${fmtVol(e.volume24hr)}</span>
       </div>`;
     // 决策类事件：三色堆叠概率条（降息|不变|加息，仿 rates/pricing renderTable）

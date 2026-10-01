@@ -30,7 +30,7 @@ const UP = 'var(--up)', DOWN = 'var(--down)';
 
 function categories(c) { return CATS[c] || c; }
 function pctColor(v) { return v == null ? '—' : `<span style="color:${v >= 0 ? UP : DOWN}">${v >= 0 ? '+' : ''}${v.toFixed(2)}%</span>`; }
-function fmt(v) { return v == null ? '—' : Number(v).toLocaleString(undefined, { maximumFractionDigits: 2 }); }
+const fmt = R.num;
 
 async function load() {
   D = await R.get('/api/assets/etfs');

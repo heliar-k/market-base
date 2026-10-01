@@ -132,7 +132,7 @@ function renderExplain() {
   document.getElementById('explain').appendChild(sec);
 }
 function pctColor(v) { return v == null ? '—' : `<span class="fx-mono" style="color:${v >= 0 ? 'var(--up)' : 'var(--down)'}">${(v >= 0 ? '+' : '') + v.toFixed(2) + '%'}</span>`; }
-function fmt(v, d) { return v == null ? '—' : Number(v).toLocaleString(undefined, { maximumFractionDigits: d }); }
+const fmt = R.num;  // 唯一调用点 fmt(v, 4)
 
 load().catch(e => R.fail(['verdicts', 'fxchart', 'dashboard'], e));
 </script>

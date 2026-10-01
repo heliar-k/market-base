@@ -17,7 +17,7 @@ import Section from '../../components/Section.astro';
 </div>
 
 <script is:inline>
-function fmt(v, d = 2) { return v == null ? '—' : Number(v === 0 ? 0 : v).toLocaleString(undefined, { maximumFractionDigits: d }); }
+const fmt = R.num;
 
 // 隐含价位趋势：每归类一条线 = 该阶梯里概率过 50% 的价位（档间线性插值），
 // 叠一条现价日线收盘做锚；y 轴 scale:true（价位区间窄，从 0 起会压成直线）

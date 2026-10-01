@@ -8,6 +8,12 @@ const R = {
   fmtPct: (v) => (v === null || v === undefined ? '—' : `${Number(v).toFixed(2)}%`),
   fmtBp: (v) => (v === null || v === undefined ? '—' : `${Number(v) > 0 ? '+' : ''}${Number(v).toFixed(1)}`),
   fmtB: (v) => (v === null || v === undefined ? '—' : `$${Number(v).toFixed(0)}B`),
+  // 千分位数值：取代各页自写的 fmt（bonds/etfs/crypto 默认 2 位、commodities/fx 要 4 位、
+  // crypto-derivatives 透传 d）。v === 0 ? 0 : v 是 -0 守卫，保留原行为。
+  num: (v, d = 2) => (v == null ? '—' : Number(v === 0 ? 0 : v).toLocaleString(undefined, { maximumFractionDigits: d })),
+  // 涨跌文本 span：▲ +x.xx% / ▼ x.xx%，颜色走文字档（亮色过 AA，图形档会跌到 3.6:1）。
+  // 以前在 bonds/commodities/crypto 各拄一份，改语义色得同改三处。
+  chgSpan: (v) => (v == null ? '—' : `<span style="color:${v >= 0 ? 'var(--up)' : 'var(--down)'}">${v >= 0 ? '▲ +' : '▼ '}${Number(v).toFixed(2)}%</span>`),
   // 生成器类型 → 界面文案（避免内部枚举 rules/llm 泄漏到页面，见审计 D2）
   genText: (g) => (g === 'llm' ? 'LLM' : '规则引擎（LLM 预留）'),
 
