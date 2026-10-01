@@ -110,7 +110,8 @@ export function initGlobalNav() {
           `<a class="macro-nav-item child${it.sub ? ' sub' : ''}" data-url="${it.page}" href="#${it.key}">${esc(it.label)}</a>`).join('')}</div>` : ''}
       </div>`).join('')}
     <div class="macro-nav-foot">
-      <span>美东时间</span><span id="macro-nav-clock"></span>
+      <div class="macro-nav-foot-row"><span>美东时间</span><span id="macro-nav-clock"></span></div>
+      <div class="macro-nav-foot-note">数据每日自动更新 · 不构成投资建议</div>
     </div>
   `;
 

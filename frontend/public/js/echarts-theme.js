@@ -37,7 +37,8 @@ function buildTheme() {
     tooltip: {
       backgroundColor: bg, borderColor: borderColor, borderWidth: 1,
       textStyle: { color: text, fontSize: 12, fontFamily: mono },
-      extraCssText: 'border-radius: 8px; box-shadow: 0 4px 16px rgba(0,0,0,0.25); backdrop-filter: blur(8px);',
+      // 阴影走 CSS 变量（tokens/app.css 单源）：tooltip DOM 挂在 body 内，var() 可继承解析
+      extraCssText: 'border-radius: 8px; box-shadow: var(--shadow-pop); backdrop-filter: blur(8px);',
     },
     categoryAxis: {
       axisLine: { lineStyle: { color: borderColor } }, axisTick: { lineStyle: { color: borderColor } },

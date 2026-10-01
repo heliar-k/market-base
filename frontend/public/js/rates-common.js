@@ -185,19 +185,45 @@ const R = {
   // 走主题 color 数组兜底，不再漏出 ECharts 默认紫）；切换时重注册 + dispose 重建
   // （ECharts 主题只在 init 生效，同实例 setOption 换不掉主题默认值）。
   // 重建后页面持有的旧引用会失效，故按 id 登记当前实例，页面用 R.getChart(id) 取最新。
+  //
+  // 空数据统一兜底（AGENTS.md「README 式空状态」）：所有 series 都无有效点时不画空坐标系，
+  // 给原因 + 修复命令。单点守在这里，51 个 mkChart 调用页不必各自判空。
+  // 口径：无 dataset/非数组 series/纯 graphic 图（已 grep 确认），故只看 series[].data；
+  // 数组点（candlestick/OHLC）算有值，对象点看 value。
+  _hasPoint(s) {
+    return Array.isArray(s?.data) && s.data.some(
+      v => v != null && v !== '' && (Array.isArray(v) || typeof v !== 'object' || v.value != null),
+    );
+  },
+  isEmptyOption(opt) {
+    const ser = opt && opt.series ? [].concat(opt.series) : [];
+    return !ser.some(s => R._hasPoint(s));
+  },
   mkChart(id, option) {
     const dom = document.getElementById(id);
     if (!dom) return null;
     dom.classList.add('skeleton'); // 骨架屏占位（app.css .skeleton）：首次 setOption 后摘除，主题重建不重复挂
     const render = () => {
       if (window.registerMacroTheme) registerMacroTheme();
+      const opt = option(R.colors());
+      if (R.isEmptyOption(opt)) {
+        // 空态：不 init、不注册主题/resize（无实例可重绘）；只铺一次文案，避免主题循环重复写
+        dom.classList.remove('skeleton');
+        if (!dom.querySelector('.re-empty')) {
+          dom.innerHTML = '<div class="re-empty">该指标暂无可用数据（未发布、超出回溯窗口或拉取失败）<br>'
+            + '确认数据源后重新部署：对应 ./bin/fetch_* → gh workflow run deploy-pages.yml</div>';
+        }
+        return null;
+      }
+      dom.querySelector('.re-empty')?.remove(); // 空态文案先让位再 init（ECharts 要求容器为空，否则告警）
       const chart = echarts.init(dom, R.isDark() ? 'macroDark' : 'macro');
-      chart.setOption(option(R.colors()));
+      chart.setOption(opt);
       dom.classList.remove('skeleton');
       R._charts.set(id, chart);
       return chart;
     };
     let chart = render();
+    if (!chart) return null;
     window.addEventListener('theme-changed', () => {
       try { chart.dispose(); } catch (e) { /* 已被外部 dispose */ }
       chart = render();

@@ -78,7 +78,7 @@ function fmtLast(unit, v) {
   return Number(v).toLocaleString('en-US', { maximumFractionDigits: 2 });
 }
 function fmtChg(unit, v) {
-  if (v == null) return '<span style="color:var(--text-muted)">—</span>';
+  if (v == null) return '<span style="color:var(--text-dim)">—</span>';
   const s = v > 0 ? '+' : '';
   if (unit === 'pct_bp' || unit === 'bp') return `<span class="${v > 0 ? 'up' : v < 0 ? 'down' : ''}">${s}${v.toFixed(1)}bp</span>`;
   if (unit === 'pt') return `<span class="${v > 0 ? 'up' : v < 0 ? 'down' : ''}">${s}${v.toFixed(2)}pt</span>`;
@@ -153,7 +153,7 @@ async function load() {
       <div class="re-analysis" style="margin:8px 0 0">
         <ul style="margin:0">
           ${(s.evidence || []).map(e => `<li>${e}</li>`).join('')}
-          ${s.window ? `<li style="color:var(--text-muted)">观测窗口 ${s.window[0]} → ${s.window[1]}</li>` : ''}
+          ${s.window ? `<li style="color:var(--text-dim)">观测窗口 ${s.window[0]} → ${s.window[1]}</li>` : ''}
         </ul>
         <p style="margin:6px 0 0;font-style:italic">${s.refute}</p>
       </div>
@@ -207,7 +207,7 @@ async function load() {
           <td>${fmtChg(r.unit, r.chg?.d5)}</td>
           <td>${fmtChg(r.unit, r.chg?.d20)}</td>
           <td>${spark}</td>
-          <td style="color:var(--text-muted)">${r.as_of ?? '—'}</td>
+          <td style="color:var(--text-dim)">${r.as_of ?? '—'}</td>
           <td class="${cls}" style="font-size:.85em">${fresh}</td>
         </tr>`;
       }).join('')}</tbody>

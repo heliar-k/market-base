@@ -10,7 +10,7 @@
 .fed-doc { border: 1px solid var(--border); border-radius: 8px; background: var(--surface); padding: 16px 20px; }
 .fed-doc-head { display: flex; gap: 10px; align-items: baseline; flex-wrap: wrap; }
 .fed-doc-title { font-size: 14px; font-weight: 700; color: var(--text); text-decoration: none; }
-.fed-doc-title:hover { color: var(--accent); }
+.fed-doc-title:hover { color: var(--accent-ink); }
 .fed-doc-meta { font-size: 12px; color: var(--text-dim); }
 .fed-doc-excerpt { font-size: 12px; line-height: 1.6; color: var(--text-secondary); margin-top: 6px; }
 .fed-doc-hits { font-size: 11px; color: var(--text-dim); margin-top: 4px; }
@@ -19,15 +19,15 @@
 .fed-group { margin-bottom: 14px; }
 .fed-group-head { display: flex; align-items: center; gap: 8px; padding: 8px 4px; cursor: pointer;
   border-bottom: 1px solid var(--border); user-select: none; font-weight: 700; }
-.fed-group-head:hover { color: var(--accent); }
+.fed-group-head:hover { color: var(--accent-ink); }
 .fed-group-arr { display: inline-block; font-size: 11px; transition: transform .15s; }
 .fed-group-closed .fed-group-arr { transform: rotate(-90deg); }
 .fed-group-closed .fed-group-body, .fed-group-closed .fed-more-btn { display: none; }
 .fed-group-cnt { font-size: 12px; font-weight: 400; color: var(--text-dim); }
 .fed-group-body { display: flex; flex-direction: column; gap: 8px; padding: 8px 0; }
 .fed-more-btn { padding: 6px; text-align: center; border: 1px dashed var(--btn-border); border-radius: 6px;
-  color: var(--accent); font-size: 13px; text-decoration: none; cursor: pointer; }
-.fed-more-btn:hover { border-color: var(--accent); }
+  color: var(--accent-ink); font-size: 13px; text-decoration: none; cursor: pointer; }
+.fed-more-btn:hover { border-color: var(--accent-ink); }
 
 /* 市场预期（Polymarket）概率条：绿 = 降息 / 灰 = 不变 / 红 = 加息，其余强调色 */
 .fed-odds-row { display: flex; align-items: center; gap: 8px; font-size: 12px; padding: 2px 0; }

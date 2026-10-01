@@ -10,7 +10,7 @@
   --color-up: #26a69a;
   --color-down: #ef5350;
   --color-neutral: #9ca3af;
-  --color-warn: #ff9800;
+  --color-warn: #b45309; /* 亮色压深：#ff9800 在白卡只有 2.16:1（作正文色/44px 大字号均不达标）→ #b45309 白卡 5.02；暗色保持 #ff9800（8.02:1 已过） */
   --color-brand: #1a73e8; /* 品牌蓝（= 主题 accent，暗色见下方 body.dark） */
   /* 饱和色带端点格上的反色文字（相关热力图 |r|≥0.75 格）：亮主题深端点配白字 */
   --text-on-saturated: #fff;

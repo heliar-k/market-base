@@ -237,6 +237,12 @@ function renderStatusRow(d) {
       const sub = document.getElementById('corr-matrix-sub');
       if (sub) sub.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     });
+    // 「点结论→定位数据」联动不能只给鼠标：卡片是 div，补 tabindex + Enter/Space
+    card.tabIndex = 0;
+    card.setAttribute('role', 'button');
+    card.addEventListener('keydown', e => {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); card.click(); }
+    });
     row.appendChild(card);
   }
 }

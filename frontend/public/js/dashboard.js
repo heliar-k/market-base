@@ -212,11 +212,19 @@ function renderTable() {
           <td>${fmtChg(r.unit, r.chg?.d5)}</td>
           <td>${fmtChg(r.unit, r.chg?.d20)}</td>
           <td>${spark}</td>
-          <td style="color:var(--text-muted)">${r.as_of ?? '—'}</td>
+          <td style="color:var(--text-dim)">${r.as_of ?? '—'}</td>
           <td class="${cls}" style="font-size:.85em">${fresh}</td>
         </tr>`;
       }).join('')}</tbody>
     </table></div>`;
+  // 整行 cursor:pointer 只是装饰——真链接在第一格的 <a>（鼠标点行体什么也不会发生）。
+  // 转发到该链接；没链接的行摘掉 .dash-row-click，不留可点假象。
+  // 键盘无需额外处理：行内 <a> 本身可聚焦，上一轮的全局 :focus-visible 已给焦点环。
+  wrap.querySelectorAll('.dash-row-click').forEach(tr => {
+    const a = tr.querySelector('a');
+    if (!a) { tr.classList.remove('dash-row-click'); return; }
+    tr.addEventListener('click', e => { if (e.target !== a) a.click(); });
+  });
 }
 
 // 六板块快照（assets/overview tables）
@@ -330,8 +338,13 @@ async function refreshWatch() {
     });
   });
   card.querySelectorAll('[data-go-stock]').forEach(row => {
+    // 纯 div 行只有 click 监听，键盘进不去：补 tabindex + Enter/Space 转发
+    row.tabIndex = 0;
     row.addEventListener('click', () => {
       window.dispatchEvent(new CustomEvent('go-stock', { detail: row.dataset.goStock }));
+    });
+    row.addEventListener('keydown', e => {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); row.click(); }
     });
   });
 }
