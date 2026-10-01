@@ -1057,6 +1057,7 @@ TBIL,F/m US Treasury 3 Month Bill Fund,bond
 TCAN,21Shares Canton Network ETF,broad
 TCHI,iShares MSCI China Multisector Tech ETF,global
 TDCL,GraniteShares 2x Long TDC Daily ETF,leveraged_inverse
+TDEM,T. Rowe Price Dynamic Emerging Markets Bond ETF,bond
 TDI,Touchstone Dynamic International ETF,global
 TDIV,First Trust NASDAQ Technology Dividend Index Fund,factor_income
 TDNA,T. Rowe Price Biotech ETF,theme
@@ -1268,7 +1269,7 @@ XQQI,NEOS Boosted Nasdaq-100 High Income ETF,factor_income
 XRPC,Canary XRP ETF,broad
 XRPI,Volatility Shares Trust XRP ETF,broad
 XRPT,Volatility Shares Trust XRP 2X ETF,leveraged_inverse
-XSPC,VegaShares SpaceX & Beyond Earth ETF,theme
+XSPC,VegaShares Space & AI ETF,theme
 XSPI,NEOS Boosted S&P 500 High Income ETF,factor_income
 XT,iShares Future Exponential Technologies ETF,broad
 XUSM,MarketDesk International Momentum ETF,factor_income
@@ -2321,6 +2322,7 @@ DYLD,LeaderShares Dynamic Yield ETF,broad
 DYLG,Global X Dow 30 Covered Call & Growth ETF,high_beta
 DYNF,iShares U.S. Equity Factor Rotation Active ETF,broad
 EAFG,Pacer Developed Markets Cash Cows Growth Leaders ETF,global
+EAFH,Xtrackers MSCI EAFE 50% Hedged Equity ETF,broad
 EAGG,iShares ESG Aware U.S. Aggregate Bond ETF,bond
 EAGL,Eagle Capital Select Equity ETF,broad
 EALT,Innovator U.S. Equity 5 to 15 Buffer ETF - Quarterly,broad
@@ -3669,6 +3671,7 @@ LJAN,Innovator Premium Income 15 Buffer ETF - January,factor_income
 LJUL,Innovator Premium Income 15 Buffer ETF - July,factor_income
 LKOR,Northern Trust Credit-Scored US Long Corporate Bond ETF,bond
 LLDR,Global X Long-Term Treasury Ladder ETF,bond
+LLMA,Global X LLM ETF,broad
 LLYX,Defiance Daily Target 2X Long LLY ETF,leveraged_inverse
 LMUB,iShares Long-Term National Muni Bond ETF,bond
 LNGX,Global X U.S. Natural Gas ETF,commodity
@@ -3783,7 +3786,7 @@ MEMX,Matthews Emerging Markets ex China Active ETF,global
 MEMY,Tuttle Capital Meme Stock Income Blast ETF,factor_income
 METG,Leverage Shares 2X Long META Daily ETF,leveraged_inverse
 METQ,Tradr 2X Short META Daily ETF,leveraged_inverse
-METV,Roundhill Ball Metaverse ETF,broad
+METV,Roundhill Metaverse ETF,broad
 METW,Roundhill META WeeklyPay ETF,broad
 MEXX,Direxion Daily MSCI Mexico Bull 3X ETF,leveraged_inverse
 MFDX,PIMCO RAFI Dynamic Multi-Factor International Equity ETF,global
@@ -3841,6 +3844,7 @@ MMAR,Pacer Swan SOS Moderate March ETF,broad
 MMAX,iShares Large Cap Max Buffer Mar ETF,broad
 MMAY,Pacer Swan SOS Moderate (May) ETF,broad
 MMCA,NYLIM MacKay California Muni Intermediate ETF,broad
+MMHI,NYLIM MacKay Muni High Income ETF,factor_income
 MMID,MFS Active Mid Cap ETF,broad
 MMIN,NYLIM MacKay Muni Insured ETF,broad
 MMIT,NYLIM MacKay Muni Intermediate ETF,broad
@@ -4089,8 +4093,10 @@ OBOR,KraneShares MSCI One Belt One Road Index ETF,broad
 OCDB,Aptus October Deep Buffer ETF,broad
 OCIO,ClearShares OCIO ETF,broad
 OCNL,T-REX 2X Long DOCN Daily Target ETF,leveraged_inverse
+OCT,VanEck U.S. Equity Buffer ETF - October,broad
 OCTB,Aptus October Buffer ETF,broad
 OCTH,Innovator Premium Income 20 Barrier ETF - October,factor_income
+OCTI,AllianzIM International Equity Buffer15 Uncapped Oct ETF,global
 OCTJ,Innovator Premium Income 30 Barrier ETF - October,factor_income
 OCTM,FT Vest U.S. Equity Max Buffer ETF - October,broad
 OCTP,PGIM S&P 500 Buffer 12 ETF - October,broad
@@ -4524,7 +4530,7 @@ RFV,Invesco S&P MidCap 400 Pure Value ETF,factor_income
 RGEF,Rockefeller Global Equity ETF,broad
 RGTC,Corgi RGTI 2x Daily ETF,leveraged_inverse
 RGTU,Tradr 2X Long RGTI Daily ETF,leveraged_inverse
-RHRX,RH Tactical Rotation ETF,broad
+RHRX,Adaptive Tactical Rotation ETF,broad
 RHTX,RH Tactical Outlook ETF,broad
 RIET,Hoya Capital High Dividend Yield ETF,factor_income
 RIGS,ALPS Strategic Income Fund,factor_income
@@ -5171,6 +5177,7 @@ TPYP,Tortoise North American Pipeline ETF,broad
 TPZ,Tortoise Electrification Infrastructure ETF,broad
 TRFK,Pacer Data and Digital Revolution ETF,broad
 TRFM,AAM Transformers ETF,broad
+TRIL,VegaShares Trillions ETF,broad
 TRIO,MC Trio Equity Buffered ETF,broad
 TRND,Pacer Trendpilot Fund of Funds ETF,broad
 TROT,Invesco MSCI Treasury Duration Rotation ETF,bond
@@ -5682,6 +5689,7 @@ XVTS,FT Vest TSLA & Target Income ETF,factor_income
 XVV,iShares ESG Select Screened S&P 500 ETF,broad
 XW,Corgi Ex-U.S. Equities 2x Daily ETF,leveraged_inverse
 XWNG,Amplify Top 10 Space ETF,theme
+XX,"Roundhill S&P 500 Target 10,000 2030 ETF",broad
 XXRP,Teucrium 2x Long Daily XRP ETF,leveraged_inverse
 XXV,Simplify Ancorato Target 25 Distribution ETF,broad
 XYLD,Global X S&P 500 Covered Call ETF,broad
