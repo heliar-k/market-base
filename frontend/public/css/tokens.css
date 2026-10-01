@@ -17,6 +17,8 @@
   /* 鹰鸽语义色（美联储专题专用，与涨跌独立：鹰=偏紧=红、鸽=偏松=绿，色相偏亮以保证徽章可读） */
   --color-hawk: #ef4444;
   --color-dove: #10b981;
+  /* accent 实底上的前景（.range-btn.active 等）：亮色 #1a73e8 配白字 4.5:1 过 AA */
+  --text-on-accent: #fff;
   /* 警示梯度中间档（流动性压力五档用：down=极端 → warn-deep=强 → warn-light=温和 → neutral=平稳 → up=注入） */
   --color-warn-deep: #ff7043;
   --color-warn-light: #ffb74d;
@@ -39,6 +41,8 @@ body.dark {
   --text-on-saturated: #1f2937; /* 暗色端点为浅蓝/浅红，反色字取深灰（= 暗色 --surface-alt） */
   --color-hawk: #f87171;
   --color-dove: #34d399;
+  /* 暗色 accent = #58a6ff（浅蓝），白字只有 2.5:1 不达标 → 反色取深墨（对比 7.4:1） */
+  --text-on-accent: #0b1220;
   --color-warn-deep: #ff8a65;
   --color-warn-light: #ffcc80;
   /* 暗色徽章底加深（偷脸 Stripe 双档）：透明底在深色表面要更高占比才可见 */

@@ -27,15 +27,36 @@ body.dark {
 
 /* hover 透明叠加统一层(Grafana:不换色相);边框强档;亮色卡片阴影分层(Open Props shadow-1 量级) */
 :root { --hover-tint: rgba(11, 26, 47, .05); --border-strong: #c8d4e0; --card-shadow: 0 1px 2px rgba(16,35,61,.05), 0 1px 6px rgba(16,35,61,.04); }
-body.dark { --hover-tint: rgba(204, 204, 220, .08); --border-strong: rgba(204, 204, 220, .32); --card-shadow: none; }
+body.dark { --hover-tint: rgba(204, 204, 220, .08); --border-strong: rgba(204, 204, 220, .32); --card-shadow: none; --shadow-float: 0 2px 10px rgba(0,0,0,.5); }
+/* 浮层阴影着色（亮=与蓝灰底同调，暗=纯黑加深）：不用通用 rgba(0,0,0,.12) */
+:root { --shadow-float: 0 1px 3px rgba(16,35,61,.10), 0 4px 12px rgba(16,35,61,.08); }
 
-body { font-family: system-ui, -apple-system, sans-serif; background: var(--bg); color: var(--text); height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+/* 全站基准（专题页与 SPA 共用）：
+ * - 锚点平滑滚动（special.css 的 scroll-padding-top 才真正用得上）
+ * - 全局 focus-visible 焦点环：导航链接/标的行/Tab/胶囊等所有可交互元素统一可见；
+ *   只响应键盘焦点，不影响鼠标点击
+ * - prefers-reduced-motion 全局关闭动效
+ * - .skip-link 跳过导航：平时隐藏在视口外，Tab 聚焦时滑入左上角 */
+html { scroll-behavior: smooth; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  *, *::before, *::after { transition-duration: .01ms !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; }
+}
+.skip-link {
+  position: absolute; left: 8px; top: -48px; z-index: var(--z-float);
+  padding: 8px 14px; border-radius: 6px; background: var(--accent); color: var(--text-on-accent);
+  font-size: 13px; text-decoration: none; transition: top .15s ease;
+}
+.skip-link:focus { top: 8px; }
+
+body { font-family: system-ui, -apple-system, sans-serif; background: var(--bg); color: var(--text); height: 100dvh; display: flex; flex-direction: column; overflow: hidden; }
 
 /* ── theme toggle ────────────────────────────────────────── */
 .theme-toggle {
   margin-left: auto; padding: 4px 12px; border: 1px solid var(--btn-border);
   border-radius: 4px; background: var(--surface); cursor: pointer;
-  font-size: 13px; color: var(--text-secondary); transition: all .15s;
+  font-size: 13px; color: var(--text-secondary);
   display: flex; align-items: center; gap: 4px;
 }
 .theme-toggle:hover { background: var(--hover-tint); color: var(--accent); }
@@ -49,9 +70,10 @@ body { font-family: system-ui, -apple-system, sans-serif; background: var(--bg);
 .tab-btn {
   padding: 0 16px; border: none; background: none; cursor: pointer;
   font-size: 13px; color: var(--text-secondary); border-bottom: 2px solid transparent;
-  transition: all .15s; display: flex; align-items: center;
+  transition: color .15s, background .15s, border-color .15s, transform .1s; display: flex; align-items: center;
 }
 .tab-btn:hover { color: var(--accent); background: var(--surface-hover); }
+.tab-btn:active { transform: translateY(1px); }
 .tab-btn.active { color: var(--accent); font-weight: 600; border-bottom-color: var(--accent); }
 
 /* ── layout ─────────────────────────────────────────────── */
@@ -78,7 +100,7 @@ body { font-family: system-ui, -apple-system, sans-serif; background: var(--bg);
 /* ── dashboard ────────────────────────────────────────────── */
 .dashboard-view {
   display: none; flex-direction: column; gap: 12px;
-  overflow-y: auto; max-height: calc(100vh - 80px); padding: 4px;
+  overflow-y: auto; max-height: calc(100dvh - 80px); padding: 4px;
 }
 .dash-top {
   display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px;
@@ -199,13 +221,18 @@ body { font-family: system-ui, -apple-system, sans-serif; background: var(--bg);
 .correlation-presets .range-btn, .narr-pairs .range-btn { white-space: nowrap; flex: 0 0 auto; }
 .range-btn {
   padding: 4px 10px; border: 1px solid var(--btn-border); border-radius: 4px;
-  background: var(--surface); font-size: 12px; cursor: pointer; transition: all .15s; color: var(--text-secondary);
+  background: var(--surface); font-size: 12px; cursor: pointer; color: var(--text-secondary);
 }
 /* 偷脸质感(Grafana):hover 统一透明叠加不换色相;focus-visible 焦点环;弹性过渡曲线 */
 .range-btn:hover { background: var(--hover-tint); border-color: var(--border-strong); }
 .range-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
-.range-btn.active { background: var(--accent); color: #fff; border-color: var(--accent); }
-.range-btn, .theme-toggle, .controls label { transition: background .15s cubic-bezier(.4,0,.2,1), border-color .15s, box-shadow .15s; }
+.range-btn.active { background: var(--accent); color: var(--text-on-accent); border-color: var(--accent); }
+/* 按下反馈（物理感）：全站主要按钮类共用这一交互语言 */
+.range-btn:active, .theme-toggle:active, .controls label:active { transform: translateY(1px) scale(.985); }
+/* 按钮类过渡单源（含 transform，供下方 :active 按下反馈生效）：新增按钮类往这里加 */
+.range-btn, .theme-toggle, .controls label {
+  transition: background .15s cubic-bezier(.4,0,.2,1), border-color .15s, box-shadow .15s, color .15s, transform .1s;
+}
 
 /* ── chart containers ───────────────────────────────────── */
 .chart-card { background: var(--surface); border-radius: 8px; border: 1px solid var(--border); overflow: hidden; box-shadow: var(--card-shadow); }

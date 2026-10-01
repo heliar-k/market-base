@@ -4,7 +4,15 @@
 <meta charset="UTF-8">
   <link rel="icon" href="/favicon.svg" type="image/svg+xml">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="description" content="观澜台 — 美股与宏观研究平台：K 线技术面、GEX 期权墙、利率/流动性/信用/通胀专题仪表盘。">
+<meta property="og:type" content="website">
+<meta property="og:title" content="观澜台 — US Macro 研究平台">
+<meta property="og:description" content="每日更新的美股/指数/期权/期货技术面与宏观专题研判。">
+<meta name="theme-color" content="#f6f9fc" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#111217" media="(prefers-color-scheme: dark)">
 <title>观澜台</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap">
 <link rel="stylesheet" href="/css/app.css">
 <script src="/vendor/lightweight-charts.standalone.production.js"></script>
@@ -14,6 +22,8 @@
 <script type="module" src="/js/site-nav.js"></script>
 </head>
 <body>
+
+<a class="skip-link" href="#app-main">跳过导航，直达主区</a>
 
 <!-- 全局左侧导航（macro-view.js 渲染） -->
 <button id="macro-nav-toggle" title="展开导航">☰</button>
@@ -30,7 +40,7 @@
   <button class="sidebar-collapse-btn" id="sidebar-collapse-btn" title="收起/展开标的列表">◀</button>
 
   <!-- Center -->
-  <div class="center">
+  <div class="center" id="app-main" tabindex="-1">
     <!-- Dashboard -->
     <div class="dashboard-view">
       <div class="loading">加载中…</div>

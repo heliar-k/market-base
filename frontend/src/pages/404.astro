@@ -1,0 +1,38 @@
+---
+// 404 — Cloudflare Pages 对 404.html 的原生兜底（Astro 把 src/pages/404.astro 特殊输出为 dist/404.html）。
+// 复用 TopicLayout（主题/顶栏/时效槽位与专题页同一套），正文只给「去哪」：站点分组入口由 SITE_NAV 单源生成，
+// 不手抄链接清单（新增专题自动出现在这里）。
+import TopicLayout from '../layouts/TopicLayout.astro';
+import { SITE_NAV } from '../../public/js/site-nav.js';
+---
+<TopicLayout title="页面不存在" desc="观澜台 — 页面不存在，从这里回到各专题分组。">
+  <div class="nf-card">
+    <div class="nf-code">404</div>
+    <p class="nf-msg">这个地址下没有页面。可能是链接写错，或该专题尚未迁移。</p>
+    <div class="nf-actions">
+      <a class="range-btn active" href="/">回到仪表盘</a>
+      <a class="range-btn" href={SITE_NAV.home.page}>{SITE_NAV.home.label}</a>
+    </div>
+  </div>
+
+  <div class="link-grid">
+    {SITE_NAV.groups.map((g) => (
+      <a class="link-card" href={g.page}>
+        <span class="t">{g.label}</span>
+        <span class="d">{g.items ? `${g.items.length + 1} 个页面` : '专题入口'}</span>
+      </a>
+    ))}
+  </div>
+
+  <style>
+    .nf-card {
+      display: flex; flex-direction: column; align-items: flex-start; gap: 12px;
+      padding: 28px 32px; border: 1px solid var(--border); border-left: 3px solid var(--color-warn);
+      border-radius: 8px; background: var(--surface); box-shadow: var(--card-shadow);
+    }
+    .nf-code { font-family: var(--font-mono); font-size: 44px; font-weight: 800; line-height: 1; color: var(--text-dim); font-variant-numeric: tabular-nums; }
+    .nf-msg { font-size: 14px; color: var(--text-secondary); }
+    .nf-actions { display: flex; gap: 8px; }
+    .nf-actions a { text-decoration: none; }
+  </style>
+</TopicLayout>
