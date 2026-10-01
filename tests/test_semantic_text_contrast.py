@@ -29,6 +29,7 @@ TEXT_TOKENS = {
     "up": ("--color-up-text", "--color-up", 0.16),
     "down": ("--color-down-text", "--color-down", 0.16),
     "neutral": ("--color-neutral-text", "--color-neutral", 0.16),
+    "warn": ("--color-warn-text", "--color-warn", 0.16),
     "hawk": ("--color-hawk-text", "--color-hawk", 0.18),
     "dove": ("--color-dove-text", "--color-dove", 0.18),
 }
@@ -129,7 +130,9 @@ def test_css_does_not_use_graphic_primitives_as_text_color() -> None:
 
     border-/background-/accent-color 不算。
     """
-    pat = re.compile(r"(?<![-\w])color:\s*var\(--color-(?:up|down|neutral|hawk|dove)\)")
+    pat = re.compile(
+        r"(?<![-\w])color:\s*var\(--color-(?:up|down|neutral|warn|hawk|dove)\)"
+    )
     bad = [
         f"{p.name}:{i}:{ln.strip()}"
         for p in sorted(CSS_DIR.glob("*.css"))

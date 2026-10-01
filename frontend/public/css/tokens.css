@@ -7,38 +7,48 @@
  *   768px  手机/竖屏平板：多列栅格塌单列、装饰性文字隐藏；
  *   1024px 横屏平板及以下：侧栏收起、hero/双栏堆叠。新断点须先改本约定。 */
 :root {
-  --color-up: #26a69a;
-  --color-down: #ef5350;
+  /* 图形档（蜡烛填充 / ECharts series 调色板 / 相关热力图发散端点 / MA 线）。
+   * 2026-10 修订：原为 TradingView 默认值 #26a69a/#ef5350（「保持不动」旧决策）。实测
+   * 白卡上 up 只 3.00——正好贴 WCAG 1.4.11 非文本 3:1 的下限，细线蜡烛在白底偏淡。
+   * 现同色相小幅压深到 up #17937f / down #e8494a（白卡 3.81 / 3.83，页面底 3.60 / 3.62），
+   * 色相与亮度关系不变。回退只需改回这两个值（文本档不受影响）。 */
+  --color-up: #17937f;
+  --color-down: #e8494a;
   --color-neutral: #9ca3af;
-  /* 语义色「文本档」（与图形档分开）：--color-up/down/neutral 是 TradingView 蜡烛色，
-   * 同时充当 K 线填充、ECharts series 调色板、相关热力图发散端点——那些是图形，
-   * 不看对比度。但它们也被当正文色用（涨跌数字、徽章、tag、.re-check 对叉），亮色实测：
+  /* 语义色「文本档」（与图形档分开）：上面三个原语同时充当图形与正文色，但图形只看
+   * WCAG 1.4.11 的 3:1，正文要 4.5:1。亮色下原语作文本的实测（旧值）：
    *   up      #26a69a  白卡 3.00 / 页面底 2.84 / 16% 同色徽章底 2.55
    *   down    #ef5350  白卡 3.49 / 页面底 3.30 / 徽章底 2.86
    *   neutral #9ca3af  白卡 2.54 / 页面底 2.40 / 徽章底 2.23   ← 最差
-   * 均低于 AA 4.5:1。故拆出 -text 档，只给 color: 用；图形仍用原语，蜡烛观感不变。
-   * 选定值以「最难的那档底」（16% 同色徽章底）反压、保色相：
+   * 故拆出 -text 档，只给 color: 用。
+   * 选定值以「最难的那档底」（16% 同色徽章底）反压、保色相：按白卡选会留一堆假达标
+   *（down 候选 #d93025 白卡 4.77 已过，徽章底只 3.92）：
    *   up #0f766e → 徽章底 4.66 / 白卡 5.47
-   *   down #c62828 → 4.61 / 5.62（#d93025 白卡能到 4.77，但徽章底只 3.92，不够）
+   *   down #c62828 → 4.61 / 5.62
    *   neutral #5b6472 → 5.25 / 5.98
    * 回归测试：tests/test_semantic_text_contrast.py */
   --color-up-text: #0f766e;
   --color-down-text: #c62828;
   --color-neutral-text: #5b6472;
-  --color-warn: #b45309; /* 亮色压深：#ff9800 在白卡只有 2.16:1（作正文色/44px 大字号均不达标）→ #b45309 白卡 5.02；暗色保持 #ff9800（8.02:1 已过）。注意：本 token 未拆 -text 档，MA20 等橙色图线跟着变深（已确认接受） */
+  /* 警示色同构拆分：图形档回到亮橙 #ff9800（MA20 / MACD 信号线 / series 调色板第二位），
+   * 文本档 #9a5b00——选它而非 #b45309 因为后者压在 16% 橙底上只 4.44（差 0.06）；
+   * #9a5b00 徽章底 4.80 / 白卡 5.43。 */
+  --color-warn: #ff9800;
+  --color-warn-text: #9a5b00;
   --color-brand: #1a73e8; /* 品牌蓝（= 主题 accent，暗色见下方 body.dark） */
   /* 饱和色带端点格上的反色文字（相关热力图 |r|≥0.75 格）：亮主题深端点配白字 */
   --text-on-saturated: #fff;
-  /* 鹰鸽语义色（美联储专题专用，与涨跌独立：鹰=偏紧=红、鸽=偏松=绿，色相偏亮以保证徽章可读） */
+  /* 鹰鸽语义色（美联储专题专用，与涨跌独立：鹰=偏紧=红、鸽=偏松=绿）。
+   * 与涨跌同构的问题（18% 同色底上 hawk 2.96 / dove 2.13），同样拆文本档：
+   * hawk #b91c1c → 白卡 6.47 / 18%底 5.09；dove #047857 → 5.48 / 4.61 */
   --color-hawk: #ef4444;
   --color-dove: #10b981;
-  /* 鹰鸽徽章与涨跌同构的问题（18% 同色底上 hawk 2.96 / dove 2.13），同样拆文本档：
-   * hawk #b91c1c → 白卡 6.47 / 18%底 5.09；dove #047857 → 5.48 / 4.61 */
   --color-hawk-text: #b91c1c;
   --color-dove-text: #047857;
   /* accent 实底上的前景（.range-btn.active 等）：亮色 #1a73e8 配白字 4.5:1 过 AA */
   --text-on-accent: #fff;
-  /* 警示梯度中间档（流动性压力五档用：down=极端 → warn-deep=强 → warn-light=温和 → neutral=平稳 → up=注入） */
+  /* 警示梯度中间档（流动性压力五档用：down=极端 → warn-deep=强 → warn-light=温和 → neutral=平稳 → up=注入）；
+   * 两档只做填充/色带，不作文字色（已 grep 确认） */
   --color-warn-deep: #ff7043;
   --color-warn-light: #ffb74d;
   /* 派生 token（原语 → 透明底 / 别名 / 浮层底色）见本文件末尾 `:root, body.dark` 段 */
@@ -62,6 +72,8 @@ body.dark {
   --color-down-text: #fa8585;
   --color-neutral-text: var(--color-neutral);
   --color-warn: #ff9800;
+  /* 暗色亮橙卡面 8.02 / 22% 橙底 5.30，均已过 AA → 文本档直接别名回原语（亮色才需要压深） */
+  --color-warn-text: var(--color-warn);
   --color-brand: #58a6ff;
   --text-on-saturated: #1f2937; /* 暗色端点为浅蓝/浅红，反色字取深灰（= 暗色 --surface-alt） */
   --color-hawk: #f87171;
@@ -113,7 +125,7 @@ body.dark {
   --up: var(--color-up-text);
   --down: var(--color-down-text);
   --flat: var(--color-neutral-text);
-  --warning: var(--color-warn);
+  --warning: var(--color-warn-text);
   /* 专题页 chips（原 special.css 私有 tokens，语义并入上表） */
   --chip-up-bg: var(--color-up-bg);
   --chip-up-fg: var(--color-up-text);

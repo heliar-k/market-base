@@ -419,7 +419,9 @@ function renderDiag(d) {
   const el = document.getElementById('diag-content');
   const maxScore = 20;
   const pct = Math.max(0, Math.min(100, ((d.total_score + maxScore) / (2 * maxScore)) * 100));
-  const scoreColor = d.total_score > 5 ? cssVar('--color-up') : d.total_score < -5 ? cssVar('--color-down') : cssVar('--color-warn');
+  // 分数是正文（.score-text 24px）→ 走文本档；同一色又做进度条填充，深色填充不伤可读
+  const scoreColor =
+    d.total_score > 5 ? cssVar('--color-up-text') : d.total_score < -5 ? cssVar('--color-down-text') : cssVar('--color-warn-text');
 
   let html = `
     <div class="diag-section">
