@@ -31,9 +31,16 @@ async function load() {
   document.getElementById('cards').innerHTML = cards.map(c => `
     <div class="re-card"><div class="re-corridor-label">${c.label}</div>
     <div class="re-corridor-value">${c.value}</div><div class="re-card-sub">${c.sub}</div></div>`).join('');
-  // ── 衍生品结论层（Radar + 机构vs散户）：数据取自衍生品快照，缺失时整块留空不报错 ──
-  const dd = await R.get('/api/assets/crypto-derivatives');
-  if (dd && dd.ts) { renderRadar(dd); renderConsensus(dd); }
+  // ── 衍生品结论层（Radar + 机构vs散户）：次要端点，crypto-refresh 每小时 cron 产，
+  // 静态导出缺快照时合法 404 → getOpt 降级，只挂 radar/consensus 两段，不拖垮整页 ──
+  const dd = await R.getOpt('/api/assets/crypto-derivatives');
+  if (dd && dd.ts) {
+    try { renderRadar(dd); } catch (e) { R.fail(['radar'], e); }
+    try { renderConsensus(dd); } catch (e) { R.fail(['consensus'], e); }
+  } else {
+    const miss = new Error('衍生品快照缺失（OKX/Deribit/CME，crypto-refresh 每小时 cron）：手动补 ./bin/fetch_crypto_derivatives 或 gh workflow run crypto-refresh.yml');
+    R.fail(['radar', 'consensus'], miss);
+  }
 
   const cx0 = (d.ratio && d.ratio.cross) || {};
   if (d.cards && d.cards.length) document.getElementById('re-as-of').textContent =
@@ -48,7 +55,9 @@ async function load() {
   const L = d.liquidity || {};
   const lsec = document.createElement('div');
   lsec.className = 're-section';
-  lsec.innerHTML = '<h2>宏观 × 加密流动性溢出</h2><p style="margin:0 0 8px">净流动性 = WALCL − TGA − RRP</p>';
+  document.getElementById('liquidity').appendChild(lsec);
+  try {
+    lsec.innerHTML = '<h2>宏观 × 加密流动性溢出</h2><p style="margin:0 0 8px">净流动性 = WALCL − TGA − RRP</p>';
   if (L.net != null) {
     // pulseColor / divColor 只进 color:（卡片无填充用法），故取文字档
     const pulseColor = L.pulse_state === '扩张' ? 'var(--up)' : 'var(--down)';
@@ -69,9 +78,10 @@ async function load() {
           <div class="re-card-sub" style="white-space:normal">${dv ? `NL ${fmt(dv.nl)}T · BTC ${dv.btc >= 0 ? '+' : ''}${fmt(dv.btc)}% · 30日` : '—'}</div></div>
       </div>`;
   }
-  document.getElementById('liquidity').appendChild(lsec);
+  } catch (e) { R.fail(['liquidity'], e); }
 
   // ── 净流动性 vs BTC（180 日）──
+  try {
   if (L.nl_series && L.nl_series.length) {
     const csec = document.createElement('div');
     csec.className = 're-section';
@@ -106,10 +116,12 @@ async function load() {
       <b style="font-size:13px">交易含义</b><p style="margin:6px 0 0;font-size:13px;line-height:1.7">${L.trading}</p></div>`;
   }
   document.getElementById('liquidity').appendChild(tsec);
+  } catch (e) { R.fail(['liquidity'], e); }
 
   // ── 加密走势（归一化 % + BTC/ETH 价比右轴）──
   const tr = d.trend || { dates: [], series: {} };
   const keys = Object.keys(tr.series).filter(k => k !== 'RATIO');
+  try {
   if (keys.length && tr.dates.length) {
     const nsec = document.createElement('div');
     nsec.className = 're-section';
@@ -146,11 +158,14 @@ async function load() {
       });
     });
   }
+  } catch (e) { R.fail(['trend'], e); }
 
   // ── BTC/ETH 价比（指标卡 + ETH/BTC 倒数轴图 + funding 差卡 + 规则引擎叙事）──
   const ra = d.ratio;
   const rasec = document.createElement('div');
   rasec.className = 're-section';
+  document.getElementById('ratio').appendChild(rasec);
+  try {
   rasec.innerHTML = '<h2>BTC/ETH 价比</h2>';
   if (!ra) {
     rasec.innerHTML += '<p>价比数据不足（需 BTC/ETH 日线 ≥ 60 行）：运行 <code>./bin/fetch_yfinance</code> 补齐 asset_prices.csv。</p>';
@@ -223,7 +238,7 @@ async function load() {
         <b style="font-size:13px">价比解读</b><p style="margin:6px 0 0;font-size:13px;line-height:1.7">${ra.narrative}</p></div>`;
     }
   }
-  document.getElementById('ratio').appendChild(rasec);
+  } catch (e) { R.fail(['ratio'], e); }
   if (ra && ra.dates && ra.dates.length) {
     // 倒数轴：ETH/BTC = 1/价比，上行 = ETH 强（山寨季直觉）；指标卡仍报价比口径
     const inv = arr => (arr || []).map(v => v == null ? null : 1 / v);
@@ -256,18 +271,20 @@ async function load() {
   // ── 近期收盘价（最近 20 个交易日）──
   const rc = d.recent || { dates: [], series: {} };
   const rkeys = Object.keys(rc.series);
+  const rsec = document.createElement('div');
+  rsec.className = 're-section';
+  document.getElementById('recent').appendChild(rsec);
+  try {
   const rows = rc.dates.map((dt, i) => {
     const row = { 日期: dt };
     rkeys.forEach(k => { row[k] = rc.series[k][i]; });
     return row;
   });
-  const rsec = document.createElement('div');
-  rsec.className = 're-section';
   rsec.innerHTML = '<h2>近期收盘价（最近 20 个交易日）</h2>';
   const fmts = { 日期: v => v };
   rkeys.forEach(k => { fmts[k] = v => fmt(v); });
   rsec.appendChild(R.table(['日期'].concat(rkeys), rows, fmts));
-  document.getElementById('recent').appendChild(rsec);
+  } catch (e) { R.fail(['recent'], e); }
 
   document.getElementById('re-gen').textContent = '规则引擎（LLM 预留）· 流动性口径：WALCL − TGA − RRP；β 为 90 日净流动性变化对资产日收益率回归；价比指标算在 BTC/ETH 序列上（图取倒数轴）；funding 差 = ETH−BTC 永续年化；交叉验证 = PCR 差（衍生品快照历史）/ 30d 相关性（asset_prices 滚动）/ NL 脉冲 β（价比日收益 × NL 20 日脉冲，0/10/20 日滞后取主导）/ Polymarket 隐含涨幅比（年终 reach 阶梯 P≈50% 插值）/ BTCD / ETF 流量比（5d）；收盘价数据源 yfinance';
 }
@@ -361,6 +378,6 @@ function renderConsensus(d) {
   document.getElementById('consensus').appendChild(csec);
 }
 
-load().catch(e => R.fail(['cards', 'radar', 'consensus', 'liquidity', 'trend', 'ratio', 'recent'], e));
+load().catch(e => R.fail(['cards', 'liquidity', 'trend', 'ratio', 'recent'], e));
 </script>
 </TopicLayout>

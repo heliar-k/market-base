@@ -251,6 +251,20 @@ const R = {
     return resp.json();
   },
 
+  // 可选端点：任何失败（404 / 网络 / JSON 解析）返回 null 而不抛。
+  // 静态导出端 src/export_pages.py 的 _safe() 会跳过当日缺数据的端点，
+  // 对应 JSON 可以合法不存在 —— 用 R.get 进 Promise.all 会让整个 await reject，
+  // 一个源挂 = 整页空白。缺源段自己渲染空态（R.fail），其余段照常。
+  async getOpt(url) {
+    try {
+      const resp = await fetch(url);
+      if (!resp.ok) return null;
+      return await resp.json();
+    } catch {
+      return null;
+    }
+  },
+
   // 数据表格（复用 expectations 页的 re-table 样式）
   // keys: 可选，显式指定每列对应的行键；缺省按 Object.keys(row) 顺序取列
   // （行键顺序与列头不一致时会错列，显式 keys 可避免——审计 P1-③）
@@ -274,7 +288,12 @@ const R = {
       headers.forEach((h, j) => {
         const td = document.createElement('td');
         const key = (keys && keys[j]) || Object.keys(row)[j];
-        const fmt = formatters[key] || ((v) => (v === null || v === undefined || v === '' ? '—' : String(v)));
+        // 默认格式化器：html 模式下必须转义 —— 未写 formatter 的列往往是名称/代码这类
+        // 自由文本（来自 yfinance / Nasdaq / Wikipedia），它们会直接进 innerHTML。
+        // 显式 formatter 仍自己负责（它们要返回着色 <span> 等 markup）。
+        // textContent 模式不能转义：不解析 HTML，`&` 会被字面量显示成 `&amp;`。
+        const asText = (v) => (html ? R.esc(String(v)) : String(v));
+        const fmt = formatters[key] || ((v) => (v === null || v === undefined || v === '' ? '—' : asText(v)));
         const cell = fmt(row[key], row);
         if (html) td.innerHTML = cell; else td.textContent = cell;
         // 数值列右对齐（纯数字/百分号/负号/单位符号开头），小数位纵向对齐；首列名称保持左对齐。

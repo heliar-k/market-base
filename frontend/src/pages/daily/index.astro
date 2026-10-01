@@ -117,13 +117,12 @@ const LINKS = {
 };
 
 async function load() {
-  const [brief, rex] = await Promise.allSettled([
+  // brief 主端点（驱动全页）挂了 = 整页真没数据，R.get 抛给页级 catch；
+  // rex 次要端点（只驱动 db-fomc 里的「市场隐含」徽章）走 getOpt，静态导出 _safe() 会跳过缺数据端点，404 合法
+  const [d, rex] = await Promise.all([
     R.get('/api/daily-brief'),
-    R.get('/api/rate-expectations'),
+    R.getOpt('/api/rate-expectations'),
   ]);
-  // 主数据失败 → 抛给 load().catch 统一走 R.fail 错误态；rex 容忍失败（仅影响 FOMC 隐含概率徽章，可缺）
-  if (brief.status !== 'fulfilled') throw brief.reason;
-  const d = brief.value;
   const ind = d.indicators || { as_of: null, groups: {}, rows: [] };
 
   // 页头多源时效标签（各分组观测日一段，文案组装见 R.asOf）
@@ -144,7 +143,8 @@ async function load() {
   document.getElementById('db-note').textContent =
     '以下情景按共同观测日期对齐，用最近 5 个观测间隔检验价格方向。先核验再形成方向判断。';
 
-  // ── 情景卡 ──
+  // ── 情景卡（段级兜底：本段抛错不拖垮后续段）──
+  try {
   document.getElementById('db-scenarios').innerHTML = (d.scenarios || []).map(s => `
     <div class="re-card db-click ${s.matched ? 'db-hit' : 'db-flat'}" data-scen="${s.key}">
       <div class="re-corridor-label">${s.title}
@@ -167,6 +167,7 @@ async function load() {
   document.querySelectorAll('#db-scenarios .re-card').forEach(c => {
     c.addEventListener('click', () => focusReading(SCEN_KEYS[c.dataset.scen]?.[0]));
   });
+  } catch (e) { R.fail(['db-scenarios'], e); }
 
   // ── FOMC 倒计时 ──
   const fomcEl = document.getElementById('db-fomc');
@@ -176,11 +177,14 @@ async function load() {
     const days = Math.ceil((new Date(nx.year, nx.month - 1, nx.end_day) - new Date()) / 86400000);
     const next = `${nx.year}-${String(nx.month).padStart(2, '0')}-${String(nx.end_day).padStart(2, '0')}`;
     let exp = '';
-    if (rex.status === 'fulfilled' && rex.value?.meetings?.length) {
-      const m = rex.value.meetings[0];
+    if (rex?.meetings?.length) {
+      const m = rex.meetings[0];
       const p = Math.max(m.prob_cut, m.prob_hold, m.prob_hike);
       const k = p === m.prob_cut ? '降息' : p === m.prob_hike ? '加息' : '按兵不动';
       exp = `<span class="re-badge chip">市场隐含：${k} ${(p * 100).toFixed(0)}%</span>`;
+    } else {
+      // rex 缺失只降级本徽章（README 式空状态给修复命令），不白屏不静默，倒计时徽章照常
+      exp = `<span class="re-badge chip">缺市场隐含概率（data/rate_expectations），运行 ./bin/fetch_rate_expectations 后重新导出</span>`;
     }
     fomcEl.innerHTML = `
       <span class="re-badge chip">下一次 FOMC 决议 · ${next}（${days > 0 ? days + ' 天后' : '进行中'}）</span>
@@ -188,7 +192,8 @@ async function load() {
       <span class="re-badge chip">会后看 2Y、美元、信用利差对政策措辞的反应</span>`;
   }
 
-  // ── 跨资产变化表 + 读法行联动 ──
+  // ── 跨资产变化表 + 读法行联动（段级兜底）──
+  try {
   const readings = {};
   (d.readings || []).forEach(r => readings[r.key] = r);
   const html = `
@@ -213,10 +218,11 @@ async function load() {
       }).join('')}</tbody>
     </table></div>`;
   document.getElementById('db-table').innerHTML = html;
-  renderReadings(d.readings || []);
   document.querySelectorAll('#db-table tr[data-k]').forEach(tr => {
     tr.addEventListener('click', () => focusReading(tr.dataset.k));
   });
+  } catch (e) { R.fail(['db-table'], e); }
+  try { renderReadings(d.readings || []); } catch (e) { R.fail(['db-readings'], e); }
 
 // ── 各指标的正反两面 ──
 function renderReadings(list) {
@@ -255,7 +261,8 @@ function focusReading(key) {
   card.classList.add('db-flash');
 }
 
-  // ── 报警 ──
+  // ── 报警（段级兜底）──
+  try {
   if (d.alerts?.length) {
     document.getElementById('sec-alerts').style.display = 'flex';
     document.getElementById('db-alerts').innerHTML = d.alerts.map(a => `
@@ -264,7 +271,8 @@ function focusReading(key) {
         <div class="re-card-sub" style="white-space:normal">${a.text}</div>
       </div>`).join('');
   }
+  } catch (e) { R.fail(['db-alerts'], e); }
 }
-load().catch(e => R.fail(['db-badges', 'db-scenarios', 'db-fomc', 'db-table'], e));
+load().catch(e => R.fail(['db-badges', 'db-scenarios', 'db-fomc', 'db-table', 'db-readings'], e));
 </script>
 </TopicLayout>

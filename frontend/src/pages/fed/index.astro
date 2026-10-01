@@ -408,9 +408,11 @@ async function load() {
     ['概览', 'cards'], ['演讲', 'sec-speeches'], ['鹰鸽追踪', 'sec-hawk'], ['市场预期', 'sec-odds'],
   ].map(([t, id]) => `<a href="#${id}">${t}</a>`).join('');
 
+  // cal 为次要端点（只驱动「下次 FOMC / 目标利率」两张卡）：静态导出 _safe() 会跳过缺数据
+  // 端点，404 合法 → getOpt 缺失不拖垮整页，缺失时只降级这两张卡（sub 给修复命令）
   const [data, cal] = await Promise.all([
     R.get('/api/fed/overview'),
-    R.get('/api/fomc/calendar'),
+    R.getOpt('/api/fomc/calendar'),
   ]);
   const ind = data.indicator;
   const fmtD = s => s ? `${s.date.slice(0,4)}-${s.date.slice(4,6)}-${s.date.slice(6)}` : '—';
@@ -421,6 +423,7 @@ async function load() {
 
   // 下次 FOMC 会议倒计时：静态 JSON 冻结了构建期日历，按打开页面时间重选下一场；
   // 天数口径统一为 end_day（决议日）+ ceil，与 dashboard/daily 页一致
+  // （cal 为 null 时 nextMeeting 内部 ?. 守卫返回 null，nx/天数/日期文案自动降级为「—」）
   const nx = R.nextMeeting(cal);
   const latestStmt = data.statements.find(s => s.kind === 'statement');
   let days = '—';
@@ -434,15 +437,20 @@ async function load() {
   document.getElementById('cards').replaceChildren(R.cards([
     { label: '鹰鸽指示器', value: `${ind.score > 0 ? '+' : ''}${ind.score} 分`, sub: `${ind.label} · 范围 −5 ~ +5（最近 ${ind.sample} 条）`, accent: true },
     { label: '下次 FOMC', value: nx ? (days > 0 ? `${days} 天` : '会议中') : '—', sub: nextTxt },
-    { label: '目标利率', value: `${Number(cal.target_lower).toFixed(2)}–${Number(cal.target_upper).toFixed(2)}%`, sub: '联邦基金目标区间' },
+    { label: '目标利率', value: cal ? `${Number(cal.target_lower).toFixed(2)}–${Number(cal.target_upper).toFixed(2)}%` : '—', sub: cal ? '联邦基金目标区间' : '缺 FOMC 日历/目标区间（data/fred/rates），运行 ./bin/fetch_fred 后重新导出' },
     { label: '最新声明', value: latestStmt?.label, sub: latestStmt?.date },
     { label: '最新演讲', value: data.speeches[0]?.label, sub: data.speeches[0]?.speaker },
   ]));
 
-  renderStatements(document.getElementById('sec-stmts'), data);
-  renderSpeeches(document.getElementById('sec-speeches'), data);
-  renderHawkish(document.getElementById('sec-hawk'), data);
-  renderOdds(document.getElementById('sec-odds'), data);
+  // 段级兜底：四段都只依赖主数据 data，一段渲染抛错不拖垮同页其他段
+  for (const [id, fn] of [
+    ['sec-stmts', renderStatements],
+    ['sec-speeches', renderSpeeches],
+    ['sec-hawk', renderHawkish],
+    ['sec-odds', renderOdds],
+  ]) {
+    try { fn(document.getElementById(id), data); } catch (e) { R.fail([id], e); }
+  }
 }
 
 load().catch(e => R.fail(['cards', 'sec-stmts', 'sec-speeches', 'sec-hawk', 'sec-odds'], e));

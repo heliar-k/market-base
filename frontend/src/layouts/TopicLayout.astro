@@ -39,7 +39,12 @@ const TABS = [SITE_NAV.home, ...SITE_NAV.groups];
 <!-- preconnect：字体主机提前握手，去掉 Google Fonts 的 DNS+TLS 串行等待 -->
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap">
+<!-- 异步加载：同步 <link rel=stylesheet> 是渲染阻塞资源，而 fonts.googleapis.com 在大陆不可达
+     —— 首屏要白到 TCP 超时才继续。--font-mono 已有完整回退链（tokens.css:62 SF Mono /
+     ui-monospace / Menlo / Consolas），JetBrains Mono 是锦上添花，不值得拿首屏换。
+     media=print 不阻塞渲染，加载完再升回 all（无 noscript 兑底：本站数据全靠 JS 拉，
+     禁用 JS 时整页本就是空的）。 -->
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap" media="print" onload="this.media='all'">
 <link rel="stylesheet" href="/css/app.css">
 <link rel="stylesheet" href="/css/special.css">
 <!-- 共享 JS 留在 public/js（与未迁移页同一份），is:inline = 原样输出不走打包管线（ADR-0003） -->

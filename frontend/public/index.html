@@ -13,7 +13,9 @@
 <title>观澜台</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap">
+<!-- 异步加载字体：同步 stylesheet 在 fonts.googleapis.com 不可达时会阻塞首屏到 TCP 超时
+     （同 TopicLayout，理由与回退链说明见那边） -->
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap" media="print" onload="this.media='all'">
 <link rel="stylesheet" href="/css/app.css">
 <script src="/vendor/lightweight-charts.standalone.production.js"></script>
 <script src="/vendor/echarts.min.js"></script>

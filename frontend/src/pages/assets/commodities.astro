@@ -19,7 +19,9 @@ import Section from '../../components/Section.astro';
 const GROUP_TITLES = { equities: '美股', bonds: '债券', commodities: '商品', etfs: 'ETF', fx: '外汇', crypto: '加密货币' };
 
 async function load() {
-  const [d, ov] = await Promise.all([R.get('/api/assets/commodities'), R.get('/api/assets/overview')]);
+  // 主端点（驱动卡片与本页图表）保持 R.get：它挂了整页错误态是对的。
+  // overview 是次要源（data/yfinance/asset_prices.csv），缺一天不该把商品页一起报废 → getOpt。
+  const [d, ov] = await Promise.all([R.get('/api/assets/commodities'), R.getOpt('/api/assets/overview')]);
   const cards = (d.cards || []).map(i => ({
     label: i.name + ' · ' + i.symbol,
     value: fmt(i.last),
@@ -64,7 +66,7 @@ async function load() {
   grid.style.display = 'grid';
   grid.style.gridTemplateColumns = 'repeat(auto-fit, minmax(320px, 1fr))';
   grid.style.gap = '12px';
-  Object.entries(ov.tables || {}).forEach(([g, rows]) => {
+  Object.entries((ov && ov.tables) || {}).forEach(([g, rows]) => {
     const sec = document.createElement('div');
     sec.innerHTML = `<h3 style="font-size:13px;font-weight:700;margin:0 0 6px">${GROUP_TITLES[g] || g}</h3>`;
     sec.appendChild(R.table(['代码', '名称', '最新价', '日涨跌幅'], (rows || []).map(r => ({
@@ -77,6 +79,10 @@ async function load() {
   });
   wrap.appendChild(grid);
   document.getElementById('asset-compare').appendChild(wrap);
+  // 缺源时盖掉空壳段（R.fail 写 innerHTML，正好把刚 append 的空 wrap 一并替掉）
+  if (!ov) {
+    R.fail(['asset-compare'], new Error('跨资产快照缺失（/api/assets/overview）：运行 ./bin/fetch_yfinance 补齐后重新导出'));
+  }
 
   // 归一化走势（1 年）
   const n = d.normalized || { dates: [], series: {} };

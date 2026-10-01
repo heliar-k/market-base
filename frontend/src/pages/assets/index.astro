@@ -99,7 +99,9 @@ async function load() {
   ];
   const wrap = document.createElement('div');
   wrap.style.display = 'grid';
-  wrap.style.gridTemplateColumns = 'repeat(auto-fit, minmax(430px, 1fr))';
+  // min(100%, 430px)：裸写 430px 在 360px 手机上会撑出横向溢出（grid 轨道不会缩到容器以下），
+  // 窄屏退化成单列满宽。表内横向滚动交给 .re-table-wrap 自己处理。
+  wrap.style.gridTemplateColumns = 'repeat(auto-fit, minmax(min(100%, 430px), 1fr))';
   wrap.style.gap = '14px';
   groups.forEach(([title, rows]) => {
     const sec = document.createElement('div');

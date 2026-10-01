@@ -116,15 +116,14 @@ async function load() {
   const el = document.getElementById('re-tbody');
   el.innerHTML = '<tr><td colspan="7" class="re-loading">加载中…</td></tr>';
 
-  const [reRes, fomcRes, histRes, d] = await Promise.all([
+  const [reRes, fomc, histRes, d] = await Promise.all([
     fetch('/api/rate-expectations'),
-    fetch('/api/fomc/calendar'),
-    fetch('/api/polymarket/history').then((r) => (r.ok ? r.json() : null)).catch(() => null),
+    R.getOpt('/api/fomc/calendar'),      // 次要端点：缺失时概览卡两格已有 '—' 兜底
+    R.getOpt('/api/polymarket/history'), // 次要端点：静态导出缺 JSON 合法 404，getOpt 降级为 null（原手搓 then/catch 等价物）
     R.get('/api/rates/real-rates'),
   ]);
   if (!reRes.ok) throw new Error((await reRes.json().catch(() => ({}))).detail || '数据不可用');
   const re = await reRes.json();
-  const fomc = fomcRes.ok ? await fomcRes.json() : null;
   const hist = (histRes && histRes.meetings) || {};
   AS_OF = R.todayISO();
 
@@ -303,8 +302,10 @@ function renderConvChart(meetings, hist) {
 }
 
 load().catch(e => {
+  // rate-expectations / real-rates 为主端点，挂任一 → 全页错误态（原行为）；
+  // polymarket 历史 / fomc 日历已走 R.getOpt 段级降级（收敛图空态 / 卡片 '—'），不再卷入
   document.getElementById('re-tbody').innerHTML = '<tr><td colspan="7" class="re-error">' + e.message + '</td></tr>';
-  R.fail(['re-cards', 'rp-hero'], e);
+  R.fail(['re-cards', 'rp-hero', 'conv-chart', 'triple_chart', 'spread_2_10_chart'], e);
 });
 </script>
 </TopicLayout>

@@ -30,10 +30,12 @@ async function load() {
     ['金融条件', 'fincond'], ['ETF/CDS', 'liq-etf'], ['压力仪表盘', 'stress-sec'],
   ].map(([t, id]) => `<a href="#${id}">${t}</a>`).join('');
 
+  // 主端点 overview 保持 R.get：挂了说明整页真没数据，页级错误态是正确行为。
+  // 次要端点走 getOpt：export_pages._safe() 会跳过当日缺数据的端点，404 合法，只降级对应段。
   const [d, cds, stress] = await Promise.all([
     R.get('/api/credit/overview'),
-    R.get('/api/credit/cds'),
-    R.get('/api/credit/stress'),
+    R.getOpt('/api/credit/cds'),
+    R.getOpt('/api/credit/stress'),
   ]);
   document.getElementById('re-as-of').textContent = R.asOf(d.as_of);
 
@@ -193,11 +195,19 @@ async function load() {
   lsec2.innerHTML += `<p style="margin:0">${etfStr(hyg, 'HYG')} · ${etfStr(lqd, 'LQD')}（成交量为 Yahoo 日频快照，TRACE 真实成交量尚未接入）</p>`;
   document.getElementById('liq-etf').appendChild(lsec2);
 
-  // ── CDS 专题（原 cds.html 并入）──
-  renderCds(document.getElementById('cds-sec'), cds);
+  // ── CDS 专题（原 cds.html 并入）── 次要端点：缺数据/字段炸只降级本段
+  if (cds) {
+    try { renderCds(document.getElementById('cds-sec'), cds); } catch (e) { R.fail(['cds-sec'], e); }
+  } else {
+    R.fail(['cds-sec'], new Error('CDS 数据缺失：fred/rates（DGS10）或 yfinance 快照（KBWB/SPX）未更新，先运行 ./bin/fetch_fred / ./bin/fetch_yfinance 后重新导出'));
+  }
 
-  // ── 信用压力仪表盘（原 stress.html 并入）──
-  renderStress(document.getElementById('stress-sec'), stress);
+  // ── 信用压力仪表盘（原 stress.html 并入）── 同上，只降级本段
+  if (stress) {
+    try { renderStress(document.getElementById('stress-sec'), stress); } catch (e) { R.fail(['stress-sec'], e); }
+  } else {
+    R.fail(['stress-sec'], new Error('压力仪表盘数据缺失：fred/volatility（HY_OAS）等未更新，先运行 ./bin/fetch_fred / ./bin/fetch_yfinance / ./bin/fetch_fx 后重新导出'));
+  }
 
   document.getElementById('re-gen').textContent = `研判生成：${R.genText(d.generator)} · ${d.as_of} · ICE BofA 系列经 FRED API 仅提供近 ~3 年，10Y 分位按可用历史计算`;
 }
@@ -312,6 +322,7 @@ function renderStress(root, d) {
   wrap.appendChild(xsec);
 }
 
-load().catch(e => R.fail(['regime', 'oas-row', 're-signals', 'layers', 'funding', 'sloos', 'quality', 'fincond', 'liq-etf', 'cds-sec', 'stress-sec'], e));
+// 页级兜底只盖主端点驱动的段（cds-sec / stress-sec 已有自己的段级兜底）
+load().catch(e => R.fail(['regime', 'oas-row', 're-signals', 'layers', 'funding', 'sloos', 'quality', 'fincond', 'liq-etf'], e));
 </script>
 </TopicLayout>

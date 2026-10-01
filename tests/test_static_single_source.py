@@ -125,6 +125,50 @@ def test_as_of_formatter_present() -> None:
     )
 
 
+# ── 多端点页的容错纪律（审计 R3）──
+
+
+def test_multi_endpoint_pages_treat_secondary_as_optional() -> None:
+    """拉 ≥2 个 /api/ 端点的页面，至少有一个要走 `R.getOpt`。
+
+    静态导出端 `src/export_pages.py` 的 `_safe()` 会跳过当日缺数据的端点 → 对应 JSON
+    可以合法 404。全用 `R.get` 时一个次要端点缺失就让整个 `await` reject，页级
+    `load().catch` 把 `.re-error` 写进**所有**段 —— 本来正常的段跟着一起报废。
+    规则只查「有没有把任一端点当可选」，不查具体结构，以免和页面写法绑死。
+    """
+    offenders = []
+    for page in sorted(ASTRO_PAGES.rglob("*.astro")):
+        text = page.read_text(encoding="utf-8")
+        endpoints = set(re.findall(r"""['"`]/api/[A-Za-z0-9_\-./]+""", text))
+        if len(endpoints) >= 2 and "R.getOpt(" not in text:
+            offenders.append(f"{page.relative_to(ROOT)}（{len(endpoints)} 端点）")
+    assert not offenders, (
+        "次要端点应走 R.getOpt（失败返回 null）+ 段级空态，不得全部用 R.get："
+        f"{offenders}"
+    )
+
+
+def test_r_fail_targets_exist_on_page() -> None:
+    """`R.fail([ids], e)` 里的 id 必须能在同一页找到 `id="…"`。
+
+    `rates-common.js` 的 `R.fail` 对每个 id 先 `getElementById` 再 `if (el)` 写错误态
+    —— id 拼错或段被改名后，错误态**静默不显示**（不报错、不留痕迹），正好死在
+    「数据缺失要给原因」的约定上。人跟 grep 看不出来，进测试。
+    """
+    offenders = []
+    for page in sorted(ASTRO_PAGES.rglob("*.astro")):
+        text = page.read_text(encoding="utf-8")
+        have = set(re.findall(r'id="([a-zA-Z0-9_-]+)"', text))
+        used: set[str] = set()
+        for arg in re.findall(r"R\.fail\(\[([^\]]*)\]", text):
+            used |= set(re.findall(r"'([a-zA-Z0-9_-]+)'", arg))
+        if miss := sorted(used - have):
+            offenders.append(f"{page.relative_to(ROOT)} → {miss}")
+    assert not offenders, (
+        "R.fail 目标 id 在页面上不存在（错误态会静默失效）：" + "; ".join(offenders)
+    )
+
+
 # ── 脚本语法（is:inline 不走打包管线，改完必须能直接被浏览器/Node 解析）──
 
 
