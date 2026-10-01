@@ -2,8 +2,8 @@
 
 /* 鹰鸽徽章 */
 .fed-badge { display: inline-block; padding: 1px 8px; border-radius: 10px; font-size: 11px; font-weight: 600; }
-.fed-badge.hawk { background: var(--color-hawk-bg); color: var(--color-hawk); }
-.fed-badge.dove { background: var(--color-dove-bg); color: var(--color-dove); }
+.fed-badge.hawk { background: var(--color-hawk-bg); color: var(--color-hawk-text); }
+.fed-badge.dove { background: var(--color-dove-bg); color: var(--color-dove-text); }
 .fed-badge.mid { background: var(--color-neutral-bg); color: var(--text-secondary); }
 
 /* 文档条目（声明/演讲列表） */

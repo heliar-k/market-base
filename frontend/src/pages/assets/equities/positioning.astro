@@ -109,7 +109,7 @@ function contractCard(c) {
     </div>
     <div class="pos-cols">
       <div><div class="k">净持仓</div><div class="v" style="color:${netColor}">${c.net >= 0 ? '+' : ''}${num(c.net)}</div></div>
-      <div><div class="k">多 / 空</div><div class="v"><span style="color:var(--color-up)">${num(c.long)}</span> / <span style="color:var(--color-down)">${num(c.short)}</span></div></div>
+      <div><div class="k">多 / 空</div><div class="v"><span style="color:var(--color-up-text)">${num(c.long)}</span> / <span style="color:var(--color-down-text)">${num(c.short)}</span></div></div>
       <div><div class="k">周环比</div><div class="v" style="color:${wkColor}">${c.week_dir == '增仓' ? '▲ ' : (c.week_dir == '减仓' ? '▼ ' : '—')}${c.week_chg == null ? '' : (c.week_chg > 0 ? '+' : '') + Number(c.week_chg).toLocaleString()}</div></div>
     </div>
     <div class="pos-chart"></div>

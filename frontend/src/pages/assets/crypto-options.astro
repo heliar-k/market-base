@@ -117,7 +117,7 @@ function renderPolymarket(pm, spot) {
     sec.className = 're-analysis';
     sec.innerHTML = `<h3>盘面解读</h3><p>${R.esc(lead)}</p>` +
       (rest.length
-      ? `<ul>${rest.map(s => `<li${s.startsWith('⚠') ? ' style="color:var(--color-down);font-weight:600"' : ''}>${R.esc(s)}</li>`).join('')}</ul>`
+      ? `<ul>${rest.map(s => `<li${s.startsWith('⚠') ? ' style="color:var(--color-down-text);font-weight:600"' : ''}>${R.esc(s)}</li>`).join('')}</ul>`
       : '');
     host.appendChild(sec);
   }

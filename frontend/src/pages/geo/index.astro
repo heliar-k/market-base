@@ -70,7 +70,7 @@ async function load() {
     const sec = document.createElement('div');
     sec.className = 're-analysis';
     sec.innerHTML = `<h3>盘面解读</h3><p>${esc(lead)}</p>` +
-      (rest.length ? `<ul>${rest.map(s => `<li${s.startsWith('⚠') ? ' style="color:var(--color-down);font-weight:600"' : ''}>${esc(s)}</li>`).join('')}</ul>` : '');
+      (rest.length ? `<ul>${rest.map(s => `<li${s.startsWith('⚠') ? ' style="color:var(--color-down-text);font-weight:600"' : ''}>${esc(s)}</li>`).join('')}</ul>` : '');
     document.getElementById('re-signals').appendChild(sec);
   }
 
