@@ -94,7 +94,7 @@ market-base/
 │       ├── screens.py            ← 屏幕组装（三栏布局 + 模式切换）
 │       └── widgets/              ← 可复用组件（kline_chart / diag_sidebar / macro_chart / _plot_common）
 │
-├── tests/                        ← pytest 测试套件（700 个测试，tmp_path 隔离 + autouse 清缓存）
+├── tests/                        ← pytest 测试套件（707 个测试，tmp_path 隔离 + autouse 清缓存）
 │
 ├── docs/adr/                     ← 架构决策记录（0001 回看交互、0002 重命名 code→src）
 │
@@ -306,7 +306,7 @@ uv run python -m src.server                        # 启动 Web，浏览器打�
 # 研判由 src/rates_analysis.py 规则引擎生成，LLM 接入点：generate_analysis() → _llm_generate()
 
 # 测试
-uv run python -m pytest                            # 全量测试（700 个）
+uv run python -m pytest                            # 全量测试（707 个）
 
 # GEX 计算（IBKR 优先，拿不到 Greeks 自动降级 yfinance）
 uv run python src/compute_gex.py                        # AAPL（默认）
@@ -399,7 +399,7 @@ uv run python src/sell_put.py --symbol TSM
 - **格式化**: ruff (select E/F/I/W) + ruff-format，`pre-commit` 在 git commit 时自动执行（`ruff --fix` + `ruff-format` 自动修并重新暂存）。**写完代码无需手动跑 ruff/pre-commit**，只验证功能正确性（代码能跑）即可；E501（行太长）不会被自动修，commit 被拦时再手动改
 - **类型提示**: 所有函数签名带类型注解，用 `|` 替代 `Optional`（Python 3.10+）
 - **import**: 先标准库 → 第三方 → `src.*`（`isort` 自动处理）
-- **测试**: pytest 测试套件（`tests/`，700 个测试），用 `tmp_path` 隔离 + autouse fixture 清理缓存。运行 `uv run python -m pytest`
+- **测试**: pytest 测试套件（`tests/`，707 个测试），用 `tmp_path` 隔离 + autouse fixture 清理缓存。运行 `uv run python -m pytest`
 - **分析层约定**: 专题分析模块（`*_analysis.py`）只读 CSV 不写盘，读 CSV 统一走 `src/analysis_utils.py` 的 `read_csv_or_empty`，不各写各的 `_read`
 
 ### 8. 主站 Web UI/UX 设计原则（新面板/重构对齐用）
@@ -428,6 +428,35 @@ uv run python src/sell_put.py --symbol TSM
   顶栏 Tab + SPA 侧栏专题树唯一数据源 = `frontend/public/js/site-nav.js`（ESM：`export const SITE_NAV`，
   TopicLayout 构建期与 macro-view.js / dashboard.js 运行时 import 同一份）。
   新专题：写 .astro 页（套 TopicLayout）→ 在 `SITE_NAV` 登记即可（无别处白名单）
+- **语义色两档制（图形档 / 文字档）**：`frontend/public/css/tokens.css` 里
+  `--color-up/down/neutral/warn/warn-light/warn-deep/brand/hawk/dove` = **图形档**（只准用于
+  填充 / 边框 / 线色），`--color-*-text`（每色逐一对应；`tokens.css` 另给四个历史短名别名
+  `--up/--down/--flat/--warning` 直指文字档，`app.css` 的 `--accent-ink` = brand 的文字档），
+  `color:` 只能用它。亮色下图形档当文字色只有 2.1–3.6:1（暗色达标），所以这个 bug 长期不暴露。
+  `--accent-ink` 亮 5.11:1（页面底）、
+  暗 = `--color-brand`，不需要新 token。ECharts 的 `label`/`axisLabel` 文字色走 `R.colors()` 的
+  `greenText/redText/orangeText`。回归测试：`tests/test_semantic_text_contrast.py`
+  （已知漏报面：后端下发的字面 hex 进 `color:` 时静态扫不到 —— `credit` 页的 `zone_color`
+  仍待收口，统一成「后端下发语义 key、前端查文字档」，参照 `volatility/vix.astro` 的
+  `ZONE_TEXT` 映射）
+- **多端点页必须段级容错**：主端点用 `R.get`，其余一律 `R.getOpt`（任何失败返回 `null` 不抛）。
+  根因：静态导出端 `src/export_pages.py` 的 `_safe()` 会跳过当日缺数据的端点，
+  `frontend/public/api/*.json` **可以合法 404** —— 用 `R.get` 进 `Promise.all` 会让一个源挂 =
+  整页空白。缺源段自己渲染空态（`R.fail`），其余段照常。`R.fail(ids, e)` 里的 id 必须在同页有
+  `id="…"`（否则静默什么都不做）。后端字段同理：名字像第三方原文的（`i.name` 等）先回查真实来源，
+  别信字段名
+- **数字 / 涨跌 / 转义单源**：格式化数字走 `R.num`，涨跌 chip 走 `R.chgSpan`，HTML 转义只走
+  `R.esc`（三者都在 `rates-common.js`），页面不造平行 helper。`R.table(headers, rows, formatters,
+  keys, html)` 第 5 参 `html=true` 时**默认**格式化器会转义，但**显式** formatter 返回的 markup
+  不转义（它们要着色 `<span>`，自己负责转义）
+- **无图页声明 `chart={false}`**：`TopicLayout` 的 `chart` prop 控制是否加载 `echarts.min.js`
+  （1 MB 同步阻塞）；卡片/表格页必须传 `chart={false}`
+- **前端约定守卫测试**：`tests/test_static_single_source.py`（≥2 端点页必用 `R.getOpt`、
+  `R.fail` 目标 id 存在、转义只走 `R.esc`、「数据截至」只走 `R.asOf`，另含 `node --check` 过全部
+  `is:inline` 脚本）。改前端收尾必跑：`uv run python -m pytest tests/test_static_single_source.py
+  tests/test_semantic_text_contrast.py -q` + `cd frontend && npm run build`
+- **已审计过的死路（勿重开）**：全站零自实现手势，不加 `touch-action`（加了反而禁掉表格纵向滑动）；
+  触控目标门槛是 **24 CSS px**（WCAG 2.2），44 是 iOS pt / Android dp，`.range-btn` 实算 ≈24.4px 已过线
 
 ---
 
