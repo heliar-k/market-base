@@ -12,6 +12,7 @@ from src.credit_analysis import (
     _regime_score,
     _regime_zone,
     _rolling_pct,
+    cds,
     stress,
 )
 
@@ -322,3 +323,23 @@ class TestLiqEtfVolume:
         out = _liq_etf_cards(df)
         assert out["hyg"]["value"] == 79.1
         assert out["hyg"]["volume"] is None
+
+
+class TestCdsUnits:
+    """cds() 得自带单位（审计第 4 步）：存 bp 却叫 value 会误导下一个消费者。"""
+
+    def test_units_declared(self):
+        idx = pd.date_range("2024-01-01", periods=30, freq="B")
+        df_rates = pd.DataFrame({"DGS10": [4.5] * 30}, index=idx)
+        df_yf = pd.DataFrame(
+            {
+                "KBWB": [100.0 + i for i in range(30)],
+                "SPX": [200.0 + i for i in range(30)],
+            },
+            index=idx,
+        )
+        out = cds(df_rates, df_yf)
+        # DGS10 = 4.5（百分数）→ 存 450.0 bp，单位得跟着走
+        assert out["sovereign"]["value"] == 450.0
+        assert out["sovereign"]["unit"] == "bp"
+        assert out["bank"]["unit"] == "pct"

@@ -487,6 +487,9 @@ def cds(df_rates: pd.DataFrame, df_yf: pd.DataFrame) -> dict:
     if v10 is not None:
         out["sovereign"] = {
             "value": round(v10 * 100, 2),
+            # DGS10 本身是百分数，×100 后存的是 bp（5.24% → 524.0）。
+            # 不带单位字段时，下一个消费者会当它是 % 再乘一次 100。
+            "unit": "bp",
             "as_of": s10.index[-1].strftime("%Y-%m-%d"),
         }
 
@@ -503,6 +506,9 @@ def cds(df_rates: pd.DataFrame, df_yf: pd.DataFrame) -> dict:
         if kb_chg is not None and sp_chg is not None:
             out["bank"] = {
                 "divergence": round(kb_chg - sp_chg, 2),
+                # unit 说的是本卡片的头条值 divergence：两个涨跌幅之差 = 百分点（pp）；
+                # kbwb_chg / spx_chg 则是 %。前端不再硬编码单位文案。
+                "unit": "pct",
                 "kbwb_chg": kb_chg,
                 "spx_chg": sp_chg,
                 "days": days,

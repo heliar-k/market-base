@@ -1,9 +1,11 @@
 """liquidity_analysis 规则引擎单元测试（评分分档 / LPI 冒烟 / 前瞻日历）。"""
 
 import pandas as pd
+import pytest
 
 from src.liquidity_analysis import (
     _band,
+    _pct_chg,
     _score,
     forward_calendar,
     liquidity_snapshot,
@@ -33,6 +35,29 @@ class TestScore:
         assert _band(6.0)[0] == "警戒观察"
         assert _band(8.0)[0] == "压力确认"
         assert _band(None)[0] == "未知"
+
+
+class TestPctChg:
+    """_pct_chg() 的近零基数守卫（审计第 4 步）。"""
+
+    def test_normal_base(self):
+        s = pd.Series(
+            [100.0, 105.0], index=pd.date_range("2024-01-01", periods=2, freq="D")
+        )
+        assert _pct_chg(s, 1) == pytest.approx(5.0)
+
+    def test_near_zero_base_is_noise(self):
+        # RRP 型：历史峰值 2553B，基数只剩 0.5B —— +1900% 不是信号
+        s = pd.Series(
+            [2553.0, 0.5, 10.0], index=pd.date_range("2024-01-01", periods=3, freq="D")
+        )
+        assert _pct_chg(s, 1) is None
+
+    def test_all_zero_series_no_division(self):
+        s = pd.Series(
+            [0.0, 0.0, 0.0], index=pd.date_range("2024-01-01", periods=3, freq="D")
+        )
+        assert _pct_chg(s, 1) is None
 
 
 class TestLpiSmoke:

@@ -77,9 +77,15 @@ def _pct_chg(s: pd.Series, days: int) -> float | None:
         return None
     cutoff = v.index[-1] - pd.Timedelta(days=days)
     past = v.loc[:cutoff]
-    if past.empty or past.iloc[-1] == 0:
+    if past.empty:
         return None
-    return d / abs(float(past.iloc[-1])) * 100
+    base = float(past.iloc[-1])
+    # 近零基数守卫：基数小于序列自身量级的 0.1% 时，百分比是噪声不是信号。
+    # RRP 从 2553B 抽干到个位数 B，基数 0.5B 能算出 +2000%；用绝对零判定拦不住。
+    # 阈值用 max(abs) 做量级代理 → 不依赖单位（万亿级 WALCL 与两位数 DXY 同一规则）。
+    if abs(base) <= 1e-3 * float(v.abs().max()):
+        return None
+    return d / abs(base) * 100
 
 
 def _bp(s: str, t: str, rates: pd.DataFrame) -> float | None:
