@@ -158,6 +158,13 @@ pkill -f "http.server 8899"
 已实测：960 宽下 `/assets/fx/` 的 4 张 verdict 卡各 389px（2 列，符合 `bb7602a5` 意图），
 `scrollWidth == innerWidth == 960`（无溢出），暗色 body 底色 `rgb(17,18,23)`。
 
+**验线上把 BASE 换成 `https://market-base.pages.dev` 即可**（同一套脚本，本轮用它确认了
+#27：375 下 `/rates/pricing/` 与 `/fed/` 均 `[375,375]`、`#re-cards` 1 列、时效块 247×36 两行）。
+但**别拿 `curl 页面 HTML | grep 'max-width'` 当验收**：媒体查询在 `/css/special.css`
+这个独立资产里（Astro 原样拷 `public/`，不内联），页面 HTML 里 grep 不到 ——
+本轮就这么假阴性一次（monitor exit 1 是断言错，部署其实 success）。
+要 grep 就 grep 资产 URL，要判布局就用 playwright。
+
 ## 7. 建议调用的 skills
 
 - **`tdd`** —— 新约定一律配一条会红的测试，**先例就是 #26**（`test_html_links_have_redirects`：
