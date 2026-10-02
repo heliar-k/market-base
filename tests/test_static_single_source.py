@@ -9,6 +9,7 @@
 - 「数据截至」文案只能由 R.asOf 组装 → test_as_of_*
 - echarts-theme.js 先于 rates-common.js 加载 → test_echarts_theme_before_rates_common
 - 脚本语法（is:inline 不打包）→ test_all_js_files_parse / test_inline_scripts_parse
+- 静态小节一律 Section 组件 → test_static_sections_use_section_component
 """
 
 from __future__ import annotations
@@ -329,4 +330,30 @@ def test_html_tables_never_pass_empty_formatters() -> None:
     ]
     assert not bad, (
         f"以下页给 html=true 的 R.table 传了空 formatter，着色列要写进 formatter：{bad}"
+    )
+
+
+# 专题页小节标题单源 = components/Section.astro（.re-sec-title 带 accent 竖条）。
+# 裸 <div class="re-section"><h2> 在静态层 = 卡中卡双层框 + 标题形式与全站不一致
+# （2026-10 波动率两页踩过，当时以「内容依赖卡片容器」为由躲过 Section 组件化批 1）。
+# 只查 HTML 结构层（首个 <script is:inline> 之前）：JS 生成的卡片集（七段叙事 /
+# 地缘事件 / 压力测试等）用 .re-section 是正当用法，不在射程内。
+_STATIC_RE_SECTION = re.compile(r'class="[^"]*\bre-section\b[^"]*"')
+
+
+def test_static_sections_use_section_component() -> None:
+    """专题页静态层不得写 class="re-section"（静态小节一律包 Section 组件）。"""
+    bad: dict[str, list[str]] = {}
+    for page in sorted(ASTRO_PAGES.rglob("*.astro")):
+        html = re.split(r"<script is:inline", page.read_text("utf-8"), maxsplit=1)[0]
+        hits = [
+            f"{i + 1}:{m.group(0)}"
+            for i, line in enumerate(html.split("\n"))
+            if (m := _STATIC_RE_SECTION.search(line))
+        ]
+        if hits:
+            bad[str(page.relative_to(ASTRO_PAGES))] = hits
+    assert not bad, (
+        f"静态小节要改用 <Section title=... sub=...>，"
+        f".re-section 只留给 JS 卡片集：{bad}"
     )

@@ -227,7 +227,7 @@ _RISK_PAIRS = [
     ("利率", "VTLT", "MOVE", "确认是否由久期/政策路径冲击驱动"),
     ("商品", "VXNG", "OVX", "观察能源与贵金属是否成为风险源"),
     ("信用", "VXHY", "VXHY", "检验风险是否向融资与信用扩散"),
-    ("FX/EM", "VEEM", "VEWZ", "检查美元和海外风险是否确认"),
+    ("外汇 / 新兴市场", "VEEM", "VEWZ", "检查美元和海外风险是否确认"),
     ("尾部保护", "VOLI", "VXTH", "评估保护需求与保险成本"),
 ]
 
@@ -269,7 +269,7 @@ def _trade_map(rows: list[dict]) -> dict:
         if vix9d_chg is not None and vix9d_chg > 3:
             conf = "低"
         return {
-            "title": "VIX contango carry",
+            "title": "升水套息（Contango Carry）",
             "strategy": "只考虑最大亏损可控的卖波动结构：Iron condor / covered call。",
             "trigger": f"VXV−VIX 维持 +2pt 以上（当前 {spread:+.1f}pt），VIX 不上破 20",
             "invalidate": "VIX9D 或 VIXD 跳升并压平期限结构",
@@ -284,7 +284,7 @@ def _trade_map(rows: list[dict]) -> dict:
             "confidence": "中",
         }
     return {
-        "title": "carry 条件不足",
+        "title": "套息条件不足",
         "strategy": "观望：期限结构斜率不足或数据缺失，不做方向性波动交易",
         "trigger": spread is not None
         and f"VXV−VIX 仅 {spread:+.1f}pt，需回到 +2pt 以上"

@@ -1,8 +1,10 @@
 ---
 // 波动率全景仪表盘页 — 工单 #16 自 public/volatility/index.html 迁入。
-// 结构：Hero 四卡 + 定调 + 三信号卡 + 风险矩阵 + Trade Map + 统计条 + 30 指数热力图 +
+// 结构：Hero 四卡 + 定调 + 三信号卡 + 风险矩阵 + 交易地图 + 统计条 + 30 指数热力图 +
 // 期限结构 + 跨资产 1D 条形 + 7 段叙事 + Top8 升降温 + 全量表 + VIX 详情 link-grid；
 // island 脚本逐字原样。fetch('/api/volatility/dashboard') 不变。
+// 2026-10：小节标题统一换 Section。全站其余页在「Section 组件化批 1」时把本页列为跳过项
+// （理由：骨架已是 .re-section 标题卡且内容依赖卡片容器），结果是卡中卡双层框 + 标题形式与别的页不一致。
 import TopicLayout from '../../layouts/TopicLayout.astro';
 import Section from '../../components/Section.astro';
 ---
@@ -15,66 +17,58 @@ import Section from '../../components/Section.astro';
     <div class="vol-verdict" id="vol-verdict"></div>
   </div>
 
-  <!-- 以下 .re-section 小节:骨架已是标题卡结构(静态 h2 成在),且 chart/表格依赖卡片容器,
-       Section 化会让内容失去卡片质感 —— 保持原样 -->
+  <!-- 以下小节统一 Section。内层网格/图表自带卡面（.vol-signal-card / .vol-risk-cell /
+       .vol-trade / .vol-heat-cell 均有 border+bg），不需要外层 .re-section 再包一圈。
+       例外：七段叙事内层是 JS 生成的 .re-section 卡片集（卡片标题用 .re-section h2） -->
 
   <!-- 三张信号卡 -->
-  <div class="re-section" id="vol-signals-sec">
-    <h2>跨资产波动信号</h2>
+  <Section id="vol-signals-sec" title="跨资产波动信号" sub="权益 / 利率 / 商品">
     <div class="vol-signal-grid" id="vol-signals"></div>
-  </div>
+  </Section>
 
   <!-- 风险来源矩阵 -->
-  <div class="re-section" id="vol-risk-sec">
-    <h2>风险来源矩阵</h2>
+  <Section id="vol-risk-sec" title="风险来源矩阵" sub="六组确认条件">
     <div class="vol-risk-grid" id="vol-risk"></div>
-  </div>
+  </Section>
 
-  <!-- Vol Trade Map -->
-  <div class="re-section" id="vol-trade-sec">
-    <h2>Vol Trade Map</h2>
+  <!-- 波动率交易地图 -->
+  <Section id="vol-trade-sec" title="波动率交易地图" sub="Vol Trade Map · 策略 / 触发 / 失效">
     <div class="vol-trade" id="vol-trade"></div>
-  </div>
+  </Section>
 
   <!-- 统计条(非小节),不进 Section -->
   <div class="vol-stats" id="vol-stats"></div>
 
   <!-- 全部指数热力图 -->
-  <div class="re-section" id="vol-heat-sec">
-    <h2>全部波动率指数热力图</h2>
+  <Section id="vol-heat-sec" title="全部波动率指数热力图" sub="30 个 · 1D 变化着色">
     <div class="vol-heat" id="vol-heat"></div>
-  </div>
+  </Section>
 
-  <!-- VIX 期限结构 -->
-  <div class="re-section" id="vol-term-sec">
-    <div class="term-head">
-      <h2 style="margin:0">VIX 期限结构</h2>
-      <span id="term-badge"></span>
-    </div>
+  <!-- VIX 期限结构（状态胶囊走 Section slot=head） -->
+  <Section id="vol-term-sec" title="VIX 期限结构" sub="Term Structure">
+    <span slot="head" id="term-badge"></span>
     <div id="vol-term-chart" class="chart chart-lg"></div>
-  </div>
+  </Section>
 
   <!-- 跨资产 1D 变化 -->
-  <div class="re-section" id="vol-cross-sec">
-    <h2>跨资产波动率 1D 变化</h2>
+  <Section id="vol-cross-sec" title="跨资产波动率 1D 变化" sub="按 1D 升序">
     <div id="vol-cross-chart" class="chart" style="height:clamp(420px, 65vh, 680px)"></div>
-  </div>
+  </Section>
 
   <!-- 7 段叙事(卡片集,卡片 h2 为各段标题);vol-narrative class 有样式规则,保留在内层 div -->
-  <Section title="七段叙事">
+  <Section title="七段叙事" sub="规则引擎研判">
     <div class="vol-narrative" id="vol-narrative"></div>
   </Section>
 
-  <!-- Top 8 升温 / 降温 -->
-  <div class="re-section" id="vol-top-sec">
+  <!-- 升温 / 降温 前 8 -->
+  <Section id="vol-top-sec" title="波动升降温榜" sub="Top 8 · 1D 变化">
     <div class="vol-top-row" id="vol-top"></div>
-  </div>
+  </Section>
 
   <!-- 全量 30 指数表 -->
-  <div class="re-section" id="vol-table-sec">
-    <h2>全部波动率指数（30 个）</h2>
+  <Section id="vol-table-sec" title="全部波动率指数" sub="30 个 · 1D / 5D / 1M / 1Y">
     <div id="vol-table"></div>
-  </div>
+  </Section>
 
   <div class="link-grid">
     <a class="link-card" href="/volatility/vix.html">
@@ -104,7 +98,7 @@ async function load() {
   // 小节锚点导航（长页快速跳转；sticky 见 special.css .page-toc，同 treasury 页）
   document.getElementById('page-toc').innerHTML = [
     ['概览·信号', 'vol-overview'], ['风险矩阵', 'vol-risk-sec'],
-    ['Trade Map', 'vol-trade-sec'], ['热力图', 'vol-heat-sec'], ['期限结构', 'vol-term-sec'],
+    ['交易地图', 'vol-trade-sec'], ['热力图', 'vol-heat-sec'], ['期限结构', 'vol-term-sec'],
     ['跨资产', 'vol-cross-sec'], ['叙事', 'vol-narrative'], ['榜单', 'vol-top-sec'],
     ['全量表', 'vol-table-sec'],
   ].map(([t, id]) => `<a href="#${id}">${t}</a>`).join('');
@@ -158,7 +152,7 @@ async function load() {
     risk.appendChild(d);
   });
 
-  // ── Vol Trade Map ──
+  // ── 波动率交易地图 ──
   const tm = data.trade_map;
   document.getElementById('vol-trade').innerHTML = `
     <div class="vt-head"><span class="vt-title">${tm.title}</span>
@@ -200,12 +194,14 @@ async function load() {
     heat.appendChild(d);
   });
 
-  // ── 期限结构 ──
+  // 期限结构状态：中文为主 + 英文术语括注（contango = 远月升水，backwardation = 远月贴水）
+  const TERM_STATE = { contango: '升水 Contango', backwardation: '贴水 Backwardation' };
   const term = data.term_structure;
   const badge = document.getElementById('term-badge');
   badge.className = 'term-badge ' + term.state;
   const sign = term.state === 'contango' ? '+' : '−';
-  badge.textContent = `${term.state === 'contango' ? 'Contango' : term.state === 'backwardation' ? 'Backwardation' : '—'} (${sign}${Math.abs(term.slope ?? 0).toFixed(2)})`;
+  badge.textContent = `${TERM_STATE[term.state] ?? '—'}${
+    term.slope == null ? '' : ` (${sign}${Math.abs(term.slope).toFixed(2)})`}`;
   R.mkChart('vol-term-chart', () => ({
     tooltip: { trigger: 'axis' },
     grid: { left: 50, right: 20, top: 30, bottom: 30 },
@@ -269,13 +265,13 @@ async function load() {
   const valCell = (v) => (v === null || v === undefined ? '—' : v.toFixed(2));
   const topBox = document.getElementById('vol-top');
   const hotBox = document.createElement('div');
-  hotBox.innerHTML = '<h3 class="hot">Top 8 波动升温</h3>';
+  hotBox.innerHTML = '<h3 class="hot">波动升温 前 8</h3>';
   const hotWrap = document.createElement('div');
   hotWrap.className = 're-table-wrap'; // 窄屏横向滚动，防溢出
   hotWrap.appendChild(R.table(['代码', '名称', '最新', '1D%', '1M%'], fmtTop(hot), { value: valCell, ...CHG_FMTS }, null, true));
   hotBox.appendChild(hotWrap);
   const coolBox = document.createElement('div');
-  coolBox.innerHTML = '<h3 class="cool">Top 8 波动降温</h3>';
+  coolBox.innerHTML = '<h3 class="cool">波动降温 前 8</h3>';
   const coolWrap = document.createElement('div');
   coolWrap.className = 're-table-wrap';
   coolWrap.appendChild(R.table(['代码', '名称', '最新', '1D%', '1M%'], fmtTop(cool), { value: valCell, ...CHG_FMTS }, null, true));

@@ -415,6 +415,15 @@ uv run python src/sell_put.py --symbol TSM
   不读 `lineStyle.color`）。`R.lineOption` 已内置；不走 lineOption 的图包一层 `setOption(reSyncLegend({...}))`。
   页面**禁止**手写 `legend.data[i].icon` 或 `legend.formatter` 标注线型；尺寸走主题默认 18×6（散点图例自行给正方形尺寸）。
   回归测试：`tests/test_legend_sync.py`
+- **小节标题单源 `Section` 组件 + 术语中文为主**：专题页每个小节用 `components/Section.astro`（`.re-sec-title` 带 accent 竖条），
+  **不写裸 `<div class="re-section"><h2>`** —— 静态内容自己带卡面（`.vol-signal-card` / `.score-card` 等已有 border+bg）时，
+  外层再套 `.re-section` 就是卡中卡双层框，标题形式也与全站不一致。`.re-section` 只留给 JS 动态生成的卡片集
+  （如七段叙事、地缘事件、压力测试——卡片本身就是要重复的条目，不进静态层）。守卫只查 HTML 结构层
+  （首个 `<script is:inline>` 之前）：`tests/test_static_single_source.py::test_static_sections_use_section_component`。
+  标题行尾部要放状态胶囊用 `slot="head"`（如 VIX 期限结构的升贴水徽章），不另造平行头部结构。
+  **文案中文为主**，国际通用术语（VIX / SKEW / Contango / Term Structure）保留英文：
+  弱化说明走 `sub` prop（`.re-sec-sub`），需与数据联动的状态文字在 island 里用映射表（`TERM_STATE` 一类），
+  标题本身不写成纯英文
 - **复用既有类，不造平行组件**：卡片 `.chart-card`、控件条 `.controls`/`.range-controls`/`.range-btn`、数据行 `.diag-row`、语义色 `.up/.down/.neutral`、统计卡 `.dash-stat`/`.dash-card`；只给面板私有结构加 `面板名-` 前缀的新类
 - **「先看结构、再看数据」双层节奏**：面板第一屏给结论层（状态条/评分/报警/规则引擎叙事，一眼可读），下层给可交互的数据层（图/表/热力图），两层通过点击联动（点结论→定位数据，点数据→弹出明细）
 - **微观数据须有宏观锚点**：展示单资产/单指标时，附带其在全局中的坐标（分组、分位、相对强弱），避免孤立数字

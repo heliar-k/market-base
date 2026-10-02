@@ -6,6 +6,7 @@
 //   id     — 锚点(page-toc 跳转目标;不给则不设 id)
 //   title  — 小节标题;空字符串 = 无标题小节(纯容器)
 //   sub    — 标题右侧弱化说明(如单位/口径)
+//   slot=head — 标题行尾部的额外元素(如状态胶囊),沿用 .re-sec-head 的 baseline 对齐
 interface Props { id?: string; title?: string; sub?: string }
 const { id, title = '', sub = '' } = Astro.props;
 ---
@@ -14,6 +15,7 @@ const { id, title = '', sub = '' } = Astro.props;
     <header class="re-sec-head">
       <h2 class="re-sec-title">{title}</h2>
       {sub && <span class="re-sec-sub">{sub}</span>}
+      <slot name="head" />
     </header>
   )}
   <slot />

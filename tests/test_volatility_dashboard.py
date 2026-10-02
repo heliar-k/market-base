@@ -183,7 +183,7 @@ class TestSignalsAndRisk:
             "利率",
             "商品",
             "信用",
-            "FX/EM",
+            "外汇 / 新兴市场",
             "尾部保护",
         ]
         assert m[0]["chg_symbol"] == "VXD" and m[0]["level_symbol"] == "VXN"
@@ -197,7 +197,7 @@ class TestTradeMap:
             {"symbol": "VXST", "chg1d": -1.0},
         ]
         tm = _trade_map(rows)
-        assert tm["title"] == "VIX contango carry"
+        assert tm["title"] == "升水套息（Contango Carry）"
         assert "+4.5pt" in tm["trigger"]
         assert tm["confidence"] == "中"
 
@@ -217,7 +217,7 @@ class TestTradeMap:
             {"symbol": "VXST", "chg1d": -1.0},
         ]
         tm = _trade_map(rows)
-        assert tm["title"] == "carry 条件不足"
+        assert tm["title"] == "套息条件不足"
 
 
 class TestNarrative:

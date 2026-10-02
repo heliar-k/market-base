@@ -12,12 +12,10 @@ import Section from '../../components/Section.astro';
   <!-- 状态卡 ×3:R.cards 自带 .re-cards 栅格,容器 class 可安全让位给 Section -->
   <Section id="status-cards" title="状态" />
 
-  <!-- 以下 .re-section 小节:骨架已是标题卡结构(静态 h2 成在),且 chart/表格依赖卡片容器,
-       Section 化会让内容失去卡片质感 —— 保持原样 -->
+  <!-- 以下小节统一 Section（同全景页：内层卡面自带 border+bg，不再套 .re-section） -->
 
   <!-- VIX 大数字 + 区间色条 -->
-  <div class="re-section" id="sec-value">
-    <h2>VIX 最新值</h2>
+  <Section id="sec-value" title="VIX 最新值" sub="恐慌指数区间定位">
     <div class="score-card">
       <div style="min-width:110px">
         <div class="label">VIX 恐慌指数</div>
@@ -28,44 +26,37 @@ import Section from '../../components/Section.astro';
         <div class="scale" id="zone-caption"></div>
       </div>
     </div>
-  </div>
+  </Section>
 
   <!-- 长期 VIX（近 2 年，恐慌区域虚线） -->
-  <div class="re-section" id="sec-long">
-    <h2>VIX 波动率指数（近 2 年）</h2>
+  <Section id="sec-long" title="VIX 波动率指数" sub="近 2 年 · 恐慌区 >35">
     <div id="vix_long_chart" class="chart"></div>
-  </div>
+  </Section>
 
   <!-- VIX × SKEW 信号：左文右图 -->
-  <div class="re-section" id="sec-skew-signal">
-    <h2>VIX × SKEW 信号</h2>
+  <Section id="sec-skew-signal" title="VIX × SKEW 信号" sub="看跌偏斜象限">
     <div class="vix-row">
       <div class="sig-block" id="skew-signal"></div>
       <div id="vix_skew_scatter" class="chart chart-md"></div>
     </div>
-  </div>
+  </Section>
 
   <!-- SKEW 走势 -->
-  <div class="re-section" id="sec-skew">
-    <h2>SKEW 看跌偏斜（近 6 个月）</h2>
+  <Section id="sec-skew" title="SKEW 看跌偏斜" sub="近 6 个月">
     <div id="skew_chart" class="chart"></div>
-  </div>
+  </Section>
 
-  <!-- 期限结构 + 解读 -->
-  <div class="re-section" id="sec-term">
-    <div class="term-head">
-      <h2 style="margin:0">VIX 期限结构</h2>
-      <span id="term-badge"></span>
-    </div>
+  <!-- 期限结构 + 解读（状态胶囊走 Section slot=head） -->
+  <Section id="sec-term" title="VIX 期限结构" sub="Term Structure">
+    <span slot="head" id="term-badge"></span>
     <div id="vix_term_chart" class="chart chart-sm"></div>
     <div class="re-analysis" id="term-signals" style="margin-top:10px"></div>
-  </div>
+  </Section>
 
   <!-- 近期数据 -->
-  <div class="re-section" id="sec-recent">
-    <h2>近期数据（最近 20 条）</h2>
+  <Section id="sec-recent" title="近期数据" sub="最近 20 条">
     <div id="recent-table"></div>
-  </div>
+  </Section>
 
 <script is:inline>
 async function load() {
@@ -79,6 +70,9 @@ async function load() {
   document.getElementById('re-as-of').textContent = R.asOf(data.as_of);
 
   const c = R.colors();
+  // 期限结构状态：中文为主 + 英文术语括注（contango = 远月升水，backwardation = 远月贴水）
+  // 状态卡与期限结构胶囊共用，故在 load() 顶部声明（两档主题下文案一致，不进 CSS）
+  const TERM_STATE = { contango: '升水 Contango', backwardation: '贴水 Backwardation' };
   const axis = (name) => ({
     type: 'value', name, nameTextStyle: { color: c.muted },
     axisLabel: { color: c.muted }, splitLine: { lineStyle: { color: c.grid } },
@@ -106,7 +100,7 @@ async function load() {
       },
       {
         label: '期限结构',
-        value: `${dot(t.state === 'backwardation' ? 'var(--color-down)' : t.state === 'contango' ? 'var(--color-up)' : c.gray)}${t.state === 'contango' ? 'Contango' : t.state === 'backwardation' ? 'Backwardation' : '—'}`,
+        value: `${dot(t.state === 'backwardation' ? 'var(--color-down)' : t.state === 'contango' ? 'var(--color-up)' : c.gray)}${TERM_STATE[t.state] ?? '—'}`,
         sub: ratio ? `VIX / VIX3M = ${ratio.toFixed(3)}` : '比值缺失',
       },
       {
@@ -226,7 +220,8 @@ async function load() {
   const badge = document.getElementById('term-badge');
   badge.className = 'term-badge ' + term.state;
   const sign = term.state === 'contango' ? '+' : '−';
-  badge.textContent = `${term.state === 'contango' ? 'Contango' : term.state === 'backwardation' ? 'Backwardation' : '—'} (${sign}${Math.abs(term.slope ?? 0).toFixed(2)})`;
+  badge.textContent = `${TERM_STATE[term.state] ?? '—'}${
+    term.slope == null ? '' : ` (${sign}${Math.abs(term.slope).toFixed(2)})`}`;
   R.mkChart('vix_term_chart', () => ({
     tooltip: { trigger: 'axis' },
     grid: { left: 50, right: 20, top: 30, bottom: 30 },
