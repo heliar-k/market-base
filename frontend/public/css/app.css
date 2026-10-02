@@ -1,6 +1,11 @@
 @import url("tokens.css"); /* 语义色 token 唯一来源（涨跌/中性/警示/品牌一律 var()，见 tokens.css） */
 
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+/* 裸 <a> 兜底：全站从来没有全局链接色，凡没被具名规则盖到的锚点（仪表盘 .dash-line 结论行、
+   每日研判指标表的「美元指数 ↗」等）全部吃浏览器默认 #0000EE —— 亮色白底 8.6:1 勉强可读
+   所以长期没暴露，暗底 #181b1f 只有 1.71:1（基本看不见）。特异性 (0,0,1)，任何类规则都能压过，
+   等于只补洞不改既有样式；顺带把 :visited 的紫底也一并接管。 */
+a { color: var(--accent-ink); }
 
 /* ── theme variables ────────────────────────────────────── */
 /* 结构性 tokens（底色/文字/描边）；涨跌等语义色见 tokens.css */
