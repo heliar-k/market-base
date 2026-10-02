@@ -617,18 +617,49 @@ class TestRatioCross:
     # ── B(3) BTC-ETH 30d 相关性 ──
 
     def test_corr_high_no_rotation(self):
-        # BTC/ETH 完全同幅波动（ETH = BTC/10）→ 相关性恒 1，判「无轮动基础」
-        idx = pd.date_range("2026-01-01", periods=120)
-        btc = 100 + np.sin(np.arange(120) / 5).cumsum()
-        p = pd.DataFrame({"BTC": btc, "ETH": btc / 10}, index=idx)
+        """相关性处于**自身近 1y 高位**（分位 ≥ 90）→ 判「无轮动基础」。
+
+        口径变了：旧版用「ETH = BTC/10 恒相关」造高位，但分位语义下**常量序列不算
+        高位**（浮点噪声就能把它压到 90 以下），改成前 300 天掺 30% 独立噪声、
+        后 100 天完全跟 BTC → cur 落在自身历史上沿。"""
+        rng = np.random.default_rng(11)
+        n = 400
+        idx = pd.date_range("2025-06-01", periods=n)
+        rb, rn = rng.normal(0, 1, n), rng.normal(0, 1, n)
+        w = np.where(np.arange(n) < 300, 0.7, 1.0)
+        p = pd.DataFrame(
+            {"BTC": 100 + np.cumsum(rb), "ETH": 100 + np.cumsum(w * rb + (1 - w) * rn)},
+            index=idx,
+        )
         out = _ratio_corr(p)
         assert out["available"]
-        assert out["cur"] == pytest.approx(1.0, abs=0.01)
-        assert out["prev"] is not None
+        assert out["pctile_1y"] >= 90
         assert "无轮动基础" in out["verdict"]
 
     def test_corr_unavailable(self):
         assert _ratio_corr(pd.DataFrame({"BTC": [1.0, 2.0]}))["available"] is False
+
+    def test_corr_high_uses_percentile_not_absolute(self):
+        """高位判定走近 1y 分位，不用绝对值 0.8（实测该阈值近 1y 命中率 98.6% ≈ 恒真）。
+
+        构造：前 300 天 ETH 完全跟 BTC（相关性≈ 1），后 100 天掺 20% 独立噪声
+        → cur 仍高达 0.96（旧口径会判「高位无轮动」），但在自身近 1y 只排第 ~10 百分位。
+        """
+        rng = np.random.default_rng(7)
+        n = 400
+        idx = pd.date_range("2025-06-01", periods=n)
+        rb, rn = rng.normal(0, 1, n), rng.normal(0, 1, n)
+        w = np.where(np.arange(n) < 300, 1.0, 0.8)
+        p = pd.DataFrame(
+            {"BTC": 100 + np.cumsum(rb), "ETH": 100 + np.cumsum(w * rb + (1 - w) * rn)},
+            index=idx,
+        )
+        out = _ratio_corr(p)
+        assert out["available"]
+        assert out["cur"] > 0.8, "本例要造的就是「绝对阈值会误判高位」的情形"
+        assert out["pctile_1y"] < 90
+        assert "无轮动基础" not in out["verdict"]
+        assert out["pct_label"].startswith("过去 ")
 
     # ── B(4) 价比 × NL 脉冲 ──
 

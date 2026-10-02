@@ -1430,7 +1430,8 @@ def _ratio_corr(p: pd.DataFrame) -> dict:
 
     correlation.csv 只存最新矩阵快照（覆盖写、无历史），当前值与 30 日前对比
     同源自 asset_prices 计算（BTC/ETH 为 7×24 日频，30 观测 = 30 日历日）。
-    判读：相关性高位（>0.8）+ 价比横盘 = 无轮动；相关性回落 + 价比动量 = 轮动确认。
+    判读：相关性处于自身近 1 年高位（分位 ≥ 90）+ 价比横盘 = 无轮动；
+    相关性回落 + 价比动量 = 轮动确认。
     """
     if not {"BTC", "ETH"}.issubset(p.columns):
         return {"available": False}
@@ -1442,8 +1443,15 @@ def _ratio_corr(p: pd.DataFrame) -> dict:
     past = c[c.index <= c.index[-1] - pd.Timedelta(days=30)]
     prev = float(past.iloc[-1]) if len(past) else None
     chg = round(cur - prev, 2) if prev is not None else None
-    # ponytail: 固定阈值（高位 0.8、回落 0.05）；历史序列满 1y 后改滚动分位
-    if cur > 0.8 and (chg is None or chg > -0.05):
+    # 高位判定走滚动分位（近 1y，与 LAYER1 KPI / 价比同口径的 _window_1y + _rank_pct）。
+    # 绝对阈值 0.8 已失效：BTC/ETH 相关性 2024 起整体抬到 0.77–0.96，近 1y 命中率
+    # 98.6%（2026-10-02 实测）——「高位」不再区分任何东西，而当前 0.92 其实只在其
+    # 自身近 1y 的第 64 百分位。历史不足 30 观测时退回绝对值 0.8。
+    # 变化量阈值 ±0.05 保留：|Δ30d|>0.05 近 1y 命中率 29%，仍有区分力。
+    win = _window_1y(c)
+    pctile, _ = _rank_pct(win, cur)
+    high = (pctile >= 90) if pctile is not None else cur > 0.8
+    if high and (chg is None or chg > -0.05):
         verdict = "相关性高位同涨同跌：无轮动基础"
     elif chg is not None and chg <= -0.05:
         verdict = "相关性回落：BTC/ETH 脱钩中，价比动量有效时即轮动确认"
@@ -1457,6 +1465,8 @@ def _ratio_corr(p: pd.DataFrame) -> dict:
         "cur": round(cur, 2),
         "prev": round(prev, 2) if prev is not None else None,
         "chg_30d": chg,
+        "pctile_1y": pctile,
+        "pct_label": _pct_label(len(win), pctile),
         "verdict": verdict,
     }
 
