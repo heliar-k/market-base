@@ -387,6 +387,42 @@ BACKEND_COLOR_FIELD = re.compile(r'"([a-z_]*_color)"\s*:')
 FRONTEND_COLOR_INTERP = re.compile(r"(?<![-\w])color\s*:\s*\$\{[^}]*_color\b")
 # CSS 文字槽引用名字以 `-color` 结尾的自定义属性（那是 JS 拼出来的图形档）
 CSS_TEXT_VIA_NAMED_COLOR = re.compile(r"(?<![-\w])color:[^;{}]*var\(--[\w-]+-color[,)]")
+# DOM 内联 style 里不得出现 reCssVar 的解析结果（字面 hex 一进 DOM 就固化）
+RECSSVAR = re.compile(r"reCssVar\s*\(")
+STYLE_LINE = re.compile(r"""(?<![-\w])style\s*=\s*["'`]""")
+
+
+def test_islands_do_not_bake_resolved_colors_into_inline_styles() -> None:
+    """DOM 内联 `style="…"` 里不得出现 `reCssVar()` 的解析结果。
+
+    两档制解决的是「用哪个档」，这条解决的是「什么时候解析」：reCssVar 把 CSS 变量
+    解析成字面 hex 再拼进 style 字符串（`background:${hex}1a`），字符串一进 DOM 就
+    固化，用户切亮/暗主题不刷新页面就还是旧主题色。正确写法是把引用交给浏览器在样式
+    计算期解析：`var(--token)`，透明底/边框用
+    `color-mix(in srgb, var(--token) N%, transparent)`。
+
+    只管 DOM 内联 style：ECharts / TradingView 的 canvas 取色**必须**继续用实际色值
+    （canvas 不认 var()/color-mix），那些位置在 JS 对象键里（itemStyle:/axisLabel:），
+    不带 `style=` 所以不会被误报。
+
+    ponytail: 按行判定 —— `style="` 与 `${hex}` 拆在两行的模板会漏，目测未出现；
+    `.cssText = '…'` 也不认（全站仅 1 处且不带 reCssVar）。要封死得改成跨行模板扫描。
+    """
+    bad: list[str] = []
+    for glob in SCAN_TARGETS:
+        for path in sorted(FRONTEND.glob(glob)):
+            text = path.read_text(encoding="utf-8")
+            holders = _color_holders(text, RECSSVAR)  # 取过色的变量名（含二跳别名）
+            for i, line in enumerate(text.splitlines(), 1):
+                if not STYLE_LINE.search(line):
+                    continue
+                got = RECSSVAR.search(line) or next(
+                    (h for h in sorted(holders) if _is_word(h, line)), None
+                )
+                if got:
+                    rel = path.relative_to(ROOT)
+                    bad.append(f"{rel}:{i} 内联 style 用了 {got} → 改 var()/color-mix")
+    assert not bad, "内联色请交给样式计算期解析（切主题才跟得上）：\n" + "\n".join(bad)
 
 
 def test_analysis_modules_do_not_emit_color_fields() -> None:

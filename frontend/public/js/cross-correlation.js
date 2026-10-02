@@ -17,11 +17,14 @@ const GROUP_LABELS = {
   equity: '美股', bond: '国债', credit: '信用', commodity: '商品',
   crypto: '加密', fx: '美元/FX', vol: '波动率',
 };
-// 分组分类色：全部回读 tokens.css（reCssVar 为 echarts-theme.js 全局）；每次渲染重取，主题切换后自动跟随
-const GROUP_COLORS = () => ({
-  equity: reCssVar('--color-brand'), bond: reCssVar('--chart-purple'), credit: reCssVar('--chart-violet'),
-  commodity: reCssVar('--color-warn'), crypto: reCssVar('--color-up'), fx: reCssVar('--chart-cyan'), vol: reCssVar('--color-down'),
-});
+// 分组分类色单源：存 token 名。DOM 图例直接 var() 引用（样式计算期解析，切主题即时跟随）；
+// canvas 侧（ECharts rich 标签）不认 var()/color-mix，由 GROUP_COLORS() 在渲染期解析成实际色值
+const GROUP_TOKENS = {
+  equity: '--color-brand', bond: '--chart-purple', credit: '--chart-violet',
+  commodity: '--color-warn', crypto: '--color-up', fx: '--chart-cyan', vol: '--color-down',
+};
+const GROUP_COLORS = () =>
+  Object.fromEntries(Object.entries(GROUP_TOKENS).map(([k, t]) => [k, reCssVar(t)]));
 // drill-down 滚动相关参数（与 cross_asset.py 同口径；前端重算避免每对导一个静态文件）
 const ROLLING_WINDOW = 30;
 const MIN_OBS = 10;
@@ -345,7 +348,7 @@ function renderMatrix() {
   if (legend) {
     legend.innerHTML = GROUP_ORDER
       .filter(g => d.assets.some(a => a.group === g))
-      .map(g => `<span class="corr-group-item"><i style="background:${GROUP_COLORS()[g]}"></i>${GROUP_LABELS[g]}</span>`)
+      .map(g => `<span class="corr-group-item"><i style="background:var(${GROUP_TOKENS[g]})"></i>${GROUP_LABELS[g]}</span>`)
       .join('');
   }
 }

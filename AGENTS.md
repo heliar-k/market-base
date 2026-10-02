@@ -433,15 +433,22 @@ uv run python src/sell_put.py --symbol TSM
   填充 / 边框 / 线色），`--color-*-text`（每色逐一对应；`tokens.css` 另给四个历史短名别名
   `--up/--down/--flat/--warning` 直指文字档，`app.css` 的 `--accent-ink` = brand 的文字档），
   `color:` 只能用它。亮色下图形档当文字色只有 2.1–3.6:1（暗色达标），所以这个 bug 长期不暴露。
-  `--accent-ink` 亮 5.11:1（页面底）、
+  `--accent-ink` 亮 5.69:1（页面底）、
   暗 = `--color-brand`，不需要新 token。ECharts 的 `label`/`axisLabel` 文字色走 `R.colors()` 的
   `greenText/redText/orangeText`。回归测试：`tests/test_semantic_text_contrast.py`
-  （已知漏报面：后端下发的字面 hex 进 `color:` 时静态扫不到 —— `credit` 页的 `zone_color`
-  仍待收口，统一成「后端下发语义 key、前端查文字档」，参照 `volatility/vix.astro` 的
-  `ZONE_TEXT` 映射）
+  （除对比度与三条 `*_color` 守卫外，还锁一条：DOM 内联 `style="…"` 里不得出现
+  `reCssVar()` 的解析结果）
+- **内联色只给引用，不给解析结果（「用哪个档」之外还有「什么时候解析」）**：写进 DOM 的
+  `style="…"` 一律用 `var(--token)`；透明底/边框用
+  `color-mix(in srgb, var(--token) N%, transparent)`（hex 后缀换算：`66`→40%、`1a`→10%、
+  `18`→9%）。`reCssVar()` 把变量解析成字面 hex，字符串一进 DOM 就固化，用户切亮/暗主题
+  不刷新页面就还是旧主题色 —— **它只该出现在 canvas 里**（ECharts `itemStyle`/`axisLabel`/`rich`、
+  TradingView 线色），canvas 不认 `var()`/`color-mix`。同一个取色表两边都要用时，存 token 名
+  单源 + 一个渲染期解析函数给 canvas（见 `cross-correlation.js` 的 `GROUP_TOKENS` / `GROUP_COLORS`）。
 - **多端点页必须段级容错**：主端点用 `R.get`，其余一律 `R.getOpt`（任何失败返回 `null` 不抛）。
   根因：静态导出端 `src/export_pages.py` 的 `_safe()` 会跳过当日缺数据的端点，
-  `frontend/public/api/*.json` **可以合法 404** —— 用 `R.get` 进 `Promise.all` 会让一个源挂 =
+  `frontend/public/api/…`（Astro directory 路由，**无 `.json` 后缀**：`/api/credit/stress` 而非
+  `/api/credit/stress.json`）**可以合法 404** —— 用 `R.get` 进 `Promise.all` 会让一个源挂 =
   整页空白。缺源段自己渲染空态（`R.fail`），其余段照常。`R.fail(ids, e)` 里的 id 必须在同页有
   `id="…"`（否则静默什么都不做）。后端字段同理：名字像第三方原文的（`i.name` 等）先回查真实来源，
   别信字段名
