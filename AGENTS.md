@@ -429,6 +429,8 @@ uv run python src/sell_put.py --symbol TSM
   TopicLayout 构建期与 macro-view.js / dashboard.js 运行时 import 同一份）。
   专题页左侧树**复用 SPA 那套 `.macro-nav*` 类**（样式单源在 `app.css`，不造平行组件），
   `body.re-has-side` 只在 ≥1025px 让位 240px，窄屏与内嵌（`body.embedded`）不出现；
+  同一档下顶栏胶囊 Tab 收起（`body.re-has-side .re-nav{display:none}`，左树已含全部组与子页），
+  ≤1024 反过来：无左树、顶栏 Tab 是唯一导航；
   当前页高亮 / 当前组展开由构建期算（SITE_NAV 的 `.html` 要先归一化成目录形态才能对上产物 URL）。
   新专题：写 .astro 页（套 TopicLayout）→ 在 `SITE_NAV` 登记即可（无别处白名单）
 - **语义色两档制（图形档 / 文字档）**：`frontend/public/css/tokens.css` 里
