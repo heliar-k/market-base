@@ -604,9 +604,6 @@ body.dark .pm-topic-card { box-shadow: inset 0 0 0 1px rgba(255,255,255,.04); }
 .re-next-tag { font-size: 11px; margin-left: 4px; color: var(--text-dim); white-space: nowrap; }
 
 /* ── assets/fx 页（原页面内联 <style> 收编；fx- 前缀为本页私有）── */
-.fx-crumb { font-size: 12px; color: var(--text-dim); margin-top: 10px; }
-.fx-crumb a { color: var(--text-secondary); text-decoration: none; }
-.fx-crumb a:hover { color: var(--accent-ink); }
 /* 顶部 4 张 verdict 卡：一排 4 列，移动端 1 列 */
 .fx-verdict-cards { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
 /* 断点收敛（#20）+ 精修：原 900 一档并入两档。960px 实测整宽单列会把 4 张卡拉成
