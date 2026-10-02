@@ -245,7 +245,8 @@ function renderHawkish(root, data) {
   const chartDiv = document.createElement('div');
   chartDiv.className = 'fed-chart-tall';
   chartDiv.id = 'chart-timeline';
-  chartDiv.style.height = '500px';
+  // 高度不再内联写死（旧值 500px）：内联 style 优先级高于类，会盖掉 fed.css 的
+  // clamp，且 grep 'style="height:' 抓不到。现由 .fed-chart-tall 单源控制（上限 500）。
   s2.appendChild(chartDiv);
   const draw = () => {
     // 用 R.getChart 取当前实例：主题切换后 mkChart 会重建，旧局部引用已 dispose

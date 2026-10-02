@@ -44,6 +44,10 @@
 .fed-odds-seg { min-width: 0; }
 .fed-odds-meta { font-size: 12px; color: var(--text-dim); }
 
-/* 图表容器（高度 clamp 口径同 special.css：上限 = 原固定值，仅矮屏变矮） */
+/* 图表容器（高度 clamp 口径同 special.css：上限 = 原固定值，仅矮屏变矮）。
+ * .fed-chart-tall 的上限取 **500px 而非旧 CSS 的 420px**：#20 写 clamp 时没发现
+ * fed/index.astro 里 JS 一直 `chartDiv.style.height = '500px'` 覆盖着，
+ * 实际渲染值长期是 500；内联已删，上限按实际渲染值定，桌面逐像素不变。
+ * 斜率 67vh → 视口高 ≥ ~750px 时等于 500（与 #20 的「≥750 等于原值」口径一致）。 */
 .fed-chart { width: 100%; height: clamp(210px, 38vh, 280px); }
-.fed-chart-tall { width: 100%; height: clamp(280px, 56vh, 420px); }
+.fed-chart-tall { width: 100%; height: clamp(340px, 67vh, 500px); }
