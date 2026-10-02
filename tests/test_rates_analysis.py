@@ -8,6 +8,7 @@ from src.rates_analysis import (
     _breakeven,
     _coupon_cover,
     _curve_text,
+    _driver_label,
     _fed_expectation_text,
     _invalidation,
     _shape_label,
@@ -201,6 +202,51 @@ def _synthetic_rates() -> pd.DataFrame:
         "DFEDTARU",
     ]
     return pd.DataFrame({c: 4.0 for c in cols}, index=idx)
+
+
+class TestDriverLabel:
+    """驱动单源判据：1 月内实际利率 vs 盈亏平衡的变动幅度。"""
+
+    def test_real_dominates(self):
+        assert _driver_label(17.0, 3.0) == "实际利率/期限溢价主导"
+
+    def test_breakeven_dominates(self):
+        assert _driver_label(-4.0, 9.0) == "通胀预期主导"
+
+    def test_missing_degrades(self):
+        assert _driver_label(None, 3.0) == "数据不足"
+
+
+class TestDriverSingleSource:
+    """回归：入口页曲线形态段与收益率曲线页的 driver 必须同一口径
+    （原先 overview 按 10Y vs 2Y 另判一套「长端/短端驱动」，两页措辞互相矛盾）。"""
+
+    def test_overview_text_uses_same_driver(self, monkeypatch):
+        idx = pd.date_range("2026-08-01", periods=70)
+        rates = pd.DataFrame(
+            {
+                "DGS2": 4.0,
+                "DGS5": 4.2,
+                "DGS10": 4.5,
+                "DGS30": 4.8,
+                "DGS3MO": 4.1,
+                "DFF": 4.0,
+                "DFEDTARL": 3.75,
+                "DFEDTARU": 4.0,
+            },
+            index=idx,
+        )
+        tips = pd.DataFrame({"DFII10": [2.0] * 69 + [2.2]}, index=idx)  # 1 月 +20bp
+        infl = pd.DataFrame({"T10YIE": 2.5}, index=idx)  # 1 月 0bp
+        empty = pd.DataFrame()
+        monkeypatch.setattr(
+            ra,
+            "_load",
+            lambda: (rates, tips, infl, empty, empty, empty),
+        )
+        driver = yield_curve_analysis()["driver"]
+        assert driver == "实际利率/期限溢价主导"
+        assert driver in ra.overview_analysis()["sections"][0]["body"]
 
 
 class TestOverviewDegradation:

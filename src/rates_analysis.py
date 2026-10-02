@@ -136,6 +136,17 @@ def _shape_label(s2s10_1m: float | None, y10_1m: float | None) -> str:
     return "走平"
 
 
+def _driver_label(real_1m: float | None, be_1m: float | None) -> str:
+    """变动驱动的唯一判据：1 月内 10Y 实际利率 vs 盈亏平衡通胀的变动幅度。
+
+    名义 = 实际 + 盈亏平衡，所以这个分解能直接对上同页【验证指标】里的
+    T10YIE / DFII10 两条判据。入口页原先另按「10Y 涨幅 vs 2Y 涨幅」写了一套
+    长端/短端驱动，与这里同页并存、措辞互相矛盾，已合并到本函数。"""
+    if real_1m is None or be_1m is None:
+        return "数据不足"
+    return "实际利率/期限溢价主导" if abs(real_1m) >= abs(be_1m) else "通胀预期主导"
+
+
 def _spread_note(spread: float | None, name: str) -> str:
     if spread is None:
         return f"{name} 数据缺失"
@@ -260,12 +271,7 @@ def yield_curve_analysis() -> dict:
     # 驱动归因：1 月内实际利率 vs 盈亏平衡变动（_bp_change 已列缺失安全）
     real_1m = _bp_change(tips, "DFII10", 30)
     be_1m = _bp_change(infl, "T10YIE", 30)
-    if real_1m is not None and be_1m is not None and abs(real_1m) >= abs(be_1m):
-        driver = "实际利率/期限溢价主导"
-    elif real_1m is not None and be_1m is not None:
-        driver = "通胀预期主导"
-    else:
-        driver = "数据不足"
+    driver = _driver_label(real_1m, be_1m)
 
     # 验证指标
     checks = []
@@ -288,9 +294,9 @@ def yield_curve_analysis() -> dict:
                 "name": "实际利率（DFII10）",
                 "value": f"{d10:.2f}%",
                 "ok": d10 > 2.0,
-                "note": "高位主导长端，与熊陡逻辑一致"
-                if d10 > 2.0
-                else "低于 2%，压制长端",
+                # 不写形态：原 文案写死「与熊陡逻辑一致」，形态为走平/牛平时自相矛盾
+                # （驱动归因已由 _driver_label 单源给出，这里只陈述水平）
+                "note": "高位主导长端" if d10 > 2.0 else "低于 2%，压制长端",
             }
         )
     effr = _snapshot(rates, _effr_col(rates), 0)
@@ -445,7 +451,7 @@ def _curve_text(
     s2s10: float | None,
     s2s10_1w: float | None,
     y10: float | None,
-    driver_side: str,
+    driver: str,
 ) -> str:
     """曲线形态段。验证方向与形态一致：陡化看突破、平化看收窄（修复：原模板
     不分形态恒写「陡峭化大概率延续」，熊平/牛平时自相矛盾——同类 bug 在
@@ -459,7 +465,7 @@ def _curve_text(
     )
     head = (
         f"曲线呈{shape}形态：2s10s 利差现报 {s2s10:.0f}bp{w_txt}，"
-        f"10Y 报 {y10:.2f}%。驱动来自{driver_side}。"
+        f"10Y 报 {y10:.2f}%。驱动：{driver}。"
     )
     if shape in ("熊陡", "牛陡"):
         return head + (
@@ -528,14 +534,12 @@ def overview_analysis() -> dict:
     y10 = _snapshot(rates, "DGS10", 0)
     y2 = _snapshot(rates, "DGS2", 0)
     y10_1m = _bp_change(rates, "DGS10", 30)
-    y2_1m = _bp_change(rates, "DGS2", 30)
     shape = _shape_label(s2s10_1m, y10_1m)
-    # 驱动侧：1 月内 10Y 涨幅 ≥ 2Y → 长端驱动；否则短端驱动（避免水平比较恒真）
-    if y10_1m is not None and y2_1m is not None:
-        driver_side = "长端风险溢价重定价" if y10_1m >= y2_1m else "短端政策预期"
-    else:
-        driver_side = "驱动方向待确认"
-    curve_text = _curve_text(shape, s2s10, s2s10_1w, y10, driver_side)
+    # 驱动与收益率曲线页同源（见 _driver_label），不再按 10Y vs 2Y 另判一套
+    driver = _driver_label(
+        _bp_change(tips, "DFII10", 30), _bp_change(infl, "T10YIE", 30)
+    )
+    curve_text = _curve_text(shape, s2s10, s2s10_1w, y10, driver)
 
     # ── 2. 实际利率 ──
     d10 = _snapshot(tips, "DFII10", 0)

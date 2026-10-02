@@ -38,17 +38,6 @@ const R = {
   ts: (arr) => (arr || []).map(p => p.date),
   vs: (arr) => (arr || []).map(p => p.value),
 
-  // 曲线形态徽章行（rates 入口页 + 收益率曲线页共用，同一份定调）
-  curveBadges(d) {
-    const shapeCls = d.shape.includes('熊') ? 'bear' : d.shape.includes('牛') ? 'bull' : 'flat';
-    const s = d.spreads;
-    return `<span class="re-badge ${shapeCls}">${d.shape} · ${d.driver}</span>
-      <span class="re-spread">2s10s: ${R.fmtBp(s['2s10s'])}bp</span>
-      <span class="re-spread">3m10s: ${R.fmtBp(s['3m10s'])}bp</span>
-      <span class="re-spread">5s30s: ${R.fmtBp(s['5s30s'])}bp</span>
-      <span class="re-spread">验证通过 ${d.confidence}</span>`;
-  },
-
   // 四线曲线快照（当前 / 1周前 / 1月前 / 3月前，rates 入口页 + 收益率曲线页共用）
   curveCompare(id, tenors) {
     return R.mkChart(id, (colors) => R.lineOption({

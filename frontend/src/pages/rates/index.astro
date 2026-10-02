@@ -1,7 +1,8 @@
 ---
 // rates 族入口页 — 工单 #15 自 public/rates/index.html 迁入。
-// 结构：形态徽章 + 统计卡 + 曲线四线快照 + 四段研判 + 子页 link-grid；island 脚本逐字原样
-// （R.curveBadges / R.curveCompare / R.cards 为 rates-common 经典全局）。
+// 结构：统计卡 + 曲线四线快照 + 四段研判 + 子页 link-grid；island 脚本逐字原样
+// （R.curveCompare / R.cards 为 rates-common 经典全局）。
+// 形态/驱动/利差定调由研判首段给出，不再另挂顶部徽章条（与研判重复，且「走平」易读成「没行情」）。
 // fetch('/api/rates/analysis') 不变。
 import TopicLayout from '../../layouts/TopicLayout.astro';
 import Section from '../../components/Section.astro';
@@ -9,8 +10,6 @@ import Section from '../../components/Section.astro';
 <TopicLayout title="利率">
   <div class="page-toc" id="page-toc"></div>
 
-  <!-- 形态徽章条:结论层 chrome,不进 Section -->
-  <div class="re-badges" id="re-badges"></div>
   <Section title="概览">
     <div id="re-cards"></div>
   </Section>
@@ -58,9 +57,6 @@ async function load() {
     `研判生成：${R.genText(data.generator)}`;
 
   const d = data.yield_curve;
-
-  // ── 形态徽章行（与收益率曲线页同款定调）──
-  document.getElementById('re-badges').innerHTML = R.curveBadges(d);
 
   // ── 统计卡（变动着色：涨绿跌红，与全站一致）──
   const t = Object.fromEntries(d.tenors.map(x => [x.tenor, x]));
