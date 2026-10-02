@@ -4,6 +4,7 @@
 删除，head 样板由 TopicLayout.astro 构建期渲染。本文件只保校验「约定」的用例：
 - public/ 只剩 SPA 壳、专题页以 .astro 存续 → test_public_is_spa_shell_only
 - SITE_NAV 里的每个 page 都要有对应页面 → test_site_nav_pages_exist
+- 每个 '/….html' 链接都要有 _redirects 重写行 → test_html_links_have_redirects
 - 导航消费方不得自带页路径清单 → test_nav_consumers_read_site_nav
 - 「数据截至」文案只能由 R.asOf 组装 → test_as_of_*
 - echarts-theme.js 先于 rates-common.js 加载 → test_echarts_theme_before_rates_common
@@ -72,6 +73,53 @@ def test_site_nav_pages_exist() -> None:
             rel[:-5] + ".astro" if rel.endswith(".html") else rel + "/index.astro"
         )
         assert target.exists() or astro.exists(), f"SITE_NAV 指向不存在的页面：{page}"
+
+
+def _html_links_in_frontend() -> set[str]:
+    """前端源码里所有字面量形式的 '/….html' 链接（SITE_NAV 条目与页内跳转）。"""
+    found: set[str] = set()
+    sources = [
+        *sorted(ASTRO_PAGES.rglob("*.astro")),
+        *sorted((STATIC / "js").glob("*.js")),
+        SPA_ENTRY,
+    ]
+    for src in sources:
+        found |= set(
+            re.findall(
+                r"""['"](/[A-Za-z0-9/_-]*\.html)['"]""", src.read_text(encoding="utf-8")
+            )
+        )
+    # public/ 下真实存在的同名文件不需要重写（如 SPA 壳 /index.html）
+    return {p for p in found if not (STATIC / p.lstrip("/")).is_file()}
+
+
+def _redirect_sources() -> set[str]:
+    """_redirects 里的源路径（跳过注释与空行）。"""
+    lines = (STATIC / "_redirects").read_text(encoding="utf-8").splitlines()
+    return {
+        parts[0]
+        for ln in lines
+        if (parts := ln.split()) and not ln.lstrip().startswith("#")
+    }
+
+
+def test_html_links_have_redirects() -> None:
+    """每个 '/….html' 链接都要有 _redirects 重写行（#26）。
+
+    产物是 directory 路由（Astro `format: 'directory'`），而 SITE_NAV 与页内跳转都带
+    `.html` 后缀（共享 JS 硬闸不可改），两者靠 `frontend/public/_redirects` 里手写的
+    `.html → 目录页 200` 对上。新子页漏一行即静默 404，而
+    `test_site_nav_pages_exist` 只看页面文件存在、看不见重写表。
+
+    反向验法：手工删掉 `_redirects` 任意一行 → 本测试红并指名失去重写的链接。
+    不查孤儿（重写行 ⊃ 链接集之外的）：重写也可能服务外部入站链接（冻结备份站、
+    书签），孤儿不是错误。"""
+    links, redirects = _html_links_in_frontend(), _redirect_sources()
+    assert links, "前端源码里没解析到任何 '.html' 链接（改写法了？）"
+    missing = sorted(links - redirects)
+    assert not missing, (
+        f"以下 '.html' 链接缺 _redirects 重写行，线上会静默 404：{missing}"
+    )
 
 
 def test_nav_consumers_read_site_nav() -> None:
