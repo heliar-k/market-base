@@ -70,7 +70,9 @@ body.embedded .re-foot { display: none; } /* 内嵌 iframe 不重复页脚 */
   font-size: 12.5px; line-height: 1.7; color: var(--text-secondary);
   background: var(--surface-alt); border: 1px dashed var(--border-strong); border-radius: 8px;
 }
-.re-chart { height: 300px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); }
+/* 图表高度统一 clamp()（#20 配套项）：上限 = 原固定值，斜率取 ~40vh，
+ * 视口高 ≥ ~750px（几乎全部桌面）与原来逐像素一致，仅矮屏/手机变矮，下限兜住可读性。 */
+.re-chart { height: clamp(220px, 40vh, 300px); border: 1px solid var(--border); border-radius: 8px; background: var(--surface); }
 /* re-section 内部的图表/表格与父卡底对齐（margin-bottom），左右与文字同一条边线 */
 .re-section > .re-chart:last-child, .re-section > .re-table:last-child { margin-bottom: 2px; }
 .re-h2 { font-size: 15px; font-weight: 700; }
@@ -88,7 +90,7 @@ body.embedded .re-foot { display: none; } /* 内嵌 iframe 不重复页脚 */
 .re-sec-title::before { content: ''; width: 3px; height: 14px; border-radius: 2px; background: var(--accent); flex: 0 0 auto; }
 .re-sec-sub { font-size: 12px; color: var(--text-dim); }
 /* 图表面板高度档位(ChartPanel):数字对齐 special.css 既有高度,逐步归一 */
-.re-chart-sm { height: 260px; } .re-chart-md { height: 300px; } .re-chart-lg { height: 380px; } .re-chart-xl { height: 460px; }
+.re-chart-sm { height: clamp(200px, 36vh, 260px); } .re-chart-md { height: clamp(220px, 40vh, 300px); } .re-chart-lg { height: clamp(260px, 52vh, 380px); } .re-chart-xl { height: clamp(300px, 62vh, 460px); }
 /* 页内分组分隔标题（如利率定价页的政策路径 / 长端分解） */
 .re-group { font-size: 16px; font-weight: 800; margin: 24px 0 4px; padding-bottom: 6px; border-bottom: 2px solid var(--accent); color: var(--text); }
 .re-table { width: 100%; border-collapse: collapse; font-size: 13px; font-variant-numeric: tabular-nums; }
@@ -113,8 +115,8 @@ body.embedded .re-foot { display: none; } /* 内嵌 iframe 不重复页脚 */
 .rank-grid .rk-n { font-size: 11px; }
 .rank-grid .rk-v { font-size: 11px; }
 @media (max-width: 768px) { .rank-grid { grid-template-columns: 1fr; } }
-.chart.chart-lg { height: 280px; }
-.chart.chart-md { height: 340px; }
+.chart.chart-lg { height: clamp(210px, 38vh, 280px); }
+.chart.chart-md { height: clamp(250px, 46vh, 340px); }
 .re-badge { padding: 4px 12px; border-radius: 999px; font-size: 12.5px; font-weight: 600; color: var(--text-secondary); background: var(--color-neutral-bg); letter-spacing: .01em; }
 /* Stripe 徽章细节:1px 语义色透明描边,胶囊有型 */
 .re-badge { border: 1px solid color-mix(in srgb, var(--color-neutral) 25%, transparent); }
@@ -183,7 +185,7 @@ a.re-badge:hover { color: var(--accent-ink); border-color: var(--accent-ink); }
 .link-card .icon { font-size: 22px; }
 .link-card .t { font-size: 14px; font-weight: 600; color: var(--text); }
 .link-card .d { font-size: 12px; color: var(--text-secondary); margin-top: 2px; }
-.chart { width: 100%; height: 300px; margin-top: 8px; }
+.chart { width: 100%; height: clamp(220px, 40vh, 300px); margin-top: 8px; }
 .term-head { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; margin-bottom: 10px; }
 .term-badge { font-size: 12px; padding: 2px 10px; border-radius: 999px; border: 1px solid; }
 .term-badge.contango { color: var(--color-up-text); border-color: color-mix(in srgb, var(--color-up) 33%, transparent); background: var(--color-up-bg); }
@@ -457,8 +459,10 @@ a.re-badge:hover { color: var(--accent-ink); border-color: var(--accent-ink); }
 /* ── 预测市场面板（Polymarket 共用：geo 页 + 加密衍生品页价位专题）──
    单源在此，页面不再各写一份：主题状态卡 / 归类 chips / 概率条 / 原始明细折叠。 */
 .pm-topics { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
-@media (max-width: 900px) { .pm-topics { grid-template-columns: repeat(2, 1fr); } }
-@media (max-width: 600px) { .pm-topics { grid-template-columns: 1fr; } }
+/* 断点收敛（#20）：原 900（3→2 列）/ 600（2→1 列）并入 1024 / 768 两档。
+ * 归并方向 = 让栅格「更早」塌列，任一宽度下单卡都比原先更宽，无挤坏风险。 */
+@media (max-width: 1024px) { .pm-topics { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 768px) { .pm-topics { grid-template-columns: 1fr; } }
 .pm-topic-name { font-weight: 700; font-size: 14.5px; }
 .pm-topic-card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 16px 18px; cursor: pointer; transition: border-color .15s cubic-bezier(.4,0,.2,1), box-shadow .15s; box-shadow: var(--card-shadow); }
 body.dark .pm-topic-card { box-shadow: inset 0 0 0 1px rgba(255,255,255,.04); }
@@ -523,10 +527,14 @@ body.dark .pm-topic-card { box-shadow: inset 0 0 0 1px rgba(255,255,255,.04); }
 /* ── rates/pricing 页（原页面内联 <style> 收编；hc-/pb-/rp- 前缀为本页私有）── */
 /* KPI 8 卡固定 4×2，避免 auto-fit 7 列时第 8 卡孤行 */
 #re-cards .re-cards { grid-template-columns: repeat(4, 1fr); }
-@media (max-width: 900px) { #re-cards .re-cards { grid-template-columns: repeat(2, 1fr); } }
 /* 政策路径定价 hero：决策卡 + PM 收敛路径图并排 */
 .hero { display: grid; grid-template-columns: 400px 1fr; gap: 14px; }
-@media (max-width: 980px) { .hero { grid-template-columns: 1fr; } }
+/* 断点收敛（#20）：原 900（KPI 4→2 列）/ 980（hero 并排→堆叠）并入 1024 一档。
+ * 两条都是「塌列 / 堆叠」方向，901–1024 区间由 4 列变 2 列、由并排变堆叠，只松不紧。 */
+@media (max-width: 1024px) {
+  #re-cards .re-cards { grid-template-columns: repeat(2, 1fr); }
+  .hero { grid-template-columns: 1fr; }
+}
 .hero-card { border: 1px solid var(--accent); border-radius: 10px; background: var(--surface); padding: 16px; display: flex; flex-direction: column; gap: 12px; box-shadow: 0 0 0 1px var(--accent); }
 .hc-head { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
 .hc-date { font-size: 20px; font-weight: 800; font-family: var(--font-mono); }
@@ -559,7 +567,7 @@ body.dark .pm-topic-card { box-shadow: inset 0 0 0 1px rgba(255,255,255,.04); }
 .chart-box { border: 1px solid var(--border); border-radius: 8px; background: var(--surface); padding: 10px 12px 4px; }
 .chart-box h3 { font-size: 13px; font-weight: 700; margin: 2px 0 4px; }
 .chart-box h3 small { color: var(--text-dim); font-weight: 400; }
-#conv-chart { height: 268px; }
+#conv-chart { height: clamp(200px, 36vh, 268px); }
 /* 三色概率条 / 分歧角标（hero 与明细表共用） */
 .pb { display: flex; height: 10px; border-radius: 3px; overflow: hidden; gap: 1px; background: var(--surface-alt); }
 .pb > div { min-width: 0; }
@@ -587,7 +595,8 @@ body.dark .pm-topic-card { box-shadow: inset 0 0 0 1px rgba(255,255,255,.04); }
 .fx-crumb a:hover { color: var(--accent-ink); }
 /* 顶部 4 张 verdict 卡：一排 4 列，移动端 1 列 */
 .fx-verdict-cards { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
-@media (max-width: 900px) { .fx-verdict-cards { grid-template-columns: 1fr; } }
+/* 断点收敛（#20）：原 900 并入 1024，塌列方向只松不紧（901–1024 由 4 列 230px 变整宽单列） */
+@media (max-width: 1024px) { .fx-verdict-cards { grid-template-columns: 1fr; } }
 .fx-verdict-card { display: flex; flex-direction: column; }
 .fx-verdict-top { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
 .fx-verdict-num { font-size: 12px; color: var(--text-secondary); white-space: nowrap; }
@@ -600,7 +609,7 @@ body.dark .pm-topic-card { box-shadow: inset 0 0 0 1px rgba(255,255,255,.04); }
 /* FX Dashboard 头栏：左小标 + h2，右 11px meta */
 .fx-dash-head { display: flex; justify-content: space-between; align-items: flex-end; gap: 12px; flex-wrap: wrap; }
 .fx-dash-meta { font-size: 11px; color: var(--text-dim); padding-bottom: 6px; }
-.fx-chart { height: 420px; }
+.fx-chart { height: clamp(280px, 56vh, 420px); }
 /* 品种列两行：粗体名 + 10px 等宽 ticker */
 .fx-sym { line-height: 1.4; }
 .fx-sym b { font-weight: 600; }
