@@ -533,15 +533,21 @@ body.dark .pm-topic-card { box-shadow: inset 0 0 0 1px rgba(255,255,255,.04); }
 #re-cards .re-cards { grid-template-columns: repeat(4, 1fr); }
 /* 政策路径定价 hero：决策卡 + PM 收敛路径图并排 */
 .hero { display: grid; grid-template-columns: 400px 1fr; gap: 14px; }
-/* 断点收敛（#20）：原 900（KPI 4→2 列）/ 980（hero 并排→堆叠）并入 1024 一档。
- * 两条都是「塌列 / 堆叠」方向，901–1024 区间由 4 列变 2 列、由并排变堆叠，只松不紧。 */
+/* 断点收敛（#20）：原 900（KPI 塌列）/ 980（hero 并排→堆叠）并入 1024 一档。
+ * 两条都是「塌列 / 堆叠」方向，901–1024 区间只松不紧。
+ * 960 下取 3 列而非 2 列（用户定）：2 列时单卡 410px 宽于桌面的 ~320px、8 卡要 4 行；
+ * 3 列≈269px 接近桌面密度，仍 > 卡片 min-content 172px。
+ * 用 auto-fit 而非写死 repeat(3,1fr)：卡数少于列数的页（/liquidity/reserves/ 只 2 卡）
+ * 会被 auto-fit 合并空轨→铺满，不留 1/3 空洞；窄到 820 以下自动回 2 列。 */
 @media (max-width: 1024px) {
-  #re-cards .re-cards { grid-template-columns: repeat(2, 1fr); }
+  #re-cards .re-cards { grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); }
   .hero { grid-template-columns: 1fr; }
 }
 /* #27：≤ 768 取单列。两列时 1fr 轨道的自动最小尺寸 = 卡片 min-content（
  * `.re-corridor-label` 等 overflow:visible 的子元素撑出 172px），375 宽下被顶到 214px，
- * 两列 + gap = 464 > 375 → 文档横向溢出。单列后卡宽 ≈343px > 172px，溢出消失。 */
+ * 两列 + gap = 464 > 375 → 文档横向溢出。
+ * 上面改 auto-fit 后本条理论上已冗余（minmax(240px) 在 375 只排 1 轨），
+ * 保留作为更窄视口（<340px）与 min-content 变化的双保险。 */
 @media (max-width: 768px) { #re-cards .re-cards { grid-template-columns: 1fr; } }
 .hero-card { border: 1px solid var(--accent); border-radius: 10px; background: var(--surface); padding: 16px; display: flex; flex-direction: column; gap: 12px; box-shadow: 0 0 0 1px var(--accent); }
 .hc-head { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
