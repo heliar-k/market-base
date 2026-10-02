@@ -25,7 +25,9 @@ concurrency:
 
 jobs:
   refresh:
-    runs-on: ubuntu-latest
+    # 钉 24.04：与 daily-fetch/fast-refresh 同一批数据 workflow，统一镜像版本避免
+    # ubuntu-latest 2026-10-19 换代（Ubuntu 26）后行为不一致；本 workflow 无 apt 步骤，风险低。
+    runs-on: ubuntu-24.04
     permissions:
       contents: write
     steps:

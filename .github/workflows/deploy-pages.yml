@@ -38,7 +38,9 @@ permissions:
 
 jobs:
   deploy-pages:
-    runs-on: ubuntu-latest
+    # 钉 24.04：消除 ubuntu-latest 2026-10-19 换代（Ubuntu 26）告警，与其余 workflow 统一；
+    # 工具链已由 .nvmrc/package-lock/uv.lock 钉死，本 workflow 无 apt 步骤，风险低。
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v5
         with:
@@ -73,7 +75,7 @@ jobs:
         working-directory: frontend
 
       - name: Deploy to Cloudflare Pages
-        uses: cloudflare/wrangler-action@v3
+        uses: cloudflare/wrangler-action@v4  # v3 声明 node20 已被 GitHub 强制迁移 node24（日志告警）；v4 原生 node24，唯一 major 变更是默认 wrangler 升 v4，参数名（apiToken 驼峰）不变
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           command: pages deploy frontend/dist --project-name=market-base

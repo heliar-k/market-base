@@ -20,7 +20,10 @@ concurrency:
 
 jobs:
   fetch:
-    runs-on: ubuntu-latest
+    # 钉 24.04：本 workflow 有 playwright --with-deps（apt 装系统依赖），GitHub 2026-10-19 起
+    # ubuntu-latest 换代到 Ubuntu 26，apt 包名/系统库漂移会静默弄坏 chromium 安装。
+    # 解钉时机：playwright 官方声明支持 Ubuntu 26 且 Actions runner 镜像跟进后。
+    runs-on: ubuntu-24.04
     permissions:
       contents: write
     steps:
@@ -37,7 +40,7 @@ jobs:
       # Barchart 走无头浏览器通道时需要（barchart_client 降级路径）；
       # 浏览器二进制按 lock 哈希缓存，命中时只剩 apt deps 安装
       - name: Cache playwright chromium
-        uses: actions/cache@v4
+        uses: actions/cache@v6  # v4 声明 node20 已被 GitHub 强制迁移 node24（日志告警），v6 起原生 node24，输入参数不变
         with:
           path: ~/.cache/ms-playwright
           key: playwright-${{ runner.os }}-${{ hashFiles('uv.lock') }}
