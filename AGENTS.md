@@ -301,6 +301,9 @@ uv run python -m src.server                        # 启动 Web，浏览器打�
 #   uv run python -m src.export_pages（API JSON → frontend/public/api/，工单 #12 起唯一模式）
 #   → npm run build（astro，frontend/dist）→ wrangler deploy → https://market-base.pages.dev/
 #   数据 push（PAT）与前端/后端 push 均自动触发；手动：gh workflow run deploy-pages.yml --ref <分支>
+#   等部署结果别用 `gh run watch`：非 TTY 下它只打一次状态快照就 exit 0（假成功，还会把上一轮
+#   部署的 wrangler 输出混进来）。轮询 `gh run view <id> --json status --jq .status` 直到 completed，
+#   再 curl 线上产物（如 /css/app.css）grep 改动关键字才算真生效
 # 限制：K 线仅近 3 年、相关性页仅近 5 年、诊断面板无光标回看（静态预渲染的固有降级）
 # 利率专题（timsun.net/rates 复刻）：/rates/ 入口页 → 联邦基金/收益率曲线/利率定价（拍卖已并入 /treasury/）
 # 研判由 src/rates_analysis.py 规则引擎生成，LLM 接入点：generate_analysis() → _llm_generate()
