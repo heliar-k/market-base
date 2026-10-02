@@ -39,11 +39,11 @@ STRESS_W = 3650
 # 压力指数分量权重（与 timsun 一致）
 STRESS_WEIGHTS = {"hy": 0.30, "ig": 0.20, "mom": 0.20, "vix": 0.15, "div": 0.15}
 
-# 压力分档
+# 压力分档（只给语义名；色由前端按名查两档制映射，见 credit/index.astro）
 STRESS_ZONES = [
-    ("宽松", 0, 30, "#26a69a"),
-    ("中性", 30, 70, "#ff9800"),
-    ("压力", 70, 101, "#ef5350"),
+    ("宽松", 0, 30),
+    ("中性", 30, 70),
+    ("压力", 70, 101),
 ]
 
 
@@ -140,18 +140,18 @@ def _oas_card(s: pd.Series) -> dict:
 # 各百分位窗口样本不足时按可用历史计算（同原站降级口径），仅 Market Liquidity
 # 要求 ≥23 条以避免单点动量噪声。原站公式细节不公开，数值偏差属可接受口径假设。
 REGIME_ZONES = [
-    ("宽松", 0, 25, "#26a69a"),
-    ("中性偏松", 25, 50, "#26a69a"),
-    ("中性偏紧", 50, 75, "#ff9800"),
-    ("收紧", 75, 101, "#ef5350"),
+    ("宽松", 0, 25),
+    ("中性偏松", 25, 50),
+    ("中性偏紧", 50, 75),
+    ("收紧", 75, 101),
 ]
 
 
-def _regime_zone(score: float) -> tuple[str, str]:
-    for label, lo, hi, color in REGIME_ZONES:
+def _regime_zone(score: float) -> str:
+    for label, lo, hi in REGIME_ZONES:
         if lo <= score < hi:
-            return label, color
-    return REGIME_ZONES[-1][0], REGIME_ZONES[-1][3]
+            return label
+    return REGIME_ZONES[-1][0]
 
 
 def _regime_score(
@@ -220,12 +220,11 @@ def _regime_score(
     ]
     values = [v for _, _, v in comps if v is not None]
     total = round(sum(values) / len(values), 1) if values else None
-    label, color = _regime_zone(total) if total is not None else ("—", "#999")
+    label = _regime_zone(total) if total is not None else "—"
 
     return {
         "score": total,
         "regime": label,
-        "color": color,
         "components": [{"key": k, "name": n, "value": v} for k, n, v in comps],
         "missing": [n for _, n, v in comps if v is None],
     }
@@ -575,7 +574,7 @@ def stress(
         + STRESS_WEIGHTS["div"] * div,
         1,
     )
-    zone_name, color = zone(comp, STRESS_ZONES)
+    zone_name = zone(comp, STRESS_ZONES)
 
     components = [
         {
@@ -684,7 +683,6 @@ def stress(
     return {
         "composite": comp,
         "zone": zone_name,
-        "zone_color": color,
         "components": components,
         "cross": cross,
         "history": hist,

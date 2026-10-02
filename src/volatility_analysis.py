@@ -72,7 +72,7 @@ def vix_card(df: pd.DataFrame) -> dict:
     if s.empty:
         return {}
     v = float(s.iloc[-1])
-    zone_name, color = zone(v, ZONES)
+    zone_name = zone(v, ZONES)
     return {
         "value": v,
         "as_of": s.index[-1].strftime("%Y-%m-%d"),
@@ -82,7 +82,6 @@ def vix_card(df: pd.DataFrame) -> dict:
         "chg_1w": _chg_pts(s, 5),
         "percentile_1y": _percentile(s, 250),
         "zone": zone_name,
-        "zone_color": color,
     }
 
 
@@ -121,7 +120,7 @@ def signal_vix_level(card: dict) -> str:
             f"周{'涨' if card['chg_1w_pct'] >= 0 else '跌'} "
             f"{abs(card['chg_1w_pct']):.2f}%"
         )
-    zone_name, _ = zone(card["value"], ZONES)
+    zone_name = zone(card["value"], ZONES)
     pct = card.get("percentile_1y")
     pct_txt = f"，处于近一年 {pct}% 分位" if pct is not None else ""
     text = (

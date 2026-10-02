@@ -22,6 +22,14 @@ import Section from '../../components/Section.astro';
   <div class="re-gen" id="re-gen"></div>
 
 <script is:inline>
+// 区间语义名 → 色：后端只下发语义 key（zone / regime），色在本页映射（两档制）。
+// 图形档走 reCssVar 取实际 hex —— 徽章要拼 `${c}66` / `${c}18` 透明度后缀，var() 拼不了；
+// 文字档另给一份，`color:` 槽只用它（亮色下图形档做文字不达 AA）。同 transmission-chain 口径。
+const ZONE_GRAPHIC = { 宽松: '--color-up', 中性偏松: '--color-up', 中性: '--color-warn', 中性偏紧: '--color-warn', 压力: '--color-down', 收紧: '--color-down' };
+const ZONE_INK = { 宽松: 'var(--up)', 中性偏松: 'var(--up)', 中性: 'var(--warning)', 中性偏紧: 'var(--warning)', 压力: 'var(--down)', 收紧: 'var(--down)' };
+const zoneHex = k => reCssVar(ZONE_GRAPHIC[k] || '--text-dim');
+const zoneInk = k => ZONE_INK[k] || 'var(--text-dim)';
+
 async function load() {
   // 小节锚点导航（长页快速跳转；sticky 见 special.css .page-toc）
   document.getElementById('page-toc').innerHTML = [
@@ -40,7 +48,7 @@ async function load() {
   document.getElementById('re-as-of').textContent = R.asOf(d.as_of);
 
   // ── Credit Regime Score 记分卡（对齐持仓页 pos-hero 骨架）──
-  const rg = d.regime || { score: null, regime: '—', color: reCssVar('--text-dim'), components: [], missing: [] };
+  const rg = d.regime || { score: null, regime: '—', components: [], missing: [] };
   // 子分区间色：与后端 REGIME_ZONES 同口径（≤50 偏松绿 / 50-75 偏紧橙 / ≥75 收紧红）
   const rgColor = v => v === null || v === undefined ? 'var(--text-dim)' : v >= 75 ? 'var(--color-down)' : v >= 50 ? 'var(--color-warn)' : 'var(--color-up)';
   // 同一口径的文字档并行映射：进度条填充用上面的图形档，子分数值写字用这套（亮色过 AA）
@@ -62,14 +70,15 @@ async function load() {
   const missingNote = rg.missing.length ? `子分数据不足（${rg.missing.join('、')}），综合分只用有数据的子分重算。` : '';
   const rc = document.createElement('div');
   rc.className = 'pos-hero regime-hero';
-  rc.style.setProperty('--rc-color', rg.color);
+  rc.style.setProperty('--rc-color', zoneHex(rg.regime));  // 图形档：左边框
+  rc.style.setProperty('--rc-ink', zoneInk(rg.regime));  // 文字档：44px 大数字（special.css .rh-score .num）
   rc.innerHTML = `
     <div class="rh-main">
       <div class="ph-label">CREDIT REGIME SCORE</div>
       <div class="rh-score">
         <span class="num">${rg.score === null ? '—' : rg.score}</span>
         <span class="of">/ 100</span>
-        <span class="rh-badge" style="color:${rg.color};border:1px solid ${rg.color}66;background:${rg.color}1a">${rg.regime}</span>
+        <span class="rh-badge" style="color:${zoneInk(rg.regime)};border:1px solid ${zoneHex(rg.regime)}66;background:${zoneHex(rg.regime)}1a">${rg.regime}</span>
       </div>
       <div class="rh-read">
         高分 = 信用压力更大，综合分为 7 子分等权平均。子分颜色随压力变化：<b style="color:var(--color-up-text)">绿</b>（≤50 偏松）→ <b style="color:var(--color-warn-text)">橙</b>（50-75 偏紧）→ <b style="color:var(--color-down-text)">红</b>（≥75 收紧）。
@@ -233,7 +242,7 @@ function renderCds(root, d) {
   if (d.bank) {
     const dv = d.bank.divergence;
     const dir = dv < 0 ? '银行板块相对承压' : (dv > 0 ? '银行板块相对强势' : '持平');
-    const color = dv < -0.5 ? 'var(--accent)' : 'var(--text)';
+    const color = dv < -0.5 ? 'var(--accent-ink)' : 'var(--text)';
     bank += `<div class="value" style="color:${color}">${dv > 0 ? '+' : ''}${dv.toFixed(2)}<span class="unit">pct</span></div>
       <div class="sub">KBWB ${d.bank.days} 日 ${d.bank.kbwb_chg > 0 ? '+' : ''}${d.bank.kbwb_chg.toFixed(2)}% · ^GSPC ${d.bank.spx_chg > 0 ? '+' : ''}${d.bank.spx_chg.toFixed(2)}% · ${dir}</div>
       <div class="date">近 ${d.bank.days} 个交易日 · 截至 ${d.bank.as_of || '—'}（快照数据积累中，14 日口径需约 15 个交易日）</div>`;
@@ -274,10 +283,10 @@ function renderStress(root, d) {
   card.innerHTML = `
     <div>
       <div class="label">COMPOSITE SCORE · 5 分量综合压力指数</div>
-      <div class="value" style="color:${d.zone_color}">${d.composite}<span style="font-size:16px;color:var(--text-dim)">/100</span></div>
+      <div class="value" style="color:${zoneInk(d.zone)}">${d.composite}<span style="font-size:16px;color:var(--text-dim)">/100</span></div>
       <div class="scale">0-30 宽松 · 30-70 中性 · 70-100 压力</div>
     </div>
-    <div class="badge" style="color:${d.zone_color};border-color:${d.zone_color}66;background:${d.zone_color}1a">${d.zone}</div>`;
+    <div class="badge" style="color:${zoneInk(d.zone)};border-color:${zoneHex(d.zone)}66;background:${zoneHex(d.zone)}1a">${d.zone}</div>`;
   wrap.appendChild(card);
 
   const csec = document.createElement('div');

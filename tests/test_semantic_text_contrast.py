@@ -19,6 +19,12 @@ ECharts series 调色板与热力图发散端点（图形，不看对比度）�
 已知覆盖边界：ECharts `label.color` / `axisLabel.color` 这类 JS 对象键里的**文字**色
 静态区分不了（与线色同形），那部分靠 `R.colors()` 的 greenText/redText/orangeText
 三个文字档单源人工守。
+
+后端下发字面 hex 的漏报面已封三条（2026-10 审计第 4 步）：分析模块不得下发 `*_color`
+字段、前端不得把 `*_color` 插进 `color:` 槽、CSS 不得拿名字以 `-color` 结尾的自定义属性
+写字。仍存的一个洞：`--color-brand` 做文字（brand 徽章）——brand 的文字档 `--accent-ink`
+在 16% brand 徽章底上只有 4.38:1，达不到 4.5，所以 brand 没进下面那个 CSS 名单（进了就
+会红）。要么把 `--accent-ink` 再压深一档，要么把 brand 徽章底从 16% 降到 12%。
 """
 
 from __future__ import annotations
@@ -138,12 +144,14 @@ def test_text_tokens_clear_aa_on_real_backgrounds() -> None:
 
 
 def test_css_does_not_use_graphic_primitives_as_text_color() -> None:
-    """`color: var(--color-up)` 这类写法必须已迁到 -text 档。
+    r"""`color: var(--color-up)` 这类写法必须已迁到 -text 档。
 
-    border-/background-/accent-color 不算。
+    border-/background-/accent-color 不算。`[,)]` 是为了连带兜底的写法一起抓：
+    `color: var(--color-warn, var(--accent))` 在只认 `\)` 时是漏的。
+    --color-brand 故意不在名单里（见模块 docstring 的「仍存的一个洞」）。
     """
     pat = re.compile(
-        r"(?<![-\w])color:\s*var\(--color-(?:up|down|neutral|warn|hawk|dove)\)"
+        r"(?<![-\w])color:\s*var\(--color-(?:up|down|neutral|warn|hawk|dove)[,)]"
     )
     bad = [
         f"{p.name}:{i}:{ln.strip()}"
@@ -157,7 +165,8 @@ def test_css_does_not_use_graphic_primitives_as_text_color() -> None:
 # ── island 内联样式 / 共享 JS ──────────────────────────────────────────────
 #
 # 图形档 token（tokens.css 里注明「只做填充/色带/线色」的那一档）。--color-*-text
-# 与别名 --up/--down/--flat/--warning 属文字档，不在其列。
+# 与别名 --up/--down/--flat/--warning 属文字档，不在其列。--accent 是 brand 的图形档
+# 别名（tokens.css:135），亮色下在页面底只 4.26:1，写字得换 --accent-ink。
 GRAPHIC_TOKENS = (
     "--color-warn-light",
     "--color-warn-deep",
@@ -168,6 +177,7 @@ GRAPHIC_TOKENS = (
     "--color-up",
     "--color-down",
     "--color-warn",
+    "--accent",
 )
 # `color:` 属性位。(?<![-\w]) 挡掉 background-color / border-color / accent-color /
 # stop-color / text-decoration-color 等前缀，也不会把 token 名里的 `-color-` 当属性名。
@@ -180,12 +190,13 @@ ASSIGN = re.compile(
 
 
 def _graphic_pat(tokens: tuple[str, ...] | list[str]) -> re.Pattern[str]:
-    """图形档 token → 匹配正则（长名在前，免得短名抢在 --color-warn-light 前）。"""
-    alt = "|".join(
-        re.escape(t.removeprefix("--color-"))
-        for t in sorted(tokens, key=len, reverse=True)
-    )
-    return re.compile(rf"--color-(?:{alt})(?![\w-])")
+    r"""图形档 token → 匹配正则（长名在前，免得短名抢在 --color-warn-light 前）。
+
+    存完整 token 名（含 --accent 这种不带 --color- 前缀的别名）；(?![\w-]) 同时挡住
+    --accent 误抢 --accent-ink / --accent-light。
+    """
+    alt = "|".join(re.escape(t) for t in sorted(set(tokens), key=len, reverse=True))
+    return re.compile(rf"(?:{alt})(?![\w-])")
 
 
 GRAPHIC = _graphic_pat(GRAPHIC_TOKENS)
@@ -343,6 +354,9 @@ def test_islands_and_shared_js_do_not_use_graphic_tokens_as_text_color() -> None
 
     检测器只认两种文字色上下文：style="…color:…"（含模板三元）与 .astro <style> 块声明；
     JS 对象字面量里的 color: 键（ECharts/TradingView 线色）一律不认，否则全是假阳性。
+    `--accent` 是 brand 的图形档别名（tokens.css:135），亮色下在页面底只有 4.26:1，
+    所以写字要换同色相的文字档 `--accent-ink`；它已在 GRAPHIC_TOKENS 里，是否入扫
+    由实测对比度决定（_under_aa_graphic_tokens）。
     """
     allowed = _under_aa_graphic_tokens()
     assert allowed, "tokens.css 里没解析出任何图形档 token，先修 _themes()"
@@ -358,3 +372,67 @@ def test_islands_and_shared_js_do_not_use_graphic_tokens_as_text_color() -> None
         )
     ]
     assert not bad, "文字色请走 --color-*-text（图形档对比度不足）：\n" + "\n".join(bad)
+
+
+# ── 后端下发字面 hex 的封口（审计第 4 步）──────────────────────────────────
+#
+# 上面那些规则只认 token 名，所以 `style="color:${d.zone_color}"`（值来自后端 JSON 的
+# 字面 hex）对它们完全隐形 —— 这正是 credit 页那几处 AA 违规能活过一轮审计的原因。
+# 口径统一成「后端下发语义 key、前端查文字档映射」（volatility/vix.astro 早就这么写），
+# 再用下面三条规则封掉回潮。
+
+# 分析模块下发的 `*_color` 字段（zone_color 那一类）
+BACKEND_COLOR_FIELD = re.compile(r'"([a-z_]*_color)"\s*:')
+# 前端把 `*_color` 字段插进 `color:` 文字槽（border-color / background-color 不算）
+FRONTEND_COLOR_INTERP = re.compile(r"(?<![-\w])color\s*:\s*\$\{[^}]*_color\b")
+# CSS 文字槽引用名字以 `-color` 结尾的自定义属性（那是 JS 拼出来的图形档）
+CSS_TEXT_VIA_NAMED_COLOR = re.compile(r"(?<![-\w])color:[^;{}]*var\(--[\w-]+-color[,)]")
+
+
+def test_analysis_modules_do_not_emit_color_fields() -> None:
+    """`src/*_analysis.py` 不得下发 `*_color` 字段（下发语义 key，前端查映射）。
+
+    区间色表（`zones: [{label, color}]`，前端只拿去画色条/圆点）不在此列 ——
+    它键名是 `color` 不是 `*_color`，且消费位是 background。
+    """
+    bad = [
+        f"{p.name}:{i}:{ln.strip()}"
+        for p in sorted((ROOT / "src").glob("*_analysis.py"))
+        for i, ln in enumerate(p.read_text(encoding="utf-8").splitlines(), 1)
+        if BACKEND_COLOR_FIELD.search(ln)
+    ]
+    assert not bad, (
+        "后端请下发语义 key（如 zone 名），色由前端映射到文字档：\n" + "\n".join(bad)
+    )
+
+
+def test_frontend_does_not_interpolate_backend_color_fields_as_text() -> None:
+    """前端 `color:` 槽不得插值 `*_color` 字段（后端字面 hex 绕过两档制）。
+
+    反向验过：把 `style="color:${d.zone_color}"` 塞回 credit 页会红。
+    """
+    bad = [
+        f"{path.relative_to(ROOT)}:{i}:{ln.strip()[:100]}"
+        for glob in SCAN_TARGETS
+        for path in sorted(FRONTEND.glob(glob))
+        for i, ln in enumerate(path.read_text(encoding="utf-8").splitlines(), 1)
+        if FRONTEND_COLOR_INTERP.search(ln)
+    ]
+    assert not bad, (
+        "文字色不得取后端 *_color 字面 hex，改按语义 key 查文字档：\n" + "\n".join(bad)
+    )
+
+
+def test_css_does_not_read_graphic_named_custom_prop_for_text() -> None:
+    """CSS 里 `color:` 不得引用名字以 `-color` 结尾的自定义属性。
+
+    这类属性是 JS 拼出来的图形档（`rc.style.setProperty('--rc-color', …)`），名字就说明
+    它是填充档；写字得另给一个 `-ink` 档属性。
+    """
+    bad = [
+        f"{p.name}:{i}:{ln.strip()[:120]}"
+        for p in sorted(CSS_DIR.glob("*.css"))
+        for i, ln in enumerate(p.read_text(encoding="utf-8").splitlines(), 1)
+        if CSS_TEXT_VIA_NAMED_COLOR.search(ln)
+    ]
+    assert not bad, "文字槽请引用 -ink / -text 档属性：\n" + "\n".join(bad)

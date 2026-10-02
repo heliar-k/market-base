@@ -269,12 +269,12 @@ class TestRegimeScore:
         assert "Market Liquidity" in out["missing"]
 
     def test_zone_boundaries(self):
-        assert _regime_zone(0)[0] == "宽松"
-        assert _regime_zone(24.9)[0] == "宽松"
-        assert _regime_zone(25)[0] == "中性偏松"
-        assert _regime_zone(49.9)[0] == "中性偏松"
-        assert _regime_zone(50)[0] == "中性偏紧"
-        assert _regime_zone(100)[0] == "收紧"
+        assert _regime_zone(0) == "宽松"
+        assert _regime_zone(24.9) == "宽松"
+        assert _regime_zone(25) == "中性偏松"
+        assert _regime_zone(49.9) == "中性偏松"
+        assert _regime_zone(50) == "中性偏紧"
+        assert _regime_zone(100) == "收紧"
 
 
 class TestOverviewSignals:

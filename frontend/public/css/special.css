@@ -214,7 +214,7 @@ a.re-badge:hover { color: var(--accent-ink); border-color: var(--accent-ink); }
 .pos-hero.regime-hero { grid-template-columns: 250px 1fr; gap: 26px; border-left-color: var(--rc-color, var(--color-warn)); align-items: start; padding: 24px 28px 20px; }
 .rh-main { display: flex; flex-direction: column; gap: 10px; }
 .rh-score { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 2px; }
-.rh-score .num { font-size: 44px; font-weight: 800; font-variant-numeric: tabular-nums; line-height: 1; color: var(--rc-color, var(--color-warn)); }
+.rh-score .num { font-size: 44px; font-weight: 800; font-variant-numeric: tabular-nums; line-height: 1; color: var(--rc-ink, var(--color-warn-text)); }
 .rh-score .of { font-size: 13px; color: var(--text-secondary); font-weight: 500; }
 .rh-badge { padding: 3px 12px; border-radius: 999px; font-size: 12px; font-weight: 600; }
 .rh-read { font-size: 12px; line-height: 1.75; color: var(--text-secondary); }
@@ -565,7 +565,7 @@ body.dark .pm-topic-card { box-shadow: inset 0 0 0 1px rgba(255,255,255,.04); }
 .pb > div { min-width: 0; }
 .pb .s-cut { background: var(--color-up); } .pb .s-hold { background: var(--color-neutral); } .pb .s-hike { background: var(--color-down); }
 .dchip { display: inline-block; font-size: 11px; font-weight: 600; padding: 0 6px; border-radius: 999px; margin-left: 6px; }
-.dchip.big { background: var(--color-warn-bg, var(--surface-alt)); color: var(--color-warn, var(--accent)); border: 1px solid currentColor; }
+.dchip.big { background: var(--color-warn-bg, var(--surface-alt)); color: var(--color-warn-text); border: 1px solid currentColor; }
 .dchip.mid { color: var(--text-dim); border: 1px solid var(--border); }
 /* 概率分布明细表：每会议一行，ZQ/PM 同格双条 */
 .re-table .dual { min-width: 220px; }

@@ -59,9 +59,14 @@ def chg_pct(s: pd.Series, n: int) -> float | None:
     return None if pair is None else round((pair[0] / pair[1] - 1) * 100, 2)
 
 
-def zone(v: float, zones: list[tuple[str, float, float, str]]) -> tuple[str, str]:
-    """按 (label, lo, hi, color) 区间表查 v 所在区间；表外回落最后一档。"""
-    for label, lo, hi, color in zones:
+def zone(v: float, zones: list[tuple[str, float, float, ...]]) -> str:
+    """按 (label, lo, hi[, color]) 区间表查 v 所在区间；表外回落最后一档。
+
+    只返回语义 label：颜色属于展示层（两档制下文字档 / 图形档得分开选），
+    后端下发字面 hex 会被前端直接插进 `color:` 槽——亮色下不达 AA 且绕过主题。
+    第四列保留给色表本身（如 volatility 的 `zones` 图例，前端只拿去画 background）。
+    """
+    for label, lo, hi, *_ in zones:
         if lo <= v < hi:
-            return label, color
-    return zones[-1][0], zones[-1][3]
+            return label
+    return zones[-1][0]

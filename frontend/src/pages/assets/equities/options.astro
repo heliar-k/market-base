@@ -139,7 +139,7 @@ function renderBoard() {
       return { symbol: s, spot: v.spot, gex: v.net_gex, key: regimeKey(v), _sym: s };
     });
     sec.appendChild(R.table(['标的', '现价', 'Net GEX (B)', 'Regime'], rows, {
-      symbol: (v2, row) => `<a href="javascript:pick('${row._sym}')" style="color:var(--accent)">${v2}</a>`,
+      symbol: (v2, row) => `<a href="javascript:pick('${row._sym}')" style="color:var(--accent-ink)">${v2}</a>`,
       gex: v2 => `<span style="color:${v2 >= 0 ? 'var(--up)' : 'var(--down)'}">${v2 >= 0 ? '+' : ''}${fmtNum(v2)}</span>`,
       key: v2 => `<span class="opt-chip ${v2}">${REGIME_INFO[v2].label}</span>`,
     }, ['symbol', 'spot', 'gex', 'key'], true));

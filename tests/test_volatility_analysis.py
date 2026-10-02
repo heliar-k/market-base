@@ -24,14 +24,14 @@ def _zone(v):
 
 class TestZone:
     def test_zones(self):
-        assert _zone(12.0)[0] == "平静"
-        assert _zone(17.0)[0] == "偏高"
-        assert _zone(30.0)[0] == "警戒"
-        assert _zone(40.0)[0] == "恐慌"
+        assert _zone(12.0) == "平静"
+        assert _zone(17.0) == "偏高"
+        assert _zone(30.0) == "警戒"
+        assert _zone(40.0) == "恐慌"
 
     def test_boundary(self):
         # 17 恰好落入偏高区（含下界），与象限判据一致
-        assert _zone(17.0)[0] == "偏高"
+        assert _zone(17.0) == "偏高"
 
 
 class TestChgPct:

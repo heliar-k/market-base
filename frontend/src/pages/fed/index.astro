@@ -53,7 +53,7 @@ function mkFilter(bar, labels, onPick) {
     const a = document.createElement('a');
     a.href = '#';
     a.textContent = label;
-    a.style.cssText = 'color:var(--accent);text-decoration:none;padding:2px 8px;border:1px solid var(--btn-border);border-radius:4px';
+    a.style.cssText = 'color:var(--accent-ink);text-decoration:none;padding:2px 8px;border:1px solid var(--btn-border);border-radius:4px';
     a.onclick = (e) => { e.preventDefault(); onPick(key); };
     bar.appendChild(a);
   });
@@ -179,7 +179,7 @@ function renderHawkish(root, data) {
         return `<span class="fed-badge ${cls}">${v}</span>`;
       },
       score: (v) => `<span style="color:${hdColor(Number(v))};font-weight:700">${v}</span>`,
-      votes: (v) => v === '投票' ? `<span style="color:var(--accent)">投票</span>` : v,
+      votes: (v) => v === '投票' ? `<span style="color:var(--accent-ink)">投票</span>` : v,
     },
     null, true));
 
