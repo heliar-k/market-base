@@ -1,6 +1,7 @@
 """CME BTC 期货仓位 fetcher 测试（样本内嵌，不联网）。"""
 
 import json
+from datetime import datetime, timedelta, timezone
 
 import pytest
 
@@ -139,21 +140,25 @@ def test_guard_rejects_garbage():
 
 
 def test_fetch_snapshot_walkback(monkeypatch):
-    """当天/前一天无数据（周末）→ 回退到周五；全部失败 → {}。"""
+    """当天无数据（周末/假日）→ 逐日向前回退；全部失败 → {}。
 
+    日期必须相对今天：上一版硬写 09/25/2026，隔一周跳出 7 天回退窗口就静默变红。
+    _btc_spot 读本地 CSV（真价会漂），这里给固定锚，只测回退不测合理性阀。
+    """
+    target = datetime.now(timezone.utc) - timedelta(days=6)
+    key = target.strftime("%m/%d/%Y")
     calls = []
 
     def fake_get(url):
-        # tradeDate 在 URL 里：09/28/2026（周一例）无数据，09/25 有
+        # tradeDate 在 URL 里：只有回退到最早那天（today-6）才命中
         calls.append(url)
-        if "09/25/2026" in url:
-            return SAMPLE
-        return {"settlements": []}
+        return SAMPLE if key in url else {"settlements": []}
 
     monkeypatch.setattr(mod, "_get", fake_get)
+    monkeypatch.setattr(mod, "_btc_spot", lambda: 83000.0)
     snap = fetch_snapshot()
-    assert snap["as_of"] == "2026-09-25"
-    assert len(calls) <= 7
+    assert snap["as_of"] == target.strftime("%Y-%m-%d")
+    assert len(calls) == 7
     # 全空 → {}
     monkeypatch.setattr(mod, "_get", lambda url: {"settlements": []})
     assert fetch_snapshot() == {}
