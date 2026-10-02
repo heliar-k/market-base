@@ -267,7 +267,7 @@ function levelLabel(dir, v) {
 function renderMatrix() {
   const d = crossData;
   const sub = document.getElementById('corr-matrix-sub');
-  if (sub) sub.textContent = `数据截至 ${d.as_of} · ${d.window} 日滚动 · 点格子看滚动相关`;
+  if (sub) sub.textContent = `${R.asOf(d.as_of)} · ${d.window} 日滚动 · 点格子看滚动相关`;
   const assets = d.assets.map(a => a.name);
   const labels = d.assets.map(a => a.label);
 
@@ -867,7 +867,7 @@ function renderChart(seriesMap) {
   const sub = document.getElementById('corr-macro-sub');
   if (sub) {
     const lastDates = Object.values(seriesMap).map(s => s.data.length ? s.data[s.data.length - 1][0] : null).filter(Boolean);
-    sub.textContent = lastDates.length ? `数据截至 ${lastDates.sort().slice(-1)[0]}` : '';
+    sub.textContent = lastDates.length ? R.asOf(lastDates.sort().slice(-1)[0]) : '';
   }
   const desc = document.getElementById('corr-macro-foot');
   if (desc) desc.textContent = (activePreset.description || '数据源：FRED · 资产序列 yfinance asset_prices · 混频按日期对齐') + (normRight ? ' · 右轴多序列已归一化（期初=100）' : '');
@@ -1004,12 +1004,12 @@ export function updateStatus() {
   if (mode === 'asset') {
     document.getElementById('status-count').textContent = crossData
       ? `${crossData.assets.length} 资产 · ${crossData.window}d 相关` : '';
-    document.getElementById('status-range').textContent = crossData ? `数据截至 ${crossData.as_of}` : '';
+    document.getElementById('status-range').textContent = crossData ? R.asOf(crossData.as_of) : '';
   } else {
     document.getElementById('status-count').textContent = activePreset
       ? `${activePreset.indicators.length} 序列 · ${activePreset.name}` : '';
     const lastDates = activePreset && Object.values(seriesMapCache || {}).map(s => s.data.length ? s.data[s.data.length - 1][0] : null).filter(Boolean);
     document.getElementById('status-range').textContent = lastDates && lastDates.length
-      ? `数据截至 ${lastDates.sort().slice(-1)[0]}` : '';
+      ? R.asOf(lastDates.sort().slice(-1)[0]) : '';
   }
 }

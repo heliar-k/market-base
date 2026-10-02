@@ -794,6 +794,137 @@ def get_polymarket_history(
     return out
 
 
+# ── 首屏「今日一句话」结论层（issue #21：9 个专题引擎各出一行，前端只渲染不算）─────
+# 文案一律由 Python 规则引擎组装（AGENTS 第 8 节「分析层 vs 展示层」）；这里只做取首句、
+# 去重复日期前缀与截断。export_pages 复用本函数产静态 JSON（同 daily-brief）。
+
+
+def _sentence(text: object, limit: int = 72) -> str | None:
+    """引擎叙事首句 → 首屏「今日一句话」（issue #21）。
+
+    文案一律由 Python 规则引擎组装（AGENTS 第 8 节），前端只渲染不计算；
+    首句超 limit 字则截到 limit 并补省略号。
+    """
+    s = " ".join(str(text or "").split())
+    # 引擎叙事常以「截至YYYY-MM-DD，」开头，行尾已有观测日 → 去掉重复前缀
+    s = re.sub(r"^截至\d{4}-\d{2}-\d{2}[，,]?\s*", "", s)
+    if not s:
+        return None
+    first = next((p.strip() for p in s.split("。") if p.strip()), "")
+    if not first:
+        return None
+    # 首句尾部若带括号日期（「核心 PCE 3.01%（2026-08-01）」）剔掉：
+    # 行里已有观测日，重复只会挤掉真正有信息量的后半句（注意要在取首句后做）
+    first = re.sub(r"\s*（\d{4}-\d{2}-\d{2}）$", "", first)
+    return first if len(first) <= limit else first[:limit].rstrip() + "…"
+
+
+def _iso(d: object) -> str | None:
+    """紧凑日期（fed 文档表用 YYYYMMDD）→ ISO，其余原样。"""
+    s = str(d or "")
+    if len(s) == 8 and s.isdigit():
+        return f"{s[:4]}-{s[4:6]}-{s[6:]}"
+    return s or None
+
+
+def _fed_home(d: dict) -> tuple[str, str | None]:
+    """美联储引擎无现成叙事句，由指示器拼一句（评分口径单源 stance_label）。"""
+    ind = d["indicator"]
+    dates = [s["date"] for s in d.get("statements", [])] + [
+        s["date"] for s in d.get("speeches", [])
+    ]
+    text = (
+        f"联储口径「{ind['label']}」——近 {ind['sample']} 条声明与演讲"
+        f"评分 {ind['score']:+.1f}"
+    )
+    return text, _iso(max(dates, default=None))
+
+
+@app.get("/api/home-lines")
+def get_home_lines() -> dict:
+    """首屏结论层：9 个专题引擎各出一句话，前端按 SITE_NAV 键定位专题页（issue #21）。
+
+    单源失败只丢该行（打印 skip），不阻断整体导出；全空时前端给空状态。
+    """
+    from src.assets_analysis import (
+        overview as assets_overview,  # 顶层未 import，按 server.py 惯例惰性取
+    )
+    from src.liquidity_analysis import liquidity_snapshot
+
+    # (SITE_NAV 组键, 标签, 引擎入口, 从引擎输出取 (一句话原文, 观测日))
+    specs = [
+        (
+            "rates",
+            "利率",
+            generate_analysis,
+            lambda d: (
+                d["overview"]["sections"][0]["body"],
+                d["overview"].get("as_of"),
+            ),
+        ),
+        (
+            "credit",
+            "信用",
+            generate_credit_overview,
+            lambda d: (d["signals"]["what_changed"], d.get("as_of")),
+        ),
+        (
+            "inflation",
+            "通胀",
+            generate_inflation_overview,
+            lambda d: (d["signals"][0]["text"], d.get("as_of")),
+        ),
+        (
+            "labor",
+            "就业",
+            generate_labor_overview,
+            lambda d: (d["signals"][0]["text"], d.get("as_of")),
+        ),
+        (
+            "treasury",
+            "美债",
+            generate_treasury_overview,
+            lambda d: (d["signals"][0]["text"], d.get("as_of")),
+        ),
+        (
+            "vol",
+            "波动率",
+            generate_volatility_analysis,
+            lambda d: (d["signals"][0]["text"], d.get("as_of")),
+        ),
+        (
+            "liquidity",
+            "流动性",
+            liquidity_snapshot,
+            lambda d: (d["evaluation"]["net_liquidity"]["text"], d.get("data_date")),
+        ),
+        (
+            "assets",
+            "大类资产",
+            assets_overview,
+            lambda d: (d["analysis"]["cross_asset"]["text"], d.get("as_of")),
+        ),
+        (
+            "fed",
+            "美联储",
+            generate_fed_analysis,
+            _fed_home,
+        ),
+    ]
+
+    lines: list[dict] = []
+    for key, label, fn, extract in specs:
+        try:
+            text, as_of = extract(fn())
+        except Exception as e:  # 单专题数据缺失不影响其余行
+            print(f"  home-lines skip {key}: {type(e).__name__}: {e}")
+            continue
+        line = _sentence(text)
+        if line:
+            lines.append({"key": key, "label": label, "text": line, "as_of": as_of})
+    return {"generator": "rules", "lines": lines}
+
+
 # ── daily brief（复刻 timsun.net 首页「今日宏观决策台」）────────────────────
 
 

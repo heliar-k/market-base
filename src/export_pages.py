@@ -38,6 +38,7 @@ from src.server import (  # noqa: PLC2701 复用路由函数
     get_fed_overview,
     get_fomc_calendar,
     get_geo_overview,
+    get_home_lines,
     get_inflation_overview,
     get_kline,
     get_labor_overview,
@@ -135,6 +136,7 @@ def export_api() -> None:
     # 专题页（FOMC / rates / volatility / fed / credit / daily-brief）
     _safe("api/fomc/calendar", get_fomc_calendar)
     _safe("api/daily-brief", get_daily_brief)
+    _safe("api/home-lines", get_home_lines)
     _safe("api/rate-expectations", get_rate_expectations)
     _safe("api/polymarket/history", get_polymarket_history)
     # 流动性专题（复刻 timsun.net/liquidity 主页面 + 7 子页）

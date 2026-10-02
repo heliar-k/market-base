@@ -17,6 +17,24 @@
      （同 TopicLayout，理由与回退链说明见那边） -->
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap" media="print" onload="this.media='all'">
 <link rel="stylesheet" href="/css/app.css">
+<style>
+/* 首屏「今日一句话」结论层（issue #21，渲染在 js/dashboard.js 的 renderLines）。
+   页面私有样式块（不动 css/*.css）；颜色一律走变量，color: 只用文字档。 */
+.dash-lines .dash-card { gap: 2px; padding: 12px 16px; }
+.dash-line {
+  display: grid; grid-template-columns: 4.5em minmax(0, 1fr) auto; gap: 8px;
+  align-items: baseline; padding: 4px 0;
+  border-bottom: 1px solid var(--border-light); font-size: 13px; text-decoration: none;
+}
+.dash-line:last-child { border-bottom: none; }
+a.dash-line:hover { background: var(--surface-hover); }
+a.dash-line:hover .dash-line-text { text-decoration: underline; }
+.dash-line-label { color: var(--text-secondary); font-weight: 600; }
+.dash-line-text { color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dash-line-go { color: var(--text-dim); }
+.dash-line-empty { font-size: 13px; color: var(--text-secondary); }
+.dash-line-empty code { font-family: var(--font-mono); }
+</style>
 <script src="/vendor/lightweight-charts.standalone.production.js"></script>
 <script src="/vendor/echarts.min.js"></script>
 <script src="/js/echarts-theme.js"></script>

@@ -102,12 +102,23 @@ def test_dashboard_links_use_site_nav() -> None:
 
 def test_as_of_text_only_via_r_asof() -> None:
     """「数据截至」文案只能由 R.asOf 组装（rates-common.js 是唯一出处）。
-    管辖 SPA 壳与全部 .astro 页（island 脚本同样不得手写）。"""
+
+    管辖 SPA 壳、全部 .astro 页（island 脚本同样不得手写）与 **共享 JS**
+    —— 旧版只扫 index.html + .astro，dashboard.js / cross-correlation.js 里
+    手写 `textContent = '数据截至 …'` 全漏（2026-10 补）。逐行匹，不把隔行的
+    `textContent =` 与注释里的「数据截至」误拼成一条。
+    """
     offenders = []
-    for page in [SPA_ENTRY, *sorted(ASTRO_PAGES.rglob("*.astro"))]:
-        text = page.read_text(encoding="utf-8")
-        if re.search(r"textContent\s*=\s*[^;]*数据截至", text):
-            offenders.append(str(page.relative_to(ROOT)))
+    sources = [
+        SPA_ENTRY,
+        *sorted(ASTRO_PAGES.rglob("*.astro")),
+        *sorted((STATIC / "js").glob("*.js")),
+    ]
+    for page in sources:
+        for ln in page.read_text(encoding="utf-8").splitlines():
+            if re.search(r"textContent\s*=\s*[^;]*数据截至", ln):
+                offenders.append(f"{page.relative_to(ROOT)}:{ln.strip()[:60]}")
+                break
     assert not offenders, f"手写时效标签文案，请改 R.asOf(...)：{offenders}"
 
 

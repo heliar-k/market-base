@@ -1,6 +1,7 @@
 // dashboard.js — 市场仪表盘：数据驾驶舱（今日研判结论层 + 跨资产全景 + 六板块快照 + 波动率信号 + 自选清单）
 //
-// 数据源（4 个端点，后端零新增）：
+// 数据源（5 个端点）：
+//   /api/home-lines           → 首屏「今日一句话」结论层（9 个专题引擎各一行，issue #21）
 //   /api/daily-brief          → 报警 + 主导情景 + FOMC + 跨资产变化表（11 行）
 //   /api/assets/overview      → 六板块标的快照（最新价 + 日涨跌）
 //   /api/volatility/dashboard → 波动率 hero 4 卡 + 信号卡
@@ -8,6 +9,16 @@
 
 // reThemeECharts 为 echarts-theme.js 经典脚本全局（Phase 2 单轨化，见 index.html 引入）
 import { SITE_NAV } from './site-nav.js';
+
+// 专题页映射（SITE_NAV 唯一数据源：组键 + 子页键 → page），跨资产表与今日一句话共用
+const NAV_PAGES = (() => {
+  const pages = new Map();
+  for (const g of SITE_NAV.groups) {
+    pages.set(g.key, g.page);
+    (g.items || []).forEach(i => pages.set(i.key, i.page));
+  }
+  return pages;
+})();
 
 // 跨资产表行 → 专题页跳转（与今日研判页同款映射）：
 // 路径不重复硬编码——指标键 → SITE_NAV 导航键（site-nav.js 唯一数据源），再由索引解出 page
@@ -19,13 +30,8 @@ const LINKS = (() => {
     RRP: 'liquidity/rrp-tga', TGA: 'liquidity/rrp-tga',
     NET_LIQ: 'liquidity/fed-balance-sheet',
   };
-  const pages = new Map();
-  for (const g of SITE_NAV.groups) {
-    pages.set(g.key, g.page);
-    (g.items || []).forEach(i => pages.set(i.key, i.page));
-  }
   return Object.fromEntries(
-    Object.entries(NAV_KEY).filter(([, nk]) => pages.has(nk)).map(([k, nk]) => [k, pages.get(nk)]),
+    Object.entries(NAV_KEY).filter(([, nk]) => NAV_PAGES.has(nk)).map(([k, nk]) => [k, NAV_PAGES.get(nk)]),
   );
 })();
 
@@ -48,6 +54,7 @@ export async function initDashboard() {
   const head = el('div', 'dash-head');
   head.innerHTML = '<span class="dash-head-title">市场仪表盘</span><span class="dash-asof" id="dash-asof"></span>';
   root.appendChild(head);
+  root.appendChild(el('div', 'dash-lines'));
   root.appendChild(el('div', 'dash-alerts'));
   root.appendChild(el('div', 'dash-scen'));
   const grid = el('div', 'dash-grid dash-grid-1');
@@ -82,6 +89,7 @@ function onDashThemeChanged() {
 
 export function refresh() {
   return Promise.all([
+    refreshLines(),
     refreshBrief(),
     refreshAssets(),
     refreshVol(),
@@ -119,15 +127,49 @@ async function refreshVol() {
 
 // ── renderers ───────────────────────────────────────────────
 
+// 今日一句话（首屏结论层，issue #21）：文案全来自 Python 规则引擎，前端只渲染不计算
+async function refreshLines() {
+  data.lines = await settled('/api/home-lines');
+  renderLines();
+}
+
+function renderLines() {
+  const box = root().querySelector('.dash-lines');
+  if (!box) return;
+  const d = data.lines;
+  const lines = d && d.status === 'fulfilled' ? d.value.lines || [] : [];
+  if (!lines.length) {
+    const why = d && d.status === 'fulfilled' ? '各专题数据缺失' : '接口 /api/home-lines 不可达';
+    box.innerHTML = '<div class="dash-card"><div class="dash-line-empty">' + why
+      + '，暂无当日研判一句话。先拉数据（如 <code>./bin/fetch_fred</code>），再跑 '
+      + '<code>uv run python -m src.export_pages</code> 生成静态 JSON（本地服务同一路径）。'
+      + '</div></div>';
+    return;
+  }
+  // 标题不重复写时效：页头 dash-asof 已是全局口径，这里再写一个不同日期只会让人怀疑哪个对；
+  // 各引擎自己的观测日放在行 title 里（悬停可查）。
+  box.innerHTML = `<div class="dash-card">
+    <div class="dash-card-title">今日一句话 <small class="dash-title-note">按专题聚合 · 点击进入对应研判</small></div>
+    ${lines.map(l => {
+      const body = `<span class="dash-line-label">${esc(l.label)}</span><span class="dash-line-text">${esc(l.text)}</span>`;
+      const page = NAV_PAGES.get(l.key);
+      return page
+        ? `<a class="dash-line" href="${page}" target="_blank" title="${esc(l.label)}专题 · ${esc(l.as_of || '')}">${body}<span class="dash-line-go">↗</span></a>`
+        : `<div class="dash-line" title="${esc(l.as_of || '')}">${body}</div>`;
+    }).join('')}
+  </div>`;
+}
+
 // 页头「数据截至」分段（AGENTS 规范：数据截至 源 date · 源 date）
 function renderAsOf() {
   const elx = document.getElementById('dash-asof');
   if (!elx) return;
   const d = data.brief;
-  if (d.status !== 'fulfilled') { elx.textContent = '数据截至 —（brief 数据不可用，确认服务已启动）'; return; }
+  if (d.status !== 'fulfilled') { elx.textContent = '数据不可用（brief 端点未响应，确认服务已启动）'; return; }
   const g = d.value.indicators?.groups || {};
-  const segs = Object.entries(g).map(([k, v]) => `${k} ${v}`);
-  elx.textContent = '数据截至 ' + (segs.length ? segs.join(' · ') : d.value.indicators?.as_of ?? '—');
+  // 时效文案只能由 R.asOf 组装（AGENTS 第 8 节）：多段用 [源, date] 数组，空段自动丢
+  const segs = Object.entries(g).map(([k, v]) => [k, v]);
+  elx.textContent = R.asOf(segs.length ? segs : [d.value.indicators?.as_of]);
 }
 
 // 报警条 + 主导情景 + FOMC（结论层）
