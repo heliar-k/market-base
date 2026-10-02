@@ -459,8 +459,9 @@ uv run python src/sell_put.py --symbol TSM
 - **无图页声明 `chart={false}`**：`TopicLayout` 的 `chart` prop 控制是否加载 `echarts.min.js`
   （1 MB 同步阻塞）；卡片/表格页必须传 `chart={false}`
 - **前端约定守卫测试**：`tests/test_static_single_source.py`（≥2 端点页必用 `R.getOpt`、
-  `R.fail` 目标 id 存在、转义只走 `R.esc`、「数据截至」只走 `R.asOf`，另含 `node --check` 过全部
-  `is:inline` 脚本）。改前端收尾必跑：`uv run python -m pytest tests/test_static_single_source.py
+  `R.fail` 目标 id 存在、转义只走 `R.esc`、「数据截至」只走 `R.asOf`、每个字面量
+  `'/….html'` 链接都要有 `_redirects` 重写行（#26，漏一行即静默 404；刻意不查孤儿），
+  另含 `node --check` 过全部 `is:inline` 脚本）。改前端收尾必跑：`uv run python -m pytest tests/test_static_single_source.py
   tests/test_semantic_text_contrast.py -q` + `cd frontend && npm run build`
 - **已审计过的死路（勿重开）**：全站零自实现手势，不加 `touch-action`（加了反而禁掉表格纵向滑动）；
   触控目标门槛是 **24 CSS px**（WCAG 2.2），44 是 iOS pt / Android dp，`.range-btn` 实算 ≈24.4px 已过线
