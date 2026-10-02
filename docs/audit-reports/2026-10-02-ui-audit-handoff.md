@@ -14,10 +14,12 @@
 
 ## 1. 一句话现状
 
-一场 34 页前端审计（第 1–5 步 + 收尾三笔）**全部落地并已线上验证**；后续又收掉
-#20/#23/#24/#26/#27 五条（断点复核、移动端 wontfix、去 iframe、重写守卫、375 溢出），
-待办全部在 GitHub Issues（open 数以 `gh issue list --state open` 为准，不抄本文）；
-无悬而未决的部署风险，wrangler v4 已跑通多次（首次红过，原因与修法见 `59deac33`）。
+一场 34 页前端审计（第 1–5 步 + 收尾三笔）**全部落地并已线上验证**；之后两轮又收掉
+#20/#23/#24/#26/#27（断点复核、移动端 wontfix、去 iframe、重写守卫、375 溢出）与
+#28/#29/#30/#22（图表高度档位化、锚点条补齐、节奏统一、密度开关判定不做）九条，
+外加导航件三笔（专题页左侧树 / 桌面收胶囊 / 删面包屑）。
+**当前 open Issue 归零**（`gh issue list --state open` 即见）；无悬而未决的部署风险，
+wrangler v4 已跑通多次（首次红过，原因与修法见 `59deac33`）。
 
 ## 2. 本轮改动（全部已 push；部署是否跟上用第 6 节两条 curl 现场判定）
 
@@ -50,6 +52,8 @@
 | `c547f23a` | **专题页补回左侧专题树**（#24 的已知代价收口）：TopicLayout 构建期渲染同一棵 SITE_NAV |
 | `201d3caa` | 桌面收起顶栏胶囊 Tab（与左树重复；≤1024 反过来：无左树、胶囊是唯一导航） |
 | `003c8124` | 删掉外汇页面包屑 `.fx-crumb`（全站唯一孤例）→ 开出 #29 |
+| `a1ebcbdb` | 排版节奏收进三个变量（`--re-sec-gap` / `--re-inner-gap` / `--re-head-gap`），零视觉变化 |
+| `d005f7ed` | **#28/#29/#30 收口 + #22 一行替代**：18 处内联高度清零并升级为硬禁守卫、7 页补锚点条、22 处条件性小节并入节奏（`.re-block`）|
 
 ## 3. 待办 = GitHub Issues
 
@@ -57,20 +61,14 @@
 **待浏览器复核**（comment 里有按优先级排的复核表）；#26 是 `_redirects` 与 SITE_NAV 的同步守卫；
 #22/#23 要你先判值不值得做，#24 是架构级。正文自带现状证据、动作与验收，别在这里复述。
 
-**按可动性排序**（谁能动，别再等错的人）：本轮 #20 / #23 / #24 / #26 / #27 全部收口，
-**open 清单以 `gh issue list --state open` 为准**（下面只记「谁能动」的判断，不抄计数）：
+**本轮之后：open 归零**（#28/#29/#30 由 `d005f7ed` 收口，#22 判定不做并关闭）。
+下一轮没有待办，只有两条**改前端时必须守的现成闸**：
 
-- **#28**（`ready-for-agent`）—— 18 处逐页图表内联高度统一走 clamp。**正文已带完整决策表**
-  （18 处逐条 `file:line = 值` + 值→删内联后变成什么），本轮复核过。不是「一行 CSS」（内联
-  `style` 优先级高于类），但**比正文原先估计的小**：14/18 已挂类 → 动作是**删内联**不是换
-  markup；零成本精确命中 **9 处**（340×5 / 300×2 / 280×2），补一行 `.chart.chart-sm` 后 11 处，
-  真正要人定的只有一处（`assets/index` 的 520 主图）。
-- **#22**（`needs-triage`）—— 密度模式。我的建议是先不做：真实成本不在那 30 行 CSS，
-  在「两套密度长期都要维护」；嫌挤可先把 `.re-cards` 的 `minmax(150px,1fr)` 调到 130px
-  （一行，桌面自动多一列，拿 80% 收益）。
-- **#29**（`ready-for-agent`）—— 8 个 `assets/*` 子页缺页内锚点条（`.page-toc` 24/33 页有）。
-  正文自带逐页小节数与缺哪个 id 的表；与 #28 同属「逐页扫一遍」，可同批做。
-  背景：本轮把面包屑与顶栏胶囊收掉后（`003c8124` / `201d3caa`），导航件只剩这一处不一致。
+- `test_no_hardcoded_chart_heights` 现在是**硬禁** —— 专题页里 ≥100px 的内联 `height` 一律红，
+  要非基线高度走档位家族（见 §4）。
+- #30 的结论回写在它的关闭 comment 里：那些「裸容器」多数是**写明理由的刻意选择**，
+  下一轮别再把它们当不一致去统一（`volatility/index` 与 `vix` 的 `.re-section` 卡片堆是唯一
+  还没定的，要动先单独看渲染）。
 
 ## 4. 下一轮必读的仓库事实（不在任何 artifact 里）
 
@@ -89,14 +87,19 @@
 - **`zone()` 现在只返回语义 label**（`src/analysis_utils.py`）。区间表第四列留给色表本身：
   `volatility_analysis.py` 的 `zones: [{label, color}]` 仍下发 hex，因为前端只拿它画
   `background`。新增分析模块要下发区间/状态，照这个口径：**给语义 key，不给色**。
-- **图表高度有两套档位家族，只有一套能用**（`frontend/public/css/special.css`，1440×900 实测量过）：
-  `.chart` = `clamp(220px,40vh,300px)`；**能用的是双类 `.chart.chart-lg`(280) / `.chart.chart-md`(340)**
-  （特异性 0-2-0 压过 `.chart`，已被 `equities.astro:92/154` 用过两次）；
-  **`.re-chart-sm/md/lg/xl`（:93）是死代码** —— 它在 `.chart`（:192）**之前**且同特异性，
-  所以 `class="chart re-chart-sm"` 实测 **300px 而非 260px**（静默失效，这就是四档零使用的真因，
-  不是忘了用）；要生效得写 `class="re-chart re-chart-sm"`（260 ✓），但 `.re-chart` 自带
-  `border + background` = 换卡片外壳。**新页面想要非 300 高度，加到 `.chart.chart-*` 那一族，
-  别碰 `re-chart-*`**；改完类必用 playwright 量实高（光看 markup 会以为生效了）。
+- **图表高度档位阶梯（`special.css`，桌面取上限）**：`.chart-sm` 260 < `.chart-lg` 280 <
+  `.chart` 300 < `.chart-md` 340 < `.chart-hero` 520。**名字与高度不成序**（lg 比 md 矮），
+  选档看数别看名；`.re-chart-sm` 只能配 `.re-chart` 用。全站 18 处内联高度已清空并硬禁。
+- **排版节奏三个变量**（`special.css` 顶部 `:root`）：`--re-sec-gap` 28（小节之间，视觉 44）、
+  `--re-inner-gap` 16（基础块距）、`--re-head-gap` 14（小节标题→内容）。`.re-block` 是
+  「只借节奏不借 flex」的条件性小节用（见 #30 关闭 comment）。
+- **两套档位家族的特异性差别**（`special.css`，1440×900 实测量过，行号会漂故不写）：
+  双类 `.chart.chart-*` 特异性 0-2-0，压得过 `.chart` → **能用**；而 `.re-chart-sm/md/lg/xl`
+  是单类且写在 `.chart` **之前**，`class="chart re-chart-sm"` 实测 **300px 而非 260px**
+  （静默失效 —— 这就是这四档长期零使用的真因，不是忘了用）。要生效只能写
+  `class="re-chart re-chart-sm"`（260 ✓，`transmission-chain` 的 history_chart 就这么用），
+  代价是 `.re-chart` 自带 `border + background` = 换卡片外壳。**新页面要非 300 高度一律加到
+  `.chart.chart-*` 那一族，别碰 `re-chart-*`**；改完类必用 playwright 量实高（光看 markup 会以为生效了）。
 - **四条守卫各自的边界**（`tests/test_semantic_text_contrast.py`，别把它们当万能网）：
   分析模块不得有 `"*_color"` 键；前端 `color:` 槽不得插值 `*_color`；CSS `color:` 不得引用
   名字以 `-color` 结尾的自定义属性；DOM 内联 `style="…"` 不得出现 `reCssVar()` 的解析结果。
