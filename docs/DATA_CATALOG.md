@@ -4,6 +4,8 @@
 
 宏观时间序列（FRED / Shapiro / SCE / CBOE / OFR / NY Fed Markets）以**观测日**为 key，每次 `./bin/fetch_*` 拉源全量历史并 upsert（同日新值覆盖旧值，新日追加）→ 忘记运行自动补漏。股票/指数/期货以交易日为 key 增量追加。
 
+> **URL 口径**：站内页面路由与 API 端点一律 **directory 路由**（末尾带 `/`），无 `.html` / `.json` 后缀 —— Astro `format: 'directory'`（`frontend/astro.config.mjs`），API 由 `src/export_pages.py` 预渲染为目录。写文档/链接时不要补后缀。
+
 ---
 
 ## 1. 宏观指标 — `data/fred/{category}/` （13 分类）
@@ -659,15 +661,17 @@ upcoming = pd.read_csv('data/treasury/upcoming_auctions.csv', index_col='auction
 
 ## 13. 利率专题页（Web，复刻 timsun.net/rates）
 
-`uv run python -m src.server` 后访问 `http://localhost:8000/rates/`，共 5 页：
+`uv run python -m src.server` 后访问 `http://localhost:8000/rates/`，共 4 页：
 
 | 页面 | 路由 | 数据源 |
 |------|------|--------|
 | 利率研判（入口） | `/rates/` | `src/rates_analysis.py` 规则引擎四段文 |
-| 联邦基金利率 | `/rates/fed-funds.html` | rates.csv（EFFR/SOFR/走廊/成交量） |
-| 收益率曲线 | `/rates/yield-curve.html` | rates.csv + tips.csv + 规则引擎解读 |
-| 国债拍卖 | `/rates/auctions.html` | `data/treasury/`（auction_results + upcoming） |
-| 利率定价（预期+实际） | `/rates/pricing.html` | rate_expectations + rates.csv + tips.csv |
+| 联邦基金利率 | `/rates/fed-funds/` | rates.csv（EFFR/SOFR/走廊/成交量） |
+| 收益率曲线 | `/rates/yield-curve/` | rates.csv + tips.csv + 规则引擎解读 |
+| 利率定价（预期+实际） | `/rates/pricing/` | rate_expectations + rates.csv + tips.csv |
+
+> 国债拍卖不再是 `/rates/` 子页（ADR-0003 迁移时已并入美债页 → `/treasury/#auctions`，
+> 数据源不变：`data/treasury/` 的 auction_results + upcoming），仍由 `/api/rates/auctions` 供数。
 
 ### API 端点
 
@@ -745,15 +749,16 @@ API 响应 `generator` 字段标记 `rules` / `llm`，前端无感。
 | 页面 | 路径 | API |
 |------|------|------|
 | 大类资产主页 | `/assets/` | `/api/assets/overview` |
-| 美股 | `/assets/equities.html` | `/api/assets/equities` |
-| 期权市场结构 | `/assets/options.html` | `/api/assets/equities-options` |
-| 持仓追踪（COT） | `/assets/positioning.html` | `/api/assets/positioning` |
-| 债券 | `/assets/bonds.html` | `/api/assets/bonds` |
-| 商品 | `/assets/commodities.html` | `/api/assets/commodities` |
-| 加密货币 | `/assets/crypto.html` | `/api/assets/crypto` |
-| 加密衍生品 | `/assets/crypto-derivatives.html` | `/api/assets/crypto-derivatives` |
-| ETF | `/assets/etfs.html` | `/api/assets/etfs` |
-| 外汇 | `/assets/fx.html` | `/api/assets/fx` |
+| 美股 | `/assets/equities/` | `/api/assets/equities` |
+| 期权市场结构 | `/assets/equities/options/` | `/api/assets/equities-options` |
+| 持仓追踪（COT） | `/assets/equities/positioning/` | `/api/assets/positioning` |
+| 债券 | `/assets/bonds/` | `/api/assets/bonds` |
+| 商品 | `/assets/commodities/` | `/api/assets/commodities` |
+| 加密货币 | `/assets/crypto/` | `/api/assets/crypto` |
+| 加密衍生品 | `/assets/crypto-derivatives/` | `/api/assets/crypto-derivatives` |
+| 加密期权（预测市场） | `/assets/crypto-options/` | 无独立端点，复用 `/api/assets/crypto-derivatives`（页内 `R.get`） |
+| ETF | `/assets/etfs/` | `/api/assets/etfs` |
+| 外汇 | `/assets/fx/` | `/api/assets/fx` |
 
 ### 口径说明
 
