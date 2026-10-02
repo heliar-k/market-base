@@ -353,20 +353,15 @@ body.dark .chart-card { box-shadow: inset 0 0 0 1px rgba(255,255,255,.04); }
 .macro-nav-foot-note { line-height: 1.5; }
 #macro-nav-toggle, .macro-nav-backdrop { display: none; } /* 仅窄屏显示 */
 /* 专题页（TopicLayout）也挂同一棵左侧树：桌面常驻→正文让位 240px（.re-root 仍是
-   margin:auto 居中，在剩下的宽度里居中）；窄屏沿用顶栏 Tab，整棵移出视口不出抽屉
-   （没渲染 #macro-nav-toggle，side-open 永不会置上）；被外部页内嵌时也不出现。 */
+   margin:auto 居中，在剩下的宽度里居中）；窄屏整棵移出视口，由 TopicLayout 渲染的
+   #macro-nav-toggle（☰）唤出抽屉 —— 与 SPA 同一套机制，专题页顶栏胶囊 Tab 已删
+   （同屏两套导航是重复，窄屏下还会撑成 2-4 排胶囊压住 .page-toc）；
+   被外部页内嵌时树与 ☰ 都不出现（没树可唤）。 */
 @media (min-width: 1025px) {
   body.re-has-side { padding-left: 240px; }
-  /* 左树已含全部组与子页，顶栏那排胶囊在桌面是重复导航 → 收起（窄屏仍靠它导航） */
-  body.re-has-side .re-nav { display: none; }
-  /* 收起后 .page-toc 直接跟在页头分隔线下方，仍吃 .re-root 的 16px gap：
-     距上分隔线 = 16 + 自身 padding 8 = 24，距自身下边线只有 8 → 胶囊行看着偏下。
-     回收这 16px（负 margin 抵掉 flex gap，与 special.css .re-sec-head 同一手法），
-     让胶囊行居中在两条线之间（8 / 8）。窄屏 Tab 行可见、中间有内容填充，不需要补偿。 */
-  body.re-has-side .re-nav + .page-toc { margin-top: calc(-1 * var(--re-inner-gap, 16px)); }
 }
 body.embedded.re-has-side { padding-left: 0; }
-body.embedded .macro-nav { display: none; }
+body.embedded .macro-nav, body.embedded #macro-nav-toggle { display: none; }
 @media (max-width: 1024px) {
   .macro-nav {
     transform: translateX(-105%); transition: transform .2s ease;

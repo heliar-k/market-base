@@ -184,7 +184,7 @@ market-base/
 │
 ├── frontend/                     ← Web 前端（Astro，ADR-0003：32 专题页已全迁 .astro，迁移完成）
 │   ├── src/
-│   │   ├── layouts/TopicLayout.astro ← 专题页通用骨架（head 样板/顶栏 Tab/页头/主题等运行时行为）
+│   │   ├── layouts/TopicLayout.astro ← 专题页通用骨架（head 样板/左侧树+窄屏抽屉/页头/主题等运行时行为）
 │   │   └── pages/                ← 32 个专题页 .astro（liquidity 8 / rates 4 / 单页族 9 / assets 11）
 │   ├── public/                   ← SPA 壳 + 共享资源（原 static/ 搬入，Astro publicDir 原样拷贝）
 │   │   ├── index.html            ← 主仪表盘 SPA（vanilla，不迁）
@@ -426,14 +426,16 @@ uv run python src/sell_put.py --symbol TSM
   inflation「月频 2026-07-01–2026-07-01 · 盈亏平衡 2026-09-04」）；月频区间写「月频 {起}–{止}」；
   日期一律 ISO。数据缺失显示空，不要自造前缀（「数据日期:」「快照时间 ·」等已废弃）。
   **文案只能由 `rates-common.js` 的 `R.asOf(...)` / `R.asMonth(...)` 组装**，页面不写模板串
-- **head / 导航单源（Astro，ADR-0003）**：专题页 `<head>` 样板、顶栏 Tab 与**左侧专题树**由
+- **head / 导航单源（Astro，ADR-0003）**：专题页 `<head>` 样板与**左侧专题树**由
   `frontend/src/layouts/TopicLayout.astro` 构建期统一渲染（页私有 head 追加走 `slot="head"`）；
-  顶栏 Tab + 左侧树 + SPA 侧栏专题树唯一数据源 = `frontend/public/js/site-nav.js`（ESM：`export const SITE_NAV`，
+  左侧树 + SPA 侧栏专题树唯一数据源 = `frontend/public/js/site-nav.js`（ESM：`export const SITE_NAV`，
   TopicLayout 构建期与 macro-view.js / dashboard.js 运行时 import 同一份）。
   专题页左侧树**复用 SPA 那套 `.macro-nav*` 类**（样式单源在 `app.css`，不造平行组件），
-  `body.re-has-side` 只在 ≥1025px 让位 240px，窄屏与内嵌（`body.embedded`）不出现；
-  同一档下顶栏胶囊 Tab 收起（`body.re-has-side .re-nav{display:none}`，左树已含全部组与子页），
-  ≤1024 反过来：无左树、顶栏 Tab 是唯一导航；
+  `body.re-has-side` 只在 ≥1025px 让位 240px，窄屏与内嵌（`body.embedded`）不让位；
+  ≤1024 树收进抽屉，由 TopicLayout 渲染的 `#macro-nav-toggle`（☰）+ `.macro-nav-backdrop` 唤出
+  （样式与行为与 SPA `macro-view.js` 同一套：toggle / backdrop / Esc）。
+  **顶栏胶囊 Tab（`.re-nav`）已整条删除**（专题页任何宽度都不再有两套导航；它在窄屏会撑成
+  2-4 排胶囊压住 `.page-toc`，且 11 个胶囊无当前项样式，根上就没法当层级导航）；
   当前页高亮 / 当前组展开由构建期算（SITE_NAV 的 `.html` 要先归一化成目录形态才能对上产物 URL）。
   新专题：写 .astro 页（套 TopicLayout）→ 在 `SITE_NAV` 登记即可（无别处白名单）
 - **语义色两档制（图形档 / 文字档）**：`frontend/public/css/tokens.css` 里

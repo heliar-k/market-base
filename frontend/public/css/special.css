@@ -19,10 +19,7 @@ body { height: auto; overflow-y: auto; display: block; }
 body.embedded .re-header h1 { display: none; } /* 内嵌时左卡已有标题 */
 /* 时效胶囊（timsun 徽章语言）：12% 中性底 + 全圆角，与各状态 tag 同构 */
 .re-as-of { font-size: 12px; color: var(--text-secondary); background: var(--color-neutral-bg); padding: 2px 10px; border-radius: 999px; white-space: nowrap; }
-.re-nav { display: flex; gap: 8px; flex-wrap: wrap; }
-.re-nav a { color: var(--accent-ink); text-decoration: none; font-size: 13px; padding: 4px 10px; border: 1px solid var(--btn-border); border-radius: 999px; }
-.re-nav a:hover { background: var(--surface-hover); }
-/* 子页不再渲染“返回概览”面包屑（导航在左侧导航 / Tab 中） */
+/* 子页不再渲染“返回概览”面包屑（导航在左侧专题树 / 窄屏抽屉里） */
 .re-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 12px; }
 .re-card { padding: 16px 20px; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; }
 .re-card-accent { background: var(--surface); border: 1px solid var(--border); color: var(--text); }
@@ -41,6 +38,10 @@ body.embedded .re-header h1 { display: none; } /* 内嵌时左卡已有标题 */
 }
 /* 锚点跳转后标题不被吸顶栏遮住（栏高约 41px） */
 html { scroll-padding-top: 52px; }
+/* 顶栏胶囊 Tab 已删（导航统一走左侧树 / 窄屏抽屉），.page-toc 因此总是紧跟 .re-header：
+   不补偿的话它吃 .re-root 的 16px gap + 自身 padding 8 = 距上分隔线 24px，而距自身下边线
+   只有 8px → 胶囊行偏下。负 margin 抵掉那 16px（与 .re-sec-head 同一手法），居中成 8 / 8。 */
+.re-header + .page-toc { margin-top: calc(-1 * var(--re-inner-gap)); }
 .page-toc a {
   font-size: 12px; padding: 4px 10px; border-radius: 999px;
   border: 1px solid var(--border); background: var(--surface);

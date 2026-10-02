@@ -1,9 +1,10 @@
 ---
 // TopicLayout — 专题页通用骨架（工单 #13 spike 起用，ADR-0003）。
 // 职责：head 样板（CSS 变量主题 + 共享 JS；固定部分承接自已退役的 sync_pages_head.HEAD_TEMPLATE）、
-// 顶栏 Tab（构建期静态渲染——import site-nav.js 的 SITE_NAV，与 nav.js 运行时渲染同一份数据、
-// 同一算法，只渲染到「组」层）、页头（title + re-as-of 槽位）、运行时行为（原 nav.js 在本页的
-// 职责：主题切换 / fetch 协商缓存 / 返回顶部 / 内嵌 iframe 适配，见文件底部脚本）。
+// 左侧专题树（构建期静态渲染——import site-nav.js 的 SITE_NAV，与 SPA macro-view.js 运行时
+// 渲染同一份数据；桌面常驻，≤1024 为 ☰ 唤出的抽屉）、页头（title + re-as-of 槽位）、
+// 运行时行为（原 nav.js 在本页的职责：主题切换 / fetch 协商缓存 / 返回顶部 / 内嵌 iframe 适配，
+// 见文件底部脚本）。
 // 页面私有结构（page-toc / 小节容器 / island 脚本）走默认插槽；页私有 head 追加走 head 插槽。
 import { SITE_NAV } from '../../public/js/site-nav.js';
 
@@ -17,16 +18,15 @@ const { title, h1 = title, desc = '观澜台 — 美股与宏观研究平台：�
 
 const BRAND = '观澜台';
 
-// 顶栏 Tab 数据：home + groups（nav.js 同款算法，aria-current 构建期静态标注）
+// 构建期 URL：专题树高亮与组展开靠它算（顶栏胶囊 Tab 已删，不再渲染 TABS）
 const path = Astro.url.pathname; // 构建期即本页最终 URL（如 /credit/）
 // SITE_NAV 里的子页带 `.html` 后缀（靠 _redirects 重写到目录页），而 Astro 产物是
 // directory 路由 → 构建期 Astro.url.pathname 是 /assets/fx/。归一化后才能对上高亮。
 const norm = (page: string) => page.replace(/\.html$/, '/');
-const isCur = (page: string) => { const p = norm(page); return path === p || (p !== '/' && path.startsWith(p)); };
-const isHome = path === '/' || path === '/index.html';
-const TABS = [SITE_NAV.home, ...SITE_NAV.groups];
 // 左侧专题树（与 SPA 同一份 SITE_NAV、同一套 .macro-nav 样式）：当前页精确高亮，
-// 当前所在组自动展开（窄屏不渲染这棵树，见 app.css 的 body.re-has-side）
+// 当前所在组自动展开。桌面常驻（正文让位 240px），窄屏收进抽屉由 ☰ 唤出
+// （app.css 的 #macro-nav-toggle / body.side-open）——顶栏胶囊 Tab 已删，
+// 同屏两套导航是重复，且窄屏下它会撑成 2-4 排胶囊压住 .page-toc。
 const isItemCur = (page: string) => norm(page) === path;
 ---
 <!DOCTYPE html>
@@ -89,9 +89,13 @@ window.__reTheme = (function () {
 })();
 </script>
 <a class="skip-link" href="#re-main">跳过导航，直达正文</a>
+<!-- 窄屏抽屉开关（与 SPA 同一套 #macro-nav-toggle / .macro-nav-backdrop 样式与行为）：
+     桌面 display:none，≤1024 才出现（app.css 媒体查询单源）。 -->
+<button id="macro-nav-toggle" type="button" title="展开导航" aria-controls="macro-nav" aria-expanded="false">☰</button>
+<div class="macro-nav-backdrop" id="macro-nav-backdrop"></div>
 <!-- 左侧专题树：与 SPA 的 #macro-nav 同一套类名（app.css 单源），不造平行组件。
      不含主题按钮（专题页已有 .theme-float）与美东时钟（那是 SPA 侧栏 JS 的活）。
-     窄屏（≤1024）由 CSS 整棵移出视口，沿用原有顶栏 Tab，不引入抽屉。 -->
+     窄屏（≤1024）由 CSS 整棵移出视口，靠上面的 #macro-nav-toggle 唤出抽屉（与 SPA 同一套）。 -->
 <nav class="macro-nav" id="macro-nav" aria-label="专题导航">
   <div class="macro-nav-brand">
     <div>
@@ -140,13 +144,6 @@ window.__reTheme = (function () {
     <span class="re-as-of" id="re-as-of"></span>
   </div>
 
-  <div class="re-nav" id="re-nav">
-    {TABS.map((g) => (
-      <a href={g.page} aria-current={isCur(g.page) ? 'page' : undefined}>{g.label}</a>
-    ))}
-    <a href="/" aria-current={isHome ? 'page' : undefined}>← 仪表盘</a>
-  </div>
-
   <slot />
 
   <!-- 页脚（单源在布局，33 页全继承）：数据来源 + 更新方式 + 免责声明 + 回首页。
@@ -164,8 +161,8 @@ window.__reTheme = (function () {
 </div>
 
 <script is:inline>
-// TopicLayout 运行时 = nav.js 在 .astro 页上的职责（顶栏 Tab 已构建期静态渲染，不再运行时注入）：
-// fetch 协商缓存 / 内嵌适配 / 主题（body.dark + theme-changed 事件，rates-common 监听重绘）/ 返回顶部。
+// TopicLayout 运行时 = nav.js 在 .astro 页上的职责（导航件已构建期静态渲染，不再运行时注入）：
+// fetch 协商缓存 / 内嵌适配 / 窄屏抽屉 / 主题（body.dark + theme-changed 事件，rates-common 监听重绘）/ 返回顶部。
 // 机制与 nav.js 逐字对齐（DARK_KEY 同键：SPA 内嵌与独立访问的亮暗状态跨页一致）。
 (function () {
   // 静态部署后数据更新，浏览器可能还拿着 max-age=600 的旧 JSON ——
@@ -186,13 +183,25 @@ window.__reTheme = (function () {
   // 内嵌判定与主题状态单源在提前脚本（window.__reTheme），此处只复用
   var T = window.__reTheme;
   var embedded = T.embedded;
-  if (embedded) {
-    document.body.classList.add('embedded');
-    var nav = document.getElementById('re-nav');
-    if (nav) nav.style.display = 'none';
-  }
+  if (embedded) document.body.classList.add('embedded');
+  // 窄屏抽屉（与 SPA macro-view.js 同一套：toggle / backdrop / Esc）。
+  // 专题页是整页跳转，点链接自然重载，不需要 SPA 那种 goView 后手动收起。
+  var toggleBtn = document.getElementById('macro-nav-toggle');
+  var backdrop = document.getElementById('macro-nav-backdrop');
+  var closeDrawer = function () {
+    document.body.classList.remove('side-open');
+    if (toggleBtn) toggleBtn.setAttribute('aria-expanded', 'false');
+  };
+  if (toggleBtn) toggleBtn.addEventListener('click', function () {
+    var open = document.body.classList.toggle('side-open');
+    toggleBtn.setAttribute('aria-expanded', open ? 'true' : 'false');
+  });
+  if (backdrop) backdrop.addEventListener('click', closeDrawer);
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape' && document.body.classList.contains('side-open')) closeDrawer();
+  });
   // 左侧专题树：组展开/收起（当前组构建期已置 open，其余靠这里）。
-  // 窄屏不渲染抽屉按钮，所以无需 side-open / backdrop 那套（与 SPA 各自的 JS）。
+  // 抽屉开合在上方那段（#macro-nav-toggle / backdrop / Esc），这里只管组。
   var side = document.getElementById('macro-nav');
   if (side) {
     side.addEventListener('click', function (e) {
