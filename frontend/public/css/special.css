@@ -268,7 +268,7 @@ a.re-badge:hover { color: var(--accent-ink); border-color: var(--accent-ink); }
 .theme-float:hover { border-color: var(--accent-ink); }
 
 /* 返回顶部悬浮按钮（专题入口页右下角，滚动超过一屏才显示） */
-.back-top { position: fixed; right: 16px; bottom: 16px; z-index: var(--z-float); width: 36px; height: 36px; border-radius: 50%; border: 1px solid var(--btn-border); background: var(--surface); color: var(--text-secondary); cursor: pointer; font-size: 16px; line-height: 1; opacity: 0; pointer-events: none; transition: opacity .2s, border-color .15s, transform .1s; box-shadow: var(--shadow-float); }
+.back-top { position: fixed; right: 8px; bottom: 8px; z-index: var(--z-float); width: 30px; height: 30px; border-radius: 6px; border: 1px solid var(--btn-border); background: var(--surface); color: var(--text-secondary); cursor: pointer; font-size: 14px; line-height: 1; opacity: 0; pointer-events: none; transition: opacity .2s, border-color .15s, transform .1s; box-shadow: var(--shadow-float); }
 .back-top:active { transform: scale(.94); }
 .back-top.show { opacity: 1; pointer-events: auto; }
 .back-top:hover { color: var(--accent-ink); border-color: var(--accent-ink); }
