@@ -6,21 +6,27 @@ import TopicLayout from '../../layouts/TopicLayout.astro';
 import Section from '../../components/Section.astro';
 ---
 <TopicLayout title="加密货币">
-  <Section title="价格总览">
+  <div class="page-toc" id="page-toc"></div>
+  <Section id="overview" title="价格总览">
     <div id="cards" class="re-cards"></div>
   </Section>
   <!-- 前瞻雷达/机构 vs 散户:条件性(无衍生品快照时为空),不进 Section -->
-  <div id="radar"></div>
-  <div id="consensus"></div>
+  <div id="radar" class="re-block"></div>
+  <div id="consensus" class="re-block"></div>
   <Section id="liquidity" title="流动性溢出" />
   <!-- 条件性(无归一化序列时为空),保持裸 div -->
-  <div id="trend"></div>
+  <div id="trend" class="re-block"></div>
   <Section id="ratio" title="BTC/ETH 价比" />
   <Section id="recent" title="近期数据" />
   <div class="re-gen" id="re-gen"></div>
 </div>
 
 <script is:inline>
+// 小节锚点导航（#29：与其余专题页同一写法）
+document.getElementById('page-toc').innerHTML = [
+  ['总览', 'overview'], ['流动性', 'liquidity'], ['BTC/ETH 价比', 'ratio'], ['近期数据', 'recent'],
+].map(([t, id]) => `<a href="#${id}">${t}</a>`).join('');
+
 async function load() {
   const d = await R.get('/api/assets/crypto');
   const cards = (d.cards || []).map(i => ({
@@ -85,7 +91,7 @@ async function load() {
   if (L.nl_series && L.nl_series.length) {
     const csec = document.createElement('div');
     csec.className = 're-section';
-    csec.innerHTML = '<h2>净流动性 vs BTC（180 日）</h2><div class="chart" id="liq-chart" style="height:320px"></div>';
+    csec.innerHTML = '<h2>净流动性 vs BTC（180 日）</h2><div class="chart" id="liq-chart"></div>';
     document.getElementById('liquidity').appendChild(csec);
     R.mkChart('liq-chart', colors => R.lineOption({
       tooltip: { trigger: 'axis', axisPointer: { type: 'cross' } },
@@ -125,7 +131,7 @@ async function load() {
   if (keys.length && tr.dates.length) {
     const nsec = document.createElement('div');
     nsec.className = 're-section';
-    nsec.innerHTML = '<h2>加密走势（归一化 %）</h2><div class="chart" id="crypto-trend" style="height:320px"></div>';
+    nsec.innerHTML = '<h2>加密走势（归一化 %）</h2><div class="chart" id="crypto-trend"></div>';
     document.getElementById('trend').appendChild(nsec);
     R.mkChart('crypto-trend', colors => {
       // 每次渲染从当前主题取色（主题切换后 R.mkChart 重跑 optionFn，避免锁定初始主题）
@@ -231,7 +237,7 @@ async function load() {
           : xcard('ETF 流量比（ETH/BTC 5d）', '—', '数据未就绪：运行 ./bin/fetch_etf_flows_eth', null)}
       </div>`;
     if (ra.dates && ra.dates.length) {
-      rasec.innerHTML += '<div class="chart" id="ratio-chart" style="height:320px;margin-top:12px"></div>';
+      rasec.innerHTML += '<div class="chart" id="ratio-chart" style="margin-top:12px"></div>';
     }
     if (ra.narrative) {
       rasec.innerHTML += `<div style="border:1px solid var(--accent);border-radius:8px;padding:14px 16px;background:var(--surface);margin-top:12px">

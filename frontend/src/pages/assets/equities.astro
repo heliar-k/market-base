@@ -6,21 +6,28 @@ import TopicLayout from '../../layouts/TopicLayout.astro';
 import Section from '../../components/Section.astro';
 ---
 <TopicLayout title="美股">
-  <Section title="指数总览">
+  <div class="page-toc" id="page-toc"></div>
+  <Section id="overview" title="指数总览">
     <div id="indices" class="re-cards"></div>
   </Section>
   <Section id="index-chart" title="指数走势" />
   <Section id="breadth" title="市场广度" />
   <!-- ABV 走势/分析师目标价/成分股雷达:条件性(对应子源缺失时为空),不进 Section -->
-  <div id="abv-chart"></div>
+  <div id="abv-chart" class="re-block"></div>
   <Section id="analysis" title="规则引擎解读" />
-  <div id="analyst"></div>
-  <div id="radar"></div>
+  <div id="analyst" class="re-block"></div>
+  <div id="radar" class="re-block"></div>
   <Section id="recent" title="近期数据" />
   <div class="re-gen" id="re-gen"></div>
 </div>
 
 <script is:inline>
+// 小节锚点导航（#29：与其余专题页同一写法）
+document.getElementById('page-toc').innerHTML = [
+  ['总览', 'overview'], ['指数走势', 'index-chart'], ['市场广度', 'breadth'],
+  ['规则引擎解读', 'analysis'], ['近期数据', 'recent'],
+].map(([t, id]) => `<a href="#${id}">${t}</a>`).join('');
+
 let D = null;           // API 数据
 const T = { SPX: '标普500', NDX: '纳斯达克100', DJI: '道琼斯', RUT: '罗素2000' };
 

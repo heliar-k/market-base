@@ -24,14 +24,14 @@ import Section from '../../components/Section.astro';
   </Section>
 
   <!-- 条件性小节(JS 控制显隐 + 需保留 db-sec class/inline style,Section 不透传),保持裸 div -->
-  <div id="sec-readings" class="db-sec" style="display:none">
+  <div id="sec-readings" class="db-sec re-block" style="display:none">
     <div class="re-h2">各指标的信号与证伪条件</div>
     <p class="re-source">单指标相容不代表机制成立：信号按跨资产条件表述（方向为近 5 个有效观测，分位为 1 年窗口），先对照上方情景，再看该行证伪条件是否已触发。</p>
     <div id="db-readings"></div>
   </div>
 
   <!-- 条件性小节(仅报警命中时显示),保持裸 div -->
-  <div id="sec-alerts" class="db-sec" style="display:none">
+  <div id="sec-alerts" class="db-sec re-block" style="display:none">
     <div class="re-h2">跨资产结构报警</div>
     <div class="re-cards" id="db-alerts"></div>
   </div>

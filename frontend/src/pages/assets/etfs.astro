@@ -6,13 +6,14 @@ import TopicLayout from '../../layouts/TopicLayout.astro';
 import Section from '../../components/Section.astro';
 ---
 <TopicLayout title="ETF" chart={false}>
-  <Section title="统计">
+  <div class="page-toc" id="page-toc"></div>
+  <Section id="overview" title="统计">
     <div id="stats" class="re-cards"></div>
   </Section>
   <!-- 条件性(全量清单子源缺失时为空),不进 Section -->
-  <div id="universe"></div>
+  <div id="universe" class="re-block"></div>
   <!-- 筛选器:脚本 innerHTML 清容器,Section 只包壳、id 落内层 div -->
-  <Section title="市场温度与筛选">
+  <Section id="temp" title="市场温度与筛选">
     <div id="filters"></div>
   </Section>
   <Section id="pool" title="精选池" />
@@ -20,6 +21,11 @@ import Section from '../../components/Section.astro';
 </div>
 
 <script is:inline>
+// 小节锚点导航（#29：与其余专题页同一写法）
+document.getElementById('page-toc').innerHTML = [
+  ['统计', 'overview'], ['温度与筛选', 'temp'], ['精选池', 'pool'],
+].map(([t, id]) => `<a href="#${id}">${t}</a>`).join('');
+
 let D = null;
 let curCat = '全部';
 let curTrend = '全部';

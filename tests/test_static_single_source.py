@@ -289,3 +289,25 @@ def test_inline_scripts_parse() -> None:
         for n, m in enumerate(inline.finditer(code), 1):
             if m.group(1).strip():
                 _check_js(m.group(1), f"{page.relative_to(ROOT)} 内联#{n}")
+
+
+# ── #28：逐页图表内联高度（硬禁）──────────────────────────────────────────
+# 内联 style 优先级高于任何类，CSS 层覆盖不了 → 只能逐页删。18 处存量已在 #28 一轮清空，
+# 本测试从此硬禁：新页面要非基线高度，走档位家族
+# .chart.chart-{sm,lg,md,hero}（260/280/340/520）或 .re-chart + .re-chart-sm。
+# 反向验法：给任一 .astro 加一行 style="height:320px" → 本测试红并指名。
+_INLINE_HEIGHT = re.compile(r'style="[^"]*\bheight:(\d+)px')
+
+
+def test_no_hardcoded_chart_heights() -> None:
+    """专题页不得写死图表高度（#28）：≥100px 的 height 内联一律红。"""
+    hits = {
+        str(page.relative_to(ASTRO_PAGES)): [
+            m.group(0)
+            for m in _INLINE_HEIGHT.finditer(page.read_text("utf-8"))
+            if int(m.group(1)) >= 100
+        ]
+        for page in sorted(ASTRO_PAGES.rglob("*.astro"))
+    }
+    bad = {k: v for k, v in hits.items() if v}
+    assert not bad, f"以下页写死了图表高度，改走档位类（.chart.chart-sm~hero）：{bad}"

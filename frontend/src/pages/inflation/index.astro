@@ -15,7 +15,7 @@ import Section from '../../components/Section.astro';
   <Section id="components" title="分项" />
   <Section id="expectations" title="预期" />
   <!-- 条件性小节(Shapiro 分解无数据时为空),不进 Section 避免空标题 -->
-  <div id="shapiro"></div>
+  <div id="shapiro" class="re-block"></div>
   <Section id="recent" title="近期数据" />
   <div class="re-gen" id="re-gen"></div>
 
@@ -61,7 +61,7 @@ async function load() {
   // ── YoY 历史曲线 ──
   const hsec = document.createElement('div');
   hsec.className = 're-section';
-  hsec.innerHTML = '<h2>通胀同比走势（近 10 年）</h2><div id="yoy-chart" style="height:340px"></div>';
+  hsec.innerHTML = '<h2>通胀同比走势（近 10 年）</h2><div id="yoy-chart" class="chart chart-md"></div>';
   document.getElementById('history').appendChild(hsec);
   const h = d.yoy_history;
   const line = (name, data, color) => ({

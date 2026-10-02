@@ -6,6 +6,7 @@ import TopicLayout from '../../layouts/TopicLayout.astro';
 import Section from '../../components/Section.astro';
 ---
 <TopicLayout title="外汇">
+  <div class="page-toc" id="page-toc"></div>
   <Section id="verdicts" title="美元广度" />
   <Section id="fxchart" title="归一化走势" />
   <Section id="dashboard" title="分组表现" />
@@ -14,6 +15,11 @@ import Section from '../../components/Section.astro';
 </div>
 
 <script is:inline>
+// 小节锚点导航（#29：与其余专题页同一写法）
+document.getElementById('page-toc').innerHTML = [
+  ['美元广度', 'verdicts'], ['归一化走势', 'fxchart'], ['分组表现', 'dashboard'], ['如何解读', 'explain'],
+].map(([t, id]) => `<a href="#${id}">${t}</a>`).join('');
+
 // verdict 文案 → 颜色方向（以美元为主体：走强红 / 走弱绿 / 无方向灰）
 const VD = { '美元走强': 'fx-up', '美元同步走强': 'fx-up', 'CNH 承压': 'fx-up', '日元回补压力': 'fx-up',
   '美元走弱': 'fx-down', '美元同步走弱': 'fx-down', 'CNH 走强': 'fx-down',

@@ -33,7 +33,7 @@ import Section from '../../components/Section.astro';
   <!-- 长期 VIX（近 2 年，恐慌区域虚线） -->
   <div class="re-section" id="sec-long">
     <h2>VIX 波动率指数（近 2 年）</h2>
-    <div id="vix_long_chart" class="chart" style="height:320px"></div>
+    <div id="vix_long_chart" class="chart"></div>
   </div>
 
   <!-- VIX × SKEW 信号：左文右图 -->
@@ -41,7 +41,7 @@ import Section from '../../components/Section.astro';
     <h2>VIX × SKEW 信号</h2>
     <div class="vix-row">
       <div class="sig-block" id="skew-signal"></div>
-      <div id="vix_skew_scatter" class="chart" style="height:340px"></div>
+      <div id="vix_skew_scatter" class="chart chart-md"></div>
     </div>
   </div>
 
@@ -57,7 +57,7 @@ import Section from '../../components/Section.astro';
       <h2 style="margin:0">VIX 期限结构</h2>
       <span id="term-badge"></span>
     </div>
-    <div id="vix_term_chart" class="chart" style="height:260px"></div>
+    <div id="vix_term_chart" class="chart chart-sm"></div>
     <div class="re-analysis" id="term-signals" style="margin-top:10px"></div>
   </div>
 

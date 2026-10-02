@@ -12,7 +12,7 @@ import Section from '../../../components/Section.astro';
   </Section>
 
   <!-- 看板标题(h2.re-h2)由 JS 填,Section 静态标题会重复 —— 保持裸 div -->
-  <div id="board"></div>
+  <div id="board" class="re-block"></div>
 
   <!-- Tab 控件条 + 图表面板:控件/图表容器非小节,不进 Section -->
   <div class="opt-tabs" id="opt-tabs"></div>
@@ -181,7 +181,7 @@ function pGex(panel, v) {
   panel.innerHTML = `
     <h3>${S} · GEX 按行权价分布</h3>
     <p style="margin:0 0 8px;font-size:12px;color:var(--text-secondary)">绿色 = Call GEX × OI（dealer 净多，压制波动）；红色 = Put GEX × OI（dealer 净空，放大波动）；黑色曲线 = 累计 GEX（右轴，穿越 0 线即 Gamma Flip）。蓝线 = 现价。</p>
-    <div class="chart" id="gex-chart" style="height:300px"></div>
+    <div class="chart" id="gex-chart"></div>
     <h3 style="margin-top:16px">到期日 Gamma 集中度</h3>
     <div id="buckets"></div>
     <p class="re-source" style="margin:8px 0 0">占比越集中在单一到期段，该段的 wall 约束力越强；分布越分散，各时间尺度上的墙越弱。</p>`;
@@ -294,7 +294,7 @@ function pIv(panel, v) {
         <span>Back (${v.iv_back?.dte || '—'}D) <b>${v.iv_back?.iv ?? '—'}%</b></span>
       </div>
     </div>
-    <div class="chart" id="iv-chart" style="height:240px"></div>
+    <div class="chart chart-sm" id="iv-chart"></div>
     <p class="re-source" style="margin:8px 0 0">Skew ${v.skew == null ? '—' : fmtNum(v.skew)} — ${Math.abs(v.skew ?? 0) < 0.5 ? 'Skew 平坦 — 市场对上下行风险定价相对均衡' : (v.skew < 0 ? 'Skew 偏负 — 市场为下行风险支付溢价' : 'Skew 偏正 — 市场为上行风险支付溢价')}</p>`;
   curChartOpt = colors => ({
     tooltip: { trigger: 'axis' },

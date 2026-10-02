@@ -23,7 +23,7 @@ body.embedded .re-header h1 { display: none; } /* 内嵌时左卡已有标题 */
 .re-nav a { color: var(--accent-ink); text-decoration: none; font-size: 13px; padding: 4px 10px; border: 1px solid var(--btn-border); border-radius: 999px; }
 .re-nav a:hover { background: var(--surface-hover); }
 /* 子页不再渲染“返回概览”面包屑（导航在左侧导航 / Tab 中） */
-.re-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; }
+.re-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 12px; }
 .re-card { padding: 16px 20px; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; }
 .re-card-accent { background: var(--surface); border: 1px solid var(--border); color: var(--text); }
 .re-card-accent .re-corridor-label { color: var(--text-secondary); }
@@ -87,7 +87,11 @@ body.embedded .re-foot { display: none; } /* 内嵌 iframe 不重复页脚 */
  * 未迁组件的页继续用裸 .re-h2(样式向后兼容,节奏变量共享)。 */
 /* JS 填充容器:小节内的动态卡片(.re-section/.pm-topic-card 等)统一纵向间距,
  * 治「appendChild 卡片贴卡片」通病(geo-events 等);首个不空位 */
-.re-sec { margin-top: var(--re-sec-gap); display: flex; flex-direction: column; gap: var(--re-inner-gap); }
+.re-sec, .re-block { margin-top: var(--re-sec-gap); }
+/* 条件性小节（JS 填整块含标题，套 <Section> 会在无数据时留个空标题）只借节奏、不借 flex 布局；
+   空块整块不占位 —— 此前空的裸 div 也吃 .re-root 的 16px gap，会在版面里留一条小洞 */
+.re-root > :empty { display: none; }
+.re-sec { display: flex; flex-direction: column; gap: var(--re-inner-gap); }
 /* head 自身也参与父级 gap，用负 margin 回收成 --re-head-gap（不是魔法数，两个变量相减） */
 .re-sec > .re-sec-head { margin-bottom: calc(var(--re-head-gap) - var(--re-inner-gap)); }
 /* 小节标题:左侧 accent 短线做「节起点」视觉锚（Stripe/Grafana 面板标题模式） */
@@ -121,8 +125,14 @@ body.embedded .re-foot { display: none; } /* 内嵌 iframe 不重复页脚 */
 .rank-grid .rk-n { font-size: 11px; }
 .rank-grid .rk-v { font-size: 11px; }
 @media (max-width: 768px) { .rank-grid { grid-template-columns: 1fr; } }
+/* 图表高度档位家族（与 #28 决策表一一对应；桌面视口够高时取上限）：
+ *   .chart-sm 260 < .chart-lg 280 < .chart（基盘）300 < .chart-md 340 < .chart-hero 520
+ * 注意历史遗留：chart-lg 比 chart-md 矮 —— 选档看数别看名。双类选择器特异性 0-2-0，
+ * 能压过 `.chart`（:root 与 .re-chart-sm~xl 同挂时会被 .chart 后写者赢，那是死代码）。 */
+.chart.chart-sm { height: clamp(200px, 36vh, 260px); }
 .chart.chart-lg { height: clamp(210px, 38vh, 280px); }
 .chart.chart-md { height: clamp(250px, 46vh, 340px); }
+.chart.chart-hero { height: clamp(300px, 62vh, 520px); }
 .re-badge { padding: 4px 12px; border-radius: 999px; font-size: 12.5px; font-weight: 600; color: var(--text-secondary); background: var(--color-neutral-bg); letter-spacing: .01em; }
 /* Stripe 徽章细节:1px 语义色透明描边,胶囊有型 */
 .re-badge { border: 1px solid color-mix(in srgb, var(--color-neutral) 25%, transparent); }

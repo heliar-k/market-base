@@ -55,7 +55,7 @@ async function load() {
   // ── NFP bar + 失业率 line ──
   const hsec = document.createElement('div');
   hsec.className = 're-section';
-  hsec.innerHTML = '<h2>非农月度新增 vs 失业率（近 3 年）</h2><p style="margin:0">2025-10 失业率无数据：政府停摆使 BLS 未采集当月 CPS，官方宣布不回溯补采。</p><div id="nfp-chart" style="height:340px"></div>';
+  hsec.innerHTML = '<h2>非农月度新增 vs 失业率（近 3 年）</h2><p style="margin:0">2025-10 失业率无数据：政府停摆使 BLS 未采集当月 CPS，官方宣布不回溯补采。</p><div id="nfp-chart" class="chart chart-md"></div>';
   document.getElementById('history').appendChild(hsec);
   const h = d.nfp_history;
   // 失业率缺失月（如 2025-10 政府停摆未采集 CPS）用菱形标记标出，y 取前后值中点

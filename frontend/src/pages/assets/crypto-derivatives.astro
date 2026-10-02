@@ -9,13 +9,13 @@ import Section from '../../components/Section.astro';
   <div class="page-toc" id="page-toc"></div>
 
   <!-- NOW/ETF 资金流/资金费率/基差/Coinglass:条件性(对应子源缺失时为空),不进 Section -->
-  <div id="now"></div>
-  <div id="etf"></div>
+  <div id="now" class="re-block"></div>
+  <div id="etf" class="re-block"></div>
   <Section id="kpi" title="衍生品 KPI" />
-  <div id="funding"></div>
+  <div id="funding" class="re-block"></div>
   <Section id="retail" title="散户仓位" />
-  <div id="basis"></div>
-  <div id="coinglass"></div>
+  <div id="basis" class="re-block"></div>
+  <div id="coinglass" class="re-block"></div>
   <div class="re-gen" id="re-gen"></div>
 </div>
 
@@ -139,7 +139,7 @@ async function load() {
     fsec.className = 're-section';
     fsec.id = 'sec-funding';
     fsec.innerHTML = `<h2>资金费率走势 <span style="font-size:12px;font-weight:400;opacity:.7">OKX BTC 永续 8h 费率 % · &gt;0 做多付费 / &lt;0 空头付费 · 近 ${Math.round(fh.length / 3)} 天</span></h2>
-      <div class="chart" id="funding-hist" style="height:260px"></div>
+      <div class="chart chart-sm" id="funding-hist"></div>
       <details class="re-fold"><summary>口径说明</summary>
       <p class="re-source" style="margin:8px 0 0">口径：OKX funding-rate-history（8h 结算）；时间轴按 8h 网格从快照时间回推。持续抬升 + OI 扩张 = 杠杆堆积；年化超 ±15%（8h ≈ ±0.0137%）为拥挤反转区。</p></details>`;
     document.getElementById('funding').appendChild(fsec);

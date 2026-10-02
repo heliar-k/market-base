@@ -6,6 +6,7 @@ import TopicLayout from '../../../layouts/TopicLayout.astro';
 import Section from '../../../components/Section.astro';
 ---
 <TopicLayout title="持仓追踪（CFTC COT）">
+  <div class="page-toc" id="page-toc"></div>
   <!-- 结论卡:脚本 innerHTML 清容器,Section 只包壳、id 落内层 div -->
   <Section title="仓位总览">
     <div id="overview"></div>
@@ -15,6 +16,11 @@ import Section from '../../../components/Section.astro';
 </div>
 
 <script is:inline>
+// 小节锚点导航（#29：与其余专题页同一写法；#overview 是 Section 内层容器，本就有 id）
+document.getElementById('page-toc').innerHTML = [
+  ['仓位总览', 'overview'], ['分组合约', 'groups'],
+].map(([t, id]) => `<a href="#${id}">${t}</a>`).join('');
+
 const GNAMES = { index_vol: '股指 / 波动率', rates: '利率 / 美债', fx: '外汇', commodities: '商品' };
 const charts = [];
 

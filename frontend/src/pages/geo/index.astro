@@ -10,7 +10,7 @@ import Section from '../../components/Section.astro';
   <div class="page-toc" id="page-toc"></div>
 
   <!-- 结论层：主题状态卡（中文归类焦点 + 30 天走势缩略 + 成交占比，点击定位数据层） -->
-  <div id="geo-topics" class="pm-topics"></div>
+  <div id="geo-topics" class="pm-topics re-block"></div>
 
   <Section id="re-signals" title="研判" />
 
@@ -19,7 +19,7 @@ import Section from '../../components/Section.astro';
   <Section id="geo-events" title="主题概率走势" sub="归类均值 · 多线" />
 
   <!-- 归类未命中告警(条件性内容,零命中时为空;不包 Section 避免空标题) -->
-  <div id="geo-unmatched"></div>
+  <div id="geo-unmatched" class="re-block"></div>
 
   <div class="re-gen" id="re-gen"></div>
 

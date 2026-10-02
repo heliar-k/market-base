@@ -15,9 +15,9 @@ import Section from '../../components/Section.astro';
   <Section id="history" title="海外持仓" />
   <Section id="holdings" title="持仓明细" />
   <!-- 条件性小节(MSPD 无数据时为空),不进 Section 避免空标题 -->
-  <div id="mspd"></div>
+  <div id="mspd" class="re-block"></div>
   <!-- 条件性小节(无 QRA 声明时为空),保持裸 div -->
-  <div id="refunding"></div>
+  <div id="refunding" class="re-block"></div>
   <div class="re-source">数据来源：美国财政部 Fiscal Data API（auctions_query / upcoming_auctions / MSPD）+ FRED TIC 持仓，每日自动同步；Bill 占比 = MSPD 月频 + 本地日频派生；借款估算 = QRA 再融资声明。</div>
   <div class="re-gen" id="re-gen"></div>
 
@@ -245,7 +245,7 @@ async function load() {
   // ── 持仓历史曲线 ──
   const hsec = document.createElement('div');
   hsec.className = 're-section';
-  hsec.innerHTML = '<h2>主要国家持仓（近 10 年，$万亿）</h2><p style="margin:0">总额见上方卡片（9.4T 会把国家线压扁，故不放入本图）。</p><div id="hold-chart" style="height:340px"></div>';
+  hsec.innerHTML = '<h2>主要国家持仓（近 10 年，$万亿）</h2><p style="margin:0">总额见上方卡片（9.4T 会把国家线压扁，故不放入本图）。</p><div id="hold-chart" class="chart chart-md"></div>';
   document.getElementById('history').appendChild(hsec);
   const h = d.holdings_history;
   const line = (name, data, color) => ({
@@ -283,7 +283,7 @@ async function load() {
   if (d.mspd && d.mspd.length) {
     const msec = document.createElement('div');
     msec.className = 're-section';
-    msec.innerHTML = '<h2>未偿债务结构（MSPD，月度）</h2><p style="margin:0">占比累积堆叠（%）；绝对值见下表。</p><div id="mspd-chart" style="height:340px"></div>';
+    msec.innerHTML = '<h2>未偿债务结构（MSPD，月度）</h2><p style="margin:0">占比累积堆叠（%）；绝对值见下表。</p><div id="mspd-chart" class="chart chart-md"></div>';
     document.getElementById('mspd').appendChild(msec);
     const mh = d.mspd_history || {};
     // 分类色走 R.colors() token 键名（亮暗随主题重建）

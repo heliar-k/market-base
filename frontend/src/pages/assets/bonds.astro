@@ -6,7 +6,8 @@ import TopicLayout from '../../layouts/TopicLayout.astro';
 import Section from '../../components/Section.astro';
 ---
 <TopicLayout title="债券">
-  <Section title="价格总览">
+  <div class="page-toc" id="page-toc"></div>
+  <Section id="overview" title="价格总览">
     <div id="cards" class="re-cards"></div>
   </Section>
   <Section id="chart" title="近期相对涨跌" />
@@ -15,6 +16,11 @@ import Section from '../../components/Section.astro';
 </div>
 
 <script is:inline>
+// 小节锚点导航（#29：与其余专题页同一写法）
+document.getElementById('page-toc').innerHTML = [
+  ['总览', 'overview'], ['相对涨跌', 'chart'], ['近期数据', 'recent'],
+].map(([t, id]) => `<a href="#${id}">${t}</a>`).join('');
+
 async function load() {
   const d = await R.get('/api/assets/bonds');
   const cards = (d.cards || []).map(i => ({
@@ -42,7 +48,7 @@ async function load() {
   };
   const csec = document.createElement('div');
   csec.className = 're-section';
-  csec.innerHTML = '<h2>近期相对涨跌（最近 20 个交易日，期初 = 0%）</h2><div class="chart" id="bond-chart" style="height:280px"></div>';
+  csec.innerHTML = '<h2>近期相对涨跌（最近 20 个交易日，期初 = 0%）</h2><div class="chart chart-lg" id="bond-chart"></div>';
   document.getElementById('chart').appendChild(csec);
   R.mkChart('bond-chart', colors => R.lineOption({
     tooltip: { trigger: 'axis', valueFormatter: v => v == null ? '—' : Number(v).toFixed(2) + '%' },
