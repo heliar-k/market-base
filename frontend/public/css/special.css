@@ -595,8 +595,11 @@ body.dark .pm-topic-card { box-shadow: inset 0 0 0 1px rgba(255,255,255,.04); }
 .fx-crumb a:hover { color: var(--accent-ink); }
 /* 顶部 4 张 verdict 卡：一排 4 列，移动端 1 列 */
 .fx-verdict-cards { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
-/* 断点收敛（#20）：原 900 并入 1024，塌列方向只松不紧（901–1024 由 4 列 230px 变整宽单列） */
-@media (max-width: 1024px) { .fx-verdict-cards { grid-template-columns: 1fr; } }
+/* 断点收敛（#20）+ 精修：原 900 一档并入两档。960px 实测整宽单列会把 4 张卡拉成
+ * 790px 宽、中间大片空白（浏览器截图看过），所以 1024 取 2 列（~465px）、768 才塌单列；
+ * 769–900 由整宽变 2 列 ~390px，仍宽于桌面单卡 265px，不算更挤。 */
+@media (max-width: 1024px) { .fx-verdict-cards { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 768px) { .fx-verdict-cards { grid-template-columns: 1fr; } }
 .fx-verdict-card { display: flex; flex-direction: column; }
 .fx-verdict-top { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
 .fx-verdict-num { font-size: 12px; color: var(--text-secondary); white-space: nowrap; }
@@ -610,17 +613,22 @@ body.dark .pm-topic-card { box-shadow: inset 0 0 0 1px rgba(255,255,255,.04); }
 .fx-dash-head { display: flex; justify-content: space-between; align-items: flex-end; gap: 12px; flex-wrap: wrap; }
 .fx-dash-meta { font-size: 11px; color: var(--text-dim); padding-bottom: 6px; }
 .fx-chart { height: clamp(280px, 56vh, 420px); }
-/* 品种列两行：粗体名 + 10px 等宽 ticker */
+/* 品种列两行：粗体名 + 中文名（原始 ticker 收进 title 属性，不再占第三行） */
 .fx-sym { line-height: 1.4; }
 .fx-sym b { font-weight: 600; }
 .fx-sym-cn { font-size: 11px; color: var(--text-dim); margin-left: 4px; }
-.fx-sym-t { display: block; font-family: var(--font-mono); font-size: 10px; color: var(--text-dim); }
 .fx-mono { font-family: var(--font-mono); }
+/* 分组表现：六组同构表共用一张卡，组标题当行内分隔，不再每组一张卡 */
+.fx-group + .fx-group { margin-top: 16px; }
+.fx-group-h { font-size: 12.5px; font-weight: 700; color: var(--text-secondary); margin: 0 0 6px; }
+.fx-group-n { font-size: 11px; font-weight: 400; color: var(--text-dim); margin-left: 8px; }
 /* 6 张分组同构表列宽统一：fixed 布局 + 首列 22%、数值列均分，跨表纵向成线；
    窄屏（<640px 内容区）表格整体横滚而不是把列挤碎 */
 #dashboard .re-table { table-layout: fixed; min-width: 640px; }
-#dashboard .re-table th:nth-child(1) { width: 22%; }
-#dashboard .re-table th:nth-child(n+2) { width: 13%; }
+#dashboard .re-table th:nth-child(1) { width: 20%; }
+#dashboard .re-table th:nth-child(n+2):nth-child(-n+6) { width: 13%; }
+/* 末列标题「20D USD压力」11 字，13% 在 960px 下会拆成两行（截图看过）→ 给 15% */
+#dashboard .re-table th:nth-child(7) { width: 15%; }
 
 /* ── daily 页（今日研判，原页面内联 <style> 收编；db- 前缀为本页私有）── */
 .db-spark.up { stroke: var(--color-up); }
