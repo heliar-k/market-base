@@ -443,6 +443,11 @@ def yield_curve_analysis() -> dict:
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # 规则：利率研判四段文（入口页）
+#
+# 每段 body 用 \n 分三行：结论 / 依据 / 触发（前端 index.astro 按行渲染成
+# .sig-block，末行走 .note 弱化）。单行 = 降级文案（数据缺失），前端不挂标签。
+# 依据行只写概览统计卡没有的东西（1 周/1 月变动、区间、投标倍数、FOMC 概率），
+# 水平值不复述 —— 概览=读数、研判=判断，两屏不抢活。
 # ═══════════════════════════════════════════════════════════════════════════════
 
 
@@ -458,26 +463,24 @@ def _curve_text(
     _invalidation 已修过，此路径漏修且无测试覆盖）。"""
     if s2s10 is None or y10 is None:
         return "收益率曲线数据不足（检查 ./bin/fetch_fred rates 分类）。"
-    w_txt = (
-        f"（1 周 {'走扩' if s2s10_1w > 0 else '收窄'} {abs(s2s10_1w):.0f}bp）"
-        if s2s10_1w is not None
-        else ""
-    )
-    head = (
-        f"曲线呈{shape}形态：2s10s 利差现报 {s2s10:.0f}bp{w_txt}，"
-        f"10Y 报 {y10:.2f}%。驱动：{driver}。"
-    )
+    basis = f"驱动：{driver}"
+    if s2s10_1w is not None:
+        move = "走扩" if s2s10_1w > 0 else "收窄"
+        basis = f"1 周 2s10s {move} {abs(s2s10_1w):.0f}bp · {basis}"
     if shape in ("熊陡", "牛陡"):
-        return head + (
-            f"验证指标——若 2s10s 突破 {s2s10 + 15:.0f}bp 且拍卖需求未见恶化，"
-            "陡峭化大概率延续。"
+        return (
+            f"曲线呈{shape}形态，陡峭化大概率延续。\n{basis}\n"
+            f"若 2s10s 突破 {s2s10 + 15:.0f}bp 且拍卖需求未见恶化，本判断成立。"
         )
     if shape in ("熊平", "牛平"):
-        return head + (
-            f"验证指标——若 2s10s 收窄至 {s2s10 - 15:.0f}bp 以下且短端政策预期未转向，"
-            "平坦化大概率延续。"
+        return (
+            f"曲线呈{shape}形态，平坦化大概率延续。\n{basis}\n"
+            f"若 2s10s 收窄至 {s2s10 - 15:.0f}bp 以下且短端政策预期未转向，本判断成立。"
         )
-    return head + "验证指标——2s10s 单方向突破 ±8bp 前，形态信号中性，等待方向确认。"
+    return (
+        f"曲线呈{shape}形态，方向信号中性。\n{basis}\n"
+        "2s10s 单方向突破 ±8bp 前不定调，等待方向确认。"
+    )
 
 
 def _fed_expectation_text(
@@ -487,15 +490,27 @@ def _fed_expectation_text(
     y2: float | None,
 ) -> str:
     """联储预期段：EFFR + 目标区间 + ZQ 期货隐含的下一场 FOMC 概率（rex）。
+    三行：结论（主导方向）/ 依据（概率 + 区间与 2Y 位置）/ 触发（概率反转）。
     原实现用 2Y−EFFR 符号猜加/降息并断言「与点阵图一致/背离」——宽松周期里
-    2Y 高于 EFFR 是期限溢价而非加息定价，且数据里根本没有点阵图，两处均为伪推论。"""
+    2Y 高于 EFFR 是期限溢价而非加息定价，且数据里根本没有点阵图，两处均为伪推论。
+    """
     effr_txt = f"联邦基金有效利率 {effr:.2f}%" if effr is not None else "EFFR 数据缺失"
     tarl, taru = _snapshot(rates, "DFEDTARL", 0), _snapshot(rates, "DFEDTARU", 0)
     if tarl is not None and taru is not None:
         effr_txt += f"（目标区间 {tarl:.2f}–{taru:.2f}%）"
-    if y2 is not None:
+    if y2 is not None and effr is not None:
+        gap = y2 - effr
+        effr_txt += (
+            f" · 2Y 较 EFFR {'高' if gap >= 0 else '低'} {abs(gap):.2f}pp"
+            f"，短端{'未计入降息' if gap >= 0 else '已计入降息'}"
+        )
+    elif y2 is not None:
         effr_txt += f"，2Y 收益率 {y2:.2f}%"
-    mkt_txt = "ZQ 期货定价数据缺失（检查 ./bin/fetch_rate_expectations）"
+    mkt_txt = (
+        "ZQ 期货定价数据缺失，无法判断下一场 FOMC 方向"
+        "（检查 ./bin/fetch_rate_expectations）"
+    )
+    trigger = "取不到 FOMC 概率，暂无法给出失效条件。"
     cols = {"meeting_date", "prob_cut", "prob_hold", "prob_hike", "expectation"}
     if not rex.empty and cols.issubset(rex.columns):
         snap = rex.index.max()
@@ -504,13 +519,16 @@ def _fed_expectation_text(
             m = rows.iloc[0]  # 最新快照日的最近一场会议
             if all(pd.notna(m[c]) for c in ("prob_cut", "prob_hold", "prob_hike")):
                 exp = m["expectation"] if pd.notna(m["expectation"]) else "主导方向"
+                date = str(m["meeting_date"])[:10]
                 mkt_txt = (
-                    f"市场定价 {str(m['meeting_date'])[:10]} FOMC："
                     f"降息 {m['prob_cut']:.0%} / 维持 {m['prob_hold']:.0%} / "
-                    f"加息 {m['prob_hike']:.0%}（ZQ 期货隐含，截至 {snap:%Y-%m-%d}）。"
-                    f"验证指标：若该场「{exp}」概率跌破 50%，市场定价反转，本判断失效"
+                    f"加息 {m['prob_hike']:.0%}"
+                    f"（ZQ 期货隐含，截至 {snap:%Y-%m-%d}）"
                 )
-    return f"{effr_txt}。{mkt_txt}。"
+                verdict = f"市场定价 {date} FOMC 以「{exp}」为主。"
+                trigger = f"该场「{exp}」概率跌破 50% → 市场定价反转，本判断失效。"
+                return f"{verdict}\n{mkt_txt} · {effr_txt}。\n{trigger}"
+    return f"{mkt_txt}。\n{effr_txt}。\n{trigger}"
 
 
 def overview_analysis() -> dict:
@@ -551,12 +569,17 @@ def overview_analysis() -> dict:
             "（检查 ./bin/fetch_fred tips、inflation 分类）。"
         )
     else:
+        real_verdict = (
+            "长端变动由实际利率贡献主导。"
+            if (d10_1w or 0) > 0
+            else "长端变动由通胀预期贡献主导。"
+        )
+        real_basis = f"盈亏平衡通胀 {be:.2f}%"
+        if d10_1w is not None:
+            real_basis = f"10Y TIPS 1 周 {d10_1w:+.0f}bp · {real_basis}"
         real_text = (
-            f"10Y TIPS 实际利率报 {d10:.2f}%"
-            + (f"（1 周 {d10_1w:+.0f}bp）" if d10_1w is not None else "")
-            + f"，盈亏平衡通胀 {be:.2f}%——长端上行的"
-            f"{'实际利率贡献更大' if (d10_1w or 0) > 0 else '通胀预期贡献更大'}。"
-            f"触发条件：若实际利率跌破 {d10 - 0.15:.2f}%，将推升黄金与长端债券。"
+            f"{real_verdict}\n{real_basis}。\n"
+            f"实际利率跌破 {d10 - 0.15:.2f}% → 推升黄金与长端债券。"
         )
 
     # ── 3. 联储预期 ──
@@ -567,36 +590,35 @@ def overview_analysis() -> dict:
     # ── 4. 展望 ──
     m1 = _snapshot(rates, "DGS1MO", 0)
     taru = _snapshot(rates, "DFEDTARU", 0)
+    short_head = "短端平稳"
     if m1 is None:
-        short_txt = "1M 国库券数据缺失"
+        short_head, short_txt = "短端数据不足", "1M 国库券数据缺失"
     elif taru is None:
         short_txt = f"1M 国库券 {m1:.2f}%"
     else:
         # 与目标区间上限比（不与月频 EFFR 比）：bill 略高于 EFFR 是常态，
         # 突破区间上限才说明短端流动性分层（修复原判据的常态误报）
+        tight = m1 > taru
+        short_head = "短端流动性分层" if tight else "短端平稳"
         short_txt = (
-            f"1M 国库券 {m1:.2f}%{'高于' if m1 > taru else '低于'}"
+            f"1M 国库券 {m1:.2f}% {'高于' if tight else '低于'}"
             f"目标区间上限（{taru:.2f}%）"
-            f"{'，短端流动性分层' if m1 > taru else '，短端平稳'}"
         )
-    long_txt = (
-        f"长端：10Y 在 {y10:.2f}%，供给与期限溢价主导，关注季度再融资与 TGA 余额变化"
-        if y10 is not None
-        else "长端：10Y 数据缺失"
-    )
+    long_head = "长端由供给与期限溢价主导" if y10 is not None else "长端数据不足"
     if not auc.empty:
         avg = _coupon_cover(auc)
         auc_txt = (
-            f"近 10 场付息券投标倍数 {avg:.2f}x，"
-            f"{'需求良好' if (avg or 0) >= 2.5 else '需求偏弱'}"
+            f"近 10 场付息券投标倍数 {avg:.2f}x"
+            f"（{'需求良好' if (avg or 0) >= 2.5 else '需求偏弱'}）"
             if avg is not None
             else "拍卖数据待接入"
         )
     else:
         auc_txt = "拍卖数据待接入"
     outlook_text = (
-        f"短端：{short_txt}。{long_txt}。{auc_txt}。关键触发点："
-        "2s10s 利差单方向移动超 15bp 或 FOMC 措辞变化将决定下一阶段方向。"
+        f"{short_head}，{long_head}。\n"
+        f"{short_txt} · {auc_txt} · 关注季度再融资与 TGA 余额变化。\n"
+        "2s10s 利差单方向移动超 15bp 或 FOMC 措辞变化，决定下一阶段方向。"
     )
 
     return {

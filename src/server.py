@@ -858,7 +858,8 @@ def get_home_lines() -> dict:
             "利率",
             generate_analysis,
             lambda d: (
-                d["overview"]["sections"][0]["body"],
+                # 首行 = 结论（body 用 \n 分结论/依据/触发，首屏一句话只取结论）
+                d["overview"]["sections"][0]["body"].split("\n")[0],
                 d["overview"].get("as_of"),
             ),
         ),

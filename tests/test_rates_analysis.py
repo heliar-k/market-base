@@ -150,6 +150,48 @@ class TestCurveText:
         assert "数据不足" in _curve_text("数据不足", None, None, None, "驱动方向待确认")
 
 
+class TestSectionLineContract:
+    """研判 body 的行结构 = 前端渲染契约：`\n` 分「结论 / 依据 / 触发」，
+    单行 = 降级文案（rates/index.astro 不挂标签）。行序变了页面会错标。"""
+
+    def test_curve_three_lines_when_data(self):
+        t = _curve_text("走平", 41.0, 15.0, 5.29, "实际利率/期限溢价主导")
+        assert len(t.split("\n")) == 3
+
+    def test_curve_single_line_when_missing(self):
+        t = _curve_text("数据不足", None, None, None, "数据不足")
+        assert len(t.split("\n")) == 1
+
+    def test_fed_three_lines_even_degraded(self):
+        t = _fed_expectation_text(pd.DataFrame(), pd.DataFrame(), None, None)
+        assert len(t.split("\n")) == 3
+
+    def test_overview_all_three_lines(self, monkeypatch):
+        idx = pd.date_range("2026-08-01", periods=70)
+        rates = pd.DataFrame(
+            {
+                "DGS2": 4.0,
+                "DGS5": 4.2,
+                "DGS10": 4.5,
+                "DGS30": 4.8,
+                "DGS3MO": 4.1,
+                "DGS1MO": 4.1,
+                "DFF": 4.0,
+                "DFEDTARL": 3.75,
+                "DFEDTARU": 4.0,
+            },
+            index=idx,
+        )
+        tips = pd.DataFrame({"DFII10": [2.0] * 69 + [2.2]}, index=idx)
+        infl = pd.DataFrame({"T10YIE": 2.5}, index=idx)
+        empty = pd.DataFrame()
+        monkeypatch.setattr(
+            ra, "_load", lambda: (rates, tips, infl, empty, empty, empty)
+        )
+        for sec in ra.overview_analysis()["sections"]:
+            assert len(sec["body"].split("\n")) == 3, sec["title"]
+
+
 class TestFedExpectationText:
     """联储预期段用 ZQ 期货隐含概率，不得再用 2Y−EFFR 符号猜加/降息。"""
 
