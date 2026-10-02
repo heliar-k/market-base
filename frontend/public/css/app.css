@@ -12,10 +12,11 @@
   --surface-alt: #f0f4f9; --border: #e6ebf1; --border-light: #edf1f6;
   --text: #1a2b42; --text-secondary: #425466; --text-dim: #5c6d84;
   --accent-light: #e8f0fe; /* --accent 由 --color-brand 派生，见 tokens.css 的 :root, body.dark 段 */
-  /* accent 作正文色时的可读档：#1a73e8 在白卡 4.51/页面底 4.26/accent-light 底 3.93，
-   * 后两处不达 AA；#1665d8 同色相压深 → 白卡 5.4 / 页面底 5.11 / accent-light 底 4.71 全过。
+  /* accent 作正文色时的可读档：#1a73e8 在白卡 4.51/页面底 4.26/accent-light 底 3.93/16% brand 徽章底 4.38，
+   * 后三处不达 AA；#155ecb 同色相再压深一档 → 白卡 6.01 / 页面底 5.69 / accent-light 底 5.24 /
+   * 徽章底 4.87 全过（上一档 #1665d8 在徽章底上差 0.12，不够）。
    * 边框/焦点环/实底仍用 --accent（非文本，无需 4.5:1）。 */
-  --accent-ink: #1665d8;
+  --accent-ink: #155ecb;
   --btn-border: #d9e2ec;
 }
 body.dark {
@@ -213,9 +214,6 @@ body { font-family: system-ui, -apple-system, sans-serif; background: var(--bg);
 .symbol-item { display: flex; align-items: center; justify-content: space-between; padding: 8px 16px; cursor: pointer; transition: background .15s; font-size: 14px; }
 .symbol-item:hover { background: var(--surface-hover); }
 .symbol-item.active { background: var(--accent-light); color: var(--accent-ink); font-weight: 600; }
-.type-badge { font-size: 10px; padding: 2px 8px; border-radius: 999px; background: var(--color-neutral-bg); color: var(--text-secondary); }
-.type-badge.stock { background: var(--color-up-bg); color: var(--color-up-text); }
-.type-badge.index { background: var(--color-brand-bg); color: var(--color-brand); }
 
 /* ── controls ───────────────────────────────────────────── */
 .controls { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }

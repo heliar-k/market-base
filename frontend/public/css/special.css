@@ -438,7 +438,7 @@ a.re-badge:hover { color: var(--accent-ink); border-color: var(--accent-ink); }
 .rt-pill { display: inline-block; padding: 2px 10px; border-radius: 999px; font-size: 11px; font-weight: 700; letter-spacing: .06em; }
 /* 共享 chips 色板 --chip-* 已在 tokens.css 定义（语义并入 --color-up / --color-neutral） */
 .rt-sb { background: var(--chip-up-bg); color: var(--chip-up-fg); }
-.rt-b { background: var(--color-brand-bg); color: var(--color-brand); }
+.rt-b { background: var(--color-brand-bg); color: var(--accent-ink); } /* brand 图形档做字只 3.65:1，走 brand 的文字档 */
 .rt-h { background: var(--chip-flat-bg); color: var(--chip-flat-fg); }
 .eq-actions { float: right; display: flex; gap: 8px; }
 .eq-btn { display: inline-block; padding: 4px 12px; border: 1px solid var(--border); border-radius: 6px; font-size: 12px;

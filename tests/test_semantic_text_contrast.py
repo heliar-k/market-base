@@ -22,9 +22,9 @@ ECharts series 调色板与热力图发散端点（图形，不看对比度）�
 
 后端下发字面 hex 的漏报面已封三条（2026-10 审计第 4 步）：分析模块不得下发 `*_color`
 字段、前端不得把 `*_color` 插进 `color:` 槽、CSS 不得拿名字以 `-color` 结尾的自定义属性
-写字。仍存的一个洞：`--color-brand` 做文字（brand 徽章）——brand 的文字档 `--accent-ink`
-在 16% brand 徽章底上只有 4.38:1，达不到 4.5，所以 brand 没进下面那个 CSS 名单（进了就
-会红）。要么把 `--accent-ink` 再压深一档，要么把 brand 徽章底从 16% 降到 12%。
+写字。brand 也已入名单（第 5 步）：它的文字档 `--accent-ink` 从 #1665d8 再压深到
+#155ecb，在 16% brand 徽章底上 4.38 → 4.87，于是 `--color-brand` 可以像其余六组一样
+被禁在 `color:` 里。
 """
 
 from __future__ import annotations
@@ -48,6 +48,7 @@ TEXT_TOKENS = {
     "down": ("--color-down-text", "--color-down", 0.16),
     "neutral": ("--color-neutral-text", "--color-neutral", 0.16),
     "warn": ("--color-warn-text", "--color-warn", 0.16),
+    "brand": ("--accent-ink", "--color-brand", 0.16),
     "hawk": ("--color-hawk-text", "--color-hawk", 0.18),
     "dove": ("--color-dove-text", "--color-dove", 0.18),
 }
@@ -148,10 +149,9 @@ def test_css_does_not_use_graphic_primitives_as_text_color() -> None:
 
     border-/background-/accent-color 不算。`[,)]` 是为了连带兜底的写法一起抓：
     `color: var(--color-warn, var(--accent))` 在只认 `\)` 时是漏的。
-    --color-brand 故意不在名单里（见模块 docstring 的「仍存的一个洞」）。
     """
     pat = re.compile(
-        r"(?<![-\w])color:\s*var\(--color-(?:up|down|neutral|warn|hawk|dove)[,)]"
+        r"(?<![-\w])color:\s*var\(--color-(?:up|down|neutral|warn|hawk|dove|brand)[,)]"
     )
     bad = [
         f"{p.name}:{i}:{ln.strip()}"
