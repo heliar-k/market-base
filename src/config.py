@@ -321,7 +321,9 @@ TERM_SERIES = {
 }
 
 # 当前 FOMC 目标区间兜底值（本地 FRED 数据缺失时用于 ZQ 概率计算）。
-FED_TARGET_RANGE_FALLBACK: tuple[float, float] = (3.50, 3.75)
+# ⚠ 调息日必须同步更新此值（FRED 滞后一天就会拿旧区间算概率，只有一条 warning 会提示）。
+# 2026-10-02 核：FRED DFEDTARL/U 已到 3.75–4.00，旧值 3.50–3.75 已差一次 25bp 降息。
+FED_TARGET_RANGE_FALLBACK: tuple[float, float] = (3.75, 4.00)
 
 # ── FOMC 会议日历（每年 8 次，联邦储备委员会公布）──
 
