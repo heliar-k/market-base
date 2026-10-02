@@ -4,9 +4,13 @@
 仓库：`/Users/guankai/code/python/market-base`（uv 项目，Python 一律 `uv run`）
 线上：https://market-base.pages.dev （main 分支；部署是否跟上本次 commit，用第 6 节最后两条 curl 现场判定）
 
-> 组织原则：**凡已被 artifact 承载的只给指针**。10 笔改动的完整取舍在各自 commit message 里，
+> 组织原则：**凡已被 artifact 承载的只给指针**。每笔改动的完整取舍在各自 commit message 里，
 > 待办的证据与验收在 Issues 正文里，前端约定在 AGENTS.md 第 8 节里 —— 本文只写没有任何
 > 地方承载的东西。（前身是 OS 临时目录里的交接稿，现入库随代码一起演进。）
+>
+> **OS 临时目录里 2026-10-02 的两份 tmp 交接稿（`market-base-ui-audit-handoff.md` 上午版、
+> `market-base-handoff-2026-10-02.md` 收尾版）内容已全部并进本文，作废别再读** ——
+> tmp 会被清，且旧版不带本轮的 playwright 回路与 #26 可动性排序。
 
 ## 1. 一句话现状
 
@@ -14,7 +18,7 @@
 Issues（open 数以 `gh issue list --state open` 为准，不抄本文）；无悬而未决的部署风险，
 wrangler v4 已跑通多次（首次红过，原因与修法见 `59deac33`）。
 
-## 2. 本轮 13 笔（全部已 push；部署是否跟上用第 6 节两条 curl 现场判定）
+## 2. 本轮 16 笔（全部已 push；部署是否跟上用第 6 节两条 curl 现场判定）
 
 | commit | 一行 |
 |---|---|
@@ -33,12 +37,19 @@ wrangler v4 已跑通多次（首次红过，原因与修法见 `59deac33`）。
 | `6e4b19e4` | 断点收敛为 1024 / 768 两档 + 图表高度改 `clamp()`（#20） |
 | `bb7602a5` | 外汇页精修：分组表并卡、verdict 卡 1024 取 2 列、ticker 收进 title |
 | `e687f766` | 首屏「今日一句话」结论层 + 补上时效守卫的共享 JS 洞（#21） |
+| `3f496142` | 本文同步：待办清单改成「以 `gh issue list` 为准」，不抄编号与计数 |
 
 ## 3. 待办 = GitHub Issues
 
 用 `gh issue list --state open` 取当前清单，别抄本文（会过期）。已知的：#20 断点收敛已落地但
 **待浏览器复核**（comment 里有按优先级排的复核表）；#26 是 `_redirects` 与 SITE_NAV 的同步守卫；
 #22/#23 要你先判值不值得做，#24 是架构级。正文自带现状证据、动作与验收，别在这里复述。
+
+**按可动性排序**（谁能动，别再等错的人）：**#26 是 agent 现在就能做的**——实测
+`_redirects` 21 条重写 ↔ `site-nav.js` 21 条 `.html` 链接**当前完全对齐但零守卫**（`tests/`
+里没有任何一条读 `frontend/public/_redirects`），补一条同步守卫即可，反向验法在 Issue 正文；
+#20 只剩**用户眼睛**（复核表在 comment 里，第 6 节的 playwright 回路就是给它用的）；
+#22/#23/#24 全在**用户判断**，agent 不要先动。
 
 ## 4. 下一轮必读的仓库事实（不在任何 artifact 里）
 
@@ -77,9 +88,14 @@ wrangler v4 已跑通多次（首次红过，原因与修法见 `59deac33`）。
   写临时文件走 `git commit -F`。
 - 并行派 agent 改前端：`frontend/public/css|js`、`layouts/`、`tests/` 这类共享文件**主 agent
   先改完**，agent 只按目录领页面；且别让它们同时跑 `npm run build`（抢 `dist/`）。
-- **agent 会照字面执行你错误的指令**：本轮 brief 写「文字档那份不要动」，于是
-  `bucketTextColors` / `stateTextColor` 仍被固化成 hex（同一个病），得回头补。派活前想清楚
-  指令本身对不对。
+- **agent 会照字面执行你错误的指令**：本轮三个 agent 的交付各有一处主 agent 改掉，根因都不是
+  它们写错，而是**我给的限制把形状逼歪**——① 禁止碰 `server.py` → 它把新端点逻辑放进
+  `export_pages.py`，但本仓模式是「路由在 `server.py`、export 复用路由函数」（`get_daily_brief`
+  即先例），放反会造成 dev 与静态导出两套口径，已搬回；② 让它自己设计卡头 → 它加了
+  `R.asOf(...)`，与页头全局时效**同屏两个不同日期**，已改成非时效文案、日期退回行 `title`；
+  ③ brief 写「文字档那份不要动」→ `bucketTextColors` / `stateTextColor` 仍被固化成 hex
+  （和第 5 步同一个病），得回头补。**派活前想清楚指令本身对不对；限制条件常常比目标更容易
+  把结果带偏。**
 - **改完要问「锁住了吗」**：第 5 步改完时 AGENTS.md 零提及、守卫零覆盖，隔了一笔才补
   （`0b0c785b`）。约定不落测试就等于没立。
 
@@ -95,15 +111,55 @@ curl -sS https://market-base.pages.dev/credit/ | grep -c color-mix             #
 curl -sS https://market-base.pages.dev/api/credit/stress | grep -c zone_color  # 期望 0
 ```
 
+### 视觉验证回路（playwright，#20 复核就用这个）
+
+「数学上安全但难看」的退化只有量尺寸才抓得出来，靠猜和只看截图都不行。仓里已装
+playwright（chromium 在 `~/Library/Caches/ms-playwright/`），`dist` 含未 push 的改动，比线上快一步：
+
+```bash
+(nohup python3 -m http.server 8899 --directory frontend/dist >/dev/null 2>&1 &); sleep 1
+uv run python - <<'PY'
+from playwright.sync_api import sync_playwright
+with sync_playwright() as p:
+    b = p.chromium.launch()
+    for w, h in [(1440, 900), (960, 900), (820, 900), (375, 812)]:
+        pg = b.new_page(viewport={'width': w, 'height': h}, color_scheme='dark')
+        pg.goto('http://127.0.0.1:8899/assets/fx/', wait_until='networkidle')
+        pg.wait_for_timeout(1400)
+        print(pg.evaluate("() => [...document.querySelectorAll('.fx-verdict-card')]"
+                         ".map(c => Math.round(c.getBoundingClientRect().width))"))
+        pg.screenshot(path=f'/tmp/shot-{w}.png', full_page=True)
+        pg.close()
+    b.close()
+PY
+pkill -f "http.server 8899"
+```
+
+三个坑（每个都让本轮白跑过一次）：
+
+1. **主题不靠 `localStorage`** —— 非内嵌页走 `prefers-color-scheme`，要用
+   `new_page(color_scheme='dark')`；键 `ticker-toolkit-dark` 只在 iframe 内生效。
+2. **SPA 默认视图是宏观** —— 要看仪表盘得先
+   `pg.click('a.macro-nav-item:has-text("市场仪表盘")')`。
+3. **判横向溢出别看元素 `right`** —— 隐藏抽屉会假阳性；量
+   `documentElement.scrollWidth === window.innerWidth`。
+
+已实测：960 宽下 `/assets/fx/` 的 4 张 verdict 卡各 389px（2 列，符合 `bb7602a5` 意图），
+`scrollWidth == innerWidth == 960`（无溢出），暗色 body 底色 `rgb(17,18,23)`。
+
 ## 7. 建议调用的 skills
 
-- **`python-patterns`** —— 动 `src/*_analysis.py`（#21 要给首屏结论层，多半要在导出层补字段）。
-- **`tdd`** —— #21 先扩守卫/导出测试再改实现；新约定一律配一条会红的测试。
+- **`tdd`** —— 做 **#26**：先写「SITE_NAV 每条 `.html` 链接都要有 `_redirects` 行」的守卫，
+  再反向验（删一行必红）。新约定一律配一条会红的测试。
 - **`code-review`** —— 跨 Python + Astro 的一致性改动（Standards / Spec 双轴）。
 - **`git-commit`** —— 本仓 message 风格很重（中文、`type(scope): 标题——要点`、「刻意未做」段、
-  构建验证行），照它写。
+  构建验证行），照它写；含双引号时用 `git commit -F 文件`。
 - **`ponytail-review`** —— #20/#22 这类「收敛/归一」议题，先判断哪些是真重复。
-- **`ui-ux-pro-max`** —— 只有 #22 密度模式、#23 移动端需要。
-- **`research`** —— #23 的前置问题（有无移动端用户/流量）值得查一手资料再决定。
+- **`ui-ux-pro-max`** —— 只有 #22 密度模式、#23 移动端需要；它给过一处纠正：web 触控目标
+  最小 **24 CSS px**（WCAG 2.2），44 是 iOS pt / Android dp。
+- **`research`** —— #23 的前置问题（有无移动端用户/流量）值得查一手资料再决定，别没数据先动手。
 - **`domain-modeling`** —— 两档制 + 内联色口径目前只在 AGENTS.md 第 8 节；若要正式记 ADR
   （`docs/adr/` 已有 0001-0003 先例）走它。
+- **`diagnosing-bugs`** —— 若某专题页数据不更新 / 导出静默缺端点（根因常在
+  `src/export_pages.py` 的 `_safe()` 跳过当日缺数据端点，`api/*` 可以合法 404）。
+- **`python-patterns`** —— 动 `src/*_analysis.py`（首屏结论层已在 `e687f766` 落地，改它才需要）。
