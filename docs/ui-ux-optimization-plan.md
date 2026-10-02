@@ -3,7 +3,14 @@
 > 输入：全仓库前端审计（static/ 下 1 SPA + 31 专题页）+ 业界金融数据平台设计标准调研。
 > 范围：仅 UI/UX 层，不动数据管道与分析引擎。
 >
-> **执行状态（workflow wf_77f3323cd92d 已完成）**：P0/P1/P2 已全部实施，25 文件 +320/−249，pytest 755 全绿。P3 未做。
+> **状态标注（2026-10-02 文档卫生）**：本文写于 ADR-0003 Astro 迁移之前，正文所有 `static/*.html` 路径与行号**已失效**，动手前按以下规则重映射：
+> - `static/<组>/<页>.html` → `frontend/src/pages/<组>/<页>.astro`（32 专题页；共享骨架 `frontend/src/layouts/TopicLayout.astro`，导航单源 `frontend/public/js/site-nav.js`）
+> - SPA 壳 `static/index.html` → `frontend/public/index.html`；共享 JS/CSS → `frontend/public/js|css/`（app.css / special.css / tokens.css 均在此）
+> - Astro 输出 format='directory'，线上 URL 为 `/assets/crypto/` 形式，无 `.html` 后缀
+>
+> **执行状态（workflow wf_77f3323cd92d + 2026-10-02 抽查复核）**：P0/P2 已实施（85875682，2026-09-29），抽查属实——skeleton 屏（P1-1）→ app.css:289、aria-current（P1-2）→ TopicLayout、警示色入 token（P2-4）→ tokens.css:52-53、z-index token（P2-6）→ tokens.css:102-106、esc 归一（P2-7）→ dashboard.js:386、`.macro-range-btn`（P2-2）已删。
+> **未落地**：P1-4 断点收敛（`@media` 实存 5 档：1024×8 / 768×6 / 900×3 / 980 / 600，未收敛为 2 档；860/640/575 是表格 `min-width` 与网格约束，不是断点，别一起改）、P3 全部四项（「今日一句话」/ `.density-compact` 全站零命中；macro-view.js 仍 iframe 懒加载）。P3 四项 + 断点收敛已列为待开 Issue 候选。
+> 后续 34 页前端审计（2026-09-30–10-01，29170436 → d7949925）又重构过前端，未落地条目引用本文行号一律先重核。
 > 实施偏差记录：① P1-5 等宽数字经核实现状已满足（--font-mono 与 tabular-nums 早已存在），无改动；② crypto.html 内联样式实为 JS innerHTML 一处，「102 行」为审计时过时估计；③ --z-toast 无使用方按 YAGNI 未定义。
 
 ---
