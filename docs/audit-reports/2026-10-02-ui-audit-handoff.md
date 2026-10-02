@@ -14,9 +14,10 @@
 
 ## 1. 一句话现状
 
-一场 34 页前端审计（第 1–5 步 + 收尾三笔）**全部落地并已线上验证**；待办全部在 GitHub
-Issues（open 数以 `gh issue list --state open` 为准，不抄本文）；无悬而未决的部署风险，
-wrangler v4 已跑通多次（首次红过，原因与修法见 `59deac33`）。
+一场 34 页前端审计（第 1–5 步 + 收尾三笔）**全部落地并已线上验证**；后续又收掉
+#20/#23/#24/#26/#27 五条（断点复核、移动端 wontfix、去 iframe、重写守卫、375 溢出），
+待办全部在 GitHub Issues（open 数以 `gh issue list --state open` 为准，不抄本文）；
+无悬而未决的部署风险，wrangler v4 已跑通多次（首次红过，原因与修法见 `59deac33`）。
 
 ## 2. 本轮改动（全部已 push；部署是否跟上用第 6 节两条 curl 现场判定）
 
@@ -41,6 +42,11 @@ wrangler v4 已跑通多次（首次红过，原因与修法见 `59deac33`）。
 | `00961406` | 本文：并入 tmp 版交接稿独有的三样东西（playwright 回路 / 可动性排序 / 派 agent 教训） |
 | `ce1ea43b` | **#26 落地**：`_redirects` ↔ `.html` 链接的同步守卫（反向验过：删一行必红） |
 | `52754aeb` | **#27 落地**：375px 两处真横向溢出（`#re-cards` 缺单列档 + `.re-as-of` nowrap） |
+| `e434b468` | `FED_TARGET_RANGE_FALLBACK` 跟上现实 3.75–4.00（旧值差一次 25bp） |
+| `36aa17f7` | `.fed-chart-tall` 的 clamp 真正生效（删 JS 内联 500px，上限按实际渲染值定） |
+| `119346d8` | BTC/ETH 相关性「高位」改近 1y 滚动分位（绝对 0.8 已恒真） |
+| `ea6ecc11` | 960 档 KPI 卡 2→3 列，用 `auto-fit` 不写死列数（#20 人工复核结论） |
+| `6c40080d` | **#24 落地**：宏观视图去 iframe，SPA 只留三视图、默认仪表盘（净删 48 行） |
 
 ## 3. 待办 = GitHub Issues
 
@@ -48,16 +54,25 @@ wrangler v4 已跑通多次（首次红过，原因与修法见 `59deac33`）。
 **待浏览器复核**（comment 里有按优先级排的复核表）；#26 是 `_redirects` 与 SITE_NAV 的同步守卫；
 #22/#23 要你先判值不值得做，#24 是架构级。正文自带现状证据、动作与验收，别在这里复述。
 
-**按可动性排序**（谁能动，别再等错的人）：~~#26~~ **已落地 `ce1ea43b`**（守卫
-`test_html_links_have_redirects`，反向验过：删一行 `_redirects` 必红并指名失去重写的链接）；
-~~#27~~ **已落地 `52754aeb`**（375 溢出，六页实测全 `[375,375]`，960/820 无回归）；
-**#20 只剩用户眼睛**——机器侧量测已全部贴进 Issue comment（960 卡宽 410px / 820 无溢出 /
-`/geo/` 单列 856px / clamp 在 720 矮 4%、110% 缩放矮 13%），待判的就三处：960 松不松、
-矮 4%·13% 接受不接受、`/geo/` 长不长（第 6 节的 playwright 回路就是给它用的）；
-#22/#23/#24 全在**用户判断**，agent 不要先动。
+**按可动性排序**（谁能动，别再等错的人）：本轮 #20 / #23 / #24 / #26 / #27 全部收口，
+**open 只剩两条**（以 `gh issue list --state open` 为准）：
+
+- **#28**（`ready-for-agent`）—— 18 处逐页图表内联高度统一走 clamp。不是「一行 CSS」：
+  内联 `style` 优先级高于类，只能逐页换类 + 逐页看渲染（12 个文件）。
+- **#22**（`needs-triage`）—— 密度模式。我的建议是先不做：真实成本不在那 30 行 CSS，
+  在「两套密度长期都要维护」；嫌挤可先把 `.re-cards` 的 `minmax(150px,1fr)` 调到 130px
+  （一行，桌面自动多一列，拿 80% 收益）。
 
 ## 4. 下一轮必读的仓库事实（不在任何 artifact 里）
 
+- **本地 `python -m http.server` 不实现 `_redirects`** —— 打 dist 时 `/assets/fx.html`
+  这类带后缀的 URL **必 404**，而目录形态 `/assets/fx/` 是 200。看到 404 先分清是本地服务
+  限制还是真缺重写行（真缺重写由 `test_html_links_have_redirects` 抓，线上由 Cloudflare 服务）。
+- **SPA 现在是三视图（仪表盘 / 技术 / 关联），默认仪表盘**（#24 去 iframe，`6c40080d`）。
+  专题页不再是内嵌视图：侧栏专题项是真实链接整页跳转，旧深链（`#daily`、`#rates/fed-funds`、
+  `#macro/fed-funds` 末段容错）由 `macro-view.js` 的 `routeHash` 整页 replace。
+  已知代价：SPA 手动切主题后跳专题页会回到系统偏好（没改是因为那会推翻「刷新恢复自动」
+  既有设计，要持久化就 `app.js` 的 `applyTheme` 初始值 + `TopicLayout` 的 `resolveDark` 各一行）。
 - **`zone()` 现在只返回语义 label**（`src/analysis_utils.py`）。区间表第四列留给色表本身：
   `volatility_analysis.py` 的 `zones: [{label, color}]` 仍下发 hex，因为前端只拿它画
   `background`。新增分析模块要下发区间/状态，照这个口径：**给语义 key，不给色**。
@@ -150,8 +165,9 @@ pkill -f "http.server 8899"
 
 1. **主题不靠 `localStorage`** —— 非内嵌页走 `prefers-color-scheme`，要用
    `new_page(color_scheme='dark')`；键 `ticker-toolkit-dark` 只在 iframe 内生效。
-2. **SPA 默认视图是宏观** —— 要看仪表盘得先
-   `pg.click('a.macro-nav-item:has-text("市场仪表盘")')`。
+2. **SPA 默认视图已改**（#24 去 iframe）—— 现在默认就是仪表盘，不用再点切换；
+   侧栏专题项是**真实 `<a href>`**（点组头用 `#macro-nav a[href="/assets/"]`，
+   子页在未展开的 `.macro-nav-sub` 里、直接点会因不可见而超时），点了就是整页跳走。
 3. **判横向溢出别看元素 `right`** —— 隐藏抽屉会假阳性；量
    `documentElement.scrollWidth === window.innerWidth`。
 
@@ -168,14 +184,16 @@ pkill -f "http.server 8899"
 ## 7. 建议调用的 skills
 
 - **`tdd`** —— 新约定一律配一条会红的测试，**先例就是 #26**（`test_html_links_have_redirects`：
-  先写「每条 `.html` 链接都要有 `_redirects` 行」，再删一行验它必红）。
+  先写「每条 `.html` 链接都要有 `_redirects` 行」，再删一行验它必红）。做 #28 时同样先加
+  「内联高度白名单」守卫再改页面。
 - **`code-review`** —— 跨 Python + Astro 的一致性改动（Standards / Spec 双轴）。
 - **`git-commit`** —— 本仓 message 风格很重（中文、`type(scope): 标题——要点`、「刻意未做」段、
   构建验证行），照它写；含双引号时用 `git commit -F 文件`。
 - **`ponytail-review`** —— #20/#22 这类「收敛/归一」议题，先判断哪些是真重复。
-- **`ui-ux-pro-max`** —— 只有 #22 密度模式、#23 移动端需要；它给过一处纠正：web 触控目标
+- **`ui-ux-pro-max`** —— 只有 #22 密度模式需要（#23 已 wontfix）；它给过一处纠正：web 触控目标
   最小 **24 CSS px**（WCAG 2.2），44 是 iOS pt / Android dp。
-- **`research`** —— #23 的前置问题（有无移动端用户/流量）值得查一手资料再决定，别没数据先动手。
+- **`research`** —— 需要一手数据才能决定做不做时走它（先例：#23 的前置是「有无移动端
+  用户」，本地无 CF 凭据查不到流量 → 按正文规则 wontfix）。
 - **`domain-modeling`** —— 两档制 + 内联色口径目前只在 AGENTS.md 第 8 节；若要正式记 ADR
   （`docs/adr/` 已有 0001-0003 先例）走它。
 - **`diagnosing-bugs`** —— 若某专题页数据不更新 / 导出静默缺端点（根因常在
