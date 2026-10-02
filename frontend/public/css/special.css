@@ -10,7 +10,9 @@ body { height: auto; overflow-y: auto; display: block; }
  * --re-sec-gap   小节与上一块之间：叠加在 .re-root 的 gap 之上 → 视觉 = re-inner-gap + 这个（44px）
  * --re-inner-gap 块与块的基础节奏（.re-root 直接子项、小节内部、JS 填充的卡片堆都用它）
  * --re-head-gap  小节标题 → 本节内容
- * 三者关系：h1 → 第一个小节标题 = 59px = .re-header padding-bottom 14 + border 1 + (16 + 28)。 */
+ * 三者关系：h1 → 第一个小节标题 = 59px = .re-header padding-bottom 14 + border 1 + (16 + 28)。
+ * 例外：有 .page-toc 的页，toc 那条 border-bottom 让它读作「栏」，栏要贴内容 →
+ *       toc → 第一块 = 20px（见下方 .page-toc + .re-sec，不走 --re-sec-gap）。 */
 :root { --re-sec-gap: 28px; --re-inner-gap: 16px; --re-head-gap: 14px; }
 .re-root { max-width: min(1200px, calc(100vw - 64px)); margin: 0 auto; padding: 28px 32px 48px; display: flex; flex-direction: column; gap: var(--re-inner-gap); }
 /* padding-right 给右上角悬浮的主题按钮让位：它 fixed 占视口右侧 38px，而 .re-root 最窄时
@@ -44,6 +46,10 @@ html { scroll-padding-top: 52px; }
    不补偿的话它吃 .re-root 的 16px gap + 自身 padding 8 = 距上分隔线 24px，而距自身下边线
    只有 8px → 胶囊行偏下。负 margin 抵掉那 16px（与 .re-sec-head 同一手法），居中成 8 / 8。 */
 .re-header + .page-toc { margin-top: calc(-1 * var(--re-inner-gap)); }
+/* 栏贴内容：toc 下方第一块不吃 --re-sec-gap（44px 与「小节之间」同值，配 toc 的下边线太空）。
+   4 = 目标 20px 减去 .re-root 的 16px gap。toc 与 .re-badges / .re-block 之外的裸 div 相邻时
+   本来就只有 16px，无需补偿。 */
+.page-toc + .re-sec, .page-toc + .re-block { margin-top: 4px; }
 .page-toc a {
   font-size: 12px; padding: 4px 10px; border-radius: 999px;
   border: 1px solid var(--border); background: var(--surface);
