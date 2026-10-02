@@ -75,7 +75,12 @@ jobs:
         working-directory: frontend
 
       - name: Deploy to Cloudflare Pages
-        uses: cloudflare/wrangler-action@v4  # v3 声明 node20 已被 GitHub 强制迁移 node24（日志告警）；v4 原生 node24，唯一 major 变更是默认 wrangler 升 v4，参数名（apiToken 驼峰）不变
+        uses: cloudflare/wrangler-action@v4  # v3 声明 node20 已被 GitHub 强制迁移 node24（日志告警）；v4 原生 node24，默认 wrangler 升 v4；但 v4 新加了 accountId 的 env 覆写，见下方注释
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          # 必须走 input，不能只靠上面的 workflow 级 env：v4 新增
+          # `process.env.CLOUDFLARE_ACCOUNT_ID = getInput('accountId')`（v3.15 的 src 里没这行），
+          # 不传 input 就会把继承来的真值覆成空串 → wrangler v4 只能走 auto-retrieve，
+          # 报 "Failed to automatically retrieve account IDs for the logged in user"（run 36955755862）。
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           command: pages deploy frontend/dist --project-name=market-base
