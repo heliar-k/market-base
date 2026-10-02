@@ -259,21 +259,26 @@ async function load() {
   const cool = [...rankable].sort((a, b) => a.chg1d - b.chg1d).slice(0, 8);
   const fmtTop = (rows) => rows.map(r => ({
     symbol: r.symbol, name: r.name, value: r.value,
-    chg1d: `<span style="color:${chgColor(r.chg1d)}">${pct(r.chg1d)}</span>`,
-    chg1m: r.chg1m === null ? '—' : `<span style="color:${chgColor(r.chg1m)}">${pct(r.chg1m)}</span>`,
+    chg1d: r.chg1d, chg1m: r.chg1m,
   }));
+  // 涨跌着色单元格：行值只放原始数字，markup 交给 formatter。
+  // R.table 第 5 参 html=true 时，没写 formatter 的列走默认格式化器 = 转义（防名称类自由文本注 HTML），
+  // 把 <span> 拼进行值会被当字面文本显示出来（就是之前 Top8 / 全量表里那串裸 markup）。
+  const chgCell = (v) => (v === null || v === undefined ? '—' : `<span style="color:${chgColor(v)}">${pct(v)}</span>`);
+  const CHG_FMTS = { chg1d: chgCell, chg5d: chgCell, chg1m: chgCell, chg1y: chgCell };
+  const valCell = (v) => (v === null || v === undefined ? '—' : v.toFixed(2));
   const topBox = document.getElementById('vol-top');
   const hotBox = document.createElement('div');
   hotBox.innerHTML = '<h3 class="hot">Top 8 波动升温</h3>';
   const hotWrap = document.createElement('div');
   hotWrap.className = 're-table-wrap'; // 窄屏横向滚动，防溢出
-  hotWrap.appendChild(R.table(['代码', '名称', '最新', '1D%', '1M%'], fmtTop(hot), {}, null, true));
+  hotWrap.appendChild(R.table(['代码', '名称', '最新', '1D%', '1M%'], fmtTop(hot), { value: valCell, ...CHG_FMTS }, null, true));
   hotBox.appendChild(hotWrap);
   const coolBox = document.createElement('div');
   coolBox.innerHTML = '<h3 class="cool">Top 8 波动降温</h3>';
   const coolWrap = document.createElement('div');
   coolWrap.className = 're-table-wrap';
-  coolWrap.appendChild(R.table(['代码', '名称', '最新', '1D%', '1M%'], fmtTop(cool), {}, null, true));
+  coolWrap.appendChild(R.table(['代码', '名称', '最新', '1D%', '1M%'], fmtTop(cool), { value: valCell, ...CHG_FMTS }, null, true));
   coolBox.appendChild(coolWrap);
   topBox.appendChild(hotBox);
   topBox.appendChild(coolBox);
@@ -282,12 +287,9 @@ async function load() {
   document.getElementById('vol-table').appendChild(R.table(
     ['代码', '名称', '最新价', '1D%', '5D%', '1M%', '1Y%'],
     data.indices.map(r => ({
-      symbol: `$${r.symbol}`, name: r.name, value: r.value?.toFixed(2) ?? '—',
-      chg1d: `<span style="color:${chgColor(r.chg1d)}">${pct(r.chg1d)}</span>`,
-      chg5d: r.chg5d === null ? '—' : `<span style="color:${chgColor(r.chg5d)}">${pct(r.chg5d)}</span>`,
-      chg1m: r.chg1m === null ? '—' : `<span style="color:${chgColor(r.chg1m)}">${pct(r.chg1m)}</span>`,
-      chg1y: r.chg1y === null ? '—' : `<span style="color:${chgColor(r.chg1y)}">${pct(r.chg1y)}</span>`,
-    })), {}, null, true));
+      symbol: `$${r.symbol}`, name: r.name, value: r.value,
+      chg1d: r.chg1d, chg5d: r.chg5d, chg1m: r.chg1m, chg1y: r.chg1y,
+    })), { value: valCell, ...CHG_FMTS }, null, true));
 
   document.getElementById('re-gen').textContent = `研判生成：${R.genText(data.generator)} · ${data.as_of} · 快照源 Barchart/CBOE`;
 }

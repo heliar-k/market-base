@@ -311,3 +311,22 @@ def test_no_hardcoded_chart_heights() -> None:
     }
     bad = {k: v for k, v in hits.items() if v}
     assert not bad, f"以下页写死了图表高度，改走档位类（.chart.chart-sm~hero）：{bad}"
+
+
+# R.table 第 5 参 html=true 时，没写 formatter 的列走默认格式化器 = R.esc 转义（防名称类
+# 自由文本注入 HTML）。所以「markup 拼进行值 + 传空 formatter 表」会让 <span> 以字面文本
+# 显示出来（2026-10 波动率页 Top8 / 全量 30 指数表踩过）。着色 markup 一律放 formatter。
+_TABLE_NO_FMT = re.compile(r"R\.table\([^;]*?\{\},\s*[^;]*?,\s*true\s*\)", re.S)
+
+
+def test_html_tables_never_pass_empty_formatters() -> None:
+    """R.table(..., html=true) 不得传空 formatter 表（markup 会被转义成字面文本）。"""
+    srcs = [*ASTRO_PAGES.rglob("*.astro"), *(STATIC / "js").rglob("*.js")]
+    bad = [
+        str(p.relative_to(ROOT))
+        for p in srcs
+        if _TABLE_NO_FMT.search(p.read_text("utf-8"))
+    ]
+    assert not bad, (
+        f"以下页给 html=true 的 R.table 传了空 formatter，着色列要写进 formatter：{bad}"
+    )
