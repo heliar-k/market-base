@@ -28,16 +28,15 @@ import Section from '../../components/Section.astro';
   <div class="re-gen" id="re-gen"></div>
 
 <script is:inline>
-// 压力分档色：全部回读 tokens.css（徽章拼接十六进制透明度后缀，需实际色值而非 var()）
-// 取色做成函数、只在渲染期调用：解析期求值会缓存住当时的主题（旧 bug：暗色下拿到亮色档）
-const bandColors = () => ({ 宽松: reCssVar('--color-up'), 中性: reCssVar('--color-brand'), 警戒观察: reCssVar('--color-warn'), 压力确认: reCssVar('--color-down') });
-// 文字档并行映射（bandColors 的 hex 要拼 ${c}66/${c}18 做徽章边框与底色，那些位置图形档是对的不能改；
-// 但同一色值做文字亮色下不达 AA，故文字位单走一份别名 token，色相不变只提对比度；brand 的文字档是 --accent-ink）
+// 压力分档色（图形档）：只给 token 名，徽章边框/底色在样式计算期用 color-mix 解析 var()，
+// 切亮暗主题即时跟随（旧写法 reCssVar 先解析成字面 hex 再拼透明度后缀，字符串一进 DOM 就固化）
+const bandColors = { 宽松: 'var(--color-up)', 中性: 'var(--color-brand)', 警戒观察: 'var(--color-warn)', 压力确认: 'var(--color-down)' };
+// 文字档并行映射（图形档做文字亮色下不达 AA，故 color: 单走一份别名 token，色相不变只提对比度；brand 的文字档是 --accent-ink）
 const bandTextColors = () => ({ 宽松: 'var(--up)', 中性: 'var(--accent-ink)', 警戒观察: 'var(--warning)', 压力确认: 'var(--down)' });
 const bandBadge = (band) => {
-  const [label, colorKey] = band;
-  const c = bandColors()[label] || reCssVar('--text-dim');
-  return `<span style="display:inline-block;padding:2px 12px;border-radius:999px;border:1px solid ${c}66;background:${c}18;color:${bandTextColors()[label] || 'var(--text-dim)'};font-size:13px;margin-left:14px">${label}</span>`;
+  const [label] = band;
+  const c = bandColors[label] || 'var(--text-dim)';
+  return `<span style="display:inline-block;padding:2px 12px;border-radius:999px;border:1px solid color-mix(in srgb, ${c} 40%, transparent);background:color-mix(in srgb, ${c} 9%, transparent);color:${bandTextColors()[label] || 'var(--text-dim)'};font-size:13px;margin-left:14px">${label}</span>`;
 };
 const scoreCell = v => (v == null ? '—' : `<b>${v}</b>`);
 
@@ -51,7 +50,7 @@ async function load() {
   document.getElementById('re-as-of').textContent = R.asOf(d.data_date);
 
   // ── 主评分卡 ──
-  const BAND_TEXT = bandTextColors(); // 主评分数字走文字档（徽章填充另走 bandColors 的 hex，见 bandBadge）
+  const BAND_TEXT = bandTextColors(); // 主评分数字走文字档（徽章填充另走 bandColors 的图形档 + color-mix，见 bandBadge）
   const score = document.createElement('div');
   score.className = 'score-card';
   score.innerHTML = `

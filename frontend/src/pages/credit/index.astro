@@ -1,7 +1,7 @@
 ---
 // credit 页 — 首个 .astro 迁移页（工单 #13 spike）。
 // 三段结构（总览 + CDS 专题 + 压力仪表盘）的 288 行内联脚本原样进 is:inline island
-// （依赖 echarts-theme/rates-common 的经典全局 R / reCssVar，is:inline 不打包、行为与迁移前逐字一致）；
+// （依赖 echarts-theme/rates-common 的经典全局 R，is:inline 不打包、行为与迁移前逐字一致）；
 // head / 顶栏 / 页头样板在 TopicLayout。数据 fetch('/api/credit/*') 不变。
 import TopicLayout from '../../layouts/TopicLayout.astro';
 import Section from '../../components/Section.astro';
@@ -23,11 +23,11 @@ import Section from '../../components/Section.astro';
 
 <script is:inline>
 // 区间语义名 → 色：后端只下发语义 key（zone / regime），色在本页映射（两档制）。
-// 图形档走 reCssVar 取实际 hex —— 徽章要拼 `${c}66` / `${c}18` 透明度后缀，var() 拼不了；
-// 文字档另给一份，`color:` 槽只用它（亮色下图形档做文字不达 AA）。同 transmission-chain 口径。
-const ZONE_GRAPHIC = { 宽松: '--color-up', 中性偏松: '--color-up', 中性: '--color-warn', 中性偏紧: '--color-warn', 压力: '--color-down', 收紧: '--color-down' };
+// 图形档存 var() 引用（不解析成 hex）—— 徽章的透明底/边框用 color-mix 在样式计算期解析，
+// 切亮暗主题即时跟随；文字档另给一份，`color:` 槽只用它（亮色下图形档做文字不达 AA）。同 transmission-chain 口径。
+const ZONE_GRAPHIC = { 宽松: 'var(--color-up)', 中性偏松: 'var(--color-up)', 中性: 'var(--color-warn)', 中性偏紧: 'var(--color-warn)', 压力: 'var(--color-down)', 收紧: 'var(--color-down)' };
 const ZONE_INK = { 宽松: 'var(--up)', 中性偏松: 'var(--up)', 中性: 'var(--warning)', 中性偏紧: 'var(--warning)', 压力: 'var(--down)', 收紧: 'var(--down)' };
-const zoneHex = k => reCssVar(ZONE_GRAPHIC[k] || '--text-dim');
+const zoneGraphic = k => ZONE_GRAPHIC[k] || 'var(--text-dim)';
 const zoneInk = k => ZONE_INK[k] || 'var(--text-dim)';
 
 async function load() {
@@ -70,7 +70,7 @@ async function load() {
   const missingNote = rg.missing.length ? `子分数据不足（${rg.missing.join('、')}），综合分只用有数据的子分重算。` : '';
   const rc = document.createElement('div');
   rc.className = 'pos-hero regime-hero';
-  rc.style.setProperty('--rc-color', zoneHex(rg.regime));  // 图形档：左边框
+  rc.style.setProperty('--rc-color', zoneGraphic(rg.regime));  // 图形档：左边框（special.css border-left-color 在样式计算期二次解析 var()）
   rc.style.setProperty('--rc-ink', zoneInk(rg.regime));  // 文字档：44px 大数字（special.css .rh-score .num）
   rc.innerHTML = `
     <div class="rh-main">
@@ -78,7 +78,7 @@ async function load() {
       <div class="rh-score">
         <span class="num">${rg.score === null ? '—' : rg.score}</span>
         <span class="of">/ 100</span>
-        <span class="rh-badge" style="color:${zoneInk(rg.regime)};border:1px solid ${zoneHex(rg.regime)}66;background:${zoneHex(rg.regime)}1a">${rg.regime}</span>
+        <span class="rh-badge" style="color:${zoneInk(rg.regime)};border:1px solid color-mix(in srgb, ${zoneGraphic(rg.regime)} 40%, transparent);background:color-mix(in srgb, ${zoneGraphic(rg.regime)} 10%, transparent)">${rg.regime}</span>
       </div>
       <div class="rh-read">
         高分 = 信用压力更大，综合分为 7 子分等权平均。子分颜色随压力变化：<b style="color:var(--color-up-text)">绿</b>（≤50 偏松）→ <b style="color:var(--color-warn-text)">橙</b>（50-75 偏紧）→ <b style="color:var(--color-down-text)">红</b>（≥75 收紧）。
@@ -286,7 +286,7 @@ function renderStress(root, d) {
       <div class="value" style="color:${zoneInk(d.zone)}">${d.composite}<span style="font-size:16px;color:var(--text-dim)">/100</span></div>
       <div class="scale">0-30 宽松 · 30-70 中性 · 70-100 压力</div>
     </div>
-    <div class="badge" style="color:${zoneInk(d.zone)};border-color:${zoneHex(d.zone)}66;background:${zoneHex(d.zone)}1a">${d.zone}</div>`;
+    <div class="badge" style="color:${zoneInk(d.zone)};border-color:color-mix(in srgb, ${zoneGraphic(d.zone)} 40%, transparent);background:color-mix(in srgb, ${zoneGraphic(d.zone)} 10%, transparent)">${d.zone}</div>`;
   wrap.appendChild(card);
 
   const csec = document.createElement('div');
