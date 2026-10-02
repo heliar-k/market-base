@@ -299,6 +299,29 @@ def test_inline_scripts_parse() -> None:
 # 反向验法：给任一 .astro 加一行 style="height:320px" → 本测试红并指名。
 _INLINE_HEIGHT = re.compile(r'style="[^"]*\bheight:(\d+)px')
 
+# 卡行单源（2026-10）：.re-cards 是 flex，卡宽由 CSS 一处定（≤275px = 4 列档）。
+# 页面写内联 grid-template-columns、给 .re-corridor-value 手写 font-size，
+# 就是在造平行卡规格 —— /assets/crypto/ 一度同页 6 种卡宽（最高 562px）。
+# 宽卡 .re-cards-wide，长文本 .re-card-wrap，密卡 .re-card-dense，都在 special.css。
+_CARD_ROW_OVERRIDE = re.compile(
+    r'class="re-cards[^"]*" style="[^"]*grid-template-columns'
+)
+_CARD_VALUE_FONT = re.compile(r'class="re-corridor-value"[^>]*style="[^"]*font-size')
+
+
+def test_card_rows_use_single_source_grid() -> None:
+    """卡行不写内联列宽，卡值字号不逐页覆盖（走 -wide / -wrap / -dense）。"""
+    hits = {
+        str(page.relative_to(ASTRO_PAGES)): [
+            m.group(0)[:60]
+            for rx in (_CARD_ROW_OVERRIDE, _CARD_VALUE_FONT)
+            for m in rx.finditer(page.read_text("utf-8"))
+        ]
+        for page in sorted(ASTRO_PAGES.rglob("*.astro"))
+    }
+    bad = {k: v for k, v in hits.items() if v}
+    assert not bad, f"以下页绕过了卡行单源规格：{bad}"
+
 
 def test_no_hardcoded_chart_heights() -> None:
     """专题页不得写死图表高度（#28）：≥100px 的 height 内联一律红。"""
@@ -312,6 +335,33 @@ def test_no_hardcoded_chart_heights() -> None:
     }
     bad = {k: v for k, v in hits.items() if v}
     assert not bad, f"以下页写死了图表高度，改走档位类（.chart.chart-sm~hero）：{bad}"
+
+
+# 窄屏横向溢出守卫（#27 同族）：auto-fit 轨道的 min 不会低于自身，
+# 轨道宽 ≥260px 在 375（内容宽 245）下必把文档顶宽 → 必须写
+# minmax(min(100%, Npx), 1fr)（/assets/index/ 先例）。
+# 240px 及以下不查：375 仍装得下（存量 .vol-basic-grid / .re-col3 即此档）。
+_WIDE_TRACK = re.compile(r"minmax\((\d{3})px,\s*1fr\)")
+
+
+def test_wide_grid_tracks_have_narrow_fallback() -> None:
+    """≥260px 的 auto-fit 轨道必须带 min(100%, …) 窄屏兜底。"""
+    srcs = [
+        *ASTRO_PAGES.rglob("*.astro"),
+        *(STATIC / "js").rglob("*.js"),
+        *(STATIC / "css").rglob("*.css"),
+        SPA_ENTRY,
+    ]
+    bad = []
+    for src in srcs:
+        text = src.read_text("utf-8")
+        for m in _WIDE_TRACK.finditer(text):
+            if (
+                int(m.group(1)) >= 260
+                and "min(100%" not in text[max(0, m.start() - 12) : m.start()]
+            ):
+                bad.append(f"{src.name}:{m.group(0)}")
+    assert not bad, f"宽轨道缺窄屏兜底（写 minmax(min(100%, Npx), 1fr)）：{bad}"
 
 
 # R.table 第 5 参 html=true 时，没写 formatter 的列走默认格式化器 = R.esc 转义（防名称类

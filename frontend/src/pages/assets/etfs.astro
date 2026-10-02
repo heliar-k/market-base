@@ -8,7 +8,7 @@ import Section from '../../components/Section.astro';
 <TopicLayout title="ETF" chart={false}>
   <div class="page-toc" id="page-toc"></div>
   <Section id="overview" title="统计">
-    <div id="stats" class="re-cards"></div>
+    <div id="stats"></div>
   </Section>
   <!-- 条件性(全量清单子源缺失时为空),不进 Section -->
   <div id="universe" class="re-block"></div>
@@ -58,15 +58,12 @@ function renderStats() {
     const m = vs.length ? vs[Math.floor(vs.length / 2)] : null;
     return { label: { w1: '中位 1 周', m1: '中位 1 月', m3: '中位 3 月' }[k], v: m };
   });
-  document.getElementById('stats').innerHTML = [
+  document.getElementById('stats').replaceChildren(R.cards([
     { label: '精选池', value: p.length, sub: `全量 ETF ${D.universe ? D.universe.total : '—'} 只` },
-    { label: '趋势向上', value: up, sub: `${(up / p.length * 100).toFixed(0)}% 池内占比`, color: UP },
-    { label: '趋势向下', value: down, sub: `${(down / p.length * 100).toFixed(0)}% 池内占比`, color: DOWN },
-    ...meds.map(m => ({ label: m.label, value: m.v == null ? '—' : (m.v >= 0 ? '+' : '') + m.v.toFixed(2) + '%', sub: '池内等权中位动量', color: m.v == null ? '' : (m.v >= 0 ? UP : DOWN) })),
-  ].map(c => `
-    <div class="re-card"><div class="re-corridor-label">${c.label}</div>
-    <div class="re-corridor-value" ${c.color ? `style="color:${c.color}"` : ''}>${c.value}</div>
-    <div class="re-card-sub">${c.sub}</div></div>`).join('');
+    { label: '趋势向上', value: up, sub: `${(up / p.length * 100).toFixed(0)}% 池内占比`, vcolor: UP },
+    { label: '趋势向下', value: down, sub: `${(down / p.length * 100).toFixed(0)}% 池内占比`, vcolor: DOWN },
+    ...meds.map(m => ({ label: m.label, value: m.v == null ? '—' : (m.v >= 0 ? '+' : '') + m.v.toFixed(2) + '%', sub: '池内等权中位动量', vcolor: m.v == null ? '' : (m.v >= 0 ? UP : DOWN) })),
+  ]));
 }
 
 function renderUniverse() {

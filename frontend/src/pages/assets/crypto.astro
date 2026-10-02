@@ -8,7 +8,7 @@ import Section from '../../components/Section.astro';
 <TopicLayout title="加密货币">
   <div class="page-toc" id="page-toc"></div>
   <Section id="overview" title="价格总览">
-    <div id="cards" class="re-cards"></div>
+    <div id="cards"></div>
   </Section>
   <!-- 前瞻雷达/机构 vs 散户:条件性(无衍生品快照时为空),不进 Section -->
   <div id="radar" class="re-block"></div>
@@ -29,14 +29,11 @@ document.getElementById('page-toc').innerHTML = [
 
 async function load() {
   const d = await R.get('/api/assets/crypto');
-  const cards = (d.cards || []).map(i => ({
+  document.getElementById('cards').replaceChildren(R.cards((d.cards || []).map(i => ({
     label: i.name,
     value: fmt(i.last),
     sub: `${chg(i.chg_pct)} · ${i.date}`,
-  }));
-  document.getElementById('cards').innerHTML = cards.map(c => `
-    <div class="re-card"><div class="re-corridor-label">${c.label}</div>
-    <div class="re-corridor-value">${c.value}</div><div class="re-card-sub">${c.sub}</div></div>`).join('');
+  }))));
   // ── 衍生品结论层（Radar + 机构vs散户）：次要端点，crypto-refresh 每小时 cron 产，
   // 静态导出缺快照时合法 404 → getOpt 降级，只挂 radar/consensus 两段，不拖垮整页 ──
   const dd = await R.getOpt('/api/assets/crypto-derivatives');
@@ -69,20 +66,14 @@ async function load() {
     const pulseColor = L.pulse_state === '扩张' ? 'var(--up)' : 'var(--down)';
     const dv = L.divergence || null;
     const warn = !!(dv && dv.warn);
-    const divColor = dv ? (warn ? 'var(--down)' : 'var(--up)') : 'var(--flat)';
-    const divText = dv ? dv.verdict : '—';
-    lsec.innerHTML += `
-      <div class="re-cards" style="grid-template-columns:repeat(auto-fit,minmax(150px,1fr));align-items:start">
-        <div class="re-card"><div class="re-corridor-label">净流动性</div><div class="re-corridor-value">$${fmt(L.net)}T</div>
-          <div class="re-card-sub">Fed ${fmt(L.fed)}T − TGA ${fmt(L.tga)}B − RRP ${fmt(L.rrp)}B</div></div>
-        <div class="re-card"><div class="re-corridor-label">20 日脉冲</div><div class="re-corridor-value" style="color:${pulseColor}">${L.pulse_20d == null ? '—' : fmt(L.pulse_20d) + 'B'}</div>
-          <div class="re-card-sub" style="color:${pulseColor}">● ${L.pulse_state || '—'}</div></div>
-        <div class="re-card"><div class="re-corridor-label">BTC 流动性 Beta</div><div class="re-corridor-value">${L.beta ?? '—'}</div>
-          <div class="re-card-sub">SPX β ${L.spx_beta ?? '—'} · R² ${L.r2 ?? '—'} · 90日</div></div>
-        <div class="re-card"><div class="re-corridor-label">背离监控</div>
-          <div class="re-corridor-value" style="color:${divColor};font-size:13px;font-weight:600;white-space:normal">${divText}</div>
-          <div class="re-card-sub" style="white-space:normal">${dv ? `NL ${fmt(dv.nl)}T · BTC ${dv.btc >= 0 ? '+' : ''}${fmt(dv.btc)}% · 30日` : '—'}</div></div>
-      </div>`;
+    lsec.appendChild(R.cards([
+      { label: '净流动性', value: `$${fmt(L.net)}T`, sub: `Fed ${fmt(L.fed)}T − TGA ${fmt(L.tga)}B − RRP ${fmt(L.rrp)}B` },
+      { label: '20 日脉冲', value: L.pulse_20d == null ? '—' : fmt(L.pulse_20d) + 'B', vcolor: pulseColor,
+        sub: `<span style="color:${pulseColor}">● ${L.pulse_state || '—'}</span>` },
+      { label: 'BTC 流动性 Beta', value: L.beta ?? '—', sub: `SPX β ${L.spx_beta ?? '—'} · R² ${L.r2 ?? '—'} · 90日` },
+      { label: '背离监控', value: dv ? dv.verdict : '—', vcolor: dv ? (warn ? 'var(--down)' : 'var(--up)') : 'var(--flat)',
+        cls: 're-card-wrap', sub: dv ? `NL ${fmt(dv.nl)}T · BTC ${dv.btc >= 0 ? '+' : ''}${fmt(dv.btc)}% · 30日` : '—' },
+    ]));
   }
   } catch (e) { R.fail(['liquidity'], e); }
 
@@ -182,66 +173,56 @@ async function load() {
     const rsiState = ra.rsi14 == null ? '—' : (ra.rsi14 >= 70 ? '超买' : ra.rsi14 <= 30 ? '超卖' : '中性');
     const f = ra.funding || null;
     const rot = ra.rotation || null;
-    rasec.innerHTML += `
-      <div class="re-cards" style="grid-template-columns:repeat(auto-fit,minmax(150px,1fr));align-items:start">
-        <div class="re-card"><div class="re-corridor-label">价比（BTC/ETH）</div><div class="re-corridor-value">${fmt(ra.last)}</div>
-          <div class="re-card-sub">MA20 ${fmt(ra.ma20)} · MA50 ${fmt(ra.ma50)}</div></div>
-        <div class="re-card"><div class="re-corridor-label">乖离率（vs MA50）</div>
-          <div class="re-corridor-value" style="color:${dir(ra.bias_ma50)}">${pct(ra.bias_ma50)}</div>
-          <div class="re-card-sub">vs MA20 ${pct(ra.bias_ma20)}</div></div>
-        <div class="re-card"><div class="re-corridor-label">1 年 z-score</div><div class="re-corridor-value">${ra.z_1y == null ? '—' : ra.z_1y.toFixed(2)}</div>
-          <div class="re-card-sub">${ra.pct_label || '历史不足'}</div></div>
-        <div class="re-card"><div class="re-corridor-label">RSI(14)</div><div class="re-corridor-value">${ra.rsi14 ?? '—'}</div>
-          <div class="re-card-sub">${rsiState}</div></div>
-        <div class="re-card"><div class="re-corridor-label">30 日动量</div>
-          <div class="re-corridor-value" style="color:${dir(ra.mom_30d)}">${pct(ra.mom_30d, 1)}</div>
-          <div class="re-card-sub">7d ${pct(ra.mom_7d, 1)} · 负值=ETH 跑赢</div></div>
-        <div class="re-card"><div class="re-corridor-label">Funding 差（ETH−BTC 年化）</div>
-          <div class="re-corridor-value" style="color:${f ? dir(f.diff) : 'var(--flat)'}">${f ? pp(f.diff) : '—'}</div>
-          <div class="re-card-sub" style="white-space:normal">${f ? `BTC ${f.btc}% · ETH ${f.eth}% · 7d ${pp(f.diff_chg_7d)}` : '衍生品快照缺失'}</div></div>
-      </div>
-      ${rot ? `<p style="margin:8px 0 0;font-size:12px;color:${rot.warn ? 'var(--down)' : 'var(--up)'}">● 综合判定：${rot.quality}${rot.cross_summary ? '｜' + rot.cross_summary : ''}</p>` : ''}`;
+    rasec.appendChild(R.cards([
+      { label: '价比（BTC/ETH）', value: fmt(ra.last), sub: `MA20 ${fmt(ra.ma20)} · MA50 ${fmt(ra.ma50)}` },
+      { label: '乖离率（vs MA50）', value: pct(ra.bias_ma50), vcolor: dir(ra.bias_ma50), sub: `vs MA20 ${pct(ra.bias_ma20)}` },
+      { label: '1 年 z-score', value: ra.z_1y == null ? '—' : ra.z_1y.toFixed(2), sub: ra.pct_label || '历史不足' },
+      { label: 'RSI(14)', value: ra.rsi14 ?? '—', sub: rsiState },
+      { label: '30 日动量', value: pct(ra.mom_30d, 1), vcolor: dir(ra.mom_30d), sub: `7d ${pct(ra.mom_7d, 1)} · 负值=ETH 跑赢` },
+      { label: 'Funding 差（ETH−BTC 年化）', value: f ? pp(f.diff) : '—', vcolor: f ? dir(f.diff) : 'var(--flat)', cls: 're-card-wrap',
+        sub: f ? `BTC ${f.btc}% · ETH ${f.eth}% · 7d ${pp(f.diff_chg_7d)}` : '衍生品快照缺失' },
+    ]));
+    if (rot) {
+      rasec.insertAdjacentHTML('beforeend', `<p style="margin:8px 0 0;font-size:12px;color:${rot.warn ? 'var(--down)' : 'var(--up)'}">● 综合判定：${rot.quality}${rot.cross_summary ? '｜' + rot.cross_summary : ''}</p>`);
+    }
     // ── 交叉验证（6 项：PCR 差 / 30d 相关性 / NL 脉冲 / Polymarket 隐含涨幅比 / BTCD / ETF 流量比；缺源卡片降级为空状态说明）──
     const cx = ra.cross || {};
-    const xcard = (label, value, sub, verdict, color) => `
-      <div class="re-card"><div class="re-corridor-label">${label}</div>
-      <div class="re-corridor-value"${color ? ` style="color:${color}"` : ''}>${value}</div>
-      <div class="re-card-sub" style="white-space:normal">${sub}</div>
-      ${verdict ? `<div class="re-card-sub" style="white-space:normal">${verdict}</div>` : ''}</div>`;
+    // 判定语与数据同行堆叠 → re-card-wrap；文本多的卡走 wide 档（275px）而非自定列宽
+    const xcard = (label, value, sub, verdict, color) => ({
+      label, value, vcolor: color, cls: 're-card-wrap', sub: verdict ? `${sub}<br>${verdict}` : sub });
     const signed = (v, nd = 2) => v == null ? '—' : `${v > 0 ? '+' : ''}${Number(v).toFixed(nd)}`;
     const pc = cx.pcr || {}, co = cx.corr || {}, nb = cx.nl_beta || {};
     const pm = cx.pm || {}, bd = cx.btcd || {}, ef = cx.etf_flow || {};
     const pmLeg = (leg, sym) => leg && leg.implied != null
       ? `${sym} ${signed(leg.up_pct, 1)}% → $${fmt(leg.implied)}`
       : `${sym} 无 50% 对赌档`;
-    rasec.innerHTML += `
-      <p style="margin:14px 0 8px;font-size:13px"><b>交叉验证</b></p>
-      <div class="re-cards" style="grid-template-columns:repeat(auto-fit,minmax(190px,1fr));align-items:start">
-        ${pc.available
-          ? xcard('PCR 差（ETH−BTC）', signed(pc.diff, 3), `BTC ${pc.btc} · ETH ${pc.eth} · 7d ${signed(pc.diff_chg_7d, 3)}`, pc.verdict, dir(pc.diff))
-          : xcard('PCR 差（ETH−BTC）', '—', '衍生品快照缺失', null)}
-        ${co.available
-          ? xcard('BTC-ETH 30d 相关性', co.cur, `30 日前 ${co.prev ?? '—'}（Δ ${signed(co.chg_30d)}）`, co.verdict, null)
-          : xcard('BTC-ETH 30d 相关性', '—', '资产快照缺失：运行 ./bin/fetch_yfinance', null)}
-        ${nb.available
-          ? xcard('价比 × NL 脉冲 β', `${nb.beta}%`, `主导滞后 ${nb.dominant_lag}d（r=${nb.lags[String(nb.dominant_lag)]}）· R² ${nb.r2}`, nb.verdict, dir(nb.beta))
-          : xcard('价比 × NL 脉冲 β', '—', '流动性数据不足：运行 ./bin/fetch_fred', null)}
-        ${pm.available
-          ? xcard('Polymarket 隐含涨幅比', pm.ratio != null ? pm.ratio + 'x' : '—', `${pmLeg(pm.btc, 'BTC')} · ${pmLeg(pm.eth, 'ETH')}`, pm.verdict, pm.ratio != null ? dir(pm.ratio - 1) : null)
-          : xcard('Polymarket 隐含涨幅比', '—', '年终对赌阶梯缺失（Polymarket 快照无年度事件）', null)}
-        ${bd.available
-          ? xcard('BTC Dominance', bd.btcd + '%', `30d ${bd.chg_30d == null ? '积累中' : signed(bd.chg_30d) + 'pp'}${bd.ethd != null ? ' · ETHD ' + bd.ethd + '%' : ''}`, bd.verdict, null)
-          : xcard('BTC Dominance', '—', '数据未就绪：运行 ./bin/fetch_btc_dominance', null)}
-        ${ef.available
-          ? xcard('ETF 流量比（ETH/BTC 5d）', ef.ratio != null ? ef.ratio + 'x' : '—', `ETH ${signed(ef.eth_5d_musd, 1)}M · BTC ${ef.btc_5d_musd == null ? '—' : signed(ef.btc_5d_musd, 1) + 'M'}`, ef.verdict, ef.ratio != null ? dir(ef.ratio - 1) : null)
-          : xcard('ETF 流量比（ETH/BTC 5d）', '—', '数据未就绪：运行 ./bin/fetch_etf_flows_eth', null)}
-      </div>`;
+    rasec.insertAdjacentHTML('beforeend', '<p style="margin:14px 0 8px;font-size:13px"><b>交叉验证</b></p>');
+    rasec.appendChild(R.cards([
+      pc.available
+        ? xcard('PCR 差（ETH−BTC）', signed(pc.diff, 3), `BTC ${pc.btc} · ETH ${pc.eth} · 7d ${signed(pc.diff_chg_7d, 3)}`, pc.verdict, dir(pc.diff))
+        : xcard('PCR 差（ETH−BTC）', '—', '衍生品快照缺失'),
+      co.available
+        ? xcard('BTC-ETH 30d 相关性', co.cur, `30 日前 ${co.prev ?? '—'}（Δ ${signed(co.chg_30d)}）`, co.verdict)
+        : xcard('BTC-ETH 30d 相关性', '—', '资产快照缺失：运行 ./bin/fetch_yfinance'),
+      nb.available
+        ? xcard('价比 × NL 脉冲 β', `${nb.beta}%`, `主导滞后 ${nb.dominant_lag}d（r=${nb.lags[String(nb.dominant_lag)]}）· R² ${nb.r2}`, nb.verdict, dir(nb.beta))
+        : xcard('价比 × NL 脉冲 β', '—', '流动性数据不足：运行 ./bin/fetch_fred'),
+      pm.available
+        ? xcard('Polymarket 隐含涨幅比', pm.ratio != null ? pm.ratio + 'x' : '—', `${pmLeg(pm.btc, 'BTC')} · ${pmLeg(pm.eth, 'ETH')}`, pm.verdict, pm.ratio != null ? dir(pm.ratio - 1) : null)
+        : xcard('Polymarket 隐含涨幅比', '—', '年终对赌阶梯缺失（Polymarket 快照无年度事件）'),
+      bd.available
+        ? xcard('BTC Dominance', bd.btcd + '%', `30d ${bd.chg_30d == null ? '积累中' : signed(bd.chg_30d) + 'pp'}${bd.ethd != null ? ' · ETHD ' + bd.ethd + '%' : ''}`, bd.verdict)
+        : xcard('BTC Dominance', '—', '数据未就绪：运行 ./bin/fetch_btc_dominance'),
+      ef.available
+        ? xcard('ETF 流量比（ETH/BTC 5d）', ef.ratio != null ? ef.ratio + 'x' : '—', `ETH ${signed(ef.eth_5d_musd, 1)}M · BTC ${ef.btc_5d_musd == null ? '—' : signed(ef.btc_5d_musd, 1) + 'M'}`, ef.verdict, ef.ratio != null ? dir(ef.ratio - 1) : null)
+        : xcard('ETF 流量比（ETH/BTC 5d）', '—', '数据未就绪：运行 ./bin/fetch_etf_flows_eth'),
+    ], 're-cards-wide'));
     if (ra.dates && ra.dates.length) {
-      rasec.innerHTML += '<div class="chart" id="ratio-chart" style="margin-top:12px"></div>';
+      rasec.insertAdjacentHTML('beforeend', '<div class="chart" id="ratio-chart" style="margin-top:12px"></div>');
     }
     if (ra.narrative) {
-      rasec.innerHTML += `<div style="border:1px solid var(--accent);border-radius:8px;padding:14px 16px;background:var(--surface);margin-top:12px">
-        <b style="font-size:13px">价比解读</b><p style="margin:6px 0 0;font-size:13px;line-height:1.7">${ra.narrative}</p></div>`;
+      rasec.insertAdjacentHTML('beforeend', `<div style="border:1px solid var(--accent);border-radius:8px;padding:14px 16px;background:var(--surface);margin-top:12px">
+        <b style="font-size:13px">价比解读</b><p style="margin:6px 0 0;font-size:13px;line-height:1.7">${ra.narrative}</p></div>`);
     }
   }
   } catch (e) { R.fail(['ratio'], e); }
@@ -312,19 +293,20 @@ function renderRadar(d) {
   rsec.className = 're-section';
   const missed = (radar.signals || []).filter(s => s.dir === 0 && s.value === undefined).map(s => s.name);
   const etfMissed = (radar.signals || []).some(s => s.name === 'ETF 资金流' && s.value === undefined);
-  const vstyle = v => `font-size:20px;font-weight:700;color:${v}`;
   rsec.innerHTML = `
     <h2>BTC 前瞻雷达 <span style="font-size:12px;font-weight:400;opacity:.7">· <a href="/assets/crypto-derivatives.html" style="color:inherit">明细见衍生品页 ›</a></span></h2>
-    <p style="margin:0 0 8px">把 ETF、CME、基差、永续杠杆和期权信号压缩为 0-24h / 1-7d 判断。</p>
-    <div class="re-cards" style="grid-template-columns:repeat(auto-fit,minmax(140px,1fr))">
-      <div class="re-card"><div class="re-corridor-label">综合分</div><div class="re-corridor-value" style="${vstyle(rcolor)}">${radar.total == null ? '—' : (radar.total >= 0 ? '+' : '') + radar.total}</div>
-        <div class="re-card-sub" style="margin-top:6px">置信度 ${radar.confidence}/100</div></div>
-      <div class="re-card"><div class="re-corridor-label">24h 偏向</div><div class="re-corridor-value" style="${vstyle(rcolor)}">${radar.verdict}</div><div class="re-card-sub" style="margin-top:6px">0-24h 方向</div></div>
-      <div class="re-card"><div class="re-corridor-label">3-7 日结构</div><div class="re-corridor-value" style="${vstyle('var(--text)')}">${radar.structure}</div><div class="re-card-sub" style="margin-top:6px">中期趋势形态</div></div>
-      <div class="re-card"><div class="re-corridor-label">杠杆风险</div><div class="re-corridor-value" style="${vstyle('var(--text)')}">${radar.lev_risk}</div><div class="re-card-sub" style="margin-top:6px">永续资金费率口径</div></div>
-      <div class="re-card"><div class="re-corridor-label">主导力量</div><div class="re-corridor-value" style="font-size:15px;font-weight:700;color:var(--text);white-space:normal;line-height:1.35;overflow:visible">${radar.driver}</div><div class="re-card-sub" style="margin-top:6px">当前方向主导因素</div></div>
-    </div>
-    ${etfMissed ? '<div style="margin-top:10px;padding:8px 12px;border:1px solid var(--warning);border-radius:6px;font-size:12px;color:var(--warning)">ETF 资金流数据过期或未接入，未纳入方向评分。</div>' : ''}`;
+    <p style="margin:0 0 8px">把 ETF、CME、基差、永续杠杆和期权信号压缩为 0-24h / 1-7d 判断。</p>`;
+  rsec.appendChild(R.cards([
+    { label: '综合分', value: radar.total == null ? '—' : (radar.total >= 0 ? '+' : '') + radar.total,
+      vcolor: rcolor, sub: `置信度 ${radar.confidence}/100` },
+    { label: '24h 偏向', value: radar.verdict, vcolor: rcolor, sub: '0-24h 方向' },
+    { label: '3-7 日结构', value: radar.structure, sub: '中期趋势形态' },
+    { label: '杠杆风险', value: radar.lev_risk, sub: '永续资金费率口径' },
+    { label: '主导力量', value: radar.driver, cls: 're-card-wrap', sub: '当前方向主导因素' },
+  ]));
+  if (etfMissed) {
+    rsec.insertAdjacentHTML('beforeend', '<div style="margin-top:10px;padding:8px 12px;border:1px solid var(--warning);border-radius:6px;font-size:12px;color:var(--warning)">ETF 资金流数据过期或未接入，未纳入方向评分。</div>');
+  }
   // 触发/反证条件紧跟结论卡（阅读顺序：评分 → 什么确认/什么推翻 → 信号明细殿后）
   // 按当前数据实时计算（统一 ✓ 成立 / ✗ 不成立 / — 数据缺；反证条件用正常态措辞，✗ = 风险触发）
   // 徽章用小号 chip：条件是为结论服务的注脚，视觉重量不能压过结论卡
@@ -349,10 +331,10 @@ function renderRadar(d) {
   const sigRows = (radar.signals || []).map((s, i, arr) => {
     const sc = s.dir * s.weight;
     const c = sc > 0 ? P.up : (sc < 0 ? P.down : P.flat);
-    return `<div style="display:flex;align-items:baseline;gap:10px;padding:6px 2px${i < arr.length - 1 ? ';border-bottom:1px solid var(--border)' : ''}">
-      <span style="min-width:118px;font-size:13px;font-weight:600">${s.name}</span>
-      <span style="min-width:76px;font-size:12px"><b style="color:${c}">${sc > 0 ? '+' + sc : sc}</b> <span style="opacity:.5">· 权${s.weight}</span></span>
-      <span style="font-size:11px;opacity:.7;flex:1">${s.desc}</span></div>`;
+    return `<div style="display:flex;flex-wrap:wrap;align-items:baseline;gap:10px;padding:6px 2px${i < arr.length - 1 ? ';border-bottom:1px solid var(--border)' : ''}">
+      <span style="min-width:min(118px,45%);font-size:13px;font-weight:600">${s.name}</span>
+      <span style="min-width:min(76px,30%);font-size:12px"><b style="color:${c}">${sc > 0 ? '+' + sc : sc}</b> <span style="opacity:.5">· 权${s.weight}</span></span>
+      <span style="min-width:0;font-size:11px;opacity:.7;flex:1 1 40%">${s.desc}</span></div>`;
   }).join('');
   rsec.insertAdjacentHTML('beforeend',
     `<p class="re-source" style="margin:12px 0 2px">信号权重（缺失信号不纳入评分，中性带内计 0 分）${missed.length ? ' · 缺：' + missed.join(' / ') : ''}</p>
@@ -366,21 +348,15 @@ function renderConsensus(d) {
   if (!c) return;
   const csec = document.createElement('div');
   csec.className = 're-section';
-  csec.innerHTML = `<h2>机构 vs 散户 · 对照 <span style="margin-left:6px;font-size:12px;font-weight:400;opacity:.7;border:1px solid var(--border);padding:2px 8px;border-radius:4px">${c.verdict}</span></h2>
-    <div class="re-cards" style="grid-template-columns:repeat(auto-fit,minmax(180px,1fr))">
-      <div class="re-card"><div class="re-corridor-label">🏛 机构方向</div>
-        <div style="font-size:15px;font-weight:600">立场${c.inst.stance}</div>
-        <div class="re-card-sub" style="white-space:normal">${c.inst.votes} <span style="opacity:.6">${c.inst.note}</span></div>
-        <div class="re-card-sub" style="white-space:normal">${c.inst.text}</div></div>
-      <div class="re-card"><div class="re-corridor-label">🆚 散户方向</div>
-        <div style="font-size:15px;font-weight:600">立场${c.retail.stance}</div>
-        <div class="re-card-sub" style="white-space:normal">${c.retail.votes} <span style="opacity:.6">${c.retail.note}</span></div>
-        <div class="re-card-sub" style="white-space:normal">${c.retail.text}</div></div>
-      <div class="re-card"><div class="re-corridor-label">📊 当前对照</div>
-        <div style="font-size:15px;font-weight:600">${c.verdict}</div>
-        <div class="re-card-sub" style="white-space:normal">${c.detail}</div></div>
-    </div>
-    <p class="re-source" style="margin:8px 0 0">注：此对照只说明机构和散户立场是否一致，不是 BTC 涨跌预测。</p>`;
+  csec.innerHTML = `<h2>机构 vs 散户 · 对照 <span style="margin-left:6px;font-size:12px;font-weight:400;opacity:.7;border:1px solid var(--border);padding:2px 8px;border-radius:4px">${c.verdict}</span></h2>`;
+  csec.appendChild(R.cards([
+    { label: '🏛 机构方向', value: '立场' + c.inst.stance, cls: 're-card-wrap',
+      sub: `${c.inst.votes} <span style="opacity:.6">${c.inst.note}</span><br>${c.inst.text}` },
+    { label: '🆚 散户方向', value: '立场' + c.retail.stance, cls: 're-card-wrap',
+      sub: `${c.retail.votes} <span style="opacity:.6">${c.retail.note}</span><br>${c.retail.text}` },
+    { label: '📊 当前对照', value: c.verdict, cls: 're-card-wrap', sub: c.detail },
+  ]));
+  csec.insertAdjacentHTML('beforeend', '<p class="re-source" style="margin:8px 0 0">注：此对照只说明机构和散户立场是否一致，不是 BTC 涨跌预测。</p>');
   document.getElementById('consensus').appendChild(csec);
 }
 

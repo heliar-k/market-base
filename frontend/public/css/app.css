@@ -167,7 +167,7 @@ body { font-family: system-ui, -apple-system, sans-serif; background: var(--bg);
 }
 .dash-chip.on { background: var(--color-up-bg); color: var(--color-up-text); border-color: transparent; }
 
-.dash-scen { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 12px; }
+.dash-scen { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr)); gap: 12px; }
 .dash-scen-card { display: flex; flex-direction: column; gap: 6px; }
 .dash-scen-title { font-size: 13px; font-weight: 600; color: var(--text); display: flex; align-items: center; gap: 6px; }
 .dash-scen-desc { font-size: 12px; color: var(--text-secondary); line-height: 1.5; }
@@ -196,7 +196,7 @@ body { font-family: system-ui, -apple-system, sans-serif; background: var(--bg);
 .dash-snap-row > span:last-child { text-align: right; font-variant-numeric: tabular-nums; }
 
 .dash-vol-hero { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin-bottom: 12px; }
-.dash-vol-signals { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 12px; }
+.dash-vol-signals { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr)); gap: 12px; }
 .dash-sig-card { display: flex; flex-direction: column; gap: 6px; }
 
 .dash-grid-1 { grid-template-columns: 1fr; }

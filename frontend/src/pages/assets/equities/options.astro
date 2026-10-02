@@ -99,20 +99,13 @@ function renderRegime() {
     </div>
     <div class="rg-desc">${ri.desc}${flipText ? ` 距 Gamma Flip ${flipDistText(v)}。` : ''}${opposite ? '全部期权合约合计的 Net GEX 与现价附近的 Gamma 状态相反，短线判断优先看现价附近的 Gamma 状态。' : ''}</div>
   </div>
-  <div class="re-cards" style="grid-template-columns:repeat(auto-fit,minmax(180px,1fr));margin-top:12px">
-    <div class="re-card"><div class="re-corridor-label">Gamma Flip</div>
-      <div class="re-corridor-value">${v.gamma_flip == null ? '—' : fmtNum(v.gamma_flip, 1)}</div>
-      <div class="re-card-sub">${v.flip_dist == null ? '全链累计无翻转点' : `较 Gamma Flip ${flipSign} ${flipText}%`}</div></div>
-    <div class="re-card"><div class="re-corridor-label">Call Wall · 阻力</div>
-      <div class="re-corridor-value">${fmtNum(v.call_wall?.strike, 1)}</div>
-      <div class="re-card-sub">${v.call_wall ? '+' + fmtNum(v.call_wall.per_point_m, 1) + ' M / 点' : '—'}</div></div>
-    <div class="re-card"><div class="re-corridor-label">Put Wall · 支撑</div>
-      <div class="re-corridor-value">${fmtNum(v.put_wall?.strike, 1)}</div>
-      <div class="re-card-sub">${v.put_wall ? fmtNum(v.put_wall.per_point_m, 1) + ' M / 点' : '—'}</div></div>
-    <div class="re-card"><div class="re-corridor-label">25Δ Skew</div>
-      <div class="re-corridor-value">${v.skew == null ? '—' : fmtNum(v.skew)}</div>
-      <div class="re-card-sub">${v.skew_dte || '—'}D · P ${v.skew_put_iv ?? '—'}% / C ${v.skew_call_iv ?? '—'}%</div></div>
   </div>`;
+  d.appendChild(R.cards([
+    { label: 'Gamma Flip', value: v.gamma_flip == null ? '—' : fmtNum(v.gamma_flip, 1), sub: v.flip_dist == null ? '全链累计无翻转点' : `较 Gamma Flip ${flipSign} ${flipText}%` },
+    { label: 'Call Wall · 阻力', value: fmtNum(v.call_wall?.strike, 1), sub: v.call_wall ? '+' + fmtNum(v.call_wall.per_point_m, 1) + ' M / 点' : '—' },
+    { label: 'Put Wall · 支撑', value: fmtNum(v.put_wall?.strike, 1), sub: v.put_wall ? fmtNum(v.put_wall.per_point_m, 1) + ' M / 点' : '—' },
+    { label: '25Δ Skew', value: v.skew == null ? '—' : fmtNum(v.skew), sub: `${v.skew_dte || '—'}D · P ${v.skew_put_iv ?? '—'}% / C ${v.skew_call_iv ?? '—'}%` },
+  ]));
 }
 
 function flipDistText(v) {
@@ -264,19 +257,14 @@ function pGex(panel, v) {
 function pDex(panel, v) {
   const pos = v.net_dex >= 0;
   panel.innerHTML = `
-    <h3>${S} · Net DEX</h3>
-    <div class="re-cards" style="grid-template-columns:repeat(auto-fit,minmax(200px,1fr))">
-      <div class="re-card"><div class="re-corridor-label">Net DEX</div>
-        <div class="re-corridor-value" style="color:${pos ? 'var(--up)' : 'var(--down)'}">${pos ? '+' : ''}${fmtNum(v.net_dex)} <span style="font-size:13px">B</span></div>
-        <div class="re-card-sub">市场 dealer book 净${pos ? '做多' : '做空'}，delta 敞口${pos ? '偏向上行' : '偏向下行'}。</div></div>
-      <div class="re-card"><div class="re-corridor-label">Call 端 DEX</div>
-        <div class="re-corridor-value">${v.net_dex >= 0 ? '+' : ''}${fmtNum(v.call_dex)} <span style="font-size:13px">B</span></div>
-        <div class="re-card-sub">call 端按正向 delta 敞口折算</div></div>
-      <div class="re-card"><div class="re-corridor-label">Put 端 DEX</div>
-        <div class="re-corridor-value">${v.net_dex >= 0 ? '+' : ''}${fmtNum(v.put_dex)} <span style="font-size:13px">B</span></div>
-        <div class="re-card-sub">put 端按卖保护口径翻号折算</div></div>
-    </div>
-    <p class="re-source" style="margin:10px 0 0">DEX = Σ(delta × OI × 100 × S)。模型口径：call 端按正向 delta 计入，put 端翻号后合并。P/C OI 比（ATM ±10%）: ${fmtNum(v.pcr_oi_atm ?? v.pcr_oi)} · 全链: ${fmtNum(v.pcr_oi)} · 成交量比: ${fmtNum(v.pcr_vol)}</p>`;
+    <h3>${S} · Net DEX</h3>`;
+  panel.appendChild(R.cards([
+    { label: 'Net DEX', value: `${pos ? '+' : ''}${fmtNum(v.net_dex)} <span style="font-size:13px">B</span>`, vcolor: pos ? 'var(--up)' : 'var(--down)', sub: `市场 dealer book 净${pos ? '做多' : '做空'}，delta 敞口${pos ? '偏向上行' : '偏向下行'}。` },
+    { label: 'Call 端 DEX', value: `${v.net_dex >= 0 ? '+' : ''}${fmtNum(v.call_dex)} <span style="font-size:13px">B</span>`, sub: 'call 端按正向 delta 敞口折算' },
+    { label: 'Put 端 DEX', value: `${v.net_dex >= 0 ? '+' : ''}${fmtNum(v.put_dex)} <span style="font-size:13px">B</span>`, sub: 'put 端按卖保护口径翻号折算' },
+  ]));
+  panel.insertAdjacentHTML('beforeend', `
+    <p class="re-source" style="margin:10px 0 0">DEX = Σ(delta × OI × 100 × S)。模型口径：call 端按正向 delta 计入，put 端翻号后合并。P/C OI 比（ATM ±10%）: ${fmtNum(v.pcr_oi_atm ?? v.pcr_oi)} · 全链: ${fmtNum(v.pcr_oi)} · 成交量比: ${fmtNum(v.pcr_vol)}</p>`)
 }
 
 // ── IV 期限结构 tab ──
@@ -311,22 +299,15 @@ function pSkew(panel, v) {
   const flat = skew == null || Math.abs(skew) < 0.5;
   const verdict = skew == null ? '暂无数据' : flat ? 'Skew 平坦 — 市场对上下行风险定价相对均衡' : skew < 0 ? 'Skew 偏负 — 市场为下行风险支付溢价，保护需求偏强' : 'Skew 偏正 — 市场为上行风险支付溢价';
   panel.innerHTML = `
-    <h3>${S} · 25Δ Skew</h3>
-    <div class="re-cards" style="grid-template-columns:repeat(auto-fit,minmax(180px,1fr))">
-      <div class="re-card"><div class="re-corridor-label">25Δ Skew</div>
-        <div class="re-corridor-value">${fmtNum(skew)}</div>
-        <div class="re-card-sub">${v.skew_dte || '—'}D 期限</div></div>
-      <div class="re-card"><div class="re-corridor-label">Put IV (25Δ)</div>
-        <div class="re-corridor-value">${v.skew_put_iv ?? '—'}%</div>
-        <div class="re-card-sub">${v.skew_dte || '—'}D</div></div>
-      <div class="re-card"><div class="re-corridor-label">Call IV (25Δ)</div>
-        <div class="re-corridor-value">${v.skew_call_iv ?? '—'}%</div>
-        <div class="re-card-sub">${v.skew_dte || '—'}D</div></div>
-      <div class="re-card"><div class="re-corridor-label">P/C IV 差</div>
-        <div class="re-corridor-value">${v.skew_put_iv != null && v.skew_call_iv != null ? (v.skew_put_iv - v.skew_call_iv).toFixed(1) : '—'} pt</div>
-        <div class="re-card-sub">正 = put 偏贵</div></div>
-    </div>
-    <p class="re-source" style="margin:10px 0 0">${verdict}。25Δ skew = 25Δ put IV − 25Δ call IV（vol skew），负值代表市场为下行风险支付更高溢价。</p>`;
+    <h3>${S} · 25Δ Skew</h3>`;
+  panel.appendChild(R.cards([
+    { label: '25Δ Skew', value: fmtNum(skew), sub: `${v.skew_dte || '—'}D 期限` },
+    { label: 'Put IV (25Δ)', value: `${v.skew_put_iv ?? '—'}%`, sub: `${v.skew_dte || '—'}D` },
+    { label: 'Call IV (25Δ)', value: `${v.skew_call_iv ?? '—'}%`, sub: `${v.skew_dte || '—'}D` },
+    { label: 'P/C IV 差', value: `${v.skew_put_iv != null && v.skew_call_iv != null ? (v.skew_put_iv - v.skew_call_iv).toFixed(1) : '—'} pt`, sub: '正 = put 偏贵' },
+  ]));
+  panel.insertAdjacentHTML('beforeend', `
+    <p class="re-source" style="margin:10px 0 0">${verdict}。25Δ skew = 25Δ put IV − 25Δ call IV（vol skew），负值代表市场为下行风险支付更高溢价。</p>`)
 }
 
 // ── Vanna / Charm tab ──
@@ -334,20 +315,17 @@ function pVanna(panel, v) {
   const vpos = (v.net_vanna ?? 0) >= 0;
   const near7 = v.charm_near7;
   panel.innerHTML = `
-    <h3>${S} · Vanna / Charm</h3>
-    <div class="re-cards" style="grid-template-columns:1fr 1fr">
-      <div class="re-card"><div class="re-corridor-label">Net Vanna (dealer)</div>
-        <div class="re-corridor-value" style="color:${vpos ? 'var(--up)' : 'var(--down)'}">${vpos ? '+' : ''}${fmtNum(v.net_vanna)} <span style="font-size:13px">B</span></div>
-        <div class="re-card-sub">${vpos ? '正 Vanna（IV 下降助推上涨）' : '负 Vanna（IV 下降削弱上涨）'}</div></div>
-      <div class="re-card"><div class="re-corridor-label">Total Charm</div>
-        <div class="re-corridor-value">${fmtNum(v.net_charm)} <span style="font-size:13px">B</span></div>
-        <div class="re-card-sub">近 ${v.charm_near7_dte || 7} 天到期贡献 ${near7 ?? '—'}%</div></div>
-    </div>
+    <h3>${S} · Vanna / Charm</h3>`;
+  panel.appendChild(R.cards([
+    { label: 'Net Vanna (dealer)', value: `${vpos ? '+' : ''}${fmtNum(v.net_vanna)} <span style="font-size:13px">B</span>`, vcolor: vpos ? 'var(--up)' : 'var(--down)', sub: vpos ? '正 Vanna（IV 下降助推上涨）' : '负 Vanna（IV 下降削弱上涨）' },
+    { label: 'Total Charm', value: `${fmtNum(v.net_charm)} <span style="font-size:13px">B</span>`, sub: `近 ${v.charm_near7_dte || 7} 天到期贡献 ${near7 ?? '—'}%` },
+  ]));
+  panel.insertAdjacentHTML('beforeend', `
     <p class="re-source" style="margin:10px 0 0" id="vanna-desc"></p>
     <p class="re-source" style="margin:8px 0 0" id="charm-desc"></p>
     <p class="re-source" style="margin:8px 0 0">${vpos ? 'IV 回落时做市商将被迫买入现货，支撑价格。反之 IV 飙升时做市商减多。' : 'IV 回落时做市商被迫卖出，价格承压；IV 飙升时减仓平抑波动。'}</p>
     <p class="re-source" style="margin:8px 0 0">${near7 != null && near7 >= 40 ? `近 7 天到期合约贡献 ${near7.toFixed(0)}% 的 Charm — 盘中磁吸效应强，周到期前 delta 衰减快。` : ''}</p>
-    <p class="re-source" style="margin:8px 0 0">Vanna ≈ −γ·S·√T·d2 × OI × 100（标准 BSM）；Charm = φ(d1)·[(r+σ²/2)/(σ√T) − d1/(2T)] × OI × 100。符号采用 call 正向、put 翻号的统一估算口径。</p>`;
+    <p class="re-source" style="margin:8px 0 0">Vanna ≈ −γ·S·√T·d2 × OI × 100（标准 BSM）；Charm = φ(d1)·[(r+σ²/2)/(σ√T) − d1/(2T)] × OI × 100。符号采用 call 正向、put 翻号的统一估算口径。</p>`)
 }
 
 // ── OI 热力 tab ──

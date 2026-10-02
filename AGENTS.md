@@ -425,6 +425,17 @@ uv run python src/sell_put.py --symbol TSM
   弱化说明走 `sub` prop（`.re-sec-sub`），需与数据联动的状态文字在 island 里用映射表（`TERM_STATE` 一类），
   标题本身不写成纯英文
 - **复用既有类，不造平行组件**：卡片 `.chart-card`、控件条 `.controls`/`.range-controls`/`.range-btn`、数据行 `.diag-row`、语义色 `.up/.down/.neutral`、统计卡 `.dash-stat`/`.dash-card`；只给面板私有结构加 `面板名-` 前缀的新类
+- **KPI 卡行单源 `R.cards()` + `.re-cards`**（`rates-common.js` / `special.css`）：卡行是 flex，
+  卡宽由 CSS 一处定（`flex` 增长到 **275px = 全站 4 列档** 封顶），页面**不写**内联
+  `grid-template-columns` / `font-size`。为什么是 flex 不是 grid：grid 的 `auto-fit` 列数按轨道**上限**算，
+  `minmax(130px, 275px)` 在 1440 下只给 3 列（6 卡行被压成两排）；flex 的「先平分增长、到 275 停」
+  才是想要的形状——≥4 卡铺满整行，2-3 卡行左对齐留白（不再 562px 拉满，同 `/liquidity/reserves/`）。
+  四个旋钮：默认档（数字卡）/ `.re-cards-wide`（长文本、百分位条、内嵌框的卡，basis 250）/
+  `.re-card-wrap`（value+sub 换行不截断）/ `.re-card-dense`（密集卡：紧 padding + 17px 值）。
+  `R.cards(items, rowCls)` 的 item：`{label, value, sub, accent, cls, vcolor}`——`value`/`sub` 是 HTML
+  （涨跌 chip 走 `R.chgSpan`，着色走 `vcolor: 'var(--up)'` 或 `<span class="up">`），`cls` 给单卡加类。
+  卡内还要放图/表/条的复合卡（期权墙、NOW 百分位卡）才允许手写 `.re-card`，但仍在 `.re-cards` 行里。
+  守卫：`tests/test_static_single_source.py::test_card_rows_use_single_source_grid`
 - **「先看结构、再看数据」双层节奏**：面板第一屏给结论层（状态条/评分/报警/规则引擎叙事，一眼可读），下层给可交互的数据层（图/表/热力图），两层通过点击联动（点结论→定位数据，点数据→弹出明细）
 - **微观数据须有宏观锚点**：展示单资产/单指标时，附带其在全局中的坐标（分组、分位、相对强弱），避免孤立数字
 - **工具栏模式统一**：预设/模式切换按钮置顶（`.range-btn` 风格），日期范围按钮居右（`macro-common.js` 的 `MACRO_DATE_RANGES`），状态写进底部状态栏（`updateStatus()` 约定）

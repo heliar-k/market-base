@@ -8,7 +8,7 @@ import Section from '../../components/Section.astro';
 <TopicLayout title="美股">
   <div class="page-toc" id="page-toc"></div>
   <Section id="overview" title="指数总览">
-    <div id="indices" class="re-cards"></div>
+    <div id="indices"></div>
   </Section>
   <Section id="index-chart" title="指数走势" />
   <Section id="breadth" title="市场广度" />
@@ -52,12 +52,12 @@ function bindFilter(searchId, indId, bodyId) {
 }
 function tv(v) { return v == null ? '—' : (Number(v) >= 0 ? '▲ +' : '▼ ') + Number(v).toFixed(1); }
 
-// timsun 同款 5 指标卡：label 上、value 中、sub 下
+// timsun 同款指标卡：统一走 R.cards（全站 KPI 卡单源），涨跌色用 .up/.down 类
 function statCards(list) {
-  return `<div class="eq-stats">${list.map(c => `
-    <div class="re-card"><div class="re-corridor-label">${c.label}</div>
-    <div class="re-corridor-value${c.cls || ''}">${c.value}</div>
-    <div class="re-card-sub">${c.sub}</div></div>`).join('')}</div>`;
+  return R.cards(list.map(c => ({
+    label: c.label, sub: c.sub,
+    value: c.cls ? `<span class="${c.cls}">${c.value}</span>` : c.value,
+  })));
 }
 
 function ratingPill(r) {
@@ -84,11 +84,11 @@ function renderIndices() {
   const idx = D.indices || [];
   if (!idx.length) return;
   document.getElementById('re-as-of').textContent = R.asOf(idx[0].date);
-  document.getElementById('indices').innerHTML = idx.map(i => `
-    <div class="re-card"><div class="re-corridor-label">${i.name}</div>
-    <div class="re-corridor-value">${id(i.last)}</div>
-    <div class="re-card-sub ${cls1(i.chg_pct)}">${i.chg_pct == null ? '—' : (i.chg_pct >= 0 ? '▲ +' : '▼ ') + Number(i.chg_pct).toFixed(2) + '%'} · ${i.date}</div>
-    </div>`).join('');
+  document.getElementById('indices').replaceChildren(R.cards(idx.map(i => ({
+    label: i.name,
+    value: id(i.last),
+    sub: `<span class="${cls1(i.chg_pct)}">${i.chg_pct == null ? '—' : (i.chg_pct >= 0 ? '▲ +' : '▼ ') + Number(i.chg_pct).toFixed(2) + '%'} · ${i.date}</span>`,
+  }))));
 }
 
 function renderIndexChart() {
@@ -125,29 +125,24 @@ function renderBreadth() {
   bsec.className = 're-section';
   bsec.innerHTML = '<h2>市场广度与动能集中度</h2>';
   const label = b.abv200 >= 60 ? '广度健康' : (b.abv200 == null ? '—' : '广度偏弱');
-  bsec.innerHTML += `
+  bsec.insertAdjacentHTML('beforeend', `
     <div class="re-badges" style="margin-bottom:8px">
       <span class="re-badge ${b.abv200 >= 60 ? 'bull' : 'bear'}">${label}</span>
       <span class="re-spread">${b.verdict || '—'}</span>
-    </div>
-    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px">
-      <div class="re-card"><div class="re-corridor-label">标普500 · 20日</div>
-        <div class="re-corridor-value ${cls1(b.spx_20d)}">${b.spx_20d == null ? '—' : (b.spx_20d >= 0 ? '+' : '') + Number(b.spx_20d).toFixed(2) + '%'}</div>
-        <div class="re-card-sub">大盘权重股累计涨跌</div></div>
-      <div class="re-card"><div class="re-corridor-label">罗素2000 · 20日</div>
-        <div class="re-corridor-value ${cls1(b.rut_20d)}">${b.rut_20d == null ? '—' : (b.rut_20d >= 0 ? '+' : '') + Number(b.rut_20d).toFixed(2) + '%'}</div>
-        <div class="re-card-sub">中小盘广度代表累计涨跌</div></div>
-      <div class="re-card"><div class="re-corridor-label">SPX − RUT 差距</div>
-        <div class="re-corridor-value ${cls1(b.gap)}">${b.gap == null ? '—' : (b.gap >= 0 ? '+' : '') + Number(b.gap).toFixed(2) + ' pp'}</div>
-        <div class="re-card-sub">正值 = 大盘领涨，广度偏弱</div></div>
-    </div>
-    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px;margin-top:10px">${[
+    </div>`);
+  bsec.appendChild(R.cards([
+    { label: '标普500 · 20日', value: `<span class="${cls1(b.spx_20d)}">${b.spx_20d == null ? '—' : (b.spx_20d >= 0 ? '+' : '') + Number(b.spx_20d).toFixed(2) + '%'}</span>`, sub: '大盘权重股累计涨跌' },
+    { label: '罗素2000 · 20日', value: `<span class="${cls1(b.rut_20d)}">${b.rut_20d == null ? '—' : (b.rut_20d >= 0 ? '+' : '') + Number(b.rut_20d).toFixed(2) + '%'}</span>`, sub: '中小盘广度代表累计涨跌' },
+    { label: 'SPX − RUT 差距', value: `<span class="${cls1(b.gap)}">${b.gap == null ? '—' : (b.gap >= 0 ? '+' : '') + Number(b.gap).toFixed(2) + ' pp'}</span>`, sub: '正值 = 大盘领涨，广度偏弱' },
+    ...[
       { label: '200 日均线上方占比', v: b.abv200, chg: b.abv200_chg },
       { label: '50 日均线上方占比', v: b.abv50, chg: b.abv50_chg },
-    ].map(c => `<div class="re-card"><div class="re-corridor-label">${c.label}</div>
-      <div class="re-corridor-value ${cls1(c.v)}">${c.v == null ? '—' : Number(c.v).toFixed(1) + '%'}</div>
-      <div class="re-card-sub ${cls1(c.chg)}">${c.chg == null ? '' : tv(c.chg) + ' · '}${b.abv_date || ''}</div></div>`).join('')}
-    </div>`;
+    ].map(c => ({
+      label: c.label,
+      value: `<span class="${cls1(c.v)}">${c.v == null ? '—' : Number(c.v).toFixed(1) + '%'}</span>`,
+      sub: `<span class="${cls1(c.chg)}">${c.chg == null ? '' : tv(c.chg) + ' · '}${b.abv_date || ''}</span>`,
+    })),
+  ]));
   document.getElementById('breadth').appendChild(bsec);
 }
 
@@ -199,13 +194,13 @@ function renderAnalyst() {
   sec.className = 're-section';
   sec.innerHTML = `<h2>Nasdaq 100 分析师目标价 <span class="re-badge flat chip">TARGETS</span></h2>
     <div class="src-note">基于 Yahoo Finance / yfinance 的 12 个月分析师共识目标价，日频缓存展示。</div>`;
-  sec.innerHTML += statCards([
+  sec.appendChild(statCards([
     { label: '目标价覆盖率', value: `${a.coverage_pct == null ? '—' : a.coverage_pct.toFixed(1)}%`, sub: `${a.rows}/${a.total} 有共识目标价` },
     { label: '平均隐含空间', value: fp(a.avg_upside), cls: a.avg_upside > 0 ? 'up' : '', sub: '等权平均，不按市值加权' },
     { label: '中位隐含空间', value: fp(a.med_upside), cls: a.med_upside > 0 ? 'up' : '', sub: '去掉极值后的典型股票' },
     { label: '上行空间占比', value: `${a.above_share == null ? '—' : a.above_share}%`, sub: `${a.above_cnt}/${a.rows} 目标价高于现价` },
     { label: '平均分析数', value: `${a.avg_analysts == null ? '—' : a.avg_analysts}`, sub: '覆盖的分析师越多，共识越不易被单家机构带偏' },
-  ]);
+  ]));
   const rankBlocks = [['tops', '上行空间 Top 10'], ['bottoms', '下行风险 Top 10'], ['divs', '目标价分歧 Top 10']]
     .map(([k, title]) => `<div class="re-colbox">
       <div class="re-colbox-title">${title}</div>
@@ -213,8 +208,8 @@ function renderAnalyst() {
         <span class="rk-n" title="${r.company}">${r.company}</span>
         <span class="rk-v ${cls1(r.upside)}">${fp(r.upside)}${k === 'divs' ? ' · ' + id(r.high) + ' - ' + id(r.low) : ''}</span></div>`).join('')}
       </div>`).join('');
-  sec.innerHTML += `<div class="re-col3 rank-grid">${rankBlocks}</div>`;
-  sec.innerHTML += `
+  sec.insertAdjacentHTML('beforeend', `<div class="re-col3 rank-grid">${rankBlocks}</div>`);
+  sec.insertAdjacentHTML('beforeend', `
     <div class="re-table-wrap"><div class="re-table-title">行业目标价空间</div>
     <div class="src-note">行业按成分股等权汇总，重点看平均/中位空间。</div>
     <table class="re-table"><thead><tr>
@@ -223,10 +218,10 @@ function renderAnalyst() {
     ${a.industries.map(r => `<tr><td>${r.industry}</td><td>${r.coverage}/${r.total_ind}</td>
       <td class="${cls1(r.avg)}">${(r.avg >= 0 ? '+' : '') + r.avg + '%'}</td><td class="${cls1(r.med)}">${(r.med >= 0 ? '+' : '') + r.med + '%'}</td>
       <td>${r.analysts}</td></tr>`).join('')}
-    </tbody></table></div>`;
+    </tbody></table></div>`);
 
   // 完整目标价表：搜索 + 行业下拉 + 卡内滚动（timsun 同款，筛选行右对齐）
-  sec.innerHTML += `
+  sec.insertAdjacentHTML('beforeend', `
     <div class="re-table-wrap"><div class="re-table-title">完整目标价表
       <div class="re-filter">
         <input id="pt-search" placeholder="搜索 Ticker / 公司" autocomplete="off">
@@ -242,7 +237,7 @@ function renderAnalyst() {
       <td>${id(r.price)}</td><td>${id(r.mean)}</td><td>${id(r.high)}</td><td>${id(r.low)}</td>
       <td class="${cls1(r.upside)}">${fp(r.upside)}</td><td>${r.analysts ?? '—'}</td>
       <td>${ratingPill(r.rating)}</td></tr>`).join('')}
-    </tbody></table></div></div>`;
+    </tbody></table></div></div>`);
   document.getElementById('analyst').appendChild(sec);
 
   // 列表筛选（前端过滤）
@@ -260,16 +255,16 @@ function renderRadar() {
     <a href="equities/positioning.html" class="eq-btn">CFTC 仓位</a></span></h2>
     <div class="src-note">上涨家数 ${r.today_up_pct ?? '—'}%，50 日均线上方占比 ${r.above50_pct ?? '—'}%；${r.verdict == '全面强势' ? '全面强势特征明显' : r.verdict == '内部走弱' ? '结构修复尚未完成' : '更像结构分化而非全面趋势'}。
       数据来源：Wikipedia Nasdaq-100 当前成分股 · 价格日期 ${r.date}</div>`;
-  sec.innerHTML += statCards([
+  sec.appendChild(statCards([
     { label: '覆盖率', value: `${r.price_share == null ? '—' : r.price_share.toFixed(1)}%`, sub: `${r.rows}/${r.total} ticker 有价格` },
     { label: '上涨家数', value: `${r.today_up_pct == null ? '—' : r.today_up_pct.toFixed(1)}%`, sub: `${r.today_up}/${r.rows} 最近交易日上涨` },
     { label: '50DMA 上方', value: `${r.above50_pct == null ? '—' : r.above50_pct.toFixed(1)}%`, sub: '短中期内部动能' },
     { label: '200DMA 上方', value: `${r.above200_pct == null ? '—' : r.above200_pct.toFixed(1)}%`, sub: '长期趋势健康度' },
     { label: '20 日中位数', value: fp(r.med20), cls: (r.med20 || 0) > 0 ? 'up' : 'down', sub: '不按市值权重的典型个股 20 日表现' },
-  ]);
+  ]));
 
   // 行业强弱（2/3 宽）+ 右列 20D 最强/最弱（timsun 布局）
-  sec.innerHTML += `<div class="eq-radar-grid">
+  sec.insertAdjacentHTML('beforeend', `<div class="eq-radar-grid">
     <div class="re-table-wrap"><div class="re-table-title">行业强弱</div>
       <div class="src-note">按成分股等权计算，重点看 20 日表现与 50 日均线上方占比。</div>
       <table class="re-table"><thead><tr><th>行业</th><th>覆盖</th><th>1D</th><th>20D</th><th>50DMA+</th></tr></thead><tbody>
@@ -284,10 +279,10 @@ function renderRadar() {
       <div class="re-colbox"><div class="re-colbox-title">20D 最弱</div>
         ${r.weak20.map(x => `<div class="rk-row"><span class="rk-t">${x.ticker}</span><span class="rk-n" title="${x.company}">${x.company}</span><span class="rk-v down">${fp(x.chg20)}</span></div>`).join('')}
       </div>
-    </div></div>`;
+    </div></div>`);
 
   // 完整成分股行情：趋势合并列（50D/200D pill）+ 日期列 + 搜索 + 滚动
-  sec.innerHTML += `
+  sec.insertAdjacentHTML('beforeend', `
     <div class="re-table-wrap"><div class="re-table-title">完整成分股行情
       <div class="re-filter">
         <input id="rs-search" placeholder="搜索 Ticker / 公司" autocomplete="off">
@@ -305,7 +300,7 @@ function renderRadar() {
       <td class="nowrap"><span class="tr-pill ${x.above50 ? 'on' : ''}">50D</span><span class="tr-pill ${x.above200 === null ? '' : (x.above200 ? 'on' : '')}">200D</span></td>
       <td class="mono">${x.date || '—'}</td>
       </tr>`).join('')}
-    </tbody></table></div></div>`;
+    </tbody></table></div></div>`);
   document.getElementById('radar').appendChild(sec);
 
   bindFilter('rs-search', 'rs-ind', 'rs-body')(r.table);

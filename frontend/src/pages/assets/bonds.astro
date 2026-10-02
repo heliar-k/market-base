@@ -8,7 +8,7 @@ import Section from '../../components/Section.astro';
 <TopicLayout title="债券">
   <div class="page-toc" id="page-toc"></div>
   <Section id="overview" title="价格总览">
-    <div id="cards" class="re-cards"></div>
+    <div id="cards"></div>
   </Section>
   <Section id="chart" title="近期相对涨跌" />
   <Section id="recent" title="近期数据" />
@@ -23,14 +23,11 @@ document.getElementById('page-toc').innerHTML = [
 
 async function load() {
   const d = await R.get('/api/assets/bonds');
-  const cards = (d.cards || []).map(i => ({
+  document.getElementById('cards').replaceChildren(R.cards((d.cards || []).map(i => ({
     label: i.name,
     value: fmt(i.last),
     sub: `${chg(i.chg_pct)} · ${i.date}`,
-  }));
-  document.getElementById('cards').innerHTML = cards.map(c => `
-    <div class="re-card"><div class="re-corridor-label">${c.label}</div>
-    <div class="re-corridor-value">${c.value}</div><div class="re-card-sub">${c.sub}</div></div>`).join('');
+  }))));
   if (d.cards && d.cards.length) document.getElementById('re-as-of').textContent = R.asOf(d.cards[0].date);
 
   // 20 日相对涨跌图（期初=0%）+ 绝对值明细表

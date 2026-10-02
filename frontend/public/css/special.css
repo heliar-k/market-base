@@ -22,10 +22,28 @@ body { height: auto; overflow-y: auto; display: block; }
 .re-header h1 { font-size: 24px; font-weight: 700; letter-spacing: -.01em; text-wrap: balance; }
 body.embedded .re-header h1 { display: none; } /* 内嵌时左卡已有标题 */
 /* 时效胶囊（timsun 徽章语言）：12% 中性底 + 全圆角，与各状态 tag 同构 */
-.re-as-of { font-size: 12px; color: var(--text-secondary); background: var(--color-neutral-bg); padding: 2px 10px; border-radius: 999px; white-space: nowrap; }
+.re-as-of { font-size: 12px; color: var(--text-secondary); background: var(--color-neutral-bg); padding: 2px 10px; border-radius: 999px; white-space: normal; overflow-wrap: anywhere; }
 /* 子页不再渲染“返回概览”面包屑（导航在左侧专题树 / 窄屏抽屉里） */
-.re-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 12px; }
+/* KPI 卡行单源（页面只选档，不写内联 grid-template-columns）：
+ * 用 flex 而非 grid：grid 的 auto-fit 列数按轨道上限算，封顶 275px 会把 6 卡行压成 3 列；
+ * flex 的「先平分增长、到 275px 停」正好是想要的形状：≥4 卡行铺满整行，2-3 卡行左对齐留白
+ * （与 /liquidity/reserves/ 同一处理），卡片宽度全站收敛到 ≤275px = .re-root 4 列档。
+ * 两档：默认 basis 130（数字卡）/ .re-cards-wide basis 250（带长文本、百分位条或内嵌框的卡）。 */
+.re-cards { display: flex; flex-wrap: wrap; gap: 12px; }
+.re-cards > .re-card { flex: 1 1 130px; min-width: 0; max-width: 275px; }
+.re-cards-wide > .re-card { flex-basis: 250px; }
 .re-card { padding: 16px 20px; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; }
+/* 长文本卡：value / sub 换行不截断（默认 nowrap + ellipsis 是给纯数字卡的） */
+.re-card-wrap .re-corridor-value, .re-card-wrap .re-card-sub {
+  white-space: normal; overflow: visible; text-overflow: clip;
+}
+/* 密集卡（带百分位条等附加内容）：比标准卡更紧一档 */
+.re-card-dense { padding: 12px 14px; }
+.re-card-dense .re-corridor-value { font-size: 17px; margin: 2px 0; }
+/* ≤768 收单列（卡片铺满行宽，与 #27 的 grid 单列档同构） */
+@media (max-width: 768px) {
+  .re-cards > .re-card { flex-basis: 100%; max-width: none; }
+}
 .re-card-accent { background: var(--surface); border: 1px solid var(--border); color: var(--text); }
 .re-card-accent .re-corridor-label { color: var(--text-secondary); }
 .re-corridor-label { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; opacity: .7; }
@@ -126,7 +144,6 @@ body.embedded .re-foot { display: none; } /* 内嵌 iframe 不重复页脚 */
 .re-source { font-size: 11px; color: var(--text-dim); }
 .re-badges { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
 .re-badge.chip { font-size: 11px; padding: 2px 10px; }
-.eq-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 10px; }
 /* Top10 三列（timsun 同款：三列均分，行内公司名小字号不挤出列） */
 .rank-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 .rank-grid .re-colbox { padding: 8px 10px; }
@@ -170,10 +187,11 @@ a.re-badge:hover { color: var(--accent-ink); border-color: var(--accent-ink); }
 .re-analysis p { font-size: 14.5px; line-height: 1.7; color: var(--text); }
 .re-explain { font-size: 12px; color: var(--text-dim); line-height: 1.6; padding: 12px 16px; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; }
 .re-header .re-as-of { font-size: 12px; }
-/* #27：多源时效串（「数据截至 A 2026-10-01 · B 09-30 · C 10-01」）实测 402px，
- * nowrap 在 375 下撑破页头（scrollWidth 466）。≤ 768 放开换行（按 ` · ` 自然断），
- * 同时把 999px 胶囊收成 8px 圆角 —— 两行的胶囊会断成两个半圆。 */
-@media (max-width: 768px) { .re-as-of { white-space: normal; border-radius: 8px; } }
+/* #27：多源时效串（「数据截至 A 2026-10-01 · B 09-30 · C 10-01」）实测 827px，
+ * nowrap 不止撞 375：任何视口只要胶囊比页头宽就撑破文档（/assets/crypto/ 在 820 下
+ * scrollWidth 891）。所以换行改为无条件（按 ` · ` 自然断，单行时与原来同形），
+ * ≤ 768 再把 999px 胶囊收成 8px 圆角 —— 两行的胶囊会断成两个半圆。 */
+@media (max-width: 768px) { .re-as-of { border-radius: 8px; } }
 .re-corridor { display: flex; gap: 24px; padding: 16px 20px; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; color: var(--text); flex-wrap: wrap; }
 .re-table th:first-child, .re-table td:first-child { text-align: left; }
 .re-table tbody tr:hover { background: var(--surface-hover); }
@@ -287,6 +305,8 @@ a.re-badge:hover { color: var(--accent-ink); border-color: var(--accent-ink); }
 
 /* ── 期权市场结构（timsun 复刻样式）── */
 .opt-regime { border: 1px solid var(--border); border-radius: 12px; background: var(--surface); padding: 20px 24px; display: flex; flex-direction: column; gap: 8px; }
+/* regime 结论块与下方 KPI 卡行之间留 12px（卡行自己不带外边距） */
+.opt-regime + .re-cards { margin-top: 12px; }
 .opt-regime .rg-label { font-size: 11px; font-weight: 600; letter-spacing: .08em; color: var(--text-dim); }
 .opt-regime .rg-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; flex-wrap: wrap; }
 .opt-regime .rg-title { font-size: 28px; font-weight: 800; letter-spacing: .01em; line-height: 1.15; }
@@ -317,6 +337,11 @@ a.re-badge:hover { color: var(--accent-ink); border-color: var(--accent-ink); }
 .opt-big .s { font-size: 12px; color: var(--text-secondary); }
 /* 到期 Gamma 集中度水平条 */
 .range-row { display: grid; grid-template-columns: auto minmax(120px, 1fr) max-content max-content max-content; gap: 10px; align-items: center; padding: 5px 0; border-bottom: 1px solid var(--border-light); font-size: 13px; }
+/* ≤768：标签 / 占比 / M 值 / 合约数同一节奏，进度条换整行（五列 max-content 在 375 下撑出 421px） */
+@media (max-width: 768px) {
+  .range-row { grid-template-columns: auto 1fr 1fr 1fr; row-gap: 2px; }
+  .range-row > .range-track { grid-column: 1 / -1; order: 9; }
+}
 .range-row:last-child { border-bottom: none; }
 .range-track { height: 10px; border-radius: 5px; background: var(--border); overflow: hidden; }
 .range-fill { height: 100%; border-radius: 5px; background: var(--accent); }
@@ -363,6 +388,11 @@ a.re-badge:hover { color: var(--accent-ink); border-color: var(--accent-ink); }
 .pos-foot { font-size: 11px; color: var(--text-secondary); border-top: 1px solid var(--border-light); padding-top: 6px; display: flex; justify-content: space-between; }
 .pos-subtitle { font-size: 12px; color: var(--text-secondary); margin-bottom: 10px; }
 @media (max-width: 1024px) { .pos-hero { grid-template-columns: 1fr; } .pos-hero .ph-side { border-left: none; padding-left: 0; } .pos-contract-grid { grid-template-columns: 1fr; } .pos-contract:last-child:nth-child(odd) { grid-template-columns: 1fr; grid-template-areas: "head" "cols" "chart" "reading" "foot"; } }
+/* ≤768：标题行与数据行都是 nowrap 撑出来的宽度（375 下单卡 336px）→ 允许换行，不再把文档顶宽 */
+@media (max-width: 768px) {
+  .pos-contract .pc-head { flex-wrap: wrap; }
+  .pos-cols { flex-wrap: wrap; gap: 8px 14px; }
+}
 
 /* ── 波动率全景仪表盘（timsun 复刻）── */
 .vol-hero { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; margin-bottom: 12px; }
@@ -376,7 +406,7 @@ a.re-badge:hover { color: var(--accent-ink); border-color: var(--accent-ink); }
 .vol-verdict { font-size: 14px; line-height: 1.7; color: var(--text); background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 12px 16px; margin-bottom: 14px; }
 .vol-verdict b { color: var(--accent-ink); }
 
-.vol-signal-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; }
+.vol-signal-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr)); gap: 12px; }
 .vol-signal-card { border: 1px solid var(--border); border-radius: 10px; background: var(--surface); padding: 14px 16px; display: flex; flex-direction: column; gap: 6px; }
 .vol-signal-card .vs-title { font-size: 13px; font-weight: 700; color: var(--text); }
 .vol-signal-card .vs-metric { font-size: 12px; font-variant-numeric: tabular-nums; color: var(--accent-ink); }
@@ -554,31 +584,27 @@ body.dark .pm-topic-card { box-shadow: inset 0 0 0 1px rgba(255,255,255,.04); }
 .pm-raw { margin-top: 12px; border: 1px dashed var(--border); border-radius: 8px; padding: 8px 12px; }
 .pm-raw > summary { cursor: pointer; font-size: 12px; color: var(--text-dim); user-select: none; }
 .pm-raw[open] > summary { margin-bottom: 10px; color: var(--text-secondary); }
-.pm-ladder-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 12px; }
+.pm-ladder-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 340px), 1fr)); gap: 12px; }
 /* 阶梯卡窄，价位标签多给宽度（标签里带 reach/dip 动词，不能截掉） */
 .pm-ladder-grid .pm-odds-lab { flex-basis: 52%; }
 
 /* ── rates/pricing 页（原页面内联 <style> 收编；hc-/pb-/rp- 前缀为本页私有）── */
-/* KPI 8 卡固定 4×2，避免 auto-fit 7 列时第 8 卡孤行 */
-#re-cards .re-cards { grid-template-columns: repeat(4, 1fr); }
+/* KPI 8 卡固定 4×2，避免一排放 8 卡挤到 131px（.re-cards 已改 flex，这里用 basis 定列数） */
+#re-cards .re-cards > .re-card { flex-basis: 269px; }
 /* 政策路径定价 hero：决策卡 + PM 收敛路径图并排 */
 .hero { display: grid; grid-template-columns: 400px 1fr; gap: 14px; }
 /* 断点收敛（#20）：原 900（KPI 塌列）/ 980（hero 并排→堆叠）并入 1024 一档。
  * 两条都是「塌列 / 堆叠」方向，901–1024 区间只松不紧。
  * 960 下取 3 列而非 2 列（用户定）：2 列时单卡 410px 宽于桌面的 ~320px、8 卡要 4 行；
  * 3 列≈269px 接近桌面密度，仍 > 卡片 min-content 172px。
- * 用 auto-fit 而非写死 repeat(3,1fr)：卡数少于列数的页（/liquidity/reserves/ 只 2 卡）
- * 会被 auto-fit 合并空轨→铺满，不留 1/3 空洞；窄到 820 以下自动回 2 列。 */
+ * basis 而非写死列数：卡数少于列数的页（/liquidity/reserves/ 只 2 卡）仍按 275px 上限左对齐。
+ */
 @media (max-width: 1024px) {
-  #re-cards .re-cards { grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); }
+  #re-cards .re-cards > .re-card { flex-basis: 240px; }
   .hero { grid-template-columns: 1fr; }
 }
-/* #27：≤ 768 取单列。两列时 1fr 轨道的自动最小尺寸 = 卡片 min-content（
- * `.re-corridor-label` 等 overflow:visible 的子元素撑出 172px），375 宽下被顶到 214px，
- * 两列 + gap = 464 > 375 → 文档横向溢出。
- * 上面改 auto-fit 后本条理论上已冗余（minmax(240px) 在 375 只排 1 轨），
- * 保留作为更窄视口（<340px）与 min-content 变化的双保险。 */
-@media (max-width: 768px) { #re-cards .re-cards { grid-template-columns: 1fr; } }
+/* #27：≤ 768 取单列已由全局规则接手（见上方 .re-cards > .re-card）——两列时卡片
+ * min-content 172px 会把轨道顶到 214px，两列 + gap = 464 > 375 → 文档横向溢出。 */
 .hero-card { border: 1px solid var(--accent); border-radius: 10px; background: var(--surface); padding: 16px; display: flex; flex-direction: column; gap: 12px; box-shadow: 0 0 0 1px var(--accent); }
 .hc-head { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
 .hc-date { font-size: 20px; font-weight: 800; font-family: var(--font-mono); }

@@ -333,15 +333,17 @@ const R = {
     return wrap;
   },
 
-  // 数值卡片行
-  cards(items) {
+  // 数值卡片行（全站 KPI 卡单源）：items = [{label, value, sub, accent, cls, vcolor}]
+  //   cls    附加到卡片（如 're-card-wrap' 长文本换行）；vcolor 只给 value 上色（var(--token) 引用）
+  //   第二参 rowCls 附加到栅格行（如 're-cards-wide'）；页面不再写内联 grid-template-columns
+  cards(items, rowCls) {
     const row = document.createElement('div');
-    row.className = 're-cards';
-    items.forEach(({ label, value, sub, accent }) => {
+    row.className = 're-cards' + (rowCls ? ' ' + rowCls : '');
+    items.forEach(({ label, value, sub, accent, cls, vcolor }) => {
       const d = document.createElement('div');
-      d.className = 're-card' + (accent ? ' re-card-accent' : '');
+      d.className = 're-card' + (accent ? ' re-card-accent' : '') + (cls ? ' ' + cls : '');
       d.innerHTML = `<div class="re-corridor-label">${label}</div>
-        <div class="re-corridor-value">${value}</div>
+        <div class="re-corridor-value"${vcolor ? ` style="color:${vcolor}"` : ''}>${value}</div>
         <div class="re-card-sub">${sub || ''}</div>`;
       // 长值（如“3.50% – 3.75%”、“2026-09-16”）按卡片宽度自动缩字号，防溢出；
       // 仅当卡片宽度真正变化时重算（守卫 lastW，避免改字号→高度变→循环触发）
