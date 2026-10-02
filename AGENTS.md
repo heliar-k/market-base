@@ -443,8 +443,8 @@ uv run python src/sell_put.py --symbol TSM
   填充 / 边框 / 线色），`--color-*-text`（每色逐一对应；`tokens.css` 另给四个历史短名别名
   `--up/--down/--flat/--warning` 直指文字档，`app.css` 的 `--accent-ink` = brand 的文字档），
   `color:` 只能用它。亮色下图形档当文字色只有 2.1–3.6:1（暗色达标），所以这个 bug 长期不暴露。
-  `--accent-ink` 亮 5.69:1（页面底）、
-  暗 = `--color-brand`，不需要新 token。ECharts 的 `label`/`axisLabel` 文字色走 `R.colors()` 的
+  `--accent-ink` 亮 #155ecb 5.69:1（页面底）、暗 #a5d3ff（卡面 10.99）—— 暗色也不别名回
+  图形档：#58a6ff 对比虽过 AA，但满饱和纯蓝在暗底小字号下发颤，所以 brand 两档分开。ECharts 的 `label`/`axisLabel` 文字色走 `R.colors()` 的
   `greenText/redText/orangeText`。回归测试：`tests/test_semantic_text_contrast.py`
   （除对比度与三条 `*_color` 守卫外，还锁一条：DOM 内联 `style="…"` 里不得出现
   `reCssVar()` 的解析结果）

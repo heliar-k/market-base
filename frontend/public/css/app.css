@@ -27,7 +27,11 @@ body.dark {
   /* Linear 四档文字阶梯（f7f8f8 → d0d6e0 → 8a8f98 → 62666d，dim 即 tertiary 档） */
   --text: #f7f8f8; --text-secondary: #d0d6e0; --text-dim: #8a8f98;
   --accent-light: #1f2a3d;
-  --accent-ink: var(--color-brand); /* 暗色 #58a6ff 在 #1f2a3d 上 5.71、页面底 ~7.5，无需另压深 */
+  /* 暗色文字档不别名回图形档：#58a6ff 对比虽过 AA（卡面 6.84 / 页面底 7.40 / accent-light 底 5.71），
+     但它是 HSL(212,100%,67%) 的满饱和蓝，短波长纯蓝在暗底小字号下边缘发颤。同色相提到
+     #a5d3ff（GitHub / GitLab 暗色链接同款，卡面 10.99 / 页面底 11.90 / accent-light 底 9.17）。
+     图形档 --accent 仍 = #58a6ff（填充 / 边框 / 图表线不参与文字可读性）。 */
+  --accent-ink: #a5d3ff;
   --btn-border: rgba(204,204,220,.2);
 }
 
