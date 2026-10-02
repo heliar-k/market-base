@@ -6,7 +6,13 @@
    body 恢复 block——app.css 的 flex 会让 .re-root 变为 flex item，宽度按内容收缩导致
    各子页面宽度不一致（fed-funds 473px / yield-curve 725px / expectations 884px） */
 body { height: auto; overflow-y: auto; display: block; }
-.re-root { max-width: min(1200px, calc(100vw - 64px)); margin: 0 auto; padding: 28px 32px 48px; display: flex; flex-direction: column; gap: 16px; }
+/* ── 专题页排版节奏（唯一配置处，改这三个数就够，别再往各规则里手调 margin）──
+ * --re-sec-gap   小节与上一块之间：叠加在 .re-root 的 gap 之上 → 视觉 = re-inner-gap + 这个（44px）
+ * --re-inner-gap 块与块的基础节奏（.re-root 直接子项、小节内部、JS 填充的卡片堆都用它）
+ * --re-head-gap  小节标题 → 本节内容
+ * 三者关系：h1 → 第一个小节标题 = 59px = .re-header padding-bottom 14 + border 1 + (16 + 28)。 */
+:root { --re-sec-gap: 28px; --re-inner-gap: 16px; --re-head-gap: 14px; }
+.re-root { max-width: min(1200px, calc(100vw - 64px)); margin: 0 auto; padding: 28px 32px 48px; display: flex; flex-direction: column; gap: var(--re-inner-gap); }
 .re-header { display: flex; justify-content: space-between; align-items: baseline; flex-wrap: wrap; gap: 8px; padding-bottom: 14px; border-bottom: 1px solid var(--border); }
 /* 页头标题：balance 防孤行（长专题名在窄屏不会落单字一行）；大字号收负字距更紧 */
 .re-header h1 { font-size: 24px; font-weight: 700; letter-spacing: -.01em; text-wrap: balance; }
@@ -45,7 +51,7 @@ html { scroll-padding-top: 52px; }
 /* 动态卡片容器(JS 填充区)通用间距:任何容器直接持有 2+ 张 .re-section 卡片时,
  * 纵向 16px 呼吸(geo-events / re-sections / stress-sec / vol-narrative / correlation…一网打尽)。
  * :has() Chrome 105+;专题页无 IE/旧 Safari 顾虑。 */
-.re-root :has(> .re-section + .re-section) { display: flex; flex-direction: column; gap: 16px; }
+.re-root :has(> .re-section + .re-section) { display: flex; flex-direction: column; gap: var(--re-inner-gap); }
 /* Linear 内高光:暗色卡片边缘受光(专题页卡片 = .re-section,与 SPA .chart-card 同待遇) */
 body.dark .re-section { box-shadow: inset 0 0 0 1px rgba(255,255,255,.04); }
 .re-section h2 { font-size: 14px; font-weight: 700; margin-bottom: 8px; color: var(--text); text-wrap: balance; }
@@ -81,11 +87,11 @@ body.embedded .re-foot { display: none; } /* 内嵌 iframe 不重复页脚 */
  * 未迁组件的页继续用裸 .re-h2(样式向后兼容,节奏变量共享)。 */
 /* JS 填充容器:小节内的动态卡片(.re-section/.pm-topic-card 等)统一纵向间距,
  * 治「appendChild 卡片贴卡片」通病(geo-events 等);首个不空位 */
-.re-sec { margin-top: 28px; display: flex; flex-direction: column; gap: 16px; }
-.re-sec:first-child { margin-top: 16px; }
-.re-sec > .re-sec-head { margin-bottom: -2px; } /* head 自身参与 gap,微调回收 */
-/* 小节标题:左侧 accent 短线做「节起点」视觉锚(Stripe/Grafana 面板标题模式) */
-.re-sec-head { display: flex; align-items: baseline; gap: 10px; margin-bottom: 14px; }
+.re-sec { margin-top: var(--re-sec-gap); display: flex; flex-direction: column; gap: var(--re-inner-gap); }
+/* head 自身也参与父级 gap，用负 margin 回收成 --re-head-gap（不是魔法数，两个变量相减） */
+.re-sec > .re-sec-head { margin-bottom: calc(var(--re-head-gap) - var(--re-inner-gap)); }
+/* 小节标题:左侧 accent 短线做「节起点」视觉锚（Stripe/Grafana 面板标题模式） */
+.re-sec-head { display: flex; align-items: baseline; gap: 10px; }
 .re-sec-title { font-size: 15px; font-weight: 700; color: var(--text); display: flex; align-items: center; gap: 8px; }
 .re-sec-title::before { content: ''; width: 3px; height: 14px; border-radius: 2px; background: var(--accent); flex: 0 0 auto; }
 .re-sec-sub { font-size: 12px; color: var(--text-dim); }
