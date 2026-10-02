@@ -57,8 +57,11 @@
 **按可动性排序**（谁能动，别再等错的人）：本轮 #20 / #23 / #24 / #26 / #27 全部收口，
 **open 只剩两条**（以 `gh issue list --state open` 为准）：
 
-- **#28**（`ready-for-agent`）—— 18 处逐页图表内联高度统一走 clamp。不是「一行 CSS」：
-  内联 `style` 优先级高于类，只能逐页换类 + 逐页看渲染（12 个文件）。
+- **#28**（`ready-for-agent`）—— 18 处逐页图表内联高度统一走 clamp。**正文已带完整决策表**
+  （18 处逐条 `file:line = 值` + 值→删内联后变成什么），本轮复核过。不是「一行 CSS」（内联
+  `style` 优先级高于类），但**比正文原先估计的小**：14/18 已挂类 → 动作是**删内联**不是换
+  markup；零成本精确命中 **9 处**（340×5 / 300×2 / 280×2），补一行 `.chart.chart-sm` 后 11 处，
+  真正要人定的只有一处（`assets/index` 的 520 主图）。
 - **#22**（`needs-triage`）—— 密度模式。我的建议是先不做：真实成本不在那 30 行 CSS，
   在「两套密度长期都要维护」；嫌挤可先把 `.re-cards` 的 `minmax(150px,1fr)` 调到 130px
   （一行，桌面自动多一列，拿 80% 收益）。
@@ -76,6 +79,14 @@
 - **`zone()` 现在只返回语义 label**（`src/analysis_utils.py`）。区间表第四列留给色表本身：
   `volatility_analysis.py` 的 `zones: [{label, color}]` 仍下发 hex，因为前端只拿它画
   `background`。新增分析模块要下发区间/状态，照这个口径：**给语义 key，不给色**。
+- **图表高度有两套档位家族，只有一套能用**（`frontend/public/css/special.css`，1440×900 实测量过）：
+  `.chart` = `clamp(220px,40vh,300px)`；**能用的是双类 `.chart.chart-lg`(280) / `.chart.chart-md`(340)**
+  （特异性 0-2-0 压过 `.chart`，已被 `equities.astro:92/154` 用过两次）；
+  **`.re-chart-sm/md/lg/xl`（:93）是死代码** —— 它在 `.chart`（:192）**之前**且同特异性，
+  所以 `class="chart re-chart-sm"` 实测 **300px 而非 260px**（静默失效，这就是四档零使用的真因，
+  不是忘了用）；要生效得写 `class="re-chart re-chart-sm"`（260 ✓），但 `.re-chart` 自带
+  `border + background` = 换卡片外壳。**新页面想要非 300 高度，加到 `.chart.chart-*` 那一族，
+  别碰 `re-chart-*`**；改完类必用 playwright 量实高（光看 markup 会以为生效了）。
 - **四条守卫各自的边界**（`tests/test_semantic_text_contrast.py`，别把它们当万能网）：
   分析模块不得有 `"*_color"` 键；前端 `color:` 槽不得插值 `*_color`；CSS `color:` 不得引用
   名字以 `-color` 结尾的自定义属性；DOM 内联 `style="…"` 不得出现 `reCssVar()` 的解析结果。
