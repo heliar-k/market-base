@@ -11,8 +11,10 @@ from src.volatility_dashboard import (
     INDICES,
     _hero,
     _indices_table,
+    _narr_cross,
     _narr_overview,
     _narr_risk,
+    _narr_source,
     _narr_term,
     _narr_trade,
     _risk_matrix,
@@ -284,18 +286,64 @@ class TestNarrative:
         assert _risk_score(rows, {"state": "backwardation"}) == 3  # 4 - 2 + 1
 
     def test_risk_text_has_score(self):
+        # 行形状对齐 _indices_table（四个变化口径恒在），本用例只验评分与行契约
         rows = [
-            {"symbol": "VIX", "value": 14.0, "chg1d": -1.0, "name": "n"},
-            {"symbol": "VIXD", "value": 9.0, "chg1d": -1.0, "name": "n"},
-            {"symbol": "VXST", "value": 10.0, "chg1d": -1.0, "name": "n"},
-            {"symbol": "VXN", "value": 20.0, "chg1d": -1.0, "name": "n"},
-            {"symbol": "MOVE", "value": 69.0, "chg1d": 0.5, "name": "n"},
-            {"symbol": "OVX", "value": 49.0, "chg1d": 0.3, "name": "n"},
-            {"symbol": "VVIX", "value": 87.0, "chg1d": -2.0, "name": "n"},
+            {"symbol": "VIX", "value": 14.0, "chg1d": -1.0, "chg1m": -2.0, "name": "n"},
+            {"symbol": "VIXD", "value": 9.0, "chg1d": -1.0, "chg1m": -2.0, "name": "n"},
+            {
+                "symbol": "VXST",
+                "value": 10.0,
+                "chg1d": -1.0,
+                "chg1m": -2.0,
+                "name": "n",
+            },
+            {"symbol": "VXN", "value": 20.0, "chg1d": -1.0, "chg1m": -2.0, "name": "n"},
+            {"symbol": "MOVE", "value": 69.0, "chg1d": 0.5, "chg1m": 8.0, "name": "n"},
+            {"symbol": "OVX", "value": 49.0, "chg1d": 0.3, "chg1m": 6.0, "name": "n"},
+            {"symbol": "VVIX", "value": 87.0, "chg1d": -2.0, "chg1m": 1.0, "name": "n"},
         ]
         text, score = _narr_risk(rows, {"state": "contango"})
         assert score == 5
         assert "综合评分 5/10" in text
+        # 行契约：结论 / 依据 / 触发 三行，且依据行不复述 hero 卡水平值
+        lines = text.split("\n")
+        assert len(lines) == 3
+        assert "MOVE 月涨 8.0%" in lines[1] and "MOVE 69.0" not in text
+        assert "VIX 14.00" not in lines[1]
+
+    def test_missing_data_degrades_to_single_line_with_fix_command(self):
+        """数据缺失：单行降级文案 + 修复命令（README 式空状态），不伪造数值。"""
+        syms = (
+            "VIX VIXD VXST VXN VXD MOVE OVX GVZ VVIX VEWZ VEEM VXHY VTLT"
+            " VXIB VXAZ VXGO VXAP"
+        ).split()
+        empty = [
+            {
+                "symbol": s,
+                "name": s,
+                "value": None,
+                "chg1d": None,
+                "chg5d": None,
+                "chg1m": None,
+                "chg1y": None,
+            }
+            for s in syms
+        ]
+        # 无数据时拿不到斜率，state 恒为「—」（不能既缺读数又报 contango）
+        st = _stats(empty)
+        term = {"state": "—", "values": [None] * 5}
+        out = {
+            "overview": _narr_overview(empty, st),
+            "source": _narr_source(empty),
+            "term": _narr_term(pd.DataFrame(), term),
+            "cross": _narr_cross(empty),
+            "risk": _narr_risk(empty, term)[0],
+            "trade": _narr_trade(empty, term, None),
+        }
+        for k, text in out.items():
+            assert len(text.split("\n")) == 1, f"{k} 降级文案不是单行"
+            assert "./bin/fetch_" in text, f"{k} 降级文案缺修复命令"
+            assert "None" not in text, f"{k} 泄出了空值"
 
     def test_term_narrative_contango(self):
         df = _cboe_frame()

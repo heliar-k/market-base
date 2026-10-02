@@ -12,6 +12,7 @@ import src.labor_analysis as labor
 import src.liquidity_analysis as liquidity
 import src.rates_analysis as rates
 import src.treasury_analysis as treasury
+import src.volatility_dashboard as vdash
 
 # 前缀已交给渲染层标签，文案里出现即为回归
 BANNED = ("验证指标：", "验证指标——", "触发条件：", "关键触发点：")
@@ -35,6 +36,11 @@ def _bodies() -> list[tuple[str, str]]:
             out.append((f"{mod}/{s['title']}", s["text"]))
     an = assets.overview().get("analysis") or {}
     out += [(f"assets/{k}", v["text"]) for k, v in an.items() if isinstance(v, dict)]
+    # 波动率页七段叙事（第 7 段 parts 另走 .vol-basic-grid，这里取每段 text）
+    out += [
+        (f"volatility/{s['title']}", s["text"])
+        for s in vdash.generate_dashboard().get("narrative") or []
+    ]
     return out
 
 
