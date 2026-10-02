@@ -178,7 +178,6 @@ def _narrative(liq: pd.DataFrame, rates: pd.DataFrame) -> dict:
     )
     rrp = liq["RRPONTSYD"].dropna() if "RRPONTSYD" in liq else pd.Series(dtype=float)
     tga = liq["WTREGEN"].dropna() if "WTREGEN" in liq else pd.Series(dtype=float)
-    walcl = liq["WALCL"].dropna() if "WALCL" in liq else pd.Series(dtype=float)
     res = liq["WRESBAL"].dropna() if "WRESBAL" in liq else pd.Series(dtype=float)
     nfci = liq["NFCI"].dropna() if "NFCI" in liq else pd.Series(dtype=float)
     srf = _csv(ROOT / "data" / "fred/liquidity/srf.csv")
@@ -188,33 +187,44 @@ def _narrative(liq: pd.DataFrame, rates: pd.DataFrame) -> dict:
     def _txt(v: float) -> str:
         return f"{v / 1e6:,.1f}"
 
-    # 净流动性：方向判断 + 验证指标
+    # 净流动性：结论（方向）/ 依据（TGA·RRP 节奏）/ 触发（阈值由现值推导）
     nl_latest = _last(nl)
     nl_1m = _chg(nl, 30) if not nl.empty else None
     tga_latest = _last(tga)
     rrp_latest = _last(rrp)
     tga_1m = _chg(tga, 30) if not tga.empty else None
+    nl_dir = "方向未知" if nl_1m is None else ("在扩张" if nl_1m >= 0 else "在收缩")
+    # 不复述上方 WALCL / RRP / TGA / 净流动性四张卡的水平值（研判只给卡上没有的
+    # 1 月变化与判断）；旧文案把四张卡逐字重念一遍，且阈值写死 1.0 / 5.3 万亿
+    # （现值已 0.95 / 5.78，等于「明天就触发」），改为相对现值推。
+    nl_date = f"{nl.index[-1].date()}" if not nl.empty else None
+    drain = tga_1m is not None and tga_1m > 2e4  # TGA 1 月升 > 200 十亿 = 财政在抽水
     if nl_1m is None:
-        nl_dir = "方向未知"
-    elif nl_1m >= 0:
-        nl_dir = "在扩张"
+        nl_text = (
+            f"截至 {nl_date}，净流动性数据不足。" if nl_date else "净流动性数据不足。"
+        )
     else:
-        nl_dir = "在收缩"
-    nl_text = (
-        f"截至{nl.index[-1].date()}，联储总资产{_txt(_last(walcl))}万亿，"
-        f"TGA为{_txt(tga_latest)}万亿，RRP 为{rrp_latest:.1f}十亿，"
-        f"净流动性为{_txt(nl_latest)}万亿。"
-        f"TGA 1个月{'上升' if tga_1m is not None and tga_1m > 2e4 else '回落/平稳'}"
-        f"{'（财政存款在抽水）' if tga_1m is not None and tga_1m > 2e4 else ''}，"
-        f"RRP 缓冲{'接近耗尽' if (rrp_latest or 0) < 25 else '仍有余量'}，"
-        f"净流动性1个月变化{nl_1m / 1000:+.0f}十亿，{nl_dir}。"
-        if nl_1m is not None
-        else f"截至{nl.index[-1].date()}，净流动性数据不足。"
-    )
-    nl_verify = (
-        "验证指标：TGA 若升至 1.0 万亿以上或净流动性跌破 5.3 万亿，"
-        "则财政抽水加速；RRP 持续低于 250 十亿则市场冗余现金基本归零。"
-    )
+        nl_basis = [f"截至 {nl_date}"]
+        if tga_1m is not None:
+            nl_basis.append(
+                f"TGA 1 个月{'上升' if drain else '回落/平稳'}"
+                + ("（财政存款在抽水）" if drain else "")
+            )
+        if rrp_latest is not None:
+            nl_basis.append(f"RRP 缓冲{'接近耗尽' if rrp_latest < 25 else '仍有余量'}")
+        trig = []
+        if tga_latest is not None:
+            trig.append(f"TGA 较现值再升 0.1 万亿（→ {_txt(tga_latest + 1e5)} 万亿）")
+        if nl_latest is not None:
+            trig.append(f"净流动性回吐 0.5 万亿（→ {_txt(nl_latest - 5e5)} 万亿）")
+        nl_verify = ("、".join(trig) + "，则财政抽水加速。") if trig else ""
+        nl_text = (
+            f"净流动性{nl_dir}（1 个月 {nl_1m / 1000:+.0f} 十亿），"
+            + ("财政端正在抽水。" if drain else "财政端未重新抽水。")
+            + "\n"
+            + " · ".join(nl_basis)
+            + (f"\n{nl_verify}" if nl_verify else "")
+        )
 
     # 展望：能源 + VIX + TGA 抽水节奏
     wti = (
@@ -242,12 +252,7 @@ def _narrative(liq: pd.DataFrame, rates: pd.DataFrame) -> dict:
     )
     wti_latest, wti_5d = _last(wti), _pct_chg(wti, 5)
     vix_latest = _last(vix_s)
-    outlook = []
-    if wti_latest is not None:
-        geo = "油价已含地缘风险溢价" if wti_latest > 80 else "油价处于低位"
-        wti_sign = "+" if (wti_5d or 0) >= 0 else "-"
-        wti_txt = f"{wti_sign}{abs(wti_5d or 0):.1f}%"
-        outlook.append(f"WTI 最新收于 {wti_latest:.2f}（5日 {wti_txt}），{geo}。")
+    risk = "风险偏好数据不足"
     if vix_latest is not None:
         risk = (
             "风险偏好正常"
@@ -256,58 +261,82 @@ def _narrative(liq: pd.DataFrame, rates: pd.DataFrame) -> dict:
             if vix_latest < 25
             else "风险偏好显著恶化"
         )
-        outlook.append(f"VIX {vix_latest:.2f}，{risk}。")
+    outlook = []
+    if wti_latest is not None:
+        geo = "油价已含地缘风险溢价" if wti_latest > 80 else "油价处于低位"
+        wti_sign = "+" if (wti_5d or 0) >= 0 else "-"
+        wti_txt = f"{wti_sign}{abs(wti_5d or 0):.1f}%"
+        outlook.append(f"WTI 收于 {wti_latest:.2f}（5 日 {wti_txt}），{geo}")
+    if vix_latest is not None:
+        outlook.append(f"VIX {vix_latest:.2f}")
     if tga_1m is not None and tga_1m > 0:
-        outlook.append(f"TGA 高位（{_txt(tga_latest)} 万亿），国债发行持续抽水。")
-    outlook_text = " ".join(outlook) if outlook else "数据不足，展望待更新。"
-    vix_verify = (
-        f"验证指标：WTI 站上 90 或 VIX 升破 20 则风险偏好正式逆转；"
-        f"RRP 或 1M 国债收益率（当前 {_last(dgs1mo_s):.2f}%）"
-        f"与 IORB（{_last(iorb_s):.2f}%）利差走扩则融资压力开始显现。"
+        outlook.append(f"TGA 高位（{_txt(tga_latest)} 万亿），国债发行持续抽水")
+    # 1M 国债 vs IORB 利差（旧文案拿 RRP 与 IORB 比利率，RRP 是量不是价）
+    d1mo, iorb_latest = _last(dgs1mo_s), _last(iorb_s)
+    funding_gap = None if d1mo is None or iorb_latest is None else d1mo - iorb_latest
+    vix_verify = "风险事件看 WTI 站上 90 或 VIX 升破 20，则风险偏好正式逆转。"
+    if funding_gap is not None:
+        vix_verify += (
+            f"1M 国债与 IORB 利差（现 {funding_gap * 100:+.0f}bp）"
+            "走扩则融资压力开始显现。"
+        )
+    outlook_text = (
+        f"{risk}。\n" + " · ".join(outlook) + f"。\n{vix_verify}"
+        if outlook
+        else "数据不足，展望待更新。"
     )
 
-    # 准备金：水平 + 4周变化 + 触发条件
+    # 准备金：结论（充裕/偏紧）/ 依据（水平 + 4 周变化 + 各子项）/ 触发
     res_latest, res_4w = _last(res), _pct_chg(res, 28)
     sofr_iorb = _bp("SOFR", "IORB", rates)
     nfci_latest = _last(nfci)
     srf_latest = _last(srf_usage)
+    if sofr_iorb is not None:
+        res_head = "融资面充裕" if sofr_iorb < 0 else "融资面偏紧"
+    elif nfci_latest is not None:
+        res_head = "金融条件宽松" if nfci_latest < 0 else "金融条件收紧"
+    else:
+        res_head = "准备金数据不足"
     msg = []
     if res_latest is not None:
-        msg.append(f"准备金 {res_latest / 1e6:.2f} 万亿，4周变化 {res_4w:+.1f}%。")
+        msg.append(f"准备金 {res_latest / 1e6:.2f} 万亿（4 周 {res_4w:+.1f}%）")
     if rrp_latest is not None:
-        msg.append(
-            f"RRP 仅 {rrp_latest:.1f} 十亿（市场冗余现金基本耗尽）"
-            if rrp_latest < 25
-            else f"RRP {rrp_latest:.0f} 十亿。"
-        )
+        # 水平值不重复（RRP 卡片就在上方），只留判断
+        msg.append("RRP 缓冲耗尽" if rrp_latest < 25 else "RRP 仍有余量")
     if nfci_latest is not None:
         msg.append(
-            f"NFCI {nfci_latest:.2f}"
-            + ("（宽松）" if nfci_latest < 0 else "（收紧）")
-            + "。"
+            f"NFCI {nfci_latest:.2f}" + ("（宽松）" if nfci_latest < 0 else "（收紧）")
         )
     if sofr_iorb is not None:
         msg.append(
             f"SOFR−IORB {sofr_iorb:+.1f}bp"
             + ("（充裕）" if sofr_iorb < 0 else "（偏紧）")
-            + "。"
         )
     if srf_latest is not None:
         msg.append(
-            f"SRF 使用 {srf_latest * 1000:.0f} 百万。"
-            if srf_latest > 0
-            else "SRF 未使用。"
+            f"SRF 使用 {srf_latest * 1000:.0f} 百万" if srf_latest > 0 else "SRF 未使用"
         )
-    res_text = " ".join(msg) if msg else "准备金数据不足。"
-    res_verify = (
-        f"触发条件：NFCI 若由 {nfci_latest:.3f} 升穿 0，或 RRP 连续三个交易日贴零"
-        f"且 1M 国债收益率升破 IORB+20bp，则确认准备金进入稀缺状态。"
+    # 精度与依据行一致（旧文案同一数字两处不同精度：-0.55 vs -0.548）
+    res_verify = ""
+    if nfci_latest is not None:
+        res_verify = (
+            f"NFCI 由 {nfci_latest:.2f} 升穿 0（距阈值 {abs(nfci_latest):.2f}），"
+        )
+    if d1mo is not None and iorb_latest is not None:
+        res_verify += (
+            f"或 1M 国债升破 IORB+20bp（现 {d1mo:.2f}% vs {iorb_latest:.2f}%），"
+        )
+    res_verify += "则确认准备金进入稀缺状态。" if res_verify else ""
+    res_text = (
+        f"{res_head}。\n" + " · ".join(msg) + f"。\n{res_verify}"
+        if msg
+        else "准备金数据不足。"
     )
 
     return {
-        "net_liquidity": {"title": "净流动性", "text": nl_text + nl_verify},
-        "outlook": {"title": "展望", "text": outlook_text + " " + vix_verify},
-        "reserves": {"title": "准备金", "text": res_text + " " + res_verify},
+        "net_liquidity": {"title": "净流动性", "text": nl_text},
+        "outlook": {"title": "展望", "text": outlook_text},
+        "reserves": {"title": "准备金", "text": res_text},
         "generator": "rules",
     }
 

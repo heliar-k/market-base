@@ -181,13 +181,9 @@ async function load() {
   asec.className = 're-section';
   asec.innerHTML = '<h2>交叉分析</h2>';
   const labels = { cross_asset: '跨资产相关性', dollar_commodities: '美元与商品', outlook: '展望', risk_appetite: '风险偏好' };
-  Object.entries(d.analysis || {}).forEach(([k, v]) => {
-    if (!v || !v.text) return;
-    const b = document.createElement('div');
-    b.className = 'sig-block';
-    b.innerHTML = `<div class="sig-title">${v.title || labels[k] || k}</div><p>${v.text}</p>`;
-    asec.appendChild(b);
-  });
+  asec.innerHTML = '<h2>交叉分析</h2>' + Object.entries(d.analysis || {})
+    .filter(([k, v]) => v && v.text)
+    .map(([k, v]) => R.sigBlocks(v.title || labels[k] || k, v.text)).join('');
   document.getElementById('cross-analysis').appendChild(asec);
 
   document.getElementById('re-gen').textContent = '规则引擎（LLM 预留）· 数据源：yfinance / FRED / Nasdaq Trader';

@@ -39,16 +39,11 @@ async function load() {
     { label: 'JOLTS 职位空缺', value: c.jolts.value == null ? '—' : c.jolts.value + 'M', sub: (c.jolts.as_of || '') + (c.jolts.vu !== null ? ` · V/U ${c.jolts.vu}` : '') },
   ]));
 
-  // ── 研判（三段式） ──
+  // ── 研判（三段式，每段可含 \n 分行：判断 / 读数，末行走 .note）──
   const sec = document.createElement('div');
   sec.className = 're-section';
-  sec.innerHTML = '<h2>就业研判</h2>';
-  (d.signals || []).forEach(s => {
-    const b = document.createElement('div');
-    b.className = 'sig-block';
-    b.innerHTML = `<div class="sig-title">${s.title}</div><p>${s.text}</p>`;
-    sec.appendChild(b);
-  });
+  sec.innerHTML = '<h2>就业研判</h2>'
+    + (d.signals || []).map(s => R.sigBlocks(s.title, s.text)).join('');
   sec.innerHTML += '<div class="note">rule-based · no direct price forecast</div>';
   document.getElementById('re-signals').appendChild(sec);
 

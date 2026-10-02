@@ -103,15 +103,17 @@ def _latest_date(df: pd.DataFrame) -> str | None:
 
 
 def _oas_card(s: pd.Series) -> dict:
-    """单条利差序列卡片：当前值 + 1Y/3Y/10Y 分位。"""
+    """单条利差序列卡片：当前值 + 1Y/3Y/10Y 分位 + 1 月变化（bp）。"""
     s = s.dropna()
     v = _latest(s)
     if v is None:
         return {}
     p10 = {}
+    prev = s[s.index <= s.index[-1] - pd.Timedelta(days=30)]
     return {
         "value": round(v * 100, 1),  # bp
         "as_of": s.index[-1].strftime("%Y-%m-%d"),
+        "chg_1m": None if prev.empty else round((v - float(prev.iloc[-1])) * 100, 1),
         "pct_1y": _pct(s, W1Y),
         "pct_3y": _pct(s, W3Y),
         "pct_10y": _pct(s, W10Y, p10),
@@ -407,11 +409,14 @@ def _overview_signals(
     changed: list[str] = []
     hy_yield = funding["hy"]["value"] / 100 if funding.get("hy") else None
     if hy:
-        txt = f"HY OAS 最新为 {hy['value']:.1f}bp"
-        if hy_p is not None:
-            level = "低位" if hy_p < 30 else ("中位" if hy_p < 70 else "高位")
-            txt += f"，可用历史 {hy_p:.0f}% 分位（{level}）"
-        changed.append(txt)
+        # 水平值与分位不复述（上方 .oas-card 已给 HY OAS 值 + 1Y/3Y/10Y 分位），
+        # 「发生了什么变化」只说变化
+        chg = hy.get("chg_1m")
+        changed.append(
+            f"HY OAS 近 1 个月{'走扩' if chg >= 0 else '收窄'} {abs(chg):.0f}bp"
+            if chg is not None
+            else "HY OAS 无近 1 个月变化数据"
+        )
     if hy_yield is not None:
         changed.append(f"HY 有效收益率 {hy_yield:.2f}%")
     if std:

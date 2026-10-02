@@ -280,13 +280,15 @@ class TestRegimeScore:
 
 class TestOverviewSignals:
     def test_three_part_framework(self):
-        hy = {"value": 284.0, "pct_10y": 27.0}
+        hy = {"value": 284.0, "pct_10y": 27.0, "chg_1m": 12.0}
         funding = {"hy": {"value": 716.0}}
         sloos = [{"name": "C&I 贷款标准", "value": -5.7}]
         fincond = {"nfci": {"value": -0.55}}
         s = _overview_signals(hy, funding, sloos, fincond)
         assert s["framework"].startswith("What changed")
-        assert "284.0bp" in s["what_changed"]
+        assert "走扩 12bp" in s["what_changed"]
+        # 回归：HY OAS 水平值与分位归上方 .oas-card，「发生了什么变化」只说变化
+        assert "284.0bp" not in s["what_changed"] and "分位" not in s["what_changed"]
         assert "7.16%" in s["why_it_matters"]
         assert "SLOOS 是否转正确认银行收紧" in s["what_to_watch"]
         assert "NFCI 是否从 -0.55 附近上行" in s["what_to_watch"]

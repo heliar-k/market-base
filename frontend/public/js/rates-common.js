@@ -17,6 +17,29 @@ const R = {
   // 生成器类型 → 界面文案（避免内部枚举 rules/llm 泄漏到页面，见审计 D2）
   genText: (g) => (g === 'llm' ? 'LLM' : '规则引擎（LLM 预留）'),
 
+  // ── 研判文案 → .sig-block（全站研判段共用渲染：rates 四段 + 三段式页）──
+  // 引擎侧契约：body 用 \n 分行（结论 / 依据 / 触发）。
+  //   labels 给了→按行取标签（rates：结论/依据/触发，卡面自带 h2 标题）；
+  //   没给→整段用 title 一个标题（现状/结构/展望 一类语义标题）。
+  // 弱化规则：条件句才走 .note。labels 模式末行固定是「触发」→ 弱化；
+  // 无标签模式两行 = 判断 + 读数（读数是事实，不能比判断还弱）→ 只有 ≥3 行
+  // （判断/依据/触发）才弱化末行。单行 = 降级文案（不挂标签）。
+  // 文本一律 R.esc 转义（页面不造平行 helper）。
+  sigBlocks: (title, body, labels = null) => {
+    const lines = String(body ?? '').split('\n').filter(s => s.trim());
+    if (!lines.length) return '';
+    const dimTail = labels ? lines.length > 1 : lines.length >= 3;
+    const note = (j) => (dimTail && j === lines.length - 1 ? ' class="note"' : '');
+    if (labels) {
+      if (lines.length === 1) return `<div class="sig-block"><p>${R.esc(lines[0])}</p></div>`;
+      return lines.map((t, j) =>
+        `<div class="sig-block"><div class="sig-title">${R.esc(labels[j] || labels[labels.length - 1])}</div>`
+        + `<p${note(j)}>${R.esc(t)}</p></div>`).join('');
+    }
+    return `<div class="sig-block"><div class="sig-title">${R.esc(title)}</div>`
+      + lines.map((t, j) => `<p${note(j)}>${R.esc(t)}</p>`).join('') + '</div>';
+  },
+
   // ── 时效标签（re-as-of）文案唯一组装处 ──
   // AGENTS 规范：前缀固定「数据截至」，多源用 ` · ` 分段，日期一律 ISO，月频区间写「月频 起–止」。
   //   R.asOf(date)                        → 「数据截至 2026-09-04」

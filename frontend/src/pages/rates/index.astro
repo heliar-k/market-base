@@ -77,21 +77,15 @@ async function load() {
   // ── 曲线四线快照（tenors 自带 1周/1月/3月前，零新请求）──
   R.curveCompare('yc_compare', d.tenors);
 
-  // ── 四段研判：body 用 \n 分「结论 / 依据 / 触发」三行（文案单源在 rates_analysis）
-  // 单行 = 降级文案（数据缺失），不挂标签；末行（条件句）走 .note 比事实弱一档 ──
+  // ── 四段研判：三行契约（结论 / 依据 / 触发）统一走 R.sigBlocks ──
   const root = document.getElementById('re-sections');
   root.innerHTML = '';
-  const esc = R.esc;
   const LINE_TITLES = ['结论', '依据', '触发'];
   data.overview.sections.forEach((sec, i) => {
-    const lines = String(sec.body).split('\n').filter(s => s.trim());
     const div = document.createElement('div');
     div.className = 're-section';
     div.id = `re-sec-${i}`;
-    div.innerHTML = `<h2>${esc(sec.title)}</h2>` + (lines.length > 1
-      ? lines.map((t, j) => `<div class="sig-block"><div class="sig-title">${LINE_TITLES[j] || '触发'}</div>`
-        + `<p${j === lines.length - 1 ? ' class="note"' : ''}>${esc(t)}</p></div>`).join('')
-      : `<p>${esc(lines[0] || '')}</p>`);
+    div.innerHTML = `<h2>${R.esc(sec.title)}</h2>${R.sigBlocks(sec.title, sec.body, LINE_TITLES)}`;
     root.appendChild(div);
   });
 

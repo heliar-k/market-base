@@ -367,10 +367,13 @@ def cross_analysis() -> dict:
     if wti_chg is not None:
         parts.append(f"WTI {wti_chg:+.2f}%")
     if dxy_chg is not None and dxy_chg < -0.5 and gold_chg is not None and gold_chg > 1:
-        parts.append("美元走弱对商品构成计价支撑")
+        verdict = "美元走弱对商品构成计价支撑。"
+    else:
+        verdict = ""
     out["dollar_commodities"] = {
         "title": "美元与商品",
-        "text": "；".join(parts) + "。" if parts else "数据不足。",
+        "text": (verdict + "\n" if verdict else "")
+        + (" · ".join(parts) + "。" if parts else "数据不足。"),
     }
 
     # 3. 展望（流动性分层 → TGA/RRP 主收紧点）
@@ -391,11 +394,15 @@ def cross_analysis() -> dict:
             parts.append(f"TGA 达 {tga_t:.2f}万亿，是主要收紧点")
         if rrp_b < 100:
             parts.append(f"RRP 仅 {rrp_b * 10:,.0f}亿，缓冲耗尽")
-    if spx_tlt is not None and spx_tlt > 0.3:
-        parts.append("股债相关性为正，若 10Y 快速上行警惕股债双杀")
+    outlook_verdict = (
+        "股债相关性为正，若 10Y 快速上行警惕股债双杀。"
+        if spx_tlt is not None and spx_tlt > 0.3
+        else ""
+    )
     out["outlook"] = {
         "title": "展望",
-        "text": "；".join(parts) + "。" if parts else "数据不足。",
+        "text": (outlook_verdict + "\n" if outlook_verdict else "")
+        + (" · ".join(parts) + "。" if parts else "数据不足。"),
     }
 
     # 4. 风险偏好（SPX/黄金 + VIX + 信用利差 + BTC）
@@ -427,11 +434,15 @@ def cross_analysis() -> dict:
     btc_chg = _chg(p["BTC"], 7) if "BTC" in p.columns else None
     if btc_chg is not None:
         parts.append(f"BTC 近 7 日 {btc_chg:+.2f}%")
-    if spx_gold is not None and spx_gold < 2:
-        parts.append("SPX/黄金低比值，资金偏向实物对冲")
+    risk_verdict = (
+        "SPX/黄金低比值，资金偏向实物对冲。"
+        if spx_gold is not None and spx_gold < 2
+        else ""
+    )
     out["risk_appetite"] = {
         "title": "风险偏好",
-        "text": "；".join(parts) + "。" if parts else "数据不足。",
+        "text": (risk_verdict + "\n" if risk_verdict else "")
+        + (" · ".join(parts) + "。" if parts else "数据不足。"),
     }
     return out
 
@@ -897,8 +908,8 @@ def equity_analysis(b: dict) -> dict:
             parts.append("广度健康、风格均衡，指数回调更接近健康轮动而非趋势破位")
         else:
             parts.append("广度或风格存在背离，需警惕回调扩大")
-    parts.append("验证指标：ABV200 是否站稳 60%、VIX 是否升破 17")
-    out["outlook"] = {"title": "展望", "text": "；".join(parts) + "。"}
+    parts.append("ABV200 是否站稳 60%、VIX 是否升破 17")
+    out["outlook"] = {"title": "展望", "text": "\n".join(parts)}
     return out
 
 

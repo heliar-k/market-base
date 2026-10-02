@@ -208,6 +208,9 @@ a.re-badge:hover { color: var(--accent-ink); border-color: var(--accent-ink); }
 .sig-block:last-child { margin-bottom: 0; }
 .sig-block .sig-title { font-size: 11px; font-weight: 600; letter-spacing: .06em; color: var(--accent-ink); margin-bottom: 6px; }
 .sig-block p { margin: 0; }
+/* 同一段里的多行（结论 / 触发）：R.sigBlocks 会往一个 sig-block 里放多个 <p>，
+   上一条的 margin:0 会把它们贴成一堆，这里给行间距（.note 的 margin-top 被同权重覆盖） */
+.sig-block p + p { margin-top: 6px; }
 .link-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 .link-card { border: 1px solid var(--border); border-radius: 8px; background: var(--surface); padding: 16px 20px; text-decoration: none; display: flex; gap: 12px; align-items: flex-start; }
 .link-card:hover { border-color: var(--accent-ink); background: var(--surface-hover); }

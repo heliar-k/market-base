@@ -94,83 +94,82 @@ def official_share_series(tic: pd.DataFrame, mspd: pd.DataFrame) -> pd.Series:
 
 
 def signal_foreign(cards: dict, net_12m: float | None) -> str:
-    """信号一：海外需求（持仓趋势 + 净买入 + 官方占比）。"""
+    """信号一：海外需求（结论 = 结构性需求判断 / 依据 = 持仓 + 净买入 + 官方占比）。"""
     h, share, net = cards["hold_total"], cards["official_share"], cards["net_total"]
-    text = f"海外持仓总额 {h['value']:.2f} 万亿美元"
+    flow = f"海外持仓总额 {h['value']:.2f} 万亿美元"
     if h.get("chg_1y_b") is not None:
         d = h["chg_1y_b"] * 10  # $B → 亿
-        text += f"，近一年{'增持' if d >= 0 else '减持'} {abs(d):,.0f}亿"
-    text += (
+        flow += f"，近一年{'增持' if d >= 0 else '减持'} {abs(d):,.0f}亿"
+    flow += (
         f"；当月净{'买入' if net['value'] >= 0 else '卖出'} "
         f"{abs(net['value']) * 10:,.0f}亿"
     )
     if net_12m is not None:
-        text += (
+        flow += (
             f"，近 12 个月累计净{'买入' if net_12m >= 0 else '卖出'} "
             f"{abs(net_12m) * 10:,.0f}亿"
         )
-    text += "。"
+    basis = [flow]
+    verdict = "海外持仓数据不足。"
     if share.get("value") is not None:
-        text += f"海外官方持仓占总未偿债务 {share['value']}%"
-        if share["value"] < OFFICIAL_SHARE_WARN:
-            text += (
-                f"，低于 {OFFICIAL_SHARE_WARN:.0f}% 警戒线——"
-                "官方部门的结构性需求在退坡，"
-                "长端利率对私人部门（价格敏感型）接盘的依赖上升，期限溢价易上难下。"
-            )
-        else:
-            text += "，官方需求尚在安全区。"
-    return text
+        basis.append(f"海外官方持仓占总未偿债务 {share['value']}%")
+        verdict = (
+            f"官方占比低于 {OFFICIAL_SHARE_WARN:.0f}% 警戒线，官方结构性需求在退坡"
+            "——长端利率对私人部门（价格敏感型）接盘的依赖上升，"
+            "期限溢价易上难下。"
+            if share["value"] < OFFICIAL_SHARE_WARN
+            else "官方需求尚在安全区，海外端暂未构成边际压力。"
+        )
+    return f"{verdict}\n" + " · ".join(basis) + "。"
 
 
 def signal_countries(holdings: list[dict]) -> str:
-    """信号二：国别结构（日本/中国/海湾）。"""
+    """信号二：国别结构（结论 = 减持/企稳判断 / 依据 = 日本中国持仓数字）。"""
     d = {r["key"]: r for r in holdings}
     jp, cn = d.get("TIC_HOLD_JAPAN", {}), d.get("TIC_HOLD_CHINA", {})
 
     def _t_or_dash(b):
         return "—" if b is None else f"{b / 1000:.2f} 万亿"
 
-    text = (
+    basis = (
         f"日本仍是最大海外持有国（{_t_or_dash(jp.get('value_b'))}美元），"
         f"中国 {_t_or_dash(cn.get('value_b'))}美元"
     )
     if cn.get("chg_1y_b") is not None:
-        text += (
+        basis += (
             f"（近一年{'增持' if cn['chg_1y_b'] >= 0 else '减持'} "
             f"{abs(cn['chg_1y_b']) * 10:,.0f}亿）"
         )
-    text += "。"
     if isinstance(cn.get("chg_1y_b"), (int, float)) and cn["chg_1y_b"] < 0:
-        text += (
+        verdict = (
             "中国持仓延续下降趋势，储备多元化（黄金/非美资产）方向未变；"
             "海湾国家（沙特/阿联酋）持仓随油价财政盈余同变动，作为边际买家稳定性较弱。"
         )
     else:
-        text += "中国持仓企稳，国别层面暂无系统性减持信号。"
-    return text
+        verdict = "中国持仓企稳，国别层面暂无系统性减持信号。"
+    return f"{verdict}\n{basis}。"
 
 
 def signal_issuance(cards: dict, refunding: dict) -> str:
-    """信号三：发行结构（Bill 占比 + 再融资指引）。"""
+    """信号三：发行结构（结论 = 短债占比影响 / 依据 = Bill 占比 + 再融资指引）。"""
     bs = cards["bill_share"]
-    text = f"Bill 占可流通债务 {bs['value']}%"
+    basis = f"Bill 占可流通债务 {bs['value']}%"
     if bs.get("chg_1y") is not None:
-        text += f"（较一年前 {bs['chg_1y']:+.1f}pp）"
-    text += "。"
+        basis += f"（较一年前 {bs['chg_1y']:+.1f}pp）"
+    if refunding.get("quarter"):
+        basis += (
+            f" · 最新季度再融资声明（{refunding['quarter']}）维持附息债拍卖规模不变"
+        )
     if bs["value"] > 22:
-        text += (
-            "短债占比偏高，财政部以 Bill 吸收融资需求、压长端供给——"
-            "对长端利率是短期缓冲，但展期风险向未来集中；"
+        verdict = (
+            "短债占比偏高，财政部以 Bill 吸收融资需求、压长端供给"
+            "——对长端利率是短期缓冲，但展期风险向未来集中。"
         )
     else:
-        text += "短债占比处于历史常态区间（~15-20%），发行结构未见明显扭曲；"
+        verdict = "短债占比处于历史常态区间（~15-20%），发行结构未见明显扭曲。"
     if refunding.get("quarter"):
-        text += (
-            f"最新季度再融资声明（{refunding['quarter']}）维持附息债拍卖规模不变的指引，"
-            "长端暂无增量供给压力。"
-        )
-    return text
+        verdict += "按最新声明指引，长端暂无增量供给压力。"
+    return f"{verdict}\n{basis}。"
 
 
 def holdings_table(tic: pd.DataFrame) -> list[dict]:

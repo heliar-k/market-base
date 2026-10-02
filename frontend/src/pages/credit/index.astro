@@ -108,22 +108,15 @@ async function load() {
   row.innerHTML = card('IG OAS（投资级）', d.ig, 'bp') + card('HY OAS（高收益）', d.hy, 'bp') + card('HY − IG', d.hy_ig, 'bp');
   document.getElementById('oas-row').appendChild(row);
 
-  // ── 研判（三段式） ──
+  // ── 研判（三段式：发生了什么变化 / 为什么重要 / 接下来关注什么）──
   const sec = document.createElement('div');
   sec.className = 're-section';
-  sec.innerHTML = '<h2>信用周期研判</h2>';
   const s = d.signals || { framework: '—', what_changed: '—', why_it_matters: '—', what_to_watch: '—' };
-  const blocks = [
+  sec.innerHTML = '<h2>信用周期研判</h2>' + [
     ['发生了什么变化', s.what_changed],
     ['为什么重要', s.why_it_matters],
     ['接下来关注什么', s.what_to_watch],
-  ];
-  blocks.forEach(([title, text]) => {
-    const b = document.createElement('div');
-    b.className = 'sig-block';
-    b.innerHTML = `<div class="sig-title">${title}</div><p>${text}</p>`;
-    sec.appendChild(b);
-  });
+  ].map(([title, text]) => R.sigBlocks(title, text)).join('');
   sec.innerHTML += `<div class="note">框架：${s.framework} · rule-based · no direct price forecast</div>`;
   document.getElementById('re-signals').appendChild(sec);
 

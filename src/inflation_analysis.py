@@ -96,83 +96,86 @@ def _dir_label(chg: float | None) -> str:
 
 
 def signal_level(cards: dict) -> str:
-    """信号一：现状（三口径 YoY 水平 + 方向 + 距 2% 目标缺口）。"""
+    """信号一：现状（结论 = 距 2% 目标的判断 / 依据 = 三口径 YoY）。"""
     cpi, core_cpi, core_pce = cards["cpi"], cards["core_cpi"], cards["core_pce"]
-    text = (
+    basis = (
         f"CPI 同比 {cpi['value']}%（较上月{_dir_label(cpi['chg_1m'])}），"
         f"核心 CPI {core_cpi['value']}%，核心 PCE {core_pce['value']}%"
-        f"（{core_pce['as_of']}）。"
+        f"（{core_pce['as_of']}）"
     )
     gap = round(core_pce["value"] - 2.0, 2)
     if gap > 0.5:
-        text += (
+        verdict = (
             f"核心 PCE 高出美联储 2% 目标 {gap}pp，去通胀尚未完成，"
             "政策利率不具备快速宽松空间。"
         )
     elif gap > 0:
-        text += f"核心 PCE 仅高出 2% 目标 {gap}pp，去通胀进入最后一段。"
+        verdict = f"核心 PCE 仅高出 2% 目标 {gap}pp，去通胀进入最后一段。"
     else:
-        text += "核心 PCE 已回到 2% 目标下方，通胀约束基本解除。"
+        verdict = "核心 PCE 已回到 2% 目标下方，通胀约束基本解除。"
     if cpi["chg_1m"] is not None and cpi["chg_1m"] > 0.2:
-        text += "单月回升幅度偏大，需确认是否为能源/基数效应的一次性扰动。"
-    return text
+        verdict += "单月回升幅度偏大，需确认是否为能源/基数效应的一次性扰动。"
+    return f"{verdict}\n{basis}。"
 
 
 def signal_drivers(comp: dict, shapiro: dict) -> str:
-    """信号二：结构驱动（分项 + Shapiro 供需分解）。"""
+    """信号二：结构驱动（结论 = 供需归因 / 依据 = 分项 + Shapiro 数字）。"""
     v = lambda k: comp.get(k, {}).get("value", "—")  # noqa: E731
-    text = (
-        f"分项看：住所 {v('CPI_SHELTER')}%，核心服务 {v('CORE_SERVICES')}%，"
-        f"超级核心 PCE {v('SUPERCORE_PCE')}%，核心商品 {v('CORE_GOODS')}%，"
-        f"能源 {v('CPI_ENERGY')}%。"
-    )
+    basis = [
+        f"分项：住所 {v('CPI_SHELTER')}% · 核心服务 {v('CORE_SERVICES')}% · "
+        f"超级核心 PCE {v('SUPERCORE_PCE')}% · 核心商品 {v('CORE_GOODS')}% · "
+        f"能源 {v('CPI_ENERGY')}%"
+    ]
     goods = comp.get("CORE_GOODS", {}).get("value")
     if isinstance(goods, float) and goods < 0:
-        text += "核心商品处于通缩，对整体 CPI 形成拖累；"
+        basis.append("核心商品通缩，对整体 CPI 形成长期拖累")
     shelter = comp.get("CPI_SHELTER", {})
     if shelter.get("chg_1m") is not None and shelter["chg_1m"] < 0:
-        text += "住所通胀继续降温，滞后租金口径仍在向市场租金收敛；"
+        basis.append("住所通胀继续降温，滞后租金口径仍在向市场租金收敛")
     core = shapiro.get("core") or {}
     if core.get("supply") is not None and core.get("demand") is not None:
         driver = "需求" if core["demand"] > core["supply"] else "供给"
-        text += (
+        basis.append(
             f"Shapiro 分解（核心 PCE YoY，{shapiro['as_of']}）："
-            f"供给贡献 {core['supply']}pp、需求贡献 {core['demand']}pp，"
-            f"当前通胀以{driver}驱动为主——"
-            + (
-                "通胀由需求驱动，货币政策收紧仍是对症工具。"
-                if driver == "需求"
-                else "供给驱动对利率不敏感，紧缩的边际效用有限。"
-            )
+            f"供给贡献 {core['supply']}pp · 需求贡献 {core['demand']}pp"
         )
-    return text
+        verdict = f"当前通胀以{driver}驱动为主，" + (
+            "货币政策收紧仍是对症工具。"
+            if driver == "需求"
+            else "供给端对利率不敏感，紧缩的边际效用有限。"
+        )
+    else:
+        verdict = "供需分解数据不足，只能看分项。"
+    return verdict + "\n" + " · ".join(basis) + "。"
 
 
 def signal_expectations(market: list, survey: list) -> str:
-    """信号三：通胀预期（市场隐含 + 调查，锚定判断）。"""
+    """信号三：通胀预期（结论 = 锚定判断 / 依据 = 市场隐含 + 调查）。"""
     m = {r["key"]: r for r in market}
     s = {r["key"]: r for r in survey}
     t5, t5y5y = m.get("T5YIE", {}).get("value"), m.get("T5YIFR", {}).get("value")
     mich = s.get("MICH", {}).get("value")
     sce1 = s.get("SCE_INFL_1Y_MEDIAN", {}).get("value")
-    text = f"市场隐含：5Y 盈亏平衡 {t5}%、5y5y 远期 {t5y5y}%"
+    basis = (
+        f"市场隐含：5Y 盈亏平衡 {t5}% · 5y5y 远期 {t5y5y}% · "
+        f"调查端：密歇根 1Y {mich}% · 纽约联储 SCE 1Y {sce1}%"
+    )
+    verdict = "预期端数据不足。"
     if isinstance(t5y5y, float):
         anchored = 1.8 <= t5y5y <= 2.6
-        text += (
-            "，长期预期仍锚定在 2% 附近"
+        verdict = (
+            "长期预期仍锚定在 2% 附近。"
             if anchored
-            else "，长期预期偏离 2% 区间，需警惕失锚"
+            else "长期预期偏离 2% 区间，需警惕失锚。"
         )
-    text += "。"
-    text += f"调查端：密歇根 1Y {mich}%、纽约联储 SCE 1Y {sce1}%。"
     if isinstance(mich, float) and isinstance(t5, float) and mich > t5 + 1.5:
-        text += (
+        verdict += (
             "调查预期显著高于市场隐含，居民体感通胀偏热，"
             "关注其向薪资谈判的传导；市场端未跟进前不必过度定价。"
         )
-    else:
-        text += "市场与调查预期大体一致，预期端不构成额外风险。"
-    return text
+    elif isinstance(mich, float):
+        verdict += "市场与调查预期大体一致，预期端不构成额外风险。"
+    return f"{verdict}\n{basis}。"
 
 
 def polymarket_signal() -> str | None:

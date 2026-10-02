@@ -800,12 +800,13 @@ def get_polymarket_history(
 
 
 def _sentence(text: object, limit: int = 72) -> str | None:
-    """引擎叙事首句 → 首屏「今日一句话」（issue #21）。
+    """引擎叙事首行首句 → 首屏「今日一句话」（issue #21）。
 
     文案一律由 Python 规则引擎组装（AGENTS 第 8 节），前端只渲染不计算；
+    引擎用 \n 分「结论 / 依据 / 触发」（全站研判契约），这里先取首行再取首句；
     首句超 limit 字则截到 limit 并补省略号。
     """
-    s = " ".join(str(text or "").split())
+    s = " ".join(str(text or "").split("\n")[0].split())
     # 引擎叙事常以「截至YYYY-MM-DD，」开头，行尾已有观测日 → 去掉重复前缀
     s = re.sub(r"^截至\d{4}-\d{2}-\d{2}[，,]?\s*", "", s)
     if not s:
@@ -858,8 +859,7 @@ def get_home_lines() -> dict:
             "利率",
             generate_analysis,
             lambda d: (
-                # 首行 = 结论（body 用 \n 分结论/依据/触发，首屏一句话只取结论）
-                d["overview"]["sections"][0]["body"].split("\n")[0],
+                d["overview"]["sections"][0]["body"],
                 d["overview"].get("as_of"),
             ),
         ),
