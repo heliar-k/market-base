@@ -18,7 +18,7 @@
 Issues（open 数以 `gh issue list --state open` 为准，不抄本文）；无悬而未决的部署风险，
 wrangler v4 已跑通多次（首次红过，原因与修法见 `59deac33`）。
 
-## 2. 本轮 16 笔（全部已 push；部署是否跟上用第 6 节两条 curl 现场判定）
+## 2. 本轮改动（全部已 push；部署是否跟上用第 6 节两条 curl 现场判定）
 
 | commit | 一行 |
 |---|---|
@@ -38,6 +38,8 @@ wrangler v4 已跑通多次（首次红过，原因与修法见 `59deac33`）。
 | `bb7602a5` | 外汇页精修：分组表并卡、verdict 卡 1024 取 2 列、ticker 收进 title |
 | `e687f766` | 首屏「今日一句话」结论层 + 补上时效守卫的共享 JS 洞（#21） |
 | `3f496142` | 本文同步：待办清单改成「以 `gh issue list` 为准」，不抄编号与计数 |
+| `00961406` | 本文：并入 tmp 版交接稿独有的三样东西（playwright 回路 / 可动性排序 / 派 agent 教训） |
+| `ce1ea43b` | **#26 落地**：`_redirects` ↔ `.html` 链接的同步守卫（反向验过：删一行必红） |
 
 ## 3. 待办 = GitHub Issues
 
@@ -45,9 +47,8 @@ wrangler v4 已跑通多次（首次红过，原因与修法见 `59deac33`）。
 **待浏览器复核**（comment 里有按优先级排的复核表）；#26 是 `_redirects` 与 SITE_NAV 的同步守卫；
 #22/#23 要你先判值不值得做，#24 是架构级。正文自带现状证据、动作与验收，别在这里复述。
 
-**按可动性排序**（谁能动，别再等错的人）：**#26 是 agent 现在就能做的**——实测
-`_redirects` 21 条重写 ↔ `site-nav.js` 21 条 `.html` 链接**当前完全对齐但零守卫**（`tests/`
-里没有任何一条读 `frontend/public/_redirects`），补一条同步守卫即可，反向验法在 Issue 正文；
+**按可动性排序**（谁能动，别再等错的人）：~~#26~~ **已落地 `ce1ea43b`**（守卫
+`test_html_links_have_redirects`，反向验过：删一行 `_redirects` 必红并指名失去重写的链接）；
 #20 只剩**用户眼睛**（复核表在 comment 里，第 6 节的 playwright 回路就是给它用的）；
 #22/#23/#24 全在**用户判断**，agent 不要先动。
 
@@ -88,14 +89,16 @@ wrangler v4 已跑通多次（首次红过，原因与修法见 `59deac33`）。
   写临时文件走 `git commit -F`。
 - 并行派 agent 改前端：`frontend/public/css|js`、`layouts/`、`tests/` 这类共享文件**主 agent
   先改完**，agent 只按目录领页面；且别让它们同时跑 `npm run build`（抢 `dist/`）。
-- **agent 会照字面执行你错误的指令**：本轮三个 agent 的交付各有一处主 agent 改掉，根因都不是
-  它们写错，而是**我给的限制把形状逼歪**——① 禁止碰 `server.py` → 它把新端点逻辑放进
+- **agent 会照字面执行你错误的指令**：本轮 agent 交付里我改掉两处，另补一处自己写错的断言；
+  前三者的根因都不是它们写错，而是**我给的限制把形状逼歪**——① 禁止碰 `server.py` → 它把新端点逻辑放进
   `export_pages.py`，但本仓模式是「路由在 `server.py`、export 复用路由函数」（`get_daily_brief`
   即先例），放反会造成 dev 与静态导出两套口径，已搬回；② 让它自己设计卡头 → 它加了
   `R.asOf(...)`，与页头全局时效**同屏两个不同日期**，已改成非时效文案、日期退回行 `title`；
-  ③ brief 写「文字档那份不要动」→ `bucketTextColors` / `stateTextColor` 仍被固化成 hex
-  （和第 5 步同一个病），得回头补。**派活前想清楚指令本身对不对；限制条件常常比目标更容易
-  把结果带偏。**
+  ③ 反向的坑（不是 agent 的错，是我的）：我 brief 里写「文字档那份不要动」，自己又把它当成未修项写进交接稿——
+  实测 `bucketTextColors` / `stateTextColor` 早在 `a8ed248f` 就已是 `var(--color-*-text)`，
+  全站 DOM 内联 style 零字面 hex（守卫 21 绿）——**「我记得没修」不等于「没修」，
+  写进交接稿前得 grep 一遍**，否则下一轮去追一个不存在的问题。
+  **派活前想清楚指令本身对不对；限制条件常常比目标更容易把结果带偏。**
 - **改完要问「锁住了吗」**：第 5 步改完时 AGENTS.md 零提及、守卫零覆盖，隔了一笔才补
   （`0b0c785b`）。约定不落测试就等于没立。
 
@@ -149,8 +152,8 @@ pkill -f "http.server 8899"
 
 ## 7. 建议调用的 skills
 
-- **`tdd`** —— 做 **#26**：先写「SITE_NAV 每条 `.html` 链接都要有 `_redirects` 行」的守卫，
-  再反向验（删一行必红）。新约定一律配一条会红的测试。
+- **`tdd`** —— 新约定一律配一条会红的测试，**先例就是 #26**（`test_html_links_have_redirects`：
+  先写「每条 `.html` 链接都要有 `_redirects` 行」，再删一行验它必红）。
 - **`code-review`** —— 跨 Python + Astro 的一致性改动（Standards / Spec 双轴）。
 - **`git-commit`** —— 本仓 message 风格很重（中文、`type(scope): 标题——要点`、「刻意未做」段、
   构建验证行），照它写；含双引号时用 `git commit -F 文件`。
