@@ -352,6 +352,12 @@ body.dark .chart-card { box-shadow: inset 0 0 0 1px rgba(255,255,255,.04); }
 .macro-nav-foot-row { display: flex; justify-content: space-between; }
 .macro-nav-foot-note { line-height: 1.5; }
 #macro-nav-toggle, .macro-nav-backdrop { display: none; } /* 仅窄屏显示 */
+/* 专题页（TopicLayout）也挂同一棵左侧树：桌面常驻→正文让位 240px（.re-root 仍是
+   margin:auto 居中，在剩下的宽度里居中）；窄屏沿用顶栏 Tab，整棵移出视口不出抽屉
+   （没渲染 #macro-nav-toggle，side-open 永不会置上）；被外部页内嵌时也不出现。 */
+@media (min-width: 1025px) { body.re-has-side { padding-left: 240px; } }
+body.embedded.re-has-side { padding-left: 0; }
+body.embedded .macro-nav { display: none; }
 @media (max-width: 1024px) {
   .macro-nav {
     transform: translateX(-105%); transition: transform .2s ease;

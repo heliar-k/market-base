@@ -19,9 +19,15 @@ const BRAND = '观澜台';
 
 // 顶栏 Tab 数据：home + groups（nav.js 同款算法，aria-current 构建期静态标注）
 const path = Astro.url.pathname; // 构建期即本页最终 URL（如 /credit/）
-const isCur = (page: string) => path === page || (page !== '/' && path.startsWith(page));
+// SITE_NAV 里的子页带 `.html` 后缀（靠 _redirects 重写到目录页），而 Astro 产物是
+// directory 路由 → 构建期 Astro.url.pathname 是 /assets/fx/。归一化后才能对上高亮。
+const norm = (page: string) => page.replace(/\.html$/, '/');
+const isCur = (page: string) => { const p = norm(page); return path === p || (p !== '/' && path.startsWith(p)); };
 const isHome = path === '/' || path === '/index.html';
 const TABS = [SITE_NAV.home, ...SITE_NAV.groups];
+// 左侧专题树（与 SPA 同一份 SITE_NAV、同一套 .macro-nav 样式）：当前页精确高亮，
+// 当前所在组自动展开（窄屏不渲染这棵树，见 app.css 的 body.re-has-side）
+const isItemCur = (page: string) => norm(page) === path;
 ---
 <!DOCTYPE html>
 <html lang="zh-CN">
@@ -56,7 +62,7 @@ const TABS = [SITE_NAV.home, ...SITE_NAV.groups];
 <script is:inline src="/js/rates-common.js"></script>
 <slot name="head" />
 </head>
-<body>
+<body class="re-has-side">
 <!-- 主题提前应用（修暗色闪烁 + island 解析期取错色）：底部那个主题脚本在 body 结束前才执行，
      而各专题页自己的 island 内联脚本（is:inline，走 slot 渲染在正文里）更早执行 ——
      它们在解析期用 reCssVar()/R.colors() 取色会拿到亮色档，暗色用户看到亮色徽章。
@@ -83,6 +89,51 @@ window.__reTheme = (function () {
 })();
 </script>
 <a class="skip-link" href="#re-main">跳过导航，直达正文</a>
+<!-- 左侧专题树：与 SPA 的 #macro-nav 同一套类名（app.css 单源），不造平行组件。
+     不含主题按钮（专题页已有 .theme-float）与美东时钟（那是 SPA 侧栏 JS 的活）。
+     窄屏（≤1024）由 CSS 整棵移出视口，沿用原有顶栏 Tab，不引入抽屉。 -->
+<nav class="macro-nav" id="macro-nav" aria-label="专题导航">
+  <div class="macro-nav-brand">
+    <div>
+      <div class="macro-nav-brand-name">{BRAND}</div>
+      <div class="macro-nav-brand-sub">美国宏观研究平台</div>
+    </div>
+  </div>
+  <div class="macro-nav-caption">核心入口</div>
+  <a class:list={['macro-nav-item', 'core', { active: isItemCur(SITE_NAV.home.page) }]} href={SITE_NAV.home.page}
+     aria-current={isItemCur(SITE_NAV.home.page) ? 'page' : undefined}>{SITE_NAV.home.label}</a>
+  {SITE_NAV.spaViews.map((v) => (
+    <a class="macro-nav-item core" href={`/${'#'}${v.view}`}>{v.label}</a>
+  ))}
+  <div class="macro-nav-sep"></div>
+  <div class="macro-nav-caption">全部专题</div>
+  {SITE_NAV.groups.map((g) => {
+    const open = !!g.items?.some((it) => isItemCur(it.page)) || isItemCur(g.page);
+    return (
+      <div class:list={['macro-nav-group', { open }]}>
+        <div class="macro-nav-group-head">
+          <a class:list={['macro-nav-item', { active: isItemCur(g.page) }]} href={g.page}
+             aria-current={isItemCur(g.page) ? 'page' : undefined}>{g.label}</a>
+          {g.items && (
+            <button class="macro-nav-toggle" type="button" title="展开 / 收起"
+                    aria-expanded={open ? 'true' : 'false'} aria-controls={`grp-${g.key}`}>›</button>
+          )}
+        </div>
+        {g.items && (
+          <div class="macro-nav-sub" id={`grp-${g.key}`}>
+            {g.items.map((it) => (
+              <a class:list={['macro-nav-item', 'child', { sub: it.sub, active: isItemCur(it.page) }]}
+                 href={it.page} aria-current={isItemCur(it.page) ? 'page' : undefined}>{it.label}</a>
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  })}
+  <div class="macro-nav-foot">
+    <div class="macro-nav-foot-note">数据每日自动更新 · 不构成投资建议</div>
+  </div>
+</nav>
 <div class="re-root" id="re-main">
   <div class="re-header">
     <h1>{h1}</h1>
@@ -139,6 +190,18 @@ window.__reTheme = (function () {
     document.body.classList.add('embedded');
     var nav = document.getElementById('re-nav');
     if (nav) nav.style.display = 'none';
+  }
+  // 左侧专题树：组展开/收起（当前组构建期已置 open，其余靠这里）。
+  // 窄屏不渲染抽屉按钮，所以无需 side-open / backdrop 那套（与 SPA 各自的 JS）。
+  var side = document.getElementById('macro-nav');
+  if (side) {
+    side.addEventListener('click', function (e) {
+      var t = e.target.closest('.macro-nav-toggle');
+      if (!t) return;
+      var g = t.closest('.macro-nav-group');
+      var open = g.classList.toggle('open');
+      t.setAttribute('aria-expanded', open ? 'true' : 'false');
+    });
   }
 
   // sticky 页内导航条高度随换行变化（44px 一行 / 79px+ 两行）→ 实时测量

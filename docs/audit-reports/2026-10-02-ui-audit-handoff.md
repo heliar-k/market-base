@@ -74,6 +74,8 @@
 - **SPA 现在是三视图（仪表盘 / 技术 / 关联），默认仪表盘**（#24 去 iframe，`6c40080d`）。
   专题页不再是内嵌视图：侧栏专题项是真实链接整页跳转，旧深链（`#daily`、`#rates/fed-funds`、
   `#macro/fed-funds` 末段容错）由 `macro-view.js` 的 `routeHash` 整页 replace。
+  ⇒ 跳过去的专题页**也有同一棵左侧专题树**（TopicLayout 构建期渲染，复用 `.macro-nav` 类，
+  当前页高亮 + 当前组自动展开；窄屏与内嵌不出现），所以整页跳转不会「导航消失」。
   已知代价：SPA 手动切主题后跳专题页会回到系统偏好（没改是因为那会推翻「刷新恢复自动」
   既有设计，要持久化就 `app.js` 的 `applyTheme` 初始值 + `TopicLayout` 的 `resolveDark` 各一行）。
 - **`zone()` 现在只返回语义 label**（`src/analysis_utils.py`）。区间表第四列留给色表本身：

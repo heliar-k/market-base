@@ -423,10 +423,13 @@ uv run python src/sell_put.py --symbol TSM
   inflation「月频 2026-07-01–2026-07-01 · 盈亏平衡 2026-09-04」）；月频区间写「月频 {起}–{止}」；
   日期一律 ISO。数据缺失显示空，不要自造前缀（「数据日期:」「快照时间 ·」等已废弃）。
   **文案只能由 `rates-common.js` 的 `R.asOf(...)` / `R.asMonth(...)` 组装**，页面不写模板串
-- **head / 导航单源（Astro，ADR-0003）**：专题页 `<head>` 样板与顶栏 Tab 由
+- **head / 导航单源（Astro，ADR-0003）**：专题页 `<head>` 样板、顶栏 Tab 与**左侧专题树**由
   `frontend/src/layouts/TopicLayout.astro` 构建期统一渲染（页私有 head 追加走 `slot="head"`）；
-  顶栏 Tab + SPA 侧栏专题树唯一数据源 = `frontend/public/js/site-nav.js`（ESM：`export const SITE_NAV`，
+  顶栏 Tab + 左侧树 + SPA 侧栏专题树唯一数据源 = `frontend/public/js/site-nav.js`（ESM：`export const SITE_NAV`，
   TopicLayout 构建期与 macro-view.js / dashboard.js 运行时 import 同一份）。
+  专题页左侧树**复用 SPA 那套 `.macro-nav*` 类**（样式单源在 `app.css`，不造平行组件），
+  `body.re-has-side` 只在 ≥1025px 让位 240px，窄屏与内嵌（`body.embedded`）不出现；
+  当前页高亮 / 当前组展开由构建期算（SITE_NAV 的 `.html` 要先归一化成目录形态才能对上产物 URL）。
   新专题：写 .astro 页（套 TopicLayout）→ 在 `SITE_NAV` 登记即可（无别处白名单）
 - **语义色两档制（图形档 / 文字档）**：`frontend/public/css/tokens.css` 里
   `--color-up/down/neutral/warn/warn-light/warn-deep/brand/hawk/dove` = **图形档**（只准用于
