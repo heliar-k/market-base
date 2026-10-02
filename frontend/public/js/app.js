@@ -18,11 +18,11 @@
 
 import { initDashboard, refresh as dashRefresh, cleanup as dashCleanup, updateStatus as dashStatus } from './dashboard.js';
 import { initTechView, selectSymbol as techSelectSymbol, updateStatus as techStatus } from './tech-view.js';
-import { initMacroView, initGlobalNav, updateStatus as macroStatus } from './macro-view.js';
+import { initGlobalNav, markView } from './macro-view.js';
 import { initCorrelationView, updateStatus as correlationStatus } from './cross-correlation.js';
 
 // ── 全局左侧导航 ──────────────────────────────────────────────────────────
-initGlobalNav();
+const initialView = initGlobalNav(); // 返回 hash 里的 SPA 视图键（无则 null）
 
 // ── dark mode ──────────────────────────────────────────────────────────────
 const DARK_KEY = 'ticker-toolkit-dark';
@@ -31,7 +31,8 @@ let manual = false; // 会话级手动覆盖：点按钮后停止跟随系统，
 function applyTheme(dark) {
   document.body.classList.toggle('dark', dark);
   document.getElementById('theme-toggle').textContent = dark ? '☀️' : '🌙';
-  localStorage.setItem(DARK_KEY, dark ? '1' : '0'); // 同步给内嵌专题 iframe（storage 事件）
+  localStorage.setItem(DARK_KEY, dark ? '1' : '0'); // 只为「被外部 iframe 内嵌」保留（专题页的
+  // embedded 分支读它）；#24 后站内改整页跳转，站内主题仍走 prefers-color-scheme（刷新恢复自动）
   window.dispatchEvent(new CustomEvent('theme-changed', { detail: { dark } }));
 }
 applyTheme(prefersDarkMedia.matches);
@@ -46,7 +47,7 @@ document.getElementById('theme-toggle').addEventListener('click', () => {
 
 // ── shared state ───────────────────────────────────────────────────────────
 export const state = {
-  currentTab: 'macro',
+  currentTab: 'dashboard',
   symbols: null,
 };
 
@@ -55,7 +56,6 @@ const inited = {};
 const views = {
   dashboard:    { label: '仪表盘', init: initDashboard,      status: dashStatus,        cleanup: dashCleanup, refresh: dashRefresh },
   tech:         { label: '技术',   init: initTechView,       status: techStatus },
-  macro:        { label: '宏观',   init: initMacroView,      status: macroStatus },
   correlation:  { label: '关联',   init: initCorrelationView, status: correlationStatus },
 };
 
@@ -70,6 +70,7 @@ function switchTab(tab) {
 
   state.currentTab = tab;
   document.querySelector('.app').dataset.view = tab;
+  markView(tab); // 侧栏高亮单入口（#24：专题页已改为整页跳转，SPA 只剩这三个视图）
 
   const view = views[tab];
   if (!inited[tab]) {
@@ -97,4 +98,4 @@ window.addEventListener('go-stock', e => {
   if (e.detail) techSelectSymbol(e.detail);
 });
 
-switchTab('macro');  // 默认进入宏观页（仪表盘已隐藏）
+switchTab(initialView || 'dashboard');  // 默认落地页（#24 去 iframe 后「宏观」视图消失，改由仪表盘承担首屏）

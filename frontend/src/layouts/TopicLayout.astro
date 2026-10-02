@@ -65,10 +65,11 @@ const TABS = [SITE_NAV.home, ...SITE_NAV.groups];
      实现只此一份，挂到 window 供底部脚本复用，避免两份逻辑漂移。 -->
 <script is:inline>
 window.__reTheme = (function () {
-  var DARK_KEY = 'ticker-toolkit-dark'; // 与 SPA(app.js) 同键：内嵌 iframe 靠 localStorage + storage 事件同步
+  var DARK_KEY = 'ticker-toolkit-dark'; // 与 SPA(app.js) 同键：被外部 iframe 内嵌时靠 localStorage + storage 事件同步
+                                          //（#24 起 SPA 宏观视图已去 iframe，站内导航不再走这条路）
   var T = {
     DARK_KEY: DARK_KEY,
-    embedded: window.self !== window.top, // 内嵌（SPA 宏观分栏 iframe）时主题由父页驱动
+    embedded: window.self !== window.top, // 被外部页内嵌时主题由父页驱动（站内已无 iframe）
     manual: false, // 会话级手动覆盖：点过悬浮按钮后停止跟随系统，刷新恢复自动
     resolveDark: function () {
       if (T.embedded) return localStorage.getItem(DARK_KEY) === '1';

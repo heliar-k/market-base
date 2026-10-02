@@ -47,7 +47,7 @@ a.dash-line:hover .dash-line-text { text-decoration: underline; }
      body.dark，head 里 document.body 还不存在，故不能前移到 head）。
      判定与 TopicLayout.astro 的提前脚本同源（同 DARK_KEY、同 body.dark 钩子）：顶层页跟随系统
      prefers-color-scheme（app.js 初始也是这个口径，manual 仅会话内生效、刷新恢复自动），
-     app.js 稍后再应用一次值一致不闪；它同时写 localStorage 以同步内嵌专题 iframe。 -->
+     app.js 稍后再应用一次值一致不闪；它同时写 localStorage，供整页跳过去的专题页延续手动主题。 -->
 <script>
 document.body.classList.toggle('dark', window.matchMedia('(prefers-color-scheme: dark)').matches);
 </script>
@@ -94,11 +94,6 @@ document.body.classList.toggle('dark', window.matchMedia('(prefers-color-scheme:
       <div class="chart-card"><div id="main-chart"></div></div>
       <div class="chart-card"><div id="rsi-chart"></div></div>
       <div class="chart-card"><div id="macd-chart"></div></div>
-    </div>
-
-    <!-- Macro view -->
-    <div class="macro-view" style="flex:1;flex-direction:column">
-      <div class="chart-card" id="macro-chart-card" style="flex:1;display:flex;flex-direction:column"><div class="loading">加载中…</div></div>
     </div>
 
     <!-- Correlation view -->
