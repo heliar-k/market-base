@@ -109,7 +109,11 @@
   `gh issue close --comment "…`code`…"` 里的反引号会被当命令替换**执行**，内容静默丢失
   （本轮 #27 的关闭说明整个 `.fed-chart-tall` 不见了，事后才发现）——
   凡带反引号 / 双引号的正文（Issue 正文、评论、commit message）一律走文件：
-  `--body-file` / `-F`。
+  `--body-file` / `-F`。**同族第三击是验证脚本自己崩**：本轮两次假故障（一次 grep 错对象、
+  一次脚本里的 JS 选择器带双引号，经 heredoc / 写文件多层转义后变成非法续行 → Python
+  SyntaxError），**而被测部署两次都是 success**。带嵌套引号的 JS 片段先拼字符串再传，
+  别靠反斜杠；`wait_until="networkidle"` 在带轮询/长连接的页上会超时，验证脚本一律
+  `domcontentloaded` + 固定 sleep（本轮就因此误报过一次「图表 0」）。
 - 并行派 agent 改前端：`frontend/public/css|js`、`layouts/`、`tests/` 这类共享文件**主 agent
   先改完**，agent 只按目录领页面；且别让它们同时跑 `npm run build`（抢 `dist/`）。
 - **agent 会照字面执行你错误的指令**：本轮 agent 交付里我改掉两处，另补一处自己写错的断言；
