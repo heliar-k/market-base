@@ -5,6 +5,8 @@
 // island 脚本逐字原样。fetch('/api/volatility/dashboard') 不变。
 // 2026-10：小节标题统一换 Section。全站其余页在「Section 组件化批 1」时把本页列为跳过项
 // （理由：骨架已是 .re-section 标题卡且内容依赖卡片容器），结果是卡中卡双层框 + 标题形式与别的页不一致。
+// 2026-10：母子页分工锚点补齐——TOC 增 vol-signals-sec 项（信号卡此前无入口），
+// vol-term-sec 增一行指向 ./vix.astro 的分工链接（两页小节同名，靠正文首行区分）。
 import TopicLayout from '../../layouts/TopicLayout.astro';
 import Section from '../../components/Section.astro';
 ---
@@ -44,9 +46,12 @@ import Section from '../../components/Section.astro';
     <div class="vol-heat" id="vol-heat"></div>
   </Section>
 
-  <!-- VIX 期限结构（状态胶囊走 Section slot=head） -->
+  <!-- VIX 期限结构（状态胶囊走 Section slot=head）。
+       同名小节在 VIX 子页也有（./vix.astro 的 sec-term）：本页给的是跨期限形状（1D→1Y 同框对比
+        + 30 指数里的一条），子页是 VIX 单品种深钻 → 正文首行写清分工并互链，不靠标题区分 -->
   <Section id="vol-term-sec" title="VIX 期限结构" sub="Term Structure">
     <span slot="head" id="term-badge"></span>
+    <p class="re-source">本页看跨期限形状（VIX1D→VIX1Y 同框对比，配下方 30 指数全景）；VIX 单品种深钻（走势 / VIX×SKEW / SKEW / 近期数据）见 <a href="/volatility/vix.html">VIX 专题页 →</a></p>
     <div id="vol-term-chart" class="chart chart-lg"></div>
   </Section>
 
@@ -96,8 +101,10 @@ const pct = (v) => v === null || v === undefined ? '—' : `${v > 0 ? '+' : ''}$
 
 async function load() {
   // 小节锚点导航（长页快速跳转；sticky 见 special.css .page-toc，同 treasury 页）
+  // 第 1 项此前叫「概览·信号」却指向 hero 结论层，真正的信号三段卡（vol-signals-sec）没有入口
+  // → 拆成「概览」（vol-overview）+「跨资产信号」（vol-signals-sec），两个名字各自指到实处。
   document.getElementById('page-toc').innerHTML = [
-    ['概览·信号', 'vol-overview'], ['风险矩阵', 'vol-risk-sec'],
+    ['概览', 'vol-overview'], ['跨资产信号', 'vol-signals-sec'], ['风险矩阵', 'vol-risk-sec'],
     ['交易地图', 'vol-trade-sec'], ['热力图', 'vol-heat-sec'], ['期限结构', 'vol-term-sec'],
     ['跨资产', 'vol-cross-sec'], ['叙事', 'vol-narrative'], ['榜单', 'vol-top-sec'],
     ['全量表', 'vol-table-sec'],

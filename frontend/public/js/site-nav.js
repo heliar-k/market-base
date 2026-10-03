@@ -9,6 +9,11 @@
 // 新增专题：改这里即可（页面放 frontend/src/pages/ 对应路径，无需别处登记）。
 // 字段：home=顶栏第一个入口（也是 SPA 默认落地页）；spaViews=SPA 自有视图（非页面）；
 // groups=专题分组，page=入口页，items=子页，sub=侧栏二级缩进，view=SPA 视图键。
+// 改 label 的约束：label 必须是落地页 h1 的连续子串（最佳=相等）。点到侧栏看到的名字与落地页
+// 标题不一致时，用户会怀疑走错页；侧栏换行可接受，不要为不换行牺牲一致性。
+// 改 key/page 会影响 dashboard.js 的键映射与 TopicLayout 构建期高亮，勿动。
+// 注：crypto-derivatives / crypto-options 两项带 sub 缩进，但组里没有「加密货币」父条目可挂，
+// 层级只靠视觉位置读不出来（窄屏抽屉与读屏尤甚）——故标签自带「加密」前缀，自己说清归属。
 export const SITE_NAV = {
   home: { key: 'daily', label: '今日研判', page: '/daily/' },
   spaViews: [
@@ -19,15 +24,15 @@ export const SITE_NAV = {
   groups: [
     { key: 'assets', label: '大类资产', page: '/assets/', items: [
       { key: 'assets/equities', label: '美股', page: '/assets/equities.html' },
-      { key: 'assets/etfs', label: 'ETF 看板', page: '/assets/etfs.html', sub: true },
-      { key: 'equities/options', label: '期权 / GEX', page: '/assets/equities/options.html', sub: true },
-      { key: 'equities/positioning', label: '持仓追踪 · CFTC', page: '/assets/equities/positioning.html', sub: true },
+      { key: 'assets/etfs', label: 'ETF', page: '/assets/etfs.html', sub: true },
+      { key: 'equities/options', label: '期权市场结构', page: '/assets/equities/options.html', sub: true },
+      { key: 'equities/positioning', label: '持仓追踪（CFTC COT）', page: '/assets/equities/positioning.html', sub: true },
       { key: 'assets/bonds', label: '债券', page: '/assets/bonds.html' },
-      { key: 'assets/commodities', label: '商品', page: '/assets/commodities.html' },
+      { key: 'assets/commodities', label: '大宗商品', page: '/assets/commodities.html' },
       { key: 'assets/fx', label: '外汇', page: '/assets/fx.html' },
       { key: 'assets/crypto', label: '加密货币', page: '/assets/crypto.html' },
-      { key: 'assets/crypto-derivatives', label: '衍生品 · 资金与杠杆', page: '/assets/crypto-derivatives.html', sub: true },
-      { key: 'assets/crypto-options', label: '期权 · 预测市场', page: '/assets/crypto-options.html', sub: true },
+      { key: 'assets/crypto-derivatives', label: '加密衍生品 · 资金与杠杆', page: '/assets/crypto-derivatives.html', sub: true },
+      { key: 'assets/crypto-options', label: '加密期权 · 预测市场', page: '/assets/crypto-options.html', sub: true },
     ] },
     { key: 'rates', label: '利率', page: '/rates/', items: [
       { key: 'rates/fed-funds', label: '联邦基金利率', page: '/rates/fed-funds.html' },
@@ -39,10 +44,10 @@ export const SITE_NAV = {
     { key: 'treasury', label: '美债', page: '/treasury/' },
     { key: 'liquidity', label: '流动性', page: '/liquidity/', items: [
       { key: 'liquidity/transmission-chain', label: '压力指数', page: '/liquidity/transmission-chain.html' },
-      { key: 'liquidity/fed-balance-sheet', label: '资产负债表', page: '/liquidity/fed-balance-sheet.html' },
+      { key: 'liquidity/fed-balance-sheet', label: '美联储资产负债表', page: '/liquidity/fed-balance-sheet.html' },
       { key: 'liquidity/operations', label: '公开市场操作', page: '/liquidity/operations.html' },
-      { key: 'liquidity/rrp-tga', label: 'RRP & TGA', page: '/liquidity/rrp-tga.html' },
-      { key: 'liquidity/reserves', label: '准备金', page: '/liquidity/reserves.html' },
+      { key: 'liquidity/rrp-tga', label: '逆回购与财政部账户', page: '/liquidity/rrp-tga.html' },
+      { key: 'liquidity/reserves', label: '银行准备金', page: '/liquidity/reserves.html' },
       { key: 'liquidity/global-dollar', label: '全球美元', page: '/liquidity/global-dollar.html' },
       { key: 'liquidity/subsurface', label: '次表层资金流', page: '/liquidity/subsurface.html' },
     ] },
@@ -51,7 +56,7 @@ export const SITE_NAV = {
     { key: 'vol', label: '波动率', page: '/volatility/', items: [
       { key: 'volatility/vix', label: 'VIX', page: '/volatility/vix.html' },
     ] },
-    { key: 'geo', label: '地缘风险', page: '/geo/' },
+    { key: 'geo', label: '地缘与政治风险', page: '/geo/' },
   ],
 };
 

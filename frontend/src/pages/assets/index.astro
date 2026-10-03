@@ -4,6 +4,36 @@
 // fetch('/api/assets/overview') 不变。
 import TopicLayout from '../../layouts/TopicLayout.astro';
 import Section from '../../components/Section.astro';
+import { SITE_NAV } from '../../../public/js/site-nav.js';
+
+// 子页 link-grid 由 SITE_NAV 的 assets 组驱动（源头唯一：加子页自动出现，顺序与左侧树一致）。
+// SITE_NAV 只带 label，卡片还差描述与 icon → 页内各留一份 key→文案映射（按 key 索引，
+// 不按 label —— label 会被改写成与子页 h1 一致，用 label 索引会跟着漂）。缺键兜底空串。
+const SUB_DESC: Record<string, string> = {
+  'assets/equities': '指数卡片、市场广度（ABV 占比）与动能集中度',
+  'assets/etfs': '精选池温度筛选与全量清单',
+  'equities/options': 'GEX/DEX/Gamma Flip/Wall/Skew 与 22 标的看板',
+  'equities/positioning': '投机仓位拥挤度与分组合约百分位',
+  'assets/bonds': 'TLT/IEF/LQD/HYG 卡片与 20 日收盘',
+  'assets/commodities': '黄金/白银/原油/气/铜 + 1 年归一化走势',
+  'assets/fx': '美元广度与各分组 20D USD 压力',
+  'assets/crypto': 'BTC/ETH + 净流动性溢出与背离监控',
+  'assets/crypto-derivatives': 'OKX/Deribit 资金费率与基差、Coinglass 杠杆读数',
+  'assets/crypto-options': 'Deribit 期权墙、CME 期货仓位与 Polymarket 隐含价位',
+};
+const SUB_ICON: Record<string, string> = {
+  'assets/equities': '📈',
+  'assets/etfs': '📊',
+  'equities/options': '🎯',
+  'equities/positioning': '🧭',
+  'assets/bonds': '🏛️',
+  'assets/commodities': '🛢️',
+  'assets/fx': '💱',
+  'assets/crypto': '₿',
+  'assets/crypto-derivatives': '⚡',
+  'assets/crypto-options': '📜',
+};
+const subPages = SITE_NAV.groups.find((g) => g.key === 'assets')?.items ?? [];
 ---
 <TopicLayout title="大类资产">
   <div class="page-toc" id="page-toc"></div>
@@ -15,69 +45,15 @@ import Section from '../../components/Section.astro';
 
   <Section title="板块子页">
     <div class="link-grid" id="re-links">
-    <a class="link-card" href="equities.html">
-      <span class="icon">📈</span>
-      <div>
-        <div class="t">美股</div>
-        <div class="d">指数卡片、市场广度（ABV 占比）与动能集中度</div>
-      </div>
-    </a>
-    <a class="link-card" href="equities/options.html">
-      <span class="icon">🎯</span>
-      <div>
-        <div class="t">期权市场结构</div>
-        <div class="d">GEX/DEX/Gamma Flip/Wall/Skew 与 22 标的看板</div>
-      </div>
-    </a>
-    <a class="link-card" href="equities/positioning.html">
-      <span class="icon">🧭</span>
-      <div>
-        <div class="t">持仓追踪 · CFTC</div>
-        <div class="d">投机仓位拥挤度与分组合约百分位</div>
-      </div>
-    </a>
-    <a class="link-card" href="bonds.html">
-      <span class="icon">🏛️</span>
-      <div>
-        <div class="t">债券</div>
-        <div class="d">TLT/IEF/LQD/HYG 卡片与 20 日收盘</div>
-      </div>
-    </a>
-    <a class="link-card" href="commodities.html">
-      <span class="icon">🛢️</span>
-      <div>
-        <div class="t">商品</div>
-        <div class="d">黄金/白银/原油/气/铜 + 1 年归一化走势</div>
-      </div>
-    </a>
-    <a class="link-card" href="crypto.html">
-      <span class="icon">₿</span>
-      <div>
-        <div class="t">加密货币</div>
-        <div class="d">BTC/ETH + 净流动性溢出与背离监控</div>
-      </div>
-    </a>
-    <a class="link-card" href="crypto-derivatives.html">
-      <span class="icon">⚡</span>
-      <div>
-        <div class="t">加密衍生品</div>
-        <div class="d">OKX/Deribit 期权墙与 BTC 前瞻雷达</div>
-      </div>
-    </a>
-    <a class="link-card" href="etfs.html">
-      <span class="icon">📊</span>
-      <div>
-        <div class="t">ETF</div>
-        <div class="d">精选池温度筛选与全量清单</div>
-      </div>
-    </a>
-    <a class="link-card" href="fx.html">
-      <span class="icon">💱</span>
-      <div>
-        <div class="t">外汇</div>
-        <div class="d">美元广度与各分组 20D USD 压力</div>
-      </div>
-    </a>
+    {subPages.map((it) => (
+      <a class="link-card" href={it.page}>
+        <span class="icon">{SUB_ICON[it.key] ?? ''}</span>
+        <div>
+          <div class="t">{it.label}</div>
+          <div class="d">{SUB_DESC[it.key] ?? ''}</div>
+        </div>
+      </a>
+    ))}
   </div>
   </Section>
   <div class="re-gen" id="re-gen"></div>

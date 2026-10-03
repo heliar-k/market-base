@@ -82,10 +82,14 @@ export function initGlobalNav() {
   const el = document.getElementById('macro-nav');
   if (!el || navEl) return;
   navEl = el;
+  // 品牌名即回站根入口（与 TopicLayout 渲染结果一致：类名不变，只把这层换成 <a>）。
+  // 下面三个内联声明是 TopicLayout <style> 里那条规则的镜像（SPA 不加载 .astro 的
+  // scoped 样式，app.css 又不可改；:hover 内联表达不了，故 SPA 侧品牌名无 hover 变色）——
+  // 样式真源在 TopicLayout.astro，改观感两处同改。
   navEl.innerHTML = `
     <div class="macro-nav-brand">
       <div>
-        <div class="macro-nav-brand-name">观澜台</div>
+        <a class="macro-nav-brand-name" href="/" style="display:block;color:var(--text);text-decoration:none">观澜台</a>
         <div class="macro-nav-brand-sub">美国宏观研究平台</div>
       </div>
       <button class="theme-toggle" id="theme-toggle" title="切换暗色/亮色模式">🌙</button>

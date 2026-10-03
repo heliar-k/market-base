@@ -2,17 +2,17 @@
 // 加密期权 · 预测市场页 — 工单 #17 自 public/assets/crypto-options.html 迁入。
 // Deribit 期权墙 + CME 期货仓位卡 + Polymarket 价位阶梯（geo 同款结构）；island 脚本逐字原样。
 // fetch('/api/assets/crypto-derivatives') 不变。
+// 本页两节标题（带口径副标）均由脚本连同卡片一起填；再套 <Section title=...> 会同一节出现两个标题
+// （卡中卡），故静态层只留裸 div 容器，节奏借 .re-block（与 crypto / geo 的 JS 填充容器同法）。
 import TopicLayout from '../../layouts/TopicLayout.astro';
-import Section from '../../components/Section.astro';
 ---
 <TopicLayout title="加密期权 · 预测市场">
   <div class="page-toc" id="page-toc"></div>
 
-  <Section id="walls" title="期权价格墙" />
-  <!-- Polymarket:脚本 host.innerHTML 清容器(空数据分支),Section 只包壳、id 落内层 div -->
-  <Section title="Polymarket 价位">
-    <div id="polymarket"></div>
-  </Section>
+  <!-- 墙卡与 Polymarket 两节都由脚本整块填标题 + 内容；Polymarket 分支还有一次
+       host.innerHTML 清容器(空数据态),故各自留独立宿主 div 而非套同一个壳 -->
+  <div id="walls" class="re-block"></div>
+  <div id="polymarket" class="re-block"></div>
   <div class="re-gen" id="re-gen"></div>
 </div>
 
@@ -173,11 +173,11 @@ function renderPolymarket(pm, spot) {
 }
 
 async function load() {
-  // 小节锚点导航（全站统一 JS 填；末尾两项为跨页链接，非锚点）
+  // 小节锚点导航（全站统一 JS 填；末尾两项为加密三兄弟的跨页链接，非锚点）
   document.getElementById('page-toc').innerHTML = [
     ['期权价格墙', 'sec-walls'], ['Polymarket 价位', 'sec-pm'],
   ].map(([t, id]) => `<a href="#${id}">${t}</a>`).join('')
-    + '<a href="/assets/crypto.html">‹ 加密总览</a><a href="/assets/crypto-derivatives.html">‹ 资金与杠杆</a>';
+    + '<a href="/assets/crypto-derivatives.html">‹ 资金与杠杆</a><a href="/assets/crypto.html">‹ 加密总览</a>';
 
   const d = await R.get('/api/assets/crypto-derivatives');
   if (!d || !d.ts) { R.fail(['walls', 'polymarket'], new Error('无加密衍生品快照 · 运行 ./bin/fetch_crypto_derivatives 后刷新')); return; }

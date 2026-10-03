@@ -24,6 +24,15 @@ import Section from '../../components/Section.astro';
     </div>
   </div>
 
+  <!-- 累计/序列口径（全年次数 · 路径序列 · 首次降息时点）：上方 hero 与明细表是单场会议
+       边际口径，两类事件的概率不可相加或直接比较，故独立成段并各自标明来源。
+       /api/fed/overview 是次要端点（market_odds 无快照时 export 跳过 → 404 合法），
+       走 R.getOpt；取不到时三张卡给「—」并给修复说明，不拖垮整页。 -->
+  <Section id="sec-cumulative" title="累计与路径口径" sub="全年次数 / 路径序列 / 首次降息时点">
+    <div id="rp-cum-cards"></div>
+    <p class="re-source" id="rp-cum-note"></p>
+  </Section>
+
   <Section id="sec-table" title="概率分布明细">
     <div class="re-table-wrap">
       <table class="re-table">
@@ -110,16 +119,17 @@ const dLabelGlobal = (dd) => {
 async function load() {
   // 小节锚点导航（长页快速跳转；sticky 见 special.css .page-toc）
   document.getElementById('page-toc').innerHTML = [
-    ['概览', 're-cards'], ['政策路径', 'sec-policy'], ['概率分布明细', 'sec-table'], ['名义/实际/BEI', 'sec-triple'], ['2Y/10Y 与利差', 'sec-2y10y'],
+    ['概览', 're-cards'], ['政策路径', 'sec-policy'], ['累计与路径', 'sec-cumulative'], ['概率分布明细', 'sec-table'], ['名义/实际/BEI', 'sec-triple'], ['2Y/10Y 与利差', 'sec-2y10y'],
   ].map(([t, id]) => `<a href="#${id}">${t}</a>`).join('');
 
   const el = document.getElementById('re-tbody');
   el.innerHTML = '<tr><td colspan="7" class="re-loading">加载中…</td></tr>';
 
-  const [reRes, fomc, histRes, d] = await Promise.all([
+  const [reRes, fomc, histRes, fedRes, d] = await Promise.all([
     fetch('/api/rate-expectations'),
     R.getOpt('/api/fomc/calendar'),      // 次要端点：缺失时概览卡两格已有 '—' 兜底
     R.getOpt('/api/polymarket/history'), // 次要端点：静态导出缺 JSON 合法 404，getOpt 降级为 null（原手搓 then/catch 等价物）
+    R.getOpt('/api/fed/overview'),       // 次要端点：只取 market_odds 的累计/路径口径，缺失时三张卡给 '—'
     R.get('/api/rates/real-rates'),
   ]);
   if (!reRes.ok) throw new Error((await reRes.json().catch(() => ({}))).detail || '数据不可用');
@@ -156,6 +166,7 @@ async function load() {
   renderHero(re.meetings.find((m) => m.meeting_date >= AS_OF) || null);
   renderTable(re.meetings.filter((m) => m.meeting_date >= AS_OF));
   renderConvChart(re.meetings, hist);
+  renderCumulative(fedRes && fedRes.market_odds);
 
   // ── 名义/实际/BEI + 期限溢价 ──
   const tpByDate = Object.fromEntries(d.term_premium.map(p => [p.date, p.value]));
@@ -299,6 +310,87 @@ function renderConvChart(meetings, hist) {
       series,
     });
   });
+}
+
+// ── 累计与路径口径：全年加息次数 / Sep–Dec 路径序列 / 首次降息时点 ──
+// 数据源 = /api/fed/overview 的 market_odds（Polymarket fed 分类事件快照）。
+// 这三个事件问的是「跨会议累计 / 多场排列」，与上段 hero 和明细表的「单场会议边际概率」
+// 不是同一件事、互斥关系也不同 → 两边的概率只能分别读，不可相加、不可逐月对齐、不可互校。
+const PM_MONTHS = ['january', 'february', 'march', 'april', 'may', 'june',
+  'july', 'august', 'september', 'october', 'november', 'december'];
+// 英文月份名 → YYYY-MM（question 是 Polymarket 原文自由文本，匹配不上返回 null 由调用方跳过）
+const pmYM = (word, year) => {
+  const i = PM_MONTHS.indexOf(String(word || '').toLowerCase());
+  return i < 0 ? null : `${year}-${String(i + 1).padStart(2, '0')}`;
+};
+// 事件 slug 带随重开变化的数字后缀 → 只认前缀；档位取 prob_yes 最高者（skipRe 过滤非路径兜底档）
+const pmEvent = (odds, slug) => ((odds && odds.events) || []).find((e) => (e.slug || '').startsWith(slug));
+const pmTop = (ev, skipRe) => ((ev && ev.markets) || [])
+  .filter((m) => !(skipRe && skipRe.test(m.question || '')))
+  .sort((a, b) => b.prob_yes - a.prob_yes)[0] || null;
+
+// ① 全年加息次数：问句形如 "Will 2 Fed rate hikes happen in 2026?"（有的是 "5 or more" 尾档）
+function pmHikeCount(odds) {
+  const m = pmTop(pmEvent(odds, 'how-many-fed-rate-hikes-in-2026'));
+  if (!m) return null;
+  const q = m.question || '';
+  const more = q.match(/(\d+)\s+or\s+more/i);
+  const n = more ? +more[1] : (/no Fed rate hike/i.test(q) ? 0 : +(q.match(/(\d+)/)?.[1] ?? NaN));
+  return Number.isFinite(n) ? { value: `${R.num(n, 0)} 次${more ? '以上' : ''}`, sub: `${pct1(m.prob_yes)} · Polymarket` } : null;
+}
+
+// ② Sep–Dec 路径序列：问句形如 "Will the Fed Hike–Pause–Hike in the next three decisions (Sep–Oct–Dec)?"
+// （连接符是 en dash –，不是 hyphen）；"decide differently" 是非路径兜底档，先滤掉
+function pmPath(odds) {
+  const m = pmTop(pmEvent(odds, 'fed-decisions-sepdec'), /decide differently/i);
+  const seq = m && (m.question || '').match(/Will the Fed (.+?) in the next/i);
+  return seq ? { value: R.esc(seq[1]), sub: pct1(m.prob_yes) } : null;
+}
+
+// ③ 首次降息时点：各档问的是「累计到该次会议为止是否已降息」，prob_yes 随到期月份单调递增，
+// 所以不能直接取最高档（那恒为最远月份）→ 取 prob_yes 首次 ≥50% 的月份作为市场定价的首次降息时点；
+// 全部未过半则退显示最高档并标注「未过半」。
+function pmFirstCut(odds) {
+  const rows = ((pmEvent(odds, 'fed-rate-cut-by-629') || {}).markets || [])
+    .map((x) => {
+      const m = (x.question || '').match(/by\s+([A-Za-z]+)\s+(\d{4})\s+meeting/i);
+      const ym = m ? pmYM(m[1], m[2]) : null;
+      return ym ? { ym, p: x.prob_yes } : null;
+    })
+    .filter(Boolean)
+    .sort((a, b) => a.ym.localeCompare(b.ym));
+  if (!rows.length) return null;
+  const hit = rows.find((r) => r.p >= 0.5) || rows.reduce((a, b) => (b.p > a.p ? b : a));
+  return { value: hit.ym, sub: `${pct1(hit.p)} · 累计口径${hit.p >= 0.5 ? '' : ' · 未过半'}` };
+}
+
+// 三张卡顺序固定；任一张取不到值保留卡位（value 给 '—'，sub 给缺哪份数据）
+const CUM_SLOT = [
+  { label: '全年加息次数', pick: pmHikeCount, miss: '全年累计事件无快照' },
+  { label: 'Sep–Dec 路径序列', pick: pmPath, miss: '路径序列事件无快照' },
+  { label: '首次降息时点', pick: pmFirstCut, miss: '累计降息事件无快照' },
+];
+function renderCumulative(odds) {
+  const box = document.getElementById('rp-cum-cards');
+  const note = document.getElementById('rp-cum-note');
+  let got = CUM_SLOT.map(() => null);
+  try {
+    if (odds && odds.events && odds.events.length) got = CUM_SLOT.map((s) => s.pick(odds));
+  } catch { got = CUM_SLOT.map(() => null); }  // 快照结构异常时降级为全 '—'，不拖垮整页
+  const empty = got.every((x) => !x);
+  box.replaceChildren(R.cards(CUM_SLOT.map((s, i) => ({
+    label: s.label,
+    value: got[i] ? got[i].value : '—',
+    sub: got[i] ? got[i].sub : s.miss,
+  }))));
+  const asOf = odds && odds.as_of ? R.asOf([['Polymarket', odds.as_of]]) : '';
+  note.innerHTML = empty
+    ? '暂无 Polymarket fed 分类快照——运行 <code>./bin/fetch_polymarket</code> 拉取后刷新（数据在 data/polymarket/，每日 cron 自动更新）。'
+    : `这三张卡是<b>累计 / 序列口径</b>（全年累计次数、多场会议排列、累计到某次会议为止是否已降息）；
+       上方 hero 与概率分布明细是<b>单场会议的边际口径</b>（这一场加不加）。两者问的事件不同——
+       概率不可相加、不可逐月对齐，也不能互相校验（全年次数高不代表下一场概率高）。
+       取法：各事件取概率最高的一档；首次降息时点取 prob_yes 首次 ≥50% 的月份，全部未过半则取最高档并标注「未过半」。
+       ${asOf ? asOf + ' · ' : ''}更新：<code>./bin/fetch_polymarket</code>。`;
 }
 
 load().catch(e => {

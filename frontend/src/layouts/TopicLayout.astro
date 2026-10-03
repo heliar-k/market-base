@@ -28,6 +28,13 @@ const norm = (page: string) => page.replace(/\.html$/, '/');
 // （app.css 的 #macro-nav-toggle / body.side-open）——顶栏胶囊 Tab 已删，
 // 同屏两套导航是重复，且窄屏下它会撑成 2-4 排胶囊压住 .page-toc。
 const isItemCur = (page: string) => norm(page) === path;
+// 返回上层（页头面包屑）：当前页是某个组的子页时才渲染「‹ 返回{组名}」。
+// 子页此前只能靠左侧专题树回组入口，而树在 ≤1024 收进 ☰ 抽屉（两次点击才到）；
+// 构建期算一次，33 页继承，不在各页手抄。组入口页自身（g.page === path）与
+// 未命中任何组的页（/404/、/daily/ = home）都不渲染。
+const parentGroup = SITE_NAV.groups.find(
+  (g) => g.page !== path && g.items?.some((it) => isItemCur(it.page)),
+);
 ---
 <!DOCTYPE html>
 <html lang="zh-CN">
@@ -99,7 +106,8 @@ window.__reTheme = (function () {
 <nav class="macro-nav" id="macro-nav" aria-label="专题导航">
   <div class="macro-nav-brand">
     <div>
-      <div class="macro-nav-brand-name">{BRAND}</div>
+      <!-- 品牌名即回站根入口（类名不变，只由 div 换成 a）：困在专题页时它最像「回首页」 -->
+      <a class="macro-nav-brand-name" href="/">{BRAND}</a>
       <div class="macro-nav-brand-sub">美国宏观研究平台</div>
     </div>
   </div>
@@ -140,6 +148,9 @@ window.__reTheme = (function () {
 </nav>
 <div class="re-root" id="re-main">
   <div class="re-header">
+    {parentGroup && (
+      <a class="re-back" href={parentGroup.page}>‹ 返回{parentGroup.label}</a>
+    )}
     <h1>{h1}</h1>
     <span class="re-as-of" id="re-as-of"></span>
   </div>
@@ -159,6 +170,27 @@ window.__reTheme = (function () {
     </div>
   </footer>
 </div>
+
+<style>
+  /* 布局私有，不进 css/*.css（别人的文件）。两处渲染：品牌可点 + 子页返回上层。 */
+
+  /* 品牌名由 <div> 换成 <a>（回站根唯一入口）：补掉 inline 元素撑不满整行的宽度差，
+     去浏览器默认链接下划线/色 —— 观感与改前完全一致，只是可点了。 */
+  .macro-nav-brand-name { display: block; color: var(--text); text-decoration: none; }
+  .macro-nav-brand-name:hover { color: var(--accent-ink); }
+
+  /* 子页返回上层：页头面包屑（构建期算命中组，组入口页与 404 / 今日研判不渲染）。
+     样式与 .page-toc a（胶囊锚点）同语言，但它是「路径」不是「栏内锚点」，
+     所以不给描边/底 —— 单行弱化文字 + hover 转 accent-ink（文字档），不造平行组件。
+     flex-basis 100% 让它自成一行：.re-header 是 flex-wrap 容器，与 h1 同行会挤在标题前。 */
+  .re-back {
+    flex: 0 0 100%;
+    font-size: 12px;
+    color: var(--text-secondary);
+    text-decoration: none;
+  }
+  .re-back:hover { color: var(--accent-ink); }
+</style>
 
 <script is:inline>
 // TopicLayout 运行时 = nav.js 在 .astro 页上的职责（导航件已构建期静态渲染，不再运行时注入）：

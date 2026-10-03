@@ -3,6 +3,8 @@
 // 原 h1 带「标普500隐含波动率指数」副标而 <title> 仅 VIX → 走 Layout 可选 h1 prop 覆写。
 // 结构：状态卡×3 + 大数字区间色条 + 近 2 年走势 + VIX×SKEW 象限散点 + SKEW 走势 +
 // 期限结构 + 近 20 条表；island 脚本逐字原样。fetch('/api/volatility/analysis') 不变。
+// 2026-10：母子页分工——首节正文顶部加「VIX 单品种深钻」定位 + ‹ 波动率全景返回链接；
+// sec-term 的 sub 加「VIX 单品种」前缀，消掉与母页 vol-term-sec 的同名歧义。
 import TopicLayout from '../../layouts/TopicLayout.astro';
 import Section from '../../components/Section.astro';
 ---
@@ -10,7 +12,11 @@ import Section from '../../components/Section.astro';
   <div class="page-toc" id="page-toc"></div>
 
   <!-- 状态卡 ×3:R.cards 自带 .re-cards 栅格,容器 class 可安全让位给 Section -->
-  <Section id="status-cards" title="状态" />
+  <!-- 分工说明放在首节正文顶部（不放 page-toc 之后：那条 "栏贴内容" 的 4px 补偿只对紧跟 toc 的
+       .re-sec 生效，插一个裸 <p> 会破掉首屏节奏）。R.cards 由 island appendChild 进来，排在本行之后 -->
+  <Section id="status-cards" title="状态">
+    <p class="re-source">本页是 <b>VIX 单品种</b>深钻：近 2 年走势 / VIX×SKEW 象限 / SKEW / 近期数据。30 指数全景、跨资产信号与全量表见 <a href="/volatility/">‹ 波动率全景</a></p>
+  </Section>
 
   <!-- 以下小节统一 Section（同全景页：内层卡面自带 border+bg，不再套 .re-section） -->
 
@@ -46,8 +52,10 @@ import Section from '../../components/Section.astro';
     <div id="skew_chart" class="chart"></div>
   </Section>
 
-  <!-- 期限结构 + 解读（状态胶囊走 Section slot=head） -->
-  <Section id="sec-term" title="VIX 期限结构" sub="Term Structure">
+  <!-- 期限结构 + 解读（状态胶囊走 Section slot=head）。
+       母页 /volatility/ 的 vol-term-sec 同名 → sub 加「VIX 单品种」区分：那里是跨期限形状 + 30 指数全景，
+       这里是 VIX 一族的期限曲线与解读 -->
+  <Section id="sec-term" title="VIX 期限结构" sub="VIX 单品种 · Term Structure">
     <span slot="head" id="term-badge"></span>
     <div id="vix_term_chart" class="chart chart-sm"></div>
     <div class="re-analysis" id="term-signals" style="margin-top:10px"></div>

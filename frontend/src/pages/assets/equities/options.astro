@@ -6,8 +6,9 @@ import TopicLayout from '../../../layouts/TopicLayout.astro';
 import Section from '../../../components/Section.astro';
 ---
 <TopicLayout title="期权市场结构">
+  <div class="page-toc" id="page-toc"></div>
   <!-- Regime 大卡:脚本 innerHTML 清容器,Section 只包壳、id 落内层 div -->
-  <Section title="期权结构状态">
+  <Section id="sec-detail" title="期权结构状态">
     <div id="detail"></div>
   </Section>
 
@@ -22,6 +23,13 @@ import Section from '../../../components/Section.astro';
 </div>
 
 <script is:inline>
+// 小节锚点导航（全站统一 JS 填）。第三项指 opt-tabs 而非 opt-panel：Tab 切换只重写
+// panel.innerHTML，锚点指半空的容器会在短视图（如 DEX）跳到页面底部外的留白；
+// 控件条 id 同样稳定，且落点是「先看到当前在哪张 Tab，再往下读」的顺序。
+document.getElementById('page-toc').innerHTML = [
+  ['状态', 'sec-detail'], ['标的看板', 'board'], ['分析视图', 'opt-tabs'],
+].map(([t, id]) => `<a href="#${id}">${t}</a>`).join('');
+
 let D = null;
 let S = 'SPY';
 let charts = [];

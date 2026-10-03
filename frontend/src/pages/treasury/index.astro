@@ -25,8 +25,8 @@ import Section from '../../components/Section.astro';
 async function load() {
   // 小节锚点导航（长页快速跳转；sticky 见 special.css .page-toc）
   document.getElementById('page-toc').innerHTML = [
-    ['概览', 'cards'], ['拍卖', 'auctions'],
-    ['海外持仓', 'history'], ['债务结构', 'mspd'], ['再融资', 'refunding'],
+    ['概览', 'cards'], ['研判', 're-signals'], ['拍卖', 'auctions'],
+    ['海外持仓', 'history'], ['持仓明细', 'holdings'], ['债务结构', 'mspd'], ['再融资', 'refunding'],
   ].map(([t, id]) => `<a href="#${id}">${t}</a>`).join('');
 
   // 主端点 overview 保持 R.get（挂了 = 整页真没数据，页级错误态正确）；

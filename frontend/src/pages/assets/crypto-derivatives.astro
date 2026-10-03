@@ -2,18 +2,20 @@
 // 加密衍生品页 — 工单 #17 自 public/assets/crypto-derivatives.html 迁入。
 // NOW 8 KPI + ETF flows + 衍生品 KPI + 资金费率走势 + 散户读数 + 基差 + Coinglass；island 脚本逐字原样。
 // fetch('/api/assets/crypto-derivatives') 不变。
+// 本页各小节标题（带口径副标）均由脚本连同卡片一起填；再套 <Section title=...> 会同一节出现两个标题
+// （卡中卡），故静态层只留裸 div 容器，节奏借 .re-block（与 crypto / geo 的 JS 填充容器同法）。
 import TopicLayout from '../../layouts/TopicLayout.astro';
-import Section from '../../components/Section.astro';
 ---
 <TopicLayout title="加密衍生品 · 资金与杠杆">
   <div class="page-toc" id="page-toc"></div>
 
-  <!-- NOW/ETF 资金流/资金费率/基差/Coinglass:条件性(对应子源缺失时为空),不进 Section -->
+  <!-- 各块标题(带口径副标)与卡片均由脚本一起填,静态层只留容器(套 Section 会重复标题):
+       NOW / ETF 资金流 / 资金费率 / 基差 / Coinglass 另为条件性(对应子源缺失时整块为空) -->
   <div id="now" class="re-block"></div>
   <div id="etf" class="re-block"></div>
-  <Section id="kpi" title="衍生品 KPI" />
+  <div id="kpi" class="re-block"></div>
   <div id="funding" class="re-block"></div>
-  <Section id="retail" title="散户仓位" />
+  <div id="retail" class="re-block"></div>
   <div id="basis" class="re-block"></div>
   <div id="coinglass" class="re-block"></div>
   <div class="re-gen" id="re-gen"></div>
@@ -25,12 +27,12 @@ function stance(ann) { const a = Math.abs((ann || 0) * 100); if (ann < 0) return
 function pcrStance(p) { return p == null ? '中性' : (p < 0.4 ? '偏多' : (p > 1.5 ? '偏空' : '中性')); }
 
 async function load() {
-  // 小节锚点导航（全站统一 JS 填；末尾两项为跨页链接，非锚点）
+  // 小节锚点导航（全站统一 JS 填；末尾两项为加密三兄弟的跨页链接，非锚点）
   document.getElementById('page-toc').innerHTML = [
     ['NOW', 'sec-now'], ['ETF 资金流', 'sec-etf'], ['衍生品 KPI', 'sec-kpi'], ['资金费率', 'sec-funding'],
     ['散户', 'sec-retail'], ['基差', 'sec-basis'], ['Coinglass', 'sec-cg'],
   ].map(([t, id]) => `<a href="#${id}">${t}</a>`).join('')
-    + '<a href="/assets/crypto.html">‹ 加密总览</a><a href="/assets/crypto-options.html">期权 · 预测市场 ›</a>';
+    + '<a href="/assets/crypto.html">‹ 加密总览</a><a href="/assets/crypto-options.html">加密期权 · 预测市场 ›</a>';
 
   const d = await R.get('/api/assets/crypto-derivatives');
   if (!d || !d.ts) { R.fail(['now', 'etf', 'kpi', 'funding', 'retail', 'basis', 'coinglass'], new Error('无加密衍生品快照 · 运行 ./bin/fetch_crypto_derivatives 后刷新')); return; }

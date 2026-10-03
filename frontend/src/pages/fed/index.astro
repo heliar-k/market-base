@@ -1,8 +1,9 @@
 ---
 // 美联储页 — 工单 #16 自 public/fed/index.html 迁入。
 // 私有 fed.css（fed-badge / fed-doc / fed-group 组件）走 head slot；结构：鹰鸽指示器卡 +
-// 声明/演讲列表（分组折叠+过滤）+ 投票成员立场表 + 鹰鸽时间线散点 + Polymarket 市场预期；
-// island 脚本逐字原样。fetch('/api/fed/overview') + /api/fomc/calendar 不变。
+// 声明/演讲列表（分组折叠+过滤）+ 投票成员立场表 + 鹰鸽时间线散点 + 市场预期摘要（一行 PM
+// 快照 + 利率定价页入口，完整路径定价不在本页重复）；island 脚本逐字原样。
+// fetch('/api/fed/overview') + /api/fomc/calendar 不变。
 import TopicLayout from '../../layouts/TopicLayout.astro';
 import Section from '../../components/Section.astro';
 ---
@@ -19,7 +20,7 @@ import Section from '../../components/Section.astro';
   <Section id="sec-stmts" title="声明与纪要" />
   <Section id="sec-speeches" title="官员演讲" />
   <Section id="sec-hawk" title="鹰鸽追踪" />
-  <Section id="sec-odds" title="市场预期" />
+  <Section id="sec-odds" title="市场预期摘要" />
   <div class="re-gen" id="re-gen"></div>
 
 <script is:inline>
@@ -275,17 +276,13 @@ function renderHawkish(root, data) {
   wrap.appendChild(s4);
 }
 
-// ── 市场预期（Polymarket）：fed 分类事件卡 + 三色概率条 + 高量事件走势 ──
+// ── 市场预期摘要（Polymarket）：只留一行下次会议概率 + 利率定价页入口 ──
+// 分工（工单 #29）：fed 页主题是「联储说了什么」（声明/纪要、官员演讲、鹰鸽评分）；
+// 「市场如何定价 FOMC 路径」是利率页的事——/rates/pricing.html 那一版有 ZQ 期货对照、
+// 五档概率明细与 PM 概率收敛路径历史，本页再铺事件卡 / 三色堆叠条 / 走势图就是同内容两处维护。
+// 故这里只留最概要的一行（下次会议三档概率）并指向定价页；无快照时同样指过去（不白屏）。
 
-// 市场问题 → 短标签（决策事件的降息/不变/加息档；其余保留原文去头部疑问词）
-function oddsLabel(q) {
-  const m = q.match(/(decrease|increase)[^.]*?by (\d+)(\+)? bps/i);
-  if (m) return (m[1].toLowerCase() === 'decrease' ? '降息 ' : '加息 ') + m[2] + 'bp' + (m[3] ? '+' : '');
-  if (/no change/i.test(q)) return '不变';
-  return q.replace(/^Will /, '').replace(/\?$/, '');
-}
-
-// 档位语义色：降息 = 涨色（宽松利多）、加息 = 跌色、不变 = 中性，其余用强调色
+// 市场问题 → 档位（与 rates/pricing 三档同口径：降息 / 不变 / 加息，其余归 other）
 function oddsCls(q) {
   if (/decrease/i.test(q)) return 'cut';
   if (/no change/i.test(q)) return 'hold';
@@ -293,125 +290,42 @@ function oddsCls(q) {
   return 'other';
 }
 
+// 下次会议：fed-decision 事件里 end_date 最早且未到期的一场；无决策事件时退回 24h 量最大者
+function nextDecision(events) {
+  const today = R.todayISO();
+  const dec = events.filter((e) => /^fed-decision/.test(e.slug || '') && (e.end_date || '') >= today);
+  const pool = dec.length ? dec : [...events].sort((a, b) => (b.volume24hr || 0) - (a.volume24hr || 0));
+  return pool.sort((a, b) => (a.end_date || '').localeCompare(b.end_date || ''))[0] || null;
+}
+
 function renderOdds(root, data) {
-  const wrap = document.createElement('div');
-  root.appendChild(wrap);  // 先挂 DOM 再建图（R.mkChart 按 id 查 DOM）
-  const sec = document.createElement('div');
-  sec.className = 're-section';
-  sec.innerHTML = '<h2>市场预期（Polymarket）<span style="font-weight:400;font-size:12px;color:var(--text-dim)">预测市场对 Fed 路径的定价，绿 = 降息 / 灰 = 不变 / 红 = 加息，蓝 = 其它问题；虚线 = 50bp+ 档</span></h2>';
-  wrap.appendChild(sec);
-
-  const od = data.market_odds;
-  if (!od || !od.events || !od.events.length) {
-    sec.insertAdjacentHTML('beforeend',
-      '<div class="fed-doc">Polymarket 快照缺失——运行 <code>./bin/fetch_polymarket</code> 拉取后刷新（数据在 data/polymarket/，每日 cron 自动更新）</div>');
-    return;
-  }
-
-  const fmtVol = (v) => v >= 1e6 ? `$${(v / 1e6).toFixed(1)}M` : v >= 1e3 ? `$${(v / 1e3).toFixed(0)}K` : `$${v}`;
-  const fmtPct = (v) => (v * 100).toFixed(1) + '%';
-  const byVol = [...od.events].sort((a, b) => b.volume24hr - a.volume24hr);
-  // 配走势图的事件：24h 量前 2 且至少一档有 ≥2 个历史点
-  const chartEvents = new Set(
-    byVol.filter(e => e.markets.some(m => (od.history[m.id] || []).length > 1)).slice(0, 2).map(e => e.id)
-  );
-
-  for (const e of byVol) {
-    const card = document.createElement('div');
-    card.className = 'fed-doc';
-    card.style.marginBottom = '10px';
-    // slug 进属性、title 是 Polymarket 原文，都得转义（geo/index.astro:134 同法）
-    card.innerHTML = `
-      <div class="fed-doc-head">
-        <a class="fed-doc-title" href="https://polymarket.com/event/${R.esc(e.slug)}" target="_blank">${R.esc(e.title)}</a>
-        <span class="fed-odds-meta">到期 ${e.end_date} · 24h 量 ${fmtVol(e.volume24hr)}</span>
-      </div>`;
-    // 决策类事件：三色堆叠概率条（降息|不变|加息，仿 rates/pricing renderTable）
-    if (/^fed-decision/.test(e.slug)) {
-      const segs = ['cut', 'hold', 'hike'].map(cls => ({ cls, p: e.markets
-        .filter(m => oddsCls(m.question) === cls)
-        .reduce((s, m) => s + m.prob_yes, 0) }));
-      card.insertAdjacentHTML('beforeend', `<div class="fed-odds-stack">${segs
-        .filter(s => s.p > 0.0005)
-        .map(s => `<div class="fed-odds-seg ${s.cls}" style="width:${(s.p * 100).toFixed(1)}%"></div>`)
-        .join('')}</div>`);
-    }
-    // 各档明细行（概率降序；条宽 = 概率，颜色按档位语义色）
-    const rows = document.createElement('div');
-    for (const m of [...e.markets].sort((a, b) => b.prob_yes - a.prob_yes).slice(0, 6)) {
-      const cls = oddsCls(m.question);
-      const lab = oddsLabel(m.question);
-      const r = document.createElement('div');
-      r.className = 'fed-odds-row';
-      r.title = m.question;
-      r.innerHTML = `<span class="fed-odds-lab">${lab}</span>
-        <div class="fed-odds-track"><div class="fed-odds-fill ${cls}" style="width:${(m.prob_yes * 100).toFixed(1)}%"></div></div>
-        <span class="fed-odds-pct">${fmtPct(m.prob_yes)}</span>`;
-      rows.appendChild(r);
-    }
-    card.appendChild(rows);
-    // 高量事件：近 30 天概率走势（每档一条线，降息绿/不变灰/加息红）
-    if (chartEvents.has(e.id)) {
-      const chartDiv = document.createElement('div');
-      chartDiv.className = 'fed-chart';
-      chartDiv.id = `odds-chart-${e.id}`;
-      card.insertAdjacentHTML('beforeend', '<div class="fed-odds-meta" style="margin:6px 0 2px">近 30 天概率走势（%）</div>');
-      card.appendChild(chartDiv);
-      wrap.appendChild(card);
-      const withHist = e.markets.filter(m => (od.history[m.id] || []).length > 1);
-      // 各档日期可能不齐（市场上线晚/中间缺日）：union 轴 + 按日期对齐，缺失填 null（防索引错位）
-      let dates = [...new Set(withHist.flatMap(m => R.ts(od.history[m.id])))].sort();
-      // 「近 30 天」以打开页面日为基准；数据比 30 天更旧时退回全量（防空图）
-      const recent = dates.filter((d) => d >= R.todayISO(-30));
-      if (recent.length >= 2) dates = recent;
-      const byDate = Object.fromEntries(withHist.map(m =>
-        [m.id, Object.fromEntries(od.history[m.id].map(p => [p.date, p.value]))]));
-      const palette = [R.colors().blue, R.colors().orange, R.colors().purple, R.colors().green, R.colors().gray];
-      let pi = 0;
-      R.mkChart(`odds-chart-${e.id}`, (c) => reSyncLegend({
-        backgroundColor: 'transparent',
-        legend: { top: 0, textStyle: { color: c.text, fontSize: 11 } },
-        tooltip: {
-          trigger: 'axis',
-          valueFormatter: (v) => (v * 100).toFixed(1) + '%',
-        },
-        grid: { left: 44, right: 12, top: 30, bottom: 24 },
-        xAxis: {
-          type: 'category',
-          data: dates,
-          axisLabel: { color: c.muted, fontSize: 10, hideOverlap: true },
-          axisLine: { lineStyle: { color: c.border } },
-        },
-        yAxis: {
-          type: 'value', max: 1,
-          axisLabel: { color: c.muted, fontSize: 10, formatter: (v) => (v * 100).toFixed(0) + '%' },
-          splitLine: { lineStyle: { color: c.grid } },
-        },
-        series: withHist.map(m => {
-          const cls = oddsCls(m.question);
-          const color = cls === 'other' ? palette[pi++ % palette.length]
-            : cls === 'cut' ? c.green : cls === 'hike' ? c.red : c.gray;
-          return {
-            name: oddsLabel(m.question),
-            type: 'line',
-            data: dates.map(d => byDate[m.id][d] ?? null),
-            symbol: 'none',
-            // 同色双线区分幅度：25bp 实线，50bp+ 虚线
-            lineStyle: { color, width: 1.6, type: /50bp/.test(oddsLabel(m.question)) ? 'dashed' : 'solid' },
-            itemStyle: { color },
-          };
-        }),
-      }));
-    } else {
-      wrap.appendChild(card);
-    }
-  }
+  const ev = data.market_odds?.events?.length ? nextDecision(data.market_odds.events) : null;
+  // 三档聚合（同 rates/pricing 的 pmAgg 口径：25bp 与 50bp+ 合并）
+  const pct = (v) => (v * 100).toFixed(1) + '%';
+  const agg = ev && ['cut', 'hold', 'hike'].map((c) => ({
+    c,
+    p: ev.markets.filter((m) => oddsCls(m.question) === c).reduce((s, m) => s + m.prob_yes, 0),
+  }));
+  // 着色走全站语义 class（app.css .up/.down/.neutral 已是文字档，不另造私有色类）
+  const CLS = { cut: 'up', hold: 'neutral', hike: 'down' };
+  const sum = agg ? agg.map((x) => `<span class="${CLS[x.c]}">${
+    { cut: '降息', hold: '不变', hike: '加息' }[x.c]} ${pct(x.p)}</span>`).join(' · ') : '';
+  root.innerHTML = `
+    <div class="fed-doc">
+      ${ev && agg
+        ? `<div class="fed-doc-head"><span class="fed-doc-meta">Polymarket · ${R.esc(ev.title)}（到期 ${R.esc(ev.end_date || '—')}）</span></div>
+           <div class="fed-doc-excerpt">下次会议：${sum}</div>`
+        : '<div class="fed-doc-excerpt">暂无 Polymarket 快照——运行 <code>./bin/fetch_polymarket</code> 拉取后刷新（数据在 data/polymarket/，每日 cron 自动更新）</div>'}
+      <p class="re-source">本页只记联储自身的沟通与立场（声明 / 纪要、官员演讲、鹰鸽评分）。
+        市场如何定价 FOMC 路径——ZQ 期货 vs Polymarket 对垒、五档概率明细、概率收敛路径——见
+        <a href="/rates/pricing.html">利率定价 →</a></p>
+    </div>`;
 }
 
 async function load() {
   // 小节锚点导航（长页快速跳转；sticky 见 special.css .page-toc）
   document.getElementById('page-toc').innerHTML = [
-    ['概览', 'cards'], ['演讲', 'sec-speeches'], ['鹰鸽追踪', 'sec-hawk'], ['市场预期', 'sec-odds'],
+    ['概览', 'cards'], ['声明与纪要', 'sec-stmts'], ['官员演讲', 'sec-speeches'], ['鹰鸽追踪', 'sec-hawk'], ['市场预期摘要', 'sec-odds'],
   ].map(([t, id]) => `<a href="#${id}">${t}</a>`).join('');
 
   // cal 为次要端点（只驱动「下次 FOMC / 目标利率」两张卡）：静态导出 _safe() 会跳过缺数据
