@@ -253,7 +253,8 @@ async function load() {
       inner += '<div class="vol-basic-grid">' + n.parts.map(p =>
         `<div class="sig-block"><div class="sig-title">${p.title}</div><p>${p.text}</p></div>`).join('') + '</div>';
     } else {
-      inner += R.sigBlocks(n.title, n.text, LINE_TITLES);
+      // 三段式（结论/依据/触发）→ 与 parts 段同一套横排小卡，标题留在外层卡左上
+      inner += '<div class="vol-basic-grid">' + R.sigBlocks(n.title, n.text, LINE_TITLES) + '</div>';
     }
     sec.innerHTML = inner;
     narr.appendChild(sec);
