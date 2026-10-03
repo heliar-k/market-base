@@ -13,7 +13,7 @@ import Section from '../../components/Section.astro';
   <Section id="re-signals" title="研判" />
   <Section id="history" title="走势" />
   <Section id="components" title="分项" />
-  <Section id="expectations" title="预期" />
+  <Section id="expectations" title="通胀预期" />
   <!-- 条件性小节(Shapiro 分解无数据时为空),不进 Section 避免空标题 -->
   <div id="shapiro" class="re-block"></div>
   <Section id="recent" title="近期数据" />
@@ -85,7 +85,7 @@ async function load() {
   // ── 通胀预期 ──
   const esec = document.createElement('div');
   esec.className = 're-section';
-  esec.innerHTML = '<h2>通胀预期</h2><p style="margin:0">市场隐含（盈亏平衡，日频）与调查端（月频）对照；调查显著高于市场时多为体感通胀，未必传导至定价。</p>';
+  esec.innerHTML = '<p style="margin:0">市场隐含（盈亏平衡，日频）与调查端（月频）对照；调查显著高于市场时多为体感通胀，未必传导至定价。</p>';
   const expRows = [...d.expectations.market, ...d.expectations.survey]
     .map(x => ({ 口径: x.name, 当前: x.value, 较上月: x.chg_1m, 观测期: x.as_of, 发布: x.released || '—' }));
   esec.appendChild(R.table(['口径', '当前', '较上月', '观测期', '发布'], expRows,
