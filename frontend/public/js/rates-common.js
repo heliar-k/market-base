@@ -17,6 +17,33 @@ const R = {
   // 生成器类型 → 界面文案（避免内部枚举 rules/llm 泄漏到页面，见审计 D2）
   genText: (g) => (g === 'llm' ? 'LLM' : '规则引擎（LLM 预留）'),
 
+  // ── 跨资产表数值格式化单源（unit 来自 /api/daily-brief 行；daily 页与仪表盘共用）──
+  // bn 的单位是「百万」：≥1e6 M → T，≥1e3 M → B，否则 M。
+  fmtLast(unit, v) {
+    if (v == null) return '—';
+    if (unit === 'bn') return v === 0 ? '$0'
+      : v >= 1e6 ? '$' + (v / 1e6).toFixed(2) + 'T'
+      : v >= 1e3 ? '$' + Math.round(v / 1e3 * 10) / 10 + 'B'
+      : '$' + Math.round(v).toLocaleString('en-US') + 'M';
+    if (unit === 'pct_bp') return Number(v).toFixed(2) + '%';
+    if (unit === 'bp') return Number(v).toFixed(1) + 'bp';
+    if (unit === 'pt') return Number(v).toFixed(2);
+    return Number(v).toLocaleString('en-US', { maximumFractionDigits: 2 });
+  },
+  // 涨跌 chip：符号一律在最前（`$-2B` 读起来像「负美元」），且显示值四舍五入到 0 就不着色
+  // （RRP Δ=-0.4M 曾渲染成红色的 "$0M"——有颜色没数值比没数值更误导）。
+  fmtChg(unit, v) {
+    if (v == null) return '<span style="color:var(--text-dim)">—</span>';
+    const a = Math.abs(v);
+    const body = unit === 'bp' || unit === 'pct_bp' ? a.toFixed(1) + 'bp'
+      : unit === 'pt' ? a.toFixed(2) + 'pt'
+      : unit === 'bn' ? (a >= 1e6 ? '$' + (a / 1e6).toFixed(2) + 'T'
+        : a >= 1e3 ? '$' + Math.round(a / 1e3) + 'B' : '$' + Math.round(a) + 'M')
+      : a.toFixed(2) + '%';
+    if (!/[1-9]/.test(body)) return `<span style="color:var(--text-dim)">${body}</span>`;
+    return `<span class="${v > 0 ? 'up' : 'down'}">${v > 0 ? '+' : '-'}${body}</span>`;
+  },
+
   // ── 研判文案 → .sig-block（全站研判段共用渲染：rates 四段 + 三段式页）──
   // 引擎侧契约：body 用 \n 分行（结论 / 依据 / 触发）。
   //   labels 给了→按行取标签（rates：结论/依据/触发，卡面自带 h2 标题）；

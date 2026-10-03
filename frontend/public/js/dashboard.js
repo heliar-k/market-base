@@ -1,16 +1,15 @@
-// dashboard.js — 市场仪表盘：数据驾驶舱（今日研判结论层 + 跨资产全景 + 六板块快照 + 波动率信号 + 自选清单）
+// dashboard.js — 市场仪表盘：数据驾驶舱（今日研判结论层 + 波动率 KPI + 六板块快照 + 信号卡 + 自选清单）
 //
 // 数据源（5 个端点）：
 //   /api/home-lines           → 首屏「今日一句话」结论层（9 个专题引擎各一行，issue #21）
-//   /api/daily-brief          → 报警 + 主导情景 + FOMC + 跨资产变化表（11 行）
+//   /api/daily-brief          → 结构报警 + 主导情景徽章（表与情景卡本体在 /daily/，不重复）
 //   /api/assets/overview      → 六板块标的快照（最新价 + 日涨跌）
 //   /api/volatility/dashboard → 波动率 hero 4 卡 + 信号卡
 //   /api/symbols + /api/kline/{sym}?days=5 → 自选清单（localStorage 持久化）
 
-// reThemeECharts 为 echarts-theme.js 经典脚本全局（Phase 2 单轨化，见 index.html 引入）
 import { SITE_NAV } from './site-nav.js';
 
-// 专题页映射（SITE_NAV 唯一数据源：组键 + 子页键 → page），跨资产表与今日一句话共用
+// 专题页映射（SITE_NAV 唯一数据源：组键 + 子页键 → page），今日一句话用
 const NAV_PAGES = (() => {
   const pages = new Map();
   for (const g of SITE_NAV.groups) {
@@ -20,27 +19,11 @@ const NAV_PAGES = (() => {
   return pages;
 })();
 
-// 跨资产表行 → 专题页跳转（与今日研判页同款映射）：
-// 路径不重复硬编码——指标键 → SITE_NAV 导航键（site-nav.js 唯一数据源），再由索引解出 page
-const LINKS = (() => {
-  const NAV_KEY = {
-    SPX: 'assets/equities', DXY: 'assets/fx', BTC: 'assets/crypto',
-    WTI: 'assets/commodities', Gold: 'assets/commodities',
-    Y10: 'rates/yield-curve', VIX: 'volatility/vix', HY_OAS: 'credit',
-    RRP: 'liquidity/rrp-tga', TGA: 'liquidity/rrp-tga',
-    NET_LIQ: 'liquidity/fed-balance-sheet',
-  };
-  return Object.fromEntries(
-    Object.entries(NAV_KEY).filter(([, nk]) => NAV_PAGES.has(nk)).map(([k, nk]) => [k, NAV_PAGES.get(nk)]),
-  );
-})();
-
 // 自选清单（localStorage，默认参考 timsun：10Y/信用/VIX 类核心指标）
 const WATCH_KEY = 'guanlan-watchlist';
 const DEFAULT_WATCH = ['SPX', 'NVDA'];
 
 let data = {};
-let miniCharts = [];
 
 // ── public API ──────────────────────────────────────────────
 export async function initDashboard() {
@@ -48,24 +31,15 @@ export async function initDashboard() {
   root.classList.remove('placeholder');
   root.innerHTML = '';
   data = {};
-  miniCharts = [];
-  window.addEventListener('theme-changed', onDashThemeChanged);
 
   const head = el('div', 'dash-head');
   head.innerHTML = '<span class="dash-head-title">市场仪表盘</span><span class="dash-asof" id="dash-asof"></span>';
   root.appendChild(head);
   root.appendChild(el('div', 'dash-lines'));
   root.appendChild(el('div', 'dash-alerts'));
-  root.appendChild(el('div', 'dash-scen'));
-  const grid = el('div', 'dash-grid dash-grid-1');
-  const tableCard = el('div', 'dash-card');
-  tableCard.innerHTML = `
-    <div class="dash-card-title">跨资产变化 <small class="dash-title-note">涨跌颜色只表示数值方向；Δ5/Δ20 按各序列有效观测计算，点击行进入专题</small></div>
-    <div class="dash-table-wrap"><div class="loading skeleton">加载中…</div></div>`;
-  grid.appendChild(tableCard);
-  root.appendChild(grid);
+  root.appendChild(el('div', 'dash-brief-link'));
+  root.appendChild(el('div', 'dash-kpi'));
   root.appendChild(el('div', 'dash-grid dash-grid-2'));
-  root.appendChild(el('div', 'dash-grid dash-grid-3'));
   root.appendChild(el('div', 'dash-vol'));
   root.appendChild(el('div', 'dash-watch-card dash-card'));
 
@@ -73,18 +47,7 @@ export async function initDashboard() {
 }
 
 export function cleanup() {
-  miniCharts.forEach(c => { try { c.dispose(); } catch (e) { /* ignore */ } });
-  miniCharts = [];
-  window.removeEventListener('theme-changed', onDashThemeChanged);
-}
-
-function onDashThemeChanged() {
-  miniCharts = miniCharts.map(c => {
-    const dom = c.getDom();
-    if (!dom || !dom.isConnected) return c;
-    const opts = c.getOption();
-    return reThemeECharts(c, dom, opts);
-  });
+  data = {};
 }
 
 export function refresh() {
@@ -109,8 +72,9 @@ async function refreshBrief() {
   data.brief = brief;
   renderAsOf();
   renderAlerts();
-  renderScenario();
-  renderTable();
+  // 一句话的主次靠 brief 的 topics，brief 后到 → 重绘一次 lines
+  renderLines();
+  renderBriefLink();
 }
 
 async function refreshAssets() {
@@ -146,18 +110,46 @@ function renderLines() {
       + '</div></div>';
     return;
   }
+  // 主次不自己判：规则引擎已在 alerts / 命中情景上标了 topics（指标→专题键），
+  // 这里只做集合求交（不靠前端扫文案关键词）。
+  const hot = hotTopics();
+  const on = lines.filter(l => hot.has(l.key));
+  const off = lines.filter(l => !hot.has(l.key));
+  // 全冷时不分层：否则退化成 9 个没正文的胶囊，这一段就没用了
+  const cards = on.length ? on : lines;
+  const chips = on.length ? off : [];
   // 标题不重复写时效：页头 dash-asof 已是全局口径，这里再写一个不同日期只会让人怀疑哪个对；
-  // 各引擎自己的观测日放在行 title 里（悬停可查）。
-  box.innerHTML = `<div class="dash-card">
-    <div class="dash-card-title">今日一句话 <small class="dash-title-note">按专题聚合 · 点击进入对应研判</small></div>
-    ${lines.map(l => {
-      const body = `<span class="dash-line-label">${esc(l.label)}</span><span class="dash-line-text">${esc(l.text)}</span>`;
-      const page = NAV_PAGES.get(l.key);
-      return page
-        ? `<a class="dash-line" href="${page}" target="_blank" title="${esc(l.label)}专题 · ${esc(l.as_of || '')}">${body}<span class="dash-line-go">↗</span></a>`
-        : `<div class="dash-line" title="${esc(l.as_of || '')}">${body}</div>`;
-    }).join('')}
-  </div>`;
+  // 各引擎自己的观测日放在卡 title 里（悬停可查）。
+  box.innerHTML = `
+    <div class="dash-sec-head">今日一句话 <small class="dash-title-note">按专题聚合 · 点击进入对应研判</small></div>
+    <div class="dash-line-cards">${cards.map(l => lineCard(l, hot.has(l.key))).join('')}</div>
+    ${chips.length ? `<div class="dash-calm"><span class="dash-calm-k">平稳</span>${chips.map(calmChip).join('')}</div>` : ''}`;
+}
+
+// 有信号的专题卡：标题 + 完整一句话（不截断）+ 行末进入提示
+function lineCard(l, hot) {
+  const inner = `<div class="dash-line-card-t">${esc(l.label)}</div>
+    <div class="dash-line-card-x">${esc(l.text)}</div>`;
+  const page = NAV_PAGES.get(l.key);
+  if (!page) return `<div class="dash-line-card calm">${inner}</div>`;
+  return `<a class="dash-line-card${hot ? ' hot' : ' calm'}" href="${page}" target="_blank"
+    title="${esc(l.label)}专题 · ${esc(l.as_of || '')}">${inner}<span class="dash-line-card-go">进入研判 →</span></a>`;
+}
+
+// 平稳专题只留一颗胶囊：正文今天没有可说的，细节进专题页看
+function calmChip(l) {
+  return `<a href="${NAV_PAGES.get(l.key)}" target="_blank"
+    title="${esc(l.label)}专题 · ${esc(l.as_of || '')}">${esc(l.label)}</a>`;
+}
+
+
+// 正在响的专题集合（报警 + 命中情景的 topics，两者都由后端规则引擎声明）
+function hotTopics() {
+  const b = data.brief;
+  if (!b || b.status !== 'fulfilled') return new Set();
+  const v = b.value;
+  const src = [...(v.alerts || []), ...(v.scenarios || []).filter(s => s.matched)];
+  return new Set(src.flatMap(x => x.topics || []));
 }
 
 // 页头「数据截至」分段（AGENTS 规范：数据截至 源 date · 源 date）
@@ -213,60 +205,19 @@ function renderAlerts() {
     </div>`;
 }
 
-// 情景卡（一句话 + 命中条件）——精简版，详情在今日研判页
-function renderScenario() {
-  const elx = root().querySelector('.dash-scen');
+// 跨资产变化表 / 情景卡本体在 /daily/（同端点同 11 行，仪表盘不复制一遍），这里只留入口
+function renderBriefLink() {
+  const box = root().querySelector('.dash-brief-link');
   const d = data.brief;
-  if (!elx) return;
-  if (d.status !== 'fulfilled') { elx.innerHTML = ''; return; }
-  const scens = (d.value.scenarios || []).filter(s => s.matched);
-  if (!scens.length) { elx.innerHTML = ''; return; }
-  elx.innerHTML = scens.map(s => `
-    <div class="dash-card dash-scen-card" title="${esc(s.desc)}">
-      <div class="dash-scen-title">${esc(s.title)} <span class="dash-chip on">规则命中</span></div>
-      <div class="dash-scen-desc">${esc(s.desc)}</div>
-      <div class="dash-scen-evidence">${(s.evidence || []).map(e => `<span>${esc(e)}</span>`).join('')}</div>
-      <div class="dash-scen-refute">反证：${esc(s.refute)}</div>
-    </div>`).join('');
-}
-
-// 跨资产变化表（替换原四卡 + 迷你图 + 股指一览）
-function renderTable() {
-  const wrap = root().querySelector('.dash-table-wrap');
-  const d = data.brief;
-  if (!wrap) return;
-  if (d.status !== 'fulfilled') {
-    wrap.innerHTML = '<div class="loading">今日研判数据加载失败，请确认服务已启动（uv run python -m src.server）</div>';
-    return;
-  }
-  const rows = d.value.indicators?.rows || [];
-  wrap.innerHTML = `
-    <div class="dash-table-wrap"><table class="dash-table">
-      <thead><tr><th>指标 / 研究入口</th><th>最新值</th><th>Δ5 观测</th><th>Δ20 观测</th><th>近 20 观测</th><th>数据截至</th><th>时效</th></tr></thead>
-      <tbody>${rows.map(r => {
-        const [fresh, cls] = freshness(r.as_of);
-        const link = LINKS[r.key];
-        const nameCell = link ? `<a href="${link}" target="_blank">${r.name} ↗</a>` : r.name;
-        const spark = sparkSVG(r.spark);
-        return `<tr class="dash-row-click" title="${esc(r.note || '')}">
-          <td>${nameCell}</td>
-          <td style="font-weight:600">${fmtLast(r.unit, r.last)}</td>
-          <td>${fmtChg(r.unit, r.chg?.d5)}</td>
-          <td>${fmtChg(r.unit, r.chg?.d20)}</td>
-          <td>${spark}</td>
-          <td style="color:var(--text-dim)">${r.as_of ?? '—'}</td>
-          <td class="${cls}" style="font-size:.85em">${fresh}</td>
-        </tr>`;
-      }).join('')}</tbody>
-    </table></div>`;
-  // 整行 cursor:pointer 只是装饰——真链接在第一格的 <a>（鼠标点行体什么也不会发生）。
-  // 转发到该链接；没链接的行摘掉 .dash-row-click，不留可点假象。
-  // 键盘无需额外处理：行内 <a> 本身可聚焦，上一轮的全局 :focus-visible 已给焦点环。
-  wrap.querySelectorAll('.dash-row-click').forEach(tr => {
-    const a = tr.querySelector('a');
-    if (!a) { tr.classList.remove('dash-row-click'); return; }
-    tr.addEventListener('click', e => { if (e.target !== a) a.click(); });
-  });
+  if (!box) return;
+  if (d.status !== 'fulfilled') { box.innerHTML = ''; return; }
+  const v = d.value;
+  const n = (v.indicators?.rows || []).length;
+  const sc = (v.scenarios || []).filter(s => s.matched).length;
+  box.innerHTML = `<a class="dash-brief-a" href="${SITE_NAV.home.page}" target="_blank">
+    <span class="dash-brief-t">跨资产变化表 · 情景与反证</span>
+    <span class="dash-brief-d">${n} 个指标的 Δ5/Δ20 与近 20 观测走势${sc ? `，当前命中 ${sc} 个情景` : ''}</span>
+    <span class="dash-brief-go">↗</span></a>`;
 }
 
 // 六板块快照（assets/overview tables）
@@ -285,7 +236,7 @@ function renderAssetSnapshots() {
   grid.innerHTML = boards.map(([key, label]) => {
     const rows = res.value.tables[key] || [];
     if (!rows.length) return '';
-    return `<div class="dash-card"><div class="dash-card-title">${label} <small class="dash-title-note">${rows[0]?.date ?? ''}</small></div>
+    return `<div class="dash-card"><div class="dash-card-title">${label} <small class="dash-title-note">日涨跌 · ${rows[0]?.date ?? ''}</small></div>
       <div class="dash-snap">${rows.map(r => {
         const cls = r.chg_pct == null || r.chg_pct === 0 ? 'neutral' : (r.chg_pct > 0 ? 'up' : 'down');
         const sign = r.chg_pct > 0 ? '+' : '';
@@ -298,33 +249,32 @@ function renderAssetSnapshots() {
   }).join('');
 }
 
-// 波动率：hero 4 卡 + 信号卡
+// 波动率：hero 4 卡（KPI 卡行单源 R.cards）+ 信号卡
 function renderVol() {
+  const kpi = root().querySelector('.dash-kpi');
   const elx = root().querySelector('.dash-vol');
   const res = data.vol;
-  if (!elx) return;
+  if (!kpi || !elx) return;
   if (res.status !== 'fulfilled' || !res.value?.hero) {
+    kpi.innerHTML = '';
     elx.innerHTML = '';
     return;
   }
   const v = res.value;
-  const hero = (v.hero.cards || []).map(c => `
-    <div class="dash-stat" style="cursor:default">
-      <div class="dash-stat-value">${fmtNum(c.value)}${c.symbol === 'SKEW' ? '' : ''}</div>
-      <div class="dash-stat-label">${esc(c.symbol)}</div>
-      <div class="dash-stat-desc">${esc(c.name)}</div>
-      <div class="dash-stat-change ${c.chg1d > 0 ? 'up' : c.chg1d < 0 ? 'down' : 'neutral'}">${c.chg1d != null ? (c.chg1d > 0 ? '+' : '') + c.chg1d.toFixed(2) + '%' : ''} 1D</div>
-    </div>`).join('');
+  // 卡行不再自写 .dash-vol-hero + .dash-stat（与全站 KPI 卡双轨）；涨跌 chip 走 R.chgSpan
+  kpi.replaceChildren(R.cards((v.hero.cards || []).map(c => ({
+    label: c.symbol,
+    value: fmtNum(c.value),
+    sub: `${esc(c.name)} · ${R.chgSpan(c.chg1d)} 1D`,
+  }))));
   const signals = (v.signals || []).map(s => `
     <div class="dash-card dash-sig-card">
-      <div class="dash-scen-title">${esc(s.title)}</div>
-      <div class="dash-scen-desc">${esc(s.metric)}</div>
-      <div class="dash-scen-desc">${esc(s.text)}</div>
-      ${s.advice ? `<div class="dash-scen-refute">应对：${esc(s.advice)}</div>` : ''}
+      <div class="dash-sig-title">${esc(s.title)}</div>
+      <div class="dash-sig-metric">${esc(s.metric)}</div>
+      <div class="dash-sig-text">${esc(s.text)}</div>
+      ${s.advice ? `<div class="dash-sig-advice">应对：${esc(s.advice)}</div>` : ''}
     </div>`).join('');
-  elx.innerHTML = `
-    <div class="dash-vol-hero">${hero}</div>
-    ${signals ? `<div class="dash-vol-signals">${signals}</div>` : ''}`;
+  elx.innerHTML = signals ? `<div class="dash-vol-signals">${signals}</div>` : '';
 }
 
 // 自选清单（localStorage 持久化；标的来自 /api/symbols + /api/kline）
@@ -430,45 +380,4 @@ const esc = R.esc;
 function fmtNum(n, p = 2) {
   if (n == null || isNaN(n)) return '--';
   return Number(n).toLocaleString('en-US', { maximumFractionDigits: p });
-}
-
-function fmtLast(unit, v) {
-  if (v == null) return '—';
-  if (unit === 'bn') return v >= 1e6 ? '$' + (v / 1e6).toFixed(2) + 'T' : v >= 1e3 ? '$' + Math.round(v / 1e3 * 10) / 10 + 'B' : '$' + Math.round(v).toLocaleString('en-US') + 'M';
-  if (unit === 'bp') return Number(v).toFixed(1) + 'bp';
-  if (unit === 'pt') return Number(v).toFixed(2);
-  return Number(v).toLocaleString('en-US', { maximumFractionDigits: 2 });
-}
-
-function fmtChg(unit, v) {
-  if (v == null) return '<span style="color:var(--text-secondary)">—</span>';
-  const s = v > 0 ? '+' : '';
-  if (unit === 'bp') return `<span class="${v > 0 ? 'up' : v < 0 ? 'down' : ''}">${s}${v.toFixed(1)}bp</span>`;
-  if (unit === 'pt') return `<span class="${v > 0 ? 'up' : v < 0 ? 'down' : ''}">${s}${v.toFixed(2)}pt</span>`;
-  if (unit === 'bn') {
-    const a = Math.abs(v);
-    const f = a >= 1e6 ? (v / 1e6).toFixed(2) + 'T' : a >= 1e3 ? '$' + Math.round(v / 1e3) + 'B' : '$' + Math.round(v) + 'M';
-    return `<span class="${v > 0 ? 'up' : v < 0 ? 'down' : ''}">${s}${f}</span>`;
-  }
-  return `<span class="${v > 0 ? 'up' : v < 0 ? 'down' : ''}">${s}${v.toFixed(2)}%</span>`;
-}
-
-// 时效：行数据日期距打开页面当天 ≤4 自然日 → 正常（覆盖周末），否则滞后。
-// 基准是用户「今天」而非全表最新日——整表停更时不能误报「时效正常」
-function freshness(rowAsOf) {
-  if (!rowAsOf) return ['—', ''];
-  const lag = (Date.now() - new Date(rowAsOf + 'T00:00:00')) / 86400000;
-  return lag <= 4 ? ['时效正常', ''] : [`滞后 ${Math.round(lag)} 天`, 'down'];
-}
-
-function sparkSVG(points) {
-  if (!points || points.length < 2) return '';
-  const vals = points.map(p => p[1]);
-  const min = Math.min(...vals), max = Math.max(...vals), span = max - min || 1;
-  const W = 110, H = 30, step = W / (points.length - 1);
-  const xy = points.map((p, i) => `${(i * step).toFixed(1)},${(H - 2 - (p[1] - min) / span * (H - 4)).toFixed(1)}`);
-  const up = vals[vals.length - 1] >= vals[0];
-  const color = up ? 'var(--color-up)' : 'var(--color-down)';
-  return `<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" style="vertical-align:middle">
-    <polyline points="${xy.join(' ')}" fill="none" stroke="${color}" stroke-width="1.5"/></svg>`;
 }

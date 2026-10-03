@@ -340,6 +340,8 @@ def _scenarios(series: dict[str, pd.Series]) -> list[dict]:
             "title": "风险偏好修复",
             "desc": "股市上涨若伴随信用利差收窄、隐含波动下降，风险承担改善更有广度。",
             "matched": d_spx == 1 and d_hy in (-1, 0) and d_vix in (-1, 0),
+            # topics = 情景用到的序列归属的 home-lines 专题键（仪表盘给对应行标主次）
+            "topics": ["assets", "credit", "vol"],
             "evidence": [
                 ev("标普500", d_spx),
                 ev("高收益债 OAS", d_hy),
@@ -353,6 +355,7 @@ def _scenarios(series: dict[str, pd.Series]) -> list[dict]:
             "title": "风险压力扩散",
             "desc": "股市下跌若同时传导到信用与期权市场，应检查融资及流动性条件。",
             "matched": d_spx == -1 and (d_hy == 1 or d_vix == 1),
+            "topics": ["assets", "credit", "vol"],
             "evidence": [
                 ev("标普500", d_spx),
                 ev("高收益债 OAS", d_hy),
@@ -366,6 +369,7 @@ def _scenarios(series: dict[str, pd.Series]) -> list[dict]:
             "title": "能源成本压力",
             "desc": "油价涨、股市跌、长端利率升并存，与成本压力相容；仍需事件验证。",
             "matched": d_wti == 1 and d_spx == -1 and d_y10 == 1,
+            "topics": ["assets", "rates"],
             "evidence": [
                 ev("WTI 原油", d_wti),
                 ev("标普500", d_spx),

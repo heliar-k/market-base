@@ -135,18 +135,16 @@ def test_nav_consumers_read_site_nav() -> None:
 
 
 def test_dashboard_links_use_site_nav() -> None:
-    """dashboard.js 跨资产表跳转（导航消费方）：路径不得重复硬编码，
-    指标键→导航键映射里的每个键必须真实存在于 SITE_NAV。"""
+    """dashboard.js 是导航消费方：专题路径不得重复硬编码，全部从 SITE_NAV 派生。
+
+    （仪表盘不再自带跨资产表，指标键→导航键的 LINKS 映射随之消失；
+    现在只余两处页路径：今日一句话行的 NAV_PAGES、与去 /daily/ 的入口条。）"""
     text = (STATIC / "js" / "dashboard.js").read_text(encoding="utf-8")
-    assert "SITE_NAV" in text, "dashboard.js LINKS 未从 SITE_NAV 派生"
+    assert "import { SITE_NAV" in text, "dashboard.js 未 import SITE_NAV"
+    assert "for (const g of SITE_NAV.groups)" in text, "NAV_PAGES 未从 groups 派生"
+    assert "SITE_NAV.home.page" in text, "去今日研判页的入口条未用 SITE_NAV.home.page"
     hardcoded = [p for p in _nav_pages() if f"'{p}'" in text]
     assert not hardcoded, f"dashboard.js 里仍有硬编码专题路径：{hardcoded}"
-    m = re.search(r"const NAV_KEY = \{(.*?)\n  \};", text, re.S)
-    assert m, "dashboard.js 里没解析到 NAV_KEY 映射"
-    used = set(re.findall(r": '([a-z][a-z0-9/_-]*)'", m.group(1)))
-    assert used, "NAV_KEY 映射为空"
-    missing = used - set(re.findall(r"key: '([^']+)'", _site_nav_js()))
-    assert not missing, f"dashboard.js 引用了不存在的 SITE_NAV 键：{sorted(missing)}"
 
 
 def test_as_of_text_only_via_r_asof() -> None:

@@ -799,12 +799,15 @@ def get_polymarket_history(
 # 去重复日期前缀与截断。export_pages 复用本函数产静态 JSON（同 daily-brief）。
 
 
-def _sentence(text: object, limit: int = 72) -> str | None:
+def _sentence(text: object, limit: int = 120) -> str | None:
     """引擎叙事首行首句 → 首屏「今日一句话」（issue #21）。
 
     文案一律由 Python 规则引擎组装（AGENTS 第 8 节），前端只渲染不计算；
     引擎用 \n 分「结论 / 依据 / 触发」（全站研判契约），这里先取首行再取首句；
     首句超 limit 字则截到 limit 并补省略号。
+
+    limit 从 72 抬到 120：首屏改成一专题一张卡后正文会换行，不再靠字数保行高；
+    留着硬上限只会把「…，能源上涨对股…」截在从句中间。
     """
     s = " ".join(str(text or "").split("\n")[0].split())
     # 引擎叙事常以「截至YYYY-MM-DD，」开头，行尾已有观测日 → 去掉重复前缀
@@ -1537,6 +1540,31 @@ def get_cross_asset() -> dict:
 
 _static = ROOT / "frontend" / "public"
 _static.mkdir(exist_ok=True)
+_dist = ROOT / "frontend" / "dist"
+
+# 专题页（/rates/ /credit/ …）是 astro 产物，只存在于 frontend/dist，public 里没有。
+# 不挂它们的话，仪表盘「今日一句话」与左侧专题树的链接在本地全部 404
+# （线上部署的是 dist，所以只有本地会重现）。
+# 逐个挂页面目录，而不是把静态根整体指向 dist：后者会让改了 public/css|js
+# 必须重新 npm run build 才可见，丢掉开发热更（dist 里那几份只是 public 的拷贝）。
+_shared = {"api", "css", "js", "vendor"}
+_page_dirs = (
+    [p for p in sorted(_dist.iterdir()) if p.is_dir()] if _dist.is_dir() else []
+)
+for _p in _page_dirs:
+    if _p.name in _shared:
+        continue
+    app.mount(
+        f"/{_p.name}",
+        StaticFiles(directory=str(_p), html=True),
+        name=f"dist-{_p.name}",
+    )
+if not _page_dirs:
+    print(
+        "  提示：frontend/dist 不存在 → 本地专题页（/rates/ 等）会 404；"
+        "跑 cd frontend && npm run build"
+    )
+
 app.mount("/", StaticFiles(directory=str(_static), html=True), name="static")
 
 

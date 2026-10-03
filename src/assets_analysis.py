@@ -258,6 +258,12 @@ def _corr_series() -> dict | None:
 
 
 def _corr_alerts() -> list[dict]:
+    """跨资产结构报警。
+
+    topics = 该报警涉及的首页专题键（home-lines 的 key，如 assets/rates/credit/vol）：
+    仪表盘「今日一句话」靠它给对应行标主次，前端不自己扫文案关键词。
+    两条都是相关性结构报警，归属「大类资产」行（cross_asset 叙事用的就是同一对序列）。
+    """
     a = _read("cross_asset/alerts.csv")
     if a.empty:
         return []
@@ -275,6 +281,7 @@ def _corr_alerts() -> list[dict]:
                     if float(row["SPX_TLT_30d"]) > 0
                     else "组合分散化有效。"
                 ),
+                "topics": ["assets"],
             }
         )
     if pd.notna(row.get("WTI_SPX_30d")) and float(row["WTI_SPX_30d"]) <= -0.3:
@@ -285,6 +292,7 @@ def _corr_alerts() -> list[dict]:
                     f"原油与 SPX 30 日相关性 = {float(row['WTI_SPX_30d']):.2f}，"
                     "能源涨即股票跌。"
                 ),
+                "topics": ["assets"],
             }
         )
     return out

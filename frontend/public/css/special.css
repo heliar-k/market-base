@@ -24,31 +24,6 @@ body.embedded .re-header h1 { display: none; } /* 内嵌时左卡已有标题 */
 /* 时效胶囊（timsun 徽章语言）：12% 中性底 + 全圆角，与各状态 tag 同构 */
 .re-as-of { font-size: 12px; color: var(--text-secondary); background: var(--color-neutral-bg); padding: 2px 10px; border-radius: 999px; white-space: normal; overflow-wrap: anywhere; }
 /* 子页不再渲染“返回概览”面包屑（导航在左侧专题树 / 窄屏抽屉里） */
-/* KPI 卡行单源（页面只选档，不写内联 grid-template-columns）：
- * 用 flex 而非 grid：grid 的 auto-fit 列数按轨道上限算，封顶 275px 会把 6 卡行压成 3 列；
- * flex 的「先平分增长、到 275px 停」正好是想要的形状：≥4 卡行铺满整行，2-3 卡行左对齐留白
- * （与 /liquidity/reserves/ 同一处理），卡片宽度全站收敛到 ≤275px = .re-root 4 列档。
- * 两档：默认 basis 130（数字卡）/ .re-cards-wide basis 250（带长文本、百分位条或内嵌框的卡）。 */
-.re-cards { display: flex; flex-wrap: wrap; gap: 12px; }
-.re-cards > .re-card { flex: 1 1 130px; min-width: 0; max-width: 275px; }
-.re-cards-wide > .re-card { flex-basis: 250px; }
-.re-card { padding: 16px 20px; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; }
-/* 长文本卡：value / sub 换行不截断（默认 nowrap + ellipsis 是给纯数字卡的） */
-.re-card-wrap .re-corridor-value, .re-card-wrap .re-card-sub {
-  white-space: normal; overflow: visible; text-overflow: clip;
-}
-/* 密集卡（带百分位条等附加内容）：比标准卡更紧一档 */
-.re-card-dense { padding: 12px 14px; }
-.re-card-dense .re-corridor-value { font-size: 17px; margin: 2px 0; }
-/* ≤768 收单列（卡片铺满行宽，与 #27 的 grid 单列档同构） */
-@media (max-width: 768px) {
-  .re-cards > .re-card { flex-basis: 100%; max-width: none; }
-}
-.re-card-accent { background: var(--surface); border: 1px solid var(--border); color: var(--text); }
-.re-card-accent .re-corridor-label { color: var(--text-secondary); }
-.re-corridor-label { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; opacity: .7; }
-.re-corridor-value { font-size: 22px; font-weight: 700; margin-top: 10px; font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.re-card-sub { font-size: 11px; opacity: .7; margin-top: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 /* 页内锚点导航（长页如美债） */
 .page-toc {

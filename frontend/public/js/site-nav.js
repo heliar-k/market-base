@@ -3,7 +3,7 @@
 // 消费方（一份数据，统一 import）：
 //   1. src/layouts/TopicLayout.astro → 专题页顶栏 Tab（构建期渲染，只渲染到「组」这一层）
 //   2. js/macro-view.js             → SPA 左侧专题树（组 + items 子页）
-//   3. js/dashboard.js              → SPA 跨资产表跳转（指标键 → 导航键 → page）
+//   3. js/dashboard.js              → SPA 仪表盘专题入口（今日一句话行 + /daily/ 入口条，路径全走这份）
 // 挂 window.SITE_NAV 供过渡期未改 import 的模块消费方兜底，Astro 构建期无 window 则跳过。
 //
 // 新增专题：改这里即可（页面放 frontend/src/pages/ 对应路径，无需别处登记）。

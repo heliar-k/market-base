@@ -114,13 +114,39 @@ body { font-family: system-ui, -apple-system, sans-serif; background: var(--bg);
 .app.sidebar-hidden .sidebar { display: none; }
 [data-view="correlation"] .correlation-view { display: flex; min-height: 0; }
 
+/* ── KPI 卡行单源（R.cards 的产物；从 special.css 搬来：SPA 只加载 app.css，
+   仪表盘波动率 hero 要用同一套卡就必须放这份两边都加载的文件里。
+   专题页加载顺序 app.css → special.css，特殊覆盖仍写在 special.css 后面即可。 */
+/* KPI 卡行单源（页面只选档，不写内联 grid-template-columns）：
+ * 用 flex 而非 grid：grid 的 auto-fit 列数按轨道上限算，封顶 275px 会把 6 卡行压成 3 列；
+ * flex 的「先平分增长、到 275px 停」正好是想要的形状：≥4 卡行铺满整行，2-3 卡行左对齐留白
+ * （与 /liquidity/reserves/ 同一处理），卡片宽度全站收敛到 ≤275px = .re-root 4 列档。
+ * 两档：默认 basis 130（数字卡）/ .re-cards-wide basis 250（带长文本、百分位条或内嵌框的卡）。 */
+.re-cards { display: flex; flex-wrap: wrap; gap: 12px; }
+.re-cards > .re-card { flex: 1 1 130px; min-width: 0; max-width: 275px; }
+.re-cards-wide > .re-card { flex-basis: 250px; }
+.re-card { padding: 16px 20px; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; }
+/* 长文本卡：value / sub 换行不截断（默认 nowrap + ellipsis 是给纯数字卡的） */
+.re-card-wrap .re-corridor-value, .re-card-wrap .re-card-sub {
+  white-space: normal; overflow: visible; text-overflow: clip;
+}
+/* 密集卡（带百分位条等附加内容）：比标准卡更紧一档 */
+.re-card-dense { padding: 12px 14px; }
+.re-card-dense .re-corridor-value { font-size: 17px; margin: 2px 0; }
+/* ≤768 收单列（卡片铺满行宽，与 #27 的 grid 单列档同构） */
+@media (max-width: 768px) {
+  .re-cards > .re-card { flex-basis: 100%; max-width: none; }
+}
+.re-card-accent { background: var(--surface); border: 1px solid var(--border); color: var(--text); }
+.re-card-accent .re-corridor-label { color: var(--text-secondary); }
+.re-corridor-label { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; opacity: .7; }
+.re-corridor-value { font-size: 22px; font-weight: 700; margin-top: 10px; font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.re-card-sub { font-size: 11px; opacity: .7; margin-top: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
 /* ── dashboard ────────────────────────────────────────────── */
 .dashboard-view {
   display: none; flex-direction: column; gap: 12px;
   overflow-y: auto; max-height: calc(100dvh - 80px); padding: 4px;
-}
-.dash-top {
-  display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px;
 }
 .dash-stat {
   background: var(--surface); border-radius: 8px; border: 1px solid var(--border);
@@ -167,23 +193,6 @@ body { font-family: system-ui, -apple-system, sans-serif; background: var(--bg);
 }
 .dash-chip.on { background: var(--color-up-bg); color: var(--color-up-text); border-color: transparent; }
 
-.dash-scen { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr)); gap: 12px; }
-.dash-scen-card { display: flex; flex-direction: column; gap: 6px; }
-.dash-scen-title { font-size: 13px; font-weight: 600; color: var(--text); display: flex; align-items: center; gap: 6px; }
-.dash-scen-desc { font-size: 12px; color: var(--text-secondary); line-height: 1.5; }
-.dash-scen-evidence { display: flex; flex-wrap: wrap; gap: 6px; }
-.dash-scen-evidence span { font-size: 11px; padding: 2px 8px; border-radius: 4px; background: var(--accent-light); color: var(--text-secondary); }
-.dash-scen-refute { font-size: 11px; font-style: italic; color: var(--text-dim); }
-
-.dash-table-wrap { overflow-x: auto; }
-.dash-table { width: 100%; border-collapse: collapse; font-size: 13px; font-variant-numeric: tabular-nums; }
-.dash-table th { background: var(--surface-alt, var(--surface)); padding: 8px 12px; text-align: left; font-size: 12px; color: var(--text-dim); font-weight: 600; border-bottom: 1px solid var(--border); white-space: nowrap; }
-.dash-table td { padding: 7px 12px; border-bottom: 1px solid var(--border-light); color: var(--text); font-family: var(--font-mono); font-variant-numeric: tabular-nums; white-space: nowrap; }
-.dash-table a { color: var(--accent-ink); }
-.dash-table td.up { color: var(--color-up-text); }
-.dash-table td.down { color: var(--color-down-text); }
-.dash-row-click { cursor: pointer; }
-.dash-row-click:hover { background: var(--surface-hover); }
 .dash-snap { display: flex; flex-direction: column; }
 .dash-snap-row {
   display: grid; grid-template-columns: minmax(0, 1fr) auto 58px; gap: 8px;
@@ -195,13 +204,30 @@ body { font-family: system-ui, -apple-system, sans-serif; background: var(--bg);
 .dash-snap-val { font-weight: 600; color: var(--text); text-align: right; font-variant-numeric: tabular-nums; font-family: var(--font-mono); }
 .dash-snap-row > span:last-child { text-align: right; font-variant-numeric: tabular-nums; }
 
-.dash-vol-hero { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin-bottom: 12px; }
+/* 波动率信号卡私有类（以前借 .dash-scen-*，情景卡删后名实不副） */
 .dash-vol-signals { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr)); gap: 12px; }
 .dash-sig-card { display: flex; flex-direction: column; gap: 6px; }
+.dash-sig-title { font-size: 13px; font-weight: 600; color: var(--text); }
+.dash-sig-metric { font-size: 12px; color: var(--text-secondary); font-family: var(--font-mono); }
+.dash-sig-text { font-size: 12px; color: var(--text-secondary); line-height: 1.5; }
+.dash-sig-advice { font-size: 11px; font-style: italic; color: var(--text-dim); }
 
-.dash-grid-1 { grid-template-columns: 1fr; }
-.dash-grid-2 { grid-template-columns: repeat(3, 1fr); }
-.dash-grid-3 { grid-template-columns: 1fr; }
+/* /daily/ 入口条（代替仪表盘里那份重复的跨资产表） */
+.dash-brief-a {
+  display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: baseline; gap: 10px;
+  padding: 10px 16px; border: 1px solid var(--border); border-radius: 8px;
+  background: var(--surface); text-decoration: none;
+}
+.dash-brief-a:hover { border-color: var(--accent-ink); background: var(--surface-hover); }
+.dash-brief-t { font-size: 13px; font-weight: 600; color: var(--text); }
+.dash-brief-d { font-size: 12px; color: var(--text-secondary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dash-brief-go { color: var(--text-dim); }
+
+.dash-grid-2 {
+  /* align-items:start：六板块卡数据行数 2-6 行不等，默认 stretch 会把「加密」两行卡
+     拉到与「外汇」六行卡等高 → 卡内近六成是空白 */
+  grid-template-columns: repeat(3, 1fr); align-items: start;
+}
 .dash-watch-card select { font-size: 12px; background: var(--surface); color: var(--text); border: 1px solid var(--border); border-radius: 4px; padding: 2px 4px; }
 
 /* watchlist */
@@ -385,6 +411,10 @@ body.embedded .macro-nav, body.embedded #macro-nav-toggle { display: none; }
     background: var(--surface); color: var(--text-secondary); cursor: pointer;
     font-size: 14px;
   }
+  /* ☰ 是 fixed 到视口左上角（底边 38px），SPA 主区没让位 → 窄屏下正好压在「市场仪表盘」
+     页头与六板块卡标题上。给 .center 加 padding-top 而不是给 .dashboard-view：
+     后者自己滚动，内容会从按钮下面滚过去；让位到滚动容器外才在任何滚动位置都不遮。 */
+  .center { padding-top: 46px; }
   body.side-open .macro-nav-backdrop {
     display: block; position: fixed; inset: 0; z-index: var(--z-backdrop);
     background: rgba(0,0,0,.35);
@@ -549,7 +579,6 @@ body.embedded .macro-nav, body.embedded #macro-nav-toggle { display: none; }
   .app[data-view="tech"] .panel.collapsed .panel-header { writing-mode: horizontal-tb; }
   /* 信息条窄屏允许折行 */
   .tech-info-bar { flex-wrap: wrap; gap: 8px 12px; }
-  /* 仪表盘网格收敛：顶部统计 4→2 列，卡片区 2/3 列→1 列 */
-  .dash-top { grid-template-columns: repeat(2, 1fr); }
+  /* 仪表盘网格收敛：卡片区 3 列→1 列 */
   .dash-grid, .dash-grid-2 { grid-template-columns: 1fr; }
 }

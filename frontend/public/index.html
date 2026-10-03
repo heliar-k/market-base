@@ -18,20 +18,39 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap" media="print" onload="this.media='all'">
 <link rel="stylesheet" href="/css/app.css">
 <style>
-/* 首屏「今日一句话」结论层（issue #21，渲染在 js/dashboard.js 的 renderLines）。
-   页面私有样式块（不动 css/*.css）；颜色一律走变量，color: 只用文字档。 */
-.dash-lines .dash-card { gap: 2px; padding: 12px 16px; }
-.dash-line {
-  display: grid; grid-template-columns: 4.5em minmax(0, 1fr) auto; gap: 8px;
-  align-items: baseline; padding: 4px 0;
-  border-bottom: 1px solid var(--border-light); font-size: 13px; text-decoration: none;
+/* 首屏「今日一句话」结论层（渲染在 js/dashboard.js 的 renderLines）。
+   页面私有样式块（不动 css/*.css）；颜色一律走变量，color: 只用文字档。
+   形式：有信号的专题升为卡（正文不截断），其余收成一行「平稳」胶囊——
+   外层不再套 .dash-card，否则卡中卡双层框（见 AGENTS 第 8 节）。 */
+.dash-lines { display: flex; flex-direction: column; gap: 10px; }
+.dash-sec-head {
+  font-size: 13px; font-weight: 600; color: var(--text-secondary); padding: 0 2px;
 }
-.dash-line:last-child { border-bottom: none; }
-a.dash-line:hover { background: var(--surface-hover); }
-a.dash-line:hover .dash-line-text { text-decoration: underline; }
-.dash-line-label { color: var(--text-secondary); font-weight: 600; }
-.dash-line-text { color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.dash-line-go { color: var(--text-dim); }
+.dash-line-cards {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr));
+  gap: 12px; align-items: start;
+}
+.dash-line-card {
+  display: flex; flex-direction: column; gap: 6px; padding: 14px 16px;
+  background: var(--surface); border: 1px solid var(--border);
+  border-left: 3px solid var(--border-light); border-radius: 8px;
+  text-decoration: none; transition: background .15s, border-color .15s;
+}
+/* 有信号：竖条走图形档 --color-warn（边框属于图形档允许的位置） */
+.dash-line-card.hot { border-left-color: var(--color-warn); }
+.dash-line-card.hot .dash-line-card-t { color: var(--warning); }
+.dash-line-card:hover { background: var(--surface-hover); border-color: var(--accent-ink); }
+.dash-line-card:hover .dash-line-card-x { text-decoration: underline; }
+.dash-line-card-t { font-size: 13px; font-weight: 600; color: var(--text); }
+.dash-line-card-x { font-size: 12.5px; line-height: 1.55; color: var(--text-secondary); }
+.dash-line-card-go { font-size: 11px; color: var(--text-dim); margin-top: auto; padding-top: 4px; }
+.dash-calm { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; font-size: 12px; }
+.dash-calm-k { color: var(--text-dim); margin-right: 2px; }
+.dash-calm a {
+  color: var(--text-secondary); text-decoration: none; font-size: 12px;
+  padding: 2px 10px; border: 1px solid var(--border); border-radius: 999px;
+}
+.dash-calm a:hover { border-color: var(--accent-ink); color: var(--accent-ink); }
 .dash-line-empty { font-size: 13px; color: var(--text-secondary); }
 .dash-line-empty code { font-family: var(--font-mono); }
 </style>

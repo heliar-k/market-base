@@ -68,23 +68,8 @@ import Section from '../../components/Section.astro';
   <div class="re-gen" id="db-gen"></div>
 
 <script is:inline>
-// ── 格式化 ──
-function fmtLast(unit, v) {
-  if (v == null) return '—';
-  if (unit === 'bn') return v >= 1e6 ? '$' + (v / 1e6).toFixed(2) + 'T' : v >= 1e3 ? '$' + Math.round(v / 1e3 * 10) / 10 + 'B' : '$' + Math.round(v).toLocaleString('en-US') + 'M';
-  if (unit === 'pct_bp') return Number(v).toFixed(2) + '%';
-  if (unit === 'bp') return Number(v).toFixed(1) + 'bp';
-  if (unit === 'pt') return Number(v).toFixed(2);
-  return Number(v).toLocaleString('en-US', { maximumFractionDigits: 2 });
-}
-function fmtChg(unit, v) {
-  if (v == null) return '<span style="color:var(--text-dim)">—</span>';
-  const s = v > 0 ? '+' : '';
-  if (unit === 'pct_bp' || unit === 'bp') return `<span class="${v > 0 ? 'up' : v < 0 ? 'down' : ''}">${s}${v.toFixed(1)}bp</span>`;
-  if (unit === 'pt') return `<span class="${v > 0 ? 'up' : v < 0 ? 'down' : ''}">${s}${v.toFixed(2)}pt</span>`;
-  if (unit === 'bn') { const a = Math.abs(v); const f = a >= 1e6 ? (v / 1e6).toFixed(2) + 'T' : a >= 1e3 ? '$' + Math.round(v / 1e3) + 'B' : '$' + Math.round(v) + 'M'; return `<span class="${v > 0 ? 'up' : v < 0 ? 'down' : ''}">${s}${f}</span>`; }
-  return `<span class="${v > 0 ? 'up' : v < 0 ? 'down' : ''}">${s}${v.toFixed(2)}%</span>`;
-}
+// 数值格式化走 R.fmtLast / R.fmtChg（已收进 rates-common.js 单源，仪表盘同用）
+
 // 涨跌着色语义：价格上行=up 绿（与全站一致）；VIX/OAS 上行是风险信号，但颜色只表示方向（见页首说明）
 function sparkSVG(points) {
   if (!points || points.length < 2) return '';
@@ -208,9 +193,9 @@ async function load() {
           ? `<span class="${dirCls(r.key, Math.sign(r.chg.d5))}">${r.chg.d5 > 0 ? '↑' : r.chg.d5 < 0 ? '↓' : '→'}</span>` : '';
         return `<tr class="db-click" title="${r.note || ''}" data-k="${r.key}">
           <td>${nameCell}</td>
-          <td style="font-weight:600">${fmtLast(r.unit, r.last)}</td>
-          <td>${fmtChg(r.unit, r.chg?.d5)}</td>
-          <td>${fmtChg(r.unit, r.chg?.d20)}</td>
+          <td style="font-weight:600">${R.fmtLast(r.unit, r.last)}</td>
+          <td>${R.fmtChg(r.unit, r.chg?.d5)}</td>
+          <td>${R.fmtChg(r.unit, r.chg?.d20)}</td>
           <td>${spark}</td>
           <td style="color:var(--text-dim)">${r.as_of ?? '—'}</td>
           <td class="${cls}" style="font-size:.85em">${fresh}</td>
