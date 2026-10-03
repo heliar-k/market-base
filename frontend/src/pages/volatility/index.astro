@@ -248,7 +248,7 @@ async function load() {
   data.narrative.forEach(n => {
     const sec = document.createElement('div');
     sec.className = 're-section';
-    let inner = `<h2>${n.title}${n.score !== undefined ? `<span class="vol-score">综合评分 ${n.score}/10</span>` : ''}</h2>`;
+    let inner = `<h2>${n.title}</h2>`;
     if (n.parts) {
       inner += '<div class="vol-basic-grid">' + n.parts.map(p =>
         `<div class="sig-block"><div class="sig-title">${p.title}</div><p>${p.text}</p></div>`).join('') + '</div>';
