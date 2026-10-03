@@ -39,13 +39,11 @@ async function load() {
     { label: 'JOLTS 职位空缺', value: c.jolts.value == null ? '—' : c.jolts.value + 'M', sub: (c.jolts.as_of || '') + (c.jolts.vu !== null ? ` · V/U ${c.jolts.vu}` : '') },
   ]));
 
-  // ── 研判（三段式，每段可含 \n 分行：判断 / 读数，末行走 .note）──
-  const sec = document.createElement('div');
-  sec.className = 're-section';
-  sec.innerHTML = '<h2>就业研判</h2>'
-    + (d.signals || []).map(s => R.sigBlocks(s.title, s.text)).join('');
-  sec.innerHTML += '<div class="note">rule-based · no direct price forecast</div>';
-  document.getElementById('re-signals').appendChild(sec);
+  // ── 研判（每段一张卡，段内 \n 分行 = 判断 / 读数，横排小卡走 R.judgeCard）──
+  const box = document.getElementById('re-signals');
+  box.innerHTML = (d.signals || [])
+    .map(s => R.judgeCard(s.title, s.text, R.LINES_CONCLUSION)).join('')
+    + '<div class="note">rule-based · no direct price forecast</div>';
 
   // ── NFP bar + 失业率 line ──
   const hsec = document.createElement('div');

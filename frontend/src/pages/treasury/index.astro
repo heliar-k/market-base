@@ -49,13 +49,10 @@ async function load() {
     { label: 'Bill 占比', value: c.bill_share.value == null ? '—' : c.bill_share.value + '%', sub: (c.bill_share.as_of || '') + (c.bill_share.chg_1y !== null ? ` · 1Y ${c.bill_share.chg_1y > 0 ? '+' : ''}${c.bill_share.chg_1y}pp` : '') },
   ]));
 
-  // ── 研判（三段式，每段可含 \n 分行：判断 / 读数，末行走 .note）──
-  const sec = document.createElement('div');
-  sec.className = 're-section';
-  sec.innerHTML = '<h2>美债研判</h2>'
-    + (d.signals || []).map(s => R.sigBlocks(s.title, s.text)).join('');
-  sec.innerHTML += '<div class="note">rule-based · no direct price forecast</div>';
-  document.getElementById('re-signals').appendChild(sec);
+  // ── 研判（每段一张卡：段标题在左上，段内 \n 分行 = 判断 / 读数）──
+  document.getElementById('re-signals').innerHTML = (d.signals || [])
+    .map(s => R.judgeCard(s.title, s.text, R.LINES_JUDGE)).join('')
+    + '<div class="note">rule-based · no direct price forecast</div>';
 
   // ══ 拍卖（发行端）══ 次要端点：缺数据/字段炸只降级 auctions 段（块内只用 auc，不碰 d）
   if (!auc) R.fail(['auctions'], new Error('拍卖数据缺失：data/treasury/auction_results.csv 未更新，先运行 ./bin/fetch_treasury 后重新导出'));

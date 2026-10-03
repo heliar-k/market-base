@@ -109,17 +109,14 @@ async function load() {
   row.innerHTML = card('IG OAS（投资级）', d.ig, 'bp') + card('HY OAS（高收益）', d.hy, 'bp') + card('HY − IG', d.hy_ig, 'bp');
   document.getElementById('oas-row').appendChild(row);
 
-  // ── 研判（三段式：发生了什么变化 / 为什么重要 / 接下来关注什么）──
-  const sec = document.createElement('div');
-  sec.className = 're-section';
+  // ── 研判（三段各一张卡：发生了什么变化 / 为什么重要 / 接下来关注什么）──
   const s = d.signals || { framework: '—', what_changed: '—', why_it_matters: '—', what_to_watch: '—' };
-  sec.innerHTML = '<h2>信用周期研判</h2>' + [
+  document.getElementById('re-signals').innerHTML = [
     ['发生了什么变化', s.what_changed],
     ['为什么重要', s.why_it_matters],
     ['接下来关注什么', s.what_to_watch],
-  ].map(([title, text]) => R.sigBlocks(title, text)).join('');
-  sec.innerHTML += `<div class="note">框架：${s.framework} · rule-based · no direct price forecast</div>`;
-  document.getElementById('re-signals').appendChild(sec);
+  ].map(([title, text]) => R.judgeCard(title, text)).join('')
+    + `<div class="note">框架：${s.framework} · rule-based · no direct price forecast</div>`;
 
   // ── OAS 分层表 ──
   const layers = d.layers.map(l => ({

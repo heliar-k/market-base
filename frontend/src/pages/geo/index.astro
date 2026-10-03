@@ -64,14 +64,15 @@ async function load() {
     </div>`;
   }).join('');
 
-  // ── 叙事（规则引擎，复用 .re-analysis 卡）──
+  // ── 盘面解读（结论句 + 分主题明细，两层各一张卡；外卡形状与全站研判一致）──
   if ((d.signals || []).length) {
     const [lead, ...rest] = d.signals;
-    const sec = document.createElement('div');
-    sec.className = 're-analysis';
-    sec.innerHTML = `<h3>盘面解读</h3><p>${esc(lead)}</p>` +
-      (rest.length ? `<ul>${rest.map(s => `<li${s.startsWith('⚠') ? ' style="color:var(--color-down-text);font-weight:600"' : ''}>${esc(s)}</li>`).join('')}</ul>` : '');
-    document.getElementById('re-signals').appendChild(sec);
+    const warn = (s) => s.startsWith('⚠')
+      ? ' style="color:var(--color-down-text);font-weight:600"' : '';
+    document.getElementById('re-signals').innerHTML = R.judgeCard('盘面解读', lead)
+      + (rest.length ? `<div class="re-section"><h2>分主题明细</h2><div class="sig-row">`
+        + `<div class="sig-block"><ul>${rest.map(s => `<li${warn(s)}>${R.esc(s)}</li>`).join('')}</ul></div>`
+        + '</div></div>' : '');
   }
 
   // ── 归类异动榜（跨主题，|7日均值变动| 降序 top 8）──

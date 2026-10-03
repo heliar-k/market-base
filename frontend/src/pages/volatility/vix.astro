@@ -58,7 +58,7 @@ import Section from '../../components/Section.astro';
   <Section id="sec-term" title="VIX 期限结构" sub="VIX 单品种 · Term Structure">
     <span slot="head" id="term-badge"></span>
     <div id="vix_term_chart" class="chart chart-sm"></div>
-    <div class="re-analysis" id="term-signals" style="margin-top:10px"></div>
+    <div id="term-signals" style="margin-top:10px"></div>
   </Section>
 
   <!-- 近期数据 -->
@@ -244,13 +244,8 @@ async function load() {
   }));
 
   // ── 期限结构解读（复用 signals 三段文） ──
-  const termBox = document.getElementById('term-signals');
-  data.signals.forEach(sg => {
-    const block = document.createElement('div');
-    block.className = 'sig-block';
-    block.innerHTML = `<div class="sig-title">${sg.title}</div><p>${sg.text}</p>`;
-    termBox.appendChild(block);
-  });
+  document.getElementById('term-signals').innerHTML =
+    data.signals.map(sg => R.judgeCard(sg.title, sg.text)).join('');
 
   // ── 近期数据表 ──
   const headers = ['日期', 'VIX1D', 'VIX9D', 'VIX', 'VIX3M', 'VIX6M', 'VIX1Y', 'SKEW', 'OVX'];

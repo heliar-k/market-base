@@ -94,18 +94,12 @@ async function load() {
   // 卡间间距不再写 inline margin：special.css 的 `.re-root :has(> .re-section + .re-section)`
   // 已给持有 2+ 张卡的容器上 flex + gap；旧代码里的 `replace(/。/g, '。')` 是空操作（已删）。
   const ev = d.evaluation || {};
-  const box = document.createElement('div');
-  const LINE_TITLES = ['结论', '依据', '触发'];
-  [ev.net_liquidity, ev.outlook, ev.reserves].forEach(sec => {
-    if (!sec || !sec.text) return;
-    const s = document.createElement('div');
-    s.className = 're-section';
-    s.innerHTML = `<h2>${R.esc(sec.title)}</h2>${R.sigBlocks(sec.title, sec.text, LINE_TITLES)}`;
-    box.appendChild(s);
-  });
+  const box = document.getElementById('re-eval');
+  box.innerHTML = [ev.net_liquidity, ev.outlook, ev.reserves]
+    .filter(sec => sec && sec.text)
+    .map(sec => R.judgeCard(sec.title, sec.text, R.LINES_CONCLUSION)).join('');
   box.insertAdjacentHTML('afterbegin',
     `<div class="note">${R.genText(d.generator || ev.generator)} · 规则模板生成，基准数据见下方子页</div>`);
-  document.getElementById('re-eval').appendChild(box);
 
   document.getElementById('re-gen').textContent =
     '数据源 FRED（H.4.1 / 利率走廊 / NFCI）· DTS 日度现金流 · Treasury 拍卖 · CFETS 掉期点 · 央行互换（SWPT）· 金额单位：百万美元（原始），页面按万亿/十亿显示';

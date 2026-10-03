@@ -67,6 +67,31 @@ const R = {
       + lines.map((t, j) => `<p${note(j)}>${R.esc(t)}</p>`).join('') + '</div>';
   },
 
+  // ── 研判行契约标签（全站单源，页面不再各写一份 LINE_TITLES）──
+  // 引擎两种契约：三段式「结论 / 依据 / 触发」(rates / liquidity / volatility / labor…)
+  // 与两段式「判断 / 读数」(treasury / inflation / assets…)。行数为 1 时 R.sigBlocks
+  // 自动不挂标题（降级文案不硬套标签）。
+  LINES_CONCLUSION: ['结论', '依据', '触发'],
+  LINES_JUDGE: ['判断', '读数'],
+
+  // ── 研判段 → 一张 .re-section 外卡（段标题在左上 + 内嵌 .sig-row 横排小卡）──
+  // 承载波动率页定下来的形状，全站研判（treasury/inflation/labor/credit/rates/…）统一走这里；
+  // 页面不再手写 re-section + sigBlocks 拼装，改形状只改这一处。
+  //   title   段标题（外卡 h2，左上）
+  //   body    \n 分行的段文本
+  //   labels 按行取的小卡标题；不给 = 整段一张小卡、标题用 title
+  judgeCard(title, body, labels = null) {
+    // 单行段没有「行」可拆：不套内卡（sig-title 会与外卡 h2 重复），直接一张外卡一段文
+    const lines = String(body ?? '').split('\n').filter(s => s.trim());
+    if (lines.length <= 1) {
+      const one = lines[0] ?? '';
+      return one ? `<div class="re-section"><h2>${R.esc(title)}</h2><p>${R.esc(one)}</p></div>` : '';
+    }
+    const blocks = R.sigBlocks(title, body, labels);
+    if (!blocks) return '';      // 空文本不渲染空卡
+    return `<div class="re-section"><h2>${R.esc(title)}</h2><div class="sig-row">${blocks}</div></div>`;
+  },
+
   // ── 时效标签（re-as-of）文案唯一组装处 ──
   // AGENTS 规范：前缀固定「数据截至」，多源用 ` · ` 分段，日期一律 ISO，月频区间写「月频 起–止」。
   //   R.asOf(date)                        → 「数据截至 2026-09-04」

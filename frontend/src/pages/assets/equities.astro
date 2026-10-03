@@ -177,14 +177,10 @@ function renderAbvChart() {
 }
 
 function renderAnalysis() {
-  const asec = document.createElement('div');
-  asec.className = 're-section';
-  asec.innerHTML = '<h2>规则引擎解读 · 动能集中度</h2>';
-  const blks = Object.values(D.analysis || {}).filter(v => v && v.text && v.title).map(v => `
-    <div class="sig-block"><div class="sig-title">${v.title}</div><p>${v.text}</p></div>`).join('');
-  asec.innerHTML += `<div class="ai-box">${blks}
-    <div class="ai-meta"><span>${D.breadth?.abv_date || ''}</span><span class="ai-tag">规则引擎（LLM 预留）</span></div></div>`;
-  document.getElementById('analysis').appendChild(asec);
+  const blks = Object.values(D.analysis || {}).filter(v => v && v.text && v.title)
+    .map(v => R.judgeCard(v.title, v.text, R.LINES_JUDGE)).join('');
+  document.getElementById('analysis').innerHTML = blks
+    + `<div class="ai-box"><div class="ai-meta"><span>${D.breadth?.abv_date || ''}</span><span class="ai-tag">规则引擎（LLM 预留）</span></div></div>`;
 }
 
 function renderAnalyst() {

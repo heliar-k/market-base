@@ -45,13 +45,10 @@ async function load() {
     { label: 'PPI 同比', value: c.ppi.value == null ? '—' : c.ppi.value + '%', sub: (c.ppi.as_of || '') + chgStr(c.ppi.chg_1m) },
   ]));
 
-  // ── 研判（三段式，每段可含 \n 分行：判断 / 读数，末行走 .note）──
-  const sec = document.createElement('div');
-  sec.className = 're-section';
-  sec.innerHTML = '<h2>通胀研判</h2>'
-    + (d.signals || []).map(s => R.sigBlocks(s.title, s.text)).join('');
-  sec.innerHTML += '<div class="note">rule-based · no direct price forecast</div>';
-  document.getElementById('re-signals').appendChild(sec);
+  // ── 研判（每段一张卡：段标题在左上，段内 \n 分行 = 判断 / 读数）──
+  document.getElementById('re-signals').innerHTML = (d.signals || [])
+    .map(s => R.judgeCard(s.title, s.text, R.LINES_JUDGE)).join('')
+    + '<div class="note">rule-based · no direct price forecast</div>';
 
   // ── YoY 历史曲线 ──
   const hsec = document.createElement('div');

@@ -243,18 +243,17 @@ async function load() {
   // ── 7 段叙事 ──
   // 非 parts 段走全站行契约单源 R.sigBlocks：\n 分行 = 结论 / 依据 / 触发（标签归渲染层，
   // 文案不写前缀）。外层 .re-section 已是卡面，不再套 .re-analysis（否则卡中卡双层框）。
-  const LINE_TITLES = ['结论', '依据', '触发'];
   const narr = document.getElementById('vol-narrative');
   data.narrative.forEach(n => {
     const sec = document.createElement('div');
     sec.className = 're-section';
     let inner = `<h2>${n.title}</h2>`;
     if (n.parts) {
-      inner += '<div class="vol-basic-grid">' + n.parts.map(p =>
+      inner += '<div class="sig-row">' + n.parts.map(p =>
         `<div class="sig-block"><div class="sig-title">${p.title}</div><p>${p.text}</p></div>`).join('') + '</div>';
     } else {
       // 三段式（结论/依据/触发）→ 与 parts 段同一套横排小卡，标题留在外层卡左上
-      inner += '<div class="vol-basic-grid">' + R.sigBlocks(n.title, n.text, LINE_TITLES) + '</div>';
+      inner += '<div class="sig-row">' + R.sigBlocks(n.title, n.text, R.LINES_CONCLUSION) + '</div>';
     }
     sec.innerHTML = inner;
     narr.appendChild(sec);

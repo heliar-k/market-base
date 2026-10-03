@@ -78,16 +78,8 @@ async function load() {
   R.curveCompare('yc_compare', d.tenors);
 
   // ── 四段研判：三行契约（结论 / 依据 / 触发）统一走 R.sigBlocks ──
-  const root = document.getElementById('re-sections');
-  root.innerHTML = '';
-  const LINE_TITLES = ['结论', '依据', '触发'];
-  data.overview.sections.forEach((sec, i) => {
-    const div = document.createElement('div');
-    div.className = 're-section';
-    div.id = `re-sec-${i}`;
-    div.innerHTML = `<h2>${R.esc(sec.title)}</h2>${R.sigBlocks(sec.title, sec.body, LINE_TITLES)}`;
-    root.appendChild(div);
-  });
+  document.getElementById('re-sections').innerHTML =
+    data.overview.sections.map(sec => R.judgeCard(sec.title, sec.body, R.LINES_CONCLUSION)).join('');
 
   // ── 小节锚点导航：页面不长，四段研判合并为一项 ──
   const tocItems = [['概览', 're-cards'], ['曲线快照', 'sec-shape'], ['研判', 're-sections'], ['子页入口', 're-links']];
