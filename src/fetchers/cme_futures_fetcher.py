@@ -211,7 +211,7 @@ def main() -> None:
     DATA.mkdir(parents=True, exist_ok=True)
     path = DATA / f"{datetime.now():%Y%m%d}.json"
     path.write_text(
-        json.dumps(snap, ensure_ascii=False, separators=(",", ":")),
+        json.dumps(snap, ensure_ascii=False, separators=(",", ":")) + "\n",
         encoding="utf-8",
     )
     logger.info(

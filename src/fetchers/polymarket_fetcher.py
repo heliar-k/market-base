@@ -340,7 +340,9 @@ def fetch_polymarket() -> dict:
     # ── 快照写盘（覆盖写，同 coinglass）──
     DATA.mkdir(parents=True, exist_ok=True)
     out_path = DATA / f"{datetime.now().strftime('%Y%m%d')}.json"
-    out_path.write_text(json.dumps(snapshot, ensure_ascii=False, indent=1))
+    out_path.write_text(
+        json.dumps(snapshot, ensure_ascii=False, indent=1) + "\n", encoding="utf-8"
+    )
     logger.info(f"快照 → {out_path}")
     return snapshot
 

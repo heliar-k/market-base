@@ -502,8 +502,8 @@ def main() -> None:
             existing = json.loads(path.read_text(encoding="utf-8"))
             existing["symbols"].update(snapshot["symbols"])
             snapshot = existing
-        # compact 单行（程序消费的快照，不经 pretty-format-json——多行展开会让
-        # git 差异不可读且体积翻倍）
+        # compact 单行（程序消费的快照，hook 不插手 data/——多行展开会让
+        # git 差异不可读且体积翻倍）；尾部换行由 end-of-file-fixer 要求，写盘时自补
         path.write_text(
             json.dumps(
                 snapshot,
@@ -511,7 +511,8 @@ def main() -> None:
                 allow_nan=False,
                 default=str,
                 separators=(",", ":"),
-            ),
+            )
+            + "\n",
             encoding="utf-8",
         )
         logger.info(f"快照 → {path}（{len(snapshot['symbols'])} 标的）")
