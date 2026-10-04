@@ -7,6 +7,7 @@
 - 每个 '/….html' 链接都要有 _redirects 重写行 → test_html_links_have_redirects
 - 导航消费方不得自带页路径清单 → test_nav_consumers_read_site_nav
 - 「数据截至」文案只能由 R.asOf 组装 → test_as_of_*
+- 页头时效标签段数上限（只放 Section 级数据源）→ test_as_of_segments_capped
 - echarts-theme.js 先于 rates-common.js 加载 → test_echarts_theme_before_rates_common
 - 脚本语法（is:inline 不打包）→ test_all_js_files_parse / test_inline_scripts_parse
 - 静态小节一律 Section 组件 → test_static_sections_use_section_component
@@ -180,6 +181,54 @@ def test_as_of_formatter_present() -> None:
     used = sum(1 for p in astro_pages if "R.asOf(" in p.read_text(encoding="utf-8"))
     assert used == len(astro_pages), (
         f"仅 {used}/{len(astro_pages)} 个专题页用 R.asOf 组装时效标签"
+    )
+
+
+# 页头 `re-as-of` 是「整页第一数据源」的坐标，不是条目级时效的清单。
+# 2026-10 crypto 页堆到 6 段（其中「资金费率/PCR」与「衍生品快照」同源同文件、
+# 「Polymarket/BTCD/ETF 流量」只是交叉验证层四张卡的日期），一行压成三行且
+# 自相矛盾（PM 卡面写「缺失」页头却报有数据）。条目级日期写在各卡 sub 里。
+# 只数写字面量数组的调用（`Object.entries(g)` / `segs` 这类动态入参不在射程）。
+def _asof_args(text: str) -> list[str]:
+    """抽出每处 R.asOf(...) 的入参源码（括号配对，含换行）。"""
+    out: list[str] = []
+    for m in re.finditer(r"R\.asOf\(", text):
+        i, depth, start = m.end(), 1, m.end()
+        while i < len(text) and depth:
+            depth += (text[i] in "([{") - (text[i] in ")]}")
+            i += 1
+        out.append(text[start : i - 1])
+    return out
+
+
+def _asof_segments(arg: str) -> int | None:
+    """字面量数组入参的顶层段数；非数组入参（单值 / 变量）返回 None 不计。"""
+    if not arg.lstrip().startswith("["):
+        return None
+    depth, n = 0, 1
+    for ch in arg:
+        depth += (ch in "([{") - (ch in ")]}")
+        if ch == "," and depth == 1:
+            n += 1
+    return n
+
+
+AS_OF_MAX_SEGS = 4  # 页头最多 4 段（≈一行可读）：主数据源 + 各 Section 第一源
+
+
+def test_as_of_segments_capped() -> None:
+    """页头时效标签不得堆条目级日期（R.asOf 字面量入参 ≤ AS_OF_MAX_SEGS 段）。"""
+    bad = []
+    for page in sorted(
+        [SPA_ENTRY, *ASTRO_PAGES.rglob("*.astro"), *(STATIC / "js").glob("*.js")]
+    ):
+        for arg in _asof_args(page.read_text(encoding="utf-8")):
+            n = _asof_segments(arg)
+            if n and n > AS_OF_MAX_SEGS:
+                bad.append(f"{page.relative_to(ROOT)}（{n} 段）")
+    assert not bad, (
+        "页头只放 Section 级数据源，条目级日期写进对应卡片 sub"
+        f"（≤{AS_OF_MAX_SEGS} 段）：{bad}"
     )
 
 
