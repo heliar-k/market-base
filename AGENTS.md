@@ -223,10 +223,13 @@ market-base/
 > yfinance/cboe/barchart_vol/rate_expectations/polymarket，另 FRED 仅 UTC 13-14 点班次拉）；
 > `crypto-refresh` 每小时全天候 7×24（加密三源：crypto_derivatives/coinglass/etf_flows，
 > 从 fast-refresh 拆出）。upsert 幂等，无新数据即不 commit。
-> 数据 commit 用 PAT（secret `DATA_PUSH_TOKEN`，fine-grained，仅本仓 contents:write）
-> push → 正常触发 push 事件 → `deploy-pages` 靠 `paths: data/**` 过滤，无变更不部署
-> （PAT 到期后数据 push 会失败标红，需续期；GITHUB_TOKEN push 不触发 push 事件，
-> 这是当初用 workflow_run 链的原因，已废弃）。
+> 数据 commit 用 PAT（secret `DATA_PUSH_TOKEN`，fine-grained，仅本仓 contents:write）push，
+> **但 push 本身不触发部署**：无论 GITHUB_TOKEN 还是 PAT，Actions 里的 push 都认证为
+> `github-actions[bot]`（App 身份），GitHub 递归保护不为其创建 workflow run
+> （实测 262 个 data commit 只触发过 1 次部署，且那次是本地手动 push）。
+> 所以四个数据 workflow 在 commit 后都显式跑 `gh workflow run deploy-pages.yml --ref main`
+> （job 需 `permissions: actions: write`）；无新数据 → 不 commit → 不 dispatch，空跑归零。
+> PAT 到期后数据 push 会失败标红，需续期。
 > 部署已切到 Cloudflare Pages 单目标（https://market-base.pages.dev ，根路径）。
 > 部署链（ADR-0003，工单 #11/#12）：`export_pages`（JSON 落
 > frontend/public/api/）→ `astro build`（public/ 拷贝 + .astro 编译 → frontend/dist）
@@ -300,7 +303,9 @@ uv run python -m src.server                        # 启动 Web，浏览器打�
 # 静态部署（Cloudflare Pages，公开仓库）：deploy-pages workflow 部署链 =
 #   uv run python -m src.export_pages（API JSON → frontend/public/api/，工单 #12 起唯一模式）
 #   → npm run build（astro，frontend/dist）→ wrangler deploy → https://market-base.pages.dev/
-#   数据 push（PAT）与前端/后端 push 均自动触发；手动：gh workflow run deploy-pages.yml --ref <分支>
+#   触发：前端/后端 push 自动触发；数据更新由数据 workflow commit 后显式 dispatch
+#   （Actions 里的 push 不产生 workflow run，见「四个 cron」段说明）；
+#   手动：gh workflow run deploy-pages.yml --ref <分支>
 #   等部署结果别用 `gh run watch`：非 TTY 下它只打一次状态快照就 exit 0（假成功，还会把上一轮
 #   部署的 wrangler 输出混进来）。轮询 `gh run view <id> --json status --jq .status` 直到 completed，
 #   再 curl 线上产物（如 /css/app.css）grep 改动关键字才算真生效

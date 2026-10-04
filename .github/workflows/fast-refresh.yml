@@ -14,7 +14,8 @@ name: fast-refresh
 # 财报/SEC/拍卖等日更源。
 #
 # upsert 幂等：无新数据 → diff 为空 → 不 commit → 不触发部署，空跑零成本。
-# 部署：PAT push 触发 push 事件 → deploy-pages.yml 的 paths: data/** 过滤。
+# 部署：数据 commit 后显式 gh workflow run deploy-pages.yml——PAT push 认证为
+# github-actions[bot]（App 身份），GitHub 递归保护不为其创建 workflow run。
 # 错峰：分钟取 7/22/37/52，避开整点 Actions schedule 排队高峰。
 
 on:
@@ -36,6 +37,7 @@ jobs:
     runs-on: ubuntu-24.04
     permissions:
       contents: write
+      actions: write   # 数据 commit 后显式 dispatch deploy-pages（见下方「部署」注释）
     steps:
       - uses: actions/checkout@v5
 
@@ -87,9 +89,18 @@ jobs:
             [ -n "$FAILED_LIST" ] && MSG="$MSG${NL}失败:$FAILED_LIST"
             git commit -m "$MSG"
             git pull --rebase origin main
-            # PAT push：触发 push 事件 → deploy-pages paths 过滤生效，无变更不空跑部署
+            # PAT push 仅用于写入：commit 认证为 github-actions[bot]（App 身份），
+            # GitHub 的递归保护不为其创建新 workflow run —— 部署靠下一步显式 dispatch
             git push "https://x-access-token:${{ secrets.DATA_PUSH_TOKEN }}@github.com/heliar-k/market-base.git" HEAD:main
+            echo "DATA_PUSHED=1" >> "$GITHUB_ENV"
           fi
+
+      # 部署：数据 push 不触发 push 事件（见上），所以有数据变更时显式拉起 deploy-pages。
+      # 无新观测 → 不 commit → 不 dispatch，空跑仍归零（当初删 workflow_run 触发的初衷）。
+      # --ref main：workflow_dispatch 不传 sha 时取默认分支 HEAD，已含本次数据 commit。
+      - name: 触发 Pages 部署
+        if: env.DATA_PUSHED == '1'
+        run: gh workflow run deploy-pages.yml --ref main
 
       - name: 失败汇总（有失败则 job 红）
         if: env.FAILED_LIST != ''
@@ -97,4 +108,4 @@ jobs:
           echo "以下步骤失败，数据已照常 commit:$FAILED_LIST"
           exit 1
 
-  # 部署由 deploy-pages.yml 的 push paths: data/** 触发（PAT push 触发 push 事件）
+  # 部署由本 job 的「触发 Pages 部署」步骤显式 dispatch（数据 push 不产生 workflow run）

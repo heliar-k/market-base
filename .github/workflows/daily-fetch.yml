@@ -26,6 +26,7 @@ jobs:
     runs-on: ubuntu-24.04
     permissions:
       contents: write
+      actions: write   # 数据 commit 后显式 dispatch deploy-pages（见下方「部署」注释）
     steps:
       - uses: actions/checkout@v5
 
@@ -114,10 +115,20 @@ jobs:
             git commit -m "$MSG"
             # 并发保护：远端有新 commit（如本地手动 push）时 rebase 再推，数据文件无冲突
             git pull --rebase origin main
-            # 用 PAT push：GITHUB_TOKEN push 不触发 push 事件，PAT 会 →
-            # deploy-pages 的 paths: data/** 过滤生效，无数据变更时不再空跑部署
+            # PAT push 仅用于写入：GITHUB_TOKEN 与 PAT 都会被归到 github-actions[bot]
+            # （App 身份），GitHub 递归保护不为其创建新 workflow run（实测 262 个 data
+            # commit 只触发过 1 次部署，且那次是本地手动 push）—— 部署靠下一步显式 dispatch
             git push "https://x-access-token:${{ secrets.DATA_PUSH_TOKEN }}@github.com/heliar-k/market-base.git" HEAD:main
+            echo "DATA_PUSHED=1" >> "$GITHUB_ENV"
           fi
+
+      # 部署：数据 push 不触发 push 事件（见上），所以有数据变更时显式拉起 deploy-pages。
+      # 无新观测 → 不 commit → 不 dispatch，空跑仍归零（当初删 workflow_run 触发的初衷）。
+      # 位置在「失败汇总」之前：部分源失败时数据照常 commit、照常部署。
+      # --ref main：workflow_dispatch 不传 sha 时取默认分支 HEAD，已含本次数据 commit。
+      - name: 触发 Pages 部署
+        if: env.DATA_PUSHED == '1'
+        run: gh workflow run deploy-pages.yml --ref main
 
       # 所有拉取/派生步骤跑完后统一判红：数据照常 commit、Pages 照常部署，
       # 仅 job 标红便于发现；失败名列表 grep "失败:" 即得

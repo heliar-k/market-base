@@ -2,10 +2,12 @@ name: deploy-pages
 
 # 静态站点预渲染 + Cloudflare Pages 部署（独立于数据拉取，可单独触发）：
 # - 数据 workflow（daily-fetch / fetch-refresh / fast-refresh / crypto-refresh）
-#   用 PAT（DATA_PUSH_TOKEN）push 数据 commit → push 事件 + paths: data/** 触发
-#   （PAT push 正常触发 push 事件，不像 GITHUB_TOKEN 受递归触发限制；
-#   无数据变更时不 commit → 不 push → 不触发，空跑部署归零）
-# - 手动 push 前端/后端改动 → 同一 push 事件自动触发
+#   commit 后显式 `gh workflow run deploy-pages.yml --ref main` 拉起部署。
+#   不能靠 push 事件：数据 push 无论用 GITHUB_TOKEN 还是 DATA_PUSH_TOKEN，
+#   都认证为 github-actions[bot]（App 身份），GitHub 递归保护不为其创建新 run
+#  （实测 262 个 data commit 只触发过 1 次，且那次是本地手动 push）。
+#   无数据变更时不 commit → 不 dispatch，空跑部署仍归零。
+# - 手动 push 前端/后端改动 → push 事件 + paths 过滤自动触发
 # - 手动触发：gh workflow run deploy-pages.yml --ref <分支>
 #
 # 部署链（工单 #11，ADR-0003）：export_pages 产 API JSON → frontend/public/api/
@@ -16,6 +18,7 @@ on:
   push:
     branches: [main]
     paths:
+      # data/** 保留：人工本地提交数据时仍能自动部署（自动链靠上面的 dispatch）
       - "data/**"
       - "frontend/**"
       - "src/**"
