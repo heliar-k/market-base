@@ -17,7 +17,7 @@ import Section from '../../components/Section.astro';
   <Section id="analysis" title="规则引擎解读" />
   <div id="analyst" class="re-block"></div>
   <div id="radar" class="re-block"></div>
-  <Section id="recent" title="近期数据" />
+  <Section id="recent" title="近期数据" sub="收盘价 · 最近 20 个交易日" />
   <div class="re-gen" id="re-gen"></div>
 </div>
 
@@ -306,7 +306,7 @@ function renderRecent() {
   if (!r.recent || !r.recent.length) return;
   const sec = document.createElement('div');
   sec.className = 're-section';
-  sec.innerHTML = `<h2>近期收盘价（最近 20 个交易日） <span class="re-badge flat chip">收盘价</span></h2>
+  sec.innerHTML = `
     <div class="re-table-wrap"><table class="re-table"><thead><tr><th>日期</th><th>标普500</th><th>纳斯达克100</th><th>道琼斯</th><th>罗素2000</th></tr></thead><tbody>
     ${r.recent.map(x => `<tr><td class="mono">${x.date}</td><td>${id(x.SPX)}</td><td>${id(x.NDX)}</td><td>${id(x.DJI)}</td><td>${id(x.RUT)}</td></tr>`).join('')}
     </tbody></table></div>`;
