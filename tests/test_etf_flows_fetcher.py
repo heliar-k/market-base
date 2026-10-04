@@ -180,3 +180,36 @@ def test_consensus_inst_split_no_crash(monkeypatch, tmp_path):
     cons = crypto_consensus(snap, radar)
     assert cons["verdict"]  # 不崩
     assert "分歧" in cons["verdict"] or "多空" in cons["verdict"]
+
+
+def test_consensus_retail_missing_not_same_direction(monkeypatch, tmp_path):
+    """散户三条通道全缺 → 不得靠「空集未反向」冒充同向，verdict 标单侧可读。
+
+    旧口径把缺失当 0 票中性，机构一条偏多票就能得出「同向偏多 — 趋势延续」；
+    卡片同时要把缺失通道标 has_data=False，前端画「缺数据」而不是「中性」。"""
+    from src import assets_analysis
+    from src.assets_analysis import crypto_consensus
+
+    monkeypatch.setattr(assets_analysis, "ROOT", tmp_path)
+
+    snap = {
+        "etf": {
+            "available": True,
+            "stale": False,
+            "sum5d_busd": 0.9,
+            "latest": "2026-10-02",
+        },
+        "basis": {"spread": 8.0, "ema60": 12.0, "sofr": 4.0},
+        "perp": {},  # 无 funding
+        "options_BTC": {},  # 无 pcr
+        "coinglass": {},  # 无多空比
+    }
+    radar = {
+        "signals": [{"name": "CME 机构头寸", "weight": 15, "dir": 0, "value": None}]
+    }
+    cons = crypto_consensus(snap, radar)
+
+    assert "散户侧数据缺失" in cons["verdict"]
+    assert all(not c["has_data"] for c in cons["retail"]["channels"])
+    assert [c["has_data"] for c in cons["inst"]["channels"]] == [False, True, True]
+    assert cons["inst"]["note"] == "ETF / 基差"

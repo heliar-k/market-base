@@ -2971,27 +2971,73 @@ def crypto_consensus(snap: dict, radar: dict) -> dict:
         "偏多" if (spread or 0) > 5 else ("偏空" if (spread or 0) < 0 else "中性")
     )
 
-    def votes(stances: list[str]) -> str:
-        def cnt(st: str) -> int:
-            return sum(x == st for x in stances)
-
-        return f"多 {cnt('偏多')} · 空 {cnt('偏空')} · 平 {cnt('中性')}"
-
-    retail_stances = [fr_stance, ls_stance, pcr_stance]
-    inst_stances = [inst_stance]
-    # stale 的 ETF 不投票（与 radar dir=0 一致），可用才计入
-    if etf.get("available") and not etf.get("stale"):
-        inst_stances.append(etf_stance)
-    if bz_stance != "中性" or spread is not None:
-        inst_stances.append(bz_stance)
-    names = []
-    if chg is not None:
-        names.append("CME")
-    if etf.get("available") and not etf.get("stale"):
-        names.append("ETF")
-    if spread is not None:
-        names.append("Spread")
-    note_inst = f"({' / '.join(names)} 综合)" if names else "(CME 数据待积累)"
+    # 通道明细单源：读数 + 判定阈值 + 立场 + 是否有数据。缺数据的通道不计票
+    # （历史上缺失被当「中性」混进票型，会得出「散户未反向 → 同向」的假结论）。
+    etf_live = bool(etf.get("available") and not etf.get("stale"))
+    inst_channels = [
+        {
+            "name": "CME 头寸",
+            "stance": inst_stance,
+            "reading": f"{chg:+.1f}%" if chg is not None else None,
+            "band": "4 周变化 · ±0.5% 中性带",
+            "detail": cme_sig.get("desc") or "CME 头寸数据待积累",
+            "has_data": chg is not None,
+        },
+        {
+            "name": "ETF 资金流",
+            "stance": etf_stance,
+            "reading": (
+                f"{etf.get('sum5d_busd'):+.2f} B"
+                if etf.get("sum5d_busd") is not None
+                else None
+            ),
+            "band": "5 日净流 · ±0.05B 中性带",
+            "detail": f"Farside 截至 {etf.get('latest')}"
+            if etf_live
+            else "Farside 数据缺失或过期",
+            "has_data": etf_live,
+        },
+        {
+            "name": "基差 Spread",
+            "stance": bz_stance,
+            "reading": f"{spread}%" if spread is not None else None,
+            "band": "60d EMA − SOFR · >5% 多 / <0 空",
+            "detail": f"EMA {bz.get('ema60')}% − SOFR {bz.get('sofr')}%",
+            "has_data": spread is not None,
+        },
+    ]
+    retail_channels = [
+        {
+            "name": "资金费率",
+            "stance": fr_stance,
+            "reading": f"{ann * 100:.1f}%" if ann is not None else None,
+            "band": "年化 · ±15% 拥挤带",
+            "detail": "OKX BTC 永续 8h 折算" if ann is not None else "永续费率不可用",
+            "has_data": ann is not None,
+        },
+        {
+            "name": "多空账户比",
+            "stance": ls_stance,
+            "reading": f"{ls:.2f}" if ls is not None else None,
+            "band": "全市场 · >1.5 多 / <0.67 空",
+            "detail": "Coinglass 全局" if ls is not None else "Coinglass 多空比不可用",
+            "has_data": ls is not None,
+        },
+        {
+            "name": "期权 PCR",
+            "stance": pcr_stance,
+            "reading": f"{pcr:.2f}" if pcr is not None else None,
+            "band": "Put/Call · <0.8 多 / >1.2 空",
+            "detail": "Deribit BTC 期权" if pcr is not None else "期权链不可用",
+            "has_data": pcr is not None,
+        },
+    ]
+    inst_stances = [c["stance"] for c in inst_channels if c["has_data"]]
+    retail_stances = [c["stance"] for c in retail_channels if c["has_data"]]
+    note_inst = (
+        " / ".join(c["name"].split(" ")[0] for c in inst_channels if c["has_data"])
+        or "CME 数据待积累"
+    )
     short = {"偏多": "多", "偏空": "空", "中性": "中性"}
 
     # 立场口径单源：非中性票同向 → 取之；无方向票 → 中性；对立 → 分化。
@@ -3006,50 +3052,62 @@ def crypto_consensus(snap: dict, radar: dict) -> dict:
     inst_lean = lean_of(inst_stances)
     retail_lean = lean_of(retail_stances)
     inst_dirs = [s for s in inst_stances if s != "中性"]
+    retail_dirs = [s for s in retail_stances if s != "中性"]
     short_inst = short.get(inst_lean, "分化")  # 分化时避免 KeyError
-    both_neutral = not inst_dirs and all(s == "中性" for s in retail_stances)
-    if both_neutral:
-        verdict = "双方都按兵不动 — 等待新催化"
+    if not retail_stances:
+        # 散户三条通道全缺 → 单侧可读，不能靠「空集未反向」冒充同向
+        verdict = "散户侧数据缺失 — 仅机构单侧可读"
         detail = (
-            "机构与散户立场均中性，无方向性持仓变化。等待宏观或链上新催化打破僵局。"
+            f"机构（{note_inst}）偏{short_inst}；资金费率/多空比/PCR 三条散户通道"
+            "本次都取不到，对照不成立。手动补 ./bin/fetch_crypto_derivatives。"
         )
-    elif not inst_dirs:
-        verdict = "机构按兵不动，散户有方向 — 看散户拥挤度"
+    elif not inst_stances:
+        verdict = "机构侧数据缺失 — 仅散户单侧可读"
         detail = (
-            f"机构（{note_inst}）全体中性，散户（资金费率/多空比/PCR）"
-            f"偏{short.get(retail_lean, '分化')}——散户信号仅作反向拥挤度参考。"
+            f"散户（资金费率/多空比/PCR）偏{short.get(retail_lean, '分化')}；"
+            "CME/ETF/Spread 三条机构通道本次都取不到。散户信号仅作反向拥挤度参考。"
         )
-    elif inst_lean == "分化":
-        verdict = "机构内部分歧 — 以 CME/ETF/Spread 通道对立为线索"
-        detail = (
-            f"机构通道分歧（{note_inst}），散户偏{short.get(retail_lean, '分化')}。"
-            "通道对立时以 ETF 现货通道为锚，Spread 作 carry 参考。"
-        )
-    elif all(s == inst_lean or s == "中性" for s in retail_stances) and inst_lean:
-        verdict = f"机构与散户同向偏{short_inst[:1]} — 趋势延续概率上升"
-        detail = f"机构（{note_inst}）偏{short_inst}且散户未反向，方向性信号同向。"
     else:
-        verdict = (
-            f"机构偏{short_inst}，散户偏{short.get(retail_lean, '分化')} — 分歧看定价权"
-        )
-        detail = (
-            "机构与散户立场不一致：以机构（CME/ETF/Spread）定价权为锚，"
-            "散户信号仅作反向拥挤度参考。"
-        )
+        both_neutral = not inst_dirs and not retail_dirs
+        if both_neutral:
+            verdict = "双方都按兵不动 — 等待新催化"
+            detail = (
+                "机构与散户立场均中性，无方向性持仓变化。等待宏观或链上新催化打破僵局。"
+            )
+        elif not inst_dirs:
+            verdict = "机构按兵不动，散户有方向 — 看散户拥挤度"
+            detail = (
+                f"机构（{note_inst}）全体中性，散户（资金费率/多空比/PCR）"
+                f"偏{short.get(retail_lean, '分化')}——散户信号仅作反向拥挤度参考。"
+            )
+        elif inst_lean == "分化":
+            verdict = "机构内部分歧 — 以 CME/ETF/Spread 通道对立为线索"
+            detail = (
+                f"机构通道分歧（{note_inst}），散户偏{short.get(retail_lean, '分化')}。"
+                "通道对立时以 ETF 现货通道为锚，Spread 作 carry 参考。"
+            )
+        elif all(s == inst_lean or s == "中性" for s in retail_stances):
+            verdict = f"机构与散户同向偏{short_inst[:1]} — 趋势延续概率上升"
+            detail = f"机构（{note_inst}）偏{short_inst}且散户未反向，方向性信号同向。"
+        else:
+            verdict = (
+                f"机构偏{short_inst}，散户偏{short.get(retail_lean, '分化')}"
+                " — 分歧看定价权"
+            )
+            detail = (
+                "机构与散户立场不一致：以机构（CME/ETF/Spread）定价权为锚，"
+                "散户信号仅作反向拥挤度参考。"
+            )
     return {
         "inst": {
             "stance": inst_lean,
-            "votes": votes(inst_stances),
             "note": note_inst,
-            "text": cme_sig.get("desc") or "CME 头寸数据待积累",
+            "channels": inst_channels,
         },
         "retail": {
             "stance": retail_lean,
-            "votes": votes(retail_stances),
-            "note": "(资金费率 / 多空比 / PCR 综合)",
-            "text": f"资金费率年化 {ann * 100:.1f}% · 多空比 {ls:.2f} · PCR {pcr}"
-            if ann is not None and ls is not None and pcr is not None
-            else "部分散户数据不可用",
+            "note": "资金费率 / 多空比 / PCR",
+            "channels": retail_channels,
         },
         "verdict": verdict,
         "detail": detail,

@@ -331,20 +331,65 @@ function renderRadar(d) {
 }
 
 // ── CONSENSUS · DIVERGENCE 机构 vs 散户 ──
+// 一张卡三层：结论（verdict）｜对照轨（双方立场落同一条 ±1 轴）｜通道明细（六条票源）。
+// 分层只靠分隔线不套盒；verdict 长句拆成「主句 + 尾注」，不当卡值塞进 re-card。
+const LEAN = { 偏多: 1, 偏空: -1, 中性: 0, 分化: 0 };
+const BADGE = { 偏多: 'bull', 偏空: 'bear', 中性: 'flat', 分化: 'split' };
+const SHORT = { 偏多: '偏多', 偏空: '偏空', 中性: '中性', 分化: '内部分歧' };
+
+// 单侧对照轨：名字 + ±1 轴 + 落点 + 立场徽章（两侧共用同一条刻度，同向即两点同侧）
+function consRail(name, stance, channels) {
+  const v = LEAN[stance] ?? 0;
+  // 分化：无单一落点，改用双端对顶标记，不假装落在中点（中点 = 中性，语义会撞）
+  const split = stance === '分化';
+  const marks = split
+    ? '<span class="cons-mk cons-mk--a" style="left:3%"></span><span class="cons-mk cons-mk--b" style="left:97%"></span>'
+    : `<span class="cons-mk mk-${v}" style="left:${(v + 1) / 2 * 100}%"></span>`;
+  const rows = channels.map((ch) => `<div class="cons-ch${ch.has_data ? '' : ' miss'}" title="${R.esc(ch.band)}">
+      <span class="cons-ch-n">${R.esc(ch.name)}</span>
+      <span class="cons-ch-v">${ch.reading == null ? '—' : R.esc(ch.reading)}</span>
+      <span class="cons-ch-band">${R.esc(ch.band)}</span>
+      <span class="re-badge ${ch.has_data ? BADGE[ch.stance] : 'none'}">${ch.has_data ? SHORT[ch.stance] : '缺数据'}</span>
+    </div>`).join('');
+  return `<div class="cons-side">
+    <div class="cons-side-h"><span>${name}</span><span class="re-badge ${split ? 'split' : BADGE[stance]}">${SHORT[stance]}</span></div>
+    <div class="cons-rail"><span class="cons-track">${marks}</span>
+      <span class="cons-ticks"><span>偏空</span><span>中性</span><span>偏多</span></span></div>
+    ${rows}
+  </div>`;
+}
+
 function renderConsensus(d) {
   const c = d.consensus || null;
   if (!c) return;
   const csec = document.createElement('div');
-  csec.className = 're-section';
-  csec.innerHTML = `<h2>机构 vs 散户 · 对照 <span style="margin-left:6px;font-size:12px;font-weight:400;opacity:.7;border:1px solid var(--border);padding:2px 8px;border-radius:4px">${c.verdict}</span></h2>`;
-  csec.appendChild(R.cards([
-    { label: '🏛 机构方向', value: '立场' + c.inst.stance, cls: 're-card-wrap',
-      sub: `${c.inst.votes} <span style="opacity:.6">${c.inst.note}</span><br>${c.inst.text}` },
-    { label: '🆚 散户方向', value: '立场' + c.retail.stance, cls: 're-card-wrap',
-      sub: `${c.retail.votes} <span style="opacity:.6">${c.retail.note}</span><br>${c.retail.text}` },
-    { label: '📊 当前对照', value: c.verdict, cls: 're-card-wrap', sub: c.detail },
-  ]));
-  csec.insertAdjacentHTML('beforeend', '<p class="re-source" style="margin:8px 0 0">注：此对照只说明机构和散户立场是否一致，不是 BTC 涨跌预测。</p>');
+  csec.className = 're-section cons';
+  // verdict = 「主句 — 尾注」：主句进结论层，尾注降为说明（原卡片把整句当胶囊塞标题）
+  const [head, tail] = String(c.verdict).split(' — ');
+  const ink = tail ? head : c.verdict;
+  // 同向时主句上色（多=绿/空=红，文字档）；不一致或中性则不上色，避免「同向偏空」也涂绿
+  const same = c.inst.stance === c.retail.stance && (c.inst.stance === '偏多' || c.inst.stance === '偏空');
+  const dirInk = c.inst.stance === '偏多' ? 'var(--color-up-text)' : 'var(--color-down-text)';
+  csec.innerHTML = `${R.secTitle('机构 vs 散户 · 对照', '', '机构 = CME / ETF / 基差 · 散户 = 费率 / 多空比 / PCR')}
+    <div class="cons-top${same ? ' aligned' : ''}"${same ? ` style="--ci:${dirInk}"` : ''}>
+      <div class="cons-verdict">
+        <div class="radar-cap">对照结论</div>
+        <div class="cons-head">${R.esc(ink)}</div>
+        ${tail ? `<div class="cons-tail">${R.esc(tail)}</div>` : ''}
+        <div class="cons-detail">${R.esc(c.detail)}</div>
+        <div class="cons-count"><span>机构 · ${R.esc(c.inst.note)}</span><span>散户 · ${R.esc(c.retail.note)}</span></div>
+      </div>
+      <div class="cons-sides">
+        ${consRail('机构', c.inst.stance, c.inst.channels)}
+        ${consRail('散户', c.retail.stance, c.retail.channels)}
+      </div>
+    </div>`;
+  csec.insertAdjacentHTML('beforeend',
+    `<div class="radar-notes"><div><b>注</b> 此对照只说明机构与散户立场是否一致（每条通道的读数落在自己的判定阈值上），不是 BTC 涨跌预测。</div></div>`);
+  // 明细链接挂标题行右端（与雷达同写法：R.secTitle 的 note 走转义，塞不进 <a>）
+  const h2 = csec.querySelector('h2');
+  h2.classList.add('radar-h');
+  h2.insertAdjacentHTML('beforeend', '<a class="radar-jump" href="/assets/crypto-derivatives.html">衍生品明细 ›</a>');
   document.getElementById('consensus').appendChild(csec);
 }
 
