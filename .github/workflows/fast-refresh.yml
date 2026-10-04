@@ -100,6 +100,8 @@ jobs:
       # --ref main：workflow_dispatch 不传 sha 时取默认分支 HEAD，已含本次数据 commit。
       - name: 触发 Pages 部署
         if: env.DATA_PUSHED == '1'
+        env:
+          GH_TOKEN: ${{ github.token }}   # Actions 里 gh CLI 必须显式给 token（否则 exit 4）
         run: gh workflow run deploy-pages.yml --ref main
 
       - name: 失败汇总（有失败则 job 红）
