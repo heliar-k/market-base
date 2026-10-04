@@ -581,6 +581,51 @@ body.dark .pm-topic-card { box-shadow: inset 0 0 0 1px rgba(255,255,255,.04); }
 /* 阶梯卡窄，价位标签多给宽度（标签里带 reach/dip 动词，不能截掉） */
 .pm-ladder-grid .pm-odds-lab { flex-basis: 52%; }
 
+/* ── 加密期权价格墙（/assets/crypto-options/ 私有：sw- 前缀）──
+ * OI 阶梯：行权价升序一行一档，条宽 = OI 占该卡最大值（原 Top5 纯文字列表读不出哪堵厚）。
+ * 语义色沿用全站墙口径：call = 阻力 = down 档，put = 支撑 = up 档；这里只当填充用图形档，
+ * 文字一律走 -text 档（tokens.css 两档制）。 */
+/* 四列定宽（不用 auto：每行自算 track 会让行与行不对齐）：行权价 / OI 条 / OI / 标签 */
+.sw-row { display: grid; grid-template-columns: 60px minmax(0, 1fr) 46px 66px; gap: 8px; align-items: center; padding: 2px 0; border-bottom: 1px solid var(--border-light); font-size: 11.5px; font-variant-numeric: tabular-nums; }
+.sw-row:last-child { border-bottom: none; }
+.sw-k { color: var(--text-secondary); white-space: nowrap; }
+.sw-track { height: 9px; background: var(--bg); border-radius: 3px; overflow: hidden; }
+.sw-fill { height: 100%; border-radius: 3px; min-width: 3px; }
+.sw-fill.call { background: var(--color-down); }
+.sw-fill.put { background: var(--color-up); }
+.sw-fill.n { background: var(--accent); opacity: .75; }
+.sw-oi { text-align: right; color: var(--text-dim); white-space: nowrap; }
+/* 墙位 / 偏离胶囊：墙行上色（与条同侧语义），其余行中性底 */
+.sw-tag { font-size: 10px; padding: 1px 5px; border-radius: 999px; white-space: nowrap; text-align: center; font-variant-numeric: tabular-nums; background: var(--surface-alt); color: var(--text-dim); }
+.sw-tag.call { background: var(--color-down-bg); color: var(--color-down-text); }
+.sw-tag.put { background: var(--color-up-bg); color: var(--color-up-text); }
+/* 现价分隔线（同 .pm-spot 节奏：虚线上边 + accent 文字档） */
+.sw-spot { display: flex; justify-content: space-between; gap: 8px; border-top: 1px dashed var(--accent); margin: 4px 0 2px; padding-top: 3px; font-size: 10px; color: var(--accent-ink); font-variant-numeric: tabular-nums; }
+/* 卡内 meta 行：口径补充信息，不另起卡片（治原「卡中卡双层框」） */
+.sw-meta { margin-top: 8px; padding-top: 6px; border-top: 1px solid var(--border-light); font-size: 11px; color: var(--text-dim); line-height: 1.7; font-variant-numeric: tabular-nums; }
+.sw-meta b { color: var(--text-secondary); font-weight: 600; }
+.sw-bit { white-space: nowrap; }
+/* 墙面板：BTC / ETH 两列共用一张卡面，列间用分隔线而不是再套一层框 */
+.sw-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 24px; }
+.sw-col { min-width: 0; }
+.sw-col + .sw-col { border-left: 1px solid var(--border); padding-left: 24px; }
+.sw-head { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; flex-wrap: wrap; margin-bottom: 4px; }
+.sw-name { font-size: 13px; font-weight: 700; color: var(--text); }
+.sw-note { font-size: 11px; color: var(--text-dim); font-variant-numeric: tabular-nums; }
+.sw-legend { font-size: 10.5px; color: var(--text-dim); margin: 0 0 6px; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+/* 色块与文字捆成一枚 nowrap 胶囊：窄屏换行不能把色块留在上一行末尾 */
+.sw-key { display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }
+.sw-key::before { content: ''; width: 10px; height: 6px; border-radius: 2px; }
+.sw-key.call::before { background: var(--color-down); }
+.sw-key.put::before { background: var(--color-up); }
+.sw-cme { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--border); }
+.sw-cme .sw-row { grid-template-columns: 60px minmax(0, 1fr) 46px 56px; }
+@media (max-width: 768px) {
+  .sw-grid { grid-template-columns: 1fr; gap: 0; }
+  .sw-col + .sw-col { border-left: none; padding-left: 0; margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--border); }
+  .sw-row { grid-template-columns: 56px minmax(0, 1fr) 42px 62px; gap: 6px; }
+}
+
 /* ── rates/pricing 页（原页面内联 <style> 收编；hc-/pb-/rp- 前缀为本页私有）── */
 /* KPI 8 卡固定 4×2，避免一排放 8 卡挤到 131px（.re-cards 已改 flex，这里用 basis 定列数） */
 #re-cards .re-cards > .re-card { flex-basis: 269px; }

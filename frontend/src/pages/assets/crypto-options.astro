@@ -186,60 +186,107 @@ async function load() {
 
   const optB = d.options_BTC || {}, optE = d.options_ETH || {};
 
-  // ── 🧱 期权价格墙 · Strike Wall（Deribit 最近到期口径 + Top 5）+ CME 机构期货仓位卡 ──
+  // ──  期权价格墙 · Strike Wall ──
+  // 结论层（墙区间 + 距现价）→ 数据层（OI 阶梯：行权价 × OI 比例条，墙位胶囊 + 现价分隔线）。
+  // 原卡只给「Top 5 纯文字列表」，9,000 张和 456 张长得一样，读不出哪堵厚；
+  // 墙区间 / Gamma Flip / PCR / 全到期墙这些 API 已有字段也一个没上屏。
   const wsec = document.createElement('div');
   const cf = d.cme_futures || {};
   wsec.className = 're-section';
   wsec.id = 'sec-walls';
-  const dist = (wall, spot) => wall == null || !spot ? null : (wall / spot - 1) * 100;
-  // 统一的内嵌框：标签 / 大数值 / 小注释（墙卡与 CME 卡同构，颜色仅 Call/Put 有语义）
-  const infoBox = (label, value, sub, color) => `
-      <div class="re-card-wrap" style="border:1px solid ${color || 'var(--border)'};border-radius:8px;padding:12px;background:var(--surface)">
-      <div class="re-corridor-label">${label}</div>
-      <div class="re-corridor-value"${color ? ` style="color:${color}"` : ''}>${value}</div>
-      <div class="re-card-sub">${sub || ''}</div>
+  const usd0 = v => (v == null ? '—' : '$' + fmt(v, 0));
+  // 行权价升序合并 Call / Put 两侧 Top 5（同价位不重复出现，Deribit 上 call/put 墙总在不同档）
+  const ladderRows = (o, spot) => {
+    const byStrike = new Map();
+    (o.top_calls || []).forEach(r => byStrike.set(r.strike, { side: 'call', ...r }));
+    (o.top_puts || []).forEach(r => byStrike.set(r.strike, { side: 'put', ...r }));
+    const rows = [...byStrike.values()].sort((a, b) => a.strike - b.strike);
+    if (!rows.length) return '';
+    const max = Math.max(...rows.map(r => r.oi));
+    const callWall = o.near_call_wall ?? o.call_wall;
+    const putWall = o.near_put_wall ?? o.put_wall;
+    const out = [];
+    rows.forEach((r, i) => {
+      // 跨过现价处插一条分隔线（同 Polymarket 阶梯的 .pm-spot 做法）
+      if (spot && i && rows[i - 1].strike < spot && r.strike >= spot) {
+        out.push(`<div class="sw-spot"><span>现价 ${usd0(spot)}</span><span>↑上方压制 / ↓下方支撑</span></div>`);
+      }
+      const wall = r.strike === callWall ? 'call' : r.strike === putWall ? 'put' : '';
+      out.push(`<div class="sw-row" title="${wall ? (wall === 'call' ? 'Call 墙' : 'Put 墙') : 'Top 5 墙位'} ${usd0(r.strike)} · OI ${fmt(r.oi, 0)} 张${spot ? ` · 距现价 ${R.dist(r.strike, spot)}` : ''}">
+        <span class="sw-k">${usd0(r.strike)}</span>
+        <div class="sw-track"><div class="sw-fill ${r.side}" style="width:${((r.oi / max) * 100).toFixed(1)}%"></div></div>
+        <span class="sw-oi">${fmt(r.oi, 0)}</span>
+        <span class="sw-tag ${wall}">${wall ? '墙 ' : ''}${R.dist(r.strike, spot) || '—'}</span>
+      </div>`);
+    });
+    return out.join('');
+  };
+  // 卡头结论行：墙区间 + 两侧距现价（先看结构）
+  const headNote = (o, spot) => {
+    const cw = o.near_call_wall ?? o.call_wall;
+    const pw = o.near_put_wall ?? o.put_wall;
+    if (cw == null && pw == null) return '墙位数据缺失';
+    return `墙区间 ${usd0(pw)} – ${usd0(cw)}${spot ? `（${R.dist(pw, spot)} ↔ ${R.dist(cw, spot)}）` : ''}`;
+  };
+  const metaLine = (o, spot) => {
+    const bits = [];
+    const flip = (o.gex || {}).gamma_flip;
+    if (flip != null) bits.push(`Gamma Flip <b>${usd0(flip)}</b>${spot ? ` ${R.dist(flip, spot)}` : ''}`);
+    if ((o.gex || {}).net_gex_musd != null) bits.push(`净 GEX <b>${o.gex.net_gex_musd >= 0 ? '+' : ''}${fmt(o.gex.net_gex_musd, 1)} M</b>/1%`);
+    if (o.pcr != null) bits.push(`PCR <b>${o.pcr}</b>`);
+    if (o.max_pain != null) bits.push(`Max Pain <b>${usd0(o.max_pain)}</b>`);
+    const all = (o.call_wall != null && (o.near_call_wall ?? o.call_wall) !== o.call_wall) || (o.put_wall != null && (o.near_put_wall ?? o.put_wall) !== o.put_wall);
+    if (all) bits.push(`全到期墙 ${usd0(o.put_wall)} – ${usd0(o.call_wall)}`);
+    // 每段不跨行（原裸拼接会让「/ $95,000」整段掉到第二行成孤儿）
+    return bits.map(b => `<span class="sw-bit">${b}</span>`).join(' · ');
+  };
+  const wallCol = (name, o, spot) => {
+    const rows = ladderRows(o, spot);
+    return `
+    <div class="sw-col">
+      <div class="sw-head"><span class="sw-name">${name}</span><span class="sw-note">${headNote(o, spot)}</span></div>
+      <div class="sw-note" style="margin-bottom:4px">${[spot ? `现货锚 ${usd0(spot)}` : '', o.nearest_exp ? `最近到期 ${o.nearest_exp}` : (o.d_exp ? `${o.d_exp} 个到期月` : '')].filter(Boolean).join(' · ') || '无 Deribit 快照'}</div>
+      ${rows ? `<div class="sw-legend"><span class="sw-key call">Call 墙（上方压制）</span><span class="sw-key put">Put 墙（下方支撑）</span>条长 = OI 占本卡最厚一档</div>` : ''}
+      ${rows || '<div class="sw-meta">最近到期 Top 5 墙位缺失 —— 运行 <code>./bin/fetch_crypto_derivatives</code> 拉 Deribit 期权书后刷新。</div>'}
+      ${metaLine(o, spot) ? `<div class="sw-meta">${metaLine(o, spot)}</div>` : ''}
     </div>`;
-  const wallBox = (label, v, oi, spot) => v == null ? '' : infoBox(label, '$' + fmt(v, 0),
-    [dist(v, spot) != null ? `距现价 ${dist(v, spot) >= 0 ? '+' : ''}${dist(v, spot).toFixed(1)}%` : '', oi != null ? `OI ${fmt(oi, 0)}` : ''].filter(Boolean).join(' · '),
-    label === 'Call Wall' ? 'var(--down)' : 'var(--up)');
-  const topList = (title, rows) => rows && rows.length ? `
-    <div style="margin-top:8px;font-size:12px"><div style="opacity:.7;margin-bottom:4px">${title} · Top ${rows.length}</div>
-      ${rows.map(r => `<div style="display:flex;justify-content:space-between;border-bottom:1px solid var(--border);padding:2px 0"><span>${r[0]}</span><span style="opacity:.7">${r[1]}</span></div>`).join('')}</div>` : '';
-  const wallCard = (title, o, spot) => `
-    <div class="re-card re-card-wrap"><div class="re-corridor-label">${title}</div>
-      <div class="re-card-sub">现货锚 $${fmt(spot, 0)} · 最近到期 ${o.nearest_exp || (o.d_exp + ' 个到期月')}</div>
-      <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-top:8px">
-        ${wallBox('Call Wall', o.near_call_wall ?? o.call_wall, o.near_call_wall_oi ?? null, spot)}${wallBox('Put Wall', o.near_put_wall ?? o.put_wall, o.near_put_wall_oi ?? null, spot)}
-      </div>
-      <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px">
-        ${topList('Call 墙', (o.top_calls || []).map(r => ['$' + fmt(r.strike, 0), 'OI ' + fmt(r.oi, 0)]))}${topList('Put 墙', (o.top_puts || []).map(r => ['$' + fmt(r.strike, 0), 'OI ' + fmt(r.oi, 0)]))}
-      </div></div>`;
-  wsec.innerHTML = `<h2>期权价格墙 · Strike Wall</h2>
-    <p style="margin:0 0 8px;font-size:12px;opacity:.75">Call Wall 偏上方压制 / Put Wall 偏下方支撑；用于短线磁吸与失效条件，不单独代表方向。</p>
-    <div class="re-cards re-cards-wide">
-      ${wallCard('Deribit 全市场期权 · BTC', optB, optB.spot_anchor)}
-      ${wallCard('Deribit 全市场期权 · ETH', optE, optE.spot_anchor)}
-      ${cf.available !== false && cf.total_oi ? (() => {
-        const top3 = (cf.months || []).slice().sort((a, b) => b.oi - a.oi).slice(0, 3);
-        const termWord = { contango: '升水', backwardation: '贴水', flat: '平水' }[cf.term] || '—';
-        return `
-      <div class="re-card re-card-wrap"><div class="re-corridor-label">CME 机构期货仓位 · ${cf.as_of || ''}</div>
-        <div class="re-card-sub">主力 ${cf.front.month} $${fmt(cf.front.settle, 0)}${cf.oi_chg_1d != null ? ` · OI 日变化 ${cf.oi_chg_1d >= 0 ? '+' : ''}${fmt(cf.oi_chg_1d, 0)} 张` : ''}</div>
-        <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-top:8px">
-          ${infoBox('总 OI', fmt(cf.total_oi, 0) + ' 张', `≈ ${fmt(cf.total_oi_btc, 0)} BTC`)}
-          ${infoBox('年化基差', cf.basis_ann_pct == null ? '—' : (cf.basis_ann_pct >= 0 ? '+' : '') + cf.basis_ann_pct + '%', `期限结构 ${termWord}`)}
-        </div>
-        ${topList('OI 前三月份', top3.map(m => [m.month, 'OI ' + fmt(m.oi, 0)]))}
-      </div>`;
-      })() : `
-      <div class="re-card re-card-wrap" style="opacity:.65"><div class="re-corridor-label">CME 机构期货仓位</div>
-        <div class="re-card-sub">数据暂缺：运行 ./bin/fetch_cme_futures（官方 Settlements API，curl_cffi 直连 / Jina 降级）。原 CME 期权墙卡已废弃：该页面产品选择需 JS 交互，Jina 无法选中 BTC，替代为同源的期货仓位卡。</div>
-      </div>`}
+  };
+  const cmeBlock = () => {
+    if (cf.available === false || !cf.total_oi || !cf.front) {
+      return `<div class="sw-cme"><div class="sw-head"><span class="sw-name">CME 机构期货仓位</span>
+        <span class="sw-note">数据暂缺：运行 <code>./bin/fetch_cme_futures</code>（官方 Settlements API）后刷新</span></div>
+        <div class="sw-meta">原 CME 期权墙卡已废弃：该页产品选择需 JS 交互，Jina 无法选中 BTC，替代为同源的期货仓位卡。</div></div>`;
+    }
+    const months = (cf.months || []).filter(m => m.oi > 0).sort((a, b) => b.oi - a.oi).slice(0, 4);
+    const max = Math.max(...months.map(m => m.oi), 1);
+    const termWord = { contango: '升水', backwardation: '贴水', flat: '平水' }[cf.term] || '—';
+    return `<div class="sw-cme">
+      <div class="sw-head"><span class="sw-name">CME 机构期货仓位 · ${cf.as_of || ''}</span>
+        <span class="sw-note">总 OI ${fmt(cf.total_oi, 0)} 张 · 年化基差 ${cf.basis_ann_pct == null ? '—' : (cf.basis_ann_pct >= 0 ? '+' : '') + cf.basis_ann_pct + '%'}（${termWord}）</span></div>
+      ${months.map(m => `<div class="sw-row" title="${m.month} 结算 ${usd0(m.settle)} · OI ${fmt(m.oi, 0)} 张 · 成交 ${fmt(m.volume, 0)}">
+        <span class="sw-k">${m.month}</span>
+        <div class="sw-track"><div class="sw-fill n" style="width:${((m.oi / max) * 100).toFixed(1)}%"></div></div>
+        <span class="sw-oi">${fmt(m.oi, 0)}</span>
+        <span class="sw-tag">${R.usd(m.settle)}</span>
+      </div>`).join('')}
+      <div class="sw-meta">主力 <b>${cf.front.month}</b> ${usd0(cf.front.settle)}${cf.oi_chg_1d != null ? ` · OI 日变化 <b>${cf.oi_chg_1d >= 0 ? '+' : ''}${fmt(cf.oi_chg_1d, 0)}</b> 张` : ''} · 总敞口 ≈ ${fmt(cf.total_oi_btc, 0)} BTC · 条长 = 该月 OI 占最厚月比例 · 右侧 = 结算价</div>
+    </div>`;
+  };
+  wsec.innerHTML = `${R.secTitle('期权价格墙', 'Strike Wall', 'Deribit 最近到期月度 OI 前 5 档')}
+    <p style="margin:0 0 10px">Call Wall 偏上方压制 / Put Wall 偏下方支撑；用于短线磁吸与失效条件，不单独代表方向。</p>
+    <div class="sw-grid">
+      ${wallCol('Deribit 全市场期权 · BTC', optB, optB.spot_anchor)}
+      ${wallCol('Deribit 全市场期权 · ETH', optE, optE.spot_anchor)}
     </div>
+    ${cmeBlock()}
     <details class="re-fold"><summary>解读 · 口径</summary>
     <div class="re-explain" style="margin-top:8px">
-      <b>如何解读</b> — Strike Wall 是短期价格磁吸/压制区，尤其在临近到期时更有用。它不是趋势信号，更像短线地图。</div>
-    <p class="re-source" style="margin:8px 0 0">口径：Deribit 最近到期月度（near wall）为主，全到期聚合为回退；CME 卡为官方 Settlements 期货仓位（全月份 OI + 期限结构），非期权墙。</p></details>`;
+      <b>如何解读</b> — Strike Wall 是短期价格磁吸/压制区，尤其在临近到期时更有用。它不是趋势信号，更像短线地图。
+      条长按本标的最厚一档归一（BTC 与 ETH 量级不同，不能跨卡比长度）；右侧胶囊是距现价偏离，标「墙」的那两档
+      = 该到期段 OI 最大的 Call / Put 档（墙区间）。净 GEX &gt; 0 时墙更像磁吸（回到区间内会被压住），&lt; 0 时更像反噬（破位后波动放大）。</div>
+    <p class="re-source" style="margin:8px 0 0">口径：Deribit 最近到期月度（near wall）为主，全到期聚合为回退（两者不同时 meta 行并列给出）；
+    OI 单位为张（1 张 = 1 BTC / 1 ETH）；PCR = 全到期 Put OI / Call OI；净 GEX 由 mark_iv 反推 BS gamma 得，单位 M USD/1%。
+    CME 块为官方 Settlements 期货仓位（1 张 = 5 BTC），非期权墙。</p></details>`;
   document.getElementById('walls').appendChild(wsec);
 
   // ── POLYMARKET 加密价位市场（geo 同款结构：归类趋势线 + 原始事件折叠）──
