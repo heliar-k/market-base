@@ -113,7 +113,7 @@ async function load() {
   ksec.className = 're-section';
   ksec.id = 'sec-kpi';
   const cmeK = d.cme || {};
-  ksec.innerHTML = '<h2>衍生品 KPI（OKX 永续 + Deribit 期权 + CME 期货）</h2>';
+  ksec.innerHTML = R.secTitle('衍生品 KPI', 'OKX 永续 + Deribit 期权 + CME 期货');
   ksec.appendChild(R.cards([
     cmeK.fut_oi != null ? kpi('CME BTC 期货 OI', fmt(cmeK.fut_oi, 0) + ' 份', `≈ ${fmt(cmeK.fut_oi * 5, 0)} BTC · ${(cmeK.fut_contract || '').replace('Bitcoin Futures, ', '')} · Yahoo 免费`) : null,
     cmeK.micro_oi != null ? kpi('Micro BTC OI', fmt(cmeK.micro_oi, 0) + ' 份', `≈ ${fmt(cmeK.micro_oi / 10, 0)} BTC · ${(cmeK.micro_contract || '').replace('Micro Bitcoin Futures, ', '')}`) : null,
@@ -133,7 +133,7 @@ async function load() {
     const fsec = document.createElement('div');
     fsec.className = 're-section';
     fsec.id = 'sec-funding';
-    fsec.innerHTML = R.secTitle('资金费率走势', `OKX BTC 永续 8h 费率 % · &gt;0 做多付费 / &lt;0 空头付费 · 近 ${Math.round(fh.length / 3)} 天`) +
+    fsec.innerHTML = R.secTitle('资金费率走势', 'OKX BTC 永续 8h 费率 %', `>0 做多付费 / <0 空头付费 · 近 ${Math.round(fh.length / 3)} 天`) +
       `<div class="chart chart-sm" id="funding-hist"></div>
       <details class="re-fold"><summary>口径说明</summary>
       <p class="re-source" style="margin:8px 0 0">口径：OKX funding-rate-history（8h 结算）；时间轴按 8h 网格从快照时间回推。持续抬升 + OI 扩张 = 杠杆堆积；年化超 ±15%（8h ≈ ±0.0137%）为拥挤反转区。</p></details>`;
@@ -192,7 +192,7 @@ async function load() {
     // 基差数据陈旧警告：Yahoo BTC=F 治理过滤严格（完整性 ~35%），最新有效日常停在一两周前
     const bzStaleDays = bz.latest ? Math.round((new Date(R.todayISO()) - new Date(bz.latest)) / 864e5) : null;
     const bzStale = bzStaleDays != null && bzStaleDays > 5;
-    bsec.innerHTML = R.secTitle('机构基差专题', 'CME BTC 期货年化基差（Yahoo BTC=F proxy · timsun V1 治理口径') +
+    bsec.innerHTML = R.secTitle('机构基差专题', 'CME BTC 期货年化基差', 'Yahoo BTC=F 近月连续合约 proxy · 已按 dte<10 天、|basis|>18%、未成熟日线过滤') +
       `${bzStale ? `<div style="padding:8px 12px;border:1px solid var(--warning);border-radius:6px;font-size:12px;color:var(--warning);margin-bottom:10px">⚠ 基差数据停在 ${bz.latest}（${bzStaleDays} 天前）——Yahoo BTC=F 最新日线多为临时价格触发治理跳过，下方读数非最新，不参与方向判断。</div>` : ''}`;
     bsec.appendChild(R.cards([
       { label: '当前基差年化', value: `${bz.current}%`, sub: `${bz.latest} · 最新有效` },
@@ -222,7 +222,7 @@ async function load() {
         <span style="color:${e.chg_1d_pct >= 0 ? 'var(--up)' : 'var(--down)'}">${e.chg_1d_pct >= 0 ? '+' : ''}${e.chg_1d_pct}%</span>
       </div>`).join('');
     const ls = cg.ls_ratio || {};
-    gsec.innerHTML = R.secTitle('Coinglass 全市场聚合', '全市场杠杆分布 + 清算压力（经 Jina Reader）');
+    gsec.innerHTML = R.secTitle('Coinglass 全市场聚合', '全市场杠杆分布 + 清算压力');
     gsec.appendChild(R.cards([
       { label: 'BTC 全市场期货 OI', value: `$${((cg.btc_oi_usd || 0) / 1e9).toFixed(2)} B`, sub: `${fmt((cg.btc_oi_btc || 0) / 1000, 1)}K BTC` },
       { label: '全加密期货 OI', value: `$${((cg.all_open_interest_usd || 0) / 1e9).toFixed(2)} B`, sub: '所有币种合计' },
@@ -236,7 +236,7 @@ async function load() {
       <details class="re-fold"><summary>解读 · 口径</summary>
       <div class="re-explain" style="margin-top:8px">
         <b>如何解读</b> — 回答的是：风险是否来自交易所杠杆而非现货资金。OI 快速上升 + 清算低 = 杠杆堆积；清算放大后 OI 下降 = 去杠杆完成。</div>
-      <p class="re-source" style="margin:8px 0 0">数据源：Coinglass（经 Jina Reader）· 快照 ${cg.ts || ''} · 单项取不到时留空，不影响其他指标。</p></details>`);
+      <p class="re-source" style="margin:8px 0 0">数据源：Coinglass 全市场聚合快照 · 快照 ${cg.ts || ''} · 单项取不到时留空，不影响其他指标。</p></details>`);
     document.getElementById('coinglass').appendChild(gsec);
   }
 
