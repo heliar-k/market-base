@@ -6,7 +6,7 @@
   - 主页面：6 大类价格表 + 相关性热力数据 + 4 段交叉分析叙事
   - equities：广度判读（SPX/RUT 差距 + ABV 占比）+ 动能集中度
   - fx：美元广度评分（2/15 对）+ 各分组 20D USD 压力
-  - commodities / bonds / crypto：20 日收盘表 + 走势归一化
+  - commodities / bonds：20 日收盘表 + 走势归一化（crypto 已去走势图，只留价比面板）
   - positioning：CFTC 投机仓位拥挤度 + 分组合约（2 年百分位规则）
   - etfs：精选池温度筛选（1w/1m/3m 动量、20d 波动、3m 回撤、趋势判读）
   - crypto_derivatives：BTC 前瞻雷达（7 信号加权 + 触发/反证条件）
@@ -1957,7 +1957,7 @@ def _ratio_block(p: pd.DataFrame) -> dict | None:
 
 
 def crypto() -> dict:
-    """加密货币页：BTC/ETH 卡片 + 净流动性溢出 + 走势归一化 + 价比面板。
+    """加密货币页：BTC/ETH 卡片 + 净流动性溢出 + 价比面板。
 
     口径：NL = WALCL − TGA − RRP（市场通行标准口径）。注意 timsun /assets/crypto
     用的是剔除外国官方回购池的调整口径（≈准备金+流通货币），其 Fed 腿会比本页
@@ -1968,20 +1968,7 @@ def crypto() -> dict:
     out = {
         "cards": _price_rows(p, CRYPTO_ROWS),
         "recent": _recent_prices(p, [k for k, _ in CRYPTO_ROWS]),
-        "trend": _index_normalized(p, CRYPTO_ROWS),
     }
-    # BTC/ETH 价格比（走势图右轴；与归一化图同窗同网格）
-    t = out.get("trend") or {}
-    if t.get("dates"):
-        grid = pd.to_datetime(t["dates"])
-        bp = p["BTC"].reindex(grid)
-        ep = p["ETH"].reindex(grid)
-        t.setdefault("series", {})["RATIO"] = [
-            round(float(b) / float(e), 2)
-            if pd.notna(b) and pd.notna(e) and float(e)
-            else None
-            for b, e in zip(bp, ep)
-        ]
     # BTC/ETH 价比分析块（指标层 + funding 差交叉 + 规则引擎叙事）
     out["ratio"] = _ratio_block(p)
     # 净流动性溢出

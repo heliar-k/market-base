@@ -14,8 +14,6 @@ import Section from '../../components/Section.astro';
   <div id="radar" class="re-block"></div>
   <div id="consensus" class="re-block"></div>
   <Section id="liquidity" title="宏观 × 加密流动性溢出" />
-  <!-- 条件性(无归一化序列时为空),保持裸 div -->
-  <div id="trend" class="re-block"></div>
   <Section id="ratio" title="BTC/ETH 价比" />
   <Section id="recent" title="近期数据" sub="收盘价 · 最近 20 个交易日" />
   <div class="re-gen" id="re-gen"></div>
@@ -114,48 +112,6 @@ async function load() {
   }
   document.getElementById('liquidity').appendChild(tsec);
   } catch (e) { R.fail(['liquidity'], e); }
-
-  // ── 加密走势（归一化 % + BTC/ETH 价比右轴）──
-  const tr = d.trend || { dates: [], series: {} };
-  const keys = Object.keys(tr.series).filter(k => k !== 'RATIO');
-  try {
-  if (keys.length && tr.dates.length) {
-    const nsec = document.createElement('div');
-    nsec.className = 're-section';
-    nsec.innerHTML = '<h2>加密走势（归一化 %）</h2><div class="chart" id="crypto-trend"></div>';
-    document.getElementById('trend').appendChild(nsec);
-    R.mkChart('crypto-trend', colors => {
-      // 每次渲染从当前主题取色（主题切换后 R.mkChart 重跑 optionFn，避免锁定初始主题）
-      const TREND_COLORS = { BTC: colors.orange, ETH: colors.green };
-      return R.lineOption({
-      tooltip: { trigger: 'axis', valueFormatter: v => v == null ? '—' : Number(v).toFixed(2) },
-      legend: { top: 0, data: keys.map(k => CRYPTO_NAME[k] || k).concat(['BTC/ETH 价比']) },
-      grid: { left: 48, right: 60, top: 32, bottom: 64 },
-      xAxis: { type: 'category', data: tr.dates, axisLine: { lineStyle: { color: colors.border } },
-        axisLabel: { color: colors.muted, fontSize: 11,
-          interval: (i) => i === 0 || i === tr.dates.length - 1 || tr.dates[i].slice(0, 7) !== tr.dates[i - 1].slice(0, 7),
-          formatter: v => { const [y, m] = v.split('-'); return m === '01' ? y : Number(m) + '月'; } } },
-      yAxis: [
-        { type: 'value', axisLabel: { color: colors.muted, fontSize: 11, formatter: v => v + '%' }, splitLine: { lineStyle: { color: colors.grid } } },
-        { type: 'value', scale: true, position: 'right', axisLabel: { color: colors.purple, fontSize: 11, formatter: v => v + 'x' }, splitLine: { show: false } },
-      ],
-      dataZoom: [
-        { type: 'inside', start: 0, end: 100 },
-        { type: 'slider', height: 20, bottom: 12, borderColor: colors.border, handleStyle: { color: colors.accent },
-          textStyle: { color: colors.muted }, dataBackground: { lineStyle: { color: colors.border }, areaStyle: { color: colors.grid } } },
-      ],
-      series: keys.map(k => ({
-        name: CRYPTO_NAME[k] || k, type: 'line', data: tr.series[k], showSymbol: false, smooth: true, connectNulls: true,
-        color: TREND_COLORS[k], lineStyle: { width: 1.6, color: TREND_COLORS[k] }, itemStyle: { color: TREND_COLORS[k] }, emphasis: { focus: 'series' },
-        markLine: { silent: true, symbol: 'none', label: { show: false }, lineStyle: { color: colors.border, type: 'dashed' }, data: [{ yAxis: 0 }] },
-      })).concat([{
-        name: 'BTC/ETH 价比', type: 'line', yAxisIndex: 1, data: tr.series.RATIO, showSymbol: false, smooth: true, connectNulls: true,
-        lineStyle: { width: 1.4, type: 'dashed', color: colors.purple }, itemStyle: { color: colors.purple },
-      }]),
-      });
-    });
-  }
-  } catch (e) { R.fail(['trend'], e); }
 
   // ── BTC/ETH 价比（指标卡 + ETH/BTC 倒数轴图 + funding 差卡 + 规则引擎叙事）──
   const ra = d.ratio;
@@ -275,7 +231,6 @@ async function load() {
 }
 // 分类色单源：净流动性青线走 --chart-cyan（两主题同值）；BTC/ETH 趋势线在 optionFn 内随主题取色
 const NL_CYAN = reCssVar('--chart-cyan');
-const CRYPTO_NAME = { BTC: 'BTC', ETH: 'ETH' };
 const fmt = R.num;
 const chg = R.chgSpan;
 
@@ -358,6 +313,6 @@ function renderConsensus(d) {
   document.getElementById('consensus').appendChild(csec);
 }
 
-load().catch(e => R.fail(['cards', 'liquidity', 'trend', 'ratio', 'recent'], e));
+load().catch(e => R.fail(['cards', 'liquidity', 'ratio', 'recent'], e));
 </script>
 </TopicLayout>
