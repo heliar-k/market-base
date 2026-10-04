@@ -61,8 +61,8 @@ async function load() {
         <div style="display:flex;justify-content:space-between;font-size:10px;opacity:.6;margin-top:2px;min-height:13px">
           ${q.length === 3 ? `<span>${fq(q[0])}</span><span>${fq(q[1])}</span><span>${fq(q[2])}</span>` : ''}</div>`;
     };
-    lsec.innerHTML = `<h2>NOW 现在市场情况 <span style="font-size:12px;font-weight:400;opacity:.7">8 个核心 KPI · 当前值 + 1 年百分位 + 1d 变化方向</span></h2>
-      <div class="re-cards re-cards-wide">
+    lsec.innerHTML = R.secTitle('现在市场情况', 'NOW', '8 个核心 KPI · 当前值 + 1 年百分位 + 1d 变化方向') +
+      `<div class="re-cards re-cards-wide">
         ${l1.kpis.map(k => `<div class="re-card re-card-dense" title="${(k.note || '').replace(/"/g, '&quot;')}">
           <div class="re-corridor-label">${k.label}</div>
           <div class="re-corridor-value">${k.value}</div>
@@ -85,8 +85,8 @@ async function load() {
     const v5 = etf.sum5d_busd, v30 = etf.sum30d_busd;
     const fst = v => v == null ? '暂停判读' : `${v >= 0 ? '+' : ''}${v.toFixed(2)} B`;
     const fcol = v => v == null ? '' : (v >= 0 ? 'var(--up)' : 'var(--down)');
-    esec.innerHTML = `<h2>ETF FLOWS 机构资金流入对照（BTC Spot ETF）</h2>
-      ${etf.stale ? '<div style="padding:8px 12px;border:1px solid var(--warning);border-radius:6px;font-size:12px;color:var(--warning);margin-bottom:10px">⚠ ETF 资金流超过时效阈值（最新 ' + etf.latest + '），本区保留最近有效值，不参与方向判断。</div>' : ''}`;
+    esec.innerHTML = R.secTitle('机构资金流入对照', 'ETF FLOWS · BTC Spot ETF') +
+      `${etf.stale ? '<div style="padding:8px 12px;border:1px solid var(--warning);border-radius:6px;font-size:12px;color:var(--warning);margin-bottom:10px">⚠ ETF 资金流超过时效阈值（最新 ' + etf.latest + '），本区保留最近有效值，不参与方向判断。</div>' : ''}`;
     esec.appendChild(R.cards([
       { label: '最近有效净流入', value: fst(etf.last_flow_musd == null ? null : etf.last_flow_musd / 1000), sub: etf.latest + ' · Farside 更新', vcolor: fcol(etf.last_flow_musd) },
       { label: '5 天累计', value: fst(v5), sub: etf.stale ? '暂停判读' : '参与方向评分', vcolor: fcol(v5) },
@@ -133,8 +133,8 @@ async function load() {
     const fsec = document.createElement('div');
     fsec.className = 're-section';
     fsec.id = 'sec-funding';
-    fsec.innerHTML = `<h2>资金费率走势 <span style="font-size:12px;font-weight:400;opacity:.7">OKX BTC 永续 8h 费率 % · &gt;0 做多付费 / &lt;0 空头付费 · 近 ${Math.round(fh.length / 3)} 天</span></h2>
-      <div class="chart chart-sm" id="funding-hist"></div>
+    fsec.innerHTML = R.secTitle('资金费率走势', `OKX BTC 永续 8h 费率 % · &gt;0 做多付费 / &lt;0 空头付费 · 近 ${Math.round(fh.length / 3)} 天`) +
+      `<div class="chart chart-sm" id="funding-hist"></div>
       <details class="re-fold"><summary>口径说明</summary>
       <p class="re-source" style="margin:8px 0 0">口径：OKX funding-rate-history（8h 结算）；时间轴按 8h 网格从快照时间回推。持续抬升 + OI 扩张 = 杠杆堆积；年化超 ±15%（8h ≈ ±0.0137%）为拥挤反转区。</p></details>`;
     document.getElementById('funding').appendChild(fsec);
@@ -166,7 +166,7 @@ async function load() {
   const rsec2 = document.createElement('div');
   rsec2.className = 're-section';
   rsec2.id = 'sec-retail';
-  rsec2.innerHTML = `<h2>RETAIL 散户仓位读数 <span style="font-size:12px;font-weight:400;opacity:.7">永续 / 期权（基于当前数据，非「看多/看空」判断）</span></h2>`;
+  rsec2.innerHTML = R.secTitle('散户仓位读数', 'RETAIL', '永续 / 期权（基于当前数据，非「看多/看空」判断）');
   const ret = document.createElement('div');
   ret.className = 're-render';
   ret.style.display = 'grid';
@@ -192,8 +192,8 @@ async function load() {
     // 基差数据陈旧警告：Yahoo BTC=F 治理过滤严格（完整性 ~35%），最新有效日常停在一两周前
     const bzStaleDays = bz.latest ? Math.round((new Date(R.todayISO()) - new Date(bz.latest)) / 864e5) : null;
     const bzStale = bzStaleDays != null && bzStaleDays > 5;
-    bsec.innerHTML = `<h2>机构基差专题 <span style="font-size:12px;font-weight:400;opacity:.7">CME BTC 期货年化基差（Yahoo BTC=F proxy · timsun V1 治理口径）</span></h2>
-      ${bzStale ? `<div style="padding:8px 12px;border:1px solid var(--warning);border-radius:6px;font-size:12px;color:var(--warning);margin-bottom:10px">⚠ 基差数据停在 ${bz.latest}（${bzStaleDays} 天前）——Yahoo BTC=F 最新日线多为临时价格触发治理跳过，下方读数非最新，不参与方向判断。</div>` : ''}`;
+    bsec.innerHTML = R.secTitle('机构基差专题', 'CME BTC 期货年化基差（Yahoo BTC=F proxy · timsun V1 治理口径') +
+      `${bzStale ? `<div style="padding:8px 12px;border:1px solid var(--warning);border-radius:6px;font-size:12px;color:var(--warning);margin-bottom:10px">⚠ 基差数据停在 ${bz.latest}（${bzStaleDays} 天前）——Yahoo BTC=F 最新日线多为临时价格触发治理跳过，下方读数非最新，不参与方向判断。</div>` : ''}`;
     bsec.appendChild(R.cards([
       { label: '当前基差年化', value: `${bz.current}%`, sub: `${bz.latest} · 最新有效` },
       { label: '30 日均值', value: `${bz.ma30}%`, sub: '近 30 个有效观测' },
@@ -222,7 +222,7 @@ async function load() {
         <span style="color:${e.chg_1d_pct >= 0 ? 'var(--up)' : 'var(--down)'}">${e.chg_1d_pct >= 0 ? '+' : ''}${e.chg_1d_pct}%</span>
       </div>`).join('');
     const ls = cg.ls_ratio || {};
-    gsec.innerHTML = '<h2>Coinglass 全市场聚合 <span style="font-size:12px;font-weight:400;opacity:.7">全市场杠杆分布 + 清算压力（经 Jina Reader）</span></h2>';
+    gsec.innerHTML = R.secTitle('Coinglass 全市场聚合', '全市场杠杆分布 + 清算压力（经 Jina Reader）');
     gsec.appendChild(R.cards([
       { label: 'BTC 全市场期货 OI', value: `$${((cg.btc_oi_usd || 0) / 1e9).toFixed(2)} B`, sub: `${fmt((cg.btc_oi_btc || 0) / 1000, 1)}K BTC` },
       { label: '全加密期货 OI', value: `$${((cg.all_open_interest_usd || 0) / 1e9).toFixed(2)} B`, sub: '所有币种合计' },

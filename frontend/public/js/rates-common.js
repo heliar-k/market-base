@@ -92,6 +92,15 @@ const R = {
     return `<div class="re-section"><h2>${R.esc(title)}</h2><div class="sig-row">${blocks}</div></div>`;
   },
 
+  // ── 小节标题单源：中文为主，英文只作弱化注解 ──
+  // 形状：中文标题 + 右侧 12px 弱化英文（窄屏自动换行到标题下方），杜绝「CORRELATION 跨资产相关性」
+  // 这类中英堆叠标题。en 与 note 都给时拼成「NOW · 8 个核心 KPI…」。
+  // JS 生成的 .re-section 卡用这个；静态层走 <Section title=… sub=…>（sub 同一套 .re-sec-sub）。
+  secTitle: (zh, en = '', note = '') => {
+    const tail = [en, note].filter(Boolean).join(' · ');
+    return `<h2>${R.esc(zh)}${tail ? ` <span class="re-sec-sub">${R.esc(tail)}</span>` : ''}</h2>`;
+  },
+
   // ── 时效标签（re-as-of）文案唯一组装处 ──
   // AGENTS 规范：前缀固定「数据截至」，多源用 ` · ` 分段，日期一律 ISO，月频区间写「月频 起–止」。
   //   R.asOf(date)                        → 「数据截至 2026-09-04」

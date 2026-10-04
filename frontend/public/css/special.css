@@ -58,6 +58,10 @@ html { scroll-padding-top: 52px; }
 /* Linear 内高光:暗色卡片边缘受光(专题页卡片 = .re-section,与 SPA .chart-card 同待遇) */
 body.dark .re-section { box-shadow: inset 0 0 0 1px rgba(255,255,255,.04); }
 .re-section h2 { font-size: 14px; font-weight: 700; margin-bottom: 8px; color: var(--text); text-wrap: balance; }
+/* 标题内的弱化注解（R.secTitle 的英文/口径）：不继承 h2 的 700 字重与 14px，
+ * 与 Section 组件 sub prop 同一套 .re-sec-sub 视觉；窄屏标题换行后注解跟到第二行
+ * （h2 是块级，inline span 自然折行，不需要额外 flex/媒体查询） */
+.re-section h2 .re-sec-sub { font-size: 12px; font-weight: 400; }
 .re-section p { font-size: 13px; line-height: 1.7; color: var(--text-secondary); }
 .re-gen { font-size: 11px; color: var(--text-dim); text-align: right; }
 .re-loading { text-align: center; padding: 60px 20px; color: var(--text-dim); font-size: 14px; }

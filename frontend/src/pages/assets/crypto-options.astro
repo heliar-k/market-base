@@ -54,7 +54,7 @@ function levelOption(clusters, spot, c) {
 function renderPolymarket(pm, spot) {
   const host = document.getElementById('polymarket');
   if (!pm || !(pm.topics || []).length) {
-    host.innerHTML = `<div class="re-section" id="sec-pm"><h2>POLYMARKET 加密价位市场</h2>
+    host.innerHTML = `<div class="re-section" id="sec-pm">${R.secTitle('加密价位市场', 'POLYMARKET')}
       <div class="re-explain">无 Polymarket 快照 —— 运行 <code>./bin/fetch_polymarket</code> 拉取后刷新。</div></div>`;
     return;
   }
@@ -86,8 +86,8 @@ function renderPolymarket(pm, spot) {
   const head = document.createElement('div');
   head.className = 're-section';
   head.id = 'sec-pm';
-  head.innerHTML = `<h2>POLYMARKET 加密价位市场 <small style="font-weight:400;color:var(--text-dim)">预测市场隐含的触及概率（hit-price 系列）</small></h2>
-    <div class="pm-topics">${pm.topics.map(t => {
+  head.innerHTML = R.secTitle('加密价位市场', 'POLYMARKET', '预测市场隐含的触及概率（hit-price 系列）') +
+    `<div class="pm-topics">${pm.topics.map(t => {
     const h = t.headline;
     const share = ((t.volume24hr || 0) / total * 100).toFixed(0);
     return `<div class="pm-topic-card" onclick="location.hash='pm-${t.key}'">

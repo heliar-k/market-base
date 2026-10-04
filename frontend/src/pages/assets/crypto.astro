@@ -293,9 +293,9 @@ function renderRadar(d) {
   rsec.className = 're-section';
   const missed = (radar.signals || []).filter(s => s.dir === 0 && s.value === undefined).map(s => s.name);
   const etfMissed = (radar.signals || []).some(s => s.name === 'ETF 资金流' && s.value === undefined);
-  rsec.innerHTML = `
-    <h2>BTC 前瞻雷达 <span style="font-size:12px;font-weight:400;opacity:.7">· <a href="/assets/crypto-derivatives.html" style="color:inherit">明细见衍生品页 ›</a></span></h2>
-    <p style="margin:0 0 8px">把 ETF、CME、基差、永续杠杆和期权信号压缩为 0-24h / 1-7d 判断。</p>`;
+  // 明细链接进正文段而非标题注解：注解走 R.secTitle 一律转义，塞不进 <a>
+  rsec.innerHTML = R.secTitle('BTC 前瞻雷达') +
+    `<p style="margin:0 0 8px">把 ETF、CME、基差、永续杠杆和期权信号压缩为 0-24h / 1-7d 判断。<a href="/assets/crypto-derivatives.html">明细见衍生品页 ›</a></p>`;
   rsec.appendChild(R.cards([
     { label: '综合分', value: radar.total == null ? '—' : (radar.total >= 0 ? '+' : '') + radar.total,
       vcolor: rcolor, sub: `置信度 ${radar.confidence}/100` },

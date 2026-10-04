@@ -54,7 +54,7 @@ async function load() {
   const posColor = pos ? 'var(--color-down)' : 'var(--color-up)'; // 图形档：喂下面 border-color
   const posTextColor = pos ? 'var(--down)' : 'var(--up)'; // 文字档：同一判定的 color: 用法（亮色下图形档不达 AA）
   document.getElementById('re-alert').innerHTML = `<div class="re-section" style="border-color:${posColor};border-width:1.5px">
-    <h2>PRESSURE ALERT 流动性压力预警</h2>
+    ${R.secTitle('流动性压力预警', 'PRESSURE ALERT')}
     <div style="display:flex;gap:24px;align-items:baseline;flex-wrap:wrap">
       <span style="font-size:30px;font-weight:700;color:${posTextColor}">${a.sofr_iorb_bp == null ? '—' : a.sofr_iorb_bp.toFixed(1)}bp</span>
       <span style="font-size:14px">SOFR ${a.sofr ?? '—'}% · IORB ${a.iorb ?? '—'}% · FFR 上限 ${a.ffr_upper ?? '—'}%</span>

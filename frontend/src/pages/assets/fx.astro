@@ -73,8 +73,7 @@ function renderChart(d) {
   const sec = document.createElement('div');
   sec.className = 're-section';
   sec.innerHTML = `<div class="fx-dash-head">
-      <div><div class="re-corridor-label">FX Dashboard</div>
-        <h2 style="margin:2px 0 0">美元、G10、亚洲/EM 与套息交易同屏</h2></div>
+      <div>${R.secTitle('美元、G10、亚洲/EM 与套息交易同屏', 'FX Dashboard')}</div>
       <div class="fx-dash-meta">最新行情 ${d.as_of || '—'} · 20D USD pressure 为「对美元强弱」的统一读数</div>
     </div>
     <div class="re-chart fx-chart" id="fx-chart-el" style="margin-top:10px"></div>`;
