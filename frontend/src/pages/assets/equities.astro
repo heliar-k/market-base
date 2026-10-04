@@ -178,8 +178,7 @@ function renderAbvChart() {
 function renderAnalysis() {
   const blks = Object.values(D.analysis || {}).filter(v => v && v.text && v.title)
     .map(v => R.judgeCard(v.title, v.text, R.LINES_JUDGE)).join('');
-  document.getElementById('analysis').innerHTML = blks
-    + `<div class="ai-box"><div class="ai-meta"><span>${D.breadth?.abv_date || ''}</span><span class="ai-tag">规则引擎（LLM 预留）</span></div></div>`;
+  document.getElementById('analysis').innerHTML = blks;
 }
 
 function renderAnalyst() {
