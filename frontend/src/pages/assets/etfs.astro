@@ -80,7 +80,6 @@ function renderFilters() {
   const trends = ['全部', '趋势向上', '趋势分化', '趋势向下'];
   const f = document.getElementById('filters');
   f.innerHTML = `<div class="re-section">
-    <h2>ETF 市场温度与筛选</h2>
     <p style="margin:0 0 8px">用 1 周 / 1 月 / 3 月动量、20 日年化波动率和距 3 月高点回撤，区分趋势与风险。</p>
     ${chips(cats, curCat, 'f-cat')}${chips(trends, curTrend, 'f-trend', 'margin-top:14px')}
   </div>`;

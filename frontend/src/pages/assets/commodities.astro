@@ -11,8 +11,8 @@ import Section from '../../components/Section.astro';
     <div id="cards"></div>
   </Section>
   <Section id="asset-compare" title="大类资产同屏" />
-  <Section id="chart" title="商品走势" />
-  <Section id="recent" title="近期数据" />
+  <Section id="chart" title="商品走势" sub="归一化 % · 近 1 年" />
+  <Section id="recent" title="近期数据" sub="收盘价 · 最近 20 个交易日" />
   <div class="re-gen" id="re-gen"></div>
 </div>
 
@@ -92,7 +92,7 @@ async function load() {
   const keys = Object.keys(n.series);
   const csec = document.createElement('div');
   csec.className = 're-section';
-  csec.innerHTML = '<h2>商品走势（归一化 %）· 近 1 年</h2><div class="chart" id="com-chart"></div>';
+  csec.innerHTML = '<div class="chart" id="com-chart"></div>';
   document.getElementById('chart').appendChild(csec);
   R.mkChart('com-chart', colors => R.lineOption({
     tooltip: { trigger: 'axis' },
@@ -115,7 +115,6 @@ async function load() {
   });
   const rsec = document.createElement('div');
   rsec.className = 're-section';
-  rsec.innerHTML = '<h2>商品近期收盘价 · 最近 20 个交易日</h2>';
   const fmts = { 日期: v => v };
   keys2(rc).forEach(k => { fmts[k] = v => fmt(v); });
   rsec.appendChild(R.table(['日期'].concat(keys2(rc)), rows, fmts));

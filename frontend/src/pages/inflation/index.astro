@@ -11,12 +11,12 @@ import Section from '../../components/Section.astro';
 
   <Section id="cards" title="概览" />
   <Section id="re-signals" title="研判" />
-  <Section id="history" title="走势" />
-  <Section id="components" title="分项" />
+  <Section id="history" title="走势" sub="近 10 年" />
+  <Section id="components" title="分项" sub="CPI / PCE 同比" />
   <Section id="expectations" title="通胀预期" />
   <!-- 条件性小节(Shapiro 分解无数据时为空),不进 Section 避免空标题 -->
   <div id="shapiro" class="re-block"></div>
-  <Section id="recent" title="近期数据" />
+  <Section id="recent" title="近期数据" sub="近 12 个月" />
   <div class="re-gen" id="re-gen"></div>
 
 <script is:inline>
@@ -53,7 +53,7 @@ async function load() {
   // ── YoY 历史曲线 ──
   const hsec = document.createElement('div');
   hsec.className = 're-section';
-  hsec.innerHTML = '<h2>通胀同比走势（近 10 年）</h2><div id="yoy-chart" class="chart chart-md"></div>';
+  hsec.innerHTML = '<div id="yoy-chart" class="chart chart-md"></div>';
   document.getElementById('history').appendChild(hsec);
   const h = d.yoy_history;
   const line = (name, data, color) => ({
@@ -76,7 +76,7 @@ async function load() {
   // ── CPI 分项 ──
   const csec = document.createElement('div');
   csec.className = 're-section';
-  csec.innerHTML = '<h2>CPI / PCE 分项同比</h2><p style="margin:0">核心商品 &lt; 0 = 商品通缩；住所与超级核心是服务通胀粘性的主要观察点。</p>';
+  csec.innerHTML = '<p style="margin:0">核心商品 &lt; 0 = 商品通缩；住所与超级核心是服务通胀粘性的主要观察点。</p>';
   csec.appendChild(R.table(['分项', '同比', '较上月', '观测期', '发布'],
     d.components.map(x => ({ 分项: x.name, 同比: x.yoy, 较上月: x.chg_1m, 观测期: x.as_of, 发布: x.released || '—' })),
     { 同比: v => v === null ? '—' : `${v.toFixed(2)}%`, 较上月: v => v === null ? '—' : `<span class="${v > 0 ? 'up' : v < 0 ? 'down' : ''}">${v > 0 ? '+' : ''}${v.toFixed(2)}pp</span>` }, null, true));
@@ -109,7 +109,6 @@ async function load() {
   // ── 近期数据 ──
   const rsec = document.createElement('div');
   rsec.className = 're-section';
-  rsec.innerHTML = '<h2>近期数据（近 12 个月）</h2>';
   rsec.appendChild(R.table(['月份', 'CPI', '核心 CPI', '核心 PCE', 'PPI'],
     d.recent.map(r => ({ 月份: r.date, CPI: r.cpi_yoy, 核心CPI: r.core_cpi_yoy, 核心PCE: r.core_pce_yoy, PPI: r.ppi_yoy })),
     {

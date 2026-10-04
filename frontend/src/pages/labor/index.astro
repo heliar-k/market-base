@@ -12,7 +12,7 @@ import Section from '../../components/Section.astro';
   <Section id="cards" title="概览" />
   <Section id="re-signals" title="研判" />
   <Section id="history" title="走势" />
-  <Section id="indicators" title="明细" />
+  <Section id="indicators" title="明细" sub="就业指标" />
   <div class="re-gen" id="re-gen"></div>
 
 <script is:inline>
@@ -85,7 +85,7 @@ async function load() {
   // ── 指标明细 ──
   const tsec = document.createElement('div');
   tsec.className = 're-section';
-  tsec.innerHTML = '<h2>就业指标明细</h2><p style="margin:0">初请为周频（较 4 周前），ECI 为季频（较上季），其余月频（较上月）。</p>';
+  tsec.innerHTML = '<p style="margin:0">初请为周频（较 4 周前），ECI 为季频（较上季），其余月频（较上月）。</p>';
   tsec.appendChild(R.table(['指标', '最新', '较上期', '观测期', '发布'],
     d.indicators.map(x => ({ 指标: x.name, 最新: x.value, 较上期: x.chg, 观测期: x.as_of, 发布: x.released || '—', unit: x.unit })),
     {

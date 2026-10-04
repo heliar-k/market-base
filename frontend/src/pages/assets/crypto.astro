@@ -13,11 +13,11 @@ import Section from '../../components/Section.astro';
   <!-- 前瞻雷达/机构 vs 散户:条件性(无衍生品快照时为空),不进 Section -->
   <div id="radar" class="re-block"></div>
   <div id="consensus" class="re-block"></div>
-  <Section id="liquidity" title="流动性溢出" />
+  <Section id="liquidity" title="宏观 × 加密流动性溢出" />
   <!-- 条件性(无归一化序列时为空),保持裸 div -->
   <div id="trend" class="re-block"></div>
   <Section id="ratio" title="BTC/ETH 价比" />
-  <Section id="recent" title="近期数据" />
+  <Section id="recent" title="近期数据" sub="收盘价 · 最近 20 个交易日" />
   <div class="re-gen" id="re-gen"></div>
 </div>
 
@@ -60,7 +60,7 @@ async function load() {
   lsec.className = 're-section';
   document.getElementById('liquidity').appendChild(lsec);
   try {
-    lsec.innerHTML = '<h2>宏观 × 加密流动性溢出</h2><p style="margin:0 0 8px">净流动性 = WALCL − TGA − RRP</p>';
+    lsec.innerHTML = '<p style="margin:0 0 8px">净流动性 = WALCL − TGA − RRP</p>';
   if (L.net != null) {
     // pulseColor / divColor 只进 color:（卡片无填充用法），故取文字档
     const pulseColor = L.pulse_state === '扩张' ? 'var(--up)' : 'var(--down)';
@@ -163,9 +163,8 @@ async function load() {
   rasec.className = 're-section';
   document.getElementById('ratio').appendChild(rasec);
   try {
-  rasec.innerHTML = '<h2>BTC/ETH 价比</h2>';
   if (!ra) {
-    rasec.innerHTML += '<p>价比数据不足（需 BTC/ETH 日线 ≥ 60 行）：运行 <code>./bin/fetch_yfinance</code> 补齐 asset_prices.csv。</p>';
+    rasec.innerHTML = '<p>价比数据不足（需 BTC/ETH 日线 ≥ 60 行）：运行 <code>./bin/fetch_yfinance</code> 补齐 asset_prices.csv。</p>';
   } else {
     const dir = v => v == null ? 'var(--flat)' : (v > 0 ? 'var(--up)' : v < 0 ? 'var(--down)' : 'var(--flat)');
     const pct = (v, nd = 2) => v == null ? '—' : `${v > 0 ? '+' : ''}${Number(v).toFixed(nd)}%`;
@@ -267,7 +266,6 @@ async function load() {
     rkeys.forEach(k => { row[k] = rc.series[k][i]; });
     return row;
   });
-  rsec.innerHTML = '<h2>近期收盘价（最近 20 个交易日）</h2>';
   const fmts = { 日期: v => v };
   rkeys.forEach(k => { fmts[k] = v => fmt(v); });
   rsec.appendChild(R.table(['日期'].concat(rkeys), rows, fmts));

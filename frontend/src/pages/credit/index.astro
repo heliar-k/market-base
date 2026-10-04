@@ -12,13 +12,13 @@ import Section from '../../components/Section.astro';
   <!-- 研判紧跟概览（本站「结论先行」：先读判断，再看利差等数据段）-->
   <Section id="re-signals" title="研判" />
   <Section id="oas-row" title="利差水平" sub="ICE BofA OAS · bp" />
-  <Section id="layers" title="利差分层" />
-  <Section id="funding" title="融资成本" />
-  <Section id="sloos" title="银行信贷" />
-  <Section id="quality" title="贷款质量" />
-  <Section id="fincond" title="金融条件" />
-  <Section id="liq-etf" title="市场流动性代理" />
-  <Section id="cds-sec" title="CDS 专题" />
+  <Section id="layers" title="利差分层" sub="ICE BofA OAS" />
+  <Section id="funding" title="融资成本" sub="All-in" />
+  <Section id="sloos" title="银行信贷" sub="SLOOS · 净百分比，季度" />
+  <Section id="quality" title="贷款质量" sub="逾期率 / 核销率，季度" />
+  <Section id="fincond" title="金融条件" sub="与压力指数" />
+  <Section id="liq-etf" title="市场流动性代理" sub="信用 ETF" />
+  <Section id="cds-sec" title="CDS 专题" sub="信用违约互换" />
   <Section id="stress-sec" title="压力仪表盘" />
   <div class="re-gen" id="re-gen"></div>
 
@@ -126,7 +126,7 @@ async function load() {
   layers.push({ 层级: 'BBB − IG', 当前bp: d.spreads.bbb_ig?.value ?? '—', '1Y 分位': '—', '3Y 分位': '—', '10Y 分位': '—', 观测期: d.spreads.bbb_ig?.as_of ?? '—', 发布: '—' });
   const lsec = document.createElement('div');
   lsec.className = 're-section';
-  lsec.innerHTML = '<h2>信用利差分层（ICE BofA OAS）</h2><p style="margin:0">越低评级越暴露尾部风险：CCC−BB 快速走阔 = 压力从指数层面向弱资质发行人扩散。</p>';
+  lsec.innerHTML = '<p style="margin:0">越低评级越暴露尾部风险：CCC−BB 快速走阔 = 压力从指数层面向弱资质发行人扩散。</p>';
   lsec.appendChild(R.table(['层级', '当前bp', '1Y 分位', '3Y 分位', '10Y 分位', '观测期', '发布'], layers, {
     当前bp: v => v === '—' ? '—' : `${v}bp`,
     '1Y 分位': v => typeof v === 'number' ? `${v}%` : '—',
@@ -139,7 +139,7 @@ async function load() {
   const f = d.funding;
   const fsec = document.createElement('div');
   fsec.className = 're-section';
-  fsec.innerHTML = '<h2>All-in 融资成本</h2><p style="margin:0">利差是风险补偿，effective yield 是企业面对的绝对借钱成本；两者可同时出现「spread 低、融资成本高」。</p>';
+  fsec.innerHTML = '<p style="margin:0">利差是风险补偿，effective yield 是企业面对的绝对借钱成本；两者可同时出现「spread 低、融资成本高」。</p>';
   if (f.ig && f.hy) {
     fsec.appendChild(R.table(['指标', '当前', '发布'], [
       { 指标: 'IG 有效收益率', 当前: f.ig.value, 发布: f.ig.released || '—' },
@@ -153,7 +153,7 @@ async function load() {
   // ── SLOOS ──
   const ssec = document.createElement('div');
   ssec.className = 're-section';
-  ssec.innerHTML = '<h2>银行信贷 · SLOOS（净百分比，季度）</h2><p style="margin:0">正值 = 收紧标准 / 需求走强。</p>';
+  ssec.innerHTML = '<p style="margin:0">正值 = 收紧标准 / 需求走强。</p>';
   ssec.appendChild(R.table(['指标', '净百分比', '观测期', '发布'],
     d.sloos.map(s => ({ 指标: s.name, 净百分比: s.value, 观测期: s.as_of, 发布: s.released || '—' })),
     { 净百分比: v => v === null || v === undefined ? '—（停更）' : `${v > 0 ? '+' : ''}${v.toFixed(1)}%` }));
@@ -162,7 +162,7 @@ async function load() {
   // ── 贷款质量 ──
   const qsec = document.createElement('div');
   qsec.className = 're-section';
-  qsec.innerHTML = '<h2>贷款质量（逾期率 / 核销率，季度）</h2><p style="margin:0">滞后但更可靠的信用质量指标，用来检验利差是否低估了基本面恶化。</p>';
+  qsec.innerHTML = '<p style="margin:0">滞后但更可靠的信用质量指标，用来检验利差是否低估了基本面恶化。</p>';
   qsec.appendChild(R.table(['指标', '当前', '10Y 分位', '观测期', '发布'],
     d.quality.map(q => ({ 指标: q.name, 当前: q.value, 分位: q.pct_10y, 观测期: q.as_of, 发布: q.released || '—' })),
     { 当前: v => `${v.toFixed(2)}%`, 分位: v => v === null || v === undefined ? '—' : `${v}%` }));
@@ -172,7 +172,7 @@ async function load() {
   const fc = d.fincond;
   const fsec2 = document.createElement('div');
   fsec2.className = 're-section';
-  fsec2.innerHTML = '<h2>金融条件与压力指数</h2><p style="margin:0">NFCI 及子指数上行 = 条件收紧；与 HY OAS 同步上行时信用压力更可信。</p>';
+  fsec2.innerHTML = '<p style="margin:0">NFCI 及子指数上行 = 条件收紧；与 HY OAS 同步上行时信用压力更可信。</p>';
   fsec2.appendChild(R.table(['指标', '当前', '观测期', '发布'], [
     { 指标: 'NFCI', 当前: fc.nfci?.value, 观测期: fc.nfci?.as_of, 发布: fc.nfci?.released || '—' },
     { 指标: 'ANFCI（调整后）', 当前: fc.anfci?.value, 观测期: fc.anfci?.as_of, 发布: fc.anfci?.released || '—' },
@@ -187,7 +187,6 @@ async function load() {
   // ── 市场流动性代理 ──
   const lsec2 = document.createElement('div');
   lsec2.className = 're-section';
-  lsec2.innerHTML = '<h2>信用 ETF 二级市场流动性代理</h2>';
   const hyg = d.liq_etf.hyg, lqd = d.liq_etf.lqd;
   const etfStr = (e, name) => e
     ? `$<b>${name}</b> ${'$' + e.value} · vol ${e.volume != null ? e.volume.toLocaleString() : '—'}`
@@ -217,7 +216,6 @@ function renderCds(root, d) {
   const sec = document.createElement('div');
   sec.className = 're-section';
   root.appendChild(sec);  // 先挂文档再建图（R.mkChart 按 id 查 DOM，detached 时查不到）
-  sec.innerHTML = '<h2>CDS 专题 · 信用违约互换</h2>';
   let sov = '<div class="proxy-card"><div class="label">主权 CDS 代理（10Y UST 收益率）</div>';
   if (d.sovereign) {
     // 后端 cds() 存 round(DGS10 * 100, 2)，单位由 d.sovereign.unit 说（bp，524.0 = 5.24%）。

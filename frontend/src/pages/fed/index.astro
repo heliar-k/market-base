@@ -106,7 +106,7 @@ function renderStatements(root, data) {
 function renderSpeeches(root, data) {
   const sec = document.createElement('div');
   sec.className = 're-section';
-  sec.innerHTML = '<h2>美联储官员演讲</h2><div id="sp-filter" style="display:flex;gap:8px;flex-wrap:wrap;font-size:13px;margin-bottom:10px"></div><div id="sp-list"></div>';
+  sec.innerHTML = '<div id="sp-filter" style="display:flex;gap:8px;flex-wrap:wrap;font-size:13px;margin-bottom:10px"></div><div id="sp-list"></div>';
   root.appendChild(sec);
   const ALL = data.speeches;
   const list = sec.querySelector('#sp-list');

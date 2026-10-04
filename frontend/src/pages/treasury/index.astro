@@ -13,7 +13,7 @@ import Section from '../../components/Section.astro';
   <Section id="re-signals" title="研判" />
   <Section id="auctions" title="拍卖" />
   <Section id="history" title="海外持仓" />
-  <Section id="holdings" title="持仓明细" />
+  <Section id="holdings" title="持仓明细" sub="海外 · TIC，月频滞后 2 月" />
   <!-- 条件性小节(MSPD 无数据时为空),不进 Section 避免空标题 -->
   <div id="mspd" class="re-block"></div>
   <!-- 条件性小节(无 QRA 声明时为空),保持裸 div -->
@@ -66,7 +66,7 @@ async function load() {
   const upc = (auc.upcoming || []).filter(
     (u) => u.auction_date >= R.todayISO() && u.auction_date <= R.todayISO(21),
   );
-  asec.innerHTML = `<h2>国债拍卖</h2><p style="margin:0">Bid-to-Cover = 投标倍数（>2.5x 需求良好，<2.0x 警戒）；间接% = 外国官方+国际机构接受占比；Tail = 中标利率 − 中位投标利率（bp，正 = 弱于预期）。</p>`;
+  asec.innerHTML = `<p style="margin:0">Bid-to-Cover = 投标倍数（>2.5x 需求良好，<2.0x 警戒）；间接% = 外国官方+国际机构接受占比；Tail = 中标利率 − 中位投标利率（bp，正 = 弱于预期）。</p>`;
   document.getElementById('auctions').appendChild(asec);
   asec.appendChild(R.cards([
     { label: '近 10 场付息券平均 Bid-to-Cover', value: auc.avg_cover_10_coupon === null ? '—' : `${auc.avg_cover_10_coupon.toFixed(2)}x`, sub: good ? '需求良好' : '需求偏弱', accent: true },
@@ -265,7 +265,6 @@ async function load() {
   // ── 持仓明细 ──
   const tsec = document.createElement('div');
   tsec.className = 're-section';
-  tsec.innerHTML = '<h2>海外持仓明细（TIC，月频滞后 2 月）</h2>';
   tsec.appendChild(R.table(['持有方', '持仓', '1Y 变化', '观测期', '发布'],
     d.holdings.map(x => ({ 持有方: x.name, 持仓: x.value_b, '1Y 变化': x.chg_1y_b, 观测期: x.as_of, 发布: x.released || '—' })),
     { 持仓: v => `$${v.toLocaleString()}B`, '1Y 变化': v => v === null ? '—' : `<span class="${v > 0 ? 'up' : v < 0 ? 'down' : ''}">${v > 0 ? '+' : ''}${v.toFixed(0)}B</span>` }, null, true));

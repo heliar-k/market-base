@@ -10,8 +10,8 @@ import Section from '../../components/Section.astro';
   <Section id="overview" title="指数总览">
     <div id="indices"></div>
   </Section>
-  <Section id="index-chart" title="指数走势" />
-  <Section id="breadth" title="市场广度" />
+  <Section id="index-chart" title="指数走势" sub="归一化 %" />
+  <Section id="breadth" title="市场广度" sub="含动能集中度" />
   <!-- ABV 走势/分析师目标价/成分股雷达:条件性(对应子源缺失时为空),不进 Section -->
   <div id="abv-chart" class="re-block"></div>
   <Section id="analysis" title="规则引擎解读" />
@@ -96,7 +96,7 @@ function renderIndexChart() {
   if (!ch.dates || !ch.dates.length) return;
   const csec = document.createElement('div');
   csec.className = 're-section';
-  csec.innerHTML = '<h2>美股指数走势（归一化 %）</h2><div class="chart chart-lg" id="idx-chart-el"></div>';
+  csec.innerHTML = '<div class="chart chart-lg" id="idx-chart-el"></div>';
   document.getElementById('index-chart').appendChild(csec);
   R.mkChart('idx-chart-el', colors => R.lineOption({
     tooltip: { trigger: 'axis', valueFormatter: v => v == null ? '—' : Number(v).toFixed(2) + '%' },
@@ -123,7 +123,6 @@ function renderBreadth() {
   const b = D.breadth || {};
   const bsec = document.createElement('div');
   bsec.className = 're-section';
-  bsec.innerHTML = '<h2>市场广度与动能集中度</h2>';
   const label = b.abv200 >= 60 ? '广度健康' : (b.abv200 == null ? '—' : '广度偏弱');
   bsec.insertAdjacentHTML('beforeend', `
     <div class="re-badges" style="margin-bottom:8px">

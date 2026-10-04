@@ -10,7 +10,7 @@ import Section from '../../components/Section.astro';
   <Section id="overview" title="价格总览">
     <div id="cards"></div>
   </Section>
-  <Section id="chart" title="近期相对涨跌" />
+  <Section id="chart" title="近期相对涨跌" sub="最近 20 个交易日 · 期初 = 0%" />
   <Section id="recent" title="近期数据" />
   <div class="re-gen" id="re-gen"></div>
 </div>
@@ -45,7 +45,7 @@ async function load() {
   };
   const csec = document.createElement('div');
   csec.className = 're-section';
-  csec.innerHTML = '<h2>近期相对涨跌（最近 20 个交易日，期初 = 0%）</h2><div class="chart chart-lg" id="bond-chart"></div>';
+  csec.innerHTML = '<div class="chart chart-lg" id="bond-chart"></div>';
   document.getElementById('chart').appendChild(csec);
   R.mkChart('bond-chart', colors => R.lineOption({
     tooltip: { trigger: 'axis', valueFormatter: v => v == null ? '—' : Number(v).toFixed(2) + '%' },

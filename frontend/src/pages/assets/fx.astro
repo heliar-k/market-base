@@ -55,8 +55,7 @@ function renderVerdicts(d) {
     </div>`;
   const sec = document.createElement('div');
   sec.className = 're-section';
-  sec.innerHTML = `<h2>美元广度与结构判定</h2>
-    <div class="fx-verdict-cards">${[
+  sec.innerHTML = `<div class="fx-verdict-cards">${[
       card('美元广度', `${o.weak}/${o.total} 对走弱`, false, o.verdict, o.note),
       card('G10 / 商品货币', sg(gavg), false, g10.verdict, g10.note),
       card('亚洲 / EM', sg(asia.avg_pressure), false, asia.verdict, asia.note),
@@ -103,7 +102,6 @@ function renderTables(d) {
   // 16 行数据撑成 ~1100px 高；改成组标题 + 表，密度上来，跨表列宽仍靠 #dashboard 那组规则对齐。
   const sec = document.createElement('div');
   sec.className = 're-section';
-  sec.innerHTML = '<h2>分组表现</h2>';
   order.forEach(gn => {
     const rows = d.dashboard.filter(r => r.group === gn);
     if (!rows.length) return;
