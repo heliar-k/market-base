@@ -102,7 +102,8 @@ def test_radar_cme_missing_driver(data_root, monkeypatch):
         "coinglass": {},
     }
     r = aa.crypto_radar(snap)
-    assert r["driver"].startswith("现货驱动")
+    assert r["driver_name"] == "现货驱动"
+    assert r["driver_state"] == "CME 头寸数据待积累"
     # 仅永续 OI（读快照历史）可计分（dir 0 中性带也计权重）→ 10/95
     assert r["confidence"] == round(10 / 95 * 100)
 

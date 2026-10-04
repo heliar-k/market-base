@@ -236,64 +236,97 @@ const NL_CYAN = reCssVar('--chart-cyan');
 const fmt = R.num;
 const chg = R.chgSpan;
 
-// P 只喂文字色（雷达卡 / 信号行 color:），图上填充一律走图形档 token
-const P = { up: 'var(--up)', down: 'var(--down)', flat: 'var(--flat)' };
-
-// ── BTC FORWARD RADAR（timsun 同款：综合分 + 4 列 + 信号权重）──
+// ── BTC 前瞻雷达：一张卡内三层（结论 | 确认路径 | 信号拆解），分层只靠分隔线 ──
+// 不套盒：.re-section 自带卡面，里面再放卡就是卡中卡三层框（AGENTS 第 8 节）。
 function renderRadar(d) {
-  const radar = d.radar || { total: null, confidence: 0, verdict: '数据不足', structure: '—', lev_risk: '—', driver: '—', signals: [] };
-  // 中性态用深色而非浅灰——综合分/24h 偏向是结论层，不能比数据层还弱
-  const rcolor = radar.verdict === '偏多' ? P.up : (radar.verdict === '偏空' ? P.down : 'var(--text)');
+  const radar = d.radar || { total: null, confidence: 0, verdict: '数据不足', structure: '—',
+    lev_risk: '—', driver_name: '—', driver_state: '', signals: [] };
+  const sigs = radar.signals || [];
+  // 中性态用深色而非浅灰——分数与偏向是结论层，不能比数据层还弱
+  const ink = radar.verdict === '偏多' ? 'var(--up)' : radar.verdict === '偏空' ? 'var(--down)' : 'var(--text)';
+  // 图形档只当填充（色标/圆点），与文字档分开：见 AGENTS「语义色两档制」
+  const fill = radar.verdict === '偏多' ? 'var(--color-up)' : radar.verdict === '偏空' ? 'var(--color-down)' : 'var(--color-neutral)';
   const rsec = document.createElement('div');
   rsec.className = 're-section';
-  const missed = (radar.signals || []).filter(s => s.dir === 0 && s.value === undefined).map(s => s.name);
-  const etfMissed = (radar.signals || []).some(s => s.name === 'ETF 资金流' && s.value === undefined);
-  // 明细链接进正文段而非标题注解：注解走 R.secTitle 一律转义，塞不进 <a>
-  rsec.innerHTML = R.secTitle('BTC 前瞻雷达') +
-    `<p style="margin:0 0 8px">把 ETF、CME、基差、永续杠杆和期权信号压缩为 0-24h / 1-7d 判断。<a href="/assets/crypto-derivatives.html">明细见衍生品页 ›</a></p>`;
-  rsec.appendChild(R.cards([
-    { label: '综合分', value: radar.total == null ? '—' : (radar.total >= 0 ? '+' : '') + radar.total,
-      vcolor: rcolor, sub: `置信度 ${radar.confidence}/100` },
-    { label: '24h 偏向', value: radar.verdict, vcolor: rcolor, sub: '0-24h 方向' },
-    { label: '3-7 日结构', value: radar.structure, sub: '中期趋势形态' },
-    { label: '杠杆风险', value: radar.lev_risk, sub: '永续资金费率口径' },
-    { label: '主导力量', value: radar.driver, cls: 're-card-wrap', sub: '当前方向主导因素' },
-  ]));
-  if (etfMissed) {
-    rsec.insertAdjacentHTML('beforeend', '<div style="margin-top:10px;padding:8px 12px;border:1px solid var(--warning);border-radius:6px;font-size:12px;color:var(--warning)">ETF 资金流数据过期或未接入，未纳入方向评分。</div>');
-  }
-  // 触发/反证条件紧跟结论卡（阅读顺序：评分 → 什么确认/什么推翻 → 信号明细殿后）
-  // 按当前数据实时计算（统一 ✓ 成立 / ✗ 不成立 / — 数据缺；反证条件用正常态措辞，✗ = 风险触发）
-  // 徽章用小号 chip：条件是为结论服务的注脚，视觉重量不能压过结论卡
+  rsec.innerHTML = R.secTitle('BTC 前瞻雷达', '', 'ETF · CME · 基差 · 永续杠杆 · 期权 → 0-24h / 1-7d 判断');
+  // 明细链接挂标题行右端：R.secTitle 的 note 一律转义，塞不进 <a>，故 DOM 追加
+  const h2 = rsec.querySelector('h2');
+  h2.classList.add('radar-h');
+  h2.insertAdjacentHTML('beforeend', '<a class="radar-jump" href="/assets/crypto-derivatives.html">衍生品明细 ›</a>');
+
+  // 触发/反证按当前快照实时算（✓ 成立 / ✗ 不成立 / — 数据缺）；反证用正常态措辞，✗ = 风险触发
   const gFlip = ((d.options_BTC || {}).gex || {}).gamma_flip;
   const spotNow = (d.options_BTC || {}).spot_anchor;
   const etf5 = d.etf && d.etf.available && !d.etf.stale ? d.etf.sum5d_busd : null;
   const spreadV = d.basis && d.basis.available ? d.basis.spread : null;
   const annFrRaw = ((d.perp || {}).BTC || {}).funding_annual;
   const annFr = annFrRaw == null ? null : annFrRaw * 100;
-  const cond = (ok, label, invert) => `<span class="re-badge chip ${ok == null ? 'flat' : ok ? 'bull' : (invert ? 'bear' : 'flat')}">${ok == null ? '—' : ok ? '✓' : '✗'} ${label}</span>`;
+  const cf = (ok, label, val) => `<div class="radar-cf">
+      <span class="mk" style="color:${ok == null ? 'var(--flat)' : ok ? 'var(--up)' : 'var(--down)'}">${ok == null ? '—' : ok ? '✓' : '✗'}</span>
+      <span>${label}</span><span class="v">${val == null ? '—' : val}</span></div>`;
+  // 刻度尺按后端真实量程 ±4（total = Σdir·权重 / Σ权重 × 100/25，见 crypto_radar docstring）
+  const pos = radar.total == null ? 50 : Math.max(0, Math.min(100, Math.round(((radar.total + 4) / 8) * 100)));
+  const nLive = sigs.filter(s => s.value !== undefined).length;
   rsec.insertAdjacentHTML('beforeend', `
-    <div class="re-badges" style="margin-top:12px">
-      <span style="font-size:12px;opacity:.7">触发</span>
-      ${cond(spotNow != null && gFlip != null ? spotNow > gFlip : null, `现价上穿 Gamma Flip${gFlip ? `（$${fmt(gFlip, 0)}）` : ''}`)}
-      ${cond(etf5 == null ? null : etf5 > 0, `ETF 5d 净流入转正${etf5 != null ? `（${etf5 >= 0 ? '+' : ''}${etf5.toFixed(2)}B）` : '（数据过期）'}`)}
-      <span style="font-size:12px;opacity:.7;margin-left:16px">反证</span>
-      ${cond(spreadV == null ? null : spreadV > 0, `基差 Spread 为正${spreadV != null ? `（当前 ${spreadV}%）` : ''}`, true)}
-      ${cond(annFr == null ? null : Math.abs(annFr) < 15, `资金费率年化在 ±15% 内${annFr != null ? `（当前 ${annFr.toFixed(1)}%）` : ''}`, true)}
+    <div class="radar-top" style="--rc-color:${fill};--rc-ink:${ink}">
+      <div class="radar-verdict">
+        <div>
+          <div class="radar-cap">综合分</div>
+          <div class="radar-num"><b>${radar.total == null ? '—' : (radar.total >= 0 ? '+' : '') + radar.total}</b><span class="of">/ ±4</span></div>
+        </div>
+        <div class="radar-state"><i></i>${R.esc(radar.verdict)}</div>
+        <div class="radar-scale">
+          <div class="rail"><span class="zero"></span><span class="dot" style="left:${pos}%"></span></div>
+          <div class="ticks"><span>偏空 −4</span><span>0</span><span>+4 偏多</span></div>
+        </div>
+      </div>
+      <div class="radar-confirm">
+        <div><h4>触发 · 两项同向 = 结构确认</h4>
+          ${cf(spotNow != null && gFlip != null ? spotNow > gFlip : null, '现价上穿 Gamma Flip', gFlip == null ? null : '$' + fmt(gFlip, 0))}
+          ${cf(etf5 == null ? null : etf5 > 0, 'ETF 5d 净流入转正', etf5 == null ? null : (etf5 >= 0 ? '+' : '') + etf5.toFixed(2) + ' B')}
+        </div>
+        <div><h4>反证 · 任一 ✗ = 降杠杆信号</h4>
+          ${cf(spreadV == null ? null : spreadV > 0, '基差 Spread 保持为正', spreadV == null ? null : spreadV + '%')}
+          ${cf(annFr == null ? null : Math.abs(annFr) < 15, '费率年化在 ±15% 内', annFr == null ? null : annFr.toFixed(1) + '%')}
+        </div>
+      </div>
     </div>
-    <p class="re-source" style="margin:6px 0 0">触发两项同向 = 结构确认；反证任一 ✗ = 降杠杆信号。状态按上方数据实时计算，非静态文本。</p>`);
-  // 信号明细殿后：无边框细分隔线行（去 14 个矩形），得分·权重合并紧跟信号名，描述灰字随行
-  const sigRows = (radar.signals || []).map((s, i, arr) => {
-    const sc = s.dir * s.weight;
-    const c = sc > 0 ? P.up : (sc < 0 ? P.down : P.flat);
-    return `<div style="display:flex;flex-wrap:wrap;align-items:baseline;gap:10px;padding:6px 2px${i < arr.length - 1 ? ';border-bottom:1px solid var(--border)' : ''}">
-      <span style="min-width:min(118px,45%);font-size:13px;font-weight:600">${s.name}</span>
-      <span style="min-width:min(76px,30%);font-size:12px"><b style="color:${c}">${sc > 0 ? '+' + sc : sc}</b> <span style="opacity:.5">· 权${s.weight}</span></span>
-      <span style="min-width:0;font-size:11px;opacity:.7;flex:1 1 40%">${s.desc}</span></div>`;
-  }).join('');
-  rsec.insertAdjacentHTML('beforeend',
-    `<p class="re-source" style="margin:12px 0 2px">信号权重（缺失信号不纳入评分，中性带内计 0 分）${missed.length ? ' · 缺：' + missed.join(' / ') : ''}</p>
-     <div class="re-render">${sigRows}</div>`);
+    <div class="radar-kv">
+      <div><span class="k">3-7 日结构</span><span class="v">${R.esc(radar.structure)}</span></div>
+      <div><span class="k">杠杆风险</span><span class="v">${R.esc(radar.lev_risk)}${annFr == null ? '' : `<span class="dim"> · 费率年化 ${annFr.toFixed(1)}%</span>`}</span></div>
+      <div><span class="k">主导力量</span><span class="v">${R.esc(radar.driver_name)}${radar.driver_state ? ` · ${R.esc(radar.driver_state)}` : ''}</span></div>
+      <div><span class="k">置信度</span><span class="radar-conf"><span class="rail"><span class="fill" style="width:${radar.confidence}%"></span></span><span class="v">${radar.confidence}% · ${nLive}/${sigs.length} 信号</span></span></div>
+    </div>`);
+
+  // 信号拆解：有方向的进表（按 |得分| 降序）；中性与缺失各归一条备注——缺失不是「中性」，不能混列
+  const live = sigs.filter(s => s.dir !== 0).sort((a, b) => Math.abs(b.dir * b.weight) - Math.abs(a.dir * a.weight));
+  const neutral = sigs.filter(s => s.dir === 0 && s.value !== undefined);
+  const missed = sigs.filter(s => s.value === undefined);
+  // 段末备注块：免责 + 口径统一一处（原来两条 11px 灰字散在正文行间，看着像重复废话）
+  const notes = ['<div><b>注 1</b> 综合分与触发/反证按最新快照实时计算，非静态文案。</div>'];
+  if (neutral.length) notes.push(`<div><b>注 2</b> 中性带内计 0 分，不进上表：${neutral.map(s => `${R.esc(s.name)}（权 ${s.weight}）`).join(' · ')}。</div>`);
+  if (missed.length) notes.push(`<div><b>注 3</b> 缺数据不计分：${missed.map(s => `${R.esc(s.name)} —— ${R.esc(s.desc)}`).join(' · ')}。</div>`);
+  // 全中性 / 全缺失时不出光杆表头（有 thead 无行 = 静默空表，违反全站空态约定）
+  if (!live.length) {
+    rsec.insertAdjacentHTML('beforeend',
+      `<p class="radar-empty">${sigs.length} 个信号都在中性带内或数据缺失，本次无方向拆解。快照来源 OKX / Deribit / CME / Farside，手动补 <code>./bin/fetch_crypto_derivatives</code>。</p>`);
+    rsec.insertAdjacentHTML('beforeend', `<div class="radar-notes">${notes.join('')}</div>`);
+    document.getElementById('radar').appendChild(rsec);
+    return;
+  }
+  const maxW = Math.max(...live.map(s => s.weight), 1);
+  const tbl = R.table(['信号', '得分', '权重', '依据'],
+    live.map(s => ({ _d: s.dir, 信号: s.name, 得分: (s.dir * s.weight > 0 ? '+' : '') + s.dir * s.weight, 权重: s.weight, 依据: s.desc })),
+    {
+      得分: (v, row) => `<b style="color:${row._d > 0 ? 'var(--up)' : 'var(--down)'}">${v}</b>`,
+      // 条长 ∝ 权重占最大权重的比例（半轨 = 100%），方向决定往左还是往右长
+      权重: (v, row) => `<span class="radar-wt"><i style="width:${v / maxW * 50}%;${row._d > 0 ? '' : 'right:50%;left:auto;'}background:${row._d > 0 ? 'var(--color-up)' : 'var(--color-down)'}"></i></span>${v}`,
+      依据: v => `<span style="font-size:12px;color:var(--text-secondary)">${R.esc(v)}</span>`,
+    }, ['信号', '得分', '权重', '依据'], true);
+  const tb = tbl.querySelector('tbody');
+  if (tb) tb.classList.add('radar-body');
+  rsec.appendChild(tbl);
+  rsec.insertAdjacentHTML('beforeend', `<div class="radar-notes">${notes.join('')}</div>`);
   document.getElementById('radar').appendChild(rsec);
 }
 

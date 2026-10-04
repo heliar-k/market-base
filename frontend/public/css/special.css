@@ -714,3 +714,113 @@ body.dark .pm-topic-card { box-shadow: inset 0 0 0 1px rgba(255,255,255,.04); }
 
 /* ── assets/crypto 页（原 JS innerHTML 内联 <style> 收编）── */
 #recent .re-table th:nth-child(1), #recent .re-table td:nth-child(1) { width: 120px; }
+
+/* ── BTC 前瞻雷达（crypto 页）：一张卡内三层 —— 结论 | 确认路径 | 信号拆解 ──
+ * 分层只靠分隔线，不套盒（.re-section 自带卡面，再套就是卡中卡三层框）。
+ * 左右边线：卡内所有文字（标题/结论/键值/表格首列/备注）落同一条内容栅格线，
+ * 表格色带靠 .re-section > .re-table-wrap 出血铺到卡片边。 */
+/* 标题行：左标题 + 弱化注解，右端挂节级导航（R.secTitle 的 note 走转义，塞不进 <a>，故 DOM 追加） */
+.radar-h { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.radar-jump { margin-left: auto; font-size: 12px; font-weight: 400; white-space: nowrap;
+  color: var(--accent-ink); text-decoration: underline; text-underline-offset: 2px; }
+.radar-jump:hover { color: var(--accent); }
+/* 小标签单源：结论/键值/确认列头/注号同一副面孔（11px·600·.05em·dim） */
+.radar-cap, .radar-kv .k, .radar-confirm h4, .radar-notes b {
+  font-size: 11px; font-weight: 600; letter-spacing: .05em; color: var(--text-dim); }
+/* 上排：左结论面板（窄栏）｜右确认路径，一条竖线分工。--rc-* 由 JS 按 verdict 注入
+ * container-type：断点必须按**容器宽度**而不是视口 —— 专题页 ≥1025px 让位侧栏 240px，
+ * 1060 视口下内容只有 756px，按视口写的断点会让确认列标签挤成两行（实测踩过）。 */
+.radar-top { display: grid; grid-template-columns: minmax(230px, 300px) 1fr; gap: 0 24px;
+  container-type: inline-size; container-name: radar; }
+.radar-verdict { display: flex; flex-direction: column; gap: 10px; padding-right: 24px; }
+.radar-num { display: flex; align-items: baseline; gap: 7px; margin-top: -4px; }
+.radar-num b { font-size: 38px; font-weight: 800; line-height: .95; letter-spacing: -.02em;
+  font-variant-numeric: tabular-nums; color: var(--rc-ink, var(--text)); }
+.radar-num .of { font-size: 12px; color: var(--text-dim); }
+.radar-state { display: flex; align-items: center; gap: 7px; font-size: 15px; font-weight: 700;
+  color: var(--rc-ink, var(--text)); }
+.radar-state i { width: 7px; height: 7px; border-radius: 2px; background: var(--rc-color, var(--color-neutral)); flex: 0 0 auto; }
+/* 双极刻度尺：轨道 = down→neutral→up 三段（图形档透明叠加，只当填充不当文字色），0 处一条中线，圆点随分数落位 */
+.radar-scale { margin-top: 2px; }
+.radar-scale .rail { position: relative; height: 5px; border-radius: 3px;
+  background: linear-gradient(90deg,
+    color-mix(in srgb, var(--color-down) 34%, transparent),
+    color-mix(in srgb, var(--color-neutral) 22%, transparent) 50%,
+    color-mix(in srgb, var(--color-up) 34%, transparent)); }
+.radar-scale .zero { position: absolute; left: 50%; top: -4px; bottom: -4px; width: 1px; background: var(--text-dim); opacity: .5; }
+.radar-scale .dot { position: absolute; top: 50%; width: 13px; height: 13px; margin: -6.5px 0 0 -6.5px;
+  border-radius: 50%; background: var(--surface); border: 3px solid var(--rc-color, var(--color-neutral));
+  animation: radar-dot-pop .5s cubic-bezier(.16, 1, .3, 1) both; }
+.radar-scale .ticks { display: flex; justify-content: space-between; font-size: 10px; color: var(--text-dim); margin-top: 5px; }
+/* 下排键值：整行四格（含置信度条），竖线分组 —— 横切让上排两栏高度对齐，不留空洞。
+ * 自身也是容器：四等分要每格 ≥185px 才不折行（4×185+3×22 = 806），按视口判断会漏掉侧栏让位的 240px */
+.radar-kv { container: radarkv / inline-size; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0 22px;
+  border-top: 1px solid var(--border-light); margin-top: 14px; padding-top: 10px; font-variant-numeric: tabular-nums; }
+.radar-kv > div + div { border-left: 1px solid var(--border-light); padding-left: 22px; }
+.radar-kv .k { display: block; margin-bottom: 3px; }
+.radar-kv .v { font-size: 13px; }
+.radar-kv .dim { color: var(--text-dim); font-size: 12px; }
+.radar-conf { display: flex; align-items: center; gap: 8px; font-size: 11px; color: var(--text-dim); }
+.radar-conf .rail { flex: 1 1 40px; min-width: 32px; max-width: 110px; height: 3px; border-radius: 2px;
+  background: var(--border); overflow: hidden; }
+.radar-conf .fill { display: block; height: 100%; background: var(--accent-ink); }
+.radar-conf .v { white-space: nowrap; }
+/* 确认路径：两列定宽（不用 flex-wrap —— 徽章版会 2+2 错位、标签被挤散），一条竖分隔线 */
+.radar-confirm { display: grid; grid-template-columns: 1fr 1fr; gap: 0 22px; align-content: start; }
+.radar-confirm > div + div { border-left: 1px solid var(--border-light); padding-left: 22px; }
+.radar-confirm h4 { margin: 0 0 4px; }
+.radar-cf { display: flex; align-items: baseline; gap: 9px; font-size: 13px; padding: 9px 0;
+  border-bottom: 1px solid var(--border-light); }
+.radar-cf:last-child { border-bottom: none; }
+.radar-cf .mk { flex: 0 0 14px; text-align: center; font-weight: 800; }  /* 定宽：✓ 与 ✗ 字形不等宽，否则标签左边缘错 1px */
+.radar-cf .v { margin-left: auto; padding-left: 10px; color: var(--text-dim); font-size: 12px;
+  font-variant-numeric: tabular-nums; white-space: nowrap; }
+/* 权重条：中轴对称（左红右绿），条长 ∝ 权重占比 */
+.radar-wt { display: inline-block; width: 60px; height: 5px; border-radius: 3px; background: var(--border);
+  position: relative; vertical-align: middle; margin-right: 7px; }
+.radar-wt i { position: absolute; top: 0; bottom: 0; left: 50%; border-radius: 3px; }
+/* 空态：全中性/全缺失时不出光杆表头，给原因与修复命令（全站 README 式空态约定） */
+.radar-empty { font-size: 13px; line-height: 1.7; color: var(--text-secondary);
+  border-top: 1px solid var(--border-light); margin-top: 14px; padding-top: 10px; }
+.radar-empty code { font-size: 12px; }
+/* 段末备注块：口径与免责统一一处（原来两条 11px 灰字散在正文行间，看着像重复废话） */
+.radar-notes { border-top: 1px solid var(--border-light); margin-top: 12px; padding-top: 8px;
+  font-size: 11px; line-height: 1.9; color: var(--text-dim); }
+.radar-notes > div { display: grid; grid-template-columns: 30px 1fr; gap: 6px; }  /* 注号定宽：长句换行第二行顶到同一条竖线 */
+.radar-notes b { color: var(--text-secondary); letter-spacing: 0; }
+/* 信号表行入场：staggered（只动 transform/opacity） */
+.radar-body > tr { animation: radar-row-in .4s cubic-bezier(.16, 1, .3, 1) both; }
+.radar-body > tr:nth-child(2) { animation-delay: .06s; }
+.radar-body > tr:nth-child(3) { animation-delay: .12s; }
+.radar-body > tr:nth-child(4) { animation-delay: .18s; }
+.radar-body > tr:nth-child(5) { animation-delay: .24s; }
+@keyframes radar-dot-pop { from { transform: scale(.3); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+@keyframes radar-row-in { from { transform: translateY(4px); opacity: 0; } to { transform: none; opacity: 1; } }
+@media (prefers-reduced-motion: reduce) {
+  .radar-scale .dot, .radar-body > tr { animation: none; }
+}
+/* 容器断点（比视口准，见上方 container-type 注）：阈值都是实测换算出来的 ——
+ * confirm：列宽 ≈ (.radar-top − 300 结论栏 − 24 栏距) / 2，容器 780 → 每列 ≈ 208px，再窄标签折行；
+ * kv：四等分要每格 ≥185px（4×185 + 3×22 = 806），否则「主导力量」那格换行。
+ * 容器查询只能命中容器的后代，所以「上排拆成上下」仍由下方视口媒体查询负责。 */
+@container radar (max-width: 780px) {
+  .radar-confirm { grid-template-columns: 1fr; gap: 12px 0; }
+  .radar-confirm > div + div { border-left: none; padding-left: 0; border-top: 1px solid var(--border-light); padding-top: 10px; }
+}
+@container radarkv (max-width: 806px) {
+  .radar-kv { grid-template-columns: repeat(2, minmax(0, 1fr)); row-gap: 14px; }
+  .radar-kv > div:nth-child(3) { border-left: none; padding-left: 0; }  /* 2×2 时中间竖线会错位 */
+}
+/* 断点顺序：视口媒体查询一律排在基础规则与容器查询之后（同特异性后来者赢） */
+@media (max-width: 900px) {
+  .radar-top { grid-template-columns: 1fr; gap: 22px 24px; }
+}
+@media (max-width: 768px) {
+  .radar-verdict { padding-right: 0; }  /* 单列时右内缩会让刻度尺/键值比下方内容短 24px */
+  .radar-kv { grid-template-columns: 1fr; gap: 0; }
+  .radar-kv > div { padding: 8px 0; }
+  .radar-kv > div + div { border-left: none; padding-left: 0; border-top: 1px solid var(--border-light); }
+  .radar-confirm { grid-template-columns: 1fr; gap: 12px 0; }
+  .radar-confirm > div + div { border-left: none; padding-left: 0; border-top: 1px solid var(--border-light); padding-top: 10px; }
+  .radar-wt { display: none; }  /* 窄屏只留权重数字，条让位 */
+}

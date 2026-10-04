@@ -3130,13 +3130,14 @@ def crypto_radar(snap: dict) -> dict:
     fr = perp.get("funding_annual") or 0
     lev_risk = "高" if abs(fr * 100) >= 30 else ("中" if abs(fr * 100) >= 15 else "低")
     # 主导力量（timsun 口径：机构增减仓 vs 现货驱动）
+    # 拆成「名 / 态」两字段：合成一个长字符串会让展示层只能当大数字值渲染，折行又挤
     if cme_val is None:
-        driver = "现货驱动 · CME 头寸数据待积累"
+        driver_name, driver_state = "现货驱动", "CME 头寸数据待积累"
     else:
         cme_move = (
             "机构增仓" if cme_val > 0 else ("机构减仓" if cme_val < 0 else "头寸稳定")
         )
-        driver = f"CME 机构头寸: {cme_move}"
+        driver_name, driver_state = "CME 机构头寸", cme_move
 
     # 资金费率（Presto 2024：对下一期无方向预测力 → 降权为拥挤度过滤器，
     # 仅年化 ±15% 超出时反向计分）
@@ -3290,6 +3291,7 @@ def crypto_radar(snap: dict) -> dict:
         if total is not None and total >= 2
         else ("偏空结构" if total is not None and total <= -2 else "现货通道待确认"),
         "lev_risk": lev_risk,
-        "driver": driver,
+        "driver_name": driver_name,
+        "driver_state": driver_state,
         "signals": signals,
     }
