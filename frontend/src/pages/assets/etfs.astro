@@ -12,18 +12,17 @@ import Section from '../../components/Section.astro';
   </Section>
   <!-- 条件性(全量清单子源缺失时为空),不进 Section -->
   <div id="universe" class="re-block"></div>
-  <!-- 筛选器:脚本 innerHTML 清容器,Section 只包壳、id 落内层 div -->
-  <Section id="temp" title="市场温度与筛选">
-    <div id="filters"></div>
-  </Section>
-  <Section id="pool" title="精选池" />
+  <!-- 筛选 chip 与精选池表是一个分区（控件作用对象就是这张表），不再独占一节；
+       #temp 留给历史深链 etfs.html#temp 落地（零尺寸 + 脱离流：hidden/display:none 的元素不是滚动目标），不进 page-toc -->
+  <span id="temp" style="position:absolute;width:1px;height:1px"></span>
+  <Section id="pool" title="精选池" sub="ETF / 主题 · 按分类与趋势筛选" />
   <div class="re-gen" id="re-gen"></div>
 </div>
 
 <script is:inline>
 // 小节锚点导航（#29：与其余专题页同一写法）
 document.getElementById('page-toc').innerHTML = [
-  ['统计', 'overview'], ['温度与筛选', 'temp'], ['精选池', 'pool'],
+  ['统计', 'overview'], ['精选池', 'pool'],
 ].map(([t, id]) => `<a href="#${id}">${t}</a>`).join('');
 
 let D = null;
@@ -45,7 +44,6 @@ async function load() {
   if (D.as_of) document.getElementById('re-as-of').textContent = R.asOf(D.as_of);
   renderStats();
   renderUniverse();
-  renderFilters();
   renderPool();
   document.getElementById('re-gen').textContent = '判断为规则化市场描述，不是买卖建议；日线价格以最近可得美股交易日收盘为准。';
 }
@@ -75,34 +73,22 @@ function renderUniverse() {
     `<div class="re-explain">范围：Nasdaq Trader 名单中标记为 Y 的美国上市 ETF；价格只覆盖已积累历史的精选池。分类统计：${cats.join(' · ')}</div>`;
 }
 
-function renderFilters() {
-  const cats = ['全部'].concat(Object.keys(CATS));
-  const trends = ['全部', '趋势向上', '趋势分化', '趋势向下'];
-  const f = document.getElementById('filters');
-  f.innerHTML = `<div class="re-section">
-    <p style="margin:0 0 8px">用 1 周 / 1 月 / 3 月动量、20 日年化波动率和距 3 月高点回撤，区分趋势与风险。</p>
-    ${chips(cats, curCat, 'f-cat')}${chips(trends, curTrend, 'f-trend', 'margin-top:14px')}
-  </div>`;
-  f.querySelectorAll('a[data-v]').forEach(a => a.addEventListener('click', () => {
-    if (a.dataset.k === 'f-cat') curCat = a.dataset.v; else curTrend = a.dataset.v;
-    renderFilters();
-    renderPool();
-  }));
-}
-// 可点击筛选 chip：统一 re-badge.on 选中态（accent 描边 + 浅底），选中类由 CSS 控制；extraStyle 用于第二组与第一组拉开间距
-function chips(items, cur, kind, extraStyle = '') {
-  return `<div class="re-badges" style="margin:8px 0 4px;${extraStyle}">${items.map(c =>
+// 可点击筛选 chip：统一 re-badge.on 选中态（accent 描边 + 浅底），选中类由 CSS 控制
+function chips(items, cur, kind) {
+  return `<div class="re-badges" style="margin:8px 0 4px">${items.map(c =>
     `<a href="javascript:void(0)" class="re-badge${c === cur ? ' on' : ''}" data-v="${c}" data-k="${kind}">${categories(c)}</a>`).join('')}</div>`;
 }
 
+// 筛选 chip + 精选池表：同一次渲染（改筛选只重画这张卡），避免控件与表格分成两节
 function renderPool() {
   const rows = D.pool.filter(r => (curCat === '全部' || r.category === curCat) && (curTrend === '全部' || r.trend === curTrend));
   const up = D.pool.filter(r => r.trend === '趋势向上').length;
   const down = D.pool.filter(r => r.trend === '趋势向下').length;
   const nsec = document.createElement('div');
   nsec.className = 're-section';
-  nsec.innerHTML = `<h2>ETF / 主题</h2>
-    <p style="margin:0 0 8px">当前结果 <b>${rows.length}</b> · 研究池内符合条件 ETF · 趋势向上 ${up} · 趋势向下 ${down}</p>`;
+  nsec.innerHTML = `<p style="margin:0 0 8px">用 1 周 / 1 月 / 3 月动量、20 日年化波动率和距 3 月高点回撤，区分趋势与风险。</p>
+    ${chips(['全部'].concat(Object.keys(CATS)), curCat, 'f-cat')}${chips(['全部', '趋势向上', '趋势分化', '趋势向下'], curTrend, 'f-trend')}
+    <p style="margin:14px 0 8px">当前结果 <b>${rows.length}</b> · 研究池内符合条件 ETF · 趋势向上 ${up} · 趋势向下 ${down}</p>`;
   nsec.appendChild(R.table(['代码', '主题', '价格', '1周', '1月', '3月', '20日波动', '3月回撤', '判断'], rows.map(r => ({ ...r })), {
     name: (v, row) => `${v} · ${categories(row.category)}`,
     last: v => '$' + fmt(v),
@@ -117,6 +103,11 @@ function renderPool() {
   const old = sec.querySelector('.re-section');
   if (old) old.remove();
   sec.appendChild(nsec);
+  // 可点击筛选 chip：统一 re-badge.on 选中态（accent 描边 + 浅底），选中类由 CSS 控制
+  nsec.querySelectorAll('a[data-v]').forEach(a => a.addEventListener('click', () => {
+    if (a.dataset.k === 'f-cat') curCat = a.dataset.v; else curTrend = a.dataset.v;
+    renderPool();
+  }));
 }
 
 load().catch(e => R.fail(['stats', 'pool'], e));
