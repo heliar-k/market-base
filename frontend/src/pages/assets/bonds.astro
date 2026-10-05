@@ -12,7 +12,7 @@ import Section from '../../components/Section.astro';
   </Section>
   <Section id="chart" title="近期相对涨跌" sub="最近 20 个交易日 · 期初 = 0%" />
   <Section id="recent" title="近期数据" />
-  <div class="re-gen" id="re-gen"></div>
+  <div class="re-foot-page" slot="foot" id="re-foot"></div>
 </div>
 
 <script is:inline>
@@ -78,7 +78,7 @@ async function load() {
   rsec.appendChild(R.table(['日期'].concat(keys), rows, fmts));
   document.getElementById('recent').appendChild(rsec);
 
-  document.getElementById('re-gen').textContent = '数据源：Yahoo Finance 日频快照 · 口径为收盘价';
+  R.foot(null, { src: 'yfinance 日频快照', note: '口径为收盘价' });
 }
 
 const fmt = R.num;

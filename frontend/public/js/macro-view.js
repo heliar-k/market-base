@@ -111,7 +111,7 @@ export function initGlobalNav() {
       </div>`).join('')}
     <div class="macro-nav-foot">
       <div class="macro-nav-foot-row"><span>美东时间</span><span id="macro-nav-clock"></span></div>
-      <div class="macro-nav-foot-note">数据每日自动更新 · 不构成投资建议</div>
+      <div class="macro-nav-foot-note">数据每个交易日自动更新 · 不构成投资建议</div>
     </div>
   `;
 

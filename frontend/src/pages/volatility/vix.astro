@@ -66,6 +66,8 @@ import Section from '../../components/Section.astro';
     <div id="recent-table"></div>
   </Section>
 
+  <div class="re-foot-page" slot="foot" id="re-foot"></div>
+
 <script is:inline>
 async function load() {
   // 小节锚点导航（长页快速跳转；sticky 见 special.css .page-toc，同波动率全景页）
@@ -76,6 +78,10 @@ async function load() {
 
   const data = await R.get('/api/volatility/analysis');
   document.getElementById('re-as-of').textContent = R.asOf(data.as_of);
+  R.foot(data.generator, {
+    src: 'CBOE（VIX / VIX1D / VIX9D / VIX3M-1Y / SKEW / 期限结构斜率）',
+    note: 'SKEW 为尾部风险定价，不直接可比 VIX 水平',
+  });
 
   const c = R.colors();
   // 期限结构状态：中文为主 + 英文术语括注（contango = 远月升水，backwardation = 远月贴水）

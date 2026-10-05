@@ -13,7 +13,7 @@ import Section from '../../components/Section.astro';
   <Section id="re-signals" title="研判" />
   <Section id="history" title="走势" />
   <Section id="indicators" title="明细" sub="就业指标" />
-  <div class="re-gen" id="re-gen"></div>
+  <div class="re-foot-page" slot="foot" id="re-foot"></div>
 
 <script is:inline>
 async function load() {
@@ -40,7 +40,7 @@ async function load() {
   ]));
 
   // ── 研判（每段一张卡，段内 \n 分行 = 判断 / 读数，横排小卡走 R.judgeCard）──
-  // 英文免责 note 已删（页底 #re-gen 的 R.genText 已说明生成方式）
+  // 英文免责 note 已删（页底 #re-foot 的 R.genText 已说明生成方式）
   R.setSection('re-signals', (d.signals || [])
     .map(s => R.judgeCard(s.title, s.text, R.LINES_CONCLUSION)).join(''));
 
@@ -93,7 +93,10 @@ async function load() {
     }, ['指标', '最新', '较上期', '观测期', '发布'], true));
   document.getElementById('indicators').appendChild(tsec);
 
-  document.getElementById('re-gen').textContent = `研判生成：${R.genText(d.generator)} · ${d.as_of} · NFP = PAYEMS 一阶差分；V/U = JOLTS 空缺 / 失业人数`;
+  R.foot(d.generator, {
+    src: 'FRED（UNRATE / PAYEMS / ICSA / JOLTS）',
+    note: 'NFP = PAYEMS 一阶差分；V/U = JOLTS 空缺 / 失业人数',
+  });
 }
 load().catch(e => R.fail(['cards', 're-signals', 'history', 'indicators'], e));
 </script>

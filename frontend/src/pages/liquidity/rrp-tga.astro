@@ -22,7 +22,7 @@ import Section from '../../components/Section.astro';
   <Section id="sec-cash" title="TGA 日度现金流" sub="DTS">
     <div class="re-chart" id="cash_chart"></div>
   </Section>
-  <div class="re-gen" id="re-gen"></div>
+  <div class="re-foot-page" slot="foot" id="re-foot"></div>
 
 <script is:inline>
 const BUCKET_LABEL = { extreme: '极端抽水', strong: '强', mild: '温和', smooth: '平稳', injection: '注入' };
@@ -120,8 +120,7 @@ async function load() {
     ],
   }));
 
-  document.getElementById('re-gen').textContent =
-    '数据源：DTS（Daily Treasury Statement，日度真实现金流）· FRED（SOFR/IORB 利率走廊）· Treasury 拍卖日历（未来热力估算）· H.4.1（RRP/TGA 周度，DTS 日度优先）';
+  R.foot(null, { src: 'DTS（日度真实现金流）· FRED（SOFR / IORB 利率走廊）· Treasury 拍卖日历（未来热力估算）· H.4.1（RRP/TGA 周度）', note: 'DTS 日度优先于 H.4.1 周度' });
 }
 load().catch(e => R.fail(['re-alert', 're-cur', 're-heat', 'spread_chart', 'cash_chart'], e));
 </script>

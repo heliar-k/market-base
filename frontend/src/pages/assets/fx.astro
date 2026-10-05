@@ -11,7 +11,7 @@ import Section from '../../components/Section.astro';
   <Section id="fxchart" title="归一化走势" />
   <Section id="dashboard" title="分组表现" />
   <Section id="explain" title="如何解读" />
-  <div class="re-gen" id="re-gen"></div>
+  <div class="re-foot-page" slot="foot" id="re-foot"></div>
 </div>
 
 <script is:inline>
@@ -35,7 +35,7 @@ async function load() {
   renderTables(d);
   renderExplain();
   document.getElementById('re-as-of').textContent = R.asOf(d.as_of);
-  document.getElementById('re-gen').textContent = '规则引擎（LLM 预留）· 数据源：yfinance 外汇日线';
+  R.foot(null, { src: 'yfinance 外汇日线' });
 }
 
 // ── 顶部 4 张 verdict 卡 ──

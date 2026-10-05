@@ -91,7 +91,7 @@ import Section from '../../components/Section.astro';
       </div>
     </a>
   </div>
-  <div class="re-gen" id="re-gen"></div>
+  <div class="re-foot-page" slot="foot" id="re-foot"></div>
 
 <script is:inline>
 // 涨跌色：DOM 内联样式用 var()（主题切换即时生效）；ECharts canvas 处用 reCssVar 取实际值
@@ -297,7 +297,9 @@ async function load() {
       chg1d: r.chg1d, chg5d: r.chg5d, chg1m: r.chg1m, chg1y: r.chg1y,
     })), { value: valCell, ...CHG_FMTS }, null, true));
 
-  document.getElementById('re-gen').textContent = `研判生成：${R.genText(data.generator)} · ${data.as_of} · 快照源 Barchart/CBOE`;
+  R.foot(data.generator, {
+    src: 'Barchart（30 指数快照）· CBOE（VIX 期限结构 / SKEW / OVX）',
+  });
 }
 load().catch(e => R.fail(['vol-hero', 'vol-verdict', 'vol-signals', 'vol-risk', 'vol-trade', 'vol-stats', 'vol-heat', 'vol-term-chart', 'vol-cross-chart', 'vol-narrative', 'vol-top', 'vol-table'], e));
 </script>

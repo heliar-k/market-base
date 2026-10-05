@@ -11,7 +11,7 @@ import Section from '../../components/Section.astro';
   <Section id="sec-table" title="近期对照表" sub="最近 20 条">
     <div id="re-table"></div>
   </Section>
-  <div class="re-gen" id="re-gen"></div>
+  <div class="re-foot-page" slot="foot" id="re-foot"></div>
 
 <script is:inline>
 async function load() {
@@ -36,8 +36,10 @@ async function load() {
     rows, { WALCL: f, NET_LIQUIDITY: f, SPX: fpx, NDX: fpx, TREAST: f, WSHOMCB: f },
     ['date', 'WALCL', 'NET_LIQUIDITY', 'SPX', 'NDX', 'TREAST', 'WSHOMCB'],
   ));
-  document.getElementById('re-gen').textContent =
-    `${d.note || ''} 净流动性 = 总资产 − RRP − TGA（近似口径）· 单位 万亿 USD（十亿输入前 3 位）`;
+  R.foot(null, {
+    src: 'FRED H.4.1（WALCL / RRP / TGA）',
+    note: `${d.note || ''} 净流动性 = 总资产 − RRP − TGA（近似口径）· 单位 万亿 USD`.trim(),
+  });
 }
 load().catch(e => R.fail(['re-cards', 're-table'], e));
 </script>

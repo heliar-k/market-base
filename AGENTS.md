@@ -451,6 +451,17 @@ uv run python src/sell_put.py --symbol TSM
   inflation「月频 2026-07-01–2026-07-01 · 盈亏平衡 2026-09-04」）；月频区间写「月频 {起}–{止}」；
   日期一律 ISO。数据缺失显示空，不要自造前缀（「数据日期:」「快照时间 ·」等已废弃）。
   **文案只能由 `rates-common.js` 的 `R.asOf(...)` / `R.asMonth(...)` 组装**，页面不写模板串
+- **页脚两行单源**：`TopicLayout` 的 `<footer class="re-foot">` 只有两行 —— ① 本页数据源/口径
+  ② 免责 + 返回首页。全站级的来源枚举与「每日自动拉取」说明已删（前者与各页「数据源」重复，
+  后者不是用户要看的信息），品牌已在左侧栏顶/浏览器 title 里，不在页脚重复。
+  术语只用**「数据源」**（「数据来源」已废弃，守卫会红）。第 ① 行走 `<slot name="foot">`：各页只交
+  一个空容器 `<div class="re-foot-page" slot="foot" id="re-foot"></div>`，文案**只走
+  `rates-common.js` 的 `R.foot(gen, { src, note })` 组装**（页面不写模板串、不重复 id）；
+  有研判段就传 analysis 的 `generator`（出「研判生成：规则引擎（LLM 预留）」），纯数据页传 `null`；
+  **时间不写页脚**——页头 `#re-as-of` 已给，同页不重复两次。空行不占位（`.re-foot-page:empty`）。
+  侧栏底部那句（「数据每个交易日自动更新 · 不构成投资建议」）为导航区弱化注记，与页脚并存。
+  守卫：`test_pages_own_one_foot_slot` / `test_foot_text_only_via_r_foot` /
+  `test_page_level_source_term_is_data_source`
 - **head / 导航单源（Astro，ADR-0003）**：专题页 `<head>` 样板与**左侧专题树**由
   `frontend/src/layouts/TopicLayout.astro` 构建期统一渲染（页私有 head 追加走 `slot="head"`）；
   左侧树 + SPA 侧栏专题树唯一数据源 = `frontend/public/js/site-nav.js`（ESM：`export const SITE_NAV`，

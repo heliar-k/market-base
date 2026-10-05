@@ -13,7 +13,7 @@ import Section from '../../components/Section.astro';
   <Section id="asset-compare" title="大类资产同屏" />
   <Section id="chart" title="商品走势" sub="归一化 % · 近 1 年" />
   <Section id="recent" title="近期数据" sub="收盘价 · 最近 20 个交易日" />
-  <div class="re-gen" id="re-gen"></div>
+  <div class="re-foot-page" slot="foot" id="re-foot"></div>
 </div>
 
 <script is:inline>
@@ -120,7 +120,7 @@ async function load() {
   rsec.appendChild(R.table(['日期'].concat(keys2(rc)), rows, fmts));
   document.getElementById('recent').appendChild(rsec);
 
-  document.getElementById('re-gen').textContent = '数据源：Yahoo Finance 日频快照 · 归一化起点 = 1 年前收盘';
+  R.foot(null, { src: 'yfinance 日频快照', note: '归一化起点 = 1 年前收盘' });
 }
 function keys2(rc) { return Object.keys(rc.series || {}); }
 const fmt = (v) => R.num(v, 4);

@@ -18,7 +18,7 @@ import Section from '../../components/Section.astro';
   <Section id="sec-recent" title="近期数据" sub="最近 20 条">
     <div id="re-recent"></div>
   </Section>
-  <div class="re-gen" id="re-gen"></div>
+  <div class="re-foot-page" slot="foot" id="re-foot"></div>
 
 <script is:inline>
 const base = (c) => ({
@@ -57,8 +57,10 @@ async function load() {
     d.rows || [], { reserves_b: v => (v == null ? '—' : (Number(v) / 1000).toFixed(2)) },
     ['date', 'reserves_b'],
   ));
-  document.getElementById('re-gen').textContent =
-    '数据源：FRED H.4.1（WRESBAL，周度）· FRED 利率走廊（SOFR/IORB/DGS3MO，日度）· 准备金充裕时短端流动性压力较小';
+  R.foot(null, {
+    src: 'FRED H.4.1（WRESBAL，周度）· FRED 利率走廊（SOFR / IORB / DGS3MO，日度）',
+    note: '准备金充裕时短端流动性压力较小',
+  });
 }
 load().catch(e => R.fail(['re-cards', 'chart1', 'chart2', 're-recent'], e));
 </script>

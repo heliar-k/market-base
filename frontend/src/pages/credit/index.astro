@@ -20,7 +20,7 @@ import Section from '../../components/Section.astro';
   <Section id="liq-etf" title="市场流动性代理" sub="信用 ETF" />
   <Section id="cds-sec" title="CDS 专题" sub="信用违约互换" />
   <Section id="stress-sec" title="压力仪表盘" />
-  <div class="re-gen" id="re-gen"></div>
+  <div class="re-foot-page" slot="foot" id="re-foot"></div>
 
 <script is:inline>
 // 区间语义名 → 色：后端只下发语义 key（zone / regime），色在本页映射（两档制）。
@@ -112,7 +112,7 @@ async function load() {
   // ── 研判（三段各一张卡：发生了什么变化 / 为什么重要 / 接下来关注什么）──
   const s = d.signals || { framework: '—', what_changed: '—', why_it_matters: '—', what_to_watch: '—' };
   // 框架名保留（它是信息）；「rule-based · no direct price forecast」英文免责已删
-  // —— 页底 #re-gen 的 R.genText 已说明「规则引擎」，全站也没有价格预测
+  // —— 页底 #re-foot 的 R.genText 已说明「规则引擎」，全站也没有价格预测
   R.setSection('re-signals', [
     ['发生了什么变化', s.what_changed],
     ['为什么重要', s.why_it_matters],
@@ -210,7 +210,10 @@ async function load() {
     R.fail(['stress-sec'], new Error('压力仪表盘数据缺失：fred/volatility（HY_OAS）等未更新，先运行 ./bin/fetch_fred / ./bin/fetch_yfinance / ./bin/fetch_fx 后重新导出'));
   }
 
-  document.getElementById('re-gen').textContent = `研判生成：${R.genText(d.generator)} · ${d.as_of} · ICE BofA 系列经 FRED API 仅提供近 ~3 年，10Y 分位按可用历史计算`;
+  R.foot(d.generator, {
+    src: 'FRED（ICE BofA OAS / HY / IG）· OFR FSI · yfinance',
+    note: 'ICE BofA 系列经 FRED API 仅提供近 ~3 年，10Y 分位按可用历史计算',
+  });
 }
 
 // ── CDS 专题：主权/银行系统风险代理 + 归一化双线 ──

@@ -18,7 +18,7 @@ import Section from '../../components/Section.astro';
   <div id="analyst" class="re-block"></div>
   <div id="radar" class="re-block"></div>
   <Section id="recent" title="近期数据" sub="收盘价 · 最近 20 个交易日" />
-  <div class="re-gen" id="re-gen"></div>
+  <div class="re-foot-page" slot="foot" id="re-foot"></div>
 </div>
 
 <script is:inline>
@@ -77,7 +77,7 @@ async function load() {
   renderAnalyst();
   renderRadar();
   renderRecent();
-  document.getElementById('re-gen').textContent = '规则引擎（LLM 预留）· 数据源：yfinance（广度/目标价）+ Wikipedia（成分股）';
+  R.foot(null, { src: 'yfinance（广度/目标价）+ Wikipedia（成分股）' });
 }
 
 function renderIndices() {
@@ -248,7 +248,7 @@ function renderRadar() {
     <span class="eq-actions"><a href="equities/options.html" class="eq-btn">QQQ 期权结构</a>
     <a href="equities/positioning.html" class="eq-btn">CFTC 仓位</a></span></h2>
     <div class="src-note">上涨家数 ${r.today_up_pct ?? '—'}%，50 日均线上方占比 ${r.above50_pct ?? '—'}%；${r.verdict == '全面强势' ? '全面强势特征明显' : r.verdict == '内部走弱' ? '结构修复尚未完成' : '更像结构分化而非全面趋势'}。
-      数据来源：Wikipedia Nasdaq-100 当前成分股 · 价格日期 ${r.date}</div>`;
+      数据源：Wikipedia Nasdaq-100 当前成分股 · 价格日期 ${r.date}</div>`;
   sec.appendChild(statCards([
     { label: '覆盖率', value: `${r.price_share == null ? '—' : r.price_share.toFixed(1)}%`, sub: `${r.rows}/${r.total} ticker 有价格` },
     { label: '上涨家数', value: `${r.today_up_pct == null ? '—' : r.today_up_pct.toFixed(1)}%`, sub: `${r.today_up}/${r.rows} 最近交易日上涨` },

@@ -38,6 +38,7 @@ import Section from '../../components/Section.astro';
   <Section id="sec-tenors" title="各期限收益率明细">
     <div id="re-tenors"></div>
   </Section>
+  <div class="re-foot-page" slot="foot" id="re-foot"></div>
 
 <script is:inline>
 async function load() {
@@ -50,6 +51,10 @@ async function load() {
   const d0 = await R.get('/api/rates/yield-curve');
   const d = d0.yield_curve;
   document.getElementById('re-as-of').textContent = R.asOf(d.as_of);
+  R.foot(d0.generator, {
+    src: 'FRED（DGS 全期限 / TIPS DFII / 日本 10Y）· chinamoney（中国 10Y/30Y）',
+    note: '全球对照列口径为 10Y benchmark，日本为月频',
+  });
 
   // ── 四线对比 ──
   const tenors = d.tenors;

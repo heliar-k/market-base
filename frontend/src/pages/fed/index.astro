@@ -21,7 +21,7 @@ import Section from '../../components/Section.astro';
   <Section id="sec-speeches" title="官员演讲" />
   <Section id="sec-hawk" title="鹰鸽追踪" />
   <Section id="sec-odds" title="市场预期摘要" />
-  <div class="re-gen" id="re-gen"></div>
+  <div class="re-foot-page" slot="foot" id="re-foot"></div>
 
 <script is:inline>
 const KIND_LABEL = { statement: '声明', minutes: '会议纪要', sep: '经济预测', discount: '贴现率纪要', other: '其他' };
@@ -338,8 +338,10 @@ async function load() {
   const fmtD = s => s ? `${s.date.slice(0,4)}-${s.date.slice(4,6)}-${s.date.slice(6)}` : '—';
   document.getElementById('re-as-of').textContent =
     R.asOf([['声明', fmtD(data.statements[0])], ['演讲', fmtD(data.speeches[0])], ['预测市场', data.market_odds?.as_of]]);
-  document.getElementById('re-gen').textContent =
-    `鹰鸽评分：${R.genText(data.generator)}`;
+  R.foot(data.generator, {
+    src: 'federalreserve.gov（声明 / 纪要 / 演讲）· Polymarket Fed 事件',
+    note: '鹰鸽评分为关键词规则打分',
+  });
 
   // 下次 FOMC 会议倒计时：静态 JSON 冻结了构建期日历，按打开页面时间重选下一场；
   // 天数口径统一为 end_day（决议日）+ ceil，与 dashboard/daily 页一致

@@ -18,7 +18,7 @@ import TopicLayout from '../../layouts/TopicLayout.astro';
   <div id="retail" class="re-block"></div>
   <div id="basis" class="re-block"></div>
   <div id="coinglass" class="re-block"></div>
-  <div class="re-gen" id="re-gen"></div>
+  <div class="re-foot-page" slot="foot" id="re-foot"></div>
 </div>
 
 <script is:inline>
@@ -240,7 +240,7 @@ async function load() {
     document.getElementById('coinglass').appendChild(gsec);
   }
 
-  document.getElementById('re-gen').textContent = '规则引擎（LLM 预留）· 数据源：OKX API / Deribit API / Yahoo Finance CME / CFTC COT / Farside / Coinglass(经 Jina)';
+  R.foot(null, { src: 'OKX / Deribit / yfinance（CME）/ CFTC COT / Farside / Coinglass（经 Jina）' });
 }
 
 load().catch(e => R.fail(['now', 'etf', 'kpi', 'funding', 'retail', 'basis', 'coinglass'], e));

@@ -21,7 +21,7 @@ import Section from '../../components/Section.astro';
   <!-- 归类未命中告警(条件性内容,零命中时为空;不包 Section 避免空标题) -->
   <div id="geo-unmatched" class="re-block"></div>
 
-  <div class="re-gen" id="re-gen"></div>
+  <div class="re-foot-page" slot="foot" id="re-foot"></div>
 
 <script is:inline>
 const fmtVol = v => v >= 1e6 ? '$' + (v / 1e6).toFixed(1) + 'M' : v >= 1e3 ? '$' + (v / 1e3).toFixed(0) + 'K' : '$' + (v || 0).toFixed(0);
@@ -179,7 +179,10 @@ async function load() {
     </div>`;
   }
 
-  document.getElementById('re-gen').textContent = '数据源：Polymarket gamma/clob API（每日快照 + 概率时序）· 主题/中文归类为关键词规则，图上折线为归类内合约概率均值 · 英文原文见各主题折叠明细';
+  R.foot(null, {
+    src: 'Polymarket gamma/clob API（每日快照 + 概率时序）',
+    note: '主题/中文归类为关键词规则，图上折线为归类内合约概率均值；英文原文见各主题折叠明细',
+  });
 }
 
 load().catch(e => R.fail(['geo-topics', 're-signals', 'geo-movers', 'geo-events'], e));

@@ -65,7 +65,9 @@ body.dark .re-section { box-shadow: inset 0 0 0 1px rgba(255,255,255,.04); }
  * （h2 是块级，inline span 自然折行，不需要额外 flex/媒体查询） */
 .re-section h2 .re-sec-sub { font-size: 12px; font-weight: 400; }
 .re-section p { font-size: 13px; line-height: 1.7; color: var(--text-secondary); }
-.re-gen { font-size: 11px; color: var(--text-dim); text-align: right; }
+/* 页脚「本页」行（TopicLayout 的 <slot name="foot">）：与免责行同字号同色同左对齐。
+ * 文案只走 rates-common.js 的 R.foot 组装（研判生成 / 数据源 / 口径）。 */
+.re-foot-page { font-size: 11.5px; line-height: 1.7; color: var(--text-dim); }
 .re-loading { text-align: center; padding: 60px 20px; color: var(--text-dim); font-size: 14px; }
 .re-error { text-align: center; padding: 40px 20px; color: var(--color-down-text); }
 /* 页脚（TopicLayout 统一输出）：不靠卡片、只靠一条上分隔线收尾，与页头 .re-header 对称 */
@@ -74,7 +76,8 @@ body.dark .re-section { box-shadow: inset 0 0 0 1px rgba(255,255,255,.04); }
   display: flex; flex-direction: column; gap: 4px;
 }
 .re-foot-note { font-size: 11.5px; line-height: 1.7; color: var(--text-dim); }
-.re-foot-brand { font-weight: 700; letter-spacing: .06em; color: var(--text-secondary); margin-right: 6px; }
+/* 本页行在 JS 填上之前（或加载失败）为空 —— 不占 gap 的位，页脚不留洞 */
+.re-foot-page:empty { display: none; }
 .re-foot-legal a { color: var(--accent-ink); text-decoration: none; margin-left: 10px; }
 .re-foot-legal a:hover { text-decoration: underline; text-underline-offset: 2px; }
 body.embedded .re-foot { display: none; } /* 内嵌 iframe 不重复页脚 */

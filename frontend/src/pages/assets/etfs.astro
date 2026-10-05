@@ -16,7 +16,7 @@ import Section from '../../components/Section.astro';
        #temp 留给历史深链 etfs.html#temp 落地（零尺寸 + 脱离流：hidden/display:none 的元素不是滚动目标），不进 page-toc -->
   <span id="temp" style="position:absolute;width:1px;height:1px"></span>
   <Section id="pool" title="精选池" sub="ETF / 主题 · 按分类与趋势筛选" />
-  <div class="re-gen" id="re-gen"></div>
+  <div class="re-foot-page" slot="foot" id="re-foot"></div>
 </div>
 
 <script is:inline>
@@ -45,7 +45,10 @@ async function load() {
   renderStats();
   renderUniverse();
   renderPool();
-  document.getElementById('re-gen').textContent = '判断为规则化市场描述，不是买卖建议；日线价格以最近可得美股交易日收盘为准。';
+  R.foot(null, {
+    src: 'Nasdaq Trader（全量清单）· yfinance（精选池日线）',
+    note: '判断为规则化市场描述，不是买卖建议；日线价格以最近可得美股交易日收盘为准',
+  });
 }
 
 // 顶部指标卡（与其他子页 re-cards 行对齐）：池规模 / 向上 / 向下 / 中位动量

@@ -19,8 +19,7 @@ import Section from '../../components/Section.astro';
   <div id="mspd" class="re-block"></div>
   <!-- 条件性小节(无 QRA 声明时为空),保持裸 div -->
   <div id="refunding" class="re-block"></div>
-  <div class="re-source">数据来源：美国财政部 Fiscal Data API（auctions_query / upcoming_auctions / MSPD）+ FRED TIC 持仓，每日自动同步；Bill 占比 = MSPD 月频 + 本地日频派生；借款估算 = QRA 再融资声明。</div>
-  <div class="re-gen" id="re-gen"></div>
+  <div class="re-foot-page" slot="foot" id="re-foot"></div>
 
 <script is:inline>
 async function load() {
@@ -55,7 +54,7 @@ async function load() {
   ]));
 
   // ── 研判（每段一张卡：段标题在左上，段内 \n 分行 = 判断 / 读数）──
-  // 「规则引擎」说明不再在此另挂一条英文 note：页底 #re-gen 已用 R.genText 说同一件事。
+  // 「规则引擎」说明不再在此另挂一条英文 note：页底 #re-foot 已用 R.genText 说同一件事。
   R.setSection('re-signals', (d.signals || [])
     .map(s => R.judgeCard(s.title, s.text, R.LINES_JUDGE)).join(''));
 
@@ -340,7 +339,10 @@ async function load() {
     document.getElementById('refunding').appendChild(rsec);
   }
 
-  document.getElementById('re-gen').textContent = `研判生成：${R.genText(d.generator)} · ${d.as_of} · TIC 单位为百万美元（页面换算为 B/T），官方占比分母 = MSPD 总未偿债务`;
+  R.foot(d.generator, {
+    src: 'Treasury Fiscal Data API（拍卖 / MSPD / QRA）· FRED TIC 持仓',
+    note: 'TIC 单位为百万美元（页面换算为 B/T），官方占比分母 = MSPD 总未偿债务；Bill 占比 = MSPD 月频 + 本地日频派生',
+  });
 }
 // 页级兜底只盖主端点驱动的段（auctions 已有自己的段级兜底）
 load().catch(e => R.fail(['cards', 're-signals', 'history', 'holdings', 'mspd', 'refunding'], e));

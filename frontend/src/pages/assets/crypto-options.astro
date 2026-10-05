@@ -13,7 +13,7 @@ import TopicLayout from '../../layouts/TopicLayout.astro';
        host.innerHTML 清容器(空数据态),故各自留独立宿主 div 而非套同一个壳 -->
   <div id="walls" class="re-block"></div>
   <div id="polymarket" class="re-block"></div>
-  <div class="re-gen" id="re-gen"></div>
+  <div class="re-foot-page" slot="foot" id="re-foot"></div>
 </div>
 
 <script is:inline>
@@ -292,7 +292,7 @@ async function load() {
   // ── POLYMARKET 加密价位市场（geo 同款结构：归类趋势线 + 原始事件折叠）──
   renderPolymarket(d.polymarket, { BTC: optB.spot_anchor, ETH: optE.spot_anchor });
 
-  document.getElementById('re-gen').textContent = '规则引擎（LLM 预留）· 数据源：Deribit API / CME Settlements / Polymarket gamma-api';
+  R.foot(null, { src: 'Deribit API / CME Settlements / Polymarket gamma-api' });
 }
 
 load().catch(e => R.fail(['walls', 'polymarket'], e));

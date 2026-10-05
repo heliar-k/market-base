@@ -56,7 +56,7 @@ const subPages = SITE_NAV.groups.find((g) => g.key === 'assets')?.items ?? [];
     ))}
   </div>
   </Section>
-  <div class="re-gen" id="re-gen"></div>
+  <div class="re-foot-page" slot="foot" id="re-foot"></div>
 </div>
 
 <script is:inline>
@@ -158,7 +158,7 @@ async function load() {
     .filter(([k, v]) => v && v.text)
     .map(([k, v]) => R.judgeCard(v.title || labels[k] || k, v.text, R.LINES_JUDGE)).join(''));
 
-  document.getElementById('re-gen').textContent = '规则引擎（LLM 预留）· 数据源：yfinance / FRED / Nasdaq Trader';
+  R.foot(null, { src: 'yfinance / FRED / Nasdaq Trader' });
 }
 
 load().catch(e => R.fail(['asset-groups', 'correlation', 'cross-analysis'], e));

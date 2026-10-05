@@ -101,6 +101,30 @@ const R = {
     return `<h2>${R.esc(zh)}${tail ? ` <span class="re-sec-sub">${R.esc(tail)}</span>` : ''}</h2>`;
   },
 
+  // ── 页脚「本页」行（<slot name="foot"> → #re-foot）文案单源 ──
+  // 页脚只剩这一行来源说明（全站级枚举已删），所以不挂「本页」前缀。
+  // 顺序固定：研判生成 → 数据源 → 口径；缺段自动丢弃，全空 → 整行不占位（special.css :empty）。
+  // 术语只用「数据源」（旧的同义叫法已废弃，守卫见 test_page_level_source_term_is_data_source）。
+  // 时间不写这里 —— 页头 #re-as-of 已由 R.asOf 给过，同页不重复。
+  // gen 传 analysis 的 generator 字段（rules/llm）；无研判段就置空（不假称规则引擎）。
+  footText: ({ gen = null, src = '', note = '' } = {}) =>
+    [
+      gen ? `研判生成：${R.genText(gen)}` : '',
+      src ? `数据源：${src}` : '',
+      note ? `口径：${note}` : '',
+    ]
+      .filter(Boolean)
+      .join(' · '),
+
+  // 组装 + 写入一步到位（页面不重复 #re-foot 这个 id）；容器不存在（404 页）静默返回。
+  // src / note 只给内容，前缀「数据源：」「口径：」由本函数加 —— 术语不在页面各自重打一遍。
+  foot(gen, opts = {}) {
+    const el = document.getElementById('re-foot');
+    if (!el) return;
+    const { src = '', note = '' } = opts;
+    el.textContent = R.footText({ gen, src, note });
+  },
+
   // ── 时效标签（re-as-of）文案唯一组装处 ──
   // AGENTS 规范：前缀固定「数据截至」，多源用 ` · ` 分段，日期一律 ISO，月频区间写「月频 起–止」。
   //   R.asOf(date)                        → 「数据截至 2026-09-04」

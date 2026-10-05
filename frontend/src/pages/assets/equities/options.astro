@@ -19,7 +19,7 @@ import Section from '../../../components/Section.astro';
   <div class="opt-tabs" id="opt-tabs"></div>
   <div class="opt-panel" id="opt-panel"></div>
 
-  <div class="re-gen" id="re-gen"></div>
+  <div class="re-foot-page" slot="foot" id="re-foot"></div>
 </div>
 
 <script is:inline>
@@ -68,7 +68,10 @@ async function load() {
   renderBoard();
   renderTabs();
   renderPanel();
-  document.getElementById('re-gen').textContent = 'GEX/DEX/Vanna/Charm 为模型估算（BSM，yfinance 降级源），非交易所官方持仓方向。真实 OI + IV。';
+  R.foot(null, {
+    src: 'yfinance 期权链（真实 OI + IV）',
+    note: 'GEX/DEX/Vanna/Charm 为 BSM 模型估算，非交易所官方持仓方向',
+  });
 }
 
 // ── Regime 大卡 + 4 指标卡（timsun 复刻） ──

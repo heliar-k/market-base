@@ -143,7 +143,7 @@ window.__reTheme = (function () {
     );
   })}
   <div class="macro-nav-foot">
-    <div class="macro-nav-foot-note">数据每日自动更新 · 不构成投资建议</div>
+    <div class="macro-nav-foot-note">数据每个交易日自动更新 · 不构成投资建议</div>
   </div>
 </nav>
 <div class="re-root" id="re-main">
@@ -157,13 +157,13 @@ window.__reTheme = (function () {
 
   <slot />
 
-  <!-- 页脚（单源在布局，33 页全继承）：数据来源 + 更新方式 + 免责声明 + 回首页。
-       公开站与金融内容不该没有「不构成投资建议」这一行；也不做四栏 link farm。 -->
+  <!-- 页脚（单源在布局，33 页全继承）两行：本页口径 / 免责。
+       本页行走 <slot name="foot">：各页只交一个空容器（.re-foot-page #re-foot），
+       文案走 rates-common.js 的 R.foot 组装；没填上（无口径可说 / 加载失败）时整行不占位。
+       全站级的来源/更新方式枚举已删（与各页「数据源」重复）；
+       公开站与金融内容不该没有「不构成投资建议」这一行，也不做四栏 link farm。 -->
   <footer class="re-foot">
-    <div class="re-foot-note">
-      <span class="re-foot-brand">观澜台</span>
-      数据每个交易日自动拉取并部署（GitHub Actions）· 来源：FRED / NY Fed / CBOE / Treasury / CFTC / IBKR / yfinance
-    </div>
+    <slot name="foot" />
     <div class="re-foot-note re-foot-legal">
       本站为个人研究与数据可视化工具，所有内容不构成投资建议。
       <a href="/">返回首页</a>

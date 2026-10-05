@@ -24,6 +24,7 @@ import Section from '../../components/Section.astro';
   <Section id="sec-recent" title="近期数据" sub="最近 30 条">
     <div id="re-recent"></div>
   </Section>
+  <div class="re-foot-page" slot="foot" id="re-foot"></div>
 
 <script is:inline>
 async function load() {
@@ -34,6 +35,10 @@ async function load() {
 
   const d = await R.get('/api/rates/fed-funds');
   document.getElementById('re-as-of').textContent = R.asOf(d.as_of);
+  R.foot(null, {
+    src: 'FRED（EFFR DFF / SOFR 分位 / SOFRVOL / 目标区间 / ONRRP）· NY Fed Markets（BGCR）',
+    note: '走廊图为近 90 个交易日；EFFR 取日频 DFF（FEDFUNDS 为月频均值）',
+  });
 
   // ── 卡片 ──
   const l = d.latest;

@@ -17,7 +17,7 @@ import Section from '../../components/Section.astro';
   <!-- 条件性小节(Shapiro 分解无数据时为空),不进 Section 避免空标题 -->
   <div id="shapiro" class="re-block"></div>
   <Section id="recent" title="近期数据" sub="近 12 个月" />
-  <div class="re-gen" id="re-gen"></div>
+  <div class="re-foot-page" slot="foot" id="re-foot"></div>
 
 <script is:inline>
 const chgStr = v => v === null || v === undefined ? '' :
@@ -46,7 +46,7 @@ async function load() {
   ]));
 
   // ── 研判（每段一张卡：段标题在左上，段内 \n 分行 = 判断 / 读数）──
-  // 「规则引擎」说明不在这里另挂英文 note：页底 #re-gen 已用 R.genText 说同一件事
+  // 「规则引擎」说明不在这里另挂英文 note：页底 #re-foot 已用 R.genText 说同一件事
   R.setSection('re-signals', (d.signals || [])
     .map(s => R.judgeCard(s.title, s.text, R.LINES_JUDGE)).join(''));
 
@@ -117,7 +117,10 @@ async function load() {
     }, ['月份', 'CPI', '核心CPI', '核心PCE', 'PPI']));
   document.getElementById('recent').appendChild(rsec);
 
-  document.getElementById('re-gen').textContent = `研判生成：${R.genText(d.generator)} · ${d.as_of} · YoY 由指数水平计算（月频），盈亏平衡为日频`;
+  R.foot(d.generator, {
+    src: 'FRED（CPI / 核心 CPI / 核心 PCE / PPI / 盈亏平衡 / 消费预期）· NY Fed SCE · Shapiro 供需分解',
+    note: 'YoY 由指数水平计算（月频），盈亏平衡为日频',
+  });
 }
 load().catch(e => R.fail(['cards', 're-signals', 'history', 'components', 'expectations', 'shapiro', 'recent'], e));
 </script>

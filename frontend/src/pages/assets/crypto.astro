@@ -16,7 +16,7 @@ import Section from '../../components/Section.astro';
   <Section id="liquidity" title="宏观 × 加密流动性溢出" />
   <Section id="ratio" title="BTC/ETH 价比" />
   <Section id="recent" title="近期数据" sub="收盘价 · 最近 20 个交易日" />
-  <div class="re-gen" id="re-gen"></div>
+  <div class="re-foot-page" slot="foot" id="re-foot"></div>
 </div>
 
 <script is:inline>
@@ -229,7 +229,10 @@ async function load() {
   rsec.appendChild(R.table(['日期'].concat(rkeys), rows, fmts));
   } catch (e) { R.fail(['recent'], e); }
 
-  document.getElementById('re-gen').textContent = '规则引擎（LLM 预留）· 流动性口径：WALCL − TGA − RRP；β 为 90 日净流动性变化对资产日收益率回归；价比指标算在 BTC/ETH 序列上（图取倒数轴）；funding 差 = ETH−BTC 永续年化；交叉验证 = PCR 差（衍生品快照历史）/ 30d 相关性（asset_prices 滚动）/ NL 脉冲 β（价比日收益 × NL 20 日脉冲，0/10/20 日滞后取主导）/ Polymarket 隐含涨幅比（年终 reach 阶梯 P≈50% 插值）/ BTCD / ETF 流量比（5d）；收盘价数据源 yfinance';
+  R.foot(null, {
+    src: 'yfinance（收盘价）· FRED H.4.1（WALCL/TGA/RRP）· OKX / Deribit / CME 衍生品快照',
+    note: '流动性口径：WALCL − TGA − RRP；β 为 90 日净流动性变化对资产日收益率回归；价比指标算在 BTC/ETH 序列上（图取倒数轴）；funding 差 = ETH−BTC 永续年化；交叉验证 = PCR 差（衍生品快照历史）/ 30d 相关性（asset_prices 滚动）/ NL 脉冲 β（价比日收益 × NL 20 日脉冲，0/10/20 日滞后取主导）/ Polymarket 隐含涨幅比（年终 reach 阶梯 P≈50% 插值）/ BTCD / ETF 流量比（5d）',
+  });
 }
 // 分类色单源：净流动性青线走 --chart-cyan（两主题同值）；BTC/ETH 趋势线在 optionFn 内随主题取色
 const NL_CYAN = reCssVar('--chart-cyan');

@@ -11,6 +11,9 @@
 - echarts-theme.js 先于 rates-common.js 加载 → test_echarts_theme_before_rates_common
 - 脚本语法（is:inline 不打包）→ test_all_js_files_parse / test_inline_scripts_parse
 - 静态小节一律 Section 组件 → test_static_sections_use_section_component
+- 页脚「本页」行只走 slot + R.foot，来源术语只用「数据源」
+  → test_pages_own_one_foot_slot / test_foot_text_only_via_r_foot
+  / test_page_level_source_term_is_data_source
 """
 
 from __future__ import annotations
@@ -454,3 +457,55 @@ def test_static_sections_use_section_component() -> None:
         f"静态小节要改用 <Section title=... sub=...>，"
         f".re-section 只留给 JS 卡片集：{bad}"
     )
+
+
+# 页脚两行（本页口径 / 免责）单源 = TopicLayout：各页只往 <slot name="foot">
+# 交一个空容器（.re-foot-page #re-foot），文案由 rates-common.js 的 R.foot 组装。
+# 2026-09 之前各页自写 .re-gen（右对齐小字），措辞裂成 6 种、4 页干脆没有，
+# 且与页脚那句全站来源撞成两套说法 —— 本测试锁住收口结果（全站枚举已删，只留本页行）。
+_FOOT_DIV = re.compile(r'<div class="re-foot-page" slot="foot" id="re-foot"></div>')
+
+
+def test_pages_own_one_foot_slot() -> None:
+    """每个专题页（除 404）恰好一个页脚「本页」容器，且由 R.foot 填。"""
+    bad: list[str] = []
+    for page in sorted(ASTRO_PAGES.rglob("*.astro")):
+        if page.name == "404.astro":
+            continue
+        text = page.read_text("utf-8")
+        if len(_FOOT_DIV.findall(text)) != 1:
+            bad.append(f"{page.relative_to(ASTRO_PAGES)} 页脚容器 ≠1 个")
+        elif "R.foot(" not in text:
+            bad.append(f"{page.relative_to(ASTRO_PAGES)} 容器未被 R.foot 填充")
+    assert not bad, f"页脚「本页」行未走 slot + R.foot：{bad}"
+
+
+def test_foot_text_only_via_r_foot() -> None:
+    """「研判生成：」「数据源：」的页脚文案只走 R.foot（措辞模板单源）。"""
+    offenders = []
+    for src in [
+        *sorted(ASTRO_PAGES.rglob("*.astro")),
+        *sorted((STATIC / "js").glob("*.js")),
+        SPA_ENTRY,
+    ]:
+        for ln in src.read_text("utf-8").splitlines():
+            if re.search(r"getElementById\('re-foot'\)\s*\.textContent", ln):
+                offenders.append(f"{src.relative_to(ROOT)}:{ln.strip()[:60]}")
+                break
+    assert not offenders, (
+        f"页脚文案绕过 R.foot 手写，请改 R.foot(gen, {{src, note}})：{offenders}"
+    )
+
+
+def test_page_level_source_term_is_data_source() -> None:
+    """「数据来源」这个说法已废弃；页脚来源行统一用「数据源」。"""
+    offenders = []
+    for src in [
+        *sorted(ASTRO_PAGES.rglob("*.astro")),
+        *sorted((STATIC / "js").glob("*.js")),
+        SPA_ENTRY,
+    ]:
+        for ln in src.read_text("utf-8").splitlines():
+            if "数据来源" in ln:
+                offenders.append(f"{src.relative_to(ROOT)}:{ln.strip()[:60]}")
+    assert not offenders, f"用了废弃的「数据来源」，本页级请写「数据源」：{offenders}"
