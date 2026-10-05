@@ -46,9 +46,9 @@ async function load() {
   ]));
 
   // ── 研判（每段一张卡：段标题在左上，段内 \n 分行 = 判断 / 读数）──
-  document.getElementById('re-signals').innerHTML = (d.signals || [])
-    .map(s => R.judgeCard(s.title, s.text, R.LINES_JUDGE)).join('')
-    + '<div class="note">rule-based · no direct price forecast</div>';
+  // 「规则引擎」说明不在这里另挂英文 note：页底 #re-gen 已用 R.genText 说同一件事
+  R.setSection('re-signals', (d.signals || [])
+    .map(s => R.judgeCard(s.title, s.text, R.LINES_JUDGE)).join(''));
 
   // ── YoY 历史曲线 ──
   const hsec = document.createElement('div');

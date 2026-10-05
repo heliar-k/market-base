@@ -40,6 +40,12 @@ RESULTS_COLUMNS = [
     "auction_date",
     "issue_date",
     "maturity_date",
+    # TIPS 与名义券共用 security_term（TIPS 的 10Y 也叫 "10-Year"），只按期限归组
+    # 会把 TIPS 混进名义券趋势。此字段（Yes/No）是唯一可靠的区分依据。
+    "inflation_index_security",
+    # FRN（2 年期浮动票息）无固定票息，源 API 的 high_yield 恒为 null；不标注的话
+    # 页面「中标利率」整列「—」读起来像丢数据。
+    "floating_rate",
 ]
 
 UPCOMING_COLUMNS = [
@@ -80,6 +86,10 @@ def fetch_auction_results() -> pd.DataFrame:
       市场标准 tail = high yield − 发行前 when-issued 收益率；本数据源无 WI 值，
       以 中标收益率高位 − 中标收益率中位数 近似，方向性可用、数值偏大，
       前端拍卖页已标注代理口径）
+
+    派生前先把 Bill 的口径分好：Bill 用 high_discnt_rate，Note/Bond 用 high_yield；
+    TIPS 的 high_yield 是实际利率（比名义低约一个盈亏平衡通胀率），不能与名义券混算，
+    故 inflation_index_security / floating_rate 原样保留给下游过滤与标注。
     """
     rows = _fetch_all_pages(
         f"{API_BASE}/auctions_query", RESULTS_COLUMNS, "auction_date"

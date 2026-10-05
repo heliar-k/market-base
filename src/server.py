@@ -1202,6 +1202,10 @@ def _trend_bucket(term: str) -> str | None:
     Treasury 重开标的的 security_term 是剩余期限：10Y 重开 1/2 个月后叫
     '9-Year 11-Month' / '9-Year 10-Month'，30Y 重开叫 '29-Year *'。
     归入原发行期限组，避免趋势图只画原始发行、365 天窗口内每线只剩几个点。
+
+    注意：TIPS 共用同一套 security_term，归组前必须先用
+    _is_indexed() 排除 —— 否则 TIPS 的实际利率（比名义低约一个盈亏平衡通胀率）
+    会混进名义券趋势（曾出现 10Y 中标 2.438% 与同期名义 4.71% 并存）。
     """
     if not isinstance(term, str):
         return None
@@ -1214,6 +1218,26 @@ def _trend_bucket(term: str) -> str | None:
     if term == "30-Year" or term.startswith("29-Year"):
         return "30-Year"
     return None
+
+
+def _is_indexed(r) -> bool:
+    """该行是否 TIPS（通胀指数券）。旧 CSV 无此列时按 False 处理（不误删名义券）。"""
+    return str(r.get("inflation_index_security", "")).strip().lower() == "yes"
+
+
+def _is_frn(r) -> bool:
+    """该行是否 FRN（浮动票息，无固定中标利率）。同上，缺列按 False。"""
+    return str(r.get("floating_rate", "")).strip().lower() == "yes"
+
+
+def _last_traded_date(auc: pd.DataFrame, today: pd.Timestamp) -> str:
+    """已成交场次的最新拍卖日（不越过今天）。
+
+    auction_results.csv 含「已公告未拍卖」的未来场次（结果字段全 NaN），
+    直接取 index.max() 会把 as_of 写成未来日期。
+    """
+    done = auc.loc[auc["bid_to_cover_ratio"].notna() & (auc.index <= today)].index
+    return done.max().strftime("%Y-%m-%d") if len(done) else ""
 
 
 def _auction_points(sub: pd.DataFrame, col: str) -> list[dict]:
@@ -1287,7 +1311,11 @@ def _bill_share_series() -> tuple[list[dict], float | None]:
     if not parts:
         return [], None
     s = pd.concat(parts)
-    s = s[~s.index.duplicated(keep="last")].sort_index().tail(6 * 366)
+    s = s[~s.index.duplicated(keep="last")].sort_index()
+    # 按日期窗口切，不按行数：序列主体是 MSPD 月频（308 行），`tail(6*366)` 吃不掉
+    # 任何行 —— 页面标「近 6 年」而图从 2001 年画起。
+    if not s.empty:
+        s = s.loc[s.index >= s.index.max() - pd.Timedelta(days=6 * 366)]
     latest = round(float(s.iloc[-1]), 2) if not s.empty else None
     return _to_points(s), latest
 
@@ -1314,6 +1342,9 @@ def get_rates_auctions() -> dict:
             "high_rate": r.get("high_rate"),
             "tail_bp": r.get("tail_bp"),
             "reopening": r.get("reopening"),
+            # 两者都是「不是丢数据，是口径不同」：TIPS 为实际利率，FRN 无固定中标利率
+            "is_tips": _is_indexed(r),
+            "is_frn": _is_frn(r),
         }
 
     # 近 90 天结果：最新在前；源文件含已公告未拍卖的场次（结果字段 NaN），
@@ -1321,7 +1352,8 @@ def get_rates_auctions() -> dict:
     recent = auc.loc[
         (auc.index >= today - pd.Timedelta(days=90)) & auc["bid_to_cover_ratio"].notna()
     ].sort_index(ascending=False)
-    coupon = auc[auc["security_type"] != "Bill"]
+    # 名义付息券（排除 Bill 与 TIPS）—— 需求概览均值与四条趋势线同一口径
+    coupon = auc[(auc["security_type"] != "Bill") & ~auc.apply(_is_indexed, axis=1)]
     covers = (
         pd.to_numeric(coupon["bid_to_cover_ratio"], errors="coerce").dropna().tail(10)
     )
@@ -1329,7 +1361,7 @@ def get_rates_auctions() -> dict:
 
     trend, tail_trend, indirect_trend = {}, {}, {}
     for term in ["2-Year", "5-Year", "10-Year", "30-Year"]:
-        sub = auc[auc["security_term"].map(_trend_bucket) == term]
+        sub = coupon[coupon["security_term"].map(_trend_bucket) == term]
         key = term.replace("-Year", "Y")
         sub365 = sub.loc[sub.index >= today - pd.Timedelta(days=365)]
         trend[key] = _auction_points(sub365, "bid_to_cover_ratio")
@@ -1358,7 +1390,9 @@ def get_rates_auctions() -> dict:
     bill_share, bill_share_latest = _bill_share_series()
 
     return {
-        "as_of": auc.index.max().strftime("%Y-%m-%d"),
+        # 只算已成交场次的最新日：源文件含已公告未拍卖的未来场次（bid_to_cover 为空），
+        # 直接取 index.max() 会返回未来日期（实测 10-04 读到 10-08）
+        "as_of": _last_traded_date(auc, today),
         "avg_cover_10_coupon": avg_cover,
         "upcoming_count": len(upcoming),
         "recent": [

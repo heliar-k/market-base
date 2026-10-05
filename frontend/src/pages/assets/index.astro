@@ -154,9 +154,9 @@ async function load() {
 
   // ── 交叉分析（4 段叙事，每段一张卡：段标题在左上，段内 \n 分行 = 判断 / 读数）──
   const labels = { cross_asset: '跨资产相关性', dollar_commodities: '美元与商品', outlook: '展望', risk_appetite: '风险偏好' };
-  document.getElementById('cross-analysis').innerHTML = Object.entries(d.analysis || {})
+  R.setSection('cross-analysis', Object.entries(d.analysis || {})
     .filter(([k, v]) => v && v.text)
-    .map(([k, v]) => R.judgeCard(v.title || labels[k] || k, v.text, R.LINES_JUDGE)).join('');
+    .map(([k, v]) => R.judgeCard(v.title || labels[k] || k, v.text, R.LINES_JUDGE)).join(''));
 
   document.getElementById('re-gen').textContent = '规则引擎（LLM 预留）· 数据源：yfinance / FRED / Nasdaq Trader';
 }

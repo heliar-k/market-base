@@ -69,10 +69,10 @@ async function load() {
     const [lead, ...rest] = d.signals;
     const warn = (s) => s.startsWith('⚠')
       ? ' style="color:var(--color-down-text);font-weight:600"' : '';
-    document.getElementById('re-signals').innerHTML = R.judgeCard('盘面解读', lead)
+    R.setSection('re-signals', R.judgeCard('盘面解读', lead)
       + (rest.length ? `<div class="re-section"><h2>分主题明细</h2><div class="sig-row">`
         + `<div class="sig-block"><ul>${rest.map(s => `<li${warn(s)}>${R.esc(s)}</li>`).join('')}</ul></div>`
-        + '</div></div>' : '');
+        + '</div></div>' : ''));
   }
 
   // ── 归类异动榜（跨主题，|7日均值变动| 降序 top 8）──

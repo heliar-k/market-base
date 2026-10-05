@@ -40,10 +40,9 @@ async function load() {
   ]));
 
   // ── 研判（每段一张卡，段内 \n 分行 = 判断 / 读数，横排小卡走 R.judgeCard）──
-  const box = document.getElementById('re-signals');
-  box.innerHTML = (d.signals || [])
-    .map(s => R.judgeCard(s.title, s.text, R.LINES_CONCLUSION)).join('')
-    + '<div class="note">rule-based · no direct price forecast</div>';
+  // 英文免责 note 已删（页底 #re-gen 的 R.genText 已说明生成方式）
+  R.setSection('re-signals', (d.signals || [])
+    .map(s => R.judgeCard(s.title, s.text, R.LINES_CONCLUSION)).join(''));
 
   // ── NFP bar + 失业率 line ──
   const hsec = document.createElement('div');

@@ -139,10 +139,16 @@ const R = {
   },
 
   // 请求失败时向多个容器注入错误提示（线上为静态导出，本地为 server）
-  fail(ids, e) {
+  // 段级失败占位。hint 缺省时只给「不指名命令」的通用建议 —— 写死 ./bin/fetch_fred
+  // 对非 FRED 页是错的（美债页会被告知去跑一个与本页无关的脚本）。
+  fail(ids, e, hint = "线上请确认对应数据源已更新后重新部署") {
     ids.forEach(id => {
       const el = document.getElementById(id);
-      if (el) el.innerHTML = `<div class="re-error">加载失败：${e.message}<br>本地请确认 uv run python -m src.server 已启动；线上请检查数据导出（./bin/fetch_fred 后重新部署）</div>`;
+      // 与 setSection 同法：报错占位也不该把小节标题一并清掉
+      if (el) {
+        el.querySelectorAll(':scope > :not(header)').forEach((n) => n.remove());
+        el.insertAdjacentHTML('beforeend', `<div class="re-error">加载失败：${e.message}<br>本地请确认 uv run python -m src.server 已启动；${hint}</div>`);
+      }
     });
   },
 
@@ -321,6 +327,17 @@ const R = {
   getChart(id) {
     const c = R._charts.get(id);
     return c && !c.isDisposed() ? c : null;
+  },
+
+  // 覆盖小节内容但保留构建期渲染的小节标题。
+  // 页面以前直接 `getElementById(id).innerHTML = ...` 填一个带 title 的 <Section>，
+  // 会把 Section 自己的 <header>（标题 + accent 竖条）一起清掉 —— 实测 7 个页的
+  // 「研判」段因此变成裸卡，page-toc 跳过去也没有视觉锚点。逐页手改会漏，收在这里。
+  setSection(id, html) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.querySelectorAll(':scope > :not(header)').forEach((n) => n.remove());
+    el.insertAdjacentHTML('beforeend', html);
   },
 
   // 请求 + 错误处理

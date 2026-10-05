@@ -397,8 +397,8 @@ FRED liquidity 分类的原始系列（由 `./bin/fetch_fred` 一并拉取）。
 
 | 列名 | 说明 |
 |------|------|
-| `security_type` | 券种：Bill / Note / Bond / TIPS / FRN |
-| `security_term` | 期限：4-Week / 13-Week / 2-Year / 10-Year / 30-Year 等 |
+| `security_type` | 券种：Bill / Note / Bond（源 API 仅此三类；TIPS 与 FRN 不在此列区分） |
+| `security_term` | 期限：4-Week / 13-Week / 2-Year / 10-Year / 30-Year 等。**TIPS 共用同一套期限名**（TIPS 的 10Y 也叫 `10-Year`），区分只能靠下面两列 |
 | `offering_amt` | 发行额（USD） |
 | `bid_to_cover_ratio` | 投标倍数（>2.5x 需求良好，<2.0x 警戒） |
 | `high_yield` | 中标收益率（%，Note/Bond/TIPS） |
@@ -406,6 +406,8 @@ FRED liquidity 分类的原始系列（由 `./bin/fetch_fred` 一并拉取）。
 | `avg_med_yield` | 中位投标利率（%），用于计算 Tail |
 | `indirect_pct` | 间接投标人占比（%）= 外国官方 + 国际机构，反映海外需求 |
 | `tail_bp` | 拍卖 Tail（bp）= (high_yield − avg_med_yield) × 100，正=弱于预期 |
+| `inflation_index_security` | 是否 TIPS（Yes/No）。TIPS 的 `high_yield` 是**实际利率**（比名义低约一个盈亏平衡通胀率），与名义券混算会出「10Y 中标 2.44%」这类假数；名义券趋势/均值必须先排除 Yes |
+| `floating_rate` | 是否 FRN（Yes/No）。FRN 无固定票息，`high_yield` 恒为空——不标注的话页面「中标利率」整列「—」读起来像丢数据 |
 | `indirect_bidder_accepted` | 间接投标人接受额（原始值） |
 | `total_accepted` | 总接受额（原始值） |
 | `reopening` | 是否重开 |

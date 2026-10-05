@@ -178,7 +178,7 @@ function renderAbvChart() {
 function renderAnalysis() {
   const blks = Object.values(D.analysis || {}).filter(v => v && v.text && v.title)
     .map(v => R.judgeCard(v.title, v.text, R.LINES_JUDGE)).join('');
-  document.getElementById('analysis').innerHTML = blks;
+  R.setSection('analysis', blks);
 }
 
 function renderAnalyst() {

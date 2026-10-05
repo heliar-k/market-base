@@ -20,6 +20,8 @@
 
 from __future__ import annotations
 
+import re
+
 import pandas as pd
 
 from src.analysis_utils import chg_prev as _chg_prev
@@ -78,6 +80,32 @@ def _yoy_chg_b(s: pd.Series) -> float | None:
     return None if pair is None else _b(pair[0] - pair[1])
 
 
+def rank_label(rank: float | None) -> str:
+    """分位 → 中文读法（0 分位不是「最低分位」，极端值要说人话）。
+
+    后端一次算好，卡片副标题与研判段共用（前端不重算，避免两处漂移）。
+    """
+    if rank is None:
+        return ""
+    if rank <= 1:
+        return "全历史最低"
+    if rank >= 99:
+        return "全历史最高"
+    return f"全历史 {rank:.0f} 分位"
+
+
+def _pct_rank(s: pd.Series, v: float) -> float | None:
+    """v 在序列 s 全历史里的分位（%，严格 < 口径）。
+
+    给「当前读数处于历史什么位置」用：阈值判断（<23% / >22%）会随时间失效，
+    分位不会。严格 < 与 credit_analysis._pct 同口径（并列值多时 <= 会虚高）。
+    """
+    s = s.dropna()
+    if s.empty:
+        return None
+    return round(float((s < v).mean() * 100), 1)
+
+
 def official_share_series(tic: pd.DataFrame, mspd: pd.DataFrame) -> pd.Series:
     """海外官方持仓 / 总未偿债务（%，月度；mspd 按 TIC 日期轴 ffill 对齐）。"""
     if (
@@ -112,14 +140,25 @@ def signal_foreign(cards: dict, net_12m: float | None) -> str:
     basis = [flow]
     verdict = "海外持仓数据不足。"
     if share.get("value") is not None:
-        basis.append(f"海外官方持仓占总未偿债务 {share['value']}%")
-        verdict = (
-            f"官方占比低于 {OFFICIAL_SHARE_WARN:.0f}% 警戒线，官方结构性需求在退坡"
-            "——长端利率对私人部门（价格敏感型）接盘的依赖上升，"
-            "期限溢价易上难下。"
-            if share["value"] < OFFICIAL_SHARE_WARN
-            else "官方需求尚在安全区，海外端暂未构成边际压力。"
-        )
+        rank = share.get("pct_rank")
+        # 分位优先：阈值 <23% 自 2015-08 起连续 131 个月都在下方，单用阈值永远
+        # 输出同一句话——它已不含信息。分位才能区分「低」与「史上最低」。
+        pos = f"（{share['pct_label']}）" if share.get("pct_label") else ""
+        basis.append(f"海外官方持仓占总未偿债务 {share['value']}%{pos}")
+        if rank is not None and rank <= 5:
+            verdict = (
+                "官方占比处于全历史最低区，官方结构性需求已退到边缘"
+                "——长端利率几乎完全依赖私人部门（价格敏感型）接盘，"
+                "期限溢价易上难下。"
+            )
+        elif share["value"] < OFFICIAL_SHARE_WARN:
+            verdict = (
+                f"官方占比低于 {OFFICIAL_SHARE_WARN:.0f}% 警戒线，官方结构性需求在退坡"
+                "——长端利率对私人部门（价格敏感型）接盘的依赖上升，"
+                "期限溢价易上难下。"
+            )
+        else:
+            verdict = "官方需求尚在安全区，海外端暂未构成边际压力。"
     return f"{verdict}\n" + " · ".join(basis) + "。"
 
 
@@ -151,24 +190,40 @@ def signal_countries(holdings: list[dict]) -> str:
 
 
 def signal_issuance(cards: dict, refunding: dict) -> str:
-    """信号三：发行结构（结论 = 短债占比影响 / 依据 = Bill 占比 + 再融资指引）。"""
+    """信号三：发行结构（结论 = 短债占比影响 / 依据 = Bill 占比 + 再融资指引）。
+
+    短债占比判断走历中分位（阈值 22% 在全历史 40% 的月份都被突破，当不了「偏高」
+    的依据）；附息债规模措辞从 QRA 声明正文解析，不写死——写死会在下个
+    季度财政部改口后变成假消息。
+    """
     bs = cards["bill_share"]
+    rank = bs.get("pct_rank")
     basis = f"Bill 占可流通债务 {bs['value']}%"
+    if bs.get("pct_label"):
+        basis += f"（{bs['pct_label']}）"
     if bs.get("chg_1y") is not None:
-        basis += f"（较一年前 {bs['chg_1y']:+.1f}pp）"
+        basis += f" · 较一年前 {bs['chg_1y']:+.1f}pp"
+    guide = refunding.get("coupon_sizes")
     if refunding.get("quarter"):
-        basis += (
-            f" · 最新季度再融资声明（{refunding['quarter']}）维持附息债拍卖规模不变"
-        )
-    if bs["value"] > 22:
+        verb = {
+            "maintain": "维持附息债拍卖规模不变",
+            "increase": "上调附息债拍卖规模",
+            "decrease": "下调附息债拍卖规模",
+        }.get(guide or "", "未明确附息债拍卖规模指引")
+        basis += f" · 最新季度再融资声明（{refunding['quarter']}）{verb}"
+    if rank is not None and rank >= 70:
         verdict = (
-            "短债占比偏高，财政部以 Bill 吸收融资需求、压长端供给"
+            "短债占比处于历史高位，财政部以 Bill 吸收融资需求、压长端供给"
             "——对长端利率是短期缓冲，但展期风险向未来集中。"
         )
+    elif rank is not None and rank <= 30:
+        verdict = "短债占比处于历史低位，长端供给占比回升，期限溢价压力上升。"
     else:
-        verdict = "短债占比处于历史常态区间（~15-20%），发行结构未见明显扭曲。"
-    if refunding.get("quarter"):
+        verdict = "短债占比处于历史常态区间，发行结构未见明显扭曲。"
+    if guide == "maintain":
         verdict += "按最新声明指引，长端暂无增量供给压力。"
+    elif guide == "increase":
+        verdict += "声明已给出增量供给指引，长端面临上拍卖规模压力。"
     return f"{verdict}\n{basis}。"
 
 
@@ -284,7 +339,31 @@ def refunding_meta() -> dict:
         "date": str(last["date"])[:10],
         "title": last["title"],
         "url": last["url"],
+        # 附息债规模指引：从声明正文抽（研判段不能写死「维持不变」）
+        "coupon_sizes": _coupon_size_guided(str(last["body"])),
     }
+
+
+def _coupon_size_guided(body: str) -> str | None:
+    """QRA 声明正文 → 附息债拍卖规模指引（maintain / increase / decrease / None）。
+
+    锁定句式 "Treasury anticipates maintaining nominal coupon and FRN auction
+    sizes"；措辞改了就是 None（页面显示「未明确」），绝不猜。
+    """
+    m = re.search(
+        r"(maintain|maintaining|increase|increasing|decrease|decreasing|reduce|"
+        r"reducing)[^.]{0,80}?(nominal coupon|coupon and FRN|auction size)",
+        body,
+        re.I,
+    )
+    if not m:
+        return None
+    w = m.group(1).lower()
+    if w.startswith("maintain"):
+        return "maintain"
+    if w.startswith("increase"):
+        return "increase"
+    return "decrease"
 
 
 def generate_treasury_overview() -> dict:
@@ -303,7 +382,15 @@ def generate_treasury_overview() -> dict:
         return {"error": "tic.csv 缺有效持仓/净买入数据"}
 
     bs_pair = _latest_pair(bs_daily["BILL_SHARE"]) if not bs_daily.empty else None
-    bs_yoy = _chg_prev(bs_daily["BILL_SHARE"], 250) if not bs_daily.empty else None
+    # 1Y 变化只能算在 MSPD 月频轴上：日频派生序列自 2026-08 才开算（仅 30+ 行），
+    # 取 250 个交易日前的值永远为 None（卡片副标题永远只剩一个日期）。
+    bs_mspd = (
+        mspd["BILL_SHARE"].dropna() if "BILL_SHARE" in mspd else pd.Series(dtype=float)
+    )
+    bs_yoy = _chg_prev(bs_mspd, 12)
+    # 全历史分位（卡片与研判共用，后端只算一次）
+    share_rank = _pct_rank(share, float(share.iloc[-1])) if not share.empty else None
+    bs_rank = _pct_rank(bs_mspd, float(bs_pair[0])) if bs_pair else None
 
     cards = {
         "hold_total": {
@@ -314,6 +401,10 @@ def generate_treasury_overview() -> dict:
         "official_share": {
             "value": round(float(share.iloc[-1]), 1) if not share.empty else None,
             "as_of": share.index[-1].strftime("%Y-%m-%d") if not share.empty else None,
+            # <23% 阈值自 2015-08 起连续 131 个月都在下方，单靠阈值判断永远为真、
+            # 不含信息；真正的新信息是当前值在全历史里的位置。
+            "pct_rank": share_rank,
+            "pct_label": rank_label(share_rank),
         },
         "net_total": {
             "value": _b(net_pair[0]),
@@ -324,6 +415,8 @@ def generate_treasury_overview() -> dict:
             "value": round(bs_pair[0], 1) if bs_pair else None,
             "chg_1y": round(bs_yoy[0] - bs_yoy[1], 1) if bs_yoy else None,
             "as_of": bs_pair[1].strftime("%Y-%m-%d") if bs_pair else None,
+            "pct_rank": bs_rank,
+            "pct_label": rank_label(bs_rank),
         },
     }
 

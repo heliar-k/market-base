@@ -111,12 +111,14 @@ async function load() {
 
   // ── 研判（三段各一张卡：发生了什么变化 / 为什么重要 / 接下来关注什么）──
   const s = d.signals || { framework: '—', what_changed: '—', why_it_matters: '—', what_to_watch: '—' };
-  document.getElementById('re-signals').innerHTML = [
+  // 框架名保留（它是信息）；「rule-based · no direct price forecast」英文免责已删
+  // —— 页底 #re-gen 的 R.genText 已说明「规则引擎」，全站也没有价格预测
+  R.setSection('re-signals', [
     ['发生了什么变化', s.what_changed],
     ['为什么重要', s.why_it_matters],
     ['接下来关注什么', s.what_to_watch],
   ].map(([title, text]) => R.judgeCard(title, text)).join('')
-    + `<div class="note">框架：${s.framework} · rule-based · no direct price forecast</div>`;
+    + `<div class="note">框架：${R.esc(s.framework)}</div>`);
 
   // ── OAS 分层表 ──
   const layers = d.layers.map(l => ({
