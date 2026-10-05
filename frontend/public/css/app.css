@@ -143,6 +143,23 @@ body { font-family: system-ui, -apple-system, sans-serif; background: var(--bg);
 .re-corridor-value { font-size: 22px; font-weight: 700; margin-top: 10px; font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .re-card-sub { font-size: 11px; opacity: .7; margin-top: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
+/* 键值行网格单源（R.kvRows 的产物）：「一项一个数」的段用它，不写 2-4 列键值表。
+ * 为什么不用表：表被拉到卡片全宽（1118px）时，两列表的数值列甩到最右、中间一大片空白；
+ * 也不用 R.cards：卡片在 ≤768 强制单列，一张 ~117px，7 项就 800px+，比表格还长。
+ * 这里 grid auto-fit 宽屏自动铺 3-4 列（铺满不留白），窄屏 min(100%,260px) 退回单列，
+ * 每行只有 ~28px。行内复用 .diag-row 的「名称 ←→ 读数」两端对齐，不另造一套行样式。 */
+.re-kv-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr)); column-gap: 28px; }
+.re-kv-grid .kv-v { flex: 0 0 auto; font-variant-numeric: tabular-nums; font-weight: 600; }
+/* 口径注跟在名称后：11px 弱色，与名称同一条左线（数字那侧永远只有一条右线）。
+ * .diag-label 是 flex 两端对齐的左项，长名称 + 注会自动省略号收口。 */
+.re-kv-grid .diag-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.re-kv-grid .diag-label em { font-style: normal; font-size: 11px; font-weight: 400; color: var(--text-dim); }
+/* 窄屏一行只有 245px，注会把名称挤成三行 → 收掉，口径由段底注脚兜底。 */
+@media (max-width: 768px) { .re-kv-grid .diag-label em { display: none; } }
+/* 段内注脚（R.secNote）：口径/读法说明一律沉到卡片底部，不作卡片首段正文 ——
+ * 首段 <p> 与下面的数据只差 8px 间距、1px 字号，读起来像列表的第一项。 */
+.re-sec-note { margin-top: 10px; padding-top: 8px; border-top: 1px solid var(--border-light); font-size: 12px; line-height: 1.65; color: var(--text-dim); }
+
 /* ── dashboard ────────────────────────────────────────────── */
 .dashboard-view {
   display: none; flex-direction: column; gap: 12px;

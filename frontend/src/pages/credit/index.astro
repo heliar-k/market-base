@@ -1,8 +1,24 @@
 ---
 // credit 页 — 首个 .astro 迁移页（工单 #13 spike）。
-// 三段结构（总览 + CDS 专题 + 压力仪表盘）的 288 行内联脚本原样进 is:inline island
-// （依赖 echarts-theme/rates-common 的经典全局 R，is:inline 不打包、行为与迁移前逐字一致）；
-// head / 顶栏 / 页头样板在 TopicLayout。数据 fetch('/api/credit/*') 不变。
+// 三段结构（总览 + CDS 专题 + 压力指数明细）的内联脚本原样进 is:inline island
+// （依赖 echarts-theme/rates-common 的经典全局 R，is:inline 不打包）；
+// head / 页头样板在 TopicLayout。数据 fetch('/api/credit/*') 不变。
+//
+// 一轮 UI 收口（本轮）：
+//  1. 「一项一个数」的四段（融资成本 / 银行信贷 / 贷款质量 / 金融条件）与流动性代理
+//     不再写 2-4 列键值表 —— 表被拉到 1118px 时数值列甩到最右、中间一大片空白。
+//     改走 R.kvRows：一张卡内多列键值行，宽屏 auto-fit 铺满，窄屏单列每行 ~28px。
+//  2. 段内口径/读法说明一律沉到卡片底部（R.secNote + .re-sec-note），不再作卡片首段正文：
+//     首段 <p> 与下面的数据只差 8px 间距、1px 字号，读起来像列表第一项。
+//  3. 表内整列同值的「观测期 / 发布」删列，上提到小节标题行的副标（口径贴着数据走，
+//     同 1742b292 对美债拍卖口径的处置）。
+//  4. 压力色标单源 stressInk/stressGraphic（≤50 绿 / 50-75 橙 / ≥75 红）：原先只有
+//     Regime 子分有这套色，同页表格与图注全黑字；现分位、百分位一律走它。
+//  5. 底部「压力仪表盘」的 0-100 大数字卡删除 —— 它与上方 Regime Score 同为 0-100 但
+//     权重（5 分量加权 vs 7 子分等权）与阈值（30-70 vs 50-75）都不同，同页两个结论分
+//     会互相矛盾（63.6 中性偏紧 vs 47.2 中性）。综合分降为历史曲线的图注，段名跟着改。
+//  6. 研判三张全宽卡（各一句）收成一张卡内 .sig-row 三小格；卡片行/表/键值行/注脚
+//     形状收口到 rates-common 单源（R.kvRows / R.secNote / R.judgeRow）。
 import TopicLayout from '../../layouts/TopicLayout.astro';
 import Section from '../../components/Section.astro';
 ---
@@ -13,13 +29,13 @@ import Section from '../../components/Section.astro';
   <Section id="re-signals" title="研判" />
   <Section id="oas-row" title="利差水平" sub="ICE BofA OAS · bp" />
   <Section id="layers" title="利差分层" sub="ICE BofA OAS" />
-  <Section id="funding" title="融资成本" sub="All-in" />
+  <Section id="funding" title="融资成本" sub="All-in 有效收益率" />
   <Section id="sloos" title="银行信贷" sub="SLOOS · 净百分比，季度" />
   <Section id="quality" title="贷款质量" sub="逾期率 / 核销率，季度" />
   <Section id="fincond" title="金融条件" sub="与压力指数" />
   <Section id="liq-etf" title="市场流动性代理" sub="信用 ETF" />
   <Section id="cds-sec" title="CDS 专题" sub="信用违约互换" />
-  <Section id="stress-sec" title="压力仪表盘" />
+  <Section id="stress-sec" title="压力指数明细" sub="5 分量加权" />
   <div class="re-foot-page" slot="foot" id="re-foot"></div>
 
 <script is:inline>
@@ -31,12 +47,47 @@ const ZONE_INK = { 宽松: 'var(--up)', 中性偏松: 'var(--up)', 中性: 'var(
 const zoneGraphic = k => ZONE_GRAPHIC[k] || 'var(--text-dim)';
 const zoneInk = k => ZONE_INK[k] || 'var(--text-dim)';
 
+// 压力色标（本页单源）：与后端 REGIME_ZONES 同阈值 —— ≤50 偏松绿 / 50-75 偏紧橙 / ≥75 收紧红。
+// 原先只有 Regime 子分用这套色，同页的分位读数、压力指数图注一律黑字，读者要自己比大小；
+// 现在「越红 = 压力越大」在全页只有一个色标、只有一份阈值。
+const stressGraphic = v => v == null ? 'var(--text-dim)' : v >= 75 ? 'var(--color-down)' : v >= 50 ? 'var(--color-warn)' : 'var(--color-up)';
+const stressInk = v => v == null ? 'var(--text-dim)' : v >= 75 ? 'var(--down)' : v >= 50 ? 'var(--warning)' : 'var(--up)';
+// 分位/百分位 → 带色读数（表格与键值行共用；非数值原样透出）
+const pctCell = v => (typeof v !== 'number' ? '—' : `<span style="color:${stressInk(v)}">${v}%</span>`);
+
+// 各段口径/读法说明 —— 一律沉到卡片底部（见 R.secNote），不作卡片首段正文。
+const NOTE = {
+  layers: '越低评级越暴露尾部风险：CCC−BB 快速走阔 = 压力从指数层面向弱资质发行人扩散。',
+  funding: '利差是风险补偿，effective yield 是企业面对的绝对借钱成本；两者可同时出现「spread 低、融资成本高」。',
+  sloos: '正值 = 收紧标准 / 需求走强；CRE 贷款标准 FRED 已停更（2013 起无新观测）。',
+  quality: '滞后但更可靠的信用质量指标，用来检验利差是否低估了基本面恶化。',
+  fincond: 'NFCI 及子指数上行 = 条件收紧；与 HY OAS 同步上行时信用压力更可信。',
+  liq: 'HYG = 高收益债 ETF · LQD = 投资级债 ETF，价格与成交量只是流动性代理；成交量为 Yahoo 日频快照（单位：股），TRACE 真实成交量尚未接入。',
+};
+
+// 小节副标补数据时点：表里删掉的「观测期 / 发布」两列整列同值，上提到本节标题行。
+function subAppend(id, parts) {
+  const el = document.querySelector(`#${id} .re-sec-head .re-sec-sub`);
+  const t = parts.filter(Boolean).join(' · ');
+  if (el && t) el.textContent = `${el.textContent} · ${t}`;
+}
+// 一组观测日 → 「观测 起–止」（同日只写一个）。跨度 >92 天时退回只写最新一天：
+// 季度表里的停更行（CRE 2013）会把区间拉到十多年前，读者以为整表跨 13 年；
+// 停更由段内注脚自己说，不靠副标。
+function dateStr(dates, label = '观测') {
+  const u = [...new Set((dates || []).filter(Boolean))].sort();
+  if (!u.length) return '';
+  const last = u[u.length - 1];
+  const span = (new Date(last) - new Date(u[0])) / 86400000;
+  return u.length === 1 || span > 92 ? `${label} ${last}` : `${label} ${u[0]}–${last}`;
+}
+
 async function load() {
   // 小节锚点导航（长页快速跳转；sticky 见 special.css .page-toc）
   document.getElementById('page-toc').innerHTML = [
     ['信用状态总览', 'regime'], ['研判', 're-signals'], ['利差水平', 'oas-row'], ['利差分层', 'layers'],
     ['融资成本', 'funding'], ['银行信贷', 'sloos'], ['贷款质量', 'quality'],
-    ['金融条件', 'fincond'], ['市场流动性代理', 'liq-etf'], ['CDS 专题', 'cds-sec'], ['压力仪表盘', 'stress-sec'],
+    ['金融条件', 'fincond'], ['市场流动性代理', 'liq-etf'], ['CDS 专题', 'cds-sec'], ['压力指数明细', 'stress-sec'],
   ].map(([t, id]) => `<a href="#${id}">${t}</a>`).join('');
 
   // 主端点 overview 保持 R.get：挂了说明整页真没数据，页级错误态是正确行为。
@@ -50,22 +101,17 @@ async function load() {
 
   // ── Credit Regime Score 记分卡（对齐持仓页 pos-hero 骨架）──
   const rg = d.regime || { score: null, regime: '—', components: [], missing: [] };
-  // 子分区间色：与后端 REGIME_ZONES 同口径（≤50 偏松绿 / 50-75 偏紧橙 / ≥75 收紧红）
-  const rgColor = v => v === null || v === undefined ? 'var(--text-dim)' : v >= 75 ? 'var(--color-down)' : v >= 50 ? 'var(--color-warn)' : 'var(--color-up)';
-  // 同一口径的文字档并行映射：进度条填充用上面的图形档，子分数值写字用这套（亮色过 AA）
-  const rgTextColor = v => v === null || v === undefined ? 'var(--text-dim)' : v >= 75 ? 'var(--down)' : v >= 50 ? 'var(--warning)' : 'var(--up)';
   // 子分中文名（英文为 FRED/后端字段名，中文便于快速阅读）
   const RG_CN = { spread_level: '利差水平', spread_mom: '利差动量', funding_cost: '融资成本', credit_supply: '信贷供给', credit_quality: '贷款质量', market_liq: '市场流动性', cross_asset: '跨资产确认' };
   const bars = rg.components.map(c => {
     const v = c.value;
     const w = v === null || v === undefined ? 0 : v;
-    const col = rgColor(v);
     return `
       <div class="rg-bar">
         <div class="rg-name">${c.name}<span class="rg-cn">${RG_CN[c.key] || ''}</span>
-          <div class="track"><div class="fill" style="width:${w}%;background:${col};${v === null ? '' : 'min-width:2px'}"></div></div>
+          <div class="track"><div class="fill" style="width:${w}%;background:${stressGraphic(v)};${v === null ? '' : 'min-width:2px'}"></div></div>
         </div>
-        <span class="${v === null ? 'dim' : 'val'}" style="color:${rgTextColor(v)}">${v === null ? '—' : v}</span>
+        <span class="${v === null ? 'dim' : 'val'}" style="color:${stressInk(v)}">${v === null ? '—' : v}</span>
       </div>`;
   }).join('');
   const missingNote = rg.missing.length ? `子分数据不足（${rg.missing.join('、')}），综合分只用有数据的子分重算。` : '';
@@ -109,92 +155,111 @@ async function load() {
   row.innerHTML = card('IG OAS（投资级）', d.ig, 'bp') + card('HY OAS（高收益）', d.hy, 'bp') + card('HY − IG', d.hy_ig, 'bp');
   document.getElementById('oas-row').appendChild(row);
 
-  // ── 研判（三段各一张卡：发生了什么变化 / 为什么重要 / 接下来关注什么）──
-  const s = d.signals || { framework: '—', what_changed: '—', why_it_matters: '—', what_to_watch: '—' };
-  // 框架名保留（它是信息）；「rule-based · no direct price forecast」英文免责已删
-  // —— 页底 #re-foot 的 R.genText 已说明「规则引擎」，全站也没有价格预测
-  R.setSection('re-signals', [
+  // ── 研判：一张卡 · 三格横排（原三张全宽卡各一句 → 收成一行三格）──
+  // 「框架：What changed / Why it matters / What to watch next」单独 note 已删：
+  // 三格标题就是该框架，同一页说两遍；生成方式页脚 R.foot 的 R.genText 已说明
+  // （同 labor/inflation/treasury 的英文免责 note 处置）。
+  const s = d.signals || { what_changed: '—', why_it_matters: '—', what_to_watch: '—' };
+  R.setSection('re-signals', R.judgeRow([
     ['发生了什么变化', s.what_changed],
     ['为什么重要', s.why_it_matters],
     ['接下来关注什么', s.what_to_watch],
-  ].map(([title, text]) => R.judgeCard(title, text)).join('')
-    + `<div class="note">框架：${R.esc(s.framework)}</div>`);
+  ]));
 
-  // ── OAS 分层表 ──
-  const layers = d.layers.map(l => ({
-    层级: l.name, 当前bp: l.value, '1Y 分位': l.pct_1y, '3Y 分位': l.pct_3y, '10Y 分位': l.pct_10y, 观测期: l.as_of, 发布: l.released || '—',
-  }));
-  layers.push({ 层级: 'CCC − BB', 当前bp: d.spreads.ccc_bb?.value ?? '—', '1Y 分位': '—', '3Y 分位': '—', '10Y 分位': '—', 观测期: d.spreads.ccc_bb?.as_of ?? '—', 发布: '—' });
-  layers.push({ 层级: 'BBB − IG', 当前bp: d.spreads.bbb_ig?.value ?? '—', '1Y 分位': '—', '3Y 分位': '—', '10Y 分位': '—', 观测期: d.spreads.bbb_ig?.as_of ?? '—', 发布: '—' });
-  const lsec = document.createElement('div');
-  lsec.className = 're-section';
-  lsec.innerHTML = '<p style="margin:0">越低评级越暴露尾部风险：CCC−BB 快速走阔 = 压力从指数层面向弱资质发行人扩散。</p>';
-  lsec.appendChild(R.table(['层级', '当前bp', '1Y 分位', '3Y 分位', '10Y 分位', '观测期', '发布'], layers, {
+  // ── OAS 分层表（删「观测期 / 发布」两列 → 上提副标；分位按压力色标着色）──
+  const layers = d.layers.map(l => ({ 层级: l.name, 当前bp: l.value, '1Y 分位': l.pct_1y, '3Y 分位': l.pct_3y, '10Y 分位': l.pct_10y }));
+  layers.push({ 层级: 'CCC − BB', 当前bp: d.spreads.ccc_bb?.value ?? '—', '1Y 分位': '—', '3Y 分位': '—', '10Y 分位': '—' });
+  layers.push({ 层级: 'BBB − IG', 当前bp: d.spreads.bbb_ig?.value ?? '—', '1Y 分位': '—', '3Y 分位': '—', '10Y 分位': '—' });
+  const lsec = R.secCard();
+  lsec.appendChild(R.table(['层级', '当前bp', '1Y 分位', '3Y 分位', '10Y 分位'], layers, {
     当前bp: v => v === '—' ? '—' : `${v}bp`,
-    '1Y 分位': v => typeof v === 'number' ? `${v}%` : '—',
-    '3Y 分位': v => typeof v === 'number' ? `${v}%` : '—',
-    '10Y 分位': v => typeof v === 'number' ? `${v}%` : '—',
-  }));
+    '1Y 分位': pctCell, '3Y 分位': pctCell, '10Y 分位': pctCell,
+  }, null, true));
+  lsec.appendChild(R.secNote(NOTE.layers));
   document.getElementById('layers').appendChild(lsec);
+  subAppend('layers', [dateStr(d.layers.map(l => l.as_of)), dateStr(d.layers.map(l => l.released), '发布')]);
 
-  // ── All-in 融资成本 ──
+  // ── All-in 融资成本（一项一个数 → 键值行，不写两列表）──
   const f = d.funding;
-  const fsec = document.createElement('div');
-  fsec.className = 're-section';
-  fsec.innerHTML = '<p style="margin:0">利差是风险补偿，effective yield 是企业面对的绝对借钱成本；两者可同时出现「spread 低、融资成本高」。</p>';
+  const fsec = R.secCard();
   if (f.ig && f.hy) {
-    fsec.appendChild(R.table(['指标', '当前', '发布'], [
-      { 指标: 'IG 有效收益率', 当前: f.ig.value, 发布: f.ig.released || '—' },
-      { 指标: 'HY 有效收益率', 当前: f.hy.value, 发布: f.hy.released || '—' },
-      { 指标: 'HY − 联邦基金利率', 当前: f.hy_ff == null ? '—' : `${f.hy_ff.toFixed(0)}bp`, 发布: f.hy.released || '—' },
-      { 指标: 'HY − 10Y 国债', 当前: f.hy_10y == null ? '—' : `${f.hy_10y.toFixed(0)}bp`, 发布: f.hy.released || '—' },
-    ], { 当前: (v) => v === null || v === undefined ? '—' : typeof v === 'number' ? `${(v / 100).toFixed(2)}%` : String(v) }));
+    const y = v => v == null ? '—' : `${(v / 100).toFixed(2)}%`;
+    // 前两项不写 note：「绝对融资成本」是名称复述，段底注脚已完整说过这句。
+    // 后两项保留：「剔除政策利率 / 无风险利率」是这个差值的算法口径，不是名字。
+    fsec.appendChild(R.kvRows([
+      { label: 'IG 有效收益率', value: y(f.ig.value) },
+      { label: 'HY 有效收益率', value: y(f.hy.value) },
+      { label: 'HY − 联邦基金利率', value: f.hy_ff == null ? '—' : `${f.hy_ff.toFixed(0)}bp`, note: '剔除政策利率' },
+      { label: 'HY − 10Y 国债', value: f.hy_10y == null ? '—' : `${f.hy_10y.toFixed(0)}bp`, note: '剔除无风险利率' },
+    ]));
   }
+  fsec.appendChild(R.secNote(NOTE.funding));
   document.getElementById('funding').appendChild(fsec);
+  subAppend('funding', [dateStr([f.ig?.as_of, f.hy?.as_of]), dateStr([f.ig?.released, f.hy?.released], '发布')]);
 
-  // ── SLOOS ──
-  const ssec = document.createElement('div');
-  ssec.className = 're-section';
-  ssec.innerHTML = '<p style="margin:0">正值 = 收紧标准 / 需求走强。</p>';
-  ssec.appendChild(R.table(['指标', '净百分比', '观测期', '发布'],
-    d.sloos.map(s => ({ 指标: s.name, 净百分比: s.value, 观测期: s.as_of, 发布: s.released || '—' })),
-    { 净百分比: v => v === null || v === undefined ? '—（停更）' : `${v > 0 ? '+' : ''}${v.toFixed(1)}%` }));
+  // ── 银行信贷 SLOOS（正 = 收紧 = 红，负 = 放松 = 绿；0 不着色）──
+  const sloosInk = v => v == null ? 'var(--text-dim)' : v > 0 ? 'var(--down)' : v < 0 ? 'var(--up)' : 'var(--text)';
+  const ssec = R.secCard();
+  // 停更不写行内 note：段底注脚已完整说明（哪条停更、从何时起），行里再标一次是重复。
+  ssec.appendChild(R.kvRows(d.sloos.map(x => ({
+    label: x.name,
+    value: x.value == null ? '—' : `${x.value > 0 ? '+' : ''}${x.value.toFixed(1)}%`,
+    color: sloosInk(x.value),
+  }))));
+  ssec.appendChild(R.secNote(NOTE.sloos));
   document.getElementById('sloos').appendChild(ssec);
+  subAppend('sloos', [dateStr(d.sloos.map(x => x.as_of)), dateStr(d.sloos.map(x => x.released), '发布')]);
 
-  // ── 贷款质量 ──
-  const qsec = document.createElement('div');
-  qsec.className = 're-section';
-  qsec.innerHTML = '<p style="margin:0">滞后但更可靠的信用质量指标，用来检验利差是否低估了基本面恶化。</p>';
-  qsec.appendChild(R.table(['指标', '当前', '10Y 分位', '观测期', '发布'],
-    d.quality.map(q => ({ 指标: q.name, 当前: q.value, 分位: q.pct_10y, 观测期: q.as_of, 发布: q.released || '—' })),
-    { 当前: v => `${v.toFixed(2)}%`, 分位: v => v === null || v === undefined ? '—' : `${v}%` }));
+  // ── 贷款质量（值按 10Y 分位着色，分位写进行尾）──
+  const qsec = R.secCard();
+  qsec.appendChild(R.kvRows(d.quality.map(q => ({
+    label: q.name,
+    value: `${q.value.toFixed(2)}%`,
+    note: `10Y 分位 ${q.pct_10y ?? '—'}%`,
+    color: stressInk(q.pct_10y),
+  }))));
+  qsec.appendChild(R.secNote(NOTE.quality));
   document.getElementById('quality').appendChild(qsec);
+  subAppend('quality', [dateStr(d.quality.map(q => q.as_of)), dateStr(d.quality.map(q => q.released), '发布')]);
 
-  // ── 金融条件 ──
+  // ── 金融条件与压力指数 ──
   const fc = d.fincond;
-  const fsec2 = document.createElement('div');
-  fsec2.className = 're-section';
-  fsec2.innerHTML = '<p style="margin:0">NFCI 及子指数上行 = 条件收紧；与 HY OAS 同步上行时信用压力更可信。</p>';
-  fsec2.appendChild(R.table(['指标', '当前', '观测期', '发布'], [
-    { 指标: 'NFCI', 当前: fc.nfci?.value, 观测期: fc.nfci?.as_of, 发布: fc.nfci?.released || '—' },
-    { 指标: 'ANFCI（调整后）', 当前: fc.anfci?.value, 观测期: fc.anfci?.as_of, 发布: fc.anfci?.released || '—' },
-    { 指标: 'NFCI 风险子指数', 当前: fc.nfci_risk?.value, 观测期: fc.nfci_risk?.as_of, 发布: fc.nfci_risk?.released || '—' },
-    { 指标: 'NFCI 信用子指数', 当前: fc.nfci_credit?.value, 观测期: fc.nfci_credit?.as_of, 发布: fc.nfci_credit?.released || '—' },
-    { 指标: 'NFCI 杠杆子指数', 当前: fc.nfci_leverage?.value, 观测期: fc.nfci_leverage?.as_of, 发布: fc.nfci_leverage?.released || '—' },
-    { 指标: 'STLFSI（圣路易斯压力指数）', 当前: fc.stlfsi?.value, 观测期: fc.stlfsi?.as_of, 发布: fc.stlfsi?.released || '—' },
-    { 指标: 'OFR 金融压力指数', 当前: fc.ofr_fsi?.value, 观测期: fc.ofr_fsi?.as_of, 发布: '—' },
-  ], { 当前: v => v === null || v === undefined ? '—' : `${v > 0 ? '+' : ''}${v.toFixed(2)}` }));
+  // 第 3 项只在「note 说了 label 没说的东西」时保留：ANFCI 的 A = 剔除增长缺口、
+  // OFR FSI 的 105 系列加权是真口径。NFCI 各子指数的「风险承担 / 信用利差 / 杠杆」
+  // 是名称复述，删；STLFSI 的中文展开归 label（原名就带括号）。
+  const fcRows = [
+    ['NFCI', fc.nfci, ''], ['ANFCI（调整后）', fc.anfci, '剔除增长缺口'],
+    ['NFCI 风险子指数', fc.nfci_risk, ''], ['NFCI 信用子指数', fc.nfci_credit, ''],
+    ['NFCI 杠杆子指数', fc.nfci_leverage, ''], ['STLFSI（圣路易斯压力指数）', fc.stlfsi, ''],
+    ['OFR 金融压力指数', fc.ofr_fsi, '105 系列加权'],
+  ];
+  const fcInk = v => v == null ? 'var(--text-dim)' : v > 0.05 ? 'var(--down)' : v < -0.05 ? 'var(--up)' : 'var(--text)';
+  const fsec2 = R.secCard();
+  fsec2.appendChild(R.kvRows(fcRows.map(([name, p, note]) => ({
+    label: name,
+    value: p?.value == null ? '—' : `${p.value > 0 ? '+' : ''}${p.value.toFixed(2)}`,
+    note,
+    color: fcInk(p?.value),
+  }))));
+  fsec2.appendChild(R.secNote(NOTE.fincond));
   document.getElementById('fincond').appendChild(fsec2);
+  subAppend('fincond', [dateStr(fcRows.map(([, p]) => p?.as_of)), dateStr(fcRows.map(([, p]) => p?.released), '发布')]);
 
-  // ── 市场流动性代理 ──
-  const lsec2 = document.createElement('div');
-  lsec2.className = 're-section';
+  // ── 市场流动性代理（原一行散文 → 与上方各段同形状的键值行）──
+  // 单位「股」并进数字本身（缺数据时只出「—」，不出「— 股」）
+  const mvol = v => v == null ? '—' : (v >= 1e9 ? (v / 1e9).toFixed(2) + 'B' : (v / 1e6).toFixed(1) + 'M') + ' 股';
   const hyg = d.liq_etf.hyg, lqd = d.liq_etf.lqd;
-  const etfStr = (e, name) => e
-    ? `$<b>${name}</b> ${'$' + e.value} · vol ${e.volume != null ? e.volume.toLocaleString() : '—'}`
-    : `${name} —`;
-  lsec2.innerHTML += `<p style="margin:0">${etfStr(hyg, 'HYG')} · ${etfStr(lqd, 'LQD')}（成交量为 Yahoo 日频快照，TRACE 真实成交量尚未接入）</p>`;
-  document.getElementById('liq-etf').appendChild(lsec2);
+  const lsec3 = R.secCard();
+  // ETF 全称是名称 → 段底注脚；成交量单位「股」跟数字走（单位不是说明）。
+  lsec3.appendChild(R.kvRows([
+    { label: 'HYG 收盘', value: hyg ? '$' + R.num(hyg.value) : '—' },
+    { label: 'LQD 收盘', value: lqd ? '$' + R.num(lqd.value) : '—' },
+    { label: 'HYG 成交量', value: mvol(hyg?.volume) },
+    { label: 'LQD 成交量', value: mvol(lqd?.volume) },
+  ]));
+  lsec3.appendChild(R.secNote(NOTE.liq));
+  document.getElementById('liq-etf').appendChild(lsec3);
+  subAppend('liq-etf', [dateStr([hyg?.as_of, lqd?.as_of], '快照')]);
 
   // ── CDS 专题（原 cds.html 并入）── 次要端点：缺数据/字段炸只降级本段
   if (cds) {
@@ -203,11 +268,11 @@ async function load() {
     R.fail(['cds-sec'], new Error('CDS 数据缺失：fred/rates（DGS10）或 yfinance 快照（KBWB/SPX）未更新，先运行 ./bin/fetch_fred / ./bin/fetch_yfinance 后重新导出'));
   }
 
-  // ── 信用压力仪表盘（原 stress.html 并入）── 同上，只降级本段
+  // ── 压力指数明细（原「压力仪表盘」并入）── 同上，只降级本段
   if (stress) {
     try { renderStress(document.getElementById('stress-sec'), stress); } catch (e) { R.fail(['stress-sec'], e); }
   } else {
-    R.fail(['stress-sec'], new Error('压力仪表盘数据缺失：fred/volatility（HY_OAS）等未更新，先运行 ./bin/fetch_fred / ./bin/fetch_yfinance / ./bin/fetch_fx 后重新导出'));
+    R.fail(['stress-sec'], new Error('压力指数数据缺失：fred/volatility（HY_OAS）等未更新，先运行 ./bin/fetch_fred / ./bin/fetch_yfinance / ./bin/fetch_fx 后重新导出'));
   }
 
   R.foot(d.generator, {
@@ -218,8 +283,7 @@ async function load() {
 
 // ── CDS 专题：主权/银行系统风险代理 + 归一化双线 ──
 function renderCds(root, d) {
-  const sec = document.createElement('div');
-  sec.className = 're-section';
+  const sec = R.secCard();
   root.appendChild(sec);  // 先挂文档再建图（R.mkChart 按 id 查 DOM，detached 时查不到）
   let sov = '<div class="proxy-card"><div class="label">主权 CDS 代理（10Y UST 收益率）</div>';
   if (d.sovereign) {
@@ -264,37 +328,31 @@ function renderCds(root, d) {
       ],
     }, colors));
   }
-  // 用 insertAdjacentHTML 追加，不能 innerHTML +=（会重建全部子节点，把上面已建好的 bank-chart 图表 div 换成一个空白新节点）
-  sec.insertAdjacentHTML('beforeend', '<p style="margin:0;font-size:12px">真实 Markit CDX IG / CDX HY / 主权 CDS 为付费数据源（Bloomberg / Refinitiv 授权），本页使用公开代理指标。</p>');
+  // 用 appendChild / insertAdjacentHTML 追加，不能 innerHTML +=（会重建全部子节点，
+  // 把上面已建好的 bank-chart 图表 div 换成一个空白新节点）
+  sec.appendChild(R.secNote('真实 Markit CDX IG / CDX HY / 主权 CDS 为付费数据源（Bloomberg / Refinitiv 授权），本页使用公开代理指标。'));
 }
 
-// ── 信用压力仪表盘：综合分 + 5 分量 + 历史 + 跨资产 ──
+// ── 压力指数明细：5 分量 + 历史曲线 + 跨资产对照 ──
+// 不再有第二个 0-100 大数字卡（见文件头第 5 条）；综合分只作历史曲线的图注。
 function renderStress(root, d) {
   const wrap = document.createElement('div');
   root.appendChild(wrap);  // 先挂文档再建图（同 renderCds）
-  const card = document.createElement('div');
-  card.className = 'score-card';
-  card.innerHTML = `
-    <div>
-      <div class="label">COMPOSITE SCORE · 5 分量综合压力指数</div>
-      <div class="value" style="color:${zoneInk(d.zone)}">${d.composite}<span style="font-size:16px;color:var(--text-dim)">/100</span></div>
-      <div class="scale">0-30 宽松 · 30-70 中性 · 70-100 压力</div>
-    </div>
-    <div class="badge" style="color:${zoneInk(d.zone)};border-color:color-mix(in srgb, ${zoneGraphic(d.zone)} 40%, transparent);background:color-mix(in srgb, ${zoneGraphic(d.zone)} 10%, transparent)">${d.zone}</div>`;
-  wrap.appendChild(card);
 
-  const csec = document.createElement('div');
-  csec.className = 're-section';
-  csec.innerHTML = '<h2>5 分量拆解</h2>';
+  const csec = R.secCard();
+  csec.innerHTML = R.secTitle('5 分量拆解');
+  // 得分列同样按压力色标着色（它本来就是 0-100 压力刻度，与全页一个色标）
   csec.appendChild(R.table(['分量', '权重', '得分', '原值'], d.components.map(c => ({
     分量: c.name, 权重: c.weight + '%', 得分: c.value, 原值: c.raw === null || c.raw === undefined ? '—' : (c.raw + (c.unit || '')),
-  })), { 得分: v => `${v}/100` }));
+  })), { 得分: v => `<span style="color:${stressInk(v)}">${v}/100</span>` }, null, true));
   wrap.appendChild(csec);
 
   if (d.history) {
-    const hsec = document.createElement('div');
-    hsec.className = 're-section';
-    hsec.innerHTML = '<h2>压力指数历史曲线</h2><div class="chart" id="hist-chart"></div>';
+    const hsec = R.secCard();
+    hsec.innerHTML = R.secTitle('压力指数历史曲线');
+    // 口径写进图注：5 分量加权 + 阈值 30/70，与上方 7 子分等权、阈值 50/75 的 Regime Score 不是一套
+    hsec.insertAdjacentHTML('beforeend', `<div class="note" style="margin-bottom:4px">当前 ${d.composite} · ${d.zone}（0-30 宽松 / 30-70 中性 / 70-100 压力）· 5 分量加权，口径不同于上方 7 子分等权的 Regime Score</div>`
+      + '<div class="chart" id="hist-chart"></div>');
     wrap.appendChild(hsec);
     R.mkChart('hist-chart', colors => ({
       tooltip: { trigger: 'axis' },
@@ -316,12 +374,13 @@ function renderStress(root, d) {
     }));
   }
 
-  const xsec = document.createElement('div');
-  xsec.className = 're-section';
-  xsec.innerHTML = '<h2>跨资产对照（当前百分位 vs HY OAS）</h2>';
+  const xsec = R.secCard();
+  xsec.innerHTML = R.secTitle('跨资产对照', '', '当前百分位 vs HY OAS');
+  // 第 5 参 html=true 不能省：百分位列要着色（pctCell 返回 markup），
+  // 默认 textContent 模式会把 <span> 当字面文本显示出来。
   xsec.appendChild(R.table(['指标', '当前百分位', '与 HY OAS 偏离', '含义'], d.cross.map(c => ({
     指标: c.metric, 百分位: c.pct, 偏离: c.dev, 含义: c.note + (c.obs && c.obs < 100 ? `（样本 ${c.obs} 条，积累中）` : ''),
-  })), { 百分位: v => `${v}%`, 偏离: v => `${v > 0 ? '+' : ''}${v} pct` }));
+  })), { 百分位: pctCell, 偏离: v => `${v > 0 ? '+' : ''}${v} pct` }, null, true));
   wrap.appendChild(xsec);
 }
 

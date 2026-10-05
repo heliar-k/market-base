@@ -430,6 +430,36 @@ uv run python src/sell_put.py --symbol TSM
   弱化说明走 `sub` prop（`.re-sec-sub`），需与数据联动的状态文字在 island 里用映射表（`TERM_STATE` 一类），
   标题本身不写成纯英文
 - **复用既有类，不造平行组件**：卡片 `.chart-card`、控件条 `.controls`/`.range-controls`/`.range-btn`、数据行 `.diag-row`、语义色 `.up/.down/.neutral`、统计卡 `.dash-stat`/`.dash-card`；只给面板私有结构加 `面板名-` 前缀的新类
+- **「一项一个数」的段走键值行 `R.kvRows()`，不写键值表**（`rates-common.js` / `app.css` `.re-kv-grid`）：
+  2-4 列的「指标 | 当前」表被拉到卡片全宽（1118px）时，数值列甩到最右、中间一大片空白；
+  改 `R.cards()` 又会在窄屏炸（卡片 ≤768 强制单列，一张 ~117px，7 项 800px+，比表格还长）。
+  `.re-kv-grid` 是 grid `auto-fit minmax(min(100%,260px),1fr)`：宽屏自动铺 3-4 列铺满，
+  窄屏单列每行 ~28px。item：`{label, value, note, color}`。
+  **`note` 只放真口径**（「10Y 分位 28.5%」「剔除政策利率」「105 系列加权」），且**挂在名称后面**
+  不是数字后面：数字后放长短不一的注（「股」vs「10Y 分位 28.5%」）会把右对齐的读数横向推开，
+  一列里 5 个数落在 5 个位置，纵向扫读失效；挂名称后则每列读数永远一条右线（实测 639/1013/1387 齐）。
+  两类东西不进 note：① **名称的中文展开/翻译写进 label**（`STLFSI（圣路易斯压力指数）`，
+  不要拆成 label + note）；② **复述名称的 note 删掉**（`NFCI` + 「金融条件指数」、
+  `IG 有效收益率` + 「绝对融资成本」—— 后者段底注脚本就说过整句）。单位跟数字走
+  （`82.4M 股`），不当 note。≤768 note 自动隐藏（一行只有 245px，会把名称挤成三行）。
+  守卫：`tests/test_static_single_source.py::test_kv_grid_and_sec_note_only_via_r_helpers`
+- **段内口径/读法说明沉到卡片底部 `R.secNote()`**（`.re-sec-note`，12px 灰 + 顶部分隔线），
+  **不作卡片首段正文**：首段 `<p style="margin:0">` 与下面的数据只差 8px 间距、1px 字号，
+  读起来像列表的第一项（credit 五段先犯的即此）。返回**节点**（同 `table`/`cards`/`kvRows`），
+  用 `appendChild` 不是拼串。图注/表注这类「只解释某一张图/表」的仍走 `.note` 贴着数据（同 1742b292）
+- **研判「一段一句」的页走 `R.judgeRow(items)`**（一张外卡 + `.sig-row` N 格）：
+  `judgeCard` 是「一段一卡」，语义标题各占一段、每段只有一句时三张全宽卡叠起来 358px，
+  收成一行三格只要 179px。例外：volatility 的 parts 段（卡数由数据决定、同卡还混 `<h2>` 与图）
+  与 geo 的分主题明细（整组结论塞一个 `<ul>`）形状不同构，未迁。守卫见同文件
+- **JS 生成的 `.re-section` 卡壳走 `R.secCard()`**，不再各页 `createElement + className` 散写
+- **表内整列同值的「观测期 / 发布」删列，上提到小节副标**（credit 五段先例，同 1742b292 的
+  「口径贴着数据走」）；副标取最新观测日，**跨度 >92 天退回只写最新一天** —— 季度表里的停更行
+  （如 CRE 2013）会把区间拉到十多年前，读者以为整表跨 13 年，停更由段内注脚自己说
+- **压力色标一页一份**：分位、百分位、子分、分量得分一律用同一套阈值着色（credit 用
+  `stressInk`：≤50 绿 / 50-75 橙 / ≥75 红，与后端 `REGIME_ZONES` 同口径）；方向色（SLOOS/NFCI
+  的「正 = 收紧」）另算，**不要**套分位三档。同页**不要**再放第二个 0-100 结论分
+  （credit 曾同时有 7 子分等权的 Regime Score 与 5 分量加权的压力指数，63.6 中性偏紧 vs
+  47.2 中性互相矛盾；后者已降为历史曲线图注 + 写明口径差异）
 - **KPI 卡行单源 `R.cards()` + `.re-cards`**（`rates-common.js` / `special.css`）：卡行是 flex，
   卡宽由 CSS 一处定（`flex` 增长到 **275px = 全站 4 列档** 封顶），页面**不写**内联
   `grid-template-columns` / `font-size`。为什么是 flex 不是 grid：grid 的 `auto-fit` 列数按轨道**上限**算，

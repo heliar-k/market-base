@@ -509,3 +509,67 @@ def test_page_level_source_term_is_data_source() -> None:
             if "数据来源" in ln:
                 offenders.append(f"{src.relative_to(ROOT)}:{ln.strip()[:60]}")
     assert not offenders, f"用了废弃的「数据来源」，本页级请写「数据源」：{offenders}"
+
+
+# ── 键值行 / 段底注脚单源（credit 页 UI 收口一轮定下的形状）────────────────
+# 「一项一个数」的段写 2-4 列键值表，表被拉到卡片全宽时数值列甩到最右、中间一大片
+# 空白；改 .re-cards 又会在窄屏炸（卡片 ≤768 强制单列，一张 ~117px）。两者都不对，
+# 答案是 .re-kv-grid 键值行网格，只能由 R.kvRows 产出。
+_KV_CLASS = re.compile(r'class="re-kv-grid')
+# 口径/读法说明一律沉到卡片底部（.re-sec-note），不作卡片首段正文：首段 <p> 与下面的
+# 数据只差 8px 间距、1px 字号，读起来像列表的第一项（credit 五段先犯的即此）。
+_NOTE_CLASS = re.compile(r'class="re-sec-note')
+# 研判横排小卡行只能由 R.judgeRow 产出（sig-row 只有它一个生产者）
+_SIGROW_INLINE = re.compile(r'class="sig-row"')
+
+
+def _kv_note_sig_pages() -> list[tuple[Path, str]]:
+    return [
+        (page, page.read_text("utf-8"))
+        for page in sorted(ASTRO_PAGES.rglob("*.astro"))
+        if page.name != "404.astro"
+    ]
+
+
+def test_kv_grid_and_sec_note_only_via_r_helpers() -> None:
+    """.re-kv-grid / .re-sec-note 只在 rates-common.js 里出现，页面不手抄形状。"""
+    offenders = []
+    for src, text in [
+        *_kv_note_sig_pages(),
+        *[(p, p.read_text("utf-8")) for p in sorted((STATIC / "js").glob("*.js"))],
+    ]:
+        for rx, helper in ((_KV_CLASS, "R.kvRows"), (_NOTE_CLASS, "R.secNote")):
+            if rx.search(text) and src != FRONTEND / "public" / "css" / "app.css":
+                offenders.append(f"{src.relative_to(ROOT)} 手写了 {helper} 的产物类名")
+    assert not offenders, f"键值行/段底注脚未走单源 helper：{offenders}"
+
+
+def test_judge_row_only_via_r_judge_row() -> None:
+    """研判横排小卡行（.sig-row）只由 R.judgeRow 产出，页面不再拼 re-section + sig-row。
+
+    例外两个（本轮未迁，形状与 judgeRow 不同构，迁移时删掉例外）：
+    - volatility：7 段叙事的 parts 段卡数由数据决定，同一张卡里还要混 <h2> 与图；
+    - geo：分主题明细把整组结论塞进一个 <ul>，不是「一段一格」。
+    """
+    exempt = ("volatility/index.astro", "geo/index.astro")
+    offenders = [
+        str(page.relative_to(ASTRO_PAGES))
+        for page, text in _kv_note_sig_pages()
+        if str(page.relative_to(ASTRO_PAGES)) not in exempt
+        and _SIGROW_INLINE.search(text)
+    ]
+    assert not offenders, f"以下页手拼 .sig-row，请改 R.judgeRow(items)：{offenders}"
+
+
+def test_credit_no_orphan_framework_note() -> None:
+    """credit 研判不再挂「框架：What changed / …」note —— 三格标题即该框架，同页说两遍。
+
+    只查渲染语句（模板串里的 `框架：`），注释里提这件事是允许的。
+    """
+    text = (ASTRO_PAGES / "credit" / "index.astro").read_text("utf-8")
+    rendered = "\n".join(
+        ln for ln in text.splitlines() if not ln.lstrip().startswith("//")
+    )
+    assert "框架：" not in rendered, (
+        "研判段又出现独立的框架 note；生成方式由页脚 R.foot 的 R.genText 说明"
+    )

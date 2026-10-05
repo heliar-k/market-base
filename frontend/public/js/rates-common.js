@@ -92,6 +92,56 @@ const R = {
     return `<div class="re-section"><h2>${R.esc(title)}</h2><div class="sig-row">${blocks}</div></div>`;
   },
 
+  // ── 动态卡片壳单源：JS 生成的 .re-section 一律走这里，不散写 createElement ──
+  secCard() {
+    const el = document.createElement('div');
+    el.className = 're-section';
+    return el;
+  },
+
+  // 段内注脚（口径 / 读法说明）：一律沉到卡片底部，不作卡片首段正文。
+  // 首段 <p> 与下面的数据只差 8px 间距、1px 字号，读起来像列表的第一项。
+  // 返回节点（同 table / cards / kvRows）：它是往卡里追加的块，用 appendChild 而不是拼串。
+  secNote(text) {
+    const el = document.createElement('div');
+    el.className = 're-sec-note';
+    el.textContent = text;
+    return el;
+  },
+
+  // ── 键值行网格（R.kvRows）：「一项一个数」的段用它，不写 2-4 列键值表 ──
+  // 表被拉到卡片全宽时，两列表的数值列甩到最右、中间一大片空白；改 R.cards 又会在
+  // 窄屏炸（卡片 ≤768 强制单列，一张 ~117px，7 项 800px+）。这里宽屏 auto-fit 铺满、
+  // 窄屏单列每行 ~28px。形状见 app.css .re-kv-grid。
+  //   items: [{ label, value, note, color }] —— value/color 由调用方负责（要着色 markup），
+  //   label/note 是自由文本，一律转义。
+  //   note 只放**真口径**（「10Y 分位 28.5%」「剔除政策利率」「停更」）：名称的中文展开/
+  //   翻译属于 label（写全），复述名称的 note 是噪声。
+  //   note 挂在**名称后面**而不是数字后面：数字后面放长短不一的注（「股」vs
+  //   「10Y 分位 28.5%」）会把右对齐的读数横向推开，一列里 5 个数落在 5 个位置，
+  //   纵向扫读失效（credit 金融条件段实测即此）。数字永远贴行右端 = 一条纵线。
+  kvRows(items) {
+    const box = document.createElement('div');
+    box.className = 're-kv-grid';
+    box.innerHTML = (items || []).map(i =>
+      `<div class="diag-row"><span class="diag-label">${R.esc(i.label)}`
+      + `${i.note ? ` <em>${R.esc(i.note)}</em>` : ''}</span>`
+      + `<span class="kv-v"${i.color ? ` style="color:${i.color}"` : ''}>${i.value}</span></div>`
+    ).join('');
+    return box;
+  },
+
+  // ── 研判段横排小卡行（一张外卡 + N 格内卡）──
+  // judgeCard 是「一段一卡」；语义标题各占一段、每段只有一句时（credit 三段式），
+  // 三张全宽卡叠起来 358px，收成一行三格只要 179px。
+  // 同形状的 volatility 页 parts 段仍是手拼 re-section + sig-row，要改形状时记得同改那处。
+  judgeRow(items) {
+    const blocks = (items || [])
+      .map(([title, body]) => R.sigBlocks(title, body))
+      .join('');
+    return blocks ? `<div class="re-section"><div class="sig-row">${blocks}</div></div>` : '';
+  },
+
   // ── 小节标题单源：中文为主，英文只作弱化注解 ──
   // 形状：中文标题 + 右侧 12px 弱化英文（窄屏自动换行到标题下方），杜绝「CORRELATION 跨资产相关性」
   // 这类中英堆叠标题。en 与 note 都给时拼成「NOW · 8 个核心 KPI…」。
