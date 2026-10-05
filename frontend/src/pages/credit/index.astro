@@ -290,6 +290,9 @@ const IDX_LAB = 'SPX 标普 500';
 const END_SHORT = { [BANK_LAB]: '银行', [IDX_LAB]: '大盘' };
 
 function renderCds(root, d) {
+  // 两张卡，不是一张卡里两个 <h2>：代理读数卡与走势图的标题行会直接贴在一块
+  // （.re-section 只给卡与卡之间的 16px，卡内 h2 不吃这个节奏）。
+  // root = .re-sec，本身就是 flex column + gap，两张卡直接挂它就是全站卡间节奏。
   const sec = R.secCard();
   root.appendChild(sec);  // 先挂文档再建图（R.mkChart 按 id 查 DOM，detached 时查不到）
   let sov = '<div class="proxy-card"><div class="label">主权信用代理 · 10Y 美债收益率</div>';
@@ -328,11 +331,16 @@ function renderCds(root, d) {
     // 标题走 R.secTitle 单源（不写内联样式 h3）；窗口写死「30 日」会错：
     // 剥掉快照周末行后 c.trading_days 才是真交易日数，起点日期由后端下发。
     // 另：不能用 sec.innerHTML +=（会重建子节点，把已 init 的图表 div 换成空白新节点）。
-    const box = document.createElement('div');
-    box.innerHTML = R.secTitle('银行板块相对大盘走势',
+    const csec = R.secCard();  // 无图时不建卡（空 .re-section = 一个 32px 的空框）
+    csec.innerHTML = R.secTitle('银行板块相对大盘走势',
       `${c.trading_days} 个交易日 · 起点 ${c.base_date} = 100`)
       + '<div class="chart" id="bank-chart"></div>';
-    sec.appendChild(box);
+    root.appendChild(csec);
+    // 图读法注脚归图卡（术语/代理口径归上方读数卡），现在追加正好落在图 div 之后
+    csec.appendChild(R.secNote(
+      '两线均按起点归一为 100（灰色水平虚线），高于 100 = 相对起点上涨；'
+      + '橙色实线（银行）跌到蓝色虚线（大盘）下方就是跑输。分歧度固定取近 14 个交易日，本图窗口更长'
+      + '（起点见标题），所以上下两处数值不相等、方向一致。价格为 Yahoo 日频收盘快照，非实时。'));
 
     // tooltip：归一化指数本身不是信息，「相对起点涨/跌多少」才是
     const val = (v) => (v == null ? '—' : `${v.toFixed(2)}（${v >= 100 ? '+' : ''}${(v - 100).toFixed(2)}%）`);
@@ -376,14 +384,13 @@ function renderCds(root, d) {
       ],
     }, colors));
   }
+  // 两段注脚各贴各的数据：术语/代理口径归上方读数卡，图读法归图卡
   sec.appendChild(R.secNote(
     'CDS（Credit Default Swap，信用违约互换）= 为债务人违约买保险的价格。真实 Markit '
     + 'CDX IG / CDX HY 与主权 CDS 报价为付费数据源（Bloomberg / Refinitiv 授权），'
     + '本页只用公开代理：主权信用用 10Y 美债收益率，银行系统风险用 KBWB（KBW 银行指数 ETF，'
     + '追踪美国大型银行）相对 SPX（标普 500，Yahoo ticker ^GSPC）的收益差。'
-    + '两线均按起点归一为 100（虚线），高于 100 = 相对起点上涨。'
-    + '分歧度（pp = 百分点，两个百分比之差）固定取近 14 个交易日，本图窗口更长（起点见标题），'
-    + '所以两者数值不相等、方向一致。价格为 Yahoo 日频收盘快照，非实时。'));
+    + 'pp = 百分点（两个百分比之差）。'));
 }
 
 // ── 压力指数明细：5 分量 + 历史曲线 + 跨资产对照 ──
