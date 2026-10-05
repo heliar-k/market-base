@@ -94,13 +94,10 @@ async function load() {
   // 卡间间距不再写 inline margin：special.css 的 `.re-root :has(> .re-section + .re-section)`
   // 已给持有 2+ 张卡的容器上 flex + gap；旧代码里的 `replace(/。/g, '。')` 是空操作（已删）。
   const ev = d.evaluation || {};
-  // 生成方式 note + 三段卡一次写入：note 仍在卡上方，但不再清掉小节标题（原
-  // `box.innerHTML =` + `afterbegin` 会把 Section 的 header 一并清掉）
-  R.setSection('re-eval',
-    `<div class="note">${R.genText(d.generator || ev.generator)} · 规则模板生成，基准数据见下方子页</div>`
-    + [ev.net_liquidity, ev.outlook, ev.reserves]
-      .filter(sec => sec && sec.text)
-      .map(sec => R.judgeCard(sec.title, sec.text, R.LINES_CONCLUSION)).join(''));
+  // 生成方式说明不在这里另挂 note：页底 #re-foot 已用 R.genText 说同一件事（同 labor/treasury）
+  R.setSection('re-eval', [ev.net_liquidity, ev.outlook, ev.reserves]
+    .filter(sec => sec && sec.text)
+    .map(sec => R.judgeCard(sec.title, sec.text, R.LINES_CONCLUSION)).join(''));
 
   R.foot(d.generator || ev.generator, {
     src: 'FRED（H.4.1 / 利率走廊 / NFCI）· DTS 日度现金流 · Treasury 拍卖 · CFETS 掉期点 · 央行互换（SWPT）',
