@@ -346,6 +346,10 @@ function renderCds(root, d) {
     const val = (v) => (v == null ? '—' : `${v.toFixed(2)}（${v >= 100 ? '+' : ''}${(v - 100).toFixed(2)}%）`);
     // 线尾直接标注 = 不靠颜色也能认出哪条线是哪个系列（末端位置由数据自己定）
     const end = (p) => (p.value == null ? '' : `${END_SHORT[p.seriesName]} ${p.value >= 100 ? '+' : ''}${(p.value - 100).toFixed(1)}%`);
+    // 窄屏（画布 <480px）收下线尾直接标注：它们全名已在图例里，
+    // 而 220px 的画布再扣 64px 右边距，曲线只剩 80px 可画。
+    // 取宽度写成函数：主题切换会重建 option（R.mkChart 重跑），那时重新量
+    const endOn = () => document.getElementById('bank-chart').clientWidth >= 480;
     R.mkChart('bank-chart', colors => R.lineOption({
       tooltip: {
         trigger: 'axis',
@@ -354,8 +358,10 @@ function renderCds(root, d) {
           .join('<br>'),
       },
       legend: { data: [BANK_LAB, IDX_LAB] },
-      // 右侧留 64px 给线尾直接标注（不靠颜色区分系列：末端写名字 + 基准线用虚线）
-      grid: { left: 48, right: 64, top: 32, bottom: 28 },
+      // 边距：containLabel 已为轴标签留过位（实测轴文字占 28px），这里只给绘区外留 8px。
+      // 原来写 left: 48 = 与 containLabel 重复留白，390px 屏下 220px 画布只给曲线留 80px；
+      // 改后 120px（+50%）。右侧只在线尾标注开着时留宽
+      grid: { left: 8, right: endOn() ? 64 : 8, top: 32, bottom: 28 },
       xAxis: {
         type: 'category', data: c.dates,
         axisLine: { lineStyle: { color: colors.border } },
@@ -366,7 +372,7 @@ function renderCds(root, d) {
         {
           name: BANK_LAB, type: 'line', data: c.kbwb, smooth: true, showSymbol: false, connectNulls: true,
           color: colors.orange, lineStyle: { width: 2, color: colors.orange },
-          endLabel: { show: true, formatter: end, color: colors.orangeText, fontSize: 11 },
+          endLabel: { show: endOn(), formatter: end, color: colors.orangeText, fontSize: 11 },
           // 起点基准线（= 100 的虚线）：y 轴 scale:true 会从 89 起画，没这条线读者算不出
           // 「相对起点跌了多少」。不另配线上文字 —— 标题已写「起点 {base_date} = 100」，
           // 而左端正好是两线起点，标上去必被曲线压住（上一轮实测即此）
@@ -379,7 +385,7 @@ function renderCds(root, d) {
           name: IDX_LAB, type: 'line', data: c.spx, smooth: true, showSymbol: false, connectNulls: true,
           // 基准系列用虚线：线型与颜色两道区分（只靠色相 = 色弱/黑白打印读不出）
           color: colors.blue, lineStyle: { width: 1.5, color: colors.blue, type: 'dashed' },
-          endLabel: { show: true, formatter: end, color: colors.text, fontSize: 11 },
+          endLabel: { show: endOn(), formatter: end, color: colors.text, fontSize: 11 },
         },
       ],
     }, colors));
