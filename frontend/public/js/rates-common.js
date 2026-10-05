@@ -128,6 +128,18 @@ const R = {
       + `${i.note ? ` <em>${R.esc(i.note)}</em>` : ''}</span>`
       + `<span class="kv-v"${i.color ? ` style="color:${i.color}"` : ''}>${i.value}</span></div>`
     ).join('');
+    // 列间分隔线：grid 列数由 auto-fit 运行时决定，CSS 选不出「每列首行」，
+    // 所以读一次计算出的轨道数，给非首列的行上类（窄屏 1 列 → 不上类，无线）。
+    // 线用绝对定位伪元素画在 gap 正中，不占布局 → 不会改宽度反过来改变列数。
+    const rows = [...box.children];
+    let lastN = 0;
+    const mark = () => {
+      const n = getComputedStyle(box).gridTemplateColumns.split(' ').length;
+      if (n === lastN) return;
+      lastN = n;
+      rows.forEach((r, i) => r.classList.toggle('kv-cont', n > 1 && i % n !== 0));
+    };
+    new ResizeObserver(mark).observe(box);
     return box;
   },
 
