@@ -94,6 +94,7 @@ async function load() {
     + '<div class="note" style="margin-bottom:4px">Tail = 中标利率 − 中位投标利率 · 点大小 = 发行规模 · 空心 = 重开 · 虚线 = 各期限均值</div>'
     + '<div class="re-chart" id="tail_chart"></div>');
   card(R.secTitle('间接投标占比趋势', '', '10 / 30Y，%，外国官方 + 国际机构需求')
+    + '<div class="note" style="margin-bottom:4px">点 = 单场拍卖 · 空心 = 重开 · 点线（无数据点）= 均值 · 悬停看单场明细</div>'
     + '<div class="re-chart" id="indirect_chart"></div>');
   card(R.secTitle('供给前瞻：Bill 占比', '', 'MSPD 月频 + 日频派生')
     + '<div class="re-chart" id="bill_chart"></div>');
@@ -178,37 +179,50 @@ async function load() {
   }));
 
   // ── 间接投标占比趋势 ──
+  // 图内零文字（与本页 BTC / Tail 两图同一约定）：均值写进图例名、markLine 不标注，
+  // 极值靠 tooltip 而非 markPoint。原先 12 处图内文字（2 个加粗均值标签钉 insideEndTop
+  // + 4 个极值标签）会互相叠：两条线值域同带（近 1 年 50–79%）、末端两点都到 79 并合，
+  // max 标签被顶出 grid 上沿撞图例行，min 标签压 x 轴日期，两个均值标签在右端叠在一起。
   const indNames = ['10Y', '30Y'];
+  const indMean = (pts) => pts.reduce((s, p) => s + p.value, 0) / pts.length;
   R.mkChart('indirect_chart', (colors) => R.lineOption({
-    legend: { data: indNames, top: 8, right: '2%', textStyle: { color: colors.text, fontSize: 12 } },
-    tooltip: { trigger: 'axis', valueFormatter: v => `${Number(v).toFixed(0)}%` },
-    grid: { top: 44, left: 48, right: 16, bottom: 24 },
+    legend: { data: indNames.map(n => `${n}（均 ${indMean(auc.indirect_trend[n]).toFixed(0)}）`) },
+    tooltip: {
+      trigger: 'axis',
+      // 极值标注删掉后，单场明细（值 · 发行规模 · 是否重开）回到 tooltip
+      // 日期取数据点自带的 ISO 串（ps[0].axisValue 在 time 轴是毫秒时间戳，直接拼会打出 1778515200000）
+      formatter: (ps) => {
+        const day = ps[0].value[0];
+        return `${R.md(new Date(day))} · ${day}` + ps.map(p => {
+          const n = p.seriesName.slice(0, p.seriesName.indexOf('（'));
+          const raw = auc.indirect_trend[n][p.dataIndex];
+          return `<br/>${p.marker}${n} ${Number(p.value[1]).toFixed(1)}%`
+            + `${raw.size != null ? ` · $${raw.size}B` : ''}${raw.reopening ? ' · 重开' : ''}`;
+        }).join('');
+      },
+    },
+    // grid.top 用 lineOption 默认 36：不再 scale:true 顶满轴域，极值不再贴画布边
+    grid: { left: 48, right: 16, bottom: 24 },
     xAxis: { type: 'time', axisLabel: { color: colors.muted, fontSize: 10, formatter: R.md }, axisLine: { lineStyle: { color: colors.border } } },
-    yAxis: { type: 'value', scale: true, axisLabel: { color: colors.muted, formatter: '{value}%' }, splitLine: { lineStyle: { color: colors.grid } } },
+    // 固定轴域（近 1 年实测 50–79%）：上下各留一档呼吸，线不再顶到画布边
+    yAxis: { type: 'value', min: 45, max: 85, interval: 10, axisLabel: { color: colors.muted, formatter: '{value}%' }, splitLine: { lineStyle: { color: colors.grid } } },
     series: indNames.map(n => {
       const m = { '10Y': colors.red, '30Y': colors.purple }[n];
-      const pts = auc.indirect_trend[n];
-      const mean = pts.reduce((s, p) => s + p.value, 0) / pts.length;
+      const mean = indMean(auc.indirect_trend[n]);
       return {
-        name: n, type: 'line', color: m, // 图例图标取 series 顶层 color，只设 lineStyle/itemStyle 会用到调色板默认色
-        data: pts.map(p => ({
+        name: `${n}（均 ${mean.toFixed(0)}）`, type: 'line', color: m, // 图例图标取 series 顶层 color，只设 lineStyle/itemStyle 会用到调色板默认色
+        data: auc.indirect_trend[n].map(p => ({
           value: [p.date, p.value],
           symbol: p.reopening ? 'emptyCircle' : 'circle',
           symbolSize: p.reopening ? 6 : 7,
           itemStyle: { color: m, borderColor: m, borderWidth: 1.5 },
         })),
-        lineStyle: { color: m, width: 2 },
+        // 30Y 走虚线：两条线值域重叠，不只靠色相区分（reSyncLegend 自动把图例色块换成虚线）
+        lineStyle: { color: m, width: 2, type: n === '30Y' ? 'dashed' : 'solid' },
+        labelLayout: { hideOverlap: true },
         markLine: {
           silent: true, symbol: 'none',
-          data: [{ yAxis: mean, label: { formatter: `${n} 均值 ${mean.toFixed(0)}%`, color: m, fontSize: 11, fontWeight: 'bold', position: 'insideEndTop' }, lineStyle: { color: m, type: 'dashed', width: 1 } }],
-        },
-        markPoint: {
-          symbolSize: 4,
-          data: [
-            { type: 'max', name: '最高', label: { position: 'top' } },
-            { type: 'min', name: '最低', label: { position: 'bottom' } },
-          ],
-          label: { fontSize: 9, color: colors.muted, formatter: p => `${Number(p.value).toFixed(0)}%` },
+          data: [{ yAxis: mean, label: { show: false }, lineStyle: { color: m, type: 'dotted', width: 1, opacity: 0.8 } }],
         },
       };
     }),
