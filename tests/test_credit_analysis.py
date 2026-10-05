@@ -344,4 +344,54 @@ class TestCdsUnits:
         # DGS10 = 4.5（百分数）→ 存 450.0 bp，单位得跟着走
         assert out["sovereign"]["value"] == 450.0
         assert out["sovereign"]["unit"] == "bp"
-        assert out["bank"]["unit"] == "pct"
+        # divergence 是两个涨跌幅之差 = 百分点（pp），不是 pct
+        assert out["bank"]["unit"] == "pp"
+
+
+class TestCdsTradingDays:
+    """快照管线的周末占位行不能当观测：否则 14 日分歧度只回溯 9 个交易日。
+
+    fixture 形状完全复现 bin/fetch_yfinance 的写入：每个日历日一行，
+    周末把周五收盘原样续写。KBWB 逐交易日 +1%、SPX 持平，
+    所以真实 14 日分歧度 = 14 个交易日的复合涨幅，能直接手算。
+    """
+
+    @staticmethod
+    def _snapshot_with_weekends():
+        idx = pd.date_range(
+            "2026-08-03", periods=30, freq="D"
+        )  # 周一开头，含 8 个周末行
+        kb_vals, sp_vals, prev = [], [], None
+        step = 0
+        for d in idx:
+            if d.weekday() < 5:
+                step += 1
+                prev = 100.0 * 1.01**step
+            kb_vals.append(prev)  # 周末 = 上一行（周五收盘）原样续写
+            sp_vals.append(5000.0)
+        return pd.DataFrame({"KBWB": kb_vals, "SPX": sp_vals}, index=idx)
+
+    def test_chart_dates_are_trading_days_only(self):
+        yf = self._snapshot_with_weekends()
+        chart = cds(pd.DataFrame(dtype=float), yf)["bank"]["chart"]
+        dates = pd.to_datetime(chart["dates"])
+        assert (dates.weekday < 5).all(), f"归一化图含非交易日：{list(chart['dates'])}"
+
+    def test_divergence_uses_trading_day_window(self):
+        df_yf = self._snapshot_with_weekends()
+        b = cds(pd.DataFrame(dtype=float), df_yf)["bank"]
+        # KBWB 逐交易日 +1%，14 个交易日 = 1.01**14 - 1；SPX 持平
+        assert b["days"] == 14
+        assert b["kbwb_chg"] == pytest.approx(round((1.01**14 - 1) * 100, 2), abs=0.02)
+        assert b["spx_chg"] == 0.0
+        assert b["divergence"] == pytest.approx(b["kbwb_chg"], abs=0.02)
+        # 回归哨兵：按日历行数取窗口只回溯 9 个交易日，值会明显偏小
+        assert b["kbwb_chg"] > round((1.01**9 - 1) * 100, 2) + 1
+
+    def test_chart_exposes_window_metadata(self):
+        """前端要写明「谁 = 100 / 从哪天起」，后端得把起点与窗口长度下发。"""
+        yf = self._snapshot_with_weekends()
+        c = cds(pd.DataFrame(dtype=float), yf)["bank"]["chart"]
+        assert c["base_date"] == c["dates"][0]
+        assert c["trading_days"] == len(c["dates"])
+        assert c["kbwb"][0] == 100.0 and c["spx"][0] == 100.0

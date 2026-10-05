@@ -33,6 +33,47 @@ def read_csv_or_empty(path: Path, index_col: str = "date") -> pd.DataFrame:
     return pd.read_csv(path, index_col=index_col)
 
 
+# 7×24 标的：周末行是真实行情，不是快照占位
+SEVEN_DAY = frozenset({"BTC", "ETH"})
+
+
+def trading_only(s: pd.Series, seven_day: bool = False) -> pd.Series:
+    """剥掉日频快照管线里的周末占位行（7×24 标的传 seven_day=True 原样返回）。
+
+    bin/fetch_yfinance 走 save_daily_csv：按**拉取日**追加一行，周末也把最新
+    已知价（与成交量）原样续写。这些行不是观测，却占了索引位：`tail(30)` 只
+    有 20 个交易日、chg_pct(s, 14) 实际只回溯 9 天（credit CDS 页实测低估 60%）。
+
+    序列以周末结尾时，尾部周末行携带着 Yahoo 对最后交易日的收盘修订（真数据）
+    → 先回灌到那个交易日再删行；周末夹在中间时（后面还有真实交易日）直接删。
+
+    ponytail: 只处理周末。周中节假日停市同样会产生占位行，但要精确剔除得挂
+    交易日历（Fed H16 / pandas MarketCalendar），且快照次日续写会自愈；
+    需要逐日精确窗口时再升级。
+    """
+    s = s.dropna()
+    if seven_day or s.empty:
+        return s
+    wknd = s.index.weekday >= 5
+    if not wknd.any():
+        return s
+    if wknd[-1] and (~wknd).any():
+        last_wd = s.index[~wknd][-1]
+        s.loc[last_wd] = s[s.index > last_wd].iloc[-1]
+    return s[~wknd]
+
+
+def clean_snapshot(df: pd.DataFrame, seven_day=SEVEN_DAY) -> pd.DataFrame:
+    """日频快照宽表（列=标的）→ 逐列剥掉周末占位行。
+
+    各列索引长度因此不再一致，但下游一律按列 dropna 后单独取值（credit /
+    assets 的分析层都是这个形状），不影响使用。
+    """
+    return pd.DataFrame(
+        {c: trading_only(df[c], seven_day=c in seven_day) for c in df.columns}
+    )
+
+
 def latest(s: pd.Series) -> float | None:
     """最后一个非 NaN 值；空序列返回 None。"""
     s = s.dropna()

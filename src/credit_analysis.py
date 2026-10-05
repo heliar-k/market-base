@@ -24,8 +24,14 @@ import pandas as pd
 
 from src.analysis_utils import chg_pct as _chg_pct
 from src.analysis_utils import chg_prev as _chg_prev
+from src.analysis_utils import (
+    clean_snapshot,
+    read_csv_or_empty,
+    release_dates,
+    trading_only,
+    zone,
+)
 from src.analysis_utils import latest as _latest
-from src.analysis_utils import read_csv_or_empty, release_dates, zone
 from src.config import ROOT, config
 
 FRED_DIR = ROOT / "data" / "fred"
@@ -52,7 +58,14 @@ def _read(category: str) -> pd.DataFrame:
 
 
 def _read_yf() -> pd.DataFrame:
-    return read_csv_or_empty(ROOT / "data" / "yfinance" / "asset_prices.csv")
+    """yfinance 日频快照宽表，已剥掉周末占位行（见 analysis_utils.trading_only）。
+
+    本页所有涨跌幅/分位/动量都按交易日口径算，直接读原文件会把快照续写的
+    周末行当观测（credit CDS 页因此把 14 日分歧度算成 9 个交易日）。
+    """
+    return clean_snapshot(
+        read_csv_or_empty(ROOT / "data" / "yfinance" / "asset_prices.csv")
+    )
 
 
 def _read_ofr() -> pd.DataFrame:
@@ -498,12 +511,14 @@ def cds(df_rates: pd.DataFrame, df_yf: pd.DataFrame) -> dict:
             "as_of": s10.index[-1].strftime("%Y-%m-%d"),
         }
 
-    # 银行系统风险代理：KBWB vs SPX 14 日收益偏离
+    # 银行系统风险代理：KBWB vs SPX 14 个交易日收益偏离
+    # 这里再过一道 trading_only：_read_yf() 已洗过，但 cds() 也被测试/脚本直接
+    # 喂原始快照调用——口径守在算数的地方，不靠调用方记得洗。
     for col in ("KBWB", "SPX"):
         if col not in df_yf:
             return out
-    kb = df_yf["KBWB"].dropna()
-    sp = df_yf["SPX"].dropna()
+    kb = trading_only(df_yf["KBWB"])
+    sp = trading_only(df_yf["SPX"])
     days = min(14, max(1, min(len(kb), len(sp)) - 1))
     if days >= 1:
         kb_chg = _chg_pct(kb, days)
@@ -513,28 +528,36 @@ def cds(df_rates: pd.DataFrame, df_yf: pd.DataFrame) -> dict:
                 "divergence": round(kb_chg - sp_chg, 2),
                 # unit 说的是本卡片的头条值 divergence：两个涨跌幅之差 = 百分点（pp）；
                 # kbwb_chg / spx_chg 则是 %。前端不再硬编码单位文案。
-                "unit": "pct",
+                # （原先下发 "pct"，与上方注释矛盾：-5.84 渲染成「-5.84pct」）
+                "unit": "pp",
                 "kbwb_chg": kb_chg,
                 "spx_chg": sp_chg,
                 "days": days,
                 # 快照末点日期：前端标注，避免停更时用户当成近期行情
                 "as_of": kb.index[-1].strftime("%Y-%m-%d"),
             }
-            # 近 30 日归一化序列（起=100），供双线图
+            # 近 30 个交易日归一化序列（起点 = 100），供双线图。
+            # 窗口是「交易日」而不是日历日：周末占位行已在上面剥掉，否则标称 30 日
+            # 只画得出 20 个交易日，且 1/3 的线是水平假台阶。
             n = min(30, len(kb), len(sp))
             kb_t = kb.tail(n)
             sp_t = sp.tail(n)
             base = min(kb_t.index[0], sp_t.index[0])
-            kb_t = kb[kb.index >= base].dropna()
-            sp_t = sp[sp.index >= base].dropna()
+            kb_t = kb[kb.index >= base]
+            sp_t = sp[sp.index >= base]
             idx = kb_t.index.union(sp_t.index)
-            kb_n = kb_t.reindex(idx).ffill()
-            sp_n = sp_t.reindex(idx).ffill()
+            # 不回灌 ffill：缺值就留 null（图上断开），把停牌日画成平线是造假数据
+            kb_n = kb_t.reindex(idx)
+            sp_n = sp_t.reindex(idx)
             first_kb = kb_n.dropna().iloc[0] if not kb_n.dropna().empty else None
             first_sp = sp_n.dropna().iloc[0] if not sp_n.dropna().empty else None
             if first_kb and first_sp:
                 out["bank"]["chart"] = {
                     "dates": [d.strftime("%Y-%m-%d") for d in idx],
+                    # 归一化起点：前端写「起于 {base_date} = 100」，否则读者不知道
+                    # 谁 = 100、也不知道从哪天算起
+                    "base_date": idx[0].strftime("%Y-%m-%d"),
+                    "trading_days": len(idx),
                     "kbwb": [
                         round(float(v / first_kb * 100), 2) if pd.notna(v) else None
                         for v in kb_n
