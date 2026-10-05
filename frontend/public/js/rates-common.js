@@ -348,7 +348,12 @@ const R = {
     const c = colors || R.colors();
     const base = {
       legend: { top: 4, right: 8, icon: 'rect', textStyle: { color: c.text, fontSize: 11 } },
-      grid: { top: 36, left: 48, right: 16, bottom: 24 },
+      // 边距只给「绘区外留白」：echarts-theme.js 的主题 grid 已设 containLabel: true
+      // （实测会合并进这里出的每张图），轴标签/轴名的宽度由它自己算。
+      // 原来写 left: 48 = 与 containLabel 重复留白：窄屏（390px 下画布只 220px）
+      // 绘图区被挤到 110px 左右，曲线/柱子糊成一团；改后轴标签宽 20–44px 的图
+      // 各拿回 30–40px。页面确实需要额外留白（线尾 endLabel、双轴）时自己传 left/right。
+      grid: { top: 36, left: 8, right: 16, bottom: 24 },
     };
     const out = Object.assign({}, base, over);
     if (over && over.legend) out.legend = Object.assign({}, base.legend, over.legend);
@@ -375,13 +380,30 @@ const R = {
     const ser = opt && opt.series ? [].concat(opt.series) : [];
     return !ser.some(s => R._hasPoint(s));
   },
+  // 窄屏压缩「左侧栅格外边距」（全站图表唯一出口）。
+  // 背景：echarts-theme.js 的主题 grid 带 containLabel: true，轴标签宽度由 ECharts
+  // 自己算；但 38 处页面声明又传了桌面尺度的数字 left（48–110px），两者相加 =
+  // 轴标签的位留了两遍。390px 屏下画布只 218–262px，left:48 就是白吃 20%+ 绘图区
+  // （最差的 /liquidity/operations/ 柱图只剩 50px）。实测仅压 left 就回收 ~1900px。
+  // 只在画布 <480px 生效（桌面一行像素不动），且跳过 containLabel:false 的图
+  // （那类 left 就是轴标签本身的位子，如 rates/yield-curve 的 yc_change）。
+  // right 不动：它可能是双轴右轴名 / 柱末数值标注（vol-cross-chart）/ 线尾 endLabel
+  // 的位子，containLabel 不保护这些，压了会把标注裁出画布。
+  _clampGrid(opt, w) {
+    if (!opt || !opt.grid || !w || w >= 480) return opt;
+    (Array.isArray(opt.grid) ? opt.grid : [opt.grid]).forEach((g) => {
+      if (!g || g.containLabel === false) return;
+      if (typeof g.left === 'number') g.left = Math.min(g.left, 8);
+    });
+    return opt;
+  },
   mkChart(id, option) {
     const dom = document.getElementById(id);
     if (!dom) return null;
     dom.classList.add('skeleton'); // 骨架屏占位（app.css .skeleton）：首次 setOption 后摘除，主题重建不重复挂
     const render = () => {
       if (window.registerMacroTheme) registerMacroTheme();
-      const opt = option(R.colors());
+      const opt = R._clampGrid(option(R.colors()), dom.clientWidth);
       if (R.isEmptyOption(opt)) {
         // 空态：不 init、不注册主题/resize（无实例可重绘）；只铺一次文案，避免主题循环重复写
         dom.classList.remove('skeleton');
@@ -404,7 +426,16 @@ const R = {
       try { chart.dispose(); } catch (e) { /* 已被外部 dispose */ }
       chart = render();
     });
-    new ResizeObserver(() => chart.resize()).observe(dom);
+    // 栅格边距在 render 时按当时宽度算（_clampGrid），所以跨过窄屏/宽屏分界得重建；
+    // 只在布尔翻转时重建（一个图最多重建几次），resize 中间帧仍只走 chart.resize()
+    let narrow = dom.clientWidth < 480;
+    new ResizeObserver(() => {
+      const n = dom.clientWidth < 480;
+      if (n === narrow) { chart.resize(); return; }
+      narrow = n;
+      try { chart.dispose(); } catch (e) { /* 已被外部 dispose */ }
+      chart = render();
+    }).observe(dom);
     return chart;
   },
 
