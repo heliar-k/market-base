@@ -539,8 +539,61 @@ uv run python src/sell_put.py --symbol TSM
   `'/….html'` 链接都要有 `_redirects` 重写行（#26，漏一行即静默 404；刻意不查孤儿），
   另含 `node --check` 过全部 `is:inline` 脚本）。改前端收尾必跑：`uv run python -m pytest tests/test_static_single_source.py
   tests/test_semantic_text_contrast.py -q` + `cd frontend && npm run build`
+- **表格卡内节奏单源（出血 + 首列光学补偿）**：`special.css` 的 `:is(.re-section, .fx-group, .re-panel) >
+  .re-table-wrap:has(> .re-table:only-child)` 把表头色带铺到卡片边（实测距卡内缘 9px），首列文字回内容栅格线
+  （21px）再 +1px 光学补偿。**新表想要这个节奏，宿主必须是带卡面的块（`.re-section` / `.fx-group` /
+  `.re-panel`）且 wrap 里只能有表**：标题/注写在 wrap 外作卡的直接子元素（写进去会被出血推出内容线）；
+  段里只有一张表又没有自带卡面子元素的，给 `<Section card>` 而不是手包 `.re-section`（后者会接管标题字号）。
+  三类**故意不出血**：多列网格的列（commodities 3 列 / `eq-radar-grid` / `vol-top-row` —— 各列色带本就与
+  自己那列的 h3 对齐，出血会伸进 12px 列间隙相撞）、自带内缩边框的 `.pm-raw` 虚线框与 `.re-scroll-y` 滚动盒
+  （相对自己那层对齐）。全站实测 73 张 = A 形 52 + 上述 21
 - **已审计过的死路（勿重开）**：全站零自实现手势，不加 `touch-action`（加了反而禁掉表格纵向滑动）；
   触控目标门槛是 **24 CSS px**（WCAG 2.2），44 是 iOS pt / Android dp，`.range-btn` 实算 ≈24.4px 已过线
+
+### 9. 前端视觉调试回路（像素级对齐 / 部署验证）
+
+> 起因：跨资产相关性热力图改 `grid.left` 70→40→10 肉眼无变化，以及表格首列对齐普查，
+> 摸出一套「量→改→验」的回路。临时探针脚本不入库（`/tmp/re_*.py` 重启即没），
+> 按下面描述重写即可。
+
+**预览只有 `:4321`**：`cd frontend && npx astro dev`。改 `src/pages/*.astro` / `public/css` / `public/js` 即时生效；
+导出的 API JSON 在 `public/api/` 下，dev 直接能读，**不需要后端**。注意它监听 IPv6 `::1`，
+用 `http://localhost:4321/`，`127.0.0.1` 连不上。`:8000`（`src.server`）发的是 `frontend/dist/` 构建产物，
+改 `.astro` 看不到，别拿它迭前端。
+
+**量像素用 Playwright**（`uv run python` + async）：`goto(wait_until="domcontentloaded")` 后
+`wait_for_timeout(2200)` 等 JS 填完卡。量文字左缘用 `Range.selectNodeContents(th)` 取 rect，
+再减去卡片 rect（卡边框 1px + padding 20px → 内容栅格线 = 21px）。
+
+**ECharts 图内部几何**：`echarts.getInstanceByDom(el).convertToPixel({gridIndex:0},[0,0])` / `[1,0]`
+反推栅格矩形与格宽。**热力图这类不透明填充的图，用「找第一个非透明像素」量不到文字** ——
+要走亮度过滤（`250 < r+g+b < 620 && max-min < 45` 只留深色文字墨迹）。
+
+**CSS 四条坑（都踩过）**：
+- **ECharts 主题会深合并进每个 option**：`js/echarts-theme.js` 的 `grid` 带 `containLabel: true`，
+  所以页面里写 `grid.left` 是「含轴标签的外边距」，不是格子位置 —— 标签宽 ~47px 时，
+  `left` 从 70 改到 10 全都触底，数值小于标签宽就是噪声。要验证就浏览器内 `inst.setOption({grid:[{left:v}]})`
+  重测，别猜
+- **`--re-cell-pad-x` 自相抵消**：出血的 `margin` 与单元格 `padding` 用同一个变量，
+  调它色带跟着走、首列文字纹丝不动（实测 12→24 时色带 -11→-23px、文字钉死 21px）。
+  想动首列文字只加 `padding-left`（光学补偿那 1px 就是这么来的）
+- **`:has()` 是「含有」不是「只含有」**：`:has(> .re-table)` 照样命中 wrap 里还有标题/注/筛选器的表，
+  出血会把那些文字一起推出内容栅格线（equities 目标价表的标题 21→9px，守卫从来没生效过）。
+  要「只有表」写 `:has(> .re-table:only-child)`
+- **`:has()` 里嵌 `:has()` 在 Chrome 直接抛 SyntaxError**（连 `querySelectorAll` 都跑不动），
+  所以「段内只有单表且无其他卡面子元素」这类结构判别没有 CSS-only 的路，
+  得在源码落一个类（`Section.astro` 的 `card` prop → `.re-panel`）
+
+**Playwright 注入的 CSS 每次 `goto` 后被清**：多页扫描要在 goto 之后重新 `add_style_tag`；
+且注入式原型**只能证明「新规则命中什么」，证不了「删掉旧规则会掉出什么」**（只加不减），
+真改 CSS 文件后必须复跑全站普查。
+
+**部署验证两条**：
+- 等结果用轮询 `gh run view <id> --json status --jq .status` 直到 completed，**别用 `gh run watch`**
+  （非 TTY 只打一次状态快照就 exit 0，假成功）
+- curl 线上产物 grep 改动关键字之前，**先确认这次请求本身成功**：本地代理 TLS 抖时
+  curl 会留下半截 HTML 甚至空文件，grep 计数 0 会被当成「没上线」。认 `http_code` + 字节数
+  （和本地 `frontend/dist/` 对照）再认 grep；连 1.1.1.1 都超时的时候，验不了不等于没生效。
 
 ---
 
