@@ -300,6 +300,23 @@ a.re-badge:hover { color: var(--accent-ink); border-color: var(--accent-ink); }
 /* 资产分组表：日期列不折行（index 页 6 分组价格表；名称列允许换行，以免窄列挤出日期） */
 #asset-groups .re-table td:last-child { white-space: nowrap; }
 
+/* 首列光学对齐（全站，挂在出血规则上）：出血的表首列文字正好压在内容栅格线上，
+ * 与同卡标题同线（数学对齐）。但表头/代码列多为拉丁缩写或日期（SPX / TLT / 2026-10-02），
+ * 12px 小字号视觉重量比 14px/700 的中文标题轻，读起来像缩得少 —— 故首列右移 1px 找光学平衡
+ *（曾试过 3px，按视觉判断偏大；1px 为最终取值）。
+ * 只加 padding-left、不动 --re-cell-pad-x 本身：出血量用同一变量，改它会抵消且把色带推出卡边
+ *（实测 padding 12→24 时色带 -11→-23px，文字纹丝不动）。
+ * 副作用：A 形里 6 张首列为中文的表（/fed/ 姓名、/geo/ 主题、/inflation/ 分项、/labor/ 指标、
+ * /treasury/ 持有方与品种）也一并 +1px；CJK 字形满框本不需补，但 1px 在肉眼阈值下。
+ * 选择器与上面出血规则同构，因此只命中「色带铺到卡边」的 A 形表（37 张）；
+ * 未出血的 B 形表首列本就内缩 12px，不在此列。`.re-scroll-y` 的 8px 内缩特异性更高，不受影响。 */
+.re-section > .re-table-wrap:has(> .re-table) .re-table th:first-child,
+.re-section > .re-table-wrap:has(> .re-table) .re-table td:first-child,
+.fx-group > .re-table-wrap:has(> .re-table) .re-table th:first-child,
+.fx-group > .re-table-wrap:has(> .re-table) .re-table td:first-child {
+  padding-left: calc(var(--re-cell-pad-x) + 1px);
+}
+
 /* ── 期权市场结构（timsun 复刻样式）── */
 .opt-regime { border: 1px solid var(--border); border-radius: 12px; background: var(--surface); padding: 20px 24px; display: flex; flex-direction: column; gap: 8px; }
 /* regime 结论块与下方 KPI 卡行之间留 12px（卡行自己不带外边距） */
