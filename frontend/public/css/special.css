@@ -138,6 +138,15 @@ body.embedded .re-foot { display: none; } /* 内嵌 iframe 不重复页脚 */
 .fx-group > .re-table-wrap:has(> .re-table) {
   margin-left: calc(-1 * var(--re-cell-pad-x)); margin-right: calc(-1 * var(--re-cell-pad-x));
 }
+/* 多包一层的单列卡内表（treasury 拍卖日历/最近结果：.re-section > div#re-upcoming > wrap）
+ * 上面那条直接子级选择器碰不到。不能放宽成后代：网格列里的 wrap 也命中，会撞出 8 处 12px 重叠。
+ * 用 :only-child 按结构区分——包装层里只有这一张表 = 单列，可以铺到卡边；
+ * 「h3 + 表」（≥2 个子）= 网格列，各列色带本就与自己那列的 h3 对齐（实测差值 0），不动。
+ * 实测全站 33 页：出血 37 → 39（+2 张即 treasury），相邻色带相撞 0 → 0，390px 页面溢出自 0。 */
+.re-section > * > .re-table-wrap:has(> .re-table):only-child,
+.fx-group > * > .re-table-wrap:has(> .re-table):only-child {
+  margin-left: calc(-1 * var(--re-cell-pad-x)); margin-right: calc(-1 * var(--re-cell-pad-x));
+}
 .re-source { font-size: 11px; color: var(--text-dim); }
 .re-badges { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
 .re-badge.chip { font-size: 11px; padding: 2px 10px; }
@@ -313,7 +322,11 @@ a.re-badge:hover { color: var(--accent-ink); border-color: var(--accent-ink); }
 .re-section > .re-table-wrap:has(> .re-table) .re-table th:first-child,
 .re-section > .re-table-wrap:has(> .re-table) .re-table td:first-child,
 .fx-group > .re-table-wrap:has(> .re-table) .re-table th:first-child,
-.fx-group > .re-table-wrap:has(> .re-table) .re-table td:first-child {
+.fx-group > .re-table-wrap:has(> .re-table) .re-table td:first-child,
+.re-section > * > .re-table-wrap:has(> .re-table):only-child .re-table th:first-child,
+.re-section > * > .re-table-wrap:has(> .re-table):only-child .re-table td:first-child,
+.fx-group > * > .re-table-wrap:has(> .re-table):only-child .re-table th:first-child,
+.fx-group > * > .re-table-wrap:has(> .re-table):only-child .re-table td:first-child {
   padding-left: calc(var(--re-cell-pad-x) + 1px);
 }
 
