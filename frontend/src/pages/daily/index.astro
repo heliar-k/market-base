@@ -222,12 +222,14 @@ function renderReadings(list) {
         <span class="re-badge chip" style="margin-left:6px">1Y 分位 ${r.pct_1y ?? '—'}%</span>
         <span class="re-badge chip" style="margin-left:4px">方向 <span class="${dirCls(r.key, r.dir)}">${r.dir === 1 ? '↑ 上行' : r.dir === -1 ? '↓ 下行' : r.dir === 0 ? '→ 持平' : '数据不足'}</span></span>
       </div>
+      <!-- min-width:min(100%,260px)：裸写 260px 在 320px 视口（卡片内容列 150px）撑破卡片，
+           与 grid 轨道同一个坑：min-width 不会缩到容器以下 -->
       <div style="display:flex;gap:12px;flex-wrap:wrap;margin-top:10px">
-        <div class="db-bull" style="flex:1;min-width:260px">
+        <div class="db-bull" style="flex:1;min-width:min(100%, 260px)">
           <div style="font-size:11px;font-weight:600;margin-bottom:4px" class="up">信号</div>
           <div style="font-size:12px">${r.signal}</div>
         </div>
-        <div class="db-bear" style="flex:1;min-width:260px">
+        <div class="db-bear" style="flex:1;min-width:min(100%, 260px)">
           <div style="font-size:11px;font-weight:600;margin-bottom:4px" class="down">证伪条件</div>
           <div style="font-size:12px">${r.refute}</div>
         </div>

@@ -242,14 +242,17 @@ function renderHero(m) {
     return `<div class="row"><span class="lab ${cls}">${label}</span>
       <div class="track"><div class="f-zq" style="width:${z * 100}%;background:${color}"></div>
         <div class="f-pm" style="width:${p * 100}%;background:${color}"></div></div>
-      <span class="val"><i>${pct1(z)}</i><s>/</s><u>${pct1(p)}</u></span>
+      <span class="val"><i>${pct1(p)}</i><s>/</s><u>${pct1(z)}</u></span>
       <span class="chip">${agg ? dchip(z, p) : ''}</span></div>`;
   }).join('');
   const exp = expCls(m.expectation);
   el.innerHTML = `
-    <div class="hc-head" style="position:relative"><span class="hc-date">${m.meeting_date}</span>
+    <!-- 胶囊不能写 position:absolute：绝对定位不参与 flex 布局，.hc-head 的 flex-wrap 不会给它让位，
+         窄屏会直接压住日期/标签（实测 320px 重叠 6px、421–440px 重叠 16px）。
+         贴右改用 CSS 的 margin-left:auto（见 special.css .hc-head）。 -->
+    <div class="hc-head"><span class="hc-date">${m.meeting_date}</span>
       <span class="hc-tag">${dLabelGlobal(m.meeting_date)} · ${m.contract_used || m.contract}</span>
-      <span class="re-expectation ${exp}" style="position:absolute;right:0;top:2px">${m.expectation}</span></div>
+      <span class="re-expectation ${exp}">${m.expectation}</span></div>
     <div class="hc-verdict"><div class="duel">${duel}</div></div>
     <div class="hc-bk">${rows}</div>
     <div class="hc-foot"><span>PM 24h成交 <b>${money(m.polymarket?.volume24hr)}</b></span>

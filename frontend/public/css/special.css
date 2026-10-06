@@ -192,7 +192,10 @@ a.re-badge:hover { color: var(--accent-ink); border-color: var(--accent-ink); }
 .re-analysis h3::before { content: ''; width: 3px; height: 13px; border-radius: 2px; background: var(--accent); flex: 0 0 auto; }
 .re-analysis ul { margin-left: 18px; font-size: 13.5px; line-height: 1.75; color: var(--text-secondary); overflow-wrap: break-word; }
 .re-analysis p { font-size: 14.5px; line-height: 1.7; color: var(--text); }
-.re-explain { font-size: 12px; color: var(--text-dim); line-height: 1.6; padding: 12px 16px; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; }
+/* anywhere（不是 break-word）：只有它会同时缩小 min-content —— 斜杠串（如
+ * 「（CNH/HKD/KRW/INR/MXN/BRL/ZAR）」）在 116px 段落里找不到断点，会把 grid/flex
+ * 轨道撑到 234px 并一路冒到文档（320px 视口实测 scrollWidth 336）。 */
+.re-explain { font-size: 12px; color: var(--text-dim); line-height: 1.6; padding: 12px 16px; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; overflow-wrap: anywhere; }
 .re-header .re-as-of { font-size: 12px; }
 /* #27：多源时效串（「数据截至 A 2026-10-01 · B 09-30 · C 10-01」）实测 827px，
  * nowrap 不止撞 375：任何视口只要胶囊比页头宽就撑破文档（/assets/crypto/ 在 820 下
@@ -497,7 +500,10 @@ a.re-badge:hover { color: var(--accent-ink); border-color: var(--accent-ink); }
 .re-col3 { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr)); gap: 10px; margin: 12px 0; }
 .re-colbox { border: 1px solid var(--border); border-radius: 10px; background: var(--surface); padding: 10px 12px; min-width: 0; }
 .re-colbox-title { font-size: 13px; font-weight: 700; margin-bottom: 6px; color: var(--text); }
-.rk-row { display: flex; align-items: baseline; gap: 8px; padding: 4px 0; font-size: 13px; border-bottom: 1px solid var(--border); }
+/* flex-wrap：.rk-v 是 nowrap + flex-shrink:0（读数不能拆），而「目标价分歧」格把它
+ * 拼成了「+24.22% · 210.5 - 260.0」一整串 → 窄屏撑破盒子（320px 实测溢出 5px）。
+ * 装不下时整串读数换到第二行，不截断也不溢出。 */
+.rk-row { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px; padding: 4px 0; font-size: 13px; border-bottom: 1px solid var(--border); }
 .rk-row:last-child { border-bottom: none; }
 .rk-t { font-weight: 700; font-size: 13px; color: var(--text); flex-shrink: 0; }
 .rk-n { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-secondary); font-size: 12px; }
@@ -666,7 +672,10 @@ body.dark .pm-topic-card { box-shadow: inset 0 0 0 1px rgba(255,255,255,.04); }
 /* KPI 8 卡固定 4×2，避免一排放 8 卡挤到 131px（.re-cards 已改 flex，这里用 basis 定列数） */
 #re-cards .re-cards > .re-card { flex-basis: 269px; }
 /* 政策路径定价 hero：决策卡 + PM 收敛路径图并排 */
-.hero { display: grid; grid-template-columns: 400px 1fr; gap: 14px; }
+/* 两列都要 minmax(0,…)：裸写 1fr 的轨道下限是 min-content（本卡 280px），
+ * 窄屏堆叠后容器只 192px → 撑破文档（body overflow-x:hidden 会掩盖住，scrollWidth 说谎，
+ * 要看子元素 rect.right）。400px 那列同理——它是定宽，但 ≥1025 的另一列也在同一个坑里。 */
+.hero { display: grid; grid-template-columns: 400px minmax(0, 1fr); gap: 14px; }
 /* 断点收敛（#20）：原 900（KPI 塌列）/ 980（hero 并排→堆叠）并入 1024 一档。
  * 两条都是「塌列 / 堆叠」方向，901–1024 区间只松不紧。
  * 960 下取 3 列而非 2 列（用户定）：2 列时单卡 410px 宽于桌面的 ~320px、8 卡要 4 行；
@@ -675,25 +684,38 @@ body.dark .pm-topic-card { box-shadow: inset 0 0 0 1px rgba(255,255,255,.04); }
  */
 @media (max-width: 1024px) {
   #re-cards .re-cards > .re-card { flex-basis: 240px; }
-  .hero { grid-template-columns: 1fr; }
+  .hero { grid-template-columns: minmax(0, 1fr); }
 }
 /* #27：≤ 768 取单列已由全局规则接手（见上方 .re-cards > .re-card）——两列时卡片
  * min-content 172px 会把轨道顶到 214px，两列 + gap = 464 > 375 → 文档横向溢出。 */
 .hero-card { border: 1px solid var(--accent); border-radius: 10px; background: var(--surface); padding: 16px; display: flex; flex-direction: column; gap: 12px; box-shadow: 0 0 0 1px var(--accent); }
 .hc-head { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+/* 研判胶囊贴右用 margin-left:auto，不用 position:absolute：绝对定位不占位，
+ * flex-wrap 不会为它换行，窄屏会直接压住日期/标签（实测 320px 重叠 6px、421–440px 重叠 16px）。
+ * auto 边距在有空间时贴右（与原来视觉一致），没空间时随 flex 自然换行。 */
+.hc-head .re-expectation { margin-left: auto; }
 .hc-date { font-size: 20px; font-weight: 800; font-family: var(--font-mono); }
 .hc-tag { font-size: 11px; color: var(--text-dim); border: 1px solid var(--border); border-radius: 4px; padding: 1px 6px; }
 .hc-verdict .duel { display: grid; grid-template-columns: 1fr auto 1fr; gap: 12px; align-items: center; }
 .hc-verdict .side { text-align: center; }
-.hc-verdict .side .lbl { font-size: 11px; color: var(--text-dim); margin-bottom: 2px; }
+.hc-verdict .side .lbl { font-size: 11px; color: var(--text-dim); margin-bottom: 2px; line-height: 1.5; }
 .hc-verdict .side .num { font-size: 26px; font-weight: 800; font-family: var(--font-mono); line-height: 1.1; }
 .hc-verdict .side .num.up { color: var(--color-up-text); }
 .hc-verdict .side .num.down { color: var(--color-down-text); }
 .hc-verdict .side .num.neutral { color: var(--color-neutral-text); }
-.hc-verdict .side .sub { font-size: 11px; color: var(--text-dim); }
+.hc-verdict .side .sub { font-size: 11px; color: var(--text-dim); line-height: 1.5; }
 .hc-verdict .vs { font-size: 11px; color: var(--text-dim); text-align: center; }
 .hc-bk { display: flex; flex-direction: column; gap: 5px; }
 .hc-bk .row { display: grid; grid-template-columns: 56px 1fr 104px 62px; gap: 8px; align-items: center; font-size: 12px; }
+/* 空胶囊不占位：PM 聚合数据缺失时（agg=null）五枚 chip 全空，但 62px 列 + gap 依旧
+ * 占位，把数字列从内容右缘挤开 70px —— 而上方对垒栏是贴满内容宽的，整个概率区
+ * 看起来「太偏左」（320px 因胶囊独占一行反而贴右，两档宽度不一致即此）。
+ * display:none 的 grid item 不产生隐式行，不会多出行高/行距；
+ * 列收窄只限桌面（≤420 的两列布局由媒体查询接管，那边胶囊本来就独占一行）。 */
+.hc-bk .row:not(:has(.chip:not(:empty))) .chip { display: none; }
+@media (min-width: 421px) {
+  .hc-bk .row:not(:has(.chip:not(:empty))) { grid-template-columns: 56px 1fr 104px; }
+}
 .hc-bk .lab { text-align: right; font-family: var(--font-mono); }
 .hc-bk .lab.cut { color: var(--color-up-text); } .hc-bk .lab.hold { color: var(--color-neutral-text); } .hc-bk .lab.hike { color: var(--color-down-text); }
 .hc-bk .track { height: 9px; background: var(--surface-alt); border-radius: 3px; position: relative; overflow: hidden; }
@@ -706,6 +728,49 @@ body.dark .pm-topic-card { box-shadow: inset 0 0 0 1px rgba(255,255,255,.04); }
 .hc-bk .val u { text-align: left; font-style: normal; text-decoration: none; color: var(--text-secondary); }
 .hc-bk .chip { text-align: left; white-space: nowrap; }
 .hc-bk .chip .dchip { margin-left: 0; }
+/* ≤420px 窄屏：卡内容列不够放「标签 + 进度条 + 双源数字 + 角标」（.row min-content 246px，
+ * 而 320px 视口只剩 158px）。三列定宽写死，缩字号无效（实测 12/11/10.5px 三档 min-content 纹丝不动），
+ * 只能砍列：进度条隐藏（数字 0.0% / 0.4% 已把双源摆平，窄屏不靠条读大小），角标换第二行左对。
+ * 行字号 12→11px 与砍列配套。
+ * 位置必须在上面全部 base 规则之后：.hc-verdict .side .num 与 media 里同特异性（0,3,0），
+ * 写在前面会被 base 的 26px 按顺序覆盖（实测字号纹丝不动）。 */
+@media (max-width: 420px) {
+  /* 两列必须定宽，不能 `auto 1fr`：每行是独立 grid，auto 列按各自内容算宽
+     （`维持` 22px vs `-50bp` 33px），加上 .val 的 justify-self 会把它缩到内容宽，
+     而 .val 内部靠 `1fr 12px 1fr` 把「/」居中在盒子里 —— 盒宽不一 = 斜杠轴散（实测 320px 下差 6.6px）。
+     定宽 36px（容得下 mono 11px 的 `-50bp` = 33px）+ .val 撑满 1fr（不设 justify-self），
+     五行盒宽相同，斜杠轴才能对齐（与桌面 56px 定宽同一机制）。 */
+  /* 行内三列：标签 36px + 进度条 1fr + 数字 104px（与桌面第三列同宽，数字位置两档一致）。
+     内容列 = 视口 - 162px，36+104+2×6 = 152px 固定开销，剩余全给进度条：
+     375px→57px / 390px→72px / 420px→104px，均可读；真正放不下的只有 ≤366px（下方收窄）。 */
+  .hc-bk .row { grid-template-columns: 36px 1fr 104px; gap: 6px; font-size: 11px; }
+  .hc-bk .val { justify-self: stretch; }
+  .hc-bk .chip { grid-column: 1 / -1; justify-self: start; }
+  /* 头部：flex 换行按 DOM 顺序装箱，中间的 .hc-tag（108px）会隔开日期与胶囊，
+     导致胶囊永远轮不到与日期同排 → 孤零零飘在第三行右边。用 order 把胶囊提到标签前，
+     保住桌面语义（日期 + 胶囊两端对齐，标签次行） */
+  .hc-head .re-expectation { order: 1; }
+  .hc-head .hc-tag { order: 2; }
+  /* 两侧 + vs 的 min-content 超过卡内容列 → vs 换第二行居中（两源仍并列可比）；
+     数字 26→22px：单列 min-content 78→66px，两列 + gap = 138px ≤ 158px */
+  .hc-verdict .duel { grid-template-columns: 1fr 1fr; gap: 6px; }
+  .hc-verdict .duel .vs { grid-column: 1 / -1; order: 3; justify-self: center; }
+  .hc-verdict .side .num { font-size: 22px; }
+}
+/* ≤366px：进度条剩余宽度 < 48px，双条叠不出差异，隐藏后数字仍贴右线。
+ * 数字必须定宽 104px（同桌面第三列）：.val 是 `1fr 12px 1fr` 的内 grid，靠内容自适应宽
+ * 时 `82.5% / 80.0%` 比 `0.0% / 0.3%` 宽，每行各自算宽 → 斜杠轴散（此前实测差 6.6px） */
+@media (max-width: 366px) {
+  .hc-bk .row { grid-template-columns: 36px 1fr; }
+  .hc-bk .track { display: none; }
+  .hc-bk .val { grid-column: 2; width: 104px; justify-self: end; }
+}
+/* 日期 20px 等宽占 120px，+ 胶囊 44px + gap 8px = 172px，而卡内容列 = 视口 - 162px
+ * → 334px 以下两者不同排（order 也救不了，装不下就是装不下）。缩到 16px（96px）
+ * 后 96+44+8 = 148px ≤ 158px，头部从三行收回两行。只在真装不下的宽度生效。 */
+@media (max-width: 333px) {
+  .hc-date { font-size: 16px; }
+}
 .hc-foot { font-size: 11px; color: var(--text-dim); border-top: 1px dashed var(--border); padding-top: 8px; display: flex; gap: 12px; flex-wrap: wrap; }
 .hc-foot b { color: var(--text-secondary); font-family: var(--font-mono); font-weight: 500; }
 .chart-box { border: 1px solid var(--border); border-radius: 8px; background: var(--surface); padding: 10px 12px 4px; }
