@@ -231,7 +231,9 @@ a.re-badge:hover { color: var(--accent-ink); border-color: var(--accent-ink); }
 .vix-legend .scale { display: flex; gap: 12px; font-size: 12px; color: var(--text-secondary); flex-wrap: wrap; }
 .sig-block { margin-bottom: 14px; }
 .sig-block:last-child { margin-bottom: 0; }
-.sig-block .sig-title { font-size: 11px; font-weight: 600; letter-spacing: .06em; color: var(--accent-ink); margin-bottom: 6px; }
+/* 行内小标题：12px/700 是「14px/700 段标题」与「13px 正文」之间的第三级，
+ * 11px 与正文只差 2px 且字重相同，扫起来像正文的第一句而不是标题 */
+.sig-block .sig-title { font-size: 12px; font-weight: 700; letter-spacing: .04em; color: var(--accent-ink); margin-bottom: 6px; }
 .sig-block p { margin: 0; }
 /* 同一段里的多行（结论 / 触发）：R.sigBlocks 会往一个 sig-block 里放多个 <p>，
    上一条的 margin:0 会把它们贴成一堆，这里给行间距（.note 的 margin-top 被同权重覆盖） */
@@ -476,18 +478,23 @@ a.re-badge:hover { color: var(--accent-ink); border-color: var(--accent-ink); }
 .vol-top-row h3.cool { color: var(--color-down-text); }
 
 .vol-score { font-size: 12px; font-weight: 700; padding: 2px 10px; border-radius: 999px; border: 1px solid var(--color-warn); color: var(--color-warn-text); }
-/* 研判卡内嵌横排小卡（原 .vol-basic-grid，全站研判统一形状后提升为通用类） */
-.sig-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 10px; }
-.sig-row .sig-block { border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; margin: 0; }
-/* 只有一张内卡时不套框（否则卡中卡双层边），退化成普通段落 */
-.sig-row > .sig-block:only-child { border: 0; padding: 0; }
+/* 研判卡内嵌横排格（原 .vol-basic-grid，全站研判统一形状后提升为通用类）
+ * 形状：每格一条 2px accent 竖标（图形档，只当线色），文字回到外卡内容线。
+ * 不套内框 —— 外卡 .re-section 已有卡面，再套 1px 边 + 8px 圆角 + 12px 内距，
+ * 就成了「同半径空盒子套空盒子」：文字距卡边 20+1+12=33px，双层留白（同 §8 卡中卡禁令）。
+ * min(100%, 240px)：裸写 240px 在 320px 视口撑出横向溢出（grid 轨道不会缩到容器以下）。 */
+.sig-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr)); gap: 14px 24px; }
+.sig-row .sig-block { border-left: 2px solid color-mix(in srgb, var(--accent) 55%, transparent); border-radius: 0; padding: 0 0 0 12px; margin: 0; }
+/* 只有一格时竖标没意义（左边一根线配整段文字像引用块），退化成普通段落 */
+.sig-row > .sig-block:only-child { border-left: 0; padding: 0; }
 .sig-row .sig-block ul { margin: 0 0 0 18px; font-size: 13px; line-height: 1.75; color: var(--text-secondary); }
 
 @media (max-width: 768px) { .vol-top-row { grid-template-columns: 1fr; } }
 
 /* ── equities 页：分析师目标价 + 成分股雷达 ── */
 .src-note { font-size: 12px; color: var(--text-dim); margin: 6px 0 10px; line-height: 1.6; }
-.re-col3 { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 10px; margin: 12px 0; }
+/* min(100%, 240px)：同 .sig-row，裸写 240px 在 320px 视口撑出横向溢出 */
+.re-col3 { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr)); gap: 10px; margin: 12px 0; }
 .re-colbox { border: 1px solid var(--border); border-radius: 10px; background: var(--surface); padding: 10px 12px; min-width: 0; }
 .re-colbox-title { font-size: 13px; font-weight: 700; margin-bottom: 6px; color: var(--text); }
 .rk-row { display: flex; align-items: baseline; gap: 8px; padding: 4px 0; font-size: 13px; border-bottom: 1px solid var(--border); }

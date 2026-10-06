@@ -74,14 +74,16 @@ const R = {
   LINES_CONCLUSION: ['结论', '依据', '触发'],
   LINES_JUDGE: ['判断', '读数'],
 
-  // ── 研判段 → 一张 .re-section 外卡（段标题在左上 + 内嵌 .sig-row 横排小卡）──
+  // ── 研判段 → 一张 .re-section 外卡（段标题在左上 + 内嵌 .sig-row 横排格）──
+  // 格不套内框（靠 2px accent 竖标分区），形状单源在 special.css 的 .sig-row；
+  // 改形状只改那一处，页面与本文件不动。
   // 承载波动率页定下来的形状，全站研判（treasury/inflation/labor/credit/rates/…）统一走这里；
   // 页面不再手写 re-section + sigBlocks 拼装，改形状只改这一处。
   //   title   段标题（外卡 h2，左上）
   //   body    \n 分行的段文本
-  //   labels 按行取的小卡标题；不给 = 整段一张小卡、标题用 title
+  //   labels 按行取的格标题；不给 = 整段一格、标题用 title
   judgeCard(title, body, labels = null) {
-    // 单行段没有「行」可拆：不套内卡（sig-title 会与外卡 h2 重复），直接一张外卡一段文
+    // 单行段没有「行」可拆：不套格（sig-title 会与外卡 h2 重复），直接一张外卡一段文
     const lines = String(body ?? '').split('\n').filter(s => s.trim());
     if (lines.length <= 1) {
       const one = lines[0] ?? '';
@@ -143,10 +145,11 @@ const R = {
     return box;
   },
 
-  // ── 研判段横排小卡行（一张外卡 + N 格内卡）──
+  // ── 研判段横排格行（一张外卡 + N 格）──
   // judgeCard 是「一段一卡」；语义标题各占一段、每段只有一句时（credit 三段式），
   // 三张全宽卡叠起来 358px，收成一行三格只要 179px。
-  // 同形状的 volatility 页 parts 段仍是手拼 re-section + sig-row，要改形状时记得同改那处。
+  // 同形状的 volatility 页 parts 段仍是手拼 re-section + sig-row，但形状本身在 special.css，
+  // 改 CSS 一处两边同变（2026-10 那一轮就是这么改的）；只有 DOM 结构要改时才需同改那处。
   judgeRow(items) {
     const blocks = (items || [])
       .map(([title, body]) => R.sigBlocks(title, body))

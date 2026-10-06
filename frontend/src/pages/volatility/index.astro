@@ -252,7 +252,7 @@ async function load() {
       inner += '<div class="sig-row">' + n.parts.map(p =>
         `<div class="sig-block"><div class="sig-title">${p.title}</div><p>${p.text}</p></div>`).join('') + '</div>';
     } else {
-      // 三段式（结论/依据/触发）→ 与 parts 段同一套横排小卡，标题留在外层卡左上
+      // 三段式（结论/依据/触发）→ 与 parts 段同一套横排格，标题留在外层卡左上
       inner += '<div class="sig-row">' + R.sigBlocks(n.title, n.text, R.LINES_CONCLUSION) + '</div>';
     }
     sec.innerHTML = inner;

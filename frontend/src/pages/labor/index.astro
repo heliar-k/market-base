@@ -39,7 +39,7 @@ async function load() {
     { label: 'JOLTS 职位空缺', value: c.jolts.value == null ? '—' : c.jolts.value + 'M', sub: (c.jolts.as_of || '') + (c.jolts.vu !== null ? ` · V/U ${c.jolts.vu}` : '') },
   ]));
 
-  // ── 研判（每段一张卡，段内 \n 分行 = 判断 / 读数，横排小卡走 R.judgeCard）──
+  // ── 研判（每段一张卡，段内 \n 分行 = 判断 / 读数，横排格走 R.judgeCard）──
   // 英文免责 note 已删（页底 #re-foot 的 R.genText 已说明生成方式）
   R.setSection('re-signals', (d.signals || [])
     .map(s => R.judgeCard(s.title, s.text, R.LINES_CONCLUSION)).join(''));
