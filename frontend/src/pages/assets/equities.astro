@@ -204,9 +204,9 @@ function renderAnalyst() {
       </div>`).join('');
   sec.insertAdjacentHTML('beforeend', `<div class="re-col3 rank-grid">${rankBlocks}</div>`);
   sec.insertAdjacentHTML('beforeend', `
-    <div class="re-table-wrap"><div class="re-table-title">行业目标价空间</div>
+    <div class="re-table-title">行业目标价空间</div>
     <div class="src-note">行业按成分股等权汇总，重点看平均/中位空间。</div>
-    <table class="re-table"><thead><tr>
+    <div class="re-table-wrap"><table class="re-table"><thead><tr>
       <th>行业</th><th>覆盖</th><th>平均空间</th><th>中位空间</th><th>平均分析师数</th>
     </tr></thead><tbody>
     ${a.industries.map(r => `<tr><td>${r.industry}</td><td>${r.coverage}/${r.total_ind}</td>

@@ -274,18 +274,15 @@ async function load() {
   const CHG_FMTS = { chg1d: chgCell, chg5d: chgCell, chg1m: chgCell, chg1y: chgCell };
   const valCell = (v) => (v === null || v === undefined ? '—' : v.toFixed(2));
   const topBox = document.getElementById('vol-top');
+  // R.table() 返回的就是 .re-table-wrap（自带 overflow-x: auto），不再包一层：
+  // 之先多包了一层 wrap（注释写「窄屏横向滚动」其实已经由内层提供），外层除了多一个 margin-top
+  // 与一层滚动盒什么都不做，实测删掉后 h3→色带间距、表高、窄屏横滚均不变。
   const hotBox = document.createElement('div');
   hotBox.innerHTML = '<h3 class="hot">波动升温 前 8</h3>';
-  const hotWrap = document.createElement('div');
-  hotWrap.className = 're-table-wrap'; // 窄屏横向滚动，防溢出
-  hotWrap.appendChild(R.table(['代码', '名称', '最新', '1D%', '1M%'], fmtTop(hot), { value: valCell, ...CHG_FMTS }, null, true));
-  hotBox.appendChild(hotWrap);
+  hotBox.appendChild(R.table(['代码', '名称', '最新', '1D%', '1M%'], fmtTop(hot), { value: valCell, ...CHG_FMTS }, null, true));
   const coolBox = document.createElement('div');
   coolBox.innerHTML = '<h3 class="cool">波动降温 前 8</h3>';
-  const coolWrap = document.createElement('div');
-  coolWrap.className = 're-table-wrap';
-  coolWrap.appendChild(R.table(['代码', '名称', '最新', '1D%', '1M%'], fmtTop(cool), { value: valCell, ...CHG_FMTS }, null, true));
-  coolBox.appendChild(coolWrap);
+  coolBox.appendChild(R.table(['代码', '名称', '最新', '1D%', '1M%'], fmtTop(cool), { value: valCell, ...CHG_FMTS }, null, true));
   topBox.appendChild(hotBox);
   topBox.appendChild(coolBox);
 

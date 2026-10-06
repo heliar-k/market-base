@@ -132,18 +132,20 @@ body.embedded .re-foot { display: none; } /* 内嵌 iframe 不重复页脚 */
 /* 卡内表格左右各出血一个单元格内缩：表头色带铺到卡片边（有呼吸），首末格文字正好落回
  * 内容栅格线，与同卡内的标题/键值/备注同一条左右边线。
  * 宿主用 :is() 列全：.re-section 专题页卡 / .fx-group 外汇单列分组 / .re-panel Section card 模式。
- * 选择器两个条件都是实测出来的，放宽就出事：
- *   :has(> .re-table) —— 同一个 wrap 里还装着标题/筛选器/滚动盒的（equities 目标价表），
- *     出血会把那些文字一起推到内容栅格左边线外侧；
- *   只列单列块级容器 —— 多列网格里（commodities 期限结构 3 列、eq-radar-grid）各列都出血
- *     12px 会伸进列间隙让相邻色带贴上；自带内缩边框的（.pm-raw 虚线框）要相对自己那层对齐。
+ * 两个条件都是实测出来的，放宽就出事：
+ *   :has(> .re-table:only-child) —— wrap 里只能有表。写成 :has(> .re-table)（只要求含有表）
+ *     会把同 wrap 里的标题/筛选器/注一起推到内容栅格左边线外侧（实测 equities 目标价表的
+ *     .re-table-title 21→9px）；带标题的表把标题移到 wrap 外作卡的直接子元素，
+ *     两边就都对了（标题回 21px，色带仍铺到 9px）。滚动盒 .re-scroll-y 自带 1px 边框+圆角，
+ *     与 .pm-raw 同类，要相对自己那层对齐，不随卡出血。
+ *   只列单列块级容器 —— 多列网格里（commodities 期限结构 3 列、eq-radar-grid、vol-top-row）
+ *     各列都出血 12px 会伸进列间隙让相邻色带贴上（实测撞出 8 处 12px 重叠）。
  * 第二条 :only-child 处理「多包一层的单列卡内表」（treasury 拍卖日历/最近结果）：
- * 不能放宽成后代（实测在 commodities 3 列网格撞出 8 处 12px 重叠），用 :only-child 按结构判别——
  * 包装层里只有这一张表 = 单列可铺到卡边；「h3 + 表」（≥2 个子）= 网格列，各列色带本就与
  * 自己那列的 h3 对齐（实测差值 0），不动。
- * 实测全站 33 页 52 张：全部文字偏移 0、同排相邻色带相撞 0。 */
-:is(.re-section, .fx-group, .re-panel) > .re-table-wrap:has(> .re-table),
-:is(.re-section, .fx-group, .re-panel) > * > .re-table-wrap:has(> .re-table):only-child {
+ * 实测全站 33 页 52 张：全部文字偏移 0、同排相邻色带相撞 0、非表文字被推出内容线 0 张。 */
+:is(.re-section, .fx-group, .re-panel) > .re-table-wrap:has(> .re-table:only-child),
+:is(.re-section, .fx-group, .re-panel) > * > .re-table-wrap:has(> .re-table:only-child):only-child {
   margin-left: calc(-1 * var(--re-cell-pad-x)); margin-right: calc(-1 * var(--re-cell-pad-x));
 }
 .re-source { font-size: 11px; color: var(--text-dim); }
@@ -317,9 +319,10 @@ a.re-badge:hover { color: var(--accent-ink); border-color: var(--accent-ink); }
  * 副作用：A 形里 6 张首列为中文的表（/fed/ 姓名、/geo/ 主题、/inflation/ 分项、/labor/ 指标、
  * /treasury/ 持有方与品种）也一并 +1px；CJK 字形满框本不需补，但 1px 在肉眼阈值下。
  * 选择器与上面出血规则同构（宿主同一组 :is()），因此只命中「色带铺到卡边」的 A 形表（52 张）；
- * 未出血的 B 形表首列本就内缩 12px，不在此列。`.re-scroll-y` 的 8px 内缩特异性更高，不受影响。 */
-:is(.re-section, .fx-group, .re-panel) > .re-table-wrap:has(> .re-table) .re-table :is(th, td):first-child,
-:is(.re-section, .fx-group, .re-panel) > * > .re-table-wrap:has(> .re-table):only-child .re-table :is(th, td):first-child {
+ * 未出血的 B 形表首列本就内缩 12px，不在此列。`.re-scroll-y` 的 8px 内缩另有自带边框的
+ * 内缩盒要相对自己那层对齐（见上面出血规则注释）。 */
+:is(.re-section, .fx-group, .re-panel) > .re-table-wrap:has(> .re-table:only-child) .re-table :is(th, td):first-child,
+:is(.re-section, .fx-group, .re-panel) > * > .re-table-wrap:has(> .re-table:only-child):only-child .re-table :is(th, td):first-child {
   padding-left: calc(var(--re-cell-pad-x) + 1px);
 }
 
