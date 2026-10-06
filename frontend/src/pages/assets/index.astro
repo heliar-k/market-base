@@ -112,7 +112,7 @@ async function load() {
           return `${assets[p.value[1]]} × ${assets[p.value[0]]}<br>${v == null ? '—' : Number(v).toFixed(2)}`;
         },
       },
-      grid: { left: 70, right: 20, top: 20, bottom: 70 },
+      grid: { left: 10, right: 20, top: 20, bottom: 45 },
       xAxis: { type: 'category', data: assets, axisLabel: { color: colors.muted, fontSize: 11, rotate: 45 }, axisLine: { lineStyle: { color: colors.border } } },
       yAxis: { type: 'category', data: assets, axisLabel: { color: colors.muted, fontSize: 11 }, axisLine: { lineStyle: { color: colors.border } } },
       visualMap: {
