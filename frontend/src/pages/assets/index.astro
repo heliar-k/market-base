@@ -142,6 +142,21 @@ async function load() {
         },
       }],
     }));
+
+    // 窄屏隐藏格子里的相关系数数字：canvas 不吃媒体查询，格子宽不够时 11px 的 “-0.83”
+    // 会横向挤成一团（实测 768px 下格子只 23.6px）。数字走 tooltip，不靠 label 也能读到。
+    const heat = document.getElementById('corr-chart');
+    const syncHeatLabels = () => {
+      const c = R.getChart('corr-chart');
+      if (!c) return;
+      // convertToPixel 反推真实栅格宽（含轴标签占位），比猜固定 left/right 可靠
+      const a = c.convertToPixel({ gridIndex: 0 }, [0, 0]);
+      const b = c.convertToPixel({ gridIndex: 0 }, [1, 0]);
+      c.setOption({ series: [{ label: { show: b[0] - a[0] >= 26 } }] });
+    };
+    new ResizeObserver(syncHeatLabels).observe(heat);
+    // 主题切换会 dispose 重建实例（option 里的 show: true 跟着回来），重建后重新按宽度判定
+    window.addEventListener('theme-changed', () => setTimeout(syncHeatLabels, 0));
   }
 
   // 报警卡
