@@ -6,11 +6,14 @@
 //   id     — 锚点(page-toc 跳转目标;不给则不设 id)
 //   title  — 小节标题;空字符串 = 无标题小节(纯容器)
 //   sub    — 标题右侧弱化说明(如单位/口径)
+//   card   — 整段升格为卡面（.re-panel：与 .re-section 同套边框/圆角/底/内距/阴影，
+//            但不接管段内标题字号）。给「段里只有一张表、又没有自带卡面的子元素」的段用，
+//            卡内表格的出血与首列光学对齐规则自动接管（见 special.css 的 :is() 那组）。
 //   slot=head — 标题行尾部的额外元素(如状态胶囊),沿用 .re-sec-head 的 baseline 对齐
-interface Props { id?: string; title?: string; sub?: string }
-const { id, title = '', sub = '' } = Astro.props;
+interface Props { id?: string; title?: string; sub?: string; card?: boolean }
+const { id, title = '', sub = '', card = false } = Astro.props;
 ---
-<section class="re-sec" id={id}>
+<section class:list={['re-sec', { 're-panel': card }]} id={id}>
   {title && (
     <header class="re-sec-head">
       <h2 class="re-sec-title">{title}</h2>

@@ -51,14 +51,17 @@ html { scroll-padding-top: 52px; }
   color: var(--text-secondary); text-decoration: none;
 }
 .page-toc a:hover { color: var(--accent-ink); border-color: var(--accent-ink); }
-.re-section { border: 1px solid var(--border); border-radius: 8px; background: var(--surface); padding: 16px 20px; box-shadow: var(--card-shadow); }
+/* 卡面单源：.re-section（专题页卡片，带自己的 h2/p 排版）与 .re-panel（纯卡面壳，
+ * 给 Section 组件的 card 模式用，不接管段内标题字号）共享同一套边框/圆角/底/内距/阴影。
+ * 两者必须同值：卡内表格的出血量按 20px 内距算（见下面 :is() 那组规则）。 */
+.re-section, .re-panel { border: 1px solid var(--border); border-radius: 8px; background: var(--surface); padding: 16px 20px; box-shadow: var(--card-shadow); }
 /* 动态卡片容器(JS 填充区)通用间距:任何容器直接持有 2+ 张 .re-section 卡片时,
  * 纵向 16px 呼吸(geo-events / re-sections / stress-sec / vol-narrative / correlation…一网打尽)。
  * :has() Chrome 105+;专题页无 IE/旧 Safari 顾虑。 */
 .re-root :has(> .re-section + .re-section),
 .re-sec > *:has(> .re-section + .re-section) { display: flex; flex-direction: column; gap: var(--re-inner-gap); }
 /* Linear 内高光:暗色卡片边缘受光(专题页卡片 = .re-section,与 SPA .chart-card 同待遇) */
-body.dark .re-section { box-shadow: inset 0 0 0 1px rgba(255,255,255,.04); }
+body.dark :is(.re-section, .re-panel) { box-shadow: inset 0 0 0 1px rgba(255,255,255,.04); }
 .re-section h2 { font-size: 14px; font-weight: 700; margin-bottom: 8px; color: var(--text); text-wrap: balance; }
 /* 标题内的弱化注解（R.secTitle 的英文/口径）：不继承 h2 的 700 字重与 14px，
  * 与 Section 组件 sub prop 同一套 .re-sec-sub 视觉；窄屏标题换行后注解跟到第二行
@@ -128,23 +131,19 @@ body.embedded .re-foot { display: none; } /* 内嵌 iframe 不重复页脚 */
 .re-table-wrap .re-scroll { overflow-x: auto; }
 /* 卡内表格左右各出血一个单元格内缩：表头色带铺到卡片边（有呼吸），首末格文字正好落回
  * 内容栅格线，与同卡内的标题/键值/备注同一条左右边线。
+ * 宿主用 :is() 列全：.re-section 专题页卡 / .fx-group 外汇单列分组 / .re-panel Section card 模式。
  * 选择器两个条件都是实测出来的，放宽就出事：
  *   :has(> .re-table) —— 同一个 wrap 里还装着标题/筛选器/滚动盒的（equities 目标价表），
  *     出血会把那些文字一起推到内容栅格左边线外侧；
  *   只列单列块级容器 —— 多列网格里（commodities 期限结构 3 列、eq-radar-grid）各列都出血
  *     12px 会伸进列间隙让相邻色带贴上；自带内缩边框的（.pm-raw 虚线框）要相对自己那层对齐。
- * 实测覆盖 40 张（.re-section 直接子级 + .fx-group 单列分组），全部文字偏移 0、无同层色带相撞。 */
-.re-section > .re-table-wrap:has(> .re-table),
-.fx-group > .re-table-wrap:has(> .re-table) {
-  margin-left: calc(-1 * var(--re-cell-pad-x)); margin-right: calc(-1 * var(--re-cell-pad-x));
-}
-/* 多包一层的单列卡内表（treasury 拍卖日历/最近结果：.re-section > div#re-upcoming > wrap）
- * 上面那条直接子级选择器碰不到。不能放宽成后代：网格列里的 wrap 也命中，会撞出 8 处 12px 重叠。
- * 用 :only-child 按结构区分——包装层里只有这一张表 = 单列，可以铺到卡边；
- * 「h3 + 表」（≥2 个子）= 网格列，各列色带本就与自己那列的 h3 对齐（实测差值 0），不动。
- * 实测全站 33 页：出血 37 → 39（+2 张即 treasury），相邻色带相撞 0 → 0，390px 页面溢出自 0。 */
-.re-section > * > .re-table-wrap:has(> .re-table):only-child,
-.fx-group > * > .re-table-wrap:has(> .re-table):only-child {
+ * 第二条 :only-child 处理「多包一层的单列卡内表」（treasury 拍卖日历/最近结果）：
+ * 不能放宽成后代（实测在 commodities 3 列网格撞出 8 处 12px 重叠），用 :only-child 按结构判别——
+ * 包装层里只有这一张表 = 单列可铺到卡边；「h3 + 表」（≥2 个子）= 网格列，各列色带本就与
+ * 自己那列的 h3 对齐（实测差值 0），不动。
+ * 实测全站 33 页 52 张：全部文字偏移 0、同排相邻色带相撞 0。 */
+:is(.re-section, .fx-group, .re-panel) > .re-table-wrap:has(> .re-table),
+:is(.re-section, .fx-group, .re-panel) > * > .re-table-wrap:has(> .re-table):only-child {
   margin-left: calc(-1 * var(--re-cell-pad-x)); margin-right: calc(-1 * var(--re-cell-pad-x));
 }
 .re-source { font-size: 11px; color: var(--text-dim); }
@@ -317,16 +316,10 @@ a.re-badge:hover { color: var(--accent-ink); border-color: var(--accent-ink); }
  *（实测 padding 12→24 时色带 -11→-23px，文字纹丝不动）。
  * 副作用：A 形里 6 张首列为中文的表（/fed/ 姓名、/geo/ 主题、/inflation/ 分项、/labor/ 指标、
  * /treasury/ 持有方与品种）也一并 +1px；CJK 字形满框本不需补，但 1px 在肉眼阈值下。
- * 选择器与上面出血规则同构，因此只命中「色带铺到卡边」的 A 形表（37 张）；
+ * 选择器与上面出血规则同构（宿主同一组 :is()），因此只命中「色带铺到卡边」的 A 形表（52 张）；
  * 未出血的 B 形表首列本就内缩 12px，不在此列。`.re-scroll-y` 的 8px 内缩特异性更高，不受影响。 */
-.re-section > .re-table-wrap:has(> .re-table) .re-table th:first-child,
-.re-section > .re-table-wrap:has(> .re-table) .re-table td:first-child,
-.fx-group > .re-table-wrap:has(> .re-table) .re-table th:first-child,
-.fx-group > .re-table-wrap:has(> .re-table) .re-table td:first-child,
-.re-section > * > .re-table-wrap:has(> .re-table):only-child .re-table th:first-child,
-.re-section > * > .re-table-wrap:has(> .re-table):only-child .re-table td:first-child,
-.fx-group > * > .re-table-wrap:has(> .re-table):only-child .re-table th:first-child,
-.fx-group > * > .re-table-wrap:has(> .re-table):only-child .re-table td:first-child {
+:is(.re-section, .fx-group, .re-panel) > .re-table-wrap:has(> .re-table) .re-table :is(th, td):first-child,
+:is(.re-section, .fx-group, .re-panel) > * > .re-table-wrap:has(> .re-table):only-child .re-table :is(th, td):first-child {
   padding-left: calc(var(--re-cell-pad-x) + 1px);
 }
 

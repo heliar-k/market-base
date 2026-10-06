@@ -18,7 +18,7 @@ import Section from '../../components/Section.astro';
   <!-- FOMC 倒计时徽章:条件性(无临近会议时为空)+徽章条,不进 Section -->
   <div class="re-badges" id="db-fomc"></div>
 
-  <Section id="sec-table" title="跨资产变化">
+  <Section id="sec-table" title="跨资产变化" card>
     <p class="re-source">先看价格事实，再解释背后的机制。涨跌颜色只表示数值方向；变化按各序列最近 5 / 20 个有效观测计算，迷你趋势使用独立纵轴，不比较振幅大小。点击行可展开该指标的正反两面。</p>
     <div id="db-table"><div class="re-loading">加载中…</div></div>
   </Section>
