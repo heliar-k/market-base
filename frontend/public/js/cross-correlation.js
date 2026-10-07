@@ -299,7 +299,7 @@ function renderMatrix() {
         return `${labels[p.value[1]]} × ${labels[p.value[0]]}<br>${v == null ? '—' : Number(v).toFixed(2)}`;
       },
     },
-    grid: { left: 8, right: 16, top: 8, bottom: 44, containLabel: true },
+    grid: { left: 16, right: 16, top: 8, bottom: 44, containLabel: true },
     xAxis: {
       type: 'category', data: assets, position: 'top',
       axisLabel: { fontSize: 10, rotate: 50, interval: 0, rich, formatter: labelFmt },

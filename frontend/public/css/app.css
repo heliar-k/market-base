@@ -300,6 +300,11 @@ body { font-family: system-ui, -apple-system, sans-serif; background: var(--bg);
 }
 
 /* ── chart containers ───────────────────────────────────── */
+/* NOTE: .chart-card 故意无 padding —— SPA 技术视图 K 线三卡（lightweight-charts）与
+   关联分析热力图 canvas 直接 init 在卡上，createChart/echarts 按 clientWidth（含 padding）
+   取宽，这里加 padding 会让画布右侧溢出 2×padding。全幅贴边是交易图惯例，已知代价：
+   K 线时间轴标签被左卡边微裁、热力图行标签 8px 贴边（已在 grid.left=16 缓解）。
+   以后要给留白：垫内层 div 再 init（参照 rates-common.js mkChart 的 .re-chart-pad 做法）。 */
 .chart-card { background: var(--surface); border-radius: 8px; border: 1px solid var(--border); overflow: hidden; box-shadow: var(--card-shadow); }
 /* Linear 内高光：暗色卡片 1px 边缘受光，亮色无感（rgba 白在浅底不可见） */
 body.dark .chart-card { box-shadow: inset 0 0 0 1px rgba(255,255,255,.04); }
