@@ -190,7 +190,9 @@ async function load() {
   R.mkChart('triple_chart', (colors) => R.lineOption({
     legend: { data: ['10Y 名义利率', '10Y 实际利率(TIPS)', '10Y 盈亏平衡通胀', '10Y 期限溢价(ACM)'] },
     tooltip: { trigger: 'axis', valueFormatter: v => `${Number(v).toFixed(2)}%` },
-    grid: { top: 36, left: 8, right: 48, bottom: 56 },
+    // 右 16 与下方 2Y/10Y 图对齐：主题 containLabel 已含右轴标签宽，48 是标签外的纯空白。
+    // top 56：窄屏 4 项图例折两行（≈42px），36 会压到曲线；fed-funds hero 同款值
+    grid: { top: 56, left: 8, right: 16, bottom: 56 },
     dataZoom: [{ type: 'inside' }, { type: 'slider', bottom: 8, height: 18 }],
     xAxis: { type: 'category', data: R.ts(d.nominal_10y), axisLabel: { color: colors.muted, fontSize: 10, alignMinLabel: 'left', alignMaxLabel: 'right' }, axisLine: { lineStyle: { color: colors.border } } },
     yAxis: [
