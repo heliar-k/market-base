@@ -1,7 +1,7 @@
 ---
 // 收益率曲线页 — 工单 #15 自 public/rates/yield-curve.html 迁入。
-// 结构：曲线四线对比 + 全球长端对照表 + 1月变化柱状 + 利差时序 +
-// 名义/实际/BEI + 七段解读 + 期限明细表；island 脚本逐字原样（曲线交互/图例单源不变）。
+// 结构：对比+变化 / 利差+TIPS 两个 re-duo 双栏组 + 全球长端对照表 +
+// 七段解读 + 期限明细表；island 脚本逐字原样（曲线交互/图例单源不变）。
 // 顶部形态徽章条已删：七段解读自带形态/驱动/利差/验证通过，徽章条是它的重复。
 // fetch('/api/rates/yield-curve') 不变。
 import TopicLayout from '../../layouts/TopicLayout.astro';
@@ -10,33 +10,42 @@ import Section from '../../components/Section.astro';
 <TopicLayout title="收益率曲线">
   <div class="page-toc" id="page-toc"></div>
 
-  <Section id="sec-compare" title="收益率曲线对比" sub="当前 / 1周前 / 1月前 / 3月前">
-    <div class="re-chart" id="yc_compare"></div>
+  <!-- 双栏组（.re-duo，special.css 单源，同 rates/fed-funds）：宽桌面两小节并排，窄屏自动回落单列。
+       对比与变化同为 11 期限 X 轴（形状 + 1月动量并排读）；利差时序与 TIPS 快照同为水平快照段 -->
+  <div class="re-duo">
+    <Section id="sec-compare" title="收益率曲线对比" sub="当前 / 1周前 / 1月前 / 3月前">
+      <div class="re-chart" id="yc_compare"></div>
+    </Section>
+    <Section id="sec-change" title="收益率变化" sub="当前 vs 1月前 · bp">
+      <div class="re-chart" id="yc_change"></div>
+    </Section>
+  </div>
+
+  <!-- 卡面只包内容不含标题（同 rates/pricing）：标题留在页面、内容自 .re-panel 卡面 -->
+  <Section id="sec-global" title="全球长端利率对照" sub="10Y benchmark">
+    <div class="re-panel">
+      <div id="re-global"></div>
+    </div>
   </Section>
 
-  <Section id="sec-global" title="全球长端利率对照" sub="10Y benchmark" card>
-    <div id="re-global"></div>
-  </Section>
-
-  <Section id="sec-change" title="收益率变化" sub="当前 vs 1月前 · bp">
-    <div class="re-chart" id="yc_change"></div>
-  </Section>
-
-  <Section id="sec-spreads" title="关键利差时序" sub="2s10s / 3m10s / 5s30s · 近 6 个月">
-    <div class="re-chart" id="yc_spreads"></div>
-  </Section>
-
-  <Section id="sec-tips" title="名义 / 实际 / 盈亏平衡" sub="按期限">
-    <div class="re-chart" id="yc_tips"></div>
-  </Section>
+  <div class="re-duo">
+    <Section id="sec-spreads" title="关键利差时序" sub="2s10s / 3m10s / 5s30s · 近 6 个月">
+      <div class="re-chart" id="yc_spreads"></div>
+    </Section>
+    <Section id="sec-tips" title="名义 / 实际 / 盈亏平衡" sub="按期限">
+      <div class="re-chart" id="yc_tips"></div>
+    </Section>
+  </div>
 
   <!-- 解读卡:re-analysis class 有样式规则,保留在内层 div -->
   <Section title="曲线解读">
     <div class="re-analysis" id="re-analysis"></div>
   </Section>
 
-  <Section id="sec-tenors" title="各期限收益率明细" card>
-    <div id="re-tenors"></div>
+  <Section id="sec-tenors" title="各期限收益率明细">
+    <div class="re-panel">
+      <div id="re-tenors"></div>
+    </div>
   </Section>
   <div class="re-foot-page" slot="foot" id="re-foot"></div>
 
@@ -44,7 +53,7 @@ import Section from '../../components/Section.astro';
 async function load() {
   // 小节锚点导航（长页快速跳转；sticky 见 special.css .page-toc）
   document.getElementById('page-toc').innerHTML = [
-    ['曲线对比', 'sec-compare'], ['全球长端', 'sec-global'], ['月度变化', 'sec-change'],
+    ['曲线对比', 'sec-compare'], ['月度变化', 'sec-change'], ['全球长端', 'sec-global'],
     ['关键利差', 'sec-spreads'], ['名义/实际', 'sec-tips'], ['期限明细', 'sec-tenors'],
   ].map(([t, id]) => `<a href="#${id}">${t}</a>`).join('');
 
