@@ -119,6 +119,23 @@ body.embedded .re-foot { display: none; } /* 内嵌 iframe 不重复页脚 */
 .re-sec-sub { font-size: 12px; color: var(--text-dim); }
 /* 图表面板高度档位(ChartPanel):数字对齐 special.css 既有高度,逐步归一 */
 .re-chart-sm { height: clamp(200px, 36vh, 260px); } .re-chart-md { height: clamp(220px, 40vh, 300px); } .re-chart-lg { height: clamp(260px, 52vh, 380px); } .re-chart-xl { height: clamp(300px, 62vh, 460px); }
+
+/* 图表双栏（fed-funds 等内容稀疏段）：宽桌面把相邻两小节并排成两列。
+ * auto-fit 空轨塌缩 → 内容 ≥ 2×340px 时恰好两列、更窄自动回落单列，无需媒体查询
+ * （与 .pm-ladder-grid 同式）。段距不动：.re-sec 自身 margin-top + .re-root flex gap
+ * 仍是 32px，行距走 row-gap 同值，双/单列节奏一致。 */
+.re-duo { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 340px), 1fr)); gap: var(--re-sec-gap) 16px; }
+.re-duo > .re-sec { min-width: 0; } /* 栅格项默认 min-width:auto，图内 dataZoom/表会把轨道撑破 */
+/* 双栏里的滚动表（fed-funds 近期数据）：解除 .re-scroll-y 为宽表设的 min-width（半宽列装不下
+ * 860px 会出横向滚动）；滚动盒高度与 .re-chart 同式（clamp 220/40vh/300），并排图卡表卡
+ * 上下缘对齐。近期数据段不带 card，滚动盒自己当卡面 → 补 surface 底与图卡一致。 */
+.re-duo .re-scroll-y { margin-top: 0; max-height: clamp(220px, 40vh, 300px); background: var(--surface); }
+.re-duo .re-scroll-y .re-table { min-width: 0; }
+/* 只有「文本左 + 单数字右」两列，8px 内距贴着卡边太挤，加到 16px 呼吸 */
+.re-duo .re-scroll-y .re-table :is(th, td) { padding-left: 16px; padding-right: 16px; }
+/* wrap 自带 8px 顶缝；且它的 overflow-x:auto 会成为 sticky 滚动容器（自己不纵向滚），
+ * 把吸顶表头从 .re-scroll-y 手里顶掉 —— duo 内解除，让 th 吸在滚动盒顶 */
+.re-duo .re-scroll-y .re-table-wrap { margin-top: 0; overflow: visible; }
 /* 页内分组分隔标题（如利率定价页的政策路径 / 长端分解） */
 .re-group { font-size: 16px; font-weight: 800; margin: 24px 0 4px; padding-bottom: 6px; border-bottom: 2px solid var(--accent); color: var(--text); }
 .re-table { width: 100%; border-collapse: collapse; font-size: 13px; font-variant-numeric: tabular-nums; }
