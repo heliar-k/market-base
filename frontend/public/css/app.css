@@ -126,6 +126,10 @@ body { font-family: system-ui, -apple-system, sans-serif; background: var(--bg);
 .re-cards > .re-card { flex: 1 1 130px; min-width: 0; max-width: 275px; }
 .re-cards-wide > .re-card { flex-basis: 250px; }
 .re-card { padding: 16px 20px; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; }
+/* 流式字号：视口变窄字体同步收缩（斜率标在注释里），≥1100px 恢复满档，手机 390px 时 value≈18.4px */
+.re-corridor-label { font-size: clamp(10px, 9.5px + 0.2vw, 11px); text-transform: uppercase; letter-spacing: .06em; opacity: .7; }
+.re-corridor-value { font-size: clamp(18px, 16.5px + 0.5vw, 22px); font-weight: 700; margin-top: 10px; font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.re-card-sub { font-size: clamp(10px, 9.5px + 0.2vw, 11px); opacity: .7; margin-top: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 /* 长文本卡：value / sub 换行不截断（默认 nowrap + ellipsis 是给纯数字卡的） */
 .re-card-wrap .re-corridor-value, .re-card-wrap .re-card-sub {
   white-space: normal; overflow: visible; text-overflow: clip;
@@ -133,15 +137,13 @@ body { font-family: system-ui, -apple-system, sans-serif; background: var(--bg);
 /* 密集卡（带百分位条等附加内容）：比标准卡更紧一档 */
 .re-card-dense { padding: 12px 14px; }
 .re-card-dense .re-corridor-value { font-size: 17px; margin: 2px 0; }
-/* ≤768 收单列（卡片铺满行宽，与 #27 的 grid 单列档同构） */
+/* ≤768 收单列（卡片铺满行宽，与 #27 的 grid 单列档同构）+ 收 padding（流式字号只管字体，盒子密度这里补） */
 @media (max-width: 768px) {
   .re-cards > .re-card { flex-basis: 100%; max-width: none; }
+  .re-card { padding: 12px 14px; }
 }
 .re-card-accent { background: var(--surface); border: 1px solid var(--border); color: var(--text); }
 .re-card-accent .re-corridor-label { color: var(--text-secondary); }
-.re-corridor-label { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; opacity: .7; }
-.re-corridor-value { font-size: 22px; font-weight: 700; margin-top: 10px; font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.re-card-sub { font-size: 11px; opacity: .7; margin-top: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 /* 键值行网格单源（R.kvRows 的产物）：「一项一个数」的段用它，不写 2-4 列键值表。
  * 为什么不用表：表被拉到卡片全宽（1118px）时，两列表的数值列甩到最右、中间一大片空白；

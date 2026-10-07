@@ -689,7 +689,11 @@ body.dark .pm-topic-card { box-shadow: inset 0 0 0 1px rgba(255,255,255,.04); }
 }
 
 /* ── rates/pricing 页（原页面内联 <style> 收编；hc-/pb-/rp- 前缀为本页私有）── */
-/* KPI 8 卡固定 4×2，避免一排放 8 卡挤到 131px（.re-cards 已改 flex，这里用 basis 定列数） */
+/* KPI 8 卡固定 4×2，避免一排放 8 卡挤到 131px（.re-cards 已改 flex，这里用 basis 定列数）。
+ * 注：#re-cards 这个 id 被七个 KPI 页共用（fed-funds / liquidity 5 页 / rates-index），
+ * 下列 269/240 档实际是这些页共用的桌面密度，非 pricing 独有；
+ * ≤768 必须让位回全局单列档（下方规则）——否则 ID 优先级压过 app.css 的
+ * .re-cards > .re-card，手机上卡片缩在 ~260px 不铺满（2026-02 发现并修复）。 */
 #re-cards .re-cards > .re-card { flex-basis: 269px; }
 /* 政策路径定价 hero：决策卡 + PM 收敛路径图并排 */
 /* 两列都要 minmax(0,…)：裸写 1fr 的轨道下限是 min-content（本卡 280px），
@@ -705,6 +709,10 @@ body.dark .pm-topic-card { box-shadow: inset 0 0 0 1px rgba(255,255,255,.04); }
 @media (max-width: 1024px) {
   #re-cards .re-cards > .re-card { flex-basis: 240px; }
   .hero { grid-template-columns: minmax(0, 1fr); }
+}
+/* 手机档：上述 ID 档让位全局单列（同选择器同优先级，靠源顺序后置取胜） */
+@media (max-width: 768px) {
+  #re-cards .re-cards > .re-card { flex-basis: 100%; }
 }
 /* #27：≤ 768 取单列已由全局规则接手（见上方 .re-cards > .re-card）——两列时卡片
  * min-content 172px 会把轨道顶到 214px，两列 + gap = 464 > 375 → 文档横向溢出。 */

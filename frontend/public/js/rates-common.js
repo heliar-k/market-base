@@ -562,9 +562,12 @@ const R = {
         if (w === lastW) return;
         lastW = w;
         v.style.fontSize = '';
-        const avail = w - 40; // 卡片 padding 36px + 4px 安全边距（非整数字号下字形取整会多出几 px）
-        if (avail > 0 && v.scrollWidth > avail) {
-          v.style.fontSize = Math.max(12, Math.floor((220 * avail) / v.scrollWidth) / 10) + 'px';
+        // 溢出判定用 value 元素自身：scrollWidth(内容宽) > clientWidth(可用宽)，
+        // 不依赖卡片 padding 硬编码（曾写死 -40 = padding 20×2，padding 一改就误缩全站卡）；
+        // 基准字号读当前计算值（CSS clamp 下是 18-22px 浮动，写死 22 会越缩越大）
+        if (v.scrollWidth > v.clientWidth + 1) {
+          const cur = parseFloat(getComputedStyle(v).fontSize);
+          v.style.fontSize = Math.max(12, Math.floor((cur * 10 * v.clientWidth) / v.scrollWidth) / 10) + 'px';
         }
       };
       row.appendChild(d);
