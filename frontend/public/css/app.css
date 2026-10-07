@@ -458,6 +458,13 @@ body.embedded .macro-nav, body.embedded #macro-nav-toggle { display: none; }
     background: rgba(0,0,0,.35);
   }
 }
+/* 手机档浮钮同步收一档（30→26，≥24 触控下限）：special.css 窄屏页留白收缩后，
+   ☰ 30px 底边 38 压住专题页 .re-back 首行；放 app.css（☰ 单源在这）让 SPA 与
+   专题页按钮同尺寸，.center 让位同步 46→40（按钮 bottom 32 + 8 呼吸）。 */
+@media (max-width: 768px) {
+  #macro-nav-toggle { top: 6px; left: 6px; width: 26px; height: 26px; font-size: 12px; }
+  .center { padding-top: 40px; }
+}
 
 /* ── correlation view（关联分析面板：双模式）────── */
 .correlation-controls { display: flex; gap: 8px; padding: 8px 12px; border-bottom: 1px solid var(--border); align-items: center; flex-wrap: wrap; }

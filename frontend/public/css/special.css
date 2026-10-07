@@ -149,6 +149,38 @@ body.embedded .re-foot { display: none; } /* 内嵌 iframe 不重复页脚 */
 .re-table td.up { color: var(--color-up-text); }
 .re-table td.down { color: var(--color-down-text); }
 .re-table-wrap .re-scroll { overflow-x: auto; }
+/* ── 窄屏（≤768）整体收缩：页面留白 / 卡面 / 表格 ──
+ * 500px 视口的宽度去向（实测 yield-curve）：.re-root 两侧 64 + 卡面 40（出血 +16 抵回）
+ * ≈ 90px chrome，表格只剩 ~346px；字号内距又不随视口缩 → 6-8 列表全出横向滚动。
+ * 这里整链路收一档（KPI 卡三档收缩同思路）：
+ *   .re-root   两侧 32→16，max-width 的 100vw-64 同步 100vw-32（不然外留白还在）；
+ *              主题浮钮 .theme-float fixed 占视口右 8+30=38px，.re-header 让位
+ *              padding-right 20→24（16+24=40 > 38 依旧成立）；
+ *   卡面       20→14；出血/光学补偿挂 --re-cell-pad-x，自动跟着缩放不变式；
+ *   表格       tier-1 见下；≤600 再收 tier-2（pad 6 + 字号 11）。
+ * .re-duo / .re-scroll-y 的表内距是显式覆盖，不受影响；min-width 强制滚动的表
+ * （#dashboard 640px / .re-scroll-y 860px）保持滚动，只是更紧凑。 */
+@media (max-width: 768px) {
+  .re-root { max-width: min(1200px, calc(100vw - 32px)); padding: 20px 16px 40px; }
+  .re-header { padding-right: 24px; }
+  :is(.re-section, .re-panel) { padding: 12px 14px; }
+  :root { --re-cell-pad-x: 8px; }
+  .re-table { font-size: 12px; }
+  .re-table th { font-size: 11px; }
+  /* 另两个浮钮同步收一档（☰ 在 app.css 同档收）：偏移 8→6，30→26，≥24 触控下限。
+     body 前缀提特异性：两钮的基础定义在本文件更后面（~356 行），同特异性会被盖回。 */
+  body .theme-float { top: 6px; right: 6px; width: 26px; height: 26px; font-size: 12px; }
+  body .back-top { right: 6px; bottom: 6px; width: 26px; height: 26px; font-size: 12px; }
+  /* 内容左缘 32 = ☰ 右缘 32：‹ 返回xx 首行贴上按钮边，缩进 8px 让出呼吸
+     （仅此行让位；h1 顶 45 > 按钮 bottom 32 不需让） */
+  .re-back { padding-left: 8px; }
+}
+/* tier-2：手机宽度再收一档（用户验收宽 500px 在此档内；480 是 KPI 卡第三档，
+ * 表格多列数字的下限比卡更早到，故用 600 提前接管） */
+@media (max-width: 600px) {
+  :root { --re-cell-pad-x: 6px; }
+  .re-table { font-size: 11px; }
+}
 /* 卡内表格左右各出血一个单元格内缩：表头色带铺到卡片边（有呼吸），首末格文字正好落回
  * 内容栅格线，与同卡内的标题/键值/备注同一条左右边线。
  * 宿主用 :is() 列全：.re-section 专题页卡 / .fx-group 外汇单列分组 / .re-panel Section card 模式。
