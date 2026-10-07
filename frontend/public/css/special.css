@@ -1120,3 +1120,21 @@ body.dark .pm-topic-card { box-shadow: inset 0 0 0 1px rgba(255,255,255,.04); }
 @media (prefers-reduced-motion: reduce) {
   .cons-mk, .cons-ch { animation: none; }
 }
+
+/* ── 叙事文字窄屏收缩：研判(.re-section p / .sig-block)与解读(.re-analysis / .re-check)
+ * 两族跟表格(13→12→11)同一节奏双档收缩；桌面(>768)不动。
+ * 位置说明：这些基础规则散布在本文件中部（.re-check 237 / .re-analysis 243 / .sig-block 291 /
+ * .sig-row .sig-block ul 545），若把 media 块塞进上面 163 行那组（在它们之前），同特异性会被
+ * 后位基础规则盖回 —— 必须放文件尾部靠源序取胜（同 bef1c183 的 body 前缀问题，但这里无需
+ * 提特异性，源序就够）。 */
+@media (max-width: 768px) {
+  .re-section p, .re-check, .sig-row .sig-block ul { font-size: 12.5px; }
+  .sig-block .sig-title { font-size: 11.5px; }
+  .re-analysis :is(h3, p) { font-size: 13px; }
+  .re-analysis ul { font-size: 12.5px; }
+}
+@media (max-width: 600px) {
+  .re-section p, .re-check, .sig-row .sig-block ul, .re-analysis ul { font-size: 12px; }
+  .re-analysis :is(h3, p) { font-size: 12.5px; }
+  .sig-block .sig-title { font-size: 11px; }
+}
