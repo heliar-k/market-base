@@ -137,10 +137,16 @@ body { font-family: system-ui, -apple-system, sans-serif; background: var(--bg);
 /* 密集卡（带百分位条等附加内容）：比标准卡更紧一档 */
 .re-card-dense { padding: 12px 14px; }
 .re-card-dense .re-corridor-value { font-size: 17px; margin: 2px 0; }
-/* ≤768 收单列（卡片铺满行宽，与 #27 的 grid 单列档同构）+ 收 padding（流式字号只管字体，盒子密度这里补） */
+/* ≤768 收两列：calc(50%-6px) 与 12px gap 正好一行两卡（border-box 下含 padding 精确铺满，
+ * flex-grow 补齐余量），避免「4 平铺 → 直接 1 列」的硬跳（#33：中间宽度段信息密度过低、
+ * 竖向翻页变长）；≤480 手机再收单列。三档：>768 单行多卡 / 481-768 两列 / ≤480 单列铺满。
+ * 同时收 padding（流式字号只管字体，盒子密度这里补） */
 @media (max-width: 768px) {
-  .re-cards > .re-card { flex-basis: 100%; max-width: none; }
+  .re-cards > .re-card { flex-basis: calc(50% - 6px); max-width: none; }
   .re-card { padding: 12px 14px; }
+}
+@media (max-width: 480px) {
+  .re-cards > .re-card { flex-basis: 100%; }
 }
 .re-card-accent { background: var(--surface); border: 1px solid var(--border); color: var(--text); }
 .re-card-accent .re-corridor-label { color: var(--text-secondary); }
