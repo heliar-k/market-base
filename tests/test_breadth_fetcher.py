@@ -4,6 +4,7 @@ from unittest.mock import MagicMock
 
 import numpy as np
 import pandas as pd
+import pytest
 
 from src.fetchers import breadth_fetcher as bf
 
@@ -65,6 +66,21 @@ def test_compute_abv():
     assert abv["ABV200"].iloc[:199].isna().all()
     # 占比范围 [0, 100]
     assert abv["ABV200"].dropna().between(0, 100).all()
+
+
+def test_validate_rejects_partial_download_and_bad_frame():
+    """哨兵：覆盖 <80% 或末日跳动 >20pp 时拑错拒绝写盘。"""
+    closes = _prices(250)
+    good_abv = bf.compute_abv(closes)
+    bf._validate(closes, good_abv, n_components=3)  # 合法数据不抛
+
+    with pytest.raises(ValueError, match="部分下载"):
+        bf._validate(closes.iloc[:, :1], good_abv, n_components=3)
+
+    bad_abv = good_abv.copy()
+    bad_abv.iloc[-1] = [100.0, 100.0, 0.0]  # 10-06 那种坏帧形态
+    with pytest.raises(ValueError, match="跳动"):
+        bf._validate(closes, bad_abv, n_components=3)
 
 
 def test_download_closes_extracts_close(monkeypatch, tmp_path):
