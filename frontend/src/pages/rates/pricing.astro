@@ -1,7 +1,7 @@
 ---
 // 利率定价页 — 工单 #15 自 public/rates/pricing.html 迁入。
-// 结构：概览卡 + 政策路径 hero（PM/ZQ 对垒）+ 概率分布明细表 + PM 收敛路径 +
-// 长端分解三图 + 口径说明；island 脚本逐字原样（BUCKETS/delta/dchip 等页面私有单源不变）。
+// 结构：概览卡 + 政策路径 hero（PM/ZQ 对垒）+ 累计与路径口径 + 概率分布明细表 + PM 收敛路径 +
+// 长端分解三图；口径/读法注脚沉到所属小节底部（.re-sec-note），不再堆页尾大段。
 // fetch('/api/rate-expectations' 等) 不变。
 import TopicLayout from '../../layouts/TopicLayout.astro';
 import Section from '../../components/Section.astro';
@@ -66,20 +66,6 @@ import Section from '../../components/Section.astro';
     <div class="re-chart" id="spread_2_10_chart"></div>
   </Section>
 
-  <div class="re-explain">
-    <b>政策路径：</b>FOMC 概率基于 ZQ 30 天联邦基金期货结算价反推，采用 CME FedWatch 方法论近似，
-    每日北京时间凌晨更新；Polymarket 为该场会议「Fed Decision in {'{Month}'}?」事件的真实下注概率，
-    与 ZQ 并列为两源平权数据；目标利率来自 FRED DFEDTARL/DFEDTARU。
-    <b>口径提示：</b>ZQ = 期货隐含的会议后利率水平（<b>累计口径</b>，含此前会议的加息/降息）；
-    PM = 该场会议本身的决定概率（<b>边际口径</b>）——两源直接对比时 ZQ 加息概率天然偏高。
-    合约列标注「下月合约」= 月末会议会后采样不足 10 天，改用下月合约整月采样定价（FedWatch 官方方法）。
-    <b>分歧标注：</b>PM 相对 ZQ 分歧 ≥5pp 时，明细表中 PM 数值高亮显示；hero 对垒与五档行另带 ▲/▼ 角标（▲ = PM 相对 ZQ 高）。
-    <b>长端分解：</b>名义 = 实际 + 盈亏平衡。若收益率上行主要由实际利率推动 → 金融条件收紧（紧缩交易）；
-    若主要由盈亏平衡推动 → 通胀交易。盈亏平衡通胀 = DGS10 − DFII10（本地计算）。
-    期限溢价 = NY Fed ACM 估计（ACMTP10，右轴虚线）：<b>BEI 不动而期限溢价上行 → 供给/风险溢价交易</b>；
-    溢价上行 + 名义利率上行 → 供给驱动的熊陡。10Y 名义 − 期限溢价 ≈ 市场预期的平均短端路径。
-  </div>
-
   <div class="re-foot-page" slot="foot" id="re-foot"></div>
 
 <script is:inline>
@@ -135,6 +121,22 @@ async function load() {
   const el = document.getElementById('re-tbody');
   el.innerHTML = '<tr><td colspan="7" class="re-loading">加载中…</td></tr>';
   document.getElementById('rp-cards').innerHTML = '<div class="re-loading">加载中…</div>';
+
+  // 段内口径/读法注脚走 R.secNote 单源（原页尾 .re-explain 大段拆到这里：口径提示沉到
+  // 明细表段底 —— ZQ/PM 并列最密、高亮/角标/下月合约标注都在；长端读法沉到三图段底）。
+  // 不依赖数据，挂 load() 开头；主端点挂掉时页面已进错误态，注脚随之不见可接受。
+  // 目标利率 FRED DFEDTARL/U 已在概览卡 sub，不重复。
+  document.getElementById('sec-table').appendChild(R.secNote(
+    '口径：ZQ 概率由 30 天联邦基金期货结算价反推（CME FedWatch 方法论近似，每日北京时间凌晨更新）；'
+    + 'PM 为该场会议「Fed Decision in {Month}?」事件的真实下注概率，与 ZQ 两源平权。'
+    + 'ZQ 隐含的是会议后利率水平（累计口径，含此前会议的加减息），PM 是本场决定（边际口径）——'
+    + '直接对比时 ZQ 加息概率天然偏高。分歧 ≥5pp 时 PM 数值高亮、带 ▲/▼ 角标（▲ = PM 相对 ZQ 高）；'
+    + '月末会议改用下月合约整月采样定价（FedWatch 官方方法，见合约列「下月合约」标注）。'));
+  document.getElementById('sec-triple').appendChild(R.secNote(
+    '读法：名义 = 实际 + 盈亏平衡。收益率上行主要由实际利率推动 → 金融条件收紧（紧缩交易）；'
+    + '主要由盈亏平衡推动 → 通胀交易。盈亏平衡通胀 = DGS10 − DFII10（本地计算）。'
+    + '期限溢价 = NY Fed ACM 估计（右轴虚线）：BEI 不动而期限溢价上行 → 供给/风险溢价交易；'
+    + '溢价上行 + 名义利率上行 → 供给驱动的熊陡。10Y 名义 − 期限溢价 ≈ 市场预期的平均短端路径。'));
 
   const [reRes, fomc, histRes, fedRes, d] = await Promise.all([
     fetch('/api/rate-expectations'),
@@ -369,7 +371,7 @@ function renderConvChart(meetings, hist) {
   });
 }
 
-// ── 累计与路径口径：全年加息次数 / Sep–Dec 路径序列 / 首次降息时点 ──
+// ── 累计与路径口径：全年加息次数 / 路径序列 / 首次降息时点 ──
 // 数据源 = /api/fed/overview 的 market_odds（Polymarket fed 分类事件快照）。
 // 这三个事件问的是「跨会议累计 / 多场排列」，与上段 hero 和明细表的「单场会议边际概率」
 // 不是同一件事、互斥关系也不同 → 两边的概率只能分别读，不可相加、不可逐月对齐、不可互校。
@@ -396,12 +398,17 @@ function pmHikeCount(odds) {
   return Number.isFinite(n) ? { value: `${R.num(n, 0)} 次${more ? '以上' : ''}`, sub: `${pct1(m.prob_yes)} · Polymarket` } : null;
 }
 
-// ② Sep–Dec 路径序列：问句形如 "Will the Fed Hike–Pause–Hike in the next three decisions (Sep–Oct–Dec)?"
-// （连接符是 en dash –，不是 hyphen）；"decide differently" 是非路径兜底档，先滤掉
+// ② 路径序列：Polymarket 按会议窗口轮换该市场（slug 形如 fed-decisions-sepdec / -oct-jan …），
+// 多窗并存时取 end_date 最晚的当前窗；问句形如
+// "Will the Fed Hike–Pause–Hike in the next three decisions (Sep–Oct–Dec)?"
+// （连接符 en dash – / hyphen - 均有）；"decide differently" 是非路径兜底档，先滤掉
 function pmPath(odds) {
-  const m = pmTop(pmEvent(odds, 'fed-decisions-sepdec'), /decide differently/i);
-  const seq = m && (m.question || '').match(/Will the Fed (.+?) in the next/i);
-  return seq ? { value: R.esc(seq[1]), sub: pct1(m.prob_yes) } : null;
+  const ev = ((odds && odds.events) || [])
+    .filter((e) => (e.slug || '').startsWith('fed-decisions-'))
+    .sort((a, b) => String(b.end_date || '').localeCompare(String(a.end_date || '')))[0] || null;
+  const m = pmTop(ev, /decide differently/i);
+  const seq = m && (m.question || '').match(/Will the Fed (.+?) in the next three decisions \(([^)]+)\)/i);
+  return seq ? { value: R.esc(seq[1]), sub: `${pct1(m.prob_yes)} · ${R.esc(seq[2].replace(/-/g, '–'))}` } : null;
 }
 
 // ③ 首次降息时点：各档问的是「累计到该次会议为止是否已降息」，prob_yes 随到期月份单调递增，
@@ -424,7 +431,7 @@ function pmFirstCut(odds) {
 // 三张卡顺序固定；任一张取不到值保留卡位（value 给 '—'，sub 给缺哪份数据）
 const CUM_SLOT = [
   { label: '全年加息次数', pick: pmHikeCount, miss: '全年累计事件无快照' },
-  { label: 'Sep–Dec 路径序列', pick: pmPath, miss: '路径序列事件无快照' },
+  { label: '路径序列', pick: pmPath, miss: '路径序列事件无快照' },
   { label: '首次降息时点', pick: pmFirstCut, miss: '累计降息事件无快照' },
 ];
 function renderCumulative(odds) {
@@ -440,14 +447,13 @@ function renderCumulative(odds) {
     value: got[i] ? got[i].value : '—',
     sub: got[i] ? got[i].sub : s.miss,
   }))));
-  const asOf = odds && odds.as_of ? R.asOf([['Polymarket', odds.as_of]]) : '';
+  // 非空态注脚只留口径辨析 + 取法；「数据截至」页头 R.asOf 已给（同一份 market_odds().as_of），
+  // 「更新：fetch_polymarket」空态分支已给，此处重复即噪声。
   note.innerHTML = empty
     ? '暂无 Polymarket fed 分类快照——运行 <code>./bin/fetch_polymarket</code> 拉取后刷新（数据在 data/polymarket/，每日 cron 自动更新）。'
-    : `这三张卡是<b>累计 / 序列口径</b>（全年累计次数、多场会议排列、累计到某次会议为止是否已降息）；
-       上方 hero 与概率分布明细是<b>单场会议的边际口径</b>（这一场加不加）。两者问的事件不同——
-       概率不可相加、不可逐月对齐，也不能互相校验（全年次数高不代表下一场概率高）。
-       取法：各事件取概率最高的一档；首次降息时点取 prob_yes 首次 ≥50% 的月份，全部未过半则取最高档并标注「未过半」。
-       ${asOf ? asOf + ' · ' : ''}更新：<code>./bin/fetch_polymarket</code>。`;
+    : `口径：这三张卡问的是<b>跨会议的累计 / 序列事件</b>，与上方 hero / 明细表的「这一场加不加」（边际口径）
+       不是同一事件——概率不可相加、不可逐月对齐、也不能互相校验（全年次数高不代表下一场概率高）。
+       取法：各事件取概率最高的一档；首次降息取 prob_yes 首次 ≥50% 的月份，全部未过半则取最高档并标注「未过半」。`;
 }
 
 load().catch(e => {
