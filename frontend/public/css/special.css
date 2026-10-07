@@ -594,6 +594,8 @@ a.re-badge:hover { color: var(--accent-ink); border-color: var(--accent-ink); }
 .rt-b { background: var(--color-brand-bg); color: var(--accent-ink); } /* brand 图形档做字只 3.65:1，走 brand 的文字档 */
 .rt-h { background: var(--chip-flat-bg); color: var(--chip-flat-fg); }
 .eq-actions { float: right; display: flex; gap: 8px; }
+/* 雷达标题行迁 Section 后（.re-sec-head 是 flex，float 失效）：改 margin 推到行尾 */
+.re-sec-head .eq-actions { float: none; margin-left: auto; }
 .eq-btn { display: inline-block; padding: 4px 12px; border: 1px solid var(--border); border-radius: 6px; font-size: 12px;
   color: var(--text-secondary); text-decoration: none; transition: color .15s, border-color .15s, background .15s; }
 .eq-btn:hover { color: var(--text); border-color: var(--accent-ink); }

@@ -53,6 +53,9 @@ def download_closes(tickers: list[str]) -> pd.DataFrame:
     closes = raw["Close"] if isinstance(raw.columns, pd.MultiIndex) else raw
     closes.index = pd.to_datetime(closes.index).tz_localize(None).normalize()
     closes.index.name = "date"
+    # yfinance 盘前/拉取失败会给一整行 NaN 的当日帧，写盘前丢掉（否则 upsert 进宽表
+    # 后续分析会把空帧当「最新日」，如 ndx_radar 因此 rows=0，2026-10-06 实测）
+    closes = closes.dropna(how="all")
     return closes.sort_index()
 
 

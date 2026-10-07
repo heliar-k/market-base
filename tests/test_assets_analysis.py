@@ -21,6 +21,7 @@ from src.assets_analysis import (
     _reg_beta,
     crypto,
     equity_analysis,
+    ndx_radar,
 )
 from src.options_structure import bucket_dte, compute_structure
 from src.pricing import bs_greeks, d1_from
@@ -884,3 +885,26 @@ class TestRatioCross:
         assert "BTCD 下行（扩散确认）" in r["cross"]["summary"]
         assert r["rotation"]["cross_summary"] == r["cross"]["summary"]
         assert "交叉验证" in r["narrative"]
+
+
+def test_ndx_radar_skips_trailing_empty_row(monkeypatch, tmp_path):
+    """yfinance 空转留下的整行 NaN 帧不当「最新日」（2026-10-06 坏帧回归）。"""
+    d = tmp_path / "data" / "analyst"
+    d.mkdir(parents=True)
+    cols = [f"T{i:02d}" for i in range(10)]
+    (d / "ndx_components.csv").write_text(
+        "ticker,company,category\n"
+        + "".join(f"{c},C{i},Tech\n" for i, c in enumerate(cols))
+    )
+    idx = pd.bdate_range("2026-06-01", periods=71)
+    px = pd.DataFrame({c: [100.0 + i for i in range(71)] for c in cols}, index=idx)
+    px.loc[idx[-1]] = None  # 结尾整行 NaN（坏帧）
+    (d / "ndx_prices.csv").write_text(px.to_csv(index=True, index_label="date"))
+    monkeypatch.setattr("src.assets_analysis.ROOT", tmp_path)
+
+    r = ndx_radar()
+    assert r["rows"] == 10  # 修复前：末行全 NaN → has=[] → rows=0
+    assert r["date"] == str(idx[-2].date())
+    assert r["table"][0]["chg1"] == round(
+        (169.0 / 168.0 - 1) * 100, 2
+    )  # 末两有效值 169→168

@@ -695,6 +695,7 @@ def ndx_radar() -> dict:
     # components 无 date 列（ticker/company/category），按 ticker 建立映射
     comp = comp.rename(columns={"category": "industry"})
     px = _csv("analyst/ndx_prices.csv")
+    px = px.dropna(how="all")  # 兼容历史坏帧：整行 NaN 的当日行（2026-10-06）不当最新日
     if comp.empty or px.empty:
         return {"rows": 0}
     price_cols = [c for c in px.columns if c != "date"]

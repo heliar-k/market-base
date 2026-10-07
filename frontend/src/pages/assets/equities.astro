@@ -12,11 +12,15 @@ import Section from '../../components/Section.astro';
   </Section>
   <Section id="index-chart" title="指数走势" sub="归一化 %" />
   <Section id="breadth" title="市场广度" sub="含动能集中度" />
-  <!-- ABV 走势/分析师目标价/成分股雷达:条件性(对应子源缺失时为空),不进 Section -->
+  <!-- ABV 走势:条件性(子源缺失时为空),不进 Section;雷达/分析师目标价已升 Section(空数据 JS display:none) -->
   <div id="abv-chart" class="re-block"></div>
   <Section id="analysis" title="规则引擎解读" />
-  <div id="analyst" class="re-block"></div>
-  <div id="radar" class="re-block"></div>
+  <Section id="analyst" title="Nasdaq 100 分析师目标价" sub="12 个月分析师共识目标价 · 日频缓存展示" />
+  <Section id="radar" title="Nasdaq 100 成分股雷达" sub="内部动能结构 · 日频快照">
+    <span slot="head" id="radar-badge"></span>
+    <span class="eq-actions" slot="head"><a href="equities/options.html" class="eq-btn">QQQ 期权结构</a>
+    <a href="equities/positioning.html" class="eq-btn">CFTC 仓位</a></span>
+  </Section>
   <Section id="recent" title="近期数据" sub="收盘价 · 最近 20 个交易日" />
   <div class="re-foot-page" slot="foot" id="re-foot"></div>
 </div>
@@ -25,7 +29,7 @@ import Section from '../../components/Section.astro';
 // 小节锚点导航（#29：与其余专题页同一写法）
 document.getElementById('page-toc').innerHTML = [
   ['总览', 'overview'], ['指数走势', 'index-chart'], ['市场广度', 'breadth'],
-  ['规则引擎解读', 'analysis'], ['近期数据', 'recent'],
+  ['规则引擎解读', 'analysis'], ['分析师目标价', 'analyst'], ['成分股雷达', 'radar'], ['近期数据', 'recent'],
 ].map(([t, id]) => `<a href="#${id}">${t}</a>`).join('');
 
 let D = null;           // API 数据
@@ -183,11 +187,10 @@ function renderAnalysis() {
 
 function renderAnalyst() {
   const a = D.analyst || {};
-  if (!(a.rows > 10)) return;
+  if (!(a.rows > 10)) { document.getElementById('analyst').style.display = 'none'; return; }
+  // 标题在卡外(Section 组件),内容体装进 .re-panel 纯卡面壳(与 .re-section 同框,不接管标题字号)
   const sec = document.createElement('div');
-  sec.className = 're-section';
-  sec.innerHTML = `<h2>Nasdaq 100 分析师目标价 <span class="re-badge flat chip">TARGETS</span></h2>
-    <div class="src-note">基于 Yahoo Finance / yfinance 的 12 个月分析师共识目标价，日频缓存展示。</div>`;
+  sec.className = 're-panel';
   sec.appendChild(statCards([
     { label: '目标价覆盖率', value: `${a.coverage_pct == null ? '—' : a.coverage_pct.toFixed(1)}%`, sub: `${a.rows}/${a.total} 有共识目标价` },
     { label: '平均隐含空间', value: fp(a.avg_upside), cls: a.avg_upside > 0 ? 'up' : '', sub: '等权平均，不按市值加权' },
@@ -240,14 +243,14 @@ function renderAnalyst() {
 
 function renderRadar() {
   const r = D.radar || {};
-  if (!(r.rows > 10)) return;
-  const sec = document.createElement('div');
-  sec.className = 're-section';
+  if (!(r.rows > 10)) { document.getElementById('radar').style.display = 'none'; return; }
+  // 标题在卡外(Section):verdict 徽章填进标题行 slot 占位,内容体进 .re-panel 卡面壳(与分析师目标价同构)
   const vtag = r.verdict == '全面强势' ? 'bull' : r.verdict == '分化修复' ? 'flat' : 'bear';
-  sec.innerHTML = `<h2>Nasdaq 100 成分股雷达 <span class="re-badge ${vtag} chip">${r.verdict || ''}</span>
-    <span class="eq-actions"><a href="equities/options.html" class="eq-btn">QQQ 期权结构</a>
-    <a href="equities/positioning.html" class="eq-btn">CFTC 仓位</a></span></h2>
-    <div class="src-note">上涨家数 ${r.today_up_pct ?? '—'}%，50 日均线上方占比 ${r.above50_pct ?? '—'}%；${r.verdict == '全面强势' ? '全面强势特征明显' : r.verdict == '内部走弱' ? '结构修复尚未完成' : '更像结构分化而非全面趋势'}。
+  const badge = document.getElementById('radar-badge');
+  if (badge) badge.outerHTML = `<span class="re-badge ${vtag} chip">${r.verdict || ''}</span>`;
+  const sec = document.createElement('div');
+  sec.className = 're-panel';
+  sec.innerHTML = `<div class="src-note">上涨家数 ${r.today_up_pct ?? '—'}%，50 日均线上方占比 ${r.above50_pct ?? '—'}%；${r.verdict == '全面强势' ? '全面强势特征明显' : r.verdict == '内部走弱' ? '结构修复尚未完成' : '更像结构分化而非全面趋势'}。
       数据源：Wikipedia Nasdaq-100 当前成分股 · 价格日期 ${r.date}</div>`;
   sec.appendChild(statCards([
     { label: '覆盖率', value: `${r.price_share == null ? '—' : r.price_share.toFixed(1)}%`, sub: `${r.rows}/${r.total} ticker 有价格` },
@@ -302,7 +305,7 @@ function renderRadar() {
 
 function renderRecent() {
   const r = D.radar || {};
-  if (!r.recent || !r.recent.length) return;
+  if (!r.recent || !r.recent.length) { document.getElementById('recent').style.display = 'none'; return; }
   const sec = document.createElement('div');
   sec.className = 're-section';
   sec.innerHTML = `

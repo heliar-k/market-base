@@ -109,3 +109,26 @@ def test_download_closes_extracts_close(monkeypatch, tmp_path):
     assert list(closes.columns) == ["AAPL", "MSFT"]
     assert closes["AAPL"].iloc[-1] == 3.0
     assert closes.index.name == "date"
+
+
+def test_download_closes_drops_all_nan_row(monkeypatch, tmp_path):
+    """yfinance 盘前/失败给出的整行 NaN 当日帧在源头丢弃，不进宽表。"""
+    monkeypatch.setattr(bf, "COMPONENTS_PATH", tmp_path / "c.csv")
+    idx = pd.date_range("2026-01-01", periods=3)
+    raw = pd.DataFrame(
+        {("Close", "AAPL"): [1.0, 2.0, None], ("Close", "MSFT"): [4.0, 5.0, None]},
+        index=idx,
+    )
+    raw.columns = pd.MultiIndex.from_tuples(raw.columns)
+    fake_yf = MagicMock()
+    fake_yf.download.return_value = raw
+    import sys
+
+    monkeypatch.setitem(sys.modules, "yfinance", fake_yf)
+    from src.fetchers import yfinance_fetcher
+
+    monkeypatch.setattr(yfinance_fetcher, "ensure_yf_proxy", lambda: None)
+
+    closes = bf.download_closes(["AAPL", "MSFT"])
+    assert len(closes) == 2  # 坏帧行被丢掉
+    assert closes.index[-1] == idx[1]
