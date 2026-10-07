@@ -53,15 +53,17 @@ function renderVerdicts(d) {
       <div class="fx-verdict-value ${VD[verdict] || 'fx-flat'}">${verdict || '—'}</div>
       <div class="fx-verdict-note">${note || ''}</div>
     </div>`;
-  const sec = document.createElement('div');
-  sec.className = 're-section';
-  sec.innerHTML = `<div class="fx-verdict-cards">${[
+  // 卡行单源 .re-cards：.re-card 自带卡面，外层不再套 .re-section（套了就是卡中卡双层框）；
+  // 自定义内构卡（label+num 顶行）允许手写 .re-card，但必须进 .re-cards 行
+  const row = document.createElement('div');
+  row.className = 're-cards';
+  row.innerHTML = [
       card('美元广度', `${o.weak}/${o.total} 对走弱`, false, o.verdict, o.note),
       card('G10 / 商品货币', sg(gavg), false, g10.verdict, g10.note),
       card('亚洲 / EM', sg(asia.avg_pressure), false, asia.verdict, asia.note),
       card('JPY Carry', sg(jp.d20), true, jp.verdict, jp.note),
-    ].join('')}</div>`;
-  document.getElementById('verdicts').appendChild(sec);
+    ].join('');
+  document.getElementById('verdicts').appendChild(row);
 }
 
 // ── FX Dashboard 归一化走势图（近 6 个月，首日 = 0%） ──
@@ -77,13 +79,17 @@ function renderChart(d) {
     </div>
     <div class="re-chart fx-chart" id="fx-chart-el" style="margin-top:10px"></div>`;
   document.getElementById('fxchart').appendChild(sec);
+  const lastM = ch.dates[ch.dates.length - 1].slice(0, 7);
   R.mkChart('fx-chart-el', colors => R.lineOption({
     tooltip: { trigger: 'axis', valueFormatter: v => v == null ? '—' : Number(v).toFixed(2) + '%' },
-    legend: { top: 0, data: Object.keys(ch.series).map(k => CH_T[k] || k), itemGap: 10 },
+    // type scroll（房规，同 rates-common/cross-correlation）：9 个图例窄屏不换行压曲线
+    legend: { top: 0, type: 'scroll', data: Object.keys(ch.series).map(k => CH_T[k] || k), itemGap: 10 },
     grid: { left: 8, right: 20, top: 32, bottom: 40 },
     xAxis: { type: 'category', data: ch.dates, axisLine: { lineStyle: { color: colors.border } },
       axisLabel: { color: colors.muted, fontSize: 11,
-        interval: (i) => i === 0 || i === ch.dates.length - 1 || ch.dates[i].slice(0, 7) !== ch.dates[i - 1].slice(0, 7),
+        // 换月刻度若与末点同月（如 10-01 vs 末点 10-07）则抑制，末点恒显 —— 否则最右侧出现两个「10月」
+        interval: (i) => i === 0 || i === ch.dates.length - 1 ||
+          (ch.dates[i].slice(0, 7) !== ch.dates[i - 1].slice(0, 7) && ch.dates[i].slice(0, 7) !== lastM),
         formatter: v => { const [, m] = v.split('-'); return Number(m) + '月'; } } },
     yAxis: { type: 'value', axisLabel: { color: colors.muted, fontSize: 11, formatter: v => v + '%' }, splitLine: { lineStyle: { color: colors.grid } } },
     series: Object.keys(ch.series).map(k => ({
@@ -129,14 +135,15 @@ function renderTables(d) {
 
 // ── 读法说明 ──
 function renderExplain() {
-  const sec = document.createElement('div');
-  sec.className = 're-section';
-  sec.innerHTML = `<h2>读法</h2><div class="re-explain">
+  // .re-explain 自带卡面（border+bg），直接进 Section（同 etfs.astro）：
+  // 外面再套 .re-section 是卡中卡，内层 <h2> 也与 Section 标题「如何解读」重复
+  const el = document.createElement('div');
+  el.className = 're-explain';
+  el.innerHTML = `
     <p><b>美元压力口径</b>：20D USD pressure = 各货币对 20 日涨跌统一换算成「美元强弱」——直接报价（USD/XXX）取原始涨跌，间接报价（XXX/USD）取负。正值 = 美元走强（该货币对相对美元贬值），负值 = 美元走弱。</p>
     <p><b>亚洲/EM 同向走弱</b>：当亚洲与高贝塔 EM 货币（CNH/HKD/KRW/INR/MXN/BRL/ZAR）对美元同向贬值时，往往意味着美元融资压力抬升，历史上与新兴市场资本外流、风险资产回调同步。</p>
-    <p><b>JPY carry 平仓提示</b>：USD/JPY 与 EUR/JPY 同步下行 = 日元被动升值，是套息交易（借日元买高息资产）平仓的典型信号；若与其他风险资产同步下挫，需警惕去杠杆传导。</p>
-  </div>`;
-  document.getElementById('explain').appendChild(sec);
+    <p><b>JPY carry 平仓提示</b>：USD/JPY 与 EUR/JPY 同步下行 = 日元被动升值，是套息交易（借日元买高息资产）平仓的典型信号；若与其他风险资产同步下挫，需警惕去杠杆传导。</p>`;
+  document.getElementById('explain').appendChild(el);
 }
 function pctColor(v) { return v == null ? '—' : `<span class="fx-mono" style="color:${v >= 0 ? 'var(--up)' : 'var(--down)'}">${(v >= 0 ? '+' : '') + v.toFixed(2) + '%'}</span>`; }
 const fmt = R.num;  // 唯一调用点 fmt(v, 4)
