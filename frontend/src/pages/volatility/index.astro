@@ -211,7 +211,7 @@ async function load() {
     term.slope == null ? '' : ` (${sign}${Math.abs(term.slope).toFixed(2)})`}`;
   R.mkChart('vol-term-chart', () => ({
     tooltip: { trigger: 'axis' },
-    grid: { left: 50, right: 20, top: 30, bottom: 30 },
+    grid: { left: 8, right: 20, top: 30, bottom: 30 },
     xAxis: { type: 'category', data: term.labels, axisLabel: { color: c.text, fontWeight: 'bold' } },
     yAxis: { ...axis('VIX'), scale: true },
     series: [{
@@ -227,7 +227,7 @@ async function load() {
   R.mkChart('vol-cross-chart', () => ({
     tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' },
       formatter: (ps) => { const r = sorted[ps[0].dataIndex]; return `$${r.symbol} ${r.name}<br/>1D ${pct(r.chg1d)} · 最新 ${r.value?.toFixed(2) ?? '—'}`; } },
-    grid: { left: 110, right: 55, top: 10, bottom: 26 },
+    grid: { left: 50, right: 55, top: 10, bottom: 26 },
     xAxis: { ...axis('1D %'), axisLabel: { color: c.muted, formatter: '{value}%' } },
     yAxis: { type: 'category', data: sorted.map(r => `$${r.symbol}`), axisLabel: { color: c.text, fontSize: 11 } },
     series: [{

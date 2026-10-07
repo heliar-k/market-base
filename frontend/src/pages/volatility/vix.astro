@@ -150,7 +150,7 @@ async function load() {
   // ── 长期 VIX（近 2 年 + 恐慌虚线） ──
   R.mkChart('vix_long_chart', () => ({
     tooltip: { trigger: 'axis' },
-    grid: { left: 55, right: 90, top: 36, bottom: 30 },
+    grid: { left: 8, right: 90, top: 36, bottom: 30 },
     xAxis: { type: 'category', data: data.vix_long.dates, axisLabel: { color: c.muted } },
     yAxis: { ...axis('VIX') },
     series: [{
@@ -182,7 +182,7 @@ async function load() {
   R.mkChart('vix_skew_scatter', () => ({
     tooltip: { formatter: (p) => `${p.seriesName === '今日' ? '' : ''}VIX ${p.value[0]} · SKEW ${p.value[1]}<br/>${p.value[2]}` },
     // right 留 46px 防 x 轴标题（SKEW）右端被裁；markLine 标签位置 end 避免与轴刻度重叠
-    grid: { left: 55, right: 46, top: 28, bottom: 35, containLabel: true },
+    grid: { left: 8, right: 46, top: 28, bottom: 35, containLabel: true },
     xAxis: { ...axis('VIX'), scale: true,
       splitLine: { lineStyle: { color: c.grid } },
     },
@@ -212,7 +212,7 @@ async function load() {
   // ── SKEW 历史 + 阈值线 ──
   R.mkChart('skew_chart', () => ({
     tooltip: { trigger: 'axis' },
-    grid: { left: 55, right: 64, top: 36, bottom: 30 },
+    grid: { left: 8, right: 64, top: 36, bottom: 30 },
     xAxis: { type: 'category', data: data.vix_history.dates, axisLabel: { color: c.muted } },
     yAxis: { ...axis('SKEW'), min: 100 },
     series: [{
@@ -238,7 +238,7 @@ async function load() {
     term.slope == null ? '' : ` (${sign}${Math.abs(term.slope).toFixed(2)})`}`;
   R.mkChart('vix_term_chart', () => ({
     tooltip: { trigger: 'axis' },
-    grid: { left: 50, right: 20, top: 30, bottom: 30 },
+    grid: { left: 8, right: 20, top: 30, bottom: 30 },
     xAxis: { type: 'category', data: term.labels, axisLabel: { color: c.text, fontWeight: 'bold' } },
     yAxis: { ...axis('VIX'), scale: true },
     series: [{

@@ -79,7 +79,8 @@ async function load() {
   R.mkChart('yc_change', (colors) => R.lineOption({
     tooltip: { trigger: 'axis', valueFormatter: v => `${v} bp` },
     // 顶部留 16px 防柱顶标签裁切（含 grid.top 合计 ≥ 柱高+标签）；legend 此图不需要
-    legend: { show: false }, grid: { top: 28, left: 56, bottom: 24, containLabel: false },
+    legend: { show: false },
+    grid: { top: 28, left: 8, bottom: 24, containLabel: true},
     xAxis: { type: 'category', data: tenors.map(t => t.tenor), axisLabel: { color: colors.muted, fontSize: 10 }, axisLine: { lineStyle: { color: colors.border } } },
     // max 取整到 10 的倍数：不取整会多出 69.92 这种小数刻度，"69.92 bp" 标签宽过 grid.left 被画框裁掉
     yAxis: { type: 'value', axisLabel: { color: colors.muted, formatter: '{value} bp' }, scale: true, splitLine: { lineStyle: { color: colors.grid } }, max: v => Math.ceil((v.max + (v.max - v.min) * 0.12) / 10) * 10 },
@@ -95,7 +96,7 @@ async function load() {
   R.mkChart('yc_spreads', (colors) => R.lineOption({
     legend: { data: ['2s10s', '3m10s', '5s30s'] },
     tooltip: { trigger: 'axis', valueFormatter: v => `${v} bp` },
-    grid: { bottom: 56, left: 56 },
+    grid: { bottom: 56, left: 8 },
     dataZoom: [{ type: 'inside' }, { type: 'slider', bottom: 8, height: 18 }],
     xAxis: { type: 'category', data: R.ts(sh['2s10s']), axisLabel: { color: colors.muted, fontSize: 10, alignMinLabel: 'left', alignMaxLabel: 'right' }, axisLine: { lineStyle: { color: colors.border } } },
     yAxis: { type: 'value', axisLabel: { color: colors.muted, formatter: '{value} bp' }, scale: true, splitLine: { lineStyle: { color: colors.grid } } },

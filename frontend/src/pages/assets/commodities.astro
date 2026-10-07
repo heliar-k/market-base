@@ -97,7 +97,7 @@ async function load() {
   R.mkChart('com-chart', colors => R.lineOption({
     tooltip: { trigger: 'axis' },
     legend: { data: keys, top: 0 },
-    grid: { left: 44, right: 16, top: 28, bottom: 40 },
+    grid: { left: 8, right: 16, top: 28, bottom: 40 },
     xAxis: { type: 'category', data: n.dates, axisLine: { lineStyle: { color: colors.border } }, axisLabel: { color: colors.muted, fontSize: 10, alignMinLabel: 'left', alignMaxLabel: 'right' } },
     yAxis: { type: 'value', axisLabel: { color: colors.muted, fontSize: 11 }, splitLine: { lineStyle: { color: colors.grid } } },
     series: keys.map((k, i) => ({

@@ -325,7 +325,7 @@ const R = {
     return R.lineOption({
       legend: { data: clusters.map(x => x.name), type: 'scroll', textStyle: { color: c.text, fontSize: 11 } },
       tooltip: { trigger: 'axis', valueFormatter: v => (v == null ? '—' : `${(v * 100).toFixed(1)}%`) },
-      grid: { left: 44, right: 12, top: 36, bottom: 24 },
+      grid: { left: 8, right: 12, top: 36, bottom: 24 },
       xAxis: {
         type: 'category', data: dates,
         axisLabel: { color: c.muted, fontSize: 10, formatter: v => R.md(v) },
@@ -404,9 +404,19 @@ const R = {
     const dom = document.getElementById(id);
     if (!dom) return null;
     dom.classList.add('skeleton'); // 骨架屏占位（app.css .skeleton）：首次 setOption 后摘除，主题重建不重复挂
+    // 独立当卡面的 .re-chart（11 个 Section 页）：自身有边框但 padding 为 0，画布直接贴边，
+    // y 轴标签离卡边只剩 grid.left；垫一层卡面同款内距（special.css .re-section 的 16px 20px），
+    // 与 .re-section 卡里的图（equities 等）对齐。嵌在卡内的 .re-chart（fx/treasury）不垫（避免卡中卡）。
+    const NESTED = dom.closest('.re-section, .re-panel');
+    if (dom.classList.contains('re-chart') && !NESTED && !dom.querySelector(':scope > .re-chart-pad')) {
+      const pad = document.createElement('div');
+      pad.className = 're-chart-pad';
+      dom.appendChild(pad);
+    }
+    const host = dom.querySelector(':scope > .re-chart-pad') || dom;
     const render = () => {
       if (window.registerMacroTheme) registerMacroTheme();
-      const opt = R._clampGrid(option(R.colors()), dom.clientWidth);
+      const opt = R._clampGrid(option(R.colors()), host.clientWidth);
       if (R.isEmptyOption(opt)) {
         // 空态：不 init、不注册主题/resize（无实例可重绘）；只铺一次文案，避免主题循环重复写
         dom.classList.remove('skeleton');
@@ -417,7 +427,7 @@ const R = {
         return null;
       }
       dom.querySelector('.re-empty')?.remove(); // 空态文案先让位再 init（ECharts 要求容器为空，否则告警）
-      const chart = echarts.init(dom, R.isDark() ? 'macroDark' : 'macro');
+      const chart = echarts.init(host, R.isDark() ? 'macroDark' : 'macro');
       chart.setOption(opt);
       dom.classList.remove('skeleton');
       R._charts.set(id, chart);
@@ -433,7 +443,7 @@ const R = {
     // 只在布尔翻转时重建（一个图最多重建几次），resize 中间帧仍只走 chart.resize()
     let narrow = dom.clientWidth < 480;
     new ResizeObserver(() => {
-      const n = dom.clientWidth < 480;
+      const n = host.clientWidth < 480;
       if (n === narrow) { chart.resize(); return; }
       narrow = n;
       try { chart.dispose(); } catch (e) { /* 已被外部 dispose */ }

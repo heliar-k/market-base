@@ -140,7 +140,7 @@ async function load() {
     document.getElementById('funding').appendChild(fsec);
     R.mkChart('funding-hist', c => R.lineOption({
       tooltip: { trigger: 'axis', valueFormatter: v => (v == null ? '—' : Number(v).toFixed(4) + '%') },
-      grid: { left: 58, right: 14, top: 20, bottom: 24 },
+      grid: { left: 8, right: 14, top: 20, bottom: 24 },
       xAxis: { type: 'category', data: fh.map(p => p.date), axisLabel: { color: c.muted, fontSize: 10, formatter: v => v.slice(5, 10) }, axisLine: { lineStyle: { color: c.border } } },
       yAxis: { type: 'value', axisLabel: { color: c.muted, fontSize: 10, formatter: v => Number(v).toFixed(3) + '%' }, splitLine: { lineStyle: { color: c.grid } } },
       series: [{

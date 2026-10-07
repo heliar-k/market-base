@@ -222,7 +222,7 @@ function renderHawkish(root, data) {
         // name = 官员姓名（speeches.csv 的 speaker，外部原文）；ECharts tooltip 走 HTML 渲染
         formatter: (p) => `${R.esc(p.data.name)}<br>${p.data.real} · ${p.data.value[1] > 0 ? '+' : ''}${p.data.value[1]}`,
       },
-      grid: { left: 40, right: 16, top: 36, bottom: 40 },
+      grid: { left: 8, right: 16, top: 36, bottom: 40 },
       xAxis: {
         type: 'time',
         axisLabel: { color: c.text, fontSize: 10, hideOverlap: true },

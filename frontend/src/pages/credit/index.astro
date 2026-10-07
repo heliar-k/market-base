@@ -422,7 +422,7 @@ function renderStress(root, d) {
     wrap.appendChild(hsec);
     R.mkChart('hist-chart', colors => ({
       tooltip: { trigger: 'axis' },
-      grid: { left: 44, right: 34, top: 24, bottom: 28, containLabel: true },
+      grid: { left: 8, right: 34, top: 24, bottom: 28, containLabel: true },
       xAxis: { type: 'category', data: d.history.dates, axisLine: { lineStyle: { color: colors.border } }, axisLabel: { color: colors.muted, fontSize: 11 } },
       yAxis: { type: 'value', min: 0, max: 100, axisLabel: { color: colors.muted, fontSize: 11 }, splitLine: { lineStyle: { color: colors.grid } } },
       series: [{

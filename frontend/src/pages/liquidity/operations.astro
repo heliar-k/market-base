@@ -52,8 +52,8 @@ async function load() {
         { type: 'value', name: '累计', nameTextStyle: { color: c.muted, align: 'right' }, nameGap: 12, splitLine: { show: false }, axisLabel: { color: c.muted, formatter: v => '$' + v + 'B' } },
       ],
       tooltip: { trigger: 'axis' },
-      grid: { left: 70, right: 70, bottom: 30, top: 34, containLabel: true },
-      legend: { top: 4, data: ['日购买', '累计购买'], textStyle: { color: c.text } },
+      grid: { left: 50, right: 50, bottom: 20, top: 60, containLabel: true },
+      legend: { top: 15, data: ['日购买', '累计购买'], textStyle: { color: c.text } },
       series: [
         { name: '日购买', type: 'bar', data: rs.map(p => [p.date, p.accepted_b]), itemStyle: { color: c.green }, barMaxWidth: 8 },
         { name: '累计购买', type: 'line', yAxisIndex: 1, data: rs.map(p => [p.date, p.cum_b]), lineStyle: { color: c.blue, width: 2 }, showSymbol: false },

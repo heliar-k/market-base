@@ -101,7 +101,7 @@ async function load() {
   R.mkChart('spread_chart', c => ({
     xAxis: { type: 'time', axisLabel: { color: c.muted } },
     yAxis: { type: 'value', scale: true, axisLabel: { color: c.muted, formatter: v => v + 'bp' }, splitLine: { lineStyle: { color: c.grid } } },
-    grid: { left: 60, right: 20, bottom: 30, top: 20, containLabel: true },
+    grid: { left: 8, right: 20, bottom: 30, top: 20, containLabel: true },
     tooltip: { trigger: 'axis' },
     series: [{ type: 'line', data: s60.map(p => [p.date, p.value]), lineStyle: { color: c.blue, width: 2 }, showSymbol: false,
       markLine: { data: [{ yAxis: 0 }], lineStyle: { color: c.muted, type: 'dashed' }, symbol: 'none', label: { show: false } } }],
@@ -112,7 +112,7 @@ async function load() {
   R.mkChart('cash_chart', c => ({
     xAxis: { type: 'time', axisLabel: { color: c.muted } },
     yAxis: { type: 'value', axisLabel: { color: c.muted, formatter: v => '$' + v + 'B' }, splitLine: { lineStyle: { color: c.grid } } },
-    grid: { left: 60, right: 20, bottom: 30, top: 20, containLabel: true },
+    grid: { left: 8, right: 20, bottom: 30, top: 20, containLabel: true },
     tooltip: { trigger: 'axis' },
     series: [
       { name: '存款', type: 'bar', stack: 'c', data: cf.map(p => [p.date, p.deposits_b]), itemStyle: { color: c.green }, barMaxWidth: 10 },

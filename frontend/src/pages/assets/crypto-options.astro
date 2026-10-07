@@ -33,7 +33,7 @@ function levelOption(clusters, spot, c) {
   return R.lineOption({
     legend: { data: clusters.map(x => x.name).concat(sp.length ? ['现价'] : []), type: 'scroll', textStyle: { color: c.text, fontSize: 11 } },
     tooltip: { trigger: 'axis', valueFormatter: usd },
-    grid: { left: 58, right: 14, top: 36, bottom: 24 },
+    grid: { left: 8, right: 14, top: 36, bottom: 24 },
     xAxis: {
       type: 'category', data: all,
       axisLabel: { color: c.muted, fontSize: 10, formatter: v => R.md(v) },

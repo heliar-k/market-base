@@ -93,6 +93,9 @@ body.embedded .re-foot { display: none; } /* 内嵌 iframe 不重复页脚 */
 }
 /* 图表高度统一 clamp()（#20 配套项）：上限 = 原固定值，斜率取 ~40vh，
  * 视口高 ≥ ~750px（几乎全部桌面）与原来逐像素一致，仅矮屏/手机变矮，下限兜住可读性。 */
+/* 独立卡面 .re-chart 的内层画布容器（rates-common.js mkChart 垫入）：padding 与 .re-section
+   卡面单源同值，让轴标签离卡边的距离与卡内图一致；自身不带边框（边框由外层 .re-chart 提供）。 */
+.re-chart-pad { padding: 16px 20px; height: 100%; box-sizing: border-box; }
 .re-chart { height: clamp(220px, 40vh, 300px); border: 1px solid var(--border); border-radius: 8px; background: var(--surface); }
 /* re-section 内部的图表/表格与父卡底对齐（margin-bottom），左右与文字同一条边线 */
 .re-section > .re-chart:last-child, .re-section > .re-table:last-child { margin-bottom: 2px; }

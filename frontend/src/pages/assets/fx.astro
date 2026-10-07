@@ -80,7 +80,7 @@ function renderChart(d) {
   R.mkChart('fx-chart-el', colors => R.lineOption({
     tooltip: { trigger: 'axis', valueFormatter: v => v == null ? '—' : Number(v).toFixed(2) + '%' },
     legend: { top: 0, data: Object.keys(ch.series).map(k => CH_T[k] || k), itemGap: 10 },
-    grid: { left: 48, right: 20, top: 32, bottom: 40 },
+    grid: { left: 8, right: 20, top: 32, bottom: 40 },
     xAxis: { type: 'category', data: ch.dates, axisLine: { lineStyle: { color: colors.border } },
       axisLabel: { color: colors.muted, fontSize: 11,
         interval: (i) => i === 0 || i === ch.dates.length - 1 || ch.dates[i].slice(0, 7) !== ch.dates[i - 1].slice(0, 7),
