@@ -61,6 +61,24 @@ def test_categorize_series_priority():
     assert (cat, hit) == ("fed", True)
 
 
+def test_categorize_fed_3_parlay():
+    """路径排列市场（fed-decisions-*）：series 命中 → fed + 豁免成交量地板。
+
+    单事件量小（~$2-15K），若 series 映射缺失会被地板挤掉（2026-10
+    Sep–Dec 路径序列卡片因此断更 4 天）。
+    """
+    e = _event(
+        slug="fed-decisions-oct-jan",
+        title="Fed decisions (Oct-Jan)",
+        series=[{"ticker": "fed-3-parlay"}],
+        volume24hr=1_747.0,
+        volume=15_823.0,
+    )
+    cat, hit = categorize(e)
+    assert (cat, hit) == ("fed", True)
+    assert passes_volume(e, hit)  # 地板豁免：量不够也保留
+
+
 def test_categorize_keyword_word_boundary():
     # confirmed 不含词边界 fed；recession 关键词命中 data
     e = _event(

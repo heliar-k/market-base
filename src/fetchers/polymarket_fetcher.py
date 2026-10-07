@@ -97,8 +97,14 @@ def categorize(event: dict) -> tuple[str | None, bool]:
     分类顺序即 config 字典序：fed > data > policy > geo > crypto。
     """
     series_tickers = {s.get("ticker") for s in (event.get("series") or [])}
-    # series → 分类：fomc/fed-rate-hike/fed-rate-cut → fed；价位系列 → crypto
-    series_cat = {"fomc": "fed", "fed-rate-hike": "fed", "fed-rate-cut": "fed"}
+    # series → 分类：fomc/fed-rate-hike/fed-rate-cut/fed-3-parlay → fed
+    # 价位系列 → crypto
+    series_cat = {
+        "fomc": "fed",
+        "fed-rate-hike": "fed",
+        "fed-rate-cut": "fed",
+        "fed-3-parlay": "fed",
+    }
     for t in series_tickers:
         if t in series_cat:
             return series_cat[t], True

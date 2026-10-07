@@ -378,6 +378,9 @@ POLYMARKET_SERIES: list[str] = [
     "fomc",
     "fed-rate-hike",
     "fed-rate-cut",
+    # 三会议路径排列（fed-decisions-sepdec / -oct-jan …，按窗口轮换）：
+    # 单事件量小（~$2-15K）过不了成交量地板，必须走 series 通道豁免
+    "fed-3-parlay",
     "bitcoin-hit-price-monthly",
     "ethereum-hit-price-monthly",
 ]
