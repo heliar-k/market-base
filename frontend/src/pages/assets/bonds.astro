@@ -10,8 +10,16 @@ import Section from '../../components/Section.astro';
   <Section id="overview" title="价格总览">
     <div id="cards"></div>
   </Section>
-  <Section id="chart" title="近期相对涨跌" sub="最近 20 个交易日 · 期初 = 0%" />
-  <Section id="recent" title="近期数据" />
+  <!-- 双栏组（.re-duo，special.css 单源，同 rates/fed-funds）：宽桌面两小节并排，窄屏自动回落单列。
+       近期数据不加 card —— 滚动盒自己当卡面（高度与 .re-chart 同式，上下缘对齐） -->
+  <div class="re-duo">
+    <Section id="chart" title="近期相对涨跌" sub="最近 20 个交易日 · 期初 = 0%">
+      <div class="re-chart" id="bond-chart"></div>
+    </Section>
+    <Section id="recent" title="近期数据" sub="收盘价明细 · 最近 20 条，上下滚动查看">
+      <div class="re-scroll-y" id="recent-body"></div>
+    </Section>
+  </div>
   <div class="re-foot-page" slot="foot" id="re-foot"></div>
 </div>
 
@@ -43,10 +51,6 @@ async function load() {
     const base = arr.find(v => v != null && v !== 0);
     return arr.map(v => (v == null || base == null) ? null : +(((v / base) - 1) * 100).toFixed(2));
   };
-  const csec = document.createElement('div');
-  csec.className = 're-section';
-  csec.innerHTML = '<div class="chart chart-lg" id="bond-chart"></div>';
-  document.getElementById('chart').appendChild(csec);
   R.mkChart('bond-chart', colors => R.lineOption({
     tooltip: { trigger: 'axis', valueFormatter: v => v == null ? '—' : Number(v).toFixed(2) + '%' },
     // 图例色标由 reSyncLegend 按 series 线型自动出（实/虚/点/点划线），无需手写
@@ -70,13 +74,9 @@ async function load() {
     keys.forEach(k => { row[k] = rc.series[k][i]; });
     return row;
   });
-  const rsec = document.createElement('div');
-  rsec.className = 're-section';
-  rsec.innerHTML = '<h2>收盘价明细</h2>';
   const fmts = { 日期: v => v };
   keys.forEach(k => { fmts[k] = v => fmt(v); });
-  rsec.appendChild(R.table(['日期'].concat(keys), rows, fmts));
-  document.getElementById('recent').appendChild(rsec);
+  document.getElementById('recent-body').replaceChildren(R.table(['日期'].concat(keys), rows, fmts));
 
   R.foot(null, { src: 'yfinance 日频快照', note: '口径为收盘价' });
 }
