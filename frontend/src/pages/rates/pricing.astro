@@ -33,22 +33,28 @@ import Section from '../../components/Section.astro';
     <p class="re-source" id="rp-cum-note"></p>
   </Section>
 
-  <Section id="sec-table" title="概率分布明细" card>
-    <div class="re-table-wrap">
-      <table class="re-table">
-        <thead>
-          <tr>
-            <th>会议</th>
-            <th>合约 / 隐含利率</th>
-            <th>概率分布（ZQ ▾ / PM ▾）</th>
-            <th>降息</th>
-            <th>维持</th>
-            <th>加息</th>
-            <th>研判</th>
-          </tr>
-        </thead>
-        <tbody id="re-tbody"></tbody>
-      </table>
+  <!-- 卡面只包内容不含标题（与其他小节「标题在页面、内容自卡面」同构）；
+       出血/首列光学补偿规则挂 .re-panel 宿主，照常接管 -->
+  <Section id="sec-table" title="概率分布明细" sub="PM 高亮 = 分歧 ≥5pp">
+    <div class="re-panel">
+      <div class="re-table-wrap">
+        <table class="re-table">
+          <thead>
+            <tr>
+              <th>会议</th>
+              <th>合约 / 隐含利率</th>
+              <th>概率分布（ZQ ▾ / PM ▾）</th>
+              <th>降息</th>
+              <th>维持</th>
+              <th>加息</th>
+              <th>研判</th>
+            </tr>
+          </thead>
+          <tbody id="re-tbody"></tbody>
+        </table>
+      </div>
+      <!-- 窄屏形态（≤900）：hero 同构会议卡，JS renderCards 渲染，与上表同一份 meetings 数据 -->
+      <div class="rp-cards" id="rp-cards"></div>
     </div>
   </Section>
 
@@ -67,7 +73,7 @@ import Section from '../../components/Section.astro';
     <b>口径提示：</b>ZQ = 期货隐含的会议后利率水平（<b>累计口径</b>，含此前会议的加息/降息）；
     PM = 该场会议本身的决定概率（<b>边际口径</b>）——两源直接对比时 ZQ 加息概率天然偏高。
     合约列标注「下月合约」= 月末会议会后采样不足 10 天，改用下月合约整月采样定价（FedWatch 官方方法）。
-    <b>分歧角标：</b>|PM−ZQ|≥5pp 出现（▲/▼ = PM 相对 ZQ 高/低），≥20pp 橙色加重。
+    <b>分歧标注：</b>PM 相对 ZQ 分歧 ≥5pp 时，明细表中 PM 数值高亮显示；hero 对垒与五档行另带 ▲/▼ 角标（▲ = PM 相对 ZQ 高）。
     <b>长端分解：</b>名义 = 实际 + 盈亏平衡。若收益率上行主要由实际利率推动 → 金融条件收紧（紧缩交易）；
     若主要由盈亏平衡推动 → 通胀交易。盈亏平衡通胀 = DGS10 − DFII10（本地计算）。
     期限溢价 = NY Fed ACM 估计（ACMTP10，右轴虚线）：<b>BEI 不动而期限溢价上行 → 供给/风险溢价交易</b>；
@@ -100,6 +106,8 @@ const delta = (zq, pm) => {
 const expCls = (label) => (label === '降息' ? 'cut' : label === '加息' ? 'hike' : 'hold');
 // 档位语义 → CSS 色变量后缀（cut=up 绿 hold=neutral hike=down 红，单源）
 const CLS_COLOR = { cut: 'up', hold: 'neutral', hike: 'down' };
+// 三档聚合标签（renderCards 桶位行用；与表格 numCell 同口径：ZQ 三档 / PM 聚合）
+const BUCKETS3 = [['cut', '降息', 'cut'], ['hold', '维持', 'hold'], ['hike', '加息', 'hike']];
 // 分歧角标（五档行 / hero 对垒）：|Δ|<5pp 不出现
 const dchip = (zq, pm) => {
   const x = delta(zq, pm);
@@ -126,6 +134,7 @@ async function load() {
 
   const el = document.getElementById('re-tbody');
   el.innerHTML = '<tr><td colspan="7" class="re-loading">加载中…</td></tr>';
+  document.getElementById('rp-cards').innerHTML = '<div class="re-loading">加载中…</div>';
 
   const [reRes, fomc, histRes, fedRes, d] = await Promise.all([
     fetch('/api/rate-expectations'),
@@ -170,7 +179,9 @@ async function load() {
   // hero 取下一场未结束会议；全部过期（数据停更）时显空态，不回退到已结束会议
   // （回退会重现「会后仍显示旧会议定价」原 bug）
   renderHero(re.meetings.find((m) => m.meeting_date >= AS_OF) || null);
-  renderTable(re.meetings.filter((m) => m.meeting_date >= AS_OF));
+  const upcoming = re.meetings.filter((m) => m.meeting_date >= AS_OF);
+  renderTable(upcoming);
+  renderCards(upcoming);
   renderConvChart(re.meetings, hist);
   renderCumulative(fedRes && fedRes.market_odds);
 
@@ -261,17 +272,17 @@ function renderHero(m) {
 }
 
 // ── 概率分布明细表：每会议一行，ZQ/PM 同格双条 ──
+// 数值格只标 hot 色（PM 相对 ZQ 分歧 ≥5pp 的档），不再缀 ▲Xpp 后缀、研判列不再
+ // 带 分歧Xpp 徽章（用户定）：ZQ/PM 上下并列已直接读出差值，数字标注是冗余。
 function numCell(zq, p) {
   if (p == null) return `<td class="numcell"><span class="z">${pct1(zq)}</span><br><span class="p">—</span></td>`;
   const x = delta(zq, p);
-  return `<td class="numcell"><span class="z">${pct1(zq)}</span><br><span class="p${x.hot ? ' hot' : ''}">${pct1(p)}${x.hot ? ' ' + x.arrow + x.pp.toFixed(0) + 'pp' : ''}</span></td>`;
+  return `<td class="numcell"><span class="z">${pct1(zq)}</span><br><span class="p${x.hot ? ' hot' : ''}">${pct1(p)}</span></td>`;
 }
 function renderTable(meetings) {
   const el = document.getElementById('re-tbody');
   el.innerHTML = meetings.map((m) => {
     const agg = pmAgg(m);
-    // 最大档位分歧（研判列徽章：≥20pp 才出现，同 delta.big 阈值）
-    const divPp = agg ? Math.max(delta(m.prob_cut, agg.cut).pp, delta(m.prob_hold, agg.hold).pp, delta(m.prob_hike, agg.hike).pp) : 0;
     const contract = m.contract_used !== m.contract
       ? `${m.contract_used}<span class="re-next-tag" title="月末会议，改用下月合约整月采样定价">下月合约</span>`
       : m.contract;
@@ -283,8 +294,43 @@ function renderTable(meetings) {
       <td><div>${contract}</div><div class="rp-sub">隐含 ${m.implied_rate.toFixed(3)}% → 会后 ${m.post_meeting_rate.toFixed(3)}%</div></td>
       <td class="dual"><div class="dual-row"><span class="src">ZQ</span>${triBar(m.prob_cut, m.prob_hold, m.prob_hike)}</div>${pmBar}</td>
       ${numCell(m.prob_cut, agg?.cut)}${numCell(m.prob_hold, agg?.hold)}${numCell(m.prob_hike, agg?.hike)}
-      <td><span class="re-expectation ${exp}">${m.expectation}</span>
-        ${divPp >= 20 ? `<span class="dchip big">分歧${divPp.toFixed(0)}pp</span>` : ''}</td></tr>`;
+      <td><span class="re-expectation ${exp}">${m.expectation}</span></td></tr>`;
+  }).join('');
+}
+
+// ── 概率分布明细（窄屏形态）：每会议一张 hero 同构卡，桶位行复用 .hc-bk ──
+// 与 renderTable 同一份 meetings 数据（CSS ≤900 显卡隐表）。条 = 同轴双源叠加
+//（ZQ 实色 + PM 半透明，同桶位同色）；数字列 .rp-val 双行带源标（PM 上 / ZQ 下）——
+// 表格态有行标、hero 有对垒栏，卡内不标源 = PM 信息丢失。
+// 不画分歧 chip（用户定）：两行数字并列已直接读出差值，chip 在缩窄过程中要反复
+// 处理换行/藏/挤；hero 的 :has 空 chip 规则自动把行降为 3 列，条形更宽。
+// PM 无对应事件时该桶 PM 侧给「—」、条只画 ZQ。
+function renderCards(meetings) {
+  const legend = '<div class="rp-cards-legend">双源双轨条：上轨 = ZQ 期货（实色）· 下轨 = Polymarket（半透明）</div>';
+  document.getElementById('rp-cards').innerHTML = legend + meetings.map((m) => {
+    const agg = pmAgg(m);
+    const zq3 = { cut: m.prob_cut, hold: m.prob_hold, hike: m.prob_hike };
+    const rows = BUCKETS3.map(([k, label, cls]) => {
+      const z = zq3[k] ?? 0, p = agg ? agg[k] : null;
+      const color = `var(--color-${CLS_COLOR[cls]})`;
+      // 与表格 numCell 同口径：PM 相对 ZQ 分歧 ≥5pp 的档，数值高亮
+      const hot = p != null && delta(z, p).hot;
+      return `<div class="row"><span class="lab ${cls}">${label}</span>
+        <div class="track"><div class="f-zq" style="width:${z * 100}%;background:${color}"></div>
+          <div class="f-pm" style="width:${(p || 0) * 100}%;background:${color}"></div></div>
+        <div class="rp-nums"><em>PM</em><span class="vp${hot ? ' hot' : ''}">${p == null ? '—' : pct1(p)}</span><s>/</s><em>ZQ</em><span class="vz">${pct1(z)}</span></div></div>`;
+    }).join('');
+    const contract = m.contract_used !== m.contract
+      ? `${m.contract_used}<span class="re-next-tag" title="月末会议，改用下月合约整月采样定价">下月合约</span>`
+      : m.contract;
+    const exp = expCls(m.expectation);
+    return `<div class="rp-card">
+      <div class="rp-card-head"><span class="rp-date">${m.meeting_date}</span>
+        <span class="rp-sub">${dLabelGlobal(m.meeting_date)}</span>
+        <span class="re-expectation ${exp}">${m.expectation}</span></div>
+      <div class="rp-card-inst"><span class="rp-contract">${contract}</span>
+        <span class="rp-sub">隐含 ${m.implied_rate.toFixed(3)}% → 会后 ${m.post_meeting_rate.toFixed(3)}%</span></div>
+      <div class="hc-bk">${rows}</div></div>`;
   }).join('');
 }
 
@@ -406,6 +452,7 @@ load().catch(e => {
   // rate-expectations / real-rates 为主端点，挂任一 → 全页错误态（原行为）；
   // polymarket 历史 / fomc 日历已走 R.getOpt 段级降级（收敛图空态 / 卡片 '—'），不再卷入
   document.getElementById('re-tbody').innerHTML = '<tr><td colspan="7" class="re-error">' + e.message + '</td></tr>';
+  document.getElementById('rp-cards').innerHTML = '<div class="re-error">' + e.message + '</div>';
   R.fail(['re-cards', 'rp-hero', 'conv-chart', 'triple_chart', 'spread_2_10_chart'], e);
 });
 </script>

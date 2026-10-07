@@ -863,6 +863,69 @@ body.dark .pm-topic-card { box-shadow: inset 0 0 0 1px rgba(255,255,255,.04); }
 /* 月末会议改用下月合约定价时的角标（contract_used ≠ contract） */
 .re-next-tag { font-size: 11px; margin-left: 4px; color: var(--text-dim); white-space: nowrap; }
 
+/* ── 概率分布明细双形态：≥901 表格 / ≤900 hero 同构卡 ──
+ * 表 min-content 实测 730px（桌面密度），要 ≥~860px 视口才放得下，以下必横向滚动
+ * （实测 500px 溢出 224px、360px 溢出 364px），故 ≤900 换形态而非压表。
+ * 窄屏卡（#rp-cards，JS renderCards 渲染）每场会议一张：桶位行复用 hero 的 .hc-bk
+ * （同轴双源叠加条 + 分歧 chip），连其 ≤420/≤366 窄屏档一并白拿；会议间虚线分隔
+ * （Section card 内再套边框盒是「空盒套空盒」，全站禁，.sig-row 先例）。
+ * 两形态同一份 meetings 数据（renderTable / renderCards），CSS 只做显隐切换。 */
+.rp-cards { display: none; }
+.rp-card { display: flex; flex-direction: column; gap: 6px; padding: 12px 0; }
+.rp-card:first-child { padding-top: 0; }
+.rp-card + .rp-card { border-top: 1px dashed var(--border); }
+/* 头行 = 会议身份（日期 + 倒计时），研判胶囊贴右——研判是「这场会议」的属性，
+ * 不挂利率行（会被误读成「加息 → 会后 x%」） */
+.rp-card-head { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+.rp-card-head .re-expectation { margin-left: auto; }
+/* hero 的 20px 大日期是单场特写；列表里收敛到 14px */
+.rp-card .rp-date { font-size: 14px; }
+/* 工具行 = 合约 + 隐含→会后利率（同一合约的定价信息，归一行）；320px 装不下时整体换行 */
+.rp-card-inst { display: flex; flex-wrap: wrap; align-items: baseline; column-gap: 8px; row-gap: 2px; }
+.rp-contract { font-size: 12px; color: var(--text-secondary); }
+/* 行模板覆盖 hero：条铺满剩余全宽，数字不占横向——挪到条下方右对齐（图表在条尾
+ * 标数值的惯例）。原先数字与条并列，固定宽（标签+数字 ~100px）不随宽度缩，
+ * 条的占比从 800 的 81% 掉到 390 的 68%，越窄越空旷（用户实测反馈）；
+ * 改上下结构后条占比各档 ≥85%。
+ * 数字行五小列对齐（用户定）：PM 标签左靠 | 数值右靠 | 斜杠居中 | ZQ 标签左靠 | 数值右靠，
+ * 数值轨定宽（容 100.0% 六字符）各行共用，五列各自成线、与单行位数无关；
+ * 间距：标签-数值 4px，斜杠轨 14px 自带呼吸，两源视觉分组。
+ * ≤366 hero 为藏条设了 2 列模板，卡内条回得来（320px 下条仍有 ~184px），覆盖回显。 */
+#sec-table .hc-bk .row { grid-template-columns: 36px minmax(0, 1fr); gap: 3px 8px; }
+/* 双源双轨：原先 PM 半透明叠在 ZQ 实色上，PM ≤ ZQ 时整段被盖住（同色叠加不可辨，
+ * 用户实测反馈）。拆成上下双轨——表格态 ZQ/PM 双条的紧凑版：上轨 ZQ 实色、
+ * 下轨 PM 半透明，两源任何相对长度都各自完整可见；轨道保留 surface-alt 底作 0-100% 轴。 */
+#sec-table .hc-bk .track { height: 14px; }
+#sec-table .hc-bk .f-zq { top: 0; bottom: auto; height: 6px; }
+#sec-table .hc-bk .f-pm { top: auto; bottom: 0; height: 6px; }
+/* 副标题（分歧判据）窄屏与标题同排会挤压标题折行（实测 320px「概率分布/明细」断开），
+ * 放不下时整段落 own 一行 */
+#sec-table .re-sec-head { flex-wrap: wrap; row-gap: 2px; }
+#sec-table .hc-bk .rp-nums {
+  grid-column: 2; justify-self: end;
+  display: grid; grid-template-columns: auto 44px 14px auto 44px; column-gap: 4px; align-items: baseline;
+  font-family: var(--font-mono); white-space: nowrap;
+}
+#sec-table .hc-bk .rp-nums span { justify-self: end; font-size: 12px; font-style: normal; }
+#sec-table .hc-bk .rp-nums em { justify-self: start; font-size: 10px; color: var(--text-dim); }
+#sec-table .hc-bk .rp-nums s { justify-self: center; font-size: 12px; font-style: normal; text-decoration: none; color: var(--text-dim); }
+#sec-table .hc-bk .rp-nums .vz { color: var(--text-secondary); }
+/* 分歧 ≥5pp 的 PM 数值高亮（同表格态 .numcell .p.hot 口径） */
+#sec-table .hc-bk .rp-nums .vp.hot { color: var(--accent-ink); font-weight: 600; }
+@media (max-width: 366px) {
+  #sec-table .hc-bk .track { display: block; }
+}
+/* 图例：叠加条两源谁是实色/半透明 + 数值高亮判据，表格态有行标、卡内靠这行说明。
+ * 底部虚线与会议间分隔同款，否则图例与首卡之间一片空（用户实测反馈）。 */
+.rp-cards-legend { font-size: 11px; color: var(--text-dim); line-height: 1.7; padding-bottom: 8px; border-bottom: 1px dashed var(--border); margin-bottom: 12px; }
+/* 卡内不画分歧 chip（用户定）：PM/ZQ 两个数值并列已直接读出差值，chip 在缩窄过程中
+ * 要反复处理换行/藏/挤，信息又是冗余的。行模板统一由卡内接管（见上方注释）；
+ * ≤366 条回显（320px 下条仍有 ~184px）。 */
+@media (max-width: 900px) {
+  #sec-table .re-table-wrap { display: none; }
+  #sec-table .rp-cards { display: block; }
+}
+
 /* ── assets/fx 页（原页面内联 <style> 收编；fx- 前缀为本页私有）── */
 /* 顶部 4 张 verdict 卡：一排 4 列，移动端 1 列 */
 .fx-verdict-cards { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
