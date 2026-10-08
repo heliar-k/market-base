@@ -475,6 +475,24 @@ uv run python src/sell_put.py --symbol TSM
   （涨跌 chip 走 `R.chgSpan`，着色走 `vcolor: 'var(--up)'` 或 `<span class="up">`），`cls` 给单卡加类。
   卡内还要放图/表/条的复合卡（期权墙、NOW 百分位卡）才允许手写 `.re-card`，但仍在 `.re-cards` 行里。
   守卫：`tests/test_static_single_source.py::test_card_rows_use_single_source_grid`
+- **相邻小卡宽屏并排走 `.re-duo`**（`special.css` 单源，bonds / fed-funds / yield-curve / treasury 在用）：
+  两张内容高度相近的窄卡（图 + 表、图 + 图、静态卡 + 静态卡）在宽桌面并成两列省半屏滚动，
+  `auto-fit minmax(min(100%, 340px), 1fr)` 窄屏自动回落单列，无媒体查询。页面只包一层
+  `<div class="re-duo">`（静态）或把两张卡 append 到 `.re-duo` 容器（动态），**不手写**
+  `grid-template-columns`。适用判断：两小节各自内容 ≤ 半宽可读（单图 / 短表）且高度相近；
+  不适用：多列网格列（出血会伸进列间隣）、宽表、长叙事段。三个坑：① 栅格项必须 `min-width: 0`
+  （图内 dataZoom/表会撑破轨道，`.re-duo > *` 已带）；② `.re-duo` 内的滚动表高度/内距由
+  `.re-duo .re-scroll-y` 那组规则接管，别在页内重调；③ CSS 的「容器直接持有 2+ 张
+  `.re-section` → flex 纵排」规则已豁免 `.re-duo`（否则动态造卡进 duo 永远不生效双栏）；
+  ④ 同排两卡想让绘图区（x 轴线）垂直对齐：卡内标题/图注行数必须一致 —— 卡同高、图同高，
+  差一行图注 = x 轴线差 17+4px，没有兜底补偿（treasury 间接投标/Bill 卡靠给另一卡补同高图注对齐）
+- **time 轴标签按跨度选写法，轴样不逐页重写**：≤1 年跨度用 `formatter: R.md`（M/D，
+  `rates-common.js` 单源）；多年跨度**不写 formatter**（ECharts 自动出年级标签，同页所有长图一致）。
+  颜色/字号/等宽字体由 `echarts-theme.js` 的 `timeAxis`/`valueAxis` 单源，页面只补差异
+  （formatter、`{value}%` 后缀、固定 min/max），显式写 `color: colors.muted, fontSize: 10`
+  会把主题的 mono 字体顶掉。画布边距走 `R.lineOption` 的默认 grid（top 36 给图例让位），
+  图不带图例时才降 top；`category` 轴 + 原始 ISO 日期串的写法已废弃（同页出现
+  `2020-10-31` 与 `10/31` 两种写法即不统一）
 - **「先看结构、再看数据」双层节奏**：面板第一屏给结论层（状态条/评分/报警/规则引擎叙事，一眼可读），下层给可交互的数据层（图/表/热力图），两层通过点击联动（点结论→定位数据，点数据→弹出明细）
 - **微观数据须有宏观锚点**：展示单资产/单指标时，附带其在全局中的坐标（分组、分位、相对强弱），避免孤立数字
 - **工具栏模式统一**：预设/模式切换按钮置顶（`.range-btn` 风格），日期范围按钮居右（`macro-common.js` 的 `MACRO_DATE_RANGES`），状态写进底部状态栏（`updateStatus()` 约定）

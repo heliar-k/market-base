@@ -58,8 +58,8 @@ html { scroll-padding-top: 52px; }
 /* 动态卡片容器(JS 填充区)通用间距:任何容器直接持有 2+ 张 .re-section 卡片时,
  * 纵向 16px 呼吸(geo-events / re-sections / stress-sec / vol-narrative / correlation…一网打尽)。
  * :has() Chrome 105+;专题页无 IE/旧 Safari 顾虑。 */
-.re-root :has(> .re-section + .re-section),
-.re-sec > *:has(> .re-section + .re-section) { display: flex; flex-direction: column; gap: var(--re-inner-gap); }
+.re-root :not(.re-duo):has(> .re-section + .re-section),
+.re-sec > *:not(.re-duo):has(> .re-section + .re-section) { display: flex; flex-direction: column; gap: var(--re-inner-gap); }
 /* Linear 内高光:暗色卡片边缘受光(专题页卡片 = .re-section,与 SPA .chart-card 同待遇) */
 body.dark :is(.re-section, .re-panel) { box-shadow: inset 0 0 0 1px rgba(255,255,255,.04); }
 .re-section h2 { font-size: 14px; font-weight: 700; margin-bottom: 8px; color: var(--text); text-wrap: balance; }
@@ -129,7 +129,10 @@ body.embedded .re-foot { display: none; } /* 内嵌 iframe 不重复页脚 */
  * （与 .pm-ladder-grid 同式）。段距不动：.re-sec 自身 margin-top + .re-root flex gap
  * 仍是 32px，行距走 row-gap 同值，双/单列节奏一致。 */
 .re-duo { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 340px), 1fr)); gap: var(--re-sec-gap) 16px; }
-.re-duo > .re-sec { min-width: 0; } /* 栅格项默认 min-width:auto，图内 dataZoom/表会把轨道撑破 */
+.re-duo > .re-sec, .re-duo > .re-section { min-width: 0; } /* 栅格项默认 min-width:auto，图内 dataZoom/表会把轨道撑破 */
+/* .re-duo 也收静态页 JS 动态造的 .re-section 卡（treasury 间接投标 + Bill 占比）：
+ * 下面 :has(> .re-section + .re-section) 会把「直接持有 2+ 张 .re-section」的容器强制改回
+ * flex 纵排，特异性压过这里的 grid —— 豁免掉，否则双栏永远不生效 */
 /* 双栏里的滚动表（fed-funds 近期数据）：解除 .re-scroll-y 为宽表设的 min-width（半宽列装不下
  * 860px 会出横向滚动）；滚动盒高度与 .re-chart 同式（clamp 220/40vh/300），并排图卡表卡
  * 上下缘对齐。近期数据段不带 card，滚动盒自己当卡面 → 补 surface 底与图卡一致。 */
