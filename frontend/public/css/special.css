@@ -97,6 +97,10 @@ body.embedded .re-foot { display: none; } /* 内嵌 iframe 不重复页脚 */
    卡面单源同值，让轴标签离卡边的距离与卡内图一致；自身不带边框（边框由外层 .re-chart 提供）。 */
 .re-chart-pad { padding: 16px 20px; height: 100%; box-sizing: border-box; }
 .re-chart { height: clamp(220px, 40vh, 300px); border: 1px solid var(--border); border-radius: 8px; background: var(--surface); }
+/* 嵌卡变体：.re-chart 自带边框是为「独立当卡面」（如 rates 入口页直接放页流里的图），
+ * 嵌在 .re-section 卡内时会成卡中卡第二道框（treasury 四张拍卖图 vs holdings/MSPD 的
+ * 无框 .chart）。transparent 只去描边不改布局。 */
+.re-chart.re-plain { border-color: transparent; }
 /* re-section 内部的图表/表格与父卡底对齐（margin-bottom），左右与文字同一条边线 */
 .re-section > .re-chart:last-child, .re-section > .re-table:last-child { margin-bottom: 2px; }
 .re-h2 { font-size: 15px; font-weight: 700; }

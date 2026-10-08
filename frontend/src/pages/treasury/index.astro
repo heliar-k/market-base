@@ -90,15 +90,15 @@ async function load() {
 
   card(R.secTitle('付息券 Bid-to-Cover 趋势', '', '2 / 5 / 10 / 30Y，近 1 年，含重开拍卖')
     + '<div class="note" style="margin-bottom:4px">点 = 单场拍卖 · 空心 = 重开 · 点线 = 本格均值 · 绿虚线 = 良好 2.5x · 红虚线 = 警戒 2.0x · 悬停看发行规模</div>'
-    + '<div class="re-chart re-chart-lg" id="trend_chart"></div>');
+    + '<div class="re-chart re-chart-lg re-plain" id="trend_chart"></div>');
   card(R.secTitle('拍卖 Tail 趋势', '', '2 / 5 / 10 / 30Y，bp，正 = 弱于预期')
     + '<div class="note" style="margin-bottom:4px">Tail = 中标利率 − 中位投标利率 · 点 = 单场拍卖 · 空心 = 重开 · 点线 = 本格均值 · 悬停看发行规模</div>'
-    + '<div class="re-chart re-chart-lg" id="tail_chart"></div>');
+    + '<div class="re-chart re-chart-lg re-plain" id="tail_chart"></div>');
   card(R.secTitle('间接投标占比趋势', '', '10 / 30Y，%，外国官方 + 国际机构需求')
     + '<div class="note" style="margin-bottom:4px">点 = 单场拍卖 · 空心 = 重开 · 点线（无数据点）= 均值 · 悬停看单场明细</div>'
-    + '<div class="re-chart" id="indirect_chart"></div>');
+    + '<div class="re-chart re-plain" id="indirect_chart"></div>');
   card(R.secTitle('供给前瞻：Bill 占比', '', 'MSPD 月频 + 日频派生')
-    + '<div class="re-chart" id="bill_chart"></div>');
+    + '<div class="re-chart re-plain" id="bill_chart"></div>');
   card(R.secTitle('未来拍卖日历', '', '未来 21 天')
     + '<div id="re-upcoming"></div>');
   card(R.secTitle('最近拍卖结果', '', '近 90 天')
@@ -113,7 +113,16 @@ async function load() {
   // 拍卖是**离散事件** → 用散点不连线（折线会把「没有拍卖的空白」画成趋势）；
   // 每格只有一个期限 → 形状与大小不再编码任何东西，统一 8px 圆点，只留填充（空心 = 重开），
   // 发行规模进 tooltip。
-  const facetChart = (data, unit, extraMarks) => (colors) => {
+  // w = mkChart 传入的画布宽（render 时实测，重由 ResizeObserver 在跨 480px 分界时重建触发）：
+  // 窄屏 1×4 整宽四行，宽屏 2×2。原先 5%/43% 全百分比边距在宽屏把 y 轴标签推离卡边 50px+。
+  const facetChart = (id, data, unit, extraMarks) => (colors, w) => {
+    const narrow = (w || 0) < 480;
+    // 窄屏 1×4 每行需要「标题 + 绘图」~115px，.re-chart-lg 的 clamp(260,52vh,380) 在手机上
+    // （vh 小）只剩 ~300px，四行挤成一团。行内样式把容器加高到按屏宽算（不依赖 vh），
+    // 宽屏清空回落到类高度。改高度的时机安全：mkChart 的 render 在 optionFn 返回后才
+    // echarts.init(host)，首帧即按新高度取画布；高度变化本身走 RO 的 chart.resize()。
+    const host = document.getElementById(id);
+    if (host) host.style.height = narrow ? 'min(560px, 132vw)' : '';
     const TENORS = ['2Y', '5Y', '10Y', '30Y'];   // 固定序（不依赖后端 key 插入序）
     const mean = (pts) => pts.reduce((s, p) => s + p.value, 0) / pts.length;
     const col = { '2Y': colors.blue, '5Y': colors.orange, '10Y': colors.red, '30Y': colors.purple };
@@ -124,6 +133,21 @@ async function load() {
     const pad = 12 * 864e5;   // 左右各留 12 天：最左/最右点不再贴轴
     const xMin = Math.min(...days) - pad, xMax = Math.max(...days) + pad;
     const grids = [], xAxes = [], yAxes = [], series = [], titles = [];
+    // 格几何对齐全站图口径（lineOption 基准 left:8 / right:16 / bottom:24 px，主题
+    // containLabel:true 合并进每格，轴标签宽度自算）：
+    // 宽屏 2×2 —— 左列钉 left:8、右列钉 right:16，中缝固定 52% 分栏（两列宽只差固定 8px）；
+    //   下行钉 bottom:24，上行钉 top、底边浮动让出中缝（两行高差 ~16px 不可辨）。
+    // 窄屏 1×4 —— 整宽四行，行高 17%、行距 24.5%（格标题在行距里），末行底缘 ≈25px ≈ 基准 24。
+    const gridPos = (i) => (narrow
+      ? { left: 8, right: 16, top: `${4.5 + i * 24.5}%`, height: '17%' }
+      : {
+          ...(i % 2 ? { left: '52%', right: 16 } : { left: 8, right: '52%' }),
+          top: `${9 + Math.floor(i / 2) * 45}%`,
+          bottom: Math.floor(i / 2) ? 24 : '55%',
+        });
+    const titlePos = (i) => (narrow
+      ? { right: 16, top: `${0.5 + i * 24.5}%` }
+      : { right: i % 2 ? 16 : '52%', top: `${4 + Math.floor(i / 2) * 45}%` });
     active.forEach((n, i) => {
       const pts = ptsOf(n);
       const vs = pts.map(p => p.value);
@@ -151,7 +175,7 @@ async function load() {
         if (edge === 'hi') hi = r6(hi + step); else lo = r6(lo - step);
       }
       const m = col[n];
-      grids.push({ left: `${5 + (i % 2) * 47.5}%`, top: `${9 + Math.floor(i / 2) * 45}%`, width: '43%', height: '34%' });
+      grids.push(gridPos(i));
       xAxes.push({ gridIndex: i, type: 'time', min: xMin, max: xMax, splitNumber: 3, axisLabel: { color: colors.muted, fontSize: 9, formatter: R.md }, axisLine: { lineStyle: { color: colors.border } } });
       yAxes.push({ gridIndex: i, type: 'value', min: lo, max: hi, interval: step, axisLabel: { color: colors.muted, fontSize: 9, formatter: (v) => (unit === 'x' ? `${v}x` : `${v}`) }, splitLine: { lineStyle: { color: colors.grid } } });
       // 格标题靠右上角：y 轴刻度在左，同高不同列 → 不压轴也不单独占一行。
@@ -159,7 +183,7 @@ async function load() {
       // 而每格标题已用文字写明期限，颜色只是重复编码（AGENTS.md 语义色两档制）。
       titles.push({
         text: `${n} · 均 ${mean(pts).toFixed(unit === 'x' ? 2 : 1)}${unit === 'x' ? '' : ' bp'}`,
-        right: `${100 - (5 + (i % 2) * 47.5) - 43}%`, top: `${4 + Math.floor(i / 2) * 45}%`,
+        ...titlePos(i),
         textStyle: { color: colors.text, fontSize: 11, fontWeight: 600 },
       });
       series.push({
@@ -201,10 +225,10 @@ async function load() {
   const btcMarks = (lo, hi, colors) => [[2.0, colors.red], [2.5, colors.green]]
     .filter(([y]) => y >= lo && y <= hi)   // 含边界：轴域取整后 2.5 正好落在 5Y 格顶边，
     .map(([y, lc]) => ({ yAxis: y, label: { show: false }, lineStyle: { color: lc, type: 'dashed', width: 1, opacity: 0.6 } }));
-  R.mkChart('trend_chart', facetChart(auc.trend, 'x', btcMarks));
+  R.mkChart('trend_chart', facetChart('trend_chart', auc.trend, 'x', btcMarks));
 
   // ── Tail 趋势（小倍图）──
-  R.mkChart('tail_chart', facetChart(auc.tail_trend, 'bp'));
+  R.mkChart('tail_chart', facetChart('tail_chart', auc.tail_trend, 'bp'));
 
   // ── 间接投标占比趋势 ──
   // 图内零文字（与本页 BTC / Tail 两图同方向：参考线不写格内标签）：均值写进图例名、

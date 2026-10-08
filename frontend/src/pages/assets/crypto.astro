@@ -107,7 +107,9 @@ async function load() {
   const tsec = document.createElement('div');
   tsec.className = 're-section';
   if (L.trading) {
-    tsec.innerHTML = `<div style="border:1px solid var(--accent);border-radius:8px;padding:14px 16px;background:var(--surface)">
+    // 内层强调块用单边 accent 竖标样式（同 .sig-row 图形档），不再整圈描边 —— 外层 re-section
+    // 已有卡框，整圈 border 是卡中卡第二道框（全站卡中卡扫描 2026-10-08）。
+    tsec.innerHTML = `<div style="border-left:3px solid var(--accent);padding:2px 0 2px 12px;margin:4px 0">
       <b style="font-size:13px">交易含义</b><p style="margin:6px 0 0;font-size:13px;line-height:1.7">${L.trading}</p></div>`;
   }
   document.getElementById('liquidity').appendChild(tsec);
@@ -178,7 +180,8 @@ async function load() {
       rasec.insertAdjacentHTML('beforeend', '<div class="chart" id="ratio-chart" style="margin-top:12px"></div>');
     }
     if (ra.narrative) {
-      rasec.insertAdjacentHTML('beforeend', `<div style="border:1px solid var(--accent);border-radius:8px;padding:14px 16px;background:var(--surface);margin-top:12px">
+      // 同上「交易含义」：accent 竖标替代整圈描边，避免卡中卡双框。
+      rasec.insertAdjacentHTML('beforeend', `<div style="border-left:3px solid var(--accent);padding:2px 0 2px 12px;margin:12px 0 0">
         <b style="font-size:13px">价比解读</b><p style="margin:6px 0 0;font-size:13px;line-height:1.7">${ra.narrative}</p></div>`);
     }
   }

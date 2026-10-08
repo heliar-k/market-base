@@ -416,7 +416,9 @@ const R = {
     const host = dom.querySelector(':scope > .re-chart-pad') || dom;
     const render = () => {
       if (window.registerMacroTheme) registerMacroTheme();
-      const opt = R._clampGrid(option(R.colors()), host.clientWidth);
+      // optionFn 第二参传画布宽：需要按宽度换布局的图用（如 treasury 2x2 小倍图宽屏 2×2 / 窄屏 1×4）。
+      // 重建时机与 _clampGrid 同步（ResizeObserver 跨 480px 分界才重建），宽度换挡时布局跟着换。
+      const opt = R._clampGrid(option(R.colors(), host.clientWidth), host.clientWidth);
       if (R.isEmptyOption(opt)) {
         // 空态：不 init、不注册主题/resize（无实例可重绘）；只铺一次文案，避免主题循环重复写
         dom.classList.remove('skeleton');

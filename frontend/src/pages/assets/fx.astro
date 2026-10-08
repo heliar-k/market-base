@@ -77,7 +77,7 @@ function renderChart(d) {
       <div>${R.secTitle('美元、G10、亚洲/EM 与套息交易同屏', 'FX Dashboard')}</div>
       <div class="fx-dash-meta">最新行情 ${d.as_of || '—'} · 20D USD pressure 为「对美元强弱」的统一读数</div>
     </div>
-    <div class="re-chart fx-chart" id="fx-chart-el" style="margin-top:10px"></div>`;
+    <div class="re-chart fx-chart re-plain" id="fx-chart-el" style="margin-top:10px"></div>`;
   document.getElementById('fxchart').appendChild(sec);
   const lastM = ch.dates[ch.dates.length - 1].slice(0, 7);
   R.mkChart('fx-chart-el', colors => R.lineOption({
