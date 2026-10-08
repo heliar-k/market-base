@@ -105,7 +105,7 @@ async function load() {
   card(R.secTitle('拍卖 Tail 趋势', '', '2 / 5 / 10 / 30Y，bp，正 = 弱于预期')
     + '<div class="note" style="margin-bottom:4px">Tail = 中标利率 − 中位投标利率 · 点 = 单场拍卖 · 空心 = 重开 · 点线 = 本格均值 · 悬停看发行规模</div>'
     + '<div class="re-chart re-chart-lg re-plain" id="tail_chart"></div>');
-  card(R.secTitle('间接投标占比趋势', '', '10 / 30Y，%，外国官方 + 国际机构需求')
+  card(R.secTitle('间接投标占比趋势', '', '2 / 10 / 30Y，%，外国官方 + 国际机构需求')
     + '<div class="note" style="margin-bottom:4px">点 = 单场拍卖 · 空心 = 重开 · 点线（无数据点）= 均值 · 悬停看单场明细</div>'
     + '<div class="re-chart re-plain" id="indirect_chart"></div>');
   card(R.secTitle('最近拍卖结果', '', '近 90 天')
@@ -248,8 +248,9 @@ async function load() {
   // markLine 不标注，极值靠 tooltip 而非 markPoint。原先 12 处图内文字（2 个加粗均值标签钉
   // insideEndTop + 4 个极值标签）会互相叠：两条线值域同带（近 1 年 50–79%）、末端两点都到 79
   // 并合，max 标签被顶出 grid 上沿撞图例行，min 标签压 x 轴日期，两个均值标签在右端叠在一起。
-  // （本图只有 10Y / 30Y 两条线，共轴读交叉关系比拆两格有用，故不跟着进小倍图。）
-  const indNames = ['10Y', '30Y'];
+  // （共轴读交叉关系比拆小倍图有用，故不跟着进小倍图；2Y 拍卖月频、10/30Y 季频+重开，点距不均属正常。）
+  // 颜色沿用本页小倍图的期限配色（2Y 蓝 / 10Y 红 / 30Y 紫），同页同期限同色。
+  const indNames = ['2Y', '10Y', '30Y'].filter(n => (auc.indirect_trend[n] || []).length);   // 无数据期限不进图例（同小倍图 active）
   const indMean = (pts) => pts.reduce((s, p) => s + p.value, 0) / pts.length;
   R.mkChart('indirect_chart', (colors) => R.lineOption({
     legend: { data: indNames.map(n => `${n}（均 ${indMean(auc.indirect_trend[n]).toFixed(0)}）`) },
@@ -269,13 +270,14 @@ async function load() {
     },
     // grid.top 用 lineOption 默认 36：不再 scale:true 顶满轴域，极值不再贴画布边
     grid: { left: 8, right: 16, bottom: 24 },
-    // 轴样色/字号/等宽字体由主题 timeAxis/valueAxis 单源（页面只补差异：短跨度标签 R.md、
-    // % 后缀、固定轴域）——原先显式写 color/fontSize 会把主题的 mono 字体顶掉
-    xAxis: { type: 'time', axisLabel: { formatter: R.md } },
+    // boundaryGap（time 轴取百分比 = 数据跨度比例，ECharts 5 对非类目轴原生支持）：
+    // 首末点各让出约 4px（绘区 ~1040px × 0.4%），不再压在 Y 轴线上 ——
+    // 与小倍图「左右各留 12 天」同一意图，长跨度下用比例比固定天数好迁移
+    xAxis: { type: 'time', boundaryGap: ['0.4%', '0.4%'], axisLabel: { formatter: R.md } },
     // 固定轴域（近 1 年实测 50–79%）：上下各留一档呼吸，线不再顶到画布边
     yAxis: { type: 'value', min: 45, max: 85, interval: 10, axisLabel: { formatter: '{value}%' }, splitLine: { lineStyle: { color: colors.grid } } },
     series: indNames.map(n => {
-      const m = { '10Y': colors.red, '30Y': colors.purple }[n];
+      const m = { '2Y': colors.blue, '10Y': colors.red, '30Y': colors.purple }[n];
       const mean = indMean(auc.indirect_trend[n]);
       return {
         name: `${n}（均 ${mean.toFixed(0)}）`, type: 'line', color: m, // 图例图标取 series 顶层 color，只设 lineStyle/itemStyle 会用到调色板默认色
@@ -285,7 +287,7 @@ async function load() {
           symbolSize: p.reopening ? 6 : 7,
           itemStyle: { color: m, borderColor: m, borderWidth: 1.5 },
         })),
-        // 30Y 走虚线：两条线值域重叠，不只靠色相区分（reSyncLegend 自动把图例色块换成虚线）
+        // 30Y 走虚线：三条线值域重叠（近 1 年 47–79%），不只靠色相区分（reSyncLegend 自动把图例色块换成虚线）
         lineStyle: { color: m, width: 2, type: n === '30Y' ? 'dashed' : 'solid' },
         labelLayout: { hideOverlap: true },
         markLine: {
