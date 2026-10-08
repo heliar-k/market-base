@@ -1,7 +1,7 @@
 ---
 // 美债页 — 工单 #16 自 public/treasury/index.html 迁入。
-// 结构：需求卡片 + 三段研判 + 拍卖五图（BTC/Tail/间接/Bill/日历结果）+ 持仓曲线 +
-// TIC 明细 + MSPD 占比堆叠 + QRA 声明；island 脚本逐字原样。
+// 结构：需求卡片 + 三段研判 + 发行（拍卖五图 BTC/Tail/间接/Bill/日历结果）+ 债务与融资
+// （MSPD 绝对额堆叠 + QRA 声明）+ 持仓曲线 + TIC 明细；island 脚本逐字原样。
 // fetch('/api/treasury/overview') + /api/rates/auctions 不变。
 import TopicLayout from '../../layouts/TopicLayout.astro';
 import Section from '../../components/Section.astro';
@@ -12,21 +12,22 @@ import Section from '../../components/Section.astro';
   <Section id="cards" title="概览" />
   <!-- 研判全段现在时措辞，但 TIC 滞后 ~6 周（实测 10-04 最新只到 07-01）→ 节奏说明进 sub -->
   <Section id="re-signals" title="研判" sub="规则引擎 · 持仓部分为 TIC 月频，滞后 ~6 周" />
-  <Section id="auctions" title="拍卖" />
+  <Section id="auctions" title="发行" />
+  <!-- 发行=流量（逐场拍卖 + 供给前瞻），本段=存量与融资计划；两者都缺数据时 JS 整段撤掉 -->
+  <Section id="debt" title="债务与融资">
+    <div id="mspd"></div>
+    <div id="refunding"></div>
+  </Section>
   <Section id="history" title="海外持仓" />
   <Section id="holdings" title="持仓明细" sub="海外 · TIC，月频滞后 2 月" />
-  <!-- 条件性小节(MSPD 无数据时为空),不进 Section 避免空标题 -->
-  <div id="mspd" class="re-block"></div>
-  <!-- 条件性小节(无 QRA 声明时为空),保持裸 div -->
-  <div id="refunding" class="re-block"></div>
   <div class="re-foot-page" slot="foot" id="re-foot"></div>
 
 <script is:inline>
 async function load() {
   // 小节锚点导航（长页快速跳转；sticky 见 special.css .page-toc）
   document.getElementById('page-toc').innerHTML = [
-    ['概览', 'cards'], ['研判', 're-signals'], ['拍卖', 'auctions'],
-    ['海外持仓', 'history'], ['持仓明细', 'holdings'], ['未偿债务结构', 'mspd'], ['再融资声明', 'refunding'],
+    ['概览', 'cards'], ['研判', 're-signals'], ['发行', 'auctions'],
+    ['债务与融资', 'debt'], ['海外持仓', 'history'], ['持仓明细', 'holdings'],
   ].map(([t, id]) => `<a href="#${id}">${t}</a>`).join('');
 
   // 主端点 overview 保持 R.get（挂了 = 整页真没数据，页级错误态正确）；
@@ -41,6 +42,16 @@ async function load() {
     ['Bill 占比', d.cards.bill_share.as_of],
     ['拍卖', auc ? auc.as_of : null],
   ]);
+
+  // 债务与融资段：MSPD/QRA 按各自数据在位与否摘除空插槽（免得 flex gap 留幻影空隙）；
+  // 两者都缺 → 整段撤掉（分区标题不空挂），toc 同步摘除
+  const hasMspd = !!d.mspd?.length, hasQra = !!d.refunding?.quarter;
+  if (!hasMspd) document.getElementById('mspd')?.remove();
+  if (!hasQra) document.getElementById('refunding')?.remove();
+  if (!hasMspd && !hasQra) {
+    document.getElementById('debt')?.remove();
+    document.querySelector('#page-toc a[href="#debt"]')?.remove();
+  }
 
   // ── 卡片行：需求 ──
   const c = d.cards;
@@ -71,10 +82,6 @@ async function load() {
     (parent || document.getElementById('auctions')).appendChild(el);
     return el;
   };
-  // 间接投标 + Bill 占比两张同高小卡宽屏并排（.re-duo 单源，同 bonds/fed-funds），窄屏回落单列
-  const duo = document.createElement('div');
-  duo.className = 're-duo';
-  document.getElementById('auctions').appendChild(duo);
   const cov = auc.avg_cover_10_coupon;
   // 三档口径与图内 markLine 同阈值（原来 ≥2.5 之外一律「偏弱」，把 2.0–2.5 的中性区也叫错）
   const covSub = cov === null ? '近 10 场无付息券拍卖' : cov >= 2.5 ? '需求良好（≥2.5x）' : cov < 2 ? '需求警戒（<2.0x）' : '需求中性（2.0–2.5x）';
@@ -100,17 +107,16 @@ async function load() {
     + '<div class="re-chart re-chart-lg re-plain" id="tail_chart"></div>');
   card(R.secTitle('间接投标占比趋势', '', '10 / 30Y，%，外国官方 + 国际机构需求')
     + '<div class="note" style="margin-bottom:4px">点 = 单场拍卖 · 空心 = 重开 · 点线（无数据点）= 均值 · 悬停看单场明细</div>'
-    + '<div class="re-chart re-plain" id="indirect_chart"></div>', duo);
-  // sub 只放单位（与间接投标卡的「10 / 30Y，%」同式），口径沉到图注 —— 图注还负责把
-  // 卡内高度对齐到左卡（左卡图注 17px + 4px 边距）：两卡同高，图注差一行 = x 轴线差 21px
-  card(R.secTitle('供给前瞻：Bill 占比', '', '占未偿可交易债务，%')
-    + '<div class="note" style="margin-bottom:4px">MSPD 月频（历史段）+ 日频派生（近端）· 近 6 年 · 悬停看日期</div>'
-    + '<div class="re-chart re-plain" id="bill_chart"></div>', duo);
-  card(R.secTitle('未来拍卖日历', '', '未来 21 天')
-    + '<div id="re-upcoming"></div>');
+    + '<div class="re-chart re-plain" id="indirect_chart"></div>');
   card(R.secTitle('最近拍卖结果', '', '近 90 天')
     + '<div class="note" style="margin-bottom:4px">着色：Bid/Cover ≥2.5 绿 / &lt;2.0 红 · Tail ≥+1.5 红 / ≤−1.5 绿</div>'
     + '<div id="re-recent"></div>');
+  // sub 只放单位（与间接投标卡的「10 / 30Y，%」同式），口径沉到图注 —— 图注贴着数据走
+  card(R.secTitle('供给前瞻：Bill 占比', '', '占未偿可交易债务，%')
+    + '<div class="note" style="margin-bottom:4px">MSPD 月频（历史段）+ 日频派生（近端）· 近 6 年 · 悬停看日期</div>'
+    + '<div class="re-chart re-plain" id="bill_chart"></div>');
+  card(R.secTitle('未来拍卖日历', '', '未来 21 天')
+    + '<div id="re-upcoming"></div>');
 
   // ── 小倍图（2×2）共用骨架：BTC 与 Tail 两图同构，只差单位与阈值线 ──
   // 为什么拆四格：
@@ -378,24 +384,40 @@ async function load() {
   if (d.mspd && d.mspd.length) {
     const msec = document.createElement('div');
     msec.className = 're-section';
-    msec.innerHTML = '<h2>未偿债务结构（MSPD，月度）</h2><p style="margin:0">占比累积堆叠（%）；绝对值见下表。</p><div id="mspd-chart" class="chart chart-md"></div>';
+    msec.innerHTML = '<h2>未偿债务结构（MSPD，月度）</h2><p style="margin:0">绝对额堆叠（$T）；占比悬停可见，最新占比见下表。</p><div id="mspd-chart" class="chart chart-md"></div>';
     document.getElementById('mspd').appendChild(msec);
     const mh = d.mspd_history || {};
-    // 分类色走 R.colors() token 键名（亮暗随主题重建）
+    // 分类色走 R.colors() token 键名（亮暗随主题重建）；[名称, 绝对额 $T, 占比 %, 色]
+    // 堆叠用绝对额不用占比：占比堆叠的底带顶边 = Bill 占比曲线，与拍卖段「供给前瞻」
+    // 同线同色重复；改绝对额后还能顺带看 25 年总债务增长（占比进 tooltip，最新值见下表）
     const comps = [
-      ['短期国债', mh.pct_bills, 'blue'],
-      ['中期国债', mh.pct_notes, 'orange'],
-      ['长期国债', mh.pct_bonds, 'green'],
-      ['TIPS', mh.pct_tips, 'red'],
-      ['FRN', mh.pct_frn, 'purple'],
+      ['短期国债', mh.bills, mh.pct_bills, 'blue'],
+      ['中期国债', mh.notes, mh.pct_notes, 'orange'],
+      ['长期国债', mh.bonds, mh.pct_bonds, 'green'],
+      ['TIPS', mh.tips, mh.pct_tips, 'red'],
+      ['FRN', mh.frn, mh.pct_frn, 'purple'],
     ];
     R.mkChart('mspd-chart', (colors) => R.lineOption({
       legend: { top: 4, left: 'center' },
       grid: { left: 8, right: '4%', bottom: 24, top: 36, containLabel: true },
       xAxis: { type: 'time', boundaryGap: false, axisLabel: { color: colors.text } },
-      yAxis: { type: 'value', min: 0, max: 100, splitNumber: 4, axisLabel: { color: colors.text, formatter: '{value}%' }, splitLine: { lineStyle: { color: colors.grid } } },
-      tooltip: { trigger: 'axis', valueFormatter: v => v != null ? v.toFixed(1) + '%' : '—' },
-      series: comps.map(([name, data, colorKey]) => {
+      yAxis: { type: 'value', splitNumber: 4, axisLabel: { color: colors.text }, splitLine: { lineStyle: { color: colors.grid } } },
+      // 堆叠序列的 p.value 是累积值不是原始值，金额/占比都按 dataIndex 回原始数组取
+      tooltip: {
+        trigger: 'axis',
+        formatter: (ps) => {
+          const i = ps[0]?.dataIndex;
+          if (i == null) return '';
+          const total = comps.reduce((s, c) => s + (c[1]?.[i] ?? 0), 0);
+          return (mh.dates || [])[i] + `<br/>合计 $${total.toFixed(1)}T` + comps.map(([name, abs, pct]) => {
+            const v = abs?.[i];
+            if (v == null) return '';
+            const p = pct?.[i];
+            return `<br/>${ps.find(x => x.seriesName === name)?.marker ?? ''}${name} $${v.toFixed(2)}T${p != null ? ` · ${p.toFixed(1)}%` : ''}`;
+          }).join('');
+        },
+      },
+      series: comps.map(([name, data, , colorKey]) => {
         const color = colors[colorKey];
         return {
           name, type: 'line', showSymbol: false, stack: 'total',
