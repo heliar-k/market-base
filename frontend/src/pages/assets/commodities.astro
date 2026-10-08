@@ -12,8 +12,10 @@ import Section from '../../components/Section.astro';
     <div id="cards"></div>
   </Section>
   <Section id="chart" title="商品走势" sub="归一化 % · 近 1 年" />
-  <Section id="etf-holdings" title="贵金属 ETF 资金流" sub="GLD / SLV 官方日度持仓 · 持仓变化 ≈ 流入流出（吨）">
+  <Section id="etf-holdings" title="贵金属 ETF 持仓" sub="GLD / SLV 官方日度持仓 · 持仓变化 ≈ 流入流出（吨）">
     <div id="etf-kv"></div>
+  </Section>
+  <Section id="wgc-flows" title="全球黄金 ETF 资金流（WGC）" sub="世界黄金协会 Goldhub · 月度净流入 · US$mn = 百万美元">
   </Section>
   <Section id="recent" title="近期数据" sub="收盘价 · 最近 20 个交易日" />
   <div class="re-foot-page" slot="foot" id="re-foot"></div>
@@ -22,7 +24,7 @@ import Section from '../../components/Section.astro';
 <script is:inline>
 // 小节锚点导航（#29：与其余专题页同一写法）
 document.getElementById('page-toc').innerHTML = [
-  ['总览', 'overview'], ['商品走势', 'chart'], ['贵金属资金流', 'etf-holdings'], ['近期数据', 'recent'],
+  ['总览', 'overview'], ['商品走势', 'chart'], ['贵金属持仓', 'etf-holdings'], ['黄金ETF资金流', 'wgc-flows'], ['近期数据', 'recent'],
 ].map(([t, id]) => `<a href="#${id}">${t}</a>`).join('');
 
 async function load() {
@@ -52,23 +54,18 @@ async function load() {
       win: v => v, gld: v => v, slv: v => v == null ? '—' : v,
     }, ['win', 'gld', 'slv'], true));
     document.getElementById('etf-kv').replaceChildren(tsec);
-    // WGC 全球分区域月度净流入（表 + 图）
+    // WGC 全球分区域月度净流入（表 + 图）——独立数据源，单独 Section（#wgc-flows）
     const wg = d.wgc_flows;
     if (wg && wg.months && wg.months.length) {
       const REG = [['North America', '北美'], ['Europe', '欧洲'], ['Asia', '亚洲'], ['Other', '其他']];
       const wm = wg.months.length - 1;
-      const wrow = (label, fn) => ({
-        win: label,
-        gld: `<span class="up">${fn('North America')}</span>`,
-        slv: `<span class="${fn('Europe')}">${fn('Europe')}</span>`,
-      });
-      const wb = v => v == null ? '—' : `${v > 0 ? '+' : ''}${R.num(v, 0)}`;
-      // 全球 4 区域并成一行段内小表：最新月份 4 区域值 + 近 3 月合计
+      const wb = v => v == null ? '—' : `<span class="${v > 0 ? 'up' : v < 0 ? 'down' : ''}">${v > 0 ? '+' : ''}${R.num(v, 0)}</span>`;
+      // 全球 4 区域并成一行段内小表：最新月份 4 区域值 + 近 3 月合计（单位：百万美元）
       const wsum = reg => wg.series[reg] ? wg.series[reg].slice(-3).reduce((a, b) => a + (b || 0), 0) : null;
       const wtbl = document.createElement('div');
       wtbl.className = 're-section';
       wtbl.appendChild(R.table(
-        ['区域', `月净流入 ${wg.latest_month.slice(0, 7)}（US$mn）`, '近 3 月合计'],
+        ['区域', `月净流入 ${wg.latest_month}（百万美元）`, '近 3 月合计（百万美元）'],
         REG.map(([en, cn]) => ({
           reg: cn,
           m: wg.series[en] ? wb(wg.series[en][wm]) : '—',
@@ -78,14 +75,14 @@ async function load() {
         ['reg', 'm', 's3'],
         true,
       ));
-      document.getElementById('etf-kv').after(wtbl);
-      // 24 个月分区域柱状图
+      document.getElementById('wgc-flows').appendChild(wtbl);
+      // 24 个月分区域堆叠柱状图
       const wsec = document.createElement('div');
       wsec.className = 're-section';
       wsec.innerHTML = '<div class="chart" id="wgc-chart"></div>';
-      document.getElementById('etf-holdings').appendChild(wsec);
+      document.getElementById('wgc-flows').appendChild(wsec);
       R.mkChart('wgc-chart', colors => R.lineOption({
-        tooltip: { trigger: 'axis', valueFormatter: v => v == null ? '—' : `${R.num(v, 0)} US$mn` },
+        tooltip: { trigger: 'axis', valueFormatter: v => v == null ? '—' : `${R.num(v, 0)} 百万美元` },
         legend: { data: REG.map(x => x[1]), top: 0 },
         grid: { left: 8, right: 16, top: 28, bottom: 40 },
         xAxis: { type: 'category', data: wg.months, axisLine: { lineStyle: { color: colors.border } }, axisLabel: { color: colors.muted, fontSize: 10 } },
@@ -95,7 +92,7 @@ async function load() {
           barMaxWidth: 14,
         })),
       }, colors));
-      wsec.appendChild(R.secNote('世界黄金协会（WGC）全球黄金 ETF 月度净流入，按基金上市区域汇总，单位 US$mn，正值流入。数据经 WGC Goldhub 登录会话下载，月度更新（月初约一周后出上月）。'));
+      wsec.appendChild(R.secNote('世界黄金协会（WGC）Goldhub 全球黄金 ETF 月度净流入，按基金上市区域汇总，单位百万美元（US$mn），正值流入。数据经 WGC 登录会话下载月度 xlsx，月初约一周后出上月。单基金持仓/AUM 明细见 Goldhub「All flows by fund」表。'));
     }
     const hsec = document.createElement('div');
     hsec.className = 're-section';
@@ -117,7 +114,7 @@ async function load() {
         lineStyle: { width: 2, color: [colors.orange, colors.gray][i % 2] },
       })),
     }, colors));
-    hsec.appendChild(R.secNote('GLD 持仓为 SPDR 官方日度公布值；SLV 为份额 × 每份盎斯换算的估算值（与官方吨位偏差 <0.1%）。持仓日变化 ≈ 实物 ETF 资金流入/流出，流入为正；全球口径（含欧洲/亚洲基金）见世界黄金协会 Goldhub（需登录）。'));
+    hsec.appendChild(R.secNote('GLD 持仓为 SPDR 官方日度公布值；SLV 为份额 × 每份盎斯换算的估算值（与官方吨位偏差 <0.1%）。持仓日变化 ≈ 实物 ETF 资金流入/流出，流入为正；全球口径（含欧洲/亚洲基金）见下方 WGC 段。'));
   }
 
   // 归一化走势（1 年）
@@ -165,6 +162,6 @@ function keys2(rc) { return Object.keys(rc.series || {}); }
 const fmt = (v) => R.num(v, 4);
 const chg = R.chgSpan;
 
-load().catch(e => R.fail(['cards', 'chart', 'etf-holdings', 'recent'], e));
+load().catch(e => R.fail(['cards', 'chart', 'etf-holdings', 'wgc-flows', 'recent'], e));
 </script>
 </TopicLayout>
