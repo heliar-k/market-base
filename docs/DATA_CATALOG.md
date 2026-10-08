@@ -328,8 +328,23 @@ FRED liquidity 分类的原始系列（由 `./bin/fetch_fred` 一并拉取）。
 | `GC` | Gold | COMEX |
 | `CL` | WTI Crude | NYMEX |
 | `NG` | Natural Gas | NYMEX |
+
 | `SI` | Silver | COMEX |
 | `HG` | Copper | COMEX |
+
+### 贵金属 ETF 持仓 — `data/commodities/etf_holdings.csv`
+
+来源：GLD（SPDR 官方 historical-archive API，逐日官方吨位，2004–）+
+SLV（iShares varnish 文档接口，逐日份额 × 每份额盎司换算吨位，估算偏差 <0.1%，2006–）。
+`./bin/fetch_metals_etf`（Actions daily-fetch 每日跑），观测日 upsert。
+
+| 列 | 含义 |
+|----|------|
+| `gld_tonnes` | GLD 黄金 ETF 持仓（吨，官方日度） |
+| `slv_shares_mn` | SLV 份额（百万份，官方日度） |
+| `slv_tonnes_est` | SLV 白银持仓估算（吨 = 份额 × 每份额盎司 ÷ 32150.75） |
+
+用途：大宗商品页「贵金属 ETF 资金流」小节（持仓日变化 ≈ 实物 ETF 流入/流出）。
 
 ### 股指期货
 

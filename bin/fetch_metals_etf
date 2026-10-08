@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+# 贵金属 ETF 官方持仓（GLD 金 / SLV 银，日度）
+set -euo pipefail
+cd "$(dirname "$0")/.."
+uv run python -m src.fetchers.etf_holdings_fetcher "$@"

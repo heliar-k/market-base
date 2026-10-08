@@ -1349,9 +1349,50 @@ def bonds() -> dict:
     }
 
 
-def commodities() -> dict:
-    from src.polymarket_analysis import energy_block
+def _etf_holdings_block() -> dict | None:
+    """贵金属 ETF 官方持仓（GLD 金 / SLV 银）：日度持仓序列 + 1D/1W/1M/3M 净流入（吨）。
 
+    数据源 src/fetchers/etf_holdings_fetcher.py（GLD 官方吨位 + SLV 份额换算估算）。
+    缺文件返回 None，不阻断主端点。
+    """
+    df = _csv("commodities/etf_holdings.csv")
+    if df.empty or "gld_tonnes" not in df.columns:
+        return None
+    sub = df.tail(500)  # 页面画图窗口：约 2 年
+    out: dict = {
+        "dates": [str(d.date()) for d in sub.index],
+        "gld": {},
+        "slv": {},
+    }
+    for col, key in (("gld_tonnes", "gld"), ("slv_tonnes_est", "slv")):
+        if col not in df.columns:
+            continue
+        out[key]["series"] = [
+            None if pd.isna(v) else round(float(v), 1) for v in sub[col]
+        ]
+        s = df[col].dropna()
+        if len(s) < 6:
+            continue
+        d = s.diff().dropna()
+
+        def _nd(n: int, _d=d) -> float | None:
+            tail = _d.tail(n)
+            return round(float(tail.sum()), 1) if len(tail) else None
+
+        out[key]["flows"] = {
+            "latest": round(float(s.iloc[-1]), 1),
+            "d1": round(float(s.iloc[-1] - s.iloc[-2]), 1),
+            "w1": _nd(5),
+            "m1": _nd(21),
+            "m3": _nd(63),
+            "latest_date": str(s.index[-1].date()),
+        }
+    if not out["gld"]:
+        return None
+    return out
+
+
+def commodities() -> dict:
     p = asset_prices()
     cols = [k for k, _ in COMMODITY_ROWS]
     # 归一化走势（1 年）
@@ -1366,7 +1407,7 @@ def commodities() -> dict:
         "cards": _price_rows(p, COMMODITY_ROWS),
         "recent": _recent_prices(p, cols),
         "normalized": {"dates": [str(d.date()) for d in sub.index], "series": norm},
-        "polymarket": energy_block(),  # None 不阻断（独立数据源）
+        "etf_holdings": _etf_holdings_block(),  # None 不阻断（独立数据源）
     }
 
 

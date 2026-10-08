@@ -154,6 +154,7 @@ market-base/
 │   ├── options/{SYMBOL}_chain.json     ← 期权链参数
 │   ├── options/{SYMBOL}_grid.csv       ← 到期日×行权价网格
 │   ├── commodities/{SYMBOL}/{SYMBOL}_{YYYYMM}.csv  ← 期货日线
+│   ├── commodities/etf_holdings.csv  ← 贵金属 ETF 持仓（GLD/SLV 官方日度）
 │   ├── gex/{SYMBOL}_greeks_YYYYMMDD.csv  ← Greeks 当日快照（--reuse-greeks 复用）
 │   ├── gex/{SYMBOL}_gex_YYYYMMDD_HHMM.csv ← GEX 逐合约明细（每次运行留存）
 │   ├── barchart/futures/{ROOT}.csv        ← Barchart 期货全合约曲线（观测日 upsert 宽表）
@@ -265,6 +266,7 @@ market-base/
 ./bin/fetch_barchart_futures        # Barchart 期货期限结构（10 品种全合约，IBKR 替代源）
 ./bin/fetch_barchart_vol            # Barchart 波动率 30 指数快照（timsun dashboard 对齐源，VXMO/VXEF 唯一源）
 ./bin/fetch_cot                     # CFTC COT 持仓报告（周频）
+./bin/fetch_metals_etf             # 贵金属 ETF 持仓（GLD/SLV 官方日度，黄金白银资金流）
 ./bin/fetch_analyst                  # Nasdaq 100 分析师目标价（Wikipedia 成分 + yfinance）
 uv run python -m src.cross_asset     # 跨资产 30 日相关性矩阵（派生，依赖资产快照）
 ./bin/fetch_fed                     # FOMC 声明 + 官员演讲（增量，首次自动全量）

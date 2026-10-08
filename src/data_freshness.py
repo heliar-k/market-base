@@ -94,6 +94,8 @@ CHECKS: list[Check] = [
     _c("data/sce/sce.csv", 72, "NY Fed SCE 月频（发布 T+38，波峰 67+余量）"),
     _c("data/barchart/volatility_snapshot.csv", 8, "Barchart 波动率 30 指数"),
     _c("data/cot/cot.csv", 16, "CFTC COT 周频"),
+    _c("data/commodities/etf_holdings.csv", D, "贵金属 ETF 持仓（GLD/SLV 官方日度）"),
+    _c("data/wgc/etf_flows.csv", 40, "WGC 区域 ETF 流入（月频，月初 +1 周内更新）"),
     _c("data/fx/fx_pairs.csv", D, "外汇 16 对日线"),
     _c("data/etf/pool_prices.csv", D, "精选池 ETF 日线"),
     _c("data/etf_flows/etf_flows.csv", 8, "BTC 现货 ETF 资金流"),
