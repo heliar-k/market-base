@@ -1417,6 +1417,48 @@ def _wgc_flows_block() -> dict | None:
     }
 
 
+def _wgc_holdings_block() -> dict | None:
+    """WGC 全球黄金 ETF 总持仓月末序列（2003 起）+ 金价（月末）。"""
+    df = _csv("wgc/wgc_holdings.csv")
+    if df.empty or "global_tonnes" not in df.columns:
+        return None
+    s = df["global_tonnes"].dropna()
+    if s.empty:
+        return None
+    d1 = round(float(s.iloc[-1] - s.iloc[-2]), 1) if len(s) > 1 else None
+    out: dict = {
+        "latest_date": str(s.index[-1].date()),
+        "latest": round(float(s.iloc[-1]), 1),
+        "d1": d1,
+        "dates": [str(x.date()) for x in s.index],
+        "series": [round(float(v), 1) for v in s],
+    }
+    if "gold_usd_oz" in df.columns:
+        px = df["gold_usd_oz"].reindex(s.index)
+        out["gold_price"] = [None if pd.isna(v) else round(float(v), 1) for v in px]
+    return out
+
+
+def _wgc_fund_flows_block() -> dict | None:
+    """WGC 单基金最新快照（月/季流入流出 + 持仓 + AUM，覆盖写 JSON）。"""
+    p = ROOT / "data" / "wgc" / "fund_flows_latest.json"
+    if not p.exists():
+        return None
+    try:
+        raw = json.loads(p.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError):
+        return None
+    funds = [f for f in raw.get("funds", []) if f.get("m_flows_musd") is not None]
+    if not funds:
+        return None
+    return {
+        "as_of": raw.get("as_of"),
+        # 入/出 TOP10（按月净流入绝对值排，全 140 只基金太长，页面只看头部）
+        "inflow": sorted(funds, key=lambda f: f["m_flows_musd"], reverse=True)[:10],
+        "outflow": sorted(funds, key=lambda f: f["m_flows_musd"])[:10],
+    }
+
+
 def commodities() -> dict:
     p = asset_prices()
     cols = [k for k, _ in COMMODITY_ROWS]
@@ -1434,6 +1476,8 @@ def commodities() -> dict:
         "normalized": {"dates": [str(d.date()) for d in sub.index], "series": norm},
         "etf_holdings": _etf_holdings_block(),  # None 不阻断（独立数据源）
         "wgc_flows": _wgc_flows_block(),  # None 不阻断（登录会话数据源）
+        "wgc_holdings": _wgc_holdings_block(),
+        "wgc_fund_flows": _wgc_fund_flows_block(),
     }
 
 

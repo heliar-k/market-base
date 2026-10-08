@@ -92,7 +92,57 @@ async function load() {
           barMaxWidth: 14,
         })),
       }, colors));
-      wsec.appendChild(R.secNote('世界黄金协会（WGC）Goldhub 全球黄金 ETF 月度净流入，按基金上市区域汇总，单位百万美元（US$mn），正值流入。数据经 WGC 登录会话下载月度 xlsx，月初约一周后出上月。单基金持仓/AUM 明细见 Goldhub「All flows by fund」表。'));
+      wsec.appendChild(R.secNote('世界黄金协会（WGC）Goldhub 全球黄金 ETF 月度净流入，按基金上市区域汇总，单位百万美元（US$mn），正值流入。数据经 WGC 登录会话下载月度 xlsx，月初约一周后出上月。'));
+      // 全球总持仓长图（2003 起，含金价副轴）
+      const wh = d.wgc_holdings;
+      if (wh && wh.series && wh.series.length > 1) {
+        const wc = document.createElement('div');
+        wc.className = 're-section';
+        wc.innerHTML = '<div class="chart" id="wgc-holdings-chart"></div>';
+        document.getElementById('wgc-flows').appendChild(wc);
+        const hasPx = (wh.gold_price || []).some(v => v != null);
+        R.mkChart('wgc-holdings-chart', colors => R.lineOption({
+          tooltip: { trigger: 'axis', valueFormatter: v => v == null ? '—' : R.num(v, 0) },
+          legend: { data: hasPx ? ['总持仓（吨）', '金价（右轴，美元/盎司）'] : ['总持仓（吨）'], top: 0 },
+          grid: { left: 8, right: 16, top: 28, bottom: 40 },
+          xAxis: { type: 'category', data: wh.dates, axisLine: { lineStyle: { color: colors.border } }, axisLabel: { color: colors.muted, fontSize: 10 } },
+          yAxis: hasPx ? [
+            { type: 'value', scale: true, axisLabel: { color: colors.muted, fontSize: 11 }, splitLine: { lineStyle: { color: colors.grid } } },
+            { type: 'value', scale: true, position: 'right', axisLabel: { color: colors.muted, fontSize: 11 }, splitLine: { show: false } },
+          ] : { type: 'value', scale: true, axisLabel: { color: colors.muted, fontSize: 11 }, splitLine: { lineStyle: { color: colors.grid } } },
+          series: [
+            { name: '总持仓（吨）', type: 'line', data: wh.series, showSymbol: false, yAxisIndex: 0, lineStyle: { width: 2, color: colors.orange } },
+            ...(hasPx ? [{ name: '金价（右轴，美元/盎司）', type: 'line', data: wh.gold_price, showSymbol: false, yAxisIndex: 1, lineStyle: { width: 1.5, type: 'dashed', color: colors.gray } }] : []),
+          ],
+        }, colors));
+        wc.appendChild(R.secNote(`全球实物黄金 ETF 总持仓（WGC 月末快照，含美/欧/亚等约 140 只基金），最新 ${wh.latest_date} 为 ${R.num(wh.latest, 0)} 吨${wh.d1 != null ? `，上月${wh.d1 >= 0 ? '增' : '减'} ${R.num(Math.abs(wh.d1), 1)} 吨` : ''}。长期曲线用于观察全局配置趋势，单基金细节见下表；GLD 日频持仓见上段，两者月末偏差 <0.05%（已交叉验证）。`));
+      }
+      // 单基金流入/流出 TOP10（月度快照）
+      const wf = d.wgc_fund_flows;
+      if (wf && wf.inflow && wf.inflow.length) {
+        const fnum = v => v == null ? '—' : R.num(v, 0);
+        const fs = v => v == null ? '—' : `<span class="${v > 0 ? 'up' : v < 0 ? 'down' : ''}">${v > 0 ? '+' : ''}${R.num(v, 0)}</span>`;
+        const frow = f => ({
+          name: R.esc(f.name),
+          reg: f.region, h: fnum(f.holdings_t), aum: fnum(f.aum_musd),
+          m: fs(f.m_flows_musd), q: fs(f.q_flows_musd),
+        });
+        const fcols = ['基金', '区域', '持仓（吨）', 'AUM（百万美元）', '月净流入', '季净流入'];
+        const fkeys = ['name', 'reg', 'h', 'aum', 'm', 'q'];
+        const ffmt = { name: v => v, reg: v => v, h: v => v, aum: v => v, m: v => v, q: v => v };
+        const fin = document.createElement('div');
+        fin.className = 're-section';
+        fin.appendChild(R.table(fcols, wf.inflow.map(frow), ffmt, fkeys, true));
+        document.getElementById('wgc-flows').appendChild(fin);
+        const fout = document.createElement('div');
+        fout.className = 're-section';
+        fout.appendChild(R.table(fcols, wf.outflow.map(frow), ffmt, fkeys, true));
+        document.getElementById('wgc-flows').appendChild(fout);
+        const fsec = document.createElement('div');
+        fsec.className = 're-section';
+        fsec.appendChild(R.secNote(`单基金月度净流入 TOP10（流入 / 流出各一张表，As of ${wf.as_of || '最新'}，金额百万美元）。流入榜看谁在买、流出榜看谁在卖；持仓/AUM 为同一时点快照，覆盖全球约 140 只基金。`));
+        document.getElementById('wgc-flows').appendChild(fsec);
+      }
     }
     const hsec = document.createElement('div');
     hsec.className = 're-section';

@@ -10,6 +10,9 @@
   → 带 profile 会话下载 → 校验 DU1（会话过期时明确报错，不静默）→ 解析入库。
 - WGC xlsx 是「区域 × 月份」的月度净流入（USD mn）+ 持仓（tonnes），
   详见 parse_etf_flows()；CSV 落 data/wgc/etf_flows.csv（观测月 upsert）。
+  另解析 Holdings by month（全球合计 + GLD 持仓，吨）→ wgc_holdings.csv，
+  与 All flows by fund（单基金快照）→ fund_flows_latest.json（覆盖写）。
+  Demand by month 全球列有错位 artifact（值 = 上月持仓），不解析。
 
 会话过期症状：下载响应含 "DU1" / 403 → 抛 SessionExpiredError，
 提示重跑 bin/wgc_login。数据新鲜度由 src/data_freshness.py 兜底。
@@ -17,6 +20,7 @@
 
 from __future__ import annotations
 
+import json
 import logging
 import os
 import re
@@ -39,6 +43,9 @@ OUT_DIR = ROOT / "data" / "wgc"
 XLSX_CACHE = OUT_DIR / "etf_flows_latest.xlsx"
 
 REGIONS = ["North America", "Europe", "Asia", "Other"]
+
+# Holdings/Demand by month 的全球合计列（Date / 金价 US$/oz / Ounces / Tonnes / Value）
+GLOBAL_COLS = {"gold_usd_oz": 1, "global_tonnes": 3, "global_value_usd": 4}
 
 
 class SessionExpiredError(RuntimeError):
@@ -285,8 +292,96 @@ def parse_etf_flows(xlsx_path: Path) -> pd.DataFrame:
     return wide[sorted(wide.columns)]
 
 
+def parse_holdings(xlsx_path: Path) -> pd.DataFrame:
+    """解析 Holdings by month → 月末持仓宽表：全球合计 + GLD 列（吨）。
+
+    前 5 列是全球合计（Date / 金价 US$/oz / Ounces / Tonnes / Value USD），
+    第 6 列起每列一只基金。只取全球合计 + gld us equity —— 全部 237 只基金
+    入库无展示需求，GLD 列用于与本地日频 CSV 交叉验证（实测月末偏差 <0.04%）。
+    注意 Demand by month 的全球合计列有错位（值 = 上月持仓），不解析该 sheet。
+    """
+    df = pd.read_excel(xlsx_path, sheet_name="Holdings by month", header=None)
+    if df.shape[0] < 8 or df.shape[1] < 6:
+        raise RuntimeError(
+            "Holdings by month sheet 结构异常（行列数不足，文件可能改版）"
+        )
+    tickers = df.iloc[0]
+    gld_col = next(
+        (j for j in range(5, df.shape[1]) if "gld us" in str(tickers.iloc[j])), None
+    )
+    if gld_col is None:
+        raise RuntimeError("Holdings by month 未找到 GLD 列（文件结构可能改版）")
+    recs: list[dict] = []
+    for _, r0 in df.iloc[6:].iterrows():
+        dt = pd.to_datetime(r0.iloc[0], errors="coerce")
+        if pd.isna(dt):
+            continue
+        row = {"date": dt.strftime("%Y-%m-%d")}
+        for key, j in GLOBAL_COLS.items():
+            row[key] = pd.to_numeric(r0.iloc[j], errors="coerce")
+        row["gld_tonnes"] = pd.to_numeric(r0.iloc[gld_col], errors="coerce")
+        recs.append(row)
+    if not recs:
+        raise RuntimeError("Holdings by month 无数据行")
+    return pd.DataFrame(recs).set_index("date")
+
+
+def parse_fund_snapshot(xlsx_path: Path) -> dict:
+    """解析 All flows by fund → 单基金最新快照（月/季流入流出 + 持仓 + AUM）。
+
+    表头 idx2，idx3 起数据行；Region 列空 = 延续上一区域，Total/GrandTotal 行跳过。
+    覆盖写 JSON（快照语义，非时间序列）：data/wgc/fund_flows_latest.json。
+    """
+    df = pd.read_excel(xlsx_path, sheet_name="All flows by fund", header=None)
+    if df.shape[0] < 5 or df.shape[1] < 11:
+        raise RuntimeError(
+            "All flows by fund sheet 结构异常（行列数不足，文件可能改版）"
+        )
+    as_of = next(
+        (
+            "-".join(reversed(str(v).split("As Of Date")[-1].strip().split("/")))
+            for v in df.iloc[1]
+            if v and "As Of Date" in str(v)
+        ),
+        None,
+    )
+    funds: list[dict] = []
+    region = ""
+    for _, r0 in df.iloc[3:].iterrows():
+        name = r0.iloc[2]
+        if pd.isna(name) or not str(name).strip():
+            continue
+        label = str(r0.iloc[1]).strip() if pd.notna(r0.iloc[1]) else ""
+        if label in ("Total", "GrandTotal"):
+            continue
+        if label:
+            region = label
+        if region not in REGIONS:
+            continue
+
+        def num(j: int) -> float | None:
+            v = pd.to_numeric(r0.iloc[j], errors="coerce")
+            return None if pd.isna(v) else round(float(v), 2)
+
+        funds.append(
+            {
+                "name": str(name).strip(),
+                "ticker": str(r0.iloc[3]).strip() if pd.notna(r0.iloc[3]) else "",
+                "region": region,
+                "country": str(r0.iloc[4]).strip() if pd.notna(r0.iloc[4]) else "",
+                "holdings_t": num(5),
+                "aum_musd": num(7),
+                "m_flows_musd": num(9),
+                "q_flows_musd": num(11),
+            }
+        )
+    if not funds:
+        raise RuntimeError("All flows by fund 无数据行")
+    return {"as_of": as_of, "funds": funds}
+
+
 def run() -> pd.DataFrame:
-    """下载 + 解析 + upsert，返回宽表（date × region, flow_musd）。"""
+    """下载 + 解析 + upsert，返回区域流宽表（date × region, flow_musd）。"""
     xlsx = download_xlsx()
     wide = parse_etf_flows(xlsx)
     out_csv = OUT_DIR / "etf_flows.csv"
@@ -294,7 +389,24 @@ def run() -> pd.DataFrame:
         old = pd.read_csv(out_csv, index_col="date")
         wide = wide.combine_first(old)
     wide.to_csv(out_csv, index_label="date")
-    logger.info("etf_flows.csv：%d 个月 × %d 区域", len(wide), wide.shape[1])
+    # 月末持仓（观测日 upsert：同日新值覆盖，缺失保留旧值）+ 单基金快照（覆盖写）
+    hold = parse_holdings(xlsx)
+    hold_csv = OUT_DIR / "wgc_holdings.csv"
+    if hold_csv.exists():
+        hold = hold.combine_first(pd.read_csv(hold_csv, index_col="date"))
+    hold.to_csv(hold_csv, index_label="date")
+    snap = parse_fund_snapshot(xlsx)
+    (OUT_DIR / "fund_flows_latest.json").write_text(
+        json.dumps(snap, ensure_ascii=False), encoding="utf-8"
+    )
+    logger.info(
+        "etf_flows.csv：%d 月 × %d 区域；wgc_holdings.csv：%d 月；"
+        "fund_flows_latest.json：%d 只基金",
+        len(wide),
+        wide.shape[1],
+        len(hold),
+        len(snap["funds"]),
+    )
     return wide
 
 

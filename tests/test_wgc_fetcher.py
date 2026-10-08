@@ -5,7 +5,129 @@ import io
 import pandas as pd
 import pytest
 
-from src.fetchers.wgc_fetcher import parse_etf_flows
+from src.fetchers.wgc_fetcher import (
+    parse_etf_flows,
+    parse_fund_snapshot,
+    parse_holdings,
+)
+
+
+def _holdings_xlsx() -> bytes:
+    """模拟「Holdings by month」：前 5 列全球合计 + 每列一只基金（idx0 = ticker）。"""
+    header = [
+        ["ticker", "All units in tonnes", None, None, None, "gld us equity"],
+        ["Active", None, None, None, None, "Active"],
+        ["Fund Type", None, None, None, None, "ETF"],
+        ["Region", None, None, None, None, "North America"],
+        ["Country", None, None, None, None, "US"],
+        ["Date", "Gold, US$/oz", "Ounces", "Tonnes", "Value (USD)", "SPDR Gold Shares"],
+        ["2026-08-31", 3900, 1e8, 2900.5, 9e11, 1000.25],
+        ["2026-09-30", 4000, 1e8, 2950.75, 1e12, 1002.5],
+    ]
+    buf = io.BytesIO()
+    with pd.ExcelWriter(buf, engine="openpyxl") as xw:
+        pd.DataFrame(header).to_excel(
+            xw, sheet_name="Holdings by month", index=False, header=False
+        )
+    return buf.getvalue()
+
+
+def _fund_snapshot_xlsx() -> bytes:
+    """模拟「All flows by fund」：idx1 = As Of，idx2 = 表头，idx3 起数据。"""
+    rows = [
+        [None] * 12,
+        [
+            None,
+            "As Of Date  30/09/2026",
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+        ],
+        [
+            None,
+            "Region",
+            "Name",
+            "Bloomberg ticker",
+            "Country",
+            "Holdings Tns",
+            "Ounces",
+            "AUM (US$mn)",
+            "Sep 26 Demand (tonnes)",
+            "Sep 26 Flows (US$mn)",
+            "Q3 26 Demand (tonnes)",
+            "Q3 26 Flows (US$mn)",
+        ],
+        [
+            None,
+            "North America",
+            "SPDR Gold Shares",
+            "gld us equity",
+            "US",
+            1055.3,
+            3.39e7,
+            141702.4,
+            13.3,
+            1894.5,
+            50.6,
+            7225.0,
+        ],
+        [
+            None,
+            None,
+            "iShares Gold Trust",
+            "iau us equity",
+            "US",
+            463.4,
+            1.49e7,
+            62221.0,
+            3.0,
+            430.4,
+            -1.2,
+            -53.0,
+        ],
+        [
+            None,
+            "Europe",
+            "Invesco Physical Gold",
+            "sgld ln equity",
+            "UK",
+            500.1,
+            None,
+            45000.0,
+            None,
+            1061.4,
+            None,
+            None,
+        ],
+        [None, "Total", None, None, None, 2018.8, None, None, None, None, None, None],
+        [
+            None,
+            "GrandTotal",
+            None,
+            None,
+            None,
+            2018.8,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+        ],
+    ]
+    buf = io.BytesIO()
+    with pd.ExcelWriter(buf, engine="openpyxl") as xw:
+        pd.DataFrame(rows).to_excel(
+            xw, sheet_name="All flows by fund", index=False, header=False
+        )
+    return buf.getvalue()
 
 
 def _wgc_xlsx() -> bytes:
@@ -77,6 +199,85 @@ class TestParseEtfFlows:
         p.write_bytes(buf.getvalue())
         with pytest.raises(RuntimeError, match="Region"):
             parse_etf_flows(p)
+
+
+class TestParseHoldings:
+    def test_global_and_gld(self, tmp_path):
+        p = tmp_path / "wgc.xlsx"
+        p.write_bytes(_holdings_xlsx())
+        df = parse_holdings(p)
+        assert list(df.columns) == [
+            "gold_usd_oz",
+            "global_tonnes",
+            "global_value_usd",
+            "gld_tonnes",
+        ]
+        assert df.index.tolist() == ["2026-08-31", "2026-09-30"]
+        assert df.loc["2026-09-30", "global_tonnes"] == pytest.approx(2950.75)
+        assert df.loc["2026-09-30", "gld_tonnes"] == pytest.approx(1002.5)
+
+    def test_missing_gld_raises(self, tmp_path):
+        p = tmp_path / "wgc.xlsx"
+        p.write_bytes(_holdings_xlsx())
+        df = pd.read_excel(p, sheet_name="Holdings by month", header=None)
+        df.iloc[0, 5] = "iau us equity"  # 改掉 ticker → 找不到 GLD 列
+        buf = io.BytesIO()
+        with pd.ExcelWriter(buf, engine="openpyxl") as xw:
+            df.to_excel(xw, sheet_name="Holdings by month", index=False, header=False)
+        with pytest.raises(RuntimeError, match="GLD"):
+            parse_holdings(buf)
+
+
+class TestParseFundSnapshot:
+    def test_snapshot(self, tmp_path):
+        p = tmp_path / "wgc.xlsx"
+        p.write_bytes(_fund_snapshot_xlsx())
+        snap = parse_fund_snapshot(p)
+        assert snap["as_of"] == "2026-09-30"
+        names = {f["name"] for f in snap["funds"]}
+        assert names == {
+            "SPDR Gold Shares",
+            "iShares Gold Trust",
+            "Invesco Physical Gold",
+        }
+        gld = snap["funds"][0]
+        assert gld["region"] == "North America" and gld["ticker"] == "gld us equity"
+        assert gld["m_flows_musd"] == pytest.approx(1894.5)
+        assert gld["q_flows_musd"] == pytest.approx(7225.0)
+        assert snap["funds"][2]["m_flows_musd"] == pytest.approx(1061.4)
+        # Total / GrandTotal 行被跳过；Region 列空行延续上一区域
+        assert len(snap["funds"]) == 3
+
+    def test_no_funds_raises(self, tmp_path):
+        # 全 None 行不扩大 xlsx used range，用占位串行撑出 12 列 × 5 行
+        fill = ["x"] * 12
+        rows = [
+            fill,
+            [
+                None,
+                "Region",
+                "Name",
+                "Bloomberg ticker",
+                "Country",
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+            ],
+            [None, "Total", None, None, None, 0, None, None, None, None, None, None],
+            fill,
+            fill,
+        ]
+        buf = io.BytesIO()
+        with pd.ExcelWriter(buf, engine="openpyxl") as xw:
+            pd.DataFrame(rows).to_excel(
+                xw, sheet_name="All flows by fund", index=False, header=False
+            )
+        with pytest.raises(RuntimeError, match="无数据行"):
+            parse_fund_snapshot(buf)
 
 
 class TestWgcBlock:

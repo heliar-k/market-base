@@ -96,6 +96,7 @@ CHECKS: list[Check] = [
     _c("data/cot/cot.csv", 16, "CFTC COT 周频"),
     _c("data/commodities/etf_holdings.csv", D, "贵金属 ETF 持仓（GLD/SLV 官方日度）"),
     _c("data/wgc/etf_flows.csv", 40, "WGC 区域 ETF 流入（月频，月初 +1 周内更新）"),
+    _c("data/wgc/wgc_holdings.csv", 40, "WGC 全球黄金 ETF 总持仓（月频）"),
     _c("data/fx/fx_pairs.csv", D, "外汇 16 对日线"),
     _c("data/etf/pool_prices.csv", D, "精选池 ETF 日线"),
     _c("data/etf_flows/etf_flows.csv", 8, "BTC 现货 ETF 资金流"),
