@@ -1392,6 +1392,31 @@ def _etf_holdings_block() -> dict | None:
     return out
 
 
+def _wgc_flows_block() -> dict | None:
+    """WGC 全球黄金 ETF 分区域月度净流入（US$mn）。
+
+    数据源 src/fetchers/wgc_fetcher.py（登录会话下载月度 xlsx，区域 = 基金求和）。
+    缺文件返回 None，不阻断主端点。
+    """
+    df = _csv("wgc/etf_flows.csv")
+    if df.empty:
+        return None
+    latest = df.index[-1]
+    return {
+        # index 可能是 Timestamp（pd.parse_dates）或 'YYYY-MM' 字符串，统一成 YYYY-MM
+        "latest_month": (
+            latest.strftime("%Y-%m") if hasattr(latest, "strftime") else str(latest)[:7]
+        ),
+        # 近 24 个月，前端画图用；date 升序（YYYY-MM）
+        "months": [d.strftime("%Y-%m") for d in df.index[-24:]],
+        "series": {
+            reg: [None if pd.isna(v) else round(float(v), 1) for v in df[reg].tail(24)]
+            for reg in sorted(df.columns)
+            if reg in ("North America", "Europe", "Asia", "Other")
+        },
+    }
+
+
 def commodities() -> dict:
     p = asset_prices()
     cols = [k for k, _ in COMMODITY_ROWS]
@@ -1408,6 +1433,7 @@ def commodities() -> dict:
         "recent": _recent_prices(p, cols),
         "normalized": {"dates": [str(d.date()) for d in sub.index], "series": norm},
         "etf_holdings": _etf_holdings_block(),  # None 不阻断（独立数据源）
+        "wgc_flows": _wgc_flows_block(),  # None 不阻断（登录会话数据源）
     }
 
 

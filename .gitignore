@@ -37,3 +37,7 @@ data/options_structure/raw_*.csv
 task_plan.md
 findings.md
 progress.md
+
+# WGC（世界黄金协会）：登录态 profile 与 xlsx 缓存不入库；etf_flows.csv 是数据产物，随 Actions commit 流转
+data/wgc/browser-profile/
+data/wgc/*.xlsx

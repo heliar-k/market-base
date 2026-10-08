@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+# 从本地 WGC profile 导出会话 cookie 头 → 贴到 GitHub secret WGC_COOKIES
+# 用法：./bin/wgc_export_cookie            # 打印到终端
+#       ./bin/wgc_export_cookie --copy     # 同时复制到剪贴板（macOS pbcopy）
+set -euo pipefail
+cd "$(dirname "$0")/.."
+HDR=$(uv run python -c "from src.fetchers.wgc_fetcher import export_cookies; print(export_cookies())")
+echo "==== 复制下面整行到 GitHub secret WGC_COOKIES ===="
+echo "$HDR"
+if [ "${1:-}" = "--copy" ]; then
+    printf '%s' "$HDR" | pbcopy && echo "✅ 已复制到剪贴板"
+fi
+echo ""
+echo "更新 secret：gh secret set WGC_COOKIES（或仓库 Settings → Secrets and variables → Actions）"

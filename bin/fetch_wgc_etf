@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+# WGC ETF flows 月度抓取：匿名拿链接 + profile 会话下载 + 解析入库
+# 会话过期（DU1/403）会明确报错提示重跑 ./bin/wgc_login
+set -euo pipefail
+cd "$(dirname "$0")/.."
+uv run python -m src.fetchers.wgc_fetcher "$@"

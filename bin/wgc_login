@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+# WGC（世界黄金协会）登录窗口：开真浏览器人工登录一次，会话存本地 profile
+set -euo pipefail
+cd "$(dirname "$0")/.."
+uv run python -c "from src.fetchers.wgc_fetcher import open_login_window; open_login_window()"

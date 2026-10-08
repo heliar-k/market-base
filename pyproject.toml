@@ -19,6 +19,7 @@ dependencies = [
     "fredapi>=0.5.1",
     "requests>=2.31.0",
     "openpyxl>=3.1.0",
+    "patchright>=1.52",  # WGC 登录会话（playwright 补丁版，channel=msedge 用本机浏览器）
     "yfinance>=0.2.40",
     "textual>=8.2.8",
     "textual-plotext>=1.0.1",

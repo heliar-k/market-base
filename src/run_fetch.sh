@@ -26,6 +26,7 @@ FETCHERS=(
     bin/fetch_shapiro
     bin/fetch_sce
     bin/fetch_yfinance
+    bin/fetch_wgc_etf
     bin/fetch_commodities
     bin/fetch_ibkr
     bin/fetch_options
