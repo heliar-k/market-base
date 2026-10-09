@@ -11,7 +11,7 @@ import Section from '../../components/Section.astro';
   <Section id="overview" title="价格总览">
     <div id="cards"></div>
   </Section>
-  <Section id="chart" title="商品走势" sub="归一化 % · 近 1 年" />
+  <Section id="chart" title="商品走势" sub="归一化 % · 近 2 年" />
   <Section id="etf-holdings" title="贵金属 ETF 持仓" sub="GLD / SLV 官方日度持仓 · 持仓变化 ≈ 流入流出（吨）">
     <div id="etf-kv"></div>
   </Section>
@@ -167,7 +167,7 @@ async function load() {
     hsec.appendChild(R.secNote('GLD 持仓为 SPDR 官方日度公布值；SLV 为份额 × 每份盎斯换算的估算值（与官方吨位偏差 <0.1%）。持仓日变化 ≈ 实物 ETF 资金流入/流出，流入为正；全球口径（含欧洲/亚洲基金）见下方 WGC 段。'));
   }
 
-  // 归一化走势（1 年）
+  // 归一化走势（2 年，与 etf-holdings / wgc-flows 同窗口；NG 缺测日为 null，线段断口即真缺数据）
   const n = d.normalized || { dates: [], series: {} };
   const keys = Object.keys(n.series);
   const csec = document.createElement('div');
@@ -206,7 +206,7 @@ async function load() {
   if (h && h.gld && h.gld.flows) segs.push(['贵金属ETF', h.gld.flows.latest_date]);
   document.getElementById('re-as-of').textContent = R.asOf(segs);
 
-  R.foot(null, { src: 'yfinance 日频快照 · GLD/SLV 官方持仓（SPDR / iShares）', note: '归一化起点 = 1 年前收盘 · 跨资产价格总表见「大类资产」页 · 油价地缘风险定价见「地缘与政治风险」页' });
+  R.foot(null, { src: 'yfinance 日频快照 · GLD/SLV 官方持仓（SPDR / iShares）', note: '归一化起点 = 2 年前首交易日收盘 · 跨资产价格总表见「大类资产」页 · 油价地缘风险定价见「地缘与政治风险」页' });
 }
 function keys2(rc) { return Object.keys(rc.series || {}); }
 const fmt = (v) => R.num(v, 4);

@@ -1462,14 +1462,19 @@ def _wgc_fund_flows_block() -> dict | None:
 def commodities() -> dict:
     p = asset_prices()
     cols = [k for k, _ in COMMODITY_ROWS]
-    # 归一化走势（1 年）
+    # 归一化走势（2 年，与页内 ETF 持仓 / WGC 月度流同窗口；源数据 2024-08 起）
+    # 网格取全宽再逐列 dropna：NG 少几个观测日时对齐 null 而非压缩，日期轴不串位
     norm = {}
-    sub = p[[c for c in cols if c in p.columns]].dropna(how="all").tail(250)
+    sub = p[[c for c in cols if c in p.columns]].dropna(how="all").tail(500)
     for c in cols:
         if c in sub.columns:
             s = sub[c].dropna()
             if len(s) > 1:
-                norm[c] = [round(float(v) / float(s.iloc[0]) * 100 - 100, 2) for v in s]
+                base = float(s.iloc[0])
+                norm[c] = [
+                    None if pd.isna(v) else round(float(v) / base * 100 - 100, 2)
+                    for v in sub[c]
+                ]
     return {
         "cards": _price_rows(p, COMMODITY_ROWS),
         "recent": _recent_prices(p, cols),
