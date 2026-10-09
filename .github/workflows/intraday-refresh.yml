@@ -1,16 +1,16 @@
-name: fast-refresh
+name: intraday-refresh
 
 # 盘中高频刷新（工作日每 15 分钟，UTC 13:07–20:52 = 美东盘前至盘后）。
 # 按数据变化节奏分层（2026-09-29 拆分）：
 # - 价量快照（持续变，每班都拉）：yfinance 资产价 / CBOE VIX 族 / Barchart 波动率 30 指数 /
 #   rate_expectations（ZQ 隐含 FOMC 概率）/ polymarket
 # - FRED：发布高峰在美东上午（实测 ~14:18 UTC），只在 UTC 13-14 点的班次拉，之后跳过；
-#   daily-fetch（21:00）与 fetch-refresh（15:15）另有两道兄底
-# - 加密 7×24 源（crypto_derivatives / coinglass / etf_flows）已拆去 crypto-refresh.yml
+#   daily-full（21:00 UTC）与 evening-late（15:15 UTC）另有两道兜底
+# - 加密 7×24 源（crypto_derivatives / coinglass / etf_flows）已拆去 crypto-hourly.yml
 #   （每小时全天候，不再绑工作日盘中）
 #
 # 不跑：分钟线（yfinance 盘中拉 5m 全量太重）、IBKR 依赖源（本地 cron）、
-# 派生指标（cross_asset/options_structure/bill_share，跟 daily-fetch 日频即可）、
+# 派生指标（cross_asset/options_structure/bill_share，跟 daily-full 日频即可）、
 # 财报/SEC/拍卖等日更源。
 #
 # upsert 幂等：无新数据 → diff 为空 → 不 commit → 不触发部署，空跑零成本。
@@ -23,7 +23,7 @@ on:
     - cron: "7,22,37,52 13-20 * * 1-5"
   workflow_dispatch: {}
 
-# 与其余数据 workflow 共享 group：串行化 push 防 rebase 冲突（见 daily-fetch.yml 注释）。
+# 与其余数据 workflow 共享 group：串行化 push 防 rebase 冲突（见 daily-full.yml 注释）。
 # 跑着的等完再执行，排队中的班次被更新的取代（幂等，丢班次无害）。
 concurrency:
   group: data-fetch
@@ -33,7 +33,7 @@ jobs:
   refresh:
     # 钉 24.04：本 workflow 有 playwright --with-deps（apt 装系统依赖），且 playwright 缓存 key
     # 只含 runner.os 不含镜像版本——ubuntu-latest 2026-10-19 换代到 Ubuntu 26 后会在 26 上
-    # 恢复 24.04 构建的 chromium 缓存，静默漂移。解钉时机见 daily-fetch.yml 同位置注释。
+    # 恢复 24.04 构建的 chromium 缓存，静默漂移。解钉时机见 daily-full.yml 同位置注释。
     runs-on: ubuntu-24.04
     permissions:
       contents: write

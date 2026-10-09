@@ -127,7 +127,7 @@ VIX1D/VIX9D/VIX/VIX3M/VIX6M/VIX1Y/SKEW 全量序列一并落盘，可复算期�
 
 > 与 `data/fred/volatility/volatility.csv` 的关系：仅 VIX 一列重叠（同源），fred 版
 > 侧重信用利差（risk-off），本文件侧重波动率期限结构，用途不同不统一。
-> 本文件已纳入 Actions daily-fetch 自动拉取（`bin/fetch_cboe`）；若某日 auto-fetch
+> 本文件已纳入 Actions daily-full 自动拉取（`bin/fetch_cboe`）；若某日 auto-fetch
 > commit 里没有它的更新，说明 CBOE CDN 无新数据（或上次手动已拉到最新），不是漏跑。
 
 ---
@@ -336,7 +336,7 @@ FRED liquidity 分类的原始系列（由 `./bin/fetch_fred` 一并拉取）。
 
 来源：GLD（SPDR 官方 historical-archive API，逐日官方吨位，2004–）+
 SLV（iShares varnish 文档接口，逐日份额 × 每份额盎司换算吨位，估算偏差 <0.1%，2006–）。
-`./bin/fetch_metals_etf`（Actions daily-fetch 每日跑），观测日 upsert。
+`./bin/fetch_metals_etf`（Actions daily-full 每日跑），观测日 upsert。
 
 | 列 | 含义 |
 |----|------|
@@ -520,7 +520,7 @@ Nasdaq 100 成分股分析师目标价快照（timsun /assets/equities 面板数
 | `ndx_targets.csv` | 长表（date + ticker + price / target_mean / target_high / target_low / analysts / rating），按 (date, ticker) upsert，保留历史 |
 
 > 无分析师覆盖的票跳过；单票拉取失败（含限流）跳过不阻塞整批。
-> 已纳入 Actions daily-fetch（`bin/fetch_analyst`）。
+> 已纳入 Actions daily-full（`bin/fetch_analyst`）。
 
 ---
 
@@ -558,7 +558,7 @@ SPX 成分股在均线上方占比（timsun /assets/equities 面板）。
 
 > 现成源调研（2026-08-06）：StockCharts $SPXA200R、investing S5TH 均被 Cloudflare 拦截；
 > Barchart $S5TH 当前值可获取（历史端点 500）。自算为唯一免费完整历史方案。
-> 已纳入 Actions daily-fetch（`bin/fetch_breadth`，yfinance 批量 ~2-5 分钟）。
+> 已纳入 Actions daily-full（`bin/fetch_breadth`，yfinance 批量 ~2-5 分钟）。
 
 ---
 

@@ -488,7 +488,7 @@ def save_lpi_snapshot() -> Path | None:
     """LPI 快照 → data/liquidity/lpi_history.csv（观测日 upsert，当日重跑覆盖）。
 
     每日运行积累 30 天+ 后即可做分位校准（参考页“过去 30 天第 87 分位”）。
-    已由 daily-fetch workflow 自动触发；本地可手动运行 --snapshot。
+    已由 daily-full workflow 自动触发；本地可手动运行 --snapshot。
     ponytail: 分析层写盘对齐 src/bill_share.py 先例（派生指标落盘非拉取），
     若未来派生落盘模块增多，再抽公共 tooling。
     """

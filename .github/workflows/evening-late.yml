@@ -1,6 +1,6 @@
-name: fetch-refresh
+name: evening-late
 
-# 轻量补抓（15:15 UTC = 北京 23:15）：只跑「上游当天下午才发布昨日观测」的三个源，
+# 傍晚补抓（15:15 UTC = 北京 23:15）：只跑「上游当天下午才发布昨日观测」的三个源，
 # 让宏观/信用/通胀/波动率页在北京夜里 23:15 就看到 T-1，而不是等次日 05:06 的主跑。
 #
 # 发布时刻实测（UTC）：FRED 日频 ~14:18（如 VIXCLS/BAMLH0A0HYM2，即 10:18 ET）、
@@ -18,14 +18,14 @@ on:
     - cron: "15 15 * * *"   # 每天 UTC 15:15（北京 23:15）
   workflow_dispatch: {}
 
-# 与其余数据 workflow 共享 group：串行化 push 防 rebase 冲突（见 daily-fetch.yml 注释）
+# 与其余数据 workflow 共享 group：串行化 push 防 rebase 冲突（见 daily-full.yml 注释）
 concurrency:
   group: data-fetch
   cancel-in-progress: false
 
 jobs:
   refresh:
-    # 钉 24.04：与 daily-fetch/fast-refresh 同一批数据 workflow，统一镜像版本避免
+    # 钉 24.04：与 daily-full/intraday-refresh 同一批数据 workflow，统一镜像版本避免
     # ubuntu-latest 2026-10-19 换代（Ubuntu 26）后行为不一致；本 workflow 无 apt 步骤，风险低。
     runs-on: ubuntu-24.04
     permissions:

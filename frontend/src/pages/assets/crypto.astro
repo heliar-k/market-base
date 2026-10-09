@@ -32,14 +32,14 @@ async function load() {
     value: fmt(i.last),
     sub: `${chg(i.chg_pct)} · ${i.date}`,
   }))));
-  // ── 衍生品结论层（Radar + 机构vs散户）：次要端点，crypto-refresh 每小时 cron 产，
+  // ── 衍生品结论层（Radar + 机构vs散户）：次要端点，crypto-hourly 每小时 cron 产，
   // 静态导出缺快照时合法 404 → getOpt 降级，只挂 radar/consensus 两段，不拖垮整页 ──
   const dd = await R.getOpt('/api/assets/crypto-derivatives');
   if (dd && dd.ts) {
     try { renderRadar(dd); } catch (e) { R.fail(['radar'], e); }
     try { renderConsensus(dd); } catch (e) { R.fail(['consensus'], e); }
   } else {
-    const miss = new Error('衍生品快照缺失（OKX/Deribit/CME，crypto-refresh 每小时 cron）：手动补 ./bin/fetch_crypto_derivatives 或 gh workflow run crypto-refresh.yml');
+    const miss = new Error('衍生品快照缺失（OKX/Deribit/CME，crypto-hourly 每小时 cron）：手动补 ./bin/fetch_crypto_derivatives 或 gh workflow run crypto-hourly.yml');
     R.fail(['radar', 'consensus'], miss);
   }
 

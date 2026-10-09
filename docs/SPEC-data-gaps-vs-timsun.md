@@ -55,7 +55,7 @@
 
 - 派生计算模块（复用 `src/macro.py` 模式）：读 `data/yfinance/asset_prices.csv`，对关键标的（SPX/NDX/RUT/DJI/TLT/HYG/LQD/Gold/Silver/WTI/Copper/BTC/DXY 等）计算 30 日滚动日收益率相关系数矩阵。
 - 输出 `data/cross_asset/correlation.csv`（观测日 + 完整矩阵宽表），另输出两个报警标量：`SPX_TLT_30d`（股债相关）、`WTI_SPX_30d`（油股相关）。
-- 由 Actions daily-fetch 在快照更新后触发；纯本地计算，无新数据源。
+- 由 Actions daily-full 在快照更新后触发；纯本地计算，无新数据源。
 
 ### 5. COT 扩展
 

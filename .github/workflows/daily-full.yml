@@ -1,18 +1,24 @@
-name: daily-fetch
+name: daily-full
 
-# 每日自动拉取不依赖 IBKR 的数据源（美股收盘后，北京 05:00 = UTC 21:00；
-# 周末也跑：crypto 源（OKX/Deribit/Coinglass/CME 等）7×24 有数据，非加密源周末幂等无更新）
+# 每日全量兑底跑：不依赖 IBKR 的所有数据源（美股收盘后，北京 05:00 = UTC 21:00；
+# 周末也跑：crypto 源（OKX/Deribit/Coinglass/CME 等）7×24 有数据，非加密源周末幂等无更新）。
+# 除 IBKR 外的一切源都在这里拉一遍（含三个加速班次 evening-late / intraday-refresh /
+# crypto-hourly 覆盖的源，幂等兑底：加速班次挂了/漏了，本班次次日必然补齐）。
 # 产出自动 commit + push，本地 pull 即得最新数据。
 # 依赖 IBKR 的 fetchers（ibkr/options/commodities/index/stock/rate_expectations）
 # 不在 Actions 跑——需要 TWS 实盘连接，仍由本地 cron 负责。
+#
+# 四班分工与全量对照表见 AGENTS.md「四个 cron」段：
+# daily-full（兑底全量）/ evening-late（傍晚补昨日晚发布源）/
+# intraday-refresh（盘中价量 15min）/ crypto-hourly（加密每小时）。
 
 on:
   schedule:
     - cron: "0 21 * * *"   # 每天 UTC 21:00（北京 05:00，覆盖美股收盘 + 周末 crypto 数据）
   workflow_dispatch: {}       # 支持手动触发
 
-# 与其余数据 workflow（fast-refresh / fetch-refresh / crypto-refresh）共享同一 group，
-# 串行化 push 防止 rebase 冲突（2026-09-28 手动 daily-fetch 与 fast-refresh 并发 push 冲突过）。
+# 与其余数据 workflow（intraday-refresh / evening-late / crypto-hourly）共享同一 group，
+# 串行化 push 防止 rebase 冲突（2026-09-28 手动 daily-full 与 intraday-refresh 并发 push 冲突过）。
 # cancel-in-progress 必须为 false：true 会让盘中班次取消正在跑的 19min 全量拉取。
 concurrency:
   group: data-fetch

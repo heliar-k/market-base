@@ -1,7 +1,7 @@
 name: deploy-pages
 
 # 静态站点预渲染 + Cloudflare Pages 部署（独立于数据拉取，可单独触发）：
-# - 数据 workflow（daily-fetch / fetch-refresh / fast-refresh / crypto-refresh）
+# - 数据 workflow（daily-full / evening-late / intraday-refresh / crypto-hourly）
 #   commit 后显式 `gh workflow run deploy-pages.yml --ref main` 拉起部署。
 #   不能靠 push 事件：数据 push 无论用 GITHUB_TOKEN 还是 DATA_PUSH_TOKEN，
 #   都认证为 github-actions[bot]（App 身份），GitHub 递归保护不为其创建新 run

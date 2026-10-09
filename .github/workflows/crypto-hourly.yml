@@ -1,10 +1,10 @@
-name: crypto-refresh
+name: crypto-hourly
 
 # 加密数据独立刷新（每小时全天候 7×24，UTC 每小时 12 分错峰）：
 # OKX/Deribit/CME 衍生品、Coinglass 聚合快照、BTC 现货 ETF 资金流（Farside 日更，幂等空跑无害）。
-# 从 fast-refresh 拆出（2026-09-29）：加密市场 7×24 交易，不该绑在「工作日盘中」的 cron 上——
-# 之前周末/夜间只有 daily-fetch 一天一次，现在每小时均匀覆盖。
-# daily-fetch 仍会兜底跑同三源（幂等）。
+# 加密源原属 intraday-refresh 前身 fast-refresh，2026-09-29 拆出：加密市场 7×24 交易，不该绑在「工作日盘中」的 cron 上——
+# 之前周末/夜间只有 daily-full 一天一次，现在每小时均匀覆盖。
+# daily-full 仍会兜底跑同三源（幂等）。
 #
 # 不需要 playwright（三源均为 API / Jina 抓取，无 Barchart 浏览器降级通道）。
 # upsert 幂等：无新数据 → 不 commit → 不触发部署，空跑零成本。
@@ -17,14 +17,14 @@ on:
     - cron: "12 * * * *"
   workflow_dispatch: {}
 
-# 与其余数据 workflow 共享 group：串行化 push 防 rebase 冲突（见 daily-fetch.yml 注释）
+# 与其余数据 workflow 共享 group：串行化 push 防 rebase 冲突（见 daily-full.yml 注释）
 concurrency:
   group: data-fetch
   cancel-in-progress: false
 
 jobs:
   refresh:
-    # 钉 24.04：与 daily-fetch/fast-refresh 同一批数据 workflow，统一镜像版本避免
+    # 钉 24.04：与 daily-full/intraday-refresh 同一批数据 workflow，统一镜像版本避免
     # ubuntu-latest 2026-10-19 换代（Ubuntu 26）后行为不一致；本 workflow 无 apt 步骤，风险低。
     runs-on: ubuntu-24.04
     permissions:

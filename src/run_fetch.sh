@@ -2,12 +2,12 @@
 # 每日全量数据拉取 cron 入口（本地）
 #
 # ⚠️ 分工（2026-08 起）：不依赖 IBKR 的纯 API 数据源（fred/cboe/shapiro/sce/
-# treasury/yfinance）已由 GitHub Actions daily-fetch 每日北京时间 05:00 自动拉取
+# treasury/yfinance）已由 GitHub Actions daily-full 每日北京时间 05:00 自动拉取
 # 并 commit + push，本地 git pull 即得——不需要跑本脚本。
 # 本脚本仅当需要拉取 IBKR 依赖数据（ibkr/options/commodities/指数/韩股等）时
 # 手动执行，执行前先启动 TWS 或 IB Gateway（4001 实盘 / 4002 模拟）。
 #
-# 手动触发 Actions：gh workflow run daily-fetch.yml
+# 手动触发 Actions：gh workflow run daily-full.yml
 # 历史 crontab 示例（已过时，勿用）:
 #   0 5 * * 1-5 cd /Users/guankai/code/python/market-base && bash src/run_fetch.sh >> logs/cron.log 2>&1
 

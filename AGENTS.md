@@ -208,7 +208,7 @@ market-base/
 
 ### 数据更新方式（重要）
 
-**每日自动（无需本地操作）**：GitHub Actions `daily-fetch` workflow 每天
+**每日自动（无需本地操作）**：GitHub Actions `daily-full` workflow 每天
 北京时间 05:00 自动拉取**不依赖 IBKR/TWS** 的数据源并 commit + push，本地 `git pull` 即得：
 `fred` / `cboe` / `ofr` / `srf` / `tsy` / `cfets` / `shapiro` / `sce` / `treasury` / `yfinance`（17 品种资产快照）
 `barchart_futures` / `barchart_vol` / `cot` / `rate_expectations` / `fed`（Barchart 期货曲线、Barchart 波动率 30 指数快照、CFTC COT、FOMC 概率、FOMC 声明+演讲）
@@ -218,12 +218,21 @@ market-base/
 > 部分数据源失败时：成功的数据照常 commit，失败列表写进当日 commit message 的「失败:」段
 > （`git log -1` 即见），job 标红，Pages 照常部署。不用再 grep Actions 日志找 `FAIL`。
 
-> **四个 cron**：`daily-fetch` 北京 05:00（全量，含收盘后的价格类）；
-> `fetch-refresh` 北京 23:15（只跑下午才发布昨日观测的源：`fetch_fred` / `fetch_cboe` /
-> `fetch_fsi`，~3min）；`fast-refresh` 工作日 UTC 13-20 点每 15 分钟（盘中价量源：
-> yfinance/cboe/barchart_vol/rate_expectations/polymarket，另 FRED 仅 UTC 13-14 点班次拉）；
-> `crypto-refresh` 每小时全天候 7×24（加密三源：crypto_derivatives/coinglass/etf_flows，
-> 从 fast-refresh 拆出）。upsert 幂等，无新数据即不 commit。
+> **四个 cron**（2026-10 改为自解释名，旧名对照：daily-fetch→**daily-full**、
+> fetch-refresh→**evening-late**、fast-refresh→**intraday-refresh**、crypto-refresh→**crypto-hourly**）：
+>
+> | workflow | 频率 | 拉什么 | 定位 |
+> |---|---|---|---|
+> | `daily-full` | 北京 05:00，周末也跑 | **其余全部 37 个 fetcher** + TSM 6-K + 分钟线（yfinance 1d/5m/15m/1h/4h）+ 派生指标（cross_asset / options_structure / bill_share / LPI 快照）+ 时效断言 | **兜底主跑**：含三个加速班次的所有源，加速班次挂了/漏了，次日 05:00 必补齐 |
+> | `evening-late` | 北京 23:15 | 仅 3 个「下午才发布昨日观测」的源：`fetch_fred` / `fetch_cboe` / `fetch_fsi`（~3min） | 让宏观/信用/通胀/波动率页当晚就看到 T-1，不等次日主跑 |
+> | `intraday-refresh` | 工作日 UTC 13-20 每 15 分钟 | 盘中价量 5 源：`fetch_yfinance` / `fetch_cboe` / `fetch_barchart_vol` / `fetch_rate_expectations` / `fetch_polymarket`；FRED 仅 UTC 13-14 班次（发布高峰在美东上午） | 盘中新鲜度；不拉分钟线、派生指标、日更源 |
+> | `crypto-hourly` | 每小时 7×24 | 加密三源：`fetch_crypto_derivatives` / `fetch_coinglass` / `fetch_etf_flows` | 加密市场全天候；daily-full 仍兜底跑同三源 |
+>
+> 重叠是故意的：三个加速班次覆盖的源在 daily-full 里都有同源兜底（upsert 幂等，同日重复拉零风险）。
+> 不在 Actions 跑的：依赖 IBKR 的 ibkr/options/commodities/index/stock（本地 cron）。
+> 加新 fetcher 的归属：默认进 daily-full 循环列表；「盘中就变」的价量源另进 intraday-refresh，
+> 「下午才发布」的进 evening-late，加密 7×24 源进 crypto-hourly。
+> upsert 幂等，无新数据即不 commit。
 > 数据 commit 用 PAT（secret `DATA_PUSH_TOKEN`，fine-grained，仅本仓 contents:write）push，
 > **但 push 本身不触发部署**：无论 GITHUB_TOKEN 还是 PAT，Actions 里的 push 都认证为
 > `github-actions[bot]`（App 身份），GitHub 递归保护不为其创建 workflow run
@@ -247,7 +256,7 @@ market-base/
 日线/分钟线均已由 Actions 用 yfinance 覆盖；本地 IBKR 拉取（`--bar-size all`）只用于补深。
 
 > 别一上来就全部本地拉取——纯 API 部分 Actions 已经跑过了，本地只补 IBKR 部分。
-> 手动触发 Actions：`gh workflow run daily-fetch.yml` 或 GitHub Actions 页面点 Run workflow。
+> 手动触发 Actions：`gh workflow run daily-full.yml` 或 GitHub Actions 页面点 Run workflow。
 
 ```bash
 # 数据拉取（bin/ 下的 shell 脚本内部已用 uv run，直接执行即可）
@@ -399,7 +408,7 @@ uv run python src/sell_put.py --symbol TSM
 - Jina 免费额度 ~20 RPM，日频 cron 量够；慢加载页加 `x-timeout` / `x-no-cache` / `x-wait-for-time` 头
 - AWS WAF（JS challenge + aws-waf-token）只有真浏览器能过；Jina 能过 WAF 但拿不到 cookie，所以 Barchart 用 playwright 页内 fetch 而非 Jina
 - 测试环境：`tests/conftest.py` autouse 禁用浏览器通道（真起 chromium 会污染 TUI 测试的 event loop）
-- Actions 已预装 chromium（daily-fetch workflow 的 "Install playwright chromium" step）
+- Actions 已预装 chromium（daily-full workflow 的 "Install playwright chromium" step）
 
 ---
 

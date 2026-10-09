@@ -93,7 +93,7 @@ def test_recent_rows_keeps_ppi_only_month():
 
 
 def test_generate_smoke():
-    """真实数据冒烟：cards / signals / 图表序列齐全（数据由 daily-fetch 落库）。"""
+    """真实数据冒烟：cards / signals / 图表序列齐全（数据由 daily-full 落库）。"""
     out = generate_inflation_overview()
     assert "error" not in out
     assert out["cards"]["core_pce"]["value"] is not None
