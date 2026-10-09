@@ -1,7 +1,7 @@
 ---
 // 大宗商品页 — 工单 #17 自 public/assets/commodities.html 迁入。
-// 商品卡 + 归一化走势 + 贵金属 ETF 资金流 + 20 日表；段序：价 → 势 → 资金 → 明细。
-// 地缘风险（霍尔木兹 Polymarket）不重复：/geo/ 专题页有完整主题聚类，页脚留指引。
+// 贵金属拆至 /assets/metals 后本页专注商品期货全景：商品卡 + 归一化走势 + 20 日表；
+// 段序：价 → 势 → 明细。GLD/SLV 持仓与 WGC 资金流已迁出，页头留指引。
 // fetch('/api/assets/commodities') 单源。
 import TopicLayout from '../../layouts/TopicLayout.astro';
 import Section from '../../components/Section.astro';
@@ -12,19 +12,13 @@ import Section from '../../components/Section.astro';
     <div id="cards"></div>
   </Section>
   <Section id="chart" title="商品走势" sub="归一化 % · 近 2 年" />
-  <Section id="etf-holdings" title="贵金属 ETF 持仓" sub="GLD / SLV 官方日度持仓 · 持仓变化 ≈ 流入流出（吨）">
-    <div id="etf-kv"></div>
-  </Section>
-  <Section id="wgc-flows" title="全球黄金 ETF 资金流（WGC）" sub="世界黄金协会 Goldhub · 月度净流入 · US$mn = 百万美元">
-  </Section>
   <Section id="recent" title="近期数据" sub="收盘价 · 最近 20 个交易日" />
   <div class="re-foot-page" slot="foot" id="re-foot"></div>
-</div>
 
 <script is:inline>
 // 小节锚点导航（#29：与其余专题页同一写法）
 document.getElementById('page-toc').innerHTML = [
-  ['总览', 'overview'], ['商品走势', 'chart'], ['贵金属持仓', 'etf-holdings'], ['黄金ETF资金流', 'wgc-flows'], ['近期数据', 'recent'],
+  ['总览', 'overview'], ['商品走势', 'chart'], ['近期数据', 'recent'],
 ].map(([t, id]) => `<a href="#${id}">${t}</a>`).join('');
 
 async function load() {
@@ -35,139 +29,7 @@ async function load() {
     sub: `${chg(i.chg_pct)} · ${i.date}`,
   }))));
 
-  // ── 贵金属 ETF 资金流（GLD/SLV 官方持仓，持仓变化 ≈ 流入流出）──
-  const h = d.etf_holdings;
-  if (h && h.gld && h.gld.flows) {
-    const fl = h.gld.flows, fs = (h.slv || {}).flows;
-    // 对比表：窗口为行、金/银为列（kv 网格会把两组打散在自动布局里，横向对比不了）
-    const WINDOWS = [
-      ['持仓', 'latest', true], ['1日净流入', 'd1'], ['1周净流入', 'w1'], ['1月净流入', 'm1'], ['3月净流入', 'm3'],
-    ];
-    const ft = v => v == null ? '—' : `<span class="${v > 0 ? 'up' : v < 0 ? 'down' : ''}">${v > 0 ? '+' : ''}${R.num(v, 1)} t</span>`;
-    const tsec = document.createElement('div');
-    tsec.className = 're-section';
-    tsec.appendChild(R.table(['窗口', 'GLD 黄金', 'SLV 白银（估算）'], WINDOWS.map(([label, k, plain]) => ({
-      win: label,
-      gld: fl[k] == null ? null : (plain ? `${R.num(fl[k], 1)} t` : ft(fl[k])),
-      slv: fs && fs[k] != null ? (plain ? `${R.num(fs[k], 1)} t` : ft(fs[k])) : null,
-    })), {
-      win: v => v, gld: v => v, slv: v => v == null ? '—' : v,
-    }, ['win', 'gld', 'slv'], true));
-    document.getElementById('etf-kv').replaceChildren(tsec);
-    // WGC 全球分区域月度净流入（表 + 图）——独立数据源，单独 Section（#wgc-flows）
-    const wg = d.wgc_flows;
-    if (wg && wg.months && wg.months.length) {
-      const REG = [['North America', '北美'], ['Europe', '欧洲'], ['Asia', '亚洲'], ['Other', '其他']];
-      const wm = wg.months.length - 1;
-      const wb = v => v == null ? '—' : `<span class="${v > 0 ? 'up' : v < 0 ? 'down' : ''}">${v > 0 ? '+' : ''}${R.num(v, 0)}</span>`;
-      // 全球 4 区域并成一行段内小表：最新月份 4 区域值 + 近 3 月合计（单位：百万美元）
-      const wsum = reg => wg.series[reg] ? wg.series[reg].slice(-3).reduce((a, b) => a + (b || 0), 0) : null;
-      const wtbl = document.createElement('div');
-      wtbl.className = 're-section';
-      wtbl.appendChild(R.table(
-        ['区域', `月净流入 ${wg.latest_month}（百万美元）`, '近 3 月合计（百万美元）'],
-        REG.map(([en, cn]) => ({
-          reg: cn,
-          m: wg.series[en] ? wb(wg.series[en][wm]) : '—',
-          s3: wb(wsum(en)),
-        })),
-        { reg: v => v, m: v => v, s3: v => v },
-        ['reg', 'm', 's3'],
-        true,
-      ));
-      document.getElementById('wgc-flows').appendChild(wtbl);
-      // 24 个月分区域堆叠柱状图
-      const wsec = document.createElement('div');
-      wsec.className = 're-section';
-      wsec.innerHTML = '<div class="chart" id="wgc-chart"></div>';
-      document.getElementById('wgc-flows').appendChild(wsec);
-      R.mkChart('wgc-chart', colors => R.lineOption({
-        tooltip: { trigger: 'axis', valueFormatter: v => v == null ? '—' : `${R.num(v, 0)} 百万美元` },
-        legend: { data: REG.map(x => x[1]), top: 0 },
-        grid: { left: 8, right: 16, top: 28, bottom: 40 },
-        xAxis: { type: 'category', data: wg.months, axisLine: { lineStyle: { color: colors.border } }, axisLabel: { color: colors.muted, fontSize: 10 } },
-        yAxis: { type: 'value', axisLabel: { color: colors.muted, fontSize: 11 }, splitLine: { lineStyle: { color: colors.grid } } },
-        series: REG.map(([en, cn]) => ({
-          name: cn, type: 'bar', stack: 'flows', data: wg.series[en] || [],
-          barMaxWidth: 14,
-        })),
-      }, colors));
-      wsec.appendChild(R.secNote('世界黄金协会（WGC）Goldhub 全球黄金 ETF 月度净流入，按基金上市区域汇总，单位百万美元（US$mn），正值流入。数据经 WGC 登录会话下载月度 xlsx，月初约一周后出上月。'));
-      // 全球总持仓长图（2003 起，含金价副轴）
-      const wh = d.wgc_holdings;
-      if (wh && wh.series && wh.series.length > 1) {
-        const wc = document.createElement('div');
-        wc.className = 're-section';
-        wc.innerHTML = '<div class="chart" id="wgc-holdings-chart"></div>';
-        document.getElementById('wgc-flows').appendChild(wc);
-        const hasPx = (wh.gold_price || []).some(v => v != null);
-        R.mkChart('wgc-holdings-chart', colors => R.lineOption({
-          tooltip: { trigger: 'axis', valueFormatter: v => v == null ? '—' : R.num(v, 0) },
-          legend: { data: hasPx ? ['总持仓（吨）', '金价（右轴，美元/盎司）'] : ['总持仓（吨）'], top: 0 },
-          grid: { left: 8, right: 16, top: 28, bottom: 40 },
-          xAxis: { type: 'category', data: wh.dates, axisLine: { lineStyle: { color: colors.border } }, axisLabel: { color: colors.muted, fontSize: 10 } },
-          yAxis: hasPx ? [
-            { type: 'value', scale: true, axisLabel: { color: colors.muted, fontSize: 11 }, splitLine: { lineStyle: { color: colors.grid } } },
-            { type: 'value', scale: true, position: 'right', axisLabel: { color: colors.muted, fontSize: 11 }, splitLine: { show: false } },
-          ] : { type: 'value', scale: true, axisLabel: { color: colors.muted, fontSize: 11 }, splitLine: { lineStyle: { color: colors.grid } } },
-          series: [
-            { name: '总持仓（吨）', type: 'line', data: wh.series, showSymbol: false, yAxisIndex: 0, lineStyle: { width: 2, color: colors.orange } },
-            ...(hasPx ? [{ name: '金价（右轴，美元/盎司）', type: 'line', data: wh.gold_price, showSymbol: false, yAxisIndex: 1, lineStyle: { width: 1.5, type: 'dashed', color: colors.gray } }] : []),
-          ],
-        }, colors));
-        wc.appendChild(R.secNote(`全球实物黄金 ETF 总持仓（WGC 月末快照，含美/欧/亚等约 140 只基金），最新 ${wh.latest_date} 为 ${R.num(wh.latest, 0)} 吨${wh.d1 != null ? `，上月${wh.d1 >= 0 ? '增' : '减'} ${R.num(Math.abs(wh.d1), 1)} 吨` : ''}。长期曲线用于观察全局配置趋势，单基金细节见下表；GLD 日频持仓见上段，两者月末偏差 <0.05%（已交叉验证）。`));
-      }
-      // 单基金流入/流出 TOP10（月度快照）
-      const wf = d.wgc_fund_flows;
-      if (wf && wf.inflow && wf.inflow.length) {
-        const fnum = v => v == null ? '—' : R.num(v, 0);
-        const fs = v => v == null ? '—' : `<span class="${v > 0 ? 'up' : v < 0 ? 'down' : ''}">${v > 0 ? '+' : ''}${R.num(v, 0)}</span>`;
-        const frow = f => ({
-          name: R.esc(f.name),
-          reg: f.region, h: fnum(f.holdings_t), aum: fnum(f.aum_musd),
-          m: fs(f.m_flows_musd), q: fs(f.q_flows_musd),
-        });
-        const fcols = ['基金', '区域', '持仓（吨）', 'AUM（百万美元）', '月净流入', '季净流入'];
-        const fkeys = ['name', 'reg', 'h', 'aum', 'm', 'q'];
-        const ffmt = { name: v => v, reg: v => v, h: v => v, aum: v => v, m: v => v, q: v => v };
-        const fin = document.createElement('div');
-        fin.className = 're-section';
-        fin.appendChild(R.table(fcols, wf.inflow.map(frow), ffmt, fkeys, true));
-        document.getElementById('wgc-flows').appendChild(fin);
-        const fout = document.createElement('div');
-        fout.className = 're-section';
-        fout.appendChild(R.table(fcols, wf.outflow.map(frow), ffmt, fkeys, true));
-        document.getElementById('wgc-flows').appendChild(fout);
-        const fsec = document.createElement('div');
-        fsec.className = 're-section';
-        fsec.appendChild(R.secNote(`单基金月度净流入 TOP10（流入 / 流出各一张表，As of ${wf.as_of || '最新'}，金额百万美元）。流入榜看谁在买、流出榜看谁在卖；持仓/AUM 为同一时点快照，覆盖全球约 140 只基金。`));
-        document.getElementById('wgc-flows').appendChild(fsec);
-      }
-    }
-    const hsec = document.createElement('div');
-    hsec.className = 're-section';
-    hsec.innerHTML = '<div class="chart" id="etfh-chart"></div>';
-    document.getElementById('etf-holdings').appendChild(hsec);
-    const hkeys = [['gld', 'GLD 黄金 ETF 持仓'], ['slv', 'SLV 白银 ETF 持仓（估算）']].filter(x => h[x[0]] && h[x[0]].series);
-    R.mkChart('etfh-chart', colors => R.lineOption({
-      tooltip: { trigger: 'axis' },
-      legend: { data: hkeys.map(x => x[1]), top: 0 },
-      grid: { left: 8, right: 16, top: 28, bottom: 40 },
-      xAxis: { type: 'category', data: h.dates, axisLine: { lineStyle: { color: colors.border } }, axisLabel: { color: colors.muted, fontSize: 10, alignMinLabel: 'left', alignMaxLabel: 'right' } },
-      // GLD 与 SLV 量级差 ~14×，双轴各归各自 scale，否则金线被压平
-      yAxis: [
-        { type: 'value', scale: true, axisLabel: { color: colors.muted, fontSize: 11 }, splitLine: { lineStyle: { color: colors.grid } } },
-        { type: 'value', scale: true, axisLabel: { color: colors.muted, fontSize: 11 }, splitLine: { show: false } },
-      ],
-      series: hkeys.map(([k, name], i) => ({
-        name, type: 'line', data: h[k].series, showSymbol: false, yAxisIndex: i,
-        lineStyle: { width: 2, color: [colors.orange, colors.gray][i % 2] },
-      })),
-    }, colors));
-    hsec.appendChild(R.secNote('GLD 持仓为 SPDR 官方日度公布值；SLV 为份额 × 每份盎斯换算的估算值（与官方吨位偏差 <0.1%）。持仓日变化 ≈ 实物 ETF 资金流入/流出，流入为正；全球口径（含欧洲/亚洲基金）见下方 WGC 段。'));
-  }
-
-  // 归一化走势（2 年，与 etf-holdings / wgc-flows 同窗口；NG 缺测日为 null，线段断口即真缺数据）
+  // 归一化走势（2 年；NG 缺测日为 null，线段断口即真缺数据）
   const n = d.normalized || { dates: [], series: {} };
   const keys = Object.keys(n.series);
   const csec = document.createElement('div');
@@ -200,18 +62,17 @@ async function load() {
   rsec.appendChild(R.table(['日期'].concat(keys2(rc)), rows, fmts));
   document.getElementById('recent').appendChild(rsec);
 
-  // 时效行（商品价 / 贵金属 ETF 两段）
+  // 时效行（商品价）
   const segs = [];
   if (d.cards && d.cards.length) segs.push(d.cards[0].date);
-  if (h && h.gld && h.gld.flows) segs.push(['贵金属ETF', h.gld.flows.latest_date]);
   document.getElementById('re-as-of').textContent = R.asOf(segs);
 
-  R.foot(null, { src: 'yfinance 日频快照 · GLD/SLV 官方持仓（SPDR / iShares）', note: '归一化起点 = 2 年前首交易日收盘 · 跨资产价格总表见「大类资产」页 · 油价地缘风险定价见「地缘与政治风险」页' });
+  R.foot(null, { src: 'yfinance 日频快照', note: '归一化起点 = 2 年前首交易日收盘 · 跨资产价格总表见「大类资产」页 · 油价地缘风险定价见「地缘与政治风险」页 · 黄金/白银持仓与资金流见「贵金属」页' });
 }
 function keys2(rc) { return Object.keys(rc.series || {}); }
 const fmt = (v) => R.num(v, 4);
 const chg = R.chgSpan;
 
-load().catch(e => R.fail(['cards', 'chart', 'etf-holdings', 'wgc-flows', 'recent'], e));
+load().catch(e => R.fail(['cards', 'chart', 'recent'], e));
 </script>
 </TopicLayout>

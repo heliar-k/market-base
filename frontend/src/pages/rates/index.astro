@@ -21,7 +21,7 @@ import Section from '../../components/Section.astro';
     <div id="re-sections"></div>
   </Section>
 
-  <Section title="子页入口">
+  <Section title="专题子页">
     <div class="link-grid" id="re-links">
     <a class="link-card" href="fed-funds.html">
       <span class="icon">🏦</span>
@@ -83,7 +83,7 @@ async function load() {
     data.overview.sections.map(sec => R.judgeCard(sec.title, sec.body, R.LINES_CONCLUSION)).join('');
 
   // ── 小节锚点导航：页面不长，四段研判合并为一项 ──
-  const tocItems = [['概览', 're-cards'], ['曲线快照', 'sec-shape'], ['研判', 're-sections'], ['子页入口', 're-links']];
+  const tocItems = [['概览', 're-cards'], ['曲线快照', 'sec-shape'], ['研判', 're-sections'], ['专题子页', 're-links']];
   document.getElementById('page-toc').innerHTML =
     tocItems.map(([label, id]) => `<a href="#${id}">${label}</a>`).join('');
 }

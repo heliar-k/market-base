@@ -573,3 +573,23 @@ def test_credit_no_orphan_framework_note() -> None:
     assert "框架：" not in rendered, (
         "研判段又出现独立的框架 note；生成方式由页脚 R.foot 的 R.genText 说明"
     )
+
+
+# ── 有子页的组入口页：子页导航小节统一叫「专题子页」 ─────────────────────────
+# assets/rates/liquidity 三页此前各叫「板块子页 / 子页入口 / 子页面」，用户跨组跳转
+# 时同一个东西三个名字。统一叫法，守住 Section 标题与 page-toc 胶囊两处（daily 的
+# 「沿着问题，进入专题」是跨专题导航、volatility 的 link-grid 无标题，均不适用）。
+_SUB_PAGE_SECTION = re.compile(
+    r'<Section[^>]*title="(子页入口|子页面|板块子页|板块入口)"'
+)
+
+
+def test_group_index_sub_page_section_named_consistently() -> None:
+    """组入口页的子页导航小节标题只用「专题子页」，page-toc 条目同步。"""
+    for page in sorted(ASTRO_PAGES.rglob("*.astro")):
+        html = re.split(r"<script is:inline", page.read_text("utf-8"), maxsplit=1)[0]
+        hits = [ln.strip() for ln in html.split("\n") if _SUB_PAGE_SECTION.search(ln)]
+        assert not hits, (
+            f"{page.relative_to(ASTRO_PAGES)}：子页导航小节改叫「专题子页」"
+            f"（title 与 page-toc 条目同步），统一叫法防漂移：{hits}"
+        )

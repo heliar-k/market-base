@@ -15,7 +15,8 @@ const SUB_DESC: Record<string, string> = {
   'equities/options': 'GEX/DEX/Gamma Flip/Wall/Skew 与 22 标的看板',
   'equities/positioning': '投机仓位拥挤度与分组合约百分位',
   'assets/bonds': 'TLT/IEF/LQD/HYG 卡片与 20 日收盘',
-  'assets/commodities': '黄金/白银/原油/气/铜 + 1 年归一化走势',
+  'assets/commodities': '黄金/白银/原油/气/铜 + 2 年归一化走势',
+  'assets/metals': 'GLD/SLV 持仓、WGC 全球资金流与贵金属价格',
   'assets/fx': '美元广度与各分组 20D USD 压力',
   'assets/crypto': 'BTC/ETH + 净流动性溢出与背离监控',
   'assets/crypto-derivatives': 'OKX/Deribit 资金费率与基差、Coinglass 杠杆读数',
@@ -28,6 +29,7 @@ const SUB_ICON: Record<string, string> = {
   'equities/positioning': '🧭',
   'assets/bonds': '🏛️',
   'assets/commodities': '🛢️',
+  'assets/metals': '🥇',
   'assets/fx': '💱',
   'assets/crypto': '₿',
   'assets/crypto-derivatives': '⚡',
@@ -43,7 +45,7 @@ const subPages = SITE_NAV.groups.find((g) => g.key === 'assets')?.items ?? [];
   <div id="correlation" class="re-block"></div>
   <Section id="cross-analysis" title="交叉解读" />
 
-  <Section title="板块子页">
+  <Section id="sub-pages" title="专题子页">
     <div class="link-grid" id="re-links">
     {subPages.map((it) => (
       <a class="link-card" href={it.page}>
@@ -62,7 +64,7 @@ const subPages = SITE_NAV.groups.find((g) => g.key === 'assets')?.items ?? [];
 <script is:inline>
 async function load() {
   document.getElementById('page-toc').innerHTML = [
-    ['价格总览', 'asset-groups'], ['相关性', 'correlation'], ['交叉分析', 'cross-analysis'],
+    ['价格总览', 'asset-groups'], ['相关性', 'correlation'], ['交叉分析', 'cross-analysis'], ['专题子页', 'sub-pages'],
   ].map(([t, id]) => `<a href="#${id}">${t}</a>`).join('');
 
   const d = await R.get('/api/assets/overview');

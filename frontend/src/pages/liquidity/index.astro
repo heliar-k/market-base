@@ -9,7 +9,7 @@ import Section from '../../components/Section.astro';
   <div class="page-toc" id="page-toc"></div>
   <Section id="re-cards" title="概览" />
   <Section id="re-eval" title="流动性评估" />
-  <Section title="子页面">
+  <Section title="专题子页">
     <div class="link-grid" id="re-links">
     <a class="link-card" href="transmission-chain.html">
       <span class="icon">⛓️</span>
@@ -70,7 +70,7 @@ const pctHtml = (p, value, fmt) => {
 
 async function load() {
   document.getElementById('page-toc').innerHTML = [
-    ['概览', 're-cards'], ['流动性评估', 're-eval'], ['子页面', 're-links'],
+    ['概览', 're-cards'], ['流动性评估', 're-eval'], ['专题子页', 're-links'],
   ].map(([t, id]) => `<a href="#${id}">${t}</a>`).join('');
 
   const d = await R.get('/api/liquidity/snapshot');

@@ -191,6 +191,7 @@ def export_api() -> None:
         equities,
         etfs,
         fx,
+        metals,
         options_board,
         overview,
         positioning,
@@ -202,6 +203,7 @@ def export_api() -> None:
     _safe("api/assets/positioning", positioning)
     _safe("api/assets/bonds", bonds)
     _safe("api/assets/commodities", commodities)
+    _safe("api/assets/metals", metals)
     _safe("api/assets/crypto", crypto)
     _safe("api/assets/crypto-derivatives", crypto_derivatives)
     _safe("api/assets/etfs", etfs)

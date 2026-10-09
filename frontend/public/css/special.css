@@ -303,7 +303,7 @@ a.re-badge:hover { color: var(--accent-ink); border-color: var(--accent-ink); }
 .link-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 .link-card { border: 1px solid var(--border); border-radius: 8px; background: var(--surface); padding: 16px 20px; text-decoration: none; display: flex; gap: 12px; align-items: flex-start; }
 .link-card:hover { border-color: var(--accent-ink); background: var(--surface-hover); }
-.link-card .icon { font-size: 22px; }
+.link-card .icon { font-size: 22px; flex: none; min-width: 24px; text-align: center; }
 .link-card .t { font-size: 14px; font-weight: 600; color: var(--text); }
 .link-card .d { font-size: 12px; color: var(--text-secondary); margin-top: 2px; }
 .chart { width: 100%; height: clamp(220px, 40vh, 300px); margin-top: 8px; }

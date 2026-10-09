@@ -76,6 +76,17 @@ COMMODITY_ROWS = [
     ("NG", "天然气"),
     ("Copper", "铜"),
 ]
+# 贵金属页价格卡（期货主力连续，与商品页同一数据源；产品视角归 /assets/metals）
+METALS_FUTURES_ROWS = [
+    ("Gold", "COMEX 黄金"),
+    ("Silver", "COMEX 白银"),
+]
+# 贵金属页价格上下文补充源（ETF 行情对象，取自 ETF 精选池日线；
+# 与持仓段的 GLD/SLV 同一标的）
+PRECIOUS_ETF_ROWS = [
+    ("GLD", "GLD 黄金 ETF"),
+    ("SLV", "SLV 白银 ETF"),
+]
 ETF_ROWS = [
     ("SPY", "SPY标普500 ETF"),
     ("QQQ", "QQQ纳斯达克100 ETF"),
@@ -1462,8 +1473,8 @@ def _wgc_fund_flows_block() -> dict | None:
 def commodities() -> dict:
     p = asset_prices()
     cols = [k for k, _ in COMMODITY_ROWS]
-    # 归一化走势（2 年，与页内 ETF 持仓 / WGC 月度流同窗口；源数据 2024-08 起）
-    # 网格取全宽再逐列 dropna：NG 少几个观测日时对齐 null 而非压缩，日期轴不串位
+    # 归一化走势（2 年）；网格取全宽再逐列 dropna：NG 缺测日对齐 null
+    # 而非压缩，日期轴不串位
     norm = {}
     sub = p[[c for c in cols if c in p.columns]].dropna(how="all").tail(500)
     for c in cols:
@@ -1479,6 +1490,20 @@ def commodities() -> dict:
         "cards": _price_rows(p, COMMODITY_ROWS),
         "recent": _recent_prices(p, cols),
         "normalized": {"dates": [str(d.date()) for d in sub.index], "series": norm},
+    }
+
+
+def metals() -> dict:
+    """贵金属子页：价格上下文（期货主力 + ETF 行情对象）+ 全部资金流/持仓块。
+
+    期货主力连续（GC/SI）给价格锚，ETF（GLD/SLV）给可交易口径；
+    ETF 持仓与 WGC 全球资金流自 commodities 迁入（数据源独立，None 不阻断）。
+    """
+    p = asset_prices()
+    return {
+        "cards": _price_rows(p, METALS_FUTURES_ROWS),
+        "etf_quotes": _price_rows(_csv("etf/pool_prices.csv"), PRECIOUS_ETF_ROWS),
+        "recent": _recent_prices(p, [k for k, _ in METALS_FUTURES_ROWS]),
         "etf_holdings": _etf_holdings_block(),  # None 不阻断（独立数据源）
         "wgc_flows": _wgc_flows_block(),  # None 不阻断（登录会话数据源）
         "wgc_holdings": _wgc_holdings_block(),

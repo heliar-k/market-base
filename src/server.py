@@ -1454,10 +1454,18 @@ def get_assets_bonds() -> dict:
 
 @app.get("/api/assets/commodities")
 def get_assets_commodities() -> dict:
-    """商品：卡片 + 近 20 日表 + 1 年归一化走势。"""
+    """商品：卡片 + 近 20 日表 + 归一化走势（贵金属部分迁 /api/assets/metals）。"""
     from src.assets_analysis import commodities
 
     return commodities()
+
+
+@app.get("/api/assets/metals")
+def get_assets_metals() -> dict:
+    """贵金属：价格上下文 + ETF 持仓与 WGC 全球资金流。"""
+    from src.assets_analysis import metals
+
+    return metals()
 
 
 @app.get("/api/assets/crypto")

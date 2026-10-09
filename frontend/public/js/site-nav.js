@@ -29,6 +29,7 @@ export const SITE_NAV = {
       { key: 'equities/positioning', label: '持仓追踪（CFTC COT）', page: '/assets/equities/positioning.html', sub: true },
       { key: 'assets/bonds', label: '债券', page: '/assets/bonds.html' },
       { key: 'assets/commodities', label: '大宗商品', page: '/assets/commodities.html' },
+      { key: 'assets/metals', label: '贵金属', page: '/assets/metals.html', sub: true },
       { key: 'assets/fx', label: '外汇', page: '/assets/fx.html' },
       { key: 'assets/crypto', label: '加密货币', page: '/assets/crypto.html' },
       { key: 'assets/crypto-derivatives', label: '加密衍生品 · 资金与杠杆', page: '/assets/crypto-derivatives.html', sub: true },

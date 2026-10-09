@@ -183,10 +183,10 @@ market-base/
 │   ├── etf_flows/etf_flows.csv         ← BTC 现货 ETF 资金流（Farside，12 ETF + Total，M USD）
 │   └── cache/{SYMBOL}_indicators.parquet ← 指标缓存（派生产物，mtime 失效）
 │
-├── frontend/                     ← Web 前端（Astro，ADR-0003：32 专题页已全迁 .astro，迁移完成）
+├── frontend/                     ← Web 前端（Astro，ADR-0003：33 专题页已全迁 .astro，迁移完成）
 │   ├── src/
 │   │   ├── layouts/TopicLayout.astro ← 专题页通用骨架（head 样板/左侧树+窄屏抽屉/页头/主题等运行时行为）
-│   │   └── pages/                ← 32 个专题页 .astro（liquidity 8 / rates 4 / 单页族 9 / assets 11）
+│   │   └── pages/                ← 33 个专题页 .astro（liquidity 8 / rates 4 / 单页族 9 / assets 12）
 │   ├── public/                   ← SPA 壳 + 共享资源（原 static/ 搬入，Astro publicDir 原样拷贝）
 │   │   ├── index.html            ← 主仪表盘 SPA（vanilla，不迁）
 │   │   ├── js/                   ← 共享 JS（site-nav / echarts-theme / rates-common 等，不进打包管线）
@@ -537,6 +537,11 @@ uv run python src/sell_put.py --symbol TSM
   2-4 排胶囊压住 `.page-toc`，且 11 个胶囊无当前项样式，根上就没法当层级导航）；
   当前页高亮 / 当前组展开由构建期算（SITE_NAV 的 `.html` 要先归一化成目录形态才能对上产物 URL）。
   新专题：写 .astro 页（套 TopicLayout）→ 在 `SITE_NAV` 登记即可（无别处白名单）
+- **有子页的组入口页，子页导航小节统一叫「专题子页」**：`<Section title="专题子页">` 包
+  `.link-grid`，并在本页 `page-toc` 胶囊里加同名字条目（锚点如 `sub-pages`）。assets/rates/liquidity
+  曾各自叫「板块子页 / 子页入口 / 子页面」，跨组跳转时同一东西三个名字；守卫
+  `tests/test_static_single_source.py::test_group_index_sub_page_section_named_consistently`。
+  例外不适用该叫法：daily 的「沿着问题，进入专题」（跨专题导航）与 volatility 的无标题裸 grid
 - **语义色两档制（图形档 / 文字档）**：`frontend/public/css/tokens.css` 里
   `--color-up/down/neutral/warn/warn-light/warn-deep/brand/hawk/dove` = **图形档**（只准用于
   填充 / 边框 / 线色），`--color-*-text`（每色逐一对应；`tokens.css` 另给四个历史短名别名
