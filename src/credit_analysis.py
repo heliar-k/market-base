@@ -307,7 +307,16 @@ def overview(
         if layers:
             layers[-1]["released"] = _rel(col)
     spread_ccbb = _spread(df_cr, "CCC_OAS", "BB_OAS", "CCC − BB")
-    spread_bbig = _spread(df_cr, "BBB_OAS", "IG_OAS", "BBB − IG")
+    # IG_OAS 存在 volatility.csv（df_vol），BBB_OAS 在 credit.csv：先对齐再作差
+    if "BBB_OAS" in df_cr and "IG_OAS" in df_vol:
+        spread_bbig = _spread(
+            df_cr[["BBB_OAS"]].join(df_vol[["IG_OAS"]], how="outer"),
+            "BBB_OAS",
+            "IG_OAS",
+            "BBB − IG",
+        )
+    else:
+        spread_bbig = {}
 
     # All-in 融资成本
     funding = {}
@@ -405,7 +414,7 @@ def _spread(df: pd.DataFrame, a: str, b: str, name: str) -> dict:
     c = _oas_card(diff)
     if not c:
         return {}
-    return {"name": name, "value": c["value"], "as_of": c["as_of"]}
+    return {"name": name, **c, "as_of": c["as_of"]}
 
 
 def _overview_signals(

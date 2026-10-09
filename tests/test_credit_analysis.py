@@ -13,6 +13,7 @@ from src.credit_analysis import (
     _regime_zone,
     _rolling_pct,
     cds,
+    overview,
     stress,
 )
 
@@ -395,3 +396,44 @@ class TestCdsTradingDays:
         assert c["base_date"] == c["dates"][0]
         assert c["trading_days"] == len(c["dates"])
         assert c["kbwb"][0] == 100.0 and c["spx"][0] == 100.0
+
+
+class TestOverviewSpreads:
+    """overview() 的跨档利差（CCC − BB / BBB − IG）。
+
+    回归哨兵：BBB − IG 的两列分属两个文件（BBB_OAS 在 credit.csv、
+    IG_OAS 在 volatility.csv），曾因只在 df_cr 里找 IG_OAS 而恒为空。
+    """
+
+    @staticmethod
+    def _frames() -> dict:
+        idx = pd.date_range("2026-09-01", periods=10, freq="B")
+        df_vol = pd.DataFrame(
+            {"IG_OAS": range(80, 90), "HY_OAS": range(300, 310)}, index=idx
+        )
+        df_cr = pd.DataFrame(
+            {
+                "BBB_OAS": range(100, 110),
+                "CCC_OAS": range(1200, 1210),
+                "BB_OAS": range(180, 190),
+            },
+            index=idx,
+        )
+        empty = pd.DataFrame()
+        return df_vol, df_cr, empty, empty, empty, empty, empty
+
+    def test_ccc_bb_computed_from_credit_csv(self):
+        out = overview(*self._frames())
+        assert out["spreads"]["ccc_bb"]["name"] == "CCC − BB"
+
+    def test_bbb_ig_joins_ig_from_volatility_csv(self):
+        out = overview(*self._frames())
+        s = out["spreads"]["bbb_ig"]
+        assert s, "BBB − IG 为空：IG_OAS 必须从 volatility 侧取"
+        assert s["value"] == pytest.approx(2000.0)  # (109 − 89) * 100
+
+    def test_spreads_carry_percentiles(self):
+        """回归哨兵：曾只 return value/as_of，1Y/3Y/10Y 分位被丢弃 → 前端全是 —。"""
+        out = overview(*self._frames())
+        for k in ("ccc_bb", "bbb_ig"):
+            assert out["spreads"][k]["pct_10y"] is not None

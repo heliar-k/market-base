@@ -168,8 +168,15 @@ async function load() {
 
   // ── OAS 分层表（删「观测期 / 发布」两列 → 上提副标；分位按压力色标着色）──
   const layers = d.layers.map(l => ({ 层级: l.name, 当前bp: l.value, '1Y 分位': l.pct_1y, '3Y 分位': l.pct_3y, '10Y 分位': l.pct_10y }));
-  layers.push({ 层级: 'CCC − BB', 当前bp: d.spreads.ccc_bb?.value ?? '—', '1Y 分位': '—', '3Y 分位': '—', '10Y 分位': '—' });
-  layers.push({ 层级: 'BBB − IG', 当前bp: d.spreads.bbb_ig?.value ?? '—', '1Y 分位': '—', '3Y 分位': '—', '10Y 分位': '—' });
+  const spreadRow = (k, name) => ({
+    层级: name,
+    当前bp: d.spreads[k]?.value ?? '—',
+    '1Y 分位': d.spreads[k]?.pct_1y ?? '—',
+    '3Y 分位': d.spreads[k]?.pct_3y ?? '—',
+    '10Y 分位': d.spreads[k]?.pct_10y ?? '—',
+  });
+  layers.push(spreadRow('ccc_bb', 'CCC − BB'));
+  layers.push(spreadRow('bbb_ig', 'BBB − IG'));
   const lsec = R.secCard();
   lsec.appendChild(R.table(['层级', '当前bp', '1Y 分位', '3Y 分位', '10Y 分位'], layers, {
     当前bp: v => v === '—' ? '—' : `${v}bp`,
