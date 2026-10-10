@@ -54,7 +54,7 @@ function buildTheme() {
       // 次级标签样式——rich 不继承外层 axisLabel，字号/字体须显式写
       axisLabel: {
         ...axisLabel,
-        rich: { primary: { fontWeight: 'normal', fontSize: 10, fontFamily: mono, color: textMuted } },
+        rich: { primary: { fontWeight: 'normal', fontSize: 10, fontFamily: mono, color: textSecondary } },
       },
       splitLine: splitLine,
     },
