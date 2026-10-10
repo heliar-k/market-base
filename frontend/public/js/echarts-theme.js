@@ -50,7 +50,9 @@ function buildTheme() {
     },
     timeAxis: {
       axisLine: { lineStyle: { color: borderColor } }, axisTick: { lineStyle: { color: borderColor } },
-      axisLabel: axisLabel, splitLine: splitLine,
+      // 5.5+ time 轴内置两级标签（primary 年份默认 bold），只去粗保深色；不继承外层样式，须显式写
+      axisLabel: { ...axisLabel, rich: { primary: { fontWeight: 'normal' } } },
+      splitLine: splitLine,
     },
     logAxis: { axisLabel: axisLabel, splitLine: splitLine },
     grid: { left: '3%', right: '4%', bottom: '3%', top: 48, containLabel: true },
