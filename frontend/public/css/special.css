@@ -156,6 +156,9 @@ body.embedded .re-foot { display: none; } /* 内嵌 iframe 不重复页脚 */
 .re-table td.up { color: var(--color-up-text); }
 .re-table td.down { color: var(--color-down-text); }
 .re-table-wrap .re-scroll { overflow-x: auto; }
+/* 表内分组行（metals WGC 流入/流出 TOP10 合并表）：读作子表头，hover 不当数据行高亮 */
+.re-table tr.re-flow-group td,
+.re-table tr.re-flow-group:hover td { background: var(--surface-alt); padding: 5px var(--re-cell-pad-x); font-size: 12px; font-weight: 600; color: var(--text-dim); letter-spacing: .02em; border-bottom: 1px solid var(--border); }
 /* ── 窄屏（≤768）整体收缩：页面留白 / 卡面 / 表格 ──
  * 500px 视口的宽度去向（实测 yield-curve）：.re-root 两侧 64 + 卡面 40（出血 +16 抵回）
  * ≈ 90px chrome，表格只剩 ~346px；字号内距又不随视口缩 → 6-8 列表全出横向滚动。

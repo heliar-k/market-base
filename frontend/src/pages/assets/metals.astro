@@ -163,17 +163,27 @@ async function load() {
       const fkeys = ['name', 'reg', 'h', 'aum', 'm', 'q'];
       const ffmt = { name: v => v, reg: v => v, h: v => v, aum: v => v, m: v => v, q: v => v };
       const fsec = R.secCard();
-      const fin_h = document.createElement('div');
-      fin_h.className = 're-table-title';
-      fin_h.textContent = '月净流入 TOP10（流入）';
-      fsec.appendChild(fin_h);
-      fsec.appendChild(R.table(fcols, wf.inflow.map(frow), ffmt, fkeys, true));
-      const fout_h = document.createElement('div');
-      fout_h.className = 're-table-title';
-      fout_h.style.marginTop = '16px';
-      fout_h.textContent = '月净流入 TOP10（流出）';
-      fsec.appendChild(fout_h);
-      fsec.appendChild(R.table(fcols, wf.outflow.map(frow), ffmt, fkeys, true));
+      const outs = wf.outflow || [];
+      // 流入/流出合并成一张表：两组行共用一套列宽，逐列天然对齐
+      // （自动布局下两张独立表各按内容算列宽，流出榜基金名长，后面的列全错位）
+      const ftbl = R.table(fcols, [...wf.inflow.map(frow), ...outs.map(frow)], ffmt, fkeys, true);
+      const ftbody = ftbl.querySelector('tbody');
+      const grow = label => {
+        const tr = document.createElement('tr');
+        tr.className = 're-flow-group';
+        const td = document.createElement('td');
+        td.colSpan = fcols.length;
+        td.textContent = label;
+        tr.appendChild(td);
+        return tr;
+      };
+      if (outs.length) ftbody.insertBefore(grow('流出 TOP10'), ftbody.children[wf.inflow.length]);
+      ftbody.insertBefore(grow('流入 TOP10'), ftbody.firstElementChild);
+      const ft_h = document.createElement('div');
+      ft_h.className = 're-table-title';
+      ft_h.textContent = '单基金月度资金流 TOP10（流入 / 流出）';
+      fsec.appendChild(ft_h);
+      fsec.appendChild(ftbl);
       const fnote = R.secNote(`As of ${wf.as_of || '最新'}，金额百万美元。流入榜看谁在买、流出榜看谁在卖；持仓/AUM 为同一时点快照，覆盖全球约 140 只基金。`);
       fsec.appendChild(fnote);
       document.getElementById('wgc').appendChild(fsec);
