@@ -43,7 +43,7 @@ const REGIME_INFO = {
   np: { label: '负 Gamma + 正 Delta', desc: '现价在 Gamma Flip 下方，波动易放大，多头 delta 占优。' },
   nn: { label: '负 Gamma + 负 Delta', desc: '现价在 Gamma Flip 下方，delta 偏空，双重压力。' },
 };
-const BUCKET_NAMES = { '0DTE': '0DTE · 快照当日', '本周': '本周 · 快照起 1-7d', '月度': '月度 · 8-35d', '季度+': '季度+ · >35d' };
+const BUCKET_NAMES = { '0DTE': '0DTE · 当日', '本周': '本周 · 1-7d', '月度': '月度 · 8-35d', '季度+': '季度+ · >35d' };
 
 function fmtNum(v, d = 2) {
   return v === null || v === undefined ? '—' : Number(v).toLocaleString(undefined, { maximumFractionDigits: d });
@@ -240,43 +240,40 @@ function pGex(panel, v) {
       ],
     }, colors);
   };
-  // 到期 Gamma 集中度：单根 100% 堆叠条（段宽 = 占比，绿/红 = 净 gamma 方向）+ 数字行
+  // 到期 Gamma 集中度：分段进度行（每段一行：标签 + 细条 + 占比 + 净 GEX）
   const buckets = v.buckets || {};
   const entries = Object.entries(buckets);
   const dom = document.getElementById('buckets');
-  let domLabel = null, domPct = 0;
   const segs = entries.map(([k, b]) => {
     const pct = b.gex_pct ?? 0;
     const m = b.gex_m ?? null; // 带符号：正 = call 侧净 gamma（市场压制波动），负 = put 侧
     const pos = m != null && m >= 0;
-    if (pct > domPct) { domPct = pct; domLabel = k; }
     const gexTxt = m == null ? '—' : `${m >= 0 ? '+' : ''}${Math.abs(m) >= 1000 ? (m / 1e3).toFixed(1) + 'B' : m.toFixed(0)}M`;
     return { k, pct, m, pos, gexTxt };
   });
-  // 占比不足 5% 的段不进条内标注（文字放不下），只进下方数字行；
-  // 段色取 ECharts 分类色板前四位（brand/warn/purple/down，亮暗主题各自解析），
-  // 叠 75% 透明度降饱和（纯 token 太鲜艳），段界仍清晰；
-  // 方向（绿/红）只留在图例的净 GEX 数字上
-  const segColor = [
-    'color-mix(in srgb, var(--color-brand) 55%, var(--surface))',
-    'color-mix(in srgb, var(--color-warn) 55%, var(--surface))',
-    'color-mix(in srgb, var(--chart-purple) 55%, var(--surface))',
-    'color-mix(in srgb, var(--color-down) 55%, var(--surface))',
-  ];
-  dom.innerHTML = `
-    <div class="gex-stack">
-      ${segs.filter(s => s.pct >= 5).map(s => `
-        <div style="width:${s.pct.toFixed(1)}%;background:${segColor[entries.findIndex(([k]) => k === s.k) % 4]}" title="${BUCKET_NAMES[s.k] || s.k}：${s.gexTxt}">
-          <span>${s.k} ${s.pct.toFixed(0)}%</span>
-        </div>`).join('')}
-    </div>
-    <div class="gex-stack-legend">
-      ${segs.map(s => {
-        const idx = entries.findIndex(([k]) => k === s.k) % 4;
-        return `<span><i style="background:${segColor[idx]}"></i>${BUCKET_NAMES[s.k] || s.k} · ${s.pct.toFixed(1)}% · <span style="color:${s.m != null ? (s.pos ? 'var(--up)' : 'var(--down)') : ''}">${s.gexTxt}</span></span>`;
-      }).join('')}
-    </div>`;
-  dom.insertAdjacentHTML('beforeend', `<p class="re-source" style="margin:8px 0 0">段宽 = 占比（各到期段 Σ|GEX| / 全链 Σ|GEX|，加总 100%），段色区分到期段；绿/红 = 净 gamma 方向（正压制波动 / 负放大波动）。${domLabel && domPct ? `${BUCKET_NAMES[domLabel]} 集中度最高（${domPct.toFixed(1)}%）` : ''}</p>`);
+  const maxPct = Math.max(...segs.map(s => s.pct), 0);
+  // 主段（占比最大）用 brand 蓝强调「谁占最多」，其余段中性灰 —— 颜色只承载这一个信息；
+  // 净 gamma 方向（绿/红）只留在右侧数字上，与全站涨跌语义一致
+  // 单一外层网格，四行同类单元格直接落同一组轨道：标签两列 auto 取最宽内容，
+  // 条 1fr 起点终点全对齐，占比/净 GEX 右对齐各占一条纵线
+  dom.innerHTML = `<div style="display:grid;grid-template-columns:auto auto 1fr 64px 76px;gap:4px 10px;align-items:center;font-size:12px">`
+    + segs.map(s => {
+    const main = s.pct > 0 && s.pct === maxPct;
+    const barColor = main ? 'var(--color-brand)' : 'color-mix(in srgb, var(--text-dim) 45%, var(--surface-alt))';
+    const name = BUCKET_NAMES[s.k] || s.k;
+    const dot = name.indexOf(' · ');
+    const label = dot > 0 ? name.slice(0, dot) : name;
+    const range = dot > 0 ? name.slice(dot + 3) : '';
+    return `
+      <span style="color:${main ? 'var(--text)' : 'var(--text-secondary)'};font-weight:${main ? 600 : 400}">${label}</span>
+      <span style="color:var(--text-dim);white-space:nowrap" title="${name}">${range}</span>
+      <div style="height:10px;border-radius:5px;background:var(--border-light);overflow:hidden">
+        <div style="width:${s.pct.toFixed(1)}%;height:100%;background:${barColor}"></div>
+      </div>
+      <span style="text-align:right;font-variant-numeric:tabular-nums;color:${main ? 'var(--text)' : 'var(--text-secondary)'};font-weight:${main ? 600 : 400}">${s.pct.toFixed(1)}%</span>
+      <span style="text-align:right;font-variant-numeric:tabular-nums;color:${s.m != null ? (s.pos ? 'var(--up-text)' : 'var(--down-text)') : 'var(--flat)'}">${s.gexTxt}</span>`;
+  }).join('') + `</div>`;
+  dom.insertAdjacentHTML('beforeend', `<p class="re-source" style="margin:8px 0 0">条长 = 占比（各到期段 Σ|GEX| / 全链 Σ|GEX|，加总 100%），蓝色 = 占比最大的主段；绿/红 = 净 gamma 方向（正压制波动 / 负放大波动）。${maxPct > 0 ? `主段：${BUCKET_NAMES[segs.find(s => s.pct === maxPct).k] || ''}（${maxPct.toFixed(1)}%）` : ''}</p>`);
 }
 
 // ── DEX tab ──

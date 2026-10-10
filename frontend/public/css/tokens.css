@@ -63,6 +63,10 @@
   /* ECharts 序列分类色板（前四位即 --color-brand/-warn/-up/-down，见 echarts-theme.js） */
   --chart-purple: #9c27b0;
   --chart-cyan: #00bcd4;
+  /* 图表分类色的文字档：cyan 亮色下当文字只有 2.35:1（白卡），压深一档；
+   * purple 亮色白卡 4.94 已过，直接别名。暗色原语偏亮，均别名回原语 */
+  --chart-purple-text: #9c27b0;
+  --chart-cyan-text: #00838f;
   --chart-violet: #7c4dff;
   --chart-slate: #607d8b;
   --chart-pink: #e91e63;
@@ -100,6 +104,8 @@ body.dark {
   --color-neutral-bg: color-mix(in srgb, var(--color-neutral) 22%, transparent);
   --color-warn-bg: color-mix(in srgb, var(--color-warn) 22%, transparent);
   --color-brand-bg: color-mix(in srgb, var(--color-brand) 22%, transparent);
+  --chart-purple-text: var(--chart-purple);
+  --chart-cyan-text: var(--chart-cyan);
   --color-hawk-bg: color-mix(in srgb, var(--color-hawk) 25%, transparent);
   --color-dove-bg: color-mix(in srgb, var(--color-dove) 25%, transparent);
 }
