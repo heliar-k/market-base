@@ -98,21 +98,14 @@ class MacroChart(Vertical):
         if not is_term:
             return
         series_list = TERM_SERIES[self._category]
-        cur = (
-            self.macro_view.term_cursor.current()
-            if self.macro_view.term_cursor
-            else None
-        )
+        cur = self.macro_view.term_cursor.current() if self.macro_view.term_cursor else None
         plt = self._term.plt
         plt.clear_data()
         plt.theme("pro")
         labels = [TERM_INFO[s].short for s in series_list]
         if cur is not None and cur in self.df.index:
             row = self.df.loc[cur]
-            ys = [
-                float(row[s]) if s in row and pd.notna(row[s]) else None
-                for s in series_list
-            ]
+            ys = [float(row[s]) if s in row and pd.notna(row[s]) else None for s in series_list]
         else:
             ys = [None] * len(series_list)
         # plotext 跳过 None；用整数 x 保证标签顺序对齐
@@ -122,9 +115,7 @@ class MacroChart(Vertical):
         if any(v is not None for v in ys):
             plt.plot(xs, ys, label=str(cur.date()) if cur is not None else "?")
         plt.xticks(xs, labels)
-        plt.title(
-            f"期限结构 | {self._category} | {cur.date() if cur is not None else '—'}"
-        )
+        plt.title(f"期限结构 | {self._category} | {cur.date() if cur is not None else '—'}")
         self._term.refresh()
 
     # ── 期限光标移动 ────────────────────────────────────
@@ -189,9 +180,7 @@ if __name__ == "__main__":
 
     plt = _P()
     plt.theme("pro")
-    chart._term = type(
-        "T", (), {"plt": plt, "display": True, "refresh": lambda self: None}
-    )()
+    chart._term = type("T", (), {"plt": plt, "display": True, "refresh": lambda self: None})()
     chart.macro_view = mv2
     chart._draw_term_structure()  # 全 None 行不应崩
     print("全 None 行渲染自检 OK")

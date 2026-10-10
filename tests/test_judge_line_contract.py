@@ -53,15 +53,11 @@ def test_no_duplicate_trigger_prefixes():
 def test_line_count_within_contract():
     """分行数 ≤3（结论 / 依据 / 触发），超行说明引擎把两段拼成了一行或反之。"""
     bad = [
-        f"{src}={len(body.splitlines())} 行"
-        for src, body in _bodies()
-        if len(body.split("\n")) > 3
+        f"{src}={len(body.splitlines())} 行" for src, body in _bodies() if len(body.split("\n")) > 3
     ]
     assert not bad, "研判叙事超过 3 行：" + "; ".join(bad)
 
 
 def test_every_body_non_empty():
     assert _bodies(), "引擎未产出任何研判叙事（接口改名？同步本守卫）"
-    assert all(body.strip() for _, body in _bodies()), (
-        "存在空叙事文本（前端会渲染空 sig-block）"
-    )
+    assert all(body.strip() for _, body in _bodies()), "存在空叙事文本（前端会渲染空 sig-block）"

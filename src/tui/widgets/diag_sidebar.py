@@ -64,9 +64,7 @@ def _format_diagnosis(r: dict) -> str:
     last_date = r.get("last_date", "?")
 
     # ── 标题行 ──
-    lines.append(
-        f"[bold #58a6ff]{sym}[/]  [bold #c9d1d9]${price_str}[/]  [dim]{last_date}[/]"
-    )
+    lines.append(f"[bold #58a6ff]{sym}[/]  [bold #c9d1d9]${price_str}[/]  [dim]{last_date}[/]")
     lines.append("[dim]" + "─" * 32 + "[/]")
 
     # ── 综合评分 ──
@@ -131,9 +129,7 @@ def _format_diagnosis(r: dict) -> str:
     adx_trend = r.get("ADX_trend", "—")
     if isinstance(adx, (int, float)) and adx >= 25:
         trend_color = "#3fb950" if adx_trend in ("bullish", "uptrend") else "#f85149"
-        lines.append(
-            f"[bold]ADX:[/] [{trend_color}]{_fmt(adx)}[/] [dim]({adx_trend})[/]"
-        )
+        lines.append(f"[bold]ADX:[/] [{trend_color}]{_fmt(adx)}[/] [dim]({adx_trend})[/]")
     else:
         lines.append(f"[bold]ADX:[/] {_fmt(adx)} [dim]({adx_trend})[/]")
     lines.append("")

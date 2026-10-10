@@ -79,9 +79,7 @@ def _card(s: pd.Series) -> dict:
         "value": round(float(yoy.iloc[-1]), 2),
         "as_of": yoy.index[-1].strftime("%Y-%m-%d"),
     }
-    out["chg_1m"] = (
-        round(float(yoy.iloc[-1] - yoy.iloc[-2]), 2) if len(yoy) > 1 else None
-    )
+    out["chg_1m"] = round(float(yoy.iloc[-1] - yoy.iloc[-2]), 2) if len(yoy) > 1 else None
     return out
 
 
@@ -106,8 +104,7 @@ def signal_level(cards: dict) -> str:
     gap = round(core_pce["value"] - 2.0, 2)
     if gap > 0.5:
         verdict = (
-            f"核心 PCE 高出美联储 2% 目标 {gap}pp，去通胀尚未完成，"
-            "政策利率不具备快速宽松空间。"
+            f"核心 PCE 高出美联储 2% 目标 {gap}pp，去通胀尚未完成，政策利率不具备快速宽松空间。"
         )
     elif gap > 0:
         verdict = f"核心 PCE 仅高出 2% 目标 {gap}pp，去通胀进入最后一段。"
@@ -163,11 +160,7 @@ def signal_expectations(market: list, survey: list) -> str:
     verdict = "预期端数据不足。"
     if isinstance(t5y5y, float):
         anchored = 1.8 <= t5y5y <= 2.6
-        verdict = (
-            "长期预期仍锚定在 2% 附近。"
-            if anchored
-            else "长期预期偏离 2% 区间，需警惕失锚。"
-        )
+        verdict = "长期预期仍锚定在 2% 附近。" if anchored else "长期预期偏离 2% 区间，需警惕失锚。"
     if isinstance(mich, float) and isinstance(t5, float) and mich > t5 + 1.5:
         verdict += (
             "调查预期显著高于市场隐含，居民体感通胀偏热，"
@@ -185,9 +178,7 @@ def polymarket_signal() -> str | None:
     from src.polymarket_analysis import events_matching, prob_ladder, snapshot
 
     snap = snapshot()
-    evs = events_matching(
-        snap, pattern=r"how high will .*inflation", categories=("data",)
-    )
+    evs = events_matching(snap, pattern=r"how high will .*inflation", categories=("data",))
     if not evs:
         return None
     ladder = prob_ladder(evs[0])
@@ -358,10 +349,7 @@ def generate_inflation_overview() -> dict:
             return {**llm_out, "generator": "llm"}
     df = _read("inflation")
     if df.empty or "CPI" not in df.columns:
-        return {
-            "error": "data/fred/inflation/inflation.csv 缺失或为空，"
-            "先运行 ./bin/fetch_fred"
-        }
+        return {"error": "data/fred/inflation/inflation.csv 缺失或为空，先运行 ./bin/fetch_fred"}
     ppi = _read("producer_prices")
     sce = read_csv_or_empty(ROOT / "data" / "sce" / "sce.csv")
     shapiro = read_csv_or_empty(ROOT / "data" / "shapiro" / "shapiro.csv")
@@ -374,11 +362,7 @@ def generate_inflation_overview() -> dict:
     }
     if not cards["cpi"]:
         return {"error": "inflation.csv 缺 CPI 有效数据（YoY 需 13 个月以上历史）"}
-    comp = {
-        k: {**_card(df[k]), "name": name}
-        for k, name in COMPONENT_LABELS.items()
-        if k in df
-    }
+    comp = {k: {**_card(df[k]), "name": name} for k, name in COMPONENT_LABELS.items() if k in df}
     comp = {k: v for k, v in comp.items() if v.get("value") is not None}
     rel = _release_dates(FRED_DIR)
     sid = config.fred_series["inflation"]
@@ -394,11 +378,7 @@ def generate_inflation_overview() -> dict:
             {"title": "通胀现状", "text": signal_level(cards)},
             {"title": "结构驱动", "text": signal_drivers(comp, shapiro_out)},
             {"title": "通胀预期", "text": signal_expectations(market, survey)},
-            *(
-                [{"title": "预测市场", "text": pm}]
-                if (pm := polymarket_signal())
-                else []
-            ),
+            *([{"title": "预测市场", "text": pm}] if (pm := polymarket_signal()) else []),
         ],
         "yoy_history": yoy_history(df),
         "components": [

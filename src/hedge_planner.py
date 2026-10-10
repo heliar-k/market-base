@@ -120,9 +120,7 @@ def fmt_money(per_share: float) -> str:
     return f"${per_share:.2f} (${per_share * 100:,.0f}/手)"
 
 
-def print_structures(
-    exp: str, quotes: dict, puts: list[float], calls: list[float], spot: float
-):
+def print_structures(exp: str, quotes: dict, puts: list[float], calls: list[float], spot: float):
     days = (date.fromisoformat(exp) - date.today()).days
     print(f"\n{'=' * 66}\n=== {exp}（{days} 天后到期）===\n{'=' * 66}")
 
@@ -130,17 +128,11 @@ def print_structures(
     for s in puts:
         q = quotes.get((s, "P"))
         if q:
-            print(
-                f"  P ${s:.0f}: bid={q.bid:.2f} ask={q.ask:.2f}"
-                f" mid={q.mid:.2f} OI={q.oi:,}"
-            )
+            print(f"  P ${s:.0f}: bid={q.bid:.2f} ask={q.ask:.2f} mid={q.mid:.2f} OI={q.oi:,}")
     for s in calls:
         q = quotes.get((s, "C"))
         if q:
-            print(
-                f"  C ${s:.0f}: bid={q.bid:.2f} ask={q.ask:.2f}"
-                f" mid={q.mid:.2f} OI={q.oi:,}"
-            )
+            print(f"  C ${s:.0f}: bid={q.bid:.2f} ask={q.ask:.2f} mid={q.mid:.2f} OI={q.oi:,}")
 
     # 裸买 put
     print("\n  [裸买 put]")
@@ -191,15 +183,9 @@ def print_structures(
 def main():
     parser = argparse.ArgumentParser(description="下跌保护结构报价器")
     parser.add_argument("--symbol", required=True, help="标的，如 TSM / MSFT")
-    parser.add_argument(
-        "--exps", help="逗号分隔到期日 YYYY-MM-DD，默认自动挑 30/60/90 天"
-    )
-    parser.add_argument(
-        "--puts", help="逗号分隔 put 行权价，默认现价下方 2.5%%~10%% 吸附"
-    )
-    parser.add_argument(
-        "--calls", help="逗号分隔 call 行权价，默认现价上方 10%%~12.5%% 吸附"
-    )
+    parser.add_argument("--exps", help="逗号分隔到期日 YYYY-MM-DD，默认自动挑 30/60/90 天")
+    parser.add_argument("--puts", help="逗号分隔 put 行权价，默认现价下方 2.5%%~10%% 吸附")
+    parser.add_argument("--calls", help="逗号分隔 call 行权价，默认现价上方 10%%~12.5%% 吸附")
     args = parser.parse_args()
 
     symbol = args.symbol.upper()

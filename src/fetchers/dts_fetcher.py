@@ -22,9 +22,7 @@ import requests
 
 from ._io import upsert_timeseries
 
-API_BASE = (
-    "https://api.fiscaldata.treasury.gov/services/api/fiscal_service/v1/accounting/dts"
-)
+API_BASE = "https://api.fiscaldata.treasury.gov/services/api/fiscal_service/v1/accounting/dts"
 
 logger = logging.getLogger(__name__)
 
@@ -50,9 +48,7 @@ def fetch_operating_cash_balance() -> pd.DataFrame:
     df["record_date"] = pd.to_datetime(df["record_date"])
     df = df.set_index("record_date").sort_index()
     # close_today_bal 恒 null；真实值在 open_today_bal（该行当日收盘余额）
-    val = df["open_today_bal"].where(
-        df["close_today_bal"].isna(), df["close_today_bal"]
-    )
+    val = df["open_today_bal"].where(df["close_today_bal"].isna(), df["close_today_bal"])
     df = pd.to_numeric(val, errors="coerce").to_frame("TGA_CLOSE")
     return df.dropna()
 
@@ -99,18 +95,14 @@ def _fetch_pages(url: str, filter_expr: str | None) -> list[dict]:
         }
         if filter_expr:
             params["filter"] = filter_expr
-        resp = requests.get(
-            url, params=params, timeout=60, proxies={"http": None, "https": None}
-        )
+        resp = requests.get(url, params=params, timeout=60, proxies={"http": None, "https": None})
         resp.raise_for_status()
         body = resp.json()
         data = body.get("data", [])
         total_pages = int(body.get("meta", {}).get("total-pages", 1))
         for item in data:
             # 归一化空值字符串（API 用 "null" 字符串表示缺失）
-            all_rows.append(
-                {k: (None if v in (None, "null", "") else v) for k, v in item.items()}
-            )
+            all_rows.append({k: (None if v in (None, "null", "") else v) for k, v in item.items()})
         if page >= total_pages or not data:
             break
         page += 1
@@ -158,9 +150,7 @@ if __name__ == "__main__":
 
     # ── 表 II：日度现金流（增量 35 天 / --backfill 全量）──
     start = (
-        None
-        if args.backfill
-        else (date.today() - timedelta(days=DEFAULT_WINDOW_DAYS)).isoformat()
+        None if args.backfill else (date.today() - timedelta(days=DEFAULT_WINDOW_DAYS)).isoformat()
     )
     try:
         cf = fetch_cashflows(start)

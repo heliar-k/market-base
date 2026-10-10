@@ -41,9 +41,7 @@ class SymbolConfig:
 # ── 股票 ──
 STOCKS: list[SymbolConfig] = [
     SymbolConfig(name="AAPL", exchange="SMART"),
-    SymbolConfig(
-        name="BRK.B", exchange="SMART", ibkr_symbol="BRK B", yf_ticker="BRK-B"
-    ),
+    SymbolConfig(name="BRK.B", exchange="SMART", ibkr_symbol="BRK B", yf_ticker="BRK-B"),
     SymbolConfig(name="TSLA", exchange="SMART"),
     SymbolConfig(name="MSFT", exchange="SMART"),
     SymbolConfig(name="MCD", exchange="SMART"),

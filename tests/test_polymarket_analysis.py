@@ -159,9 +159,7 @@ def test_real_data_unparsed_idempotent():
 
 def test_geo_topic_of_priority():
     # 热战主题优先于选举：「以色列总理选举」归以色列战线
-    assert geo_topic_of(
-        {"title": "Prime Minister of Israel after the next election?"}
-    ) == (
+    assert geo_topic_of({"title": "Prime Minister of Israel after the next election?"}) == (
         "israel",
         "以色列战线",
     )
@@ -235,9 +233,7 @@ def test_geo_overview(fake_dir):
                     }
                 ],
             ),
-            _event(
-                "Will the U.S. invade Greenland in 2026?", "geo", vol=10.0, markets=[]
-            ),
+            _event("Will the U.S. invade Greenland in 2026?", "geo", vol=10.0, markets=[]),
         ]
     )
     (fake_dir / "20260916.json").write_text(json.dumps(snap), encoding="utf-8")
@@ -285,9 +281,7 @@ def test_geo_overview_unmatched_alert(fake_dir):
     out = geo_overview()
     # 标题+问题均无关键词 → miss 归类 + 告警
     assert out["unmatched"]["count"] == 1
-    assert (
-        out["unmatched"]["samples"][0]["label"] == "Will Iran resume missile production"
-    )
+    assert out["unmatched"]["samples"][0]["label"] == "Will Iran resume missile production"
     iran = out["topics"][0]
     misc = [c for c in iran["clusters"] if c["miss"]]
     assert len(misc) == 1 and misc[0]["name"] == "其它事件"
@@ -306,21 +300,10 @@ def test_geo_overview_unmatched_alert(fake_dir):
 def test_hit_cluster_of():
     """归类规则：方向取问题动词，周期取 series 后缀（年度靠问题里的截止日）。"""
     month = {"series": "bitcoin-hit-price-monthly"}
-    assert (
-        hit_cluster_of(month, "Will Bitcoin reach $80,000 in September?") == "上行·月度"
-    )
-    assert (
-        hit_cluster_of(month, "Will Bitcoin dip to $70,000 in September?")
-        == "下行·月度"
-    )
-    assert (
-        hit_cluster_of(month, "Will Bitcoin reach $150,000 by December 31, 2026?")
-        == "上行·年度"
-    )
-    assert (
-        hit_cluster_of({"series": "btc-multi-strikes-weekly"}, "above $76,000?")
-        == "高于·短线"
-    )
+    assert hit_cluster_of(month, "Will Bitcoin reach $80,000 in September?") == "上行·月度"
+    assert hit_cluster_of(month, "Will Bitcoin dip to $70,000 in September?") == "下行·月度"
+    assert hit_cluster_of(month, "Will Bitcoin reach $150,000 by December 31, 2026?") == "上行·年度"
+    assert hit_cluster_of({"series": "btc-multi-strikes-weekly"}, "above $76,000?") == "高于·短线"
     assert (
         hit_cluster_of(
             {"series": "bitcoin-hit-price-daily"},
@@ -330,9 +313,7 @@ def test_hit_cluster_of():
     )
     # 动词/系列都认不出 → 兜底组（前端虚线 chip + ⚠ 提醒补规则）
     assert (
-        hit_cluster_of(
-            {"series": "bitcoin-hit-price-monthly"}, "Will Bitcoin do something?"
-        )
+        hit_cluster_of({"series": "bitcoin-hit-price-monthly"}, "Will Bitcoin do something?")
         == HIT_MISC
     )
     assert hit_underlying("ethereum-hit-price-weekly") == "ETH"
@@ -341,13 +322,9 @@ def test_hit_cluster_of():
     assert hit_strike("Will Bitcoin dip?") is None
     # 行内短标签：去主语 + 去句尾时间短语（多档快照的 "the price of X be" 也去掉）
     assert (
-        hit_label("Will the price of Bitcoin be above $76,000 on September 17?")
-        == "above $76,000"
+        hit_label("Will the price of Bitcoin be above $76,000 on September 17?") == "above $76,000"
     )
-    assert (
-        hit_label("Will Bitcoin dip to $25,000 by December 31, 2026?")
-        == "dip to $25,000"
-    )
+    assert hit_label("Will Bitcoin dip to $25,000 by December 31, 2026?") == "dip to $25,000"
 
 
 def _hit_ev(eid, series, markets, vol24=1000.0):
@@ -521,23 +498,17 @@ def test_crossing_series():
     ]
     hist = {m["id"]: [{"date": "2026-09-16", "value": m["prob"]}] for m in ms}
     # 0.5 落在 80K(0.6) 与 90K(0.4) 正中 → 85K
-    assert crossing_series(ms, hist, rising=False) == [
-        {"date": "2026-09-16", "value": 85000.0}
-    ]
+    assert crossing_series(ms, hist, rising=False) == [{"date": "2026-09-16", "value": 85000.0}]
     # 全低于 0.5（年内上行那种无对赌档）→ 空
     low = {
-        m["id"]: [{"date": "2026-09-16", "value": v}]
-        for m, v in zip(ms, (0.2, 0.15, 0.1, 0.05))
+        m["id"]: [{"date": "2026-09-16", "value": v}] for m, v in zip(ms, (0.2, 0.15, 0.1, 0.05))
     }
     assert crossing_series(ms, low, rising=False) == []
     # 下行档概率随价位递增：0.5 落在 80K(0.3) 与 90K(0.55) 间 → 88K
     rising = {
-        m["id"]: [{"date": "2026-09-16", "value": v}]
-        for m, v in zip(ms, (0.1, 0.3, 0.55, 0.8))
+        m["id"]: [{"date": "2026-09-16", "value": v}] for m, v in zip(ms, (0.1, 0.3, 0.55, 0.8))
     }
-    assert crossing_series(ms, rising, rising=True) == [
-        {"date": "2026-09-16", "value": 88000.0}
-    ]
+    assert crossing_series(ms, rising, rising=True) == [{"date": "2026-09-16", "value": 88000.0}]
     # 当日只有两档 → 不足以定跨档位置，留空
     two = {m["id"]: hist[m["id"]] for m in ms[:2]}
     assert crossing_series(ms[:2], two, rising=False) == []

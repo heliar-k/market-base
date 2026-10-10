@@ -88,15 +88,11 @@ def _run() -> dict:
             BODY,
         ]
     )
-    with tempfile.NamedTemporaryFile(
-        "w", suffix=".js", delete=False, encoding="utf-8"
-    ) as f:
+    with tempfile.NamedTemporaryFile("w", suffix=".js", delete=False, encoding="utf-8") as f:
         f.write(src)
         tmp = f.name
     try:
-        r = subprocess.run(
-            ["node", tmp], capture_output=True, text=True, encoding="utf-8"
-        )
+        r = subprocess.run(["node", tmp], capture_output=True, text=True, encoding="utf-8")
     finally:
         Path(tmp).unlink(missing_ok=True)
     assert r.returncode == 0, r.stderr[:400]

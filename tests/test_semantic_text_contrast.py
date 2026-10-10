@@ -69,13 +69,7 @@ def _themes() -> dict[str, dict[str, str]]:
     decls: dict[str, dict[str, str]] = {":root": {}, "body.dark": {}}
     for path in sorted(CSS_DIR.glob("*.css")):
         for sel, body in _rules(path.read_text(encoding="utf-8")):
-            theme = (
-                ":root"
-                if sel == ":root"
-                else "body.dark"
-                if sel == "body.dark"
-                else None
-            )
+            theme = ":root" if sel == ":root" else "body.dark" if sel == "body.dark" else None
             if theme is None:
                 continue
             for d in DECL.finditer(body):
@@ -116,9 +110,7 @@ def _tint(fg: str, bg: str, p: float) -> str:
     _rgb 已归一到 0~1，混完要乘回 255。
     """
     f, b = _rgb(fg), _rgb(bg)
-    return "#%02x%02x%02x" % tuple(
-        round((f[i] * p + b[i] * (1 - p)) * 255) for i in range(3)
-    )
+    return "#%02x%02x%02x" % tuple(round((f[i] * p + b[i] * (1 - p)) * 255) for i in range(3))
 
 
 def test_text_tokens_clear_aa_on_real_backgrounds() -> None:
@@ -138,9 +130,7 @@ def test_text_tokens_clear_aa_on_real_backgrounds() -> None:
                 ("徽章底", _tint(graphic, card, pct)),
             ):
                 if (got := _cr(text, bg)) < AA_NORMAL:
-                    bad.append(
-                        f"{theme} {name}-text {text} on {label} {bg} = {got:.2f}"
-                    )
+                    bad.append(f"{theme} {name}-text {text} on {label} {bg} = {got:.2f}")
     assert not bad, "-text 档跌破 AA 4.5:1：\n" + "\n".join(bad)
 
 
@@ -184,9 +174,7 @@ GRAPHIC_TOKENS = (
 COLOR_PROP = re.compile(r"(?<![-\w])color\s*:\s*")
 STYLE_ATTR = re.compile("""style\\s*=\\s*(["'`])""")
 # 赋值语句：名字 = 右半边（到下一个 `;`，可跨行 → 覆盖多行对象字面量与箭头函数）
-ASSIGN = re.compile(
-    r"(?:const|let|var|,)\s*([A-Za-z_$][\w$]*)\s*=(?![=>])([^;]{0,400})"
-)
+ASSIGN = re.compile(r"(?:const|let|var|,)\s*([A-Za-z_$][\w$]*)\s*=(?![=>])([^;]{0,400})")
 
 
 def _graphic_pat(tokens: tuple[str, ...] | list[str]) -> re.Pattern[str]:
@@ -310,18 +298,13 @@ def test_detector_ignores_graphic_fill_usages() -> None:
             '<div style="border-color:var(--color-warn);color:var(--text-dim)"></div>',
             '<div style="border:1px solid var(--color-hawk)"></div>',
             '<div style="accent-color: var(--color-dove);color:var(--text)"></div>',
-            '<span style="color:color-mix(in srgb, var(--color-up) 22%, transparent)"'
-            "></span>",
-            '<svg><path fill="var(--color-brand)" stroke="var(--color-warn-light)"'
-            "/></svg>",
+            '<span style="color:color-mix(in srgb, var(--color-up) 22%, transparent)"></span>',
+            '<svg><path fill="var(--color-brand)" stroke="var(--color-warn-light)"/></svg>',
             '<svg><text style="stop-color: var(--color-warn-deep)"/></svg>',
-            '<div style="box-shadow:0 1px 4px var(--color-neutral);color:var(--text)"'
-            "></div>",
-            "const s = chart.addLineSeries("
-            "  { color: cssVar('--color-up'), lineWidth: 1 });",
+            '<div style="box-shadow:0 1px 4px var(--color-neutral);color:var(--text)"></div>',
+            "const s = chart.addLineSeries(  { color: cssVar('--color-up'), lineWidth: 1 });",
             "  itemStyle: { color: reCssVar('--color-down'), borderRadius: 4 },",
-            "  inRange: { color: [reCssVar('--color-brand'),"
-            " reCssVar('--color-down')] },",
+            "  inRange: { color: [reCssVar('--color-brand'), reCssVar('--color-down')] },",
             "  rsiUpper.applyOptions({ color: cssVar('--color-down') });",
             '<span style="color:var(--color-up-text)">${v}</span>',
             '<span style="color:var(--down)">${v}</span>',
@@ -340,8 +323,7 @@ def test_detector_ignores_graphic_fill_usages() -> None:
             '<span style="color: var(--color-up)">+1.2%</span>',
             """`<span style="color:${v >= 0 ? 'var(--color-up)'"""
             """ : 'var(--color-down)'}">${v}</span>`""",
-            "const stateColor = bad"
-            " ? reCssVar('--color-down') : reCssVar('--color-up');",
+            "const stateColor = bad ? reCssVar('--color-down') : reCssVar('--color-up');",
             '<span style="padding:2px;color:${stateColor}">● 承压</span>',
         ]
     )
@@ -437,9 +419,7 @@ def test_analysis_modules_do_not_emit_color_fields() -> None:
         for i, ln in enumerate(p.read_text(encoding="utf-8").splitlines(), 1)
         if BACKEND_COLOR_FIELD.search(ln)
     ]
-    assert not bad, (
-        "后端请下发语义 key（如 zone 名），色由前端映射到文字档：\n" + "\n".join(bad)
-    )
+    assert not bad, "后端请下发语义 key（如 zone 名），色由前端映射到文字档：\n" + "\n".join(bad)
 
 
 def test_frontend_does_not_interpolate_backend_color_fields_as_text() -> None:
@@ -454,9 +434,7 @@ def test_frontend_does_not_interpolate_backend_color_fields_as_text() -> None:
         for i, ln in enumerate(path.read_text(encoding="utf-8").splitlines(), 1)
         if FRONTEND_COLOR_INTERP.search(ln)
     ]
-    assert not bad, (
-        "文字色不得取后端 *_color 字面 hex，改按语义 key 查文字档：\n" + "\n".join(bad)
-    )
+    assert not bad, "文字色不得取后端 *_color 字面 hex，改按语义 key 查文字档：\n" + "\n".join(bad)
 
 
 def test_css_does_not_read_graphic_named_custom_prop_for_text() -> None:

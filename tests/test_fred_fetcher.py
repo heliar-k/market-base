@@ -20,9 +20,7 @@ class _FakeFred:
         return pd.Series([1.0, 2.0], index=pd.to_datetime(["2026-08-01", "2026-09-01"]))
 
     def get_series_info(self, series_id):
-        return pd.Series(
-            {"id": series_id, "last_updated": "2026-09-10 16:03:31-05"}, dtype=object
-        )
+        return pd.Series({"id": series_id, "last_updated": "2026-09-10 16:03:31-05"}, dtype=object)
 
 
 def test_release_dates_written_when_info_is_series(monkeypatch, tmp_path):
@@ -34,9 +32,5 @@ def test_release_dates_written_when_info_is_series(monkeypatch, tmp_path):
     out = fetch_all_fred()
 
     rel = pd.read_csv(tmp_path / "data" / "fred" / "_release_dates.csv", dtype=str)
-    assert (
-        rel.loc[rel["series_id"] == "T10YIE", "last_updated"]
-        .iloc[0]
-        .startswith("2026-09-10")
-    )
+    assert rel.loc[rel["series_id"] == "T10YIE", "last_updated"].iloc[0].startswith("2026-09-10")
     assert out["inflation"].index.tolist() == ["2026-08-01", "2026-09-01"]

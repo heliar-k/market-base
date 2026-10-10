@@ -62,8 +62,7 @@ CBOE_URLS = {
     "VXAZ": _CSV + "VXAZN_History.csv",  # Amazon（官方 VXAZN）
     "VXIB": _CSV + "VXIBM_History.csv",  # IBM（官方 VXIBM）
     # ── 调研补充（2026-08-06，见 DATA_CATALOG 别名表）──
-    "VXNG": _CSV
-    + "VXUNG_History.csv",  # 天然气（timsun 名 VXNG，官方 VXUNG，2020-11 起）
+    "VXNG": _CSV + "VXUNG_History.csv",  # 天然气（timsun 名 VXNG，官方 VXUNG，2020-11 起）
     "VXEEM": _CSV + "VXEEM_History.csv",  # 新兴市场 VIX（EEM 期权版，2011-03 起；
     #   timsun 面板的 VEEM（EWZ 版）无免费源，VXEEM 为近似替代）
     # ── 补充（2026-08-15，dashboard 30 指数对齐）──

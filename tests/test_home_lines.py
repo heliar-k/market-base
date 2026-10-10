@@ -42,9 +42,7 @@ def test_home_lines_covers_nine_engines() -> None:
         assert line["key"] in nav_keys, f"key 解不出专题页：{line['key']}"
         # 首句不带句末句号（行尾还有观测日，读起来才像一行结论）
         assert not line["text"].endswith("。"), line
-        assert line["as_of"] is None or re.fullmatch(
-            r"\d{4}-\d{2}-\d{2}", line["as_of"]
-        ), line
+        assert line["as_of"] is None or re.fullmatch(r"\d{4}-\d{2}-\d{2}", line["as_of"]), line
 
 
 def test_dashboard_consumes_home_lines() -> None:

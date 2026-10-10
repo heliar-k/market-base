@@ -21,11 +21,7 @@ def test_detect_cdl_hits_with_as_of_uses_that_row(real_aapl_csv):
     """
     if real_aapl_csv is None:
         pytest.skip("需要 data/stocks/AAPL.csv")
-    df = (
-        pd.read_csv(real_aapl_csv, parse_dates=["date"])
-        .sort_values("date")
-        .set_index("date")
-    )
+    df = pd.read_csv(real_aapl_csv, parse_dates=["date"]).sort_values("date").set_index("date")
     # 截断到固定历史窗口：真实 CSV 每日自动追加，「最后一行」会随数据漂移
     # （曾漂移成锤子线日导致断言失败）。截断后末行恒为 2016-10-24（非锤子线），
     # CDL 形态无未来函数，2016-10-21 的命中不受影响。
@@ -47,11 +43,7 @@ def test_analyze_as_of_wires_cdl_hits(real_aapl_csv):
     """analyze(as_of=...) 返回的 cdl_bullish 应是那天的命中（端到端验证）。"""
     if real_aapl_csv is None:
         pytest.skip("需要 data/stocks/AAPL.csv")
-    df = (
-        pd.read_csv(real_aapl_csv, parse_dates=["date"])
-        .sort_values("date")
-        .set_index("date")
-    )
+    df = pd.read_csv(real_aapl_csv, parse_dates=["date"]).sort_values("date").set_index("date")
     # 截断到固定历史窗口（同上）：真实 CSV 每日追加会使「最后一行」漂移，
     # 截断后无 as_of 时取的末行恒为 2016-10-24，断言不再随数据漂移失败。
     df = df.loc[:"2016-10-24"]

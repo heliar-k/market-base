@@ -21,19 +21,12 @@ def _three(out: dict) -> dict:
 def _q(bucket: str, meeting: str = "September 2026") -> str:
     """按档位生成 Polymarket 决策问题文本。"""
     if bucket == "other":
-        return (
-            f"Will the Fed decide differently in the next three decisions ({meeting})?"
-        )
+        return f"Will the Fed decide differently in the next three decisions ({meeting})?"
     if bucket == "hold":
-        return (
-            "Will there be no change in Fed interest rates "
-            f"after the {meeting} meeting?"
-        )
+        return f"Will there be no change in Fed interest rates after the {meeting} meeting?"
     verb = {"cut": "decrease", "hike": "increase"}[bucket.removesuffix("50")]
     bps = "50+" if bucket.endswith("50") else "25"
-    return (
-        f"Will the Fed {verb} interest rates by {bps} bps after the {meeting} meeting?"
-    )
+    return f"Will the Fed {verb} interest rates by {bps} bps after the {meeting} meeting?"
 
 
 def _event(
@@ -98,12 +91,8 @@ class TestPolymarketFomcOdds:
 
     def test_cross_year(self) -> None:
         """December 2026 与 January 2027 同快照并存，按 (年, 月) 精确区分。"""
-        dec = _event(
-            "december", end="2026-12-09", markets=[("hold", 1.0, "December 2026")]
-        )
-        jan = _event(
-            "january", end="2027-01-27", markets=[("hold", 1.0, "January 2027")]
-        )
+        dec = _event("december", end="2026-12-09", markets=[("hold", 1.0, "December 2026")])
+        jan = _event("january", end="2027-01-27", markets=[("hold", 1.0, "January 2027")])
         out = polymarket_fomc_odds([dec, jan], ["2026-12-09", "2027-01-27"])
         assert _three(out) == {
             "2026-12-09": {"cut": 0.0, "hold": 1.0, "hike": 0.0},

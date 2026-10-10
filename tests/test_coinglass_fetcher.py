@@ -130,10 +130,7 @@ def test_column_drift_rows_skipped(caplog):
     import logging
 
     caplog.set_level(logging.WARNING, logger="src.fetchers.coinglass_fetcher")
-    good = (
-        "1![Image 4: CME](https://u) CME 125.95K BTC$9.74B "
-        "17.56%+0.31%+0.05%+2.01%0.8277"
-    )
+    good = "1![Image 4: CME](https://u) CME 125.95K BTC$9.74B 17.56%+0.31%+0.05%+2.01%0.8277"
     extra_col = (
         "2![Image 5: Binance](https://u) Binance 141.88K BTC$10.96B "
         "19.77%+0.22%-0.19%-0.08%+0.50%0.845"  # 多一列变化 → 4 列

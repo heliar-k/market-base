@@ -22,9 +22,7 @@ def ids_of(src: str) -> set[str]:
 
 
 def git_show(ref: str, path: str) -> str:
-    r = subprocess.run(
-        ["git", "show", f"{ref}:{path}"], cwd=ROOT, capture_output=True, text=True
-    )
+    r = subprocess.run(["git", "show", f"{ref}:{path}"], cwd=ROOT, capture_output=True, text=True)
     if r.returncode != 0:
         return ""
     return r.stdout
@@ -35,9 +33,7 @@ def main() -> int:
     pages = sys.argv[2:]
     if not pages:
         pages = sorted(
-            str(p.relative_to(ROOT))
-            for p in PAGES_DIR.rglob("*.astro")
-            if "geo/" not in str(p)
+            str(p.relative_to(ROOT)) for p in PAGES_DIR.rglob("*.astro") if "geo/" not in str(p)
         )
     bad = 0
     for page in pages:

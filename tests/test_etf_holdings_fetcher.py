@@ -42,10 +42,7 @@ def _slv_xml() -> bytes:
     def row(cells):
         return (
             "<ss:Row>"
-            + "".join(
-                f'<ss:Cell><ss:Data ss:Type="String">{c}</ss:Data></ss:Cell>'
-                for c in cells
-            )
+            + "".join(f'<ss:Cell><ss:Data ss:Type="String">{c}</ss:Data></ss:Cell>' for c in cells)
             + "</ss:Row>"
         )
 
@@ -77,9 +74,7 @@ class TestFetchGld:
         assert df["gld_tonnes"].iloc[0] == pytest.approx(8.09)
 
     def test_non_xlsx_rejected(self, monkeypatch):
-        monkeypatch.setattr(
-            mod.requests, "get", lambda *a, **kw: _Resp(b"<html>blocked</html>")
-        )
+        monkeypatch.setattr(mod.requests, "get", lambda *a, **kw: _Resp(b"<html>blocked</html>"))
         with pytest.raises(RuntimeError, match="非 xlsx"):
             mod.fetch_gld()
 

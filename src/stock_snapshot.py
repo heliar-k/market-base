@@ -51,9 +51,7 @@ def price_snapshot(symbols: list[str]) -> None:
             h = t.history(period="1d", interval="5m", prepost=True)
             last = float(h["Close"].iloc[-1]) if not h.empty else prev
             chg = (last / prev - 1) * 100
-            print(
-                f"{tk:<6}{prev:>10.2f}{last:>12.2f}{chg:>+8.1f}%{lo:>10.2f}–{hi:<10.2f}"
-            )
+            print(f"{tk:<6}{prev:>10.2f}{last:>12.2f}{chg:>+8.1f}%{lo:>10.2f}–{hi:<10.2f}")
         except Exception as e:
             print(f"{tk:<6}  错误: {e}")
 
@@ -72,16 +70,8 @@ def oi_walls(symbols: list[str], exps: int) -> None:
         print(f"{'到期日':<12}{'call 墙(行权价:OI)':<34}{'put 墙(行权价:OI)'}")
         for exp in opts[:exps]:
             ch = t.option_chain(exp)
-            cw = (
-                ch.calls.groupby("strike")["openInterest"]
-                .sum()
-                .sort_values(ascending=False)
-            )
-            pw = (
-                ch.puts.groupby("strike")["openInterest"]
-                .sum()
-                .sort_values(ascending=False)
-            )
+            cw = ch.calls.groupby("strike")["openInterest"].sum().sort_values(ascending=False)
+            pw = ch.puts.groupby("strike")["openInterest"].sum().sort_values(ascending=False)
             c = " ".join(f"{int(s)}:{int(v):,}" for s, v in cw.head(3).items())
             p = " ".join(f"{int(s)}:{int(v):,}" for s, v in pw.head(3).items())
             print(f"{exp:<12}{c:<34}{p}")

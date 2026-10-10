@@ -121,15 +121,9 @@ def fetch_basis_series() -> pd.DataFrame:
 
 
 if __name__ == "__main__":
-    logging.basicConfig(
-        level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s"
-    )
-    parser = argparse.ArgumentParser(
-        description="CME BTC 期货年化基差日序列（timsun V1 治理口径）"
-    )
-    parser.add_argument(
-        "--backfill", action="store_true", help="全量覆盖（默认 upsert）"
-    )
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
+    parser = argparse.ArgumentParser(description="CME BTC 期货年化基差日序列（timsun V1 治理口径）")
+    parser.add_argument("--backfill", action="store_true", help="全量覆盖（默认 upsert）")
     args = parser.parse_args()
 
     path = ROOT / "data" / "crypto_basis" / "basis.csv"
@@ -138,7 +132,4 @@ if __name__ == "__main__":
     if df.empty:
         logger.warning("基差序列为空（数据源无有效交易日），不写文件")
     else:
-        logger.info(
-            f"basis → {path} ({len(df)} 行, "
-            f"{df.index[0].date()} ~ {df.index[-1].date()})"
-        )
+        logger.info(f"basis → {path} ({len(df)} 行, {df.index[0].date()} ~ {df.index[-1].date()})")

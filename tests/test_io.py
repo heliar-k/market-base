@@ -86,9 +86,7 @@ def test_upsert_new_column_is_added(tmp_path):
 def test_backfill_overwrites_clearing_old_junk(tmp_path):
     # 旧格式文件：有 junk 列 + 多余日期
     path = tmp_path / "a.csv"
-    old = pd.DataFrame(
-        {"v": [1.0, 2.0], "junk": [9.0, 9.0]}, index=["2024-01-01", "2024-01-02"]
-    )
+    old = pd.DataFrame({"v": [1.0, 2.0], "junk": [9.0, 9.0]}, index=["2024-01-01", "2024-01-02"])
     old.to_csv(path, index_label="date")
     new = pd.DataFrame({"v": [5.0]}, index=["2024-01-03"])
 
@@ -154,9 +152,7 @@ def test_load_timeseries_parses_date_index(tmp_path):
 def test_load_timeseries_string_date_col(tmp_path):
     """兼容字符串 date 列（commodities 旧格式风格）。"""
     path = tmp_path / "a.csv"
-    pd.DataFrame({"date": ["2024-01-01 00:00:00"], "close": [1.0]}).to_csv(
-        path, index=False
-    )
+    pd.DataFrame({"date": ["2024-01-01 00:00:00"], "close": [1.0]}).to_csv(path, index=False)
 
     df = load_timeseries(path)
 

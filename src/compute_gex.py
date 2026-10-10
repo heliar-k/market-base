@@ -170,9 +170,7 @@ def fetch_options_greeks(ib, symbol, expirations, strikes, batch_size=3):
     df = df.dropna(subset=["gamma", "bid"], how="all")
     if not df.empty:
         valid = df["gamma"].notna().sum()
-        log.info(
-            f"有效行: {len(df)}，其中 {valid} 条有 gamma ({valid / len(df) * 100:.0f}%)"
-        )
+        log.info(f"有效行: {len(df)}，其中 {valid} 条有 gamma ({valid / len(df) * 100:.0f}%)")
     return df
 
 
@@ -230,9 +228,7 @@ def compute_gex(greeks_df, oi_df, spot):
 
     # 合并
     if not oi_df.empty:
-        merged = greeks_df.merge(
-            oi_df, on=["expiration", "strike", "right"], how="left"
-        )
+        merged = greeks_df.merge(oi_df, on=["expiration", "strike", "right"], how="left")
         merged["openInterest"] = merged["openInterest"].fillna(0).astype(int)
     else:
         merged = greeks_df.copy()
@@ -285,9 +281,7 @@ def print_wall(wall, spot, top_n=10):
 
     for _, row in shown.iterrows():
         marker = (
-            " ← 阻力"
-            if row["total_gex"] < -1e6
-            else (" ← 支撑" if row["total_gex"] > 1e6 else "")
+            " ← 阻力" if row["total_gex"] < -1e6 else (" ← 支撑" if row["total_gex"] > 1e6 else "")
         )
         print(
             f"${row['strike']:>7.0f}  "
@@ -304,22 +298,14 @@ def print_wall(wall, spot, top_n=10):
     total_put = wall["put_gex"].sum()
     net_gex = wall["total_gex"].sum()
     print(f"{'-' * 70}")
-    print(
-        f"{'合计':>8}  ${total_call:>13,.0f}  ${total_put:>13,.0f}  ${net_gex:>13,.0f}"
-    )
+    print(f"{'合计':>8}  ${total_call:>13,.0f}  ${total_put:>13,.0f}  ${net_gex:>13,.0f}")
 
     # 解读
     print("\n📊 GEX 解读:")
     if net_gex > 0:
-        print(
-            f"  净 GEX > 0 (${net_gex:,.0f}): dealer 做多 gamma → 市场趋于稳定，"
-            f"波动被抑制"
-        )
+        print(f"  净 GEX > 0 (${net_gex:,.0f}): dealer 做多 gamma → 市场趋于稳定，波动被抑制")
     else:
-        print(
-            f"  净 GEX < 0 (${net_gex:,.0f}): dealer 做空 gamma → 市场波动可能放大，"
-            f"注意风险"
-        )
+        print(f"  净 GEX < 0 (${net_gex:,.0f}): dealer 做空 gamma → 市场波动可能放大，注意风险")
 
     # Gamma Flip（GEX 由正转负的行权价）
     wall_sorted = wall.sort_values("strike")
@@ -347,19 +333,13 @@ def print_wall(wall, spot, top_n=10):
 def main():
     parser = argparse.ArgumentParser(description="GEX 与期权墙计算")
     parser.add_argument("--symbol", default="AAPL", help="标的股票")
-    parser.add_argument(
-        "--expirations", type=int, default=4, help="到期日数量（默认 4）"
-    )
-    parser.add_argument(
-        "--strike-pct", type=float, default=0.12, help="行权价范围（±%，默认 12%）"
-    )
+    parser.add_argument("--expirations", type=int, default=4, help="到期日数量（默认 4）")
+    parser.add_argument("--strike-pct", type=float, default=0.12, help="行权价范围（±%，默认 12%）")
     parser.add_argument(
         "--no-yfinance", action="store_true", help="不拉取 yfinance OI（仅 IBKR 数据）"
     )
     parser.add_argument("--output", help="输出 CSV 文件路径")
-    parser.add_argument(
-        "--port", type=int, default=4002, help="IBKR 端口（4001 实盘 / 4002 模拟）"
-    )
+    parser.add_argument("--port", type=int, default=4002, help="IBKR 端口（4001 实盘 / 4002 模拟）")
     parser.add_argument(
         "--batch-size",
         type=int,
@@ -407,14 +387,9 @@ def main():
         if spot:
             chains = get_option_chain_params(ib, symbol)
             chain = max(chains, key=lambda c: len(c.expirations) + len(c.strikes))
-            expirations, strikes = filter_options(
-                chain, spot, args.expirations, args.strike_pct
-            )
+            expirations, strikes = filter_options(chain, spot, args.expirations, args.strike_pct)
             if expirations:
-                log.info(
-                    f"行权价范围: ${strikes[0]:.0f} ~ ${strikes[-1]:.0f}"
-                    f" ({len(strikes)} 个)"
-                )
+                log.info(f"行权价范围: ${strikes[0]:.0f} ~ ${strikes[-1]:.0f} ({len(strikes)} 个)")
                 greeks_df = fetch_options_greeks(
                     ib, symbol, expirations, strikes, batch_size=args.batch_size
                 )
@@ -435,9 +410,7 @@ def main():
 
         ticker = yf.Ticker(symbol)
         if not expirations:
-            expirations = [
-                e.replace("-", "") for e in ticker.options[: args.expirations]
-            ]
+            expirations = [e.replace("-", "") for e in ticker.options[: args.expirations]]
         if spot is None:
             spot = float(ticker.fast_info.last_price)
 
@@ -465,10 +438,7 @@ def main():
                 hi = spot * (1 + args.strike_pct)
                 n_before = len(bc)
                 bc = bc[(bc["strike"] >= lo) & (bc["strike"] <= hi)]
-                log.info(
-                    f"Barchart 行权价过滤 ±{args.strike_pct:.0%}: "
-                    f"{n_before} → {len(bc)} 条"
-                )
+                log.info(f"Barchart 行权价过滤 ±{args.strike_pct:.0%}: {n_before} → {len(bc)} 条")
             log.info(f"Barchart 期权链: {len(bc)} 条（真实市场 gamma + OI）")
             greeks_df = bc[["expiration", "strike", "right", "gamma", "iv"]]
             oi_df = bc.rename(columns={"iv": "impliedVolatility"})[
@@ -519,9 +489,7 @@ def main():
         log.info(f"已保存期权墙: {args.output}")
 
     if contract_df is not None:
-        out = Path(
-            f"data/gex/{symbol}_gex_{datetime.now().strftime('%Y%m%d_%H%M')}.csv"
-        )
+        out = Path(f"data/gex/{symbol}_gex_{datetime.now().strftime('%Y%m%d_%H%M')}.csv")
         out.parent.mkdir(parents=True, exist_ok=True)
         contract_df.to_csv(out, index=False)
         log.info(f"已保存 GEX 明细: {out}")

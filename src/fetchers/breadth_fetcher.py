@@ -78,9 +78,7 @@ def _validate(closes: pd.DataFrame, abv: pd.DataFrame, n_components: int) -> Non
     """写盘哨兵：yfinance 偶发部分下载/坏帧，不合法即抛错拒绝写盘。"""
     valid = closes.iloc[-1].notna().sum() if not closes.empty else 0
     if valid < n_components * MIN_COVERAGE:
-        raise ValueError(
-            f"收盘覆盖 {valid}/{n_components} 低于 {MIN_COVERAGE:.0%}，疑似部分下载"
-        )
+        raise ValueError(f"收盘覆盖 {valid}/{n_components} 低于 {MIN_COVERAGE:.0%}，疑似部分下载")
     jump = abv.diff().iloc[-1].abs().max()
     if pd.notna(jump) and jump > MAX_DAY_JUMP_PP:
         raise ValueError(f"ABV 单日跳动 {jump:.1f}pp > {MAX_DAY_JUMP_PP}pp，疑似坏数据")
@@ -89,9 +87,7 @@ def _validate(closes: pd.DataFrame, abv: pd.DataFrame, n_components: int) -> Non
 def main() -> None:
     components = fetch_sp500_components()
     closes = download_closes(components["ticker"].tolist())
-    logger.info(
-        f"SPX 成分 {len(components)} 只，拉取到 {len(closes.columns)} 只有效收盘"
-    )
+    logger.info(f"SPX 成分 {len(components)} 只，拉取到 {len(closes.columns)} 只有效收盘")
 
     abv = compute_abv(closes)
     _validate(closes, abv, len(components))

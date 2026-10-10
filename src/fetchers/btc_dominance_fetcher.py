@@ -33,9 +33,7 @@ OUT = ROOT / "data" / "btc_dominance" / "btc_dominance.csv"
 
 def fetch_dominance() -> pd.DataFrame:
     """拉取 CoinGecko 全球市值占比，返回单行 DataFrame（index=今日 UTC）。"""
-    proxies = (
-        {"https": os.environ["HTTPS_PROXY"]} if os.environ.get("HTTPS_PROXY") else None
-    )
+    proxies = {"https": os.environ["HTTPS_PROXY"]} if os.environ.get("HTTPS_PROXY") else None
     resp = requests.get(
         API_URL,
         timeout=30,
@@ -73,7 +71,5 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    logging.basicConfig(
-        level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s"
-    )
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
     main()

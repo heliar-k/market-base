@@ -112,13 +112,11 @@ def signal_vix_level(card: dict) -> str:
     parts = [f"VIX 收于 {card['value']}"]
     if card["chg_1d_pct"] is not None:
         parts.append(
-            f"日{'涨' if card['chg_1d_pct'] >= 0 else '跌'} "
-            f"{abs(card['chg_1d_pct']):.2f}%"
+            f"日{'涨' if card['chg_1d_pct'] >= 0 else '跌'} {abs(card['chg_1d_pct']):.2f}%"
         )
     if card["chg_1w_pct"] is not None:
         parts.append(
-            f"周{'涨' if card['chg_1w_pct'] >= 0 else '跌'} "
-            f"{abs(card['chg_1w_pct']):.2f}%"
+            f"周{'涨' if card['chg_1w_pct'] >= 0 else '跌'} {abs(card['chg_1w_pct']):.2f}%"
         )
     zone_name = zone(card["value"], ZONES)
     pct = card.get("percentile_1y")
@@ -129,10 +127,7 @@ def signal_vix_level(card: dict) -> str:
     )
     # 趋势注解
     if card["chg_1w_pct"] is not None and card["chg_1w_pct"] <= -10:
-        text += (
-            "周跌超 10%，风险溢价快速消退，但绝对值未跌破 12 的"
-            "超低波区域，是否继续下行待确认。"
-        )
+        text += "周跌超 10%，风险溢价快速消退，但绝对值未跌破 12 的超低波区域，是否继续下行待确认。"
     elif card["chg_1w_pct"] is not None and card["chg_1w_pct"] >= 10:
         text += "周涨超 10%，恐慌情绪升温，关注 22 上方警戒区的持续性。"
     elif card["value"] < 17:
@@ -148,10 +143,7 @@ def signal_term(term: dict) -> str:
     if state == "—":
         return "期限结构斜率缺失，暂不判断 contango/backwardation。"
     ts = term["values"]
-    text = (
-        f"波动率期限呈{'标准 ' if state == 'contango' else ''}{state}"
-        f"（{term['slope_label']}"
-    )
+    text = f"波动率期限呈{'标准 ' if state == 'contango' else ''}{state}（{term['slope_label']}"
     if term["slope"] is not None:
         text += f"，VIX−VIX9D={term['slope']:+.2f}"
     text += "），"
@@ -167,9 +159,7 @@ def signal_term(term: dict) -> str:
                 "若出现突发性负面新闻，隐含波动可能急速上升。"
             )
     else:
-        text += (
-            "近高远低，市场正为近期尾部风险支付溢价，期限结构倒挂通常伴随高波动阶段。"
-        )
+        text += "近高远低，市场正为近期尾部风险支付溢价，期限结构倒挂通常伴随高波动阶段。"
     return text
 
 
@@ -185,17 +175,14 @@ def signal_outlook(df: pd.DataFrame, card: dict) -> str:
     sk = float(skew.iloc[-1]) if not skew.empty else None
 
     center = card["value"]
-    parts = [
-        f"未来一周 VIX 大概率在 {max(0, center - 3):.0f}-{center + 3:.0f} 区间波动"
-    ]
+    parts = [f"未来一周 VIX 大概率在 {max(0, center - 3):.0f}-{center + 3:.0f} 区间波动"]
     if v9 is not None:
         if v9_chg is None:
             parts.append(f"前端 VIX9D {v9:.1f}，短期情绪温和")
         else:
             dirn = "上行" if v9_chg > 0 else "下行"
             parts.append(
-                f"前端 VIX9D {v9:.1f} 近一周{dirn}，"
-                f"短期情绪偏{'谨慎' if v9_chg > 0 else '温和'}"
+                f"前端 VIX9D {v9:.1f} 近一周{dirn}，短期情绪偏{'谨慎' if v9_chg > 0 else '温和'}"
             )
     if ov is not None:
         parts.append(
@@ -210,9 +197,7 @@ def signal_outlook(df: pd.DataFrame, card: dict) -> str:
         else:
             skew_txt = "低于 130，尾部对冲需求低迷"
         parts.append(f"SKEW {sk:.0f} {skew_txt}")
-    parts.append(
-        "遇突发新闻（地缘 / 非农）可能脉冲上行，关注 VIX9D 与 OVX 是否同步抬升。"
-    )
+    parts.append("遇突发新闻（地缘 / 非农）可能脉冲上行，关注 VIX9D 与 OVX 是否同步抬升。")
     return "。".join(parts)
 
 
@@ -251,8 +236,7 @@ def skew_quadrant(vix: float | None, skew: float | None) -> dict:
     else:
         state, text = (
             "平静区",
-            f"VIX {vix:.1f} 低于 17，SKEW {skew:.0f} 低于 150，"
-            "波动与尾部担忧均处低位。",
+            f"VIX {vix:.1f} 低于 17，SKEW {skew:.0f} 低于 150，波动与尾部担忧均处低位。",
         )
         advice = "低波动环境可持有风险敞口，用领口或价差控制回撤。"
         risk = "VIX 从低位跳升往往剧烈，关注 VIX9D 是否先行抬升。"
@@ -313,10 +297,7 @@ def generate_volatility_analysis() -> dict:
             return {**llm_out, "generator": "llm"}
     df = _read()
     if df.empty or {"VIX", "SKEW"} - set(df.columns):
-        return {
-            "error": "data/cboe/volatility.csv 缺 VIX/SKEW 列或为空，"
-            "先运行 ./bin/fetch_cboe"
-        }
+        return {"error": "data/cboe/volatility.csv 缺 VIX/SKEW 列或为空，先运行 ./bin/fetch_cboe"}
     card = vix_card(df)
     term = term_structure(df)
     hist = vix_history(df)

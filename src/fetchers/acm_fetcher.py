@@ -27,8 +27,7 @@ from ..config import ROOT, config
 logger = logging.getLogger(__name__)
 
 XLS_URL = (
-    "https://www.newyorkfed.org/medialibrary/media/research/data_indicators/"
-    "ACMTermPremium.xls"
+    "https://www.newyorkfed.org/medialibrary/media/research/data_indicators/ACMTermPremium.xls"
 )
 DAILY_SHEET = "ACM Daily"
 
@@ -52,9 +51,7 @@ def _parse_daily(book: "xlrd.Book") -> pd.DataFrame:
         vals.append(ws.cell_value(r, tp_col))
     out = pd.DataFrame(
         {"ACMTP10": pd.to_numeric(vals, errors="coerce")},
-        index=pd.to_datetime(dates, format="%d-%b-%Y", errors="coerce").strftime(
-            "%Y-%m-%d"
-        ),
+        index=pd.to_datetime(dates, format="%d-%b-%Y", errors="coerce").strftime("%Y-%m-%d"),
     )
     out.index.name = "date"
     return out[out.index.notna()].dropna().sort_index()

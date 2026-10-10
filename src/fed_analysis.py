@@ -291,10 +291,7 @@ def _pre_meeting_indicator(
     m = max(past, key=lambda x: (x.year, x.month, x.end_day))
     end = pd.Timestamp(m.year, m.month, m.end_day)
     start = end - pd.Timedelta(days=days)
-    win = sp[
-        (sp["date"] >= start.strftime("%Y%m%d"))
-        & (sp["date"] <= end.strftime("%Y%m%d"))
-    ]
+    win = sp[(sp["date"] >= start.strftime("%Y%m%d")) & (sp["date"] <= end.strftime("%Y%m%d"))]
     if win.empty:
         return None
     avg = round(win["score"].astype(float).mean(), 1)
@@ -352,9 +349,7 @@ def _doc_rows(df: pd.DataFrame, extra: dict) -> list[dict]:
                 "score": score,
                 "label": stance_label(score),
                 "hits": _hits_list(r["hits"]),
-                "excerpt": (r["body"][:400] + "…")
-                if len(r["body"]) > 400
-                else r["body"],
+                "excerpt": (r["body"][:400] + "…") if len(r["body"]) > 400 else r["body"],
                 **{k: r[v] for k, v in extra.items()},
             }
         )
@@ -377,12 +372,8 @@ def fed_analysis(n_sample: int = 20) -> dict:
         return {"error": "data/fed/ 缺失，先运行 ./bin/fetch_fed"}
 
     # ── 声明/演讲列表（含评分）──
-    statements = sorted(
-        _doc_rows(st, {"kind": "kind"}), key=lambda x: x["date"], reverse=True
-    )
-    speeches = sorted(
-        _doc_rows(sp, {"speaker": "speaker"}), key=lambda x: x["date"], reverse=True
-    )
+    statements = sorted(_doc_rows(st, {"kind": "kind"}), key=lambda x: x["date"], reverse=True)
+    speeches = sorted(_doc_rows(sp, {"speaker": "speaker"}), key=lambda x: x["date"], reverse=True)
 
     # ── 整体指示器：最近 n 条（声明 statement 类优先 + 演讲）──
     pool = [s for s in statements if s["kind"] == "statement"][: n_sample // 2]
@@ -492,12 +483,9 @@ def market_odds() -> dict | None:
                     cols_by_id.setdefault(base, []).append(col)
             for base, cols in cols_by_id.items():
                 val = h[cols].bfill(axis=1).iloc[:, 0]
-                s = pd.DataFrame({"date": h["date"], "value": val}).dropna(
-                    subset=["value"]
-                )
+                s = pd.DataFrame({"date": h["date"], "value": val}).dropna(subset=["value"])
                 history[base] = [
-                    {"date": d, "value": round(float(v), 4)}
-                    for d, v in zip(s["date"], s["value"])
+                    {"date": d, "value": round(float(v), 4)} for d, v in zip(s["date"], s["value"])
                 ]
         return {"as_of": snap.get("as_of"), "events": events, "history": history}
     return None
@@ -632,11 +620,7 @@ def polymarket_fomc_history() -> dict[str, Any]:
         if not hit:
             continue
         ym_key, bucket = hit
-        three = (
-            "hold"
-            if bucket == "hold"
-            else ("cut" if bucket.startswith("cut") else "hike")
-        )
+        three = "hold" if bucket == "hold" else ("cut" if bucket.startswith("cut") else "hike")
         for point in series:
             cell = agg.setdefault(ym_key, {}).setdefault(
                 point["date"], {"cut": 0.0, "hold": 0.0, "hike": 0.0}

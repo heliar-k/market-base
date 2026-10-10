@@ -369,9 +369,7 @@ class TestMTF:
         add_smc_mtf(df, swing_length=2)
 
         # 同一周内的日线应有相同的 weekly_structure
-        weekly_groups = df.groupby(pd.Grouper(freq="W-FRI"))[
-            "SMC_weekly_structure"
-        ].nunique()
+        weekly_groups = df.groupby(pd.Grouper(freq="W-FRI"))["SMC_weekly_structure"].nunique()
         assert (weekly_groups <= 1).all()
 
     def test_htf_bias_values(self):

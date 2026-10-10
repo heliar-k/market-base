@@ -79,9 +79,7 @@ SYMBOLS: list[str] = [
 ]
 
 
-def fetch_chain(
-    symbol: str, expirations: list[str], use_cache: bool = True
-) -> pd.DataFrame:
+def fetch_chain(symbol: str, expirations: list[str], use_cache: bool = True) -> pd.DataFrame:
     """拉取期权链（strike/right/expiration/OI/volume/IV），当日 raw 缓存复用。
 
     raw 列：strike, right, expiration(YYYYMMDD str), openInterest, volume,
@@ -117,9 +115,7 @@ def fetch_chain(
                         "right": right,
                         "expiration": yf_date,
                         "openInterest": int(oi) if pd.notna(oi) else 0,
-                        "volume": int(r.get("volume", 0))
-                        if pd.notna(r.get("volume", 0))
-                        else 0,
+                        "volume": int(r.get("volume", 0)) if pd.notna(r.get("volume", 0)) else 0,
                         "impliedVolatility": float(r["impliedVolatility"])
                         if pd.notna(r.get("impliedVolatility"))
                         else np.nan,
@@ -283,12 +279,8 @@ def compute_structure(df: pd.DataFrame, spot: float) -> dict:
         put_strike = g[(g["right"] == "P") & (g["delta"].between(0.20, 0.30))]
         call_strike = g[(g["right"] == "C") & (g["delta"].between(0.70, 0.80))]
         if not put_strike.empty and not call_strike.empty:
-            skew_put_iv = float(
-                put_strike.sort_values("iv", ascending=False).iloc[0]["iv"]
-            )
-            skew_call_iv = float(
-                call_strike.sort_values("iv", ascending=False).iloc[0]["iv"]
-            )
+            skew_put_iv = float(put_strike.sort_values("iv", ascending=False).iloc[0]["iv"])
+            skew_call_iv = float(call_strike.sort_values("iv", ascending=False).iloc[0]["iv"])
             skew = round((skew_put_iv - skew_call_iv) * 100, 2)
             skew_dte = dt
             break
@@ -313,10 +305,7 @@ def compute_structure(df: pd.DataFrame, spot: float) -> dict:
         # 11/20 500P OI 30 万），narrative 与页面展示用此口径更贴近市场结构
         "pcr_oi_atm": _pcr_oi_atm(c, spot),
         "pcr_vol": round(
-            float(
-                c[c["right"] == "P"]["volume"].sum()
-                / c[c["right"] == "C"]["volume"].sum()
-            ),
+            float(c[c["right"] == "P"]["volume"].sum() / c[c["right"] == "C"]["volume"].sum()),
             2,
         )
         if c[c["right"] == "C"]["volume"].sum()
@@ -335,27 +324,19 @@ def compute_structure(df: pd.DataFrame, spot: float) -> dict:
         }
         if pw is not None
         else None,
-        "iv_front": {"dte": front_dte, "iv": round(front * 100, 2)}
-        if front is not None
-        else None,
-        "iv_back": {"dte": back_dte, "iv": round(back * 100, 2)}
-        if back is not None
-        else None,
+        "iv_front": {"dte": front_dte, "iv": round(front * 100, 2)} if front is not None else None,
+        "iv_back": {"dte": back_dte, "iv": round(back * 100, 2)} if back is not None else None,
         "iv_slope": round((back - front) * 100, 2)
         if front is not None and back is not None
         else None,
         "skew": skew,
         "skew_dte": skew_dte,
         "skew_put_iv": round(skew_put_iv * 100, 2) if skew_put_iv is not None else None,
-        "skew_call_iv": round(skew_call_iv * 100, 2)
-        if skew_call_iv is not None
-        else None,
+        "skew_call_iv": round(skew_call_iv * 100, 2) if skew_call_iv is not None else None,
         "net_vanna": round(float(c["vanna_tot"].sum()) / 1e9, 2),
         "net_charm": round(float(c["charm_tot"].sum()) / 1e9, 2),
         "charm_near7": round(
-            float(c[c["days"] <= 7]["charm_tot"].sum())
-            / float(c["charm_tot"].sum())
-            * 100,
+            float(c[c["days"] <= 7]["charm_tot"].sum()) / float(c["charm_tot"].sum()) * 100,
             1,
         )
         if float(c["charm_tot"].sum()) != 0
@@ -376,9 +357,7 @@ def compute_structure(df: pd.DataFrame, spot: float) -> dict:
         gex_sum = float(g["gex"].sum())
         bucket_strength = float(g["gex"].abs().sum())
         buckets[b] = {
-            "gex_pct": round(bucket_strength / abs_total * 100, 1)
-            if abs_total != 0
-            else None,
+            "gex_pct": round(bucket_strength / abs_total * 100, 1) if abs_total != 0 else None,
             "gex_m": round(gex_sum / 1e6, 1),
             "contracts": int(g["oi"].sum()),
         }
@@ -417,9 +396,7 @@ def compute_structure(df: pd.DataFrame, spot: float) -> dict:
     final["oi_top"] = [
         {
             "strike": float(r["strike"]),
-            "expiration": (
-                f"{r['expiration'][:4]}-{r['expiration'][4:6]}-{r['expiration'][6:8]}"
-            ),
+            "expiration": (f"{r['expiration'][:4]}-{r['expiration'][4:6]}-{r['expiration'][6:8]}"),
             "call_oi": int(r["call_oi"]),
             "put_oi": int(r["put_oi"]),
             "total": int(r["total"]),
@@ -524,7 +501,5 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    logging.basicConfig(
-        level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s"
-    )
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
     main()

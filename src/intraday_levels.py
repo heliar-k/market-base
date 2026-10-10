@@ -21,13 +21,9 @@ import pandas as pd
 def load_day(symbol: str, bar: str, date: str | None) -> pd.DataFrame:
     path = Path(f"data/stocks/{symbol}_{bar}.csv")
     if not path.exists():
-        raise SystemExit(
-            f"数据不存在: {path}（Actions minute_bars 每日更新，先 git pull）"
-        )
+        raise SystemExit(f"数据不存在: {path}（Actions minute_bars 每日更新，先 git pull）")
     df = pd.read_csv(path, parse_dates=["date"], date_format="mixed")
-    df["date"] = pd.to_datetime(df["date"], utc=True, format="mixed").dt.tz_convert(
-        "US/Eastern"
-    )
+    df["date"] = pd.to_datetime(df["date"], utc=True, format="mixed").dt.tz_convert("US/Eastern")
     if date:
         df = df[df["date"].dt.strftime("%Y-%m-%d") == date]
     else:

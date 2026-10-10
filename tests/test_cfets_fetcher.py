@@ -34,11 +34,7 @@ class _FakeSession:
 def test_parses_swap_points_by_tenor(monkeypatch):
     """只有 1W/1M/3M/6M/1Y 五档被保留，列名 {PAIR}_{TENOR}。"""
     payloads = {
-        "EUR.USD": {
-            "data": {
-                "voArray": [_rec("ON", 1.84), _rec("1M", 14.13), _rec("1Y", 168.64)]
-            }
-        },
+        "EUR.USD": {"data": {"voArray": [_rec("ON", 1.84), _rec("1M", 14.13), _rec("1Y", 168.64)]}},
         "USD.JPY": {"data": {"voArray": [_rec("3M", -116.96)]}},
         "GBP.USD": {"data": {"voArray": []}},
         "AUD.USD": {"data": {"voArray": []}},
@@ -86,9 +82,7 @@ def test_yahoo_near_swap_points(monkeypatch):
     def fake_urlopen(req, timeout=0):
         sym = urllib.parse.unquote(req.full_url.split("chart/")[1].split("?")[0])
         closes = [quotes[sym]]
-        payload = {
-            "chart": {"result": [{"indicators": {"quote": [{"close": closes}]}}]}
-        }
+        payload = {"chart": {"result": [{"indicators": {"quote": [{"close": closes}]}}]}}
         return type(
             "R",
             (),
@@ -99,9 +93,7 @@ def test_yahoo_near_swap_points(monkeypatch):
             },
         )()
 
-    monkeypatch.setattr(
-        "src.fetchers.cfets_fetcher.urllib.request.urlopen", fake_urlopen
-    )
+    monkeypatch.setattr("src.fetchers.cfets_fetcher.urllib.request.urlopen", fake_urlopen)
     from src.fetchers.cfets_fetcher import YAHOO_PAIRS, _fetch_yahoo_near
 
     cnh = _fetch_yahoo_near(YAHOO_PAIRS[0])

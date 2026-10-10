@@ -54,9 +54,7 @@ def _read_tic() -> pd.DataFrame:
 
 
 def _read_mspd() -> pd.DataFrame:
-    return read_csv_or_empty(
-        ROOT / "data" / "treasury" / "mspd.csv", index_col="record_date"
-    )
+    return read_csv_or_empty(ROOT / "data" / "treasury" / "mspd.csv", index_col="record_date")
 
 
 def _t(millions: float | None) -> float | None:
@@ -108,12 +106,7 @@ def _pct_rank(s: pd.Series, v: float) -> float | None:
 
 def official_share_series(tic: pd.DataFrame, mspd: pd.DataFrame) -> pd.Series:
     """海外官方持仓 / 总未偿债务（%，月度；mspd 按 TIC 日期轴 ffill 对齐）。"""
-    if (
-        tic.empty
-        or mspd.empty
-        or "TIC_HOLD_OFFICIAL" not in tic
-        or "TOTAL_DEBT" not in mspd
-    ):
+    if tic.empty or mspd.empty or "TIC_HOLD_OFFICIAL" not in tic or "TOTAL_DEBT" not in mspd:
         return pd.Series(dtype=float)
     hold = tic["TIC_HOLD_OFFICIAL"].dropna()
     debt = mspd["TOTAL_DEBT"].dropna().sort_index().reindex(hold.index, method="ffill")
@@ -128,15 +121,9 @@ def signal_foreign(cards: dict, net_12m: float | None) -> str:
     if h.get("chg_1y_b") is not None:
         d = h["chg_1y_b"] * 10  # $B → 亿
         flow += f"，近一年{'增持' if d >= 0 else '减持'} {abs(d):,.0f}亿"
-    flow += (
-        f"；当月净{'买入' if net['value'] >= 0 else '卖出'} "
-        f"{abs(net['value']) * 10:,.0f}亿"
-    )
+    flow += f"；当月净{'买入' if net['value'] >= 0 else '卖出'} {abs(net['value']) * 10:,.0f}亿"
     if net_12m is not None:
-        flow += (
-            f"，近 12 个月累计净{'买入' if net_12m >= 0 else '卖出'} "
-            f"{abs(net_12m) * 10:,.0f}亿"
-        )
+        flow += f"，近 12 个月累计净{'买入' if net_12m >= 0 else '卖出'} {abs(net_12m) * 10:,.0f}亿"
     basis = [flow]
     verdict = "海外持仓数据不足。"
     if share.get("value") is not None:
@@ -284,9 +271,7 @@ def mspd_history(mspd: pd.DataFrame) -> dict:
     total = mspd["MARKETABLE_TOTAL"]
     for col in ("BILLS", "NOTES", "BONDS", "TIPS", "FRN"):
         if col in mspd:
-            out[col.lower()] = [
-                _t(float(v)) if pd.notna(v) else None for v in mspd[col]
-            ]
+            out[col.lower()] = [_t(float(v)) if pd.notna(v) else None for v in mspd[col]]
             out[f"pct_{col.lower()}"] = [
                 float(v) / float(m) * 100 if pd.notna(v) and pd.notna(m) and m else None
                 for v, m in zip(mspd[col], total, strict=True)
@@ -310,9 +295,7 @@ def mspd_table(mspd: pd.DataFrame) -> list[dict]:
     for key, name in labels:
         if key in last and pd.notna(last[key]):
             share = (
-                last[key] / last["MARKETABLE_TOTAL"] * 100
-                if last.get("MARKETABLE_TOTAL")
-                else None
+                last[key] / last["MARKETABLE_TOTAL"] * 100 if last.get("MARKETABLE_TOTAL") else None
             )
             rows.append(
                 {
@@ -384,9 +367,7 @@ def generate_treasury_overview() -> dict:
     bs_pair = _latest_pair(bs_daily["BILL_SHARE"]) if not bs_daily.empty else None
     # 1Y 变化只能算在 MSPD 月频轴上：日频派生序列自 2026-08 才开算（仅 30+ 行），
     # 取 250 个交易日前的值永远为 None（卡片副标题永远只剩一个日期）。
-    bs_mspd = (
-        mspd["BILL_SHARE"].dropna() if "BILL_SHARE" in mspd else pd.Series(dtype=float)
-    )
+    bs_mspd = mspd["BILL_SHARE"].dropna() if "BILL_SHARE" in mspd else pd.Series(dtype=float)
     bs_yoy = _chg_prev(bs_mspd, 12)
     # 全历史分位（卡片与研判共用，后端只算一次）
     share_rank = _pct_rank(share, float(share.iloc[-1])) if not share.empty else None

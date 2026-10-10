@@ -51,8 +51,7 @@ def fetch_all_fred() -> dict[str, "object"]:
                 df.index = df.index.strftime("%Y-%m-%d")
                 dfs.append(df)
                 logger.info(
-                    f"  {metric}({series_id}): {len(s)} 条"
-                    f" ({df.index[0]} → {df.index[-1]})"
+                    f"  {metric}({series_id}): {len(s)} 条 ({df.index[0]} → {df.index[-1]})"
                 )
             except Exception as e:
                 logger.warning(f"  {metric}({series_id}): 拉取失败 → {e}")
@@ -72,9 +71,7 @@ def fetch_all_fred() -> dict[str, "object"]:
             combined = dfs[0] if len(dfs) == 1 else pd.concat(dfs, axis=1)
             result[cat] = combined.sort_index()
     if releases:
-        pd.DataFrame(releases).to_csv(
-            ROOT / "data" / "fred" / "_release_dates.csv", index=False
-        )
+        pd.DataFrame(releases).to_csv(ROOT / "data" / "fred" / "_release_dates.csv", index=False)
     return result
 
 

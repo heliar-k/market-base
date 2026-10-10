@@ -76,9 +76,7 @@ def test_load_macro_category_net_liquidity_normalized_once(tmp_path, monkeypatch
     expected = df["WALCL"] - df["RRPONTSYD"] * 1000 - df["WTREGEN"]
     pd.testing.assert_series_equal(df["NET_LIQUIDITY"], expected, check_names=False)
     # 量级钉死：若 RRP 被预乘（旧 bug），这里会是 ~1.4e9 级别而非 5.9e6
-    assert df["NET_LIQUIDITY"].iloc[0] == pytest.approx(
-        6_700_000 - 1.4 * 1000 - 800_000
-    )
+    assert df["NET_LIQUIDITY"].iloc[0] == pytest.approx(6_700_000 - 1.4 * 1000 - 800_000)
 
 
 def test_load_macro_category_joins_partners_for_cross_category(tmp_path, monkeypatch):
@@ -176,9 +174,7 @@ def test_rrp_in_millions_only_touches_rrp(tmp_path, monkeypatch):
     # RRP 十亿→百万，其他原始列与派生列原样
     assert out["RRPONTSYD"].iloc[0] == 1400
     assert out["WALCL"].iloc[0] == 6_700_000
-    pd.testing.assert_series_equal(
-        out["NET_LIQUIDITY"], df["NET_LIQUIDITY"], check_names=False
-    )
+    pd.testing.assert_series_equal(out["NET_LIQUIDITY"], df["NET_LIQUIDITY"], check_names=False)
 
 
 # ── categories_for ───────────────────────────────────────────────────────────
@@ -212,9 +208,7 @@ def test_server_get_macro_net_liquidity_correct(tmp_path, monkeypatch):
     rows = get_macro("liquidity")
 
     nl = [r["NET_LIQUIDITY"] for r in rows if r["NET_LIQUIDITY"] is not None]
-    assert nl == pytest.approx(
-        [6_700_000 - 1.4 * 1000 - 800_000, 6_800_000 - 1.2 * 1000 - 750_000]
-    )
+    assert nl == pytest.approx([6_700_000 - 1.4 * 1000 - 800_000, 6_800_000 - 1.2 * 1000 - 750_000])
     # 显示层：RRP 以百万返回（与旧响应契约一致，供前端同图）
     rrp = [r["RRPONTSYD"] for r in rows]
     assert rrp == pytest.approx([1400.0, 1200.0])

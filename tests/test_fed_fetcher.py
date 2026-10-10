@@ -10,9 +10,9 @@ from src.fetchers.fed_fetcher import (
 
 class TestCleanTitle:
     def test_strips_board_prefix(self):
-        assert _clean_title(
-            "Federal Reserve Board - Federal Reserve issues FOMC statement"
-        ) == ("Federal Reserve issues FOMC statement")
+        assert _clean_title("Federal Reserve Board - Federal Reserve issues FOMC statement") == (
+            "Federal Reserve issues FOMC statement"
+        )
 
     def test_strips_speech_prefix(self):
         assert _clean_title("Speech by Governor Waller on the economic outlook") == (
@@ -20,9 +20,9 @@ class TestCleanTitle:
         )
 
     def test_strips_trailing_suffix(self):
-        assert _clean_title(
-            "Governor Cook on the economic outlook - Federal Reserve Board"
-        ) == ("Governor Cook on the economic outlook")
+        assert _clean_title("Governor Cook on the economic outlook - Federal Reserve Board") == (
+            "Governor Cook on the economic outlook"
+        )
 
     def test_plain_title_untouched(self):
         assert _clean_title("Minutes of the Federal Open Market Committee") == (

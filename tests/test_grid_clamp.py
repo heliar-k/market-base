@@ -61,9 +61,7 @@ def result():
     with tempfile.NamedTemporaryFile("w", suffix=".js", delete=False) as f:
         f.write(BODY)
         script = f.name
-    proc = subprocess.run(
-        ["node", script, str(COMMON)], capture_output=True, text=True, timeout=30
-    )
+    proc = subprocess.run(["node", script, str(COMMON)], capture_output=True, text=True, timeout=30)
     Path(script).unlink(missing_ok=True)
     assert proc.returncode == 0, f"node 执行失败：{proc.stderr}"
     return json_loads(proc.stdout)

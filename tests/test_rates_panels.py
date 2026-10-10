@@ -63,8 +63,7 @@ def test_borrowing_estimate_unmatched_returns_none(monkeypatch, tmp_path):
     """正文措辞变化导致头条句式缺失 → 返回 None（缺字段），不静默取错。"""
     _write_refunding(
         tmp_path,
-        "Treasury expects to borrow $739 billion in privately-held "
-        "net marketable debt.",
+        "Treasury expects to borrow $739 billion in privately-held net marketable debt.",
     )
     monkeypatch.setattr(server, "ROOT", tmp_path)
     est = server._borrowing_estimate()
@@ -86,9 +85,9 @@ def test_bill_share_merges_monthly_and_daily_dedup(monkeypatch, tmp_path):
             "BILL_SHARE": [20.0, 22.0],
         }
     ).to_csv(td / "mspd.csv", index=False)
-    pd.DataFrame(
-        {"date": ["2026-07-31", "2026-08-01"], "BILL_SHARE": [22.4, 22.6]}
-    ).to_csv(td / "bill_share_daily.csv", index=False)
+    pd.DataFrame({"date": ["2026-07-31", "2026-08-01"], "BILL_SHARE": [22.4, 22.6]}).to_csv(
+        td / "bill_share_daily.csv", index=False
+    )
     monkeypatch.setattr(server, "ROOT", tmp_path)
 
     pts, latest = server._bill_share_series()

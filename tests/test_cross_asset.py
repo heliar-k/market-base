@@ -68,10 +68,7 @@ def test_full_ticker_set_alerts_populated():
     n = 60
     base = rng.normal(0, 0.01, n)
     df = pd.DataFrame(
-        {
-            t: 100 * np.cumprod(1 + base * (1 if i % 2 else -1))
-            for i, t in enumerate(TICKERS)
-        },
+        {t: 100 * np.cumprod(1 + base * (1 if i % 2 else -1)) for i, t in enumerate(TICKERS)},
         index=pd.date_range("2026-01-01", periods=n),
     )
     m, a = compute_correlation_matrix(df)

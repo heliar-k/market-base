@@ -76,9 +76,7 @@ def _yf_spot(symbol: str) -> float | None:
         return None
 
 
-def analyze_puts(
-    gex: pd.DataFrame, spot: float, atr: float, symbol: str
-) -> pd.DataFrame:
+def analyze_puts(gex: pd.DataFrame, spot: float, atr: float, symbol: str) -> pd.DataFrame:
     """spot 以下 put，保留所有 (strike, expiration)；
 
     IBKR 数据好则直接用，否则 yfinance 补全。
@@ -112,9 +110,7 @@ def analyze_puts(
                         columns={"delta": "delta_ib"}
                     )
                     yfdf = yfdf.merge(ibd, on=["expiration", "strike"], how="left")
-                    yfdf["delta"] = yfdf["delta_ib"].where(
-                        yfdf["delta_ib"].notna(), yfdf["delta"]
-                    )
+                    yfdf["delta"] = yfdf["delta_ib"].where(yfdf["delta_ib"].notna(), yfdf["delta"])
             yfdf["mid"] = (yfdf.bid + yfdf.ask) / 2
             p = yfdf[yfdf["mid"].notna() & (yfdf["mid"] > 0)].copy()
     else:
@@ -124,9 +120,7 @@ def analyze_puts(
         sys.exit("无可用的期权报价")
 
     # dte 统一后置计算（yf / IBKR 两来源同口径）
-    p["dte"] = (
-        pd.to_datetime(p.expiration, format="%Y%m%d") - pd.Timestamp.now()
-    ).dt.days
+    p["dte"] = (pd.to_datetime(p.expiration, format="%Y%m%d") - pd.Timestamp.now()).dt.days
     p = p[p["dte"] > 0]
 
     dist = (spot - p.strike) / spot
@@ -193,14 +187,8 @@ def report(
     print(f"| 近30日最低 | ${lo30:.1f} |")
     print(f"| 近90日最低 | ${lo90:.1f} |")
     if breaking:
-        rsi_desc = (
-            "超卖" if latest.RSI < 30 else ("偏弱" if latest.RSI < 40 else "未超卖")
-        )
-        print(
-            f"\n> ⚠️ **破位中**："
-            f"价格跌破 MA20/MA60，处于弱势。"
-            f"RSI {latest.RSI:.0f} {rsi_desc}。"
-        )
+        rsi_desc = "超卖" if latest.RSI < 30 else ("偏弱" if latest.RSI < 40 else "未超卖")
+        print(f"\n> ⚠️ **破位中**：价格跌破 MA20/MA60，处于弱势。RSI {latest.RSI:.0f} {rsi_desc}。")
 
     # ── GEX 期权墙（OTM put，按行权价聚合）──
     otm = gex[gex.strike < spot]
@@ -295,9 +283,7 @@ def report(
 def main() -> None:
     ap = argparse.ArgumentParser(description="Sell Put 选点位分析")
     ap.add_argument("--symbol", default="AAPL")
-    ap.add_argument(
-        "--fetch", action="store_true", help="强制重新拉取（默认复用当日 CSV）"
-    )
+    ap.add_argument("--fetch", action="store_true", help="强制重新拉取（默认复用当日 CSV）")
     ap.add_argument("--port", type=int, default=4002)
     ap.add_argument("--batch-size", type=int, default=50)
     args = ap.parse_args()

@@ -29,9 +29,7 @@ def is_cache_fresh(symbol: str, csv_path: Path, data_dir: str = "data") -> bool:
     return cache.stat().st_mtime >= csv_path.stat().st_mtime
 
 
-def load_or_compute(
-    symbol: str, csv_path: Path, data_dir: str = "data"
-) -> pd.DataFrame:
+def load_or_compute(symbol: str, csv_path: Path, data_dir: str = "data") -> pd.DataFrame:
     """加载带指标的 df：缓存新鲜则读 parquet，否则读 CSV + 算指标 + 写 parquet。"""
     cache = cache_path(symbol, data_dir)
     if is_cache_fresh(symbol, csv_path, data_dir):

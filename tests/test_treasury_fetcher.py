@@ -138,9 +138,7 @@ def mock_upcoming_response():
 class TestTreasuryFetcher:
     def test_endpoint_name(self):
         assert (
-            _endpoint_name(
-                "https://api.fiscaldata.treasury.gov/.../auctions_query?format=json"
-            )
+            _endpoint_name("https://api.fiscaldata.treasury.gov/.../auctions_query?format=json")
             == "auctions_query"
         )
 
@@ -300,9 +298,7 @@ class TestMspd:
         assert row["MARKETABLE_TOTAL"] == pytest.approx(10_000_000)
         assert row["BILL_SHARE"] == pytest.approx(30.0)
         assert row["TOTAL_DEBT"] == pytest.approx(38_000_000)
-        assert df.loc[pd.Timestamp("2026-05-31"), "TOTAL_DEBT"] == pytest.approx(
-            37_000_000
-        )
+        assert df.loc[pd.Timestamp("2026-05-31"), "TOTAL_DEBT"] == pytest.approx(37_000_000)
 
     def test_fetch_mspd_missing_fields_raises(self, monkeypatch):
         monkeypatch.setattr(

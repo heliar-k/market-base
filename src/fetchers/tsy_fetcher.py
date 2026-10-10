@@ -25,9 +25,7 @@ import requests
 
 logger = logging.getLogger(__name__)
 
-API_TEMPLATE = (
-    "https://markets.newyorkfed.org/api/tsy/{op}/results/details/last/{n}.json"
-)
+API_TEMPLATE = "https://markets.newyorkfed.org/api/tsy/{op}/results/details/last/{n}.json"
 HISTORY_N = 300  # 最近 N 笔操作（last 端点上限；300 覆盖 ~5 年）
 RMP_START = "2025-12-12"  # Reserve Management Purchases 启动日（timsun 同口径）
 
@@ -71,9 +69,7 @@ def fetch_tsy_operations() -> pd.DataFrame:
     for col in ("submitted_b", "accepted_b"):
         df[col] = pd.to_numeric(df[col], errors="coerce") / 1e9
     df["accept_ratio"] = df["accepted_b"] / df["submitted_b"] * 100
-    df["is_rmp"] = (df["date"] >= RMP_START) & (
-        df["operation_type"] == "Outright Bill Purchase"
-    )
+    df["is_rmp"] = (df["date"] >= RMP_START) & (df["operation_type"] == "Outright Bill Purchase")
 
     keep = [
         "operation_id",

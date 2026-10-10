@@ -15,10 +15,7 @@ from .barchart_client import core_get, to_float
 
 logger = logging.getLogger(__name__)
 
-FIELDS = (
-    "strikePrice,lastPrice,volume,openInterest,volatility,"
-    "gamma,expirationDate,optionType"
-)
+FIELDS = "strikePrice,lastPrice,volume,openInterest,volatility,gamma,expirationDate,optionType"
 
 
 def _exp_to_yyyymmdd(exp: str) -> str:

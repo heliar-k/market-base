@@ -38,16 +38,12 @@ TOPIC_LAYOUT = FRONTEND / "src" / "layouts" / "TopicLayout.astro"
 def test_public_is_spa_shell_only() -> None:
     """收缩完成态（工单 #18）：public/ 仅 SPA 壳与共享资源，专题页 HTML 零残留。"""
     html = {p for p in STATIC.rglob("*.html")}
-    assert html == {SPA_ENTRY}, (
-        f"public/ 混入专题页 HTML 残留：{sorted(html - {SPA_ENTRY})}"
-    )
+    assert html == {SPA_ENTRY}, f"public/ 混入专题页 HTML 残留：{sorted(html - {SPA_ENTRY})}"
     astro = list(ASTRO_PAGES.rglob("*.astro"))
     assert len(astro) >= 30, f"专题页 .astro 源异常偏少：{len(astro)}"
 
 
-@pytest.mark.parametrize(
-    "src", [TOPIC_LAYOUT, SPA_ENTRY], ids=["TopicLayout.astro", "index.html"]
-)
+@pytest.mark.parametrize("src", [TOPIC_LAYOUT, SPA_ENTRY], ids=["TopicLayout.astro", "index.html"])
 def test_echarts_theme_before_rates_common(src: Path) -> None:
     """echarts-theme.js 先于 rates-common.js（同步加载、顺序敏感）。
     .astro 页的 head 由 TopicLayout 统一渲染 → 校验 Layout 源一次覆盖
@@ -90,9 +86,7 @@ def _html_links_in_frontend() -> set[str]:
     ]
     for src in sources:
         found |= set(
-            re.findall(
-                r"""['"](/[A-Za-z0-9/_-]*\.html)['"]""", src.read_text(encoding="utf-8")
-            )
+            re.findall(r"""['"](/[A-Za-z0-9/_-]*\.html)['"]""", src.read_text(encoding="utf-8"))
         )
     # public/ 下真实存在的同名文件不需要重写（如 SPA 壳 /index.html）
     return {p for p in found if not (STATIC / p.lstrip("/")).is_file()}
@@ -101,11 +95,7 @@ def _html_links_in_frontend() -> set[str]:
 def _redirect_sources() -> set[str]:
     """_redirects 里的源路径（跳过注释与空行）。"""
     lines = (STATIC / "_redirects").read_text(encoding="utf-8").splitlines()
-    return {
-        parts[0]
-        for ln in lines
-        if (parts := ln.split()) and not ln.lstrip().startswith("#")
-    }
+    return {parts[0] for ln in lines if (parts := ln.split()) and not ln.lstrip().startswith("#")}
 
 
 def test_html_links_have_redirects() -> None:
@@ -122,9 +112,7 @@ def test_html_links_have_redirects() -> None:
     links, redirects = _html_links_in_frontend(), _redirect_sources()
     assert links, "前端源码里没解析到任何 '.html' 链接（改写法了？）"
     missing = sorted(links - redirects)
-    assert not missing, (
-        f"以下 '.html' 链接缺 _redirects 重写行，线上会静默 404：{missing}"
-    )
+    assert not missing, f"以下 '.html' 链接缺 _redirects 重写行，线上会静默 404：{missing}"
 
 
 def test_nav_consumers_read_site_nav() -> None:
@@ -178,13 +166,9 @@ def test_as_of_formatter_present() -> None:
     js = (STATIC / "js" / "rates-common.js").read_text(encoding="utf-8")
     assert "asOf(src)" in js and "setAsOf(src)" in js and "asMonth" in js
     # 404 页套 TopicLayout（共用主题/顶栏）但无数据源，页头时效槽恒空 → 不计入
-    astro_pages = sorted(
-        p for p in ASTRO_PAGES.rglob("*.astro") if p.name != "404.astro"
-    )
+    astro_pages = sorted(p for p in ASTRO_PAGES.rglob("*.astro") if p.name != "404.astro")
     used = sum(
-        1
-        for p in astro_pages
-        if re.search(r"R\.(?:set)?AsOf\(", p.read_text(encoding="utf-8"))
+        1 for p in astro_pages if re.search(r"R\.(?:set)?AsOf\(", p.read_text(encoding="utf-8"))
     )
     assert used == len(astro_pages), (
         f"仅 {used}/{len(astro_pages)} 个专题页用 R.setAsOf/R.asOf 组装时效标签"
@@ -226,16 +210,13 @@ AS_OF_MAX_SEGS = 4  # 页头最多 4 段（≈一行可读）：主数据源 + �
 def test_as_of_segments_capped() -> None:
     """页头时效标签不得堆条目级日期（R.asOf 字面量入参 ≤ AS_OF_MAX_SEGS 段）。"""
     bad = []
-    for page in sorted(
-        [SPA_ENTRY, *ASTRO_PAGES.rglob("*.astro"), *(STATIC / "js").glob("*.js")]
-    ):
+    for page in sorted([SPA_ENTRY, *ASTRO_PAGES.rglob("*.astro"), *(STATIC / "js").glob("*.js")]):
         for arg in _asof_args(page.read_text(encoding="utf-8")):
             n = _asof_segments(arg)
             if n and n > AS_OF_MAX_SEGS:
                 bad.append(f"{page.relative_to(ROOT)}（{n} 段）")
     assert not bad, (
-        "页头只放 Section 级数据源，条目级日期写进对应卡片 sub"
-        f"（≤{AS_OF_MAX_SEGS} 段）：{bad}"
+        f"页头只放 Section 级数据源，条目级日期写进对应卡片 sub（≤{AS_OF_MAX_SEGS} 段）：{bad}"
     )
 
 
@@ -261,17 +242,13 @@ def test_as_of_labels_registered() -> None:
     """
     tiers = _tiers_keys()
     unregistered = []
-    for page in sorted(
-        [SPA_ENTRY, *ASTRO_PAGES.rglob("*.astro"), *(STATIC / "js").glob("*.js")]
-    ):
+    for page in sorted([SPA_ENTRY, *ASTRO_PAGES.rglob("*.astro"), *(STATIC / "js").glob("*.js")]):
         text = page.read_text(encoding="utf-8")
         for arg in _asof_args(text):
             for seg in re.finditer(r"\['([^']+)',", arg):
                 if seg.group(1) not in tiers:
                     unregistered.append(f"{page.relative_to(ROOT)}: {seg.group(1)!r}")
-    assert not unregistered, (
-        f"以下源标签未在 rates-common.js TIERS 表登记口径层级：{unregistered}"
-    )
+    assert not unregistered, f"以下源标签未在 rates-common.js TIERS 表登记口径层级：{unregistered}"
 
 
 def test_as_of_header_written_via_setasof() -> None:
@@ -280,16 +257,12 @@ def test_as_of_header_written_via_setasof() -> None:
     口径注脚里拼时效文本仍可用 R.asOf（如 metals 页 secNote），不受本条管辖。
     """
     offenders = []
-    for page in sorted(
-        [SPA_ENTRY, *ASTRO_PAGES.rglob("*.astro"), *(STATIC / "js").glob("*.js")]
-    ):
+    for page in sorted([SPA_ENTRY, *ASTRO_PAGES.rglob("*.astro"), *(STATIC / "js").glob("*.js")]):
         for ln in page.read_text(encoding="utf-8").splitlines():
             if re.search(r"getElementById\(['\"]re-as-of['\"]\)\.textContent", ln):
                 offenders.append(f"{page.relative_to(ROOT)}: {ln.strip()[:60]}")
                 break
-    assert not offenders, (
-        f"页头时效标签请改 R.setAsOf(...)（自动挂口径徽章）：{offenders}"
-    )
+    assert not offenders, f"页头时效标签请改 R.setAsOf(...)（自动挂口径徽章）：{offenders}"
 
 
 # ── 多端点页的容错纪律（审计 R3）──
@@ -310,8 +283,7 @@ def test_multi_endpoint_pages_treat_secondary_as_optional() -> None:
         if len(endpoints) >= 2 and "R.getOpt(" not in text:
             offenders.append(f"{page.relative_to(ROOT)}（{len(endpoints)} 端点）")
     assert not offenders, (
-        "次要端点应走 R.getOpt（失败返回 null）+ 段级空态，不得全部用 R.get："
-        f"{offenders}"
+        f"次要端点应走 R.getOpt（失败返回 null）+ 段级空态，不得全部用 R.get：{offenders}"
     )
 
 
@@ -331,8 +303,8 @@ def test_r_fail_targets_exist_on_page() -> None:
             used |= set(re.findall(r"'([a-zA-Z0-9_-]+)'", arg))
         if miss := sorted(used - have):
             offenders.append(f"{page.relative_to(ROOT)} → {miss}")
-    assert not offenders, (
-        "R.fail 目标 id 在页面上不存在（错误态会静默失效）：" + "; ".join(offenders)
+    assert not offenders, "R.fail 目标 id 在页面上不存在（错误态会静默失效）：" + "; ".join(
+        offenders
     )
 
 
@@ -358,8 +330,8 @@ def test_escaping_only_via_r_esc() -> None:
             line = text[m.start() :].split("\n", 1)[0]
             if "R.esc" not in line:
                 offenders.append(f"{page.relative_to(ROOT)}: {line.strip()[:60]}")
-    assert not offenders, (
-        "自写转义实现，请改 R.esc（或 const esc = R.esc 别名）：" + "; ".join(offenders)
+    assert not offenders, "自写转义实现，请改 R.esc（或 const esc = R.esc 别名）：" + "; ".join(
+        offenders
     )
 
 
@@ -367,9 +339,7 @@ def test_escaping_only_via_r_esc() -> None:
 
 
 def _check_js(code: str, name: str) -> None:
-    with tempfile.NamedTemporaryFile(
-        "w", suffix=".js", delete=False, encoding="utf-8"
-    ) as f:
+    with tempfile.NamedTemporaryFile("w", suffix=".js", delete=False, encoding="utf-8") as f:
         f.write(code)
         tmp = f.name
     try:
@@ -410,9 +380,7 @@ _INLINE_HEIGHT = re.compile(r'style="[^"]*\bheight:(\d+)px')
 # 页面写内联 grid-template-columns、给 .re-corridor-value 手写 font-size，
 # 就是在造平行卡规格 —— /assets/crypto/ 一度同页 6 种卡宽（最高 562px）。
 # 宽卡 .re-cards-wide，长文本 .re-card-wrap，密卡 .re-card-dense，都在 special.css。
-_CARD_ROW_OVERRIDE = re.compile(
-    r'class="re-cards[^"]*" style="[^"]*grid-template-columns'
-)
+_CARD_ROW_OVERRIDE = re.compile(r'class="re-cards[^"]*" style="[^"]*grid-template-columns')
 _CARD_VALUE_FONT = re.compile(r'class="re-corridor-value"[^>]*style="[^"]*font-size')
 
 
@@ -480,14 +448,8 @@ _TABLE_NO_FMT = re.compile(r"R\.table\([^;]*?\{\},\s*[^;]*?,\s*true\s*\)", re.S)
 def test_html_tables_never_pass_empty_formatters() -> None:
     """R.table(..., html=true) 不得传空 formatter 表（markup 会被转义成字面文本）。"""
     srcs = [*ASTRO_PAGES.rglob("*.astro"), *(STATIC / "js").rglob("*.js")]
-    bad = [
-        str(p.relative_to(ROOT))
-        for p in srcs
-        if _TABLE_NO_FMT.search(p.read_text("utf-8"))
-    ]
-    assert not bad, (
-        f"以下页给 html=true 的 R.table 传了空 formatter，着色列要写进 formatter：{bad}"
-    )
+    bad = [str(p.relative_to(ROOT)) for p in srcs if _TABLE_NO_FMT.search(p.read_text("utf-8"))]
+    assert not bad, f"以下页给 html=true 的 R.table 传了空 formatter，着色列要写进 formatter：{bad}"
 
 
 # 专题页小节标题单源 = components/Section.astro（.re-sec-title 带 accent 竖条）。
@@ -511,8 +473,7 @@ def test_static_sections_use_section_component() -> None:
         if hits:
             bad[str(page.relative_to(ASTRO_PAGES))] = hits
     assert not bad, (
-        f"静态小节要改用 <Section title=... sub=...>，"
-        f".re-section 只留给 JS 卡片集：{bad}"
+        f"静态小节要改用 <Section title=... sub=...>，.re-section 只留给 JS 卡片集：{bad}"
     )
 
 
@@ -549,9 +510,7 @@ def test_foot_text_only_via_r_foot() -> None:
             if re.search(r"getElementById\('re-foot'\)\s*\.textContent", ln):
                 offenders.append(f"{src.relative_to(ROOT)}:{ln.strip()[:60]}")
                 break
-    assert not offenders, (
-        f"页脚文案绕过 R.foot 手写，请改 R.foot(gen, {{src, note}})：{offenders}"
-    )
+    assert not offenders, f"页脚文案绕过 R.foot 手写，请改 R.foot(gen, {{src, note}})：{offenders}"
 
 
 def test_page_level_source_term_is_data_source() -> None:
@@ -612,8 +571,7 @@ def test_judge_row_only_via_r_judge_row() -> None:
     offenders = [
         str(page.relative_to(ASTRO_PAGES))
         for page, text in _kv_note_sig_pages()
-        if str(page.relative_to(ASTRO_PAGES)) not in exempt
-        and _SIGROW_INLINE.search(text)
+        if str(page.relative_to(ASTRO_PAGES)) not in exempt and _SIGROW_INLINE.search(text)
     ]
     assert not offenders, f"以下页手拼 .sig-row，请改 R.judgeRow(items)：{offenders}"
 
@@ -624,9 +582,7 @@ def test_credit_no_orphan_framework_note() -> None:
     只查渲染语句（模板串里的 `框架：`），注释里提这件事是允许的。
     """
     text = (ASTRO_PAGES / "credit" / "index.astro").read_text("utf-8")
-    rendered = "\n".join(
-        ln for ln in text.splitlines() if not ln.lstrip().startswith("//")
-    )
+    rendered = "\n".join(ln for ln in text.splitlines() if not ln.lstrip().startswith("//"))
     assert "框架：" not in rendered, (
         "研判段又出现独立的框架 note；生成方式由页脚 R.foot 的 R.genText 说明"
     )
@@ -636,9 +592,7 @@ def test_credit_no_orphan_framework_note() -> None:
 # assets/rates/liquidity 三页此前各叫「板块子页 / 子页入口 / 子页面」，用户跨组跳转
 # 时同一个东西三个名字。统一叫法，守住 Section 标题与 page-toc 胶囊两处（daily 的
 # 「沿着问题，进入专题」是跨专题导航、volatility 的 link-grid 无标题，均不适用）。
-_SUB_PAGE_SECTION = re.compile(
-    r'<Section[^>]*title="(子页入口|子页面|板块子页|板块入口)"'
-)
+_SUB_PAGE_SECTION = re.compile(r'<Section[^>]*title="(子页入口|子页面|板块子页|板块入口)"')
 
 
 def test_group_index_sub_page_section_named_consistently() -> None:

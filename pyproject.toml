@@ -37,6 +37,11 @@ dev = [
     "pytest-asyncio>=1.4.0",
 ]
 
+[tool.ruff]
+# 行宽 100：默认 88 对中文注释/文档串太紧（CJK 注释被 E501 拦三次后整体放宽，
+# 全仓已按 100 一次性重排）；formatter 与 E501 同线，>100 仍拦（formatter 不修 E501）
+line-length = 100
+
 [tool.ruff.lint]
 select = ["E", "F", "I", "W"]
 

@@ -55,10 +55,7 @@ def test_recent_filings_filter(monkeypatch):
         ("10-Q", "2025-11-01"),
     ]
     form, fdate, url = items[1]
-    expected = (
-        "https://www.sec.gov/Archives/edgar/data/320193/"
-        "000032019325000002/aapl-20240928.htm"
-    )
+    expected = "https://www.sec.gov/Archives/edgar/data/320193/000032019325000002/aapl-20240928.htm"
     assert url == expected
 
 

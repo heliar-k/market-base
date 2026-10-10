@@ -184,14 +184,10 @@ def fetch_statements(years: list[int]) -> tuple[int, int]:
         except requests.HTTPError:
             logger.warning("%s-press-fomc.htm 不存在，跳过", y)
             continue
-        for link in set(
-            re.findall(r'href="([^"]*pressreleases/monetary\d{8}[a-z]\.htm)"', page)
-        ):
+        for link in set(re.findall(r'href="([^"]*pressreleases/monetary\d{8}[a-z]\.htm)"', page)):
             rid = Path(link).stem
             urls[rid] = BASE + link
-    new, skipped = _fetch_items(
-        urls, STATEMENTS_CSV, ["id", "date", "title", "url", "body"]
-    )
+    new, skipped = _fetch_items(urls, STATEMENTS_CSV, ["id", "date", "title", "url", "body"])
     _backfill(STATEMENTS_CSV, {"kind": ("title", _statement_kind)})
     return new, skipped
 
@@ -224,14 +220,10 @@ def fetch_speeches(years: list[int]) -> tuple[int, int]:
     urls: dict[str, str] = {}
     for y in years:
         page = _get(f"{BASE}/newsevents/{y}-speeches.htm")
-        for link in set(
-            re.findall(r'href="([^"]*speech/[a-z0-9]+\d{8}[a-z]\.htm)"', page)
-        ):
+        for link in set(re.findall(r'href="([^"]*speech/[a-z0-9]+\d{8}[a-z]\.htm)"', page)):
             rid = Path(link).stem
             urls[rid] = BASE + link
-    new, skipped = _fetch_items(
-        urls, SPEECHES_CSV, ["id", "date", "title", "url", "body"]
-    )
+    new, skipped = _fetch_items(urls, SPEECHES_CSV, ["id", "date", "title", "url", "body"])
     _backfill(SPEECHES_CSV, {"speaker": ("id", _speaker_of)})
     return new, skipped
 
@@ -243,9 +235,7 @@ def fetch_fed(speech_years: int = 2, statement_since: int = 2020) -> dict:
         "statements": fetch_statements(list(range(statement_since, this_year + 1))),
         "minutes": fetch_minutes(),
     }
-    out["speeches"] = fetch_speeches(
-        list(range(this_year - speech_years + 1, this_year + 1))
-    )
+    out["speeches"] = fetch_speeches(list(range(this_year - speech_years + 1, this_year + 1)))
     return out
 
 

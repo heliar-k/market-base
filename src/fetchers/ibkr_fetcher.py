@@ -98,9 +98,7 @@ def connect_ib(
         readonly = port == 4001
         try:
             log.info("尝试 %s:%d (readonly=%s) ...", ibkr_cfg.host, port, readonly)
-            ib.connect(
-                ibkr_cfg.host, port, clientId=client_id, timeout=10, readonly=readonly
-            )
+            ib.connect(ibkr_cfg.host, port, clientId=client_id, timeout=10, readonly=readonly)
             log.info("连接成功！端口 %d, readonly=%s", port, readonly)
             return ib, port
         except (ConnectionRefusedError, TimeoutError, OSError):
@@ -167,10 +165,7 @@ def fetch_single(
             log.info(f"[{sym_name}] 第 {i + 1} 次请求返回 0 条，停止")
             break
 
-        log.info(
-            f"[{sym_name}] 第 {i + 1} 次请求返回 {len(bars)} 条，"
-            f"起始日期: {bars[0].date}"
-        )
+        log.info(f"[{sym_name}] 第 {i + 1} 次请求返回 {len(bars)} 条，起始日期: {bars[0].date}")
 
         # 过滤掉已有数据，只保留新数据（date > last_date）
         if last_date:
@@ -222,9 +217,7 @@ def bars_to_dataframe(bars: list) -> pd.DataFrame:
     )
     # 保留需要的列
     cols = [
-        c
-        for c in ["open", "high", "low", "close", "volume", "wap", "count"]
-        if c in df.columns
+        c for c in ["open", "high", "low", "close", "volume", "wap", "count"] if c in df.columns
     ]
     return df[cols].sort_index()
 
@@ -401,15 +394,9 @@ def resample_weekly(symbols: list[str] | None = None) -> None:
 
 
 def main():
-    parser = argparse.ArgumentParser(
-        description="IBKR K 线数据拉取（日线/分钟线/周线）"
-    )
-    parser.add_argument(
-        "--symbols", help="逗号分隔的品种名称，如 SPX,AAPL（不指定则拉全部）"
-    )
-    parser.add_argument(
-        "--days", type=int, help="拉取最近 N 天数据（覆盖配置中的 duration）"
-    )
+    parser = argparse.ArgumentParser(description="IBKR K 线数据拉取（日线/分钟线/周线）")
+    parser.add_argument("--symbols", help="逗号分隔的品种名称，如 SPX,AAPL（不指定则拉全部）")
+    parser.add_argument("--days", type=int, help="拉取最近 N 天数据（覆盖配置中的 duration）")
     parser.add_argument(
         "--bar-size",
         choices=["1d", "all", "5m", "15m", "1h", "4h", "1w"],
@@ -446,9 +433,7 @@ def main():
         return
 
     # ── 以下为分钟线路径 ──
-    symbols = [
-        s for s in config.ibkr_symbols if requested is None or s["name"] in requested
-    ]
+    symbols = [s for s in config.ibkr_symbols if requested is None or s["name"] in requested]
     if not symbols:
         log.error(f"未找到匹配品种: {args.symbols}")
         sys.exit(1)

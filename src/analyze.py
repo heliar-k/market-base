@@ -138,19 +138,13 @@ def analyze(df: pd.DataFrame, symbol: str, as_of=None) -> dict:
         price_20h = recent_20["close"].max()
         idx_price = recent_20["close"].idxmax()
         idx_obv = recent_20["OBV"].idxmax()
-        if (
-            idx_price > idx_obv
-            and price_20h > recent_20["close"].iloc[-10:].max() * 0.99
-        ):
+        if idx_price > idx_obv and price_20h > recent_20["close"].iloc[-10:].max() * 0.99:
             obv_divergence = "bearish_divergence"
         # 20日价格低点 vs OBV 低点
         price_20l = recent_20["close"].min()
         idx_price_l = recent_20["close"].idxmin()
         idx_obv_l = recent_20["OBV"].idxmin()
-        if (
-            idx_price_l > idx_obv_l
-            and price_20l < recent_20["close"].iloc[-10:].min() * 1.01
-        ):
+        if idx_price_l > idx_obv_l and price_20l < recent_20["close"].iloc[-10:].min() * 1.01:
             obv_divergence = "bullish_divergence"
 
     # ── CCI ──
@@ -190,29 +184,21 @@ def analyze(df: pd.DataFrame, symbol: str, as_of=None) -> dict:
     # 最近 5 天内的 BOS/CHoCH 信号
     recent_5 = df.tail(5)
     smc_recent_bos = int(recent_5["SMC_BOS"].sum()) if "SMC_BOS" in df.columns else 0
-    smc_recent_choch = (
-        int(recent_5["SMC_CHoCH"].sum()) if "SMC_CHoCH" in df.columns else 0
-    )
+    smc_recent_choch = int(recent_5["SMC_CHoCH"].sum()) if "SMC_CHoCH" in df.columns else 0
 
     # 最近的 FVG（最近 10 天）
     recent_10 = df.tail(10)
-    smc_recent_fvg = (
-        int(recent_10["SMC_FVG"].abs().sum()) if "SMC_FVG" in df.columns else 0
-    )
+    smc_recent_fvg = int(recent_10["SMC_FVG"].abs().sum()) if "SMC_FVG" in df.columns else 0
 
     # 最近的 Order Block（最近 10 天）
-    smc_recent_ob = (
-        int(recent_10["SMC_OB"].abs().sum()) if "SMC_OB" in df.columns else 0
-    )
+    smc_recent_ob = int(recent_10["SMC_OB"].abs().sum()) if "SMC_OB" in df.columns else 0
 
     # Liquidity Sweep
     smc_sweep = last.get("SMC_sweep")
     smc_sweep = _int(smc_sweep)
     smc_sweep_level = last.get("SMC_sweep_level")
     smc_sweep_level = _num(smc_sweep_level)
-    smc_recent_sweep = (
-        int(recent_10["SMC_sweep"].abs().sum()) if "SMC_sweep" in df.columns else 0
-    )
+    smc_recent_sweep = int(recent_10["SMC_sweep"].abs().sum()) if "SMC_sweep" in df.columns else 0
 
     # MTF (多时间框架)
     smc_weekly_structure = last.get("SMC_weekly_structure")
@@ -244,9 +230,7 @@ def analyze(df: pd.DataFrame, symbol: str, as_of=None) -> dict:
         else:
             scores.append(("MA交织", 0))
     if pd.notna(ma60):
-        scores.append(
-            ("价格站上MA60" if cl > ma60 else "价格跌破MA60", 1 if cl > ma60 else -1)
-        )
+        scores.append(("价格站上MA60" if cl > ma60 else "价格跌破MA60", 1 if cl > ma60 else -1))
 
     # RSI 评分
     if rsi is not None:
@@ -381,9 +365,7 @@ def analyze(df: pd.DataFrame, symbol: str, as_of=None) -> dict:
 
     total = sum(s for _, s in scores)
     rsi_detail = (
-        "oversold"
-        if rsi and rsi < 30
-        else ("overbought" if rsi and rsi > 70 else "neutral")
+        "oversold" if rsi and rsi < 30 else ("overbought" if rsi and rsi > 70 else "neutral")
     )
 
     return {
@@ -455,9 +437,7 @@ def main():
         help="回看到指定日期（YYYY-MM-DD），默认用最后一行",
     )
     # --json 保留兼容（默认即 JSON），无实际分支作用
-    parser.add_argument(
-        "--json", action="store_true", help="输出 JSON（默认行为，保留兼容）"
-    )
+    parser.add_argument("--json", action="store_true", help="输出 JSON（默认行为，保留兼容）")
     args = parser.parse_args()
 
     csv_path = Path(args.csv)

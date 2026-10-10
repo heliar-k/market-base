@@ -91,9 +91,9 @@ def _download_year(year: int, report_type: str) -> pd.DataFrame:
     zf = zipfile.ZipFile(io.BytesIO(resp.content))
     name = zf.namelist()[0]
     df = pd.read_csv(zf.open(name))
-    df["Report_Date_as_YYYY-MM-DD"] = pd.to_datetime(
-        df["Report_Date_as_YYYY-MM-DD"]
-    ).dt.strftime("%Y-%m-%d")
+    df["Report_Date_as_YYYY-MM-DD"] = pd.to_datetime(df["Report_Date_as_YYYY-MM-DD"]).dt.strftime(
+        "%Y-%m-%d"
+    )
     return df
 
 
@@ -127,9 +127,7 @@ def fetch_cot(years: list[int] | None = None) -> pd.DataFrame:
                     for c, out in metrics.items()
                 }
                 cols["report_date"] = market["Report_Date_as_YYYY-MM-DD"]
-                by_sym.setdefault(sym, []).append(
-                    pd.DataFrame(cols).groupby("report_date").first()
-                )
+                by_sym.setdefault(sym, []).append(pd.DataFrame(cols).groupby("report_date").first())
     frames = []
     for sym, parts in by_sym.items():
         f = pd.concat(parts)  # 年份纵向合并（同列名）
@@ -143,9 +141,7 @@ def fetch_cot(years: list[int] | None = None) -> pd.DataFrame:
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
     parser = argparse.ArgumentParser(description="CFTC COT 持仓报告拉取")
-    parser.add_argument(
-        "--years", default="", help="年份列表（逗号分隔，默认当年+去年）"
-    )
+    parser.add_argument("--years", default="", help="年份列表（逗号分隔，默认当年+去年）")
     parser.add_argument("--backfill", action="store_true", help="全量覆盖")
     args = parser.parse_args()
 

@@ -29,9 +29,7 @@ def _patch_yf(monkeypatch: pytest.MonkeyPatch, chains: dict[str, _FakeChain]) ->
     """把 yfinance.Ticker 换成假对象，ensure_yf_proxy 换成 no-op。"""
     import yfinance
 
-    monkeypatch.setattr(
-        "src.fetchers.yfinance_fetcher.ensure_yf_proxy", lambda *a, **k: None
-    )
+    monkeypatch.setattr("src.fetchers.yfinance_fetcher.ensure_yf_proxy", lambda *a, **k: None)
     monkeypatch.setattr(yfinance, "Ticker", lambda symbol: _FakeTicker(chains))
 
 
@@ -177,9 +175,7 @@ def test_fetch_yf_chain_skips_failing_expiry(monkeypatch):
             return super().option_chain(yf_date)
 
     monkeypatch.setattr(yfinance, "Ticker", lambda symbol: _Broken(chains))
-    monkeypatch.setattr(
-        "src.fetchers.yfinance_fetcher.ensure_yf_proxy", lambda *a, **k: None
-    )
+    monkeypatch.setattr("src.fetchers.yfinance_fetcher.ensure_yf_proxy", lambda *a, **k: None)
     df = fetch_yf_chain("TEST", ["20250117", "20250221"])
     assert len(df) == 1
     assert df["expiration"].iloc[0] == "20250117"
@@ -193,9 +189,7 @@ def test_fetch_yf_chain_all_expiries_fail_returns_empty(monkeypatch):
             raise RuntimeError("chain 不可用")
 
     monkeypatch.setattr(yfinance, "Ticker", lambda symbol: _Broken({}))
-    monkeypatch.setattr(
-        "src.fetchers.yfinance_fetcher.ensure_yf_proxy", lambda *a, **k: None
-    )
+    monkeypatch.setattr("src.fetchers.yfinance_fetcher.ensure_yf_proxy", lambda *a, **k: None)
     df = fetch_yf_chain("TEST", ["20250117"])
     assert df.empty
     assert list(df.columns) == [

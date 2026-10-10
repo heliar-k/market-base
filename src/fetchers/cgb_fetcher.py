@@ -65,9 +65,7 @@ if __name__ == "__main__":
     from ..config import ROOT
     from ._io import upsert_timeseries
 
-    parser = argparse.ArgumentParser(
-        description="中国国债收益率（chinamoney 实时曲线）"
-    )
+    parser = argparse.ArgumentParser(description="中国国债收益率（chinamoney 实时曲线）")
     parser.add_argument("--backfill", action="store_true", help="全量覆盖（清旧格式）")
     args = parser.parse_args()
 

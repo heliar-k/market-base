@@ -63,9 +63,7 @@ def ensure_yf_proxy(timeout: float = 3.0) -> None:
         ) from None
 
 
-def fetch_ohlcv(
-    ticker: str, period: str = "2y", auto_adjust: bool = True
-) -> pd.DataFrame:
+def fetch_ohlcv(ticker: str, period: str = "2y", auto_adjust: bool = True) -> pd.DataFrame:
     """拉取 OHLCV 日线，返回 DataFrame，列: open/high/low/close/volume。
 
     用于 IBKR 不可用时的回退。index 为 date (datetime)。
@@ -148,9 +146,7 @@ def _fetch_ticker(ticker: str, name: str) -> DataPoint:
         close = close_series.iloc[-1]
         dp.value = round(float(close), 4)
         # 同日成交量（部分品种/时段可能缺失 → None，容忍）
-        vol_series = (
-            hist["Volume"].dropna() if "Volume" in hist else pd.Series(dtype=float)
-        )
+        vol_series = hist["Volume"].dropna() if "Volume" in hist else pd.Series(dtype=float)
         dp.volume = round(float(vol_series.iloc[-1])) if not vol_series.empty else None
         dp.mark_ok()
     except Exception as e:

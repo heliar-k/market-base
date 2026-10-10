@@ -55,8 +55,7 @@ async def main(base: str) -> int:
                 }"""
             )
             overflow = await page.evaluate(
-                "document.documentElement.scrollWidth"
-                " - document.documentElement.clientWidth"
+                "document.documentElement.scrollWidth - document.documentElement.clientWidth"
             )
             tag = "SPA" if path == "/" else f"{res['secs']}sec"
             print(

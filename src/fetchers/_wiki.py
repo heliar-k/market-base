@@ -43,9 +43,7 @@ def fetch_wiki_tickers(url: str, cache_path: Path) -> pd.DataFrame:
                 and cells[0] not in ("Ticker", "Symbol", "")
                 and re.match(r"^[A-Z][A-Z0-9.\-]{0,4}$", cells[0])
             ):
-                rows.append(
-                    {"ticker": cells[0], "company": cells[1], "category": cells[2]}
-                )
+                rows.append({"ticker": cells[0], "company": cells[1], "category": cells[2]})
         if not rows:
             raise ValueError("成分表解析为空")
         df = pd.DataFrame(rows).drop_duplicates(subset="ticker")

@@ -146,9 +146,7 @@ def upsert_rows(
     if df.empty:
         return
     if filepath.exists():
-        df = pd.concat([pd.read_csv(filepath), df]).drop_duplicates(
-            subset=subset, keep="last"
-        )
+        df = pd.concat([pd.read_csv(filepath), df]).drop_duplicates(subset=subset, keep="last")
     if sort_by:
         df = df.sort_values(sort_by)
     df.to_csv(filepath, index=False)

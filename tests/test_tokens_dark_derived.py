@@ -24,12 +24,9 @@ def test_no_derived_token_in_root_only_rule() -> None:
         f"{path.name} {s}: {m.group(0).strip()}"
         for path in sorted(CSS_DIR.glob("*.css"))
         for s, b in (
-            (m["sel"].strip(), m["body"])
-            for m in RULE.finditer(path.read_text(encoding="utf-8"))
+            (m["sel"].strip(), m["body"]) for m in RULE.finditer(path.read_text(encoding="utf-8"))
         )
         if s == ":root"
         for m in DERIVED.finditer(b)
     ]
-    assert not bad, (
-        "派生 token 请移到 tokens.css 末尾的 `:root, body.dark` 段：\n" + "\n".join(bad)
-    )
+    assert not bad, "派生 token 请移到 tokens.css 末尾的 `:root, body.dark` 段：\n" + "\n".join(bad)

@@ -26,9 +26,7 @@ def _holdings_xlsx() -> bytes:
     ]
     buf = io.BytesIO()
     with pd.ExcelWriter(buf, engine="openpyxl") as xw:
-        pd.DataFrame(header).to_excel(
-            xw, sheet_name="Holdings by month", index=False, header=False
-        )
+        pd.DataFrame(header).to_excel(xw, sheet_name="Holdings by month", index=False, header=False)
     return buf.getvalue()
 
 
@@ -124,9 +122,7 @@ def _fund_snapshot_xlsx() -> bytes:
     ]
     buf = io.BytesIO()
     with pd.ExcelWriter(buf, engine="openpyxl") as xw:
-        pd.DataFrame(rows).to_excel(
-            xw, sheet_name="All flows by fund", index=False, header=False
-        )
+        pd.DataFrame(rows).to_excel(xw, sheet_name="All flows by fund", index=False, header=False)
     return buf.getvalue()
 
 
@@ -192,8 +188,7 @@ class TestParseEtfFlows:
         buf = io.BytesIO()
         with pd.ExcelWriter(buf, engine="openpyxl") as xw:
             pd.DataFrame(
-                [[f"col{j}" for j in range(10)]]
-                + [[f"v{j}" for j in range(10)] for _ in range(8)]
+                [[f"col{j}" for j in range(10)]] + [[f"v{j}" for j in range(10)] for _ in range(8)]
             ).to_excel(xw, sheet_name="Fund flows by month", index=False, header=False)
         p = tmp_path / "bad2.xlsx"
         p.write_bytes(buf.getvalue())

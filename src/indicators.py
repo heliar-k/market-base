@@ -77,9 +77,7 @@ def load_data(path: str) -> pd.DataFrame:
     # 统一列名为小写
     df.columns = df.columns.str.lower()
     # 丢弃 OHLC 含 NaN 的坏行（yfinance 偶发缺 close 的尾 bar），防指标计算炸
-    return df.dropna(
-        subset=[c for c in ("open", "high", "low", "close") if c in df.columns]
-    )
+    return df.dropna(subset=[c for c in ("open", "high", "low", "close") if c in df.columns])
 
 
 # ── 均线 ────────────────────────────────────────────────────────────────
@@ -218,9 +216,7 @@ def add_stochastic(
     """
     _merge_ta_columns(
         df,
-        ta.stoch(
-            df["high"], df["low"], df["close"], k=k_period, d=d_period, smooth_k=smooth
-        ),
+        ta.stoch(df["high"], df["low"], df["close"], k=k_period, d=d_period, smooth_k=smooth),
         {
             "STOCH_k": f"STOCHk_{k_period}_{d_period}_{smooth}",
             "STOCH_d": f"STOCHd_{k_period}_{d_period}_{smooth}",
@@ -245,9 +241,7 @@ def add_supertrend(
     mstr = f"{multiplier:.1f}"
     _merge_ta_columns(
         df,
-        ta.supertrend(
-            df["high"], df["low"], df["close"], length=period, multiplier=multiplier
-        ),
+        ta.supertrend(df["high"], df["low"], df["close"], length=period, multiplier=multiplier),
         {
             "SUPERT": f"SUPERT_{period}_{mstr}",
             "SUPERT_dir": f"SUPERTd_{period}_{mstr}",
@@ -336,14 +330,10 @@ def detect_cdl_hits(df: pd.DataFrame, as_of=None) -> tuple[list[str], list[str]]
     else:
         row = df.iloc[-1]
     bullish_hits = [
-        CDL_BULLISH[col]
-        for col in CDL_BULLISH
-        if col in df.columns and row.get(col, 0) != 0
+        CDL_BULLISH[col] for col in CDL_BULLISH if col in df.columns and row.get(col, 0) != 0
     ]
     bearish_hits = [
-        CDL_BEARISH[col]
-        for col in CDL_BEARISH
-        if col in df.columns and row.get(col, 0) != 0
+        CDL_BEARISH[col] for col in CDL_BEARISH if col in df.columns and row.get(col, 0) != 0
     ]
     return bullish_hits, bearish_hits
 
@@ -410,9 +400,7 @@ def add_smc_fvg(df: pd.DataFrame) -> pd.DataFrame:
 
     # FVG 区间：bullish 时 bottom=前2根high, top=当前low
     df["SMC_FVG_top"] = np.where(bullish, low, np.where(bearish, low.shift(2), np.nan))
-    df["SMC_FVG_bottom"] = np.where(
-        bullish, high.shift(2), np.where(bearish, high, np.nan)
-    )
+    df["SMC_FVG_bottom"] = np.where(bullish, high.shift(2), np.where(bearish, high, np.nan))
     return df
 
 
@@ -641,19 +629,11 @@ def add_smc_mtf(df: pd.DataFrame, swing_length: int = 3) -> pd.DataFrame:
     df["SMC_weekly_structure"] = (
         weekly["SMC_structure"].reindex(df.index, method="ffill").fillna(0).astype(int)
     )
-    df["SMC_weekly_swing_high"] = weekly["SMC_swing_high"].reindex(
-        df.index, method="ffill"
-    )
-    df["SMC_weekly_swing_low"] = weekly["SMC_swing_low"].reindex(
-        df.index, method="ffill"
-    )
+    df["SMC_weekly_swing_high"] = weekly["SMC_swing_high"].reindex(df.index, method="ffill")
+    df["SMC_weekly_swing_low"] = weekly["SMC_swing_low"].reindex(df.index, method="ffill")
 
     # 综合日线 + 周线方向
-    daily = (
-        df["SMC_structure"]
-        if "SMC_structure" in df.columns
-        else pd.Series(0, index=df.index)
-    )
+    daily = df["SMC_structure"] if "SMC_structure" in df.columns else pd.Series(0, index=df.index)
     wk = df["SMC_weekly_structure"]
 
     bias = pd.Series("neutral", index=df.index, dtype=str)

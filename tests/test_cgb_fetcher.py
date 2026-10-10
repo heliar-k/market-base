@@ -36,9 +36,7 @@ class _FakeSession:
 
 def test_parses_10y_30y_mid(monkeypatch):
     """只取 10Y/30Y 的均值档（idx6），列名 cgb_10y / cgb_30y。"""
-    monkeypatch.setattr(
-        "src.fetchers.cgb_fetcher.requests.Session", lambda: _FakeSession()
-    )
+    monkeypatch.setattr("src.fetchers.cgb_fetcher.requests.Session", lambda: _FakeSession())
     df = fetch_cgb_curves()
     assert df.shape == (1, 2)
     assert list(df.columns) == ["cgb_10y", "cgb_30y"]

@@ -115,8 +115,7 @@ def signal_structure(
             text += "主动离职基本持平；"
         else:
             text += (
-                f"主动离职 6 个月{'增加' if quits_chg_6m >= 0 else '减少'} "
-                f"{abs(quits_chg_6m):.0f}K"
+                f"主动离职 6 个月{'增加' if quits_chg_6m >= 0 else '减少'} {abs(quits_chg_6m):.0f}K"
             )
             if quits_chg_6m < 0:
                 text += "（员工跳槽信心走弱，领先于薪资降温）"
@@ -138,9 +137,7 @@ def polymarket_signal() -> str | None:
     from src.polymarket_analysis import events_matching, prob_ladder, snapshot
 
     snap = snapshot()
-    evs = events_matching(
-        snap, pattern=r"how high will .*unemployment", categories=("data",)
-    )
+    evs = events_matching(snap, pattern=r"how high will .*unemployment", categories=("data",))
     if not evs:
         return None
     ladder = prob_ladder(evs[0])
@@ -196,11 +193,7 @@ def indicators_table(labor: pd.DataFrame, lm: pd.DataFrame) -> list[dict]:
     """7 指标最新值 + 较上期变化（ICSA 按 4 周前，ECI 按上季）+ 发布时间。"""
     src = {
         **{k: labor[k] for k in ("UNRATE", "PAYEMS", "ICSA") if k in labor},
-        **{
-            k: lm[k]
-            for k in ("JOLTS_OPEN", "JOLTS_QUITS", "UNEMPLOY", "ECI_WAGES")
-            if k in lm
-        },
+        **{k: lm[k] for k in ("JOLTS_OPEN", "JOLTS_QUITS", "UNEMPLOY", "ECI_WAGES") if k in lm},
     }
     # 指标名 → FRED 系列 ID（查发布日用）
     sid = {**config.fred_series["labor"], **config.fred_series["labor_market"]}
@@ -234,9 +227,7 @@ def generate_labor_overview() -> dict:
     """就业专题总览统一入口（规则引擎，LLM 预留同 inflation_analysis）。"""
     labor = _read("labor")
     if labor.empty or {"UNRATE", "PAYEMS", "ICSA"} - set(labor.columns):
-        return {
-            "error": "data/fred/labor/labor.csv 缺失或缺列，先运行 ./bin/fetch_fred"
-        }
+        return {"error": "data/fred/labor/labor.csv 缺失或缺列，先运行 ./bin/fetch_fred"}
     lm = _read("labor_market")
 
     unrate = labor["UNRATE"].dropna()
@@ -252,17 +243,13 @@ def generate_labor_overview() -> dict:
 
     eci = lm["ECI_WAGES"].dropna() if "ECI_WAGES" in lm else pd.Series(dtype=float)
     eci_pair = _chg_prev(eci, 4)
-    quits_pair = (
-        _chg_prev(lm["JOLTS_QUITS"].dropna(), 6) if "JOLTS_QUITS" in lm else None
-    )
+    quits_pair = _chg_prev(lm["JOLTS_QUITS"].dropna(), 6) if "JOLTS_QUITS" in lm else None
     j_pair = _latest(jolts)
 
     cards = {
         "unrate": {
             "value": round(u_pair[0], 1),
-            "chg_3m": round(unrate.iloc[-1] - unrate.iloc[-4], 2)
-            if len(unrate) > 3
-            else None,
+            "chg_3m": round(unrate.iloc[-1] - unrate.iloc[-4], 2) if len(unrate) > 3 else None,
             "sahm": sahm.get("value"),
             "as_of": u_pair[1].strftime("%Y-%m-%d"),
         },
@@ -274,9 +261,7 @@ def generate_labor_overview() -> dict:
         "icsa": {
             "value": round(icsa_pair[0] / 1000, 0),
             "avg_4w": round(float(icsa.tail(4).mean()) / 1000, 0),
-            "chg_4w": round(
-                (icsa.tail(4).mean() - icsa.tail(8).head(4).mean()) / 1000, 0
-            )
+            "chg_4w": round((icsa.tail(4).mean() - icsa.tail(8).head(4).mean()) / 1000, 0)
             if len(icsa) >= 8
             else None,
             "as_of": icsa_pair[1].strftime("%Y-%m-%d"),
@@ -299,11 +284,7 @@ def generate_labor_overview() -> dict:
             {"title": "就业现状", "text": signal_current(cards, sahm)},
             {"title": "结构", "text": signal_structure(cards, vu, eci_yoy, quits_chg)},
             {"title": "展望", "text": signal_outlook(cards, sahm)},
-            *(
-                [{"title": "预测市场", "text": pm}]
-                if (pm := polymarket_signal())
-                else []
-            ),
+            *([{"title": "预测市场", "text": pm}] if (pm := polymarket_signal()) else []),
         ],
         "nfp_history": nfp_history(labor),
         "indicators": indicators_table(labor, lm),

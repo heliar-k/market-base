@@ -68,9 +68,7 @@ def test_extract_date_and_body():
 
 def test_fetch_refunding_incremental(tmp_path, monkeypatch):
     monkeypatch.setattr("src.fetchers.refunding_fetcher._SESSION", _FakeSession())
-    monkeypatch.setattr(
-        "src.fetchers.refunding_fetcher.OUT_CSV", tmp_path / "refunding.csv"
-    )
+    monkeypatch.setattr("src.fetchers.refunding_fetcher.OUT_CSV", tmp_path / "refunding.csv")
 
     new, skipped = fetch_refunding()
     assert new == 2

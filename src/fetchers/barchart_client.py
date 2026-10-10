@@ -89,9 +89,7 @@ def _core_get_http(params: dict, referer: str, auth: AuthMode, endpoint: str) ->
     if auth == "csrf":
         m = META_CSRF_RE.search(html)
         if not m:
-            raise RuntimeError(
-                f"Barchart 页面未找到 csrf-token meta (referer={referer})"
-            )
+            raise RuntimeError(f"Barchart 页面未找到 csrf-token meta (referer={referer})")
         token, header = m.group(1), "X-CSRF-TOKEN"
     else:
         token = session.cookies.get("XSRF-TOKEN")
@@ -155,9 +153,7 @@ async ([apiUrl, referer, auth]) => {
 """
 
 
-def _core_get_browser(
-    params: dict, referer: str, auth: AuthMode, endpoint: str
-) -> dict:
+def _core_get_browser(params: dict, referer: str, auth: AuthMode, endpoint: str) -> dict:
     """降级路线：无头浏览器过 AWS WAF 后在页面内调 core-api。
 
     ponytail: 复用单 page（串行调用假设）；fetcher 均为顺序循环，够用。

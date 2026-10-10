@@ -28,9 +28,7 @@ def jina_fetch(url: str, timeout: int = _TIMEOUT) -> str:
         requests.HTTPError: 非 2xx
         RuntimeError: JSON 响应但缺 data.content（Jina 改版时）
     """
-    proxies = (
-        {"https": os.environ["HTTPS_PROXY"]} if os.environ.get("HTTPS_PROXY") else None
-    )
+    proxies = {"https": os.environ["HTTPS_PROXY"]} if os.environ.get("HTTPS_PROXY") else None
     resp = requests.get(
         f"https://r.jina.ai/{url}",
         timeout=timeout,

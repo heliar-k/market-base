@@ -41,22 +41,16 @@ class TestPctChg:
     """_pct_chg() 的近零基数守卫（审计第 4 步）。"""
 
     def test_normal_base(self):
-        s = pd.Series(
-            [100.0, 105.0], index=pd.date_range("2024-01-01", periods=2, freq="D")
-        )
+        s = pd.Series([100.0, 105.0], index=pd.date_range("2024-01-01", periods=2, freq="D"))
         assert _pct_chg(s, 1) == pytest.approx(5.0)
 
     def test_near_zero_base_is_noise(self):
         # RRP 型：历史峰值 2553B，基数只剩 0.5B —— +1900% 不是信号
-        s = pd.Series(
-            [2553.0, 0.5, 10.0], index=pd.date_range("2024-01-01", periods=3, freq="D")
-        )
+        s = pd.Series([2553.0, 0.5, 10.0], index=pd.date_range("2024-01-01", periods=3, freq="D"))
         assert _pct_chg(s, 1) is None
 
     def test_all_zero_series_no_division(self):
-        s = pd.Series(
-            [0.0, 0.0, 0.0], index=pd.date_range("2024-01-01", periods=3, freq="D")
-        )
+        s = pd.Series([0.0, 0.0, 0.0], index=pd.date_range("2024-01-01", periods=3, freq="D"))
         assert _pct_chg(s, 1) is None
 
 
@@ -118,39 +112,26 @@ class TestForwardCalendar:
         # 净冲击可以合理地超过 100B（如 2026-09-15 到期 323B − 新发 119B = +204B）
         from src.liquidity_analysis import ROOT
 
-        up = pd.read_csv(
-            ROOT / "data/treasury/upcoming_auctions.csv", parse_dates=["issue_date"]
-        )
+        up = pd.read_csv(ROOT / "data/treasury/upcoming_auctions.csv", parse_dates=["issue_date"])
         auc = pd.read_csv(
             ROOT / "data/treasury/auction_results.csv",
             parse_dates=["maturity_date", "issue_date"],
         )
         settle_days = [
-            d
-            for d in days
-            if any(f["type"] == "auction_settlement" for f in d["flows"])
+            d for d in days if any(f["type"] == "auction_settlement" for f in d["flows"])
         ]
         assert settle_days, "14 天窗口内应有新发结算日（数据缺失或日历滚动？）"
         for d in settle_days:
             day = pd.Timestamp(d["date"])
             issue = (
-                up.loc[up["issue_date"] == day, "offering_amt"]
-                .fillna(0)
-                .astype(float)
-                .sum()
-                / 1e9
+                up.loc[up["issue_date"] == day, "offering_amt"].fillna(0).astype(float).sum() / 1e9
             )
             mature = (
-                auc.loc[auc["maturity_date"] == day, "offering_amt"]
-                .dropna()
-                .astype(float)
-                .sum()
+                auc.loc[auc["maturity_date"] == day, "offering_amt"].dropna().astype(float).sum()
                 / 1e9
             )
             expected = round(mature - issue, 1)
-            actual = next(
-                f["amount_b"] for f in d["flows"] if f["type"] == "auction_settlement"
-            )
+            actual = next(f["amount_b"] for f in d["flows"] if f["type"] == "auction_settlement")
             assert actual == expected, (
                 f"{d['date']}: 到期回笼 {mature:.0f}B − 新发抽水 {issue:.0f}B，"
                 f"应为 {expected}，实际 {actual}"

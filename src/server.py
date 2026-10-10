@@ -110,9 +110,7 @@ def _range_cutoff(range_: str, default: int = 0) -> pd.Timestamp | None:
     return pd.Timestamp.now() - pd.DateOffset(months=months) if months else None
 
 
-app = FastAPI(
-    title="K-line Analysis Web", default_response_class=_SanitizedJSONResponse
-)
+app = FastAPI(title="K-line Analysis Web", default_response_class=_SanitizedJSONResponse)
 
 app.add_middleware(
     CORSMiddleware,
@@ -471,18 +469,12 @@ def get_macro_correlate(
 
     result: dict[str, Any] = {}
     for name in names:
-        cat = (
-            "derived"
-            if name in DERIVED_INPUTS
-            else (categories_for(name) or ["derived"])[0]
-        )
+        cat = "derived" if name in DERIVED_INPUTS else (categories_for(name) or ["derived"])[0]
         result[name] = {
             "category": cat,
             "label": _MACRO_LABELS.get(name, name),
             "data": (
-                merged[["date", name]]
-                .rename(columns={name: "value"})
-                .to_dict(orient="records")
+                merged[["date", name]].rename(columns={name: "value"}).to_dict(orient="records")
             ),
         }
 
@@ -563,9 +555,7 @@ def get_liquidity_overview(range: str = Query("all")):
     for key in _LIQ_KEYS + ["NFCI"]:
         if key in filtered.columns:
             series[key] = (
-                filtered[["date", key]]
-                .rename(columns={key: "value"})
-                .to_dict(orient="records")
+                filtered[["date", key]].rename(columns={key: "value"}).to_dict(orient="records")
             )
 
     # Pre-compute stacked cumulative for area chart (WRESBAL → +WTREGEN → +RRPONTSYD)
@@ -576,11 +566,7 @@ def get_liquidity_overview(range: str = Query("all")):
     cum = pd.DataFrame(index=filtered.index)
     running = pd.Series(0.0, index=filtered.index)
     for sk in stack_keys:
-        col = (
-            filtered[sk]
-            if sk in filtered.columns
-            else pd.Series(0.0, index=filtered.index)
-        )
+        col = filtered[sk] if sk in filtered.columns else pd.Series(0.0, index=filtered.index)
         running = running.add(col.ffill().fillna(0))
         cum[sk] = running
     stacked = {}
@@ -621,9 +607,7 @@ def get_liquidity_compare_spx(range: str = Query("5y")):
         spx["date"] = spx["date"].dt.strftime("%Y-%m-%d")
         close_col = "close" if "close" in spx.columns else spx.columns[1]
         result["SPX"] = (
-            spx[["date", close_col]]
-            .rename(columns={close_col: "value"})
-            .to_dict(orient="records")
+            spx[["date", close_col]].rename(columns={close_col: "value"}).to_dict(orient="records")
         )
 
     return result
@@ -703,9 +687,7 @@ def get_liquidity_subsurface() -> dict:
 def get_rate_expectations() -> dict:
     csv_path = ROOT / "data" / "rate_expectations" / "fomc_probabilities.csv"
     if not csv_path.exists():
-        raise HTTPException(
-            404, "No rate expectations data yet. Run ./bin/fetch_rate_expectations"
-        )
+        raise HTTPException(404, "No rate expectations data yet. Run ./bin/fetch_rate_expectations")
     df = pd.read_csv(csv_path, index_col="date", parse_dates=True)
 
     # range cols → normalized rows
@@ -729,9 +711,7 @@ def get_rate_expectations() -> dict:
             lo, hi = c.replace("range_", "").split("-")
             p = row.get(c, 0.0)
             if pd.notna(p) and float(p) > 0:
-                probs.append(
-                    {"lo": float(lo), "hi": float(hi), "prob": round(float(p), 4)}
-                )
+                probs.append({"lo": float(lo), "hi": float(hi), "prob": round(float(p), 4)})
 
         # 旧快照无 contract_used / zq_as_of 列 → 回退 contract / None
         contract_used = row.get("contract_used")
@@ -771,9 +751,7 @@ def get_rate_expectations() -> dict:
     return {
         "as_of": latest_date.strftime("%Y-%m-%d"),
         # 期货数据实际日期（最早值）：任一合约陈旧即在此暴露，与快照日 as_of 区分
-        "zq_as_of": min(
-            (m["zq_as_of"] for m in meetings if m["zq_as_of"]), default=None
-        ),
+        "zq_as_of": min((m["zq_as_of"] for m in meetings if m["zq_as_of"]), default=None),
         "polymarket_as_of": pm["as_of"] if pm else None,
         "meetings": meetings,
     }
@@ -837,10 +815,7 @@ def _fed_home(d: dict) -> tuple[str, str | None]:
     dates = [s["date"] for s in d.get("statements", [])] + [
         s["date"] for s in d.get("speeches", [])
     ]
-    text = (
-        f"联储口径「{ind['label']}」——近 {ind['sample']} 条声明与演讲"
-        f"评分 {ind['score']:+.1f}"
-    )
+    text = f"联储口径「{ind['label']}」——近 {ind['sample']} 条声明与演讲评分 {ind['score']:+.1f}"
     return text, _iso(max(dates, default=None))
 
 
@@ -977,9 +952,7 @@ def _macro_df(category: str) -> pd.DataFrame:
     try:
         return read_macro_category(category)
     except FileNotFoundError:
-        raise HTTPException(
-            404, f"{category}.csv 缺失，先运行 ./bin/fetch_fred"
-        ) from None
+        raise HTTPException(404, f"{category}.csv 缺失，先运行 ./bin/fetch_fred") from None
 
 
 def _to_points(s: pd.Series, days: int | None = None) -> list[dict]:
@@ -1157,9 +1130,7 @@ def get_rates_yield_curve() -> dict:
         ("5s30s", "DGS30", "DGS5"),
     ]:
         diff = (df[a] - df[b]).dropna().tail(6 * 22)
-        spread_hist[name] = [
-            {**p, "value": round(p["value"] * 100, 1)} for p in _to_points(diff)
-        ]
+        spread_hist[name] = [{**p, "value": round(p["value"] * 100, 1)} for p in _to_points(diff)]
     out["yield_curve"]["spreads_history"] = spread_hist
     return out
 
@@ -1279,8 +1250,7 @@ def _borrowing_estimate() -> dict | None:
     row = est.iloc[-1]
     body = str(row["body"]).replace("\xa0", " ")
     vals = [
-        int(float(v.replace(",", "")))
-        for v in re.findall(r"borrow\s+\$([\d,]+) billion", body)
+        int(float(v.replace(",", ""))) for v in re.findall(r"borrow\s+\$([\d,]+) billion", body)
     ]
     chg = re.findall(
         r"[Tt]he borrowing estimate is \$([\d,]+) billion "
@@ -1354,9 +1324,7 @@ def get_rates_auctions() -> dict:
     ].sort_index(ascending=False)
     # 名义付息券（排除 Bill 与 TIPS）—— 需求概览均值与四条趋势线同一口径
     coupon = auc[(auc["security_type"] != "Bill") & ~auc.apply(_is_indexed, axis=1)]
-    covers = (
-        pd.to_numeric(coupon["bid_to_cover_ratio"], errors="coerce").dropna().tail(10)
-    )
+    covers = pd.to_numeric(coupon["bid_to_cover_ratio"], errors="coerce").dropna().tail(10)
     avg_cover = round(float(covers.mean()), 2) if not covers.empty else None
 
     trend, tail_trend, indirect_trend = {}, {}, {}
@@ -1396,8 +1364,7 @@ def get_rates_auctions() -> dict:
         "avg_cover_10_coupon": avg_cover,
         "upcoming_count": len(upcoming),
         "recent": [
-            {**{"auction_date": d.strftime("%Y-%m-%d")}, **_row(r)}
-            for d, r in recent.iterrows()
+            {**{"auction_date": d.strftime("%Y-%m-%d")}, **_row(r)} for d, r in recent.iterrows()
         ],
         "upcoming": upcoming,
         "trend": trend,
@@ -1509,9 +1476,7 @@ def get_assets_prices() -> dict:
 
     path = ROOT / "data" / "yfinance" / "asset_prices.csv"
     if not path.exists():
-        raise HTTPException(
-            404, "asset_prices.csv 不存在（先运行 ./bin/fetch_yfinance）"
-        )
+        raise HTTPException(404, "asset_prices.csv 不存在（先运行 ./bin/fetch_yfinance）")
     df = pd.read_csv(path, index_col="date", parse_dates=True)
     df = df[[c for c in df.columns if not c.endswith("_volume")]]
     df = df.round(4).reset_index()
@@ -1556,9 +1521,7 @@ def get_cross_asset() -> dict:
                     "label": label,
                     "latest": latest,
                     "prev": prev,
-                    "series": [
-                        {"date": d, "value": round(float(v), 4)} for d, v in s.items()
-                    ],
+                    "series": [{"date": d, "value": round(float(v), 4)} for d, v in s.items()],
                 }
             )
 
@@ -1566,14 +1529,10 @@ def get_cross_asset() -> dict:
         "as_of": as_of,
         "window": WINDOW,
         "assets": [
-            {"name": a, "group": ASSETS[a]["group"], "label": ASSETS[a]["label"]}
-            for a in assets
+            {"name": a, "group": ASSETS[a]["group"], "label": ASSETS[a]["label"]} for a in assets
         ],
         "groups": GROUP_LABELS,
-        "matrix": [
-            [None if pd.isna(v) else round(float(v), 4) for v in row]
-            for row in sub.values
-        ],
+        "matrix": [[None if pd.isna(v) else round(float(v), 4) for v in row] for row in sub.values],
         "alerts": alerts,
     }
 
@@ -1590,9 +1549,7 @@ _dist = ROOT / "frontend" / "dist"
 # 逐个挂页面目录，而不是把静态根整体指向 dist：后者会让改了 public/css|js
 # 必须重新 npm run build 才可见，丢掉开发热更（dist 里那几份只是 public 的拷贝）。
 _shared = {"api", "css", "js", "vendor"}
-_page_dirs = (
-    [p for p in sorted(_dist.iterdir()) if p.is_dir()] if _dist.is_dir() else []
-)
+_page_dirs = [p for p in sorted(_dist.iterdir()) if p.is_dir()] if _dist.is_dir() else []
 for _p in _page_dirs:
     if _p.name in _shared:
         continue

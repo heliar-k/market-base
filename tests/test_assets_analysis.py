@@ -40,9 +40,7 @@ class TestHelpers:
         assert _chg(s, 5) is None
 
     def test_price_rows_format(self):
-        df = pd.DataFrame(
-            {"SPX": [100.0, 101.0]}, index=pd.date_range("2026-08-01", periods=2)
-        )
+        df = pd.DataFrame({"SPX": [100.0, 101.0]}, index=pd.date_range("2026-08-01", periods=2))
         rows = _price_rows(df, [("SPX", "标普500")])
         assert rows[0]["symbol"] == "SPX"
         assert rows[0]["name"] == "标普500"
@@ -289,9 +287,7 @@ class TestOptionsNarrative:
         n = _options_narrative(self._sym())
         assert n["gamma"]["title"] == "正 Gamma：波动更容易被压制"
         assert "上方" in n["gamma"]["text"]
-        assert (
-            "Net GEX（全合约合计）-0.75B" in n["gamma"]["text"]
-        )  # 保留 2 位小数，非 -1B
+        assert "Net GEX（全合约合计）-0.75B" in n["gamma"]["text"]  # 保留 2 位小数，非 -1B
         assert n["range"]["invalid"].endswith("负 Gamma 框架")
         assert len(n["levels"]) == 3
 
@@ -345,9 +341,7 @@ class TestAnalystBoard:
             "src.assets_analysis._latest_targets",
             lambda: pd.read_csv(targets, index_col="date", parse_dates=["date"]),
         )
-        monkeypatch.setattr(
-            "src.assets_analysis._read", lambda _p, **_kw: pd.read_csv(comp)
-        )
+        monkeypatch.setattr("src.assets_analysis._read", lambda _p, **_kw: pd.read_csv(comp))
         out = analyst_board()
         assert out["rows"] == 20
         assert out["coverage_pct"] == 100.0
@@ -385,14 +379,10 @@ class TestNdxRadar:
             }
         ).to_csv(comp, index=False)
 
-        monkeypatch.setattr(
-            "src.assets_analysis._read", lambda _p, **_kw: pd.read_csv(comp)
-        )
+        monkeypatch.setattr("src.assets_analysis._read", lambda _p, **_kw: pd.read_csv(comp))
         monkeypatch.setattr(
             "src.assets_analysis._csv",
-            lambda _p, **_kw: pd.read_csv(
-                prices, index_col="date", parse_dates=["date"]
-            ),
+            lambda _p, **_kw: pd.read_csv(prices, index_col="date", parse_dates=["date"]),
         )
         monkeypatch.setattr("src.assets_analysis.asset_prices", lambda: pd.DataFrame())
         out = ndx_radar()
@@ -446,9 +436,7 @@ class TestCryptoLiquidity:
         end = days[-1]
         walcl = pd.Series(walcl_before, index=days)  # 百万美元
         walcl[walcl.index > end - pd.Timedelta(days=step_days)] = walcl_recent
-        liq = pd.DataFrame(
-            {"WALCL": walcl, "RRPONTSYD": 0.0, "WTREGEN": 0.0}, index=days
-        )
+        liq = pd.DataFrame({"WALCL": walcl, "RRPONTSYD": 0.0, "WTREGEN": 0.0}, index=days)
         # BTC 日频（含周末）：30 日历日内跳变 btc_jump_pct%
         cal = pd.date_range(days[0], end)
         btc = pd.Series(100.0, index=cal)
@@ -514,12 +502,8 @@ class TestCryptoRatio:
         px = pd.DataFrame({"BTC": ratio * 100.0, "ETH": 100.0}, index=idx)
         monkeypatch.setattr("src.assets_analysis.asset_prices", lambda: px)
         # 流动性块读空 CSV 直接跳过，不干扰价比断言
-        monkeypatch.setattr(
-            "src.assets_analysis._csv", lambda _p, **_kw: pd.DataFrame()
-        )
-        monkeypatch.setattr(
-            "src.assets_analysis._funding_diff_series", lambda: funding or []
-        )
+        monkeypatch.setattr("src.assets_analysis._csv", lambda _p, **_kw: pd.DataFrame())
+        monkeypatch.setattr("src.assets_analysis._funding_diff_series", lambda: funding or [])
         # 交叉验证层读真实快照/契约 CSV，这里整体打桩保证用例与仓库数据解耦
         monkeypatch.setattr("src.assets_analysis._ratio_cross", lambda *a, **k: {})
         return ratio
@@ -584,9 +568,7 @@ class TestRatioCross:
         (d / "20260926.json").write_text(json.dumps({"options_BTC": {"pcr": 0.5}}))
         monkeypatch.setattr("src.assets_analysis.ROOT", tmp_path)
         # 隔离不相关源（_pm_implied 走 polymarket_analysis 自己的 ROOT，不吃 tmp_path）
-        monkeypatch.setattr(
-            "src.assets_analysis._pm_implied", lambda *a, **k: {"available": False}
-        )
+        monkeypatch.setattr("src.assets_analysis._pm_implied", lambda *a, **k: {"available": False})
         cross = _ratio_cross(self._px()[0], self._px()[1], None)
         pcr = cross["pcr"]
         assert pcr["available"] and pcr["date"] == "2026-09-28"
@@ -602,9 +584,7 @@ class TestRatioCross:
                 json.dumps({"options_BTC": {"pcr": bpcr}, "options_ETH": {"pcr": epcr}})
             )
         monkeypatch.setattr("src.assets_analysis.ROOT", tmp_path)
-        monkeypatch.setattr(
-            "src.assets_analysis._pm_implied", lambda *a, **k: {"available": False}
-        )
+        monkeypatch.setattr("src.assets_analysis._pm_implied", lambda *a, **k: {"available": False})
         cross = _ratio_cross(self._px()[0], self._px()[1], None)
         assert cross["pcr"]["diff_chg_7d"] == pytest.approx(0.12)
         assert "保护需求相对上升" in cross["pcr"]["verdict"]
@@ -680,9 +660,7 @@ class TestRatioCross:
         assert "外溢确认" in out["verdict"]
 
     def test_nl_beta_unavailable(self, monkeypatch):
-        monkeypatch.setattr(
-            "src.assets_analysis._csv", lambda _p, **_kw: pd.DataFrame()
-        )
+        monkeypatch.setattr("src.assets_analysis._csv", lambda _p, **_kw: pd.DataFrame())
         assert _ratio_nl_beta(self._px()[1])["available"] is False
 
     # ── C(3) Polymarket 隐含涨幅比 ──
@@ -779,9 +757,7 @@ class TestRatioCross:
         assert "扩散" in out["verdict"]
 
     def test_btcd_contract_missing(self, monkeypatch):
-        monkeypatch.setattr(
-            "src.assets_analysis._csv", lambda _p, **_kw: pd.DataFrame()
-        )
+        monkeypatch.setattr("src.assets_analysis._csv", lambda _p, **_kw: pd.DataFrame())
         assert _btcd_block()["available"] is False
 
     # ── C(2) ETH/BTC ETF 流量比（契约驱动）──
@@ -796,9 +772,7 @@ class TestRatioCross:
             "etf_flows_eth/etf_flows_eth.csv": self._flow_df([100.0] * 5),
             "etf_flows/etf_flows.csv": self._flow_df([50.0] * 5),
         }
-        monkeypatch.setattr(
-            "src.assets_analysis._csv", lambda p, **_kw: dfs.get(p, pd.DataFrame())
-        )
+        monkeypatch.setattr("src.assets_analysis._csv", lambda p, **_kw: dfs.get(p, pd.DataFrame()))
         out = _etf_flow_ratio()
         assert out["available"]
         assert out["ratio"] == pytest.approx(2.0)
@@ -807,9 +781,7 @@ class TestRatioCross:
 
     def test_etf_flow_eth_leg_missing(self, monkeypatch):
         dfs = {"etf_flows/etf_flows.csv": self._flow_df([50.0] * 5)}
-        monkeypatch.setattr(
-            "src.assets_analysis._csv", lambda p, **_kw: dfs.get(p, pd.DataFrame())
-        )
+        monkeypatch.setattr("src.assets_analysis._csv", lambda p, **_kw: dfs.get(p, pd.DataFrame()))
         assert _etf_flow_ratio()["available"] is False
 
     # ── 综合判定 + 集成（空数据降级不崩）──
@@ -822,9 +794,7 @@ class TestRatioCross:
             "_btcd_block",
             "_etf_flow_ratio",
         ):
-            monkeypatch.setattr(
-                f"src.assets_analysis.{fn}", lambda *a, **k: {"available": False}
-            )
+            monkeypatch.setattr(f"src.assets_analysis.{fn}", lambda *a, **k: {"available": False})
         monkeypatch.setattr(
             "src.assets_analysis._pcr_diff_series",
             lambda: [
@@ -845,9 +815,7 @@ class TestRatioCross:
             "_btcd_block",
             "_etf_flow_ratio",
         ):
-            monkeypatch.setattr(
-                f"src.assets_analysis.{fn}", lambda *a, **k: {"available": False}
-            )
+            monkeypatch.setattr(f"src.assets_analysis.{fn}", lambda *a, **k: {"available": False})
         monkeypatch.setattr("src.assets_analysis._pcr_diff_series", lambda: [])
         cross = _ratio_cross(self._px()[0], self._px()[1], None)
         assert cross["summary"] == ""
@@ -855,9 +823,7 @@ class TestRatioCross:
     def test_crypto_integration_cross_block(self, monkeypatch):
         p, _ = self._px()
         monkeypatch.setattr("src.assets_analysis.asset_prices", lambda: p)
-        monkeypatch.setattr(
-            "src.assets_analysis._csv", lambda _p, **_kw: pd.DataFrame()
-        )
+        monkeypatch.setattr("src.assets_analysis._csv", lambda _p, **_kw: pd.DataFrame())
         monkeypatch.setattr("src.assets_analysis._funding_diff_series", lambda: [])
         monkeypatch.setattr(
             "src.assets_analysis._pcr_diff_series",
@@ -877,9 +843,7 @@ class TestRatioCross:
             },
         )
         for fn in ("_ratio_nl_beta", "_pm_implied", "_etf_flow_ratio"):
-            monkeypatch.setattr(
-                f"src.assets_analysis.{fn}", lambda *a, **k: {"available": False}
-            )
+            monkeypatch.setattr(f"src.assets_analysis.{fn}", lambda *a, **k: {"available": False})
         r = crypto()["ratio"]
         assert r["cross"]["pcr"]["available"]
         assert "BTCD 下行（扩散确认）" in r["cross"]["summary"]
@@ -893,8 +857,7 @@ def test_ndx_radar_skips_trailing_empty_row(monkeypatch, tmp_path):
     d.mkdir(parents=True)
     cols = [f"T{i:02d}" for i in range(10)]
     (d / "ndx_components.csv").write_text(
-        "ticker,company,category\n"
-        + "".join(f"{c},C{i},Tech\n" for i, c in enumerate(cols))
+        "ticker,company,category\n" + "".join(f"{c},C{i},Tech\n" for i, c in enumerate(cols))
     )
     idx = pd.bdate_range("2026-06-01", periods=71)
     px = pd.DataFrame({c: [100.0 + i for i in range(71)] for c in cols}, index=idx)
@@ -905,6 +868,4 @@ def test_ndx_radar_skips_trailing_empty_row(monkeypatch, tmp_path):
     r = ndx_radar()
     assert r["rows"] == 10  # 修复前：末行全 NaN → has=[] → rows=0
     assert r["date"] == str(idx[-2].date())
-    assert r["table"][0]["chg1"] == round(
-        (169.0 / 168.0 - 1) * 100, 2
-    )  # 末两有效值 169→168
+    assert r["table"][0]["chg1"] == round((169.0 / 168.0 - 1) * 100, 2)  # 末两有效值 169→168

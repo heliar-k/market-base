@@ -24,9 +24,7 @@ from .barchart_client import core_get, to_float
 logger = logging.getLogger(__name__)
 
 _REFERER = "https://www.barchart.com/stocks/indices/volatility"
-_FIELDS = (
-    "symbol,lastPrice,percentChange,percentChange5d,percentChange1m,percentChange1y"
-)
+_FIELDS = "symbol,lastPrice,percentChange,percentChange5d,percentChange1m,percentChange1y"
 
 # Barchart symbol → 本仓库列名（$ 前缀去掉即同）
 _CHG_COLS = {

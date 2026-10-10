@@ -306,9 +306,7 @@ class MainScreen(Container):
         # 侧栏防抖：取消上一次未触发的，重新计时
         if self._debounce_timer is not None:
             self._debounce_timer.stop()
-        self._debounce_timer = self.set_timer(
-            _DEBOUNCE_SECONDS, self._refresh_diag_debounced
-        )
+        self._debounce_timer = self.set_timer(_DEBOUNCE_SECONDS, self._refresh_diag_debounced)
 
     def _refresh_diag_debounced(self) -> None:
         """防抖到期：用 cursor 日期截断 df 调 analyze 刷新侧栏。"""

@@ -46,9 +46,7 @@ def _mock_yahoo(
 
     def fake_get(url, *a, **kw):
         payload = (
-            _payload(fut_dates, fut_closes)
-            if "BTC=F" in url
-            else _payload(spot_dates, spot_closes)
+            _payload(fut_dates, fut_closes) if "BTC=F" in url else _payload(spot_dates, spot_closes)
         )
         return _FakeResp(payload)
 

@@ -11,15 +11,11 @@ import numpy as np
 import pandas as pd
 
 BASE = str(_pl.Path(__file__).resolve().parents[2])
-LAB = pd.read_csv(
-    f"{BASE}/data/fred/labor/labor.csv", index_col="date", parse_dates=True
-)["UNRATE"].dropna()
-VOL = pd.read_csv(
-    f"{BASE}/data/cboe/volatility.csv", index_col="date", parse_dates=True
-)
-ASSET = pd.read_csv(
-    f"{BASE}/data/yfinance/asset_prices.csv", index_col="date", parse_dates=True
-)
+LAB = pd.read_csv(f"{BASE}/data/fred/labor/labor.csv", index_col="date", parse_dates=True)[
+    "UNRATE"
+].dropna()
+VOL = pd.read_csv(f"{BASE}/data/cboe/volatility.csv", index_col="date", parse_dates=True)
+ASSET = pd.read_csv(f"{BASE}/data/yfinance/asset_prices.csv", index_col="date", parse_dates=True)
 
 
 def merge_runs(pos, gap):
@@ -59,9 +55,7 @@ for label, sh in [("min窗口含当月(FRED口径)", True), ("min窗口不含当
             "peak12": round(u.iloc[p : p + 13].max() - u.iloc[p], 2),
         }
         for h in (3, 6, 12):
-            rec[f"d{h}"] = (
-                round(u.iloc[p + h] - u.iloc[p], 2) if p + h < len(u) else np.nan
-            )
+            rec[f"d{h}"] = round(u.iloc[p + h] - u.iloc[p], 2) if p + h < len(u) else np.nan
         rows.append(rec)
     d = pd.DataFrame(rows)
     print(
@@ -92,9 +86,7 @@ ups = {
     for h in (3, 6, 12)
 }
 print(f"剔除 2020-04 后 episodes={len(ex)}  上行计数 {ups}")
-print(
-    f"UNRATE 样本 {u.index[0].date()} – {u.index[-1].date()}（{len(u)} 月）  最新 {u.iloc[-1]}"
-)
+print(f"UNRATE 样本 {u.index[0].date()} – {u.index[-1].date()}（{len(u)} 月）  最新 {u.iloc[-1]}")
 
 # ---------------- 断言 2 ----------------
 print("=" * 70)
@@ -158,9 +150,7 @@ for name, mask in sigs.items():
 fwd20 = rev.rolling(20, min_periods=1).max().iloc[::-1].shift(-1)
 g20 = fwd20 / vix - 1
 for th in (0.2, 0.3):
-    print(
-        f"全样本基础率 20日 ≥{int(th * 100)}%: {100 * (g20.dropna() >= th).mean():.1f}%"
-    )
+    print(f"全样本基础率 20日 ≥{int(th * 100)}%: {100 * (g20.dropna() >= th).mean():.1f}%")
 
 # ---------------- 断言 3 ----------------
 print("=" * 70)

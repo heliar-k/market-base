@@ -56,9 +56,7 @@ def test_compute_basic_accumulation():
     assert df.loc["2026-07-20", "BILLS"] == pytest.approx(3000.0)
     # MARKETABLE：锚 10000 + 累计净发行（bill 200 + note 300 = 500）
     assert df.loc["2026-07-20", "MARKETABLE"] == pytest.approx(10500.0)
-    assert df.loc["2026-07-20", "BILL_SHARE"] == pytest.approx(
-        3000 / 10500 * 100, abs=0.01
-    )  # noqa: E501
+    assert df.loc["2026-07-20", "BILL_SHARE"] == pytest.approx(3000 / 10500 * 100, abs=0.01)  # noqa: E501
 
 
 def test_preanchor_issue_maturity_is_deducted():

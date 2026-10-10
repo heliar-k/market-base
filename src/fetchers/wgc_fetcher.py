@@ -92,14 +92,10 @@ def export_cookies() -> str:
                     str(PROFILE_DIR), headless=True, channel="msedge"
                 )
             except Exception:
-                ctx = p.chromium.launch_persistent_context(
-                    str(PROFILE_DIR), headless=True
-                )
+                ctx = p.chromium.launch_persistent_context(str(PROFILE_DIR), headless=True)
             cookies = ctx.cookies(["https://www.gold.org", "https://user.gold.org"])
             ctx.close()
-        hdr = "; ".join(
-            f"{c['name']}={c['value']}" for c in cookies if c["name"] in auth_names
-        )
+        hdr = "; ".join(f"{c['name']}={c['value']}" for c in cookies if c["name"] in auth_names)
     if not hdr:
         raise SessionExpiredError("profile 里没有 auth cookie，重新登录")
     return hdr
@@ -189,14 +185,10 @@ def _session_cookie_header() -> str | None:
                     str(PROFILE_DIR), headless=True, channel="msedge"
                 )
             except Exception:
-                ctx = p.chromium.launch_persistent_context(
-                    str(PROFILE_DIR), headless=True
-                )
+                ctx = p.chromium.launch_persistent_context(str(PROFILE_DIR), headless=True)
             cookies = ctx.cookies(["https://www.gold.org", "https://user.gold.org"])
             ctx.close()
-        hdr = "; ".join(
-            f"{c['name']}={c['value']}" for c in cookies if c["name"] in auth_names
-        )
+        hdr = "; ".join(f"{c['name']}={c['value']}" for c in cookies if c["name"] in auth_names)
         return hdr or None
     except Exception as e:  # noqa: BLE001 —— profile 损坏时降级到无会话（会拿 DU1 报错）
         logger.warning("读本地 profile 会话失败：%s", e)
@@ -227,14 +219,11 @@ def download_xlsx(out_path: Path | None = None) -> Path:
         raise SessionExpiredError(
             "无 WGC 会话：Actions 配置 WGC_COOKIES secret，或本地跑 ./bin/wgc_login"
         )
-    resp = requests.get(
-        url, timeout=180, headers={"User-Agent": UA, "Cookie": cookie_hdr}
-    )
+    resp = requests.get(url, timeout=180, headers={"User-Agent": UA, "Cookie": cookie_hdr})
     body = resp.content
     if resp.status_code == 403 or b"DU1" in body[:5000]:
         raise SessionExpiredError(
-            "WGC 会话过期（下载返回 403/DU1）——重新导出 WGC_COOKIES secret"
-            "或本地跑 ./bin/wgc_login"
+            "WGC 会话过期（下载返回 403/DU1）——重新导出 WGC_COOKIES secret或本地跑 ./bin/wgc_login"
         )
     if resp.status_code != 200 or not body.startswith(b"PK"):
         raise RuntimeError(f"下载异常：HTTP {resp.status_code}，{len(body)} bytes")
@@ -260,9 +249,7 @@ def parse_etf_flows(xlsx_path: Path) -> pd.DataFrame:
     """
     df = pd.read_excel(xlsx_path, sheet_name="Fund flows by month", header=None)
     if df.shape[0] < 7 or df.shape[1] < 6:
-        raise RuntimeError(
-            "Fund flows by month sheet 结构异常（行列数不足，文件可能改版）"
-        )
+        raise RuntimeError("Fund flows by month sheet 结构异常（行列数不足，文件可能改版）")
     region_row = df.iloc[3]
     # 基金列 → 区域映射（第 6 列起）；前 5 列是日期/金价/全球合计，跳过
     col_region: dict[int, str] = {}
@@ -302,13 +289,9 @@ def parse_holdings(xlsx_path: Path) -> pd.DataFrame:
     """
     df = pd.read_excel(xlsx_path, sheet_name="Holdings by month", header=None)
     if df.shape[0] < 8 or df.shape[1] < 6:
-        raise RuntimeError(
-            "Holdings by month sheet 结构异常（行列数不足，文件可能改版）"
-        )
+        raise RuntimeError("Holdings by month sheet 结构异常（行列数不足，文件可能改版）")
     tickers = df.iloc[0]
-    gld_col = next(
-        (j for j in range(5, df.shape[1]) if "gld us" in str(tickers.iloc[j])), None
-    )
+    gld_col = next((j for j in range(5, df.shape[1]) if "gld us" in str(tickers.iloc[j])), None)
     if gld_col is None:
         raise RuntimeError("Holdings by month 未找到 GLD 列（文件结构可能改版）")
     recs: list[dict] = []
@@ -334,9 +317,7 @@ def parse_fund_snapshot(xlsx_path: Path) -> dict:
     """
     df = pd.read_excel(xlsx_path, sheet_name="All flows by fund", header=None)
     if df.shape[0] < 5 or df.shape[1] < 11:
-        raise RuntimeError(
-            "All flows by fund sheet 结构异常（行列数不足，文件可能改版）"
-        )
+        raise RuntimeError("All flows by fund sheet 结构异常（行列数不足，文件可能改版）")
     as_of = next(
         (
             "-".join(reversed(str(v).split("As Of Date")[-1].strip().split("/")))

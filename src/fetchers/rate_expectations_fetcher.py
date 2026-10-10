@@ -68,9 +68,7 @@ def _read_zq_close(
     label = _zq_label(meeting_year, meeting_month)
     result = _pick_fresher(
         _read_zq_last(root / "data" / "commodities" / "ZQ" / f"{label}.csv"),
-        _read_zq_last(
-            root / "data" / "barchart" / "commodities" / "ZQ" / f"{label}.csv"
-        ),
+        _read_zq_last(root / "data" / "barchart" / "commodities" / "ZQ" / f"{label}.csv"),
     )
     if result is None:
         logger.warning(f"ZQ {meeting_year}-{meeting_month:02d}: 两源均无本地数据")
@@ -135,9 +133,7 @@ def _range_midpoint(lo: float, hi: float) -> float:
     return (lo + hi) / 2
 
 
-def _calc_probabilities(
-    post_rate: float, ranges: list[tuple[float, float]]
-) -> dict[str, float]:
+def _calc_probabilities(post_rate: float, ranges: list[tuple[float, float]]) -> dict[str, float]:
     """将 post-meeting 隐含利率分配到多个 25bp 目标区间的概率。
 
     相邻两个区间 [L₀,U₀] [L₁,U₁] 的中点为 m₀ m₁。
@@ -229,8 +225,7 @@ def fetch_rate_expectations() -> tuple[pd.DataFrame, pd.DataFrame]:
             logger.info(f"  {contract}: 会议已结束（结算 {as_of}），跳过")
             continue
         logger.info(
-            f"  {contract}: settle={settle:.4f} (as of {as_of})"
-            f" → implied={100 - settle:.4f}%"
+            f"  {contract}: settle={settle:.4f} (as of {as_of}) → implied={100 - settle:.4f}%"
         )
 
         implied = round(100.0 - settle, 4)
@@ -245,9 +240,7 @@ def fetch_rate_expectations() -> tuple[pd.DataFrame, pd.DataFrame]:
         if 0 < days_after < 10:
             ny, nm = _next_month(meeting.year, meeting.month)
             nxt = _read_zq_close(ny, nm)
-            if _use_next_month_contract(
-                days_after, meeting.year, meeting.month, nxt is not None
-            ):
+            if _use_next_month_contract(days_after, meeting.year, meeting.month, nxt is not None):
                 price_settle, price_as_of = nxt
                 price_implied = round(100.0 - nxt[0], 4)
                 contract_used = _zq_label(ny, nm)
@@ -278,18 +271,14 @@ def fetch_rate_expectations() -> tuple[pd.DataFrame, pd.DataFrame]:
 
         rows.append(
             {
-                "meeting_date": (
-                    f"{meeting.year}-{meeting.month:02d}-{meeting.end_day:02d}"
-                ),
+                "meeting_date": (f"{meeting.year}-{meeting.month:02d}-{meeting.end_day:02d}"),
                 "contract": contract,
                 "contract_used": contract_used,
                 "settlement": price_settle,
                 "implied_rate": price_implied,
                 "post_meeting_rate": post_rate,
                 "zq_as_of": price_as_of,
-                "prob_cut": sum(
-                    v for k, v in probs.items() if float(k.split("-")[0]) < current_lo
-                ),
+                "prob_cut": sum(v for k, v in probs.items() if float(k.split("-")[0]) < current_lo),
                 "prob_hold": probs.get(f"{current_lo:.2f}-{current_hi:.2f}", 0.0),
                 "prob_hike": sum(
                     v for k, v in probs.items() if float(k.split("-")[1]) > current_hi
@@ -336,9 +325,7 @@ if __name__ == "__main__":
     fomc_df, zq_df = fetch_rate_expectations()
 
     if fomc_df.empty:
-        print(
-            "无数据：未读到 ZQ 本地数据，请先运行 ./bin/fetch_commodities --symbols ZQ"
-        )
+        print("无数据：未读到 ZQ 本地数据，请先运行 ./bin/fetch_commodities --symbols ZQ")
         raise SystemExit(1)
 
     out_dir = ROOT / "data" / "rate_expectations"

@@ -82,9 +82,7 @@ def test_get_falls_back_to_proxy(monkeypatch):
 
     calls = []
 
-    def fake_request(
-        method, url, proxies=None, timeout=30, allow_redirects=False, stream=True
-    ):
+    def fake_request(method, url, proxies=None, timeout=30, allow_redirects=False, stream=True):
         calls.append(proxies)
         if proxies is None:
             raise finra_fetcher.requests.RequestException("direct blocked")
@@ -115,9 +113,7 @@ def test_get_direct_307_marks_blocked(monkeypatch):
 
     calls = []
 
-    def fake_request(
-        method, url, proxies=None, timeout=30, allow_redirects=False, stream=True
-    ):
+    def fake_request(method, url, proxies=None, timeout=30, allow_redirects=False, stream=True):
         calls.append(proxies)
         if proxies is None:
             return _Resp(307)

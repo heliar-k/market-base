@@ -38,9 +38,7 @@ SRF_START = "2021-07-01"  # SRF 2021-07-29 上线，往前多拉几天做缓冲
 INCREMENTAL_DAYS = 5  # 覆盖一整周的工作日
 
 
-SRF_METHOD_SWITCH = (
-    "2025-12-10"  # 此日（含）前 SRF 为 Multiple Price 拍卖；之后为 Full Allotment
-)
+SRF_METHOD_SWITCH = "2025-12-10"  # 此日（含）前 SRF 为 Multiple Price 拍卖；之后为 Full Allotment
 
 
 def fetch_srf_usage(start: str, end: str) -> pd.DataFrame:
@@ -48,9 +46,7 @@ def fetch_srf_usage(start: str, end: str) -> pd.DataFrame:
 
     返回 DataFrame: index=操作日期(ISO str)，列=[SRF_USAGE]；无 SRF 操作时为空。
     """
-    resp = requests.get(
-        API_URL, params={"startDate": start, "endDate": end}, timeout=30
-    )
+    resp = requests.get(API_URL, params={"startDate": start, "endDate": end}, timeout=30)
     resp.raise_for_status()
     ops = resp.json().get("repo", {}).get("operations", [])
     by_day: dict[str, float] = {}

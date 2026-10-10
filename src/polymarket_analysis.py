@@ -80,8 +80,7 @@ def series_for(ids: set[str]) -> dict[str, list[dict]]:
         val = h[cols].bfill(axis=1).iloc[:, 0]
         s = pd.DataFrame({"date": h["date"], "value": val}).dropna(subset=["value"])
         out[base] = [
-            {"date": d, "value": round(float(v), 4)}
-            for d, v in zip(s["date"], s["value"])
+            {"date": d, "value": round(float(v), 4)} for d, v in zip(s["date"], s["value"])
         ]
     return out
 
@@ -92,9 +91,7 @@ def chg7d(points: list[dict] | None) -> float | None:
         return None
     last = points[-1]
     t0 = datetime.strptime(last["date"], "%Y-%m-%d") - timedelta(days=7)
-    ref = min(
-        points[:-1], key=lambda p: abs(datetime.strptime(p["date"], "%Y-%m-%d") - t0)
-    )
+    ref = min(points[:-1], key=lambda p: abs(datetime.strptime(p["date"], "%Y-%m-%d") - t0))
     return round((last["value"] - ref["value"]) * 100, 1)
 
 
@@ -313,8 +310,7 @@ def aggregate_clusters(
             for p in hist.get(m["id"], []):
                 by_date.setdefault(p["date"], []).append(p["value"])
         series = [
-            {"date": d, "value": round(sum(v) / len(v), 4)}
-            for d, v in sorted(by_date.items())
+            {"date": d, "value": round(sum(v) / len(v), 4)} for d, v in sorted(by_date.items())
         ]
         chgs = [m["chg7d"] for m in ms if m["chg7d"] is not None]
         miss = g["name"] == misc_name
@@ -397,9 +393,7 @@ def geo_overview() -> dict | None:
     # 主题内按中文归类聚合（均值概率 + 逐日均值线，见 aggregate_clusters）
     unmatched: list[dict] = []
     for t in topics:
-        t["clusters"] = aggregate_clusters(
-            t["events"], hist, MISC_CLUSTER[1], t["name"], unmatched
-        )
+        t["clusters"] = aggregate_clusters(t["events"], hist, MISC_CLUSTER[1], t["name"], unmatched)
         t["headline"] = t["clusters"][0] if t["clusters"] else None
 
     total_vol = sum(t["volume24hr"] for t in topics)
@@ -530,9 +524,7 @@ def crossing_series(
         if m.get("strike") is None:
             continue
         for pt in hist.get(m["id"], []):
-            by_date.setdefault(pt["date"], {}).setdefault(m["strike"], []).append(
-                pt["value"]
-            )
+            by_date.setdefault(pt["date"], {}).setdefault(m["strike"], []).append(pt["value"])
     out: list[dict] = []
     for d in sorted(by_date):
         rung = {s: sum(v) / len(v) for s, v in by_date[d].items()}
@@ -568,8 +560,7 @@ def crypto_hit_overview() -> dict | None:
         ladder = [
             e
             for e in evs
-            if "hit-price" in (e.get("series") or "")
-            or "multi-strikes" in (e.get("series") or "")
+            if "hit-price" in (e.get("series") or "") or "multi-strikes" in (e.get("series") or "")
         ] or evs
         ids = {str(m["id"]) for e in ladder for m in e.get("markets") or []}
         hist = series_for(ids)
@@ -626,9 +617,7 @@ def crypto_hit_overview() -> dict | None:
         )
         unmatched: list[dict] = []
         for t in topics:
-            t["clusters"] = aggregate_clusters(
-                t["events"], hist, HIT_MISC, t["name"], unmatched
-            )
+            t["clusters"] = aggregate_clusters(t["events"], hist, HIT_MISC, t["name"], unmatched)
             # 归类内按中文归类分桶，供「中位触及档」与「隐含价位日线」复用
             by_cluster: dict[str, list[dict]] = {}
             for e in t["events"]:
@@ -639,19 +628,11 @@ def crypto_hit_overview() -> dict | None:
                 # 中位触及档：归类内概率最接近 50% 的那一档价位，把均值概率翻译回
                 # 具体价格。离 0.5 太远（整条阶梯都 <25% 或 >75%）时市场根本没有
                 # 对赌档，宁可不显示也不给个假锚点。
-                cand = [
-                    m
-                    for m in ms
-                    if m["strike"] is not None and abs(m["prob"] - 0.5) <= 0.25
-                ]
+                cand = [m for m in ms if m["strike"] is not None and abs(m["prob"] - 0.5) <= 0.25]
                 best = min(cand, key=lambda m: abs(m["prob"] - 0.5), default=None)
-                c["pivot"] = (
-                    {"strike": best["strike"], "prob": best["prob"]} if best else None
-                )
+                c["pivot"] = {"strike": best["strike"], "prob": best["prob"]} if best else None
                 # 隐含价位日线：该归类概率过 50% 的价位随时间怎么漂
-                c["level_series"] = crossing_series(
-                    ms, hist, rising=c["name"].startswith("下行")
-                )
+                c["level_series"] = crossing_series(ms, hist, rising=c["name"].startswith("下行"))
             t["headline"] = t["clusters"][0] if t["clusters"] else None
 
         total_vol = sum(t["volume24hr"] for t in topics)
@@ -666,11 +647,7 @@ def crypto_hit_overview() -> dict | None:
             head = t["headline"]
             focus = (
                 f"动能最大归类「{head['name']}」均概率 {head['prob'] * 100:.0f}%"
-                + (
-                    f"（7日 {head['chg7d']:+.1f}pp）"
-                    if head and head["chg7d"] is not None
-                    else ""
-                )
+                + (f"（7日 {head['chg7d']:+.1f}pp）" if head and head["chg7d"] is not None else "")
                 if head
                 else "暂无活跃市场"
             )

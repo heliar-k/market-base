@@ -190,9 +190,7 @@ def fetch_all_commodities(
     inter_commodity_delay = port_delay(connected_port)
 
     for symbol, (name, exchange) in targets.items():
-        fetch_commodity_contracts(
-            ib, symbol, name, exchange, front_month_only, connected_port
-        )
+        fetch_commodity_contracts(ib, symbol, name, exchange, front_month_only, connected_port)
         time.sleep(inter_commodity_delay)
 
     ib.disconnect()

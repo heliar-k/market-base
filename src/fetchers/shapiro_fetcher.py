@@ -21,21 +21,15 @@ logger = logging.getLogger(__name__)
 # 4 个 chart CSV：headline/core × monthly(年化月度)/yoy(同比)
 SHAPIRO_URLS = {
     "HEADLINE_MOM": (
-        "https://www.frbsf.org/wp-content/uploads/"
-        "supply-demand-pce-headline-monthly-chart-1.csv"
+        "https://www.frbsf.org/wp-content/uploads/supply-demand-pce-headline-monthly-chart-1.csv"
     ),
     "CORE_MOM": (
-        "https://www.frbsf.org/wp-content/uploads/"
-        "supply-demand-pce-core-monthly-chart-2.csv"
+        "https://www.frbsf.org/wp-content/uploads/supply-demand-pce-core-monthly-chart-2.csv"
     ),
     "HEADLINE_YOY": (
-        "https://www.frbsf.org/wp-content/uploads/"
-        "supply-demand-pce-headline-yoy-chart-3.csv"
+        "https://www.frbsf.org/wp-content/uploads/supply-demand-pce-headline-yoy-chart-3.csv"
     ),
-    "CORE_YOY": (
-        "https://www.frbsf.org/wp-content/uploads/"
-        "supply-demand-pce-core-yoy-chart-4.csv"
-    ),
+    "CORE_YOY": ("https://www.frbsf.org/wp-content/uploads/supply-demand-pce-core-yoy-chart-4.csv"),
 }
 
 # 源 CSV 列名 → 输出列名（4 个文件结构一致）
@@ -63,9 +57,7 @@ def fetch_shapiro() -> pd.DataFrame:
             df = df[keep].set_index("date")
             df.columns = [f"SHAPIRO_{key}_{c}" for c in df.columns]
             dfs.append(df)
-            logger.info(
-                f"  Shapiro {key}: {len(df)} 条 ({df.index[0]} → {df.index[-1]})"
-            )
+            logger.info(f"  Shapiro {key}: {len(df)} 条 ({df.index[0]} → {df.index[-1]})")
         except Exception as e:
             logger.warning(f"Shapiro {key} 拉取失败，跳过: {e}")
     if not dfs:

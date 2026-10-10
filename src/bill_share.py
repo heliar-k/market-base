@@ -40,9 +40,7 @@ def _net_flows(
     if bills_only:
         auctions = auctions[auctions["security_type"] == "Bill"]
     issued = (
-        auctions[auctions["issue_date"] > anchor_date]
-        .groupby("issue_date")["offering_amt"]
-        .sum()
+        auctions[auctions["issue_date"] > anchor_date].groupby("issue_date")["offering_amt"].sum()
         / 1e6
     )
     matured = (
@@ -77,9 +75,7 @@ def compute_daily_bill_share(
     days = pd.date_range(anchor_date, end or pd.Timestamp.today().normalize())
     out = pd.DataFrame(index=days)
     out["BILLS"] = anchor["BILLS"] + net_bill.reindex(days).fillna(0).cumsum()
-    out["MARKETABLE"] = (
-        anchor["MARKETABLE_TOTAL"] + net.reindex(days).fillna(0).cumsum()
-    )
+    out["MARKETABLE"] = anchor["MARKETABLE_TOTAL"] + net.reindex(days).fillna(0).cumsum()
     out["BILL_SHARE"] = (out["BILLS"] / out["MARKETABLE"] * 100).round(2)
     out.index.name = "date"
     return out

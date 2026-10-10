@@ -101,16 +101,12 @@ def export_api() -> None:
         # FastAPI Query(None) 默认对象不能直接当值用（先例：get_diag）
         records = get_kline(s["name"], as_of=None, interval="1d", days=0)
         records = [r for r in records if r["date"] >= cutoff]
-        records = [
-            {k: v for k, v in r.items() if not k.startswith("CDL_")} for r in records
-        ]
+        records = [{k: v for k, v in r.items() if not k.startswith("CDL_")} for r in records]
         _dump(f"api/kline/{s['name']}", records)
         # 尾部小文件：?days=N 变体（静态托管忽略 query，前端预取价格只用尾部几行）
         for n in (2, 5):
             tail = records[-n:]
-            tail = [
-                {k: v for k, v in r.items() if not k.startswith("CDL_")} for r in tail
-            ]
+            tail = [{k: v for k, v in r.items() if not k.startswith("CDL_")} for r in tail]
             _dump(f"api/kline/{s['name']}_d{n}", tail)
         _safe(f"api/diag/{s['name']}", get_diag, s["name"], as_of=None)
 
@@ -121,9 +117,7 @@ def export_api() -> None:
     merged = load_macro_categories(list(FRED_SERIES))
     all_indicators = [c for c in merged.columns if categories_for(c) is not None]
     correlate = get_macro_correlate(indicators=",".join(all_indicators))
-    cutoff = (pd.Timestamp.now() - pd.DateOffset(years=CORRELATE_YEARS)).strftime(
-        "%Y-%m-%d"
-    )
+    cutoff = (pd.Timestamp.now() - pd.DateOffset(years=CORRELATE_YEARS)).strftime("%Y-%m-%d")
     for info in correlate["indicators"].values():
         info["data"] = [d for d in info["data"] if d["date"] >= cutoff]
     correlate["date_range"]["from"] = cutoff
@@ -216,11 +210,7 @@ def main() -> None:
         shutil.rmtree(SITE / "api")
     print("导出 API JSON → frontend/public/api/（astro build 拷进 dist/）...")
     export_api()
-    total = (
-        sum(f.stat().st_size for f in (SITE / "api").rglob("*") if f.is_file())
-        / 1024
-        / 1024
-    )
+    total = sum(f.stat().st_size for f in (SITE / "api").rglob("*") if f.is_file()) / 1024 / 1024
     print(f"完成：frontend/public/api/ 共 {total:.1f} MB（含未压缩 JSON）")
 
 

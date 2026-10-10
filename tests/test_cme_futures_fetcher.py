@@ -127,9 +127,7 @@ def _fetchable_rows():
 
 
 def test_guard_rejects_garbage():
-    snap = build_snapshot(
-        _fetchable_rows(), __import__("datetime").datetime(2026, 9, 25)
-    )
+    snap = build_snapshot(_fetchable_rows(), __import__("datetime").datetime(2026, 9, 25))
     assert snapshot_plausible(snap, 83000.0) is True
     assert snapshot_plausible(snap, None) is False  # 无锚 → 拒
     zero = {**snap, "total_oi": 0}
@@ -180,9 +178,7 @@ def test_crypto_derivatives_wires_cme_futures(monkeypatch, tmp_path):
     )
     cf = tmp_path / "data" / "cme_futures"
     cf.mkdir(parents=True)
-    snap = build_snapshot(
-        _fetchable_rows(), __import__("datetime").datetime(2026, 9, 25)
-    )
+    snap = build_snapshot(_fetchable_rows(), __import__("datetime").datetime(2026, 9, 25))
     (cf / "20260925.json").write_text(json.dumps(snap), encoding="utf-8")
     snap2 = dict(snap, total_oi=snap["total_oi"] + 100)
     (cf / "20260928.json").write_text(json.dumps(snap2), encoding="utf-8")

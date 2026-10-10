@@ -324,9 +324,7 @@ def _window(series: dict[str, pd.Series], keys: list[str]) -> tuple[str, str] | 
 
 
 def _scenarios(series: dict[str, pd.Series]) -> list[dict]:
-    spx, hy, vix, wti, y10 = (
-        series.get(k) for k in ("SPX", "HY_OAS", "VIX", "WTI", "Y10")
-    )
+    spx, hy, vix, wti, y10 = (series.get(k) for k in ("SPX", "HY_OAS", "VIX", "WTI", "Y10"))
     d_spx, d_hy, d_vix, d_wti, d_y10 = (_dir(x) for x in (spx, hy, vix, wti, y10))
     win = lambda keys: _window(series, keys)  # noqa: E731
 

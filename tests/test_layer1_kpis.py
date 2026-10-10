@@ -94,9 +94,7 @@ def _mk(
         root,
         "data/cot/cot.csv",
         "date,BTC_OI\n"
-        + "".join(
-            f"{dd.date()},{int(1000 + 1000 * p / 100)}\n" for dd, p in zip(w, prices)
-        ),
+        + "".join(f"{dd.date()},{int(1000 + 1000 * p / 100)}\n" for dd, p in zip(w, prices)),
     )
     last = snap_last if snap_last is not None else prices[-1]
     for i in range(2):
@@ -112,12 +110,8 @@ def _mock_net(monkeypatch) -> None:
 
     taker 用降序（OKX 实测最新在前，与生产一致——KPI7 chg 依赖 iloc[0]/iloc[1]）。
     """
-    monkeypatch.setattr(
-        aa, "_okx_funding_history", lambda: [0.0001 * i for i in range(1, 41)]
-    )
-    monkeypatch.setattr(
-        aa, "_okx_taker_history", lambda: [1.09 - 0.01 * i for i in range(10)]
-    )
+    monkeypatch.setattr(aa, "_okx_funding_history", lambda: [0.0001 * i for i in range(1, 41)])
+    monkeypatch.setattr(aa, "_okx_taker_history", lambda: [1.09 - 0.01 * i for i in range(10)])
 
 
 @pytest.fixture
@@ -242,9 +236,7 @@ def test_network_failure_degrades(tmp_path, monkeypatch):
 
 def test_funding_kpi_uses_mocked_history(setup, monkeypatch):
     """funding 历史被 mock → 百分位用当前值在历史里的位置。"""
-    monkeypatch.setattr(
-        aa, "_okx_funding_history", lambda: [0.006 * i for i in range(1, 41)]
-    )
+    monkeypatch.setattr(aa, "_okx_funding_history", lambda: [0.006 * i for i in range(1, 41)])
     by = _by_label(aa._layer1_kpis())
     k = by["永续资金费率 8h"]
     # 当前 0.01%（0.0001×100），历史 0.006%..0.24% 共 40 条 → 仅 1 条 ≤ 0.01 → rank 2.5

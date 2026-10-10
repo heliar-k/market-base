@@ -314,8 +314,7 @@ class TestNarrative:
     def test_missing_data_degrades_to_single_line_with_fix_command(self):
         """数据缺失：单行降级文案 + 修复命令（README 式空状态），不伪造数值。"""
         syms = (
-            "VIX VIXD VXST VXN VXD MOVE OVX GVZ VVIX VEWZ VEEM VXHY VTLT"
-            " VXIB VXAZ VXGO VXAP"
+            "VIX VIXD VXST VXN VXD MOVE OVX GVZ VVIX VEWZ VEEM VXHY VTLT VXIB VXAZ VXGO VXAP"
         ).split()
         empty = [
             {

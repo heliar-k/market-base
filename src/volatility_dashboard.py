@@ -99,9 +99,7 @@ def _round(v: float | None, nd: int = 2) -> float | None:
     return None if v is None or pd.isna(v) else round(float(v), nd)
 
 
-def _indices_table(
-    cboe: pd.DataFrame, yf: pd.DataFrame, bc: pd.DataFrame
-) -> list[dict]:
+def _indices_table(cboe: pd.DataFrame, yf: pd.DataFrame, bc: pd.DataFrame) -> list[dict]:
     """30 指数统一表：最新值 + 1D/5D/1M/1Y 变化（本地优先，Barchart 兜底）。"""
     dfs = {"cboe": cboe, "yf": yf, "barchart": bc}
     rows = []
@@ -115,11 +113,7 @@ def _indices_table(
             "value": _round(latest(s)) if not s.empty else None,
         }
         for key, n in _CHG_N.items():
-            fb = (
-                _round(latest(bc[f"{symbol}_{key}"]))
-                if f"{symbol}_{key}" in bc
-                else None
-            )
+            fb = _round(latest(bc[f"{symbol}_{key}"])) if f"{symbol}_{key}" in bc else None
             # 变化口径：Barchart 官方字段优先（与 timsun 同源同口径），
             # 本地历史自算作兜底（快照缺失/过期时）
             row[key] = fb if fb is not None else _chg(s, n, None)
@@ -142,11 +136,7 @@ def _hero(rows: list[dict]) -> dict:
         for s in _HERO
     ]
     vix, vvix, move, ovx = (by[s]["value"] for s in _HERO)
-    if (
-        vix is not None
-        and vix < 15
-        and (move is None or ovx is None or move > 60 or ovx > 40)
-    ):
+    if vix is not None and vix < 15 and (move is None or ovx is None or move > 60 or ovx > 40):
         verdict = "当前更像结构性波动——高波集中在商品/利率，全面系统性风险未扩散。"
     elif vix is not None and vix >= 25:
         verdict = "权益波动进入警戒区，跨资产波动同步抬升，系统性风险升温。"
@@ -169,10 +159,8 @@ def _signals(rows: list[dict]) -> list[dict]:
         out.append(
             {
                 "title": "尾部保护与现货 VIX 背离",
-                "metric": f"VIX {vix['value']:.2f}, VVIX {vvix['value']:.2f}"
-                f" ({chg(vvix)} 1D)",
-                "text": "VIX 温和但 VVIX 偏高：市场没为日常波动付高价，"
-                "却仍在买波动率跳升风险。",
+                "metric": f"VIX {vix['value']:.2f}, VVIX {vvix['value']:.2f} ({chg(vvix)} 1D)",
+                "text": "VIX 温和但 VVIX 偏高：市场没为日常波动付高价，却仍在买波动率跳升风险。",
                 "advice": "不适合裸卖波动；若做多保护，优先用价差控制 carry。",
             }
         )
@@ -247,9 +235,7 @@ def _risk_matrix(rows: list[dict]) -> list[dict]:
                 "chg_label": f"1D {chg_v:+.2f}%" if chg_v is not None else "1D —",
                 "level_symbol": lvl_sym,
                 "level_value": lvl_v,
-                "level_label": f"{lvl_sym} {lvl_v:.2f}"
-                if lvl_v is not None
-                else f"{lvl_sym} —",
+                "level_label": f"{lvl_sym} {lvl_v:.2f}" if lvl_v is not None else f"{lvl_sym} —",
                 "check": check,
             }
         )
@@ -358,10 +344,7 @@ def _narr_overview(rows: list[dict], st: dict) -> str:
     elif v >= 25:
         concl = f"整体波动率处于{channel}通道，VIX 已上 25，权益市场现恐慌特征。"
     else:
-        concl = (
-            f"整体波动率处于{channel}通道，权益波动处于正常区间，"
-            "风险集中在利率与商品端。"
-        )
+        concl = f"整体波动率处于{channel}通道，权益波动处于正常区间，风险集中在利率与商品端。"
     basis = []
     if all(r["chg1m"] is not None for r in (vix, move, ovx)):
         # 「拉高绝对水平的是利率与商品端、并非股票市场恐慌」——原句判据，只换成变化量口径
@@ -420,9 +403,7 @@ def _narr_source(rows: list[dict]) -> str:
             f"降幅最大 {worst['name']} {worst['chg1m']:.0f}%"
         )
     if ovx["value"] and gvz["value"]:
-        seg = (
-            f"商品端 {_chg_txt(ovx)}" if ovx["chg1m"] is not None else "商品端 OVX 仍高"
-        )
+        seg = f"商品端 {_chg_txt(ovx)}" if ovx["chg1m"] is not None else "商品端 OVX 仍高"
         if gvz["chg1y"] and gvz["chg1y"] > 0:
             seg += f"、黄金 {_chg_txt(gvz, 'chg1y')}"
         basis.append(seg)
@@ -451,26 +432,20 @@ def _narr_term(df: pd.DataFrame, term: dict) -> str:
     if ts[2] is None:
         return _NO_DATA
     levels = (
-        "、".join(
-            f"{lb} VIX {v}"
-            for lb, v in zip(_TERM_CN, ts[:5], strict=False)
-            if v is not None
-        )
+        "、".join(f"{lb} VIX {v}" for lb, v in zip(_TERM_CN, ts[:5], strict=False) if v is not None)
         + (f"、1年 VIX {v1y}" if v1y is not None else "")
         + "。"
     )
     if term["state"] == "contango":
         return _sig(
-            "市场把近期风险定价很低，却为中期不确定性（政策路径、通胀粘性、"
-            "盈利周期）支付高溢价。",
+            "市场把近期风险定价很低，却为中期不确定性（政策路径、通胀粘性、盈利周期）支付高溢价。",
             f"期限结构呈标准 contango（近低远高）：{levels}",
             "若短端跌幅远大于长端使曲线变陡，则近端减压与远端防御形成背离，"
             "对应短期压力释放但中期风险并未同等下降。",
         )
     return _sig(
         "市场正为近期尾部风险支付溢价，期限结构倒挂通常伴随高波动阶段。",
-        f"期限结构呈 backwardation（近高远低）：{levels}，"
-        "常出现在事件冲击或流动性紧张时期。",
+        f"期限结构呈 backwardation（近高远低）：{levels}，常出现在事件冲击或流动性紧张时期。",
     )
 
 
@@ -481,10 +456,7 @@ def _narr_cross(rows: list[dict]) -> str:
     move, vtlx, vxhy = by["MOVE"], by["VTLT"], by["VXHY"]
     if not all(r["value"] for r in (vix, move)):
         return _NO_DATA
-    concl = (
-        "近期股市平静是局部现象：风险集中在能源、贵金属与利率链条，"
-        "不是同涨的系统性信号。"
-    )
+    concl = "近期股市平静是局部现象：风险集中在能源、贵金属与利率链条，不是同涨的系统性信号。"
     basis = []
     if ovx["value"]:
         basis.append(
@@ -548,12 +520,8 @@ def _narr_risk(rows: list[dict], term: dict) -> tuple[str, int]:
     trig = []
     # 1 日 / 9 日 VIX 等水平值归期限结构段，
     # 本段只给「短期无恐慌 / 中期未出清」的分层判断（沿用原 <20 判据，不无条件断言）
-    basis.append(
-        "股票市场短期没有恐慌特征" if vix["value"] < 20 else "股票市场短期已现恐慌特征"
-    )
-    hot = "、".join(
-        _chg_txt(r) for r in (move, ovx) if r["value"] and r["chg1m"] is not None
-    )
+    basis.append("股票市场短期没有恐慌特征" if vix["value"] < 20 else "股票市场短期已现恐慌特征")
+    hot = "、".join(_chg_txt(r) for r in (move, ovx) if r["value"] and r["chg1m"] is not None)
     if hot:
         basis.append(f"但 {hot} 及长端 VIX 仍高，中期风险并未出清")
     if vix["value"] < 20:
@@ -602,17 +570,13 @@ def _narr_trade(rows: list[dict], term: dict, skew: float | None) -> str:
             )
         )
     if move["value"] and move["value"] > 60:
-        basis.append(
-            "债券端 MOVE 处于高位，利率期权定价昂贵，长端债波动确认见顶前不宜单边做空"
-        )
+        basis.append("债券端 MOVE 处于高位，利率期权定价昂贵，长端债波动确认见顶前不宜单边做空")
         trig.append(
             "股债波动背离收敛时，若长端利率波动继续上升，高估值科技股和信用债"
             "可能同时承受波动与估值压力。"
         )
     if skew is not None and skew >= 140:
-        trig.append(
-            f"SKEW {skew:.0f} 偏高、尾部对冲需求旺盛，保护仓位可在波动脉冲前提前布局。"
-        )
+        trig.append(f"SKEW {skew:.0f} 偏高、尾部对冲需求旺盛，保护仓位可在波动脉冲前提前布局。")
     if not (concl or basis or trig):
         return _NO_DATA
     return _sig(
@@ -672,9 +636,7 @@ def _narr_basic(rows: list[dict], term: dict, card: dict) -> list[dict]:
     ]
 
 
-def _narrative(
-    rows: list[dict], st: dict, df: pd.DataFrame, term: dict, card: dict
-) -> list[dict]:
+def _narrative(rows: list[dict], st: dict, df: pd.DataFrame, term: dict, card: dict) -> list[dict]:
     skew = latest(df["SKEW"]) if "SKEW" in df else None
     risk_txt, score = _narr_risk(rows, term)
     return [

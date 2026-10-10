@@ -17,13 +17,9 @@ from urllib.parse import urlparse
 import pandas as pd
 import requests
 
-API_BASE = (
-    "https://api.fiscaldata.treasury.gov/services/api/fiscal_service/v1/accounting/od"
-)
+API_BASE = "https://api.fiscaldata.treasury.gov/services/api/fiscal_service/v1/accounting/od"
 
-API_BASE_DEBT = (
-    "https://api.fiscaldata.treasury.gov/services/api/fiscal_service/v1/debt"
-)
+API_BASE_DEBT = "https://api.fiscaldata.treasury.gov/services/api/fiscal_service/v1/debt"
 
 RESULTS_COLUMNS = [
     "security_type",
@@ -91,9 +87,7 @@ def fetch_auction_results() -> pd.DataFrame:
     TIPS 的 high_yield 是实际利率（比名义低约一个盈亏平衡通胀率），不能与名义券混算，
     故 inflation_index_security / floating_rate 原样保留给下游过滤与标注。
     """
-    rows = _fetch_all_pages(
-        f"{API_BASE}/auctions_query", RESULTS_COLUMNS, "auction_date"
-    )
+    rows = _fetch_all_pages(f"{API_BASE}/auctions_query", RESULTS_COLUMNS, "auction_date")
     if not rows:
         return pd.DataFrame()
 
@@ -119,9 +113,7 @@ def fetch_auction_results() -> pd.DataFrame:
 
 def fetch_upcoming_auctions() -> pd.DataFrame:
     """拉取未来拍卖日历（全量，~93 条）。"""
-    rows = _fetch_all_pages(
-        f"{API_BASE}/upcoming_auctions", UPCOMING_COLUMNS, "auction_date"
-    )
+    rows = _fetch_all_pages(f"{API_BASE}/upcoming_auctions", UPCOMING_COLUMNS, "auction_date")
     if not rows:
         return pd.DataFrame()
 
@@ -139,16 +131,12 @@ def fetch_mspd() -> pd.DataFrame:
     金额口径=debt_held_public_mil_amt（公众持有，剔除政府间持有）；
     TOTAL_DEBT 取 total_mil_amt。源字段缺失时抛 ValueError。
     """
-    rows = _fetch_all_pages(
-        f"{API_BASE_DEBT}/mspd/mspd_table_1", MSPD_COLUMNS, "record_date"
-    )
+    rows = _fetch_all_pages(f"{API_BASE_DEBT}/mspd/mspd_table_1", MSPD_COLUMNS, "record_date")
     if not rows:
         return pd.DataFrame()
 
     df = pd.DataFrame(rows)
-    if not {"record_date", "security_type_desc", "security_class_desc"}.issubset(
-        df.columns
-    ):
+    if not {"record_date", "security_type_desc", "security_class_desc"}.issubset(df.columns):
         raise ValueError(f"MSPD 字段缺失: {list(df.columns)}")
     df["record_date"] = pd.to_datetime(df["record_date"])
 
@@ -157,9 +145,7 @@ def fetch_mspd() -> pd.DataFrame:
     total = pd.to_numeric(total_rows["total_mil_amt"], errors="coerce")
     total.index = total_rows["record_date"]
 
-    df["_type"] = df["security_class_desc"].map(
-        lambda d: _MSPD_TYPE_MAP.get(d or "", "")
-    )
+    df["_type"] = df["security_class_desc"].map(lambda d: _MSPD_TYPE_MAP.get(d or "", ""))
     df = df[(df["security_type_desc"] == "Marketable") & (df["_type"] != "")].copy()
     if df.empty:
         raise ValueError("MSPD 无市场化品种行（security_type_desc/class 值异常）")
@@ -190,9 +176,7 @@ def _fetch_all_pages(url: str, columns: list[str], sort_field: str) -> list[dict
             "sort": f"-{sort_field}",
         }
         # 官方 API 直连：proxies=None 覆盖 .env 的 SOCKS5 代理（同 cfets 模式）
-        resp = requests.get(
-            url, params=params, timeout=60, proxies={"http": None, "https": None}
-        )
+        resp = requests.get(url, params=params, timeout=60, proxies={"http": None, "https": None})
         resp.raise_for_status()
         body = resp.json()
         data = body.get("data", [])

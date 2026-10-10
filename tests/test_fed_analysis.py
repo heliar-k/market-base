@@ -33,10 +33,7 @@ class TestScoreText:
         assert score <= -3
 
     def test_maintain_statement_neutral(self):
-        text = (
-            "The Committee decided to maintain the target range. "
-            "The economy is expanding."
-        )
+        text = "The Committee decided to maintain the target range. The economy is expanding."
         score, _ = _score_text(text)
         assert -1 <= score <= 1
 
@@ -122,8 +119,7 @@ class TestFedAnalysis:
                     "speaker": "Waller",
                     "title": "Governor Waller on the economic outlook",
                     "url": "https://x/waller20260713a.htm",
-                    "body": "I support keeping policy restrictive. "
-                    "Inflation remains elevated.",
+                    "body": "I support keeping policy restrictive. Inflation remains elevated.",
                 },
                 {
                     "id": "cook20260715a",
@@ -192,10 +188,7 @@ class TestPreMeetingIndicator:
     def test_empty_or_no_window_returns_none(self):
         df = pd.DataFrame({"date": ["20250101"], "score": ["1.0"]})
         assert _pre_meeting_indicator(df, today=pd.Timestamp("2026-07-29")) is None
-        assert (
-            _pre_meeting_indicator(pd.DataFrame(), today=pd.Timestamp("2026-07-29"))
-            is None
-        )
+        assert _pre_meeting_indicator(pd.DataFrame(), today=pd.Timestamp("2026-07-29")) is None
 
 
 class TestMarketOdds:
@@ -216,17 +209,13 @@ class TestMarketOdds:
                     "markets": [
                         {
                             "id": "111",
-                            "question": (
-                                "Will there be no change in Fed interest rates?"
-                            ),
+                            "question": ("Will there be no change in Fed interest rates?"),
                             "prob_yes": 0.6,
                             "end_date": "2026-09-16",
                         },
                         {
                             "id": "112",
-                            "question": (
-                                "Will the Fed decrease interest rates by 25 bps?"
-                            ),
+                            "question": ("Will the Fed decrease interest rates by 25 bps?"),
                             "prob_yes": 0.4,
                             "end_date": "2026-09-16",
                         },
@@ -271,9 +260,7 @@ class TestMarketOdds:
 
         import src.fed_analysis as fa
 
-        (tmp_path / "20260915.json").write_text(
-            json.dumps(self._mk_snap()), encoding="utf-8"
-        )
+        (tmp_path / "20260915.json").write_text(json.dumps(self._mk_snap()), encoding="utf-8")
         pd.DataFrame(
             {
                 "date": ["2026-09-13", "2026-09-14", "2026-09-15"],
@@ -300,15 +287,11 @@ class TestMarketOdds:
 
         import src.fed_analysis as fa
 
-        (tmp_path / "20260915.json").write_text(
-            json.dumps(self._mk_snap()), encoding="utf-8"
-        )
+        (tmp_path / "20260915.json").write_text(json.dumps(self._mk_snap()), encoding="utf-8")
         # 两列同名 "111"（模拟同一 market 被写两次）：第一列缺一天，重复列补上
         h = pd.concat(
             [
-                pd.DataFrame(
-                    {"date": ["09-13", "09-14", "09-15"], "111": [0.5, None, 0.6]}
-                ),
+                pd.DataFrame({"date": ["09-13", "09-14", "09-15"], "111": [0.5, None, 0.6]}),
                 pd.DataFrame({"111": [None, 0.55, None]}),
             ],
             axis=1,

@@ -87,14 +87,12 @@ def fetch_taker_ratio() -> dict:
     """OKX taker 买卖成交额（7 日明细，→ 多空成交比代理；T+1 日更新）。"""
     out = {}
     for ccy in ("BTC", "ETH"):
-        rows = _okx(
-            "rubik/stat/taker-volume", ccy=ccy, instType="CONTRACTS", period="1D"
-        )
+        rows = _okx("rubik/stat/taker-volume", ccy=ccy, instType="CONTRACTS", period="1D")
         out[ccy] = [
             {
-                "date": datetime.fromtimestamp(
-                    int(r[0]) / 1000, tz=timezone.utc
-                ).strftime("%Y-%m-%d"),
+                "date": datetime.fromtimestamp(int(r[0]) / 1000, tz=timezone.utc).strftime(
+                    "%Y-%m-%d"
+                ),
                 "buy": float(r[1]),
                 "sell": float(r[2]),
             }
@@ -111,9 +109,7 @@ def _parse_exp(exp: str) -> datetime | None:
         return None
 
 
-def _wall(
-    df: pd.DataFrame, right: str
-) -> tuple[float | None, float | None, list[dict]]:
+def _wall(df: pd.DataFrame, right: str) -> tuple[float | None, float | None, list[dict]]:
     """期权墙：df 内 right 侧按行权价聚 OI，返回 (墙 strike, 墙 OI, OI 前 5)。"""
     sub = df[df["right"] == right]
     if sub.empty:
@@ -282,9 +278,7 @@ def _yahoo_quote_oi() -> dict:
         s = _rq.Session()
         s.headers["User-Agent"] = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)"
         s.get("https://fc.yahoo.com", timeout=10)
-        crumb = s.get(
-            "https://query1.finance.yahoo.com/v1/test/getcrumb", timeout=10
-        ).text
+        crumb = s.get("https://query1.finance.yahoo.com/v1/test/getcrumb", timeout=10).text
         r = s.get(
             "https://query1.finance.yahoo.com/v7/finance/quote",
             params={
@@ -419,7 +413,5 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    logging.basicConfig(
-        level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s"
-    )
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
     main()

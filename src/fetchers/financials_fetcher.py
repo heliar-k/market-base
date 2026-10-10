@@ -82,9 +82,7 @@ def fetch_financials(symbols: list[str] | None = None) -> dict[str, int]:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(
-        description="Fetch quarterly/annual financial statements"
-    )
+    parser = argparse.ArgumentParser(description="Fetch quarterly/annual financial statements")
     parser.add_argument("--symbols", help="逗号分隔的股票列表（默认全部）")
     args = parser.parse_args()
 

@@ -62,9 +62,7 @@ def fetch_futures_curves(symbols: list[str] | None = None) -> pd.DataFrame:
             price = to_float(rec.get("lastPrice"))
             if price is not None:
                 row[rec.get("symbol")] = price
-        logger.info(
-            "%s(%s): %d 个合约", root, root2, sum(1 for s in row if s.startswith(root2))
-        )
+        logger.info("%s(%s): %d 个合约", root, root2, sum(1 for s in row if s.startswith(root2)))
     if not row:
         return pd.DataFrame()
     return pd.DataFrame([row], index=[datetime.now().strftime("%Y-%m-%d")])
@@ -101,9 +99,7 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser(description="Barchart 期货期限结构拉取")
     parser.add_argument("--symbols", default="", help="品种列表（逗号分隔，默认全部）")
-    parser.add_argument(
-        "--backfill", action="store_true", help="全量覆盖（默认 upsert）"
-    )
+    parser.add_argument("--backfill", action="store_true", help="全量覆盖（默认 upsert）")
     args = parser.parse_args()
 
     symbols = [s.strip().upper() for s in args.symbols.split(",") if s.strip()] or None

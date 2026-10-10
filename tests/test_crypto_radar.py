@@ -63,9 +63,7 @@ def test_perp_oi_7d_change(data_root):
 
 def test_radar_neutral_bands(data_root):
     snap = {
-        "perp": {
-            "BTC": {"funding_rate": 4e-5, "funding_annual": 0.05, "oi_usd": 2.1e9}
-        },
+        "perp": {"BTC": {"funding_rate": 4e-5, "funding_annual": 0.05, "oi_usd": 2.1e9}},
         "options_BTC": {
             "spot_anchor": 77390.0,
             "pcr": 0.55,

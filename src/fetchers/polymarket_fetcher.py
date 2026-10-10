@@ -164,8 +164,7 @@ def build_snapshot(events: list[dict]) -> dict:
             )
             if len(markets) >= _MAX_MARKETS_PER_EVENT:
                 logger.info(
-                    f"事件 {e.get('slug')}: 市场数超 "
-                    f"{_MAX_MARKETS_PER_EVENT}，按 24h 量截断"
+                    f"事件 {e.get('slug')}: 市场数超 {_MAX_MARKETS_PER_EVENT}，按 24h 量截断"
                 )
                 break
         if not markets:
@@ -255,8 +254,7 @@ def discover_events() -> dict[str, dict]:
                 logger.warning(f"search '{kw}' 失败: {exc}")
 
     logger.info(
-        f"发现候选事件 {len(found)} 个"
-        f"（top100 + {len(POLYMARKET_SERIES)} series + 关键词检索）"
+        f"发现候选事件 {len(found)} 个（top100 + {len(POLYMARKET_SERIES)} series + 关键词检索）"
     )
     return found
 
@@ -287,8 +285,7 @@ def fetch_polymarket() -> dict:
     n_markets = sum(len(e["markets"]) for e in snapshot["events"])
     cats = pd.Series([e["category"] for e in snapshot["events"]]).value_counts()
     logger.info(
-        f"入选 {len(snapshot['events'])} 事件 / {n_markets} 市场，"
-        f"分类分布: {cats.to_dict()}"
+        f"入选 {len(snapshot['events'])} 事件 / {n_markets} 市场，分类分布: {cats.to_dict()}"
     )
 
     # ── 概率时序：全市场按 24h 量取前 _MAX_HISTORY_MARKETS 个 ──
@@ -298,16 +295,13 @@ def fetch_polymarket() -> dict:
     all_markets.sort(key=_history_sort_key)
     if len(all_markets) > _MAX_HISTORY_MARKETS:
         logger.warning(
-            f"市场数 {len(all_markets)} 超上限，"
-            f"仅拉取 24h 量前 {_MAX_HISTORY_MARKETS} 个的历史"
+            f"市场数 {len(all_markets)} 超上限，仅拉取 24h 量前 {_MAX_HISTORY_MARKETS} 个的历史"
         )
     capped = all_markets[:_MAX_HISTORY_MARKETS]
 
     # 需要原始 token id → 从候选事件里按市场 id 建 token 索引
     token_by_mid = {
-        str(m["id"]): m.get("clobTokenIds")
-        for e in selected
-        for m in (e.get("markets") or [])
+        str(m["id"]): m.get("clobTokenIds") for e in selected for m in (e.get("markets") or [])
     }
 
     # 快照 prob_yes 先写入当日行（覆盖全部市场，上限外市场每日也有一个点自愈）
@@ -346,9 +340,7 @@ def fetch_polymarket() -> dict:
     # ── 快照写盘（覆盖写，同 coinglass）──
     DATA.mkdir(parents=True, exist_ok=True)
     out_path = DATA / f"{datetime.now().strftime('%Y%m%d')}.json"
-    out_path.write_text(
-        json.dumps(snapshot, ensure_ascii=False, indent=1) + "\n", encoding="utf-8"
-    )
+    out_path.write_text(json.dumps(snapshot, ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
     logger.info(f"快照 → {out_path}")
     return snapshot
 

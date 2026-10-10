@@ -40,16 +40,12 @@ def test_cache_path_returns_expected_location() -> None:
     assert cache_path("AAPL") == Path("data/cache/AAPL_indicators.parquet")
 
 
-def test_is_cache_fresh_false_when_cache_absent(
-    small_csv: Path, tmp_path: Path
-) -> None:
+def test_is_cache_fresh_false_when_cache_absent(small_csv: Path, tmp_path: Path) -> None:
     """缓存文件不存在时 is_cache_fresh 返回 False。"""
     assert is_cache_fresh("AAPL", small_csv, data_dir=str(tmp_path / "data")) is False
 
 
-def test_load_or_compute_creates_cache_when_absent(
-    small_csv: Path, tmp_path: Path
-) -> None:
+def test_load_or_compute_creates_cache_when_absent(small_csv: Path, tmp_path: Path) -> None:
     """无缓存时：读 CSV + 算指标 + 写 parquet + 返回含指标列的 df。"""
     data_dir = str(tmp_path / "data")
     df = load_or_compute("AAPL", small_csv, data_dir=data_dir)
@@ -57,9 +53,7 @@ def test_load_or_compute_creates_cache_when_absent(
     assert cache_path("AAPL", data_dir).exists()
 
 
-def test_load_or_compute_reads_cache_when_fresh(
-    small_csv: Path, tmp_path: Path
-) -> None:
+def test_load_or_compute_reads_cache_when_fresh(small_csv: Path, tmp_path: Path) -> None:
     """缓存新鲜时第二次调用读 parquet，返回与首次相等的 df（忽略 attrs）。"""
     data_dir = str(tmp_path / "data")
     first = load_or_compute("AAPL", small_csv, data_dir=data_dir)
@@ -84,9 +78,7 @@ def test_is_cache_fresh_reflects_mtime_order(small_csv: Path, tmp_path: Path) ->
     assert is_cache_fresh("AAPL", small_csv, data_dir=data_dir) is False
 
 
-def test_load_or_compute_recomputes_when_csv_updated(
-    small_csv: Path, tmp_path: Path
-) -> None:
+def test_load_or_compute_recomputes_when_csv_updated(small_csv: Path, tmp_path: Path) -> None:
     """缓存存在但 csv 更新（mtime 更新）→ 重算并覆盖 parquet，反映新数据。"""
     data_dir = str(tmp_path / "data")
     first = load_or_compute("AAPL", small_csv, data_dir=data_dir)
@@ -126,9 +118,7 @@ def test_clear_cache_all_removes_everything(small_csv: Path, tmp_path: Path) -> 
     assert remaining == []
 
 
-def test_load_or_compute_creates_cache_dir_when_absent(
-    small_csv: Path, tmp_path: Path
-) -> None:
+def test_load_or_compute_creates_cache_dir_when_absent(small_csv: Path, tmp_path: Path) -> None:
     """缓存目录不存在时 load_or_compute 自动创建，不报错。"""
     data_dir = str(tmp_path / "fresh" / "data")
     assert not (Path(data_dir) / "cache").exists()
@@ -137,9 +127,7 @@ def test_load_or_compute_creates_cache_dir_when_absent(
     assert cache_path("AAPL", data_dir).exists()
 
 
-def test_load_or_compute_result_consumable_by_analyze(
-    small_csv: Path, tmp_path: Path
-) -> None:
+def test_load_or_compute_result_consumable_by_analyze(small_csv: Path, tmp_path: Path) -> None:
     """缓存读出的 df 仍能被 analyze() 正常消费（端到端冒烟）。"""
     from src.analyze import analyze
 

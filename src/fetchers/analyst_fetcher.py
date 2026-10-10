@@ -83,9 +83,7 @@ def fetch_ndx_targets() -> pd.DataFrame:
                     **t,
                 }
             )
-            logger.info(
-                f"  ✓ {c['ticker']}: mean={t['target_mean']} ({t['analysts']} analysts)"
-            )
+            logger.info(f"  ✓ {c['ticker']}: mean={t['target_mean']} ({t['analysts']} analysts)")
         except Exception as e:
             logger.info(f"  ✗ {c['ticker']}: {e}")
         time.sleep(_REQUEST_SLEEP_SECONDS)

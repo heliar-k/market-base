@@ -116,9 +116,7 @@ def test_etf_signal_scored_when_fresh(monkeypatch, tmp_path):
 
     monkeypatch.setattr(assets_analysis, "ROOT", tmp_path)
     snap = {
-        "perp": {
-            "BTC": {"funding_annual": 10.0, "funding_rate": 0.0001, "oi_usd": 1e9}
-        },
+        "perp": {"BTC": {"funding_annual": 10.0, "funding_rate": 0.0001, "oi_usd": 1e9}},
         "options_BTC": {
             "pcr": 0.6,
             "call_wall": 80000,
@@ -204,9 +202,7 @@ def test_consensus_retail_missing_not_same_direction(monkeypatch, tmp_path):
         "options_BTC": {},  # 无 pcr
         "coinglass": {},  # 无多空比
     }
-    radar = {
-        "signals": [{"name": "CME 机构头寸", "weight": 15, "dir": 0, "value": None}]
-    }
+    radar = {"signals": [{"name": "CME 机构头寸", "weight": 15, "dir": 0, "value": None}]}
     cons = crypto_consensus(snap, radar)
 
     assert "散户侧数据缺失" in cons["verdict"]

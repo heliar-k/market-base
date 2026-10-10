@@ -170,9 +170,7 @@ def _coupon_cover(auc: pd.DataFrame) -> float | None:
     if auc.empty:
         return None
     coupon = auc[auc["security_type"] != "Bill"]
-    cover = (
-        pd.to_numeric(coupon["bid_to_cover_ratio"], errors="coerce").dropna().tail(10)
-    )
+    cover = pd.to_numeric(coupon["bid_to_cover_ratio"], errors="coerce").dropna().tail(10)
     return float(cover.mean()) if not cover.empty else None
 
 
@@ -237,13 +235,10 @@ def _invalidation(shape: str, s2s10: float | None, y10: float | None) -> list[st
             conds.append(f"2s10s 利差走扩至 {s2s10 + 20:.0f}bp 以上")
         else:
             conds.append(
-                f"2s10s 单方向移动超 20bp"
-                f"（{s2s10 - 20:.0f}bp 以下或 {s2s10 + 20:.0f}bp 以上）"
+                f"2s10s 单方向移动超 20bp（{s2s10 - 20:.0f}bp 以下或 {s2s10 + 20:.0f}bp 以上）"
             )
     if y10 is not None:
-        conds.append(
-            f"10Y 名义收益率反向突破 {y10 + 0.30:.2f}% 或跌破 {y10 - 0.40:.2f}%"
-        )
+        conds.append(f"10Y 名义收益率反向突破 {y10 + 0.30:.2f}% 或跌破 {y10 - 0.40:.2f}%")
     conds.append("FOMC 意外转向（加息/降息信号与当前定价相反）")
     return conds
 
@@ -282,9 +277,7 @@ def yield_curve_analysis() -> dict:
                 "name": "通胀预期（T10YIE）",
                 "value": f"{be_1m:+.1f}bp",
                 "ok": ok,
-                "note": "未明显上行，不支持通胀驱动"
-                if ok
-                else "明显上行，通胀驱动占优",
+                "note": "未明显上行，不支持通胀驱动" if ok else "明显上行，通胀驱动占优",
             }
         )
     d10 = _snapshot(tips, "DFII10", 0)
@@ -315,11 +308,7 @@ def yield_curve_analysis() -> dict:
             )
         elif shape in ("牛陡", "牛平"):
             ok = y2 < effr
-            note = (
-                "短端定价降息，与短端驱动一致"
-                if ok
-                else "短端未定价降息，与牛向形态矛盾"
-            )
+            note = "短端定价降息，与短端驱动一致" if ok else "短端未定价降息，与牛向形态矛盾"
         else:
             ok = True
             note = "形态中性，短端定价不构成矛盾"
@@ -340,9 +329,7 @@ def yield_curve_analysis() -> dict:
                     "name": "国债拍卖需求",
                     "value": f"近 10 场付息券 {avg:.2f}x",
                     "ok": ok,
-                    "note": "需求良好，长端压力有限"
-                    if ok
-                    else "投标倍数偏低，长端供给压力",
+                    "note": "需求良好，长端压力有限" if ok else "投标倍数偏低，长端供给压力",
                 }
             )
     confidence = sum(1 for c in checks if c["ok"])
@@ -397,9 +384,7 @@ def yield_curve_analysis() -> dict:
                 "tenor": t,
                 "nominal": _snapshot(rates, dgs, 0),
                 "real": _snapshot(tips, tip, 0),
-                "breakeven": _breakeven(
-                    _snapshot(rates, dgs, 0), _snapshot(tips, tip, 0)
-                ),
+                "breakeven": _breakeven(_snapshot(rates, dgs, 0), _snapshot(tips, tip, 0)),
             }
             for t, dgs, tip in zip(
                 ["5Y", "7Y", "10Y", "20Y", "30Y"],
@@ -506,10 +491,7 @@ def _fed_expectation_text(
         )
     elif y2 is not None:
         effr_txt += f"，2Y 收益率 {y2:.2f}%"
-    mkt_txt = (
-        "ZQ 期货定价数据缺失，无法判断下一场 FOMC 方向"
-        "（检查 ./bin/fetch_rate_expectations）"
-    )
+    mkt_txt = "ZQ 期货定价数据缺失，无法判断下一场 FOMC 方向（检查 ./bin/fetch_rate_expectations）"
     trigger = "取不到 FOMC 概率，暂无法给出失效条件。"
     cols = {"meeting_date", "prob_cut", "prob_hold", "prob_hike", "expectation"}
     if not rex.empty and cols.issubset(rex.columns):
@@ -543,20 +525,14 @@ def overview_analysis() -> dict:
     s2s10 = _spread(rates, "DGS10", "DGS2")
     prev_1w = _spread(rates, "DGS10", "DGS2", 7)
     prev_1m = _spread(rates, "DGS10", "DGS2", 30)
-    s2s10_1w = (
-        round(s2s10 - prev_1w, 1) if s2s10 is not None and prev_1w is not None else None
-    )
-    s2s10_1m = (
-        round(s2s10 - prev_1m, 1) if s2s10 is not None and prev_1m is not None else None
-    )
+    s2s10_1w = round(s2s10 - prev_1w, 1) if s2s10 is not None and prev_1w is not None else None
+    s2s10_1m = round(s2s10 - prev_1m, 1) if s2s10 is not None and prev_1m is not None else None
     y10 = _snapshot(rates, "DGS10", 0)
     y2 = _snapshot(rates, "DGS2", 0)
     y10_1m = _bp_change(rates, "DGS10", 30)
     shape = _shape_label(s2s10_1m, y10_1m)
     # 驱动与收益率曲线页同源（见 _driver_label），不再按 10Y vs 2Y 另判一套
-    driver = _driver_label(
-        _bp_change(tips, "DFII10", 30), _bp_change(infl, "T10YIE", 30)
-    )
+    driver = _driver_label(_bp_change(tips, "DFII10", 30), _bp_change(infl, "T10YIE", 30))
     curve_text = _curve_text(shape, s2s10, s2s10_1w, y10, driver)
 
     # ── 2. 实际利率 ──
@@ -565,21 +541,17 @@ def overview_analysis() -> dict:
     be = _snapshot(infl, "T10YIE", 0)
     if d10 is None or be is None:
         real_text = (
-            "TIPS 实际利率或盈亏平衡通胀数据缺失"
-            "（检查 ./bin/fetch_fred tips、inflation 分类）。"
+            "TIPS 实际利率或盈亏平衡通胀数据缺失（检查 ./bin/fetch_fred tips、inflation 分类）。"
         )
     else:
         real_verdict = (
-            "长端变动由实际利率贡献主导。"
-            if (d10_1w or 0) > 0
-            else "长端变动由通胀预期贡献主导。"
+            "长端变动由实际利率贡献主导。" if (d10_1w or 0) > 0 else "长端变动由通胀预期贡献主导。"
         )
         real_basis = f"盈亏平衡通胀 {be:.2f}%"
         if d10_1w is not None:
             real_basis = f"10Y TIPS 1 周 {d10_1w:+.0f}bp · {real_basis}"
         real_text = (
-            f"{real_verdict}\n{real_basis}。\n"
-            f"实际利率跌破 {d10 - 0.15:.2f}% → 推升黄金与长端债券。"
+            f"{real_verdict}\n{real_basis}。\n实际利率跌破 {d10 - 0.15:.2f}% → 推升黄金与长端债券。"
         )
 
     # ── 3. 联储预期 ──
@@ -600,10 +572,7 @@ def overview_analysis() -> dict:
         # 突破区间上限才说明短端流动性分层（修复原判据的常态误报）
         tight = m1 > taru
         short_head = "短端流动性分层" if tight else "短端平稳"
-        short_txt = (
-            f"1M 国库券 {m1:.2f}% {'高于' if tight else '低于'}"
-            f"目标区间上限（{taru:.2f}%）"
-        )
+        short_txt = f"1M 国库券 {m1:.2f}% {'高于' if tight else '低于'}目标区间上限（{taru:.2f}%）"
     long_head = "长端由供给与期限溢价主导" if y10 is not None else "长端数据不足"
     if not auc.empty:
         avg = _coupon_cover(auc)

@@ -53,9 +53,7 @@ def fetch_sce() -> pd.DataFrame:
     result = df[["date", "SCE_INFL_1Y_MEDIAN", "SCE_INFL_3Y_MEDIAN"]].set_index("date")
 
     # 5Y 在单独 sheet，从 2022-01 开始
-    df5 = pd.read_excel(
-        io.BytesIO(resp.content), sheet_name=_5Y_SHEET, header=_HEADER_ROW
-    )
+    df5 = pd.read_excel(io.BytesIO(resp.content), sheet_name=_5Y_SHEET, header=_HEADER_ROW)
     mask5 = df5.iloc[:, 0].notna()
     df5 = df5[mask5].copy()
     col_5y = _find_col(df5.columns, _5Y_KEYS)

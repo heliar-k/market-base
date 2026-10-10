@@ -24,9 +24,7 @@ def _prices(n: int = 250) -> pd.DataFrame:
     down = pd.Series(100 * np.cumprod(1 - 0.001 + 0.0005 * np.sin(k / 7)))
     flat = pd.Series(100 + 0.5 * np.sin(k / 3))
     idx = pd.date_range("2025-01-01", periods=n)
-    return pd.concat([up, down, flat], axis=1, keys=["UP", "DOWN", "FLAT"]).set_axis(
-        idx
-    )
+    return pd.concat([up, down, flat], axis=1, keys=["UP", "DOWN", "FLAT"]).set_axis(idx)
 
 
 def test_components_parse(monkeypatch, tmp_path):

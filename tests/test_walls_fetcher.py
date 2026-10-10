@@ -53,9 +53,7 @@ def test_deribit_called_with_currency_kind(monkeypatch):
     monkeypatch.setattr(cdf, "_deribit", fake)
     cdf.fetch_options("ETH")
     # fetch_options 原样透传 currency / kind（ETH 同口径）。
-    assert calls == [
-        ("get_book_summary_by_currency", {"currency": "ETH", "kind": "option"})
-    ]
+    assert calls == [("get_book_summary_by_currency", {"currency": "ETH", "kind": "option"})]
 
 
 def test_nearest_exp_walls_and_tops(monkeypatch):
@@ -224,11 +222,7 @@ def test_yahoo_quote_oi_missing_fields(monkeypatch):
                 return _FakeResp("crumb2")
             return _FakeResp(
                 "",
-                {
-                    "quoteResponse": {
-                        "result": [{"symbol": "BTC=F", "openInterest": None}]
-                    }
-                },
+                {"quoteResponse": {"result": [{"symbol": "BTC=F", "openInterest": None}]}},
             )
 
     monkeypatch.setattr(requests, "Session", _FakeSession)

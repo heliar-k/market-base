@@ -61,9 +61,7 @@ class TestMetalsPage:
         monkeypatch.setattr("src.assets_analysis.ROOT", tmp_path)
         _write_prices(tmp_path)
         _write_pool(tmp_path)
-        _write_holdings(
-            tmp_path, [1000.0 + i for i in range(80)], [15000.0 - i for i in range(80)]
-        )
+        _write_holdings(tmp_path, [1000.0 + i for i in range(80)], [15000.0 - i for i in range(80)])
         out = metals()
         # 价格上下文：期货主力（价格锚）+ ETF 行情对象
         assert [c["symbol"] for c in out["cards"]] == ["Gold", "Silver"]

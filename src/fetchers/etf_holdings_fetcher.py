@@ -34,8 +34,7 @@ UA = (
 )
 
 GLD_URL = (
-    "https://api.spdrgoldshares.com/api/v1/historical-archive"
-    "?product=gld&exchange=NYSE&lang=en"
+    "https://api.spdrgoldshares.com/api/v1/historical-archive?product=gld&exchange=NYSE&lang=en"
 )
 SLV_URL = (
     "https://www.blackrock.com/varnish-api/blk-one01-product-data/product-data/api/v1/"
@@ -60,9 +59,7 @@ def fetch_gld() -> pd.DataFrame:
     r = requests.get(GLD_URL, timeout=90, headers={"User-Agent": UA})
     r.raise_for_status()
     if not r.content.startswith(b"PK"):
-        raise RuntimeError(
-            f"GLD 返回非 xlsx（{r.headers.get('content-type')}），接口可能改版"
-        )
+        raise RuntimeError(f"GLD 返回非 xlsx（{r.headers.get('content-type')}），接口可能改版")
     df = pd.read_excel(io.BytesIO(r.content), sheet_name="US GLD Historical Archive")
     # Date / Tonnes 列都混有 "US Holiday" 文本行，两侧 coerce 后丢弃
     ton = pd.to_numeric(df["Tonnes of Gold"], errors="coerce")
@@ -166,8 +163,5 @@ def run() -> pd.DataFrame:
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO, format="%(message)s")
     df = run()
-    print(
-        f"etf_holdings.csv: {len(df)} 行"
-        f"（{df.index[0].date()} → {df.index[-1].date()}）"
-    )
+    print(f"etf_holdings.csv: {len(df)} 行（{df.index[0].date()} → {df.index[-1].date()}）")
     print(df.tail(3).to_string())

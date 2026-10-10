@@ -86,9 +86,7 @@ class TestBreakeven:
 class TestTradeImplications:
     def test_steepening_has_target_stop(self):
         trades = _trade_implications("熊陡", 45.0)
-        assert any(
-            "走扩至 60bp 为目标" in t and "收窄至 30bp 以下止损" in t for t in trades
-        )
+        assert any("走扩至 60bp 为目标" in t and "收窄至 30bp 以下止损" in t for t in trades)
 
     def test_flat_has_no_target(self):
         trades = _trade_implications("走平", 45.0)
@@ -185,9 +183,7 @@ class TestSectionLineContract:
         tips = pd.DataFrame({"DFII10": [2.0] * 69 + [2.2]}, index=idx)
         infl = pd.DataFrame({"T10YIE": 2.5}, index=idx)
         empty = pd.DataFrame()
-        monkeypatch.setattr(
-            ra, "_load", lambda: (rates, tips, infl, empty, empty, empty)
-        )
+        monkeypatch.setattr(ra, "_load", lambda: (rates, tips, infl, empty, empty, empty))
         for sec in ra.overview_analysis()["sections"]:
             assert len(sec["body"].split("\n")) == 3, sec["title"]
 

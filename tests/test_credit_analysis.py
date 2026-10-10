@@ -205,9 +205,7 @@ class TestStressComposite:
         comp = {c["key"]: c["value"] for c in out["components"]}
         assert comp["vix"] == 0
         assert comp["div"] == pytest.approx(99.7)
-        assert out["composite"] == pytest.approx(
-            round(0.30 * 99.7 + 0.20 * 11.0 + 0.15 * 99.7, 1)
-        )
+        assert out["composite"] == pytest.approx(round(0.30 * 99.7 + 0.20 * 11.0 + 0.15 * 99.7, 1))
 
     def test_missing_hy_column_degrades(self):
         # HY_OAS 缺失：hy_pct=0、raw=None，不抛异常
@@ -359,9 +357,7 @@ class TestCdsTradingDays:
 
     @staticmethod
     def _snapshot_with_weekends():
-        idx = pd.date_range(
-            "2026-08-03", periods=30, freq="D"
-        )  # 周一开头，含 8 个周末行
+        idx = pd.date_range("2026-08-03", periods=30, freq="D")  # 周一开头，含 8 个周末行
         kb_vals, sp_vals, prev = [], [], None
         step = 0
         for d in idx:
@@ -408,9 +404,7 @@ class TestOverviewSpreads:
     @staticmethod
     def _frames() -> dict:
         idx = pd.date_range("2026-09-01", periods=10, freq="B")
-        df_vol = pd.DataFrame(
-            {"IG_OAS": range(80, 90), "HY_OAS": range(300, 310)}, index=idx
-        )
+        df_vol = pd.DataFrame({"IG_OAS": range(80, 90), "HY_OAS": range(300, 310)}, index=idx)
         df_cr = pd.DataFrame(
             {
                 "BBB_OAS": range(100, 110),

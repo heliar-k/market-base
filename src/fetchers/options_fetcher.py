@@ -80,9 +80,7 @@ def save_chain_csv(sym_name: str, chains: list[dict], output_dir: Path):
     rows = 0
     with open(filepath, "w", newline="", encoding="utf-8") as f:
         writer = csv.writer(f)
-        writer.writerow(
-            ["exchange", "expiration", "strike", "multiplier", "trading_class"]
-        )
+        writer.writerow(["exchange", "expiration", "strike", "multiplier", "trading_class"])
 
         for chain in chains:
             exchange = chain["exchange"]

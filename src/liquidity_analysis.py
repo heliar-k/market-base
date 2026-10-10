@@ -159,11 +159,7 @@ def liquidity_snapshot() -> dict:
 
 def _data_date(liq: pd.DataFrame) -> str | None:
     latest = max(
-        (
-            s.dropna().index[-1]
-            for s in (liq[c] for c in liq.columns)
-            if not s.dropna().empty
-        ),
+        (s.dropna().index[-1] for s in (liq[c] for c in liq.columns) if not s.dropna().empty),
         default=None,
     )
     return latest.date().isoformat() if latest is not None else None
@@ -171,11 +167,7 @@ def _data_date(liq: pd.DataFrame) -> str | None:
 
 def _narrative(liq: pd.DataFrame, rates: pd.DataFrame) -> dict:
     """三段规则叙事：净流动性 / 展望 / 准备金，各带验证指标。"""
-    nl = (
-        liq["NET_LIQUIDITY"].dropna()
-        if "NET_LIQUIDITY" in liq
-        else pd.Series(dtype=float)
-    )
+    nl = liq["NET_LIQUIDITY"].dropna() if "NET_LIQUIDITY" in liq else pd.Series(dtype=float)
     rrp = liq["RRPONTSYD"].dropna() if "RRPONTSYD" in liq else pd.Series(dtype=float)
     tga = liq["WTREGEN"].dropna() if "WTREGEN" in liq else pd.Series(dtype=float)
     res = liq["WRESBAL"].dropna() if "WRESBAL" in liq else pd.Series(dtype=float)
@@ -200,9 +192,7 @@ def _narrative(liq: pd.DataFrame, rates: pd.DataFrame) -> dict:
     nl_date = f"{nl.index[-1].date()}" if not nl.empty else None
     drain = tga_1m is not None and tga_1m > 2e4  # TGA 1 月升 > 200 十亿 = 财政在抽水
     if nl_1m is None:
-        nl_text = (
-            f"截至 {nl_date}，净流动性数据不足。" if nl_date else "净流动性数据不足。"
-        )
+        nl_text = f"截至 {nl_date}，净流动性数据不足。" if nl_date else "净流动性数据不足。"
     else:
         nl_basis = [f"截至 {nl_date}"]
         if tga_1m is not None:
@@ -227,17 +217,9 @@ def _narrative(liq: pd.DataFrame, rates: pd.DataFrame) -> dict:
         )
 
     # 展望：能源 + VIX + TGA 抽水节奏
-    wti = (
-        asset["WTI"].dropna()
-        if not asset.empty and "WTI" in asset
-        else pd.Series(dtype=float)
-    )
+    wti = asset["WTI"].dropna() if not asset.empty and "WTI" in asset else pd.Series(dtype=float)
     vix = _csv(ROOT / "data" / "cboe/volatility.csv")
-    vix_s = (
-        vix["VIX"].dropna()
-        if not vix.empty and "VIX" in vix
-        else pd.Series(dtype=float)
-    )
+    vix_s = vix["VIX"].dropna() if not vix.empty and "VIX" in vix else pd.Series(dtype=float)
     dgs1mo = rates.get("DGS1MO")
     dgs1mo_s = (
         pd.to_numeric(dgs1mo, errors="coerce").dropna()
@@ -277,8 +259,7 @@ def _narrative(liq: pd.DataFrame, rates: pd.DataFrame) -> dict:
     vix_verify = "风险事件看 WTI 站上 90 或 VIX 升破 20，则风险偏好正式逆转。"
     if funding_gap is not None:
         vix_verify += (
-            f"1M 国债与 IORB 利差（现 {funding_gap * 100:+.0f}bp）"
-            "走扩则融资压力开始显现。"
+            f"1M 国债与 IORB 利差（现 {funding_gap * 100:+.0f}bp）走扩则融资压力开始显现。"
         )
     outlook_text = (
         f"{risk}。\n" + " · ".join(outlook) + f"。\n{vix_verify}"
@@ -304,33 +285,20 @@ def _narrative(liq: pd.DataFrame, rates: pd.DataFrame) -> dict:
         # 水平值不重复（RRP 卡片就在上方），只留判断
         msg.append("RRP 缓冲耗尽" if rrp_latest < 25 else "RRP 仍有余量")
     if nfci_latest is not None:
-        msg.append(
-            f"NFCI {nfci_latest:.2f}" + ("（宽松）" if nfci_latest < 0 else "（收紧）")
-        )
+        msg.append(f"NFCI {nfci_latest:.2f}" + ("（宽松）" if nfci_latest < 0 else "（收紧）"))
     if sofr_iorb is not None:
-        msg.append(
-            f"SOFR−IORB {sofr_iorb:+.1f}bp"
-            + ("（充裕）" if sofr_iorb < 0 else "（偏紧）")
-        )
+        msg.append(f"SOFR−IORB {sofr_iorb:+.1f}bp" + ("（充裕）" if sofr_iorb < 0 else "（偏紧）"))
     if srf_latest is not None:
-        msg.append(
-            f"SRF 使用 {srf_latest * 1000:.0f} 百万" if srf_latest > 0 else "SRF 未使用"
-        )
+        msg.append(f"SRF 使用 {srf_latest * 1000:.0f} 百万" if srf_latest > 0 else "SRF 未使用")
     # 精度与依据行一致（旧文案同一数字两处不同精度：-0.55 vs -0.548）
     res_verify = ""
     if nfci_latest is not None:
-        res_verify = (
-            f"NFCI 由 {nfci_latest:.2f} 升穿 0（距阈值 {abs(nfci_latest):.2f}），"
-        )
+        res_verify = f"NFCI 由 {nfci_latest:.2f} 升穿 0（距阈值 {abs(nfci_latest):.2f}），"
     if d1mo is not None and iorb_latest is not None:
-        res_verify += (
-            f"或 1M 国债升破 IORB+20bp（现 {d1mo:.2f}% vs {iorb_latest:.2f}%），"
-        )
+        res_verify += f"或 1M 国债升破 IORB+20bp（现 {d1mo:.2f}% vs {iorb_latest:.2f}%），"
     res_verify += "则确认准备金进入稀缺状态。" if res_verify else ""
     res_text = (
-        f"{res_head}。\n" + " · ".join(msg) + f"。\n{res_verify}"
-        if msg
-        else "准备金数据不足。"
+        f"{res_head}。\n" + " · ".join(msg) + f"。\n{res_verify}" if msg else "准备金数据不足。"
     )
 
     return {
@@ -359,11 +327,7 @@ def lpi() -> dict:
         return {}
 
     res_s = liq["WRESBAL"].dropna() if "WRESBAL" in liq else pd.Series(dtype=float)
-    nl_s = (
-        liq["NET_LIQUIDITY"].dropna()
-        if "NET_LIQUIDITY" in liq
-        else pd.Series(dtype=float)
-    )
+    nl_s = liq["NET_LIQUIDITY"].dropna() if "NET_LIQUIDITY" in liq else pd.Series(dtype=float)
     rrp_s = liq["RRPONTSYD"].dropna() if "RRPONTSYD" in liq else pd.Series(dtype=float)
     nfci_s = liq["NFCI"].dropna() if "NFCI" in liq else pd.Series(dtype=float)
 
@@ -390,17 +354,11 @@ def lpi() -> dict:
     s_fund = _weighted([(s_sofr, 0.4), (s_srf, 0.2), (s_tail, 0.25), (s_off, 0.15)])
 
     # ── 风险资产传导（20%）：VIX / MOVE / HY 利差 / NFCI ──
-    vix_s = (
-        vix["VIX"].dropna()
-        if not vix.empty and "VIX" in vix
-        else pd.Series(dtype=float)
-    )
+    vix_s = vix["VIX"].dropna() if not vix.empty and "VIX" in vix else pd.Series(dtype=float)
     vix_latest = _last(vix_s)
     s_vix = _score(vix_latest, [(35, 9), (25, 7), (18, 5), (14, 3)])
     move_s = (
-        asset["MOVE"].dropna()
-        if not asset.empty and "MOVE" in asset
-        else pd.Series(dtype=float)
+        asset["MOVE"].dropna() if not asset.empty and "MOVE" in asset else pd.Series(dtype=float)
     )
     move_latest = _last(move_s)
     s_move = _score(move_latest, [(140, 8), (110, 6), (80, 4)])
@@ -427,9 +385,7 @@ def lpi() -> dict:
         else None
     )
 
-    conf = _confirmations(
-        sofr_iorb, srf_latest, bb_s, nfci_latest, vix_latest, rrp_latest, rates
-    )
+    conf = _confirmations(sofr_iorb, srf_latest, bb_s, nfci_latest, vix_latest, rrp_latest, rates)
     offshore_info = _offshore_detail(cfets)
 
     return {
@@ -581,9 +537,7 @@ def _confirmations(
         {
             "title": "SOFR−IORB 连续转正",
             "met": (sofr_iorb or 0) > 0,
-            "detail": f"当前 {sofr_iorb:+.1f}bp"
-            if sofr_iorb is not None
-            else "数据缺失",
+            "detail": f"当前 {sofr_iorb:+.1f}bp" if sofr_iorb is not None else "数据缺失",
         },
         {
             "title": "SRF 出现数十亿美元级使用",
@@ -595,23 +549,17 @@ def _confirmations(
         {
             "title": "HY 利差明显走阔",
             "met": (bb_1m or 0) > 25,
-            "detail": f"BB OAS 30日变化 {bb_1m:+.0f}bp"
-            if bb_1m is not None
-            else "数据缺失",
+            "detail": f"BB OAS 30日变化 {bb_1m:+.0f}bp" if bb_1m is not None else "数据缺失",
         },
         {
             "title": "NFCI 转正",
             "met": (nfci_latest or 0) > 0,
-            "detail": f"当前 {nfci_latest:.2f}"
-            if nfci_latest is not None
-            else "数据缺失",
+            "detail": f"当前 {nfci_latest:.2f}" if nfci_latest is not None else "数据缺失",
         },
         {
             "title": "VIX 升至 20 上方",
             "met": (vix_latest or 0) > 20,
-            "detail": f"当前 {vix_latest:.2f}"
-            if vix_latest is not None
-            else "数据缺失",
+            "detail": f"当前 {vix_latest:.2f}" if vix_latest is not None else "数据缺失",
         },
         {
             "title": "RRP 贴零且 1M 国债收益率升破 IORB+20bp",
@@ -664,9 +612,7 @@ def _evidence(liq, rates, credit, vix, asset, srf) -> dict:
         "balancesheet": {
             "reserves_b": _fmt_b(_last(liq["WRESBAL"])),
             "net_liquidity_b": _fmt_b(_last(liq["NET_LIQUIDITY"])),
-            "reserves_4w_pct": _pct_chg(liq["WRESBAL"], 28)
-            if "WRESBAL" in liq
-            else None,
+            "reserves_4w_pct": _pct_chg(liq["WRESBAL"], 28) if "WRESBAL" in liq else None,
             "dgs10": _last(pd.to_numeric(rates.get("DGS10"), errors="coerce"))
             if rates.get("DGS10") is not None
             else None,
@@ -680,15 +626,11 @@ def _evidence(liq, rates, credit, vix, asset, srf) -> dict:
             "srf_m": _last(srf["SRF_USAGE"]) * 1000 if not srf.empty else None,
         },
         "energy": {
-            "wti": _last(asset["WTI"])
-            if not asset.empty and "WTI" in asset.columns
-            else None,
+            "wti": _last(asset["WTI"]) if not asset.empty and "WTI" in asset.columns else None,
             "wti_5d_pct": _pct_chg(asset["WTI"], 5)
             if not asset.empty and "WTI" in asset.columns
             else None,
-            "ng": _last(asset["NG"])
-            if not asset.empty and "NG" in asset.columns
-            else None,
+            "ng": _last(asset["NG"]) if not asset.empty and "NG" in asset.columns else None,
         },
         "intermediary": {
             "vix": _last(vix["VIX"]) if not vix.empty else None,
@@ -739,9 +681,7 @@ def forward_calendar(days: int = 14) -> dict:
     - SOMA 购买（估算）：TREAST 4 周周均变化，落在周四（结算日惯例，注入 +）
     返回 {days: [...], net_7d_b, net_14d_b, source_note}（net_7/14 = 未来窗口估算）。
     """
-    up = pd.read_csv(
-        ROOT / "data" / "treasury/upcoming_auctions.csv", parse_dates=["issue_date"]
-    )
+    up = pd.read_csv(ROOT / "data" / "treasury/upcoming_auctions.csv", parse_dates=["issue_date"])
     auc = pd.read_csv(
         ROOT / "data" / "treasury/auction_results.csv",
         parse_dates=["maturity_date", "issue_date"],
@@ -786,12 +726,8 @@ def forward_calendar(days: int = 14) -> dict:
                 }
             )
             net += settle[d]
-        if (
-            d.weekday() == 3 and rmp_week is not None and rmp_week != 0
-        ):  # 周四 = SOMA 周结算日
-            flows.append(
-                {"type": "soma_net", "label": "SOMA 净到期(估算)", "amount_b": rmp_week}
-            )
+        if d.weekday() == 3 and rmp_week is not None and rmp_week != 0:  # 周四 = SOMA 周结算日
+            flows.append({"type": "soma_net", "label": "SOMA 净到期(估算)", "amount_b": rmp_week})
             net += rmp_week
         bucket = (
             "injection"
@@ -881,16 +817,8 @@ def page_fed_balance_sheet() -> dict:
                 "value_b": round(float(s.dropna().iloc[-1]) / 1000, 3),
             }
     rows = []
-    spx = (
-        asset["SPX"].dropna()
-        if not asset.empty and "SPX" in asset
-        else pd.Series(dtype=float)
-    )
-    ndx = (
-        asset["NDX"].dropna()
-        if not asset.empty and "NDX" in asset
-        else pd.Series(dtype=float)
-    )
+    spx = asset["SPX"].dropna() if not asset.empty and "SPX" in asset else pd.Series(dtype=float)
+    ndx = asset["NDX"].dropna() if not asset.empty and "NDX" in asset else pd.Series(dtype=float)
     for dt in spx.index[-20:]:
         r = {"date": dt.date().isoformat()}
         for col in ("NET_LIQUIDITY", "WALCL", "TREAST", "WSHOMCB"):
@@ -1007,11 +935,7 @@ def page_rrp_tga() -> dict:
     )
     out["alert"] = {
         "sofr_iorb_bp": sofr_iorb,
-        "state": "充裕"
-        if (sofr_iorb or 0) < 0
-        else "收紧启动"
-        if (sofr_iorb or 0) < 3
-        else "偏紧",
+        "state": "充裕" if (sofr_iorb or 0) < 0 else "收紧启动" if (sofr_iorb or 0) < 3 else "偏紧",
         "sofr": sofr,
         "iorb": iorb,
         "ffr_upper": dff,
@@ -1064,8 +988,7 @@ def page_rrp_tga() -> dict:
     if "WTREGEN" in liq.columns and not liq["WTREGEN"].dropna().empty:
         t = liq["WTREGEN"].dropna().tail(60)
         series["tga_b"] = [
-            {"date": d.date().isoformat(), "value": round(float(v) / 1000, 1)}
-            for d, v in t.items()
+            {"date": d.date().isoformat(), "value": round(float(v) / 1000, 1)} for d, v in t.items()
         ]
     out["series"] = series
     return out
@@ -1124,11 +1047,7 @@ def page_global_dollar() -> dict:
     cfets = _csv(ROOT / "data" / "fred/liquidity/cfets_swap_points.csv")
     asset = _csv(ROOT / "data" / "yfinance/asset_prices.csv")
     out: dict = {"dxy": {}, "swap": {}, "pairs": {}}
-    dxy = (
-        asset["DXY"].dropna()
-        if not asset.empty and "DXY" in asset
-        else pd.Series(dtype=float)
-    )
+    dxy = asset["DXY"].dropna() if not asset.empty and "DXY" in asset else pd.Series(dtype=float)
     if not dxy.empty:
         out["dxy"] = {"value": float(dxy.iloc[-1]), "chg_1d_pct": _pct_chg(dxy, 1)}
     swpt = liq["SWPT"].dropna() if "SWPT" in liq else pd.Series(dtype=float)
@@ -1138,9 +1057,7 @@ def page_global_dollar() -> dict:
             "date": swpt.index[-1].date().isoformat(),
             "chg_30d_m": round(_chg(swpt, 30) or 0, 0),
         }
-    out["pairs"] = {
-        _PAIR_DISPLAY.get(p, p): v for p, v in _offshore_detail(cfets).items()
-    }
+    out["pairs"] = {_PAIR_DISPLAY.get(p, p): v for p, v in _offshore_detail(cfets).items()}
     out["score"] = _offshore_score(cfets)
     return out
 
@@ -1286,9 +1203,7 @@ if __name__ == "__main__":
     import argparse
     import json
 
-    parser = argparse.ArgumentParser(
-        description="流动性分析：默认打印自检；--snapshot 存 LPI 快照"
-    )
+    parser = argparse.ArgumentParser(description="流动性分析：默认打印自检；--snapshot 存 LPI 快照")
     parser.add_argument(
         "--snapshot",
         action="store_true",
@@ -1314,7 +1229,5 @@ if __name__ == "__main__":
         print(" ", d["date"], d["weekday"], d["net_b"], d["bucket"])
     print(
         "评估叙事:",
-        json.dumps(out["snapshot"]["evaluation"]["net_liquidity"], ensure_ascii=False)[
-            :200
-        ],
+        json.dumps(out["snapshot"]["evaluation"]["net_liquidity"], ensure_ascii=False)[:200],
     )

@@ -103,9 +103,7 @@ def test_categorize_keyword_word_boundary():
 
 def test_categorize_negatives():
     # 无关事件（体育/天气）不命中任何分类
-    e = _event(
-        slug="broncos-vs-chiefs", title="Broncos vs. Chiefs", series=[], volume24hr=0
-    )
+    e = _event(slug="broncos-vs-chiefs", title="Broncos vs. Chiefs", series=[], volume24hr=0)
     assert categorize(e) == (None, False)
     # confirmed 不触发 fed（词边界）
     e2 = _event(slug="x-confirmed", title="X confirmed", series=[], volume24hr=0)
@@ -115,9 +113,7 @@ def test_categorize_negatives():
 def test_categorize_geo_and_policy():
     e = _event(slug="us-x-iran-ceasefire", title="US x Iran ceasefire?", series=[])
     assert categorize(e)[0] == "geo"
-    e2 = _event(
-        slug="government-shutdown-october", title="Government shutdown?", series=[]
-    )
+    e2 = _event(slug="government-shutdown-october", title="Government shutdown?", series=[])
     assert categorize(e2)[0] == "policy"
 
 
@@ -179,9 +175,7 @@ def test_build_snapshot_shape_and_sort():
     assert m["prob_yes"] == 0.0015
     # 已关闭 / 无概率的市场被剔除
     assert (
-        build_snapshot([_event(markets=[dict(_event()["markets"][0], closed=True)])])[
-            "events"
-        ]
+        build_snapshot([_event(markets=[dict(_event()["markets"][0], closed=True)])])["events"]
         == []
     )
 

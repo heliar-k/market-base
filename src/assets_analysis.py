@@ -155,11 +155,7 @@ def _price_rows(df: pd.DataFrame, rows: list[tuple[str, str]]) -> list[dict]:
         # 修订的情形），再剥掉周末行；否则相邻相减会得到假 0 涨跌、日期
         # 标成非交易日。ponytail: 节假日（周中停市）占位不处理，周末覆盖
         # 常见情形；周一节假日若出现会在次日自愈
-        if (
-            key not in SEVEN_DAY
-            and s.index[-1].weekday() >= 5
-            and (s.index.weekday < 5).any()
-        ):
+        if key not in SEVEN_DAY and s.index[-1].weekday() >= 5 and (s.index.weekday < 5).any():
             wknd = s.index.weekday >= 5
             last_wd = s.index[~wknd][-1]
             s.loc[last_wd] = s[s.index > last_wd].iloc[-1]
@@ -189,11 +185,7 @@ def _recent_prices(df: pd.DataFrame, cols: list[str], n: int = 20) -> list[dict]
     dates = [str(d.date()) for d in sub.index]
     series = {}
     for c in cols:
-        series[c] = (
-            [None if pd.isna(v) else float(v) for v in sub[c]]
-            if c in sub.columns
-            else []
-        )
+        series[c] = [None if pd.isna(v) else float(v) for v in sub[c]] if c in sub.columns else []
     return {"dates": dates, "series": series}
 
 
@@ -259,10 +251,7 @@ def _corr_series() -> dict | None:
     return {
         "assets": assets,
         "matrix": [
-            [
-                round(float(m.loc[a][b]), 3) if pd.notna(m.loc[a][b]) else None
-                for b in assets
-            ]
+            [round(float(m.loc[a][b]), 3) if pd.notna(m.loc[a][b]) else None for b in assets]
             for a in assets
         ],
     }
@@ -287,11 +276,7 @@ def _corr_alerts() -> list[dict]:
                 if float(row["SPX_TLT_30d"]) > 0
                 else "股债负相关 — 对冲属性回归",
                 "text": f"SPX 与长债 30 日相关性 = {float(row['SPX_TLT_30d']):+.2f}。"
-                + (
-                    "对冲属性消失。"
-                    if float(row["SPX_TLT_30d"]) > 0
-                    else "组合分散化有效。"
-                ),
+                + ("对冲属性消失。" if float(row["SPX_TLT_30d"]) > 0 else "组合分散化有效。"),
                 "topics": ["assets"],
             }
         )
@@ -300,8 +285,7 @@ def _corr_alerts() -> list[dict]:
             {
                 "title": "原油-美股强负相关 — 市场交易滞胀",
                 "text": (
-                    f"原油与 SPX 30 日相关性 = {float(row['WTI_SPX_30d']):.2f}，"
-                    "能源涨即股票跌。"
+                    f"原油与 SPX 30 日相关性 = {float(row['WTI_SPX_30d']):.2f}，能源涨即股票跌。"
                 ),
                 "topics": ["assets"],
             }
@@ -342,32 +326,18 @@ def cross_analysis() -> dict:
     if spx_tlt is not None:
         parts.append(
             f"SPX 与 TLT 30 日相关性为 {spx_tlt:+.2f}，"
-            + (
-                "股债同向波动，60/40 对冲属性弱化"
-                if spx_tlt > 0.2
-                else "股债呈传统对冲格局"
-            )
+            + ("股债同向波动，60/40 对冲属性弱化" if spx_tlt > 0.2 else "股债呈传统对冲格局")
         )
     if wti_spx is not None:
         parts.append(
             f"WTI 与 SPX 相关性 {wti_spx:+.2f}，"
-            + (
-                "能源上涨对应股票承压，滞胀交易特征"
-                if wti_spx < -0.3
-                else "能源与股票关联偏弱"
-            )
+            + ("能源上涨对应股票承压，滞胀交易特征" if wti_spx < -0.3 else "能源与股票关联偏弱")
         )
     if dei is not None:
-        tag = (
-            "通胀预期抬升"
-            if dei > 2.2
-            else ("通胀预期中性" if dei > 1.8 else "通胀预期偏弱")
-        )
+        tag = "通胀预期抬升" if dei > 2.2 else ("通胀预期中性" if dei > 1.8 else "通胀预期偏弱")
         parts.append(f"10Y 盈亏平衡通胀率 {dei:.2f}%，{tag}")
     if curve is not None:
-        parts.append(
-            f"10Y-2Y 利差 {curve:+.2f}（曲线{'走陡' if curve > 0.3 else '平坦'}）"
-        )
+        parts.append(f"10Y-2Y 利差 {curve:+.2f}（曲线{'走陡' if curve > 0.3 else '平坦'}）")
     out["cross_asset"] = {
         "title": "跨资产相关性",
         "text": "；".join(parts) + "。" if parts else "数据不足。",
@@ -435,11 +405,7 @@ def cross_analysis() -> dict:
     if spx_gold is not None:
         parts.append(f"SPX/黄金 {spx_gold:.2f}")
     vix = _csv("cboe/volatility.csv")
-    vix_l = (
-        float(vix["VIX"].dropna().iloc[-1])
-        if "VIX" in vix.columns and not vix.empty
-        else None
-    )
+    vix_l = float(vix["VIX"].dropna().iloc[-1]) if "VIX" in vix.columns and not vix.empty else None
     if vix_l is not None:
         parts.append(f"VIX {vix_l:.1f}" + ("（低位）" if vix_l < 17 else ""))
     hy = (
@@ -454,9 +420,7 @@ def cross_analysis() -> dict:
     if btc_chg is not None:
         parts.append(f"BTC 近 7 日 {btc_chg:+.2f}%")
     risk_verdict = (
-        "SPX/黄金低比值，资金偏向实物对冲。"
-        if spx_gold is not None and spx_gold < 2
-        else ""
+        "SPX/黄金低比值，资金偏向实物对冲。" if spx_gold is not None and spx_gold < 2 else ""
     )
     out["risk_appetite"] = {
         "title": "风险偏好",
@@ -519,15 +483,9 @@ def equities() -> dict:
 
         a50 = _col("ABV50")
         a200 = _col("ABV200")
-        out["breadth"]["abv200"] = (
-            round(float(a200.iloc[-1]), 1) if not a200.empty else None
-        )
-        out["breadth"]["abv50"] = (
-            round(float(a50.iloc[-1]), 1) if not a50.empty else None
-        )
-        out["breadth"]["abv_date"] = (
-            str(a50.index[-1].date()) if not a50.empty else None
-        )
+        out["breadth"]["abv200"] = round(float(a200.iloc[-1]), 1) if not a200.empty else None
+        out["breadth"]["abv50"] = round(float(a50.iloc[-1]), 1) if not a50.empty else None
+        out["breadth"]["abv_date"] = str(a50.index[-1].date()) if not a50.empty else None
         # 昨日变化（timsun 同款：卡片副文本 ▲+0.0 / ▼-0.0 日期）
         for key, s in (("abv50", a50), ("abv200", a200)):
             if len(s) >= 2:
@@ -568,8 +526,7 @@ def _index_normalized(p: pd.DataFrame, rows: list[tuple[str, str]]) -> dict:
         base = df[k].dropna()
         base0 = float(base.iloc[0]) if not base.empty else None
         out["series"][k] = [
-            round((float(v) / base0 - 1) * 100, 2) if pd.notna(v) and base0 else None
-            for v in df[k]
+            round((float(v) / base0 - 1) * 100, 2) if pd.notna(v) and base0 else None for v in df[k]
         ]
     return out
 
@@ -671,9 +628,7 @@ def analyst_board() -> dict:
                 "rating",
             ]
         ]
-        .rename(
-            columns={"target_mean": "mean", "target_high": "high", "target_low": "low"}
-        )
+        .rename(columns={"target_mean": "mean", "target_high": "high", "target_low": "low"})
         .sort_values("upside", ascending=False)
         .to_dict("records")
     )
@@ -764,9 +719,7 @@ def ndx_radar() -> dict:
                 "total_ind": int(ind_total.get(ind, len(tk))),
                 "chg1": round(sum(chg1) / len(chg1), 2) if chg1 else None,
                 "chg20": round(sum(chg20) / len(chg20), 2) if chg20 else None,
-                "above50": round(
-                    sum(1 for t in tk if stats[t]["above50"]) / len(tk) * 100, 0
-                ),
+                "above50": round(sum(1 for t in tk if stats[t]["above50"]) / len(tk) * 100, 0),
             }
         )
     industries.sort(key=lambda x: (x["chg20"] is None, -(x["chg20"] or 0)))
@@ -777,9 +730,7 @@ def ndx_radar() -> dict:
     last_dates: dict[str, str] = {}
     for t in stats:
         s = px[t].dropna()
-        last_dates[t] = (
-            str(s.index[-1].date()) if not s.empty else str(px.index[-1].date())
-        )
+        last_dates[t] = str(s.index[-1].date()) if not s.empty else str(px.index[-1].date())
 
     rows = []
     for t, st in stats.items():
@@ -802,9 +753,7 @@ def ndx_radar() -> dict:
     rows.sort(key=lambda r: (r["chg20"] is None, -(r["chg20"] or 0)))
 
     strong20 = [r for r in rows if r["chg20"] is not None][:8]
-    weak20 = sorted(
-        [r for r in rows if r["chg20"] is not None], key=lambda r: r["chg20"]
-    )[:8]
+    weak20 = sorted([r for r in rows if r["chg20"] is not None], key=lambda r: r["chg20"])[:8]
 
     # 近 20 个交易日指数收盘
     p = asset_prices()
@@ -829,9 +778,7 @@ def ndx_radar() -> dict:
         "price_share": round(len(stats) / n * 100, 1) if n else None,
         "today_up": today_up,
         "today_up_pct": today_up_pct,
-        "above50_pct": round(
-            sum(1 for s2 in stats.values() if s2["above50"]) / len(stats) * 100, 1
-        )
+        "above50_pct": round(sum(1 for s2 in stats.values() if s2["above50"]) / len(stats) * 100, 1)
         if stats
         else None,
         "above200_pct": round(
@@ -887,20 +834,13 @@ def equity_analysis(b: dict) -> dict:
     parts = []
     if gap is not None:
         if abs(gap) < 1.0:
-            parts.append(
-                f"SPX/RUT 20 日差 {gap:+.2f} pp 处于健康区间，不构成权重股独秀"
-            )
+            parts.append(f"SPX/RUT 20 日差 {gap:+.2f} pp 处于健康区间，不构成权重股独秀")
         else:
             parts.append(
-                f"SPX/RUT 20 日差 {gap:+.2f} pp，存在"
-                f"{'权重股主导' if gap > 0 else '小盘轮动'}特征"
+                f"SPX/RUT 20 日差 {gap:+.2f} pp，存在{'权重股主导' if gap > 0 else '小盘轮动'}特征"
             )
     if a200 is not None:
-        zone = (
-            "健康区间"
-            if 60 <= a200 <= 80
-            else ("强势区间" if a200 > 80 else "警戒区间")
-        )
+        zone = "健康区间" if 60 <= a200 <= 80 else ("强势区间" if a200 > 80 else "警戒区间")
         parts.append(f"ABV200 {a200:.2f}%，位于 60-80% {zone}")
     out = {
         "momentum": {
@@ -1004,14 +944,10 @@ COT_VERDICT = {
     "commodities": "商品仓位不极端，价格更需要库存、地缘和美元方向确认。",
 }
 COT_VERDICT_EXTREME = {
-    "index_vol": "股指投机仓位较极端，拥挤状态下价格反向时波动会放大，关注 "
-    + "{f}"
-    + "。",
+    "index_vol": "股指投机仓位较极端，拥挤状态下价格反向时波动会放大，关注 " + "{f}" + "。",
     "rates": "利率仓位较极端，拥挤状态下数据反向时的波动会放大，关注 " + "{f}" + "。",
     "fx": "外汇仓位较极端，拥挤状态下汇率反向波动会放大，关注 " + "{f}" + "。",
-    "commodities": "商品仓位较极端，拥挤状态下价格反向时的波动会放大，关注 "
-    + "{f}"
-    + "。",
+    "commodities": "商品仓位较极端，拥挤状态下价格反向时的波动会放大，关注 " + "{f}" + "。",
 }
 
 
@@ -1061,16 +997,10 @@ def positioning() -> dict:
                 else (
                     "偏多"
                     if pct >= 75
-                    else (
-                        "极度看空" if pct <= 10 else ("偏空" if pct <= 25 else "中性")
-                    )
+                    else ("极度看空" if pct <= 10 else ("偏空" if pct <= 25 else "中性"))
                 )
             )
-            week_dir = (
-                "增仓"
-                if wk is not None and wk > 0
-                else ("减仓" if wk is not None else None)
-            )
+            week_dir = "增仓" if wk is not None and wk > 0 else ("减仓" if wk is not None else None)
             name, cme, code, kind = COT_META.get(sym, (sym, sym, "", ""))
             # 2 年迷你图：投机方（金融=HEDGE，商品=MM）vs 资管（金融=ASSET，商品无）
             if sym in FIN_SYMBOLS:
@@ -1082,14 +1012,8 @@ def positioning() -> dict:
             tail = cot.index[-53:]  # 迷你图窗口 1 年（52 周 + 当前），timsun 同款
             spark = {
                 "dates": [str(d.date()) for d in tail],
-                "spec": [
-                    None if pd.isna(v) else round(float(v), 0)
-                    for v in spec.reindex(tail)
-                ],
-                "asset": [
-                    None if pd.isna(v) else round(float(v), 0)
-                    for v in asset.reindex(tail)
-                ],
+                "spec": [None if pd.isna(v) else round(float(v), 0) for v in spec.reindex(tail)],
+                "asset": [None if pd.isna(v) else round(float(v), 0) for v in asset.reindex(tail)],
             }
             contracts.append(
                 {
@@ -1103,9 +1027,7 @@ def positioning() -> dict:
                     "label": label,
                     "week_chg": wk,
                     "week_dir": week_dir,
-                    "reading": _cot_reading(label, week_dir)
-                    + " "
-                    + _cot_week_text(week_dir),
+                    "reading": _cot_reading(label, week_dir) + " " + _cot_week_text(week_dir),
                     "long": round(float(longs[sym].iloc[-1]), 0),
                     "short": round(float(shorts[sym].iloc[-1]), 0),
                     "oi": round(float(cot[f"{sym}_OI"].iloc[-1]), 0)
@@ -1117,16 +1039,8 @@ def positioning() -> dict:
             all_pct.append(abs(pct - 50) * 2)
         if contracts:
             worst = max(contracts, key=lambda c: abs(c["pct_2y"] - 50))
-            bulls = sum(
-                1
-                for c in contracts
-                if c["label"].endswith("看多") or c["label"] == "偏多"
-            )
-            bears = sum(
-                1
-                for c in contracts
-                if c["label"].endswith("看空") or c["label"] == "偏空"
-            )
+            bulls = sum(1 for c in contracts if c["label"].endswith("看多") or c["label"] == "偏多")
+            bears = sum(1 for c in contracts if c["label"].endswith("看空") or c["label"] == "偏空")
             # 组判断：组内极端合约 ≤ 半数 → 非极端（方向留给宏观确认）；
             # 多数极端 → 拥挤警示
             ext_n = sum(1 for c in contracts if c["label"].startswith("极度"))
@@ -1157,20 +1071,15 @@ def positioning() -> dict:
     if all_pct:
         out["crowding"] = round(sum(all_pct) / len(all_pct), 1)
         all = [c for g in out["groups"] for c in g["contracts"]]
-        bulls = sum(
-            1 for c in all if c["label"].endswith("看多") or c["label"] == "偏多"
-        )
-        bears = sum(
-            1 for c in all if c["label"].endswith("看空") or c["label"] == "偏空"
-        )
+        bulls = sum(1 for c in all if c["label"].endswith("看多") or c["label"] == "偏多")
+        bears = sum(1 for c in all if c["label"].endswith("看空") or c["label"] == "偏空")
         ext = [c for c in all if c["label"].startswith("极度")]
         extremes = sorted(all, key=lambda c: abs(c["pct_2y"] - 50), reverse=True)[:3]
         out["overview"] = {
             "bias": "偏多" if bulls > bears else ("偏空" if bears > bulls else "中性"),
             "counts": {"bull": bulls, "bear": bears, "extreme": len(ext)},
             "extremes": [
-                {"symbol": c["symbol"], "name": c["name"], "pct_2y": c["pct_2y"]}
-                for c in extremes
+                {"symbol": c["symbol"], "name": c["name"], "pct_2y": c["pct_2y"]} for c in extremes
             ],
         }
     return out
@@ -1231,16 +1140,10 @@ def fx() -> dict:
     for g, vals in groups.items():
         avg = sum(vals) / len(vals)
         label = "美元走弱" if avg < -1 else ("美元走强" if avg > 1 else "美元中性")
-        breadth.append(
-            {"group": g, "avg_pressure": round(avg, 2), "label": label, "n": len(vals)}
-        )
+        breadth.append({"group": g, "avg_pressure": round(avg, 2), "label": label, "n": len(vals)})
     # 美元广度按对统计（每组均值供展示；weak/strong/total 计数基于对级压力）
-    weak_count = sum(
-        1 for r in rows if r["pressure"] is not None and r["pressure"] < -1
-    )
-    strong_count = sum(
-        1 for r in rows if r["pressure"] is not None and r["pressure"] > 1
-    )
+    weak_count = sum(1 for r in rows if r["pressure"] is not None and r["pressure"] < -1)
+    strong_count = sum(1 for r in rows if r["pressure"] is not None and r["pressure"] > 1)
     total_pairs = sum(1 for r in rows if r["pressure"] is not None)
     overall = _fx_verdict(weak_count, strong_count, total_pairs)
     # verdict/note 规则引擎：阈值固定、无随机；数据缺失时 verdict 降级为「—」
@@ -1378,9 +1281,7 @@ def _etf_holdings_block() -> dict | None:
     for col, key in (("gld_tonnes", "gld"), ("slv_tonnes_est", "slv")):
         if col not in df.columns:
             continue
-        out[key]["series"] = [
-            None if pd.isna(v) else round(float(v), 1) for v in sub[col]
-        ]
+        out[key]["series"] = [None if pd.isna(v) else round(float(v), 1) for v in sub[col]]
         s = df[col].dropna()
         if len(s) < 6:
             continue
@@ -1483,8 +1384,7 @@ def commodities() -> dict:
             if len(s) > 1:
                 base = float(s.iloc[0])
                 norm[c] = [
-                    None if pd.isna(v) else round(float(v) / base * 100 - 100, 2)
-                    for v in sub[c]
+                    None if pd.isna(v) else round(float(v) / base * 100 - 100, 2) for v in sub[c]
                 ]
     return {
         "cards": _price_rows(p, COMMODITY_ROWS),
@@ -1539,8 +1439,7 @@ def _metals_real_yield(p: pd.DataFrame) -> dict | None:
     yr = df[df.index >= df.index[-1] - pd.Timedelta(days=365)]
     step = max(1, len(yr) // 120)
     pts = [
-        [round(float(r.chg), 2), round(float(r.ret) * 100, 3)]
-        for r in yr.iloc[::step].itertuples()
+        [round(float(r.chg), 2), round(float(r.ret) * 100, 3)] for r in yr.iloc[::step].itertuples()
     ]
     return {"as_of": str(df.index[-1].date()), "latest": latest, "scatter": pts}
 
@@ -1591,11 +1490,7 @@ def _metals_etf_flow(p: pd.DataFrame) -> dict | None:
     gr = gold.pct_change(5)
     df = pd.DataFrame({"h": hd, "g": gr}).dropna()
     yr = df[df.index >= df.index[-1] - pd.Timedelta(days=365)]
-    hit = (
-        float((np.sign(yr["h"]) == np.sign(yr["g"])).mean() * 100)
-        if len(yr) >= 30
-        else None
-    )
+    hit = float((np.sign(yr["h"]) == np.sign(yr["g"])).mean() * 100) if len(yr) >= 30 else None
     # 序列对齐到近 2 年金价网格（持仓缺失日留空）
     grid = gold.index[-500:]
     return {
@@ -1603,8 +1498,7 @@ def _metals_etf_flow(p: pd.DataFrame) -> dict | None:
         "hit_rate": round(hit, 1) if hit is not None else None,
         "dates": [str(d.date()) for d in grid],
         "hold_chg": [
-            None if d not in hd.index or pd.isna(hd[d]) else round(float(hd[d]), 1)
-            for d in grid
+            None if d not in hd.index or pd.isna(hd[d]) else round(float(hd[d]), 1) for d in grid
         ],
         "gold": [round(float(gold[d]), 1) for d in grid],
     }
@@ -1725,9 +1619,7 @@ def metals() -> dict:
     }
 
 
-def _reg_beta(
-    nl: pd.Series, px: pd.Series, days: int = 90
-) -> tuple[float | None, float | None]:
+def _reg_beta(nl: pd.Series, px: pd.Series, days: int = 90) -> tuple[float | None, float | None]:
     """days 个日历日窗口回归 NL 与资产日收益率（beta, r2）；NL 为百万美元口径。
 
     NL 观测是周频 WALCL + 日频 TGA/RRP 的混合网格，直接数观测行会让窗口虚增
@@ -1888,9 +1780,7 @@ def _ratio_nl_beta(r: pd.Series) -> dict:
         return {"available": False}
     dom = max(valid, key=lambda k: abs(valid[k]))
     if dom > 0 and valid[dom] < 0:
-        verdict = (
-            f"NL 脉冲领先价比约 {dom} 日（负相关最强）：扩张先 BTC 后 ETH，外溢确认"
-        )
+        verdict = f"NL 脉冲领先价比约 {dom} 日（负相关最强）：扩张先 BTC 后 ETH，外溢确认"
     elif dom == 0:
         verdict = "主导滞后为 0：价比对 NL 脉冲同步响应，无外溢时滞"
     else:
@@ -1936,11 +1826,7 @@ def _pm_implied(p: pd.DataFrame) -> dict:
             if len(s):
                 leg["spot"] = round(float(s.iloc[-1]), 2)
         ev = next(
-            (
-                e
-                for e in snap.get("events") or []
-                if re.fullmatch(rx, e.get("title") or "")
-            ),
+            (e for e in snap.get("events") or [] if re.fullmatch(rx, e.get("title") or "")),
             None,
         )
         if ev is not None:
@@ -1951,9 +1837,7 @@ def _pm_implied(p: pd.DataFrame) -> dict:
                     continue
                 st = hit_strike(m.get("question") or "")
                 if st is not None:
-                    mkts.append(
-                        {"id": str(m["id"]), "strike": st, "prob": float(m["prob_yes"])}
-                    )
+                    mkts.append({"id": str(m["id"]), "strike": st, "prob": float(m["prob_yes"])})
             hist = {m["id"]: [{"date": as_of, "value": m["prob"]}] for m in mkts}
             pts = crossing_series(mkts, hist, rising=False)
             if pts:
@@ -2146,9 +2030,7 @@ def _ratio_cross(p: pd.DataFrame, r: pd.Series, funding: dict | None) -> dict:
             pcr = dict(series[-1])
             pcr["available"] = True
             cutoff = datetime.strptime(pcr["date"], "%Y-%m-%d") - timedelta(days=7)
-            past = [
-                s for s in series if datetime.strptime(s["date"], "%Y-%m-%d") <= cutoff
-            ]
+            past = [s for s in series if datetime.strptime(s["date"], "%Y-%m-%d") <= cutoff]
             chg7 = round(pcr["diff"] - past[-1]["diff"], 3) if past else None
             pcr["diff_chg_7d"] = chg7
             if chg7 is not None and chg7 > 0.05:
@@ -2210,12 +2092,8 @@ def _ratio_block(p: pd.DataFrame) -> dict | None:
     if fseries:
         funding = dict(fseries[-1])
         cutoff = datetime.strptime(funding["date"], "%Y-%m-%d") - timedelta(days=7)
-        past = [
-            s for s in fseries if datetime.strptime(s["date"], "%Y-%m-%d") <= cutoff
-        ]
-        funding["diff_chg_7d"] = (
-            round(funding["diff"] - past[-1]["diff"], 2) if past else None
-        )
+        past = [s for s in fseries if datetime.strptime(s["date"], "%Y-%m-%d") <= cutoff]
+        funding["diff_chg_7d"] = round(funding["diff"] - past[-1]["diff"], 2) if past else None
 
     # 交叉验证层：PCR 差 / 相关性 / NL 脉冲 / Polymarket 隐含涨幅比 / BTCD / ETF 流量比
     cross = _ratio_cross(p, r, funding)
@@ -2263,15 +2141,11 @@ def _ratio_block(p: pd.DataFrame) -> dict | None:
                 "牛市中后段特征；动量持续走低是山寨季信号。"
             )
         elif mom30 > 1:
-            parts.append(
-                f"价比 30 日动量 {mom30:+.1f}%（BTC 跑赢）：避险回流 BTC，回调期典型。"
-            )
+            parts.append(f"价比 30 日动量 {mom30:+.1f}%（BTC 跑赢）：避险回流 BTC，回调期典型。")
         else:
             parts.append(f"价比 30 日动量 {mom30:+.1f}%，横盘无明确轮动。")
     if z is not None and pctile is not None:
-        parts.append(
-            f"价比 {cur:.2f}，近 1 年 z-score {z:+.2f}（第 {pctile:g} 百分位）。"
-        )
+        parts.append(f"价比 {cur:.2f}，近 1 年 z-score {z:+.2f}（第 {pctile:g} 百分位）。")
     if rsi14 is not None:
         if rsi14 <= 30:
             parts.append(f"价比 RSI(14) {rsi14:.0f} 超卖，ETH 相对动能超跌。")
@@ -2353,11 +2227,7 @@ def crypto() -> dict:
         spx = p["SPX"].dropna() if "SPX" in p.columns else pd.Series(dtype=float)
         spx_beta, _ = _reg_beta(nl, spx)
         # 20 日脉冲：日历日绝对变化（B）
-        pulse = (
-            (float(nld.iloc[-1]) - float(nld.iloc[-21])) / 1000
-            if len(nld) >= 21
-            else None
-        )
+        pulse = (float(nld.iloc[-1]) - float(nld.iloc[-21])) / 1000 if len(nld) >= 21 else None
         # 30 日背离：NL 与 BTC 双腿同为 30 日历日。
         # 判定带幅度豁免，对齐行业标准：netliquidity.org 认为只有 ≥$100B
         # 的变动才实质改变市场条件（"moves of $100B or more"）；其 BTC 腿
@@ -2366,9 +2236,7 @@ def crypto() -> dict:
         div = None
         if len(nld) >= 31 and pd.notna(btc_al.iloc[-31]) and pd.notna(btc_al.iloc[-1]):
             nl_chg = round((float(nld.iloc[-1]) - float(nld.iloc[-31])) / 1e6, 2)
-            btc_chg = round(
-                (float(btc_al.iloc[-1]) / float(btc_al.iloc[-31]) - 1) * 100, 1
-            )
+            btc_chg = round((float(btc_al.iloc[-1]) / float(btc_al.iloc[-31]) - 1) * 100, 1)
             if abs(nl_chg) >= 0.1 and abs(btc_chg) >= 5:
                 if nl_chg < 0 < btc_chg:
                     verdict = "净流动性收缩而 BTC 上涨，注意回撤风险"
@@ -2388,18 +2256,12 @@ def crypto() -> dict:
         parts: list[str] = []
         # R² 门控：回归无线性关系时不下「敏感度 X 倍」的结论（纯噪声）
         if beta is not None and spx_beta and (r2 or 0) >= 0.15:
-            parts.append(
-                f"BTC 对美元流动性变化的敏感度约是标普的 {beta / spx_beta:.1f} 倍。"
-            )
+            parts.append(f"BTC 对美元流动性变化的敏感度约是标普的 {beta / spx_beta:.1f} 倍。")
         if pulse is not None:
             if pulse < 0:
-                parts.append(
-                    f"当前脉冲为负（{round(pulse):.0f}B），期间不新增仓位（规则设定）。"
-                )
+                parts.append(f"当前脉冲为负（{round(pulse):.0f}B），期间不新增仓位（规则设定）。")
             else:
-                parts.append(
-                    f"当前脉冲为正（+{round(pulse):.0f}B），加密流动性顺风延续。"
-                )
+                parts.append(f"当前脉冲为正（+{round(pulse):.0f}B），加密流动性顺风延续。")
         if div and "回撤风险" in div.get("verdict", ""):
             parts.append("净流动性收缩但 BTC 上涨，警惕回撤风险。")
         out["liquidity"] = {
@@ -2521,9 +2383,7 @@ def _options_narrative(s: dict) -> dict:
         return "—" if x is None else f"{x:,.0f}{unit}"
 
     # 1) Gamma 定调
-    gamma_title = (
-        "正 Gamma：波动更容易被压制" if local_pos else "负 Gamma：波动更容易放大"
-    )
+    gamma_title = "正 Gamma：波动更容易被压制" if local_pos else "负 Gamma：波动更容易放大"
     range_a, range_b = (pw, cw) if pw is not None and cw is not None else (flip, cw)
     range_text = (
         f"{range_a:.0f}–{range_b:.0f}"
@@ -2565,9 +2425,7 @@ def _options_narrative(s: dict) -> dict:
             "正 Gamma 且远离 Flip 时，隐含波动率通常更容易被压制；"
             "若价格重新靠近 Flip 或 VIX 抬升，低波动假设需要降权。"
         )
-        vol_risk = (
-            "VIX 突然抬升或跌破 Gamma Flip " + flip_txt + " 时，正 Gamma 解释力下降"
-        )
+        vol_risk = "VIX 突然抬升或跌破 Gamma Flip " + flip_txt + " 时，正 Gamma 解释力下降"
     else:
         meaning = (
             f"现价位于 Gamma Flip {flip_txt} 下方，负 Gamma 环境下波动易被放大；"
@@ -2588,9 +2446,7 @@ def _options_narrative(s: dict) -> dict:
             "负 Gamma 环境中隐含波动率通常被放大；"
             "若价格站上 Flip 或 IV 开始回落，高波动假设需要降权。"
         )
-        vol_risk = (
-            "价格站上 Gamma Flip " + flip_txt + " 或 IV 快速回落时，负 Gamma 解释力下降"
-        )
+        vol_risk = "价格站上 Gamma Flip " + flip_txt + " 或 IV 快速回落时，负 Gamma 解释力下降"
 
     # 3) 波动率结构
     vol_direction = (
@@ -2773,9 +2629,7 @@ def _chg_nd(series: list[dict], get, days: int = 7) -> float | None:
     if not last_v:
         return None
     target = datetime.strptime(series[-1]["_date"], "%Y%m%d") - timedelta(days=days)
-    ref = min(
-        series[:-1], key=lambda s: abs(datetime.strptime(s["_date"], "%Y%m%d") - target)
-    )
+    ref = min(series[:-1], key=lambda s: abs(datetime.strptime(s["_date"], "%Y%m%d") - target))
     ref_v = get(ref)
     if not ref_v:
         return None
@@ -2875,9 +2729,7 @@ def _okx_taker_history() -> list[float]:
     try:
         from src.fetchers.crypto_derivatives_fetcher import _okx
 
-        rows = _okx(
-            "rubik/stat/taker-volume", ccy="BTC", instType="CONTRACTS", period="1D"
-        )
+        rows = _okx("rubik/stat/taker-volume", ccy="BTC", instType="CONTRACTS", period="1D")
         out: list[float] = []
         for r in rows[:10]:
             sell = float(r[2])
@@ -2910,9 +2762,7 @@ def _window_1y(s: pd.Series) -> pd.Series:
     return s[s.index >= s.index[-1] - pd.Timedelta(days=365)]
 
 
-def _rank_pct(
-    s: pd.Series, cur: float | None, min_n: int = 30
-) -> tuple[float | None, str | None]:
+def _rank_pct(s: pd.Series, cur: float | None, min_n: int = 30) -> tuple[float | None, str | None]:
     """百分位 rank（考虑小样本）：(series <= cur).mean()×100 保留 1 位小数。
 
     样本 < min_n → (None, 说明文字)。
@@ -3097,9 +2947,7 @@ def _layer1_kpis() -> dict:
     # 6) CME BTC OI（口径统一：当前与历史都用 CFTC COT 周频全合约 OI；
     #    快照 fut_oi 是近月单合约，与聚合口径不可直接比 → 不作为 KPI 当前值）
     cot = _csv("cot/cot.csv")
-    cot_oi = (
-        cot["BTC_OI"].dropna() if "BTC_OI" in cot.columns else pd.Series(dtype=float)
-    )
+    cot_oi = cot["BTC_OI"].dropna() if "BTC_OI" in cot.columns else pd.Series(dtype=float)
     cur_oi = float(cot_oi.iloc[-1]) if len(cot_oi) else None
     win_oi = cot_oi.tail(52) if len(cot_oi) else cot_oi  # 近 1 年（周频 52 个观测）
     rank, note = _rank_pct(win_oi, cur_oi)
@@ -3113,11 +2961,7 @@ def _layer1_kpis() -> dict:
         pct_label=(f"近 1 年 · 第 {rank:g} 百分位" if rank is not None else "历史不足"),
         chg=chg,
         quartiles=_quartiles(win_oi, nd=0),
-        note=(
-            ((note + " · ") if note else "") + "周频 · COT 全合约口径"
-            if len(cot_oi)
-            else note
-        ),
+        note=(((note + " · ") if note else "") + "周频 · COT 全合约口径" if len(cot_oi) else note),
     )
 
     # 7) 永续多空比（当前 = 快照 taker 3 日 buy/sell 比；历史 = OKX 近 10 日）
@@ -3263,9 +3107,7 @@ def _funding_hist_series(snap: dict) -> list[dict]:
     end = end - timedelta(hours=end.hour % 8)
     return [
         {
-            "date": (end - timedelta(hours=8 * (len(fh) - 1 - i))).strftime(
-                "%Y-%m-%d %H:%M"
-            ),
+            "date": (end - timedelta(hours=8 * (len(fh) - 1 - i))).strftime("%Y-%m-%d %H:%M"),
             "value": round(v, 4),
         }
         for i, v in enumerate(fh)
@@ -3285,12 +3127,8 @@ def _stance(value: float | None, thr: float) -> str:
 def crypto_consensus(snap: dict, radar: dict) -> dict:
     """机构 vs 散户方向对照：机构=CME 头寸信号（直接复用雷达结果，不另算一套）+ETF；
     散户=资金费率 + 多空账户比（Coinglass） + PCR。返回双方立场与对照结论。"""
-    cme_sig = next(
-        (s for s in (radar or {}).get("signals", []) if s["name"] == "CME 机构头寸"), {}
-    )
-    chg = cme_sig.get(
-        "value"
-    )  # 中性带已应用：要么 None，要么 0 / ±10%（CFTC）/ ±1%（OI）
+    cme_sig = next((s for s in (radar or {}).get("signals", []) if s["name"] == "CME 机构头寸"), {})
+    chg = cme_sig.get("value")  # 中性带已应用：要么 None，要么 0 / ±10%（CFTC）/ ±1%（OI）
     inst_stance = _stance(chg, 0.5)
 
     perp = (snap.get("perp") or {}).get("BTC") or {}
@@ -3301,9 +3139,7 @@ def crypto_consensus(snap: dict, radar: dict) -> dict:
     # 多空账户比（Coinglass，与雷达同源）：>1.5 多头拥挤 / <0.67 空头拥挤
     lsr = (snap.get("coinglass") or {}).get("ls_ratio") or {}
     ls = (
-        lsr["long_pct"] / lsr["short_pct"]
-        if lsr.get("long_pct") and lsr.get("short_pct")
-        else None
+        lsr["long_pct"] / lsr["short_pct"] if lsr.get("long_pct") and lsr.get("short_pct") else None
     )
     ls_stance = _stance(ls, 1.5) if ls is not None else "中性"
     pcr = opt.get("pcr")
@@ -3317,15 +3153,11 @@ def crypto_consensus(snap: dict, radar: dict) -> dict:
     etf_stance = "中性"
     if etf.get("available") and not etf.get("stale"):
         v5 = etf.get("sum5d_busd")
-        etf_stance = (
-            "偏多" if (v5 or 0) > 0.05 else ("偏空" if (v5 or 0) < -0.05 else "中性")
-        )
+        etf_stance = "偏多" if (v5 or 0) > 0.05 else ("偏空" if (v5 or 0) < -0.05 else "中性")
     # 基差 carry 通道（Spread = 60d EMA − SOFR；>5% 吸引力足 / <0 负）
     bz = snap.get("basis") or {}
     spread = bz.get("spread")
-    bz_stance = (
-        "偏多" if (spread or 0) > 5 else ("偏空" if (spread or 0) < 0 else "中性")
-    )
+    bz_stance = "偏多" if (spread or 0) > 5 else ("偏空" if (spread or 0) < 0 else "中性")
 
     # 通道明细单源：读数 + 判定阈值 + 立场 + 是否有数据。缺数据的通道不计票
     # （历史上缺失被当「中性」混进票型，会得出「散户未反向 → 同向」的假结论）。
@@ -3343,14 +3175,10 @@ def crypto_consensus(snap: dict, radar: dict) -> dict:
             "name": "ETF 资金流",
             "stance": etf_stance,
             "reading": (
-                f"{etf.get('sum5d_busd'):+.2f} B"
-                if etf.get("sum5d_busd") is not None
-                else None
+                f"{etf.get('sum5d_busd'):+.2f} B" if etf.get("sum5d_busd") is not None else None
             ),
             "band": "5 日净流 · ±0.05B 中性带",
-            "detail": f"Farside 截至 {etf.get('latest')}"
-            if etf_live
-            else "Farside 数据缺失或过期",
+            "detail": f"Farside 截至 {etf.get('latest')}" if etf_live else "Farside 数据缺失或过期",
             "has_data": etf_live,
         },
         {
@@ -3427,9 +3255,7 @@ def crypto_consensus(snap: dict, radar: dict) -> dict:
         both_neutral = not inst_dirs and not retail_dirs
         if both_neutral:
             verdict = "双方都按兵不动 — 等待新催化"
-            detail = (
-                "机构与散户立场均中性，无方向性持仓变化。等待宏观或链上新催化打破僵局。"
-            )
+            detail = "机构与散户立场均中性，无方向性持仓变化。等待宏观或链上新催化打破僵局。"
         elif not inst_dirs:
             verdict = "机构按兵不动，散户有方向 — 看散户拥挤度"
             detail = (
@@ -3446,10 +3272,7 @@ def crypto_consensus(snap: dict, radar: dict) -> dict:
             verdict = f"机构与散户同向偏{short_inst[:1]} — 趋势延续概率上升"
             detail = f"机构（{note_inst}）偏{short_inst}且散户未反向，方向性信号同向。"
         else:
-            verdict = (
-                f"机构偏{short_inst}，散户偏{short.get(retail_lean, '分化')}"
-                " — 分歧看定价权"
-            )
+            verdict = f"机构偏{short_inst}，散户偏{short.get(retail_lean, '分化')} — 分歧看定价权"
             detail = (
                 "机构与散户立场不一致：以机构（CME/ETF/Spread）定价权为锚，"
                 "散户信号仅作反向拥挤度参考。"
@@ -3548,9 +3371,7 @@ def crypto_radar(snap: dict) -> dict:
     if cme_val is None:
         driver_name, driver_state = "现货驱动", "CME 头寸数据待积累"
     else:
-        cme_move = (
-            "机构增仓" if cme_val > 0 else ("机构减仓" if cme_val < 0 else "头寸稳定")
-        )
+        cme_move = "机构增仓" if cme_val > 0 else ("机构减仓" if cme_val < 0 else "头寸稳定")
         driver_name, driver_state = "CME 机构头寸", cme_move
 
     # 资金费率（Presto 2024：对下一期无方向预测力 → 降权为拥挤度过滤器，
@@ -3560,9 +3381,7 @@ def crypto_radar(snap: dict) -> dict:
     add(
         "资金费率",
         5,
-        None
-        if funding is None
-        else (-1.0 if ann_pct >= 15 else (1.0 if ann_pct <= -15 else 0.0)),
+        None if funding is None else (-1.0 if ann_pct >= 15 else (1.0 if ann_pct <= -15 else 0.0)),
         f"Funding {(perp.get('funding_rate') or 0) * 100:.4f}%/8h，"
         f"年化约 {ann_pct:.1f}%（仅年化 ±15% 超出时反向计分）",
     )
@@ -3577,8 +3396,7 @@ def crypto_radar(snap: dict) -> dict:
             "基差 carry",
             20,
             bv,
-            f"Spread {bz.get('spread')}% ({bz.get('ema60')}% EMA − SOFR "
-            f"{bz.get('sofr')}%)"
+            f"Spread {bz.get('spread')}% ({bz.get('ema60')}% EMA − SOFR {bz.get('sofr')}%)"
             if bz.get("spread") is not None
             else f"基差 60d EMA {bz.get('ema60')}%（SOFR 不可用）",
         )
@@ -3587,8 +3405,7 @@ def crypto_radar(snap: dict) -> dict:
             "基差 carry",
             20,
             basis,
-            f"Spread {basis:.2f}%，CME ${cme.get('fut_price')} vs "
-            f"现货 ${cme.get('spot')}"
+            f"Spread {basis:.2f}%，CME ${cme.get('fut_price')} vs 现货 ${cme.get('spot')}"
             if basis is not None
             else "CME 基差不可用",
         )
@@ -3618,8 +3435,7 @@ def crypto_radar(snap: dict) -> dict:
                 "期权牵引",
                 10,
                 mp_dist if abs(mp_dist) >= 0.5 else 0.0,
-                f"Max Pain ${near_mp:,.0f} 距现价 {mp_dist:+.1f}%"
-                "（GEX 待积累，回退旧口径）",
+                f"Max Pain ${near_mp:,.0f} 距现价 {mp_dist:+.1f}%（GEX 待积累，回退旧口径）",
             )
 
     # 永续 OI：OKX BTC 永续 OI 7d 变化（±5% 中性带，大幅增减杠杆才计方向）
@@ -3630,9 +3446,7 @@ def crypto_radar(snap: dict) -> dict:
             "永续 OI",
             10,
             None,
-            f"OI ${(oi_usd or 0) / 1e9:.1f}B（历史快照不足 7d）"
-            if oi_usd
-            else "永续 OI 不可用",
+            f"OI ${(oi_usd or 0) / 1e9:.1f}B（历史快照不足 7d）" if oi_usd else "永续 OI 不可用",
         )
     else:
         add(
@@ -3647,9 +3461,7 @@ def crypto_radar(snap: dict) -> dict:
     # ponytail: 固定阈值；快照满 90d 后改滚动分位（分位语境比绝对值可靠）
     lsr = (snap.get("coinglass") or {}).get("ls_ratio") or {}
     ls_ratio = (
-        lsr["long_pct"] / lsr["short_pct"]
-        if lsr.get("long_pct") and lsr.get("short_pct")
-        else None
+        lsr["long_pct"] / lsr["short_pct"] if lsr.get("long_pct") and lsr.get("short_pct") else None
     )
     if ls_ratio is None:
         add("散户多空比", 10, None, "Coinglass 多空账户比不可用")
@@ -3685,9 +3497,7 @@ def crypto_radar(snap: dict) -> dict:
         )
     else:
         reason = (
-            "超过时效阈值，不纳入方向评分"
-            if etf.get("stale")
-            else "公开免费源未接入（Farside）"
+            "超过时效阈值，不纳入方向评分" if etf.get("stale") else "公开免费源未接入（Farside）"
         )
         add("ETF 资金流", 25, None, reason)
 

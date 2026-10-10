@@ -69,9 +69,7 @@ def test_fetch_acm_end_to_end(monkeypatch):
         def raise_for_status():
             pass
 
-    monkeypatch.setattr(
-        "src.fetchers.acm_fetcher.requests.get", lambda *a, **k: _Resp()
-    )
+    monkeypatch.setattr("src.fetchers.acm_fetcher.requests.get", lambda *a, **k: _Resp())
     monkeypatch.setattr(
         "src.fetchers.acm_fetcher.xlrd.open_workbook",
         lambda **k: _FakeBook(_ROWS),

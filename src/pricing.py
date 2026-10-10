@@ -34,9 +34,7 @@ def d1_from(S: float, K: float, T: float, sigma: float, r: float = R) -> float:
     return (_ln(S / K) + (r + sigma * sigma / 2) * T) / (sigma * sqrt(T))
 
 
-def bs_greeks(
-    S: float, K: float, T: float, sigma: float, r: float = R
-) -> tuple[float, float]:
+def bs_greeks(S: float, K: float, T: float, sigma: float, r: float = R) -> tuple[float, float]:
     """(gamma, delta_call) per share；put delta = delta_call − 1，调用方处理。"""
     if T <= 0 or sigma <= 0:
         return 0.0, 0.0

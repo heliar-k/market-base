@@ -63,9 +63,7 @@ _MONTHS = {
 
 def _get(url: str) -> dict:
     """curl_cffi（TLS 指纹）直连，失败降级 Jina Reader。"""
-    proxies = (
-        {"https": os.environ["HTTPS_PROXY"]} if os.environ.get("HTTPS_PROXY") else None
-    )
+    proxies = {"https": os.environ["HTTPS_PROXY"]} if os.environ.get("HTTPS_PROXY") else None
     try:
         from curl_cffi import requests as cr
 
@@ -156,9 +154,7 @@ def build_snapshot(rows: list[dict], trade_date: datetime) -> dict:
         d1 = datetime.fromisoformat(nxt["expiry"])
         days = (d1 - d0).days
         if days > 0:
-            basis_ann = round(
-                (nxt["settle"] / front["settle"] - 1) * 365 / days * 100, 2
-            )
+            basis_ann = round((nxt["settle"] / front["settle"] - 1) * 365 / days * 100, 2)
             if basis_ann > 0.5:
                 term = "contango"
             elif basis_ann < -0.5:
@@ -226,7 +222,5 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    logging.basicConfig(
-        level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s"
-    )
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
     main()

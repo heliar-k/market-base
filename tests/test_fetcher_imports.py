@@ -59,9 +59,7 @@ def test_yf_functions_call_ensure_proxy(monkeypatch):
     import yfinance
 
     calls = []
-    monkeypatch.setattr(
-        "src.fetchers.yfinance_fetcher.ensure_yf_proxy", lambda: calls.append(1)
-    )
+    monkeypatch.setattr("src.fetchers.yfinance_fetcher.ensure_yf_proxy", lambda: calls.append(1))
 
     class _Fake:
         def history(self, **kw):

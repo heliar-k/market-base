@@ -10,12 +10,8 @@ import numpy as np
 import pandas as pd
 
 BASE = str(_pl.Path(__file__).resolve().parents[2])
-VOL = pd.read_csv(
-    f"{BASE}/data/cboe/volatility.csv", index_col="date", parse_dates=True
-)
-ASSET = pd.read_csv(
-    f"{BASE}/data/yfinance/asset_prices.csv", index_col="date", parse_dates=True
-)
+VOL = pd.read_csv(f"{BASE}/data/cboe/volatility.csv", index_col="date", parse_dates=True)
+ASSET = pd.read_csv(f"{BASE}/data/yfinance/asset_prices.csv", index_col="date", parse_dates=True)
 
 v = VOL[["VIX", "SKEW"]].dropna()
 vix = v.VIX
@@ -28,9 +24,7 @@ grid = np.arange(0, len(vix) - 21, 20)
 for name, mask in {"SKEW>=150": v.SKEW >= 150, "SKEW>=90分位": v.SKEW >= p90}.items():
     mv = mask.values
     sig_g = [i for i in grid if mv[i]]
-    oth_g = [
-        i for i in grid if not mv[i] and not np.any(mv[max(0, i - 20) : i])
-    ]  # 前 20 日无信号
+    oth_g = [i for i in grid if not mv[i] and not np.any(mv[max(0, i - 20) : i])]  # 前 20 日无信号
     for th in (0.2, 0.3):
         a = np.mean([gain20.iloc[i] >= th for i in sig_g]) * 100
         b = np.mean([gain20.iloc[i] >= th for i in oth_g]) * 100
@@ -85,9 +79,7 @@ for a, b in [(60, 15), (60, 20), (100, 20)]:
     detail(j.MOVE, j.VIX, a, b, dedup=20)
 
 scale = (ASSET["MOVE"] / VOL["GVZ"]).dropna().median()
-g = pd.concat(
-    [VOL["VIX"], (VOL["GVZ"] * scale).rename("MOVE")], axis=1, sort=False
-).dropna()
+g = pd.concat([VOL["VIX"], (VOL["GVZ"] * scale).rename("MOVE")], axis=1, sort=False).dropna()
 print("\nGVZ 代理（长样本 2009–2026）原始连续段：")
 for a, b in [(60, 15), (60, 20)]:
     detail(g.MOVE, g.VIX, a, b, dedup=None)

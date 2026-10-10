@@ -24,9 +24,7 @@ def _payload(btc: float, eth: float) -> dict:
 
 
 def test_fetch_dominance_parses(monkeypatch):
-    monkeypatch.setattr(
-        bd.requests, "get", lambda *a, **k: _Resp(_payload(58.1234, 11.987))
-    )
+    monkeypatch.setattr(bd.requests, "get", lambda *a, **k: _Resp(_payload(58.1234, 11.987)))
     df = bd.fetch_dominance()
     assert list(df.columns) == ["btc_dominance", "eth_dominance"]
     row = df.iloc[0]
@@ -39,9 +37,7 @@ def test_main_upsert_roundtrip(monkeypatch, tmp_path):
     out = tmp_path / "btc_dominance.csv"
     monkeypatch.setattr(bd, "OUT", out)
     monkeypatch.setattr(sys, "argv", ["fetch_btc_dominance"])
-    monkeypatch.setattr(
-        bd.requests, "get", lambda *a, **k: _Resp(_payload(58.12, 11.99))
-    )
+    monkeypatch.setattr(bd.requests, "get", lambda *a, **k: _Resp(_payload(58.12, 11.99)))
     bd.main()
     df = pd.read_csv(out)
     assert list(df.columns) == ["date", "btc_dominance", "eth_dominance"]

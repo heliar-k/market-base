@@ -39,9 +39,7 @@ URL = "https://cdn.finra.org/equity/regsho/daily/CNMSshvol{date}.txt"
 # 直连被 WAF 拦时的 fallback 代理（.env 配置；YF_NO_PROXY=1 跳过，Actions 直连）
 # 注：socks5 与 socks5h 均可（cdn.finra.org DNS 本地解析正常），沿用 config 现值
 _PROXY_URL = (
-    ""
-    if os.environ.get("YF_NO_PROXY")
-    else (config.https_proxy or "socks5h://127.0.0.1:7890")
+    "" if os.environ.get("YF_NO_PROXY") else (config.https_proxy or "socks5h://127.0.0.1:7890")
 )
 
 _SESSION = requests.Session()
@@ -115,9 +113,7 @@ def _parse(text: str, symbols: set[str]) -> pd.DataFrame:
     ratio = df["ShortVolume"] / df["TotalVolume"]
     wide = pd.concat(
         [
-            pd.DataFrame(
-                {"date": df["date"], "Symbol": df["Symbol"], "short_ratio": ratio}
-            )
+            pd.DataFrame({"date": df["date"], "Symbol": df["Symbol"], "short_ratio": ratio})
             .pivot(index="date", columns="Symbol", values="short_ratio")
             .add_suffix("_short_ratio"),
             df[["date", "Symbol", "ShortVolume"]]
@@ -137,11 +133,7 @@ def backfill_dates(max_days: int = 400) -> list[date]:
     """
     today = date.today()
     anchor = next(
-        (
-            today - timedelta(days=i)
-            for i in range(10)
-            if _exists(today - timedelta(days=i))
-        ),
+        (today - timedelta(days=i) for i in range(10) if _exists(today - timedelta(days=i))),
         None,
     )
     if anchor is None:
@@ -176,9 +168,7 @@ def fetch_finra(dates: list[date], symbols: set[str]) -> pd.DataFrame:
 def main() -> None:
     parser = argparse.ArgumentParser(description="FINRA 每日沽空量拉取")
     parser.add_argument("--symbols", help="逗号分隔标的（默认配置全部股票）")
-    parser.add_argument(
-        "--backfill", action="store_true", help="探测历史深度并全量回填"
-    )
+    parser.add_argument("--backfill", action="store_true", help="探测历史深度并全量回填")
     parser.add_argument("--days", type=int, default=7, help="近 N 天增量（默认 7）")
     args = parser.parse_args()
 

@@ -46,9 +46,7 @@ BARCHART_PAIRS = ["USDCNH", "USDCHF"]
 BARCHART_PAGE = "https://www.barchart.com/forex/quotes/%5E{PAIR}/forward-rates"
 _TENOR_RE = re.compile(r"(Overnight|Tomorrow|Spot|(\d+)-(Week|Month|Year)) Forward$")
 
-YAHOO_URL = (
-    "https://query1.finance.yahoo.com/v8/finance/chart/{sym}?range=5d&interval=1d"
-)
+YAHOO_URL = "https://query1.finance.yahoo.com/v8/finance/chart/{sym}?range=5d&interval=1d"
 
 
 @dataclass(frozen=True)
@@ -128,11 +126,7 @@ def _fetch_yahoo_near(pair_cfg: YahooPair) -> float | None:
         req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
         with urllib.request.urlopen(req, timeout=20) as resp:
             data = json.loads(resp.read())
-        closes = [
-            c
-            for c in data["chart"]["result"][0]["indicators"]["quote"][0]["close"]
-            if c
-        ]
+        closes = [c for c in data["chart"]["result"][0]["indicators"]["quote"][0]["close"] if c]
         return closes[-1] if closes else None
 
     fut, spot = _get(pair_cfg.future), _get(pair_cfg.spot)
@@ -155,9 +149,7 @@ def fetch_swap_points() -> pd.DataFrame:
     points: dict[str, float] = {}
     obs_dates: set[str] = set()
     for pair in PAIRS:
-        resp = session.post(
-            f"{BASE}/fx-sw-curv-{pair}.json", data={"t": "1"}, timeout=30
-        )
+        resp = session.post(f"{BASE}/fx-sw-curv-{pair}.json", data={"t": "1"}, timeout=30)
         resp.raise_for_status()
         data = resp.json().get("data", {})
         show_date = data.get("showDateCN") or data.get("nowDate")
@@ -194,9 +186,7 @@ def fetch_swap_points() -> pd.DataFrame:
             logger.warning("Yahoo %s 拉取失败: %s", cfg.column, e)
 
     # 用 API 自带的数据日期（周末/节假日时与运行日不同），避免错位
-    obs_date = (
-        sorted(obs_dates)[-1] if obs_dates else datetime.now().strftime("%Y-%m-%d")
-    )
+    obs_date = sorted(obs_dates)[-1] if obs_dates else datetime.now().strftime("%Y-%m-%d")
     return pd.DataFrame([points], index=[obs_date])
 
 
@@ -217,6 +207,4 @@ if __name__ == "__main__":
         n_cols = len(df.columns)
         latest = df.iloc[0].to_dict()
         sample = {k: v for k, v in list(latest.items())[:3]}
-        print(
-            f"CFETS 掉期点 → {path} ({n_cols} 列, 观测日 {df.index[0]}, 样例 {sample})"
-        )
+        print(f"CFETS 掉期点 → {path} ({n_cols} 列, 观测日 {df.index[0]}, 样例 {sample})")

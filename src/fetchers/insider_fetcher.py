@@ -156,9 +156,7 @@ def _existing_accessions(path: Path) -> set[str]:
     return set(df["accession"]) if "accession" in df.columns else set()
 
 
-def fetch_insider(
-    symbols: list[str] | None = None, days: int = 730
-) -> dict[str, tuple[int, int]]:
+def fetch_insider(symbols: list[str] | None = None, days: int = 730) -> dict[str, tuple[int, int]]:
     """拉取内部人交易（accession 去重增量）。symbols=None 用配置全部股票。"""
     cik_map = fetch_cik_map()
     cutoff = datetime.now() - timedelta(days=days)

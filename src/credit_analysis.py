@@ -63,9 +63,7 @@ def _read_yf() -> pd.DataFrame:
     本页所有涨跌幅/分位/动量都按交易日口径算，直接读原文件会把快照续写的
     周末行当观测（credit CDS 页因此把 14 日分歧度算成 9 个交易日）。
     """
-    return clean_snapshot(
-        read_csv_or_empty(ROOT / "data" / "yfinance" / "asset_prices.csv")
-    )
+    return clean_snapshot(read_csv_or_empty(ROOT / "data" / "yfinance" / "asset_prices.csv"))
 
 
 def _read_ofr() -> pd.DataFrame:
@@ -169,9 +167,7 @@ def _regime_zone(score: float) -> str:
     return REGIME_ZONES[-1][0]
 
 
-def _regime_score(
-    df_vol: pd.DataFrame, df_cr: pd.DataFrame, df_yf: pd.DataFrame
-) -> dict:
+def _regime_score(df_vol: pd.DataFrame, df_cr: pd.DataFrame, df_yf: pd.DataFrame) -> dict:
     """7 子分 Credit Regime Score 合成（口径见模块注释，高分 = 更大信用压力）。"""
     hy = df_vol["HY_OAS"].dropna() if "HY_OAS" in df_vol else pd.Series(dtype=float)
     ig = df_vol["IG_OAS"].dropna() if "IG_OAS" in df_vol else pd.Series(dtype=float)
@@ -417,9 +413,7 @@ def _spread(df: pd.DataFrame, a: str, b: str, name: str) -> dict:
     return {"name": name, **c, "as_of": c["as_of"]}
 
 
-def _overview_signals(
-    hy: dict, funding: dict, sloos: list[dict], fincond: dict
-) -> dict:
+def _overview_signals(hy: dict, funding: dict, sloos: list[dict], fincond: dict) -> dict:
     """三段式研判：What changed / Why it matters / What to watch next。
 
     对齐原站 timsun.net/credit 的 AI 分析框架（rule-based · no direct price
@@ -449,9 +443,7 @@ def _overview_signals(
     # ── Why it matters：解读 ──
     why_parts: list[str] = []
     if hy_yield is not None:
-        why_parts.append(
-            f"企业融资的绝对成本仍处于高位（HY all-in yield {hy_yield:.2f}%）"
-        )
+        why_parts.append(f"企业融资的绝对成本仍处于高位（HY all-in yield {hy_yield:.2f}%）")
     if hy_p is not None and hy_p < 30:
         why_parts.append("利差水位偏低，尾部风险定价不足")
     if std:
@@ -474,9 +466,7 @@ def _overview_signals(
         if std["value"] > 0:
             watch.append(f"SLOOS 是否继续确认银行收紧（当前 {std['value']:+.1f}%）")
         elif std["value"] < 0:
-            watch.append(
-                f"SLOOS 是否转正确认银行收紧（当前 {std['value']:+.1f}% 放松）"
-            )
+            watch.append(f"SLOOS 是否转正确认银行收紧（当前 {std['value']:+.1f}% 放松）")
         else:
             watch.append("SLOOS 是否转正确认银行收紧（当前持平）")
     nf = fincond.get("nfci")
@@ -568,12 +558,10 @@ def cds(df_rates: pd.DataFrame, df_yf: pd.DataFrame) -> dict:
                     "base_date": idx[0].strftime("%Y-%m-%d"),
                     "trading_days": len(idx),
                     "kbwb": [
-                        round(float(v / first_kb * 100), 2) if pd.notna(v) else None
-                        for v in kb_n
+                        round(float(v / first_kb * 100), 2) if pd.notna(v) else None for v in kb_n
                     ],
                     "spx": [
-                        round(float(v / first_sp * 100), 2) if pd.notna(v) else None
-                        for v in sp_n
+                        round(float(v / first_sp * 100), 2) if pd.notna(v) else None for v in sp_n
                     ],
                 }
     return out
@@ -678,9 +666,7 @@ def stress(
         ),
         (
             "10Y UST",
-            df_rates["DGS10"].dropna()
-            if "DGS10" in df_rates
-            else pd.Series(dtype=float),
+            df_rates["DGS10"].dropna() if "DGS10" in df_rates else pd.Series(dtype=float),
             "无风险 vs 信用",
         ),
     ]:
