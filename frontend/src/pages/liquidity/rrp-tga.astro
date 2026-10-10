@@ -99,8 +99,8 @@ async function load() {
   // ── SOFR−IORB 60 日 ──
   const s60 = d.series?.sofr_iorb_bp || [];
   R.mkChart('spread_chart', c => ({
-    xAxis: { type: 'time', axisLabel: { color: c.muted } },
-    yAxis: { type: 'value', scale: true, axisLabel: { color: c.muted, formatter: v => v + 'bp' }, splitLine: { lineStyle: { color: c.grid } } },
+    xAxis: { type: 'time' },
+    yAxis: { type: 'value', scale: true, axisLabel: { formatter: v => v + 'bp' } },
     grid: { left: 8, right: 20, bottom: 30, top: 20, containLabel: true },
     tooltip: { trigger: 'axis' },
     series: [{ type: 'line', data: s60.map(p => [p.date, p.value]), lineStyle: { color: c.blue, width: 2 }, showSymbol: false,
@@ -110,8 +110,8 @@ async function load() {
   // ── TGA 日度现金流 ──
   const cf = d.cashflows || [];
   R.mkChart('cash_chart', c => ({
-    xAxis: { type: 'time', axisLabel: { color: c.muted } },
-    yAxis: { type: 'value', axisLabel: { color: c.muted, formatter: v => '$' + v + 'B' }, splitLine: { lineStyle: { color: c.grid } } },
+    xAxis: { type: 'time' },
+    yAxis: { type: 'value', axisLabel: { formatter: v => '$' + v + 'B' } },
     grid: { left: 8, right: 20, bottom: 30, top: 20, containLabel: true },
     tooltip: { trigger: 'axis' },
     series: [

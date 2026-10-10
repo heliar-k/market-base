@@ -89,7 +89,7 @@ async function load() {
   const TERM_STATE = { contango: '升水 Contango', backwardation: '贴水 Backwardation' };
   const axis = (name) => ({
     type: 'value', name, nameTextStyle: { color: c.muted },
-    axisLabel: { color: c.muted }, splitLine: { lineStyle: { color: c.grid } },
+    
   });
 
   // ── 状态卡 ×3 ──
@@ -151,10 +151,10 @@ async function load() {
   R.mkChart('vix_long_chart', () => ({
     tooltip: { trigger: 'axis' },
     grid: { left: 8, right: 90, top: 36, bottom: 30 },
-    xAxis: { type: 'category', data: data.vix_long.dates, axisLabel: { color: c.muted } },
+    xAxis: { type: 'time', boundaryGap: false },  // ~2 年跨度，不写 formatter
     yAxis: { ...axis('VIX') },
     series: [{
-      name: 'VIX', type: 'line', data: data.vix_long.vix, smooth: true, symbol: 'none',
+      name: 'VIX', type: 'line', data: data.vix_long.dates.map((dt, i) => [dt, data.vix_long.vix[i]]), smooth: true, symbol: 'none',
       lineStyle: { width: 2, color: c.red }, itemStyle: { color: c.red },
       markLine: {
         silent: true, symbol: 'none',
@@ -183,9 +183,7 @@ async function load() {
     tooltip: { formatter: (p) => `${p.seriesName === '今日' ? '' : ''}VIX ${p.value[0]} · SKEW ${p.value[1]}<br/>${p.value[2]}` },
     // right 留 46px 防 x 轴标题（SKEW）右端被裁；markLine 标签位置 end 避免与轴刻度重叠
     grid: { left: 8, right: 46, top: 28, bottom: 35, containLabel: true },
-    xAxis: { ...axis('VIX'), scale: true,
-      splitLine: { lineStyle: { color: c.grid } },
-    },
+    xAxis: { ...axis('VIX'), scale: true },
     yAxis: { ...axis('SKEW'), scale: true },
     series: [
       {
@@ -213,10 +211,10 @@ async function load() {
   R.mkChart('skew_chart', () => ({
     tooltip: { trigger: 'axis' },
     grid: { left: 8, right: 64, top: 36, bottom: 30 },
-    xAxis: { type: 'category', data: data.vix_history.dates, axisLabel: { color: c.muted } },
+    xAxis: { type: 'time', boundaryGap: false, axisLabel: { formatter: (v) => R.md(v) } },  // ~6 月跨度，R.md
     yAxis: { ...axis('SKEW'), min: 100 },
     series: [{
-      name: 'SKEW', type: 'line', data: data.vix_history.skew, smooth: true, symbol: 'none',
+      name: 'SKEW', type: 'line', data: data.vix_history.dates.map((dt, i) => [dt, data.vix_history.skew[i]]), smooth: true, symbol: 'none',
       lineStyle: { width: 2, color: c.purple }, itemStyle: { color: c.purple },
       markLine: {
         silent: true, symbol: 'none',

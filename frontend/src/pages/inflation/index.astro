@@ -63,8 +63,8 @@ async function load() {
   });
   R.mkChart('yoy-chart', (colors) => R.lineOption({
     grid: { left: 8, right: '4%', bottom: 24, top: 36, containLabel: true },
-    xAxis: { type: 'time', boundaryGap: false, axisLabel: { color: colors.text } },
-    yAxis: { type: 'value', scale: true, splitNumber: 4, axisLabel: { color: colors.text, formatter: '{value}%' }, splitLine: { lineStyle: { color: colors.grid } } },
+    xAxis: { type: 'time', boundaryGap: false },
+    yAxis: { type: 'value', scale: true, splitNumber: 4, axisLabel: { formatter: '{value}%' } },
     tooltip: { trigger: 'axis', valueFormatter: v => v != null ? v.toFixed(2) + '%' : '—' },
     series: [
       line('CPI', h.cpi, colors.blue),

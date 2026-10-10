@@ -217,8 +217,8 @@ function pGex(panel, v) {
       xAxis: { type: 'category', data: ss, axisLine: { lineStyle: { color: colors.border } }, axisLabel: { color: colors.muted, fontSize: 10, rotate: 0 }, name: '行权价', nameLocation: 'middle', nameGap: 32, nameTextStyle: { color: colors.muted, fontSize: 10 } },
       yAxis: [
         // splitNumber 限 5 段，避免极值标签（±236.3）与整数刻度（±200）上下挤压重叠
-        { type: 'value', min: -vmax, max: vmax, splitNumber: 5, axisLabel: { color: colors.muted, fontSize: 11 }, splitLine: { lineStyle: { color: colors.grid } } },
-        { type: 'value', min: -cumMax, max: cumMax, splitNumber: 5, position: 'right', splitLine: { show: false }, axisLabel: { color: colors.muted, fontSize: 11 } },
+        { type: 'value', min: -vmax, max: vmax, splitNumber: 5 },
+        { type: 'value', min: -cumMax, max: cumMax, splitNumber: 5, position: 'right', splitLine: { show: false } },
       ],
       series: [
         {
@@ -311,7 +311,7 @@ function pIv(panel, v) {
     tooltip: { trigger: 'axis' },
     grid: { left: 8, right: 16, top: 20, bottom: 28 },
     xAxis: { type: 'category', data: v.iv_curve.map(x => (x.dte || '') + 'D'), axisLine: { lineStyle: { color: colors.border } }, axisLabel: { color: colors.muted, fontSize: 10 } },
-    yAxis: { type: 'value', axisLabel: { color: colors.muted, fontSize: 11 }, splitLine: { lineStyle: { color: colors.grid } } },
+    yAxis: { type: 'value' },
     series: [{ type: 'line', data: v.iv_curve.map(x => x.iv), showSymbol: true, lineStyle: { width: 2, color: colors.blue } }],
   });
 }

@@ -86,18 +86,17 @@ async function load() {
       tooltip: { trigger: 'axis', axisPointer: { type: 'cross' } },
       legend: { data: ['净流动性 (T)', 'BTC 价格'], top: 0 },
       grid: { left: 8, right: '5%', top: 52, bottom: 40, containLabel: true },  // top 留足：图例占 0-14px，右轴名 BTC ($) 在 grid 顶沿，35 会撞图例
-      xAxis: { type: 'category', data: L.nl_dates, axisLine: { lineStyle: { color: colors.border } },
-        axisLabel: { color: colors.muted, fontSize: 10, rotate: 30 } },
+      xAxis: { type: 'time', boundaryGap: false, axisLabel: { formatter: (v) => R.md(v) } },  // 180 日 ≤1 年
       yAxis: [
         { type: 'value', scale: true, position: 'left', name: '净流动性 (T)', nameTextStyle: { color: NL_CYAN },
-          axisLabel: { color: NL_CYAN, fontSize: 10 }, splitLine: { lineStyle: { color: colors.grid, type: 'dashed' } } },
+          axisLabel: { formatter: (v) => v.toFixed(1) }, splitLine: { lineStyle: { type: 'dashed' } } },
         { type: 'value', scale: true, position: 'right', name: 'BTC ($)', nameTextStyle: { color: colors.orangeText },
-          axisLabel: { color: colors.orangeText, fontSize: 10 }, splitLine: { show: false } },
+          splitLine: { show: false } },
       ],
       series: [
-        { name: '净流动性 (T)', type: 'line', data: L.nl_series, showSymbol: false, smooth: true,
+        { name: '净流动性 (T)', type: 'line', data: L.nl_dates.map((dt, i) => [dt, L.nl_series[i]]), showSymbol: false, smooth: true,
           lineStyle: { width: 2, color: NL_CYAN }, itemStyle: { color: NL_CYAN }, areaStyle: { color: NL_CYAN, opacity: 0.1 } },
-        { name: 'BTC 价格', type: 'line', yAxisIndex: 1, data: L.btc_series, showSymbol: false, smooth: true, connectNulls: true,
+        { name: 'BTC 价格', type: 'line', yAxisIndex: 1, data: L.nl_dates.map((dt, i) => [dt, L.btc_series[i]]), showSymbol: false, smooth: true, connectNulls: true,
           lineStyle: { width: 2, color: colors.orange }, itemStyle: { color: colors.orange } },
       ],
     }, colors));
@@ -193,23 +192,19 @@ async function load() {
       tooltip: { trigger: 'axis', valueFormatter: v => v == null ? '—' : Number(v).toFixed(4) },
       legend: { data: ['ETH/BTC', 'MA20', 'MA50'] },
       grid: { left: 8, right: 16, top: 32, bottom: 64 },
-      xAxis: { type: 'category', data: ra.dates, axisLine: { lineStyle: { color: colors.border } },
-        axisLabel: { color: colors.muted, fontSize: 11,
-          interval: (i) => i === 0 || i === ra.dates.length - 1 || ra.dates[i].slice(0, 7) !== ra.dates[i - 1].slice(0, 7),
-          formatter: v => { const [y, m] = v.split('-'); return m === '01' ? y : Number(m) + '月'; } } },
-      yAxis: { type: 'value', scale: true, axisLabel: { color: colors.muted, fontSize: 11, formatter: v => Number(v).toFixed(4) },
-        splitLine: { lineStyle: { color: colors.grid } } },
+      xAxis: { type: 'time', boundaryGap: false, axisLabel: { formatter: (v) => R.md(v) } },  // ~1 年跨度
+      yAxis: { type: 'value', scale: true, axisLabel: { formatter: v => Number(v).toFixed(4) } },
       dataZoom: [
         { type: 'inside', start: 0, end: 100 },
         { type: 'slider', height: 20, bottom: 12, borderColor: colors.border, handleStyle: { color: colors.accent },
           textStyle: { color: colors.muted }, dataBackground: { lineStyle: { color: colors.border }, areaStyle: { color: colors.grid } } },
       ],
       series: [
-        { name: 'ETH/BTC', type: 'line', data: inv(ra.series), showSymbol: false, smooth: true, connectNulls: true,
+        { name: 'ETH/BTC', type: 'line', data: ra.dates.map((dt, i) => [dt, inv(ra.series)[i]]), showSymbol: false, smooth: true, connectNulls: true,
           lineStyle: { width: 2, color: colors.green }, itemStyle: { color: colors.green } },
-        { name: 'MA20', type: 'line', data: inv(ra.ma20_series), showSymbol: false, smooth: true, connectNulls: true,
+        { name: 'MA20', type: 'line', data: ra.dates.map((dt, i) => [dt, inv(ra.ma20_series)[i]]), showSymbol: false, smooth: true, connectNulls: true,
           lineStyle: { width: 1.2, type: 'dashed', color: colors.orange }, itemStyle: { color: colors.orange } },
-        { name: 'MA50', type: 'line', data: inv(ra.ma50_series), showSymbol: false, smooth: true, connectNulls: true,
+        { name: 'MA50', type: 'line', data: ra.dates.map((dt, i) => [dt, inv(ra.ma50_series)[i]]), showSymbol: false, smooth: true, connectNulls: true,
           lineStyle: { width: 1.2, type: 'dashed', color: colors.purple }, itemStyle: { color: colors.purple } },
       ],
     }, colors));

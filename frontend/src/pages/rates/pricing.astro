@@ -188,7 +188,6 @@ async function load() {
   renderCumulative(fedRes && fedRes.market_odds);
 
   // ── 名义/实际/BEI + 期限溢价 ──
-  const tpByDate = Object.fromEntries(d.term_premium.map(p => [p.date, p.value]));
   R.mkChart('triple_chart', (colors) => R.lineOption({
     legend: { data: ['10Y 名义利率', '10Y 实际利率(TIPS)', '10Y 盈亏平衡通胀', '10Y 期限溢价(ACM)'] },
     tooltip: { trigger: 'axis', valueFormatter: v => `${Number(v).toFixed(2)}%` },
@@ -196,16 +195,16 @@ async function load() {
     // top 56：窄屏 4 项图例折两行（≈42px），36 会压到曲线；fed-funds hero 同款值
     grid: { top: 56, left: 8, right: 16, bottom: 56 },
     dataZoom: [{ type: 'inside' }, { type: 'slider', bottom: 8, height: 18 }],
-    xAxis: { type: 'category', data: R.ts(d.nominal_10y), axisLabel: { color: colors.muted, fontSize: 10, alignMinLabel: 'left', alignMaxLabel: 'right' }, axisLine: { lineStyle: { color: colors.border } } },
+    xAxis: { type: 'time', boundaryGap: false, axisLabel: { formatter: (v) => R.md(v) } },  // 跨度 ~1 年，formatter 留「月-日」
     yAxis: [
-      { type: 'value', scale: true, axisLabel: { color: colors.muted, formatter: '{value}%' }, splitLine: { lineStyle: { color: colors.grid } } },
-      { type: 'value', scale: true, axisLabel: { color: colors.muted, formatter: '{value}%' }, splitLine: { show: false } },
+      { type: 'value', scale: true, axisLabel: { formatter: '{value}%' } },
+      { type: 'value', scale: true, axisLabel: { formatter: '{value}%' }, splitLine: { show: false } },
     ],
     series: [
-      { name: '10Y 名义利率', type: 'line', data: R.vs(d.nominal_10y), symbol: 'none', lineStyle: { color: colors.blue, width: 2 }, itemStyle: { color: colors.blue } },
-      { name: '10Y 实际利率(TIPS)', type: 'line', data: R.vs(d.real_10y), symbol: 'none', lineStyle: { color: colors.orange, width: 2 }, itemStyle: { color: colors.orange } },
-      { name: '10Y 盈亏平衡通胀', type: 'line', data: R.vs(d.breakeven_10y), symbol: 'none', lineStyle: { color: colors.green, width: 2 }, itemStyle: { color: colors.green } },
-      { name: '10Y 期限溢价(ACM)', type: 'line', data: R.ts(d.nominal_10y).map(dt => tpByDate[dt] ?? null), yAxisIndex: 1, symbol: 'none', lineStyle: { color: colors.purple, width: 1.5, type: 'dashed' }, itemStyle: { color: colors.purple } },
+      { name: '10Y 名义利率', type: 'line', data: d.nominal_10y.map(p => [p.date, p.value]), symbol: 'none', lineStyle: { color: colors.blue, width: 2 }, itemStyle: { color: colors.blue } },
+      { name: '10Y 实际利率(TIPS)', type: 'line', data: d.real_10y.map(p => [p.date, p.value]), symbol: 'none', lineStyle: { color: colors.orange, width: 2 }, itemStyle: { color: colors.orange } },
+      { name: '10Y 盈亏平衡通胀', type: 'line', data: d.breakeven_10y.map(p => [p.date, p.value]), symbol: 'none', lineStyle: { color: colors.green, width: 2 }, itemStyle: { color: colors.green } },
+      { name: '10Y 期限溢价(ACM)', type: 'line', data: d.term_premium.map(p => [p.date, p.value]), yAxisIndex: 1, symbol: 'none', lineStyle: { color: colors.purple, width: 1.5, type: 'dashed' }, itemStyle: { color: colors.purple } },
     ],
   }, colors));
 
@@ -216,18 +215,18 @@ async function load() {
       trigger: 'axis',
       formatter: (ps) => {
         const m = Object.fromEntries(ps.map(p => [p.seriesName, Number(p.value)]));
-        return `${ps[0].axisValue}<br/>2Y：${m['2Y'].toFixed(2)}%<br/>10Y：${m['10Y'].toFixed(2)}%<br/>2s10s 利差：${m['2s10s 利差'].toFixed(2)}%`;
+        return `${R.md(ps[0].axisValue)}<br/>2Y：${m['2Y'].toFixed(2)}%<br/>10Y：${m['10Y'].toFixed(2)}%<br/>2s10s 利差：${m['2s10s 利差'].toFixed(2)}%`;
       },
     },
     grid: { top: 36, left: 8, right: 16, bottom: 56 },
     dataZoom: [{ type: 'inside' }, { type: 'slider', bottom: 8, height: 18 }],
-    xAxis: { type: 'category', data: R.ts(d.y2), axisLabel: { color: colors.muted, fontSize: 10, alignMinLabel: 'left', alignMaxLabel: 'right' }, axisLine: { lineStyle: { color: colors.border } } },
-    yAxis: { type: 'value', scale: true, axisLabel: { color: colors.muted, formatter: '{value}%' }, splitLine: { lineStyle: { color: colors.grid } } },
+    xAxis: { type: 'time', boundaryGap: false, axisLabel: { formatter: (v) => R.md(v) } },  // 跨度 ~1 年
+    yAxis: { type: 'value', scale: true, axisLabel: { formatter: '{value}%' } },
     series: [
-      { name: '2Y', type: 'line', stack: 'spread', data: R.vs(d.y2), symbol: 'none', lineStyle: { color: colors.orange, width: 2 }, areaStyle: { opacity: 0 } },
-      { name: '2s10s 利差', type: 'line', stack: 'spread', color: colors.blue + '80', data: R.vs(d.spread_2s10), symbol: 'none', lineStyle: { opacity: 0 },
+      { name: '2Y', type: 'line', stack: 'spread', data: d.y2.map(p => [p.date, p.value]), symbol: 'none', lineStyle: { color: colors.orange, width: 2 }, areaStyle: { opacity: 0 } },
+      { name: '2s10s 利差', type: 'line', stack: 'spread', color: colors.blue + '80', data: d.spread_2s10.map(p => [p.date, p.value]), symbol: 'none', lineStyle: { opacity: 0 },
         areaStyle: { color: { type: 'linear', x: 0, y: 0, x2: 0, y2: 1, colorStops: [{ offset: 0, color: colors.blue + '40' }, { offset: 1, color: colors.blue + '0D' }] } } },
-      { name: '10Y', type: 'line', data: R.vs(d.nominal_10y), symbol: 'none', lineStyle: { color: colors.blue, width: 2 } },
+      { name: '10Y', type: 'line', data: d.nominal_10y.map(p => [p.date, p.value]), symbol: 'none', lineStyle: { color: colors.blue, width: 2 } },
     ],
   }, colors));
 }
@@ -355,7 +354,7 @@ function renderConvChart(meetings, hist) {
       const dash = i > 0;
       for (const [key, name, color] of [['cut', '降息', colors.green], ['hike', '加息', colors.red], ['hold', '维持', colors.gray]]) {
         const sname = `${x.label}·${name}`;
-        series.push({ name: sname, type: 'line', data: dates.map((dt) => byDate(x, key)[dt] ?? null),
+        series.push({ name: sname, type: 'line', data: dates.map((dt) => [dt, byDate(x, key)[dt] ?? null]),
           symbol: 'none', connectNulls: true, lineStyle: { color, width: 2, type: dash ? 'dashed' : 'solid' }, itemStyle: { color } });
       }
     });
@@ -364,7 +363,7 @@ function renderConvChart(meetings, hist) {
       tooltip: { trigger: 'axis', valueFormatter: (v) => (typeof v === 'number' ? (v * 100).toFixed(1) + '%' : v) },
       legend: { bottom: 2, data: series.map((s) => s.name) },
       grid: { top: 24, left: 8, right: 16, bottom: 52 },
-      xAxis: { type: 'category', data: dates.map((dt) => dt.slice(5)), axisLabel: { fontSize: 10 } },
+      xAxis: { type: 'time', boundaryGap: false, axisLabel: { formatter: (v) => R.md(v) } },  // 跨度 ~2 月，R.md 足够
       yAxis: { type: 'value', max: 1, axisLabel: { formatter: (v) => v * 100 + '%' } },
       series,
     });

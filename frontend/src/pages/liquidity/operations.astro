@@ -46,10 +46,10 @@ async function load() {
   const rs = d.rmp_series || [];
   if (rs.length) {
     R.mkChart('rmp_chart', c => reSyncLegend({
-      xAxis: { type: 'time', axisLabel: { color: c.muted } },
+      xAxis: { type: 'time' },
       yAxis: [
-        { type: 'value', name: '日购买', nameTextStyle: { color: c.muted, align: 'left' }, nameGap: 12, splitLine: { lineStyle: { color: c.grid } }, axisLabel: { color: c.muted, formatter: v => '$' + v + 'B' } },
-        { type: 'value', name: '累计', nameTextStyle: { color: c.muted, align: 'right' }, nameGap: 12, splitLine: { show: false }, axisLabel: { color: c.muted, formatter: v => '$' + v + 'B' } },
+        { type: 'value', name: '日购买', nameTextStyle: { color: c.muted, align: 'left' }, nameGap: 12, axisLabel: { formatter: v => '$' + v + 'B' } },
+        { type: 'value', name: '累计', nameTextStyle: { color: c.muted, align: 'right' }, nameGap: 12, splitLine: { show: false }, axisLabel: { formatter: v => '$' + v + 'B' } },
       ],
       tooltip: { trigger: 'axis' },
       grid: { left: 50, right: 50, bottom: 20, top: 60, containLabel: true },

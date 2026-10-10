@@ -141,10 +141,10 @@ async function load() {
     R.mkChart('funding-hist', c => R.lineOption({
       tooltip: { trigger: 'axis', valueFormatter: v => (v == null ? '—' : Number(v).toFixed(4) + '%') },
       grid: { left: 8, right: 14, top: 20, bottom: 24 },
-      xAxis: { type: 'category', data: fh.map(p => p.date), axisLabel: { color: c.muted, fontSize: 10, formatter: v => v.slice(5, 10) }, axisLine: { lineStyle: { color: c.border } } },
-      yAxis: { type: 'value', axisLabel: { color: c.muted, fontSize: 10, formatter: v => Number(v).toFixed(3) + '%' }, splitLine: { lineStyle: { color: c.grid } } },
+      xAxis: { type: 'time', boundaryGap: false, axisLabel: { formatter: (v) => R.md(v) } },  // ~90 天，R.md 留「月-日」
+      yAxis: { type: 'value', axisLabel: { formatter: v => Number(v).toFixed(3) + '%' } },
       series: [{
-        name: '资金费率', type: 'line', showSymbol: false, data: fh.map(p => p.value),
+        name: '资金费率', type: 'line', showSymbol: false, data: fh.map(p => [p.date, p.value]),
         lineStyle: { width: 1.5 },
         markLine: { silent: true, symbol: 'none', label: { show: false }, lineStyle: { color: c.gray, type: 'dashed' }, data: [{ yAxis: 0 }] },
       }],

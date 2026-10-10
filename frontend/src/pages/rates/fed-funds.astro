@@ -69,18 +69,18 @@ async function load() {
     // 半宽双栏下七项图例可能折两行（窄桌面内容 <1100px 时），单行高度 36 会压住第二行
     grid: { top: 56, left: 8, right: 16, bottom: 56 },
     dataZoom: [{ type: 'inside' }, { type: 'slider', bottom: 16, height: 18 }],
-    // 近 90 个交易日都在今年，X 轴只留「月-日」（年份在小节 sub 里）
-    xAxis: { type: 'category', data: R.ts(c.sofr), axisLabel: { color: colors.muted, fontSize: 10, formatter: v => v.slice(5) }, axisLine: { lineStyle: { color: colors.border } } },
+    // 近 90 个交易日都在今年（≤1 年）：formatter 用 R.md 留「月-日」
+    xAxis: { type: 'time', boundaryGap: false, axisLabel: { formatter: (v) => R.md(v) } },
     // scale:true 会把上下限贴死在数据边界（目标区间线压轴），两侧各留 8% 余量；函数式随缩放重算
-    yAxis: { type: 'value', scale: true, min: v => +(v.min - (v.max - v.min) * 0.08).toFixed(2), max: v => +(v.max + (v.max - v.min) * 0.08).toFixed(2), axisLabel: { color: colors.muted, formatter: '{value}%' }, splitLine: { lineStyle: { color: colors.grid } } },
+    yAxis: { type: 'value', scale: true, min: v => +(v.min - (v.max - v.min) * 0.08).toFixed(2), max: v => +(v.max + (v.max - v.min) * 0.08).toFixed(2), axisLabel: { formatter: '{value}%' } },
     series: [
-      { name: 'EFFR', type: 'line', data: R.vs(c.effr), symbol: 'none', lineStyle: { color: colors.green, width: 2 } },
-      { name: 'SOFR', type: 'line', data: R.vs(c.sofr), symbol: 'none', lineStyle: { color: colors.blue, width: 2 } },
-      { name: 'TGCR', type: 'line', data: R.vs(c.tgcr), symbol: 'none', lineStyle: { color: colors.orange, width: 1.5 } },
-      { name: 'BGCR', type: 'line', data: R.vs(c.bgcr), symbol: 'none', lineStyle: { color: colors.purple, width: 1.5 } },
-      { name: 'ONRRP', type: 'line', data: R.vs(c.onrrp), symbol: 'none', lineStyle: { color: colors.gray, width: 1.5 } },
-      { name: '目标上限', type: 'line', data: R.vs(c.target_hi), symbol: 'none', lineStyle: { color: colors.red, type: 'dashed', width: 1 } },
-      { name: '目标下限', type: 'line', data: R.vs(c.target_lo), symbol: 'none', lineStyle: { color: colors.red, type: 'dashed', width: 1 } },
+      { name: 'EFFR', type: 'line', data: c.effr.map(p => [p.date, p.value]), symbol: 'none', lineStyle: { color: colors.green, width: 2 } },
+      { name: 'SOFR', type: 'line', data: c.sofr.map(p => [p.date, p.value]), symbol: 'none', lineStyle: { color: colors.blue, width: 2 } },
+      { name: 'TGCR', type: 'line', data: c.tgcr.map(p => [p.date, p.value]), symbol: 'none', lineStyle: { color: colors.orange, width: 1.5 } },
+      { name: 'BGCR', type: 'line', data: c.bgcr.map(p => [p.date, p.value]), symbol: 'none', lineStyle: { color: colors.purple, width: 1.5 } },
+      { name: 'ONRRP', type: 'line', data: c.onrrp.map(p => [p.date, p.value]), symbol: 'none', lineStyle: { color: colors.gray, width: 1.5 } },
+      { name: '目标上限', type: 'line', data: c.target_hi.map(p => [p.date, p.value]), symbol: 'none', lineStyle: { color: colors.red, type: 'dashed', width: 1 } },
+      { name: '目标下限', type: 'line', data: c.target_lo.map(p => [p.date, p.value]), symbol: 'none', lineStyle: { color: colors.red, type: 'dashed', width: 1 } },
     ],
   }, colors));
 
@@ -95,12 +95,12 @@ async function load() {
     tooltip: { trigger: 'axis' },
     grid: { top: 36, left: 8, right: 16, bottom: 56 },
     dataZoom: [{ type: 'inside' }, { type: 'slider', bottom: 16, height: 18 }],
-    // 同走廊：近 90 个交易日，X 轴只留「月-日」
-    xAxis: { type: 'category', data: R.ts(d.sofr_vol), axisLabel: { color: colors.muted, fontSize: 10, formatter: v => v.slice(5) }, axisLine: { lineStyle: { color: colors.border } } },
-    yAxis: { type: 'value', axisLabel: { color: colors.muted }, splitLine: { lineStyle: { color: colors.grid } } },
+    // 同走廊：近 90 个交易日（≤1 年），formatter R.md 留「月-日」
+    xAxis: { type: 'time', boundaryGap: false, axisLabel: { formatter: (v) => R.md(v) } },
+    yAxis: { type: 'value' },
     series: [
-      { name: '每日成交量', type: 'line', data: vol, symbol: 'none', lineStyle: { color: colors.blue, width: 1.5 }, areaStyle: { color: colors.blue + '14' } },
-      { name: '20 日均值', type: 'line', data: volMa, symbol: 'none', lineStyle: { color: colors.orange, width: 2 } },
+      { name: '每日成交量', type: 'line', data: R.ts(d.sofr_vol).map((dt, i) => [dt, vol[i]]), symbol: 'none', lineStyle: { color: colors.blue, width: 1.5 }, areaStyle: { color: colors.blue + '14' } },
+      { name: '20 日均值', type: 'line', data: R.ts(d.sofr_vol).map((dt, i) => [dt, volMa[i]]), symbol: 'none', lineStyle: { color: colors.orange, width: 2 } },
     ],
   }));
 
@@ -109,11 +109,10 @@ async function load() {
     tooltip: { trigger: 'axis', valueFormatter: v => `${Number(v).toFixed(2)}%` },
     grid: { top: 16, left: 8, right: 16, bottom: 56 },
     dataZoom: [{ type: 'inside' }, { type: 'slider', bottom: 16, height: 18 }],
-    // 5 年跨度 X 轴保留年份；年份缩写两位（23-05-01）—— 半宽列里标签窄了 auto interval
-    // 才能铺匀，不用强制首尾标签
-    xAxis: { type: 'category', data: R.ts(d.effr_history), axisLabel: { color: colors.muted, fontSize: 10, formatter: v => v.slice(2), alignMinLabel: 'left', alignMaxLabel: 'right' }, axisLine: { lineStyle: { color: colors.border } } },
-    yAxis: { type: 'value', scale: true, axisLabel: { color: colors.muted, formatter: '{value}%' }, splitLine: { lineStyle: { color: colors.grid } } },
-    series: [{ type: 'line', data: R.vs(d.effr_history), symbol: 'none', lineStyle: { color: colors.blue, width: 2 }, areaStyle: { color: colors.blue + '14' } }],
+    // 5 年跨度（>1 年）：不写 formatter，年份标签交给主题/ECharts 自动
+    xAxis: { type: 'time', boundaryGap: false },
+    yAxis: { type: 'value', scale: true, axisLabel: { formatter: '{value}%' } },
+    series: [{ type: 'line', data: d.effr_history.map(p => [p.date, p.value]), symbol: 'none', lineStyle: { color: colors.blue, width: 2 }, areaStyle: { color: colors.blue + '14' } }],
   }));
 
   // ── 近 30 条 ──

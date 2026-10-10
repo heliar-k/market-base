@@ -40,10 +40,10 @@ async function load() {
     tooltip: { trigger: 'axis' },
     legend: { data: keys, top: 0 },
     grid: { left: 8, right: 16, top: 28, bottom: 40 },
-    xAxis: { type: 'category', data: n.dates, axisLine: { lineStyle: { color: colors.border } }, axisLabel: { color: colors.muted, fontSize: 10, alignMinLabel: 'left', alignMaxLabel: 'right' } },
-    yAxis: { type: 'value', axisLabel: { color: colors.muted, fontSize: 11 }, splitLine: { lineStyle: { color: colors.grid } } },
+    xAxis: { type: 'time', boundaryGap: false },  // 2 年跨度（>1 年），不写 formatter
+    yAxis: { type: 'value' },
     series: keys.map((k, i) => ({
-      name: k, type: 'line', data: n.series[k], showSymbol: false, smooth: true,
+      name: k, type: 'line', data: n.dates.map((dt, i2) => [dt, n.series[k][i2]]), showSymbol: false, smooth: true,
       lineStyle: { width: 2, color: [colors.blue, colors.orange, colors.green, colors.red, colors.purple][i % 5] },
     })),
   }, colors));

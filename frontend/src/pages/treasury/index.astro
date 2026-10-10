@@ -189,8 +189,8 @@ async function load() {
       }
       const m = col[n];
       grids.push(gridPos(i));
-      xAxes.push({ gridIndex: i, type: 'time', min: xMin, max: xMax, splitNumber: 3, axisLabel: { color: colors.muted, fontSize: 9, formatter: R.md }, axisLine: { lineStyle: { color: colors.border } } });
-      yAxes.push({ gridIndex: i, type: 'value', min: lo, max: hi, interval: step, axisLabel: { color: colors.muted, fontSize: 9, formatter: (v) => (unit === 'x' ? `${v}x` : `${v}`) }, splitLine: { lineStyle: { color: colors.grid } } });
+      xAxes.push({ gridIndex: i, type: 'time', min: xMin, max: xMax, splitNumber: 3, axisLabel: { formatter: R.md } });
+      yAxes.push({ gridIndex: i, type: 'value', min: lo, max: hi, interval: step, axisLabel: { formatter: (v) => (unit === 'x' ? `${v}x` : `${v}`) } });
       // 格标题靠右上角：y 轴刻度在左，同高不同列 → 不压轴也不单独占一行。
       // 用中性文字色而不是系列色：亮色下 orange 2.16:1 / 暗色下 purple 2.74:1 都不达 AA，
       // 而每格标题已用文字写明期限，颜色只是重复编码（AGENTS.md 语义色两档制）。
@@ -275,7 +275,7 @@ async function load() {
     // 与小倍图「左右各留 12 天」同一意图，长跨度下用比例比固定天数好迁移
     xAxis: { type: 'time', boundaryGap: ['0.4%', '0.4%'], axisLabel: { formatter: R.md } },
     // 固定轴域（近 1 年实测 50–79%）：上下各留一档呼吸，线不再顶到画布边
-    yAxis: { type: 'value', min: 45, max: 85, interval: 10, axisLabel: { formatter: '{value}%' }, splitLine: { lineStyle: { color: colors.grid } } },
+    yAxis: { type: 'value', min: 45, max: 85, interval: 10, axisLabel: { formatter: '{value}%' } },
     series: indNames.map(n => {
       const m = { '2Y': colors.blue, '10Y': colors.red, '30Y': colors.purple }[n];
       const mean = indMean(auc.indirect_trend[n]);
@@ -359,8 +359,8 @@ async function load() {
   });
   R.mkChart('hold-chart', (colors) => R.lineOption({
     grid: { left: 8, right: '4%', bottom: 24, top: 36, containLabel: true },
-    xAxis: { type: 'time', boundaryGap: false, axisLabel: { color: colors.text } },
-    yAxis: { type: 'value', scale: true, splitNumber: 4, axisLabel: { color: colors.text }, splitLine: { lineStyle: { color: colors.grid } } },
+    xAxis: { type: 'time', boundaryGap: false },
+    yAxis: { type: 'value', scale: true, splitNumber: 4 },
     tooltip: { trigger: 'axis', valueFormatter: v => v != null ? '$' + v.toFixed(2) + 'T' : '—' },
     series: [
       line('日本', h.japan, colors.blue),
@@ -402,8 +402,8 @@ async function load() {
     R.mkChart('mspd-chart', (colors) => R.lineOption({
       legend: { top: 4, left: 'center' },
       grid: { left: 8, right: '4%', bottom: 24, top: 36, containLabel: true },
-      xAxis: { type: 'time', boundaryGap: false, axisLabel: { color: colors.text } },
-      yAxis: { type: 'value', splitNumber: 4, axisLabel: { color: colors.text }, splitLine: { lineStyle: { color: colors.grid } } },
+      xAxis: { type: 'time', boundaryGap: false },
+      yAxis: { type: 'value', splitNumber: 4 },
       // 堆叠序列的 p.value 是累积值不是原始值，金额/占比都按 dataIndex 回原始数组取
       tooltip: {
         trigger: 'axis',

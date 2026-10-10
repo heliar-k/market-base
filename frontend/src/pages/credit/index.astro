@@ -360,7 +360,7 @@ function renderCds(root, d) {
     R.mkChart('bank-chart', colors => R.lineOption({
       tooltip: {
         trigger: 'axis',
-        formatter: (ps) => [ps[0].axisValue]
+        formatter: (ps) => [R.md(ps[0].axisValue)]
           .concat(ps.map((p) => `${p.marker}${p.seriesName} ${val(p.value)}`))
           .join('<br>'),
       },
@@ -369,15 +369,11 @@ function renderCds(root, d) {
       // 原来写 left: 48 = 与 containLabel 重复留白，390px 屏下 220px 画布只给曲线留 80px；
       // 改后 120px（+50%）。右侧只在线尾标注开着时留宽
       grid: { left: 8, right: endOn() ? 64 : 8, top: 32, bottom: 28 },
-      xAxis: {
-        type: 'category', data: c.dates,
-        axisLine: { lineStyle: { color: colors.border } },
-        axisLabel: { color: colors.muted, fontSize: 11, formatter: (v) => R.md(v), hideOverlap: true },
-      },
-      yAxis: { type: 'value', scale: true, axisLabel: { color: colors.muted, fontSize: 11 }, splitLine: { lineStyle: { color: colors.grid } } },
+      xAxis: { type: 'time', boundaryGap: false, axisLabel: { formatter: (v) => R.md(v), hideOverlap: true } },
+      yAxis: { type: 'value', scale: true },
       series: [
         {
-          name: BANK_LAB, type: 'line', data: c.kbwb, smooth: true, showSymbol: false, connectNulls: true,
+          name: BANK_LAB, type: 'line', data: c.dates.map((dt, i) => [dt, c.kbwb[i]]), smooth: true, showSymbol: false, connectNulls: true,
           color: colors.orange, lineStyle: { width: 2, color: colors.orange },
           endLabel: { show: endOn(), formatter: end, color: colors.orangeText, fontSize: 11 },
           // 起点基准线（= 100 的虚线）：y 轴 scale:true 会从 89 起画，没这条线读者算不出
@@ -389,7 +385,7 @@ function renderCds(root, d) {
           },
         },
         {
-          name: IDX_LAB, type: 'line', data: c.spx, smooth: true, showSymbol: false, connectNulls: true,
+          name: IDX_LAB, type: 'line', data: c.dates.map((dt, i) => [dt, c.spx[i]]), smooth: true, showSymbol: false, connectNulls: true,
           // 基准系列用虚线：线型与颜色两道区分（只靠色相 = 色弱/黑白打印读不出）
           color: colors.blue, lineStyle: { width: 1.5, color: colors.blue, type: 'dashed' },
           endLabel: { show: endOn(), formatter: end, color: colors.text, fontSize: 11 },
@@ -430,10 +426,10 @@ function renderStress(root, d) {
     R.mkChart('hist-chart', colors => ({
       tooltip: { trigger: 'axis' },
       grid: { left: 8, right: 34, top: 24, bottom: 28, containLabel: true },
-      xAxis: { type: 'category', data: d.history.dates, axisLine: { lineStyle: { color: colors.border } }, axisLabel: { color: colors.muted, fontSize: 11 } },
-      yAxis: { type: 'value', min: 0, max: 100, axisLabel: { color: colors.muted, fontSize: 11 }, splitLine: { lineStyle: { color: colors.grid } } },
+      xAxis: { type: 'time', boundaryGap: false },  // 历史曲线 ~500 个交易日（>1 年），不写 formatter
+      yAxis: { type: 'value', min: 0, max: 100 },
       series: [{
-        name: '压力指数', type: 'line', data: d.history.values, showSymbol: false, smooth: true,
+        name: '压力指数', type: 'line', data: d.history.dates.map((dt, i) => [dt, d.history.values[i]]), showSymbol: false, smooth: true,
         lineStyle: { width: 2, color: colors.blue },
         areaStyle: { color: { type: 'linear', x: 0, y: 0, x2: 0, y2: 1, colorStops: [{ offset: 0, color: colors.blue + '44' }, { offset: 1, color: colors.blue + '00' }] } },
         markLine: {

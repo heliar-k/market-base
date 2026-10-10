@@ -22,8 +22,8 @@ import Section from '../../components/Section.astro';
 
 <script is:inline>
 const base = (c) => ({
-  xAxis: { type: 'time', axisLabel: { color: c.muted } },
-  yAxis: { type: 'value', scale: true, axisLabel: { color: c.muted, formatter: v => v + 'bp' }, splitLine: { lineStyle: { color: c.grid } } },
+  xAxis: { type: 'time' },
+  yAxis: { type: 'value', scale: true, axisLabel: { formatter: v => v + 'bp' } },
   grid: { left: 8, right: 20, bottom: 30, top: 20, containLabel: true },
   tooltip: { trigger: 'axis' },
   series: [{ type: 'line', data: [], lineStyle: { color: c.blue, width: 2 }, showSymbol: false,

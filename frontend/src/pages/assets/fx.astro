@@ -79,21 +79,15 @@ function renderChart(d) {
     </div>
     <div class="re-chart fx-chart re-plain" id="fx-chart-el" style="margin-top:10px"></div>`;
   document.getElementById('fxchart').appendChild(sec);
-  const lastM = ch.dates[ch.dates.length - 1].slice(0, 7);
   R.mkChart('fx-chart-el', colors => R.lineOption({
     tooltip: { trigger: 'axis', valueFormatter: v => v == null ? '—' : Number(v).toFixed(2) + '%' },
     // type scroll（房规，同 rates-common/cross-correlation）：9 个图例窄屏不换行压曲线
     legend: { top: 0, type: 'scroll', data: Object.keys(ch.series).map(k => CH_T[k] || k), itemGap: 10 },
     grid: { left: 8, right: 20, top: 32, bottom: 40 },
-    xAxis: { type: 'category', data: ch.dates, axisLine: { lineStyle: { color: colors.border } },
-      axisLabel: { color: colors.muted, fontSize: 11,
-        // 换月刻度若与末点同月（如 10-01 vs 末点 10-07）则抑制，末点恒显 —— 否则最右侧出现两个「10月」
-        interval: (i) => i === 0 || i === ch.dates.length - 1 ||
-          (ch.dates[i].slice(0, 7) !== ch.dates[i - 1].slice(0, 7) && ch.dates[i].slice(0, 7) !== lastM),
-        formatter: v => { const [, m] = v.split('-'); return Number(m) + '月'; } } },
-    yAxis: { type: 'value', axisLabel: { color: colors.muted, fontSize: 11, formatter: v => v + '%' }, splitLine: { lineStyle: { color: colors.grid } } },
+    xAxis: { type: 'time', boundaryGap: false, axisLabel: { formatter: (v) => R.md(v) } },  // ~126 日 ≤1 年
+    yAxis: { type: 'value', axisLabel: { formatter: v => v + '%' } },
     series: Object.keys(ch.series).map(k => ({
-      name: CH_T[k] || k, type: 'line', data: ch.series[k], showSymbol: false, smooth: true,
+      name: CH_T[k] || k, type: 'line', data: ch.dates.map((dt, i) => [dt, ch.series[k][i]]), showSymbol: false, smooth: true,
       lineStyle: { width: k === 'DXY' ? 2.2 : 1.4 }, emphasis: { focus: 'series' },
     })),
   }, colors));

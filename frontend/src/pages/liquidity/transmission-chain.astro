@@ -104,8 +104,8 @@ async function load() {
   const hist = d.history || [];
   if (hist.length >= 2) {
     R.mkChart('history_chart', c => ({
-      xAxis: { type: 'time', axisLabel: { color: c.muted } },
-      yAxis: { type: 'value', min: 0, max: 10, axisLabel: { color: c.muted }, splitLine: { lineStyle: { color: c.grid } } },
+      xAxis: { type: 'time' },
+      yAxis: { type: 'value', min: 0, max: 10 },
       grid: { left: 8, right: 20, bottom: 28, top: 20 },
       tooltip: { trigger: 'axis' },
       series: [{ type: 'line', data: hist.map(p => [p.date, p.value]),
