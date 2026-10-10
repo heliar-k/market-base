@@ -68,7 +68,7 @@ async function load() {
   ].map(([t, id]) => `<a href="#${id}">${t}</a>`).join('');
 
   const d = await R.get('/api/assets/overview');
-  document.getElementById('re-as-of').textContent = R.asOf(d.as_of);
+  R.setAsOf([['资产', d.as_of]]);
 
   // ── 6 大分组价格表 ──
   const groups = [

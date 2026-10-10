@@ -74,7 +74,7 @@ async function load() {
   ].map(([t, id]) => `<a href="#${id}">${t}</a>`).join('');
 
   const d = await R.get('/api/liquidity/snapshot');
-  document.getElementById('re-as-of').textContent = R.asOf(d.data_date);
+  R.setAsOf([['流动性', d.data_date]]);
 
   // ── 指标卡片 ──
   const c = d.cards || {};

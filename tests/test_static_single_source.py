@@ -174,16 +174,20 @@ def test_as_of_text_only_via_r_asof() -> None:
 
 
 def test_as_of_formatter_present() -> None:
-    """R.asOf / R.asMonth 存在且每个专题页确有调用（防止 formatter 被删空）。"""
+    """R.asOf / R.setAsOf / R.asMonth 存在，每页确有调用（防 formatter 被删空）。"""
     js = (STATIC / "js" / "rates-common.js").read_text(encoding="utf-8")
-    assert "asOf(src)" in js and "asMonth" in js
+    assert "asOf(src)" in js and "setAsOf(src)" in js and "asMonth" in js
     # 404 页套 TopicLayout（共用主题/顶栏）但无数据源，页头时效槽恒空 → 不计入
     astro_pages = sorted(
         p for p in ASTRO_PAGES.rglob("*.astro") if p.name != "404.astro"
     )
-    used = sum(1 for p in astro_pages if "R.asOf(" in p.read_text(encoding="utf-8"))
+    used = sum(
+        1
+        for p in astro_pages
+        if re.search(r"R\.(?:set)?AsOf\(", p.read_text(encoding="utf-8"))
+    )
     assert used == len(astro_pages), (
-        f"仅 {used}/{len(astro_pages)} 个专题页用 R.asOf 组装时效标签"
+        f"仅 {used}/{len(astro_pages)} 个专题页用 R.setAsOf/R.asOf 组装时效标签"
     )
 
 
@@ -193,9 +197,9 @@ def test_as_of_formatter_present() -> None:
 # 自相矛盾（PM 卡面写「缺失」页头却报有数据）。条目级日期写在各卡 sub 里。
 # 只数写字面量数组的调用（`Object.entries(g)` / `segs` 这类动态入参不在射程）。
 def _asof_args(text: str) -> list[str]:
-    """抽出每处 R.asOf(...) 的入参源码（括号配对，含换行）。"""
+    """抽出每处 R.setAsOf(...) / R.asOf(...) 的入参源码（括号配对，含换行）。"""
     out: list[str] = []
-    for m in re.finditer(r"R\.asOf\(", text):
+    for m in re.finditer(r"R\.(?:set)?AsOf\(", text):
         i, depth, start = m.end(), 1, m.end()
         while i < len(text) and depth:
             depth += (text[i] in "([{") - (text[i] in ")]}")
@@ -232,6 +236,59 @@ def test_as_of_segments_capped() -> None:
     assert not bad, (
         "页头只放 Section 级数据源，条目级日期写进对应卡片 sub"
         f"（≤{AS_OF_MAX_SEGS} 段）：{bad}"
+    )
+
+
+def _tiers_keys() -> set[str]:
+    """从 rates-common.js 的 TIERS 单源表抽出全部标签键（带引号/裸键都收）。"""
+    js = (STATIC / "js" / "rates-common.js").read_text(encoding="utf-8")
+    m = re.search(r"TIERS:\s*\{(.*?)\n  \},", js, re.S)
+    assert m, "rates-common.js 里找不到 TIERS 表"
+    body = re.sub(r"//.*", "", m.group(1))
+    keys = set()
+    tier_pat = r"(?:'([^']+)'|([^\s:',][^:',]*?))\s*:\s*'(?:disc|est|proxy)'"
+    for pair in re.finditer(tier_pat, body):
+        keys.add(pair.group(1) or pair.group(2))
+    assert keys, "TIERS 表解析为空"
+    return keys
+
+
+def test_as_of_labels_registered() -> None:
+    """页头时效段里的源标签必须在 TIERS 分层表登记（漏登 = 徽章静默不渲染）。
+
+    只查 R.setAsOf / R.asOf 字面量数组入参里的 `['标签', …]` 段；动态入参
+    （daily 页 Object.entries）与卡片 sub 里的自造文案不在射程。
+    """
+    tiers = _tiers_keys()
+    unregistered = []
+    for page in sorted(
+        [SPA_ENTRY, *ASTRO_PAGES.rglob("*.astro"), *(STATIC / "js").glob("*.js")]
+    ):
+        text = page.read_text(encoding="utf-8")
+        for arg in _asof_args(text):
+            for seg in re.finditer(r"\['([^']+)',", arg):
+                if seg.group(1) not in tiers:
+                    unregistered.append(f"{page.relative_to(ROOT)}: {seg.group(1)!r}")
+    assert not unregistered, (
+        f"以下源标签未在 rates-common.js TIERS 表登记口径层级：{unregistered}"
+    )
+
+
+def test_as_of_header_written_via_setasof() -> None:
+    """#re-as-of 只能由 R.setAsOf 写入（textContent 直写 = 徽章静默丢失）。
+
+    口径注脚里拼时效文本仍可用 R.asOf（如 metals 页 secNote），不受本条管辖。
+    """
+    offenders = []
+    for page in sorted(
+        [SPA_ENTRY, *ASTRO_PAGES.rglob("*.astro"), *(STATIC / "js").glob("*.js")]
+    ):
+        for ln in page.read_text(encoding="utf-8").splitlines():
+            if re.search(r"getElementById\(['\"]re-as-of['\"]\)\.textContent", ln):
+                offenders.append(f"{page.relative_to(ROOT)}: {ln.strip()[:60]}")
+                break
+    assert not offenders, (
+        f"页头时效标签请改 R.setAsOf(...)（自动挂口径徽章）：{offenders}"
     )
 
 

@@ -150,10 +150,10 @@ async function load() {
   const hist = (histRes && histRes.meetings) || {};
   AS_OF = R.todayISO();
 
-  const segs = [d.as_of];
+  const segs = [['利率', d.as_of]];
   if (re.polymarket_as_of) segs.push(['Polymarket', re.polymarket_as_of]);
   if (re.zq_as_of) segs.push(['ZQ', re.zq_as_of]);
-  document.getElementById('re-as-of').textContent = R.asOf(segs);
+  R.setAsOf(segs);
   R.foot(null, {
     src: 'ZQ 国债期货（IBKR / Barchart 两源取新）· Polymarket Fed 事件 · FRED（DGS10 / DGS2 / DFII10 / ACMTP10）',
     note: '上方 hero 与明细表为单场会议边际口径，「累计与路径」为全年累计口径，两类概率不可相加',

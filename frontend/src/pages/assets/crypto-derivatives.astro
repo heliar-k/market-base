@@ -36,8 +36,7 @@ async function load() {
 
   const d = await R.get('/api/assets/crypto-derivatives');
   if (!d || !d.ts) { R.fail(['now', 'etf', 'kpi', 'funding', 'retail', 'basis', 'coinglass'], new Error('无加密衍生品快照 · 运行 ./bin/fetch_crypto_derivatives 后刷新')); return; }
-  document.getElementById('re-as-of').textContent =
-    R.asOf([['衍生品快照', d.ts.slice(0, 10)], d.cme && ['CME 期货 OI', d.cme.as_of], d.basis && d.basis.available && ['基差', d.basis.latest]]);
+  R.setAsOf([['衍生品快照', d.ts.slice(0, 10)], d.cme && ['CME 期货 OI', d.cme.as_of], d.basis && d.basis.available && ['基差', d.basis.latest]]);
 
   const p = d.perp || {};
   const optB = d.options_BTC || {}, optE = d.options_ETH || {};

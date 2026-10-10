@@ -203,6 +203,53 @@ const R = {
       .filter(Boolean);
     return segs.length ? `数据截至 ${segs.join(' · ')}` : '';
   },
+
+  // ── 数据口径三层标注（BW Research 的 verified/estimated/proxy 纪律本地化）──
+  //   披露 disc  — 官方/交易所/政府/发行方直接披露，本站只转载存储（含官方行情转载）
+  //   估算 est   — 官方或可信输入，但展示值经模型/派生计算（第三方模型或本站派生）
+  //   代理 proxy — 度量对象无直接披露，用其他口径近似（口径 ≠ 想测的东西）
+  // 展示值本身是派生/聚合口径的组段取最低层（宁保守，如「流动性」含本站派生的净流动性）。
+  TIER_DEF: {
+    disc: { name: '披露', tip: '官方/交易所/发行方直接披露，本站只转载' },
+    est: { name: '估算', tip: '官方输入 + 模型/派生计算（第三方模型或本站派生）' },
+    proxy: { name: '代理', tip: '度量对象无直接披露，用其他口径近似' },
+  },
+  // 源标签 → 层级单源表：setAsOf 按此渲染徽章；页面新增标签必须在此登记（守卫测试查漏标）。
+  TIERS: {
+    // FRED / 官方宏观（披露）
+    声明: 'disc', 演讲: 'disc', 初请: 'disc', 盈亏平衡: 'disc', 央行互换: 'disc',
+    TIC: 'disc', 拍卖: 'disc', COT: 'disc', 'COT 报告': 'disc',
+    '利率/利差': 'disc', 资产: 'disc', FRED: 'disc',
+    // 交易所 / 平台官方（披露）
+    CBOE: 'disc', 'CME 期货 OI': 'disc', 'CME 期货仓位': 'disc',
+    衍生品快照: 'disc', Polymarket: 'disc', 预测市场: 'disc',
+    ZQ: 'disc', 期货价: 'disc', '贵金属ETF': 'disc', 'ETF 行情': 'disc',
+    '外汇行情': 'disc', 公开市场操作: 'disc',
+    // 派生 / 模型口径（估算）
+    'Bill 占比': 'est', 净流动性: 'est', 流动性: 'est', 利率: 'est', 传导: 'est',
+    期权快照: 'est', 基差: 'est', '相关/价格': 'est', 快照: 'est',
+  },
+
+  // 页头时效标签唯一写入处（组装走 asOf，徽章按 TIERS 表挂）。
+  // 纯文本注脚里拼时效仍用 asOf（textContent 场景），别把本函数的 HTML 拼进去。
+  setAsOf(src) {
+    const el = document.getElementById('re-as-of');
+    if (!el) return;
+    const list = typeof src === 'string' ? [src] : src || [];
+    const html = list
+      .map((s) => {
+        if (!Array.isArray(s)) return s ? R.esc(String(s)) : '';
+        if (!s[1]) return '';
+        const tier = R.TIERS[s[0]];
+        const chip = tier
+          ? ` <span class="re-tier re-tier--${tier}" title="${R.TIER_DEF[tier].tip}">${R.TIER_DEF[tier].name}</span>`
+          : '';
+        return `${R.esc(String(s[0]))} ${R.esc(String(s[1]))}${chip}`;
+      })
+      .filter(Boolean)
+      .join(' · ');
+    el.innerHTML = html ? `数据截至 ${html}` : '';
+  },
   // 月频发布滞后：取一组观测日的最早–最晚，拼成「月频 起–止」时效段（配合 asOf 用）
   asMonth: (dates) => {
     const d = (dates || []).filter(Boolean).sort();
@@ -225,6 +272,64 @@ const R = {
         { name: '3月前', type: 'line', data: tenors.map(t => t.prev_3m), symbol: 'none', lineStyle: { color: colors.red, type: 'dashed', width: 1.5 }, connectNulls: true },
       ],
     }, colors));
+  },
+
+  // ── 历史坐标图：把当前读数放回历史分布（BW Research 周报 THE CONTEXT 样式）──
+  // data = [[date, value], …]（升序）；opts.window = 滚动窗口观测数（默认 5），opts.unit = 变化量单位。
+  // 画的是「近 N 个观测变化量」的分布：山形 = 直方图密度，深色带 = 中间 50%（IQR），
+  // 实心点 = 本窗口，空心圈 = 上一窗口，金色虚线 = 零轴。返回 { option, cur, prev, pct }
+  // （pct = 本窗口变化量的历史分位）；样本不足（<20 个窗口）返回 null，
+  // 调用方给空 option 让 mkChart 走空态。canvas 不认 var()/color-mix，
+  // 颜色一律用 R.colors() 解析值，透明度用 hex 后缀。
+  histContext(data, colors, opts = {}) {
+    const c = colors || R.colors();
+    const win = opts.window || 5;
+    const vals = (data || []).map((p) => Number(p && p[1])).filter(Number.isFinite);
+    const chg = [];
+    for (let i = win; i < vals.length; i++) chg.push(vals[i] - vals[i - win]);
+    if (chg.length < 20) return null;
+    const sorted = [...chg].sort((a, b) => a - b);
+    const q = (t) => sorted[Math.floor(t * (sorted.length - 1))];
+    const q25 = q(0.25), q75 = q(0.75);
+    const cur = chg[chg.length - 1], prev = chg[chg.length - 2];
+    const pct = Math.round((chg.filter((v) => v <= cur).length / chg.length) * 100);
+    const NB = opts.bins || 26;
+    const lo = sorted[0], hi = sorted[sorted.length - 1];
+    const w = (hi - lo) / NB || 1;
+    const bins = new Array(NB).fill(0);
+    chg.forEach((v) => { bins[Math.min(NB - 1, Math.max(0, Math.floor((v - lo) / w)))]++; });
+    const centers = bins.map((_, i) => lo + w * (i + 0.5));
+    const fmt = (v) => (v > 0 ? '+' : '') + Number(v).toFixed(1) + (opts.unit || '');
+    const option = {
+      tooltip: {
+        trigger: 'item',
+        formatter: (p) => (p.seriesName === '分布'
+          ? `${fmt(p.value[0] - w / 2)} ~ ${fmt(p.value[0] + w / 2)} · ${p.value[1]} 个窗口`
+          : `${p.seriesName}：${fmt(p.value[0])}`),
+      },
+      grid: { left: 12, right: 16, top: 14, bottom: 4, containLabel: true },
+      xAxis: {
+        type: 'value', axisLabel: { formatter: (v) => fmt(v) },
+        axisLine: { show: false }, axisTick: { show: false }, splitLine: { show: false },
+      },
+      // 密度无单位：y 轴全隐（语义选择，非主题覆盖）；min:0 保证散点落在基线上
+      yAxis: { type: 'value', min: 0, axisLabel: { show: false }, axisLine: { show: false }, splitLine: { show: false } },
+      series: [
+        {
+          name: '分布', type: 'line', data: centers.map((x, i) => [x, bins[i]]), smooth: 0.6,
+          symbol: 'none', lineStyle: { color: c.gray, width: 1 }, areaStyle: { color: c.gray + '33' }, z: 1,
+          markArea: { silent: true, itemStyle: { color: c.gray + '4d' }, data: [[{ xAxis: q25 }, { xAxis: q75 }]] },
+          markLine: {
+            silent: true, symbol: 'none', label: { show: false },
+            lineStyle: { color: c.orange, type: 'dashed', width: 1.2 },
+            data: [{ xAxis: 0 }],
+          },
+        },
+        { name: '上一窗口', type: 'scatter', data: [[prev, 0]], symbolSize: 7, z: 3, itemStyle: { color: 'transparent', borderColor: c.gray, borderWidth: 1.5 } },
+        { name: '本窗口', type: 'scatter', data: [[cur, 0]], symbolSize: 9, z: 4, itemStyle: { color: c.blue } },
+      ],
+    };
+    return { option, cur, prev, pct, win };
   },
 
   // 请求失败时向多个容器注入错误提示（线上为静态导出，本地为 server）

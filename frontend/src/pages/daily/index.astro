@@ -112,8 +112,7 @@ async function load() {
 
   // 页头多源时效标签（各分组观测日一段，文案组装见 R.asOf）
   const g = ind.groups || {};
-  document.getElementById('re-as-of').textContent =
-    R.asOf(Object.entries(g).length ? Object.entries(g) : (ind.as_of ?? '—'));
+  R.setAsOf(Object.entries(g).length ? Object.entries(g) : (ind.as_of ?? '—'));
   R.foot(d.generator, {
     src: 'FRED（rates / volatility / liquidity）· yfinance（asset_prices）· Polymarket',
     note: '情景为规则匹配结果，不是发生概率；经济机制仍需原始数据与事件验证',

@@ -48,7 +48,7 @@ async function load() {
 
   const d = await R.get('/api/liquidity/rrp-tga');
   const a = d.alert || {};
-  document.getElementById('re-as-of').textContent = R.asOf(d.data_date);
+  R.setAsOf([['FRED', d.data_date]]);
 
   const pos = (a.sofr_iorb_bp ?? 0) >= 0;
   const posColor = pos ? 'var(--color-down)' : 'var(--color-up)'; // 图形档：喂下面 border-color

@@ -39,6 +39,12 @@ import Section from '../../components/Section.astro';
     <div id="vix_long_chart" class="chart"></div>
   </Section>
 
+  <!-- 历史坐标：把本周读数放回 2 年分布（山形密度 + IQR 深色带 + 本/上窗口点） -->
+  <Section id="sec-hist" title="历史坐标" sub="近 2 年 · 5 日变化分布">
+    <div id="vix_hist_chart" class="chart chart-sm"></div>
+    <div id="vix_hist_note"></div>
+  </Section>
+
   <!-- VIX × SKEW 信号：左文右图 -->
   <Section id="sec-skew-signal" title="VIX × SKEW 信号" sub="看跌偏斜象限">
     <div class="vix-row">
@@ -73,11 +79,11 @@ async function load() {
   // 小节锚点导航（长页快速跳转；sticky 见 special.css .page-toc，同波动率全景页）
   document.getElementById('page-toc').innerHTML = [
     ['状态', 'status-cards'], ['最新值', 'sec-value'], ['VIX 走势', 'sec-long'],
-    ['VIX×SKEW', 'sec-skew-signal'], ['SKEW', 'sec-skew'], ['期限结构', 'sec-term'], ['近期数据', 'sec-recent'],
+    ['历史坐标', 'sec-hist'], ['VIX×SKEW', 'sec-skew-signal'], ['SKEW', 'sec-skew'], ['期限结构', 'sec-term'], ['近期数据', 'sec-recent'],
   ].map(([t, id]) => `<a href="#${id}">${t}</a>`).join('');
 
   const data = await R.get('/api/volatility/analysis');
-  document.getElementById('re-as-of').textContent = R.asOf(data.as_of);
+  R.setAsOf([['CBOE', data.as_of]]);
   R.foot(data.generator, {
     src: 'CBOE（VIX / VIX1D / VIX9D / VIX3M-1Y / SKEW / 期限结构斜率）',
     note: 'SKEW 为尾部风险定价，不直接可比 VIX 水平',
@@ -89,7 +95,7 @@ async function load() {
   const TERM_STATE = { contango: '升水 Contango', backwardation: '贴水 Backwardation' };
   const axis = (name) => ({
     type: 'value', name, nameTextStyle: { color: c.muted },
-    
+
   });
 
   // ── 状态卡 ×3 ──
@@ -162,6 +168,17 @@ async function load() {
       },
     }],
   }));
+
+  // ── 历史坐标：5 日变化分布（R.histContext 单源；样本不足时 mkChart 走空态）──
+  const histPts = (data.vix_long.dates || []).map((dt, i) => [dt, data.vix_long.vix[i]]);
+  const hc = R.histContext(histPts, c, { window: 5, unit: ' 点' });
+  R.mkChart('vix_hist_chart', () => (hc ? hc.option : {}));
+  if (hc) {
+    const sgn = (v) => (v > 0 ? '+' : '') + R.num(v, 1);
+    document.getElementById('vix_hist_note').appendChild(R.secNote(
+      `本窗口（${histPts[histPts.length - 1][0]}）5 日变化 ${sgn(hc.cur)} 点 · 历史 ${R.num(hc.pct, 0)} 分位，上一窗口 ${sgn(hc.prev)} 点；深色带 = 中间 50% 窗口（IQR）`
+    ));
+  }
 
   // ── VIX × SKEW 信号：左文 ──
   const s = data.skew_signal;

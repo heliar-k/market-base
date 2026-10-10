@@ -47,7 +47,7 @@ async function load() {
   ].map(([t, id]) => `<a href="#${id}">${t}</a>`).join('');
 
   const d = await R.get('/api/liquidity/transmission-chain');
-  document.getElementById('re-as-of').textContent = R.asOf(d.data_date);
+  R.setAsOf([['传导', d.data_date]]);
 
   // ── 主评分卡 ──
   const BAND_TEXT = bandTextColors(); // 主评分数字走文字档（徽章填充另走 bandColors 的图形档 + color-mix，见 bandBadge）

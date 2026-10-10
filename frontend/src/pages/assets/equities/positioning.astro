@@ -34,7 +34,7 @@ function num(v) { return v == null ? '—' : Number(v).toLocaleString(); }
 async function load() {
   const d = await R.get('/api/assets/positioning');
   if (!d.latest_report) { R.fail(['overview', 'groups'], new Error('COT 数据不足 · 运行 ./bin/fetch_cot 后刷新')); return; }
-  document.getElementById('re-as-of').textContent = R.asOf([['COT 报告', d.latest_report]]);
+  R.setAsOf([['COT 报告', d.latest_report]]);
 
   renderOverview(d);
   d.groups.forEach(g => renderGroup(g));

@@ -24,8 +24,7 @@ async function load() {
 
   const d = await R.get('/api/labor/overview');
   // 月频卡片（失业率/非农/JOLTS）与周频初请时效不同，页头显示双时点
-  document.getElementById('re-as-of').textContent =
-    R.asOf([
+  R.setAsOf([
       R.asMonth([d.cards.unrate.as_of, d.cards.nfp.as_of, d.cards.jolts.as_of]),
       ['初请', d.cards.icsa.as_of],
     ]);

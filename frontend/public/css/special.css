@@ -25,6 +25,11 @@ body { height: auto; overflow-y: auto; display: block; }
 body.embedded .re-header h1 { display: none; } /* 内嵌时左卡已有标题 */
 /* 时效胶囊（timsun 徽章语言）：12% 中性底 + 全圆角，与各状态 tag 同构 */
 .re-as-of { font-size: 12px; color: var(--text-secondary); background: var(--color-neutral-bg); padding: 2px 10px; border-radius: 999px; white-space: normal; overflow-wrap: anywhere; }
+/* 口径层级徽章（R.setAsOf 按 TIERS 表渲染）：文字档上色，边框用图形档 color-mix */
+.re-tier { display: inline-block; margin-left: 2px; padding: 0 5px; border: 1px solid; border-radius: 999px; font-size: 10px; line-height: 14px; vertical-align: 1px; cursor: help; }
+.re-tier--disc { color: var(--up); border-color: color-mix(in srgb, var(--color-up) 40%, transparent); }
+.re-tier--est { color: var(--warning); border-color: color-mix(in srgb, var(--color-warn) 40%, transparent); }
+.re-tier--proxy { color: var(--down); border-color: color-mix(in srgb, var(--color-down) 40%, transparent); }
 /* 子页不再渲染“返回概览”面包屑（导航在左侧专题树 / 窄屏抽屉里） */
 
 /* 页内锚点导航（长页如美债） */

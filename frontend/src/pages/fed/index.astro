@@ -334,8 +334,7 @@ async function load() {
   ]);
   const ind = data.indicator;
   const fmtD = s => s ? `${s.date.slice(0,4)}-${s.date.slice(4,6)}-${s.date.slice(6)}` : '—';
-  document.getElementById('re-as-of').textContent =
-    R.asOf([['声明', fmtD(data.statements[0])], ['演讲', fmtD(data.speeches[0])], ['预测市场', data.market_odds?.as_of]]);
+  R.setAsOf([['声明', fmtD(data.statements[0])], ['演讲', fmtD(data.speeches[0])], ['预测市场', data.market_odds?.as_of]]);
   R.foot(data.generator, {
     src: 'federalreserve.gov（声明 / 纪要 / 演讲）· Polymarket Fed 事件',
     note: '鹰鸽评分为关键词规则打分',

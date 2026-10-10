@@ -47,8 +47,7 @@ async function load() {
   // 交叉验证层的条目级日期一律写在各卡 sub 里：它们属于一张卡，不属于整页；
   // 资金费率/PCR 与衍生品快照同源同文件，单列一段是纯重复。
   const L0 = (d.liquidity || {}).nl_dates || [];
-  if (d.cards && d.cards.length) document.getElementById('re-as-of').textContent =
-    R.asOf([d.cards[0].date,
+  if (d.cards && d.cards.length) R.setAsOf([['资产', d.cards[0].date],
       dd && ['衍生品快照', dd.ts && dd.ts.slice(0, 10)],
       L0.length && ['净流动性', L0[L0.length - 1]]]);
 

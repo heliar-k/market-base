@@ -97,7 +97,7 @@ async function load() {
     R.getOpt('/api/credit/cds'),
     R.getOpt('/api/credit/stress'),
   ]);
-  document.getElementById('re-as-of').textContent = R.asOf(d.as_of);
+  R.setAsOf([['FRED', d.as_of]]);
 
   // ── Credit Regime Score 记分卡（对齐持仓页 pos-hero 骨架）──
   const rg = d.regime || { score: null, regime: '—', components: [], missing: [] };

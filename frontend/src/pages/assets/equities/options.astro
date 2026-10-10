@@ -62,7 +62,7 @@ function mk(id, option) {
 async function load() {
   D = await R.get('/api/assets/equities-options');
   if (!D || !D.symbols) { R.fail(['detail', 'board'], new Error('无期权结构快照 · 运行 ./bin/fetch_options_structure 后刷新')); return; }
-  document.getElementById('re-as-of').textContent = R.asOf([['期权快照', D.date && D.date.slice(0, 10)]]);
+  R.setAsOf([['期权快照', D.date && D.date.slice(0, 10)]]);
 
   renderRegime();
   renderBoard();

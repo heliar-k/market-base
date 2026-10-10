@@ -295,9 +295,9 @@ async function load() {
 
   // 时效行（期货价 / 贵金属 ETF 两段）
   const segs = [];
-  if (d.cards && d.cards.length) segs.push(d.cards[0].date);
+  if (d.cards && d.cards.length) segs.push(['期货价', d.cards[0].date]);
   if (h && h.gld && h.gld.flows) segs.push(['贵金属ETF', h.gld.flows.latest_date]);
-  document.getElementById('re-as-of').textContent = R.asOf(segs);
+  R.setAsOf(segs);
 
   R.foot(null, { src: 'yfinance 日频快照 · GLD/SLV 官方持仓（SPDR / iShares） · WGC Goldhub 月度 xlsx', note: '期货为主力连续合约口径 · 需求侧（消费/工业/央行购金）与价格相关性板块规划中' });
 }

@@ -25,7 +25,7 @@ async function load() {
 
   const d = await R.get('/api/liquidity/global-dollar');
   const sw = d.swap || {};
-  document.getElementById('re-as-of').textContent = R.asOf([['央行互换', sw.date]]);
+  R.setAsOf([['央行互换', sw.date]]);
 
   const dxy = d.dxy || {};
   document.getElementById('re-cards').appendChild(R.cards([

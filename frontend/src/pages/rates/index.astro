@@ -52,7 +52,7 @@ import Section from '../../components/Section.astro';
 async function load() {
   // EFFR 卡片值/1周变动由 analysis 的 overview.effr 提供，不再拉整个 fed-funds（~84KB）
   const data = await R.get('/api/rates/analysis');
-  document.getElementById('re-as-of').textContent = R.asOf(data.overview.as_of);
+  R.setAsOf([['利率/利差', data.overview.as_of]]);
   R.foot(data.generator, {
     src: 'FRED（DGS / EFFR / TIPS / 目标区间）· NY Fed BGCR · chinamoney（中国 10Y）',
   });

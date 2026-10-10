@@ -37,7 +37,7 @@ async function load() {
     value: fmt(i.last),
     sub: `${chg(i.chg_pct)} · ${i.date}`,
   }))));
-  if (d.cards && d.cards.length) document.getElementById('re-as-of').textContent = R.asOf(d.cards[0].date);
+  if (d.cards && d.cards.length) R.setAsOf(d.cards[0].date);
 
   // 20 日相对涨跌图（期初=0%）+ 绝对值明细表
   const rc = d.recent || { dates: [], series: {} };

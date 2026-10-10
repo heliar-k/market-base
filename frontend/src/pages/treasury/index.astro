@@ -37,7 +37,7 @@ async function load() {
     R.getOpt('/api/rates/auctions'),
   ]);
   // 数据源时效不同：TIC 月频滞后 ~6.5 周，Bill 占比与拍卖各自为政，页头逐段如实标注
-  document.getElementById('re-as-of').textContent = R.asOf([
+  R.setAsOf([
     ['TIC', d.cards.hold_total.as_of],
     ['Bill 占比', d.cards.bill_share.as_of],
     ['拍卖', auc ? auc.as_of : null],

@@ -64,8 +64,8 @@ async function load() {
 
   // 时效行（商品价）
   const segs = [];
-  if (d.cards && d.cards.length) segs.push(d.cards[0].date);
-  document.getElementById('re-as-of').textContent = R.asOf(segs);
+  if (d.cards && d.cards.length) segs.push(['期货价', d.cards[0].date]);
+  R.setAsOf(segs);
 
   R.foot(null, { src: 'yfinance 日频快照', note: '归一化起点 = 2 年前首交易日收盘 · 跨资产价格总表见「大类资产」页 · 油价地缘风险定价见「地缘与政治风险」页 · 黄金/白银持仓与资金流见「贵金属」页' });
 }

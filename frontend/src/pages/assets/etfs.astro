@@ -41,7 +41,7 @@ async function load() {
   D = await R.get('/api/assets/etfs');
   if (!D.pool || !D.pool.length) { R.fail(['stats', 'pool'], new Error('精选池数据不足 · 运行 ./bin/fetch_etf 后刷新')); return; }
 
-  if (D.as_of) document.getElementById('re-as-of').textContent = R.asOf(D.as_of);
+  if (D.as_of) R.setAsOf([['ETF 行情', D.as_of]]);
   renderStats();
   renderUniverse();
   renderPool();

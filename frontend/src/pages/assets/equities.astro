@@ -87,7 +87,7 @@ async function load() {
 function renderIndices() {
   const idx = D.indices || [];
   if (!idx.length) return;
-  document.getElementById('re-as-of').textContent = R.asOf(idx[0].date);
+  R.setAsOf(idx[0].date);
   document.getElementById('indices').replaceChildren(R.cards(idx.map(i => ({
     label: i.name,
     value: id(i.last),

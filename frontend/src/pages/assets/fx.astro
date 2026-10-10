@@ -34,7 +34,7 @@ async function load() {
   renderChart(d);
   renderTables(d);
   renderExplain();
-  document.getElementById('re-as-of').textContent = R.asOf(d.as_of);
+  R.setAsOf([['外汇行情', d.as_of]]);
   R.foot(null, { src: 'yfinance 外汇日线' });
 }
 
