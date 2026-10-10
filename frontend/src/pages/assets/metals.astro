@@ -72,14 +72,14 @@ async function load() {
       tooltip: { trigger: 'axis' },
       legend: { data: hkeys.map(x => x[1]), top: 0 },
       grid: { left: 8, right: 16, top: 28, bottom: 40 },
-      xAxis: { type: 'category', data: h.dates, axisLine: { lineStyle: { color: colors.border } }, axisLabel: { color: colors.muted, fontSize: 10, alignMinLabel: 'left', alignMaxLabel: 'right' } },
+      xAxis: { type: 'time', boundaryGap: false },
       // GLD 与 SLV 量级差 ~14×，双轴各归各自 scale，否则金线被压平
       yAxis: [
-        { type: 'value', scale: true, axisLabel: { color: colors.muted, fontSize: 11 }, splitLine: { lineStyle: { color: colors.grid } } },
-        { type: 'value', scale: true, axisLabel: { color: colors.muted, fontSize: 11 }, splitLine: { show: false } },
+        { type: 'value', scale: true },
+        { type: 'value', scale: true, splitLine: { show: false } },
       ],
       series: hkeys.map(([k, name], i) => ({
-        name, type: 'line', data: h[k].series, showSymbol: false, yAxisIndex: i,
+        name, type: 'line', data: h.dates.map((dt, j) => [dt, h[k].series[j]]), showSymbol: false, yAxisIndex: i,
         lineStyle: { width: 2, color: [colors.orange, colors.gray][i % 2] },
       })),
     }, colors));
@@ -117,10 +117,10 @@ async function load() {
       tooltip: { trigger: 'axis', valueFormatter: v => v == null ? '—' : `${R.num(v, 0)} 百万美元` },
       legend: { data: REG.map(x => x[1]), top: 0 },
       grid: { left: 8, right: 16, top: 28, bottom: 40 },
-      xAxis: { type: 'category', data: wg.months, axisLine: { lineStyle: { color: colors.border } }, axisLabel: { color: colors.muted, fontSize: 10 } },
-      yAxis: { type: 'value', axisLabel: { color: colors.muted, fontSize: 11 }, splitLine: { lineStyle: { color: colors.grid } } },
+      xAxis: { type: 'time', boundaryGap: false },
+      yAxis: { type: 'value' },
       series: REG.map(([en, cn]) => ({
-        name: cn, type: 'bar', stack: 'flows', data: wg.series[en] || [],
+        name: cn, type: 'bar', stack: 'flows', data: (wg.series[en] || []).map((v, i) => [wg.months[i], v]),
         barMaxWidth: 14,
       })),
     }, colors));
@@ -137,14 +137,14 @@ async function load() {
         tooltip: { trigger: 'axis', valueFormatter: v => v == null ? '—' : R.num(v, 0) },
         legend: { data: hasPx ? ['总持仓（吨）', '金价（右轴，美元/盎司）'] : ['总持仓（吨）'], top: 0 },
         grid: { left: 8, right: 16, top: 28, bottom: 40 },
-        xAxis: { type: 'category', data: wh.dates, axisLine: { lineStyle: { color: colors.border } }, axisLabel: { color: colors.muted, fontSize: 10 } },
+        xAxis: { type: 'time', boundaryGap: false },
         yAxis: hasPx ? [
-          { type: 'value', scale: true, axisLabel: { color: colors.muted, fontSize: 11 }, splitLine: { lineStyle: { color: colors.grid } } },
-          { type: 'value', scale: true, position: 'right', axisLabel: { color: colors.muted, fontSize: 11 }, splitLine: { show: false } },
-        ] : { type: 'value', scale: true, axisLabel: { color: colors.muted, fontSize: 11 }, splitLine: { lineStyle: { color: colors.grid } } },
+          { type: 'value', scale: true },
+          { type: 'value', scale: true, position: 'right', splitLine: { show: false } },
+        ] : { type: 'value', scale: true },
         series: [
-          { name: '总持仓（吨）', type: 'line', data: wh.series, showSymbol: false, yAxisIndex: 0, lineStyle: { width: 2, color: colors.orange } },
-          ...(hasPx ? [{ name: '金价（右轴，美元/盎司）', type: 'line', data: wh.gold_price, showSymbol: false, yAxisIndex: 1, lineStyle: { width: 1.5, type: 'dashed', color: colors.gray } }] : []),
+          { name: '总持仓（吨）', type: 'line', data: wh.dates.map((dt, i) => [dt, wh.series[i]]), showSymbol: false, yAxisIndex: 0, lineStyle: { width: 2, color: colors.orange } },
+          ...(hasPx ? [{ name: '金价（右轴，美元/盎司）', type: 'line', data: wh.dates.map((dt, i) => [dt, wh.gold_price[i]]), showSymbol: false, yAxisIndex: 1, lineStyle: { width: 1.5, type: 'dashed', color: colors.gray } }] : []),
         ],
       }, colors));
       wc.appendChild(R.secNote(`全球实物黄金 ETF 总持仓（WGC 月末快照，含美/欧/亚等约 140 只基金），最新 ${wh.latest_date} 为 ${R.num(wh.latest, 0)} 吨${wh.d1 != null ? `，上月${wh.d1 >= 0 ? '增' : '减'} ${R.num(Math.abs(wh.d1), 1)} 吨` : ''}。长期曲线用于观察全局配置趋势，单基金细节见下表；GLD 日频持仓见上段，两者月末偏差 <0.05%（已交叉验证）。`));
@@ -215,7 +215,7 @@ async function load() {
         legend: { data: c.corr_pairs.map(x => x.name), top: 0 },
         grid: { left: 8, right: 16, top: 36, bottom: 24 },
         xAxis: { type: 'time' },
-        yAxis: { type: 'value', min: -1, max: 1, axisLabel: { formatter: v => R.num(v, 1) }, splitLine: { lineStyle: { color: colors.grid } } },
+        yAxis: { type: 'value', min: -1, max: 1, axisLabel: { formatter: v => R.num(v, 1) } },
         series: c.corr_pairs.map(x => ({
           name: x.name, type: 'line', showSymbol: false,
           data: x.series, lineStyle: { width: 1.5 },
@@ -240,7 +240,7 @@ async function load() {
         tooltip: { trigger: 'axis', valueFormatter: v => v == null ? '—' : R.num(v, 1) },
         grid: { left: 8, right: 16, top: 12, bottom: 24 },
         xAxis: { type: 'time' },
-        yAxis: { type: 'value', scale: true, axisLabel: { formatter: v => R.num(v, 0) }, splitLine: { lineStyle: { color: colors.grid } } },
+        yAxis: { type: 'value', scale: true, axisLabel: { formatter: v => R.num(v, 0) } },
         series: [{ name: '金银比', type: 'line', showSymbol: false, data: gs.dates.map((dt, i) => [dt, gs.series[i]]), lineStyle: { width: 2 } }],
       }, colors));
       gsCard.appendChild(R.secNote(`金银比 = 金价 ÷ 银价，最新 ${R.num(gs.latest, 1)}。比值抬升 = 避险/衰退定价主导，回落 = 工业需求修复。`));
@@ -250,7 +250,7 @@ async function load() {
         tooltip: { trigger: 'axis', valueFormatter: v => v == null ? '—' : R.num(v, 0) },
         grid: { left: 8, right: 16, top: 12, bottom: 24 },
         xAxis: { type: 'time' },
-        yAxis: { type: 'value', scale: true, axisLabel: { formatter: v => R.num(v, 0) }, splitLine: { lineStyle: { color: colors.grid } } },
+        yAxis: { type: 'value', scale: true, axisLabel: { formatter: v => R.num(v, 0) } },
         series: [{ name: 'GC 净多（手）', type: 'line', showSymbol: false, data: co.dates.map((dt, i) => [dt, co.series[i]]), lineStyle: { width: 2 } }],
       }, colors));
       coCard.appendChild(R.secNote(`CFTC COT 管理基金（Managed Money）净多头 = GC_MM_L − GC_MM_S（手），周频（周二持仓、周五发布），分位 ${coPct == null ? '—' : R.num(coPct, 0)}（近 2 年）。高位 = 投机拥挤，反转风险上升。`));
