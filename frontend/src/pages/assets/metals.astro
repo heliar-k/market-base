@@ -17,13 +17,16 @@ import Section from '../../components/Section.astro';
   </Section>
   <Section id="wgc" title="全球黄金 ETF 资金流（WGC）" sub="世界黄金协会 Goldhub · 月度净流入 · US$mn = 百万美元">
   </Section>
+  <Section id="correlation" title="交叉验证与相关性" sub="90 日滚动相关 · 宏观锚点 · 持仓验证">
+    <div id="corr-body"></div>
+  </Section>
   <Section id="recent" title="近期数据" sub="期货主力收盘价 · 最近 20 个交易日" />
   <div class="re-foot-page" slot="foot" id="re-foot"></div>
 
 <script is:inline>
 // 小节锚点导航（#29：与其余专题页同一写法）
 document.getElementById('page-toc').innerHTML = [
-  ['总览', 'overview'], ['ETF 持仓', 'holdings'], ['全球资金流', 'wgc'], ['近期数据', 'recent'],
+  ['总览', 'overview'], ['ETF 持仓', 'holdings'], ['交叉验证', 'correlation'], ['全球资金流', 'wgc'], ['近期数据', 'recent'],
 ].map(([t, id]) => `<a href="#${id}">${t}</a>`).join('');
 
 async function load() {
@@ -175,6 +178,87 @@ async function load() {
       fsec.appendChild(fnote);
       document.getElementById('wgc').appendChild(fsec);
     }
+  }
+
+  // ── 交叉验证与相关性（本地派生块，null 时整段隐藏不白屏）──
+  const c = d.correlation;
+  if (!c) {
+    document.getElementById('correlation').hidden = true;
+  } else {
+    const ry = c.real_yield || {}, gs = c.gold_silver || {}, co = c.cot || {}, ef = c.etf_flow || {};
+    // 研判行：四条结论（格不套内框，R.judgeRow 单源）
+    const ryv = ry.latest;
+    const ryTxt = ryv == null ? '数据不足'
+      : ryv < -0.3 ? '强锚定'
+      : ryv <= 0 ? '弱化'
+      : '失效（与实际利率同向）';
+    const gsPct = gs.pct;
+    const gsTxt = gsPct == null ? '' : gsPct >= 80 ? '近 2 年高位：避险/衰退区间' : `近 2 年分位 ${R.num(gsPct, 0)}`;
+    const coPct = co.pct;
+    const coTxt = coPct == null ? '' : coPct >= 80 ? '拥挤（近 2 年分位高位）' : `近 2 年分位 ${R.num(coPct, 0)}`;
+    const efHit = ef.hit_rate;
+    const efTxt = efHit == null ? '' : efHit >= 60 ? '验证有效' : efHit >= 45 ? '验证力弱' : '验证失效';
+    document.getElementById('corr-body').innerHTML = R.judgeRow([
+      ['金×实际利率', `${ryv == null ? '—' : R.num(ryv, 2)}\n${ryTxt}`],
+      ['金银比', `${gs.latest == null ? '—' : R.num(gs.latest, 1)}\n${gsTxt || '近 2 年分位 —'}`],
+      ['COT 基金净多', `${co.latest == null ? '—' : R.num(co.latest, 0)} 手\n${coTxt || '近 2 年分位 —'}`],
+      ['ETF 持仓验证', `${efHit == null ? '—' : `${R.num(efHit, 0)}%`}\n${efTxt || 'GLD 持仓 vs 金价 5 日方向'}`],
+    ]);
+
+    // 三张图：滚动相关（全宽）、金银比 + COT（并排）
+    const charts = document.createElement('div');
+    charts.className = 're-section';
+    charts.innerHTML = '<div class="chart" id="corr-chart"></div>';    document.getElementById('corr-body').appendChild(charts);
+    if (c.corr_pairs && c.corr_pairs.length) {
+      R.mkChart('corr-chart', colors => R.lineOption({
+        tooltip: { trigger: 'axis', valueFormatter: v => v == null ? '—' : R.num(v, 2) },
+        legend: { data: c.corr_pairs.map(x => x.name), top: 0 },
+        grid: { left: 8, right: 16, top: 36, bottom: 24 },
+        xAxis: { type: 'time' },
+        yAxis: { type: 'value', min: -1, max: 1, axisLabel: { formatter: v => R.num(v, 1) }, splitLine: { lineStyle: { color: colors.grid } } },
+        series: c.corr_pairs.map(x => ({
+          name: x.name, type: 'line', showSymbol: false,
+          data: x.series, lineStyle: { width: 1.5 },
+        })),
+      }, colors));
+    }
+
+    // 金银比 + COT 并排（.re-duo 单源；卡同高：两图同高、图注各自补齐）
+    const duo = document.createElement('div');
+    duo.className = 're-duo';
+    document.getElementById('corr-body').appendChild(duo);
+    const gsCard = document.createElement('div');
+    gsCard.className = 're-section';
+    gsCard.innerHTML = `${R.secTitle('金银比', `金价 / 银价 · 近 2 年分位 ${gsPct == null ? '—' : R.num(gsPct, 0)}`)}<div class="chart" id="gs-chart"></div>`;
+    duo.appendChild(gsCard);
+    const coCard = document.createElement('div');
+    coCard.className = 're-section';
+    coCard.innerHTML = `${R.secTitle('COT 管理基金净多', `GC · 周频 · 近 2 年分位 ${coPct == null ? '—' : R.num(coPct, 0)}`)}<div class="chart" id="cot-chart"></div>`;
+    duo.appendChild(coCard);
+    if (gs.series) {
+      R.mkChart('gs-chart', colors => R.lineOption({
+        tooltip: { trigger: 'axis', valueFormatter: v => v == null ? '—' : R.num(v, 1) },
+        grid: { left: 8, right: 16, top: 12, bottom: 24 },
+        xAxis: { type: 'time' },
+        yAxis: { type: 'value', scale: true, axisLabel: { formatter: v => R.num(v, 0) }, splitLine: { lineStyle: { color: colors.grid } } },
+        series: [{ name: '金银比', type: 'line', showSymbol: false, data: gs.dates.map((dt, i) => [dt, gs.series[i]]), lineStyle: { width: 2 } }],
+      }, colors));
+      gsCard.appendChild(R.secNote(`金银比 = 金价 ÷ 银价，最新 ${R.num(gs.latest, 1)}。比值抬升 = 避险/衰退定价主导，回落 = 工业需求修复。`));
+    }
+    if (co.series) {
+      R.mkChart('cot-chart', colors => R.lineOption({
+        tooltip: { trigger: 'axis', valueFormatter: v => v == null ? '—' : R.num(v, 0) },
+        grid: { left: 8, right: 16, top: 12, bottom: 24 },
+        xAxis: { type: 'time' },
+        yAxis: { type: 'value', scale: true, axisLabel: { formatter: v => R.num(v, 0) }, splitLine: { lineStyle: { color: colors.grid } } },
+        series: [{ name: 'GC 净多（手）', type: 'line', showSymbol: false, data: co.dates.map((dt, i) => [dt, co.series[i]]), lineStyle: { width: 2 } }],
+      }, colors));
+      coCard.appendChild(R.secNote(`CFTC COT 管理基金（Managed Money）净多头 = GC_MM_L − GC_MM_S（手），周频（周二持仓、周五发布），分位 ${coPct == null ? '—' : R.num(coPct, 0)}（近 2 年）。高位 = 投机拥挤，反转风险上升。`));
+    }
+
+    document.getElementById('corr-body').appendChild(R.secNote(
+      `口径：滚动相关为 90 日 Pearson（日收益率，min_periods=30）；DFII10 为 10Y TIPS 实际利率，取日差分（百分点）；COT 周频前向填充；ETF 一致率 = GLD 持仓 5 日变化与金价 5 日涨跌同向比例（近 1 年，持仓截至 ${ef.as_of || '—'}）。${R.asOf([['相关/价格', ry.as_of], ['COT', (co.dates || []).slice(-1)[0]]])}`
+    ));
   }
 
   // 20 日表（期货主力）

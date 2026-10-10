@@ -497,13 +497,12 @@ uv run python src/sell_put.py --symbol TSM
   `.re-section` → flex 纵排」规则已豁免 `.re-duo`（否则动态造卡进 duo 永远不生效双栏）；
   ④ 同排两卡想让绘图区（x 轴线）垂直对齐：卡内标题/图注行数必须一致 —— 卡同高、图同高，
   差一行图注 = x 轴线差 17+4px，没有兜底补偿（treasury 间接投标/Bill 卡靠给另一卡补同高图注对齐）
-- **time 轴标签按跨度选写法，轴样不逐页重写**：≤1 年跨度用 `formatter: R.md`（M/D，
-  `rates-common.js` 单源）；多年跨度**不写 formatter**（ECharts 自动出年级标签，同页所有长图一致）。
-  颜色/字号/等宽字体由 `echarts-theme.js` 的 `timeAxis`/`valueAxis` 单源，页面只补差异
-  （formatter、`{value}%` 后缀、固定 min/max），显式写 `color: colors.muted, fontSize: 10`
-  会把主题的 mono 字体顶掉。画布边距走 `R.lineOption` 的默认 grid（top 36 给图例让位），
-  图不带图例时才降 top；`category` 轴 + 原始 ISO 日期串的写法已废弃（同页出现
-  `2020-10-31` 与 `10/31` 两种写法即不统一）
+- **日期轴统一写法（强制，全站单源）**：凡 x 轴是日期，一律 `type: 'time'` + `[[date, value], …]` 点对数据，**禁止 `type: 'category'` + ISO 日期串**（抽稀不均、同页日期写法不统一的根源，存量 17 页待迁）。页面只写差异项，轴样由 `echarts-theme.js` 的 `timeAxis`/`valueAxis` 单源：
+  1. 基础写法就是 `xAxis: { type: 'time' }`，**不写 `axisLabel`**——显式 `color/ fontSize` 会把主题的 mono 字体与 muted 色顶掉（liquidity 系现存此偏差）
+  2. formatter 按跨度选：≤1 年 `formatter: R.md`（M/D）；多年**不写 formatter**（ECharts 自动出年级标签）；等宽/颜色也无需补
+  3. 只有需要贴边（折线端点不悬空）才加 `boundaryGap: false`；双图并排要对齐 x 轴时两侧写法必须一致
+  4. y 轴同理：`splitLine` 不写（主题单源），只写 formatter / 单位后缀 / 固定 min-max
+  迁移判定：同页出现 `2020-10-31` 与 `10/31` 两种标签、或 category 轴 data 是 ISO 日期数组，即为未迁移。守卫暂缺（存量未清），新增/改到的图必须走本条
 - **「先看结构、再看数据」双层节奏**：面板第一屏给结论层（状态条/评分/报警/规则引擎叙事，一眼可读），下层给可交互的数据层（图/表/热力图），两层通过点击联动（点结论→定位数据，点数据→弹出明细）
 - **微观数据须有宏观锚点**：展示单资产/单指标时，附带其在全局中的坐标（分组、分位、相对强弱），避免孤立数字
 - **工具栏模式统一**：预设/模式切换按钮置顶（`.range-btn` 风格），日期范围按钮居右（`macro-common.js` 的 `MACRO_DATE_RANGES`），状态写进底部状态栏（`updateStatus()` 约定）

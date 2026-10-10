@@ -1493,6 +1493,142 @@ def commodities() -> dict:
     }
 
 
+def _metals_pair_corr(p: pd.DataFrame) -> list[dict] | None:
+    """6 对资产的 90 日滚动相关（日收益率）；单对数据不足返回 None 块由调用方过滤。"""
+    rets = p.pct_change()
+    out = []
+    for name, a, b in [
+        ("金×银", "Gold", "Silver"),
+        ("金×美元", "Gold", "DXY"),
+        ("金×标普", "Gold", "SPX"),
+        ("金×比特币", "Gold", "BTC"),
+        ("银×铜", "Silver", "Copper"),
+    ]:
+        if a not in rets or b not in rets:
+            continue
+        c = rets[a].rolling(90, min_periods=30).corr(rets[b]).dropna()
+        if c.empty:
+            continue
+        out.append(
+            {
+                "name": name,
+                "a": a,
+                "b": b,
+                "series": [[str(d.date()), round(float(v), 3)] for d, v in c.items()],
+                "latest": round(float(c.iloc[-1]), 3),
+            }
+        )
+    return out or None
+
+
+def _metals_real_yield(p: pd.DataFrame) -> dict | None:
+    """金价 vs DFII10（10Y TIPS 实际利率）：90 日相关 latest + 近一年日度散点。"""
+    tips = _csv("fred/tips/tips.csv")
+    if tips.empty or "DFII10" not in tips.columns or "Gold" not in p.columns:
+        return None
+    real = tips["DFII10"].dropna()
+    if real.empty:
+        return None
+    # DFII10 为百分数（2.43 = 2.43%），日差分单位即百分点（pp），散点 x 轴同口径
+    chg = real.diff().dropna()
+    ret = p["Gold"].pct_change()
+    df = pd.DataFrame({"chg": chg, "ret": ret}).dropna()
+    c = df["chg"].rolling(90, min_periods=30).corr(df["ret"]).dropna()
+    latest = round(float(c.iloc[-1]), 3) if not c.empty else None
+    # 近一年散点（下采样到 ~120 点，前端画图够用）
+    yr = df[df.index >= df.index[-1] - pd.Timedelta(days=365)]
+    step = max(1, len(yr) // 120)
+    pts = [
+        [round(float(r.chg), 2), round(float(r.ret) * 100, 3)]
+        for r in yr.iloc[::step].itertuples()
+    ]
+    return {"as_of": str(df.index[-1].date()), "latest": latest, "scatter": pts}
+
+
+def _metals_gold_silver(p: pd.DataFrame) -> dict | None:
+    """金银比日频近 2 年序列 + latest 相对窗口的分位（0-100）。"""
+    if not {"Gold", "Silver"}.issubset(p.columns):
+        return None
+    s = (p["Gold"] / p["Silver"]).dropna()
+    if len(s) < 60:
+        return None
+    cur = float(s.iloc[-1])
+    return {
+        "dates": [str(d.date()) for d in s.index],
+        "series": [round(float(v), 1) for v in s],
+        "latest": round(cur, 1),
+        "pct": round(float((s <= cur).mean() * 100), 1),
+    }
+
+
+def _metals_cot() -> dict | None:
+    """CFTC COT：GC 管理基金净多（GC_MM_L−GC_MM_S）周序列 + 分位。"""
+    df = _csv("cot/cot.csv")
+    if df.empty or not {"GC_MM_L", "GC_MM_S"}.issubset(df.columns):
+        return None
+    s = (df["GC_MM_L"] - df["GC_MM_S"]).dropna()
+    if len(s) < 30:
+        return None
+    cur = float(s.iloc[-1])
+    return {
+        "dates": [str(d.date()) for d in s.index],
+        "series": [round(float(v), 0) for v in s],
+        "latest": round(cur, 0),
+        "pct": round(float((s <= cur).mean() * 100), 1),
+    }
+
+
+def _metals_etf_flow(p: pd.DataFrame) -> dict | None:
+    """GLD 持仓 5 日变化与金价 5 日涨跌方向一致命中率（近 1 年）+ 两条日频序列。"""
+    hold = _csv("commodities/etf_holdings.csv")
+    if hold.empty or "gld_tonnes" not in hold.columns or "Gold" not in p.columns:
+        return None
+    h = hold["gld_tonnes"].dropna()
+    gold = p["Gold"].dropna()
+    if len(h) < 60 or len(gold) < 60:
+        return None
+    hd = h.diff(5)
+    gr = gold.pct_change(5)
+    df = pd.DataFrame({"h": hd, "g": gr}).dropna()
+    yr = df[df.index >= df.index[-1] - pd.Timedelta(days=365)]
+    hit = (
+        float((np.sign(yr["h"]) == np.sign(yr["g"])).mean() * 100)
+        if len(yr) >= 30
+        else None
+    )
+    # 序列对齐到近 2 年金价网格（持仓缺失日留空）
+    grid = gold.index[-500:]
+    return {
+        "as_of": str(h.index[-1].date()),
+        "hit_rate": round(hit, 1) if hit is not None else None,
+        "dates": [str(d.date()) for d in grid],
+        "hold_chg": [
+            None if d not in hd.index or pd.isna(hd[d]) else round(float(hd[d]), 1)
+            for d in grid
+        ],
+        "gold": [round(float(gold[d]), 1) for d in grid],
+    }
+
+
+def _metals_correlation_block() -> dict | None:
+    """贵金属页「交叉验证 / 相关性分析」块（只读 CSV 派生，不写盘）。
+
+    任何子段数据缺失返回 None 不阻断（参考 etf_holdings 的既有模式）。
+    口径：90 日滚动 Pearson（日收益率，min_periods=30）；DFII10 用日差分（bp）。
+    """
+    p = asset_prices()
+    if p.empty:
+        return None
+    out: dict = {
+        "corr_pairs": _metals_pair_corr(p),
+        "real_yield": _metals_real_yield(p),
+        "gold_silver": _metals_gold_silver(p),
+        "cot": _metals_cot(),
+        "etf_flow": _metals_etf_flow(p),
+    }
+    return out
+
+
 def metals() -> dict:
     """贵金属子页：价格上下文（期货主力 + ETF 行情对象）+ 全部资金流/持仓块。
 
@@ -1508,6 +1644,7 @@ def metals() -> dict:
         "wgc_flows": _wgc_flows_block(),  # None 不阻断（登录会话数据源）
         "wgc_holdings": _wgc_holdings_block(),
         "wgc_fund_flows": _wgc_fund_flows_block(),
+        "correlation": _metals_correlation_block(),  # None 不阻断（本地派生块）
     }
 
 
