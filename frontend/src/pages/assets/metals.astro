@@ -205,6 +205,13 @@ async function load() {
       ['ETF 持仓验证', `${efHit == null ? '—' : `${R.num(efHit, 0)}%`}\n${efTxt || 'GLD 持仓 vs 金价 5 日方向'}`],
     ]);
 
+    // 规则引擎研判卡（后端生成，段级容错：无 text 不渲染空卡）
+    if (c.judgement && c.judgement.text) {
+      const jc = document.createElement('div');
+      jc.innerHTML = R.judgeCard(c.judgement.title || '交叉验证研判', c.judgement.text, R.LINES_CONCLUSION);
+      document.getElementById('corr-body').appendChild(jc.firstElementChild);
+    }
+
     // 三张图：滚动相关（全宽）、金银比 + COT（并排）
     const charts = document.createElement('div');
     charts.className = 're-section';
@@ -221,6 +228,7 @@ async function load() {
           data: x.series, lineStyle: { width: 1.5 },
         })),
       }, colors));
+      charts.appendChild(R.secNote('读法：三条线同时抬升 = 同涨同跌的宏观贝塔主导（避险或流动性），接近 0 = 个别资产逻辑独立；金×标普转正 + 金×实际利率趋 0，定价转由流动性与配置盘而非利率预期主导。'));
     }
 
     // 金银比 + COT 并排（.re-duo 单源；卡同高：两图同高、图注各自补齐）

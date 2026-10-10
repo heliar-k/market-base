@@ -1610,6 +1610,82 @@ def _metals_etf_flow(p: pd.DataFrame) -> dict | None:
     }
 
 
+def _metals_corr_judgement(c: dict) -> dict:
+    """交叉验证段研判（规则引擎；LLM 预留——_llm_generate 返回 dict 则直接使用）。
+
+    只消费同块各子段已算好的读数，不重复计算；阈值与前端四格标签一致：
+    锚（金×实际利率 90 日相关）：< -0.3 强 / [-0.3, 0] 弱化 / > 0 失效；
+    ETF 同向率：>= 60 实钱支撑 / >= 45 验证弱 / < 45 背离；
+    COT 分位（近 2 年）：>= 80 拥挤 / <= 20 偏轻。
+    输出 judgeCard 同构三行（结论/依据/触发），text 以 \n 分行。
+    """
+    ry = (c.get("real_yield") or {}).get("latest")
+    gs = c.get("gold_silver") or {}
+    co = c.get("cot") or {}
+    hit = (c.get("etf_flow") or {}).get("hit_rate")
+    pct = co.get("pct")
+
+    # 结论：定价锚 + 实钱 + 投机仓位三要素合成一句
+    if ry is None:
+        anchor = "利率锚数据不足"
+    elif ry > 0:
+        anchor = "与实际利率脱锚（定价转由流动性/配置主导）"
+    elif ry <= -0.3:
+        anchor = "仍锚定实际利率"
+    else:
+        anchor = "与实际利率弱脱锚"
+    if hit is None:
+        etf_p = "ETF 验证数据不足"
+    elif hit >= 60:
+        etf_p = "实钱（ETF 持仓）同步跟涨"
+    elif hit >= 45:
+        etf_p = "实钱对涨势验证力弱"
+    else:
+        etf_p = "实钱与金价背离（上涨中持仓流出）"
+    if pct is None:
+        cot_p = "投机仓位数据不足"
+    elif pct >= 80:
+        cot_p = "投机仓位拥挤"
+    elif pct <= 20:
+        cot_p = "投机仓位偏轻"
+    else:
+        cot_p = "投机仓位中性"
+    concl = f"金价{anchor}，{etf_p}，{cot_p}。"
+
+    # 依据：四个读数拼一行
+    parts = []
+    if ry is not None:
+        parts.append(f"金×实际利率 90 日相关 {ry:.2f}")
+    if gs.get("latest") is not None:
+        parts.append(f"金银比 {gs['latest']:.0f}（近 2 年分位 {gs['pct']:.0f}%）")
+    if co.get("latest") is not None:
+        parts.append(f"COT 净多 {co['latest']:,.0f} 手（分位 {pct:.0f}%）")
+    if hit is not None:
+        parts.append(f"GLD 持仓 5 日同向率 {hit:.0f}%")
+    basis = "；".join(parts) + "。" if parts else "读数不足。"
+
+    # 触发：按优先级取第一个命中，否则给观察项
+    spx = next(
+        (x["latest"] for x in (c.get("corr_pairs") or []) if x["name"] == "金×标普"),
+        None,
+    )
+    if hit is not None and hit < 45:
+        trig = "GLD 同向率跌破 45%，涨势缺实钱支撑——背离持续一周以上视为减仓信号。"
+    elif pct is not None and pct >= 80:
+        trig = "COT 分位 ≥80%，拥挤多头下负面消息易触发多平踩踏，警惕快速回撤。"
+    elif ry is not None and ry > 0 and spx is not None and spx > 0.3:
+        trig = "利率锚与金股负相关同时失效，金价随流动性波动，Fed 转向是主要下行触发。"
+    elif gs.get("pct") is not None and gs["pct"] >= 80:
+        trig = "金银比处高位，避险/衰退定价主导——银跑赢金（比值回落）常标志避险退潮。"
+    elif pct is not None and pct <= 20:
+        trig = "投机仓位偏轻：空头回补是潜在上行动力，拥挤风险暂低。"
+    else:
+        trig = "观察项：COT 分位破 80%（拥挤）或 GLD 同向率破 45%（背离）作为转弱触发。"
+
+    text = "\n".join([concl, basis, trig])
+    return {"generator": "rules", "title": "交叉验证研判", "text": text}
+
+
 def _metals_correlation_block() -> dict | None:
     """贵金属页「交叉验证 / 相关性分析」块（只读 CSV 派生，不写盘）。
 
@@ -1626,6 +1702,7 @@ def _metals_correlation_block() -> dict | None:
         "cot": _metals_cot(),
         "etf_flow": _metals_etf_flow(p),
     }
+    out["judgement"] = _metals_corr_judgement(out)
     return out
 
 
