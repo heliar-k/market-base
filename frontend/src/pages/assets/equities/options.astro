@@ -211,7 +211,9 @@ function pGex(panel, v) {
     const cumMax = Math.max(...cum.map(Math.abs), 10);
     return R.lineOption({
       tooltip: { trigger: 'axis' },
-      grid: { left: 8, right: 56, top: 28, bottom: 52 },
+      // containLabel 已替双轴标签留位，right/left 只给纯边距（56 会叠出 ~86px 空白）；
+      // top 下移给图例让位（图例底缘 ~28px，原来正好压在绘区顶线上）
+      grid: { left: 8, right: 8, top: 44, bottom: 52 },
       xAxis: { type: 'category', data: ss, axisLine: { lineStyle: { color: colors.border } }, axisLabel: { color: colors.muted, fontSize: 10, rotate: 0 }, name: '行权价', nameLocation: 'middle', nameGap: 32, nameTextStyle: { color: colors.muted, fontSize: 10 } },
       yAxis: [
         // splitNumber 限 5 段，避免极值标签（±236.3）与整数刻度（±200）上下挤压重叠
@@ -238,30 +240,43 @@ function pGex(panel, v) {
       ],
     }, colors);
   };
-  // 到期 Gamma 集中度水平条
+  // 到期 Gamma 集中度：单根 100% 堆叠条（段宽 = 占比，绿/红 = 净 gamma 方向）+ 数字行
   const buckets = v.buckets || {};
   const entries = Object.entries(buckets);
-  const maxPct = Math.max(...entries.map(([, b]) => b.gex_pct ?? 0), 1);
   const dom = document.getElementById('buckets');
   let domLabel = null, domPct = 0;
-  dom.innerHTML = entries.map(([k, b]) => {
+  const segs = entries.map(([k, b]) => {
     const pct = b.gex_pct ?? 0;
     const m = b.gex_m ?? null; // 带符号：正 = call 侧净 gamma（市场压制波动），负 = put 侧
     const pos = m != null && m >= 0;
     if (pct > domPct) { domPct = pct; domLabel = k; }
-    const contracts = b.contracts >= 1e6 ? (b.contracts / 1e6).toFixed(1) + 'M' : b.contracts >= 1e3 ? Math.round(b.contracts / 1e3) + 'K' : String(b.contracts);
     const gexTxt = m == null ? '—' : `${m >= 0 ? '+' : ''}${Math.abs(m) >= 1000 ? (m / 1e3).toFixed(1) + 'B' : m.toFixed(0)}M`;
-    // col 只喂 color:（文字档）；下面 range-fill 的 background 是填充，保持图形档
-    const col = m != null ? (pos ? 'var(--up)' : 'var(--down)') : '';
-    return `<div class="range-row">
-      <span>${BUCKET_NAMES[k] || k}</span>
-      <div class="range-track"><div class="range-fill" style="width:${(pct / maxPct * 100).toFixed(1)}%;background:${m != null ? (pos ? 'var(--color-up)' : 'var(--color-down)') : ''}"></div></div>
-      <span class="range-val" style="color:${col}"><b>${pct.toFixed(1)}%</b></span>
-      <span class="range-val" style="color:${col}">${gexTxt}</span>
-      <span class="range-val">${contracts} 合约</span>
+    return { k, pct, m, pos, gexTxt };
+  });
+  // 占比不足 5% 的段不进条内标注（文字放不下），只进下方数字行；
+  // 段色取 ECharts 分类色板前四位（brand/warn/purple/down，亮暗主题各自解析），
+  // 叠 75% 透明度降饱和（纯 token 太鲜艳），段界仍清晰；
+  // 方向（绿/红）只留在图例的净 GEX 数字上
+  const segColor = [
+    'color-mix(in srgb, var(--color-brand) 55%, var(--surface))',
+    'color-mix(in srgb, var(--color-warn) 55%, var(--surface))',
+    'color-mix(in srgb, var(--chart-purple) 55%, var(--surface))',
+    'color-mix(in srgb, var(--color-down) 55%, var(--surface))',
+  ];
+  dom.innerHTML = `
+    <div class="gex-stack">
+      ${segs.filter(s => s.pct >= 5).map(s => `
+        <div style="width:${s.pct.toFixed(1)}%;background:${segColor[entries.findIndex(([k]) => k === s.k) % 4]}" title="${BUCKET_NAMES[s.k] || s.k}：${s.gexTxt}">
+          <span>${s.k} ${s.pct.toFixed(0)}%</span>
+        </div>`).join('')}
+    </div>
+    <div class="gex-stack-legend">
+      ${segs.map(s => {
+        const idx = entries.findIndex(([k]) => k === s.k) % 4;
+        return `<span><i style="background:${segColor[idx]}"></i>${BUCKET_NAMES[s.k] || s.k} · ${s.pct.toFixed(1)}% · <span style="color:${s.m != null ? (s.pos ? 'var(--up)' : 'var(--down)') : ''}">${s.gexTxt}</span></span>`;
+      }).join('')}
     </div>`;
-  }).join('');
-  dom.insertAdjacentHTML('beforeend', `<p class="re-source" style="margin:8px 0 0">占比 = 各到期段 Σ|GEX| / 全链 Σ|GEX|（加总 100%），颜色 = 桶的净 gamma 方向（绿正/红负）。${domLabel && domPct ? `${BUCKET_NAMES[domLabel]} 集中度最高（${domPct.toFixed(1)}%）` : ''}</p>`);
+  dom.insertAdjacentHTML('beforeend', `<p class="re-source" style="margin:8px 0 0">段宽 = 占比（各到期段 Σ|GEX| / 全链 Σ|GEX|，加总 100%），段色区分到期段；绿/红 = 净 gamma 方向（正压制波动 / 负放大波动）。${domLabel && domPct ? `${BUCKET_NAMES[domLabel]} 集中度最高（${domPct.toFixed(1)}%）` : ''}</p>`);
 }
 
 // ── DEX tab ──

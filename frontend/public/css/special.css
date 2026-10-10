@@ -422,7 +422,12 @@ a.re-badge:hover { color: var(--accent-ink); border-color: var(--accent-ink); }
 .opt-big .k { font-size: 11px; letter-spacing: .06em; color: var(--text-dim); font-weight: 600; }
 .opt-big .v { font-size: 34px; font-weight: 800; font-variant-numeric: tabular-nums; line-height: 1.1; }
 .opt-big .s { font-size: 12px; color: var(--text-secondary); }
-/* 到期 Gamma 集中度水平条 */
+/* 到期 Gamma 集中度 100% 堆叠条 + 图例行；四段取 ECharts 分类色板前四位（brand/warn/purple/down 同源） */
+.gex-stack { display: flex; gap: 1px; height: 28px; border-radius: 6px; overflow: hidden; background: var(--border); }
+.gex-stack > div { display: flex; align-items: center; justify-content: center; min-width: 0; overflow: hidden; }
+.gex-stack > div span { font-size: 11px; font-weight: 600; color: #fff; white-space: nowrap; }
+.gex-stack-legend { display: flex; flex-wrap: wrap; gap: 4px 16px; margin-top: 6px; font-size: 12px; color: var(--text-secondary); }
+.gex-stack-legend i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 5px; vertical-align: -1px; }
 .range-row { display: grid; grid-template-columns: auto minmax(120px, 1fr) max-content max-content max-content; gap: 10px; align-items: center; padding: 5px 0; border-bottom: 1px solid var(--border-light); font-size: 13px; }
 /* ≤768：标签 / 占比 / M 值 / 合约数同一节奏，进度条换整行（五列 max-content 在 375 下撑出 421px） */
 @media (max-width: 768px) {
