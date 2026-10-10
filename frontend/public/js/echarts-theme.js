@@ -50,8 +50,12 @@ function buildTheme() {
     },
     timeAxis: {
       axisLine: { lineStyle: { color: borderColor } }, axisTick: { lineStyle: { color: borderColor } },
-      // 5.5+ time 轴内置两级标签（primary 年份默认 bold），只去粗保深色；不继承外层样式，须显式写
-      axisLabel: { ...axisLabel, rich: { primary: { fontWeight: 'normal' } } },
+      // 5.5+ time 轴内置两级标签（primary 年份默认 bold + 12px sans-serif）；除深色外全打平到
+      // 次级标签样式——rich 不继承外层 axisLabel，字号/字体须显式写
+      axisLabel: {
+        ...axisLabel,
+        rich: { primary: { fontWeight: 'normal', fontSize: 10, fontFamily: mono, color: textMuted } },
+      },
       splitLine: splitLine,
     },
     logAxis: { axisLabel: axisLabel, splitLine: splitLine },
