@@ -86,6 +86,10 @@ jobs:
         run: |
           uv run python -m src.bill_share || { echo "失败: bill_share"; echo "FAILED_LIST=${FAILED_LIST} bill_share" >> "$GITHUB_ENV"; }
 
+      - name: 多源共识层（派生，收盘定稿，ADR-0004）
+        run: |
+          uv run python -m src.consensus || { echo "失败: consensus"; echo "FAILED_LIST=${FAILED_LIST} consensus" >> "$GITHUB_ENV"; }
+
       - name: Fetch OHLCV bars (yfinance, no TWS)
         env:
           YF_NO_PROXY: "1"

@@ -35,6 +35,7 @@ export async function initDashboard() {
   const head = el('div', 'dash-head');
   head.innerHTML = '<span class="dash-head-title">市场仪表盘</span><span class="dash-asof" id="dash-asof"></span>';
   root.appendChild(head);
+  root.appendChild(el('div', 'dash-consensus'));
   root.appendChild(el('div', 'dash-lines'));
   root.appendChild(el('div', 'dash-alerts'));
   root.appendChild(el('div', 'dash-brief-link'));
@@ -52,6 +53,7 @@ export function cleanup() {
 
 export function refresh() {
   return Promise.all([
+    refreshConsensus(),
     refreshLines(),
     refreshBrief(),
     refreshAssets(),
@@ -67,6 +69,41 @@ export function updateStatus() {
 }
 
 // ── data loaders ────────────────────────────────────────────
+async function refreshConsensus() {
+  data.consensus = await settled('/api/consensus');
+  renderConsensus();
+}
+
+// 多源共识状态卡（ADR-0004 /api/consensus；缺源整卡跳过，不阻断其它区块）
+function renderConsensus() {
+  const box = root().querySelector('.dash-consensus');
+  if (!box) return;
+  const d = data.consensus;
+  const c = d && d.status === 'fulfilled' ? d.value : null;
+  if (!c || !c.market || !c.macro) { box.innerHTML = ''; return; }
+  const CLS = { '确认 risk-on': 'on', '确认 risk-off': 'off', '确认宽松': 'on', '确认紧缩': 'off', '分歧': 'div', '数据不足': 'na' };
+  const chip = (m) => {
+    const cls = !m.present ? 'cons-vote--absent' : (m.vote === 'on' ? 'cons-vote--on' : m.vote === 'off' ? 'cons-vote--off' : 'cons-vote--abst');
+    const icon = !m.present ? '×' : (m.vote === 'on' ? '✔' : m.vote === 'off' ? '✘' : '—');
+    const href = (c.page_links || {})[m.name] || '#';
+    return `<a class="cons-vote ${cls}" href="${href}">${m.name}<i>${icon}</i></a>`;
+  };
+  const block = (card) => {
+    const cls = CLS[card.state] || 'na';
+    return `<div class="cons-block cons-block--${cls}">
+      <div><span class="cons-state cons-state--${cls}">${card.state}</span>
+      <span class="cons-meta">参与 ${card.n_present}/${card.n_members}</span>
+      ${c.finalized === false ? '<span class="cons-intraday">盘中临时值</span>' : ''}</div>
+      <div class="cons-votes">${card.members.map(chip).join('')}</div>
+    </div>`;
+  };
+  box.innerHTML = `
+    <div class="cons-head"><span class="cons-title">今日共识</span>
+      <span class="cons-note">成员投票合成 · 缺席自动剔除 · 点票面进专题</span>
+      <span class="cons-note">数据截至 ${c.ref_date || '—'}</span></div>
+    <div class="cons-row">${block(c.market)}${block(c.macro)}</div>`;
+}
+
 async function refreshBrief() {
   const brief = await settled('/api/daily-brief');
   data.brief = brief;

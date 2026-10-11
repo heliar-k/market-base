@@ -223,7 +223,7 @@ market-base/
 >
 > | workflow | 频率 | 拉什么 | 定位 |
 > |---|---|---|---|
-> | `daily-full` | 北京 05:00，周末也跑 | **其余全部 37 个 fetcher** + TSM 6-K + 分钟线（yfinance 1d/5m/15m/1h/4h）+ 派生指标（cross_asset / options_structure / bill_share / LPI 快照）+ 时效断言 | **兜底主跑**：含三个加速班次的所有源，加速班次挂了/漏了，次日 05:00 必补齐 |
+> | `daily-full` | 北京 05:00，周末也跑 | **其余全部 37 个 fetcher** + TSM 6-K + 分钟线（yfinance 1d/5m/15m/1h/4h）+ 派生指标（cross_asset / options_structure / bill_share / consensus / LPI 快照）+ 时效断言 | **兜底主跑**：含三个加速班次的所有源，加速班次挂了/漏了，次日 05:00 必补齐 |
 > | `evening-late` | 北京 23:15 | 仅 3 个「下午才发布昨日观测」的源：`fetch_fred` / `fetch_cboe` / `fetch_fsi`（~3min） | 让宏观/信用/通胀/波动率页当晚就看到 T-1，不等次日主跑 |
 > | `intraday-refresh` | 工作日 UTC 13-20 每 15 分钟 | 盘中价量 5 源：`fetch_yfinance` / `fetch_cboe` / `fetch_barchart_vol` / `fetch_rate_expectations` / `fetch_polymarket`；FRED 仅 UTC 13-14 班次（发布高峰在美东上午） | 盘中新鲜度；不拉分钟线、派生指标、日更源 |
 > | `crypto-hourly` | 每小时 7×24 | 加密三源：`fetch_crypto_derivatives` / `fetch_coinglass` / `fetch_etf_flows` | 加密市场全天候；daily-full 仍兜底跑同三源 |
@@ -278,6 +278,7 @@ market-base/
 ./bin/fetch_metals_etf             # 贵金属 ETF 持仓（GLD/SLV 官方日度，黄金白银资金流）
 ./bin/fetch_analyst                  # Nasdaq 100 分析师目标价（Wikipedia 成分 + yfinance）
 uv run python -m src.cross_asset     # 跨资产 30 日相关性矩阵（派生，依赖资产快照）
+uv run python -m src.consensus       # 多源共识层两级状态卡（ADR-0004，写 data/consensus/history.csv）
 ./bin/fetch_fed                     # FOMC 声明 + 官员演讲（增量，首次自动全量）
 ./bin/fetch_financials               # 财报三张表（yfinance，季度+年度，Actions 每日）
 ./bin/fetch_sec                      # SEC 10-K/10-Q/20-F 原文（EDGAR 增量，默认回溯 2 年）

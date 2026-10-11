@@ -627,3 +627,29 @@ body.embedded .macro-nav, body.embedded #macro-nav-toggle { display: none; }
   /* 仪表盘网格收敛：卡片区 3 列→1 列 */
   .dash-grid, .dash-grid-2 { grid-template-columns: 1fr; }
 }
+
+/* ── 多源共识状态卡（ADR-0004；SPA 仪表盘与 daily 页共用，app.css 单源）──
+   状态徽章文字用 --up/--down/--warning 文字档（亮色 AA），块左竖标用图形档。 */
+.cons-head { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; margin: 0 0 8px; }
+.cons-title { font-size: 13px; font-weight: 700; color: var(--text); }
+.cons-note { font-size: 11px; color: var(--text-dim); }
+.cons-intraday { font-size: 11px; color: var(--color-warn-text); border: 1px dashed color-mix(in srgb, var(--color-warn) 45%, transparent); border-radius: 999px; padding: 0 8px; }
+.cons-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr)); gap: 12px 24px; }
+.cons-block { border-left: 2px solid var(--color-neutral); border-radius: 0; padding-left: 12px; }
+.cons-block--on { border-color: var(--color-up); }
+.cons-block--off { border-color: var(--color-down); }
+.cons-block--div { border-color: var(--color-warn); }
+.cons-state { font-size: 15px; font-weight: 700; }
+.cons-state--on { color: var(--up); }
+.cons-state--off { color: var(--down); }
+.cons-state--div { color: var(--warning); }
+.cons-state--na { color: var(--text-dim); font-size: 13px; }
+.cons-meta { margin-left: 8px; font-size: 11px; color: var(--text-dim); }
+.cons-votes { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.cons-vote { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; padding: 2px 8px; border-radius: 999px; border: 1px solid color-mix(in srgb, var(--color-neutral) 30%, transparent); color: var(--text-secondary); text-decoration: none; }
+.cons-vote:hover { border-color: var(--accent); color: var(--accent-ink); }
+.cons-vote i { font-style: normal; font-weight: 700; }
+.cons-vote--on i { color: var(--up); }
+.cons-vote--off i { color: var(--down); }
+.cons-vote--abst i { color: var(--text-dim); }
+.cons-vote--absent { opacity: .45; border-style: dashed; }

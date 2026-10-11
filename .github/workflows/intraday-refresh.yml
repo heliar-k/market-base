@@ -76,6 +76,10 @@ jobs:
           [ -n "$FAILED" ] && echo "失败:$FAILED" && echo "FAILED_LIST=$FAILED" >> "$GITHUB_ENV"
           exit 0
 
+      - name: 多源共识层（盘中临时值，不覆盖定稿行）
+        run: |
+          uv run python -m src.consensus --intraday || { echo "失败: consensus"; echo "FAILED_LIST=${FAILED_LIST} consensus" >> "$GITHUB_ENV"; }
+
       - name: Commit and push updates
         run: |
           git config user.name "github-actions[bot]"

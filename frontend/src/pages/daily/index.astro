@@ -104,9 +104,10 @@ const LINKS = {
 async function load() {
   // brief 主端点（驱动全页）挂了 = 整页真没数据，R.get 抛给页级 catch；
   // rex 次要端点（只驱动 db-fomc 里的「市场隐含」徽章）走 getOpt，静态导出 _safe() 会跳过缺数据端点，404 合法
-  const [d, rex] = await Promise.all([
+  const [d, rex, cons] = await Promise.all([
     R.get('/api/daily-brief'),
     R.getOpt('/api/rate-expectations'),
+    R.getOpt('/api/consensus'),
   ]);
   const ind = d.indicators || { as_of: null, groups: {}, rows: [] };
 
@@ -126,6 +127,18 @@ async function load() {
   document.getElementById('db-badges').innerHTML = `
     <span class="re-badge ${matched.length ? 'bull' : 'flat'}">${headline}</span>
     <span class="re-badge chip">命中 ${matched.length} / ${(d.scenarios || []).length} 个解释框架</span>`;
+
+  // ── 共识状态徽章（ADR-0004；缺源整段静默跳过）──
+  if (cons && cons.market && cons.macro) {
+    const CLS = { '确认 risk-on': 'bull', '确认 risk-off': 'bear', '确认宽松': 'bull', '确认紧缩': 'bear', '分歧': 'flat', '数据不足': 'flat' };
+    const b = (label, card) => {
+      const cls = CLS[card.state] || 'flat';
+      const tip = `参与 ${card.n_present}/${card.n_members}${cons.finalized === false ? ' · 盘中临时值' : ''}`;
+      return `<span class="re-badge chip ${cls}" title="${tip}">${label} ${card.state}</span>`;
+    };
+    document.getElementById('db-badges').insertAdjacentHTML('beforeend',
+      b('市场共识', cons.market) + b('宏观共识', cons.macro));
+  }
   document.getElementById('db-note').textContent =
     '以下情景按共同观测日期对齐，用最近 5 个观测间隔检验价格方向。先核验再形成方向判断。';
 

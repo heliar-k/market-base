@@ -29,6 +29,7 @@ from src.server import (  # noqa: PLC2701 复用路由函数
     HTTPException,
     _sanitize,
     get_assets_prices,
+    get_consensus,
     get_credit_cds,
     get_credit_overview,
     get_credit_stress,
@@ -130,6 +131,7 @@ def export_api() -> None:
     # 专题页（FOMC / rates / volatility / fed / credit / daily-brief）
     _safe("api/fomc/calendar", get_fomc_calendar)
     _safe("api/daily-brief", get_daily_brief)
+    _safe("api/consensus", get_consensus)
     _safe("api/home-lines", get_home_lines)
     _safe("api/rate-expectations", get_rate_expectations)
     _safe("api/polymarket/history", get_polymarket_history)
