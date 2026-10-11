@@ -323,8 +323,9 @@ a.re-badge:hover { color: var(--accent-ink); border-color: var(--accent-ink); }
 .oas-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
 .oas-card { border: 1px solid var(--border); border-radius: 8px; background: var(--surface); padding: 16px 20px; }
 .oas-card .label { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--text-dim); }
-.oas-card .value { font-size: clamp(20px, 18.7px + 0.4vw, 26px); font-weight: 700; font-variant-numeric: tabular-nums; margin: 4px 0 6px; }
-.oas-card .value .unit { font-size: 13px; color: var(--text-dim); font-weight: 500; }
+/* 手写复合卡大字号 clamp(oas/score/vol-hero 共用推导口径)：上限 = 原固定值，390px 屏缩至 ~74-78%，~1825-2000px 视口触顶回原值 */
+.oas-card .value, .proxy-card .value { font-size: clamp(20px, 18.7px + 0.4vw, 26px); font-weight: 700; font-variant-numeric: tabular-nums; margin: 4px 0 6px; }
+.oas-card .value .unit, .proxy-card .value .unit { font-size: 13px; color: var(--text-dim); font-weight: 500; }
 .oas-card .pcts { font-size: 12px; color: var(--text-secondary); }
 .oas-card .date { font-size: 11px; color: var(--text-dim); margin-top: 4px; }
 .note { font-size: 12px; color: var(--text-dim); margin-top: 6px; }
@@ -336,8 +337,6 @@ a.re-badge:hover { color: var(--accent-ink); border-color: var(--accent-ink); }
 .proxy-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 .proxy-card { border: 1px solid var(--border); border-radius: 8px; background: var(--surface); padding: 16px 20px; }
 .proxy-card .label { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--text-dim); }
-.proxy-card .value { font-size: clamp(20px, 18.7px + 0.4vw, 26px); font-weight: 700; font-variant-numeric: tabular-nums; margin: 4px 0 6px; }
-.proxy-card .value .unit { font-size: 13px; color: var(--text-dim); font-weight: 500; }
 .proxy-card .sub { font-size: 12px; color: var(--text-secondary); }
 .proxy-card .date { font-size: 11px; color: var(--text-dim); margin-top: 4px; }
 /* Credit Regime Score 记分卡（hero 骨架三分区：左总分块 | 右子分拆解 | 底部口径行） */
