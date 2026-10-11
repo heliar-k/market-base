@@ -113,6 +113,7 @@ CHECKS: list[Check] = [
     _c("data/breadth/abv.csv", D, "市场广度 ABV"),
     _c("data/analyst/ndx_targets.csv", 8, "NDX 分析师目标价"),
     _c("data/treasury/bill_share_daily.csv", 8, "日频 Bill 占比（派生）"),
+    _c("data/consensus/history.csv", 6, "共识状态留痕（派生；工作日票龄 2 + 周末余量）"),
     _c("data/treasury/dts_cashflows.csv", 10, "DTS 现金流"),
     # 日历型：末行必须领先今天 ≥1 天，日历过期即说明源再没更新
     _c(

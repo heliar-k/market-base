@@ -904,6 +904,32 @@ def get_home_lines() -> dict:
     return {"generator": "rules", "lines": lines}
 
 
+# ── consensus（多源共识层，ADR-0004）────────────────────────────────
+
+
+@app.get("/api/consensus")
+def get_consensus() -> dict:
+    """两级共识状态卡（市场风险轴 + 宏观条件轴）+ 定稿标注。
+
+    finalized = 当日 history 行 source=final（daily-full 收盘定稿后为真；
+    盘中/首次计算为假，前端标「盘中临时值」）。历史缺失不阻断计算。
+    """
+    from src.consensus import ROOT, compute
+
+    out = compute()
+    finalized = False
+    hist_path = ROOT / "data/consensus/history.csv"
+    if out.get("ref_date") and hist_path.exists():
+        try:
+            hist = pd.read_csv(hist_path)
+            rows = hist[hist["date"] == out["ref_date"]]
+            finalized = (not rows.empty) and str(rows.iloc[0]["source"]) == "final"
+        except Exception as e:  # 历史缺失/损坏不阻断状态卡，但不静默（§8 反静默精神）
+            print(f"consensus finalized 标注失败: {e}")
+    out["finalized"] = finalized
+    return out
+
+
 # ── daily brief（复刻 timsun.net 首页「今日宏观决策台」）────────────────────
 
 

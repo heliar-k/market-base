@@ -20,7 +20,7 @@ def release_dates(fred_dir: Path) -> dict[str, str]:
     return dict(zip(df.series_id, df.last_updated))
 
 
-def read_csv_or_empty(path: Path, index_col: str = "date") -> pd.DataFrame:
+def read_csv_or_empty(path: Path, index_col: str | None = "date") -> pd.DataFrame:
     """读时间序列 CSV；文件缺失返回空 DataFrame。"""
     if not path.exists():
         return pd.DataFrame()
