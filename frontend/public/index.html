@@ -53,6 +53,17 @@
 .dash-calm a:hover { border-color: var(--accent-ink); color: var(--accent-ink); }
 .dash-line-empty { font-size: 13px; color: var(--text-secondary); }
 .dash-line-empty code { font-family: var(--font-mono); }
+
+/* 节头链接（波动率节「进入专题 →」）与板块卡头链接：继承色，悬停亮起 */
+.dash-sec-link { font-size: 12px; font-weight: 400; color: var(--text-dim); text-decoration: none; margin-left: 4px; }
+.dash-sec-link:hover { color: var(--accent-ink); }
+.dash-vol-sec { display: flex; flex-direction: column; gap: 10px; }
+.dash-card-title-a { color: inherit; text-decoration: none; }
+.dash-card-title-a:hover { color: var(--accent-ink); }
+/* 超出 4 行的部分收进「全部 N 项」行：放在 .dash-snap 内借用行节奏（无边框，
+   上一行的 border-bottom 就是分隔线），高度 ≈ 一行数据（~30px），六卡才能等高 */
+.dash-snap .dash-card-more { display: block; font-size: 11.5px; color: var(--text-dim); text-decoration: none; padding: 6px 4px 8px; }
+.dash-snap .dash-card-more:hover { color: var(--accent-ink); }
 </style>
 <script src="/vendor/lightweight-charts.standalone.production.js"></script>
 <script src="/vendor/echarts.min.js"></script>

@@ -39,9 +39,9 @@ export async function initDashboard() {
   root.appendChild(el('div', 'dash-lines'));
   root.appendChild(el('div', 'dash-alerts'));
   root.appendChild(el('div', 'dash-brief-link'));
-  root.appendChild(el('div', 'dash-kpi'));
+  // 波动率整节（KPI + 信号卡）：信号是对 KPI 的解读，中间不再隔六板块快照
+  root.appendChild(buildVolSection());
   root.appendChild(el('div', 'dash-grid dash-grid-2'));
-  root.appendChild(el('div', 'dash-vol'));
   root.appendChild(el('div', 'dash-watch-card dash-card'));
 
   await refresh();
@@ -98,8 +98,7 @@ function renderConsensus() {
   };
   box.innerHTML = `
     <div class="cons-head"><span class="cons-title">今日共识</span>
-      <span class="cons-note">成员投票合成 · 缺席自动剔除 · 点票面进专题</span>
-      <span class="cons-note">数据截至 ${c.ref_date || '—'}</span></div>
+      <span class="cons-note">成员投票合成 · 缺席自动剔除 · 点票面进专题</span></div>
     <div class="cons-row">${block(c.market)}${block(c.macro)}</div>`;
 }
 
@@ -269,11 +268,20 @@ function renderAssetSnapshots() {
     ['equities', '股指'], ['bonds', '债券'], ['commodities', '商品'],
     ['etfs', 'ETF'], ['crypto', '加密'], ['fx', '外汇'],
   ];
+  // 卡头挂专题页链接（NAV_PAGES 派生）；每卡只展示前 4 行，更多的走
+  // 「全部 N 项 →」进专题 —— 六卡行数对齐（4 行档），不再因 2-6 行不等留成段空白
+  const MAX_ROWS = 4;
   grid.innerHTML = boards.map(([key, label]) => {
     const rows = res.value.tables[key] || [];
     if (!rows.length) return '';
-    return `<div class="dash-card"><div class="dash-card-title">${label} <small class="dash-title-note">日涨跌 · ${rows[0]?.date ?? ''}</small></div>
-      <div class="dash-snap">${rows.map(r => {
+    const page = NAV_PAGES.get(`assets/${key}`);
+    const title = page ? `<a class="dash-card-title-a" href="${page}" target="_blank">${label}</a>` : label;
+    const shown = rows.slice(0, MAX_ROWS);
+    // 页脚行六卡统一都有（截断 → 全部 N 项；未截断 → 进入专题）：底边才能对齐成线
+    const more = page
+      ? `<a class="dash-card-more" href="${page}" target="_blank">${rows.length > MAX_ROWS ? `全部 ${rows.length} 项` : '进入专题'} →</a>` : '';
+    return `<div class="dash-card"><div class="dash-card-title">${title} <small class="dash-title-note">日涨跌 · ${rows[0]?.date ?? ''}</small></div>
+      <div class="dash-snap">${shown.map(r => {
         const cls = r.chg_pct == null || r.chg_pct === 0 ? 'neutral' : (r.chg_pct > 0 ? 'up' : 'down');
         const sign = r.chg_pct > 0 ? '+' : '';
         return `<div class="dash-snap-row">
@@ -281,21 +289,33 @@ function renderAssetSnapshots() {
           <span class="dash-snap-val">${fmtNum(r.last)}</span>
           <span class="${cls}">${r.chg_pct == null ? '—' : sign + r.chg_pct.toFixed(2) + '%'}</span>
         </div>`;
-      }).join('')}</div></div>`;
+      }).join('')}${more}</div></div>`;
   }).join('');
+}
+
+// 波动率一节：节头（挂专题入口，路径 NAV_PAGES 派生不硬编码）+ KPI 行 + 信号卡。
+// 端点失败整节隐藏（README 式空状态属第二批，先保持与旧行为等价）。
+function buildVolSection() {
+  const sec = el('section', 'dash-vol-sec');
+  const head = el('div', 'dash-sec-head');
+  const page = NAV_PAGES.get('vol');
+  head.innerHTML = `波动率${page ? ` <a class="dash-sec-link" href="${page}" target="_blank">进入专题 →</a>` : ''}`;
+  sec.append(head, el('div', 'dash-kpi'), el('div', 'dash-vol'));
+  return sec;
 }
 
 // 波动率：hero 4 卡（KPI 卡行单源 R.cards）+ 信号卡
 function renderVol() {
-  const kpi = root().querySelector('.dash-kpi');
-  const elx = root().querySelector('.dash-vol');
+  const sec = root().querySelector('.dash-vol-sec');
+  const kpi = sec?.querySelector('.dash-kpi');
+  const elx = sec?.querySelector('.dash-vol');
   const res = data.vol;
   if (!kpi || !elx) return;
   if (res.status !== 'fulfilled' || !res.value?.hero) {
-    kpi.innerHTML = '';
-    elx.innerHTML = '';
+    if (sec) sec.style.display = 'none';
     return;
   }
+  if (sec) sec.style.display = '';
   const v = res.value;
   // 卡行不再自写 .dash-vol-hero + .dash-stat（与全站 KPI 卡双轨）；涨跌 chip 走 R.chgSpan
   kpi.replaceChildren(R.cards((v.hero.cards || []).map(c => ({
