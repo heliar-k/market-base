@@ -1,15 +1,21 @@
-// dashboard.js — 市场仪表盘：数据驾驶舱（今日研判结论层 + 波动率 KPI + 六板块快照 + 信号卡 + 自选清单）
+// dashboard.js — 市场仪表盘：B 方案「每日头版」版式（桌面/手机双端）
+//
+// 信息组织逻辑（编辑排版）：头条是全页唯一视觉锚点（共识 verdict 大字），
+// 其下按「叙事（今日一句话）×数据（波动率）」双栏，再行情大表，再自选。
+// DOM 顺序 = 手机阅读优先级（头条 → 波动率 → 快照 → 一句话 → 自选，数字先于叙事）；
+// 桌面 ≥1024 由 .dash-flow 的 grid-template-areas 重排成头版，同一份 DOM 两端各自布局。
 //
 // 数据源（5 个端点）：
-//   /api/home-lines           → 首屏「今日一句话」结论层（9 个专题引擎各一行，issue #21）
-//   /api/daily-brief          → 结构报警 + 主导情景徽章（表与情景卡本体在 /daily/，不重复）
-//   /api/assets/overview      → 六板块标的快照（最新价 + 日涨跌）
-//   /api/volatility/dashboard → 波动率 hero 4 卡 + 信号卡
-//   /api/symbols + /api/kline/{sym}?days=5 → 自选清单（localStorage 持久化）
+//   /api/consensus            → 头条 verdict（市场/宏观状态 + 成员投票）
+//   /api/daily-brief          → 主导情景/报警 + FOMC/衰退背景 + 数据截至
+//   /api/home-lines           → 今日一句话（9 个专题引擎各一行，issue #21）
+//   /api/assets/overview      → 市场快照单表（六板块全量行，板块名做行内节头）
+//   /api/volatility/dashboard → 波动率 hero 4 卡 + 信号列表
+//   /api/symbols + /api/kline/{sym}?days=5 → 自选 chips（localStorage 持久化）
 
 import { SITE_NAV } from './site-nav.js';
 
-// 专题页映射（SITE_NAV 唯一数据源：组键 + 子页键 → page），今日一句话用
+// 专题页映射（SITE_NAV 唯一数据源：组键 + 子页键 → page），头条/各节入口用
 const NAV_PAGES = (() => {
   const pages = new Map();
   for (const g of SITE_NAV.groups) {
@@ -19,7 +25,17 @@ const NAV_PAGES = (() => {
   return pages;
 })();
 
-// 自选清单（localStorage，默认参考 timsun：10Y/信用/VIX 类核心指标）
+// 专题键 → 中文标签（报警 topics 挂链接时的锚文本）
+const NAV_LABELS = (() => {
+  const labels = new Map();
+  for (const g of SITE_NAV.groups) {
+    labels.set(g.key, g.label);
+    (g.items || []).forEach(i => labels.set(i.key, i.label));
+  }
+  return labels;
+})();
+
+// 自选清单（localStorage，默认参考 timsun：核心指数/个股）
 const WATCH_KEY = 'guanlan-watchlist';
 const DEFAULT_WATCH = ['SPX', 'NVDA'];
 
@@ -32,17 +48,28 @@ export async function initDashboard() {
   root.innerHTML = '';
   data = {};
 
+  // 页头只留刊名；时效与状态全部下沉到头条区（B 方案：唯一锚点）
   const head = el('div', 'dash-head');
-  head.innerHTML = '<span class="dash-head-title">市场仪表盘</span><span class="dash-asof" id="dash-asof"></span>';
+  head.innerHTML = '<span class="dash-head-title">市场仪表盘</span>';
   root.appendChild(head);
-  root.appendChild(el('div', 'dash-consensus'));
-  root.appendChild(el('div', 'dash-lines'));
-  root.appendChild(el('div', 'dash-alerts'));
-  root.appendChild(el('div', 'dash-brief-link'));
-  root.appendChild(el('div', 'dash-kpi'));
-  root.appendChild(el('div', 'dash-grid dash-grid-2'));
-  root.appendChild(el('div', 'dash-vol'));
-  root.appendChild(el('div', 'dash-watch-card dash-card'));
+
+  // 手机端 sticky 细条：滚过头条后滑入（risk-on · ⚠n · VIX），桌面隐藏
+  const sticky = buildSticky();
+  root.appendChild(sticky);
+
+  // 头版 flow：DOM 顺序 = 手机阅读优先级；桌面 ≥1024 把块装进两个列容器
+  // （左 60% = 叙事+快照，右 40% = 波动率+自选），两端高度各自堆叠不留洞；
+  // <1024 时列容器 display:contents 溶解，用 order 恢复手机优先级
+  const flow = el('div', 'dash-flow');
+  flow.appendChild(heroShell());
+  const colA = el('div', 'dash-col dash-col-a');
+  colA.append(linesShell(), snapShell());
+  const colB = el('div', 'dash-col dash-col-b');
+  colB.append(volShell(), watchShell());
+  flow.append(colA, colB);
+  root.appendChild(flow);
+
+  setupStickyObserver(sticky);
 
   await refresh();
 }
@@ -68,44 +95,83 @@ export function updateStatus() {
   document.getElementById('status-count').textContent = '';
 }
 
+// ── section shells（static skeletons；渲染器按 id 填充）────────
+// 头条区：verdict（共识）+ 情景/报警（brief）+ 背景行（FOMC/衰退/入口/数据截至）
+function heroShell() {
+  const s = el('section', 'dash-hero');
+  s.innerHTML = `
+    <div class="dash-hero-cards">
+      <div class="dash-card dash-sc-card">
+        <div class="dash-sc-title">市场共识 <small class="dash-title-note" id="dash-sc-market-meta"></small></div>
+        <div class="dash-sc-body" id="dash-sc-market"><span class="loading">加载中…</span></div>
+      </div>
+      <div class="dash-card dash-sc-card">
+        <div class="dash-sc-title">宏观共识 <small class="dash-title-note" id="dash-sc-macro-meta"></small></div>
+        <div class="dash-sc-body" id="dash-sc-macro"><span class="loading">加载中…</span></div>
+      </div>
+      <div class="dash-card dash-sc-card dash-bg-card">
+        <div class="dash-sc-title">市场背景</div>
+        <div class="dash-bg-body" id="dash-bg-body"><span class="loading">加载中…</span></div>
+        <div class="dash-bg-note"><small id="dash-asof"></small></div>
+      </div>
+    </div>
+    <div class="dash-card dash-alert-card">
+      <div class="dash-sc-title">情景与报警 <a class="dash-sec-link" href="${SITE_NAV.home.page}" target="_blank">进入今日研判 →</a></div>
+      <div id="dash-hero-sub"></div>
+    </div>`;
+  return s;
+}
+
+// 波动率：节头 + hero 4 卡（R.cards 单源，列内 2×2）+ 信号列表
+function volShell() {
+  const s = el('section', 'dash-vol-sec');
+  const page = NAV_PAGES.get('vol');
+  s.innerHTML = `
+    <div class="dash-sec-head">波动率${page ? ` <a class="dash-sec-link" href="${page}" target="_blank">进入专题 →</a>` : ''} <small class="dash-title-note">1 日变化</small></div>
+    <div class="dash-kpi"></div>
+    <div class="dash-vol"></div>`;
+  return s;
+}
+
+// 市场快照：单表（板块名做行内节头，桌面分栏 + 栏间线）；每板块展示前 4 行，
+// 页脚行统一（截断 → 全部 N 项 / 未截断 → 进入专题），控制左栏高度与右栏平衡
+function snapShell() {
+  const s = el('section', 'dash-snap-sec');
+  const page = NAV_PAGES.get('assets');
+  s.innerHTML = `
+    <div class="dash-sec-head">市场快照${page ? ` <a class="dash-sec-link" href="${page}" target="_blank">进入大类资产 →</a>` : ''}</div>
+    <div class="dash-snap-table dash-card"></div>`;
+  return s;
+}
+
+// 今日一句话：叙事列（hot 卡全文；平稳专题降为节头注记）
+function linesShell() {
+  const s = el('section', 'dash-lines-sec');
+  s.innerHTML = `
+    <div class="dash-sec-head">今日一句话 <small class="dash-title-note" id="dash-lines-note">按专题聚合 · 点击进入对应研判</small></div>
+    <div class="dash-lines"></div>`;
+  return s;
+}
+
+// 自选清单：chips 一行（点击进技术分析，× 删除）
+function watchShell() {
+  const s = el('section', 'dash-watch-sec');
+  s.innerHTML = `
+    <div class="dash-sec-head">自选清单 <small class="dash-title-note">点击进入技术分析 · × 删除</small>
+      <span class="dash-watch-add-wrap"><select id="dash-watch-add"><option value="">＋添加…</option></select></span>
+    </div>
+    <div class="dash-watch-chips" id="dash-watch-chips"></div>`;
+  return s;
+}
+
 // ── data loaders ────────────────────────────────────────────
 async function refreshConsensus() {
   data.consensus = await settled('/api/consensus');
   renderConsensus();
 }
 
-// 多源共识状态卡（ADR-0004 /api/consensus；缺源整卡跳过，不阻断其它区块）
-function renderConsensus() {
-  const box = root().querySelector('.dash-consensus');
-  if (!box) return;
-  const d = data.consensus;
-  const c = d && d.status === 'fulfilled' ? d.value : null;
-  if (!c || !c.market || !c.macro) { box.innerHTML = ''; return; }
-  const chip = (m) => {
-    const cls = !m.present ? 'cons-vote--absent' : (m.vote === 'on' ? 'cons-vote--on' : m.vote === 'off' ? 'cons-vote--off' : 'cons-vote--abst');
-    const icon = !m.present ? '×' : (m.vote === 'on' ? '✔' : m.vote === 'off' ? '✘' : '—');
-    const href = (c.page_links || {})[m.name] || '#';
-    return `<a class="cons-vote ${cls}" href="${href}">${m.name}<i>${icon}</i></a>`;
-  };
-  const block = (card) => {
-    const cls = card.cls || 'na';  // 状态→色档由 API 单源下发，前端不再维护映射
-    return `<div class="cons-block cons-block--${cls}">
-      <div><span class="cons-state cons-state--${cls}">${card.state}</span>
-      <span class="cons-meta">参与 ${card.n_present}/${card.n_members}</span>
-      ${c.finalized === false ? '<span class="cons-intraday">盘中临时值</span>' : ''}</div>
-      <div class="cons-votes">${card.members.map(chip).join('')}</div>
-    </div>`;
-  };
-  box.innerHTML = `
-    <div class="cons-head"><span class="cons-title">今日共识</span>
-      <span class="cons-note">成员投票合成 · 缺席自动剔除 · 点票面进专题</span>
-      <span class="cons-note">数据截至 ${c.ref_date || '—'}</span></div>
-    <div class="cons-row">${block(c.market)}${block(c.macro)}</div>`;
-}
-
 async function refreshBrief() {
-  const brief = await settled('/api/daily-brief');
-  data.brief = brief;
+  data.brief = await settled('/api/daily-brief');
   renderAsOf();
   renderAlerts();
   // 一句话的主次靠 brief 的 topics，brief 后到 → 重绘一次 lines
@@ -127,7 +193,105 @@ async function refreshVol() {
 
 // ── renderers ───────────────────────────────────────────────
 
-// 今日一句话（首屏结论层，issue #21）：文案全来自 Python 规则引擎，前端只渲染不计算
+// 头条 verdict：市场/宏观状态 + 成员投票 chips（ADR-0004 /api/consensus）。
+// 状态字号 20px + 左侧状态色竖条（全站节标题同款语言），不再裸放大字。
+function renderConsensus() {
+  const mkt = document.getElementById('dash-sc-market');
+  const mac = document.getElementById('dash-sc-macro');
+  const stv = document.getElementById('dash-sticky-verdict');
+  if (!mkt || !mac) return;
+  const d = data.consensus;
+  const c = d && d.status === 'fulfilled' ? d.value : null;
+  if (!c || !c.market || !c.macro) {
+    const na = '<span class="dash-hero-na">共识数据缺失（/api/consensus 不可达，确认服务已启动或重跑 export_pages）</span>';
+    mkt.innerHTML = na; mac.innerHTML = na;
+    if (stv) stv.textContent = '';
+    return;
+  }
+  // 卡内仍是安静文本层：状态 15px 色档（cons-state 单源）+ 投票文本链
+  // （名字次色 + 语义色勾叉，成员链接到专题页）
+  const member = (m) => {
+    const mark = !m.present ? '×' : m.vote === 'on' ? '✓' : m.vote === 'off' ? '✗' : '—';
+    const mcls = !m.present ? 'absent' : m.vote === 'on' ? 'on' : m.vote === 'off' ? 'off' : 'abst';
+    const href = (c.page_links || {})[m.name] || '#';
+    return `<a class="dash-hv-member dash-hv-member--${mcls}" href="${href}" title="${esc(m.name)} · ${esc(m.as_of || '')}">${esc(m.name)}<i>${mark}</i></a>`;
+  };
+  const scBody = (card) => `
+    <div class="dash-sc-state"><b class="cons-state cons-state--${card.cls || 'na'}">${esc(card.state)}</b></div>
+    <div class="dash-sc-votes">${card.members.map(member).join('')}</div>`;
+  mkt.innerHTML = scBody(c.market);
+  mac.innerHTML = scBody(c.macro);
+  const mmeta = document.getElementById('dash-sc-market-meta');
+  const ameta = document.getElementById('dash-sc-macro-meta');
+  if (mmeta) mmeta.textContent = `参与 ${c.market.n_present}/${c.market.n_members}${c.finalized === false ? ' · 盘中临时值' : ''}`;
+  if (ameta) ameta.textContent = `参与 ${c.macro.n_present}/${c.macro.n_members}`;
+  if (stv) stv.innerHTML = `<b class="cons-state cons-state--${c.market.cls || 'na'}">${esc(c.market.state)}</b><span class="dash-sticky-macro">宏观 ${esc(c.macro.state)}</span>`;
+}
+
+// 头条次级行：主导情景 + 报警（语义色文字，不再做胶囊）
+function renderAlerts() {
+  const elx = document.getElementById('dash-hero-sub');
+  const sta = document.getElementById('dash-sticky-alert');
+  if (!elx) return;
+  const d = data.brief;
+  if (d.status !== 'fulfilled') { elx.innerHTML = ''; if (sta) sta.textContent = ''; return; }
+  const v = d.value;
+  const alerts = v.alerts || [];
+  const matched = (v.scenarios || []).filter(s => s.matched);
+  const headline = matched.length
+    ? `主导情景：${matched.map(s => s.title).join(' + ')}`
+    : '跨资产信号分化，无主导情景';
+  elx.innerHTML = `
+    <div class="dash-al-scen${matched.length ? '' : ' empty'}">${esc(headline)}</div>
+    ${alerts.map(a => {
+      const tk = (a.topics || []).find(k => NAV_PAGES.get(k));
+      const link = tk ? `<a class="dash-al-topic" href="${NAV_PAGES.get(tk)}" target="_blank">${esc(NAV_LABELS.get(tk) || tk)} →</a>` : '';
+      return `<div class="dash-al-item">
+        <div class="dash-al-title">⚠ ${esc(a.title)}</div>
+        <div class="dash-al-text">${esc(a.text)}${link}</div>
+      </div>`;
+    }).join('')}`;
+  if (sta) sta.textContent = alerts.length ? `⚠ ${alerts.length}` : '';
+}
+
+// 背景锚点卡：FOMC 下次会议 + 衰退概率（Polymarket），kv 行；
+// 数据截至走卡底注（renderAsOf，R.asOf 单源）。跨资产表入口在情景卡头。
+// 静态 JSON 冻结了构建期日历：FOMC 按打开页面时间重选下一场（R.nextMeeting 单源）；
+// 天数口径统一 end_day + ceil。
+function renderBriefLink() {
+  const box = document.getElementById('dash-bg-body');
+  if (!box) return;
+  const d = data.brief;
+  if (d.status !== 'fulfilled') { box.innerHTML = '<span class="dash-hero-na">背景数据缺失（brief 端点未响应）</span>'; return; }
+  const v = d.value;
+  const rows = [];
+  const nx = R.nextMeeting(v.fomc);
+  if (nx) {
+    const days = Math.ceil((new Date(nx.year, nx.month - 1, nx.end_day) - new Date()) / 86400000);
+    const next = `${nx.year}-${String(nx.month).padStart(2, '0')}-${String(nx.end_day).padStart(2, '0')}`;
+    rows.push(`<div class="dash-bg-row"><span class="dash-bg-k">FOMC 下次</span><span class="dash-bg-v">${next}<em>${days > 0 ? `${days} 天后` : '进行中'}</em></span></div>`);
+  }
+  const pm = v.polymarket?.recession;
+  if (pm?.prob != null) {
+    const pct = (pm.prob * 100).toFixed(1).replace(/\.0$/, '');
+    const y = (pm.end_date || '').slice(0, 4);
+    rows.push(`<div class="dash-bg-row"><span class="dash-bg-k">衰退 ${y}</span><span class="dash-bg-v" title="${esc(pm.title)}（Polymarket ${esc(v.polymarket.as_of || '')}）">${pct}%<em>Polymarket</em></span></div>`);
+  }
+  box.innerHTML = rows.join('') || '<span class="dash-hero-na">暂无背景数据</span>';
+}
+
+// 头条背景行的数据截至段（多源口径只能由 R.asOf 组装，AGENTS 第 8 节）
+function renderAsOf() {
+  const elx = document.getElementById('dash-asof');
+  if (!elx) return;
+  const d = data.brief;
+  if (d.status !== 'fulfilled') { elx.textContent = '数据不可用（brief 端点未响应，确认服务已启动）'; return; }
+  const g = d.value.indicators?.groups || {};
+  const segs = Object.entries(g).map(([k, v]) => [k, v]);
+  elx.textContent = R.asOf(segs.length ? segs : [d.value.indicators?.as_of]);
+}
+
+// 今日一句话（叙事列）：文案全来自 Python 规则引擎，前端只渲染不计算
 async function refreshLines() {
   data.lines = await settled('/api/home-lines');
   renderLines();
@@ -140,10 +304,10 @@ function renderLines() {
   const lines = d && d.status === 'fulfilled' ? d.value.lines || [] : [];
   if (!lines.length) {
     const why = d && d.status === 'fulfilled' ? '各专题数据缺失' : '接口 /api/home-lines 不可达';
-    box.innerHTML = '<div class="dash-card"><div class="dash-line-empty">' + why
+    box.innerHTML = '<div class="dash-line-empty">' + why
       + '，暂无当日研判一句话。先拉数据（如 <code>./bin/fetch_fred</code>），再跑 '
       + '<code>uv run python -m src.export_pages</code> 生成静态 JSON（本地服务同一路径）。'
-      + '</div></div>';
+      + '</div>';
     return;
   }
   // 主次不自己判：规则引擎已在 alerts / 命中情景上标了 topics（指标→专题键），
@@ -151,15 +315,14 @@ function renderLines() {
   const hot = hotTopics();
   const on = lines.filter(l => hot.has(l.key));
   const off = lines.filter(l => !hot.has(l.key));
-  // 全冷时不分层：否则退化成 9 个没正文的胶囊，这一段就没用了
+  // 全冷时不分层：否则退化成 9 个没正文的条目，这一段就没用了
   const cards = on.length ? on : lines;
-  const chips = on.length ? off : [];
-  // 标题不重复写时效：页头 dash-asof 已是全局口径，这里再写一个不同日期只会让人怀疑哪个对；
-  // 各引擎自己的观测日放在卡 title 里（悬停可查）。
+  // 「平稳」不再是独立一行索引（孤行灰字丑且费解），降为节头注记：
+  // 有 hot 时说明其余几个专题今天没信号，细节进今日研判页
+  const note = document.getElementById('dash-lines-note');
+  if (note) note.textContent = on.length ? `另有 ${off.length} 个专题平稳` : '按专题聚合 · 点击进入对应研判';
   box.innerHTML = `
-    <div class="dash-sec-head">今日一句话 <small class="dash-title-note">按专题聚合 · 点击进入对应研判</small></div>
-    <div class="dash-line-cards">${cards.map(l => lineCard(l, hot.has(l.key))).join('')}</div>
-    ${chips.length ? `<div class="dash-calm"><span class="dash-calm-k">平稳</span>${chips.map(calmChip).join('')}</div>` : ''}`;
+    <div class="dash-line-cards">${cards.map(l => lineCard(l, hot.has(l.key))).join('')}</div>`;
 }
 
 // 有信号的专题卡：标题 + 完整一句话（不截断）+ 行末进入提示
@@ -172,12 +335,7 @@ function lineCard(l, hot) {
     title="${esc(l.label)}专题 · ${esc(l.as_of || '')}">${inner}<span class="dash-line-card-go">进入研判 →</span></a>`;
 }
 
-// 平稳专题只留一颗胶囊：正文今天没有可说的，细节进专题页看
-function calmChip(l) {
-  return `<a href="${NAV_PAGES.get(l.key)}" target="_blank"
-    title="${esc(l.label)}专题 · ${esc(l.as_of || '')}">${esc(l.label)}</a>`;
-}
-
+// 平稳专题不再单独渲染（节头注记提及，明细在今日研判页）
 
 // 正在响的专题集合（报警 + 命中情景的 topics，两者都由后端规则引擎声明）
 function hotTopics() {
@@ -188,92 +346,67 @@ function hotTopics() {
   return new Set(src.flatMap(x => x.topics || []));
 }
 
-// 页头「数据截至」分段（AGENTS 规范：数据截至 源 date · 源 date）
-function renderAsOf() {
-  const elx = document.getElementById('dash-asof');
-  if (!elx) return;
-  const d = data.brief;
-  if (d.status !== 'fulfilled') { elx.textContent = '数据不可用（brief 端点未响应，确认服务已启动）'; return; }
-  const g = d.value.indicators?.groups || {};
-  // 时效文案只能由 R.asOf 组装（AGENTS 第 8 节）：多段用 [源, date] 数组，空段自动丢
-  const segs = Object.entries(g).map(([k, v]) => [k, v]);
-  elx.textContent = R.asOf(segs.length ? segs : [d.value.indicators?.as_of]);
-}
-
-// 报警条 + 主导情景 + FOMC（结论层）
-function renderAlerts() {
-  const elx = root().querySelector('.dash-alerts');
-  const d = data.brief;
-  if (!elx) return;
-  if (d.status !== 'fulfilled') { elx.innerHTML = ''; return; }
-  const v = d.value;
-  const alerts = v.alerts || [];
-  const matched = (v.scenarios || []).filter(s => s.matched);
-  const headline = matched.length
-    ? `主导情景：${matched.map(s => s.title).join(' + ')}`
-    : '跨资产信号分化，无主导情景';
-
-  let fomcHTML = '';
-  const nx = R.nextMeeting(v.fomc);
-  if (nx) {
-    // 静态 JSON 冻结了构建期日历：按打开页面时间重选下一场（R.nextMeeting 单源）；
-    // 天数口径统一 end_day + ceil
-    const days = Math.ceil((new Date(nx.year, nx.month - 1, nx.end_day) - new Date()) / 86400000);
-    const next = `${nx.year}-${String(nx.month).padStart(2, '0')}-${String(nx.end_day).padStart(2, '0')}`;
-    fomcHTML = `<span class="dash-chip">FOMC ${next}${days > 0 ? `（${days} 天后）` : '（进行中）'}</span>`;
+// 波动率：hero 4 卡（KPI 卡行单源 R.cards，列内 2×2）+ 信号列表（无卡片框）
+function renderVol() {
+  const sec = root().querySelector('.dash-vol-sec');
+  const kpi = sec?.querySelector('.dash-kpi');
+  const elx = sec?.querySelector('.dash-vol');
+  const res = data.vol;
+  if (!kpi || !elx) return;
+  if (res.status !== 'fulfilled' || !res.value?.hero) {
+    if (sec) sec.style.display = 'none';
+    const stx = document.getElementById('dash-sticky-vix');
+    if (stx) stx.textContent = '';
+    return;
   }
-
-  // 预测市场锚点：衰退概率（Polymarket）
-  let pmHTML = '';
-  const pm = v.polymarket?.recession;
-  if (pm?.prob != null) {
-    const pct = (pm.prob * 100).toFixed(1).replace(/\.0$/, '');
-    const y = (pm.end_date || '').slice(0, 4);
-    pmHTML = `<span class="dash-chip" title="${esc(pm.title)}（Polymarket ${esc(v.polymarket.as_of || '')}）">衰退 ${y} ${pct}%</span>`;
+  if (sec) sec.style.display = '';
+  const v = res.value;
+  kpi.replaceChildren(R.cards((v.hero.cards || []).map(c => ({
+    label: c.symbol,
+    value: fmtNum(c.value),
+    // 「1D」口径已在节头注明，卡内不重复
+    sub: `${esc(c.name)} · ${R.chgSpan(c.chg1d)}`,
+  })), 'dash-vol-kpi-row'));
+  const signals = (v.signals || []).map(s => `
+    <div class="dash-sig">
+      <div class="dash-sig-title">${esc(s.title)}</div>
+      <div class="dash-sig-text">${esc(s.text)}</div>
+      ${s.advice ? `<div class="dash-sig-advice">应对：${esc(s.advice)}</div>` : ''}
+    </div>`).join('');
+  elx.innerHTML = signals ? `<div class="dash-sig-list">${signals}</div>` : '';
+  const stx = document.getElementById('dash-sticky-vix');
+  if (stx) {
+    const vix = (v.hero.cards || []).find(c => c.symbol === 'VIX');
+    stx.textContent = vix ? `VIX ${fmtNum(vix.value)}` : '';
   }
-
-  elx.innerHTML = `
-    <div class="dash-conclusion">
-      <span class="dash-badge ${matched.length ? 'bull' : 'flat'}">${headline}</span>
-      ${alerts.map(a => `<span class="dash-badge alert" title="${esc(a.text)}">⚠ ${esc(a.title)}</span>`).join('')}
-      ${fomcHTML}
-      ${pmHTML}
-    </div>`;
 }
 
-// 跨资产变化表 / 情景卡本体在 /daily/（同端点同 11 行，仪表盘不复制一遍），这里只留入口
-function renderBriefLink() {
-  const box = root().querySelector('.dash-brief-link');
-  const d = data.brief;
-  if (!box) return;
-  if (d.status !== 'fulfilled') { box.innerHTML = ''; return; }
-  const v = d.value;
-  const n = (v.indicators?.rows || []).length;
-  const sc = (v.scenarios || []).filter(s => s.matched).length;
-  box.innerHTML = `<a class="dash-brief-a" href="${SITE_NAV.home.page}" target="_blank">
-    <span class="dash-brief-t">跨资产变化表 · 情景与反证</span>
-    <span class="dash-brief-d">${n} 个指标的 Δ5/Δ20 与近 20 观测走势${sc ? `，当前命中 ${sc} 个情景` : ''}</span>
-    <span class="dash-brief-go">↗</span></a>`;
-}
-
-// 六板块快照（assets/overview tables）
+// 市场快照：六板块进一张表，板块名做行内节头；每板块前 4 行 + 页脚行（v5 等高逻辑
+// 在分栏表里的延续：行数对齐 + 全量进专题）
 function renderAssetSnapshots() {
-  const grid = root().querySelector('.dash-grid-2');
+  const table = root().querySelector('.dash-snap-table');
   const res = data.assets;
-  if (!grid) return;
+  if (!table) return;
   if (res.status !== 'fulfilled' || !res.value?.tables) {
-    grid.innerHTML = '<div class="loading">资产快照加载失败 · 运行 ./bin/fetch_yfinance 后刷新</div>';
+    table.innerHTML = '<div class="loading">资产快照加载失败 · 运行 ./bin/fetch_yfinance 后刷新</div>';
     return;
   }
   const boards = [
     ['equities', '股指'], ['bonds', '债券'], ['commodities', '商品'],
     ['etfs', 'ETF'], ['crypto', '加密'], ['fx', '外汇'],
   ];
-  grid.innerHTML = boards.map(([key, label]) => {
+  const MAX_ROWS = 4;
+  table.innerHTML = boards.map(([key, label]) => {
     const rows = res.value.tables[key] || [];
     if (!rows.length) return '';
-    return `<div class="dash-card"><div class="dash-card-title">${label} <small class="dash-title-note">日涨跌 · ${rows[0]?.date ?? ''}</small></div>
-      <div class="dash-snap">${rows.map(r => {
+    const page = NAV_PAGES.get(`assets/${key}`);
+    const title = page ? `<a class="dash-board-t" href="${page}" target="_blank">${label}</a>` : `<span class="dash-board-t">${label}</span>`;
+    const shown = rows.slice(0, MAX_ROWS);
+    const more = page
+      ? `<a class="dash-board-more" href="${page}" target="_blank">${rows.length > MAX_ROWS ? `全部 ${rows.length} 项` : '进入专题'} →</a>` : '';
+    return `<div class="dash-board">
+      <div class="dash-board-head">${title} <small class="dash-title-note">日涨跌 · ${rows[0]?.date ?? ''}</small></div>
+      <div class="dash-snap">${shown.map(r => {
         const cls = r.chg_pct == null || r.chg_pct === 0 ? 'neutral' : (r.chg_pct > 0 ? 'up' : 'down');
         const sign = r.chg_pct > 0 ? '+' : '';
         return `<div class="dash-snap-row">
@@ -281,42 +414,15 @@ function renderAssetSnapshots() {
           <span class="dash-snap-val">${fmtNum(r.last)}</span>
           <span class="${cls}">${r.chg_pct == null ? '—' : sign + r.chg_pct.toFixed(2) + '%'}</span>
         </div>`;
-      }).join('')}</div></div>`;
+      }).join('')}</div>${more}</div>`;
   }).join('');
 }
 
-// 波动率：hero 4 卡（KPI 卡行单源 R.cards）+ 信号卡
-function renderVol() {
-  const kpi = root().querySelector('.dash-kpi');
-  const elx = root().querySelector('.dash-vol');
-  const res = data.vol;
-  if (!kpi || !elx) return;
-  if (res.status !== 'fulfilled' || !res.value?.hero) {
-    kpi.innerHTML = '';
-    elx.innerHTML = '';
-    return;
-  }
-  const v = res.value;
-  // 卡行不再自写 .dash-vol-hero + .dash-stat（与全站 KPI 卡双轨）；涨跌 chip 走 R.chgSpan
-  kpi.replaceChildren(R.cards((v.hero.cards || []).map(c => ({
-    label: c.symbol,
-    value: fmtNum(c.value),
-    sub: `${esc(c.name)} · ${R.chgSpan(c.chg1d)} 1D`,
-  }))));
-  const signals = (v.signals || []).map(s => `
-    <div class="dash-card dash-sig-card">
-      <div class="dash-sig-title">${esc(s.title)}</div>
-      <div class="dash-sig-metric">${esc(s.metric)}</div>
-      <div class="dash-sig-text">${esc(s.text)}</div>
-      ${s.advice ? `<div class="dash-sig-advice">应对：${esc(s.advice)}</div>` : ''}
-    </div>`).join('');
-  elx.innerHTML = signals ? `<div class="dash-vol-signals">${signals}</div>` : '';
-}
-
-// 自选清单（localStorage 持久化；标的来自 /api/symbols + /api/kline）
+// 自选清单 chips（localStorage 持久化；标的来自 /api/symbols + /api/kline）
 async function refreshWatch() {
-  const card = root().querySelector('.dash-watch-card');
-  if (!card) return;
+  const chips = root().querySelector('#dash-watch-chips');
+  const sel = root().querySelector('#dash-watch-add');
+  if (!chips) return;
   let list;
   try { list = JSON.parse(localStorage.getItem(WATCH_KEY)) || DEFAULT_WATCH; }
   catch { list = DEFAULT_WATCH; }
@@ -326,69 +432,77 @@ async function refreshWatch() {
   const results = await Promise.all(
     valid.map(s => settled(`/api/kline/${s}?days=5`))
   );
-  card.innerHTML = `
-    <div class="dash-card-title">自选清单
-      <span id="dash-watch-add-wrap">
-        <select id="dash-watch-add" style="margin-left:8px">
-          <option value="">＋添加…</option>
-          ${all.filter(s => !valid.includes(s)).map(s => `<option>${s}</option>`).join('')}
-        </select>
-      </span>
-      <small class="dash-title-note">点击行进入技术分析</small>
-    </div>
-    <div class="dash-watchlist">${valid.length ? valid.map((sym, i) => {
-      const r = results[i];
-      if (r.status !== 'fulfilled' || !Array.isArray(r.value) || r.value.length < 2) {
-        return watchRow(sym, '--', null);
-      }
-      const arr = r.value;
-      const price = arr[arr.length - 1].close;
-      const prev = arr[arr.length - 2].close;
-      const pct = prev ? ((price - prev) / prev * 100) : 0;
-      return watchRow(sym, fmtNum(price, 2), pct);
-    }).join('') : '<div class="loading">暂无自选，从下拉框添加</div>'}</div>`;
-
-  card.querySelector('#dash-watch-add')?.addEventListener('change', e => {
-    if (!e.target.value) return;
-    valid.push(e.target.value);
-    localStorage.setItem(WATCH_KEY, JSON.stringify(valid));
-    refreshWatch();
-  });
-  // 删除：右键或按住 Alt 点击
-  card.querySelectorAll('[data-watch-del]').forEach(elx => {
-    elx.addEventListener('click', e => {
-      if (!e.altKey) return;
+  chips.innerHTML = valid.length ? valid.map((sym, i) => watchChip(sym, results[i])).join('')
+    : '<span class="dash-watch-empty">暂无自选，从上方下拉添加</span>';
+  if (sel) {
+    sel.innerHTML = '<option value="">＋添加…</option>'
+      + all.filter(s => !valid.includes(s)).map(s => `<option>${s}</option>`).join('');
+    sel.onchange = e => {
+      if (!e.target.value) return;
+      valid.push(e.target.value);
+      localStorage.setItem(WATCH_KEY, JSON.stringify(valid));
+      refreshWatch();
+    };
+  }
+  // chip 点击进技术分析；× 删除（触屏上 × 常显）
+  chips.querySelectorAll('.dash-watch-x').forEach(x => {
+    x.addEventListener('click', e => {
       e.stopPropagation();
-      const sym = elx.dataset.watchDel;
+      const sym = x.dataset.watchDel;
       const next = valid.filter(s => s !== sym);
       localStorage.setItem(WATCH_KEY, JSON.stringify(next));
       refreshWatch();
     });
   });
-  card.querySelectorAll('[data-go-stock]').forEach(row => {
-    // 纯 div 行只有 click 监听，键盘进不去：补 tabindex + Enter/Space 转发
-    row.tabIndex = 0;
-    row.addEventListener('click', () => {
-      window.dispatchEvent(new CustomEvent('go-stock', { detail: row.dataset.goStock }));
+  chips.querySelectorAll('[data-go-stock]').forEach(chipEl => {
+    chipEl.addEventListener('click', e => {
+      if (e.target.closest('.dash-watch-x')) return;
+      window.dispatchEvent(new CustomEvent('go-stock', { detail: chipEl.dataset.goStock }));
     });
-    row.addEventListener('keydown', e => {
-      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); row.click(); }
+    // 纯 div chip 键盘进不去：tabindex + Enter/Space 转发
+    chipEl.tabIndex = 0;
+    chipEl.addEventListener('keydown', e => {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); chipEl.click(); }
     });
   });
 }
 
-function watchRow(sym, price, pct) {
-  if (pct == null) {
-    return `<div class="dash-watch-row" data-go-stock="${sym}" title="Alt+点击删除">
-      <span class="dash-watch-sym">${sym}</span><span class="dash-watch-price">${price}</span><span>--</span></div>`;
+function watchChip(sym, r) {
+  const ok = r && r.status === 'fulfilled' && Array.isArray(r.value) && r.value.length >= 2;
+  const price = ok ? fmtNum(r.value[r.value.length - 1].close, 2) : '--';
+  let pct = null;
+  if (ok) {
+    const arr = r.value;
+    const prev = arr[arr.length - 2].close;
+    if (prev) pct = (arr[arr.length - 1].close - prev) / prev * 100;
   }
-  const cls = pct >= 0 ? 'up' : 'down';
-  const sign = pct >= 0 ? '+' : '';
-  return `<div class="dash-watch-row" data-go-stock="${sym}" data-watch-del="${sym}" title="点击进入技术分析 · Alt+点击删除">
-    <span class="dash-watch-sym">${sym}</span>
-    <span class="dash-watch-price">${price}</span>
-    <span class="${cls}">${sign}${pct.toFixed(2)}%</span>
+  const pctHtml = pct == null ? '<span class="neutral">--</span>'
+    : `<span class="${pct >= 0 ? 'up' : 'down'}">${pct >= 0 ? '+' : ''}${pct.toFixed(2)}%</span>`;
+  return `<div class="dash-watch-chip" data-go-stock="${sym}" title="进入 ${sym} 技术分析">
+    <b class="dash-watch-chip-sym">${sym}</b>
+    <span class="dash-watch-chip-price">${price}</span>
+    ${pctHtml}
+    <button class="dash-watch-x" data-watch-del="${sym}" title="删除 ${sym}" aria-label="删除 ${sym}">×</button>
   </div>`;
+}
+
+// ── sticky 细条（仅 <1024px 显示）────────────────────────────
+function buildSticky() {
+  const bar = el('div', 'dash-sticky');
+  bar.id = 'dash-sticky';
+  bar.innerHTML = '<div class="dash-sticky-in"><span id="dash-sticky-verdict"></span><span id="dash-sticky-alert"></span><span id="dash-sticky-vix"></span></div>';
+  return bar;
+}
+
+// 滚过头条后滑入（IntersectionObserver 以 .dashboard-view 为滚动根）
+function setupStickyObserver(bar) {
+  const hero = root().querySelector('.dash-hero');
+  if (!hero || !('IntersectionObserver' in window)) return;
+  const io = new IntersectionObserver(
+    ([e]) => bar.classList.toggle('show', !e.isIntersecting),
+    { root: hero.closest('.dashboard-view'), threshold: 0 },
+  );
+  io.observe(hero);
 }
 
 // ── helpers（与今日研判页同款格式化）────────────────────────

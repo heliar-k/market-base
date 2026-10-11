@@ -18,14 +18,115 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap" media="print" onload="this.media='all'">
 <link rel="stylesheet" href="/css/app.css">
 <style>
-/* 首屏「今日一句话」结论层（渲染在 js/dashboard.js 的 renderLines）。
-   页面私有样式块（不动 css/*.css）；颜色一律走变量，color: 只用文字档。
-   形式：有信号的专题升为卡（正文不截断），其余收成一行「平稳」胶囊——
-   外层不再套 .dash-card，否则卡中卡双层框（见 AGENTS 第 8 节）。 */
-.dash-lines { display: flex; flex-direction: column; gap: 10px; }
-.dash-sec-head {
-  font-size: 13px; font-weight: 600; color: var(--text-secondary); padding: 0 2px;
+/* 仪表盘 B 方案「每日头版」私有样式（不动 css/*.css）；颜色一律走变量，color: 只用文字档。
+   DOM 顺序 = 手机阅读优先级；桌面 ≥1024 由 .dash-flow 的 areas 图重排成
+   「头条 → 叙事×数据双栏 → 快照大表 → 自选」。 */
+
+/* ── 头版 flow：DOM 顺序 = 手机阅读优先级（hero → vol → snap → lines → watch）。
+   <1024：列容器 display:contents 溶解，用 order 恢复优先级；
+   ≥1024：两个列容器实化 —— 左 60% = 叙事+快照，右 40% = 波动率+自选，
+   高度各自堆叠不留洞（grid 行高取 max 的洞问题用 flex 列规避） ── */
+.dash-flow { display: flex; flex-direction: column; gap: 26px; min-width: 0; }
+.dash-col { display: contents; }
+.dash-hero { order: 0; }
+.dash-vol-sec { order: 1; }
+.dash-snap-sec { order: 2; }
+.dash-lines-sec { order: 3; }
+.dash-watch-sec { order: 4; }
+@media (min-width: 1024px) {
+  .dash-flow { flex-direction: row; flex-wrap: wrap; align-items: flex-start; gap: 26px 24px; }
+  .dash-hero { order: 0; flex: 1 1 100%; }
+  .dash-col { display: flex; flex-direction: column; gap: 26px; min-width: 0; }
+  .dash-col-a { order: 1; flex: 1 1 calc(60% - 24px); }
+  .dash-col-b { order: 2; flex: 1 1 calc(40% - 24px); }
+  /* 列内按 DOM 序堆叠，清掉 <1024 的 order 优先级（否则一句话沉底） */
+  .dash-col > * { order: 0; }
 }
+
+/* ── 头条区：卡片化组织 —— 市场共识卡 + 宏观共识卡（对称对）+ 情景与报警卡（全宽）。
+   卡内仍是安静文本层（状态 15px 色档、投票文本链），卡片只提供结构不提供墨水 ── */
+.dash-hero { display: flex; flex-direction: column; gap: 12px; }
+.dash-hero-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr)); gap: 12px; }
+.dash-sc-card { gap: 10px; }
+.dash-sc-title {
+  display: flex; align-items: baseline; gap: 8px;
+  font-size: 13px; font-weight: 600; color: var(--text-secondary);
+  border-bottom: 1px solid var(--border-light); padding-bottom: 8px;
+}
+.dash-sc-title > small { margin-left: auto; }
+.dash-sc-state b { font-size: 16px; }
+.dash-sc-votes { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 12px; }
+.dash-hv-member { font-size: 11.5px; color: var(--text-secondary); text-decoration: none; padding: 5px 2px; }
+.dash-hv-member:hover { color: var(--accent-ink); }
+.dash-hv-member i { font-style: normal; font-weight: 700; margin-left: 3px; }
+.dash-hv-member--on i { color: var(--up); }
+.dash-hv-member--off i { color: var(--down); }
+.dash-hv-member--abst i { color: var(--text-dim); }
+.dash-hv-member--absent { opacity: .45; }
+.dash-hv-member--absent i { color: var(--text-dim); }
+.dash-alert-card { gap: 10px; }
+.dash-hero-na { font-size: 13px; color: var(--text-secondary); }
+
+/* 背景锚点卡：FOMC/衰退 kv 行（一项一个数），数据截至沉卡底注 */
+.dash-bg-body { display: flex; flex-direction: column; }
+.dash-bg-row {
+  display: flex; justify-content: space-between; align-items: baseline; gap: 8px;
+  padding: 7px 0; border-bottom: 1px solid var(--border-light); font-size: 12.5px;
+}
+.dash-bg-row:last-child { border-bottom: none; }
+.dash-bg-k { color: var(--text-secondary); }
+.dash-bg-v { font-weight: 600; color: var(--text); font-variant-numeric: tabular-nums; text-align: right; }
+.dash-bg-v em { font-style: normal; font-weight: 400; font-size: 11px; color: var(--text-dim); margin-left: 4px; }
+.dash-bg-note { margin-top: auto; padding-top: 8px; font-size: 11px; color: var(--text-dim); line-height: 1.5; }
+
+/* 情景与报警：情景结论一行（空态降次色），报警两行式（标题 + 正文放出 + 专题链） */
+.dash-al-scen { font-size: 13.5px; font-weight: 600; color: var(--text); }
+.dash-al-scen.empty { color: var(--text-secondary); }
+.dash-al-item { padding: 8px 0; }
+.dash-al-item + .dash-al-item { border-top: 1px solid var(--border-light); }
+.dash-al-title { font-size: 13px; font-weight: 600; color: var(--warning); }
+.dash-al-text { font-size: 12px; color: var(--text-secondary); line-height: 1.55; margin-top: 2px; }
+.dash-al-topic { font-size: 11.5px; color: var(--text-dim); text-decoration: none; margin-left: 8px; white-space: nowrap; }
+.dash-al-topic:hover { color: var(--accent-ink); }
+/* 平板 768-1023：三状态卡 2+1，背景卡落单行时铺满（免得孤零零半宽） */
+@media (min-width: 768px) and (max-width: 1023.98px) {
+  .dash-bg-card { grid-column: 1 / -1; }
+}
+
+/* ── 节头（波动率 / 市场快照 / 今日一句话 / 自选 共用）── */
+.dash-sec-head { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 8px; font-size: 13px; font-weight: 600; color: var(--text-secondary); padding: 0 2px; }
+.dash-sec-link { font-size: 12px; font-weight: 400; color: var(--text-dim); text-decoration: none; padding: 5px 0; }
+.dash-sec-link:hover { color: var(--accent-ink); }
+
+/* ── 波动率列：KPI 2×2（R.cards 行的作用域换行，不另造卡片）+ 信号列表 ── */
+.dash-vol-sec { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.dash-vol-sec .re-cards { flex-wrap: wrap; }
+.dash-vol-sec .re-card { flex: 1 1 calc(50% - 6px); max-width: none; }
+.dash-sig-list { display: flex; flex-direction: column; }
+.dash-sig { display: flex; flex-direction: column; gap: 4px; padding: 10px 2px; }
+.dash-sig + .dash-sig { border-top: 1px solid var(--border-light); }
+.dash-sig-title { font-size: 13px; font-weight: 600; color: var(--text); }
+.dash-sig-text { font-size: 12.5px; color: var(--text-secondary); line-height: 1.55; }
+.dash-sig-advice { font-size: 11.5px; font-style: italic; color: var(--text-dim); }
+
+/* ── 市场快照单表：报纸行情栏（分栏 + 栏间线，板块不跨栏断开）。
+   注意必须 display:block：dash-card 的 flex 会吃掉 multicol ── */
+.dash-snap-sec { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.dash-snap-table { display: block; padding: 4px 20px 10px; columns: 1; }
+@media (min-width: 768px) {
+  .dash-snap-table { columns: 2; column-gap: 36px; column-rule: 1px solid var(--border-light); }
+}
+.dash-board { break-inside: avoid; padding: 10px 0 12px; }
+.dash-board + .dash-board { border-top: 1px solid var(--border-light); }
+.dash-board-head { display: flex; align-items: baseline; gap: 8px; padding: 0 4px 4px; }
+.dash-board-t { font-size: 13px; font-weight: 700; color: var(--text); text-decoration: none; }
+a.dash-board-t:hover { color: var(--accent-ink); }
+.dash-board-more { display: flex; align-items: center; min-height: 24px; font-size: 11.5px; color: var(--text-dim); text-decoration: none; padding: 4px 2px 0; margin-top: 6px; }
+.dash-board-more:hover { color: var(--accent-ink); }
+
+/* ── 今日一句话：hot 卡（保留语义色竖条）+ 平稳弱化索引 ── */
+.dash-lines-sec { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.dash-lines { display: flex; flex-direction: column; gap: 10px; }
 .dash-line-cards {
   display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr));
   gap: 12px; align-items: start;
@@ -36,7 +137,6 @@
   border-left: 3px solid var(--border-light); border-radius: 8px;
   text-decoration: none; transition: background .15s, border-color .15s;
 }
-/* 有信号：竖条走图形档 --color-warn（边框属于图形档允许的位置） */
 .dash-line-card.hot { border-left-color: var(--color-warn); }
 .dash-line-card.hot .dash-line-card-t { color: var(--warning); }
 .dash-line-card:hover { background: var(--surface-hover); border-color: var(--accent-ink); }
@@ -44,15 +144,46 @@
 .dash-line-card-t { font-size: 13px; font-weight: 600; color: var(--text); }
 .dash-line-card-x { font-size: 12.5px; line-height: 1.55; color: var(--text-secondary); }
 .dash-line-card-go { font-size: 11px; color: var(--text-dim); margin-top: auto; padding-top: 4px; }
-.dash-calm { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; font-size: 12px; }
-.dash-calm-k { color: var(--text-dim); margin-right: 2px; }
-.dash-calm a {
-  color: var(--text-secondary); text-decoration: none; font-size: 12px;
-  padding: 2px 10px; border: 1px solid var(--border); border-radius: 999px;
-}
-.dash-calm a:hover { border-color: var(--accent-ink); color: var(--accent-ink); }
 .dash-line-empty { font-size: 13px; color: var(--text-secondary); }
 .dash-line-empty code { font-family: var(--font-mono); }
+
+/* ── 自选清单：chips 一行（点击进技术分析，× 删除）── */
+.dash-watch-sec { display: flex; flex-direction: column; gap: 8px; }
+.dash-watch-add-wrap select { font-size: 12px; background: var(--surface); color: var(--text); border: 1px solid var(--border); border-radius: 4px; padding: 3px 6px; }
+.dash-watch-chips { display: flex; flex-wrap: wrap; gap: 8px; padding: 0 2px; }
+.dash-watch-chip {
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 5px 8px 5px 12px; border: 1px solid var(--border); border-radius: 999px;
+  font-size: 12.5px; background: var(--surface); cursor: pointer; transition: background .15s, border-color .15s;
+}
+.dash-watch-chip:hover { border-color: var(--accent-ink); background: var(--surface-hover); }
+.dash-watch-chip-sym { font-weight: 600; color: var(--text); }
+.dash-watch-chip-price { font-family: var(--font-mono); font-variant-numeric: tabular-nums; color: var(--text); }
+.dash-watch-x {
+  width: 22px; height: 22px; border: none; border-radius: 50%;
+  background: transparent; color: var(--text-dim); font-size: 14px; line-height: 1;
+  cursor: pointer; display: inline-flex; align-items: center; justify-content: center;
+}
+.dash-watch-x:hover { background: var(--surface-hover); color: var(--down); }
+@media (hover: none) { .dash-watch-x { width: 24px; height: 24px; } }
+.dash-watch-empty { font-size: 12.5px; color: var(--text-dim); padding: 4px 2px; }
+
+/* ── 手机端 sticky 细条：滚过头条后滑入（桌面隐藏）── */
+.dash-sticky { position: sticky; top: 0; z-index: 30; height: 0; overflow: visible; }
+@media (min-width: 1024px) { .dash-sticky { display: none; } }
+.dash-sticky-in {
+  display: flex; align-items: center; gap: 12px;
+  margin: 0 -4px; padding: 8px 16px; font-size: 12px;
+  background: color-mix(in srgb, var(--bg) 86%, transparent);
+  backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+  border-bottom: 1px solid var(--border);
+  transform: translateY(-110%); transition: transform .25s ease;
+}
+.dash-sticky.show .dash-sticky-in { transform: translateY(0); }
+.dash-sticky-in .cons-state { font-size: 12.5px; font-weight: 700; }
+#dash-sticky-verdict { display: inline-flex; align-items: baseline; gap: 6px; }
+.dash-sticky-macro, .dash-sticky-alert { color: var(--text-secondary); }
+.dash-sticky-vix { margin-left: auto; font-family: var(--font-mono); font-variant-numeric: tabular-nums; color: var(--text); }
 </style>
 <script src="/vendor/lightweight-charts.standalone.production.js"></script>
 <script src="/vendor/echarts.min.js"></script>
