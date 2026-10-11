@@ -924,8 +924,8 @@ def get_consensus() -> dict:
             hist = pd.read_csv(hist_path)
             rows = hist[hist["date"] == out["ref_date"]]
             finalized = (not rows.empty) and str(rows.iloc[0]["source"]) == "final"
-        except Exception:  # 历史缺失/损坏不阻断状态卡
-            pass
+        except Exception as e:  # 历史缺失/损坏不阻断状态卡，但不静默（§8 反静默精神）
+            print(f"consensus finalized 标注失败: {e}")
     out["finalized"] = finalized
     return out
 

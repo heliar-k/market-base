@@ -81,7 +81,6 @@ function renderConsensus() {
   const d = data.consensus;
   const c = d && d.status === 'fulfilled' ? d.value : null;
   if (!c || !c.market || !c.macro) { box.innerHTML = ''; return; }
-  const CLS = { '确认 risk-on': 'on', '确认 risk-off': 'off', '确认宽松': 'on', '确认紧缩': 'off', '分歧': 'div', '数据不足': 'na' };
   const chip = (m) => {
     const cls = !m.present ? 'cons-vote--absent' : (m.vote === 'on' ? 'cons-vote--on' : m.vote === 'off' ? 'cons-vote--off' : 'cons-vote--abst');
     const icon = !m.present ? '×' : (m.vote === 'on' ? '✔' : m.vote === 'off' ? '✘' : '—');
@@ -89,7 +88,7 @@ function renderConsensus() {
     return `<a class="cons-vote ${cls}" href="${href}">${m.name}<i>${icon}</i></a>`;
   };
   const block = (card) => {
-    const cls = CLS[card.state] || 'na';
+    const cls = card.cls || 'na';  // 状态→色档由 API 单源下发，前端不再维护映射
     return `<div class="cons-block cons-block--${cls}">
       <div><span class="cons-state cons-state--${cls}">${card.state}</span>
       <span class="cons-meta">参与 ${card.n_present}/${card.n_members}</span>

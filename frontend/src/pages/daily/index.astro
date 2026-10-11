@@ -130,9 +130,9 @@ async function load() {
 
   // ── 共识状态徽章（ADR-0004；缺源整段静默跳过）──
   if (cons && cons.market && cons.macro) {
-    const CLS = { '确认 risk-on': 'bull', '确认 risk-off': 'bear', '确认宽松': 'bull', '确认紧缩': 'bear', '分歧': 'flat', '数据不足': 'flat' };
+    const BADGE = { on: 'bull', off: 'bear' };  // cls 由 API 单源下发，分歧/数据不足落 flat
     const b = (label, card) => {
-      const cls = CLS[card.state] || 'flat';
+      const cls = BADGE[card.cls] || 'flat';
       const tip = `参与 ${card.n_present}/${card.n_members}${cons.finalized === false ? ' · 盘中临时值' : ''}`;
       return `<span class="re-badge chip ${cls}" title="${tip}">${label} ${card.state}</span>`;
     };

@@ -96,10 +96,14 @@ def test_member_absent_without_data() -> None:
 
 
 def test_staleness_marks_absent() -> None:
-    """票龄 >2 个工作日 → 缺席 + stale 注记；2 个工作日内在场。"""
+    """票龄 >2 个工作日 → 缺席 + stale 注记；2 个工作日内在场。
+
+    票龄不含 as_of 当天（review #35 修正）：周一观测周六算 = 4（Tue–Fri），
+    周四观测周六算 = 1（Fri）。
+    """
     members = [
-        _m("old", "on", as_of="2026-10-05"),  # 周一 → 周六 = 5 个工作日
-        _m("fresh", "on", as_of="2026-10-08"),  # 周四 → 周六 = 2 个工作日
+        _m("old", "on", as_of="2026-10-05"),  # 周一 → 周六 = 4 个工作日
+        _m("fresh", "on", as_of="2026-10-08"),  # 周四 → 周六 = 1 个工作日
     ]
     consensus._apply_staleness(members, date(2026, 10, 10))
     assert members[0]["present"] is False and members[0]["vote"] is None and members[0]["stale"]
@@ -160,3 +164,56 @@ def test_votes_tag_marks_absent() -> None:
     card = {"members": [_m("趋势", "on"), _m("广度", None, present=False), _m("信用", None)]}
     tag = consensus._votes_tag(card)
     assert "趋势:on" in tag and "广度:absent" in tag and "信用:abst" in tag
+
+
+# ── review #35 修复回归：_band / _chg 日历窗口 / _m_gex 防崩 / cls 下发 ──
+
+
+def test_band_directions() -> None:
+    """_band 双向边界：high_is_on 两种方向 + 中间弃权。"""
+    assert consensus._band(65, 60, 40, high_is_on=True) is True
+    assert consensus._band(50, 60, 40, high_is_on=True) is None
+    assert consensus._band(35, 60, 40, high_is_on=True) is False
+    assert consensus._band(15, 17, 22, high_is_on=False) is True
+    assert consensus._band(20, 17, 22, high_is_on=False) is None
+    assert consensus._band(25, 17, 22, high_is_on=False) is False
+    assert consensus._band(None, 60, 40, high_is_on=True) is None
+
+
+def test_chg_days_weekly_and_daily() -> None:
+    """_chg 按日历日取差：周频序列 ≈ 4-5 观测、日频 ≈ 21-22 观测，同为真 1M。"""
+    # 周频（liquidity.csv 形态：仅周三有值）；target=10-07−30d=09-07，
+    # base 取 09-02（值 101，gap 35≤37 天）
+    weeks = pd.date_range("2026-08-26", "2026-10-07", freq="7D")
+    s = pd.Series([100.0, 101.0, 102.0, 103.0, 104.0, 105.0, 110.0], index=weeks)
+    assert consensus._chg(s) == 9.0
+    # 日频：target=10-09−30d=09-09 恰有观测 → 差 = 30
+    days = pd.date_range("2026-08-31", "2026-10-09", freq="D")
+    s2 = pd.Series(range(len(days)), index=days, dtype=float)
+    assert consensus._chg(s2) == 30.0
+
+
+def test_chg_days_gapped_series_returns_none() -> None:
+    """基准观测距末值超 days+7（断更）→ None。"""
+    idx = pd.to_datetime(["2026-08-01", "2026-10-09"])
+    assert consensus._chg(pd.Series([1.0, 5.0], index=idx)) is None
+
+
+def test_gex_corrupt_or_missing_absent(tmp_path, monkeypatch) -> None:
+    """损坏 JSON / 空目录 → 期权结构成员缺席而非崩溃（验收条款）。"""
+    monkeypatch.setattr(consensus, "ROOT", tmp_path)
+    d = tmp_path / "data/options_structure"
+    d.mkdir(parents=True)
+    (d / "2026-10-10.json").write_text("{corrupt!!")
+    m = consensus._m_gex()
+    assert not m["present"] and m["vote"] is None
+    (d / "2026-10-10.json").unlink()
+    assert not consensus._m_gex()["present"]
+
+
+def test_aggregate_emits_cls() -> None:
+    """状态→色档由 API 单源下发，前端不维护映射。"""
+    assert _agg(["on", "on", "on", "on", "off", "off"])["cls"] == "on"
+    assert _agg(["off", "off", "off", "off", "on", "on"])["cls"] == "off"
+    assert _agg(["on", "on", "on", "off", "off", "off"])["cls"] == "div"
+    assert _agg([None] * 6)["cls"] == "na"

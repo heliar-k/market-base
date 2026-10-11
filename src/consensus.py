@@ -22,7 +22,7 @@ from __future__ import annotations
 
 import argparse
 import json
-from datetime import date
+from datetime import date, timedelta
 from pathlib import Path
 
 import numpy as np
@@ -36,7 +36,7 @@ ROOT = Path(__file__).resolve().parent.parent
 # ── 规则常量（票面阈值，改动须同步 issue #33 规则表）──
 CONFIRM_RATIO = 2 / 3  # 参与票同向占比 ≥ 此值 → 确认
 STALE_BUS_DAYS = 2  # 票龄超过 N 个工作日算缺席
-SUB_WIN = 21  # 「1 个月变化」的观测窗口（交易日）
+SUB_DAYS = 30  # 「1M 变化」窗口（日历日）——周频/日频序列统一按日期取差
 
 # 市场卡阈值
 VIX_ON, VIX_OFF = 17.0, 22.0  # VIX < 17 on / > 22 off，中间弃权
@@ -53,10 +53,10 @@ SPREAD_2S10S_ON, SPREAD_2S10S_OFF = 30.0, 0.0  # 2s10s 水平（bp）
 DFII10_CHG_BP = 15.0  # 10Y TIPS 1M 变化（bp）
 TGA_CHG_B = 50.0  # TGA 1M 变化（十亿美元）
 
-# 状态词（CONTEXT.md 词汇表同步）
-MKT_ON, MKT_OFF, MKT_DIV = "确认 risk-on", "确认 risk-off", "分歧"
-MAC_ON, MAC_OFF, MAC_DIV = "确认宽松", "确认紧缩", "分歧"
-STATE_NA = "数据不足"
+# 状态词（CONTEXT.md 词汇表同步；两卡共用「分歧/数据不足」）
+MKT_ON, MKT_OFF = "确认 risk-on", "确认 risk-off"
+MAC_ON, MAC_OFF = "确认宽松", "确认紧缩"
+STATE_DIV, STATE_NA = "分歧", "数据不足"
 
 # 成员 → 专题页跳转（首页卡点击联动）
 PAGE_LINKS = {
@@ -86,20 +86,47 @@ def _col(df: pd.DataFrame, name: str) -> pd.Series | None:
     return s if not s.empty else None
 
 
-def _chg(s: pd.Series, win: int = SUB_WIN) -> float | None:
-    """近 win 个观测的变化量（末值 − win 前值）。"""
-    if len(s) < win + 1:
+def _chg(s: pd.Series, days: int = SUB_DAYS) -> float | None:
+    """近 days 个**日历日**的变化量（末值 − days 前最近观测）。
+
+    按日期取差而非观测数：日频序列（HY OAS/DFII10）≈ 21 个观测，周频序列
+    （WALCL/WTREGEN 仅周三有值）≈ 4 个——两种节奏统一为真「1M 变化」。
+    基准日（末值日期 − days）之前无观测、或基准观测距末值超 days+7 天
+    （序列断更）返回 None。
+    """
+    if len(s) < 2:
         return None
-    return float(s.iloc[-1] - s.iloc[-1 - win])
+    target = s.index[-1] - pd.Timedelta(days=days)
+    base = s.loc[:target]
+    if base.empty or (s.index[-1] - base.index[-1]).days > days + 7:
+        return None
+    return float(s.iloc[-1] - base.iloc[-1])
+
+
+def _band(v: float | None, on_at: float, off_at: float, *, high_is_on: bool) -> bool | None:
+    """三档迟滞判定（成员子信号共用）：v 落 on 区间 → True，off 区间 → False，之间弃权。
+
+    high_is_on=True：v ≥ on_at 为 on、v ≤ off_at 为 off（越高越 on，如 ABV/2s10s）；
+    high_is_on=False：v ≤ on_at 为 on、v ≥ off_at 为 off（越低越 on，如 VIX/HY OAS）。
+    """
+    if v is None:
+        return None
+    if high_is_on:
+        return True if v >= on_at else (False if v <= off_at else None)
+    return True if v <= on_at else (False if v >= off_at else None)
 
 
 def _age_bus_days(as_of: str, today: date) -> int:
-    """票龄：as_of → today 之间的工作日数（周末顺延）。"""
+    """票龄：as_of **之后**（不含当天）到 today 的工作日数（周末顺延）。
+
+    周三观测、周日计算 = 2（Thu/Fri），与「>2 缺席」的直觉一致；计入 as_of
+    当天会系统性多算 1（review #35 修正）。解析失败按超龄（缺席）处理。
+    """
     try:
         d0 = pd.Timestamp(as_of).date()
-    except ValueError:
-        return 999
-    return int(np.busday_count(d0, today))
+    except (TypeError, ValueError):
+        return STALE_BUS_DAYS + 1
+    return int(np.busday_count(d0 + timedelta(days=1), today))
 
 
 def _sub(name: str, vote: bool | None, value: float | None, as_of: str | None) -> dict:
@@ -110,25 +137,19 @@ def _sub(name: str, vote: bool | None, value: float | None, as_of: str | None) -
 def _member(name: str, subs: list[dict]) -> dict:
     """成员 = 子信号多数；全子信号无数据 → 缺席；平票 → 弃权。"""
     voted = [s for s in subs if s["vote"] is not None]
-    has_data = any(s["as_of"] for s in subs)
+    as_of = max((s["as_of"] for s in subs if s["as_of"]), default=None)
     if not voted:
         return {
             "name": name,
             "vote": None,
-            "present": has_data,
+            "present": any(s["as_of"] for s in subs),
             "subs": subs,
-            "as_of": max((s["as_of"] for s in subs if s["as_of"]), default=None),
+            "as_of": as_of,
         }
     n_on = sum(s["vote"] for s in voted)
     n_off = len(voted) - n_on
     vote = "on" if n_on > n_off else ("off" if n_off > n_on else None)  # 平票弃权
-    return {
-        "name": name,
-        "vote": vote,
-        "present": True,
-        "subs": subs,
-        "as_of": max((s["as_of"] for s in subs if s["as_of"]), default=None),
-    }
+    return {"name": name, "vote": vote, "present": True, "subs": subs, "as_of": as_of}
 
 
 def _apply_staleness(members: list[dict], today: date) -> None:
@@ -152,9 +173,15 @@ def _aggregate(members: list[dict], on_label: str, off_label: str) -> dict:
     elif max(len(on), len(off)) / n_votes >= CONFIRM_RATIO:
         state = on_label if len(on) > len(off) else off_label
     else:
-        state = "分歧"
+        state = STATE_DIV
+    cls = (
+        "na"
+        if state == STATE_NA
+        else ("div" if state == STATE_DIV else ("on" if state == on_label else "off"))
+    )
     return {
         "state": state,
+        "cls": cls,  # 状态 → 展示色档，前端单源用 API 下发值（防 Python 改词 JS 漂移）
         "members": members,
         "n_members": n,
         "n_present": len(present),
@@ -167,7 +194,7 @@ def _aggregate(members: list[dict], on_label: str, off_label: str) -> dict:
 # ── 市场卡成员 ──
 
 
-def _m_trend(today: date) -> dict:
+def _m_trend() -> dict:
     """趋势：SPX 收盘 vs MA60 + MA20 vs MA60（双确认）。"""
     df = read_csv_or_empty(ROOT / "data/indices/SPX.csv")
     close = _col(df, "close")
@@ -186,7 +213,7 @@ def _m_trend(today: date) -> dict:
     )
 
 
-def _m_vol(today: date) -> dict:
+def _m_vol() -> dict:
     """波动率：VIX 水平区间 + VIX 期限斜率（contango/backwardation）。"""
     df = read_csv_or_empty(ROOT / "data/cboe/volatility.csv")
     vix, vix3m = _col(df, "VIX"), _col(df, "VIX3M")
@@ -194,8 +221,7 @@ def _m_vol(today: date) -> dict:
     if vix is not None:
         v = float(vix.iloc[-1])
         as_of = str(vix.index[-1].date())
-        vote = True if v < VIX_ON else (False if v > VIX_OFF else None)
-        subs.append(_sub("VIX 水平", vote, v, as_of))
+        subs.append(_sub("VIX 水平", _band(v, VIX_ON, VIX_OFF, high_is_on=False), v, as_of))
     if vix is not None and vix3m is not None:
         slope = float(vix.iloc[-1] - vix3m.iloc[-1])
         as_of = str(vix.index[-1].date())
@@ -203,18 +229,18 @@ def _m_vol(today: date) -> dict:
     return _member("波动率", subs)
 
 
-def _m_breadth(today: date) -> dict:
+def _m_breadth() -> dict:
     """广度：ABV50 水平分档。"""
     df = read_csv_or_empty(ROOT / "data/breadth/abv.csv")
     s = _col(df, "ABV50")
     if s is None:
         return _member("广度", [_sub("ABV50", None, None, None)])
     v = float(s.iloc[-1])
-    vote = True if v >= ABV_ON else (False if v <= ABV_OFF else None)
+    vote = _band(v, ABV_ON, ABV_OFF, high_is_on=True)
     return _member("广度", [_sub("ABV50", vote, round(v, 1), str(s.index[-1].date()))])
 
 
-def _m_credit(today: date) -> dict:
+def _m_credit() -> dict:
     """信用：HY OAS 1M 变化（收窄=on / 显著走扩=off）。"""
     df = read_csv_or_empty(ROOT / "data/fred/volatility/volatility.csv")
     s = _col(df, "HY_OAS")
@@ -224,28 +250,28 @@ def _m_credit(today: date) -> dict:
     if chg is None:
         return _member("信用", [_sub("HY OAS 1M", None, None, None)])
     chg_bp = chg * 100
-    vote = True if chg_bp <= HY_OAS_ON_BP else (False if chg_bp >= HY_OAS_OFF_BP else None)
+    vote = _band(chg_bp, HY_OAS_ON_BP, HY_OAS_OFF_BP, high_is_on=False)
     return _member("信用", [_sub("HY OAS 1M", vote, round(chg_bp, 1), str(s.index[-1].date()))])
 
 
-def _m_gex(today: date) -> dict:
+def _m_gex() -> dict:
     """期权结构：SPY net_gex 符号（正=dealer 多 gamma=稳定=on）。"""
+    sub = _sub("SPY net_gex", None, None, None)
     files = sorted((ROOT / "data/options_structure").glob("*.json"))
-    if not files:
-        return _member("期权结构", [_sub("SPY net_gex", None, None, None)])
-    try:
-        d = json.loads(files[-1].read_text())
-        spy = d.get("symbols", {}).get("SPY", {})
-        gex = spy.get("net_gex")
-    except (json.JSONDecodeError, AttributeError):
-        gex = None
-    as_of = str(d.get("date", files[-1].stem))[:10] if files else None
-    vote = (gex > 0) if isinstance(gex, (int, float)) else None
-    val = round(gex, 1) if gex is not None else None
-    return _member("期权结构", [_sub("SPY net_gex", vote, val, as_of)])
+    if files:
+        try:
+            d = json.loads(files[-1].read_text())
+            spy = (d.get("symbols") or {}).get("SPY") or {}
+            gex = spy.get("net_gex")
+            if isinstance(gex, (int, float)):
+                as_of = str(d.get("date") or files[-1].stem)[:10]
+                sub = _sub("SPY net_gex", gex > 0, round(gex, 1), as_of)
+        except (OSError, json.JSONDecodeError, AttributeError):
+            pass  # 损坏/缺失 → 缺席（验收：缺任一源状态照出，不崩溃）
+    return _member("期权结构", [sub])
 
 
-def _m_short(today: date) -> dict:
+def _m_short() -> dict:
     """卖空（proxy）：SPY short ratio 5 日均值差（百分点）。"""
     df = read_csv_or_empty(ROOT / "data/short_selling/finra_daily.csv")
     s = _col(df, "SPY_short_ratio")
@@ -254,9 +280,7 @@ def _m_short(today: date) -> dict:
     cur = s.iloc[-SHORT_RATIO_WIN:].mean()
     prev = s.iloc[-2 * SHORT_RATIO_WIN : -SHORT_RATIO_WIN].mean()
     diff_pp = (cur - prev) * 100
-    vote = (
-        True if diff_pp <= SHORT_RATIO_ON_PP else (False if diff_pp >= SHORT_RATIO_OFF_PP else None)
-    )
+    vote = _band(diff_pp, SHORT_RATIO_ON_PP, SHORT_RATIO_OFF_PP, high_is_on=False)
     sub = _sub("SPY short ratio", vote, round(diff_pp, 2), str(s.index[-1].date()))
     return _member("卖空", [sub])
 
@@ -272,7 +296,7 @@ def _macro_frames() -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
     return rates, liq, tips
 
 
-def _x_policy(today: date) -> dict:
+def _x_policy() -> dict:
     """政策路径：最近未开会期的降息/加息概率（ZQ 期货隐含）。"""
     df = read_csv_or_empty(ROOT / "data/rate_expectations/fomc_probabilities.csv")
     sub = _sub("最近会期 prob_cut", None, None, None)
@@ -289,9 +313,8 @@ def _x_policy(today: date) -> dict:
     return _member("政策路径", [sub])
 
 
-def _x_netliq(today: date) -> dict:
+def _x_netliq(liq: pd.DataFrame) -> dict:
     """净流动性：WALCL−RRP−TGA 1M 变化（复用 macro.py 派生，单位十亿美元）。"""
-    _, liq, _ = _macro_frames()
     sub = _sub("净流动性 1M", None, None, None)
     if not liq.empty and {"WALCL", "RRPONTSYD", "WTREGEN"} <= set(liq.columns):
         derived = derive_macro(liq)
@@ -299,63 +322,59 @@ def _x_netliq(today: date) -> dict:
         chg = _chg(s) if s is not None else None
         if chg is not None:
             b = chg / 1000  # 百万 → 十亿
-            vote = True if b >= NET_LIQ_CHG_B else (False if b <= -NET_LIQ_CHG_B else None)
+            vote = _band(b, NET_LIQ_CHG_B, -NET_LIQ_CHG_B, high_is_on=True)
             sub = _sub("净流动性 1M", vote, round(b, 1), str(s.index[-1].date()))
     return _member("净流动性", [sub])
 
 
-def _x_sofr_iorb(today: date) -> dict:
+def _x_sofr_iorb(rates: pd.DataFrame) -> dict:
     """货币市场：SOFR−IORB 利差（bp），转负为宽、转正为紧。"""
-    rates, _, _ = _macro_frames()
     sub = _sub("SOFR−IORB", None, None, None)
     if not rates.empty and {"SOFR", "IORB"} <= set(rates.columns):
         derived = derive_macro(rates)
         s = _col(derived, "SOFR_IORB_SPREAD_BP")
         if s is not None:
             v = float(s.iloc[-1])
-            vote = True if v <= SOFR_IORB_ON_BP else (False if v >= SOFR_IORB_OFF_BP else None)
+            vote = _band(v, SOFR_IORB_ON_BP, SOFR_IORB_OFF_BP, high_is_on=False)
             sub = _sub("SOFR−IORB", vote, round(v, 1), str(s.index[-1].date()))
     return _member("货币市场", [sub])
 
 
-def _x_curve(today: date) -> dict:
+def _x_curve(rates: pd.DataFrame) -> dict:
     """曲线：2s10s 水平（bp），深度倒挂=紧缩定价。"""
-    rates, _, _ = _macro_frames()
     sub = _sub("2s10s", None, None, None)
     if not rates.empty and {"DGS10", "DGS2"} <= set(rates.columns):
         derived = derive_macro(rates)
         s = _col(derived, "SPREAD_2S10S")
         if s is not None:
             v = float(s.iloc[-1]) * 100
-            vote = True if v > SPREAD_2S10S_ON else (False if v < SPREAD_2S10S_OFF else None)
+            vote = _band(v, SPREAD_2S10S_ON, SPREAD_2S10S_OFF, high_is_on=True)
             sub = _sub("2s10s", vote, round(v, 1), str(s.index[-1].date()))
     return _member("曲线", [sub])
 
 
-def _x_real_rate(today: date) -> dict:
+def _x_real_rate(tips: pd.DataFrame) -> dict:
     """实际利率：DFII10 1M 变化（bp），实际利率回落=金融条件转松。"""
-    _, _, tips = _macro_frames()
     s = _col(tips, "DFII10")
     sub = _sub("DFII10 1M", None, None, None)
     if s is not None:
         chg = _chg(s)
         if chg is not None:
             bp = chg * 100
-            vote = True if bp <= -DFII10_CHG_BP else (False if bp >= DFII10_CHG_BP else None)
+            vote = _band(bp, -DFII10_CHG_BP, DFII10_CHG_BP, high_is_on=False)
             sub = _sub("DFII10 1M", vote, round(bp, 1), str(s.index[-1].date()))
     return _member("实际利率", [sub])
 
 
-def _x_tga(today: date) -> dict:
+def _x_tga(liq: pd.DataFrame) -> dict:
     """财政：TGA 1M 变化（十亿美元），余额下降=向市场注水。"""
-    _, liq, _ = _macro_frames()
     s = _col(liq, "WTREGEN")
     sub = _sub("TGA 1M", None, None, None)
     if s is not None:
         chg = _chg(s)
         if chg is not None:
             b = chg / 1000
-            vote = True if b <= -TGA_CHG_B else (False if b >= TGA_CHG_B else None)
+            vote = _band(b, -TGA_CHG_B, TGA_CHG_B, high_is_on=False)
             sub = _sub("TGA 1M", vote, round(b, 1), str(s.index[-1].date()))
     return _member("财政", [sub])
 
@@ -364,10 +383,18 @@ def _x_tga(today: date) -> dict:
 
 
 def compute(today: date | None = None) -> dict:
-    """计算两级共识卡（纯读 CSV，不落盘）。"""
+    """计算两级共识卡（纯读 CSV，不落盘）。基础表各读一次，下传宏观成员。"""
     today = today or date.today()
-    market = [f(today) for f in (_m_trend, _m_vol, _m_breadth, _m_credit, _m_gex, _m_short)]
-    macro = [f(today) for f in (_x_policy, _x_netliq, _x_sofr_iorb, _x_curve, _x_real_rate, _x_tga)]
+    market = [_m_trend(), _m_vol(), _m_breadth(), _m_credit(), _m_gex(), _m_short()]
+    rates, liq, tips = _macro_frames()
+    macro = [
+        _x_policy(),
+        _x_netliq(liq),
+        _x_sofr_iorb(rates),
+        _x_curve(rates),
+        _x_real_rate(tips),
+        _x_tga(liq),
+    ]
     for group in (market, macro):
         _apply_staleness(group, today)
     ref = max(
