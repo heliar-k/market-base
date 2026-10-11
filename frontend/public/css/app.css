@@ -587,11 +587,3 @@ body.embedded .macro-nav, body.embedded #macro-nav-toggle { display: none; }
 .cons-state--off { color: var(--down); }
 .cons-state--div { color: var(--warning); }
 .cons-state--na { color: var(--text-dim); font-size: 13px; }
-.cons-votes { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
-.cons-vote { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; padding: 2px 8px; border-radius: 999px; border: 1px solid color-mix(in srgb, var(--color-neutral) 30%, transparent); color: var(--text-secondary); text-decoration: none; }
-.cons-vote:hover { border-color: var(--accent); color: var(--accent-ink); }
-.cons-vote i { font-style: normal; font-weight: 700; }
-.cons-vote--on i { color: var(--up); }
-.cons-vote--off i { color: var(--down); }
-.cons-vote--abst i { color: var(--text-dim); }
-.cons-vote--absent { opacity: .45; border-style: dashed; }

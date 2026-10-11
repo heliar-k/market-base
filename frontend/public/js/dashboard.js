@@ -90,8 +90,7 @@ export function updateStatus() {
 function heroShell() {
   const s = el('section', 'dash-hero');
   s.innerHTML = `
-    <div class="dash-hero-verdict" id="dash-hero-verdict"><span class="loading">共识加载中…</span></div>
-    <div class="dash-hero-sub" id="dash-hero-sub"></div>
+    <div class="dash-hero-verdict" id="dash-hero-verdict"><span class="loading">共识加载中…</span></div>    <div class="dash-hero-sub" id="dash-hero-sub"></div>
     <div class="dash-hero-meta"><span id="dash-hero-bg"></span><span id="dash-asof"></span></div>`;
   return s;
 }
@@ -180,25 +179,26 @@ function renderConsensus() {
     if (stv) stv.textContent = '';
     return;
   }
-  // 状态→色档由 API 下发 cls（on/off/div/na），复用 cons-state 色档；
-  // 竖条随主状态（市场）着色
+  // 结论与证据分层：状态一行（复用 cons-state 15px 色档），投票降为两行文本链
+  // （名字次色 + 语义色勾叉），不再用 13 个等权重胶囊冒充层级
   const mktCls = c.market.cls || 'na';
-  const state = (label, card) => {
-    const cls = card.cls || 'na';
-    return `<span class="dash-hero-item"><small>${label}</small><b class="cons-state cons-state--${cls}">${esc(card.state)}</b></span>`;
-  };
-  const chip = (m) => {
-    const cls = !m.present ? 'cons-vote--absent' : (m.vote === 'on' ? 'cons-vote--on' : m.vote === 'off' ? 'cons-vote--off' : 'cons-vote--abst');
-    const icon = !m.present ? '×' : (m.vote === 'on' ? '✔' : m.vote === 'off' ? '✘' : '—');
+  const member = (m) => {
+    const mark = !m.present ? '×' : m.vote === 'on' ? '✓' : m.vote === 'off' ? '✗' : '—';
+    const mcls = !m.present ? 'absent' : m.vote === 'on' ? 'on' : m.vote === 'off' ? 'off' : 'abst';
     const href = (c.page_links || {})[m.name] || '#';
-    return `<a class="cons-vote ${cls}" href="${href}">${m.name}<i>${icon}</i></a>`;
+    return `<a class="dash-hv-member dash-hv-member--${mcls}" href="${href}" title="${esc(m.name)} · ${esc(m.as_of || '')}">${esc(m.name)}<i>${mark}</i></a>`;
   };
   box.innerHTML = `
-    <div class="dash-hero-verdict-line dash-hero-verdict-line--${mktCls}">
-      ${state('市场', c.market)}<span class="dash-hero-sep" aria-hidden="true">·</span>${state('宏观', c.macro)}
+    <div class="dash-hero-status">
+      <span class="dash-hs"><small>市场</small><b class="cons-state cons-state--${mktCls}">${esc(c.market.state)}</b></span>
+      <span class="dash-hs-sep" aria-hidden="true">·</span>
+      <span class="dash-hs"><small>宏观</small><b class="cons-state cons-state--${c.macro.cls || 'na'}">${esc(c.macro.state)}</b></span>
       ${c.finalized === false ? '<span class="cons-intraday">盘中临时值</span>' : ''}
     </div>
-    <div class="dash-hero-votes">${c.market.members.map(chip).join('')}<span class="dash-hero-votes-sep" aria-hidden="true"></span>${c.macro.members.map(chip).join('')}</div>`;
+    <div class="dash-hero-votes">
+      <div class="dash-hv-group"><small>市场</small>${c.market.members.map(member).join('')}</div>
+      <div class="dash-hv-group"><small>宏观</small>${c.macro.members.map(member).join('')}</div>
+    </div>`;
   if (stv) stv.innerHTML = `<b class="cons-state cons-state--${c.market.cls || 'na'}">${esc(c.market.state)}</b><span class="dash-sticky-macro">宏观 ${esc(c.macro.state)}</span>`;
 }
 
