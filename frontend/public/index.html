@@ -18,14 +18,88 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap" media="print" onload="this.media='all'">
 <link rel="stylesheet" href="/css/app.css">
 <style>
-/* 首屏「今日一句话」结论层（渲染在 js/dashboard.js 的 renderLines）。
-   页面私有样式块（不动 css/*.css）；颜色一律走变量，color: 只用文字档。
-   形式：有信号的专题升为卡（正文不截断），其余收成一行「平稳」胶囊——
-   外层不再套 .dash-card，否则卡中卡双层框（见 AGENTS 第 8 节）。 */
-.dash-lines { display: flex; flex-direction: column; gap: 10px; }
-.dash-sec-head {
-  font-size: 13px; font-weight: 600; color: var(--text-secondary); padding: 0 2px;
+/* 仪表盘 B 方案「每日头版」私有样式（不动 css/*.css）；颜色一律走变量，color: 只用文字档。
+   DOM 顺序 = 手机阅读优先级；桌面 ≥1024 由 .dash-flow 的 areas 图重排成
+   「头条 → 叙事×数据双栏 → 快照大表 → 自选」。 */
+
+/* ── 头版 flow：DOM 顺序 = 手机阅读优先级（hero → vol → snap → lines → watch）。
+   <1024：列容器 display:contents 溶解，用 order 恢复优先级；
+   ≥1024：两个列容器实化 —— 左 60% = 叙事+快照，右 40% = 波动率+自选，
+   高度各自堆叠不留洞（grid 行高取 max 的洞问题用 flex 列规避） ── */
+.dash-flow { display: flex; flex-direction: column; gap: 26px; min-width: 0; }
+.dash-col { display: contents; }
+.dash-hero { order: 0; }
+.dash-vol-sec { order: 1; }
+.dash-snap-sec { order: 2; }
+.dash-lines-sec { order: 3; }
+.dash-watch-sec { order: 4; }
+@media (min-width: 1024px) {
+  .dash-flow { flex-direction: row; flex-wrap: wrap; align-items: flex-start; gap: 26px 24px; }
+  .dash-hero { order: 0; flex: 1 1 100%; }
+  .dash-col { display: flex; flex-direction: column; gap: 26px; min-width: 0; }
+  .dash-col-a { order: 1; flex: 1 1 calc(60% - 24px); }
+  .dash-col-b { order: 2; flex: 1 1 calc(40% - 24px); }
+  /* 列内按 DOM 序堆叠，清掉 <1024 的 order 优先级（否则一句话沉底） */
+  .dash-col > * { order: 0; }
 }
+
+/* ── 头条区：全页唯一视觉锚点（无卡壳，纯排版层级）── */
+.dash-hero { display: flex; flex-direction: column; gap: 10px; }
+.dash-hero-verdict-line { display: flex; flex-wrap: wrap; align-items: baseline; gap: 10px; }
+.dash-hero-item small { font-size: 13px; font-weight: 400; color: var(--text-secondary); margin-right: 7px; }
+.dash-hero-item b { font-size: 27px; font-weight: 700; letter-spacing: -.01em; }
+.dash-hero-sep { color: var(--text-dim); font-size: 20px; }
+.dash-hero-na { font-size: 13px; color: var(--text-secondary); }
+/* 成员投票：头条里的辅助细节（复用 cons-vote 单源样式，触控目标提到 ≥24px） */
+.dash-hero-votes { display: flex; flex-wrap: wrap; align-items: stretch; gap: 6px; }
+.dash-hero .cons-vote { padding: 4px 10px; }
+.dash-hero-votes-sep { width: 1px; background: var(--border); margin: 0 4px; }
+.dash-hero-scen { font-size: 14px; font-weight: 600; color: var(--text); }
+.dash-hero-scen.hot { color: var(--warning); }
+.dash-hero-alert { font-size: 12.5px; color: var(--warning); }
+/* 背景行：弱化脚注，分隔点由 ::before 统一画（空段自动隐藏） */
+.dash-hero-meta { display: flex; flex-wrap: wrap; gap: 4px 10px; font-size: 12px; color: var(--text-dim); }
+.dash-hero-meta > *:empty { display: none; }
+.dash-hero-meta > * + *:not(:empty)::before { content: '·'; margin-right: 10px; opacity: .55; }
+.dash-hero-meta a { color: var(--text-dim); text-decoration: none; padding: 2px 0; }
+.dash-hero-meta a:hover { color: var(--accent-ink); }
+/* 背景行内部（FOMC/衰退/入口）与两段之间统一由 ::before 画分隔点 */
+#dash-hero-bg > * + *::before { content: '·'; margin-right: 10px; opacity: .55; }
+
+/* ── 节头（波动率 / 市场快照 / 今日一句话 / 自选 共用）── */
+.dash-sec-head { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 8px; font-size: 13px; font-weight: 600; color: var(--text-secondary); padding: 0 2px; }
+.dash-sec-link { font-size: 12px; font-weight: 400; color: var(--text-dim); text-decoration: none; padding: 5px 0; }
+.dash-sec-link:hover { color: var(--accent-ink); }
+
+/* ── 波动率列：KPI 2×2（R.cards 行的作用域换行，不另造卡片）+ 信号列表 ── */
+.dash-vol-sec { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.dash-vol-sec .re-cards { flex-wrap: wrap; }
+.dash-vol-sec .re-card { flex: 1 1 calc(50% - 6px); max-width: none; }
+.dash-sig-list { display: flex; flex-direction: column; }
+.dash-sig { display: flex; flex-direction: column; gap: 4px; padding: 10px 2px; }
+.dash-sig + .dash-sig { border-top: 1px solid var(--border-light); }
+.dash-sig-title { font-size: 13px; font-weight: 600; color: var(--text); }
+.dash-sig-text { font-size: 12.5px; color: var(--text-secondary); line-height: 1.55; }
+.dash-sig-advice { font-size: 11.5px; font-style: italic; color: var(--text-dim); }
+
+/* ── 市场快照单表：报纸行情栏（分栏 + 栏间线，板块不跨栏断开）。
+   注意必须 display:block：dash-card 的 flex 会吃掉 multicol ── */
+.dash-snap-sec { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.dash-snap-table { display: block; padding: 4px 20px 10px; columns: 1; }
+@media (min-width: 768px) {
+  .dash-snap-table { columns: 2; column-gap: 36px; column-rule: 1px solid var(--border-light); }
+}
+.dash-board { break-inside: avoid; padding: 10px 0 12px; }
+.dash-board + .dash-board { border-top: 1px solid var(--border-light); }
+.dash-board-head { display: flex; align-items: baseline; gap: 8px; padding: 0 4px 4px; }
+.dash-board-t { font-size: 13px; font-weight: 700; color: var(--text); text-decoration: none; }
+a.dash-board-t:hover { color: var(--accent-ink); }
+.dash-board-more { display: flex; align-items: center; min-height: 24px; font-size: 11.5px; color: var(--text-dim); text-decoration: none; padding: 4px 2px 0; margin-top: 6px; }
+.dash-board-more:hover { color: var(--accent-ink); }
+
+/* ── 今日一句话：hot 卡（保留语义色竖条）+ 平稳弱化索引 ── */
+.dash-lines-sec { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.dash-lines { display: flex; flex-direction: column; gap: 10px; }
 .dash-line-cards {
   display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr));
   gap: 12px; align-items: start;
@@ -36,7 +110,6 @@
   border-left: 3px solid var(--border-light); border-radius: 8px;
   text-decoration: none; transition: background .15s, border-color .15s;
 }
-/* 有信号：竖条走图形档 --color-warn（边框属于图形档允许的位置） */
 .dash-line-card.hot { border-left-color: var(--color-warn); }
 .dash-line-card.hot .dash-line-card-t { color: var(--warning); }
 .dash-line-card:hover { background: var(--surface-hover); border-color: var(--accent-ink); }
@@ -44,33 +117,51 @@
 .dash-line-card-t { font-size: 13px; font-weight: 600; color: var(--text); }
 .dash-line-card-x { font-size: 12.5px; line-height: 1.55; color: var(--text-secondary); }
 .dash-line-card-go { font-size: 11px; color: var(--text-dim); margin-top: auto; padding-top: 4px; }
-.dash-calm { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-size: 12px; }
-.dash-calm-k { color: var(--text-dim); }
-/* 平稳专题：弱化文字链（不做胶囊，不与报警徽章抢视觉），分隔点同色 */
-.dash-calm a { color: var(--text-dim); text-decoration: none; }
-.dash-calm a:hover { color: var(--accent-ink); }
-.dash-calm-dot { color: var(--text-dim); opacity: .55; }
 .dash-line-empty { font-size: 13px; color: var(--text-secondary); }
 .dash-line-empty code { font-family: var(--font-mono); }
+.dash-calm { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-size: 12px; }
+.dash-calm-k { color: var(--text-dim); }
+.dash-calm a { color: var(--text-dim); text-decoration: none; padding: 4px 2px; }
+.dash-calm a:hover { color: var(--accent-ink); }
+.dash-calm-dot { color: var(--text-dim); opacity: .55; }
 
-/* 节头链接（波动率节「进入专题 →」）与板块卡头链接：继承色，悬停亮起 */
-.dash-sec-link { font-size: 12px; font-weight: 400; color: var(--text-dim); text-decoration: none; margin-left: 4px; }
-.dash-sec-link:hover { color: var(--accent-ink); }
-.dash-card-title-a { color: inherit; text-decoration: none; }
-.dash-card-title-a:hover { color: var(--accent-ink); }
-/* 超出 4 行的部分收进「全部 N 项」行：放在 .dash-snap 内借用行节奏（无边框，
-   上一行的 border-bottom 就是分隔线），高度 ≈ 一行数据（~30px），六卡才能等高 */
-.dash-snap .dash-card-more { display: block; font-size: 11.5px; color: var(--text-dim); text-decoration: none; padding: 6px 4px 8px; }
-.dash-snap .dash-card-more:hover { color: var(--accent-ink); }
+/* ── 自选清单：chips 一行（点击进技术分析，× 删除）── */
+.dash-watch-sec { display: flex; flex-direction: column; gap: 8px; }
+.dash-watch-add-wrap select { font-size: 12px; background: var(--surface); color: var(--text); border: 1px solid var(--border); border-radius: 4px; padding: 3px 6px; }
+.dash-watch-chips { display: flex; flex-wrap: wrap; gap: 8px; padding: 0 2px; }
+.dash-watch-chip {
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 5px 8px 5px 12px; border: 1px solid var(--border); border-radius: 999px;
+  font-size: 12.5px; background: var(--surface); cursor: pointer; transition: background .15s, border-color .15s;
+}
+.dash-watch-chip:hover { border-color: var(--accent-ink); background: var(--surface-hover); }
+.dash-watch-chip-sym { font-weight: 600; color: var(--text); }
+.dash-watch-chip-price { font-family: var(--font-mono); font-variant-numeric: tabular-nums; color: var(--text); }
+.dash-watch-x {
+  width: 22px; height: 22px; border: none; border-radius: 50%;
+  background: transparent; color: var(--text-dim); font-size: 14px; line-height: 1;
+  cursor: pointer; display: inline-flex; align-items: center; justify-content: center;
+}
+.dash-watch-x:hover { background: var(--surface-hover); color: var(--down); }
+@media (hover: none) { .dash-watch-x { width: 24px; height: 24px; } }
+.dash-watch-empty { font-size: 12.5px; color: var(--text-dim); padding: 4px 2px; }
 
-/* 背景/入口行：FOMC · 衰退 · 今日研判入口 —— 弱化文字行，与语义色徽章分行 */
-.dash-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-size: 12px; color: var(--text-dim); }
-.dash-meta a { color: var(--text-dim); text-decoration: none; }
-.dash-meta a:hover { color: var(--accent-ink); }
-.dash-meta-dot { color: var(--text-dim); opacity: .55; }
-
-/* 节容器（波动率 / 市场快照）：节头 + 数据体，与外层 12px 栅格区分 */
-.dash-vol-sec, .dash-snap-sec { display: flex; flex-direction: column; gap: 10px; }
+/* ── 手机端 sticky 细条：滚过头条后滑入（桌面隐藏）── */
+.dash-sticky { position: sticky; top: 0; z-index: 30; height: 0; overflow: visible; }
+@media (min-width: 1024px) { .dash-sticky { display: none; } }
+.dash-sticky-in {
+  display: flex; align-items: center; gap: 12px;
+  margin: 0 -4px; padding: 8px 16px; font-size: 12px;
+  background: color-mix(in srgb, var(--bg) 86%, transparent);
+  backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+  border-bottom: 1px solid var(--border);
+  transform: translateY(-110%); transition: transform .25s ease;
+}
+.dash-sticky.show .dash-sticky-in { transform: translateY(0); }
+.dash-sticky-in .cons-state { font-size: 12.5px; font-weight: 700; }
+#dash-sticky-verdict { display: inline-flex; align-items: baseline; gap: 6px; }
+.dash-sticky-macro, .dash-sticky-alert { color: var(--text-secondary); }
+.dash-sticky-vix { margin-left: auto; font-family: var(--font-mono); font-variant-numeric: tabular-nums; color: var(--text); }
 </style>
 <script src="/vendor/lightweight-charts.standalone.production.js"></script>
 <script src="/vendor/echarts.min.js"></script>
