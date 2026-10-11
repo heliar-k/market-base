@@ -293,7 +293,6 @@ a.re-badge:hover { color: var(--accent-ink); border-color: var(--accent-ink); }
 /* hover 反馈＝回退到浅一档 --accent（白卡 4.51 仍过 AA），不用 opacity 乘透明度（会把压深后的 ink 再打回不达标） */
 .re-section p a:hover, .note a:hover { color: var(--accent); }
 .vix-label { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--text-dim); }
-.vix-value { font-size: 28px; font-weight: 700; font-variant-numeric: tabular-nums; }
 .vix-date { font-size: 11px; color: var(--text-dim); }
 .vix-badge { align-self: flex-start; font-size: 12px; font-weight: 600; padding: 4px 12px; border-radius: 999px; border: 1px solid; background: var(--surface-hover); }
 .vix-legend { display: flex; flex-direction: column; justify-content: center; gap: 8px; }
@@ -324,20 +323,20 @@ a.re-badge:hover { color: var(--accent-ink); border-color: var(--accent-ink); }
 .oas-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
 .oas-card { border: 1px solid var(--border); border-radius: 8px; background: var(--surface); padding: 16px 20px; }
 .oas-card .label { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--text-dim); }
-.oas-card .value { font-size: 26px; font-weight: 700; font-variant-numeric: tabular-nums; margin: 4px 0 6px; }
+.oas-card .value { font-size: clamp(20px, 18.7px + 0.4vw, 26px); font-weight: 700; font-variant-numeric: tabular-nums; margin: 4px 0 6px; }
 .oas-card .value .unit { font-size: 13px; color: var(--text-dim); font-weight: 500; }
 .oas-card .pcts { font-size: 12px; color: var(--text-secondary); }
 .oas-card .date { font-size: 11px; color: var(--text-dim); margin-top: 4px; }
 .note { font-size: 12px; color: var(--text-dim); margin-top: 6px; }
 .score-card { border: 1px solid var(--border); border-radius: 8px; background: var(--surface); padding: 20px 24px; display: flex; gap: 18px; align-items: center; flex-wrap: wrap; }
-.score-card .value { font-size: 44px; font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1; }
+.score-card .value { font-size: clamp(32px, 30px + 0.7vw, 44px); font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1; }
 .score-card .label { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--text-dim); }
 .score-card .badge { font-size: 13px; font-weight: 600; padding: 5px 14px; border-radius: 999px; border: 1px solid; background: var(--color-neutral-bg); }
 .score-card .scale { font-size: 12px; color: var(--text-secondary); margin-top: 8px; }
 .proxy-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 .proxy-card { border: 1px solid var(--border); border-radius: 8px; background: var(--surface); padding: 16px 20px; }
 .proxy-card .label { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--text-dim); }
-.proxy-card .value { font-size: 26px; font-weight: 700; font-variant-numeric: tabular-nums; margin: 4px 0 6px; }
+.proxy-card .value { font-size: clamp(20px, 18.7px + 0.4vw, 26px); font-weight: 700; font-variant-numeric: tabular-nums; margin: 4px 0 6px; }
 .proxy-card .value .unit { font-size: 13px; color: var(--text-dim); font-weight: 500; }
 .proxy-card .sub { font-size: 12px; color: var(--text-secondary); }
 .proxy-card .date { font-size: 11px; color: var(--text-dim); margin-top: 4px; }
@@ -498,7 +497,7 @@ a.re-badge:hover { color: var(--accent-ink); border-color: var(--accent-ink); }
 .vol-hero { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; margin-bottom: 12px; }
 .vol-hero-card { border: 1px solid var(--border); border-radius: 10px; background: var(--surface); padding: 16px 20px; }
 .vol-hero-card .vh-label { font-size: 11px; font-weight: 600; letter-spacing: .05em; color: var(--accent-ink); margin-bottom: 6px; }
-.vol-hero-card .vh-value { font-size: 30px; font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1.1; }
+.vol-hero-card .vh-value { font-size: clamp(22px, 20.5px + 0.5vw, 30px); font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1.1; }
 .vol-hero-card .vh-chg { display: inline-block; margin-top: 6px; font-size: 12px; font-weight: 600; padding: 1px 8px; border-radius: 999px; }
 .vol-hero-card .vh-chg.up { color: var(--color-up-text); background: var(--color-up-bg); }
 .vol-hero-card .vh-chg.down { color: var(--color-down-text); background: var(--color-down-bg); }
@@ -587,7 +586,7 @@ a.re-badge:hover { color: var(--accent-ink); border-color: var(--accent-ink); }
 .re-table thead th { position: sticky; top: 0; }
 
 /* ── timsun 数字排版纪律：统计值/大数字/表格数字列统一等宽字体（字号与 tabular-nums 已在各元素声明）── */
-.re-corridor-value, .vix-value, .oas-card .value, .score-card .value, .proxy-card .value,
+.re-corridor-value, .oas-card .value, .score-card .value, .proxy-card .value,
 .vol-hero-card .vh-value, .vol-stat .st-value, .vol-signal-card .vs-metric,
 .opt-big .v, .pos-cols .v, .range-val, .rk-v,
 .rh-score .num, .rh-bars .val, .ph-rules-text, .term-slope,
