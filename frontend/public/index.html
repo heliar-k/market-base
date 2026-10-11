@@ -43,12 +43,19 @@
   .dash-col > * { order: 0; }
 }
 
-/* ── 头条区：全页唯一视觉锚点（无卡壳，纯排版层级）── */
+/* ── 头条区：全页唯一视觉锚点（无卡壳，纯排版层级）。
+   verdict 20px + 左侧状态色竖条（全站节标题同款语言），不再裸放大字 ── */
 .dash-hero { display: flex; flex-direction: column; gap: 10px; }
-.dash-hero-verdict-line { display: flex; flex-wrap: wrap; align-items: baseline; gap: 10px; }
-.dash-hero-item small { font-size: 13px; font-weight: 400; color: var(--text-secondary); margin-right: 7px; }
-.dash-hero-item b { font-size: 27px; font-weight: 700; letter-spacing: -.01em; }
-.dash-hero-sep { color: var(--text-dim); font-size: 20px; }
+.dash-hero-verdict-line {
+  display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px 10px;
+  border-left: 3px solid var(--color-neutral); padding-left: 12px;
+}
+.dash-hero-verdict-line--on { border-left-color: var(--color-up); }
+.dash-hero-verdict-line--off { border-left-color: var(--color-down); }
+.dash-hero-verdict-line--div { border-left-color: var(--color-warn); }
+.dash-hero-item small { font-size: 13px; font-weight: 400; color: var(--text-secondary); margin-right: 6px; }
+.dash-hero-item b { font-size: 20px; font-weight: 700; letter-spacing: -.01em; }
+.dash-hero-sep { color: var(--text-dim); font-size: 14px; }
 .dash-hero-na { font-size: 13px; color: var(--text-secondary); }
 /* 成员投票：头条里的辅助细节（复用 cons-vote 单源样式，触控目标提到 ≥24px） */
 .dash-hero-votes { display: flex; flex-wrap: wrap; align-items: stretch; gap: 6px; }
@@ -119,11 +126,6 @@ a.dash-board-t:hover { color: var(--accent-ink); }
 .dash-line-card-go { font-size: 11px; color: var(--text-dim); margin-top: auto; padding-top: 4px; }
 .dash-line-empty { font-size: 13px; color: var(--text-secondary); }
 .dash-line-empty code { font-family: var(--font-mono); }
-.dash-calm { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-size: 12px; }
-.dash-calm-k { color: var(--text-dim); }
-.dash-calm a { color: var(--text-dim); text-decoration: none; padding: 4px 2px; }
-.dash-calm a:hover { color: var(--accent-ink); }
-.dash-calm-dot { color: var(--text-dim); opacity: .55; }
 
 /* ── 自选清单：chips 一行（点击进技术分析，× 删除）── */
 .dash-watch-sec { display: flex; flex-direction: column; gap: 8px; }

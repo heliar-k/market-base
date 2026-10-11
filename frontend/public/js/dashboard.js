@@ -118,11 +118,11 @@ function snapShell() {
   return s;
 }
 
-// 今日一句话：叙事列（hot 卡全文 + 平稳弱化索引）
+// 今日一句话：叙事列（hot 卡全文；平稳专题降为节头注记）
 function linesShell() {
   const s = el('section', 'dash-lines-sec');
   s.innerHTML = `
-    <div class="dash-sec-head">今日一句话 <small class="dash-title-note">按专题聚合 · 点击进入对应研判</small></div>
+    <div class="dash-sec-head">今日一句话 <small class="dash-title-note" id="dash-lines-note">按专题聚合 · 点击进入对应研判</small></div>
     <div class="dash-lines"></div>`;
   return s;
 }
@@ -167,7 +167,8 @@ async function refreshVol() {
 
 // ── renderers ───────────────────────────────────────────────
 
-// 头条 verdict：市场/宏观状态大字 + 成员投票 chips（ADR-0004 /api/consensus）
+// 头条 verdict：市场/宏观状态 + 成员投票 chips（ADR-0004 /api/consensus）。
+// 状态字号 20px + 左侧状态色竖条（全站节标题同款语言），不再裸放大字。
 function renderConsensus() {
   const box = document.getElementById('dash-hero-verdict');
   const stv = document.getElementById('dash-sticky-verdict');
@@ -179,7 +180,9 @@ function renderConsensus() {
     if (stv) stv.textContent = '';
     return;
   }
-  // 状态→色档由 API 下发 cls（on/off/div/na），复用 cons-state 色档，字号在头条放大
+  // 状态→色档由 API 下发 cls（on/off/div/na），复用 cons-state 色档；
+  // 竖条随主状态（市场）着色
+  const mktCls = c.market.cls || 'na';
   const state = (label, card) => {
     const cls = card.cls || 'na';
     return `<span class="dash-hero-item"><small>${label}</small><b class="cons-state cons-state--${cls}">${esc(card.state)}</b></span>`;
@@ -191,7 +194,7 @@ function renderConsensus() {
     return `<a class="cons-vote ${cls}" href="${href}">${m.name}<i>${icon}</i></a>`;
   };
   box.innerHTML = `
-    <div class="dash-hero-verdict-line">
+    <div class="dash-hero-verdict-line dash-hero-verdict-line--${mktCls}">
       ${state('市场', c.market)}<span class="dash-hero-sep" aria-hidden="true">·</span>${state('宏观', c.macro)}
       ${c.finalized === false ? '<span class="cons-intraday">盘中临时值</span>' : ''}
     </div>
@@ -281,12 +284,14 @@ function renderLines() {
   const hot = hotTopics();
   const on = lines.filter(l => hot.has(l.key));
   const off = lines.filter(l => !hot.has(l.key));
-  // 全冷时不分层：否则退化成 9 个没正文的胶囊，这一段就没用了
+  // 全冷时不分层：否则退化成 9 个没正文的条目，这一段就没用了
   const cards = on.length ? on : lines;
-  const chips = on.length ? off : [];
+  // 「平稳」不再是独立一行索引（孤行灰字丑且费解），降为节头注记：
+  // 有 hot 时说明其余几个专题今天没信号，细节进今日研判页
+  const note = document.getElementById('dash-lines-note');
+  if (note) note.textContent = on.length ? `另有 ${off.length} 个专题平稳` : '按专题聚合 · 点击进入对应研判';
   box.innerHTML = `
-    <div class="dash-line-cards">${cards.map(l => lineCard(l, hot.has(l.key))).join('')}</div>
-    ${chips.length ? `<div class="dash-calm"><span class="dash-calm-k">平稳</span>${chips.map(calmChip).join('<span class="dash-calm-dot" aria-hidden="true">·</span>')}</div>` : ''}`;
+    <div class="dash-line-cards">${cards.map(l => lineCard(l, hot.has(l.key))).join('')}</div>`;
 }
 
 // 有信号的专题卡：标题 + 完整一句话（不截断）+ 行末进入提示
@@ -299,11 +304,7 @@ function lineCard(l, hot) {
     title="${esc(l.label)}专题 · ${esc(l.as_of || '')}">${inner}<span class="dash-line-card-go">进入研判 →</span></a>`;
 }
 
-// 平稳专题只留弱化文字链：正文今天没有可说的，细节进专题页看
-function calmChip(l) {
-  return `<a href="${NAV_PAGES.get(l.key)}" target="_blank"
-    title="${esc(l.label)}专题 · ${esc(l.as_of || '')}">${esc(l.label)}</a>`;
-}
+// 平稳专题不再单独渲染（节头注记提及，明细在今日研判页）
 
 // 正在响的专题集合（报警 + 命中情景的 topics，两者都由后端规则引擎声明）
 function hotTopics() {
