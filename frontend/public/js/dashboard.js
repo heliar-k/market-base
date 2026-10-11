@@ -90,8 +90,21 @@ export function updateStatus() {
 function heroShell() {
   const s = el('section', 'dash-hero');
   s.innerHTML = `
-    <div class="dash-hero-verdict" id="dash-hero-verdict"><span class="loading">共识加载中…</span></div>    <div class="dash-hero-sub" id="dash-hero-sub"></div>
-    <div class="dash-hero-meta"><span id="dash-hero-bg"></span><span id="dash-asof"></span></div>`;
+    <div class="dash-hero-cards">
+      <div class="dash-card dash-sc-card">
+        <div class="dash-sc-title">市场共识 <small class="dash-title-note" id="dash-sc-market-meta"></small></div>
+        <div class="dash-sc-body" id="dash-sc-market"><span class="loading">加载中…</span></div>
+      </div>
+      <div class="dash-card dash-sc-card">
+        <div class="dash-sc-title">宏观共识 <small class="dash-title-note" id="dash-sc-macro-meta"></small></div>
+        <div class="dash-sc-body" id="dash-sc-macro"><span class="loading">加载中…</span></div>
+      </div>
+    </div>
+    <div class="dash-card dash-alert-card">
+      <div class="dash-sc-title">情景与报警 <a class="dash-sec-link" href="${SITE_NAV.home.page}" target="_blank">进入今日研判 →</a></div>
+      <div id="dash-hero-sub"></div>
+      <div class="dash-hero-meta"><span id="dash-hero-bg"></span><span id="dash-asof"></span></div>
+    </div>`;
   return s;
 }
 
@@ -169,36 +182,35 @@ async function refreshVol() {
 // 头条 verdict：市场/宏观状态 + 成员投票 chips（ADR-0004 /api/consensus）。
 // 状态字号 20px + 左侧状态色竖条（全站节标题同款语言），不再裸放大字。
 function renderConsensus() {
-  const box = document.getElementById('dash-hero-verdict');
+  const mkt = document.getElementById('dash-sc-market');
+  const mac = document.getElementById('dash-sc-macro');
   const stv = document.getElementById('dash-sticky-verdict');
-  if (!box) return;
+  if (!mkt || !mac) return;
   const d = data.consensus;
   const c = d && d.status === 'fulfilled' ? d.value : null;
   if (!c || !c.market || !c.macro) {
-    box.innerHTML = '<span class="dash-hero-na">共识数据缺失（/api/consensus 不可达，确认服务已启动或重跑 export_pages）</span>';
+    const na = '<span class="dash-hero-na">共识数据缺失（/api/consensus 不可达，确认服务已启动或重跑 export_pages）</span>';
+    mkt.innerHTML = na; mac.innerHTML = na;
     if (stv) stv.textContent = '';
     return;
   }
-  // 结论与证据分层：状态一行（复用 cons-state 15px 色档），投票降为两行文本链
-  // （名字次色 + 语义色勾叉），不再用 13 个等权重胶囊冒充层级
-  const mktCls = c.market.cls || 'na';
+  // 卡内仍是安静文本层：状态 15px 色档（cons-state 单源）+ 投票文本链
+  // （名字次色 + 语义色勾叉，成员链接到专题页）
   const member = (m) => {
     const mark = !m.present ? '×' : m.vote === 'on' ? '✓' : m.vote === 'off' ? '✗' : '—';
     const mcls = !m.present ? 'absent' : m.vote === 'on' ? 'on' : m.vote === 'off' ? 'off' : 'abst';
     const href = (c.page_links || {})[m.name] || '#';
     return `<a class="dash-hv-member dash-hv-member--${mcls}" href="${href}" title="${esc(m.name)} · ${esc(m.as_of || '')}">${esc(m.name)}<i>${mark}</i></a>`;
   };
-  box.innerHTML = `
-    <div class="dash-hero-status">
-      <span class="dash-hs"><small>市场</small><b class="cons-state cons-state--${mktCls}">${esc(c.market.state)}</b></span>
-      <span class="dash-hs-sep" aria-hidden="true">·</span>
-      <span class="dash-hs"><small>宏观</small><b class="cons-state cons-state--${c.macro.cls || 'na'}">${esc(c.macro.state)}</b></span>
-      ${c.finalized === false ? '<span class="cons-intraday">盘中临时值</span>' : ''}
-    </div>
-    <div class="dash-hero-votes">
-      <div class="dash-hv-group"><small>市场</small>${c.market.members.map(member).join('')}</div>
-      <div class="dash-hv-group"><small>宏观</small>${c.macro.members.map(member).join('')}</div>
-    </div>`;
+  const scBody = (card) => `
+    <div class="dash-sc-state"><b class="cons-state cons-state--${card.cls || 'na'}">${esc(card.state)}</b></div>
+    <div class="dash-sc-votes">${card.members.map(member).join('')}</div>`;
+  mkt.innerHTML = scBody(c.market);
+  mac.innerHTML = scBody(c.macro);
+  const mmeta = document.getElementById('dash-sc-market-meta');
+  const ameta = document.getElementById('dash-sc-macro-meta');
+  if (mmeta) mmeta.textContent = `参与 ${c.market.n_present}/${c.market.n_members}${c.finalized === false ? ' · 盘中临时值' : ''}`;
+  if (ameta) ameta.textContent = `参与 ${c.macro.n_present}/${c.macro.n_members}`;
   if (stv) stv.innerHTML = `<b class="cons-state cons-state--${c.market.cls || 'na'}">${esc(c.market.state)}</b><span class="dash-sticky-macro">宏观 ${esc(c.macro.state)}</span>`;
 }
 

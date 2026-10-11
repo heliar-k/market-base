@@ -43,15 +43,19 @@
   .dash-col > * { order: 0; }
 }
 
-/* ── 头条区：结论与证据分层。状态一行 15px（cons-state 色档单源，不再大字），
-   投票降为两行文本链（名字次色 + 语义色勾叉），无胶囊无多余边框 ── */
-.dash-hero { display: flex; flex-direction: column; gap: 10px; }
-.dash-hero-status { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; }
-.dash-hs small { font-size: 12.5px; font-weight: 400; color: var(--text-secondary); margin-right: 5px; }
-.dash-hs-sep { color: var(--text-dim); }
-.dash-hero-votes { display: flex; flex-direction: column; gap: 2px; }
-.dash-hv-group { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 10px; }
-.dash-hv-group > small { font-size: 11px; color: var(--text-dim); margin-right: 2px; }
+/* ── 头条区：卡片化组织 —— 市场共识卡 + 宏观共识卡（对称对）+ 情景与报警卡（全宽）。
+   卡内仍是安静文本层（状态 15px 色档、投票文本链），卡片只提供结构不提供墨水 ── */
+.dash-hero { display: flex; flex-direction: column; gap: 12px; }
+.dash-hero-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr)); gap: 12px; }
+.dash-sc-card { gap: 10px; }
+.dash-sc-title {
+  display: flex; align-items: baseline; gap: 8px;
+  font-size: 13px; font-weight: 600; color: var(--text-secondary);
+  border-bottom: 1px solid var(--border-light); padding-bottom: 8px;
+}
+.dash-sc-title > small { margin-left: auto; }
+.dash-sc-state b { font-size: 16px; }
+.dash-sc-votes { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 12px; }
 .dash-hv-member { font-size: 11.5px; color: var(--text-secondary); text-decoration: none; padding: 5px 2px; }
 .dash-hv-member:hover { color: var(--accent-ink); }
 .dash-hv-member i { font-style: normal; font-weight: 700; margin-left: 3px; }
@@ -60,6 +64,7 @@
 .dash-hv-member--abst i { color: var(--text-dim); }
 .dash-hv-member--absent { opacity: .45; }
 .dash-hv-member--absent i { color: var(--text-dim); }
+.dash-alert-card { gap: 10px; }
 .dash-hero-na { font-size: 13px; color: var(--text-secondary); }
 .dash-hero-scen { font-size: 14px; font-weight: 600; color: var(--text); }
 .dash-hero-scen.hot { color: var(--warning); }
