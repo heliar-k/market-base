@@ -66,17 +66,32 @@
 .dash-hv-member--absent i { color: var(--text-dim); }
 .dash-alert-card { gap: 10px; }
 .dash-hero-na { font-size: 13px; color: var(--text-secondary); }
-.dash-hero-scen { font-size: 14px; font-weight: 600; color: var(--text); }
-.dash-hero-scen.hot { color: var(--warning); }
-.dash-hero-alert { font-size: 12.5px; color: var(--warning); }
-/* 背景行：弱化脚注，分隔点由 ::before 统一画（空段自动隐藏） */
-.dash-hero-meta { display: flex; flex-wrap: wrap; gap: 4px 10px; font-size: 12px; color: var(--text-dim); }
-.dash-hero-meta > *:empty { display: none; }
-.dash-hero-meta > * + *:not(:empty)::before { content: '·'; margin-right: 10px; opacity: .55; }
-.dash-hero-meta a { color: var(--text-dim); text-decoration: none; padding: 2px 0; }
-.dash-hero-meta a:hover { color: var(--accent-ink); }
-/* 背景行内部（FOMC/衰退/入口）与两段之间统一由 ::before 画分隔点 */
-#dash-hero-bg > * + *::before { content: '·'; margin-right: 10px; opacity: .55; }
+
+/* 背景锚点卡：FOMC/衰退 kv 行（一项一个数），数据截至沉卡底注 */
+.dash-bg-body { display: flex; flex-direction: column; }
+.dash-bg-row {
+  display: flex; justify-content: space-between; align-items: baseline; gap: 8px;
+  padding: 7px 0; border-bottom: 1px solid var(--border-light); font-size: 12.5px;
+}
+.dash-bg-row:last-child { border-bottom: none; }
+.dash-bg-k { color: var(--text-secondary); }
+.dash-bg-v { font-weight: 600; color: var(--text); font-variant-numeric: tabular-nums; text-align: right; }
+.dash-bg-v em { font-style: normal; font-weight: 400; font-size: 11px; color: var(--text-dim); margin-left: 4px; }
+.dash-bg-note { margin-top: auto; padding-top: 8px; font-size: 11px; color: var(--text-dim); line-height: 1.5; }
+
+/* 情景与报警：情景结论一行（空态降次色），报警两行式（标题 + 正文放出 + 专题链） */
+.dash-al-scen { font-size: 13.5px; font-weight: 600; color: var(--text); }
+.dash-al-scen.empty { color: var(--text-secondary); }
+.dash-al-item { padding: 8px 0; }
+.dash-al-item + .dash-al-item { border-top: 1px solid var(--border-light); }
+.dash-al-title { font-size: 13px; font-weight: 600; color: var(--warning); }
+.dash-al-text { font-size: 12px; color: var(--text-secondary); line-height: 1.55; margin-top: 2px; }
+.dash-al-topic { font-size: 11.5px; color: var(--text-dim); text-decoration: none; margin-left: 8px; white-space: nowrap; }
+.dash-al-topic:hover { color: var(--accent-ink); }
+/* 平板 768-1023：三状态卡 2+1，背景卡落单行时铺满（免得孤零零半宽） */
+@media (min-width: 768px) and (max-width: 1023.98px) {
+  .dash-bg-card { grid-column: 1 / -1; }
+}
 
 /* ── 节头（波动率 / 市场快照 / 今日一句话 / 自选 共用）── */
 .dash-sec-head { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 8px; font-size: 13px; font-weight: 600; color: var(--text-secondary); padding: 0 2px; }

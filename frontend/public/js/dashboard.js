@@ -25,6 +25,16 @@ const NAV_PAGES = (() => {
   return pages;
 })();
 
+// 专题键 → 中文标签（报警 topics 挂链接时的锚文本）
+const NAV_LABELS = (() => {
+  const labels = new Map();
+  for (const g of SITE_NAV.groups) {
+    labels.set(g.key, g.label);
+    (g.items || []).forEach(i => labels.set(i.key, i.label));
+  }
+  return labels;
+})();
+
 // 自选清单（localStorage，默认参考 timsun：核心指数/个股）
 const WATCH_KEY = 'guanlan-watchlist';
 const DEFAULT_WATCH = ['SPX', 'NVDA'];
@@ -99,11 +109,15 @@ function heroShell() {
         <div class="dash-sc-title">宏观共识 <small class="dash-title-note" id="dash-sc-macro-meta"></small></div>
         <div class="dash-sc-body" id="dash-sc-macro"><span class="loading">加载中…</span></div>
       </div>
+      <div class="dash-card dash-sc-card dash-bg-card">
+        <div class="dash-sc-title">市场背景</div>
+        <div class="dash-bg-body" id="dash-bg-body"><span class="loading">加载中…</span></div>
+        <div class="dash-bg-note"><small id="dash-asof"></small></div>
+      </div>
     </div>
     <div class="dash-card dash-alert-card">
       <div class="dash-sc-title">情景与报警 <a class="dash-sec-link" href="${SITE_NAV.home.page}" target="_blank">进入今日研判 →</a></div>
       <div id="dash-hero-sub"></div>
-      <div class="dash-hero-meta"><span id="dash-hero-bg"></span><span id="dash-asof"></span></div>
     </div>`;
   return s;
 }
@@ -228,37 +242,42 @@ function renderAlerts() {
     ? `主导情景：${matched.map(s => s.title).join(' + ')}`
     : '跨资产信号分化，无主导情景';
   elx.innerHTML = `
-    <div class="dash-hero-scen${matched.length ? ' hot' : ''}">${esc(headline)}</div>
-    ${alerts.map(a => `<div class="dash-hero-alert" title="${esc(a.text)}">⚠ ${esc(a.title)}</div>`).join('')}`;
+    <div class="dash-al-scen${matched.length ? '' : ' empty'}">${esc(headline)}</div>
+    ${alerts.map(a => {
+      const tk = (a.topics || []).find(k => NAV_PAGES.get(k));
+      const link = tk ? `<a class="dash-al-topic" href="${NAV_PAGES.get(tk)}" target="_blank">${esc(NAV_LABELS.get(tk) || tk)} →</a>` : '';
+      return `<div class="dash-al-item">
+        <div class="dash-al-title">⚠ ${esc(a.title)}</div>
+        <div class="dash-al-text">${esc(a.text)}${link}</div>
+      </div>`;
+    }).join('')}`;
   if (sta) sta.textContent = alerts.length ? `⚠ ${alerts.length}` : '';
 }
 
-// 头条背景行：FOMC 倒计时 · 衰退概率（Polymarket）· 今日研判页入口。
-// 跨资产变化表/情景卡本体在 /daily/（同端点同 11 行，仪表盘不复制一遍）。
+// 背景锚点卡：FOMC 下次会议 + 衰退概率（Polymarket），kv 行；
+// 数据截至走卡底注（renderAsOf，R.asOf 单源）。跨资产表入口在情景卡头。
 // 静态 JSON 冻结了构建期日历：FOMC 按打开页面时间重选下一场（R.nextMeeting 单源）；
-// 天数口径统一 end_day + ceil。分隔点由 CSS ::before 统一画。
+// 天数口径统一 end_day + ceil。
 function renderBriefLink() {
-  const box = document.getElementById('dash-hero-bg');
+  const box = document.getElementById('dash-bg-body');
   if (!box) return;
   const d = data.brief;
-  if (d.status !== 'fulfilled') { box.innerHTML = ''; return; }
+  if (d.status !== 'fulfilled') { box.innerHTML = '<span class="dash-hero-na">背景数据缺失（brief 端点未响应）</span>'; return; }
   const v = d.value;
-  const parts = [];
+  const rows = [];
   const nx = R.nextMeeting(v.fomc);
   if (nx) {
     const days = Math.ceil((new Date(nx.year, nx.month - 1, nx.end_day) - new Date()) / 86400000);
     const next = `${nx.year}-${String(nx.month).padStart(2, '0')}-${String(nx.end_day).padStart(2, '0')}`;
-    parts.push(`<span>FOMC ${next}${days > 0 ? `（${days} 天后）` : '（进行中）'}</span>`);
+    rows.push(`<div class="dash-bg-row"><span class="dash-bg-k">FOMC 下次</span><span class="dash-bg-v">${next}<em>${days > 0 ? `${days} 天后` : '进行中'}</em></span></div>`);
   }
   const pm = v.polymarket?.recession;
   if (pm?.prob != null) {
     const pct = (pm.prob * 100).toFixed(1).replace(/\.0$/, '');
     const y = (pm.end_date || '').slice(0, 4);
-    parts.push(`<span title="${esc(pm.title)}（Polymarket ${esc(v.polymarket.as_of || '')}）">衰退 ${y} ${pct}%</span>`);
+    rows.push(`<div class="dash-bg-row"><span class="dash-bg-k">衰退 ${y}</span><span class="dash-bg-v" title="${esc(pm.title)}（Polymarket ${esc(v.polymarket.as_of || '')}）">${pct}%<em>Polymarket</em></span></div>`);
   }
-  const n = (v.indicators?.rows || []).length;
-  parts.push(`<a href="${SITE_NAV.home.page}" target="_blank">跨资产变化表 · 情景与反证${n ? `（${n} 个指标）` : ''} ↗</a>`);
-  box.innerHTML = parts.join('');
+  box.innerHTML = rows.join('') || '<span class="dash-hero-na">暂无背景数据</span>';
 }
 
 // 头条背景行的数据截至段（多源口径只能由 R.asOf 组装，AGENTS 第 8 节）
