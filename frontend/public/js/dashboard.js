@@ -38,10 +38,11 @@ export async function initDashboard() {
   root.appendChild(el('div', 'dash-consensus'));
   root.appendChild(el('div', 'dash-lines'));
   root.appendChild(el('div', 'dash-alerts'));
-  root.appendChild(el('div', 'dash-brief-link'));
+  // 背景/入口行（FOMC · 衰退 · 今日研判入口）：弱化文字，不与结论徽章抢视觉
+  root.appendChild(el('div', 'dash-meta'));
   // 波动率整节（KPI + 信号卡）：信号是对 KPI 的解读，中间不再隔六板块快照
   root.appendChild(buildVolSection());
-  root.appendChild(el('div', 'dash-grid dash-grid-2'));
+  root.appendChild(buildSnapSection());
   root.appendChild(el('div', 'dash-watch-card dash-card'));
 
   await refresh();
@@ -158,7 +159,7 @@ function renderLines() {
   box.innerHTML = `
     <div class="dash-sec-head">今日一句话 <small class="dash-title-note">按专题聚合 · 点击进入对应研判</small></div>
     <div class="dash-line-cards">${cards.map(l => lineCard(l, hot.has(l.key))).join('')}</div>
-    ${chips.length ? `<div class="dash-calm"><span class="dash-calm-k">平稳</span>${chips.map(calmChip).join('')}</div>` : ''}`;
+    ${chips.length ? `<div class="dash-calm"><span class="dash-calm-k">平稳</span>${chips.map(calmChip).join('<span class="dash-calm-dot" aria-hidden="true">·</span>')}</div>` : ''}`;
 }
 
 // 有信号的专题卡：标题 + 完整一句话（不截断）+ 行末进入提示
@@ -199,7 +200,7 @@ function renderAsOf() {
   elx.textContent = R.asOf(segs.length ? segs : [d.value.indicators?.as_of]);
 }
 
-// 报警条 + 主导情景 + FOMC（结论层）
+// 报警条 + 主导情景（结论层语义色徽章；FOMC/衰退/入口等背景信息归 dash-meta 行）
 function renderAlerts() {
   const elx = root().querySelector('.dash-alerts');
   const d = data.brief;
@@ -212,47 +213,43 @@ function renderAlerts() {
     ? `主导情景：${matched.map(s => s.title).join(' + ')}`
     : '跨资产信号分化，无主导情景';
 
-  let fomcHTML = '';
-  const nx = R.nextMeeting(v.fomc);
-  if (nx) {
-    // 静态 JSON 冻结了构建期日历：按打开页面时间重选下一场（R.nextMeeting 单源）；
-    // 天数口径统一 end_day + ceil
-    const days = Math.ceil((new Date(nx.year, nx.month - 1, nx.end_day) - new Date()) / 86400000);
-    const next = `${nx.year}-${String(nx.month).padStart(2, '0')}-${String(nx.end_day).padStart(2, '0')}`;
-    fomcHTML = `<span class="dash-chip">FOMC ${next}${days > 0 ? `（${days} 天后）` : '（进行中）'}</span>`;
-  }
-
-  // 预测市场锚点：衰退概率（Polymarket）
-  let pmHTML = '';
-  const pm = v.polymarket?.recession;
-  if (pm?.prob != null) {
-    const pct = (pm.prob * 100).toFixed(1).replace(/\.0$/, '');
-    const y = (pm.end_date || '').slice(0, 4);
-    pmHTML = `<span class="dash-chip" title="${esc(pm.title)}（Polymarket ${esc(v.polymarket.as_of || '')}）">衰退 ${y} ${pct}%</span>`;
-  }
-
   elx.innerHTML = `
     <div class="dash-conclusion">
       <span class="dash-badge ${matched.length ? 'bull' : 'flat'}">${headline}</span>
       ${alerts.map(a => `<span class="dash-badge alert" title="${esc(a.text)}">⚠ ${esc(a.title)}</span>`).join('')}
-      ${fomcHTML}
-      ${pmHTML}
     </div>`;
 }
 
-// 跨资产变化表 / 情景卡本体在 /daily/（同端点同 11 行，仪表盘不复制一遍），这里只留入口
+// 背景/入口行（弱化文字）：FOMC 倒计时 · 衰退概率（Polymarket）· 今日研判页入口。
+// 跨资产变化表/情景卡本体在 /daily/（同端点同 11 行，仪表盘不复制一遍）。
+// 静态 JSON 冻结了构建期日历：FOMC 按打开页面时间重选下一场（R.nextMeeting 单源）；
+// 天数口径统一 end_day + ceil。
 function renderBriefLink() {
-  const box = root().querySelector('.dash-brief-link');
+  const box = root().querySelector('.dash-meta');
   const d = data.brief;
   if (!box) return;
   if (d.status !== 'fulfilled') { box.innerHTML = ''; return; }
   const v = d.value;
+  const parts = [];
+
+  const nx = R.nextMeeting(v.fomc);
+  if (nx) {
+    const days = Math.ceil((new Date(nx.year, nx.month - 1, nx.end_day) - new Date()) / 86400000);
+    const next = `${nx.year}-${String(nx.month).padStart(2, '0')}-${String(nx.end_day).padStart(2, '0')}`;
+    parts.push(`FOMC ${next}${days > 0 ? `（${days} 天后）` : '（进行中）'}`);
+  }
+
+  // 预测市场锚点：衰退概率（Polymarket）
+  const pm = v.polymarket?.recession;
+  if (pm?.prob != null) {
+    const pct = (pm.prob * 100).toFixed(1).replace(/\.0$/, '');
+    const y = (pm.end_date || '').slice(0, 4);
+    parts.push(`<span title="${esc(pm.title)}（Polymarket ${esc(v.polymarket.as_of || '')}）">衰退 ${y} ${pct}%</span>`);
+  }
+
   const n = (v.indicators?.rows || []).length;
-  const sc = (v.scenarios || []).filter(s => s.matched).length;
-  box.innerHTML = `<a class="dash-brief-a" href="${SITE_NAV.home.page}" target="_blank">
-    <span class="dash-brief-t">跨资产变化表 · 情景与反证</span>
-    <span class="dash-brief-d">${n} 个指标的 Δ5/Δ20 与近 20 观测走势${sc ? `，当前命中 ${sc} 个情景` : ''}</span>
-    <span class="dash-brief-go">↗</span></a>`;
+  parts.push(`<a href="${SITE_NAV.home.page}" target="_blank">跨资产变化表 · 情景与反证${n ? `（${n} 个指标）` : ''} ↗</a>`);
+  box.innerHTML = parts.join('<span class="dash-meta-dot" aria-hidden="true">·</span>');
 }
 
 // 六板块快照（assets/overview tables）
@@ -299,8 +296,18 @@ function buildVolSection() {
   const sec = el('section', 'dash-vol-sec');
   const head = el('div', 'dash-sec-head');
   const page = NAV_PAGES.get('vol');
-  head.innerHTML = `波动率${page ? ` <a class="dash-sec-link" href="${page}" target="_blank">进入专题 →</a>` : ''}`;
+  head.innerHTML = `波动率${page ? ` <a class="dash-sec-link" href="${page}" target="_blank">进入专题 →</a>` : ''} <small class="dash-title-note">1 日变化</small>`;
   sec.append(head, el('div', 'dash-kpi'), el('div', 'dash-vol'));
+  return sec;
+}
+
+// 市场快照一节：节头与波动率节同构；六板块等高卡（前 4 行 + 页脚行进专题）
+function buildSnapSection() {
+  const sec = el('section', 'dash-snap-sec');
+  const head = el('div', 'dash-sec-head');
+  const page = NAV_PAGES.get('assets');
+  head.innerHTML = `市场快照${page ? ` <a class="dash-sec-link" href="${page}" target="_blank">进入大类资产 →</a>` : ''}`;
+  sec.append(head, el('div', 'dash-grid dash-grid-2'));
   return sec;
 }
 
@@ -321,12 +328,12 @@ function renderVol() {
   kpi.replaceChildren(R.cards((v.hero.cards || []).map(c => ({
     label: c.symbol,
     value: fmtNum(c.value),
-    sub: `${esc(c.name)} · ${R.chgSpan(c.chg1d)} 1D`,
+    // 「1D」口径已在节头注明，卡内不重复
+    sub: `${esc(c.name)} · ${R.chgSpan(c.chg1d)}`,
   }))));
   const signals = (v.signals || []).map(s => `
     <div class="dash-card dash-sig-card">
       <div class="dash-sig-title">${esc(s.title)}</div>
-      <div class="dash-sig-metric">${esc(s.metric)}</div>
       <div class="dash-sig-text">${esc(s.text)}</div>
       ${s.advice ? `<div class="dash-sig-advice">应对：${esc(s.advice)}</div>` : ''}
     </div>`).join('');
