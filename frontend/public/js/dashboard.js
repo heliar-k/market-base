@@ -90,9 +90,27 @@ export function refresh() {
 }
 
 export function updateStatus() {
+  // 视图切换时同步调用（数据未到）：先占位，数据落地后由 renderStatus() 回填真信息
   document.getElementById('status-symbol').textContent = '市场仪表盘';
-  document.getElementById('status-range').textContent = '数据驾驶舱';
+  document.getElementById('status-range').textContent = '加载中…';
   document.getElementById('status-count').textContent = '';
+}
+
+// 状态栏回填：板块数 / 标的数（资产快照落地后调用）
+function renderStatus() {
+  const symEl = document.getElementById('status-symbol');
+  const rngEl = document.getElementById('status-range');
+  if (!symEl || !rngEl) return;
+  symEl.textContent = '市场仪表盘';
+  const res = data.assets;
+  if (res.status !== 'fulfilled' || !res.value?.tables) {
+    rngEl.textContent = '资产快照加载失败';
+    return;
+  }
+  const tables = res.value.tables;
+  const boards = Object.values(tables).filter(r => r.length).length;
+  const syms = Object.values(tables).reduce((n, r) => n + r.length, 0);
+  rngEl.textContent = `${boards} 板块 · ${syms} 标的`;
 }
 
 // ── section shells（static skeletons；渲染器按 id 填充）────────
@@ -234,7 +252,12 @@ function renderAlerts() {
   const sta = document.getElementById('dash-sticky-alert');
   if (!elx) return;
   const d = data.brief;
-  if (d.status !== 'fulfilled') { elx.innerHTML = ''; if (sta) sta.textContent = ''; return; }
+  if (d.status !== 'fulfilled') {
+    // README 式空状态：给原因与修复命令，不白屏不静默
+    elx.innerHTML = '<span class="dash-hero-na">情景与报警加载失败（brief 端点未响应，确认服务已启动或重跑 export_pages）</span>';
+    if (sta) sta.textContent = '';
+    return;
+  }
   const v = d.value;
   const alerts = v.alerts || [];
   const matched = (v.scenarios || []).filter(s => s.matched);
@@ -354,7 +377,12 @@ function renderVol() {
   const res = data.vol;
   if (!kpi || !elx) return;
   if (res.status !== 'fulfilled' || !res.value?.hero) {
-    if (sec) sec.style.display = 'none';
+    // 失败不再整节消失（静默违反 README 式空状态约定）：节头保留，卡体给原因与修复命令
+    if (sec) {
+      sec.style.display = '';
+      kpi.innerHTML = '';
+      elx.innerHTML = '<div class="dash-vol-fail">波动率数据缺失（/api/volatility/dashboard 不可达，确认服务已启动或重跑 export_pages）</div>';
+    }
     const stx = document.getElementById('dash-sticky-vix');
     if (stx) stx.textContent = '';
     return;
@@ -416,6 +444,7 @@ function renderAssetSnapshots() {
         </div>`;
       }).join('')}</div>${more}</div>`;
   }).join('');
+  renderStatus();
 }
 
 // 自选清单 chips（localStorage 持久化；标的来自 /api/symbols + /api/kline）
@@ -433,7 +462,8 @@ async function refreshWatch() {
     valid.map(s => settled(`/api/kline/${s}?days=5`))
   );
   chips.innerHTML = valid.length ? valid.map((sym, i) => watchChip(sym, results[i])).join('')
-    : '<span class="dash-watch-empty">暂无自选，从上方下拉添加</span>';
+    : syms.status === 'fulfilled' ? '<span class="dash-watch-empty">暂无自选，从上方下拉添加</span>'
+    : '<span class="dash-watch-empty">标的清单加载失败（/api/symbols 不可达），暂无法显示自选</span>';
   if (sel) {
     sel.innerHTML = '<option value="">＋添加…</option>'
       + all.filter(s => !valid.includes(s)).map(s => `<option>${s}</option>`).join('');
