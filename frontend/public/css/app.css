@@ -272,6 +272,8 @@ body { font-family: system-ui, -apple-system, sans-serif; background: var(--bg);
 }
 .dash-watch-row:hover { background: var(--surface-hover); }
 .dash-watch-row:last-child { border-bottom: none; }
+.dash-watch-row:has(.watch-del) { gap: 8px; }
+.dash-watch-row:has(.watch-del) .dash-watch-price { margin-left: auto; }
 .dash-watch-sym { font-weight: 600; min-width: 50px; }
 .dash-watch-price { color: var(--text); }
 
@@ -553,6 +555,25 @@ body.embedded .macro-nav, body.embedded #macro-nav-toggle { display: none; }
 .sidebar-row:hover { background: var(--surface-hover); }
 .sidebar-row.active { background: var(--accent-light); color: var(--accent-ink); }
 .sidebar-row-price { font-size: 11px; font-weight: 400; white-space: nowrap; }
+
+/* ── 自选清单（ADR-0005 T3：家住技术侧栏；仪表盘自选卡过渡期共用）──
+   带 ✕ 的行改 flex-start + margin-left:auto，避免三子元素 space-between 把价格挤到中间 */
+.sidebar-row:has(.watch-del) { justify-content: flex-start; gap: 6px; }
+.sidebar-row:has(.watch-del) .sidebar-row-price { margin-left: auto; }
+.watch-del {
+  flex: 0 0 auto; width: 24px; height: 24px; margin: -4px 0; align-self: center;
+  display: inline-flex; align-items: center; justify-content: center;
+  border: 1px solid var(--border); border-radius: 6px;
+  background: var(--surface); color: var(--text-dim);
+  font-size: 11px; line-height: 1; cursor: pointer; padding: 0;
+}
+.watch-del:hover { color: var(--color-down-text); border-color: var(--color-down); background: var(--color-down-bg); }
+.sidebar-watch-header { display: flex; align-items: center; justify-content: space-between; gap: 6px; }
+.sidebar-watch-add {
+  max-width: 76px; min-height: 24px; font-size: 11px; color: var(--text-secondary);
+  border: 1px solid var(--border); border-radius: 6px; background: var(--surface);
+}
+.sidebar-watch-empty { font-size: 11px; color: var(--text-dim); padding: 4px 8px; }
 
 /* ── stock view ────────────────────────────────────────── */
 .stock-toolbar { flex-wrap: wrap; gap: 8px; padding: 4px 0; }

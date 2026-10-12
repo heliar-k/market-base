@@ -1,6 +1,7 @@
 // tech-view.js — K-line charts, sidebar, diagnosis, overlays + volume + range
 
 import { CHART_OPTS, darkChartOpts, addLine, cssVar } from './charts-common.js';
+import { loadWatch, saveWatch, removeWatch } from './watchlist.js';
 
 // ── state ──────────────────────────────────────────────────────────────────
 let currentSymbol = null;
@@ -123,32 +124,85 @@ async function loadSymbols() {
   const indices = symbols.filter(s => s.type === 'index' || ETF_LIKE.has(s.name));
   const stocks   = symbols.filter(s => s.type === 'stock' && !ETF_LIKE.has(s.name));
 
+  // 自选（ADR-0005 T3：家住技术侧栏，与 symbol-list 同组同构；置顶分组，✕ 显式删除）
+  const watchSet = new Set(loadWatch());
+  const watchSyms = symbols.filter(s => watchSet.has(s.name));
+
+  const buildRow = (s) => {
+    const row = document.createElement('div');
+    row.className = 'sidebar-row';
+    row.dataset.name = s.name;
+    const nameSpan = document.createElement('span');
+    nameSpan.className = 'sidebar-row-name';
+    nameSpan.textContent = s.name;
+    row.appendChild(nameSpan);
+    const priceSpan = document.createElement('span');
+    priceSpan.className = 'sidebar-row-price';
+    priceSpan.textContent = '--';
+    row.appendChild(priceSpan);
+    row.addEventListener('click', () => selectSymbol(s.name));
+    return row;
+  };
+
   const addSection = (title, items) => {
     const hdr = document.createElement('div');
     hdr.className = 'sidebar-section-header';
     hdr.textContent = title;
     list.appendChild(hdr);
-    items.forEach(s => {
-      const row = document.createElement('div');
-      row.className = 'sidebar-row';
-      row.dataset.name = s.name;
-      const nameSpan = document.createElement('span');
-      nameSpan.className = 'sidebar-row-name';
-      nameSpan.textContent = s.name;
-      row.appendChild(nameSpan);
-      const priceSpan = document.createElement('span');
-      priceSpan.className = 'sidebar-row-price';
-      priceSpan.textContent = '--';
-      row.appendChild(priceSpan);
-      row.addEventListener('click', () => selectSymbol(s.name));
+    items.forEach(s => list.appendChild(buildRow(s)));
+  };
+
+  // 自选分组：置顶；头部带添加下拉（全部标的 - 已自选）；每行 ✕ 删除（≥24px 触控目标）
+  const watchHdr = document.createElement('div');
+  watchHdr.className = 'sidebar-section-header sidebar-watch-header';
+  watchHdr.innerHTML = '<span>自选</span>';
+  const addSel = document.createElement('select');
+  addSel.className = 'sidebar-watch-add';
+  addSel.setAttribute('aria-label', '添加自选标的');
+  addSel.innerHTML = '<option value="">＋</option>'
+    + symbols.filter(s => !watchSet.has(s.name)).map(s => `<option>${s.name}</option>`).join('');
+  addSel.addEventListener('change', () => {
+    if (!addSel.value) return;
+    const next = loadWatch();
+    next.push(addSel.value);
+    saveWatchAndReload(next);
+  });
+  watchHdr.appendChild(addSel);
+  list.appendChild(watchHdr);
+  if (watchSyms.length) {
+    watchSyms.forEach(s => {
+      const row = buildRow(s);
+      const del = document.createElement('button');
+      del.type = 'button';
+      del.className = 'watch-del';
+      del.textContent = '✕';
+      del.title = '删除自选';
+      del.setAttribute('aria-label', `删除自选 ${s.name}`);
+      del.addEventListener('click', e => {
+        e.stopPropagation();
+        removeWatch(s.name);
+        loadSymbols();
+      });
+      row.appendChild(del);
       list.appendChild(row);
     });
-  };
+  } else {
+    const empty = document.createElement('div');
+    empty.className = 'sidebar-watch-empty';
+    empty.textContent = '暂无自选 · 用上方 ＋ 添加';
+    list.appendChild(empty);
+  }
 
   addSection('指数 & ETF', indices);
   addSection('个股', stocks);
 
   fetchSidebarPrices(symbols);
+}
+
+// 添加后写回并重渲侧栏（统一入口，避免每处 saveWatch 后各自补渲染）
+function saveWatchAndReload(next) {
+  saveWatch(next);
+  loadSymbols();
 }
 
 async function fetchSidebarPrices(symbols) {

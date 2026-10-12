@@ -8,6 +8,7 @@
 //   /api/symbols + /api/kline/{sym}?days=5 → 自选清单（localStorage 持久化）
 
 import { SITE_NAV } from './site-nav.js';
+import { loadWatch, saveWatch, removeWatch, fetchSymbolNames } from './watchlist.js';
 
 // 专题页映射（SITE_NAV 唯一数据源：组键 + 子页键 → page），今日一句话用
 const NAV_PAGES = (() => {
@@ -19,9 +20,7 @@ const NAV_PAGES = (() => {
   return pages;
 })();
 
-// 自选清单（localStorage，默认参考 timsun：10Y/信用/VIX 类核心指标）
-const WATCH_KEY = 'guanlan-watchlist';
-const DEFAULT_WATCH = ['SPX', 'NVDA'];
+// 自选清单存储/增删/校验已收编 watchlist.js 单源（此处删去 WATCH_KEY/DEFAULT_WATCH 本地定义）
 
 let data = {};
 
@@ -313,16 +312,12 @@ function renderVol() {
   elx.innerHTML = signals ? `<div class="dash-vol-signals">${signals}</div>` : '';
 }
 
-// 自选清单（localStorage 持久化；标的来自 /api/symbols + /api/kline）
+// 自选清单（ADR-0005 T3：状态与增删收编进 watchlist.js 单源；本卡过渡期保留，T4 删视图）
 async function refreshWatch() {
   const card = root().querySelector('.dash-watch-card');
   if (!card) return;
-  let list;
-  try { list = JSON.parse(localStorage.getItem(WATCH_KEY)) || DEFAULT_WATCH; }
-  catch { list = DEFAULT_WATCH; }
-  const syms = (await settled('/api/symbols'));
-  const all = (syms.status === 'fulfilled' ? syms.value : []).map(s => s.name ?? s);
-  const valid = list.filter(s => all.includes(s));
+  const all = await fetchSymbolNames().catch(() => []);
+  const valid = loadWatch().filter(s => all.includes(s));
   const results = await Promise.all(
     valid.map(s => settled(`/api/kline/${s}?days=5`))
   );
@@ -331,7 +326,7 @@ async function refreshWatch() {
       <span id="dash-watch-add-wrap">
         <select id="dash-watch-add" style="margin-left:8px">
           <option value="">＋添加…</option>
-          ${all.filter(s => !valid.includes(s)).map(s => `<option>${s}</option>`).join('')}
+          ${all.filter(s => !valid.includes(s)).map(s => `<option>${esc(s)}</option>`).join('')}
         </select>
       </span>
       <small class="dash-title-note">点击行进入技术分析</small>
@@ -350,19 +345,20 @@ async function refreshWatch() {
 
   card.querySelector('#dash-watch-add')?.addEventListener('change', e => {
     if (!e.target.value) return;
-    valid.push(e.target.value);
-    localStorage.setItem(WATCH_KEY, JSON.stringify(valid));
+    const next = loadWatch();
+    next.push(e.target.value);
+    saveWatch(next);
     refreshWatch();
   });
-  // 删除：右键或按住 Alt 点击
+  // 删除：显式 ✕（原 Alt+点击不可发现，T3 修掉）；键盘可达
   card.querySelectorAll('[data-watch-del]').forEach(elx => {
     elx.addEventListener('click', e => {
-      if (!e.altKey) return;
       e.stopPropagation();
-      const sym = elx.dataset.watchDel;
-      const next = valid.filter(s => s !== sym);
-      localStorage.setItem(WATCH_KEY, JSON.stringify(next));
+      removeWatch(elx.dataset.watchDel);
       refreshWatch();
+    });
+    elx.addEventListener('keydown', e => {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); elx.click(); }
     });
   });
   card.querySelectorAll('[data-go-stock]').forEach(row => {
@@ -378,16 +374,18 @@ async function refreshWatch() {
 }
 
 function watchRow(sym, price, pct) {
+  const del = `<button type="button" class="watch-del" data-watch-del="${sym}"
+    title="删除自选" aria-label="删除自选 ${sym}">✕</button>`;
   if (pct == null) {
-    return `<div class="dash-watch-row" data-go-stock="${sym}" title="Alt+点击删除">
-      <span class="dash-watch-sym">${sym}</span><span class="dash-watch-price">${price}</span><span>--</span></div>`;
+    return `<div class="dash-watch-row" data-go-stock="${sym}">
+      <span class="dash-watch-sym">${sym}</span><span class="dash-watch-price">${price}</span><span>--</span>${del}</div>`;
   }
   const cls = pct >= 0 ? 'up' : 'down';
   const sign = pct >= 0 ? '+' : '';
-  return `<div class="dash-watch-row" data-go-stock="${sym}" data-watch-del="${sym}" title="点击进入技术分析 · Alt+点击删除">
+  return `<div class="dash-watch-row" data-go-stock="${sym}" title="点击进入技术分析">
     <span class="dash-watch-sym">${sym}</span>
     <span class="dash-watch-price">${price}</span>
-    <span class="${cls}">${sign}${pct.toFixed(2)}%</span>
+    <span class="${cls}">${sign}${pct.toFixed(2)}%</span>${del}
   </div>`;
 }
 
