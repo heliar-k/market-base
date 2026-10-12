@@ -31,7 +31,10 @@ _HEADER_ROW = 3
 _1Y_KEYS = ["median", "one-year", "expected inflation"]
 _3Y_KEYS = ["median", "three-year", "expected inflation"]
 _5Y_KEYS = ["median", "five-year", "expected inflation"]
-_5Y_SHEET = "Five-year ahead Infl Exp"
+# 2026-10 NY Fed 改版：5Y 并入主 sheet（Median five-year ahead ...），原独立 sheet
+# 「Five-year ahead Infl Exp」已删除。同名列主 sheet 只有 1Y/3Y/5Y 各一个 median
+# expected 列，子串匹配不受影响。
+_5Y_SHEET_LEGACY = "Five-year ahead Infl Exp"  # 改版前位置，找不到新列时回退试一次
 
 
 def fetch_sce() -> pd.DataFrame:
@@ -52,16 +55,29 @@ def fetch_sce() -> pd.DataFrame:
     df["SCE_INFL_3Y_MEDIAN"] = df[col_3y].astype(float)
     result = df[["date", "SCE_INFL_1Y_MEDIAN", "SCE_INFL_3Y_MEDIAN"]].set_index("date")
 
-    # 5Y 在单独 sheet，从 2022-01 开始
-    df5 = pd.read_excel(io.BytesIO(resp.content), sheet_name=_5Y_SHEET, header=_HEADER_ROW)
-    mask5 = df5.iloc[:, 0].notna()
-    df5 = df5[mask5].copy()
-    col_5y = _find_col(df5.columns, _5Y_KEYS)
+    # 5Y：改版后在主 sheet 同一行（Median five-year ahead expected inflation rate）；
+    # 旧版文件回退读独立 sheet。两者都没有则 5Y 列缺席（join 不上，列变 NaN，不阻断 1Y/3Y）
+    col_5y = _find_col(df.columns, _5Y_KEYS)
     if col_5y:
-        df5["date"] = df5.iloc[:, 0].astype(str).apply(_parse_yyyymm)
-        df5["SCE_INFL_5Y_MEDIAN"] = df5[col_5y].astype(float)
-        df5 = df5[["date", "SCE_INFL_5Y_MEDIAN"]].set_index("date")
-        result = result.join(df5, how="left")
+        df["date"] = df.iloc[:, 0].astype(str).apply(_parse_yyyymm)
+        df["SCE_INFL_5Y_MEDIAN"] = df[col_5y].astype(float)
+        result = result.join(df[["date", "SCE_INFL_5Y_MEDIAN"]].set_index("date"), how="left")
+    else:
+        try:
+            df5 = pd.read_excel(
+                io.BytesIO(resp.content), sheet_name=_5Y_SHEET_LEGACY, header=_HEADER_ROW
+            )
+        except ValueError:
+            df5 = pd.DataFrame()
+        if not df5.empty:
+            mask5 = df5.iloc[:, 0].notna()
+            df5 = df5[mask5].copy()
+            col_5y = _find_col(df5.columns, _5Y_KEYS)
+            if col_5y:
+                df5["date"] = df5.iloc[:, 0].astype(str).apply(_parse_yyyymm)
+                df5["SCE_INFL_5Y_MEDIAN"] = df5[col_5y].astype(float)
+                df5 = df5[["date", "SCE_INFL_5Y_MEDIAN"]].set_index("date")
+                result = result.join(df5, how="left")
 
     logger.info(f"  SCE: {len(result)} 条 ({result.index[0]} → {result.index[-1]})")
     return result
