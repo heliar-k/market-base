@@ -1,22 +1,22 @@
 ---
-// 今日研判页（SITE_NAV home 落地页）— 工单 #16 自 public/daily/index.html 迁入。
-// 结构最特殊：无 page-toc；定调徽章 + 三情景卡（点卡定位读法行）+ FOMC 倒计时 +
-// 跨资产变化表（点行展开正反两面）+ 结构报警 + 专题 link-grid；island 脚本逐字原样。
-// fetch('/api/daily-brief') + /api/rate-expectations 不变。
+// 今日研判页（SITE_NAV home 落地页）— 工单 #16 自 public/daily/index.html 迁入；ADR-0005 升级今日头版。
+// 结构最特殊：无 page-toc；头条区（共识完整卡 + 主导情景/报警/FOMC/衰退徽章，全站唯一结论渲染地）+
+// 三情景卡（点卡定位读法行）+ 跨资产变化表（点行展开正反两面）+ 结构报警定位 + 专题 link-grid；
+// island 脚本逐字原样。fetch('/api/daily-brief') + /api/rate-expectations + /api/consensus 不变。
 import TopicLayout from '../../layouts/TopicLayout.astro';
 import Section from '../../components/Section.astro';
 ---
 <TopicLayout title="今日研判" chart={false}>
-  <!-- 定调徽章/口径注:结论层 chrome,不进 Section -->
-  <div class="re-badges" id="db-badges"></div>
-  <p class="re-source" id="db-note"></p>
-
-  <Section title="同一组事实，三种可能解释">
-    <div class="re-cards" id="db-scenarios"><div class="re-loading">加载中…</div></div>
+  <!-- 头条区（ADR-0005）：共识完整卡 + 结论徽章行，全站唯一渲染地（原 SPA 仪表盘同数据重复渲染已收编） -->
+  <Section title="今日头条" sub="结论先看这里：共识投票、主导情景、报警与关键日程；论证与数据见下文">
+    <div id="db-consensus" class="db-cons"><div class="re-loading">加载中…</div></div>
+    <div class="re-badges" id="db-badges"></div>
   </Section>
 
-  <!-- FOMC 倒计时徽章:条件性(无临近会议时为空)+徽章条,不进 Section -->
-  <div class="re-badges" id="db-fomc"></div>
+  <Section title="同一组事实，三种可能解释">
+    <p class="re-source">情景按共同观测日期对齐，用最近 5 个观测间隔检验价格方向。先核验再形成方向判断。</p>
+    <div class="re-cards" id="db-scenarios"><div class="re-loading">加载中…</div></div>
+  </Section>
 
   <Section id="sec-table" title="跨资产变化" card>
     <p class="re-source">先看价格事实，再解释背后的机制。涨跌颜色只表示数值方向；变化按各序列最近 5 / 20 个有效观测计算，迷你趋势使用独立纵轴，不比较振幅大小。点击行可展开该指标的正反两面。</p>
@@ -103,7 +103,7 @@ const LINKS = {
 
 async function load() {
   // brief 主端点（驱动全页）挂了 = 整页真没数据，R.get 抛给页级 catch；
-  // rex 次要端点（只驱动 db-fomc 里的「市场隐含」徽章）走 getOpt，静态导出 _safe() 会跳过缺数据端点，404 合法
+  // rex 次要端点（只驱动头条「市场隐含」徽章）走 getOpt，静态导出 _safe() 会跳过缺数据端点，404 合法
   const [d, rex, cons] = await Promise.all([
     R.get('/api/daily-brief'),
     R.getOpt('/api/rate-expectations'),
@@ -119,28 +119,79 @@ async function load() {
     note: '情景为规则匹配结果，不是发生概率；经济机制仍需原始数据与事件验证',
   });
 
-  // ── 定调徽章行 ──
+  // ── 头条区：共识完整卡（ADR-0004 渲染从仪表盘收编；缺源整块跳过，不阻断徽章行）──
+  try {
+    const consEl = document.getElementById('db-consensus');
+    const c = cons;
+    if (c && c.market && c.macro) {
+      // 状态→色档由 API 单源下发；票面 chip 可点跳专题（触控目标 ≥24px 由 app.css cons-vote 保证）
+      const chip = (m) => {
+        const cls = !m.present ? 'cons-vote--absent' : (m.vote === 'on' ? 'cons-vote--on' : m.vote === 'off' ? 'cons-vote--off' : 'cons-vote--abst');
+        const icon = !m.present ? '×' : (m.vote === 'on' ? '✔' : m.vote === 'off' ? '✘' : '—');
+        const href = (c.page_links || {})[m.name] || '#';
+        return `<a class="cons-vote ${cls}" href="${R.esc(href)}">${R.esc(m.name)}<i>${icon}</i></a>`;
+      };
+      const block = (card) => {
+        const cls = card.cls || 'na';
+        return `<div class="cons-block cons-block--${cls}">
+          <div><span class="cons-state cons-state--${cls}">${R.esc(card.state)}</span>
+          <span class="cons-meta">参与 ${card.n_present}/${card.n_members}</span>
+          ${c.finalized === false ? '<span class="cons-intraday">盘中临时值</span>' : ''}</div>
+          <div class="cons-votes">${card.members.map(chip).join('')}</div>
+        </div>`;
+      };
+      consEl.innerHTML = `
+        <div class="cons-head"><span class="cons-title">今日共识</span>
+          <span class="cons-note">成员投票合成 · 缺席自动剔除 · 点票面进专题</span>
+          <span class="cons-note">数据截至 ${R.esc(c.ref_date || '—')}</span></div>
+        <div class="cons-row">${block(c.market)}${block(c.macro)}</div>`;
+    } else {
+      consEl.innerHTML = '';
+    }
+  } catch (e) { R.fail(['db-consensus'], e); }
+
+  // ── 头条徽章行：主导情景 + 命中数 + 报警 + FOMC + 衰退（原 /daily/ 与仪表盘两处渲染收编为一份）──
   const matched = (d.scenarios || []).filter(s => s.matched);
   const headline = matched.length
     ? `主导情景：${matched.map(s => s.title).join(' + ')}`
     : '跨资产信号分化，无主导情景';
-  document.getElementById('db-badges').innerHTML = `
-    <span class="re-badge ${matched.length ? 'bull' : 'flat'}">${headline}</span>
+  let badges = `
+    <span class="re-badge ${matched.length ? 'bull' : 'flat'}">${R.esc(headline)}</span>
     <span class="re-badge chip">命中 ${matched.length} / ${(d.scenarios || []).length} 个解释框架</span>`;
+  // 报警 chip：标题 + 悬停全文，点击定位到下方报警卡展开（联动在报警卡渲染段接）
+  (d.alerts || []).forEach(a => {
+    badges += `<span class="re-badge alert" title="${R.esc(a.text)}">⚠ ${R.esc(a.title)}</span>`;
+  });
 
-  // ── 共识状态徽章（ADR-0004；缺源整段静默跳过）──
-  if (cons && cons.market && cons.macro) {
-    const BADGE = { on: 'bull', off: 'bear' };  // cls 由 API 单源下发，分歧/数据不足落 flat
-    const b = (label, card) => {
-      const cls = BADGE[card.cls] || 'flat';
-      const tip = `参与 ${card.n_present}/${card.n_members}${cons.finalized === false ? ' · 盘中临时值' : ''}`;
-      return `<span class="re-badge chip ${cls}" title="${tip}">${label} ${card.state}</span>`;
-    };
-    document.getElementById('db-badges').insertAdjacentHTML('beforeend',
-      b('市场共识', cons.market) + b('宏观共识', cons.macro));
+  // FOMC 倒计时（无临近会议时整组省略）；rex 缺失只降级本徽章（README 式空状态给修复命令）
+  const nx = R.nextMeeting(d.fomc);
+  if (nx) {
+    // 静态 JSON 冻结了构建期日历：按打开页面时间重选下一场（R.nextMeeting 单源）；天数口径 end_day + ceil
+    const days = Math.ceil((new Date(nx.year, nx.month - 1, nx.end_day) - new Date()) / 86400000);
+    const next = `${nx.year}-${String(nx.month).padStart(2, '0')}-${String(nx.end_day).padStart(2, '0')}`;
+    let exp = '';
+    if (rex?.meetings?.length) {
+      const m = rex.meetings[0];
+      const p = Math.max(m.prob_cut, m.prob_hold, m.prob_hike);
+      const k = p === m.prob_cut ? '降息' : p === m.prob_hike ? '加息' : '按兵不动';
+      exp = `<span class="re-badge chip">市场隐含：${k} ${(p * 100).toFixed(0)}%</span>`;
+    } else {
+      exp = `<span class="re-badge chip">缺市场隐含概率（data/rate_expectations），运行 ./bin/fetch_rate_expectations 后重新导出</span>`;
+    }
+    badges += `
+      <span class="re-badge chip">下一次 FOMC 决议 · ${next}（${days > 0 ? days + ' 天后' : '进行中'}）</span>
+      ${exp}
+      <span class="re-badge chip">会后看 2Y、美元、信用利差对政策措辞的反应</span>`;
   }
-  document.getElementById('db-note').textContent =
-    '以下情景按共同观测日期对齐，用最近 5 个观测间隔检验价格方向。先核验再形成方向判断。';
+
+  // 预测市场锚点：衰退概率（Polymarket，daily-brief 同源下发）
+  const pm = d.polymarket?.recession;
+  if (pm?.prob != null) {
+    const pct = (pm.prob * 100).toFixed(1).replace(/\.0$/, '');
+    const y = (pm.end_date || '').slice(0, 4);
+    badges += `<span class="re-badge chip" title="${R.esc(pm.title)}（Polymarket ${R.esc(d.polymarket.as_of || '')}）">衰退 ${y} ${pct}%</span>`;
+  }
+  document.getElementById('db-badges').innerHTML = badges;
 
   // ── 情景卡（段级兜底：本段抛错不拖垮后续段）──
   try {
@@ -167,29 +218,6 @@ async function load() {
     c.addEventListener('click', () => focusReading(SCEN_KEYS[c.dataset.scen]?.[0]));
   });
   } catch (e) { R.fail(['db-scenarios'], e); }
-
-  // ── FOMC 倒计时 ──
-  const fomcEl = document.getElementById('db-fomc');
-  const fomc = d.fomc;
-  const nx = R.nextMeeting(fomc);
-  if (nx) {
-    const days = Math.ceil((new Date(nx.year, nx.month - 1, nx.end_day) - new Date()) / 86400000);
-    const next = `${nx.year}-${String(nx.month).padStart(2, '0')}-${String(nx.end_day).padStart(2, '0')}`;
-    let exp = '';
-    if (rex?.meetings?.length) {
-      const m = rex.meetings[0];
-      const p = Math.max(m.prob_cut, m.prob_hold, m.prob_hike);
-      const k = p === m.prob_cut ? '降息' : p === m.prob_hike ? '加息' : '按兵不动';
-      exp = `<span class="re-badge chip">市场隐含：${k} ${(p * 100).toFixed(0)}%</span>`;
-    } else {
-      // rex 缺失只降级本徽章（README 式空状态给修复命令），不白屏不静默，倒计时徽章照常
-      exp = `<span class="re-badge chip">缺市场隐含概率（data/rate_expectations），运行 ./bin/fetch_rate_expectations 后重新导出</span>`;
-    }
-    fomcEl.innerHTML = `
-      <span class="re-badge chip">下一次 FOMC 决议 · ${next}（${days > 0 ? days + ' 天后' : '进行中'}）</span>
-      ${exp}
-      <span class="re-badge chip">会后看 2Y、美元、信用利差对政策措辞的反应</span>`;
-  }
 
   // ── 跨资产变化表 + 读法行联动（段级兜底）──
   try {
@@ -262,18 +290,32 @@ function focusReading(key) {
   card.classList.add('db-flash');
 }
 
-  // ── 报警（段级兜底）──
+  // ── 报警卡（段级兜底；头条区报警 chip 点击定位到此展开全文）──
   try {
   if (d.alerts?.length) {
     document.getElementById('sec-alerts').style.display = 'flex';
-    document.getElementById('db-alerts').innerHTML = d.alerts.map(a => `
-      <div class="re-card db-alert-card">
-        <div class="re-corridor-label">${a.title}</div>
-        <div class="re-card-sub" style="white-space:normal">${a.text}</div>
+    document.getElementById('db-alerts').innerHTML = d.alerts.map((a, i) => `
+      <div class="re-card db-alert-card" id="alert-${i}">
+        <div class="re-corridor-label">${R.esc(a.title)}</div>
+        <div class="re-card-sub" style="white-space:normal">${R.esc(a.text)}</div>
       </div>`).join('');
+    // 头条报警 chip → 定位到报警卡（双层联动；键盘可达：role=button + Enter/Space，同 tech-view watchRow 先例）
+    document.querySelectorAll('#db-badges .re-badge.alert').forEach((chip, i) => {
+      const go = () => {
+        const card = document.getElementById(`alert-${i}`);
+        if (!card) return;
+        card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        card.classList.remove('db-flash'); void card.offsetWidth;
+        card.classList.add('db-flash');
+      };
+      chip.setAttribute('role', 'button');
+      chip.tabIndex = 0;
+      chip.addEventListener('click', go);
+      chip.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); go(); } });
+    });
   }
   } catch (e) { R.fail(['db-alerts'], e); }
 }
-load().catch(e => R.fail(['db-badges', 'db-scenarios', 'db-fomc', 'db-table', 'db-readings'], e));
+load().catch(e => R.fail(['db-consensus', 'db-badges', 'db-scenarios', 'db-table', 'db-readings'], e));
 </script>
 </TopicLayout>
