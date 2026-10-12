@@ -9,13 +9,31 @@ import TopicLayout from '../../layouts/TopicLayout.astro';
 import Section from '../../components/Section.astro';
 ---
 <TopicLayout title="今日研判" chart={false}>
-  <!-- 头条区（ADR-0005）：共识完整卡 + 结论徽章行，全站唯一渲染地（原 SPA 仪表盘同数据重复渲染已收编） -->
-  <Section title="今日头条" sub="结论先看这里：共识投票、主导情景、报警与关键日程；论证与数据见下文">
-    <div id="db-consensus" class="db-cons"><div class="re-loading">加载中…</div></div>
-    <div class="re-badges" id="db-badges"></div>
+  <!-- 头条区（ADR-0005 + B 方案定稿）：三张对称卡（市场/宏观共识 + 市场背景 kv 行）
+       + 全宽情景与报警卡（主导情景一行 + 报警两行式带专题链）。
+       数据截至在页头 re-as-of（AGENS 单源），背景卡不重复底注 -->
+  <Section title="今日头条" sub="结论先看这里：共识、情景与市场背景；论证与数据见下文">
+    <div class="db-hero-cards">
+      <div class="db-sc-card">
+        <div class="db-sc-title">市场共识 <small id="db-sc-market-meta"></small></div>
+        <div id="db-sc-market"><span class="re-loading">加载中…</span></div>
+      </div>
+      <div class="db-sc-card">
+        <div class="db-sc-title">宏观共识 <small id="db-sc-macro-meta"></small></div>
+        <div id="db-sc-macro"><span class="re-loading">加载中…</span></div>
+      </div>
+      <div class="db-sc-card db-bg-card">
+        <div class="db-sc-title">市场背景</div>
+        <div class="db-bg-body" id="db-bg-body"><span class="re-loading">加载中…</span></div>
+      </div>
+    </div>
+    <div class="db-sc-card db-alert-card">
+      <div class="db-sc-title">情景与报警</div>
+      <div id="db-hero-sub"><span class="re-loading">加载中…</span></div>
+    </div>
   </Section>
 
-  <Section title="今日一句话" sub="按专题聚合 · 点击进入对应研判">
+  <Section id="sec-lines" title="今日一句话" sub="按专题聚合 · 点击进入对应研判">
     <div id="db-lines"><div class="re-loading">加载中…</div></div>
   </Section>
 
@@ -23,7 +41,6 @@ import Section from '../../components/Section.astro';
     <p class="re-source">情景按共同观测日期对齐，用最近 5 个观测间隔检验价格方向。先核验再形成方向判断。</p>
     <div class="re-cards" id="db-scenarios"><div class="re-loading">加载中…</div></div>
   </Section>
-
   <Section id="sec-table" title="跨资产变化" card>
     <p class="re-source">先看价格事实，再解释背后的机制。涨跌颜色只表示数值方向；变化按各序列最近 5 / 20 个有效观测计算，迷你趋势使用独立纵轴，不比较振幅大小。点击行可展开该指标的正反两面。</p>
     <div id="db-table"><div class="re-loading">加载中…</div></div>
@@ -34,12 +51,6 @@ import Section from '../../components/Section.astro';
     <div class="re-h2">各指标的信号与证伪条件</div>
     <p class="re-source">单指标相容不代表机制成立：信号按跨资产条件表述（方向为近 5 个有效观测，分位为 1 年窗口），先对照上方情景，再看该行证伪条件是否已触发。</p>
     <div id="db-readings"></div>
-  </div>
-
-  <!-- 条件性小节(仅报警命中时显示),保持裸 div -->
-  <div id="sec-alerts" class="db-sec re-block" style="display:none">
-    <div class="re-h2">跨资产结构报警</div>
-    <div class="re-cards" id="db-alerts"></div>
   </div>
 
   <!-- 双栏组（.re-duo，special.css 单源，同 rates/fed-funds）：宽桌面两小节并排，窄屏自动回落单列。
@@ -126,6 +137,12 @@ const LINE_LINKS = {
   treasury: '/treasury/', vol: '/volatility/', liquidity: '/liquidity/',
   assets: '/assets/', fed: '/fed/',
 };
+// 专题键 → 中文标签（报警 topics 挂链接时的锚文本；键同上，报警 topics 均为组键）
+const TOPIC_LINKS = LINE_LINKS;
+const TOPIC_LABELS = {
+  rates: '利率', credit: '信用', inflation: '通胀', labor: '就业',
+  treasury: '美债', vol: '波动率', liquidity: '流动性', assets: '大类资产', fed: '美联储',
+};
 // 六板块 → 板块页（行情视角快照的挂链，同 SITE_NAV 派生）
 const BOARD_LINKS = {
   equities: '/assets/equities.html', bonds: '/assets/bonds.html', commodities: '/assets/commodities.html',
@@ -146,10 +163,7 @@ function lineCard(l, hot) {
   return `<a class="db-line-card${hot ? ' hot' : ''}" href="${page}"
     title="${R.esc(l.label)}专题 · ${R.esc(l.as_of || '')}">${inner}<span class="db-line-card-go">进入研判 →</span></a>`;
 }
-// 平稳专题只留一颗胶囊：正文今天没有可说的，细节进专题页看
-function calmChip(l) {
-  return `<a href="${LINE_LINKS[l.key] || '#'}" title="${R.esc(l.label)}专题 · ${R.esc(l.as_of || '')}">${R.esc(l.label)}</a>`;
-}
+// 平稳专题不再单独渲染（节头注记提及，B 方案定稿；明细在下方专题页）
 
 async function load() {
   // brief 主端点（驱动全页）挂了 = 整页真没数据，R.get 抛给页级 catch；
@@ -173,79 +187,81 @@ async function load() {
     note: '情景为规则匹配结果，不是发生概率；经济机制仍需原始数据与事件验证',
   });
 
-  // ── 头条区：共识完整卡（ADR-0004 渲染从仪表盘收编；缺源整块跳过，不阻断徽章行）──
+  // ── 头条区三卡（B 方案定稿）：市场/宏观共识（状态字 + 成员文本链）+ 市场背景 kv 行 ──
   try {
-    const consEl = document.getElementById('db-consensus');
     const c = cons;
+    const NA = '<span class="db-hero-na">共识数据缺失（/api/consensus 不可达，确认服务已启动或重跑 export_pages）</span>';
+    const mkt = document.getElementById('db-sc-market');
+    const mac = document.getElementById('db-sc-macro');
     if (c && c.market && c.macro) {
-      // 状态→色档由 API 单源下发；票面 chip 可点跳专题（触控目标 ≥24px 由 app.css cons-vote 保证）
-      const chip = (m) => {
-        const cls = !m.present ? 'cons-vote--absent' : (m.vote === 'on' ? 'cons-vote--on' : m.vote === 'off' ? 'cons-vote--off' : 'cons-vote--abst');
-        const icon = !m.present ? '×' : (m.vote === 'on' ? '✔' : m.vote === 'off' ? '✘' : '—');
+      // 卡内安静文本层：状态字用 cons-state 单源色档；成员文本链（名字次色 + 语义色勾叉，链到专题页）
+      const member = (m) => {
+        const mark = !m.present ? '×' : m.vote === 'on' ? '✓' : m.vote === 'off' ? '✗' : '—';
+        const mcls = !m.present ? 'absent' : m.vote === 'on' ? 'on' : m.vote === 'off' ? 'off' : 'abst';
         const href = (c.page_links || {})[m.name] || '#';
-        return `<a class="cons-vote ${cls}" href="${R.esc(href)}">${R.esc(m.name)}<i>${icon}</i></a>`;
+        return `<a class="db-hv-member db-hv-member--${mcls}" href="${R.esc(href)}" title="${R.esc(m.name)} · ${R.esc(m.as_of || '')}">${R.esc(m.name)}<i>${mark}</i></a>`;
       };
-      const block = (card) => {
-        const cls = card.cls || 'na';
-        return `<div class="cons-block cons-block--${cls}">
-          <div><span class="cons-state cons-state--${cls}">${R.esc(card.state)}</span>
-          <span class="cons-meta">参与 ${card.n_present}/${card.n_members}</span>
-          ${c.finalized === false ? '<span class="cons-intraday">盘中临时值</span>' : ''}</div>
-          <div class="cons-votes">${card.members.map(chip).join('')}</div>
-        </div>`;
-      };
-      consEl.innerHTML = `
-        <div class="cons-head"><span class="cons-title">今日共识</span>
-          <span class="cons-note">成员投票合成 · 缺席自动剔除 · 点票面进专题</span>
-          <span class="cons-note">数据截至 ${R.esc(c.ref_date || '—')}</span></div>
-        <div class="cons-row">${block(c.market)}${block(c.macro)}</div>`;
+      const scBody = (card) => `
+        <div class="db-sc-state"><b class="cons-state cons-state--${card.cls || 'na'}">${R.esc(card.state)}</b></div>
+        <div class="db-sc-votes">${card.members.map(member).join('')}</div>`;
+      mkt.innerHTML = scBody(c.market);
+      mac.innerHTML = scBody(c.macro);
+      const mmeta = document.getElementById('db-sc-market-meta');
+      const ameta = document.getElementById('db-sc-macro-meta');
+      if (mmeta) mmeta.textContent = `参与 ${c.market.n_present}/${c.market.n_members}${c.finalized === false ? ' · 盘中临时值' : ''}`;
+      if (ameta) ameta.textContent = `参与 ${c.macro.n_present}/${c.macro.n_members}`;
     } else {
-      consEl.innerHTML = '';
+      mkt.innerHTML = NA; mac.innerHTML = NA;
     }
-  } catch (e) { R.fail(['db-consensus'], e); }
+  } catch (e) { R.fail(['db-sc-market', 'db-sc-macro'], e); }
 
-  // ── 头条徽章行：主导情景 + 命中数 + 报警 + FOMC + 衰退（原 /daily/ 与仪表盘两处渲染收编为一份）──
-  const matched = (d.scenarios || []).filter(s => s.matched);
-  const headline = matched.length
-    ? `主导情景：${matched.map(s => s.title).join(' + ')}`
-    : '跨资产信号分化，无主导情景';
-  let badges = `
-    <span class="re-badge ${matched.length ? 'bull' : 'flat'}">${R.esc(headline)}</span>
-    <span class="re-badge chip">命中 ${matched.length} / ${(d.scenarios || []).length} 个解释框架</span>`;
-  // 报警 chip：标题 + 悬停全文，点击定位到下方报警卡展开（联动在报警卡渲染段接）
-  (d.alerts || []).forEach(a => {
-    badges += `<span class="re-badge alert" title="${R.esc(a.text)}">⚠ ${R.esc(a.title)}</span>`;
-  });
-
-  // FOMC 倒计时（无临近会议时整组省略）；rex 缺失只降级本徽章（README 式空状态给修复命令）
-  const nx = R.nextMeeting(d.fomc);
-  if (nx) {
-    // 静态 JSON 冻结了构建期日历：按打开页面时间重选下一场（R.nextMeeting 单源）；天数口径 end_day + ceil
-    const days = Math.ceil((new Date(nx.year, nx.month - 1, nx.end_day) - new Date()) / 86400000);
-    const next = `${nx.year}-${String(nx.month).padStart(2, '0')}-${String(nx.end_day).padStart(2, '0')}`;
-    let exp = '';
+  // ── 市场背景卡：FOMC 下次 + 市场隐含 + 衰退概率，kv 行（一项一个数）──
+  // 定稿只放事实锚点；数据截至在页头 re-as-of（AGENS 单源），卡内不重复底注
+  try {
+    const box = document.getElementById('db-bg-body');
+    const rows = [];
+    const nx = R.nextMeeting(d.fomc);
+    if (nx) {
+      // 静态 JSON 冻结了构建期日历：按打开页面时间重选下一场（R.nextMeeting 单源）；天数口径 end_day + ceil
+      const days = Math.ceil((new Date(nx.year, nx.month - 1, nx.end_day) - new Date()) / 86400000);
+      const next = `${nx.year}-${String(nx.month).padStart(2, '0')}-${String(nx.end_day).padStart(2, '0')}`;
+      rows.push(`<div class="db-bg-row"><span class="db-bg-k">FOMC 下次</span><span class="db-bg-v">${next}<em>${days > 0 ? `${days} 天后` : '进行中'}</em></span></div>`);
+    }
+    // 市场隐含（rex 缺失只降级本行，不阻断其它行）
     if (rex?.meetings?.length) {
       const m = rex.meetings[0];
       const p = Math.max(m.prob_cut, m.prob_hold, m.prob_hike);
       const k = p === m.prob_cut ? '降息' : p === m.prob_hike ? '加息' : '按兵不动';
-      exp = `<span class="re-badge chip">市场隐含：${k} ${(p * 100).toFixed(0)}%</span>`;
-    } else {
-      exp = `<span class="re-badge chip">缺市场隐含概率（data/rate_expectations），运行 ./bin/fetch_rate_expectations 后重新导出</span>`;
+      rows.push(`<div class="db-bg-row"><span class="db-bg-k">市场隐含</span><span class="db-bg-v">${k} ${(p * 100).toFixed(0)}%<em>ZQ 期货</em></span></div>`);
     }
-    badges += `
-      <span class="re-badge chip">下一次 FOMC 决议 · ${next}（${days > 0 ? days + ' 天后' : '进行中'}）</span>
-      ${exp}
-      <span class="re-badge chip">会后看 2Y、美元、信用利差对政策措辞的反应</span>`;
-  }
+    const pm = d.polymarket?.recession;
+    if (pm?.prob != null) {
+      const pct = (pm.prob * 100).toFixed(1).replace(/\.0$/, '');
+      const y = (pm.end_date || '').slice(0, 4);
+      rows.push(`<div class="db-bg-row"><span class="db-bg-k">衰退 ${y}</span><span class="db-bg-v" title="${R.esc(pm.title)}（Polymarket ${R.esc(d.polymarket.as_of || '')}）">${pct}%<em>Polymarket</em></span></div>`);
+    }
+    box.innerHTML = rows.join('') || '<span class="db-hero-na">暂无背景数据</span>';
+  } catch (e) { R.fail(['db-bg-body'], e); }
 
-  // 预测市场锚点：衰退概率（Polymarket，daily-brief 同源下发）
-  const pm = d.polymarket?.recession;
-  if (pm?.prob != null) {
-    const pct = (pm.prob * 100).toFixed(1).replace(/\.0$/, '');
-    const y = (pm.end_date || '').slice(0, 4);
-    badges += `<span class="re-badge chip" title="${R.esc(pm.title)}（Polymarket ${R.esc(d.polymarket.as_of || '')}）">衰退 ${y} ${pct}%</span>`;
-  }
-  document.getElementById('db-badges').innerHTML = badges;
+  // ── 情景与报警卡（全宽）：主导情景一行（空态降次色）+ 报警两行式（正文放出 + 专题链）──
+  const matched = (d.scenarios || []).filter(s => s.matched);
+  const headline = matched.length
+    ? `主导情景：${matched.map(s => s.title).join(' + ')}`
+    : '跨资产信号分化，无主导情景';
+  try {
+    const elx = document.getElementById('db-hero-sub');
+    const alerts = d.alerts || [];
+    elx.innerHTML = `
+      <div class="db-al-scen${matched.length ? '' : ' empty'}">${R.esc(headline)}</div>
+      ${alerts.map(a => {
+        const tk = (a.topics || []).find(k => TOPIC_LINKS[k]);
+        const link = tk ? `<a class="db-al-topic" href="${TOPIC_LINKS[tk]}">${R.esc(TOPIC_LABELS[tk] || tk)} →</a>` : '';
+        return `<div class="db-al-item">
+          <div class="db-al-title">⚠ ${R.esc(a.title)}</div>
+          <div class="db-al-text">${R.esc(a.text)}${link}</div>
+        </div>`;
+      }).join('')}`;
+  } catch (e) { R.fail(['db-hero-sub'], e); }
 
   // ── 今日一句话（分层卡：有信号升卡，其余收平稳胶囊；全冷日退化为 9 张卡）──
   try {
@@ -257,11 +273,12 @@ async function load() {
       const hot = hotTopics(d);
       const on = lines.filter(l => hot.has(l.key));
       const off = lines.filter(l => !hot.has(l.key));
-      // 全冷时不分层：否则退化成 9 个没正文的胶囊，这一段就没用了
+      // 全冷时不分层：否则退化成 9 个没正文的条目，这一段就没用了；
+      // 「平稳」不再是独立一行胶囊（孤行灰字丑且费解），降为节头注记（B 方案定稿）
       const cards = on.length ? on : lines;
-      const chips = on.length ? off : [];
-      box.innerHTML = `<div class="db-line-cards">${cards.map(l => lineCard(l, hot.has(l.key))).join('')}</div>`
-        + (chips.length ? `<div class="db-calm" style="margin-top:10px"><span class="db-calm-k">平稳</span>${chips.map(calmChip).join('')}</div>` : '');
+      const sub = document.querySelector('#sec-lines .re-sec-sub');
+      if (sub) sub.textContent = on.length ? `另有 ${off.length} 个专题平稳 · 点击进入对应研判` : '按专题聚合 · 点击进入对应研判';
+      box.innerHTML = `<div class="db-line-cards">${cards.map(l => lineCard(l, hot.has(l.key))).join('')}</div>`;
     }
   } catch (e) { R.fail(['db-lines'], e); }
 
@@ -362,32 +379,6 @@ function focusReading(key) {
   card.classList.add('db-flash');
 }
 
-  // ── 报警卡（段级兜底；头条区报警 chip 点击定位到此展开全文）──
-  try {
-  if (d.alerts?.length) {
-    document.getElementById('sec-alerts').style.display = 'flex';
-    document.getElementById('db-alerts').innerHTML = d.alerts.map((a, i) => `
-      <div class="re-card db-alert-card" id="alert-${i}">
-        <div class="re-corridor-label">${R.esc(a.title)}</div>
-        <div class="re-card-sub" style="white-space:normal">${R.esc(a.text)}</div>
-      </div>`).join('');
-    // 头条报警 chip → 定位到报警卡（双层联动；键盘可达：role=button + Enter/Space，同 tech-view watchRow 先例）
-    document.querySelectorAll('#db-badges .re-badge.alert').forEach((chip, i) => {
-      const go = () => {
-        const card = document.getElementById(`alert-${i}`);
-        if (!card) return;
-        card.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        card.classList.remove('db-flash'); void card.offsetWidth;
-        card.classList.add('db-flash');
-      };
-      chip.setAttribute('role', 'button');
-      chip.tabIndex = 0;
-      chip.addEventListener('click', go);
-      chip.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); go(); } });
-    });
-  }
-  } catch (e) { R.fail(['db-alerts'], e); }
-
   // ── 六板块快照（行情视角：当日涨跌，板块卡挂专题链接；缺源给修复命令）──
   try {
     const grid = document.getElementById('db-boards');
@@ -442,6 +433,6 @@ function focusReading(key) {
     }
   } catch (e) { R.fail(['db-vol-kpi', 'db-vol-signals'], e); }
 }
-load().catch(e => R.fail(['db-consensus', 'db-badges', 'db-lines', 'db-scenarios', 'db-table', 'db-readings', 'db-boards', 'db-vol-kpi', 'db-vol-signals'], e));
+load().catch(e => R.fail(['db-sc-market', 'db-sc-macro', 'db-bg-body', 'db-hero-sub', 'db-lines', 'db-scenarios', 'db-table', 'db-readings', 'db-boards', 'db-vol-kpi', 'db-vol-signals'], e));
 </script>
 </TopicLayout>
