@@ -991,6 +991,59 @@ body.dark .pm-topic-card { box-shadow: inset 0 0 0 1px rgba(255,255,255,.04); }
 /* 头条共识卡容器：无数据时整块跳过（:empty 不占位） */
 .db-cons { margin-bottom: 12px; }
 .db-cons:empty { display: none; }
+/* 今日一句话（分层卡，自仪表盘 index.html 私有样式收编；有信号升卡 + 平稳胶囊；触控目标 ≥24px） */
+.db-line-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr)); gap: 12px; align-items: start; }
+.db-line-card {
+  display: flex; flex-direction: column; gap: 6px; padding: 14px 16px;
+  background: var(--surface); border: 1px solid var(--border);
+  border-left: 3px solid var(--border-light); border-radius: 8px;
+  text-decoration: none; transition: background .15s, border-color .15s;
+}
+/* 有信号：竖条走图形档 --color-warn（边框属于图形档允许的位置） */
+.db-line-card.hot { border-left-color: var(--color-warn); }
+.db-line-card.hot .db-line-card-t { color: var(--warning); }
+.db-line-card:hover { background: var(--surface-hover); border-color: var(--accent-ink); }
+.db-line-card:hover .db-line-card-x { text-decoration: underline; }
+.db-line-card-t { font-size: 13px; font-weight: 600; color: var(--text); }
+.db-line-card-x { font-size: 12.5px; line-height: 1.55; color: var(--text-secondary); }
+.db-line-card-go { font-size: 11px; color: var(--text-dim); margin-top: auto; padding-top: 4px; }
+.db-calm { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; font-size: 12px; }
+.db-calm-k { color: var(--text-dim); margin-right: 2px; }
+.db-calm a { color: var(--text-secondary); text-decoration: none; font-size: 12px; padding: 5px 12px; border: 1px solid var(--border); border-radius: 999px; }
+.db-calm a:hover { border-color: var(--accent-ink); color: var(--accent-ink); }
+/* 六板块快照（行情视角，自 app.css .dash-card/.dash-snap 收编；板块标题整行可点 ≥24px） */
+.db-boards { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr)); gap: 12px; align-items: start; }
+.db-board {
+  background: var(--surface); border-radius: 8px; border: 1px solid var(--border);
+  padding: 14px 16px; display: flex; flex-direction: column; gap: 8px; min-width: 0;
+}
+.db-board-t {
+  font-size: 13px; font-weight: 600; color: var(--text-secondary);
+  border-bottom: 1px solid var(--border-light); padding-bottom: 8px;
+  text-decoration: none; display: flex; justify-content: space-between; align-items: baseline; gap: 8px;
+}
+.db-board-t:hover { color: var(--accent-ink); }
+.db-board-note { font-size: 11px; font-weight: 400; color: var(--text-dim); white-space: nowrap; }
+.db-snap { display: flex; flex-direction: column; }
+.db-snap-row {
+  display: grid; grid-template-columns: minmax(0, 1fr) auto 58px; gap: 8px;
+  align-items: baseline;
+  padding: 6px 4px; border-bottom: 1px solid var(--border-light); font-size: 12.5px;
+}
+.db-snap-row:last-child { border-bottom: none; }
+.db-snap-name { color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.db-snap-val { font-weight: 600; color: var(--text); text-align: right; font-variant-numeric: tabular-nums; font-family: var(--font-mono); }
+.db-snap-row > span:last-child { text-align: right; font-variant-numeric: tabular-nums; }
+/* 波动率信号卡（自 app.css .dash-sig-* 收编） */
+.db-sig-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr)); gap: 12px; }
+.db-sig-card {
+  display: flex; flex-direction: column; gap: 6px;
+  background: var(--surface); border-radius: 8px; border: 1px solid var(--border); padding: 14px 16px;
+}
+.db-sig-title { font-size: 13px; font-weight: 600; color: var(--text); }
+.db-sig-metric { font-size: 12px; color: var(--text-secondary); font-family: var(--font-mono); }
+.db-sig-text { font-size: 12px; color: var(--text-secondary); line-height: 1.5; }
+.db-sig-advice { font-size: 11px; font-style: italic; color: var(--text-dim); }
 .db-spark.up { stroke: var(--color-up); }
 .db-spark.down { stroke: var(--color-down); }
 .db-hit { border-color: var(--color-up); }
