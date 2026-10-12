@@ -21,6 +21,7 @@ L/S=多/空持仓。
 import argparse
 import io
 import logging
+import time
 import zipfile
 from datetime import date
 
@@ -84,17 +85,67 @@ _METRICS = {
 
 
 def _download_year(year: int, report_type: str) -> pd.DataFrame:
-    """下载某年某类型 COT zip 并解析为 DataFrame（全部市场）。"""
+    """下载某年某类型 COT zip 并解析为 DataFrame（全部市场）。
+
+    CFTC 会封锁数据中心 IP 段（GitHub Actions 的 Azure IP 403，本地宽带 200）：
+    直连 403 时经 Jina Reader 中转拿 zip 基64 内容（zip 二进制进不了 Markdown，
+    走 r.jina.ai 对二进制 URL 返回 base64 包裹的错误体，故用 base64 后缀语法），
+    仍失败则拺异常进当日失败列表。
+    """
     url = URL.format(type=report_type, year=year)
-    resp = requests.get(url, timeout=60, headers={"User-Agent": "Mozilla/5.0"})
-    resp.raise_for_status()
-    zf = zipfile.ZipFile(io.BytesIO(resp.content))
+    try:
+        resp = requests.get(url, timeout=60, headers={"User-Agent": "Mozilla/5.0"})
+        resp.raise_for_status()
+        content = resp.content
+    except requests.HTTPError as e:
+        if e.response.status_code != 403:
+            raise
+        logger.warning(f"CFTC 直连 403（数据中心 IP 封锁），降级 Jina 中转: {url}")
+        content = _fetch_zip_via_jina(url)
+    zf = zipfile.ZipFile(io.BytesIO(content))
     name = zf.namelist()[0]
     df = pd.read_csv(zf.open(name))
     df["Report_Date_as_YYYY-MM-DD"] = pd.to_datetime(df["Report_Date_as_YYYY-MM-DD"]).dt.strftime(
         "%Y-%m-%d"
     )
     return df
+
+
+def _fetch_zip_via_jina(url: str, retries: int = 2) -> bytes:
+    """经 r.jina.ai 页面语法取二进制：Markdown 图片语法「![alt](url)」会内嵌 base64。
+
+    Jina 免费额度限速时 429，重试退避；两次仍失败拺 RuntimeError（不静默）。
+    """
+    last = None
+    for i in range(retries + 1):
+        try:
+            resp = requests.get(
+                f"https://r.jina.ai/![zip]({url})",
+                timeout=120,
+                headers={
+                    "User-Agent": "Mozilla/5.0",
+                    "Accept": "application/json",
+                    "X-Return-Format": "markdown",
+                },
+            )
+            resp.raise_for_status()
+            text = resp.json()["data"]["content"]
+            # 抽取第一个 base64 段（可能带 data URI 前缀）
+            import re
+
+            m = re.search(
+                r"data:application/zip;base64,([A-Za-z0-9+/=]+)|([A-Za-z0-9+/=]{200,})", text
+            )
+            if not m:
+                raise RuntimeError("Jina 响应中未见 base64 zip 内容")
+            import base64
+
+            return base64.b64decode(m.group(1) or m.group(2))
+        except Exception as e:
+            last = e
+            if i < retries:
+                time.sleep(10 * (i + 1))
+    raise RuntimeError(f"Jina 中转 CFTC zip 失败: {last}")
 
 
 def fetch_cot(years: list[int] | None = None) -> pd.DataFrame:
