@@ -1,8 +1,7 @@
 @import url("tokens.css"); /* 语义色 token 唯一来源（涨跌/中性/警示/品牌一律 var()，见 tokens.css） */
 
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-/* 裸 <a> 兜底：全站从来没有全局链接色，凡没被具名规则盖到的锚点（仪表盘 .dash-line 结论行、
-   每日研判指标表的「美元指数 ↗」等）全部吃浏览器默认 #0000EE —— 亮色白底 8.6:1 勉强可读
+/* 裸 <a> 兜底：全站从来没有全局链接色，凡没被具名规则盖到的锚点（每日研判指标表的「美元指数 ↗」等）全部吃浏览器默认 #0000EE —— 亮色白底 8.6:1 勉强可读
    所以长期没暴露，暗底 #181b1f 只有 1.71:1（基本看不见）。特异性 (0,0,1)，任何类规则都能压过，
    等于只补洞不改既有样式；顺带把 :visited 的紫底也一并接管。 */
 a { color: var(--accent-ink); }
@@ -192,90 +191,7 @@ body { font-family: system-ui, -apple-system, sans-serif; background: var(--bg);
 .dash-stat-desc  { font-size: 12px; color: var(--text-dim); }
 .dash-stat-change { font-size: 12px; margin-top: 4px; }
 
-.dash-grid {
-  display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px;
-}
-.dash-card {
-  background: var(--surface); border-radius: 8px; border: 1px solid var(--border);
-  padding: 16px; display: flex; flex-direction: column; gap: 8px;
-}
-.dash-card-title {
-  font-size: 13px; font-weight: 600; color: var(--text-secondary);
-  border-bottom: 1px solid var(--border-light); padding-bottom: 8px;
-}
-
-/* watchlist（仪表盘：数据驾驶舱） */
-.dash-head { display: flex; align-items: baseline; gap: 12px; }
-.dash-head-title { font-size: 16px; font-weight: 700; color: var(--text); }
-.dash-asof { font-size: 12px; color: var(--text-secondary); }
-.dash-title-note { font-size: 11px; font-weight: 400; color: var(--text-dim); }
-
-.dash-conclusion { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
-.dash-badge {
-  display: inline-flex; align-items: center; gap: 4px;
-  font-size: 13px; font-weight: 600; padding: 4px 10px; border-radius: 999px;
-  border: 1px solid transparent; background: var(--color-neutral-bg); color: var(--text-secondary);
-}
-.dash-badge.bull { background: var(--color-up-bg); color: var(--color-up-text); border-color: transparent; }
-.dash-badge.flat { background: var(--color-neutral-bg); opacity: .85; }
-.dash-badge.alert { background: var(--color-down-bg); color: var(--color-down-text); border-color: transparent; cursor: help; }
-.dash-chip {
-  display: inline-flex; align-items: center;
-  font-size: 11px; padding: 3px 8px; border-radius: 999px;
-  border: 1px solid transparent; color: var(--text-secondary); background: var(--color-neutral-bg);
-}
-.dash-chip.on { background: var(--color-up-bg); color: var(--color-up-text); border-color: transparent; }
-
-.dash-snap { display: flex; flex-direction: column; }
-.dash-snap-row {
-  display: grid; grid-template-columns: minmax(0, 1fr) auto 58px; gap: 8px;
-  align-items: baseline;
-  padding: 6px 4px; border-bottom: 1px solid var(--border-light); font-size: 12.5px;
-}
-.dash-snap-row:last-child { border-bottom: none; }
-.dash-snap-name { color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.dash-snap-val { font-weight: 600; color: var(--text); text-align: right; font-variant-numeric: tabular-nums; font-family: var(--font-mono); }
-.dash-snap-row > span:last-child { text-align: right; font-variant-numeric: tabular-nums; }
-
-/* 波动率信号卡私有类（以前借 .dash-scen-*，情景卡删后名实不副） */
-.dash-vol-signals { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr)); gap: 12px; }
-.dash-sig-card { display: flex; flex-direction: column; gap: 6px; }
-.dash-sig-title { font-size: 13px; font-weight: 600; color: var(--text); }
-.dash-sig-metric { font-size: 12px; color: var(--text-secondary); font-family: var(--font-mono); }
-.dash-sig-text { font-size: 12px; color: var(--text-secondary); line-height: 1.5; }
-.dash-sig-advice { font-size: 11px; font-style: italic; color: var(--text-dim); }
-
-/* /daily/ 入口条（代替仪表盘里那份重复的跨资产表） */
-.dash-brief-a {
-  display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: baseline; gap: 10px;
-  padding: 10px 16px; border: 1px solid var(--border); border-radius: 8px;
-  background: var(--surface); text-decoration: none;
-}
-.dash-brief-a:hover { border-color: var(--accent-ink); background: var(--surface-hover); }
-.dash-brief-t { font-size: 13px; font-weight: 600; color: var(--text); }
-.dash-brief-d { font-size: 12px; color: var(--text-secondary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.dash-brief-go { color: var(--text-dim); }
-
-.dash-grid-2 {
-  /* align-items:start：六板块卡数据行数 2-6 行不等，默认 stretch 会把「加密」两行卡
-     拉到与「外汇」六行卡等高 → 卡内近六成是空白 */
-  grid-template-columns: repeat(3, 1fr); align-items: start;
-}
-.dash-watch-card select { font-size: 12px; background: var(--surface); color: var(--text); border: 1px solid var(--border); border-radius: 4px; padding: 2px 4px; }
-
-/* watchlist */
-.dash-watchlist { display: flex; flex-direction: column; }
-.dash-watch-row {
-  display: flex; justify-content: space-between; align-items: center;
-  padding: 8px 4px; border-bottom: 1px solid var(--border-light);
-  font-size: 13px; cursor: pointer; transition: background .15s;
-}
-.dash-watch-row:hover { background: var(--surface-hover); }
-.dash-watch-row:last-child { border-bottom: none; }
-.dash-watch-row:has(.watch-del) { gap: 8px; }
-.dash-watch-row:has(.watch-del) .dash-watch-price { margin-left: auto; }
-.dash-watch-sym { font-weight: 600; min-width: 50px; }
-.dash-watch-price { color: var(--text); }
+/* ── dash-*：仅关联分析状态卡（.dash-stat*）存活，其余随 ADR-0005 仪表盘视图删除清零 ── */
 
 /* ── sidebar ────────────────────────────────────────────── */
 .sidebar-content { flex: 1; overflow-y: auto; overflow-x: hidden; padding: 4px 0; scrollbar-width: none; }
@@ -645,11 +561,9 @@ body.embedded .macro-nav, body.embedded #macro-nav-toggle { display: none; }
   .app[data-view="tech"] .panel.collapsed .panel-header { writing-mode: horizontal-tb; }
   /* 信息条窄屏允许折行 */
   .tech-info-bar { flex-wrap: wrap; gap: 8px 12px; }
-  /* 仪表盘网格收敛：卡片区 3 列→1 列 */
-  .dash-grid, .dash-grid-2 { grid-template-columns: 1fr; }
 }
 
-/* ── 多源共识状态卡（ADR-0004；SPA 仪表盘与 daily 页共用，app.css 单源）──
+/* ── 多源共识状态卡（ADR-0004；/daily/ 头条区单源渲染，app.css 单源）──
    状态徽章文字用 --up/--down/--warning 文字档（亮色 AA），块左竖标用图形档。 */
 .cons-head { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; margin: 0 0 8px; }
 .cons-title { font-size: 13px; font-weight: 700; color: var(--text); }
