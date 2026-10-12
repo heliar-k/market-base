@@ -18,7 +18,7 @@
 
 **自选清单迁技术分析侧栏**：与 symbol-list 合并成一组（自选本质是盯盘工具，技术视图本来就有标的列表）；删除交互改显式 ✕ 按钮（修掉 Alt+点击不可发现的旧账）；go-stock 无刷新切图语义不变；/daily/ 不带个人状态。
 
-**SPA 收缩为纯工具视图**：删市场仪表盘视图，默认落地 = 技术分析；站点根 `/` 与 `#dashboard` 深链重定向到 /daily/；SPA 只经 /#tech、/#correlation 访问。
+**SPA 收缩为纯工具视图**：删市场仪表盘视图，默认落地 = 技术分析；SPA 壳从站点根挪到 `/app/`（`public/app/index.html`），站点根 `/` 重定向到 /daily/；SPA 经 `/app/#tech`、`/app/#correlation` 访问。实现注记（2026-10-11 补）：最初设想「`/` 重定向、SPA 仍住根路径的 `/#tech`」行不通——hash 深链的请求路径就是 `/`，服务端重定向会吞掉全部 hash 路由；把 SPA 挪到 `/app/` 后根路径不再有 index.html 资产，裸 302 即可生效，两不误。
 
 **ui/dashboard-polish 不合入**：其版式是为待删的 SPA 视图做的，合入再搬是双倍工。信息组织重放进 /daily/（头条锚点、平稳胶囊、触控目标 ≥24px、板块卡挂链接、快照卡等高），SPA 专属的版式（60/40 双栏、sticky 细条）不带走。分支保留备查。
 
@@ -32,7 +32,7 @@
 
 - freshness、主导情景 headline、共识渲染、「数据截至」组装各只剩一份实现；仪表盘的 /daily/ 入口条删除。
 - /daily/ island 吸收 dashboard.js 的取数与渲染（R.cards / R.chgSpan / R.esc 等单源调用直接复用）；守卫测试体系（test_static_single_source 等）从此覆盖全部今日内容。
-- `macro-view.js` 的 routeHash 需显式映射 `#dashboard → /daily/`（spaViews 删除后 pageOf 不再命中）；`_redirects` 加 `/` 重定向行。
+- `macro-view.js` 的 routeHash 需显式映射 `#dashboard → /daily/`（spaViews 删除后 pageOf 不再命中）；`_redirects` 加 `/` 重定向行；本地 `src.server` 加同口径根重定向。
 - index.html 私有样式块与 .dash-* 中仅仪表盘使用的部分清理，技术/关联视图共用的保留。
 - `test_dashboard_links_use_site_nav` 等守卫迁到 /daily/ 侧改写。
 - 今日一句话、六板块快照、波动率 KPI/信号、共识完整卡的端点不变（/api/home-lines、/api/assets/overview、/api/volatility/dashboard、/api/consensus），预渲染导出无需改。

@@ -26,8 +26,11 @@ NAV.forEach(g => {
 PAGES.set(SITE.home.key, DEFAULT_PAGE);
 KEYS.set(DEFAULT_PAGE, SITE.home.key);
 
-// SPA 自有视图键（#dashboard / #tech / #correlation）
+// SPA 自有视图键（#tech / #correlation，ADR-0005 后仪表盘已删）
 const VIEW_KEYS = new Set(SITE.spaViews.map(v => v.view));
+
+// 已删视图的旧深链 → 整页跳头版（ADR-0005）：spaViews 删除后 pageOf 不再命中，需显式映射
+const RETIRED_VIEWS = { dashboard: SITE.home.page };
 
 // hash 键名容错：分组前缀猜错时按最后一段回退（导航 key 末段无重名）
 // 例：#macro/fed → fed；#equities/crypto → assets/crypto
@@ -35,12 +38,12 @@ const pageOf = key =>
   PAGES.get(key) ??
   PAGES.get([...PAGES.keys()].find(k => k.split('/').pop() === key?.split('/').pop()));
 
-// 转义单源 R.esc（rates-common.js 已在 index.html:23 先于本模块加载，dashboard.js 同样用法）
+// 转义单源 R.esc（rates-common.js 已在 app/index.html 先于本模块加载，同款用法）
 const esc = R.esc;
 
 // ── state ──
 let navEl = null;
-let activeView = null; // 'dashboard' | 'tech' | 'correlation'
+let activeView = null; // 'tech' | 'correlation'
 
 function highlight() {
   navEl.querySelectorAll('a.macro-nav-item[data-view]').forEach(a => {
@@ -65,6 +68,7 @@ function toggleGroup(grp) {
 function viewFromHash() {
   const key = location.hash.slice(1);
   if (key && VIEW_KEYS.has(key)) return key;
+  if (key && RETIRED_VIEWS[key]) { location.replace(RETIRED_VIEWS[key]); return null; }
   if (key && !VIEW_KEYS.has(key) && pageOf(key)) location.replace(pageOf(key));
   return null;
 }
@@ -73,6 +77,7 @@ function routeHash() {
   const key = location.hash.slice(1);
   if (!key) return;
   if (VIEW_KEYS.has(key)) { goView(key); return; }
+  if (RETIRED_VIEWS[key]) { location.replace(RETIRED_VIEWS[key]); return; }
   const page = pageOf(key);
   if (page) location.replace(page); // 专题页已不是 SPA 内嵌，只能整页跳
 }

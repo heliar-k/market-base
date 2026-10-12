@@ -1,23 +1,22 @@
 // site-nav.js — 全站导航唯一数据源（ESM 单文件：export const + 兼容挂 window）。
 //
 // 消费方（一份数据，统一 import）：
-//   1. src/layouts/TopicLayout.astro → 专题页顶栏 Tab（构建期渲染，只渲染到「组」这一层）
+//   1. src/layouts/TopicLayout.astro → 专题页左侧专题树（构建期渲染，只渲染到「组」这一层）
 //   2. js/macro-view.js             → SPA 左侧专题树（组 + items 子页）
-//   3. js/dashboard.js              → SPA 仪表盘专题入口（今日一句话行 + /daily/ 入口条，路径全走这份）
 // 挂 window.SITE_NAV 供过渡期未改 import 的模块消费方兜底，Astro 构建期无 window 则跳过。
 //
 // 新增专题：改这里即可（页面放 frontend/src/pages/ 对应路径，无需别处登记）。
-// 字段：home=顶栏第一个入口（也是 SPA 默认落地页）；spaViews=SPA 自有视图（非页面）；
+// 字段：home=落地页（也是 / 重定向目标，ADR-0005）；spaViews=SPA 自有视图（非页面，
+// SPA 已收缩为纯工具壳，ADR-0005）；
 // groups=专题分组，page=入口页，items=子页，sub=侧栏二级缩进，view=SPA 视图键。
 // 改 label 的约束：label 必须是落地页 h1 的连续子串（最佳=相等）。点到侧栏看到的名字与落地页
 // 标题不一致时，用户会怀疑走错页；侧栏换行可接受，不要为不换行牺牲一致性。
-// 改 key/page 会影响 dashboard.js 的键映射与 TopicLayout 构建期高亮，勿动。
+// 改 key/page 会影响 TopicLayout 构建期高亮与 / 重定向目标，勿动。
 // 注：crypto-derivatives / crypto-options 两项带 sub 缩进，但组里没有「加密货币」父条目可挂，
 // 层级只靠视觉位置读不出来（窄屏抽屉与读屏尤甚）——故标签自带「加密」前缀，自己说清归属。
 export const SITE_NAV = {
   home: { key: 'daily', label: '今日研判', page: '/daily/' },
   spaViews: [
-    { view: 'dashboard', label: '市场仪表盘' },
     { view: 'tech', label: '技术分析' },
     { view: 'correlation', label: '关联分析' },
   ],

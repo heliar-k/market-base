@@ -16,7 +16,6 @@
   };
 })();
 
-import { initDashboard, refresh as dashRefresh, cleanup as dashCleanup, updateStatus as dashStatus } from './dashboard.js';
 import { initTechView, selectSymbol as techSelectSymbol, updateStatus as techStatus } from './tech-view.js';
 import { initGlobalNav, markView } from './macro-view.js';
 import { initCorrelationView, updateStatus as correlationStatus } from './cross-correlation.js';
@@ -47,38 +46,26 @@ document.getElementById('theme-toggle').addEventListener('click', () => {
 
 // ── shared state ───────────────────────────────────────────────────────────
 export const state = {
-  currentTab: 'dashboard',
+  currentTab: 'tech',
   symbols: null,
 };
 
 const inited = {};
 
 const views = {
-  dashboard:    { label: '仪表盘', init: initDashboard,      status: dashStatus,        cleanup: dashCleanup, refresh: dashRefresh },
-  tech:         { label: '技术',   init: initTechView,       status: techStatus },
-  correlation:  { label: '关联',   init: initCorrelationView, status: correlationStatus },
+  tech:         { label: '技术', init: initTechView,       status: techStatus },
+  correlation:  { label: '关联', init: initCorrelationView, status: correlationStatus },
 };
 
 function switchTab(tab) {
-  const prev = state.currentTab;
-
-  // Cleanup previous view if needed
-  if (prev === 'dashboard' && tab !== 'dashboard') {
-    dashCleanup();
-    inited['dashboard'] = false;
-  }
-
   state.currentTab = tab;
   document.querySelector('.app').dataset.view = tab;
-  markView(tab); // 侧栏高亮单入口（#24：专题页已改为整页跳转，SPA 只剩这三个视图）
+  markView(tab); // 侧栏高亮单入口（#24：专题页已改为整页跳转，SPA 只剩技术/关联两个工具视图）
 
   const view = views[tab];
   if (!inited[tab]) {
     if (view.init) view.init();
     inited[tab] = true;
-  } else if (view.refresh) {
-    // ponytail: refresh on re-visit (dashboard re-loads data)
-    view.refresh();
   }
   if (view.status) view.status();
   else {
@@ -89,7 +76,7 @@ function switchTab(tab) {
   document.getElementById('status-refresh').textContent = '页面刷新 ' + new Date().toLocaleTimeString('zh-CN');
 }
 
-// Cross-module tab switching (dashboard mini-charts, watchlist clicks, 左侧导航)
+// Cross-module tab switching (watchlist clicks, 左侧导航)
 window.addEventListener('switch-tab', e => switchTab(e.detail));
 
 // ponytail: go-stock now redirects to tech view with symbol pre-selected
@@ -98,4 +85,4 @@ window.addEventListener('go-stock', e => {
   if (e.detail) techSelectSymbol(e.detail);
 });
 
-switchTab(initialView || 'dashboard');  // 默认落地页（#24 去 iframe 后「宏观」视图消失，改由仪表盘承担首屏）
+switchTab(initialView || 'tech');  // 默认落地 = 技术分析（ADR-0005：仪表盘已删，首页是 /daily/ 整页）

@@ -13,7 +13,7 @@ import numpy as np
 import pandas as pd
 from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
 from src.analyze import analyze
@@ -1589,6 +1589,14 @@ if not _page_dirs:
         "  提示：frontend/dist 不存在 → 本地专题页（/rates/ 等）会 404；"
         "跑 cd frontend && npm run build"
     )
+
+
+# ADR-0005：站点根重定向到今日头版（与线上 _redirects 同口径）。SPA 已挪 public/app/，
+# 根路径不再有 index.html —— StaticFiles(html=True) 会 404，这里显式接住。
+@app.get("/", include_in_schema=False)
+def root_redirect() -> RedirectResponse:
+    return RedirectResponse("/daily/", status_code=307)
+
 
 app.mount("/", StaticFiles(directory=str(_static), html=True), name="static")
 
