@@ -29,7 +29,8 @@ import pytest
 ROOT = Path(__file__).resolve().parent.parent
 FRONTEND = ROOT / "frontend"
 STATIC = FRONTEND / "public"
-SPA_ENTRY = STATIC / "index.html"
+# ADR-0005：SPA 壳从 public/index.html 挪到 public/app/index.html（/ 整页重定向到 /daily/）
+SPA_ENTRY = STATIC / "app" / "index.html"
 # 32 个专题页 .astro 源（build 产同路径 HTML）；head/顶栏样板唯一来源 = TopicLayout
 ASTRO_PAGES = FRONTEND / "src" / "pages"
 TOPIC_LAYOUT = FRONTEND / "src" / "layouts" / "TopicLayout.astro"
@@ -126,24 +127,11 @@ def test_nav_consumers_read_site_nav() -> None:
     assert not hardcoded, f"macro-view.js 里仍有硬编码专题路径：{hardcoded}"
 
 
-def test_dashboard_links_use_site_nav() -> None:
-    """dashboard.js 是导航消费方：专题路径不得重复硬编码，全部从 SITE_NAV 派生。
-
-    （仪表盘不再自带跨资产表，指标键→导航键的 LINKS 映射随之消失；
-    现在只余两处页路径：今日一句话行的 NAV_PAGES、与去 /daily/ 的入口条。）"""
-    text = (STATIC / "js" / "dashboard.js").read_text(encoding="utf-8")
-    assert "import { SITE_NAV" in text, "dashboard.js 未 import SITE_NAV"
-    assert "for (const g of SITE_NAV.groups)" in text, "NAV_PAGES 未从 groups 派生"
-    assert "SITE_NAV.home.page" in text, "去今日研判页的入口条未用 SITE_NAV.home.page"
-    hardcoded = [p for p in _nav_pages() if f"'{p}'" in text]
-    assert not hardcoded, f"dashboard.js 里仍有硬编码专题路径：{hardcoded}"
-
-
 def test_as_of_text_only_via_r_asof() -> None:
     """「数据截至」文案只能由 R.asOf 组装（rates-common.js 是唯一出处）。
 
     管辖 SPA 壳、全部 .astro 页（island 脚本同样不得手写）与 **共享 JS**
-    —— 旧版只扫 index.html + .astro，dashboard.js / cross-correlation.js 里
+    —— 旧版只扫 index.html + .astro，cross-correlation.js 里
     手写 `textContent = '数据截至 …'` 全漏（2026-10 补）。逐行匹，不把隔行的
     `textContent =` 与注释里的「数据截至」误拼成一条。
     """
@@ -312,7 +300,7 @@ def test_escaping_only_via_r_esc() -> None:
     """HTML 转义只能走 `R.esc`（rates-common.js 是唯一出处），页面只允许别名。
 
     背景：macro-view.js 自写过一份 esc，少了 `"` 转义（属性位注入面）还没做 null
-    守卫；geo / dashboard.js / commodities 都是 `const esc = R.esc` 别名，合法。
+    守卫；geo / cross-correlation.js 都是 `const esc = R.esc` 别名，合法。
     只拦「自己重实现一遍正则」的写法。
     """
     offenders = []

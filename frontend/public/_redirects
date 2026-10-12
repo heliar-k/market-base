@@ -2,6 +2,11 @@
 # 子页产物是 /liquidity/<name>/index.html，而 SITE_NAV items 与页面内链接指向
 # /liquidity/<name>.html（共享 JS 硬闸不可改）。200 重写 = 地址栏 URL 不变。
 # 后续族迁移（rates/assets/…）的非 index 子页在此各补一行。
+#
+# ADR-0005：站点根 / 整页重定向到今日头版。SPA 已挪到 /app/（public/app/index.html），
+# 根路径不再有 index.html 资产，裸 302 即可生效；hash 深链（/#tech 等）随重定向丢失，
+# 技术分析入口从侧栏与 /app/#tech 访问。
+/  /daily/  302
 
 /liquidity/transmission-chain.html /liquidity/transmission-chain/ 200
 /liquidity/fed-balance-sheet.html /liquidity/fed-balance-sheet/ 200

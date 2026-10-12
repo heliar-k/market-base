@@ -24,7 +24,11 @@
 
 ## 前端
 
-- **主站 SPA**：frontend/public/index.html 单页壳 + 四视图（市场仪表盘 / 技术分析 / 宏观 / 关联分析）。全站交互最重的部分（symbol 切换、tab 状态、图表联动），保持 vanilla JS，不迁 Astro。
+- **主站 SPA**：frontend/public/app/index.html 单页壳（ADR-0005 后从站点根挪到 /app/，/ 整页重定向到今日头版）+ 两视图（技术分析 / 关联分析）。全站交互最重的部分（symbol 切换、tab 状态、图表联动），保持 vanilla JS，不迁 Astro。
+- **今日头版**：唯一的「今日」页 = /daily/（SITE_NAV home，ADR-0005）。单列纵排「结论 → 叙事 → 数据 → 导航」：头条区 → 今日一句话 → 情景卡与跨资产变化表 → 市场快照与波动率 → 专题入口。
+- **头条区（hero）**：/daily/ 首屏结论锚点：共识完整卡 + 主导情景徽章 + 结构报警 + FOMC 倒计时 + 衰退概率。全站唯一渲染地，不在别处重复（五项重叠双维护的历史包袱，ADR-0005 清偿）。
+- **市场快照**：六板块（股/债/商品/ETF/加密/外汇）当日涨跌，行情视角，挂专题链接。与跨资产变化表共存并分工：跨资产表 = 研判视角（Δ5/Δ20 + 正反面 + 时效），快照 = 行情视角。
+- **自选清单（watchlist）**：用户盯盘的个人标的集合（localStorage）。家住技术分析视图侧栏，与 symbol-list 同组；点行无刷新切图（go-stock），✕ 显式删除。
 - **专题页**：挂在主站导航下的 32 个静态内容页（rates / credit / liquidity / assets / fed / treasury…），frontend/src/pages/ 下的 .astro 源 + ECharts 图表 + 规则引擎叙事。样板重复痛点的所在，Astro 迁移的唯一对象（已全部迁完，工单 #18）。
 - **island**：专题页里的交互孤岛（ECharts 图表组件）。页面其余部分为零 JS 静态 HTML，由 Layout 统一渲染 head / 导航 / 样板。
 - **预渲染数据**：export_pages.py 构建期调分析层路由产出的静态 JSON（与本地 FastAPI 的 /api/* 同路径）。页面运行时 fetch 它——数据日更与代码改动解耦的关键机制，迁移不触碰。

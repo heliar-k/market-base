@@ -984,6 +984,102 @@ body.dark .pm-topic-card { box-shadow: inset 0 0 0 1px rgba(255,255,255,.04); }
 #dashboard .re-table th:nth-child(7) { width: 15%; }
 
 /* ── daily 页（今日研判，原页面内联 <style> 收编；db- 前缀为本页私有）── */
+/* 头条区三卡（B 方案定稿）：卡片只提供结构不提供墨水；三卡对称对 + 平板背景卡铺满 */
+.db-hero-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr)); gap: 12px; margin-bottom: 12px; }
+.db-sc-card {
+  background: var(--surface); border: 1px solid var(--border); border-radius: 8px;
+  padding: 14px 16px; display: flex; flex-direction: column; gap: 10px; min-width: 0;
+}
+.db-sc-title {
+  display: flex; align-items: baseline; gap: 8px;
+  font-size: 13px; font-weight: 600; color: var(--text-secondary);
+  border-bottom: 1px solid var(--border-light); padding-bottom: 8px;
+}
+.db-sc-title > small { margin-left: auto; font-size: 11px; font-weight: 400; color: var(--text-dim); }
+.db-sc-state b { font-size: 16px; }
+.db-sc-votes { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 12px; }
+.db-hv-member { font-size: 11.5px; color: var(--text-secondary); text-decoration: none; padding: 5px 2px; }
+.db-hv-member:hover { color: var(--accent-ink); }
+.db-hv-member i { font-style: normal; font-weight: 700; margin-left: 3px; }
+.db-hv-member--on i { color: var(--up); }
+.db-hv-member--off i { color: var(--down); }
+.db-hv-member--abst i { color: var(--text-dim); }
+.db-hv-member--absent { opacity: .45; }
+.db-hv-member--absent i { color: var(--text-dim); }
+.db-alert-card { margin-bottom: 2px; }
+.db-hero-na { font-size: 13px; color: var(--text-secondary); }
+/* 背景锚点卡：FOMC/隐含/衰退 kv 行（一项一个数）；数据截至在页头 re-as-of，卡内不重复 */
+.db-bg-body { display: flex; flex-direction: column; }
+.db-bg-row {
+  display: flex; justify-content: space-between; align-items: baseline; gap: 8px;
+  padding: 7px 0; border-bottom: 1px solid var(--border-light); font-size: 12.5px;
+}
+.db-bg-row:last-child { border-bottom: none; }
+.db-bg-k { color: var(--text-secondary); }
+.db-bg-v { font-weight: 600; color: var(--text); font-variant-numeric: tabular-nums; text-align: right; }
+.db-bg-v em { font-style: normal; font-weight: 400; font-size: 11px; color: var(--text-dim); margin-left: 4px; }
+/* 情景与报警（全宽卡）：情景结论一行（空态降次色），报警两行式（标题 + 正文放出 + 专题链） */
+.db-al-scen { font-size: 13.5px; font-weight: 600; color: var(--text); }
+.db-al-scen.empty { color: var(--text-secondary); }
+.db-al-item { padding: 8px 0; }
+.db-al-item + .db-al-item { border-top: 1px solid var(--border-light); }
+.db-al-title { font-size: 13px; font-weight: 600; color: var(--warning); }
+.db-al-text { font-size: 12px; color: var(--text-secondary); line-height: 1.55; margin-top: 2px; }
+.db-al-topic { font-size: 11.5px; color: var(--text-dim); text-decoration: none; margin-left: 8px; white-space: nowrap; }
+.db-al-topic:hover { color: var(--accent-ink); }
+/* 平板 768-1023：三状态卡 2+1，背景卡落单行时铺满（免得孤零零半宽） */
+@media (min-width: 768px) and (max-width: 1023.98px) {
+  .db-bg-card { grid-column: 1 / -1; }
+}
+/* 今日一句话（分层卡，自仪表盘 index.html 私有样式收编；有信号升卡 + 平稳胶囊；触控目标 ≥24px） */
+.db-line-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr)); gap: 12px; align-items: start; }
+.db-line-card {
+  display: flex; flex-direction: column; gap: 6px; padding: 14px 16px;
+  background: var(--surface); border: 1px solid var(--border);
+  border-left: 3px solid var(--border-light); border-radius: 8px;
+  text-decoration: none; transition: background .15s, border-color .15s;
+}
+/* 有信号：竖条走图形档 --color-warn（边框属于图形档允许的位置） */
+.db-line-card.hot { border-left-color: var(--color-warn); }
+.db-line-card.hot .db-line-card-t { color: var(--warning); }
+.db-line-card:hover { background: var(--surface-hover); border-color: var(--accent-ink); }
+.db-line-card:hover .db-line-card-x { text-decoration: underline; }
+.db-line-card-t { font-size: 13px; font-weight: 600; color: var(--text); }
+.db-line-card-x { font-size: 12.5px; line-height: 1.55; color: var(--text-secondary); }
+.db-line-card-go { font-size: 11px; color: var(--text-dim); margin-top: auto; padding-top: 4px; }
+/* 六板块快照（行情视角，自 app.css .dash-card/.dash-snap 收编；板块标题整行可点 ≥24px） */
+.db-boards { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr)); gap: 12px; align-items: start; }
+.db-board {
+  background: var(--surface); border-radius: 8px; border: 1px solid var(--border);
+  padding: 14px 16px; display: flex; flex-direction: column; gap: 8px; min-width: 0;
+}
+.db-board-t {
+  font-size: 13px; font-weight: 600; color: var(--text-secondary);
+  border-bottom: 1px solid var(--border-light); padding-bottom: 8px;
+  text-decoration: none; display: flex; justify-content: space-between; align-items: baseline; gap: 8px;
+}
+.db-board-t:hover { color: var(--accent-ink); }
+.db-board-note { font-size: 11px; font-weight: 400; color: var(--text-dim); white-space: nowrap; }
+.db-snap { display: flex; flex-direction: column; }
+.db-snap-row {
+  display: grid; grid-template-columns: minmax(0, 1fr) auto 58px; gap: 8px;
+  align-items: baseline;
+  padding: 6px 4px; border-bottom: 1px solid var(--border-light); font-size: 12.5px;
+}
+.db-snap-row:last-child { border-bottom: none; }
+.db-snap-name { color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.db-snap-val { font-weight: 600; color: var(--text); text-align: right; font-variant-numeric: tabular-nums; font-family: var(--font-mono); }
+.db-snap-row > span:last-child { text-align: right; font-variant-numeric: tabular-nums; }
+/* 波动率信号卡（自 app.css .dash-sig-* 收编） */
+.db-sig-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr)); gap: 12px; }
+.db-sig-card {
+  display: flex; flex-direction: column; gap: 6px;
+  background: var(--surface); border-radius: 8px; border: 1px solid var(--border); padding: 14px 16px;
+}
+.db-sig-title { font-size: 13px; font-weight: 600; color: var(--text); }
+.db-sig-metric { font-size: 12px; color: var(--text-secondary); font-family: var(--font-mono); }
+.db-sig-text { font-size: 12px; color: var(--text-secondary); line-height: 1.5; }
+.db-sig-advice { font-size: 11px; font-style: italic; color: var(--text-dim); }
 .db-spark.up { stroke: var(--color-up); }
 .db-spark.down { stroke: var(--color-down); }
 .db-hit { border-color: var(--color-up); }

@@ -45,8 +45,13 @@ def test_home_lines_covers_nine_engines() -> None:
         assert line["as_of"] is None or re.fullmatch(r"\d{4}-\d{2}-\d{2}", line["as_of"]), line
 
 
-def test_dashboard_consumes_home_lines() -> None:
-    """dashboard.js 必须拉 /api/home-lines，并经 NAV_PAGES 定位专题页。"""
-    js = (ROOT / "frontend/public/js/dashboard.js").read_text(encoding="utf-8")
-    assert "/api/home-lines" in js, "dashboard.js 未接入 /api/home-lines"
-    assert "NAV_PAGES" in js and "R.asOf(" in js, "缺 NAV_PAGES 映射或 R.asOf 时效组装"
+def test_daily_consumes_home_lines() -> None:
+    """今日头版（/daily/，ADR-0005 后 home-lines 唯一消费方）必须拉 /api/home-lines。
+
+    原 test_dashboard_consumes_home_lines 随 SPA 仪表盘视图删除而改写：
+    dashboard.js 的 NAV_PAGES/SITE_NAV 派生守卫同批废弃，专题路径改在
+    test_static_single_source 的字面量链接守卫下覆盖。
+    """
+    js = (ROOT / "frontend/src/pages/daily/index.astro").read_text(encoding="utf-8")
+    assert "/api/home-lines" in js, "今日头版未接入 /api/home-lines"
+    assert "LINE_LINKS" in js and "R.setAsOf(" in js, "缺 LINE_LINKS 映射或 R.setAsOf 时效组装"

@@ -188,7 +188,7 @@ market-base/
 │   │   ├── layouts/TopicLayout.astro ← 专题页通用骨架（head 样板/左侧树+窄屏抽屉/页头/主题等运行时行为）
 │   │   └── pages/                ← 33 个专题页 .astro（liquidity 8 / rates 4 / 单页族 9 / assets 12）
 │   ├── public/                   ← SPA 壳 + 共享资源（原 static/ 搬入，Astro publicDir 原样拷贝）
-│   │   ├── index.html            ← 主仪表盘 SPA（vanilla，不迁）
+│   │   ├── app/index.html        ← 工具 SPA 壳（技术/关联两视图，vanilla，不迁；/app/ 访问）
 │   │   ├── js/                   ← 共享 JS（site-nav / echarts-theme / rates-common 等，不进打包管线）
 │   │   └── css/ vendor/ api/ favicon.svg _redirects
 │   ├── astro.config.mjs          ← Astro 配置（output static，publicDir/outDir 用默认）
@@ -424,7 +424,8 @@ uv run python src/sell_put.py --symbol TSM
 
 ### 8. 主站 Web UI/UX 设计原则（新面板/重构对齐用）
 
-主站 = `frontend/public/index.html` SPA（仪表盘/技术/宏观/关联四视图）+ 32 个 .astro 专题页
+主站 = `frontend/public/app/index.html` SPA（技术/关联两工具视图，ADR-0005 后仪表盘已并入
+今日头版，`/` 整页重定向到 /daily/）+ 33 个 .astro 专题页
 （`frontend/src/pages/`，TopicLayout 骨架，timsun 复刻）。新面板与重构遵守：
 
 - **主题只走 CSS 变量**：颜色一律用 `:root` / `body.dark` 定义的 `var(--bg/--surface/--border/--text/--accent/…)`（见 `frontend/public/css/app.css` 顶部），禁止硬编码背景/文字色；亮暗双主题都要可用。ECharts 图统一 `echarts-theme.js` 的 `macro`/`macroDark` 主题 + `reThemeECharts` 响应 `theme-changed` 事件
@@ -541,7 +542,7 @@ uv run python src/sell_put.py --symbol TSM
 - **head / 导航单源（Astro，ADR-0003）**：专题页 `<head>` 样板与**左侧专题树**由
   `frontend/src/layouts/TopicLayout.astro` 构建期统一渲染（页私有 head 追加走 `slot="head"`）；
   左侧树 + SPA 侧栏专题树唯一数据源 = `frontend/public/js/site-nav.js`（ESM：`export const SITE_NAV`，
-  TopicLayout 构建期与 macro-view.js / dashboard.js 运行时 import 同一份）。
+  TopicLayout 构建期与 macro-view.js 运行时 import 同一份）。
   专题页左侧树**复用 SPA 那套 `.macro-nav*` 类**（样式单源在 `app.css`，不造平行组件），
   `body.re-has-side` 只在 ≥1025px 让位 240px，窄屏与内嵌（`body.embedded`）不让位；
   ≤1024 树收进抽屉，由 TopicLayout 渲染的 `#macro-nav-toggle`（☰）+ `.macro-nav-backdrop` 唤出
