@@ -116,9 +116,17 @@ setSidebarHidden(localStorage.getItem('sidebar-hidden') === '1');
 const ETF_LIKE = new Set(['SPY', 'QQQ']); // grouped with indices even though type=stock
 
 async function loadSymbols() {
-  const res = await fetch('/api/symbols');
-  const symbols = await res.json();
   const list = document.getElementById('symbol-list');
+  let symbols;
+  try {
+    const res = await fetch('/api/symbols');
+    if (!res.ok) throw new Error(res.statusText);
+    symbols = await res.json();
+  } catch {
+    // README 式空态：失败要与「暂无自选/空列表」区分开（自 7d8111dd 意图移植，ADR-0005 合并）
+    list.innerHTML = '<div class="sidebar-watch-empty">标的清单加载失败 · 确认 /api/symbols 已导出或服务已启动后刷新</div>';
+    return;
+  }
   list.innerHTML = '';
 
   const indices = symbols.filter(s => s.type === 'index' || ETF_LIKE.has(s.name));
