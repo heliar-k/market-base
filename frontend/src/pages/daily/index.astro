@@ -1,8 +1,8 @@
 ---
 // 今日研判页（SITE_NAV home 落地页）— 工单 #16 自 public/daily/index.html 迁入；ADR-0005 升级今日头版。
 // 结构最特殊：无 page-toc；头条区（共识完整卡 + 主导情景/报警/FOMC/衰退徽章，全站唯一结论渲染地）+
-// 今日一句话（9 专题分层卡）+ 三情景卡（点卡定位读法行）+ 跨资产变化表（点行展开正反两面）+
-// 市场快照/波动率 re-duo + 结构报警定位 + 专题 link-grid。
+// 今日一句话（9 专题分层卡）+ 三情景卡 + 市场快照/波动率 re-duo + 专题 link-grid。
+// （2026-10 删跨资产变化表与各指标正反面两段：结论层已足够，研判视角数据留在各专题页）
 // fetch('/api/daily-brief') 主端点；rate-expectations / consensus / home-lines / assets/overview /
 // volatility/dashboard 均为次要端点走 getOpt（缺源段级容错）。
 import TopicLayout from '../../layouts/TopicLayout.astro';
@@ -41,23 +41,10 @@ import Section from '../../components/Section.astro';
     <p class="re-source">情景按共同观测日期对齐，用最近 5 个观测间隔检验价格方向。先核验再形成方向判断。</p>
     <div class="re-cards" id="db-scenarios"><div class="re-loading">加载中…</div></div>
   </Section>
-  <Section id="sec-table" title="跨资产变化" card>
-    <p class="re-source">先看价格事实，再解释背后的机制。涨跌颜色只表示数值方向；变化按各序列最近 5 / 20 个有效观测计算，迷你趋势使用独立纵轴，不比较振幅大小。点击行可展开该指标的正反两面。</p>
-    <div id="db-table"><div class="re-loading">加载中…</div></div>
-  </Section>
-
-  <!-- 条件性小节(JS 控制显隐 + 需保留 db-sec class/inline style,Section 不透传),保持裸 div -->
-  <div id="sec-readings" class="db-sec re-block" style="display:none">
-    <div class="re-h2">各指标的信号与证伪条件</div>
-    <p class="re-source">单指标相容不代表机制成立：信号按跨资产条件表述（方向为近 5 个有效观测，分位为 1 年窗口），先对照上方情景，再看该行证伪条件是否已触发。</p>
-    <div id="db-readings"></div>
-  </div>
-
   <!-- 双栏组（.re-duo，special.css 单源，同 rates/fed-funds）：宽桌面两小节并排，窄屏自动回落单列。
-       两张价格表分工（ADR-0005）：上方跨资产变化表 = 研判视角（Δ5/Δ20+正反面），
-       此处六板块 = 行情视角（当日涨跌，挂专题链接） -->
+       六板块 = 行情视角（当日涨跌，挂专题链接）；跨资产 Δ5/Δ20 与正反面留在各专题页 -->
   <div class="re-duo">
-    <Section id="sec-boards" title="市场快照" sub="行情视角：六板块标的当日涨跌；研判视角的 Δ5/Δ20 见跨资产变化表">
+    <Section id="sec-boards" title="市场快照" sub="六板块标的当日涨跌">
       <div id="db-boards"><div class="re-loading">加载中…</div></div>
     </Section>
     <Section id="sec-vol" title="波动率" sub="核心指数 KPI 与信号卡 · 30 指数全景见波动率专题">
@@ -101,36 +88,6 @@ import Section from '../../components/Section.astro';
 // 数值格式化走 R.fmtLast / R.fmtChg（已收进 rates-common.js 单源，仪表盘同用）
 
 // 涨跌着色语义：价格上行=up 绿（与全站一致）；VIX/OAS 上行是风险信号，但颜色只表示方向（见页首说明）
-function sparkSVG(points) {
-  if (!points || points.length < 2) return '';
-  const vals = points.map(p => p[1]);
-  const min = Math.min(...vals), max = Math.max(...vals), span = max - min || 1;
-  const W = 110, H = 30, step = W / (points.length - 1);
-  const xy = points.map((p, i) => `${(i * step).toFixed(1)},${(H - 2 - (p[1] - min) / span * (H - 4)).toFixed(1)}`);
-  const up = vals[vals.length - 1] >= vals[0];
-  return `<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" style="vertical-align:middle" class="${up ? 'db-spark up' : 'db-spark down'}">
-    <polyline points="${xy.join(' ')}" fill="none" stroke-width="1.5"/></svg>`;
-}
-// 时效：行数据日期距打开页面当天 ≤4 自然日 → 正常（覆盖周末），否则滞后。
-// 基准是用户「今天」而非全表最新日——整表停更时不能误报「时效正常」
-// （与 dashboard.js freshness 同逻辑：SPA 不加载本页脚本，两处同步维护）
-function freshness(rowAsOf) {
-  if (!rowAsOf) return ['—', ''];
-  const lag = (Date.now() - new Date(rowAsOf + 'T00:00:00')) / 86400000;
-  return lag <= 4 ? ['时效正常', ''] : [`滞后 ${Math.round(lag)} 天`, 'down'];
-}
-// 读法行方向语义：风险指标（VIX/OAS）上行 = 压力 = down 红；其余上行 = up 绿
-function dirCls(key, d) { return d === 0 || d == null ? 'neutral' : (d === 1) === !RISK_KEYS.has(key) ? 'up' : 'down'; }
-const RISK_KEYS = new Set(['VIX', 'HY_OAS']);
-
-const LINKS = {
-  SPX: '/assets/equities.html', DXY: '/assets/fx.html', BTC: '/assets/crypto.html',
-  WTI: '/assets/commodities.html', Gold: '/assets/commodities.html',
-  Y10: '/rates/yield-curve.html', VIX: '/volatility/vix.html', HY_OAS: '/credit/',
-  RRP: '/liquidity/rrp-tga.html', TGA: '/liquidity/rrp-tga.html',
-  NET_LIQ: '/liquidity/fed-balance-sheet.html',
-};
-
 // 今日一句话 → 专题组入口（键 = /api/home-lines 的组键，路径同 SITE_NAV.groups[].page）
 const LINE_LINKS = {
   rates: '/rates/', credit: '/credit/', inflation: '/inflation/', labor: '/labor/',
@@ -177,7 +134,7 @@ async function load() {
     R.getOpt('/api/assets/overview'),
     R.getOpt('/api/volatility/dashboard'),
   ]);
-  const ind = d.indicators || { as_of: null, groups: {}, rows: [] };
+  const ind = d.indicators || {};
 
   // 页头多源时效标签（各分组观测日一段，文案组装见 R.asOf）
   const g = ind.groups || {};
@@ -285,7 +242,7 @@ async function load() {
   // ── 情景卡（段级兜底：本段抛错不拖垮后续段）──
   try {
   document.getElementById('db-scenarios').innerHTML = (d.scenarios || []).map(s => `
-    <div class="re-card db-click ${s.matched ? 'db-hit' : 'db-flat'}" data-scen="${s.key}">
+    <div class="re-card ${s.matched ? 'db-hit' : 'db-flat'}">
       <div class="re-corridor-label">${s.title}
         <span class="re-badge ${s.matched ? 'on' : 'chip'}" style="margin-left:6px">${s.matched ? '规则命中' : '未触发'}</span></div>
       <div class="re-card-sub" style="white-space:normal">${s.desc}</div>
@@ -297,89 +254,9 @@ async function load() {
         <p style="margin:6px 0 0;font-style:italic">${s.refute}</p>
       </div>
     </div>`).join('');
-  // 点情景卡 → 定位到相关指标的正反两面（双层联动：结论层 → 数据层）
-  const SCEN_KEYS = {
-    'risk-on': ['SPX', 'HY_OAS', 'VIX'],
-    'risk-off': ['SPX', 'HY_OAS', 'VIX'],
-    'energy-cost': ['WTI', 'SPX', 'Y10'],
-  };
-  document.querySelectorAll('#db-scenarios .re-card').forEach(c => {
-    c.addEventListener('click', () => focusReading(SCEN_KEYS[c.dataset.scen]?.[0]));
-  });
   } catch (e) { R.fail(['db-scenarios'], e); }
 
-  // ── 跨资产变化表 + 读法行联动（段级兜底）──
-  try {
-  const readings = {};
-  (d.readings || []).forEach(r => readings[r.key] = r);
-  const html = `
-    <div class="re-table-wrap"><table class="re-table">
-      <thead><tr><th>指标 / 研究入口</th><th>最新值</th><th>Δ5 观测</th><th>Δ20 观测</th><th>近 20 观测</th><th>数据截至</th><th>时效</th></tr></thead>
-      <tbody>${ind.rows.map(r => {
-        const [fresh, cls] = freshness(r.as_of);
-        const link = LINKS[r.key];
-        const nameCell = link ? `<a href="${link}">${r.name} ↗</a>` : r.name;
-        const spark = sparkSVG(r.spark);
-        const dirTag = r.chg?.d5 != null
-          ? `<span class="${dirCls(r.key, Math.sign(r.chg.d5))}">${r.chg.d5 > 0 ? '↑' : r.chg.d5 < 0 ? '↓' : '→'}</span>` : '';
-        return `<tr class="db-click" title="${r.note || ''}" data-k="${r.key}">
-          <td>${nameCell}</td>
-          <td style="font-weight:600">${R.fmtLast(r.unit, r.last)}</td>
-          <td>${R.fmtChg(r.unit, r.chg?.d5)}</td>
-          <td>${R.fmtChg(r.unit, r.chg?.d20)}</td>
-          <td>${spark}</td>
-          <td style="color:var(--text-dim)">${r.as_of ?? '—'}</td>
-          <td class="${cls}" style="font-size:.85em">${fresh}</td>
-        </tr>`;
-      }).join('')}</tbody>
-    </table></div>`;
-  document.getElementById('db-table').innerHTML = html;
-  document.querySelectorAll('#db-table tr[data-k]').forEach(tr => {
-    tr.addEventListener('click', () => focusReading(tr.dataset.k));
-  });
-  } catch (e) { R.fail(['db-table'], e); }
-  try { renderReadings(d.readings || []); } catch (e) { R.fail(['db-readings'], e); }
-
-// ── 各指标的正反两面 ──
-function renderReadings(list) {
-  const sec = document.getElementById('sec-readings');
-  if (!list.length) { sec.style.display = 'none'; return; }
-  sec.style.display = 'flex';
-  document.getElementById('db-readings').innerHTML = list.map(r => `
-    <div class="re-card db-click" id="rd-${r.key}" data-k="${r.key}" style="margin-bottom:8px">
-      <div class="re-corridor-label">${r.name}
-        <span class="re-badge chip" style="margin-left:6px">1Y 分位 ${r.pct_1y ?? '—'}%</span>
-        <span class="re-badge chip" style="margin-left:4px">方向 <span class="${dirCls(r.key, r.dir)}">${r.dir === 1 ? '↑ 上行' : r.dir === -1 ? '↓ 下行' : r.dir === 0 ? '→ 持平' : '数据不足'}</span></span>
-      </div>
-      <!-- min-width:min(100%,260px)：裸写 260px 在 320px 视口（卡片内容列 150px）撑破卡片，
-           与 grid 轨道同一个坑：min-width 不会缩到容器以下 -->
-      <div style="display:flex;gap:12px;flex-wrap:wrap;margin-top:10px">
-        <div class="db-bull" style="flex:1;min-width:min(100%, 260px)">
-          <div style="font-size:11px;font-weight:600;margin-bottom:4px" class="up">信号</div>
-          <div style="font-size:12px">${r.signal}</div>
-        </div>
-        <div class="db-bear" style="flex:1;min-width:min(100%, 260px)">
-          <div style="font-size:11px;font-weight:600;margin-bottom:4px" class="down">证伪条件</div>
-          <div style="font-size:12px">${r.refute}</div>
-        </div>
-      </div>
-    </div>`).join('');
-  document.querySelectorAll('#db-readings .re-card').forEach(c => {
-    c.addEventListener('click', () => {
-      const tr = document.querySelector(`#db-table tr[data-k="${c.dataset.k}"]`);
-      tr?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    });
-  });
-}
-function focusReading(key) {
-  const card = document.getElementById(`rd-${key}`);
-  if (!card) return;
-  card.scrollIntoView({ behavior: 'smooth', block: 'center' });
-  card.classList.remove('db-flash'); void card.offsetWidth;
-  card.classList.add('db-flash');
-}
-
-  // ── 六板块快照（行情视角：当日涨跌，板块卡挂专题链接；缺源给修复命令）──
+  // ── 六板块快照（当日涨跌，板块卡挂专题链接；缺源给修复命令）──
   try {
     const grid = document.getElementById('db-boards');
     const tables = overview?.tables;
@@ -433,6 +310,6 @@ function focusReading(key) {
     }
   } catch (e) { R.fail(['db-vol-kpi', 'db-vol-signals'], e); }
 }
-load().catch(e => R.fail(['db-sc-market', 'db-sc-macro', 'db-bg-body', 'db-hero-sub', 'db-lines', 'db-scenarios', 'db-table', 'db-readings', 'db-boards', 'db-vol-kpi', 'db-vol-signals'], e));
+load().catch(e => R.fail(['db-sc-market', 'db-sc-macro', 'db-bg-body', 'db-hero-sub', 'db-lines', 'db-scenarios', 'db-boards', 'db-vol-kpi', 'db-vol-signals'], e));
 </script>
 </TopicLayout>

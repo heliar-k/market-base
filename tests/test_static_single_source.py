@@ -592,3 +592,34 @@ def test_group_index_sub_page_section_named_consistently() -> None:
             f"{page.relative_to(ASTRO_PAGES)}：子页导航小节改叫「专题子页」"
             f"（title 与 page-toc 条目同步），统一叫法防漂移：{hits}"
         )
+
+
+# ── id 命名空间守卫（2026-10）：多页共用的 id 不挂 #id 选择器 ──
+# special.css 全站共享：pricing 曾用 #sec-table 挂 16 条私有规则，而 fed-balance-sheet /
+# global-dollar 也用 id="sec-table" → ≤900px 隐藏表格的媒体查询漏进那两页，窄屏下表格
+# 整段消失（用户实测发现；pricing 已改语义化 sec-dist）。
+# 规则：id 出现在 ≥2 个页面时，CSS 不得写 #id 选择器 —— 除非是刻意的共享钩子，登记白名单。
+# 存量两项均为有意共享：#re-cards（七个 KPI 页同一卡行档位）、#recent（六页「近期数据」
+# 表同一首列宽）。新共享钩子要么改成页内唯一 id，要么有意识地进白名单。
+_SHARED_ID_CSS_OK = {"re-cards", "recent"}
+
+
+def test_multi_page_ids_have_no_css_selectors() -> None:
+    """多页共用 id 不挂 #id 选择器：共享 CSS 文件里的私有规则会漏进同 id 的其他页。"""
+    id_pages: dict[str, set[str]] = {}
+    for page in sorted(ASTRO_PAGES.rglob("*.astro")):
+        for m in re.finditer(r'\bid="([^"]+)"', page.read_text("utf-8")):
+            id_pages.setdefault(m.group(1), set()).add(str(page.relative_to(ASTRO_PAGES)))
+    css = "\n".join(
+        p.read_text("utf-8") for p in sorted((FRONTEND / "public" / "css").glob("*.css"))
+    )
+    hits = {
+        i: sorted(ps)
+        for i, ps in sorted(id_pages.items())
+        if len(ps) >= 2
+        and i not in _SHARED_ID_CSS_OK
+        and re.search(r"(?<![-\w])#" + re.escape(i) + r"(?![\w-])", css)
+    }
+    assert not hits, (
+        f"以下 id 被多页共用，CSS 却挂了 #id 选择器（私有规则会漏进同 id 的页）：{hits}"
+    )

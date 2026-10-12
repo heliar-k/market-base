@@ -35,7 +35,7 @@ import Section from '../../components/Section.astro';
 
   <!-- 卡面只包内容不含标题（与其他小节「标题在页面、内容自卡面」同构）；
        出血/首列光学补偿规则挂 .re-panel 宿主，照常接管 -->
-  <Section id="sec-table" title="概率分布明细" sub="PM 高亮 = 分歧 ≥5pp">
+  <Section id="sec-dist" title="概率分布明细" sub="PM 高亮 = 分歧 ≥5pp">
     <div class="re-panel">
       <div class="re-table-wrap">
         <table class="re-table">
@@ -115,7 +115,7 @@ const dLabelGlobal = (dd) => {
 async function load() {
   // 小节锚点导航（长页快速跳转；sticky 见 special.css .page-toc）
   document.getElementById('page-toc').innerHTML = [
-    ['概览', 're-cards'], ['政策路径', 'sec-policy'], ['累计与路径', 'sec-cumulative'], ['概率分布明细', 'sec-table'], ['名义/实际/BEI', 'sec-triple'], ['2Y/10Y 与利差', 'sec-2y10y'],
+    ['概览', 're-cards'], ['政策路径', 'sec-policy'], ['累计与路径', 'sec-cumulative'], ['概率分布明细', 'sec-dist'], ['名义/实际/BEI', 'sec-triple'], ['2Y/10Y 与利差', 'sec-2y10y'],
   ].map(([t, id]) => `<a href="#${id}">${t}</a>`).join('');
 
   const el = document.getElementById('re-tbody');
@@ -126,7 +126,7 @@ async function load() {
   // 明细表段底 —— ZQ/PM 并列最密、高亮/角标/下月合约标注都在；长端读法沉到三图段底）。
   // 不依赖数据，挂 load() 开头；主端点挂掉时页面已进错误态，注脚随之不见可接受。
   // 目标利率 FRED DFEDTARL/U 已在概览卡 sub，不重复。
-  document.getElementById('sec-table').appendChild(R.secNote(
+  document.getElementById('sec-dist').appendChild(R.secNote(
     '口径：ZQ 概率由 30 天联邦基金期货结算价反推（CME FedWatch 方法论近似，每日北京时间凌晨更新）；'
     + 'PM 为该场会议「Fed Decision in {Month}?」事件的真实下注概率，与 ZQ 两源平权。'
     + 'ZQ 隐含的是会议后利率水平（累计口径，含此前会议的加减息），PM 是本场决定（边际口径）——'
