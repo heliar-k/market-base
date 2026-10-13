@@ -252,6 +252,13 @@ body.embedded .re-foot { display: none; } /* 内嵌 iframe 不重复页脚 */
 .chart.chart-lg { height: clamp(210px, 38vh, 280px); }
 .chart.chart-md { height: clamp(250px, 46vh, 340px); }
 .chart.chart-hero { height: clamp(300px, 62vh, 520px); }
+/* 窄屏 .chart 家族高度随视口宽走（~1.5:1）：上方桌面档（300/340）按桌面宽度调的，
+ * 308px 画布配 300-340px 高在手机上成了竖图（credit/inflation/treasury/metals/crypto
+ * 共 15 张时间序列全中，同 ABV 图先例）。corr-matrix-chart 有三类 aspect-ratio 规则
+ * 且 :not 排除双保险；geo/crypto-options 的 inline height 优先级更高不受影响。 */
+@media (max-width: 768px) {
+  .chart:not(.corr-matrix-chart) { height: clamp(170px, 51vw, 300px); }
+}
 /* ABV 走势（equities 私有）：.chart-md 高度按桌面宽度调的，窄屏 308px 画布配 ~340px 高
  * 成了竖图（时间序列压成方块）→ ≤768 压到 220px（~1.4:1，190 太扁）。三类选择器压上方双类档。 */
 @media (max-width: 768px) {
