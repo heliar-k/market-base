@@ -64,7 +64,7 @@ function renderStats() {
     { label: '趋势向上', value: up, sub: `${(up / p.length * 100).toFixed(0)}% 池内占比`, vcolor: UP },
     { label: '趋势向下', value: down, sub: `${(down / p.length * 100).toFixed(0)}% 池内占比`, vcolor: DOWN },
     ...meds.map(m => ({ label: m.label, value: m.v == null ? '—' : (m.v >= 0 ? '+' : '') + m.v.toFixed(2) + '%', sub: '池内等权中位动量', vcolor: m.v == null ? '' : (m.v >= 0 ? UP : DOWN) })),
-  ]));
+  ], 're-cards-2col'));
 }
 
 function renderUniverse() {

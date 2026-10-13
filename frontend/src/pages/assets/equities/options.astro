@@ -116,7 +116,7 @@ function renderRegime() {
     { label: 'Call Wall · 阻力', value: fmtNum(v.call_wall?.strike, 1), sub: v.call_wall ? '+' + fmtNum(v.call_wall.per_point_m, 1) + ' M / 点' : '—' },
     { label: 'Put Wall · 支撑', value: fmtNum(v.put_wall?.strike, 1), sub: v.put_wall ? fmtNum(v.put_wall.per_point_m, 1) + ' M / 点' : '—' },
     { label: '25Δ Skew', value: v.skew == null ? '—' : fmtNum(v.skew), sub: `${v.skew_dte || '—'}D · P ${v.skew_put_iv ?? '—'}% / C ${v.skew_call_iv ?? '—'}%` },
-  ]));
+  ], 're-cards-2col'));
 }
 
 function flipDistText(v) {
@@ -285,7 +285,7 @@ function pDex(panel, v) {
     { label: 'Net DEX', value: `${pos ? '+' : ''}${fmtNum(v.net_dex)} <span style="font-size:13px">B</span>`, vcolor: pos ? 'var(--up)' : 'var(--down)', sub: `市场 dealer book 净${pos ? '做多' : '做空'}，delta 敞口${pos ? '偏向上行' : '偏向下行'}。` },
     { label: 'Call 端 DEX', value: `${v.net_dex >= 0 ? '+' : ''}${fmtNum(v.call_dex)} <span style="font-size:13px">B</span>`, sub: 'call 端按正向 delta 敞口折算' },
     { label: 'Put 端 DEX', value: `${v.net_dex >= 0 ? '+' : ''}${fmtNum(v.put_dex)} <span style="font-size:13px">B</span>`, sub: 'put 端按卖保护口径翻号折算' },
-  ]));
+  ], 're-cards-2col'));
   panel.insertAdjacentHTML('beforeend', `
     <p class="re-source" style="margin:10px 0 0">DEX = Σ(delta × OI × 100 × S)。模型口径：call 端按正向 delta 计入，put 端翻号后合并。P/C OI 比（ATM ±10%）: ${fmtNum(v.pcr_oi_atm ?? v.pcr_oi)} · 全链: ${fmtNum(v.pcr_oi)} · 成交量比: ${fmtNum(v.pcr_vol)}</p>`)
 }
@@ -328,7 +328,7 @@ function pSkew(panel, v) {
     { label: 'Put IV (25Δ)', value: `${v.skew_put_iv ?? '—'}%`, sub: `${v.skew_dte || '—'}D` },
     { label: 'Call IV (25Δ)', value: `${v.skew_call_iv ?? '—'}%`, sub: `${v.skew_dte || '—'}D` },
     { label: 'P/C IV 差', value: `${v.skew_put_iv != null && v.skew_call_iv != null ? (v.skew_put_iv - v.skew_call_iv).toFixed(1) : '—'} pt`, sub: '正 = put 偏贵' },
-  ]));
+  ], 're-cards-2col'));
   panel.insertAdjacentHTML('beforeend', `
     <p class="re-source" style="margin:10px 0 0">${verdict}。25Δ skew = 25Δ put IV − 25Δ call IV（vol skew），负值代表市场为下行风险支付更高溢价。</p>`)
 }
@@ -342,7 +342,7 @@ function pVanna(panel, v) {
   panel.appendChild(R.cards([
     { label: 'Net Vanna (dealer)', value: `${vpos ? '+' : ''}${fmtNum(v.net_vanna)} <span style="font-size:13px">B</span>`, vcolor: vpos ? 'var(--up)' : 'var(--down)', sub: vpos ? '正 Vanna（IV 下降助推上涨）' : '负 Vanna（IV 下降削弱上涨）' },
     { label: 'Total Charm', value: `${fmtNum(v.net_charm)} <span style="font-size:13px">B</span>`, sub: `近 ${v.charm_near7_dte || 7} 天到期贡献 ${near7 ?? '—'}%` },
-  ]));
+  ], 're-cards-2col'));
   panel.insertAdjacentHTML('beforeend', `
     <p class="re-source" style="margin:10px 0 0" id="vanna-desc"></p>
     <p class="re-source" style="margin:8px 0 0" id="charm-desc"></p>

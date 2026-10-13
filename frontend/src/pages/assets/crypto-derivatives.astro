@@ -92,7 +92,7 @@ async function load() {
       { label: '30 天累计', value: fst(v30), sub: etf.stale ? '暂停判读' : '趋势参考', vcolor: fcol(v30) },
       { label: '累计 AUM', value: (etf.cum_aum_busd ?? '—') + ' B', sub: '净流入逐日累加近似（自 2024-01-11）' },
       { label: 'Top 3', value: (etf.top || []).map(x => x === 'BTC' ? 'BTC(灰度迷你)' : x).join(' · '), sub: '累计净流入最高', cls: 're-card-wrap' },
-    ]));
+    ], 're-cards-2col'));
     esec.insertAdjacentHTML('beforeend', `<details class="re-fold"><summary>解读 · 口径</summary>
       <div class="re-explain" style="margin-top:8px">
         <b>如何解读</b> — ETF 是最干净的现货资金通道：价格上涨 + ETF 流入 = 现货确认；
@@ -199,7 +199,7 @@ async function load() {
       { label: '1 年百分位', value: `${bz.pct_rank}%`, sub: '区间内相对位置' },
       { label: 'Spread（基差−SOFR）', value: bz.spread == null ? '—' : bz.spread + '%', sub: `SOFR ${bz.sofr}%`,
         vcolor: bz.spread != null && bz.spread > 5 ? 'var(--up)' : (bz.spread != null && bz.spread < 0 ? 'var(--down)' : '') },
-    ]));
+    ], 're-cards-2col'));
     bsec.insertAdjacentHTML('beforeend', `<details class="re-fold"><summary>解读 · 口径</summary>
       <div class="re-explain" style="margin-top:8px">
         <b>如何解读</b> — 基差代表机构愿意为远期 BTC 支付的溢价。基差高不等于立刻上涨，但说明 carry/套利资金愿意留在场内。
@@ -229,7 +229,7 @@ async function load() {
         sub: `${cg.liq24h_chg_pct >= 0 ? '+' : ''}${cg.liq24h_chg_pct}%` },
       ls.long_pct != null ? { label: '24h 多空比', value: `${ls.long_pct}% / ${ls.short_pct}%`,
         sub: ls.long_pct > 50 ? '偏多' : (ls.long_pct < 50 ? '偏空' : '中性') } : null,
-    ].filter(Boolean)));
+    ].filter(Boolean), 're-cards-2col'));
     gsec.insertAdjacentHTML('beforeend', `
       ${exchRows ? `<div style="margin-top:10px;font-size:12px;opacity:.9"><div style="opacity:.7;margin-bottom:4px">交易所 OI 分布 · Top ${(cg.exchanges || []).length}（24h 变化）</div>${exchRows}</div>` : ''}
       <details class="re-fold"><summary>解读 · 口径</summary>

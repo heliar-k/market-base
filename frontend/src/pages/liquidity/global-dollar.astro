@@ -32,7 +32,7 @@ async function load() {
     { label: 'DXY 美元指数', value: dxy.value == null ? '—' : dxy.value.toFixed(2), sub: `1日 ${(dxy.chg_1d_pct ?? 0) >= 0 ? '+' : ''}${(dxy.chg_1d_pct ?? 0).toFixed(2)}%` },
     { label: '央行流动性互换余额', value: sw.balance_m == null ? '—' : '$' + Number(sw.balance_m).toLocaleString() + 'M', sub: `30日变化 ${(sw.chg_30d_m ?? 0) >= 0 ? '+' : ''}${(sw.chg_30d_m ?? 0).toLocaleString()}M` },
     { label: '离岸美元压力评分', value: d.score == null ? '—' : d.score + '/10', sub: '1M 掉期点规则评分，越负越高' },
-  ]));
+  ], 're-cards-2col'));
 
   document.getElementById('re-swap').innerHTML = `<div class="re-section">
     <h2>央行流动性互换（CBS Total）</h2>

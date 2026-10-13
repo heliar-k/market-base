@@ -176,7 +176,7 @@ async function load() {
     card('10Y 期限溢价(ACM)', last(d.term_premium), tpChg === null ? 'NY Fed ACM 估计' : `1月 ${tpChg > 0 ? '+' : ''}${tpChg.toFixed(1)}bp`),
     card('2Y 国债收益率', last(d.y2), 'DGS2'),
     card('10Y-2Y 利差', last(d.spread_2s10), '(10Y−2Y) %'),
-  ]));
+  ], 're-cards-2col'));
 
   // hero 取下一场未结束会议；全部过期（数据停更）时显空态，不回退到已结束会议
   // （回退会重现「会后仍显示旧会议定价」原 bug）
@@ -445,7 +445,7 @@ function renderCumulative(odds) {
     label: s.label,
     value: got[i] ? got[i].value : '—',
     sub: got[i] ? got[i].sub : s.miss,
-  }))));
+  })), 're-cards-2col'));
   // 非空态注脚只留口径辨析 + 取法；「数据截至」页头 R.asOf 已给（同一份 market_odds().as_of），
   // 「更新：fetch_polymarket」空态分支已给，此处重复即噪声。
   note.innerHTML = empty

@@ -359,7 +359,7 @@ async function load() {
     { label: '目标利率', value: cal ? `${Number(cal.target_lower).toFixed(2)}–${Number(cal.target_upper).toFixed(2)}%` : '—', sub: cal ? '联邦基金目标区间' : '缺 FOMC 日历/目标区间（data/fred/rates），运行 ./bin/fetch_fred 后重新导出' },
     { label: '最新声明', value: latestStmt?.label, sub: latestStmt?.date },
     { label: '最新演讲', value: data.speeches[0]?.label, sub: data.speeches[0]?.speaker },
-  ]));
+  ], 're-cards-2col'));
 
   // 段级兜底：四段都只依赖主数据 data，一段渲染抛错不拖垮同页其他段
   for (const [id, fn] of [

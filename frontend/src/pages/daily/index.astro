@@ -298,7 +298,7 @@ async function load() {
         label: c.symbol,
         value: R.num(c.value),
         sub: `${R.esc(c.name)} · ${R.chgSpan(c.chg1d)} 1D`,
-      }))));
+      })), 're-cards-2col'));
       const signals = volDash.signals || [];
       sig.innerHTML = signals.length ? `<div class="db-sig-cards">${signals.map(s => `
         <div class="db-sig-card">

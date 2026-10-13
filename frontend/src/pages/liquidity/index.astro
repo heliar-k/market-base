@@ -88,7 +88,7 @@ async function load() {
   };
   document.getElementById('re-cards').appendChild(R.cards([
     card('WALCL', fmtT), card('RRPONTSYD', fmtB), card('WTREGEN', fmtT), card('NET_LIQUIDITY', fmtT, true),
-  ]));
+  ], 're-cards-2col'));
 
   // ── 流动性评估（三段叙事，三行契约走 R.sigBlocks）──
   // 卡间间距不再写 inline margin：special.css 的 `.re-root :has(> .re-section + .re-section)`

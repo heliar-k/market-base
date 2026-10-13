@@ -31,7 +31,7 @@ async function load() {
     label: i.name,
     value: fmt(i.last),
     sub: `${chg(i.chg_pct)} · ${i.date}`,
-  }))));
+  })), 're-cards-2col'));
   // ── 衍生品结论层（Radar + 机构vs散户）：次要端点，crypto-hourly 每小时 cron 产，
   // 静态导出缺快照时合法 404 → getOpt 降级，只挂 radar/consensus 两段，不拖垮整页 ──
   const dd = await R.getOpt('/api/assets/crypto-derivatives');
@@ -70,7 +70,7 @@ async function load() {
       { label: 'BTC 流动性 Beta', value: L.beta ?? '—', sub: `SPX β ${L.spx_beta ?? '—'} · R² ${L.r2 ?? '—'} · 90日` },
       { label: '背离监控', value: dv ? dv.verdict : '—', vcolor: dv ? (warn ? 'var(--down)' : 'var(--up)') : 'var(--flat)',
         cls: 're-card-wrap', sub: dv ? `NL ${fmt(dv.nl)}T · BTC ${dv.btc >= 0 ? '+' : ''}${fmt(dv.btc)}% · 30日` : '—' },
-    ]));
+    ], 're-cards-2col'));
   }
   } catch (e) { R.fail(['liquidity'], e); }
 
@@ -138,7 +138,7 @@ async function load() {
       { label: '30 日动量', value: pct(ra.mom_30d, 1), vcolor: dir(ra.mom_30d), sub: `7d ${pct(ra.mom_7d, 1)} · 负值=ETH 跑赢` },
       { label: 'Funding 差（ETH−BTC 年化）', value: f ? pp(f.diff) : '—', vcolor: f ? dir(f.diff) : 'var(--flat)', cls: 're-card-wrap',
         sub: f ? `BTC ${f.btc}% · ETH ${f.eth}% · 7d ${pp(f.diff_chg_7d)}${dt(f.date)}` : '衍生品快照缺失' },
-    ]));
+    ], 're-cards-2col'));
     if (rot) {
       rasec.insertAdjacentHTML('beforeend', `<p style="margin:8px 0 0;font-size:12px;color:${rot.warn ? 'var(--down)' : 'var(--up)'}">● 综合判定：${rot.quality}${rot.cross_summary ? '｜' + rot.cross_summary : ''}</p>`);
     }

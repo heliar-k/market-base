@@ -62,7 +62,7 @@ async function load() {
     { label: '海外官方占比', value: c.official_share.value == null ? '—' : c.official_share.value + '%', sub: (c.official_share.as_of || '') + ' · ' + (c.official_share.pct_label || '&lt;23% 偏空') },
     { label: '月度' + netLabel + '（TIC）', value: '$' + Math.abs(c.net_total.value) + 'B', sub: c.net_total.as_of + ` · 12M 累计 $${Math.abs(c.net_total.net_12m_b)}B` },
     { label: 'Bill 占比', value: c.bill_share.value == null ? '—' : c.bill_share.value + '%', sub: (c.bill_share.as_of || '') + (c.bill_share.chg_1y !== null ? ` · 1Y ${c.bill_share.chg_1y > 0 ? '+' : ''}${c.bill_share.chg_1y}pp` : '') + (c.bill_share.pct_label ? ` · ${c.bill_share.pct_label}` : '') },
-  ]));
+  ], 're-cards-2col'));
 
   // ── 研判（每段一张卡：段标题在左上，段内 \n 分行 = 判断 / 读数）──
   // 「规则引擎」说明不再在此另挂一条英文 note：页底 #re-foot 已用 R.genText 说同一件事。
@@ -97,7 +97,7 @@ async function load() {
     { label: '近 10 场付息券平均 Bid-to-Cover', value: auc.avg_cover_10_coupon === null ? '—' : `${auc.avg_cover_10_coupon.toFixed(2)}x`, sub: covSub, accent: true },
     { label: '未来 3 周拍卖场次', value: upc.length, sub: '按拍卖日排序见下方日历' },
     ...(borrow && borrow.current_b ? [{ label: `QRA 借款估算（${borrow.quarter}）`, value: `$${borrow.current_b}B`, sub: borrow.chg_b ? `较上次 ${borrow.chg_b}B ${borrow.chg_dir === 'higher' ? '↑' : '↓'}（${borrow.date}）` : borrow.date, accent: borrow.chg_dir === 'higher' }] : []),
-  ]));
+  ], 're-cards-2col'));
 
   card(R.secTitle('付息券 Bid-to-Cover 趋势', '', '2 / 5 / 10 / 30Y，近 1 年，含重开拍卖')
     + '<div class="note" style="margin-bottom:4px">点 = 单场拍卖 · 空心 = 重开 · 点线 = 本格均值 · 绿虚线 = 良好 2.5x · 红虚线 = 警戒 2.0x · 悬停看发行规模</div>'

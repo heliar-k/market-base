@@ -657,9 +657,12 @@ const R = {
   cards(items, rowCls) {
     const row = document.createElement('div');
     row.className = 're-cards' + (rowCls ? ' ' + rowCls : '');
+    // 双列窄档卡宽骤减（163px），sub 统一换行不截断——调用方不用逐项标 wrap
+    const wrapAll = rowCls === 're-cards-2col';
     items.forEach(({ label, value, sub, accent, cls, vcolor }) => {
       const d = document.createElement('div');
-      d.className = 're-card' + (accent ? ' re-card-accent' : '') + (cls ? ' ' + cls : '');
+      d.className = 're-card' + (accent ? ' re-card-accent' : '')
+        + (cls ? ' ' + cls : '') + (wrapAll && !(cls || '').includes('re-card-wrap') ? ' re-card-wrap' : '');
       d.innerHTML = `<div class="re-corridor-label">${label}</div>
         <div class="re-corridor-value"${vcolor ? ` style="color:${vcolor}"` : ''}>${value}</div>
         <div class="re-card-sub">${sub || ''}</div>`;

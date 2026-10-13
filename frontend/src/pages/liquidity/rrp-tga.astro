@@ -68,7 +68,7 @@ async function load() {
     { label: 'TGA 余额', value: fmtCur(cur.tga_b, ' 十亿'), sub: '财政部一般账户（DTS 日度）' },
     { label: '净流动性', value: fmtCur(cur.net_liq_b, ' 十亿'), sub: '总资产 − RRP − TGA' },
     { label: 'SRF 使用', value: fmtCur(cur.srf_m, ' 百万'), sub: '银行正使用 SRF 即为紧张信号' },
-  ]));
+  ], 're-cards-2col'));
 
   // ── 未来 14 天热力：按打开页面时间重切窗口（构建期给 21 天），净冲击由前端重算。
   // 口径与 forward_calendar 同步维护：窗口 = (今天, 今天+N]，不含今天 ──

@@ -40,7 +40,7 @@ async function load() {
     { label: '累计购买', value: rmp.cumulative_b == null ? '—' : '$' + rmp.cumulative_b.toFixed(0) + 'B', sub: '自启动以来' },
     { label: '月均节奏', value: rmp.monthly_b == null ? '—' : '$' + rmp.monthly_b.toFixed(1) + 'B/月', sub: `目标 $${rmp.target_b ?? 40}B/月` },
     { label: '操作次数', value: rmp.count ?? '—', sub: '次' },
-  ]));
+  ], 're-cards-2col'));
 
   // RMP 日度与累计
   const rs = d.rmp_series || [];
