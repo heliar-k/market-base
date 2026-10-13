@@ -411,7 +411,11 @@ body.embedded .macro-nav, body.embedded #macro-nav-toggle { display: none; }
  * 热力图方形：高度改由 aspect-ratio 跟宽度走（1/1.15 的余量 = 顶部旋转标签带
  * + 底部图例 - 左侧轴名），否则固定 min-height 460 把 22 行拉成竖条。 */
 @media (max-width: 1024px) {
-  .corr-main { grid-template-columns: 1fr; min-height: 0; }
+  /* 堆叠后退出 flex 分配（flex:0 0 auto = 内容高度）：.corr-main 原是 flex:1（basis 0）
+   * 子项，被 flex 压成确定高度后 grid 会把两行对半劈（275/275），面板 overflow:hidden
+   * 裁掉矩阵下半段且滚动容器看不到溢出（实测两个坑：滚动条消失 + 矩阵截断）。
+   * 内容高度回归后由外层 .corr-asset-wrap 自然滚动；min-height 560 仍作下限。 */
+  .corr-main { display: grid; grid-template-columns: 1fr; flex: 0 0 auto; }
   /* 面板头同款 CJK 压缩问题：标题被长副标挤到竖排（跨资产/相关性/矩阵 三行），
    * 同 Section 组件的解法 —— 标题原子化 + head 可换行，放不下副标整体掉行 */
   .corr-pane-head { flex-wrap: wrap; row-gap: 2px; }
