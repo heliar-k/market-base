@@ -104,6 +104,12 @@ body.embedded .re-foot { display: none; } /* 内嵌 iframe 不重复页脚 */
 /* 独立卡面 .re-chart 的内层画布容器（rates-common.js mkChart 垫入）：padding 与 .re-section
    卡面单源同值，让轴标签离卡边的距离与卡内图一致；自身不带边框（边框由外层 .re-chart 提供）。 */
 .re-chart-pad { padding: 16px 20px; height: 100%; box-sizing: border-box; }
+/* ≤768 与全站卡片内距档同步收缩（app.css .re-card 12px 14px）：写死的 16/20 在手机上
+ * 是图与卡边一圈多余空白（实测 402 四边 17/21px 与桌面一字不差），下边缘最显眼；
+ * 轴标签在画布内部由 containLabel 自理，卡内留白只由这里定 */
+@media (max-width: 768px) {
+  .re-chart-pad { padding: 12px 14px; }
+}
 .re-chart { height: clamp(220px, 40vh, 300px); border: 1px solid var(--border); border-radius: 8px; background: var(--surface); }
 /* 嵌卡变体：.re-chart 自带边框是为「独立当卡面」（如 rates 入口页直接放页流里的图），
  * 嵌在 .re-section 卡内时会成卡中卡第二道框（treasury 四张拍卖图 vs holdings/MSPD 的
