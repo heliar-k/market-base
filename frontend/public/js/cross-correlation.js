@@ -340,7 +340,20 @@ function renderMatrix() {
 
   // 容器高度变化（窗口缩放/布局稳定）时重绘，否则 canvas 停在 init 尺寸、底部图例被 overflow:hidden 裁掉
   if (matrixObserver) matrixObserver.disconnect();
-  matrixObserver = new ResizeObserver(() => matrixChart?.resize());
+  // 矩阵小则隐藏格子里的相关系数数字：canvas 不吃媒体查询，convertToPixel 反推真实格宽，
+  // ≥26px 才显示（口径同大类资产页矩阵：数字在窄格里横向挤成一团；本图字号 9px 同阈）。
+  // 数字走 tooltip / 点击 drill-down，不靠 label 也能读到；主题切换走 renderMatrix 重建，
+  // 新 observer 在 observe() 时自动同步一次，无需另挂 theme-changed。
+  const syncMatrixLabels = () => {
+    if (!matrixChart) return;
+    matrixChart.resize();
+    try {
+      const a = matrixChart.convertToPixel({ gridIndex: 0 }, [0, 0]);
+      const b = matrixChart.convertToPixel({ gridIndex: 0 }, [1, 0]);
+      matrixChart.setOption({ series: [{ label: { show: b[0] - a[0] >= 26 } }] });
+    } catch { /* init 未完成时 convertToPixel 抛错，下轮 observer 回调再同步 */ }
+  };
+  matrixObserver = new ResizeObserver(syncMatrixLabels);
   matrixObserver.observe(dom);
 
   // 图例行

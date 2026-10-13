@@ -404,13 +404,28 @@ body.embedded .macro-nav, body.embedded #macro-nav-toggle { display: none; }
 .corr-status-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
 .corr-status-card { padding: 12px; cursor: pointer; }
 .corr-status-card .dash-stat-value { font-size: 22px; }
-@media (max-width: 1024px) { .corr-status-row { grid-template-columns: repeat(2, 1fr); } .corr-main { grid-template-columns: 1fr; } }
+@media (max-width: 1024px) { .corr-status-row { grid-template-columns: repeat(2, 1fr); } }
 .corr-main { display: grid; grid-template-columns: 5fr 4fr; gap: 10px; min-height: 560px; flex: 1; }
+/* 堆叠规则必须在 .corr-main 基础规则之后：同特异性靠源码顺序取胜（曾放在前面
+ * 被基线 5fr/4fr 盖回，手机上双栏从未堆叠过，矩阵被压到 190px 宽）；
+ * 热力图方形：高度改由 aspect-ratio 跟宽度走（1/1.15 的余量 = 顶部旋转标签带
+ * + 底部图例 - 左侧轴名），否则固定 min-height 460 把 22 行拉成竖条。 */
+@media (max-width: 1024px) {
+  .corr-main { grid-template-columns: 1fr; min-height: 0; }
+  /* 面板头同款 CJK 压缩问题：标题被长副标挤到竖排（跨资产/相关性/矩阵 三行），
+   * 同 Section 组件的解法 —— 标题原子化 + head 可换行，放不下副标整体掉行 */
+  .corr-pane-head { flex-wrap: wrap; row-gap: 2px; }
+  .corr-pane-title { white-space: nowrap; }
+}
 .corr-matrix-pane, .corr-side-pane { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; display: flex; flex-direction: column; min-height: 0; overflow: hidden; }
 .corr-pane-head { display: flex; justify-content: space-between; align-items: baseline; padding: 10px 14px 6px; border-bottom: 1px solid var(--border-light); gap: 8px; }
 .corr-pane-title { font-size: 13px; font-weight: 600; color: var(--text-secondary); }
 .corr-pane-sub { font-size: 11px; color: var(--text-dim); }
 .corr-heatmap { flex: 1; min-height: 460px; }
+/* 热力图方形：堆叠后高度改由 aspect-ratio 跟宽度走（1/1.15 的余量 = 顶部旋转标签带
+ * + 底部图例 - 左侧轴名），否则固定 min-height 460 把 22 行拉成竖条。
+ * 必须在基础规则之后：同特异性靠源码顺序取胜（corr-main 的堆叠规则曾栽在同一个坑）。 */
+@media (max-width: 1024px) { .corr-heatmap { flex: 0 0 auto; min-height: 0; height: auto; aspect-ratio: 1 / 1.15; } }
 .corr-group-legend { display: flex; gap: 12px; padding: 6px 14px 2px; font-size: 11px; color: var(--text-secondary); flex-wrap: wrap; }
 .corr-group-item i { display: inline-block; width: 8px; height: 8px; border-radius: 2px; margin-right: 4px; }
 .corr-side-pane { overflow-y: auto; }
