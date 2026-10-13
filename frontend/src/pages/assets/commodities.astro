@@ -27,7 +27,8 @@ async function load() {
     label: i.name + ' · ' + i.symbol,
     value: fmt(i.last),
     sub: `${chg(i.chg_pct)} · ${i.date}`,
-  }))));
+    cls: 're-card-wrap',
+  })), 're-cards-2col'));
 
   // 归一化走势（2 年；NG 缺测日为 null，线段断口即真缺数据）
   const n = d.normalized || { dates: [], series: {} };
