@@ -276,12 +276,12 @@ function renderRadar() {
   sec.innerHTML = `<div class="src-note">上涨家数 ${r.today_up_pct ?? '—'}%，50 日均线上方占比 ${r.above50_pct ?? '—'}%；${r.verdict == '全面强势' ? '全面强势特征明显' : r.verdict == '内部走弱' ? '结构修复尚未完成' : '更像结构分化而非全面趋势'}。
       数据源：Wikipedia Nasdaq-100 当前成分股 · 价格日期 ${r.date}</div>`;
   sec.appendChild(statCards([
-    { label: '覆盖率', value: `${r.price_share == null ? '—' : r.price_share.toFixed(1)}%`, sub: `${r.rows}/${r.total} ticker 有价格` },
-    { label: '上涨家数', value: `${r.today_up_pct == null ? '—' : r.today_up_pct.toFixed(1)}%`, sub: `${r.today_up}/${r.rows} 最近交易日上涨` },
-    { label: '50DMA 上方', value: `${r.above50_pct == null ? '—' : r.above50_pct.toFixed(1)}%`, sub: '短中期内部动能' },
-    { label: '200DMA 上方', value: `${r.above200_pct == null ? '—' : r.above200_pct.toFixed(1)}%`, sub: '长期趋势健康度' },
-    { label: '20 日中位数', value: fp(r.med20), cls: (r.med20 || 0) > 0 ? 'up' : 'down', sub: '不按市值权重的典型个股 20 日表现' },
-  ]));
+    { label: '覆盖率', value: `${r.price_share == null ? '—' : r.price_share.toFixed(1)}%`, sub: `${r.rows}/${r.total} ticker 有价格`, wrap: true },
+    { label: '上涨家数', value: `${r.today_up_pct == null ? '—' : r.today_up_pct.toFixed(1)}%`, sub: `${r.today_up}/${r.rows} 最近交易日上涨`, wrap: true },
+    { label: '50DMA 上方', value: `${r.above50_pct == null ? '—' : r.above50_pct.toFixed(1)}%`, sub: '短中期内部动能', wrap: true },
+    { label: '200DMA 上方', value: `${r.above200_pct == null ? '—' : r.above200_pct.toFixed(1)}%`, sub: '长期趋势健康度', wrap: true },
+    { label: '20 日中位数', value: fp(r.med20), cls: (r.med20 || 0) > 0 ? 'up' : 'down', sub: '不按市值权重的典型个股 20 日表现', wrap: true },
+  ], 're-cards-2col'));
 
   // 行业强弱（2/3 宽）+ 右列 20D 最强/最弱（timsun 布局）
   sec.insertAdjacentHTML('beforeend', `<div class="eq-radar-grid">
