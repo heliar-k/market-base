@@ -151,18 +151,20 @@ function renderBreadth() {
       <span class="re-spread">${b.verdict || '—'}</span>
     </div>`);
   bsec.appendChild(R.cards([
-    { label: '标普500 · 20日', value: `<span class="${cls1(b.spx_20d)}">${b.spx_20d == null ? '—' : (b.spx_20d >= 0 ? '+' : '') + Number(b.spx_20d).toFixed(2) + '%'}</span>`, sub: '大盘权重股累计涨跌' },
-    { label: '罗素2000 · 20日', value: `<span class="${cls1(b.rut_20d)}">${b.rut_20d == null ? '—' : (b.rut_20d >= 0 ? '+' : '') + Number(b.rut_20d).toFixed(2) + '%'}</span>`, sub: '中小盘广度代表累计涨跌' },
-    { label: 'SPX − RUT 差距', value: `<span class="${cls1(b.gap)}">${b.gap == null ? '—' : (b.gap >= 0 ? '+' : '') + Number(b.gap).toFixed(2) + ' pp'}</span>`, sub: '正值 = 大盘领涨，广度偏弱' },
+    { label: '标普500 · 20日', value: `<span class="${cls1(b.spx_20d)}">${b.spx_20d == null ? '—' : (b.spx_20d >= 0 ? '+' : '') + Number(b.spx_20d).toFixed(2) + '%'}</span>`, sub: '大盘权重股累计涨跌', cls: 're-card-wrap' },
+    { label: '罗素2000 · 20日', value: `<span class="${cls1(b.rut_20d)}">${b.rut_20d == null ? '—' : (b.rut_20d >= 0 ? '+' : '') + Number(b.rut_20d).toFixed(2) + '%'}</span>`, sub: '中小盘广度代表累计涨跌', cls: 're-card-wrap' },
+    { label: 'SPX − RUT 差距', value: `<span class="${cls1(b.gap)}">${b.gap == null ? '—' : (b.gap >= 0 ? '+' : '') + Number(b.gap).toFixed(2) + ' pp'}</span>`, sub: '正值 = 大盘领涨，广度偏弱', cls: 're-card-wrap' },
     ...[
       { label: '200 日均线上方占比', v: b.abv200, chg: b.abv200_chg },
       { label: '50 日均线上方占比', v: b.abv50, chg: b.abv50_chg },
     ].map(c => ({
       label: c.label,
       value: `<span class="${cls1(c.v)}">${c.v == null ? '—' : Number(c.v).toFixed(1) + '%'}</span>`,
+      // sub 带观测日期，双列宽度下会被 ellipsis 截掉日期 → wrap 换行不截断
+      cls: 're-card-wrap',
       sub: `<span class="${cls1(c.chg)}">${c.chg == null ? '' : tv(c.chg) + ' · '}${b.abv_date || ''}</span>`,
     })),
-  ]));
+  ], 're-cards-2col'));
   document.getElementById('breadth').appendChild(bsec);
 }
 
