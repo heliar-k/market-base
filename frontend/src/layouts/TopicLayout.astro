@@ -115,7 +115,10 @@ window.__reTheme = (function () {
   <a class:list={['macro-nav-item', 'core', { active: isItemCur(SITE_NAV.home.page) }]} href={SITE_NAV.home.page}
      aria-current={isItemCur(SITE_NAV.home.page) ? 'page' : undefined}>{SITE_NAV.home.label}</a>
   {SITE_NAV.spaViews.map((v) => (
-    <a class="macro-nav-item core" href={`/${'#'}${v.view}`}>{v.label}</a>
+    /* 必须指向 SPA 壳本体：裸 /#view 会 302 到 /daily/（ADR-0005），落在专题页无人消费
+     * hash（实测 fragment 跨重定向保留，但 /daily/ 不读）；/app/index.html 本地 dev 与
+     * 线上均为真实文件，配 _redirects 规范化行。'#' 拆写沿用旧写法避免被链接扫描误匹配。 */
+    <a class="macro-nav-item core" href={`/app/index.html${'#'}${v.view}`}>{v.label}</a>
   ))}
   <div class="macro-nav-sep"></div>
   <div class="macro-nav-caption">全部专题</div>

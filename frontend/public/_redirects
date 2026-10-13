@@ -4,9 +4,12 @@
 # 后续族迁移（rates/assets/…）的非 index 子页在此各补一行。
 #
 # ADR-0005：站点根 / 整页重定向到今日头版。SPA 已挪到 /app/（public/app/index.html），
-# 根路径不再有 index.html 资产，裸 302 即可生效；hash 深链（/#tech 等）随重定向丢失，
-# 技术分析入口从侧栏与 /app/#tech 访问。
+# 根路径不再有 index.html 资产，裸 302 即可生效；专题页侧栏的 SPA 视图入口必须
+# 指向 /app/index.html#view（本行把它规范化到 /app/；fragment 实测跨重定向保留，
+# SPA 启动时 viewFromHash() 读 hash 自动切视图）。裸 /#view 虽保留 hash，但落在
+# /daily/ 上无人消费，等于回到今日研判。
 /  /daily/  302
+/app/index.html  /app/  302
 
 /liquidity/transmission-chain.html /liquidity/transmission-chain/ 200
 /liquidity/fed-balance-sheet.html /liquidity/fed-balance-sheet/ 200
