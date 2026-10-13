@@ -25,6 +25,9 @@ body { height: auto; overflow-y: auto; display: block; }
 body.embedded .re-header h1 { display: none; } /* 内嵌时左卡已有标题 */
 /* 时效胶囊（timsun 徽章语言）：12% 中性底 + 全圆角，与各状态 tag 同构 */
 .re-as-of { font-size: 12px; color: var(--text-secondary); background: var(--color-neutral-bg); padding: 2px 10px; border-radius: 999px; white-space: normal; overflow-wrap: anywhere; }
+/* 多段时效串的分段结构（R.setAsOf 输出 .re-as-of-seg）：分隔点画在段首，
+ * 窄屏（≤768）段变块级各占一行右对齐、藏分隔点，宽屏同行同旧渲染。 */
+.re-as-of-seg + .re-as-of-seg::before { content: ' · '; }
 /* 口径层级徽章（R.setAsOf 按 TIERS 表渲染）：文字档上色，边框用图形档 color-mix */
 .re-tier { display: inline-block; margin-left: 2px; padding: 0 5px; border: 1px solid; border-radius: 999px; font-size: 10px; line-height: 14px; vertical-align: 1px; cursor: help; }
 .re-tier--disc { color: var(--up); border-color: color-mix(in srgb, var(--color-up) 40%, transparent); }
@@ -169,15 +172,17 @@ body.embedded .re-foot { display: none; } /* 内嵌 iframe 不重复页脚 */
  * ≈ 90px chrome，表格只剩 ~346px；字号内距又不随视口缩 → 6-8 列表全出横向滚动。
  * 这里整链路收一档（KPI 卡三档收缩同思路）：
  *   .re-root   两侧 32→16，max-width 的 100vw-64 同步 100vw-32（不然外留白还在）；
- *              主题浮钮 .theme-float fixed 占视口右 8+30=38px，.re-header 让位
- *              padding-right 20→24（16+24=40 > 38 依旧成立）；
+ *              主题浮钮 .theme-float fixed 占视口右 6+26=32px，左缘=vw-32=内容右缘：
+ *              页头不再让位（padding-right 0），时效胶囊贴内容右缘与正文卡片对齐，
+ *              与浮钮仅角落相切（圆角错开，不相交）；
  *   卡面       20→14；出血/光学补偿挂 --re-cell-pad-x，自动跟着缩放不变式；
  *   表格       tier-1 见下；≤600 再收 tier-2（pad 6 + 字号 11）。
  * .re-duo / .re-scroll-y 的表内距是显式覆盖，不受影响；min-width 强制滚动的表
  * （#dashboard 640px / .re-scroll-y 860px）保持滚动，只是更紧凑。 */
 @media (max-width: 768px) {
   .re-root { max-width: min(1200px, calc(100vw - 32px)); padding: 20px 16px 40px; }
-  .re-header { padding-right: 24px; }
+  /* 时效胶囊与正文卡片右缘对齐（用户验收）；浮钮让位只在宽档（1025-1500）需要 */
+  .re-header { padding-right: 0; }
   :is(.re-section, .re-panel) { padding: 12px 14px; }
   :root { --re-cell-pad-x: 8px; }
   .re-table { font-size: 12px; }
@@ -267,8 +272,16 @@ a.re-badge:hover { color: var(--accent-ink); border-color: var(--accent-ink); }
 /* #27：多源时效串（「数据截至 A 2026-10-01 · B 09-30 · C 10-01」）实测 827px，
  * nowrap 不止撞 375：任何视口只要胶囊比页头宽就撑破文档（/assets/crypto/ 在 820 下
  * scrollWidth 891）。所以换行改为无条件（按 ` · ` 自然断，单行时与原来同形），
- * ≤ 768 再把 999px 胶囊收成 8px 圆角 —— 两行的胶囊会断成两个半圆。 */
-@media (max-width: 768px) { .re-as-of { border-radius: 8px; } }
+ * ≤ 768 再把 999px 胶囊收成 8px 圆角 —— 两行的胶囊会断成两个半圆。
+ * 窄屏（≤768）胶囊不拉通栏：贴内容宽度与标题同行、被 space-between 靠右，
+ * 同宽版样式；多段时效串在胶囊内一段一行（藏分隔点），文字右对齐、右缘收齐，
+ * 断行由分段结构决定，不再按字符自动断（旧渲染会把 2026-10-10 劈成两半）。
+ * 宽度真不够时（如 320px 长段）胶囊整体换行到标题下方左对齐。 */
+@media (max-width: 768px) {
+  .re-as-of { border-radius: 8px; }
+  .re-as-of-seg { display: block; text-align: right; }
+  .re-as-of-seg + .re-as-of-seg::before { content: none; }
+}
 .re-corridor { display: flex; gap: 24px; padding: 16px 20px; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; color: var(--text); flex-wrap: wrap; }
 .re-table th:first-child, .re-table td:first-child { text-align: left; }
 .re-table tbody tr:hover { background: var(--surface-hover); }

@@ -232,11 +232,13 @@ const R = {
 
   // 页头时效标签唯一写入处（组装走 asOf，徽章按 TIERS 表挂）。
   // 纯文本注脚里拼时效仍用 asOf（textContent 场景），别把本函数的 HTML 拼进去。
+  // 每段包一层 .re-as-of-seg（分隔点由 CSS ::before 画）：窄屏各段独占一行右对齐，
+  // 宽屏同行 —— 否则多段串在窄屏按字符自动断行，日期会被劈成两半（用户实测）。
   setAsOf(src) {
     const el = document.getElementById('re-as-of');
     if (!el) return;
     const list = typeof src === 'string' ? [src] : src || [];
-    const html = list
+    const segs = list
       .map((s) => {
         if (!Array.isArray(s)) return s ? R.esc(String(s)) : '';
         if (!s[1]) return '';
@@ -246,9 +248,10 @@ const R = {
           : '';
         return `${R.esc(String(s[0]))} ${R.esc(String(s[1]))}${chip}`;
       })
-      .filter(Boolean)
-      .join(' · ');
-    el.innerHTML = html ? `数据截至 ${html}` : '';
+      .filter(Boolean);
+    if (!segs.length) { el.innerHTML = ''; return; }
+    segs[0] = `数据截至 ${segs[0]}`;
+    el.innerHTML = segs.map((seg) => `<span class="re-as-of-seg">${seg}</span>`).join('');
   },
   // 月频发布滞后：取一组观测日的最早–最晚，拼成「月频 起–止」时效段（配合 asOf 用）
   asMonth: (dates) => {
