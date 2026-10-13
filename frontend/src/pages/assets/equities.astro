@@ -185,7 +185,7 @@ function renderAbvChart() {
     grid: { left: 8, right: 16, top: 28, bottom: 28 },
     xAxis: { type: 'time', boundaryGap: false },
     // 窄画布 x 轴月标签粘连（同指数走势图，splitNumber 4 退隔月）；宽屏不设
-    media: [{ query: { maxWidth: 520 }, option: { xAxis: { splitNumber: 4 } } }],
+    media: [{ query: { maxWidth: 520 }, option: { xAxis: { splitNumber: 4 }, grid: { bottom: 16 } } }],
     // 阈值 50% 直接标在 y 轴上（interval 25 让 50 成刻度 + rich 高亮）：原 markLine 右端
     // insideEndTop 标签窄屏压进曲线里（用户反馈）；虚线本身保留做视觉基准
     yAxis: { type: 'value', min: 0, max: 100, interval: 25,
