@@ -56,12 +56,14 @@ function bindFilter(searchId, indId, bodyId) {
 }
 function tv(v) { return v == null ? '—' : (Number(v) >= 0 ? '▲ +' : '▼ ') + Number(v).toFixed(1); }
 
-// timsun 同款指标卡：统一走 R.cards（全站 KPI 卡单源），涨跌色用 .up/.down 类
-function statCards(list) {
+// timsun 同款指标卡：统一走 R.cards（全站 KPI 卡单源），涨跌色用 .up/.down 类。
+// rowCls 透传给 R.cards 第二参（如 're-cards-2col' 窄屏双列）；c.wrap 给长 sub 卡换行不截断
+// （与 c.cls 值着色分开，后者进 value 的 span 不进卡类）
+function statCards(list, rowCls) {
   return R.cards(list.map(c => ({
-    label: c.label, sub: c.sub,
+    label: c.label, sub: c.sub, cls: c.wrap ? 're-card-wrap' : '',
     value: c.cls ? `<span class="${c.cls}">${c.value}</span>` : c.value,
-  })));
+  })), rowCls);
 }
 
 function ratingPill(r) {
@@ -213,12 +215,12 @@ function renderAnalyst() {
   const sec = document.createElement('div');
   sec.className = 're-panel';
   sec.appendChild(statCards([
-    { label: '目标价覆盖率', value: `${a.coverage_pct == null ? '—' : a.coverage_pct.toFixed(1)}%`, sub: `${a.rows}/${a.total} 有共识目标价` },
-    { label: '平均隐含空间', value: fp(a.avg_upside), cls: a.avg_upside > 0 ? 'up' : '', sub: '等权平均，不按市值加权' },
-    { label: '中位隐含空间', value: fp(a.med_upside), cls: a.med_upside > 0 ? 'up' : '', sub: '去掉极值后的典型股票' },
-    { label: '上行空间占比', value: `${a.above_share == null ? '—' : a.above_share}%`, sub: `${a.above_cnt}/${a.rows} 目标价高于现价` },
-    { label: '平均分析数', value: `${a.avg_analysts == null ? '—' : a.avg_analysts}`, sub: '覆盖的分析师越多，共识越不易被单家机构带偏' },
-  ]));
+    { label: '目标价覆盖率', value: `${a.coverage_pct == null ? '—' : a.coverage_pct.toFixed(1)}%`, sub: `${a.rows}/${a.total} 有共识目标价`, wrap: true },
+    { label: '平均隐含空间', value: fp(a.avg_upside), cls: a.avg_upside > 0 ? 'up' : '', sub: '等权平均，不按市值加权', wrap: true },
+    { label: '中位隐含空间', value: fp(a.med_upside), cls: a.med_upside > 0 ? 'up' : '', sub: '去掉极值后的典型股票', wrap: true },
+    { label: '上行空间占比', value: `${a.above_share == null ? '—' : a.above_share}%`, sub: `${a.above_cnt}/${a.rows} 目标价高于现价`, wrap: true },
+    { label: '平均分析数', value: `${a.avg_analysts == null ? '—' : a.avg_analysts}`, sub: '覆盖的分析师越多，共识越不易被单家机构带偏', wrap: true },
+  ], 're-cards-2col'));
   const rankBlocks = [['tops', '上行空间 Top 10'], ['bottoms', '下行风险 Top 10'], ['divs', '目标价分歧 Top 10']]
     .map(([k, title]) => `<div class="re-colbox">
       <div class="re-colbox-title">${title}</div>
