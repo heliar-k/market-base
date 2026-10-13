@@ -123,9 +123,15 @@ function renderIndexChart() {
       query: { maxWidth: 520 },
       option: {
         xAxis: { splitNumber: 4 },
-        grid: { top: 56, bottom: 20 },
+        grid: { bottom: 20 },
         dataZoom: [{ id: 'zr-slider', show: false }],
+        // 图例压缩尺寸换单行：默认两行时第二行孤行居左、左侧大片留白（用户反馈）
+        legend: { itemWidth: 14, itemGap: 6, textStyle: { fontSize: 9 } },
       },
+    }, {
+      // 320 档画布 ~226px，压缩后 4 项仍放不下（需 ~259px）→ 回落两行 + top 抬到两行高
+      query: { maxWidth: 260 },
+      option: { grid: { top: 56 } },
     }],
     series: Object.keys(ch.series).map(k => ({
       name: T[k] || k, type: 'line', data: ch.dates.map((dt, i) => [dt, ch.series[k][i]]), showSymbol: false, smooth: true,
