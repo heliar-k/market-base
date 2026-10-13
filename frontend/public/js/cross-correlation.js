@@ -455,7 +455,7 @@ function renderDrillCharts(a, b, rows) {
   const cDom = document.getElementById('corr-drill-corr');
   drillChart = echarts.init(cDom, theme, { renderer: 'canvas' });
   drillChart.setOption({
-    grid: { left: 8, right: 16, top: 12, bottom: 40, containLabel: true },
+    grid: { left: 8, right: 16, top: 12, bottom: 24, containLabel: true },
     xAxis: { type: 'category', data: dates, axisLabel: { fontSize: 10 } },
     yAxis: { type: 'value', min: -1, max: 1 },
     visualMap: {
@@ -473,7 +473,7 @@ function renderDrillCharts(a, b, rows) {
   const pChart = echarts.init(pDom, theme, { renderer: 'canvas' });
   const pal = MACRO_COLORS(); // 惰性取色板：主题切换后重渲染拿到的是新主题色
   pChart.setOption(reSyncLegend({
-    grid: { left: 8, right: 16, top: 12, bottom: 40, containLabel: true },
+    grid: { left: 8, right: 16, top: 12, bottom: 24, containLabel: true },
     xAxis: { type: 'category', data: dates, axisLabel: { fontSize: 10 } },
     yAxis: { type: 'value', scale: true },
     series: [

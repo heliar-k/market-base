@@ -83,7 +83,7 @@ function renderChart(d) {
     tooltip: { trigger: 'axis', valueFormatter: v => v == null ? '—' : Number(v).toFixed(2) + '%' },
     // type scroll（房规，同 rates-common/cross-correlation）：9 个图例窄屏不换行压曲线
     legend: { top: 0, type: 'scroll', data: Object.keys(ch.series).map(k => CH_T[k] || k), itemGap: 10 },
-    grid: { left: 8, right: 20, top: 32, bottom: 40 },
+    // 不写 grid：回落 lineOption 单源默认（无 dataZoom）
     xAxis: { type: 'time', boundaryGap: false, axisLabel: { formatter: (v) => R.md(v) } },  // ~126 日 ≤1 年
     yAxis: { type: 'value', axisLabel: { formatter: v => v + '%' } },
     series: Object.keys(ch.series).map(k => ({

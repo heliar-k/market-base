@@ -72,7 +72,6 @@ async function load() {
     R.mkChart('etfh-chart', colors => R.lineOption({
       tooltip: { trigger: 'axis' },
       legend: { data: hkeys.map(x => x[1]), top: 0 },
-      grid: { left: 8, right: 16, top: 28, bottom: 40 },
       xAxis: { type: 'time', boundaryGap: false },
       // GLD 与 SLV 量级差 ~14×，双轴各归各自 scale，否则金线被压平
       yAxis: [
@@ -117,7 +116,6 @@ async function load() {
     R.mkChart('wgc-chart', colors => R.lineOption({
       tooltip: { trigger: 'axis', valueFormatter: v => v == null ? '—' : `${R.num(v, 0)} 百万美元` },
       legend: { data: REG.map(x => x[1]), top: 0 },
-      grid: { left: 8, right: 16, top: 28, bottom: 40 },
       xAxis: { type: 'time', boundaryGap: false },
       yAxis: { type: 'value' },
       series: REG.map(([en, cn]) => ({
@@ -137,8 +135,7 @@ async function load() {
       R.mkChart('wgc-holdings-chart', colors => R.lineOption({
         tooltip: { trigger: 'axis', valueFormatter: v => v == null ? '—' : R.num(v, 0) },
         legend: { data: hasPx ? ['总持仓（吨）', '金价（右轴，美元/盎司）'] : ['总持仓（吨）'], top: 0 },
-        grid: { left: 8, right: 16, top: 28, bottom: 40 },
-        xAxis: { type: 'time', boundaryGap: false },
+          xAxis: { type: 'time', boundaryGap: false },
         yAxis: hasPx ? [
           { type: 'value', scale: true },
           { type: 'value', scale: true, position: 'right', splitLine: { show: false } },

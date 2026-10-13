@@ -84,7 +84,7 @@ async function load() {
     R.mkChart('liq-chart', colors => R.lineOption({
       tooltip: { trigger: 'axis', axisPointer: { type: 'cross' } },
       legend: { data: ['净流动性 (T)', 'BTC 价格'], top: 0 },
-      grid: { left: 8, right: '5%', top: 52, bottom: 40, containLabel: true },  // top 留足：图例占 0-14px，右轴名 BTC ($) 在 grid 顶沿，35 会撞图例
+      grid: { right: '5%', top: 52 },  // top 留足：图例占 0-14px，右轴名 BTC ($) 在 grid 顶沿，35 会撞图例；bottom 回落单源 24
       xAxis: { type: 'time', boundaryGap: false, axisLabel: { formatter: (v) => R.md(v) } },  // 180 日 ≤1 年
       yAxis: [
         { type: 'value', scale: true, position: 'left', name: '净流动性 (T)', nameTextStyle: { color: NL_CYAN },
@@ -190,8 +190,10 @@ async function load() {
     R.mkChart('ratio-chart', colors => R.lineOption({
       tooltip: { trigger: 'axis', valueFormatter: v => v == null ? '—' : Number(v).toFixed(4) },
       legend: { data: ['ETH/BTC', 'MA20', 'MA50'] },
-      grid: { left: 8, right: 16, top: 32, bottom: 64 },
+      grid: { left: 8, right: 16, top: 32, bottom: 64 },  // bottom 64 给 dataZoom 滑块；窄屏 media 隐藏滑块后收回
       xAxis: { type: 'time', boundaryGap: false, axisLabel: { formatter: (v) => R.md(v) } },  // ~1 年跨度
+      // 窄画布滑块隐藏（双指缩放替代，同指数走势图），腾出的空间还给图；宽屏不设
+      media: [{ query: { maxWidth: 520 }, option: { grid: { bottom: 20 }, dataZoom: [{ show: false }] } }],
       yAxis: { type: 'value', scale: true, axisLabel: { formatter: v => Number(v).toFixed(4) } },
       dataZoom: [
         { type: 'inside', start: 0, end: 100 },
