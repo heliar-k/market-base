@@ -159,8 +159,10 @@ async function load() {
         return `<a class="db-hv-member db-hv-member--${mcls}" href="${R.esc(href)}" title="${R.esc(m.name)} · ${R.esc(m.as_of || '')}">${R.esc(m.name)}<i>${mark}</i></a>`;
       };
       const scBody = (card) => `
-        <div class="db-sc-state"><b class="cons-state cons-state--${card.cls || 'na'}">${R.esc(card.state)}</b></div>
-        <div class="db-sc-votes">${card.members.map(member).join('')}</div>`;
+        <div class="db-sc-row">
+          <div class="db-sc-state"><b class="cons-state cons-state--${card.cls || 'na'}">${R.esc(card.state)}</b></div>
+          <div class="db-sc-votes">${card.members.map(member).join('')}</div>
+        </div>`;
       mkt.innerHTML = scBody(c.market);
       mac.innerHTML = scBody(c.macro);
       const mmeta = document.getElementById('db-sc-market-meta');
