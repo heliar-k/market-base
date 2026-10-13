@@ -1051,12 +1051,13 @@ body.dark .pm-topic-card { box-shadow: inset 0 0 0 1px rgba(255,255,255,.04); }
   border-bottom: 1px solid var(--border-light); padding-bottom: 8px;
 }
 .db-sc-title > small { margin-left: auto; font-size: 11px; font-weight: 400; color: var(--text-dim); }
-/* 状态字钉左（垂直居中锚定 + min-width 定宽：不同卡的状态字宽窄不一，
-   定宽后分割线与成员网格左缘跨卡对齐）+ 分割线 + 成员链右侧 auto-fit 微网格：
+/* 状态字钉左栏（水平+垂直双居中 + min-width 定宽：不同卡的状态字宽窄不一，
+   定宽后分割线与成员网格左缘跨卡对齐；居中让窄状态字不漂在左缘，
+   两卡大字到分割线的距离一致）+ 分割线 + 成员链右侧 auto-fit 微网格：
    成员是 label+mark 小键值单元，等分列宽列线对齐比流式折行整齐；窄屏列数自动降。
    间隔统一 12px 节奏：线两侧 padding 对称（≈14px），外层 gap 归零由线两侧空隙接管 */
 .db-sc-row { display: flex; align-items: center; min-width: 0; }
-.db-sc-state { flex-shrink: 0; min-width: 108px; padding-right: 14px; }
+.db-sc-state { flex-shrink: 0; min-width: 108px; padding-right: 14px; text-align: center; }
 .db-sc-state b { font-size: 16px; }
 .db-sc-votes { flex: 1; min-width: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(72px, 1fr)); gap: 2px 12px; border-left: 1px solid var(--border-light); padding-left: 14px; }
 .db-sc-votes .db-hv-member { padding: 5px 0; }
