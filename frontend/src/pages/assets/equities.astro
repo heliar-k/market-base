@@ -92,7 +92,7 @@ function renderIndices() {
     label: i.name,
     value: id(i.last),
     sub: `<span class="${cls1(i.chg_pct)}">${i.chg_pct == null ? '—' : (i.chg_pct >= 0 ? '▲ +' : '▼ ') + Number(i.chg_pct).toFixed(2) + '%'} · ${i.date}</span>`,
-  }))));
+  })), 're-cards-2col'));
 }
 
 function renderIndexChart() {
@@ -111,9 +111,22 @@ function renderIndexChart() {
     yAxis: { type: 'value', axisLabel: { formatter: v => v + '%' } },
     dataZoom: [
       { type: 'inside', start: 0, end: 100 },
-      { type: 'slider', height: 20, bottom: 12, borderColor: colors.border, handleStyle: { color: colors.accent },
+      { id: 'zr-slider', type: 'slider', height: 20, bottom: 12, borderColor: colors.border, handleStyle: { color: colors.accent },
         textStyle: { color: colors.muted }, dataBackground: { lineStyle: { color: colors.border }, areaStyle: { color: colors.grid } } },
     ],
+    // 窄画布（≤520px，随 resize 自动切换）：① time 轴 11 个月标签挤成一团读成“12/11/1”，
+    // splitNumber 4 让刻度自动退到隔月（实验过 hideOverlap/customValues 均无效）；
+    // ② slider 隐藏——手机双指缩放（inside 已开）替代滑块，腾出的 bottom 空间还给图；
+    // ③ 图例折两行（桌面单行只篥 top 32），top 抬到两行高度，否则第二行压在绘图区上；
+    // 宽屏 monthly 标签间距充足、图例单行，不设维持原样
+    media: [{
+      query: { maxWidth: 520 },
+      option: {
+        xAxis: { splitNumber: 4 },
+        grid: { top: 56, bottom: 20 },
+        dataZoom: [{ id: 'zr-slider', show: false }],
+      },
+    }],
     series: Object.keys(ch.series).map(k => ({
       name: T[k] || k, type: 'line', data: ch.dates.map((dt, i) => [dt, ch.series[k][i]]), showSymbol: false, smooth: true,
       lineStyle: { width: 1.6 }, emphasis: { focus: 'series' },
