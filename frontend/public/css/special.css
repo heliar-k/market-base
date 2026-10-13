@@ -796,6 +796,12 @@ body.dark .pm-topic-card { box-shadow: inset 0 0 0 1px rgba(255,255,255,.04); }
 @media (max-width: 480px) {
   #re-cards .re-cards > .re-card { flex-basis: 100%; }
 }
+/* 双列窄档旋钮（app.css .re-cards-2col）的 ID 档同源镜像：ID 优先级 (1,2,0) 压过
+ * app.css 的 (0,2,0)，不镜像的话 rates 概览这类短卡在 ≤480 掉回单列（先例同上方
+ * 「ID 档让位全局档」三档跟随） */
+@media (max-width: 480px) {
+  #re-cards .re-cards-2col > .re-card { flex-basis: calc(50% - 6px); }
+}
 /* #27：≤ 768 取单列已由全局规则接手（见上方 .re-cards > .re-card）——两列时卡片
  * min-content 172px 会把轨道顶到 214px，两列 + gap = 464 > 375 → 文档横向溢出。 */
 .hero-card { border: 1px solid var(--accent); border-radius: 10px; background: var(--surface); padding: 16px; display: flex; flex-direction: column; gap: 12px; box-shadow: 0 0 0 1px var(--accent); }

@@ -73,7 +73,7 @@ async function load() {
     { label: '30Y', value: R.fmtPct(t['30Y'].current), sub: chgSub(t['30Y'].chg_1w, '1周') },
     { label: '10Y-2Y', value: R.fmtBp(s['2s10s']), sub: chgSub(s['2s10s_1m_chg'], '1月') },
     { label: '10Y 实际利率', value: R.fmtPct(tips10?.real), sub: 'TIPS' },
-  ]));
+  ], 're-cards-2col'));
 
   // ── 曲线四线快照（tenors 自带 1周/1月/3月前，零新请求）──
   R.curveCompare('yc_compare', d.tenors);

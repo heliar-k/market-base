@@ -155,6 +155,13 @@ body { font-family: system-ui, -apple-system, sans-serif; background: var(--bg);
 @media (max-width: 480px) {
   .re-cards > .re-card { flex-basis: 100%; }
 }
+/* 双列窄档（.re-cards-2col）：短卡（label + 数值 + 短 sub）在手机上单列太空——
+ * 402 单列一张卡 370px 宽只装三行字；压两列后单卡 ~179px 仍容得下（实测）。
+ * 只给声明了本类的卡行生效，必须跟在上方全局 ≤480 单列规则之后（同优先级靠源序取胜）；
+ * 长 sub 卡（ellipsis 会截字）不要用这个旋钮。 */
+@media (max-width: 480px) {
+  .re-cards-2col > .re-card { flex-basis: calc(50% - 6px); }
+}
 .re-card-accent { background: var(--surface); border: 1px solid var(--border); color: var(--text); }
 .re-card-accent .re-corridor-label { color: var(--text-secondary); }
 
