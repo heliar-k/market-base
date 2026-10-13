@@ -259,6 +259,12 @@ body.embedded .re-foot { display: none; } /* 内嵌 iframe 不重复页脚 */
 @media (max-width: 768px) {
   .chart:not(.corr-matrix-chart) { height: clamp(170px, 51vw, 300px); }
 }
+/* .re-chart 家族同款窄屏档（独立卡面图，rates 11 页 / bonds / fx）：同 1.5:1 逻辑，
+ * 否则同一屏上 .chart 图 205 高、.re-chart 图 300 高两种观感；treasury 小倍图的
+ * inline height 优先级更高不受影响 */
+@media (max-width: 768px) {
+  .re-chart:not(.re-chart-xl) { height: clamp(170px, 51vw, 300px); }
+}
 /* ABV 走势（equities 私有）：.chart-md 高度按桌面宽度调的，窄屏 308px 画布配 ~340px 高
  * 成了竖图（时间序列压成方块）→ ≤768 压到 220px（~1.4:1，190 太扁）。三类选择器压上方双类档。 */
 @media (max-width: 768px) {

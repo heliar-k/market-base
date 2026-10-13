@@ -36,7 +36,8 @@ async function load() {
     label: i.name,
     value: fmt(i.last),
     sub: `${chg(i.chg_pct)} · ${i.date}`,
-  }))));
+    cls: 're-card-wrap',
+  })), 're-cards-2col'));
   if (d.cards && d.cards.length) R.setAsOf(d.cards[0].date);
 
   // 20 日相对涨跌图（期初=0%）+ 绝对值明细表
@@ -56,7 +57,11 @@ async function load() {
     tooltip: { trigger: 'axis', valueFormatter: v => v == null ? '—' : Number(v).toFixed(2) + '%' },
     // 图例色标由 reSyncLegend 按 series 线型自动出（实/虚/点/点划线），无需手写
     legend: { data: keys, top: 0, itemGap: 10 },
-    grid: { left: 8, right: 16, top: 28, bottom: 28 },
+    // 不写 grid：回落主题默认（left 3% / right 4% / bottom 3% / top 48 + containLabel），
+    // 与全站嵌卡图同形态——原先页面写的 8/16/28/28 死值不随宽度缩放，窄屏边距失调（用户反馈）
+    // 窄画布 20 个日度标签挤成一团（同指数走势图病），splitNumber 4 退到周度。
+    // media 必须是 option 顶层键（塞进 xAxis 会被忽略）
+    media: [{ query: { maxWidth: 520 }, option: { xAxis: { splitNumber: 4 } } }],
     xAxis: { type: 'time', boundaryGap: false, axisLabel: { formatter: (v) => R.md(v) } },  // 20 个交易日
     yAxis: { type: 'value', scale: true, axisLabel: { formatter: v => v + '%' } },
     series: keys.map((k, i) => ({
