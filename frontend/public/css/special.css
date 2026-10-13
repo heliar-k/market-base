@@ -252,6 +252,11 @@ body.embedded .re-foot { display: none; } /* 内嵌 iframe 不重复页脚 */
 .chart.chart-lg { height: clamp(210px, 38vh, 280px); }
 .chart.chart-md { height: clamp(250px, 46vh, 340px); }
 .chart.chart-hero { height: clamp(300px, 62vh, 520px); }
+/* ABV 走势（equities 私有）：.chart-md 高度按桌面宽度调的，窄屏 308px 画布配 ~340px 高
+ * 成了竖图（时间序列压成方块）→ ≤768 压到 190px（~1.7:1）。三类选择器压上方双类档。 */
+@media (max-width: 768px) {
+  .chart.chart-md.abv-aspect { height: 190px; }
+}
 /* 大类资产页跨资产相关性矩阵（.corr-matrix-chart）：小屏方形 —— 高度改由 aspect-ratio 跟宽度走
  * （口径同 SPA 关联视图 .corr-heatmap；1/1.1 的余量 = 主题 containLabel 展开的 y 轴名列
  * + x 轴旋转标签带 + 底部色带，实测校准），否则 clamp 高度把 22 行拉成扁条。 */

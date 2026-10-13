@@ -175,18 +175,24 @@ function renderAbvChart() {
   csec.className = 're-section';
   csec.innerHTML = `<h2>标普500 成分股在均线上方占比走势（1 年）</h2>
     <div class="src-note">低于 50% 阈值 = 市场内部走弱，即使指数仍在高位。</div>
-    <div class="chart chart-md" id="abv-chart-el"></div>`;
+    <div class="chart chart-md abv-aspect" id="abv-chart-el"></div>`;
   document.getElementById('abv-chart').appendChild(csec);
   R.mkChart('abv-chart-el', colors => R.lineOption({
     tooltip: { trigger: 'axis', valueFormatter: v => v == null ? '—' : Number(v).toFixed(1) + '%' },
     legend: { data: ['50日均线上方占比', '200日均线上方占比'], top: 0 },
     grid: { left: 8, right: 16, top: 28, bottom: 28 },
     xAxis: { type: 'time', boundaryGap: false },
-    yAxis: { type: 'value', min: 0, max: 100, axisLabel: { formatter: v => v + '%' } },
+    // 窄画布 x 轴月标签粘连（同指数走势图，splitNumber 4 退隔月）；宽屏不设
+    media: [{ query: { maxWidth: 520 }, option: { xAxis: { splitNumber: 4 } } }],
+    // 阈值 50% 直接标在 y 轴上（interval 25 让 50 成刻度 + rich 高亮）：原 markLine 右端
+    // insideEndTop 标签窄屏压进曲线里（用户反馈）；虚线本身保留做视觉基准
+    yAxis: { type: 'value', min: 0, max: 100, interval: 25,
+      axisLabel: { formatter: v => v === 50 ? '{thr|50%}' : v + '%',
+        rich: { thr: { fontWeight: 700, color: colors.text, fontSize: 10, fontFamily: 'inherit' } } } },
     series: [
       { name: '50日均线上方占比', type: 'line', data: b.abv50_series, showSymbol: false, smooth: true,
         lineStyle: { width: 2, color: colors.orange },
-        markLine: { silent: true, symbol: 'none', label: { formatter: '50', position: 'insideEndTop', color: colors.muted, fontSize: 10 },
+        markLine: { silent: true, symbol: 'none', label: { show: false },
           lineStyle: { color: colors.muted, type: 'dashed', width: 1 }, data: [{ yAxis: 50 }] } },
       { name: '200日均线上方占比', type: 'line', data: b.abv200_series, showSymbol: false, smooth: true,
         lineStyle: { width: 2, color: colors.blue } },
