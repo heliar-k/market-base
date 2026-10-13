@@ -107,7 +107,8 @@ function renderIndexChart() {
   R.mkChart('idx-chart-el', colors => R.lineOption({
     tooltip: { trigger: 'axis', valueFormatter: v => v == null ? '—' : Number(v).toFixed(2) + '%' },
     legend: { top: 0, data: Object.keys(ch.series).map(k => T[k] || k), itemGap: 10 },
-    grid: { left: 8, right: 20, top: 32, bottom: 64 },
+    // 不写 grid：回落 lineOption 单源默认 8/36/16/24；media 只留差异项
+    // （窄画布 slider 隐藏后 bottom 收回、图例压缩、320 两行图例 top 56）
     xAxis: { type: 'time', boundaryGap: false,
       axisLabel: { formatter: R.md } },
     yAxis: { type: 'value', axisLabel: { formatter: v => v + '%' } },
@@ -182,10 +183,10 @@ function renderAbvChart() {
   R.mkChart('abv-chart-el', colors => R.lineOption({
     tooltip: { trigger: 'axis', valueFormatter: v => v == null ? '—' : Number(v).toFixed(1) + '%' },
     legend: { data: ['50日均线上方占比', '200日均线上方占比'], top: 0 },
-    grid: { left: 8, right: 16, top: 28, bottom: 28 },
+    // 不写 grid：回落 lineOption 单源默认（高度回调 220 后 bottom 24 无需再压）
     xAxis: { type: 'time', boundaryGap: false },
     // 窄画布 x 轴月标签粘连（同指数走势图，splitNumber 4 退隔月）；宽屏不设
-    media: [{ query: { maxWidth: 520 }, option: { xAxis: { splitNumber: 4 }, grid: { bottom: 16 } } }],
+    media: [{ query: { maxWidth: 520 }, option: { xAxis: { splitNumber: 4 } } }],
     // 阈值 50% 直接标在 y 轴上（interval 25 让 50 成刻度 + rich 高亮）：原 markLine 右端
     // insideEndTop 标签窄屏压进曲线里（用户反馈）；虚线本身保留做视觉基准
     yAxis: { type: 'value', min: 0, max: 100, interval: 25,

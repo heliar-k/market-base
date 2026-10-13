@@ -39,7 +39,8 @@ async function load() {
   R.mkChart('com-chart', colors => R.lineOption({
     tooltip: { trigger: 'axis' },
     legend: { data: keys, top: 0 },
-    grid: { left: 8, right: 16, top: 28, bottom: 40 },
+    // 不写 grid：回落 lineOption 单源默认（top 36 / left 8 / right 16 / bottom 24），
+    // 与全站折线图同值；窄屏高度档由 special.css ≤768 .chart 规则接管
     xAxis: { type: 'time', boundaryGap: false },  // 2 年跨度（>1 年），不写 formatter
     yAxis: { type: 'value' },
     series: keys.map((k, i) => ({
