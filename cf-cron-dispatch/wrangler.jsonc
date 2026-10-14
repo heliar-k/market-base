@@ -5,6 +5,10 @@
   "name": "gh-cron-dispatch",
   "main": "src/worker.js",
   "compatibility_date": "2025-10-01",
+  // Workers Logs：免费版 20 万条/天（用量 ~200 条/天），保留 3 天，排查 dispatch 报错用
+  "observability": {
+    "enabled": true
+  },
   // 触发时间必须与 .github/workflows/*.yml 里的 cron 完全一致（worker.js 靠 event.cron 分发）。
   // 免费版每 Worker 上限 5 条 cron，这里 4 条。GitHub YAML schedule 保留为兜底：
   // 双触发幂等，data-fetch 并发组会把撞车的班次合并。
