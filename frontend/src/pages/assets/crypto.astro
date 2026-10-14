@@ -190,16 +190,10 @@ async function load() {
     R.mkChart('ratio-chart', colors => R.lineOption({
       tooltip: { trigger: 'axis', valueFormatter: v => v == null ? '—' : Number(v).toFixed(4) },
       legend: { data: ['ETH/BTC', 'MA20', 'MA50'] },
-      grid: { left: 8, right: 16, top: 32, bottom: 64 },  // bottom 64 给 dataZoom 滑块；窄屏 media 隐藏滑块后收回
+      grid: { left: 8, right: 16, top: 32 },  // bottom 不写：回落单源默认 24（滑块已删）
       xAxis: { type: 'time', boundaryGap: false, axisLabel: { formatter: (v) => R.md(v) } },  // ~1 年跨度
-      // 窄画布滑块隐藏（双指缩放替代，同指数走势图），腾出的空间还给图；宽屏不设
-      media: [{ query: { maxWidth: 520 }, option: { grid: { bottom: 20 }, dataZoom: [{ show: false }] } }],
       yAxis: { type: 'value', scale: true, axisLabel: { formatter: v => Number(v).toFixed(4) } },
-      dataZoom: [
-        { type: 'inside', start: 0, end: 100 },
-        { type: 'slider', height: 20, bottom: 12, borderColor: colors.border, handleStyle: { color: colors.accent },
-          textStyle: { color: colors.muted }, dataBackground: { lineStyle: { color: colors.border }, areaStyle: { color: colors.grid } } },
-      ],
+      dataZoom: [{ type: 'inside', start: 0, end: 100 }],
       series: [
         { name: 'ETH/BTC', type: 'line', data: ra.dates.map((dt, i) => [dt, inv(ra.series)[i]]), showSymbol: false, smooth: true, connectNulls: true,
           lineStyle: { width: 2, color: colors.green }, itemStyle: { color: colors.green } },

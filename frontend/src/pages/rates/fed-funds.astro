@@ -67,8 +67,8 @@ async function load() {
     legend: { data: ['EFFR', 'SOFR', 'TGCR', 'BGCR', 'ONRRP', '目标上限', '目标下限'] },
     tooltip: { trigger: 'axis', valueFormatter: v => `${Number(v).toFixed(2)}%` },
     // 半宽双栏下七项图例可能折两行（窄桌面内容 <1100px 时），单行高度 36 会压住第二行
-    grid: { top: 56, left: 8, right: 16, bottom: 56 },
-    dataZoom: [{ type: 'inside' }, { type: 'slider', bottom: 16, height: 18 }],
+    grid: { top: 56, left: 8, right: 16 },
+    dataZoom: [{ type: 'inside' }],
     // 近 90 个交易日都在今年（≤1 年）：formatter 用 R.md 留「月-日」
     xAxis: { type: 'time', boundaryGap: false, axisLabel: { formatter: (v) => R.md(v) } },
     // scale:true 会把上下限贴死在数据边界（目标区间线压轴），两侧各留 8% 余量；函数式随缩放重算
@@ -93,8 +93,8 @@ async function load() {
   R.mkChart('sofr_vol_chart', (colors) => reSyncLegend({
     legend: { data: ['每日成交量', '20 日均值'] },
     tooltip: { trigger: 'axis' },
-    grid: { top: 36, left: 8, right: 16, bottom: 56 },
-    dataZoom: [{ type: 'inside' }, { type: 'slider', bottom: 16, height: 18 }],
+    grid: { top: 36, left: 8, right: 16 },
+    dataZoom: [{ type: 'inside' }],
     // 同走廊：近 90 个交易日（≤1 年），formatter R.md 留「月-日」
     xAxis: { type: 'time', boundaryGap: false, axisLabel: { formatter: (v) => R.md(v) } },
     yAxis: { type: 'value' },
@@ -107,8 +107,8 @@ async function load() {
   // ── EFFR 5 年 ──
   R.mkChart('effr_chart', (colors) => ({
     tooltip: { trigger: 'axis', valueFormatter: v => `${Number(v).toFixed(2)}%` },
-    grid: { top: 16, left: 8, right: 16, bottom: 56 },
-    dataZoom: [{ type: 'inside' }, { type: 'slider', bottom: 16, height: 18 }],
+    grid: { top: 16, left: 8, right: 16 },
+    dataZoom: [{ type: 'inside' }],
     // 5 年跨度（>1 年）：不写 formatter，年份标签交给主题/ECharts 自动
     xAxis: { type: 'time', boundaryGap: false },
     yAxis: { type: 'value', scale: true, axisLabel: { formatter: '{value}%' } },

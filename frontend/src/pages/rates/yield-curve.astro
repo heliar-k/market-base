@@ -105,8 +105,8 @@ async function load() {
   R.mkChart('yc_spreads', (colors) => R.lineOption({
     legend: { data: ['2s10s', '3m10s', '5s30s'] },
     tooltip: { trigger: 'axis', valueFormatter: v => `${v} bp` },
-    grid: { bottom: 56, left: 8 },
-    dataZoom: [{ type: 'inside' }, { type: 'slider', bottom: 8, height: 18 }],
+    grid: { bottom: 24, left: 8 },
+    dataZoom: [{ type: 'inside' }],
     xAxis: { type: 'time', boundaryGap: false },
     yAxis: { type: 'value', axisLabel: { formatter: '{value} bp' }, scale: true },
     series: [

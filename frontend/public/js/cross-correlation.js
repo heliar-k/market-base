@@ -939,9 +939,10 @@ function renderChart(seriesMap) {
   }
 
   const hasBands = corrValid.length > 0;
+  // 滑块已删（缩放留 inside）：三带版省出 bottom 带给第三带，单图版 bottom 回单源默认
   const grid = hasBands
-    ? [{ left: 56, right: needDual ? 56 : 24, top: 34, height: '44%' }, { left: 56, right: needDual ? 56 : 24, top: '60%', height: '17%' }, { left: 56, right: needDual ? 56 : 24, top: '82%', height: '13%' }]
-    : { left: '3%', right: needDual ? '6%' : '4%', bottom: 56, top: 32, containLabel: true };
+    ? [{ left: 56, right: needDual ? 56 : 24, top: 34, height: '46%' }, { left: 56, right: needDual ? 56 : 24, top: '62%', height: '18%' }, { left: 56, right: needDual ? 56 : 24, top: '84%', height: '14%' }]
+    : { left: '3%', right: needDual ? '6%' : '4%', bottom: 24, top: 32, containLabel: true };
   const xAxis = hasBands
     ? [{ type: 'time', gridIndex: 0, axisLabel: { show: false } }, { type: 'time', gridIndex: 1, axisLabel: { show: false } }, { type: 'time', gridIndex: 2 }]
     : [{ type: 'time', boundaryGap: false }];
@@ -955,8 +956,8 @@ function renderChart(seriesMap) {
     : [{ type: 'value', scale: true, splitNumber: 4 }];
   if (!hasBands && needDual) yAxis.push({ type: 'value', scale: true, splitNumber: 4, position: 'right' });
   const dataZoom = hasBands
-    ? [{ type: 'inside', xAxisIndex: [0, 1, 2] }, { type: 'slider', xAxisIndex: [0, 1, 2], bottom: 4, height: 16 }]
-    : [{ type: 'inside' }, { type: 'slider', bottom: 8, height: 20 }];
+    ? [{ type: 'inside', xAxisIndex: [0, 1, 2] }]
+    : [{ type: 'inside' }];
 
   const chart = echarts.init(chartEl, document.body.classList.contains('dark') ? 'macroDark' : 'macro', { renderer: 'canvas' });
   corrChart = chart;

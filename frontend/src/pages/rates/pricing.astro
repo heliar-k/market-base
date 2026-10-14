@@ -193,8 +193,8 @@ async function load() {
     tooltip: { trigger: 'axis', valueFormatter: v => `${Number(v).toFixed(2)}%` },
     // 右 16 与下方 2Y/10Y 图对齐：主题 containLabel 已含右轴标签宽，48 是标签外的纯空白。
     // top 56：窄屏 4 项图例折两行（≈42px），36 会压到曲线；fed-funds hero 同款值
-    grid: { top: 56, left: 8, right: 16, bottom: 56 },
-    dataZoom: [{ type: 'inside' }, { type: 'slider', bottom: 8, height: 18 }],
+    grid: { top: 56, left: 8, right: 16 },
+    dataZoom: [{ type: 'inside' }],
     xAxis: { type: 'time', boundaryGap: false, axisLabel: { formatter: (v) => R.md(v) } },  // 跨度 ~1 年，formatter 留「月-日」
     yAxis: [
       { type: 'value', scale: true, axisLabel: { formatter: '{value}%' } },
@@ -218,8 +218,8 @@ async function load() {
         return `${R.md(ps[0].axisValue)}<br/>2Y：${m['2Y'].toFixed(2)}%<br/>10Y：${m['10Y'].toFixed(2)}%<br/>2s10s 利差：${m['2s10s 利差'].toFixed(2)}%`;
       },
     },
-    grid: { top: 36, left: 8, right: 16, bottom: 56 },
-    dataZoom: [{ type: 'inside' }, { type: 'slider', bottom: 8, height: 18 }],
+    grid: { top: 36, left: 8, right: 16 },
+    dataZoom: [{ type: 'inside' }],
     xAxis: { type: 'time', boundaryGap: false, axisLabel: { formatter: (v) => R.md(v) } },  // 跨度 ~1 年
     yAxis: { type: 'value', scale: true, axisLabel: { formatter: '{value}%' } },
     series: [
