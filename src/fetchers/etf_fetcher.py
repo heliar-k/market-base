@@ -70,13 +70,14 @@ def fetch_pool_prices(period: str = "1y") -> pd.DataFrame:
     return wide_close({t: t for t in ETF_POOL}, period)
 
 
-def main() -> None:
+def main(pool_only: bool = False) -> None:
     from src.fetchers._io import upsert_timeseries
 
-    uni = fetch_universe()
-    UNIVERSE_PATH.parent.mkdir(parents=True, exist_ok=True)
-    uni.to_csv(UNIVERSE_PATH, index=False)
-    logger.info(f"etf universe: {len(uni)} 行 → {UNIVERSE_PATH}")
+    if not pool_only:
+        uni = fetch_universe()
+        UNIVERSE_PATH.parent.mkdir(parents=True, exist_ok=True)
+        uni.to_csv(UNIVERSE_PATH, index=False)
+        logger.info(f"etf universe: {len(uni)} 行 → {UNIVERSE_PATH}")
 
     pool = fetch_pool_prices()
     upsert_timeseries(POOL_PATH, pool, column_order=list(ETF_POOL))
@@ -84,5 +85,13 @@ def main() -> None:
 
 
 if __name__ == "__main__":
+    import argparse
+
     logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
-    main()
+    ap = argparse.ArgumentParser(description="ETF 全量清单 + 精选池日线")
+    ap.add_argument(
+        "--pool-only",
+        action="store_true",
+        help="只拉精选池日线（跳过 Nasdaq Trader 全量清单；intraday 晚班用）",
+    )
+    main(pool_only=ap.parse_args().pool_only)

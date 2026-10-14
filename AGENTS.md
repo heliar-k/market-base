@@ -296,6 +296,7 @@ uv run python -m src.consensus       # 多源共识层两级状态卡（ADR-0004
 ./bin/fetch_yfinance                # yfinance 资产价格
 ./bin/fetch_fx                     # 外汇对日线 16 对（timsun /assets/fx）
 ./bin/fetch_etf                    # ETF 全量清单 + 精选池（timsun /assets/etfs）
+./bin/fetch_etf --pool-only         # 只拉精选池日线（intraday 尾班用，跳过 Nasdaq 清单）
 ./bin/fetch_options_structure      # 22 标的期权结构快照（GEX/DEX/Vanna/Charm，~3min）
 ./bin/fetch_crypto_derivatives     # 加密衍生品快照（OKX + Deribit + CME）
 ./bin/fetch_crypto_basis             # CME BTC 基差日序列（Yahoo BTC=F proxy）

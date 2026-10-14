@@ -71,6 +71,12 @@ jobs:
             echo "===== START $f ====="
             bash "bin/$f" || FAILED="$FAILED $f"
           done
+          # 尾班（收盘后）额外拉 ETF 精选池日线：fetch_etf 全量版（含 Nasdaq 清单）只在
+          # daily-full 跑，这里 --pool-only 补池子收盘时效（观测日 upsert，同日覆盖幂等）
+          if [ "$(date -u +%H)" -ge 21 ]; then
+            echo "===== START fetch_etf --pool-only ====="
+            bash bin/fetch_etf --pool-only || FAILED="$FAILED fetch_etf_pool"
+          fi
           # FRED 发布高峰在美东上午（实测 ~14:18 UTC），只拉 UTC 13-14 点的班次，之后跳过省空跑
           if [ "$(date -u +%H)" -le 14 ]; then
             echo "===== START fetch_fred ====="
