@@ -28,6 +28,7 @@ import sys
 from datetime import date, datetime, time, timezone
 from pathlib import Path
 from typing import TypedDict
+from zoneinfo import ZoneInfo
 
 import pandas as pd
 
@@ -209,21 +210,35 @@ def audit(
 # upsert（观测日 key，同日覆盖可自愈）或 {date}.json 快照，无此固化路径。
 US_SNAPSHOT_COLS = ("SPX", "NDX", "RUT", "DJI")
 CROSS_ETFS = ("SPY", "QQQ", "IWM", "DIA")  # 同源 ETF 与指数同动，互为证人
-_CONFIRM_FROM = time(20, 15)  # 收盘确认窗：EDT 收盘 20:00 UTC 后留 15 分钟结算
+_ET_ZONE = ZoneInfo("America/New_York")
 
 
-def _cross_etfs_moved() -> bool | None:
-    """交叉 ETF 当日是否变动；取不到（网络/限流）→ None，宁漏报不误报。"""
+def _confirm_from_utc(now: datetime) -> time:
+    """收盘确认窗起点 = ET 16:15（收盘 16:00 后留 15 分钟结算），按日期算 DST。"""
+    et = now.astimezone(_ET_ZONE)
+    start = et.replace(hour=16, minute=15, second=0, microsecond=0)
+    return start.astimezone(timezone.utc).timetz()
+
+
+def _cross_etfs_moved(now: datetime) -> bool | None:
+    """交叉 ETF 当日是否有交易且变动；取不到（网络/限流）→ None，宁漏报不误报。
+
+    证人语义 = **当日** bar 存在且收盘 != 前 bar：假日（无当日 bar）或全平
+    （相等）都不作证。只比「末两根不等」会在假日把周四周五当「今日变动」
+    误作证，故显式过滤当日。
+    """
     try:
-        from .fetchers.yfinance_fetcher import ensure_yf_proxy
+        from .fetchers.yfinance_fetcher import fetch_hist
 
-        ensure_yf_proxy()
-        import yfinance as yf
-
+        today = now.date()
         for tkr in CROSS_ETFS:
-            hist = yf.Ticker(tkr).history(period="5d")
-            closes = hist["Close"].dropna() if not hist.empty else pd.Series(dtype=float)
-            if len(closes) >= 2 and closes.iloc[-1] != closes.iloc[-2]:
+            hist = fetch_hist(tkr)
+            if hist is None or "Close" not in hist or hist.empty:
+                continue
+            closes = hist["Close"].dropna()
+            if len(closes) < 2 or closes.index[-1].date() != today:
+                continue  # 无当日 bar（假日/未发布）→ 此标的不作证
+            if closes.iloc[-1] != closes.iloc[-2]:
                 return True
         return False
     except Exception:
@@ -233,11 +248,12 @@ def _cross_etfs_moved() -> bool | None:
 def us_indices_placeholder_msg(root: Path, now_utc: datetime) -> str | None:
     """美股指数占位行检测；返回失败文案，窗口外/数据不可判 → None 放行。
 
-    判定（工作日收盘确认窗）：今日快照行的美股指数列与前两行之一完全相同
-    （复制自昨日或更早），而交叉 ETF 当日有变动 → 市场明明动了、指数值是旧的。
-    标红后由 intraday 15 分钟一班自然重试；休市日交叉 ETF 同样不动，不误报。
+    判定（工作日收盘确认窗，ET 16:15 起）：今日快照行的美股指数列与前两行
+    之一完全相同（复制自昨日或更早），而交叉 ETF 当日有变动 → 市场明明动了、
+    指数值是旧的。标红后由 intraday 15 分钟一班自然重试；假日交叉 ETF 无当日
+    bar 不作证，不误报。
     """
-    if now_utc.weekday() >= 5 or now_utc.time() < _CONFIRM_FROM:
+    if now_utc.weekday() >= 5 or now_utc.timetz() < _confirm_from_utc(now_utc):
         return None
     path = root / "data/yfinance/asset_prices.csv"
     if not path.exists():
@@ -254,7 +270,7 @@ def us_indices_placeholder_msg(root: Path, now_utc: datetime) -> str | None:
     ]
     if not unchanged:
         return None
-    moved = _cross_etfs_moved()
+    moved = _cross_etfs_moved(now_utc)
     if not moved:  # False=休市/全平；None=交叉源取不到 → 均不标红
         return None
     return (

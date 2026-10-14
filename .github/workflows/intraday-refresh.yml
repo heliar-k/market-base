@@ -85,6 +85,15 @@ jobs:
           [ -n "$FAILED" ] && echo "失败:$FAILED" && echo "FAILED_LIST=$FAILED" >> "$GITHUB_ENV"
           exit 0
 
+      - name: 数据时效断言（尾班收尾，占位行检测在此重试闭环）
+        # 全量断言由 daily-full/evening-late 收尾把关，这里防的是占位行固化：
+        # 窗口内标红 → 15 分钟后的下一班自然重试。
+        # 值维断言经 ensure_yf_proxy 拉交叉 ETF：Actions 无代理需直连
+        env:
+          YF_NO_PROXY: "1"
+        run: |
+          uv run python -m src.data_freshness || { echo "失败: data_freshness"; echo "FAILED_LIST=${FAILED_LIST} data_freshness" >> "$GITHUB_ENV"; }
+
       - name: 多源共识层（盘中临时值，不覆盖定稿行）
         run: |
           uv run python -m src.consensus --intraday || { echo "失败: consensus"; echo "FAILED_LIST=${FAILED_LIST} consensus" >> "$GITHUB_ENV"; }

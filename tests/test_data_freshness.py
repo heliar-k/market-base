@@ -5,7 +5,7 @@ _release_dates 的混时区串），都用注入的 checks 跑，不碰真实 da
 另盖占位行检测（us_indices_placeholder_msg）：交叉 ETF 打桩，不碰网络。
 """
 
-from datetime import date, datetime, timezone
+from datetime import date, datetime, time, timezone
 
 import pandas as pd
 
@@ -110,7 +110,7 @@ def test_placeholder_row_flagged(tmp_path, monkeypatch):
             {"date": "2026-10-13", "SPX": 7807.24, "DJI": 51850.55},  # 复制昨日
         ],
     )
-    monkeypatch.setattr(fr, "_cross_etfs_moved", lambda: True)
+    monkeypatch.setattr(fr, "_cross_etfs_moved", lambda now: True)
     msg = fr.us_indices_placeholder_msg(tmp_path, _NOW)
     assert msg is not None and "SPX" in msg
 
@@ -126,7 +126,7 @@ def test_copied_from_day_before_yesterday_also_flagged(tmp_path, monkeypatch):
             {"date": "2026-10-14", "SPX": 7807.24},  # 陈旧两天
         ],
     )
-    monkeypatch.setattr(fr, "_cross_etfs_moved", lambda: True)
+    monkeypatch.setattr(fr, "_cross_etfs_moved", lambda now: True)
     now = datetime(2026, 10, 14, 20, 30, tzinfo=timezone.utc)
     assert fr.us_indices_placeholder_msg(tmp_path, now) is not None
 
@@ -139,7 +139,7 @@ def test_updated_values_not_flagged(tmp_path, monkeypatch):
             {"date": "2026-10-13", "SPX": 7805.45, "DJI": 51670.10},
         ],
     )
-    monkeypatch.setattr(fr, "_cross_etfs_moved", lambda: True)
+    monkeypatch.setattr(fr, "_cross_etfs_moved", lambda now: True)
     assert fr.us_indices_placeholder_msg(tmp_path, _NOW) is None
 
 
@@ -152,7 +152,7 @@ def test_holiday_cross_etf_flat_not_flagged(tmp_path, monkeypatch):
             {"date": "2026-10-13", "SPX": 7807.24},
         ],
     )
-    monkeypatch.setattr(fr, "_cross_etfs_moved", lambda: False)
+    monkeypatch.setattr(fr, "_cross_etfs_moved", lambda now: False)
     assert fr.us_indices_placeholder_msg(tmp_path, _NOW) is None
 
 
@@ -165,7 +165,7 @@ def test_cross_source_down_fails_open(tmp_path, monkeypatch):
             {"date": "2026-10-13", "SPX": 7807.24},
         ],
     )
-    monkeypatch.setattr(fr, "_cross_etfs_moved", lambda: None)
+    monkeypatch.setattr(fr, "_cross_etfs_moved", lambda now: None)
     assert fr.us_indices_placeholder_msg(tmp_path, _NOW) is None
 
 
@@ -179,7 +179,7 @@ def test_before_window_skips_without_network(tmp_path, monkeypatch):
         ],
     )
 
-    def _boom():
+    def _boom(now):
         raise AssertionError("窗口前不应发起网络调用")
 
     monkeypatch.setattr(fr, "_cross_etfs_moved", _boom)
@@ -195,9 +195,56 @@ def test_weekend_skipped(tmp_path, monkeypatch):
             {"date": "2026-10-10", "SPX": 7811.54},
         ],
     )
-    monkeypatch.setattr(fr, "_cross_etfs_moved", lambda: True)
+    monkeypatch.setattr(fr, "_cross_etfs_moved", lambda now: True)
     sat = datetime(2026, 10, 10, 20, 30, tzinfo=timezone.utc)  # 周六
     assert fr.us_indices_placeholder_msg(tmp_path, sat) is None
+
+
+def test_cross_witness_requires_todays_bar(monkeypatch):
+    """证人语义：假日无当日 bar（末根是昨日）→ 不作证（False），不误报。"""
+    from src.fetchers import yfinance_fetcher as yf_mod
+
+    # 末根 10-12，而 now 是 10-13（假日）：无当日 bar
+    hist = pd.DataFrame(
+        {"Close": [100.0, 101.0]},
+        index=pd.DatetimeIndex(["2026-10-09", "2026-10-12"]),
+    )
+    monkeypatch.setattr(yf_mod, "fetch_hist", lambda tkr: hist)
+    now = datetime(2026, 10, 13, 21, 0, tzinfo=timezone.utc)
+    assert fr._cross_etfs_moved(now) is False
+
+
+def test_cross_witness_true_on_todays_move(monkeypatch):
+    from src.fetchers import yfinance_fetcher as yf_mod
+
+    hist = pd.DataFrame(
+        {"Close": [100.0, 101.0]},
+        index=pd.DatetimeIndex(["2026-10-12", "2026-10-13"]),
+    )
+    monkeypatch.setattr(yf_mod, "fetch_hist", lambda tkr: hist)
+    now = datetime(2026, 10, 13, 21, 0, tzinfo=timezone.utc)
+    assert fr._cross_etfs_moved(now) is True
+
+
+def test_cross_witness_flat_today(monkeypatch):
+    """当日 bar 存在但与前一 bar 相同（真平盘）→ 不作证。"""
+    from src.fetchers import yfinance_fetcher as yf_mod
+
+    hist = pd.DataFrame(
+        {"Close": [100.0, 100.0]},
+        index=pd.DatetimeIndex(["2026-10-12", "2026-10-13"]),
+    )
+    monkeypatch.setattr(yf_mod, "fetch_hist", lambda tkr: hist)
+    now = datetime(2026, 10, 13, 21, 0, tzinfo=timezone.utc)
+    assert fr._cross_etfs_moved(now) is False
+
+
+def test_confirm_window_tracks_dst():
+    """确认窗 = ET 16:15，夏令时 EDT → 20:15 UTC，冬季 EST → 21:15 UTC。"""
+    edt = datetime(2026, 10, 13, 12, 0, tzinfo=timezone.utc)  # 10 月仍 EDT
+    est = datetime(2026, 12, 10, 12, 0, tzinfo=timezone.utc)  # 12 月已 EST
+    assert fr._confirm_from_utc(edt).replace(tzinfo=None) == time(20, 15)
+    assert fr._confirm_from_utc(est).replace(tzinfo=None) == time(21, 15)
 
 
 def test_last_row_not_today_skipped(tmp_path, monkeypatch):
@@ -209,5 +256,5 @@ def test_last_row_not_today_skipped(tmp_path, monkeypatch):
             {"date": "2026-10-11", "SPX": 7807.24},
         ],
     )
-    monkeypatch.setattr(fr, "_cross_etfs_moved", lambda: True)
+    monkeypatch.setattr(fr, "_cross_etfs_moved", lambda now: True)
     assert fr.us_indices_placeholder_msg(tmp_path, _NOW) is None

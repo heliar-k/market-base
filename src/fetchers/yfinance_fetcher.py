@@ -129,7 +129,7 @@ def yf_minute_bars(ticker: str, interval: str) -> pd.DataFrame:
     return df[keep]
 
 
-def _fetch_hist(ticker: str) -> pd.DataFrame | None:
+def fetch_hist(ticker: str) -> pd.DataFrame | None:
     """单标的 5d 日线原始 history（含 Close/Volume 原始列）；失败/空 → None。
 
     index 与 fetch_ohlcv 同样清洗：时区剥离 + 归一到零点（yfinance 对美股
@@ -174,7 +174,7 @@ def _fetch_ticker(ticker: str, name: str, hist: pd.DataFrame | None = None) -> D
     hist: 预取的 history（fetch_all_assets 一次拉取两用时传入，避免重复请求）。
     """
     if hist is None:
-        hist = _fetch_hist(ticker)
+        hist = fetch_hist(ticker)
     if hist is None or hist.empty:
         dp = DataPoint(metric=name)
         dp.mark_error()
@@ -194,7 +194,7 @@ def fetch_all_assets() -> tuple[list[DataPoint], dict[str, pd.DataFrame]]:
     empty = pd.DataFrame()
     for name, ticker in config.yf_tickers.items():
         logger.info(f"Fetching {name} ({ticker})...")
-        hist = _fetch_hist(ticker)
+        hist = fetch_hist(ticker)
         bars[name] = hist if hist is not None else empty
         dp = _fetch_ticker(ticker, name, hist)
         results.append(dp)
@@ -295,11 +295,14 @@ def _in_reconcile_window(now: datetime) -> bool:
 
 
 def _session_close(ticker: str, day: date) -> tuple[float, float] | None:
-    """1m 拉取该 ticker 在 day 的常规时段末根 → (close, volume)；无会话 → None。"""
+    """1m 拉取该 ticker 在 day 的常规时段末根 → (close, volume)；无会话 → None。
+
+    period=2d 覆盖今天与昨天（1d 只有最近一个会话，昨日缺口兜底会 miss）。
+    """
     ensure_yf_proxy()
     import yfinance as yf
 
-    m = yf.Ticker(ticker).history(period="1d", interval="1m")
+    m = yf.Ticker(ticker).history(period="2d", interval="1m")
     if m.empty:
         return None
     idx = m.index

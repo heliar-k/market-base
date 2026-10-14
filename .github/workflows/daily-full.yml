@@ -108,6 +108,9 @@ jobs:
       - name: 数据时效断言（绿 ≠ 新鲜）
         # 不只看退出码：查产物末观测日期。失败只写进 FAILED_LIST（数据照常 commit），
         # 由末尾「失败汇总」统一标红。预算见 src/data_freshness.py。
+        # 值维断言（占位行检测）经 ensure_yf_proxy 拉交叉 ETF：Actions 无代理需直连
+        env:
+          YF_NO_PROXY: "1"
         run: |
           uv run python -m src.data_freshness || { echo "失败: data_freshness"; echo "FAILED_LIST=${FAILED_LIST} data_freshness" >> "$GITHUB_ENV"; }
 

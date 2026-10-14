@@ -55,6 +55,9 @@ jobs:
           exit 0
 
       - name: 数据时效断言（绿 ≠ 新鲜）
+        # 值维断言（占位行检测）经 ensure_yf_proxy 拉交叉 ETF：Actions 无代理需直连
+        env:
+          YF_NO_PROXY: "1"
         run: |
           uv run python -m src.data_freshness || { echo "失败: data_freshness"; echo "FAILED_LIST=${FAILED_LIST} data_freshness" >> "$GITHUB_ENV"; }
 
