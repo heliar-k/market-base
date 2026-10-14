@@ -108,26 +108,21 @@ function renderIndexChart() {
     tooltip: { trigger: 'axis', valueFormatter: v => v == null ? '—' : Number(v).toFixed(2) + '%' },
     legend: { top: 0, data: Object.keys(ch.series).map(k => T[k] || k), itemGap: 10 },
     // 不写 grid：回落 lineOption 单源默认 8/36/16/24；media 只留差异项
-    // （窄画布 slider 隐藏后 bottom 收回、图例压缩、320 两行图例 top 56）
+    // （窄画布图例压缩、320 两行图例 top 56）
     xAxis: { type: 'time', boundaryGap: false,
       axisLabel: { formatter: R.md } },
     yAxis: { type: 'value', axisLabel: { formatter: v => v + '%' } },
-    dataZoom: [
-      { type: 'inside', start: 0, end: 100 },
-      { id: 'zr-slider', type: 'slider', height: 20, bottom: 12, borderColor: colors.border, handleStyle: { color: colors.accent },
-        textStyle: { color: colors.muted }, dataBackground: { lineStyle: { color: colors.border }, areaStyle: { color: colors.grid } } },
-    ],
+    // 缩放只留 inside（双指/滚轮）：slider 在宽屏与 x 轴标签重叠（bottom 24 装不下
+    // 20px 滑块+标签），且区间选择用处不大——删除而非补 bottom（滑块独占一行太高）
+    dataZoom: [{ type: 'inside', start: 0, end: 100 }],
     // 窄画布（≤520px，随 resize 自动切换）：① time 轴 11 个月标签挤成一团读成“12/11/1”，
     // splitNumber 4 让刻度自动退到隔月（实验过 hideOverlap/customValues 均无效）；
-    // ② slider 隐藏——手机双指缩放（inside 已开）替代滑块，腾出的 bottom 空间还给图；
-    // ③ 图例折两行（桌面单行只篥 top 32），top 抬到两行高度，否则第二行压在绘图区上；
+    // ② 图例折两行（桌面单行只篥 top 32），top 抬到两行高度，否则第二行压在绘图区上；
     // 宽屏 monthly 标签间距充足、图例单行，不设维持原样
     media: [{
       query: { maxWidth: 520 },
       option: {
         xAxis: { splitNumber: 4 },
-        grid: { bottom: 20 },
-        dataZoom: [{ id: 'zr-slider', show: false }],
         // 图例压缩尺寸换单行：默认两行时第二行孤行居左、左侧大片留白（用户反馈）
         legend: { itemWidth: 14, itemGap: 6, textStyle: { fontSize: 9 } },
       },
