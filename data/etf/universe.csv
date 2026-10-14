@@ -16,6 +16,7 @@ ABIG,Argent Large Cap ETF,broad
 ACBE,Pacer Metaurus Enhanced Core Income Autocallable ETF,factor_income
 ACBH,Pacer Metaurus High Income Autocallable ETF,factor_income
 ACEP,ARS Core Equity Portfolio ETF,broad
+ACHP,Global X Asia Semiconductor ETF,global
 ACQQ,ProShares Nasdaq-100 Autocallable Income ETF,factor_income
 ACRT,ProShares Russell 2000 Autocallable Income ETF,factor_income
 ACSP,ProShares S&P 500 Autocallable Income ETF,factor_income
@@ -274,6 +275,7 @@ DDIV,First Trust Dorsey Wright Momentum & Dividend ETF,factor_income
 DECO,State Street Galaxy Digital Asset Ecosystem ETF,broad
 DEMZ,Democratic Large Cap Core ETF,broad
 DFGP,Dimensional Global Core Plus Fixed Income ETF,factor_income
+DFGV,DFA Intermediate Government Fixed Income Portfolio: ETF Class Shares,factor_income
 DFGX,Dimensional International Core Fixed Income ETF,factor_income
 DGCB,Dimensional Global Credit ETF,bond
 DGLO,First Trust RBA Deglobalization ETF,broad
@@ -328,7 +330,6 @@ EMCB,WisdomTree Emerging Markets Corporate Bond Fund,bond
 EMEM,Sophus Capital Emerging Market ETF,global
 EMEQ,Nomura Focused Emerging Markets Equity ETF,global
 EMIF,iShares Emerging Markets Infrastructure ETF,global
-EMSC,Sophus Capital Emerging Market Small Cap ETF,global
 EMXC,iShares MSCI Emerging Markets ex China ETF,global
 EMXF,iShares ESG Advanced MSCI EM ETF,broad
 ENDW,Cambria Endowment Style ETF,broad
@@ -686,6 +687,7 @@ MFIG,Motley Fool Innovative Growth ETF,high_beta
 MFLX,First Trust Flexible Municipal High Income ETF,bond
 MFMO,Motley Fool Momentum Factor ETF,factor_income
 MFVL,Motley Fool Value Factor ETF,factor_income
+MGOL,Leverage Shares MANGOS ETF,broad
 MILN,Global X Millennial Consumer ETF,broad
 MKAM,MKAM ETF,broad
 MNVT,Moonvest ETF,broad
@@ -816,6 +818,7 @@ PDBC,Invesco Optimum Yield Diversified Commodity Strategy No K-1 ETF,commodity
 PDDL,GraniteShares 2x Long PDD Daily ETF,leveraged_inverse
 PDP,Invesco Dorsey Wright Momentum ETF,factor_income
 PEPS,Parametric Equity Plus ETF,broad
+PEPT,REX Peptide ETF,broad
 PEY,Invesco High Yield Equity Dividend Achievers ETF,bond
 PEZ,Invesco Dorsey Wright Consumer Cyclicals Momentum ETF,factor_income
 PFDE,Pathfinder Disciplined US Equity ETF,broad
@@ -964,6 +967,7 @@ ROCQ,JPMorgan Nasdaq Equity Premium Yield ETF,broad
 ROCY,JPMorgan Equity Premium Yield ETF,broad
 ROE,Astoria US Equal Weight Quality Kings ETF,factor_income
 RTH,VanEck Retail ETF,theme
+RTHY,F/m Long-Term Treasury Inflation-Protected Security (TIPS) ETF,bond
 RTXG,Leverage Shares 2X Long RTX Daily ETF,leveraged_inverse
 RTYY,GraniteShares YieldBoost RIOT ETF,broad
 RUNN,Running Oak Efficient Growth ETF,high_beta
@@ -5592,6 +5596,7 @@ XLCI,State Street Communication Services Select Sector SPDR Premium Income ETF,f
 XLCU,MicroSectors 3x Long Communication Services (XLC) ETNs,leveraged_inverse
 XLE,State Street Energy Select Sector SPDR ETF,commodity
 XLEI,State Street Energy Select Sector SPDR Premium Income ETF,commodity
+XLEM,State Street S&P 500 Energy Market Sector SPDR ETF,commodity
 XLEX,Corgi U.S. Energy 2x Daily ETF,commodity
 XLF,State Street Financial Select Sector SPDR ETF,broad
 XLFI,State Street Financial Select Sector SPDR Premium Income ETF,factor_income
@@ -5602,9 +5607,11 @@ XLII,State Street Industrial Select Sector SPDR Premium Income ETF,factor_income
 XLIX,Corgi U.S. Industrials 2x Daily ETF,leveraged_inverse
 XLK,State Street Technology Select Sector SPDR ETF,broad
 XLKI,State Street Technology Select Sector SPDR Premium Income ETF,factor_income
+XLKM,State Street S&P 500 Technology Market Sector SPDR ETF,broad
 XLKX,Corgi U.S. Technology 2x Daily ETF,leveraged_inverse
 XLP,State Street Consumer Staples Select Sector SPDR ETF,broad
 XLPD,MicroSectors -3x Short Consumer Staples (XLP) ETNs,leveraged_inverse
+XLPM,State Street S&P 500 Consumer Staples Market Sector SPDR ETF,broad
 XLPU,MicroSectors 3x Long Consumer Staples (XLP) ETNs,leveraged_inverse
 XLPX,Corgi U.S. Consumer Staples 2x Daily ETF,leveraged_inverse
 XLRE,State Street Real Estate Select Sector SPDR ETF,broad
@@ -5619,6 +5626,7 @@ XLVI,State Street Health Care Select Sector SPDR Premium Income ETF,factor_incom
 XLVX,Corgi U.S. Healthcare 2x Daily ETF,leveraged_inverse
 XLY,State Street Consumer Discretionary Select Sector SPDR ETF,broad
 XLYI,State Street Consumer Discretionary Select Sector SPDR Premium Income ETF,factor_income
+XLYM,State Street S&P 500 Consumer Discretionary Market Sector SPDR ETF,broad
 XLYX,Corgi U.S. Consumer Discretionary 2x Daily ETF,leveraged_inverse
 XMAR,FT Vest U.S. Equity Enhance & Moderate Buffer ETF - March,broad
 XMAY,FT Vest U.S. Equity Enhance & Moderate Buffer ETF - May,broad
