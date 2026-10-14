@@ -229,6 +229,11 @@ market-base/
 > | `crypto-hourly` | 每小时 7×24 | 加密三源：`fetch_crypto_derivatives` / `fetch_coinglass` / `fetch_etf_flows` | 加密市场全天候；daily-full 仍兜底跑同三源 |
 >
 > 重叠是故意的：三个加速班次覆盖的源在 daily-full 里都有同源兜底（upsert 幂等，同日重复拉零风险）。
+>
+> 触发精度：GitHub schedule 实测延迟/丢班严重（daily-full 曾延迟 3-12h、intraday 32 班只落 2 班），
+> 已由 Cloudflare Worker cron（免费版）走 workflow_dispatch 精准触发（见 `cf-cron-dispatch/`），
+> YAML schedule 保留兜底（双触发幂等，data-fetch 并发组会合并撞车班次）。
+> dispatch PAT 过期 Worker 报 401、当天班次失效，兜底仍在；续期见该目录 README。
 > 不在 Actions 跑的：依赖 IBKR 的 ibkr/options/commodities/index/stock（本地 cron）。
 > 加新 fetcher 的归属：默认进 daily-full 循环列表；「盘中就变」的价量源另进 intraday-refresh，
 > 「下午才发布」的进 evening-late，加密 7×24 源进 crypto-hourly。
