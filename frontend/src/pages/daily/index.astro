@@ -222,7 +222,7 @@ async function load() {
       }).join('')}`;
   } catch (e) { R.fail(['db-hero-sub'], e); }
 
-  // ── 今日一句话（分层卡：有信号升卡，其余收平稳胶囊；全冷日退化为 9 张卡）──
+  // ── 今日一句话（分层卡：报警命中升卡，其余收进节头注记；全冷日退化为 9 张卡）──
   try {
     const box = document.getElementById('db-lines');
     const lines = homeLines?.lines || [];
@@ -233,10 +233,11 @@ async function load() {
       const on = lines.filter(l => hot.has(l.key));
       const off = lines.filter(l => !hot.has(l.key));
       // 全冷时不分层：否则退化成 9 个没正文的条目，这一段就没用了；
-      // 「平稳」不再是独立一行胶囊（孤行灰字丑且费解），降为节头注记（B 方案定稿）
+      // 报警外的专题不单独渲染成胶囊行（孤行灰字丑且费解），降为节头注记（B 方案定稿）
       const cards = on.length ? on : lines;
       const sub = document.querySelector('#sec-lines .re-sec-sub');
-      if (sub) sub.textContent = on.length ? `另有 ${off.length} 个专题平稳 · 点击进入对应研判` : '按专题聚合 · 点击进入对应研判';
+      // 「无报警」不是「平稳」（issue #31）：没触发跨资产报警 ≠ 平稳，通胀/信用等仍在报警线以下活动
+      if (sub) sub.textContent = on.length ? `另有 ${off.length} 个专题无报警 · 点击进入对应研判` : '按专题聚合 · 点击进入对应研判';
       box.innerHTML = `<div class="db-line-cards">${cards.map(l => lineCard(l, hot.has(l.key))).join('')}</div>`;
     }
   } catch (e) { R.fail(['db-lines'], e); }
