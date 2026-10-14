@@ -12,6 +12,10 @@
 （= 源固有滞后 + 周末/发布抖动余量），超线即失败。阈值宁可漏报不误报——
 目标是抓住「静默冻结一周以上」，不是抓当天晚几小时。
 
+日期预算之外另有一条**值维断言**（us_indices_placeholder_msg）：asset_prices 这类
+「拉取日为 key」的快照可能日期新鲜、值是复制（2026-10-13 占位行事故），
+在收盘确认窗用交叉 ETF 作证单独拦。
+
 不覆盖：逐标的价格文件（单只失败已由步骤级 FAILED_LIST 标红）、财报/SEC 原文
 （季度节奏）、内部人 Form 4（逐标的 irregular）、GEX/options 网格（本地 IBKR）。
 新增 fetcher 时在 CHECKS 补一行。
@@ -21,7 +25,7 @@ from __future__ import annotations
 
 import os
 import sys
-from datetime import date, datetime, timezone
+from datetime import date, datetime, time, timezone
 from pathlib import Path
 from typing import TypedDict
 
@@ -198,11 +202,75 @@ def audit(
     return rows
 
 
+# ── 占位行检测（值维断言）──────────────────────────────────────────────
+# 2026-10-13 事故：asset_prices 是全站唯一「拉取日为 key」的快照，盘前班次把
+# 前日收盘写进当日行；收盘后 Yahoo 指数日线迟迟不更新，「同值 → 无 diff → 不
+# commit」让占位值固化，日期新鲜骗过了上方的日期预算断言。其余数据集走
+# upsert（观测日 key，同日覆盖可自愈）或 {date}.json 快照，无此固化路径。
+US_SNAPSHOT_COLS = ("SPX", "NDX", "RUT", "DJI")
+CROSS_ETFS = ("SPY", "QQQ", "IWM", "DIA")  # 同源 ETF 与指数同动，互为证人
+_CONFIRM_FROM = time(20, 15)  # 收盘确认窗：EDT 收盘 20:00 UTC 后留 15 分钟结算
+
+
+def _cross_etfs_moved() -> bool | None:
+    """交叉 ETF 当日是否变动；取不到（网络/限流）→ None，宁漏报不误报。"""
+    try:
+        from .fetchers.yfinance_fetcher import ensure_yf_proxy
+
+        ensure_yf_proxy()
+        import yfinance as yf
+
+        for tkr in CROSS_ETFS:
+            hist = yf.Ticker(tkr).history(period="5d")
+            closes = hist["Close"].dropna() if not hist.empty else pd.Series(dtype=float)
+            if len(closes) >= 2 and closes.iloc[-1] != closes.iloc[-2]:
+                return True
+        return False
+    except Exception:
+        return None
+
+
+def us_indices_placeholder_msg(root: Path, now_utc: datetime) -> str | None:
+    """美股指数占位行检测；返回失败文案，窗口外/数据不可判 → None 放行。
+
+    判定（工作日收盘确认窗）：今日快照行的美股指数列与前两行之一完全相同
+    （复制自昨日或更早），而交叉 ETF 当日有变动 → 市场明明动了、指数值是旧的。
+    标红后由 intraday 15 分钟一班自然重试；休市日交叉 ETF 同样不动，不误报。
+    """
+    if now_utc.weekday() >= 5 or now_utc.time() < _CONFIRM_FROM:
+        return None
+    path = root / "data/yfinance/asset_prices.csv"
+    if not path.exists():
+        return None
+    df = pd.read_csv(path, low_memory=False)
+    if len(df) < 3 or str(df["date"].iloc[-1])[:10] != now_utc.date().isoformat():
+        return None
+    last = df.iloc[-1]
+    prior = df.iloc[-3:-1]  # 前两行（复制自昨日或更早都算占位）
+    unchanged = [
+        c
+        for c in US_SNAPSHOT_COLS
+        if c in df.columns and (last[c] == prior.iloc[0][c] or last[c] == prior.iloc[1][c])
+    ]
+    if not unchanged:
+        return None
+    moved = _cross_etfs_moved()
+    if not moved:  # False=休市/全平；None=交叉源取不到 → 均不标红
+        return None
+    return (
+        f"占位行固化：{','.join(unchanged)} 今日快照与近两行之一完全相同，"
+        "而交叉 ETF 当日有变动（收盘确认窗内指数值未更新）"
+    )
+
+
 def main() -> int:
-    today = datetime.now(timezone.utc).date()
-    rows = audit(Path(ROOT), today)
+    now_utc = datetime.now(timezone.utc)
+    rows = audit(Path(ROOT), now_utc.date())
+    msg = us_indices_placeholder_msg(Path(ROOT), now_utc)
+    if msg:  # 值维断言：日期新鲜但值是复制（占位行固化）
+        rows.append(("STALE", "data/yfinance/asset_prices.csv", None, msg, 0))
     bad = [r for r in rows if r[0] != "ok"]
-    print(f"数据时效（UTC {today}，{len(rows)} 项）")
+    print(f"数据时效（UTC {now_utc.date()}，{len(rows)} 项）")
     for status, path, age, note, budget in rows:
         a = "  n/a" if age is None else f"{age:>5}"
         print(f"  {status:8} {path:48} 落后{a} 天 / 预算{budget:>4} 天  {note}")

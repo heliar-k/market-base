@@ -2,12 +2,14 @@
 
 覆盖三类判定（ok / STALE / MISSING）与两个真实解析坑（fed 的 `%Y%m%d` 被当 epoch、
 _release_dates 的混时区串），都用注入的 checks 跑，不碰真实 data/。
+另盖占位行检测（us_indices_placeholder_msg）：交叉 ETF 打桩，不碰网络。
 """
 
-from datetime import date
+from datetime import date, datetime, timezone
 
 import pandas as pd
 
+import src.data_freshness as fr
 from src.data_freshness import audit
 
 
@@ -84,3 +86,128 @@ def test_json_dir_uses_filename_date(tmp_path):
     chk = {"path": "snap", "kind": "json_dir", "budget": 6, "note": "x"}
     rows = audit(tmp_path, date(2026, 9, 5), [chk])
     assert rows[0][0] == "ok" and rows[0][2] == 1
+
+
+# ── 占位行检测（2026-10-13 事故）───────────────────────────────────
+
+
+def _asset_csv(root, rows):
+    p = root / "data/yfinance/asset_prices.csv"
+    p.parent.mkdir(parents=True, exist_ok=True)
+    pd.DataFrame(rows).to_csv(p, index=False)
+
+
+# 2026-10-13 是周二；确认窗 UTC 20:30 在窗内
+_NOW = datetime(2026, 10, 13, 20, 30, tzinfo=timezone.utc)
+
+
+def test_placeholder_row_flagged(tmp_path, monkeypatch):
+    _asset_csv(
+        tmp_path,
+        [
+            {"date": "2026-10-09", "SPX": 7811.54, "DJI": 51654.95},
+            {"date": "2026-10-12", "SPX": 7807.24, "DJI": 51850.55},
+            {"date": "2026-10-13", "SPX": 7807.24, "DJI": 51850.55},  # 复制昨日
+        ],
+    )
+    monkeypatch.setattr(fr, "_cross_etfs_moved", lambda: True)
+    msg = fr.us_indices_placeholder_msg(tmp_path, _NOW)
+    assert msg is not None and "SPX" in msg
+
+
+def test_copied_from_day_before_yesterday_also_flagged(tmp_path, monkeypatch):
+    """盘前占位 + 次日继续陈旧：与前行不同但与前两行相同也要拦。"""
+    _asset_csv(
+        tmp_path,
+        [
+            {"date": "2026-10-09", "SPX": 7811.54},
+            {"date": "2026-10-12", "SPX": 7807.24},
+            {"date": "2026-10-13", "SPX": 7807.24},
+            {"date": "2026-10-14", "SPX": 7807.24},  # 陈旧两天
+        ],
+    )
+    monkeypatch.setattr(fr, "_cross_etfs_moved", lambda: True)
+    now = datetime(2026, 10, 14, 20, 30, tzinfo=timezone.utc)
+    assert fr.us_indices_placeholder_msg(tmp_path, now) is not None
+
+
+def test_updated_values_not_flagged(tmp_path, monkeypatch):
+    _asset_csv(
+        tmp_path,
+        [
+            {"date": "2026-10-12", "SPX": 7807.24, "DJI": 51850.55},
+            {"date": "2026-10-13", "SPX": 7805.45, "DJI": 51670.10},
+        ],
+    )
+    monkeypatch.setattr(fr, "_cross_etfs_moved", lambda: True)
+    assert fr.us_indices_placeholder_msg(tmp_path, _NOW) is None
+
+
+def test_holiday_cross_etf_flat_not_flagged(tmp_path, monkeypatch):
+    """美股休市：指数与 ETF 同样不动 → 不误报。"""
+    _asset_csv(
+        tmp_path,
+        [
+            {"date": "2026-10-12", "SPX": 7807.24},
+            {"date": "2026-10-13", "SPX": 7807.24},
+        ],
+    )
+    monkeypatch.setattr(fr, "_cross_etfs_moved", lambda: False)
+    assert fr.us_indices_placeholder_msg(tmp_path, _NOW) is None
+
+
+def test_cross_source_down_fails_open(tmp_path, monkeypatch):
+    """交叉源取不到（None）→ 宁漏报不误报。"""
+    _asset_csv(
+        tmp_path,
+        [
+            {"date": "2026-10-12", "SPX": 7807.24},
+            {"date": "2026-10-13", "SPX": 7807.24},
+        ],
+    )
+    monkeypatch.setattr(fr, "_cross_etfs_moved", lambda: None)
+    assert fr.us_indices_placeholder_msg(tmp_path, _NOW) is None
+
+
+def test_before_window_skips_without_network(tmp_path, monkeypatch):
+    """盘前/盘中（窗口前）纵有占位行也不拦，且不发起交叉拉取。"""
+    _asset_csv(
+        tmp_path,
+        [
+            {"date": "2026-10-12", "SPX": 7807.24},
+            {"date": "2026-10-13", "SPX": 7807.24},
+        ],
+    )
+
+    def _boom():
+        raise AssertionError("窗口前不应发起网络调用")
+
+    monkeypatch.setattr(fr, "_cross_etfs_moved", _boom)
+    early = datetime(2026, 10, 13, 13, 30, tzinfo=timezone.utc)
+    assert fr.us_indices_placeholder_msg(tmp_path, early) is None
+
+
+def test_weekend_skipped(tmp_path, monkeypatch):
+    _asset_csv(
+        tmp_path,
+        [
+            {"date": "2026-10-09", "SPX": 7811.54},
+            {"date": "2026-10-10", "SPX": 7811.54},
+        ],
+    )
+    monkeypatch.setattr(fr, "_cross_etfs_moved", lambda: True)
+    sat = datetime(2026, 10, 10, 20, 30, tzinfo=timezone.utc)  # 周六
+    assert fr.us_indices_placeholder_msg(tmp_path, sat) is None
+
+
+def test_last_row_not_today_skipped(tmp_path, monkeypatch):
+    """最新行不是今天（当日班次还没写入）→ 交给日期预算断言。"""
+    _asset_csv(
+        tmp_path,
+        [
+            {"date": "2026-10-10", "SPX": 7807.24},
+            {"date": "2026-10-11", "SPX": 7807.24},
+        ],
+    )
+    monkeypatch.setattr(fr, "_cross_etfs_moved", lambda: True)
+    assert fr.us_indices_placeholder_msg(tmp_path, _NOW) is None

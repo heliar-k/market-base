@@ -1,6 +1,9 @@
 name: intraday-refresh
 
-# 盘中高频刷新（工作日每 15 分钟，UTC 13:07–20:52 = 美东盘前至盘后）。
+# 盘中高频刷新（工作日每 15 分钟，UTC 13:07–21:52 = 美东盘前至收盘后 1h）。
+# 尾班在收盘后 1h，用于确认指数收盘价入库：2026-10-13 事故里最后一班恰好落在
+# 收盘那一分钟（UTC 20:00），拿到的仍是未结算价，且 Yahoo 指数日线迟更让
+# 「同值 → 无 diff → 不 commit」把占位行固化到次日。
 # 按数据变化节奏分层（2026-09-29 拆分）：
 # - 价量快照（持续变，每班都拉）：yfinance 资产价 / CBOE VIX 族 / Barchart 波动率 30 指数 /
 #   rate_expectations（ZQ 隐含 FOMC 概率）/ polymarket
@@ -20,7 +23,7 @@ name: intraday-refresh
 
 on:
   schedule:
-    - cron: "7,22,37,52 13-20 * * 1-5"
+    - cron: "7,22,37,52 13-21 * * 1-5"
   workflow_dispatch: {}
 
 # 与其余数据 workflow 共享 group：串行化 push 防 rebase 冲突（见 daily-full.yml 注释）。

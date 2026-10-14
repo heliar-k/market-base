@@ -8,8 +8,10 @@ Needs SOCKS5 proxy: socks5://127.0.0.1:7890
     import yfinance as yf
 """
 
+import csv
 import logging
 import os
+from datetime import date
 from pathlib import Path
 
 import pandas as pd
@@ -233,6 +235,75 @@ def seed_history_if_short(filepath: Path) -> None:
     logger.info(f"  yfinance: 历史回填 {len(wide)} 行 → {filepath.name}")
 
 
+# 缺口回填回看的快照行数：覆盖周末（周一首班回看到上周五）+ EOD 迟发布（T+1 晚班）
+_REPAIR_ROWS = 3
+
+
+def repair_recent_rows(filepath: Path) -> int:
+    """最近几个快照行的缺口回填（按 bar 日期取真值，幂等）。
+
+    快照以拉取日为 key，源延迟时旧行会留下两类伤（2026-10-13 事故）：
+    - 缺失：当日拉取失败 / ETF EOD bar 收盘后 ~1h 才发布
+    - 复制：盘前班次把前日收盘挂进当日行（与前一交易日值完全相同）
+    对缺口列按该行日期取 bar 真值回写；源无该日 bar（休市）保留快照值。
+    无缺口零网络成本。返回修复的列数。
+    """
+    from ._io import _load_columns, _load_rows
+
+    rows = _load_rows(filepath)
+    if len(rows) < 2:
+        return 0
+    rows_by_date = {r["date"][:10]: r for r in rows}
+    # 缺口列按日期聚合：值缺失，或与相邻前一行完全相同（复制嫌疑；
+    # 真平盘回写同值无 diff，无害）
+    gaps: dict[str, set[str]] = {}
+    for i in range(max(1, len(rows) - _REPAIR_ROWS), len(rows)):
+        row, prev = rows[i], rows[i - 1]
+        d = row["date"][:10]
+        try:
+            if date.fromisoformat(d).weekday() >= 5:
+                continue  # 周末行整行复制属正常（无交易），不回填
+        except ValueError:
+            continue
+        for c, v in row.items():
+            if c != "date" and (v in (None, "") or v == prev.get(c)):
+                gaps.setdefault(d, set()).add(c)
+    if not gaps:
+        return 0
+    fixed = 0
+    for name, ticker in config.yf_tickers.items():
+        cols = {c for cs in gaps.values() for c in cs if c in (name, f"{name}_volume")}
+        if not cols:
+            continue
+        try:
+            df = fetch_ohlcv(ticker, period="5d")
+        except Exception as e:
+            logger.info(f"  ✗ 回填 {name}: {e}")
+            continue
+        if df.empty:
+            continue
+        for d, cs in gaps.items():
+            day = pd.Timestamp(d)
+            if day not in df.index:
+                continue  # 该日无 bar（休市/未发布）→ 保留快照值
+            row = rows_by_date[d]
+            for c in sorted(cs & cols):  # 只处理本 ticker 的列，勿碰别家缺口
+                v = df.at[day, "close" if c == name else "volume"]
+                if pd.isna(v):
+                    continue
+                new = str(round(float(v), 4)) if c == name else str(round(float(v)))
+                if row[c] != new:
+                    row[c] = new
+                    fixed += 1
+    if fixed:
+        fieldnames = _load_columns(filepath)  # 先读表头再截断重写
+        with open(filepath, "w", newline="", encoding="utf-8") as f:
+            writer = csv.DictWriter(f, fieldnames=fieldnames)
+            writer.writeheader()
+            writer.writerows(rows)
+    return fixed
+
+
 if __name__ == "__main__":
     from ._io import save_daily_csv
 
@@ -243,4 +314,7 @@ if __name__ == "__main__":
     path = ROOT / "data" / "yfinance" / "asset_prices.csv"
     save_daily_csv(path, results)
     print("  → data/yfinance/asset_prices.csv")
+    fixed = repair_recent_rows(path)
+    if fixed:
+        print(f"  ↻ 回填近 {_REPAIR_ROWS} 行缺口 {fixed} 列")
     seed_history_if_short(path)
