@@ -214,7 +214,8 @@ async function load() {
     tooltip: {
       trigger: 'axis',
       formatter: (ps) => {
-        const m = Object.fromEntries(ps.map(p => [p.seriesName, Number(p.value)]));
+        // 时间轴点对数据的 p.value 是 [ts, value]，取 [1]；Number(数组) 是 NaN（曾致 hover 全 Na）
+        const m = Object.fromEntries(ps.map(p => [p.seriesName, Array.isArray(p.value) ? p.value[1] : p.value]));
         return `${R.md(ps[0].axisValue)}<br/>2Y：${m['2Y'].toFixed(2)}%<br/>10Y：${m['10Y'].toFixed(2)}%<br/>2s10s 利差：${m['2s10s 利差'].toFixed(2)}%`;
       },
     },
