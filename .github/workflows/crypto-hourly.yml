@@ -33,6 +33,12 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
+      # 排队班次的基线是触发时 sha：actions/checkout 钉死 github.sha，并发组放行时
+      # 上一班可能已 push 同源数据（2026-10-14/15 intraday 两次 rebase 冲突的根因）。
+      # 此时无本地 commit，rebase = 纯 fast-forward，先对齐最新 main 再拉数据。
+      - name: Sync to latest main
+        run: git pull --rebase origin main
+
       - uses: astral-sh/setup-uv@v9.0.0
         with:
           python-version: "3.13"
@@ -65,7 +71,9 @@ jobs:
             MSG="data: crypto refresh ($(date -u "+%F %H:%M") UTC)"
             [ -n "$FAILED_LIST" ] && MSG="$MSG${NL}失败:$FAILED_LIST"
             git commit -m "$MSG"
-            git pull --rebase origin main
+            # fetch 期间仍可能有组外 push（本地 cron/手动）落库：rebase 冲突则干净放弃，
+            # 下一班幂等重拉补上（upsert 同日重复零风险，丢班无害）
+            git pull --rebase origin main || { git rebase --abort; exit 1; }
             # PAT push 仅用于写入：commit 认证为 github-actions[bot]（App 身份），
             # GitHub 的递归保护不为其创建新 workflow run —— 部署靠下一步显式 dispatch
             git push "https://x-access-token:${{ secrets.DATA_PUSH_TOKEN }}@github.com/heliar-k/market-base.git" HEAD:main
