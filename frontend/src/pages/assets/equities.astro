@@ -33,7 +33,7 @@ document.getElementById('page-toc').innerHTML = [
 ].map(([t, id]) => `<a href="#${id}">${t}</a>`).join('');
 
 let D = null;           // API 数据
-const T = { SPX: '标普500', NDX: '纳斯达克100', DJI: '道琼斯', RUT: '罗素2000' };
+const T = { SPX: '标普500', NDX: '纳斯达克100', DJI: '道琼斯', RUT: '罗素2000', SOX: '费城半导体' };
 
 function id(v) { return v == null ? '—' : Number(v).toLocaleString(undefined, { maximumFractionDigits: 2 }); }
 function fp(v) { return v == null ? '—' : (Number(v) >= 0 ? '+' : '') + Number(v).toFixed(2) + '%'; }

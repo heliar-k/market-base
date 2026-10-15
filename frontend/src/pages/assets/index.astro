@@ -1,6 +1,6 @@
 ---
 // 大类资产入口页 — 工单 #17 自 public/assets/index.html 迁入。
-// 6 分组价格表 + 跨资产相关性热力 + 交叉分析 + 子页 link-grid；island 脚本逐字原样。
+// 7 分组价格表 + 跨资产相关性热力 + 交叉分析 + 子页 link-grid；island 脚本逐字原样。
 // fetch('/api/assets/overview') 不变。
 import TopicLayout from '../../layouts/TopicLayout.astro';
 import Section from '../../components/Section.astro';
@@ -70,16 +70,17 @@ async function load() {
   const d = await R.get('/api/assets/overview');
   R.setAsOf([['资产', d.as_of]]);
 
-  // ── 6 大分组价格表 ──
+  // ── 7 大分组价格表 ──
   const groups = [
     ['美股', d.tables.equities], ['债券', d.tables.bonds], ['商品', d.tables.commodities],
-    ['ETF', d.tables.etfs], ['外汇', d.tables.fx], ['加密货币', d.tables.crypto],
+    ['ETF', d.tables.etfs], ['行业 ETF', d.tables.sectors], ['外汇', d.tables.fx], ['加密货币', d.tables.crypto],
   ];
   const wrap = document.createElement('div');
   wrap.style.display = 'grid';
-  // min(100%, 430px)：裸写 430px 在 360px 手机上会撑出横向溢出（grid 轨道不会缩到容器以下），
-  // 窄屏退化成单列满宽。表内横向滚动交给 .re-table-wrap 自己处理。
-  wrap.style.gridTemplateColumns = 'repeat(auto-fit, minmax(min(100%, 430px), 1fr))';
+  // min(100%, 498px)：裸写 498px 在 360px 手机上会撑出横向溢出（grid 轨道不会缩到容器以下），
+  // 窄屏退化成单列满宽。498 = special.css #asset-groups 表格 min-width 480 + 18px 出血差
+  // （表格宽 = 轨道 - 18）：两卡最窄时表格正好 480 不横滚不裁剪；列宽对齐见 special.css 注释。
+  wrap.style.gridTemplateColumns = 'repeat(auto-fit, minmax(min(100%, 498px), 1fr))';
   wrap.style.gap = '14px';
   groups.forEach(([title, rows]) => {
     const sec = document.createElement('div');

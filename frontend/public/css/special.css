@@ -426,8 +426,20 @@ a.re-badge:hover { color: var(--accent-ink); border-color: var(--accent-ink); }
 .back-top.show { opacity: 1; pointer-events: auto; }
 .back-top:hover { color: var(--accent-ink); border-color: var(--accent-ink); }
 
-/* 资产分组表：日期列不折行（index 页 6 分组价格表；名称列允许换行，以免窄列挤出日期） */
+/* 资产分组表：日期列不折行（index 页 7 分组价格表；名称列允许换行，以免窄列挤出日期） */
 #asset-groups .re-table td:last-child { white-space: nowrap; }
+/* 7 张同构表并排两卡：auto-layout 各按内容定宽，同名列跨卡错位 → fixed 布局 +
+   百分比列宽跨卡纵向成线（先例同 #dashboard / #board）。min-width 与 index.astro
+   栅格轨道 498px 对齐（卡宽 - 18px 出血差 = 表格 480px），两卡最窄时各列容得下内容；
+   窄屏/单列时表格整体横滚而不是把列挤碎（同 #dashboard）。列宽按 480px 档实测
+   最小内容宽分配（日期 68 / 代码 45 / 价格 67 / 涨跌 62 + 24 内距）；名称列短名
+   口径（≤ ~110px）是前提——新品种名称过长会先折行，续加时优先控短文案 */
+#asset-groups .re-table { table-layout: fixed; min-width: 480px; }
+#asset-groups .re-table th:nth-child(1) { width: 15%; }    /* 代码 */
+#asset-groups .re-table th:nth-child(2) { width: 25.5%; }  /* 名称 */
+#asset-groups .re-table th:nth-child(3) { width: 19%; }    /* 最新价 */
+#asset-groups .re-table th:nth-child(4) { width: 19%; }    /* 日涨跌幅 */
+#asset-groups .re-table th:nth-child(5) { width: 21.5%; }  /* 日期 */
 
 /* 首列光学对齐（全站，挂在出血规则上）：出血的表首列文字正好压在内容栅格线上，
  * 与同卡标题同线（数学对齐）。但表头/代码列多为拉丁缩写或日期（SPX / TLT / 2026-10-02），

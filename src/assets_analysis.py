@@ -62,17 +62,20 @@ EQUITY_ROWS = [
     ("NDX", "纳斯达克100"),
     ("DJI", "道琼斯"),
     ("RUT", "罗素2000"),
+    ("SOX", "费城半导体"),
 ]
+# 名称只给中文短名（不重复代码、不坠 ETF 后缀，对齐 cross_asset 的 label 口径）——
+# 代码列已展示 ticker，价格总览 6 张同构表固定列宽下长名会折行
 BOND_ROWS = [
-    ("TLT", "20年+国债ETF"),
-    ("IEF", "7-10年国债ETF"),
-    ("LQD", "投资级债券ETF"),
-    ("HYG", "高收益债券ETF"),
+    ("TLT", "20年+国债"),
+    ("IEF", "7-10年国债"),
+    ("LQD", "投资级债"),
+    ("HYG", "高收益债"),
 ]
 COMMODITY_ROWS = [
     ("Gold", "黄金"),
     ("Silver", "白银"),
-    ("WTI", "WTI原油"),
+    ("WTI", "原油"),
     ("NG", "天然气"),
     ("Copper", "铜"),
 ]
@@ -84,15 +87,20 @@ METALS_FUTURES_ROWS = [
 # 贵金属页价格上下文补充源（ETF 行情对象，取自 ETF 精选池日线；
 # 与持仓段的 GLD/SLV 同一标的）
 PRECIOUS_ETF_ROWS = [
-    ("GLD", "GLD 黄金 ETF"),
-    ("SLV", "SLV 白银 ETF"),
+    ("GLD", "黄金 ETF"),
+    ("SLV", "白银 ETF"),
 ]
 ETF_ROWS = [
-    ("SPY", "SPY标普500 ETF"),
-    ("QQQ", "QQQ纳斯达克100 ETF"),
-    ("SMH", "SMH半导体ETF"),
-    ("SOXX", "SOXX半导体ETF"),
+    ("SPY", "标普500"),
+    ("QQQ", "纳指100"),
+    ("IWM", "小盘股"),
+    ("SMH", "半导体"),
+    ("SOXX", "费半ETF"),
 ]
+# GICS 11 大类行业 SPDR（价格总览单独一张「行业 ETF」卡，与 cross_asset 分组无关）。
+# 从 config.ETF_POOL 派生（sector 分类），不另维护一份同义名单——代码审查发现的
+# 双源逐字重复，改 config 时这里自动跟上（ETF_ROWS 的显示名与池名有意不同，不派生）
+SECTOR_ROWS = [(k, v[0]) for k, v in ETF_POOL.items() if v[1] == "sector"]
 FX_ROWS = [
     ("DXY", "美元指数"),
     ("EURUSD", "欧元/美元"),
@@ -101,7 +109,7 @@ FX_ROWS = [
     ("USDCNH", "美元/离岸人民币"),
     ("USDKRW", "美元/韩元"),
 ]
-CRYPTO_ROWS = [("BTC", "BTC"), ("ETH", "ETH")]
+CRYPTO_ROWS = [("BTC", "比特币"), ("ETH", "以太坊")]
 
 # 7 天全天候交易：周末行是真实行情，不做周末占位剥离
 SEVEN_DAY = frozenset({"BTC", "ETH"})
@@ -220,14 +228,16 @@ def overview() -> dict:
         "bonds": BOND_ROWS,
         "commodities": COMMODITY_ROWS,
         "etfs": ETF_ROWS,
+        "sectors": SECTOR_ROWS,
         "crypto": CRYPTO_ROWS,
     }
-    # ETF 表（SPY/QQQ/SMH/SOXX）在精选池数据里更全（asset_prices 无 SPY 列）
+    # ETF 表在精选池数据里更全（asset_prices 无 SPY/XL* 列）
     etf_pool = _csv("etf/pool_prices.csv")
+    pool_groups = {"etfs", "sectors"}
     for g, rows in groups.items():
         tables = _price_rows(p, rows)
-        if g == "etfs":
-            pool_tables = _price_rows(etf_pool, [(k, n) for k, n in ETF_ROWS])
+        if g in pool_groups:
+            pool_tables = _price_rows(etf_pool, rows)
             tables = pool_tables or tables
         out["tables"][g] = tables
         if not out["as_of"] and tables:
