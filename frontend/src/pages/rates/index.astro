@@ -53,7 +53,8 @@ async function load() {
   // EFFR 卡片值/1周变动由 analysis 的 overview.effr 提供，不再拉整个 fed-funds（~84KB）
   const data = await R.get('/api/rates/analysis');
   R.setAsOf([['利率/利差', data.overview.as_of]]);
-  R.foot(data.generator, {
+  // 研判生成已由研判区上方 genNote 徽章表达，页脚不再重复
+  R.foot(null, {
     src: 'FRED（DGS / EFFR / TIPS / 目标区间）· NY Fed BGCR · chinamoney（中国 10Y）',
   });
 
@@ -80,7 +81,8 @@ async function load() {
 
   // ── 四段研判：三行契约（结论 / 依据 / 触发）统一走 R.sigBlocks ──
   document.getElementById('re-sections').innerHTML =
-    data.overview.sections.map(sec => R.judgeCard(sec.title, sec.body, R.LINES_CONCLUSION)).join('');
+    R.genNote(data.generator)
+    + data.overview.sections.map(sec => R.judgeCard(sec.title, sec.body, R.LINES_CONCLUSION)).join('');
 
   // ── 小节锚点导航：页面不长，四段研判合并为一项 ──
   const tocItems = [['概览', 're-cards'], ['曲线快照', 'sec-shape'], ['研判', 're-sections'], ['专题子页', 're-links']];

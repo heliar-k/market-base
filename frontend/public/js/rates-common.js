@@ -14,8 +14,27 @@ const R = {
   // 涨跌文本 span：▲ +x.xx% / ▼ x.xx%，颜色走文字档（亮色过 AA，图形档会跌到 3.6:1）。
   // 以前在 bonds/commodities/crypto 各拄一份，改语义色得同改三处。
   chgSpan: (v) => (v == null ? '—' : `<span style="color:${v >= 0 ? 'var(--up)' : 'var(--down)'}">${v >= 0 ? '▲ +' : '▼ '}${Number(v).toFixed(2)}%</span>`),
-  // 生成器类型 → 界面文案（避免内部枚举 rules/llm 泄漏到页面，见审计 D2）
-  genText: (g) => (g === 'llm' ? 'LLM' : '规则引擎（LLM 预留）'),
+  // 生成器类型 → 界面文案（避免内部枚举 rules/llm 泄漏到页面，见审计 D2）。
+  // rules-fallback = LLM 已启用但回落（徽章橙色提醒）；未知值落默认（未接入的页零改动）。
+  genText: (g) => (g === 'llm' ? 'LLM' : g === 'rules-fallback' ? '规则引擎（LLM 暂不可用，已回落）' : '规则引擎（LLM 预留）'),
+  // 研判生成徽章三态单源（docs/llm-narrative-design.md §5）：样式复用页头 .re-tier 胶囊，
+  // 挂点两处 —— 静态研判小节 slot="head"；JS 动态卡组上方一行 R.genNote() 注记。无研判段的页不调即不渲染。
+  genBadge: (g) => {
+    const def = {
+      llm: { name: 'LLM', cls: 're-tier--gen-llm', tip: 'LLM 基于规则引擎事实改写叙事；数字经一致性校验，超限自动回落' },
+      rules: { name: '规则引擎', cls: 're-tier--gen-rules', tip: '规则引擎确定性生成（该专题尚未接入 LLM）' },
+      'rules-fallback': { name: '已回落规则引擎', cls: 're-tier--gen-fallback', tip: 'LLM 调用失败或校验未过，已自动回落；详见部署日志 LLM_FALLBACK' },
+    }[g] || null;
+    return def
+      ? ` <span class="re-tier ${def.cls}" title="${def.tip}">${def.name}</span>`
+      : '';
+  },
+  // 研判生成注记行（研判区上方一行，卡片无标题时的挂点）：自有类 re-gen-note（special.css），
+  // 视觉对齐 .re-sec-note 的弱化字色但不借用其类名（单源守卫：产物类名不可手写）
+  genNote: (g) => {
+    const b = R.genBadge(g);
+    return b ? `<div class="re-gen-note">研判生成${b}</div>` : '';
+  },
 
   // ── 跨资产表数值格式化单源（unit 来自 /api/daily-brief 行；daily 页与仪表盘共用）──
   // bn 的单位是「百万」：≥1e6 M → T，≥1e3 M → B，否则 M。

@@ -68,10 +68,29 @@ jobs:
         run: npm ci
         working-directory: frontend
 
+      # LLM 叙事内容寻址缓存（data/cache/llm，键含 facts 哈希——数据不变零调用）。
+      # export 前恢复、export 后保存；key 含 github.sha（每次运行唯一）
+      # 保证新条目总能写入新缓存项，restore-keys 兜底上一次的缓存。
+      - name: Restore LLM narrative cache
+        uses: actions/cache@v4
+        with:
+          path: data/cache/llm
+          key: llm-narrative-${{ github.sha }}
+          restore-keys: llm-narrative-
+
       # API JSON 直落 frontend/public/api/（astro build 拷进 dist/；工单 #12 起
       # export_pages 仅剩 JSON 导出这一条链，PAGES_JSON_ONLY env 已退役）
+      # LLM 研判：key 缺失/调用失败时 fail-open 回落规则引擎，stderr 标记 LLM_FALLBACK
+      # （src/llm.py 约定，勿单独改格式）由下一步 grep 转 CI 告警注解
       - name: Export API JSON
-        run: uv run python -m src.export_pages
+        run: set -o pipefail; uv run python -m src.export_pages 2>&1 | tee /tmp/export.log
+        env:
+          LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
+
+      # 部署已成功，只标黄不标红（exit 1 会为非问题报警）；无标记则空转
+      - name: LLM fallback → warning
+        if: always()
+        run: grep -q LLM_FALLBACK /tmp/export.log && echo "::warning::LLM 研判回落规则引擎（详见 export 日志）" || true
 
       - name: Build frontend (astro)
         run: npm run build

@@ -33,6 +33,12 @@ body.embedded .re-header h1 { display: none; } /* 内嵌时左卡已有标题 */
 .re-tier--disc { color: var(--up); border-color: color-mix(in srgb, var(--color-up) 40%, transparent); }
 .re-tier--est { color: var(--warning); border-color: color-mix(in srgb, var(--color-warn) 40%, transparent); }
 .re-tier--proxy { color: var(--down); border-color: color-mix(in srgb, var(--color-down) 40%, transparent); }
+/* 研判生成徽章（R.genBadge 三态单源，docs/llm-narrative-design.md §5）：LLM=brand / 规则引擎中性 / 回落橙 */
+.re-tier--gen-llm { color: var(--accent-ink); border-color: color-mix(in srgb, var(--color-brand) 40%, transparent); }
+.re-tier--gen-rules { color: var(--text-dim); border-color: color-mix(in srgb, var(--text-dim) 35%, transparent); }
+.re-tier--gen-fallback { color: var(--warning); border-color: color-mix(in srgb, var(--color-warn) 40%, transparent); }
+/* 研判生成注记行（R.genNote）：独立类，弱化字色与 .re-sec-note 同档，但独立在卡组上方 */
+.re-gen-note { margin: 0 0 10px; font-size: 12px; line-height: 1.65; color: var(--text-dim); }
 /* 子页不再渲染“返回概览”面包屑（导航在左侧专题树 / 窄屏抽屉里） */
 
 /* 页内锚点导航（长页如美债） */

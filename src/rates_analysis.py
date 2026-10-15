@@ -20,6 +20,7 @@ import pandas as pd
 
 from src.analysis_utils import read_csv_or_empty as _read
 from src.config import ROOT, TERM_SERIES
+from src.llm import generate_narrative, llm_enabled
 
 TENORS = ["1M", "3M", "6M", "1Y", "2Y", "3Y", "5Y", "7Y", "10Y", "20Y", "30Y"]
 
@@ -612,30 +613,46 @@ def overview_analysis() -> dict:
 # ═══════════════════════════════════════════════════════════════════════════════
 
 
+_RATES_PROMPT_HINT = """\
+这是利率研判的叙事段组（overview 四段：曲线形态/实际利率/联储预期/展望）。
+各段文风：第一行结论、第二行依据（数字全部保留）、第三行失效条件，节奏保持不变；
+可重组语句、串联因果、补充不含数字的定性判断，但不得推翻结论方向。"""
+
+
 def _llm_generate() -> dict | None:
-    """LLM 生成入口（预留）。
+    """LLM 生成入口（已接入，见 docs/llm-narrative-design.md）。"""
+    if not llm_enabled():
+        return None
+    yc = yield_curve_analysis()
+    payload = {
+        "sections": overview_analysis()["sections"],
+        "yield_curve_facts": yc,
+    }
+    out = generate_narrative("rates", payload, _RATES_PROMPT_HINT)
+    # 同构 dict：yield_curve 事实段原样带上，调用方拿到的键与规则引擎路径完全一致
+    return None if out is None else {"overview": {"sections": out["sections"]}, "yield_curve": yc}
 
-    接入方式：在此调用 LLM（如
-    `src.fetchers.rate_expectations_fetcher` 同款 requests 直连），传入
-    `yield_curve_analysis()` / `overview_analysis()` 的结构化数据作为上下文，
-    返回同构 dict（yield_curve / overview 两个键），并置 `_LLM_ENABLED = True`。
-    未接入时返回 None，调用方自动回落规则引擎。
-    """
-    return None
 
-
-_LLM_ENABLED = False
+_LLM_ENABLED = True
 
 
 def generate_analysis() -> dict:
-    """利率研判统一入口：LLM 优先（预留），规则引擎兜底。
+    """利率研判统一入口：LLM 优先（env 未配 key 或故障则回落规则引擎）。
 
-    返回 {generator, overview: {...}, yield_curve: {...}}。
+    返回 {generator, overview: {...}, yield_curve: {...}}。generator ∈
+    llm / rules-fallback（LLM 已启用但回落）/ rules（未接入）。
     """
     if _LLM_ENABLED:
         llm_out = _llm_generate()
         if llm_out is not None:
             return {**llm_out, "generator": "llm"}
+        if llm_enabled():
+            # key 配了但调用/校验失败：标记回落态（前端徽章橙色「已回落规则引擎」）
+            return {
+                "generator": "rules-fallback",
+                "overview": overview_analysis(),
+                "yield_curve": yield_curve_analysis(),
+            }
     return {
         "generator": "rules",
         "overview": overview_analysis(),
