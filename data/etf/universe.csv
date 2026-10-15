@@ -1550,6 +1550,7 @@ AVSE,Avantis Responsible Emerging Markets Equity ETF,global
 AVSF,Avantis Short-Term Fixed Income ETF,factor_income
 AVSU,Avantis Responsible U.S. Equity ETF,broad
 AVTM,Avantis Total Equity Markets ETF,broad
+AVUC,Avantis U.S. Core Equity ETF,broad
 AVUS,Avantis U.S. Equity ETF,broad
 AVUV,Avantis U.S. Small Cap Value ETF,factor_income
 AWAY,Amplify Travel Tech ETF,broad
@@ -1809,7 +1810,6 @@ BUYZ,Franklin Disruptive Commerce ETF,high_beta
 BUZZ,VanEck Social Sentiment ETF,broad
 BVAL,Bluemonte Large Cap Value ETF,factor_income
 BWET,Breakwave Tanker Shipping ETF,broad
-BWOW,Bitwise Dogecoin ETF,broad
 BWQG,BWM Quality Growth ETF,factor_income
 BWTG,Brendan Wood TopGun Index ETF,broad
 BWX,State Street SPDR Bloomberg International Treasury Bond ETF,bond
@@ -2827,6 +2827,7 @@ GAIQ,Guinness Atkinson Global Innovators Fund: ETF Class Shares,broad
 GAL,State Street Global Allocation ETF,broad
 GALX,VistaShares Space Supercycle ETF,theme
 GAMR,Amplify Video Game Leaders ETF,broad
+GANZ,Tuttle Capital Thematic ETF,broad
 GAPR,FT Vest U.S. Equity Moderate Buffer ETF - April,broad
 GARA,Guinness Atkinson Real Assets Income ETF,factor_income
 GARP,iShares MSCI USA Quality GARP ETF,factor_income
@@ -3110,7 +3111,7 @@ HYGH,iShares Interest Rate Hedged High Yield Bond ETF,bond
 HYGM,Amplify HYG High Yield 10% Target Income ETF,bond
 HYGU,MicroSectors 3x Long High Yield Corporate Bond (HYG) ETNs,bond
 HYGV,Northern Trust High Yield Value-Scored Bond ETF,bond
-HYGW,iShares High Yield Corporate Bond BuyWrite Strategy ETF,bond
+HYGW,iShares HYG Premium Income+ ETF,factor_income
 HYHG,ProShares High Yield Interest Rate Hedged,bond
 HYIN,WisdomTree Private Credit and Alternative Income Fund,bond
 HYLB,Xtrackers USD High Yield Corporate Bond ETF,bond
@@ -3360,7 +3361,7 @@ IVOV,Vanguard S&P Mid-Cap 400 Value ETF,factor_income
 IVV,iShares Core S&P 500 ETF,broad
 IVVB,iShares Large Cap Deep Quarterly Laddered ETF,broad
 IVVM,iShares Large Cap Moderate Quarterly Laddered ETF,broad
-IVVW,iShares S&P 500 BuyWrite ETF,broad
+IVVW,iShares IVV Premium Income+ ETF,factor_income
 IVW,iShares S&P 500 Growth ETF,high_beta
 IWB,iShares Russell 1000 ETF,broad
 IWC,iShares Microcap ETF,broad
@@ -3371,7 +3372,7 @@ IWL,iShares Russell Top 200 ETF,broad
 IWLG,NYLIM Winslow Large Cap Growth ETF,high_beta
 IWM,iShares Russell 2000 Index Fund,broad
 IWMI,NEOS Russell 2000 High Income ETF,factor_income
-IWMW,iShares Russell 2000 BuyWrite ETF,broad
+IWMW,iShares IWM Premium Income+ ETF,factor_income
 IWMY,Defiance R2000 Weekly Distribution ETF,broad
 IWN,iShares Russell 2000 Value ETF,factor_income
 IWO,iShares Russell 2000 Growth Fund,high_beta
@@ -3698,7 +3699,7 @@ LQDH,iShares Interest Rate Hedged Corporate Bond ETF,bond
 LQDI,iShares Inflation Hedged Corporate Bond ETF,bond
 LQDM,Amplify LQD Investment Grade 12% Target Income ETF,bond
 LQDU,MicroSectors 3x Long Investment Grade Corporate Bond (LQD) ETNs,bond
-LQDW,iShares Investment Grade Corporate Bond BuyWrite Strategy ETF,bond
+LQDW,iShares LQD Premium Income+ ETF,factor_income
 LQID,Kurv Enhanced Short Maturity ETF,broad
 LQTI,FT Vest Investment Grade & Target Income ETF,bond
 LRCC,Corgi LRCX 2x Daily ETF,leveraged_inverse
@@ -4840,6 +4841,7 @@ SMOT,VanEck Morningstar SMID Moat ETF,broad
 SMOX,Horizon Small/Mid Cap Core Equity ETF,broad
 SMRF,"ALPS Nautilus SMR, Nuclear & Technology ETF",broad
 SMRX,Corgi SMR 2x Daily ETF,leveraged_inverse
+SMRZ,Global X Small Modular Reactor ETF,broad
 SMTG,Leverage Shares 2X Long SMTC Daily ETF,leveraged_inverse
 SMTH,ALPS Smith Core Plus Bond ETF,bond
 SMTJ,Synera Funds Takumi+ ETF,broad
@@ -5128,7 +5130,7 @@ TLTD,Northern Trust Morningstar Developed Markets ex-US Factor Tilt ETF,global
 TLTE,Northern Trust Morningstar Emerging Markets Factor Tilt ETF,global
 TLTI,NEOS Enhanced Income 20+ Year Treasury Bond ETF,bond
 TLTP,Amplify TLT U.S. Treasury 12% Option Income ETF,bond
-TLTW,iShares 20+ Year Treasury Bond BuyWrite Strategy ETF,bond
+TLTW,iShares TLT Premium Income+ ETF,factor_income
 TLTX,Global X Treasury Bond Enhanced Income ETF,bond
 TMAR,FT Vest Emerging Markets Buffer ETF - March,global
 TMAT,Main Thematic Innovation ETF,high_beta
@@ -5470,6 +5472,8 @@ WAGN,Pabrai Wagons ETF,theme
 WANT,Direxion Daily Consumer Discretionary Bull 3X ETF,leveraged_inverse
 WAR,U.S. Global Technology and Aerospace & Defense ETF,theme
 WATS,Corgi Battery Energy Storage Systems ETF,commodity
+WBEM,William Blair Emerging Markets Equity ETF,global
+WBIE,William Blair International Equity ETF,global
 WBIF,WBI BullBear Value 3000 ETF,factor_income
 WBIG,WBI BullBear Yield 3000 ETF,broad
 WBIL,WBI BullBear Quality 3000 ETF,factor_income
