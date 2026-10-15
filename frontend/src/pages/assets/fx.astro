@@ -88,6 +88,8 @@ function renderChart(d) {
     yAxis: { type: 'value', axisLabel: { formatter: v => v + '%' } },
     series: Object.keys(ch.series).map(k => ({
       name: CH_T[k] || k, type: 'line', data: ch.dates.map((dt, i) => [dt, ch.series[k][i]]), showSymbol: false, smooth: true,
+      // 源数据零星缺 1-2 天（非停牌），跨缺口连线比碎成孤点可读；后启标的开头长 null 无前点不会误连
+      connectNulls: true,
       lineStyle: { width: k === 'DXY' ? 2.2 : 1.4 }, emphasis: { focus: 'series' },
     })),
   }, colors));
