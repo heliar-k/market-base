@@ -16,6 +16,7 @@ import Section from '../../components/Section.astro';
   <Section id="sec-heat" title="未来 14 天流动性热力" sub="估算">
     <div id="re-heat"></div>
   </Section>
+  <Section id="sec-judge" title="研判" />
   <Section id="sec-spread" title="SOFR − IORB 走势" sub="60 日">
     <div class="re-chart" id="spread_chart"></div>
   </Section>
@@ -43,7 +44,7 @@ const bucketTextColors = {
 
 async function load() {
   document.getElementById('page-toc').innerHTML = [
-    ['预警', 're-alert'], ['当前余额', 're-cur'], ['未来热力', 'sec-heat'], ['60日利差', 'sec-spread'], ['日度现金流', 'sec-cash'],
+    ['预警', 're-alert'], ['当前余额', 're-cur'], ['未来热力', 'sec-heat'], ['研判', 'sec-judge'], ['60日利差', 'sec-spread'], ['日度现金流', 'sec-cash'],
   ].map(([t, id]) => `<a href="#${id}">${t}</a>`).join('');
 
   const d = await R.get('/api/liquidity/rrp-tga');
@@ -97,6 +98,9 @@ async function load() {
     </div>`;
 
   // ── SOFR−IORB 60 日 ──
+  R.setSection('sec-judge', d.judgement?.text
+    ? R.judgeCard(d.judgement.title, d.judgement.text, R.LINES_CONCLUSION)
+    : '<p style="color:var(--text-dim);font-size:13px;margin:0">研判数据不足（需 RRP 余额与未来日历）。</p>');
   const s60 = d.series?.sofr_iorb_bp || [];
   R.mkChart('spread_chart', c => ({
     xAxis: { type: 'time' },
@@ -120,8 +124,8 @@ async function load() {
     ],
   }));
 
-  R.foot(null, { src: 'DTS（日度真实现金流）· FRED（SOFR / IORB 利率走廊）· Treasury 拍卖日历（未来热力估算）· H.4.1（RRP/TGA 周度）', note: 'DTS 日度优先于 H.4.1 周度' });
+  R.foot('rules', { src: 'DTS（日度真实现金流）· FRED（SOFR / IORB 利率走廊）· Treasury 拍卖日历（未来热力估算）· H.4.1（RRP/TGA 周度）', note: 'DTS 日度优先于 H.4.1 周度' });
 }
-load().catch(e => R.fail(['re-alert', 're-cur', 're-heat', 'spread_chart', 'cash_chart'], e));
+load().catch(e => R.fail(['re-alert', 're-cur', 're-heat', 'sec-judge', 'spread_chart', 'cash_chart'], e));
 </script>
 </TopicLayout>

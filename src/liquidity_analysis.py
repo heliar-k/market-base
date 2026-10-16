@@ -828,9 +828,36 @@ def page_fed_balance_sheet() -> dict:
         r["SPX"] = float(spx.get(dt)) if pd.notna(spx.get(dt)) else None
         r["NDX"] = float(ndx.get(dt)) if pd.notna(ndx.get(dt)) else None
         rows.append(r)
+    # 研判：QT 缩表节奏与净流动性去向（hub 三段讲净流动性方向，这里讲资产端怎么缩）
+    walcl = liq["WALCL"].dropna() if "WALCL" in liq else pd.Series(dtype=float)
+    treast = liq["TREAST"].dropna() if "TREAST" in liq else pd.Series(dtype=float)
+    mbs = liq["WSHOMCB"].dropna() if "WSHOMCB" in liq else pd.Series(dtype=float)
+    walcl_4w, treast_4w, mbs_4w = (_pct_chg(s, 28) for s in (walcl, treast, mbs))
+    if walcl_4w is not None:
+        parts_4w = []
+        if treast_4w is not None:
+            parts_4w.append(f"国债 {treast_4w:+.2f}%")
+        if mbs_4w is not None:
+            parts_4w.append(f"MBS {mbs_4w:+.2f}%")
+        shrink = "缩表进行中" if walcl_4w < 0 else "总资产走平或回升（QT 停止或 RMP 抵消）"
+        walcl_t = walcl.iloc[-1] / 1e6
+        judgement = {
+            "title": "缩表研判",
+            "text": f"{shrink}。\n总资产 {walcl_t:.2f} 万亿（4 周 {walcl_4w:+.2f}%）"
+            + ("，其中 " + " · ".join(parts_4w) if parts_4w else "")
+            + "。\n"
+            + (
+                "缩表在抽水，但只要 RRP 同步下降即是被吸收，真正伤及准备金的是 RRP 贴零之后。"
+                if walcl_4w < 0
+                else "关注回升是 RMP 投放还是 QT 实质转向，两者对流动性的含义不同。"
+            ),
+        }
+    else:
+        judgement = None
     return {
         "cards": cards,
         "rows": rows,
+        "judgement": judgement,
         "note": "Fed 账目为周度（H.4.1），非发布日为空；SPX/NDX 取该日收盘。",
     }
 
@@ -904,6 +931,35 @@ def page_operations() -> dict:
         out["srf"] = {
             "active_days_90": int(s.gt(0).sum()),
             "latest_m": round(float(s.iloc[-1]) * 1000, 0),
+        }
+    # 研判：RMP 执行评估（页面只展示进度数字，不判断「是否达标 / 市场紧不紧」）
+    if out["rmp"]:
+        r = out["rmp"]
+        pace_ratio = r["monthly_b"] / r["target_b"] if r["target_b"] else None
+        if pace_ratio is None:
+            pace_txt = "节奏无法评估"
+        elif pace_ratio >= 0.85:
+            pace_txt = f"月均 {r['monthly_b']:.1f}B，接近或达到 {r['target_b']:.0f}B 目标"
+        elif pace_ratio >= 0.5:
+            pace_txt = f"月均 {r['monthly_b']:.1f}B，低于 {r['target_b']:.0f}B 目标但持续投放"
+        else:
+            pace_txt = f"月均 {r['monthly_b']:.1f}B，明显落后于 {r['target_b']:.0f}B 目标"
+        srf_d = out["srf"].get("active_days_90", 0)
+        srf_txt = (
+            "SRF 零使用，准备金管理操作属于预防性投放而非救急"
+            if srf_d == 0
+            else f"SRF 90 天激活 {srf_d} 天，回购市场存在间歇性紧张"
+        )
+        out["judgement"] = {
+            "title": "操作研判",
+            "text": (
+                f"{pace_txt}。\n累计 {r['cumulative_b']:.0f}B / {r['count']} 次操作；{srf_txt}。\n"
+            )
+            + (
+                "SRF 持续非零则 RMP 需加码或提前结束 QT，跟踪下次 FOMC 的资产负债表指引。"
+                if srf_d > 0
+                else "RMP 属技术性补充（非 QE），若 SOFR−IORB 走扩或 SRF 激活，即为加码信号。"
+            ),
         }
     return out
 
@@ -991,6 +1047,37 @@ def page_rrp_tga() -> dict:
             {"date": d.date().isoformat(), "value": round(float(v) / 1000, 1)} for d, v in t.items()
         ]
     out["series"] = series
+    # 研判：RRP 缓冲对未来净冲击的覆盖倍数（页面只展示金额，不下结论）
+    rrp_b = out["current"]["rrp_b"]
+    net14 = out["calendar"].get("net_14d_b")  # 复用 forward_calendar(21) 的 14 天窗口和
+    if rrp_b is not None and net14 is not None:
+        if net14 >= 0:
+            out["judgement"] = {
+                "title": "前瞻研判",
+                "text": f"未来 14 天预计净注入 {net14:+,.0f}B。\n"
+                f"财政净投放叠加 RRP 缓冲 {rrp_b:,.0f}B，窗口内不存在抽水压力。\n"
+                "日历为拍卖结算 + SOMA 估算，实际以 DTS 日度现金流为准。",
+            }
+        else:
+            cover = rrp_b / -net14 if net14 < 0 else None
+            if rrp_b <= 25:
+                state_txt = "RRP 缓冲已耗尽"
+                verdict = "缓冲垫趋零后净冲击直接消耗准备金，压力将先出现在 SOFR−IORB 与 SRF"
+            elif cover is not None and cover < 1:
+                state_txt = "净冲击超出 RRP 缓冲"
+                verdict = "缺口部分直接由银行准备金承担，重点关注结算日的货币市场利率反应"
+            elif cover is not None and cover < 2:
+                state_txt = "RRP 缓冲仅够单轮净冲击"
+                verdict = "缓冲较薄，若叠加发债上量则准备金将加速消耗，留意 RRP 下降斜率"
+            else:
+                state_txt = "RRP 缓冲可覆盖本轮抽水"
+                verdict = "缓冲层足够厚，除非发债节奏显著上量，窗口内压力可控"
+            out["judgement"] = {
+                "title": "前瞻研判",
+                "text": f"{state_txt}。\n未来 14 天净抽水 {-net14:,.0f}B vs RRP 缓冲 {rrp_b:,.0f}B"
+                + (f"（覆盖 {cover:.1f} 倍）" if cover is not None else "")
+                + f"。\n{verdict}。",
+            }
     return out
 
 
@@ -1038,6 +1125,32 @@ def page_reserves() -> dict:
         if "WRESBAL" in liq
         else []
     )
+    # 研判：双确认合成（页面两张图只给走势，不下「是否稀缺」的结论）
+    # 口径沿用本引擎既有分档：SOFR−IORB < 0 充裕 / ≥0 起步收紧（hub 同款）；
+    # SOFR−3M T-Bill < 15bp 中介意愿正常（intermediation 卡同款）
+    if s2 is not None and s1 is not None:
+        tight = s2 >= 0
+        mid_tight = s1 >= 15
+        if tight and mid_tight:
+            head, verdict = "双确认：准备金进入稀缺区间", "两个口径同时走扩，稀缺是确认状态而非噪声"
+        elif tight or mid_tight:
+            head = "单口径走扩，观察窗口"
+            which = "SOFR−IORB" if tight else "SOFR−3M T-Bill"
+            verdict = f"仅 {which} 越线，等另一口径确认再升级判断"
+        else:
+            head, verdict = "准备金充裕", "两个利差口径均未走扩"
+        res_4w_n = _pct_chg(res, 28)
+        basis = [
+            f"SOFR−IORB {s2:+.1f}bp",
+            f"SOFR−3M T-Bill {s1:+.1f}bp",
+        ]
+        if res_4w_n is not None:
+            basis.append(f"准备金 4 周 {res_4w_n:+.1f}%")
+        out["judgement"] = {
+            "title": "准备金研判",
+            "text": f"{head}。\n" + " · ".join(basis) + f"。\n{verdict}。"
+            "稀缺确认后关注 SRF 使用量与 LPI 融资确认层是否同步抬升。",
+        }
     return out
 
 
@@ -1159,6 +1272,55 @@ def page_subsurface() -> dict:
         "swap_max": 2,
         "state": state,
     }
+    # 研判：归因主导分项（页面只展示分数，不判断「谁在驱动」）
+    drivers = {
+        "尾部利率（SOFR 99 分位）": tail_w,
+        "成交量异动": vol_z,
+        "SRF 激活": srf_act,
+        "央行互换变化": sw_chg,
+    }
+    top_name, top_v = max(drivers.items(), key=lambda kv: kv[1])
+    if total == 0:
+        out["judgement"] = {
+            "title": "次表层研判",
+            "text": "次表层正常。\n四个分项（尾部利率 / 成交量 / SRF / 央行互换）均未计分，"
+            "未被均衡吸收的融资摩擦尚无积累迹象。\n任一分项开始计分即进入观察窗口，"
+            "是主流指标确认之前的领先信号。",
+        }
+    else:
+        tail_bp = None if iorb is None or "99分位" not in pct else (pct["99分位"] - iorb) * 100
+        sub_msg = {
+            "尾部利率（SOFR 99 分位）": (
+                f"99 分位高出 IORB {tail_bp:+.1f}bp" if tail_bp is not None else "99 分位抬升"
+            ),
+            "成交量异动": f"60 日 z-score {z:+.2f}" if z is not None else "成交量偏离均值",
+            "SRF 激活": (
+                f"30 天激活 {out['srf'].get('active_30d', 0)} 天"
+                if out.get("srf")
+                else "SRF 已动用"
+            ),
+            "央行互换变化": (
+                f"30 日变化 {out['swap'].get('chg_30d_m', 0):+,.0f}M"
+                if out.get("swap")
+                else "央行互换回升"
+            ),
+        }[top_name]
+        mid = (
+            "但幅度未达主流指标确认线，属于观察窗口"
+            if total < 4
+            else "已达承压档，需对照 LPI 融资确认层是否同步抬升"
+        )
+        tail = (
+            "若主导分项继续抬升且 LPI 同步上行，则压力在从摩擦向系统性传导。"
+            if state != "正常"
+            else "分项回落则视为噪声，不升级判断。"
+        )
+        out["judgement"] = {
+            "title": "次表层研判",
+            "text": (
+                f"次表层压力{state}（{total}/10）。\n主导分项是{top_name}（{sub_msg}），{mid}。\n{tail}"
+            ),
+        }
     return out
 
 

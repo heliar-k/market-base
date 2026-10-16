@@ -8,6 +8,7 @@ import Section from '../../components/Section.astro';
 <TopicLayout title="美联储资产负债表" chart={false}>
   <div class="page-toc" id="page-toc"></div>
   <Section id="re-cards" title="概览" />
+  <Section id="sec-judge" title="研判" />
   <Section id="sec-table" title="近期对照表" sub="最近 20 条" card>
     <div id="re-table"></div>
   </Section>
@@ -16,9 +17,12 @@ import Section from '../../components/Section.astro';
 <script is:inline>
 async function load() {
   document.getElementById('page-toc').innerHTML =
-    [['概览', 're-cards'], ['近期对照', 'sec-table']].map(([t, id]) => `<a href="#${id}">${t}</a>`).join('');
+    [['概览', 're-cards'], ['研判', 'sec-judge'], ['近期对照', 'sec-table']].map(([t, id]) => `<a href="#${id}">${t}</a>`).join('');
   const d = await R.get('/api/liquidity/fed-balance-sheet');
   R.setAsOf([['FRED', d.rows?.[d.rows.length - 1]?.date]]);
+  R.setSection('sec-judge', d.judgement?.text
+    ? R.judgeCard(d.judgement.title, d.judgement.text, R.LINES_CONCLUSION)
+    : '<p style="color:var(--text-dim);font-size:13px;margin:0">研判数据不足。</p>');
 
   const card = (key, accent) => {
     const s = (d.cards || {})[key] || {};
@@ -36,11 +40,11 @@ async function load() {
     rows, { WALCL: f, NET_LIQUIDITY: f, SPX: fpx, NDX: fpx, TREAST: f, WSHOMCB: f },
     ['date', 'WALCL', 'NET_LIQUIDITY', 'SPX', 'NDX', 'TREAST', 'WSHOMCB'],
   ));
-  R.foot(null, {
+  R.foot('rules', {
     src: 'FRED H.4.1（WALCL / RRP / TGA）',
     note: `${d.note || ''} 净流动性 = 总资产 − RRP − TGA（近似口径）· 单位 万亿 USD`.trim(),
   });
 }
-load().catch(e => R.fail(['re-cards', 're-table'], e));
+load().catch(e => R.fail(['re-cards', 'sec-judge', 're-table'], e));
 </script>
 </TopicLayout>

@@ -12,6 +12,7 @@ import Section from '../../components/Section.astro';
   <Section title="综合压力评分">
     <div id="re-composite"></div>
   </Section>
+  <Section id="sec-judge" title="研判" />
   <Section id="sec-pct" title="SOFR 分位分布" sub="1/25/75/99 + 中位数 vs IORB" card>
     <div id="re-pct"></div>
   </Section>
@@ -26,7 +27,7 @@ import Section from '../../components/Section.astro';
 <script is:inline>
 async function load() {
   document.getElementById('page-toc').innerHTML = [
-    ['综合压力', 're-composite'], ['SOFR 分位', 'sec-pct'], ['成交量', 'sec-vol'], ['SRF', 'sec-srf'],
+    ['综合压力', 're-composite'], ['研判', 'sec-judge'], ['SOFR 分位', 'sec-pct'], ['成交量', 'sec-vol'], ['SRF', 'sec-srf'],
   ].map(([t, id]) => `<a href="#${id}">${t}</a>`).join('');
 
   const d = await R.get('/api/liquidity/subsurface');
@@ -60,6 +61,10 @@ async function load() {
       ${bar('SRF 激活', comp.srf ?? 0, comp.srf_max ?? 3, 'var(--color-down)')}
       ${bar('央行互换变化', comp.swap ?? 0, comp.swap_max ?? 2, 'var(--chart-violet)')}
     </div></div>`;
+
+  R.setSection('sec-judge', d.judgement?.text
+    ? R.judgeCard(d.judgement.title, d.judgement.text, R.LINES_CONCLUSION)
+    : '<p style="color:var(--text-dim);font-size:13px;margin:0">研判数据不足（需 SOFR 分位与成交量数据）。</p>');
 
   const pct = d.percentiles || {};
   const p = pct.values || {};
@@ -95,8 +100,8 @@ async function load() {
     央行互换余额 <b>$${Number(d.swap?.balance_m ?? 0).toLocaleString()}M</b>（30日变化 ${(d.swap?.chg_30d_m ?? 0) >= 0 ? '+' : ''}${(d.swap?.chg_30d_m ?? 0).toLocaleString()}M）。</p>
     <p style="margin:8px 0 0;font-size:12px;color:var(--text-dim)">主流指标（SOFR 中位数/RRP/总资产）是均衡后的读数；次表层看的是没被均衡吸收的摩擦——SOFR 99 分位是最紧张一批机构的边际融资价，成交量 z-score 捕捉市场结构突变，SRF 动用即说明融资端已紧张，央行互换是海外美元压力的被动读数。这些读数属于主流指标确认之前的观察窗口（领先幅度未经回测）。${zHtml}</p></div>`;
 
-  R.foot(null, { src: 'FRED（SOFR 分位 / SOFRVOL 成交额）· NY Fed Markets（SRF）· FRED H.4.1（SWPT 央行互换）', note: 'SOFRVOL 单位为十亿美元' });
+  R.foot('rules', { src: 'FRED（SOFR 分位 / SOFRVOL 成交额）· NY Fed Markets（SRF）· FRED H.4.1（SWPT 央行互换）', note: 'SOFRVOL 单位为十亿美元' });
 }
-load().catch(e => R.fail(['re-composite', 're-pct', 'vol_chart', 're-srf'], e));
+load().catch(e => R.fail(['re-composite', 'sec-judge', 're-pct', 'vol_chart', 're-srf'], e));
 </script>
 </TopicLayout>

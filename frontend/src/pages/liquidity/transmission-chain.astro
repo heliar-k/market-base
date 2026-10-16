@@ -118,6 +118,13 @@ async function load() {
 
   // ── 确认条件 ──
   const conf = d.confirmations || [];
+  // 确认条件尾部注随 met 实况变化，不写死「全部未确认」（有条件满足时旧文案就成了假话）
+  const metCount = conf.filter(x => x.met).length;
+  const confTail = metCount === 0
+    ? '以上任一条件满足即说明压力从结构性偏紧升级为系统性；当前全部未确认，本指数不下系统性压力结论，等待确认信号。'
+    : metCount === conf.length
+      ? `以上 ${conf.length} 条确认条件全部满足——系统性压力已确认，指数结论升级。`
+      : `已确认 ${metCount}/${conf.length} 条：系统性压力的门槛部分达成，本指数结论为「警戒观察」而非系统性确认；未满足条件见上方 ○ 标注项。`;
   document.getElementById('re-confirm').innerHTML =
     `<div class="re-section">` + conf.map(x =>
       `<div style="display:flex;gap:8px;align-items:baseline;padding:4px 0;font-size:13px">
@@ -125,7 +132,7 @@ async function load() {
         <span style="color:var(--text)">${x.title}</span>
         <span style="color:var(--text-dim);font-size:12px">${x.detail || ''}</span>
       </div>`).join('') +
-      `<p style="margin:8px 0 0;font-size:12px;color:var(--text-dim)">以上任一条件满足即说明压力从结构性偏紧升级为系统性；当前全部未确认，本指数不下系统性压力结论，等待确认信号。</p></div>`;
+      `<p style="margin:8px 0 0;font-size:12px;color:var(--text-dim)">${confTail}</p></div>`;
 
   // ── 离岸 + 外部 ──
   const off = d.offshore || {};
@@ -172,7 +179,7 @@ async function load() {
   }
   document.getElementById('re-evidence').innerHTML = ev;
 
-  R.foot(null, {
+  R.foot('rules', {
     src: 'FRED（H.4.1 / SOFR 分位 / ICE BofA OAS / NFCI）· NY Fed SRF · CFETS 掉期点 · CBOE VIX · yfinance（MOVE / WTI / SPX / DXY）',
     note: 'LPI 评分为规则加权，可复盘',
   });

@@ -9,6 +9,7 @@ import Section from '../../components/Section.astro';
   <div class="page-toc" id="page-toc"></div>
 
   <Section id="re-cards" title="概览" />
+  <Section id="sec-judge" title="研判" />
   <Section id="sec-spread1" title="SOFR − 3M T-Bill" sub="60 日 · 银行中介意愿替代口径">
     <div class="re-chart" id="chart1"></div>
   </Section>
@@ -32,12 +33,15 @@ const base = (c) => ({
 
 async function load() {
   document.getElementById('page-toc').innerHTML = [
-    ['概览', 're-cards'], ['中介意愿', 'sec-spread1'], ['交叉确认', 'sec-spread2'], ['近期数据', 'sec-recent'],
+    ['概览', 're-cards'], ['研判', 'sec-judge'], ['中介意愿', 'sec-spread1'], ['交叉确认', 'sec-spread2'], ['近期数据', 'sec-recent'],
   ].map(([t, id]) => `<a href="#${id}">${t}</a>`).join('');
 
   const d = await R.get('/api/liquidity/reserves');
   const r = d.cards?.reserves || {};
   R.setAsOf([['FRED', r.date]]);
+  R.setSection('sec-judge', d.judgement?.text
+    ? R.judgeCard(d.judgement.title, d.judgement.text, R.LINES_CONCLUSION)
+    : '<p style="color:var(--text-dim);font-size:13px;margin:0">研判数据不足。</p>');
   document.getElementById('re-cards').appendChild(R.cards([
     { label: '银行准备金余额', value: r.value_b == null ? '—' : (r.value_b / 1000).toFixed(2) + ' 万亿', sub: `4周 ${(r.chg_4w_pct ?? 0) >= 0 ? '+' : ''}${(r.chg_4w_pct ?? 0).toFixed(2)}%` },
     { label: '银行中介意愿', value: d.cards?.intermediation?.state || '—', sub: 'SOFR−3M T-Bill 走扩说明担保融资变贵' },
@@ -57,11 +61,11 @@ async function load() {
     d.rows || [], { reserves_b: v => (v == null ? '—' : (Number(v) / 1000).toFixed(2)) },
     ['date', 'reserves_b'],
   ));
-  R.foot(null, {
+  R.foot('rules', {
     src: 'FRED H.4.1（WRESBAL，周度）· FRED 利率走廊（SOFR / IORB / DGS3MO，日度）',
     note: '准备金充裕时短端流动性压力较小',
   });
 }
-load().catch(e => R.fail(['re-cards', 'chart1', 'chart2', 're-recent'], e));
+load().catch(e => R.fail(['re-cards', 'sec-judge', 'chart1', 'chart2', 're-recent'], e));
 </script>
 </TopicLayout>
