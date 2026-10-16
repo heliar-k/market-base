@@ -586,57 +586,7 @@ def _narr_trade(rows: list[dict], term: dict, skew: float | None) -> str:
     )
 
 
-def _narr_basic(rows: list[dict], term: dict, card: dict) -> list[dict]:
-    """AI 基础分析三块：展望 / 期限结构 / VIX 水平。"""
-    by = {r["symbol"]: r for r in rows}
-    vix, vixd = by["VIX"], by["VIXD"]
-    center = vix["value"]
-    outlook = (
-        (
-            f"本周 VIX 大概率在 {max(0, center - 3):.0f}-{center + 3:.0f} 区间波动。"
-            "拐点催化剂是通胀与就业数据：若核心通胀超预期，VIX 可能跳升并触发"
-            "期限结构前端陡峭；若数据温和且无地缘升级，VIX 将回探下沿，"
-            "但远端高溢价难以消退，持续压制风险偏好。"
-            f"若原油供给端出现实质性断供威胁，VIX 将突破 {center + 7:.0f}。"
-        )
-        if center is not None
-        else "数据缺失，暂不给出展望。"
-    )
-    term_txt = (
-        (
-            f"期限结构呈{'陡峭 ' if term['state'] == 'contango' else ''}"
-            f"{term['state']}，"
-            f"1日 VIX 仅 {vixd['value']:.2f}，30日 VIX {vix['value']:.2f}，"
-            f"1年期 VIX {by['VIXY']['value']:.2f}，"
-            "前端近乎完全平坦，市场对极短期风险几乎无对冲；远端溢价定价的是"
-            "地缘升级、融资压力等中期尾部事件，而非即期冲击。"
-        )
-        if vixd["value"] and by["VIXY"]["value"]
-        else "期限结构数据缺失。"
-    )
-    pct = card.get("percentile_1y")
-    vix_txt = (
-        f"截至最新收盘，VIX 为 {vix['value']:.2f}，"
-        f"日内{'上涨' if vix['chg1d'] and vix['chg1d'] > 0 else '下跌'}"
-        f"{abs(vix['chg1d']):.2f}%"
-        if vix["chg1d"] is not None
-        else ""
-    )
-    vix_txt += (
-        f"，近一年 {pct}% 分位，绝对水平处于"
-        f"{'平静区间下沿' if vix['value'] < 15 else '正常区间'}，"
-        "市场定价的近期波动预期低迷，但下一份宏观数据发布将检验这一低迷定价。"
-        if pct is not None and vix["value"] is not None
-        else "。"
-    )
-    return [
-        {"title": "展望", "text": outlook},
-        {"title": "期限结构", "text": term_txt},
-        {"title": "VIX 水平", "text": vix_txt},
-    ]
-
-
-def _narrative(rows: list[dict], st: dict, df: pd.DataFrame, term: dict, card: dict) -> list[dict]:
+def _narrative(rows: list[dict], st: dict, df: pd.DataFrame, term: dict) -> list[dict]:
     skew = latest(df["SKEW"]) if "SKEW" in df else None
     risk_txt, score = _narr_risk(rows, term)
     return [
@@ -646,11 +596,6 @@ def _narrative(rows: list[dict], st: dict, df: pd.DataFrame, term: dict, card: d
         {"title": "交叉信号分析", "text": _narr_cross(rows)},
         {"title": "风险评估与前瞻", "text": risk_txt, "score": score},
         {"title": "交易含义", "text": _narr_trade(rows, term, skew)},
-        {
-            "title": "波动率基础分析（规则引擎）",
-            "text": "三段解读：本周展望 / 期限结构 / VIX 水平。",
-            "parts": _narr_basic(rows, term, card),
-        },
     ]
 
 
@@ -678,11 +623,6 @@ def generate_dashboard() -> dict:
     s1y = cboe["VIX1Y"].dropna() if "VIX1Y" in cboe else pd.Series(dtype=float)
     term["labels"].append("1Y")
     term["values"].append(round(float(s1y.iloc[-1]), 2) if not s1y.empty else None)
-    card = {}
-    if "VIX" in cboe and not cboe["VIX"].dropna().empty:
-        from src.volatility_analysis import vix_card
-
-        card = vix_card(cboe)
     return {
         "generator": "rules",
         "as_of": cboe.index.max().strftime("%Y-%m-%d"),
@@ -698,7 +638,7 @@ def generate_dashboard() -> dict:
         "stats": st,
         "risk_matrix": _risk_matrix(rows),
         "trade_map": _trade_map(rows),
-        "narrative": _narrative(rows, st, cboe, term, card),
+        "narrative": _narrative(rows, st, cboe, term),
         "term_structure": term,
         # 区间色表下发（前端色条直接消费）
         "zones": [{"label": lb, "color": c} for lb, _, _, c in ZONES],

@@ -36,7 +36,7 @@ def _bodies() -> list[tuple[str, str]]:
             out.append((f"{mod}/{s['title']}", s["text"]))
     an = assets.overview().get("analysis") or {}
     out += [(f"assets/{k}", v["text"]) for k, v in an.items() if isinstance(v, dict)]
-    # 波动率页七段叙事（第 7 段 parts 另走 .vol-basic-grid，这里取每段 text）
+    # 波动率页叙事段
     out += [
         (f"volatility/{s['title']}", s["text"])
         for s in vdash.generate_dashboard().get("narrative") or []
