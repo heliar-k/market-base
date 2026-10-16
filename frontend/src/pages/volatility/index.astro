@@ -112,9 +112,10 @@ async function load() {
 
   const data = await R.get('/api/volatility/dashboard');
   // CBOE 期限结构滞后一天（CDN 次晨更新），Barchart 快照日频不滞后，双时点如实标注
+  // 回退分支（无期限结构双时点时）也要走标签段，否则口径徽章静默丢失
   R.setAsOf(data.as_of_snapshot && data.as_of_snapshot > data.as_of
       ? [['CBOE', data.as_of], ['快照', data.as_of_snapshot]]
-      : data.as_of);
+      : [['CBOE', data.as_of]]);
   const c = R.colors();
   const axis = (name) => ({
     type: 'value', name, nameTextStyle: { color: c.muted },
