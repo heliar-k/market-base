@@ -54,7 +54,8 @@ async function load() {
         { type: 'value', name: '累计', nameTextStyle: { color: c.muted, align: 'right' }, nameGap: 12, splitLine: { show: false }, axisLabel: { formatter: v => '$' + v + 'B' } },
       ],
       tooltip: { trigger: 'axis' },
-      grid: { left: 50, right: 50, bottom: 20, top: 60, containLabel: true },
+      // right: 50 时 containLabel 为右轴「$400B」标签列多预留 ~78px（左轴只扩 32px），绘图区右缘离卡 128px vs 左 82px；12 补平到 90/82
+      grid: { left: 50, right: 12, bottom: 20, top: 60, containLabel: true },
       legend: { top: 15, data: ['日购买', '累计购买'], textStyle: { color: c.text } },
       series: [
         { name: '日购买', type: 'bar', data: rs.map(p => [p.date, p.accepted_b]), itemStyle: { color: c.green }, barMaxWidth: 8 },

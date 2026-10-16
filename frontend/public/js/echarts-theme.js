@@ -54,6 +54,7 @@ function buildTheme() {
       // 次级标签样式——rich 不继承外层 axisLabel，字号/字体须显式写
       axisLabel: {
         ...axisLabel,
+        hideOverlap: true,  // time 轴窄屏必重叠(周标签撞月标签，768 起)、月标签优先保留，按墨迹实扫定
         rich: { primary: { fontWeight: 'normal', fontSize: 10, fontFamily: mono, color: textSecondary } },
       },
       splitLine: splitLine,
