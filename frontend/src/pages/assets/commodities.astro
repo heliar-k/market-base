@@ -23,7 +23,7 @@ import Section from '../../components/Section.astro';
 <script is:inline>
 // 小节锚点导航（#29：与其余专题页同一写法）
 document.getElementById('page-toc').innerHTML = [
-  ['总览', 'overview'], ['商品走势', 'chart'], ['气候与研判', 'enso'], ['近期数据', 'recent'],
+  ['总览', 'overview'], ['商品走势', 'chart'], ['气候与研报', 'enso'], ['近期数据', 'recent'],
 ].map(([t, id]) => `<a href="#${id}">${t}</a>`).join('');
 
 const LINE_COLORS = ['blue', 'orange', 'green', 'red', 'purple', 'cyan'];
@@ -105,14 +105,15 @@ function renderEnso(e) {
       series: [
         { name: 'ONI（°C）', type: 'bar', data: hist.dates.map((dt, i) => [dt, hist.oni[i]]),
           barMaxWidth: 14,
-          itemStyle: { color: (p) => (p.value[1] >= 0 ? c.red : c.green), opacity: 0.85 },
+          // 红柱 = 暖事件（厄尔尼诺），蓝柱 = 冷事件（拉尼娜），与两条阈值线同色系
+          itemStyle: { color: (p) => (p.value[1] >= 0 ? c.red : c.blue), opacity: 0.85 },
           markLine: {
             symbol: 'none', silent: true,
             data: [
               { yAxis: 0.5, lineStyle: { type: 'dashed', color: c.red },
                 label: { formatter: '+0.5 厄尔尼诺阈值', color: c.orangeText, fontSize: 10 } },
-              { yAxis: -0.5, lineStyle: { type: 'dashed', color: c.green },
-                label: { formatter: '−0.5 拉尼娜阈值', color: c.greenText, fontSize: 10 } },
+              { yAxis: -0.5, lineStyle: { type: 'dashed', color: c.blue },
+                label: { formatter: '−0.5 拉尼娜阈值', color: c.blue, fontSize: 10 } },
             ],
           },
         },
@@ -132,7 +133,7 @@ function renderEnso(e) {
     const status = R.esc(disc.status || '—');
     sec.innerHTML =
       `<h2>NOAA CPC 官方诊断研报</h2>` +
-      `<p class="enso-status">${status} · 发布 ${R.esc(disc.as_of || '—')}` +
+      `<p class="note">${status} · 发布 ${R.esc(disc.as_of || '—')}` +
       (disc.next_release ? ` · 下期 ${R.esc(disc.next_release)}` : '') + `</p>` +
       `<p><strong>${R.esc(disc.headline)}</strong></p>` +
       `<p style="font-size:13px;line-height:1.7">${R.esc(disc.excerpt || '')}${disc.excerpt && disc.excerpt.length >= 900 ? '…' : ''}</p>` +
@@ -164,12 +165,6 @@ async function load() {
   const cardsHost = document.getElementById('cards');
   const energy = d.cards || [];
   const agri = d.agri_cards || [];
-  const toCard = i => ({
-    label: i.name + ' · ' + i.symbol,
-    value: fmt(i.last),
-    sub: `${chg(i.chg_pct)} · ${i.date}`,
-    cls: 're-card-wrap',
-  });
   if (energy.length) renderCards(cardsHost, energy, '能源与金属');
   if (agri.length) renderCards(cardsHost, agri, '软商品与谷物（气候敏感）');
 

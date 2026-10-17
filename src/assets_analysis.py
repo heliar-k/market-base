@@ -49,7 +49,7 @@ ROOT = Path(__file__).resolve().parent.parent
 # LLM 预留：_llm_generate() 接好 LLM 后返回同构 dict，未接入时返回 None
 # → 调用方回落规则引擎（_generate_* 统一入口，参考 liquidity_analysis 模式）
 def _llm_generate(section: str) -> dict | None:
-    """LLM 生成接人点。section ∈ {cross_analysis, equity_analysis, radar}。
+    """LLM 生成接人点。section ∈ {cross_analysis, equity_analysis, radar, enso}。
 
     TODO: 实现后返回 {generator: 'llm', ...}；返回 None 则回落规则引擎。
     """
@@ -906,6 +906,19 @@ def _ls_cols(sym: str) -> tuple[str, str]:
     return f"{sym}_MM_L", f"{sym}_MM_S"
 
 
+def _cot_net_stats(net: pd.Series) -> tuple[float, float, float | None]:
+    """投机净仓序列 → (最新净值, 2 年百分位, 周变动)。
+
+    百分位用 timsun 同款 rank 中点法 (count_less + 0.5)/n × 100（窗口 104 周），
+    positioning 与 enso_block 共用此口径，改定义只改这里。
+    """
+    val = float(net.iloc[-1])
+    s2y = net.tail(104)
+    pct = float(((s2y < val).sum() + 0.5) / len(s2y) * 100)
+    wk = float(net.iloc[-1] - net.iloc[-2]) if len(net) >= 2 else None
+    return val, pct, wk
+
+
 # CFTC 合约元数据（timsun 同款展示：报告名 · 报告 code / 报告类型；
 # code 在 cot.csv 未存，静态保留）
 COT_META = {
@@ -1017,13 +1030,7 @@ def positioning() -> dict:
             s = net[sym].dropna()
             if len(s) < 52:
                 continue
-            net_val = float(s.iloc[-1])
-            # 2 年窗口（104 周）百分位——timsun 同款 rank 中点法 (count_less + 0.5)/n
-            s2y = s.tail(104)
-            pct = float(((s2y < net_val).sum() + 0.5) / len(s2y) * 100)
-            wk = None
-            if len(s) >= 2:
-                wk = float(s.iloc[-1] - s.iloc[-2])
+            net_val, pct, wk = _cot_net_stats(s)
             label = (
                 "极度看多"
                 if pct >= 90
@@ -1424,7 +1431,11 @@ def _enso_phase(oni: float) -> str:
 def _enso_signals(
     oni: float, chg_3m: float | None, mom: dict, cot: dict, cpi_food: dict
 ) -> list[dict]:
-    """三段式规则引擎研判（结论/依据/触发，\n 分行，对齐 R.LINES_CONCLUSION）。"""
+    """三段式规则引擎研判（\n 分三行，对齐 R.LINES_CONCLUSION 结论/依据/触发；
+
+    行内不再带「依据：」「触发：」前缀——格标题由 sigBlocks 按行渲染，
+    与 rates / metals 的三行契约同风格。
+    """
     out = []
     phase = _enso_phase(oni)
     rising = chg_3m is not None and chg_3m > 0
@@ -1432,7 +1443,7 @@ def _enso_signals(
     # 段 1：气候相位与产区传导
     if phase == "ENSO 中性":
         concl = f"ENSO 中性（ONI {oni:+.2f}°C），气候对农产品定价的影响转入产区自身气象主导。"
-        trig = "观察项：ONI 连续两个月 ≥ +0.5°C 或 ≤ −0.5°C，将重新进入事件相位。"
+        trig = "ONI 连续两个月 ≥ +0.5°C 或 ≤ −0.5°C，将重新进入事件相位。"
     elif "厄尔尼诺" in phase:
         state = "建立/强化" if rising else "见顶/消退"
         concl = (
@@ -1441,7 +1452,7 @@ def _enso_signals(
             + "），降水向中东太平洋转移，南亚/澳洲/东南亚偏干、巴西南部偏湿。"
         )
         trig = (
-            "触发观察：ONI 高于 +2.0°C（超强）时产区减产预期最盛；"
+            "ONI 高于 +2.0°C（超强）时产区减产预期最盛；"
             "若 Niño-3.4 距平连续两期回落 ≥0.5°C，视为事件见顶信号。"
         )
     else:
@@ -1450,13 +1461,13 @@ def _enso_signals(
             f"拉尼娜{state}（{phase}，ONI {oni:+.2f}°C），中西部美国/阿根廷偏干、"
             "澳洲北部偏湿，对玉米/大豆单产的威胁大于对软商品。"
         )
-        trig = "触发观察：ONI 回到 −0.5°C 以上并持续，视为事件退出信号。"
+        trig = "ONI 回到 −0.5°C 以上并持续，视为事件退出信号。"
     parts = []
     if mom.get("leaders"):
         parts.append("领涨：" + "、".join(f"{n} {v:+.1f}%" for n, v in mom["leaders"][:2]))
     if mom.get("avg_20d") is not None:
         parts.append(f"6 品种 20D 等权 {mom['avg_20d']:+.2f}%")
-    basis = f"依据：{'；'.join(parts)}。" if parts else "依据：盘面动量数据不足。"
+    basis = f"{'；'.join(parts)}。" if parts else "盘面动量数据不足。"
     out.append(
         {
             "title": "气候相位与产区传导",
@@ -1489,8 +1500,8 @@ def _enso_signals(
         parts.append(f"CFTC 最拥挤：{worst['name']}（2 年分位 {pct:.0f}%）")
     if mom.get("leaders"):
         parts.append("盘面领涨：" + "、".join(f"{n} {v:+.1f}%" for n, v in mom["leaders"][:2]))
-    basis2 = f"依据：{'；'.join(parts)}。" if parts else "依据：COT/盘面数据不足。"
-    trig2 = "触发观察：任一品种分位 ≥85% 后，跌破 20 日均线视为拥挤多头减仓信号。"
+    basis2 = f"{'；'.join(parts)}。" if parts else "COT/盘面数据不足。"
+    trig2 = "任一品种分位 ≥85% 后，跌破 20 日均线视为拥挤多头减仓信号。"
     out.append(
         {
             "title": "盘面定价与持仓拥挤度",
@@ -1503,7 +1514,7 @@ def _enso_signals(
     trend = cpi_food.get("chg_1m")
     if val is None:
         concl3 = "食品 CPI 数据不足，宏观传导暂无法判定。"
-        basis3 = "依据：FRED CPI_FOOD 缺失。"
+        basis3 = "FRED CPI_FOOD 缺失。"
     else:
         dir_txt = (
             "上行" if (trend is not None and trend > 0) else "回落" if trend is not None else ""
@@ -1514,10 +1525,8 @@ def _enso_signals(
             else "上游农产品动量尚未显著外溢至居民食品价格。"
         )
         avg20 = mom.get("avg_20d") or 0
-        basis3 = (
-            f"依据：CPI_FOOD {val}%（{cpi_food.get('as_of', '')}）；农业篮子 20D {avg20:+.2f}%。"
-        )
-    trig3 = "触发观察：食品 CPI 同比连续两月上行且农业篮子 3 个月涨幅 >5%，视为外溢确认。"
+        basis3 = f"CPI_FOOD {val}%（{cpi_food.get('as_of', '')}）；农业篮子 20D {avg20:+.2f}%。"
+    trig3 = "食品 CPI 同比连续两月上行且农业篮子 3 个月涨幅 >5%，视为外溢确认。"
     out.append(
         {
             "title": "宏观通胀外溢",
@@ -1602,10 +1611,9 @@ def enso_block(p: pd.DataFrame) -> dict | None:
         "avg_20d": avg_20d,
         "n": len(moms),
         "leaders": [(name_map.get(k, k), round(v, 1)) for k, v in ranked[:2]],
-        "losers": [(name_map.get(k, k), round(v, 1)) for k, v in ranked[-2:]],
     }
 
-    # COT 农产品拥挤度（6 品种中 |pct−50| 最大者）
+    # COT 农产品拥挤度（6 品种中 |pct−50| 最大者；分位口径单源 _cot_net_stats）
     cot = _csv("cot/cot.csv")
     worst = None
     cot_rows = []
@@ -1617,17 +1625,13 @@ def enso_block(p: pd.DataFrame) -> dict | None:
             net = (cot[lcol] - cot[scol]).dropna()
             if len(net) < 52:
                 continue
-            val = float(net.iloc[-1])
-            s2y = net.tail(104)
-            pct = float(((s2y < val).sum() + 0.5) / len(s2y) * 100)
+            val, pct, wk = _cot_net_stats(net)
             cot_rows.append(
                 {
                     "symbol": s,
                     "net": round(val, 0),
                     "pct_2y": round(pct, 1),
-                    "week_chg": round(float(net.iloc[-1] - net.iloc[-2]), 0)
-                    if len(net) >= 2
-                    else None,
+                    "week_chg": round(wk, 0) if wk is not None else None,
                 }
             )
         if cot_rows:
@@ -1695,14 +1699,20 @@ def enso_block(p: pd.DataFrame) -> dict | None:
         "cpi_food": cpi_food,
     }
     signals = _enso_signals(cur, chg_3m, mom, {"worst": worst}, cpi_food)
+    # LLM 预留：_llm_generate("enso") 返回 dict 时直接替换 signals（同构）
+    llm = _llm_generate("enso")
+    if llm and isinstance(llm.get("signals"), list) and llm["signals"]:
+        signals = llm["signals"]
+        generator = "llm"
+    else:
+        generator = "rules"
     return {
         "as_of": str(oni_s.index[-1].date()),
         "kpis": kpis,
         "signals": signals,
-        "generator": "rules",
+        "generator": generator,
         "history": history,
         "discussion": discussion,
-        "cot_rows": cot_rows,
         "playbook": ENSO_PLAYBOOK,
     }
 

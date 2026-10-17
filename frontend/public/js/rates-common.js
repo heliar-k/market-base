@@ -380,6 +380,7 @@ const R = {
       bg: v('--surface'),
       blue: v('--color-brand'), orange: v('--color-warn'), green: v('--color-up'),
       red: v('--color-down'), gray: v('--color-neutral'), purple: v('--chart-purple'),
+      cyan: v('--chart-cyan'),
       // 文字档（ECharts label / axisLabel / markLine 标注等**图上写字**用这三个）：
       // green/red/orange 是图形档，亮色主题下做文字只有 3.6:1 不达 AA（tokens.css 已注明
       // 「-text 档只给 color: 用」）；对比度回归测试扫不到 JS 对象键，故单源在这里给齐。

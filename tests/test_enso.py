@@ -243,7 +243,7 @@ class TestEnsoBlock:
         self._patch(monkeypatch, tmp_path, cot=cot)
         block = A.enso_block(_prices_df())
         assert block["kpis"]["cot"]["worst"]["symbol"] in ("SB", "KC")
-        assert len(block["cot_rows"]) == 2
+        assert block["kpis"]["cot"]["n"] == 2
 
     def test_history_from_pool(self, monkeypatch, tmp_path):
         m_idx = pd.date_range("2016-01-01", periods=130, freq="ME")
