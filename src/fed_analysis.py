@@ -24,6 +24,7 @@ from typing import Any
 
 import pandas as pd
 
+from src.analysis_utils import read_csv_or_empty
 from src.config import FOMC_MEETINGS, ROOT
 
 STATEMENTS_CSV = ROOT / "data" / "fed" / "statements.csv"
@@ -151,60 +152,28 @@ _DISSENT_SCORE = {
 _ACTION_PHRASES = {w for w, _ in _ACTION_WORDS}
 
 
-# 2026 年 FOMC 投票成员（7 理事 + 5 地区联储主席，federalreserve.gov 官网）
-# speaker_key: 演讲 URL 姓氏，用于关联 stances；地区联储演讲不在 Board 站点，无评分
-# 票委名册每年 1 月更新：更新 FED_OFFICIALS 时同步改 VOTING_YEAR，前端标题随之刷新
-VOTING_YEAR = 2026
+# FOMC 票委名册：读 data/fed/roster.csv（fetchers/fed_fetcher.fetch_roster 抓官网
+# fomc.htm 的「{YYYY} Committee Members」段）。此前写死在这里，2026-10 发现与官网
+# 完全对不上（鲍威尔仍标主席、已离任理事仍在列、地区主席轮值未跟）。
+# 读不到就回退空列表 —— 页面照常出演讲/声明，只是没有名册表（R.fail 空态）。
+ROSTER_CSV = ROOT / "data" / "fed" / "roster.csv"
 
-FED_OFFICIALS: list[dict] = [
-    {"speaker_key": "Powell", "name_zh": "鲍威尔", "role": "美联储主席", "votes": True},
-    {
-        "speaker_key": "Jefferson",
-        "name_zh": "杰斐逊",
-        "role": "美联储副主席",
-        "votes": True,
-    },
-    {
-        "speaker_key": "Barr",
-        "name_zh": "巴尔",
-        "role": "负责监管的副主席",
-        "votes": True,
-    },
-    {"speaker_key": "Bowman", "name_zh": "鲍曼", "role": "理事", "votes": True},
-    {"speaker_key": "Cook", "name_zh": "库克", "role": "理事", "votes": True},
-    {"speaker_key": "Kugler", "name_zh": "库格勒", "role": "理事", "votes": True},
-    {"speaker_key": "Waller", "name_zh": "沃勒", "role": "理事", "votes": True},
-    {
-        "speaker_key": "Williams",
-        "name_zh": "威廉姆斯",
-        "role": "纽约联储主席",
-        "votes": True,
-    },
-    {
-        "speaker_key": "Collins",
-        "name_zh": "柯林斯",
-        "role": "波士顿联储主席",
-        "votes": True,
-    },
-    {
-        "speaker_key": "Musalem",
-        "name_zh": "穆萨莱姆",
-        "role": "圣路易斯联储主席",
-        "votes": True,
-    },
-    {
-        "speaker_key": "Schmid",
-        "name_zh": "施密德",
-        "role": "堪萨斯城联储主席",
-        "votes": True,
-    },
-    {
-        "speaker_key": "Goolsbee",
-        "name_zh": "古尔斯比",
-        "role": "芝加哥联储主席",
-        "votes": True,
-    },
-]
+
+def _roster() -> tuple[list[dict], int]:
+    """返回 (名册行, 年份)。文件缺失/为空 → ([], 当前年)。
+
+    读 CSV 走 analysis_utils.read_csv_or_empty（AGENTS.md 分析层约定：
+    专题分析模块统一用它，不各写各的 exists()+read_csv）。
+    """
+    fallback_year = pd.Timestamp.today().year
+    df = read_csv_or_empty(ROSTER_CSV, index_col=None)  # year 是普通列，不做索引
+    if df.empty or "speaker" not in df.columns:
+        return [], fallback_year
+    year = int(df["year"].iloc[0]) if "year" in df.columns else fallback_year
+    rows = df.to_dict("records")
+    for r in rows:
+        r["votes"] = bool(r.get("votes", True))
+    return rows, year
 
 
 def _score_text(text: str, action_weight: float = 1.0) -> tuple[float, list[str]]:
@@ -399,12 +368,13 @@ def fed_analysis(n_sample: int = 20) -> dict:
 
     # ── FOMC 投票成员一览：官方名单 × 演讲评分（无演讲的成员显示中性/暂无）──
     by_speaker = {s["speaker"]: s for s in stances}
+    officials, voting_year = _roster()
     roster = []
-    for o in FED_OFFICIALS:
-        stance = by_speaker.get(o["speaker_key"])
+    for o in officials:
+        stance = by_speaker.get(o["speaker"])
         roster.append(
             {
-                "speaker": o["speaker_key"],
+                "speaker": o["speaker"],
                 "name_zh": o["name_zh"],
                 "role": o["role"],
                 "votes": o["votes"],
@@ -443,8 +413,12 @@ def fed_analysis(n_sample: int = 20) -> dict:
         "speeches": speeches,
         "stances": stances,
         "roster": roster,
+        # 整列同值时前端不渲染「投票权」列（AGENTS.md：表内整列同值的列删掉、上提到副标）。
+        # 保留字段与判断在数据层：名册每年 1 月更新，出现非票委（地区联储主席轮值换人）时
+        # votes_all 自动变 False，列自动回来，不用改前端。
+        "votes_all": all(o["votes"] for o in officials) if officials else True,
         "timeline": timeline,
-        "voting_year": VOTING_YEAR,
+        "voting_year": voting_year,
     }
 
 

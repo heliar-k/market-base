@@ -6,6 +6,7 @@ _release_dates 的混时区串），都用注入的 checks 跑，不碰真实 da
 """
 
 from datetime import date, datetime, time, timezone
+from pathlib import Path
 
 import pandas as pd
 
@@ -258,3 +259,48 @@ def test_last_row_not_today_skipped(tmp_path, monkeypatch):
     )
     monkeypatch.setattr(fr, "_cross_etfs_moved", lambda now: True)
     assert fr.us_indices_placeholder_msg(tmp_path, _NOW) is None
+
+
+# ── 票委名册跨年断言（roster.csv 只有 year 列，日期预算套不上）──────────────
+
+
+def _roster_csv(root: Path, year: int) -> None:
+    (root / "data" / "fed").mkdir(parents=True, exist_ok=True)
+    pd.DataFrame(
+        [{"year": year, "speaker": "Warsh", "name_zh": "沃什", "role": "美联储主席", "votes": True}]
+    ).to_csv(root / "data" / "fed" / "roster.csv", index=False)
+
+
+def test_roster_year_ok_when_current(tmp_path):
+    _roster_csv(tmp_path, 2026)
+    assert fr.roster_year_msg(tmp_path, date(2026, 10, 17)) is None
+
+
+def test_roster_year_stale_across_year(tmp_path):
+    """跨年没换人 → 报红：页面会把去年的人当现任票委展示。"""
+    _roster_csv(tmp_path, 2026)
+    msg = fr.roster_year_msg(tmp_path, date(2027, 2, 15))
+    assert msg and "2026" in msg and "2027" in msg
+
+
+def test_roster_year_january_grace(tmp_path):
+    """1 月整月豁免：换人发生在 1 月首次会议（通常下旬），月初报红是误报。"""
+    _roster_csv(tmp_path, 2026)
+    assert fr.roster_year_msg(tmp_path, date(2027, 1, 10)) is None
+    # 2 月起不再豁免
+    assert fr.roster_year_msg(tmp_path, date(2027, 2, 1)) is not None
+
+
+def test_roster_missing_file_reports(tmp_path):
+    """文件缺失 → 报错。roster.csv 不进 CHECKS（year 会被当日期解），
+    这里必须自己承担 MISSING 判定，否则名册静默消失无人知。"""
+    msg = fr.roster_year_msg(tmp_path, date(2026, 6, 1))
+    assert msg and "缺失" in msg
+
+
+def test_roster_malformed_csv_reports(tmp_path):
+    """CSV 坏掉 → 报错（不抛异常，收尾断言本身不该炸）。"""
+    (tmp_path / "data" / "fed").mkdir(parents=True, exist_ok=True)
+    (tmp_path / "data" / "fed" / "roster.csv").write_text("not,a,valid\ncsv")
+    msg = fr.roster_year_msg(tmp_path, date(2026, 6, 1))
+    assert msg and "解析" in msg or "异常" in (msg or "")

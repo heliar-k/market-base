@@ -165,3 +165,116 @@ class TestFetchItems:
         ).to_csv(st, index=False)
         ff._backfill(st, {"kind": ("title", ff._statement_kind)})
         assert pd.read_csv(st, dtype=str).iloc[0]["kind"] == "minutes"
+
+
+# ── 票委名册抓取（fetch_roster）─────────────────────────────────────────────
+# 这一段是 review 补的：原改动只有手工验证，没有单测锁住解析与告警。
+
+import logging  # noqa: E402
+
+import pytest  # noqa: E402
+
+import src.fetchers.fed_fetcher as ff  # noqa: E402
+
+
+def _fomc_page(
+    voters: list[tuple[str, str, str]], alternates: list[tuple[str, str]], *, anchor: bool = True
+) -> str:
+    """拼一份最小 fomc.htm 文本（走 _TAG_RE 之前的 HTML，含 <br />）。"""
+    v = "".join(f"<br />{n}, {p}{', ' + t if t else ''}" for n, p, t in voters)
+    a = "".join(f"<br />{n}, {p}" for n, p in alternates)
+    rot = "Federal Reserve Bank Rotation on the FOMC" if anchor else "SOMETHING_ELSE"
+    # 每个 <div> 之间留换行：真实页面 strip 标签后靠 \n 分隔行，
+    # 不留换行会让最后一行候补与下一段粘连、解析不出（fixture 踩过这个坑）。
+    return (
+        f"<div>2026 Committee Members{v}\n</div>"
+        f"<div>Alternate Members{a}\n</div>"
+        f"<div>{rot} 2027 New York Chicago</div>"
+    )
+
+
+VOTERS_12 = [
+    ("Kevin Warsh", "Board of Governors", "Chairman"),
+    ("John C. Williams", "New York", "Vice Chair"),
+    ("Michael S. Barr", "Board of Governors", ""),
+    ("Michelle W. Bowman", "Board of Governors", ""),
+    ("Lisa D. Cook", "Board of Governors", ""),
+    ("Beth M. Hammack", "Cleveland", ""),
+    ("Philip N. Jefferson", "Board of Governors", ""),
+    ("Neel Kashkari", "Minneapolis", ""),
+    ("Lorie K. Logan", "Dallas", ""),
+    ("Anna Paulson", "Philadelphia", ""),
+    ("Jerome H. Powell", "Board of Governors", ""),
+    ("Christopher J. Waller", "Board of Governors", ""),
+]
+ALTS = [("Thomas I. Barkin", "Richmond"), ("Mary C. Daly", "San Francisco")]
+
+
+def _patch(monkeypatch, tmp_path, page: str):
+    monkeypatch.setattr(ff, "_get", lambda url: page)
+    monkeypatch.setattr(ff, "ROSTER_CSV", tmp_path / "roster.csv")
+    monkeypatch.setattr(ff, "OUT_DIR", tmp_path)
+
+
+class TestFetchRoster:
+    def test_parses_voters_and_alternates(self, tmp_path, monkeypatch):
+        """12 票委 + 候补：votes 有真实区分，中文名与城市名都对。"""
+        _patch(monkeypatch, tmp_path, _fomc_page(VOTERS_12, ALTS))
+        assert ff.fetch_roster() == (14, 0)
+
+        import pandas as pd
+
+        df = pd.read_csv(tmp_path / "roster.csv")
+        assert len(df) == 14
+        assert df["votes"].sum() == 12  # 候补 votes=False
+        chair = df[df["role"] == "美联储主席"].iloc[0]
+        assert chair["speaker"] == "Warsh" and chair["name_zh"] == "沃什"
+        # 姓氏取最后一个词（"John C. Williams" → Williams）
+        assert "Williams" in set(df["speaker"])
+        # 城市翻译
+        assert "克利夫兰联储主席" in set(df["role"])
+
+    def test_vacancy_11_does_not_raise(self, tmp_path, monkeypatch):
+        """理事空缺期官网只列 11 人 → 必须照常写入，不能每天炸掉 fetch_fed。"""
+        _patch(monkeypatch, tmp_path, _fomc_page(VOTERS_12[:6] + VOTERS_12[7:], ALTS))
+        assert ff.fetch_roster() == (13, 0)
+
+    def test_too_few_voters_raises_and_keeps_old_file(self, tmp_path, monkeypatch):
+        """解析退化（<10）→ 抛错且不覆盖旧文件。"""
+        csv = tmp_path / "roster.csv"
+        csv.write_text("sentinel")
+        _patch(monkeypatch, tmp_path, _fomc_page(VOTERS_12[:4], ALTS))
+        with pytest.raises(RuntimeError, match="合理区间"):
+            ff.fetch_roster()
+        assert csv.read_text() == "sentinel"
+
+    def test_duplicate_surnames_raises(self, tmp_path, monkeypatch):
+        """解析错位导致重名 → 抛错（防止把轮值表误抓成票委）。"""
+        dup = VOTERS_12[:11] + [("Anna Paulson", "Dallas", "")]
+        _patch(monkeypatch, tmp_path, _fomc_page(dup, ALTS))
+        with pytest.raises(RuntimeError, match="重复姓氏"):
+            ff.fetch_roster()
+
+    def test_missing_chairman_raises(self, tmp_path, monkeypatch):
+        """Chairman 标记丢了 → 抛错（否则主席会退化成普通理事）。"""
+        no_chair = [("Kevin Warsh", "Board of Governors", "")] + VOTERS_12[1:]
+        _patch(monkeypatch, tmp_path, _fomc_page(no_chair, ALTS))
+        with pytest.raises(RuntimeError, match="美联储主席"):
+            ff.fetch_roster()
+
+    def test_missing_rotation_anchor_falls_back(self, tmp_path, monkeypatch, caplog):
+        """段末锚点缺失 → 退固定窗口 + 打 warning，仍能正确解析。
+
+        锁住 `alt_end < 0` 这个判断：写成 `not alt_end` 时 -1 是 truthy，
+        warning 永远不响（这个 bug 真实发生过一次）。
+        """
+        _patch(monkeypatch, tmp_path, _fomc_page(VOTERS_12, ALTS, anchor=False))
+        with caplog.at_level(logging.WARNING, logger="src.fetchers.fed_fetcher"):
+            assert ff.fetch_roster() == (14, 0)
+        assert any("Rotation" in r.getMessage() for r in caplog.records)
+
+    def test_missing_members_section_raises(self, tmp_path, monkeypatch):
+        """整个「YYYY Committee Members」段都没了 → 抛错。"""
+        _patch(monkeypatch, tmp_path, "<div>totally different page</div>")
+        with pytest.raises(RuntimeError, match="Committee Members"):
+            ff.fetch_roster()

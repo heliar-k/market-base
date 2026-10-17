@@ -151,15 +151,53 @@ class TestFedAnalysis:
         assert len(out["timeline"]) == 3
         assert out["indicator"]["sample"] == 3
 
-    def test_roster_lists_all_voting_members(self, fake_fed_data):
-        """官方 12 人名单全在，无演讲的成员标中性/暂无。"""
+    def test_roster_lists_all_voting_members(self, fake_fed_data, tmp_path, monkeypatch):
+        """名册从 data/fed/roster.csv 读（不再硬编码）：12 人全在，无演讲的成员标中性/暂无。
+
+        用 tmp_path 伪造名册 —— 真实 roster.csv 每年 1 月随官网换人，
+        写死具体人名会让测试在换人当天红掉（2026-10 就发生过：Goolsbee 已不在名册）。
+        """
+        import src.fed_analysis as fa
+
+        roster_csv = tmp_path / "roster.csv"
+        pd.DataFrame(
+            [
+                {
+                    "year": 2026,
+                    "speaker": "Waller",
+                    "name_zh": "沃勒",
+                    "role": "理事",
+                    "votes": True,
+                },
+                {"year": 2026, "speaker": "Cook", "name_zh": "库克", "role": "理事", "votes": True},
+                {
+                    "year": 2026,
+                    "speaker": "Goolsbee",
+                    "name_zh": "古尔斯比",
+                    "role": "芝加哥联储主席",
+                    "votes": True,
+                },
+            ]
+        ).to_csv(roster_csv, index=False)
+        monkeypatch.setattr(fa, "ROSTER_CSV", roster_csv)
+
         out = fed_analysis()
-        assert len(out["roster"]) == 12
+        assert len(out["roster"]) == 3
+        assert out["voting_year"] == 2026
         assert all(r["votes"] for r in out["roster"])
         waller = next(r for r in out["roster"] if r["speaker"] == "Waller")
         assert waller["score"] > 0 and waller["date"] == "20260713"
         goolsbee = next(r for r in out["roster"] if r["speaker"] == "Goolsbee")
         assert goolsbee["date"] is None and goolsbee["label"] == "中性"
+
+    def test_roster_missing_file_degrades_gracefully(self, fake_fed_data, tmp_path, monkeypatch):
+        """名册文件缺失 → 空名册，其余段落照常（页面出空态，不整页 500）。"""
+        import src.fed_analysis as fa
+
+        monkeypatch.setattr(fa, "ROSTER_CSV", tmp_path / "nope.csv")
+        out = fed_analysis()
+        assert out["roster"] == []
+        assert out["statements"]  # 其余段落不受影响
 
     def test_missing_data_returns_error(self, tmp_path, monkeypatch):
         import src.fed_analysis as fa

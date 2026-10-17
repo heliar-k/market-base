@@ -35,3 +35,32 @@
  * 实际渲染值长期是 500；内联已删，上限按实际渲染值定，桌面逐像素不变。
  * 斜率 67vh → 视口高 ≥ ~750px 时等于 500（与 #20 的「≥750 等于原值」口径一致）。 */
 .fed-chart-tall { width: 100%; height: clamp(340px, 67vh, 500px); }
+
+/* FOMC 投票成员表（fed/index.astro 的 .fed-roster-tbl）：窄屏只砍「评分」一列。
+ * 倾向已是评分的档位版（stance_label 单调映射），宽屏两列都给便于看强度，窄屏只留可读的档位。
+ * 投票权列不在这里处理 —— 它整列同值时根本不由前端渲染（后端 votes_all 标志，见 fed_analysis.py），
+ * 否则哪天出现非票委，这里隐藏的第 3 列会错位到别列。
+ * 砍完 390 起零横滚；320 仍差 26px（职位「负责监管的副主席」8 字砍不动），
+ * 交给 .re-table-wrap 横滚兜底 —— 不压字号，宁可划一下。481+ 全列。 */
+@media (max-width: 480px) {
+  .fed-roster-tbl :is(th, td):nth-last-child(2) { display: none; }
+}
+/* 投票权列的窄屏压缩不在这里做：它按 nth-child 定位会在 votes_all=true
+ * （该列不渲染）时错位到「倾向」。文案已在 JS 端按 matchMedia 切成 ✓/候，
+ * 列宽自然跟着收，无需 CSS。 */
+
+/* 宽/窄两套文案按断点切换（fed/index.astro 的 dual()）：
+ * 两套都渲染进 DOM，靠 CSS 显隐 —— 比 matchMedia 求值一次好在窗口缩放/手机旋转
+ * 即时生效，不用整页刷新。断点与上面 .fed-roster-tbl 的 480 一致。
+ * 仅用于单元格内容（th 不行：两套文案都会计入 auto 布局的 min-content）。 */
+.re-narrow-only { display: none; }
+@media (max-width: 480px) {
+  .re-wide-only { display: none; }
+  .re-narrow-only { display: inline; }
+  /* 表头「投票权」→「票」：th 是纯文本，用伪元素换，不影响 min-content 的写法做不到
+   * （伪元素也参与布局），所以直接把字号收一档 + 用 font-size:0 + 伪元素恢复。 */
+  .fed-roster-tbl th:nth-last-child(4) { font-size: 0; }
+  .fed-roster-tbl th:nth-last-child(4)::after { content: '票'; font-size: 11px; }
+}
+.fed-vote-accent { color: var(--accent-ink); }
+.fed-vote-dim { color: var(--text-dim); }

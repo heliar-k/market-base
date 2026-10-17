@@ -160,29 +160,76 @@ function renderHawkish(root, data) {
   const doveN = roster.filter(r => r.score < 0).length;
   const midN = roster.length - hawkN - doveN;
   const hdColor = (v) => v > 0 ? 'var(--color-hawk-text)' : v < 0 ? 'var(--color-dove-text)' : 'var(--flat)';
-  s1.innerHTML = `<h2>${data.voting_year} 年 FOMC 投票成员立场分布
-    <span style="font-weight:400;font-size:12px;color:var(--text-dim)">${hawkN} 鹰 · ${doveN} 鸽 · ${midN} 中性（红 = 鹰，绿 = 鸽，灰 = 无近期演讲）</span></h2>`;
+  // 整列同值的列不渲染（AGENTS.md：删列 + 上提到副标）。votes_all 由后端按当年名册算，
+  // 出现非票委（地区联储主席轮值换人）时列自动回来，前端不用改。
+  const showVotes = !data.votes_all;
+  // 窄屏文案压缩：投票权「投票/候补」→「✓/候」、日期 MM/DD → M/D。
+  // 两套文案都渲染，由 CSS 按断点切换（.re-wide-only / .re-narrow-only）——
+  // 不用 matchMedia 求值一次的快照：那样窗口缩放/手机旋转后文案会停在旧状态，
+  // 直到整页刷新（review 指出的真 bug）。
+  // 只能在 formatter 里产出（R.table 的 html=true 只对 formatter 返回值不转义，
+  // 行对象里的原始值走默认格式化器会被 R.esc，标签变字面文本）。
+  const dual = (wide, narrowTxt) =>
+    `<span class="re-wide-only">${R.esc(wide)}</span><span class="re-narrow-only">${R.esc(narrowTxt)}</span>`;
+  // 名册含候补（votes=False，今年不投票）。票委/候补都在表里，靠「投票权」列区分；
+  // 全员都是票委的年份（votes_all=true）该列整列同值 → 不渲染，标题也不写人数。
+  const nVoters = roster.filter(r => r.votes).length;
+  const nAlt = roster.length - nVoters;
+  s1.innerHTML = `<h2>${data.voting_year} 年 FOMC 成员立场分布
+    <span style="font-weight:400;font-size:12px;color:var(--text-dim)">${
+      nAlt > 0 ? `${nVoters} 票委 + ${nAlt} 候补 · ` : ''
+    }${hawkN} 鹰 · ${doveN} 鸽 · ${midN} 中性（红 = 鹰，绿 = 鸽，灰 = 无近期演讲）</span></h2>`;
   wrap.appendChild(s1);
-  const sorted = [...roster].sort((a, b) => b.score - a.score);
-  s1.appendChild(R.table(
-    ['姓名', '职位', '投票权', '倾向', '评分', '最近发言'],
-    sorted.map(r => ({
-      name: r.name_zh,
-      role: r.role,
-      votes: r.votes ? '投票' : '—',
-      label: r.label,
-      score: r.score > 0 ? `+${r.score}` : String(r.score),
-      date: r.date || '暂无近期发言',
-    })),
+  // 排序：先票委后候补（有票的才是决策者），组内按鹰鸽分数降序
+  const sorted = [...roster].sort((a, b) => (b.votes - a.votes) || (b.score - a.score));
+  // 窄屏再砍一列（≤480 由 CSS 隐藏「评分」）：倾向已是评分的档位版（stance_label 单调映射），
+  // 宽屏两个都给便于看强度，窄屏只留可读的档位。砍完 390 起零横滚；
+  // 320 仍差 26px（职位「负责监管的副主席」8 字砍不动），交给 .re-table-wrap 横滚兜底。
+  // 日期只显示 MM/DD（8 位裸数字占 53px），无演讲的成员统一 —（标题已说明「灰 = 无近期演讲」），
+  // 不再占 53px 的「暂无近期发言」。
+  const rowObj = (r) => ({
+    name: r.name_zh,
+    role: r.role,
+    ...(showVotes ? { votes: r.votes ? '投票' : '候补' } : {}),
+    label: r.label,
+    score: r.score > 0 ? `+${r.score}` : String(r.score),
+    date: r.date,
+  });
+  // 表头走纯文本 + CSS 伪元素切换（th 里塞 span 会让 auto 布局把两套文案都算进 min-content）
+  const headers = ['姓名', '职位', ...(showVotes ? ['投票权'] : []), '倾向', '评分', '最近发言'];
+  const rosterTable = R.table(
+    headers,
+    sorted.map(rowObj),
     {
+      // 显式 formatter 自己负责转义（AGENTS.md：R.table 只给默认格式化器转义）。
+      // v 目前来自后端固定枚举（鹰派/偏鹰/中性/偏鸽/鸽派），仍按规矩转义。
       label: (v) => {
         const cls = /鹰/.test(v) ? 'hawk' : (/鸽/.test(v) ? 'dove' : 'mid');
-        return `<span class="fed-badge ${cls}">${v}</span>`;
+        return `<span class="fed-badge ${cls}">${R.esc(v)}</span>`;
       },
       score: (v) => `<span style="color:${hdColor(Number(v))};font-weight:700">${v}</span>`,
-      votes: (v) => v === '投票' ? `<span style="color:var(--accent-ink)">投票</span>` : v,
+      // 窄屏单字符（投票 → ✓ / 候补 → 候）靠 CSS 切换；宽屏全称
+      votes: (v) => {
+        const cls = v === '投票' ? 'accent' : 'dim';
+        return `<span class="fed-vote fed-vote-${cls}">${dual(v, v === '投票' ? '✓' : '候')}</span>`;
+      },
+      // 日期：宽屏 MM/DD，窄屏 M/D（10/01 → 10/1，再省 ~6px 让 390 零横滚）
+      date: (v) => {
+        if (!v || !/^\d{8}$/.test(v)) return v || '—';
+        return dual(`${v.slice(4, 6)}/${v.slice(6, 8)}`,
+                    `${Number(v.slice(4, 6))}/${Number(v.slice(6, 8))}`);
+      },
     },
-    null, true));
+    null, true);
+  rosterTable.querySelector('table').classList.add('fed-roster-tbl');
+  s1.appendChild(rosterTable);
+  // 口径注（AGENTS.md：段内口径沉到卡片底部 R.secNote，不作首段正文）。
+  // 必须写：9 位地区联储主席的演讲发在各自联储站点，本站只抓 federalreserve.gov，
+  // 所以他们恒为「中性 / —」——不说清会被读成「这些人立场居中」，是缺数据不是中性。
+  s1.appendChild(R.secNote(
+    '口径：理事会成员的演讲抓自 federalreserve.gov；地区联储主席的演讲发布在各自联储站点，'
+    + '本站未覆盖 —— 他们显示的中性 / — 是缺数据，不代表立场居中。'
+  ));
 
   // ── 时间线：声明（红方块）+ 演讲（蓝点）散点 ──
   const s2 = document.createElement('div');

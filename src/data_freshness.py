@@ -12,9 +12,10 @@
 （= 源固有滞后 + 周末/发布抖动余量），超线即失败。阈值宁可漏报不误报——
 目标是抓住「静默冻结一周以上」，不是抓当天晚几小时。
 
-日期预算之外另有一条**值维断言**（us_indices_placeholder_msg）：asset_prices 这类
+日期预算之外另有两条**值维断言**：us_indices_placeholder_msg（asset_prices 这类
 「拉取日为 key」的快照可能日期新鲜、值是复制（2026-10-13 占位行事故），
-在收盘确认窗用交叉 ETF 作证单独拦。
+在收盘确认窗用交叉 ETF 作证单独拦）与 roster_year_msg（票委名册只有 year 列，
+跨年不换 = fetch_roster 停了，页面会把去年的人当现任票委展示）。
 
 不覆盖：逐标的价格文件（单只失败已由步骤级 FAILED_LIST 标红）、财报/SEC 原文
 （季度节奏）、内部人 Form 4（逐标的 irregular）、GEX/options 网格（本地 IBKR）。
@@ -246,6 +247,36 @@ def _cross_etfs_moved(now: datetime) -> bool | None:
         return None
 
 
+def roster_year_msg(root: Path, today: date) -> str | None:
+    """FOMC 票委名册缺失/跨年未更新检测。
+
+    roster.csv 只有 year 列没有观测日，日期预算套不上，所以它**不进 CHECKS**
+    （进了会让 _last_csv_date 把 year 当日期解成 2026-01-01，永远落后 0 天、
+    反而把问题掩盖掉）。这里一并承担 MISSING 的判定：文件缺失/空/缺 year 列
+    都报错 —— 名册是页面核心内容，静默消失比跨年不换更难发现。
+    票委名册每年 1 月第一个例行会议换人（官网 fomc.htm 同步改），跨年不换意味着
+    fetch_roster 停了或解析退化 —— 名册会静默沿用去年的人，页面把已离任的人
+    当现任票委展示。容忍到 1 月底：换人发生在 1 月首次会议（通常下旬），月初报红是误报。
+    """
+    path = root / "data/fed/roster.csv"
+    if not path.exists():
+        return "票委名册文件缺失 —— fetch_roster 未运行或写盘失败，页面无名册表"
+    try:
+        df = pd.read_csv(path)
+    except Exception:
+        return "票委名册 CSV 无法解析 —— 文件损坏，需重跑 fetch_roster"
+    if df.empty or "year" not in df.columns:
+        return "票委名册为空或缺 year 列 —— fetch_roster 写入异常"
+    year = int(df["year"].iloc[0])
+    # 1 月整月豁免：换人后 fetch 还没跑 / 官网尚未改版都属正常
+    if year >= today.year or (today.month == 1 and year == today.year - 1):
+        return None
+    return (
+        f"票委名册停在 {year} 年（今年 {today.year}）——"
+        "fetch_roster 可能失败或 fomc.htm 结构变了，页面仍在展示去年的人"
+    )
+
+
 def us_indices_placeholder_msg(root: Path, now_utc: datetime) -> str | None:
     """美股指数占位行检测；返回失败文案，窗口外/数据不可判 → None 放行。
 
@@ -286,6 +317,9 @@ def main() -> int:
     msg = us_indices_placeholder_msg(Path(ROOT), now_utc)
     if msg:  # 值维断言：日期新鲜但值是复制（占位行固化）
         rows.append(("STALE", "data/yfinance/asset_prices.csv", None, msg, 0))
+    rmsg = roster_year_msg(Path(ROOT), now_utc.date())
+    if rmsg:  # 值维断言：roster 只有 year 列，日期预算套不上
+        rows.append(("STALE", "data/fed/roster.csv", None, rmsg, 0))
     bad = [r for r in rows if r[0] != "ok"]
     print(f"数据时效（UTC {now_utc.date()}，{len(rows)} 项）")
     for status, path, age, note, budget in rows:

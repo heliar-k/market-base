@@ -186,6 +186,11 @@ body.embedded .re-foot { display: none; } /* 内嵌 iframe 不重复页脚 */
 /* 表格节奏(Tabler):行 hover 透明叠加;末行去底线(卡片自带边框) */
 .re-table tbody tr:hover td { background: var(--hover-tint); }
 .re-table tr:last-child td { border-bottom: none; }
+/* 文字列同样禁止折行（与上面 th 同一条理由，此前只给了 th）：CJK 的 min-content 是单字宽，
+ * 窄屏列竞争时名称列会被压到 34-54px 逐字竖折（fed 职位 / geo 主题 / volatility 名称）。
+ * 数字列已由 R.table 挂 .num 且天然短，不必管；只排除 .num 与显式声明过白名单的类。
+ * 代价：min-content 变宽，窄屏横向滚动多几十 px（表宽本来就在 .re-table-wrap 里滚）。 */
+.re-table td:not(.num):not(.wrap) { white-space: nowrap; }
 .re-table td { padding: 7px var(--re-cell-pad-x); border-bottom: 1px solid var(--border-light); color: var(--text); font-variant-numeric: tabular-nums; }
 /* 表格内涨跌着色：.re-table td 的 color 会覆盖全局 .up/.down（特异性 0,1,1 > 0,1,0），此处提升 */
 .re-table td.up { color: var(--color-up-text); }
@@ -585,10 +590,18 @@ a.re-badge:hover { color: var(--accent-ink); border-color: var(--accent-ink); }
 .vol-hero-card { border: 1px solid var(--border); border-radius: 10px; background: var(--surface); padding: 16px 20px; }
 .vol-hero-card .vh-label { font-size: 11px; font-weight: 600; letter-spacing: .05em; color: var(--accent-ink); margin-bottom: 6px; }
 .vol-hero-card .vh-value { font-size: clamp(22px, 20.5px + 0.5vw, 30px); font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1.1; }
-.vol-hero-card .vh-chg { display: inline-block; margin-top: 6px; font-size: 12px; font-weight: 600; padding: 1px 8px; border-radius: 999px; }
+.vol-hero-card .vh-chg { display: inline-block; margin-top: 6px; font-size: 12px; font-weight: 600; padding: 1px 8px; border-radius: 999px; white-space: nowrap; }
 .vol-hero-card .vh-chg.up { color: var(--color-up-text); background: var(--color-up-bg); }
 .vol-hero-card .vh-chg.down { color: var(--color-down-text); background: var(--color-down-bg); }
 .vol-hero-card .vh-chg.flat { color: var(--color-neutral-text); background: var(--color-neutral-bg); }
+/* 窄屏固定双栏：四卡在 320-768 全宽下都排成 2×2。
+ * 不用 auto-fit 缩 min：minmax(140px) 在 ~516-640px 会挤成 3 列，第 4 张落单（孤列）；
+ * 320 视口内容宽 256 → 单卡 122px，标题折两行、数值 22px 仍放得下（实测 92px 需求 / 92px 可用）。
+ * 必须排在 .vol-hero-card 基础规则之后：同特异性下靠源序覆盖内距。 */
+@media (max-width: 768px) {
+  .vol-hero { grid-template-columns: repeat(2, 1fr); }
+  .vol-hero-card { padding: 12px 14px; }
+}
 .vol-verdict { font-size: 14px; line-height: 1.7; color: var(--text); background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 12px 16px; margin-bottom: 14px; }
 .vol-verdict b { color: var(--accent-ink); }
 
@@ -623,6 +636,13 @@ a.re-badge:hover { color: var(--accent-ink); border-color: var(--accent-ink); }
 .vol-stat .st-value.down { color: var(--color-down-text); }
 
 .vol-heat { display: grid; grid-template-columns: repeat(auto-fill, minmax(132px, 1fr)); gap: 8px; }
+/* ≤360 降一档最小轨道：132×2+8=272 是双列下限，而 320 视口内容宽只有 260
+ * （re-root 16×2 + 卡面 14×2），差 12px 就塌成单列 30 张卡（实测 2824px 高）。
+ * 118 在 320 下给 124px 轨道，两列 1439px，零截字（ht-name 本来就有 ellipsis 兵底）。
+ * 361+ 已经够双列，不动；基础值 132 也不能动 —— 它决定宽屏列数（1440 下 132→8 列，118→9 列）。 */
+@media (max-width: 360px) {
+  .vol-heat { grid-template-columns: repeat(auto-fill, minmax(min(100%, 118px), 1fr)); }
+}
 .vol-heat-cell { border-radius: 8px; padding: 8px 10px; display: flex; flex-direction: column; gap: 2px; }
 .vol-heat-cell .ht-sym { font-size: 11px; font-weight: 700; color: var(--text); }
 .vol-heat-cell .ht-name { font-size: 10px; color: var(--text-secondary); opacity: .85; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }

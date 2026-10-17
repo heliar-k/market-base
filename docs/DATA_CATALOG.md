@@ -737,6 +737,16 @@ API 响应 `generator` 字段标记 `rules` / `llm`，前端无感。
 - `data/fed/statements.csv` — `id, date, kind, title, url, body`，kind ∈
   statement / minutes / sep / discount / other，声明自 2020 年起
 - `data/fed/speeches.csv` — `id, date, speaker, title, url, body`，近 2 个自然年
+- `data/fed/roster.csv` — `year, speaker, name_zh, role, votes`，抓自 `fomc.htm`
+  （官网即当前事实，**覆盖写**不增量）。两段一起抓：
+  - 「{YYYY} Committee Members」= 票委（`votes=True`，满编 12：7 理事 + 纽约 + 4 轮值；
+    理事席位空缺时官网只列 11，故校验用 10–12 区间而非硬编码 12）
+  - 「Alternate Members」= 候补（`votes=False`，通常 3–5 人，其中「First Vice President」
+    这类临时代表不在城市表里会自然跳过）
+  此前名册硬编码在 `fed_analysis.FED_OFFICIALS`，2026-10 发现与官网完全对不上
+  （鲍威尔仍标主席、已离任理事仍在列、地区主席轮值未跟），改为抓取。
+  解析不全（票委 <10 或重名或缺主席标记）→ 抛错中止写盘，保留上一份好数据。
+  名册含候补 → `votes_all` 恒 False，「投票权」列常驻；仅当某年全员都是票委时该列才隐藏。
 - 增量：按 URL 去重，本地已有则跳过（列表页每年 1 请求，正文页首次全量后不再抓）
 
 ### API 端点
