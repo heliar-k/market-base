@@ -85,10 +85,10 @@ async function load() {
   const f1 = v => (v >= 0 ? '+' : '') + v.toFixed(1) + 'B';
   const heat = heatDays.map(r => `
     <tr>
-      <td style="white-space:nowrap">${r.date} <span style="color:var(--text-dim)">${r.weekday}</span></td>
-      <td style="white-space:nowrap;color:var(--text-secondary);font-size:12px">${(r.flows || []).map(f => `${f.label} ${f.amount_b >= 0 ? '+' : ''}${f.amount_b.toFixed(1)}B`).join(' · ') || '—'}</td>
-      <td style="text-align:right;white-space:nowrap;color:${bucketTextColors[r.bucket]};font-weight:600">${(r.flows || []).length ? f1(r.net_b) : '—'}</td>
-      <td style="text-align:right;white-space:nowrap"><span style="padding:2px 8px;border-radius:999px;font-size:11px;border:1px solid color-mix(in srgb, ${bucketColors[r.bucket]} 40%, transparent);color:${bucketTextColors[r.bucket]}">${BUCKET_LABEL[r.bucket] || r.bucket}</span></td>
+      <td>${r.date} <span style="color:var(--text-dim)">${r.weekday}</span></td>
+      <td style="color:var(--text-secondary);font-size:12px">${(r.flows || []).map(f => `${f.label} ${f.amount_b >= 0 ? '+' : ''}${f.amount_b.toFixed(1)}B`).join(' · ') || '—'}</td>
+      <td style="text-align:right;color:${bucketTextColors[r.bucket]};font-weight:600">${(r.flows || []).length ? f1(r.net_b) : '—'}</td>
+      <td style="text-align:right"><span style="padding:2px 8px;border-radius:999px;font-size:11px;border:1px solid color-mix(in srgb, ${bucketColors[r.bucket]} 40%, transparent);color:${bucketTextColors[r.bucket]}">${BUCKET_LABEL[r.bucket] || r.bucket}</span></td>
     </tr>`).join('');
   document.getElementById('re-heat').innerHTML = `
     <div class="re-section">

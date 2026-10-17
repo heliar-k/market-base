@@ -762,6 +762,19 @@ body.dark .pm-topic-card { box-shadow: inset 0 0 0 1px rgba(255,255,255,.04); }
 .pm-prob-num { flex: 0 0 46px; text-align: right; }
 .pm-ev-link { color: inherit; text-decoration: none; }
 .pm-ev-link:hover { color: var(--accent-ink); }
+/* 事件标题截断：限制写在链接上不是 td 上 —— auto 表格布局里 td 的 max-width
+   不生效（按内容定宽），nowrap 曾把整列撑到最长标题宽（窄屏横滚主因）。 */
+.pm-ev-clip { display: inline-block; vertical-align: bottom; max-width: 380px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* 单事件表列宽：概率列给进度条+数字（170px），7日/到期短内容；窄屏放开按内容分（定宽
+   总和 342px 在 360 视口内容区 240px 下必然横滚，概率条会压短但 tooltip 有完整数字） */
+.pm-single th:nth-child(3) { width: 170px; }
+.pm-single th:nth-child(4) { width: 76px; }
+.pm-single th:nth-child(5) { width: 96px; }
+@media (max-width: 768px) {
+  .pm-ev-clip { max-width: 100%; white-space: normal; }
+  .pm-single th { width: auto; }
+  .pm-prob-cell { min-width: 0; }
+}
 /* 解读/口径长文：默认折叠成一行，保持首屏密度（ crypto 衍生品/期权页） */
 .re-fold { margin: 10px 0 0; }
 .re-fold > summary { cursor: pointer; font-size: 12px; color: var(--text-dim); user-select: none; }
@@ -1067,6 +1080,14 @@ body.dark .pm-topic-card { box-shadow: inset 0 0 0 1px rgba(255,255,255,.04); }
 #dashboard .re-table th:nth-child(n+2):nth-child(-n+6) { width: 13%; }
 /* 末列标题「20D USD压力」11 字，13% 在 960px 下会拆成两行（截图看过）→ 给 15% */
 #dashboard .re-table th:nth-child(7) { width: 15%; }
+
+/* 窄屏单栏（≤768）：fixed+640 是六组表跨列成线用的，单栏改 auto 随容器收缩；
+   品种列代码均 6-7 字符、数值列格式一致，auto 各组列宽仍近乎成线。360px 视口
+   7 列数值内容（~350px）塞不下，残余少量滚动属真实密度，不再强推 640px。 */
+@media (max-width: 768px) {
+  #dashboard .re-table { table-layout: auto; min-width: 0; }
+  #dashboard .re-table th { width: auto; }
+}
 
 /* ── daily 页（今日研判，原页面内联 <style> 收编；db- 前缀为本页私有）── */
 /* 头条区三卡（B 方案定稿）：卡片只提供结构不提供墨水；三卡对称对 + 平板背景卡铺满 */

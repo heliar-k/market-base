@@ -151,13 +151,13 @@ async function load() {
     }
     if (single.length) {
       single.sort((a, b) => b.markets[0].prob - a.markets[0].prob);
-      det.insertAdjacentHTML('beforeend', `<div class="re-table-wrap" style="margin-top:10px"><table class="re-table">
-        <thead><tr><th>事件（英文源）</th><th>归类</th><th style="width:170px">概率</th><th style="width:76px">7日</th><th style="width:96px">到期</th></tr></thead>
+      det.insertAdjacentHTML('beforeend', `<div class="re-table-wrap" style="margin-top:10px"><table class="re-table pm-single">
+        <thead><tr><th>事件（英文源）</th><th>归类</th><th>概率</th><th>7日</th><th>到期</th></tr></thead>
         <tbody>${single.map(e => {
           const m = e.markets[0];
           return `<tr title="${esc(m.question)}">
-            <td style="max-width:380px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"><a class="pm-ev-link" href="https://polymarket.com/event/${esc(e.slug)}" target="_blank">${esc(e.title)}</a></td>
-            <td style="color:var(--text-secondary);white-space:nowrap">${esc(m.cluster)}</td>
+            <td><a class="pm-ev-link pm-ev-clip" href="https://polymarket.com/event/${esc(e.slug)}" target="_blank">${esc(e.title)}</a></td>
+            <td style="color:var(--text-secondary)">${esc(m.cluster)}</td>
             <td><div class="pm-prob-cell"><div class="pm-odds-track"><div class="pm-odds-fill" style="width:${(m.prob * 100).toFixed(1)}%"></div></div><span class="pm-prob-num">${fmtPct(m.prob)}</span></div></td>
             <td>${fmtChg(m.chg7d)}</td>
             <td style="color:var(--text-dim)">${str10(e.end_date)}</td>
