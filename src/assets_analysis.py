@@ -277,18 +277,37 @@ def _corr_series() -> dict | None:
 
 
 def _corr_alerts() -> list[dict]:
-    """跨资产结构报警。
+    """跨资产结构报警（迟滞判定，动机同 consensus._band）。
 
     topics = 该报警涉及的首页专题键（home-lines 的 key，如 assets/rates/credit/vol）：
-    仪表盘「今日一句话」靠它给对应行标主次，前端不自己扫文案关键词。
-    两条都是相关性结构报警，归属「大类资产」行（cross_asset 叙事用的就是同一对序列）。
+    「今日一句话」靠它给对应行标主次，前端不自己扫文案关键词。
+
+    迟滞：30 日相关系数在阈值附近天然抖动（实测 SPX_TLT 近 60 日穿越 0.3 达 4 次，
+    最贴的一天 0.2999），头条报警闪灭会连带「今日一句话」冷热分层一起变。
+    规则：|相关系数| ≥ TRIGGER 触发；已触发时降到 ≥ RELEASE 才解除 —— 中间带
+    维持前一日状态（前一日无记录按未触发算，宁漏报不误报）。
     """
     a = _read("cross_asset/alerts.csv")
     if a.empty:
         return []
     row = a.iloc[-1]
+    prev = a.iloc[-2] if len(a) >= 2 else None
     out = []
-    if pd.notna(row.get("SPX_TLT_30d")) and abs(float(row["SPX_TLT_30d"])) >= 0.3:
+
+    def _hysteresis(col: str, *, trigger: float = 0.30, release: float = 0.26) -> bool:
+        """迟滞开关：中间带（release ≤ |v| < trigger）维持前一日状态。"""
+        v = row.get(col)
+        if pd.isna(v):
+            return False
+        v = abs(float(v))
+        if v >= trigger:
+            return True
+        if v >= release:
+            was = prev.get(col) if prev is not None else None
+            return bool(not pd.isna(was) and abs(float(was)) >= trigger)
+        return False
+
+    if _hysteresis("SPX_TLT_30d"):
         out.append(
             {
                 "title": "股债正相关 — 60/40 组合失效警告"
@@ -299,7 +318,7 @@ def _corr_alerts() -> list[dict]:
                 "topics": ["assets", "rates"],
             }
         )
-    if pd.notna(row.get("WTI_SPX_30d")) and float(row["WTI_SPX_30d"]) <= -0.3:
+    if _hysteresis("WTI_SPX_30d") and float(row["WTI_SPX_30d"]) <= 0:
         out.append(
             {
                 "title": "原油-美股强负相关 — 市场交易滞胀",
@@ -309,7 +328,7 @@ def _corr_alerts() -> list[dict]:
                 "topics": ["assets", "inflation"],
             }
         )
-    if pd.notna(row.get("DXY_HYG_30d")) and float(row["DXY_HYG_30d"]) <= -0.3:
+    if _hysteresis("DXY_HYG_30d") and float(row["DXY_HYG_30d"]) <= 0:
         out.append(
             {
                 "title": "美元-信用负相关 — 金融条件同步收紧",
@@ -320,7 +339,7 @@ def _corr_alerts() -> list[dict]:
                 "topics": ["credit", "assets"],
             }
         )
-    if pd.notna(row.get("MOVE_SPX_30d")) and abs(float(row["MOVE_SPX_30d"])) >= 0.3:
+    if _hysteresis("MOVE_SPX_30d"):
         mv = float(row["MOVE_SPX_30d"])
         out.append(
             {

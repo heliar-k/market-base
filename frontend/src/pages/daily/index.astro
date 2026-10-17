@@ -216,37 +216,45 @@ async function load() {
     }
   } catch (e) { R.fail(['db-sc-market', 'db-sc-macro'], e); }
 
-  // ── 市场背景卡：FOMC 下次 + 市场隐含 + 衰退概率，kv 行（一项一个数）──
-  // 定稿只放事实锚点；数据截至在页头 re-as-of（AGENS 单源），卡内不重复底注
+  // ── 市场背景卡：FOMC 下次 + 市场隐含 + 衰退概率 + 地缘榜首 ──
+  // R.kvRows 单源（一项一个数）：来源/衍生注挂名称后，读数贴行右端一条纵线；
+  // 卡片铺到全宽时 .re-kv-grid 自动并多列，不会把名称与数值拉开几百像素
   try {
     const box = document.getElementById('db-bg-body');
-    const rows = [];
+    const items = [];
     const nx = R.nextMeeting(d.fomc);
     if (nx) {
       // 静态 JSON 冻结了构建期日历：按打开页面时间重选下一场（R.nextMeeting 单源）；天数口径 end_day + ceil
       const days = Math.ceil((new Date(nx.year, nx.month - 1, nx.end_day) - new Date()) / 86400000);
       const next = `${nx.year}-${String(nx.month).padStart(2, '0')}-${String(nx.end_day).padStart(2, '0')}`;
-      rows.push(`<div class="db-bg-row"><span class="db-bg-k">FOMC 下次</span><span class="db-bg-v">${next}<em>${days > 0 ? `${days} 天后` : '进行中'}</em></span></div>`);
+      items.push({ label: 'FOMC 下次', note: days > 0 ? `${days} 天后` : '进行中', value: next });
     }
     // 市场隐含（rex 缺失只降级本行，不阻断其它行）
     if (rex?.meetings?.length) {
       const m = rex.meetings[0];
       const p = Math.max(m.prob_cut, m.prob_hold, m.prob_hike);
       const k = p === m.prob_cut ? '降息' : p === m.prob_hike ? '加息' : '按兵不动';
-      rows.push(`<div class="db-bg-row"><span class="db-bg-k">市场隐含</span><span class="db-bg-v">${k} ${(p * 100).toFixed(0)}%<em>ZQ 期货</em></span></div>`);
+      items.push({ label: '市场隐含', note: 'ZQ 期货', value: `${k} ${(p * 100).toFixed(0)}%` });
     }
     const pm = d.polymarket?.recession;
     if (pm?.prob != null) {
       const pct = (pm.prob * 100).toFixed(1).replace(/\.0$/, '');
       const y = (pm.end_date || '').slice(0, 4);
-      rows.push(`<div class="db-bg-row"><span class="db-bg-k">衰退 ${y}</span><span class="db-bg-v" title="${R.esc(pm.title)}（Polymarket ${R.esc(d.polymarket.as_of || '')}）">${pct}%<em>Polymarket</em></span></div>`);
+      items.push({
+        label: `衰退 ${y}`, note: 'Polymarket',
+        value: `<span title="${R.esc(pm.title)}（Polymarket ${R.esc(d.polymarket.as_of || '')}）">${pct}%</span>`,
+      });
     }
     const g0 = d.polymarket?.geo_hot?.[0];
     if (g0?.volume24hr) {
       const vol = g0.volume24hr >= 1e6 ? '$' + (g0.volume24hr / 1e6).toFixed(2) + 'M' : '$' + (g0.volume24hr / 1e3).toFixed(0) + 'K';
-      rows.push(`<div class="db-bg-row"><span class="db-bg-k">地缘 24h 榜首</span><a class="db-bg-v db-bg-link" href="/geo/" title="${R.esc(g0.title)}（点击进入地缘与政治风险专题）">${vol}<em>Polymarket ↗</em></a></div>`);
+      items.push({
+        label: '地缘 24h 榜首', note: 'Polymarket',
+        value: `<a class="db-bg-link" href="/geo/" title="${R.esc(g0.title)}（点击进入地缘与政治风险专题）">${vol} ↗</a>`,
+      });
     }
-    box.innerHTML = rows.join('') || '<span class="db-hero-na">暂无背景数据</span>';
+    if (items.length) box.replaceChildren(R.kvRows(items));
+    else box.innerHTML = '<span class="db-hero-na">暂无背景数据</span>';
   } catch (e) { R.fail(['db-bg-body'], e); }
 
   // ── 情景与报警卡（全宽）：主导情景一行（空态降次色）+ 报警两行式（正文放出 + 专题链）──

@@ -6,6 +6,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
+import src.assets_analysis as assets_analysis
 from src.assets_analysis import (
     _btcd_block,
     _chg,
@@ -869,3 +870,62 @@ def test_ndx_radar_skips_trailing_empty_row(monkeypatch, tmp_path):
     assert r["rows"] == 10  # 修复前：末行全 NaN → has=[] → rows=0
     assert r["date"] == str(idx[-2].date())
     assert r["table"][0]["chg1"] == round((169.0 / 168.0 - 1) * 100, 2)  # 末两有效值 169→168
+
+
+def _alerts_frame(rows: list[dict]) -> pd.DataFrame:
+    """alerts.csv 测试帧（date + 四对相关性列）。"""
+    base = {"SPX_TLT_30d": None, "WTI_SPX_30d": None, "DXY_HYG_30d": None, "MOVE_SPX_30d": None}
+    return pd.DataFrame([{**base, **r} for r in rows])
+
+
+def _patch_alerts(monkeypatch, frame: pd.DataFrame) -> None:
+    monkeypatch.setattr("src.assets_analysis._read", lambda _p, **_kw: frame)
+
+
+class TestCorrAlertsHysteresis:
+    """结构报警迟滞：0.26–0.30 中间带维持前一日状态，防头条报警闪灭（回归 #daily-hysteresis）。"""
+
+    def test_edge_band_holds_previous_state(self, monkeypatch):
+        # 今日 0.2999（卡噪声带）+ 前日 0.3186（已触发）→ 维持报警（修复前：消失）
+        f = _alerts_frame(
+            [
+                {"date": "2026-10-14", "SPX_TLT_30d": 0.3186},
+                {"date": "2026-10-15", "SPX_TLT_30d": 0.2999},
+            ]
+        )
+        _patch_alerts(monkeypatch, f)
+        titles = [a["title"] for a in assets_analysis._corr_alerts()]
+        assert any("60/40" in t for t in titles)
+
+    def test_edge_band_no_previous_stays_off(self, monkeypatch):
+        # 今日 0.2999 + 无前日记录 → 不报（宁漏报不误报）
+        f = _alerts_frame([{"date": "2026-10-15", "SPX_TLT_30d": 0.2999}])
+        _patch_alerts(monkeypatch, f)
+        assert assets_analysis._corr_alerts() == []
+
+    def test_release_below_band(self, monkeypatch):
+        # 前日触发，今日回落到 0.20（< release）→ 解除
+        f = _alerts_frame(
+            [
+                {"date": "2026-10-14", "SPX_TLT_30d": 0.35},
+                {"date": "2026-10-15", "SPX_TLT_30d": 0.20},
+            ]
+        )
+        _patch_alerts(monkeypatch, f)
+        assert assets_analysis._corr_alerts() == []
+
+    def test_direction_follows_current_sign(self, monkeypatch):
+        # 中间带粘持的是「是否报警」，方向文案仍由当日符号决定：正 → 失效警告
+        f = _alerts_frame(
+            [
+                {"date": "2026-10-14", "SPX_TLT_30d": -0.35},
+                {"date": "2026-10-15", "SPX_TLT_30d": 0.2999},
+            ]
+        )
+        _patch_alerts(monkeypatch, f)
+        titles = [a["title"] for a in assets_analysis._corr_alerts()]
+        assert any("正相关" in t and "失效" in t for t in titles)
+
+    def test_real_data_runs(self):
+        # 真数据烟囱：不抛异常即可（阈值边缘由上面单测覆盖）
+        assert isinstance(assets_analysis._corr_alerts(), list)

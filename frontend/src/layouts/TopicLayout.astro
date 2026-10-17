@@ -179,7 +179,11 @@ window.__reTheme = (function () {
 
   /* 品牌名由 <div> 换成 <a>（回站根唯一入口）：补掉 inline 元素撑不满整行的宽度差，
      去浏览器默认链接下划线/色 —— 观感与改前完全一致，只是可点了。 */
-  .macro-nav-brand-name { display: block; color: var(--text); text-decoration: none; }
+  .macro-nav-brand-name {
+  display: block; color: var(--text); text-decoration: none;
+  /* 触控目标 ≥24px（WCAG 2.2）：padding 撑高命中区 + 负 margin 抵消，墨迹不动 */
+  padding: 4px 0; margin: -4px 0;
+}
   .macro-nav-brand-name:hover { color: var(--accent-ink); }
 
   /* 子页返回上层：页头面包屑（构建期算命中组，组入口页与 404 / 今日研判不渲染）。

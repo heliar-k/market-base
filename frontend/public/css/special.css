@@ -95,7 +95,11 @@ body.dark :is(.re-section, .re-panel) { box-shadow: inset 0 0 0 1px rgba(255,255
 .re-foot-note { font-size: 11.5px; line-height: 1.7; color: var(--text-dim); }
 /* 本页行在 JS 填上之前（或加载失败）为空 —— 不占 gap 的位，页脚不留洞 */
 .re-foot-page:empty { display: none; }
-.re-foot-legal a { color: var(--accent-ink); text-decoration: none; margin-left: 10px; }
+.re-foot-legal a {
+  color: var(--accent-ink); text-decoration: none; margin-left: 10px;
+  /* 触控目标 ≥24px：padding 撑高命中区 + 负 margin 抵消，不改行盒 */
+  padding: 6px 0; margin: -6px 0 -6px 10px;
+}
 .re-foot-legal a:hover { text-decoration: underline; text-underline-offset: 2px; }
 body.embedded .re-foot { display: none; } /* 内嵌 iframe 不重复页脚 */
 /* 空态（R.mkChart 统一注入）：铺满图表容器居中，与 .re-error 同族但中性色（不是错，是没数据） */
@@ -1126,23 +1130,10 @@ body.dark .pm-topic-card { box-shadow: inset 0 0 0 1px rgba(255,255,255,.04); }
 .db-hv-member--absent { opacity: .45; }
 .db-hv-member--absent i { color: var(--text-dim); }
 .db-alert-card { margin-bottom: 2px; }
+/* 背景锚点卡：FOMC/隐含/衰退/地缘（一项一个数），行形状单源 = R.kvRows 产的 .re-kv-grid
+   （来源注挂名称后、读数贴右端一条纵线；铺到全宽时自动并多列，列间分隔线 .kv-cont 自带） */
 .db-hero-na { font-size: 13px; color: var(--text-secondary); }
-/* 背景锚点卡：FOMC/隐含/衰退/地缘 kv 行（一项一个数）；数据截至在页头 re-as-of，卡内不重复
-   行走 auto-fit 网格而不是单列 flex：卡片被铺到全宽（768–1227 区间，见下方媒体查询）时，
-   space-between 会把名称与数值拉开 700px，正是 AGENTS 「一项一个数」段不写宽键值表的原因 */
-.db-bg-body {
-  display: grid; gap: 0 28px;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr));
-}
-.db-bg-row {
-  display: flex; justify-content: space-between; align-items: baseline; gap: 8px;
-  padding: 7px 0; border-bottom: 1px solid var(--border-light); font-size: 12.5px;
-}
-.db-bg-row:last-child { border-bottom: none; }
-.db-bg-k { color: var(--text-secondary); }
-.db-bg-v { font-weight: 600; color: var(--text); font-variant-numeric: tabular-nums; text-align: right; }
-.db-bg-v em { font-style: normal; font-weight: 400; font-size: 11px; color: var(--text-dim); margin-left: 4px; }
-.db-bg-link { text-decoration: none; padding: 5px 0; margin: -5px 0; }
+.db-bg-link { color: var(--text); text-decoration: none; padding: 5px 0; margin: -5px 0; }
 .db-bg-link:hover { color: var(--accent-ink); }
 /* 情景与报警（全宽卡）：情景结论一行（空态降次色），报警两行式（标题 + 正文放出 + 专题链） */
 .db-al-scen { font-size: 13.5px; font-weight: 600; color: var(--text); }
