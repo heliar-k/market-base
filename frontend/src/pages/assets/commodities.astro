@@ -1,7 +1,9 @@
 ---
 // 大宗商品页 — 工单 #17 自 public/assets/commodities.html 迁入。
-// 贵金属拆至 /assets/metals 后本页专注商品期货全景：商品卡 + 归一化走势 + 20 日表；
-// 段序：价 → 势 → 明细。GLD/SLV 持仓与 WGC 资金流已迁出，页头留指引。
+// 贵金属拆至 /assets/metals 后本页专注商品期货全景：商品卡 + 归一化走势 + 20 日表
+// + 气候周期与厄尔尼诺研判（ENSO 专题：KPI 卡 + 三段研判 + 10 年 ONI×DBA 同框图
+// + NOAA 官方诊断卡 + 跨资产传导速查表）。
+// 段序：价 → 势 → 气候（#enso，数据缺失段级隐藏）→ 明细。
 // fetch('/api/assets/commodities') 单源。
 import TopicLayout from '../../layouts/TopicLayout.astro';
 import Section from '../../components/Section.astro';
@@ -12,43 +14,179 @@ import Section from '../../components/Section.astro';
     <div id="cards"></div>
   </Section>
   <Section id="chart" title="商品走势" sub="归一化 % · 近 2 年" />
+  <Section id="enso" title="气候周期与厄尔尼诺研判（ENSO）" sub="NOAA CPC ONI 指数 · 月度诊断讨论 · CFTC 农产品持仓">
+    <div id="enso-body"></div>
+  </Section>
   <Section id="recent" title="近期数据" sub="收盘价 · 最近 20 个交易日" />
   <div class="re-foot-page" slot="foot" id="re-foot"></div>
 
 <script is:inline>
 // 小节锚点导航（#29：与其余专题页同一写法）
 document.getElementById('page-toc').innerHTML = [
-  ['总览', 'overview'], ['商品走势', 'chart'], ['近期数据', 'recent'],
+  ['总览', 'overview'], ['商品走势', 'chart'], ['气候与研报', 'enso'], ['近期数据', 'recent'],
 ].map(([t, id]) => `<a href="#${id}">${t}</a>`).join('');
 
-async function load() {
-  const d = await R.get('/api/assets/commodities');
-  document.getElementById('cards').replaceChildren(R.cards((d.cards || []).map(i => ({
+const LINE_COLORS = ['blue', 'orange', 'green', 'red', 'purple', 'cyan'];
+
+function renderCards(host, rows, heading) {
+  const h = document.createElement('h3');
+  h.textContent = heading;
+  h.style.cssText = 'margin:4px 0 8px;font-size:13px;color:var(--text-secondary)';
+  host.appendChild(h);
+  host.appendChild(R.cards(rows.map(i => ({
     label: i.name + ' · ' + i.symbol,
     value: fmt(i.last),
     sub: `${chg(i.chg_pct)} · ${i.date}`,
     cls: 're-card-wrap',
   })), 're-cards-2col'));
+}
 
-  // 归一化走势（2 年；NG 缺测日为 null，线段断口即真缺数据）
-  const n = d.normalized || { dates: [], series: {} };
+function renderNormalizedChart(id, n, title) {
+  const sec = R.secCard();
+  sec.innerHTML = `<h2>${R.esc(title)}</h2><div class="chart" id="${id}"></div>`;
+  document.getElementById('chart').querySelector('.re-duo').appendChild(sec);
   const keys = Object.keys(n.series);
-  const csec = document.createElement('div');
-  csec.className = 're-section';
-  csec.innerHTML = '<div class="chart" id="com-chart"></div>';
-  document.getElementById('chart').appendChild(csec);
-  R.mkChart('com-chart', colors => R.lineOption({
+  R.mkChart(id, (c) => R.lineOption({
     tooltip: { trigger: 'axis' },
-    legend: { data: keys, top: 0 },
-    // 不写 grid：回落 lineOption 单源默认（top 36 / left 8 / right 16 / bottom 24），
-    // 与全站折线图同值；窄屏高度档由 special.css ≤768 .chart 规则接管
+    legend: { data: keys },
+    // 不写 grid：回落 lineOption 单源默认；窄屏高度档由 special.css ≤768 .chart 规则接管
     xAxis: { type: 'time', boundaryGap: false },  // 2 年跨度（>1 年），不写 formatter
     yAxis: { type: 'value' },
     series: keys.map((k, i) => ({
       name: k, type: 'line', data: n.dates.map((dt, i2) => [dt, n.series[k][i2]]), showSymbol: false, smooth: true,
-      lineStyle: { width: 2, color: [colors.blue, colors.orange, colors.green, colors.red, colors.purple][i % 5] },
+      lineStyle: { width: 2, color: c[LINE_COLORS[i % LINE_COLORS.length]] },
     })),
-  }, colors));
+  }, c));
+}
+
+// ── ENSO 专题段 ──────────────────────────────────────────────────────────
+function renderEnso(e) {
+  const body = document.getElementById('enso-body');
+
+  // 1. 顶部 4 张 KPI 卡
+  const k = e.kpis || {};
+  const oni = k.oni || {};
+  const oniDir = oni.chg_3m == null ? '' : ` · 3M ${oni.chg_3m > 0 ? '+' : ''}${oni.chg_3m}°C`;
+  const mom = k.momentum || {};
+  const lead = (mom.leaders || [])[0];
+  const cot = (k.cot || {}).worst;
+  const food = k.cpi_food || {};
+  const foodChg = food.chg_1m == null ? '' : `（${food.chg_1m > 0 ? '+' : ''}${food.chg_1m}pp）`;
+  body.appendChild(R.cards([
+    { label: `ENSO 相位 · ${oni.label || '—'}`, value: oni.phase || '—',
+      sub: `ONI ${oni.oni != null ? (oni.oni > 0 ? '+' : '') + oni.oni : '—'}°C${oniDir}`, accent: oni.phase && oni.phase !== 'ENSO 中性' },
+    { label: '农产品 20D 动量', value: mom.avg_20d != null ? `${mom.avg_20d > 0 ? '+' : ''}${mom.avg_20d}%` : '—',
+      sub: lead ? `领涨 ${lead[0]} ${lead[1] > 0 ? '+' : ''}${lead[1]}%` : '数据不足' },
+    { label: 'CFTC 最拥挤', value: cot ? cot.name : '—',
+      sub: cot ? `2 年分位 ${cot.pct_2y}%` : '数据不足' },
+    { label: '食品 CPI 同比', value: food.value != null ? `${food.value}%` : '—',
+      sub: food.value != null ? `较上月 ${foodChg.replace(/[（）]/g, '')}` : '数据不足' },
+  ]));
+
+  // 2. 三段式研判（结论/依据/触发）
+  (e.signals || []).forEach(s => {
+    body.insertAdjacentHTML('beforeend', R.judgeCard(s.title, s.text, R.LINES_CONCLUSION));
+  });
+
+  // 3. 10 年 ONI × DBA 历史同框图（左轴 ONI 柱，右轴 DBA 收盘线）
+  const hist = e.history;
+  if (hist && hist.dates && hist.dates.length) {
+    const sec = R.secCard();
+    sec.innerHTML = '<h2>近 10 年 ONI × 农业 ETF（DBA）</h2><div class="chart" id="enso-chart"></div>';
+    body.appendChild(sec);
+    R.mkChart('enso-chart', (c) => R.lineOption({
+      legend: { data: ['ONI（°C）', 'DBA（$）'] },
+      tooltip: { trigger: 'axis' },
+      xAxis: { type: 'time', boundaryGap: false },  // 10 年跨度，年级标签交给主题
+      yAxis: [
+        { type: 'value', name: 'ONI', splitLine: { show: false } },
+        { type: 'value', name: 'DBA', splitLine: { show: false } },
+      ],
+      series: [
+        { name: 'ONI（°C）', type: 'bar', data: hist.dates.map((dt, i) => [dt, hist.oni[i]]),
+          barMaxWidth: 14,
+          // 红柱 = 暖事件（厄尔尼诺），蓝柱 = 冷事件（拉尼娜），与两条阈值线同色系
+          itemStyle: { color: (p) => (p.value[1] >= 0 ? c.red : c.blue), opacity: 0.85 },
+          markLine: {
+            symbol: 'none', silent: true,
+            data: [
+              { yAxis: 0.5, lineStyle: { type: 'dashed', color: c.red },
+                label: { formatter: '+0.5 厄尔尼诺阈值', color: c.orangeText, fontSize: 10 } },
+              { yAxis: -0.5, lineStyle: { type: 'dashed', color: c.blue },
+                label: { formatter: '−0.5 拉尼娜阈值', color: c.blue, fontSize: 10 } },
+            ],
+          },
+        },
+        { name: 'DBA（$）', type: 'line', yAxisIndex: 1,
+          data: hist.dates.map((dt, i) => [dt, hist.dba[i]]), showSymbol: false, smooth: true,
+          lineStyle: { width: 2, color: c.blue } },
+      ],
+    }, c));
+    const note = R.secNote('ONI 口径：NOAA CPC Niño-3.4 区 3 个月滑动海温距平（°C），连续 5 期 ≥ +0.5°C 确立厄尔尼诺、≤ −0.5°C 确立拉尼娜；DBA 为 Invesco 农业期货一篮子 ETF 月末收盘价。');
+    sec.appendChild(note);
+  }
+
+  // 4. NOAA CPC 官方月度诊断研报卡
+  const disc = e.discussion;
+  if (disc && disc.headline) {
+    const sec = R.secCard();
+    const status = R.esc(disc.status || '—');
+    sec.innerHTML =
+      `<h2>NOAA CPC 官方诊断研报</h2>` +
+      `<p class="note">${status} · 发布 ${R.esc(disc.as_of || '—')}` +
+      (disc.next_release ? ` · 下期 ${R.esc(disc.next_release)}` : '') + `</p>` +
+      `<p><strong>${R.esc(disc.headline)}</strong></p>` +
+      `<p style="font-size:13px;line-height:1.7">${R.esc(disc.excerpt || '')}${disc.excerpt && disc.excerpt.length >= 900 ? '…' : ''}</p>` +
+      (disc.url ? `<p style="margin:0"><a href="${R.esc(disc.url)}" target="_blank" rel="noopener">官方原文 ↗</a>（NOAA CPC ENSO Diagnostic Discussion，月度）</p>` : '');
+    sec.appendChild(R.secNote('状态徽章读法：Advisory = 事件已确立（El Niño / La Niña）；Watch = 条件接近、预计近期形成；Not Active = 无事件。研报为英文官方原文，本站只转载不翻译。'));
+    body.appendChild(sec);
+  }
+
+  // 5. 跨资产传导速查表
+  if (e.playbook && e.playbook.length) {
+    const sec = R.secCard();
+    sec.innerHTML = '<h2>厄尔尼诺跨资产传导速查表</h2>';
+    sec.appendChild(R.table(
+      ['产区与气象特征', '核心冲击期货', '传导机制与时滞', '映射 ETF / 美股'],
+      e.playbook.map(r => ({ 区域: r[0], 期货: r[1], 机制: r[2], 映射: r[3] })),
+      {},
+      ['区域', '期货', '机制', '映射'],
+      true,
+    ));
+    sec.appendChild(R.secNote('传导路径为经典气象学统计规律，单个事件的表现强弱与滞后并不对称；速查表用于定位叙事，不构成点位预测。'));
+    body.appendChild(sec);
+  }
+}
+
+async function load() {
+  const d = await R.get('/api/assets/commodities');
+
+  // 价格总览：能源与金属 + 软商品与谷物两组
+  const cardsHost = document.getElementById('cards');
+  const energy = d.cards || [];
+  const agri = d.agri_cards || [];
+  if (energy.length) renderCards(cardsHost, energy, '能源与金属');
+  if (agri.length) renderCards(cardsHost, agri, '软商品与谷物（气候敏感）');
+
+  // 归一化走势（2 年；NG 缺测日为 null，线段断口即真缺数据）—— 双图并排 .re-duo
+  const chartSec = document.getElementById('chart');
+  const duo = document.createElement('div');
+  duo.className = 're-duo';
+  chartSec.appendChild(duo);
+  const n = d.normalized || { dates: [], series: {} };
+  const an = d.agri_normalized || { dates: [], series: {} };
+  if (Object.keys(n.series).length) renderNormalizedChart('com-chart', n, '能源与金属（近 2 年归一化 %）');
+  if (Object.keys(an.series).length) renderNormalizedChart('agri-chart', an, '软商品与谷物（近 2 年归一化 %）');
+
+  // ENSO 专题（后端数据缺失时整段隐藏 + 摘除锚点）
+  if (d.enso) {
+    renderEnso(d.enso);
+  } else {
+    const sec = document.getElementById('enso');
+    if (sec) sec.remove();
+    const toc = document.getElementById('page-toc');
+    if (toc) toc.innerHTML = toc.innerHTML.replace(/<a href="#enso">[^<]*<\/a>/, '');
+  }
 
   // 20 日表
   const rc = d.recent || { dates: [], series: {} };
@@ -57,24 +195,27 @@ async function load() {
     keys2(rc).forEach(k => { row[k] = rc.series[k][i]; });
     return row;
   });
-  const rsec = document.createElement('div');
-  rsec.className = 're-section';
+  const rsec = R.secCard();
   const fmts = { 日期: v => v };
   keys2(rc).forEach(k => { fmts[k] = v => fmt(v); });
   rsec.appendChild(R.table(['日期'].concat(keys2(rc)), rows, fmts));
   document.getElementById('recent').appendChild(rsec);
 
-  // 时效行（商品价）
+  // 时效行（商品价 + ENSO）
   const segs = [];
-  if (d.cards && d.cards.length) segs.push(['期货价', d.cards[0].date]);
+  if (energy.length) segs.push(['期货价', energy[0].date]);
+  if (d.enso && d.enso.as_of) segs.push(['ENSO', d.enso.as_of]);
   R.setAsOf(segs);
 
-  R.foot(null, { src: 'yfinance 日频快照', note: '归一化起点 = 2 年前首交易日收盘 · 跨资产价格总表见「大类资产」页 · 油价地缘风险定价见「地缘与政治风险」页 · 黄金/白银持仓与资金流见「贵金属」页' });
+  R.foot(d.enso && d.enso.generator ? d.enso.generator : null, {
+    src: 'yfinance 日频快照 · NOAA CPC（ONI 指数与月度诊断讨论）· CFTC COT 周报 · FRED（食品 CPI）',
+    note: '归一化起点 = 2 年前首交易日收盘 · 跨资产价格总表见「大类资产」页 · 油价地缘风险定价见「地缘与政治风险」页 · 黄金/白银持仓与资金流见「贵金属」页',
+  });
 }
 function keys2(rc) { return Object.keys(rc.series || {}); }
 const fmt = (v) => R.num(v, 4);
 const chg = R.chgSpan;
 
-load().catch(e => R.fail(['cards', 'chart', 'recent'], e));
+load().catch(e => R.fail(['cards', 'chart', 'enso-body', 'recent'], e));
 </script>
 </TopicLayout>

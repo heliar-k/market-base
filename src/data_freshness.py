@@ -99,6 +99,7 @@ CHECKS: list[Check] = [
     _c("data/sce/sce.csv", 72, "NY Fed SCE 月频（发布 T+38，波峰 67+余量）"),
     _c("data/barchart/volatility_snapshot.csv", 8, "Barchart 波动率 30 指数"),
     _c("data/cot/cot.csv", 16, "CFTC COT 周频"),
+    _c("data/macro/enso.csv", 80, "NOAA ONI 指数（月频，JAS 期 9 月初发布，波峰 77+余量）"),
     _c("data/commodities/etf_holdings.csv", D, "贵金属 ETF 持仓（GLD/SLV 官方日度）"),
     _c("data/wgc/etf_flows.csv", 50, "WGC 区域 ETF 流入（月频，月初 +1 周内更新，发布偶有延迟）"),
     _c("data/wgc/wgc_holdings.csv", 50, "WGC 全球黄金 ETF 总持仓（月频，同上）"),

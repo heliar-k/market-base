@@ -21,7 +21,7 @@ document.getElementById('page-toc').innerHTML = [
   ['仓位总览', 'overview'], ['分组合约', 'groups'],
 ].map(([t, id]) => `<a href="#${id}">${t}</a>`).join('');
 
-const GNAMES = { index_vol: '股指 / 波动率', rates: '利率 / 美债', fx: '外汇', commodities: '商品' };
+const GNAMES = { index_vol: '股指 / 波动率', rates: '利率 / 美债', fx: '外汇', commodities: '商品', ag_softs: '农产品 / 软商品（气候敏感）' };
 const charts = [];
 
 function badgeClass(label) {
@@ -98,6 +98,7 @@ const TIPS = {
   rates: '美债仓位看市场在押注收益率下行，还是继续押注收益率上行。',
   fx: '外汇仓位看美元与非美货币哪边更挤。',
   commodities: '商品仓位看再通胀交易是否拥挤，以及趋势资金有没有追随。',
+  ag_softs: '农产品与软商品仓位看天气升水（Weather Premium）是否已被投机资金买满；极端多头下若产区降雨改善，极易引发踩踏式回吐。',
 };
 
 function contractCard(c) {

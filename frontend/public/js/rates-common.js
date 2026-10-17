@@ -238,7 +238,7 @@ const R = {
     // FRED / 官方宏观（披露）
     声明: 'disc', 演讲: 'disc', 初请: 'disc', 盈亏平衡: 'disc', 央行互换: 'disc',
     TIC: 'disc', 拍卖: 'disc', COT: 'disc', 'COT 报告': 'disc',
-    '利率/利差': 'disc', 资产: 'disc', FRED: 'disc',
+    '利率/利差': 'disc', 资产: 'disc', FRED: 'disc', ENSO: 'disc',
     // 交易所 / 平台官方（披露）
     CBOE: 'disc', 'CME 期货 OI': 'disc', 'CME 期货仓位': 'disc',
     衍生品快照: 'disc', Polymarket: 'disc', 预测市场: 'disc',
@@ -380,6 +380,7 @@ const R = {
       bg: v('--surface'),
       blue: v('--color-brand'), orange: v('--color-warn'), green: v('--color-up'),
       red: v('--color-down'), gray: v('--color-neutral'), purple: v('--chart-purple'),
+      cyan: v('--chart-cyan'),
       // 文字档（ECharts label / axisLabel / markLine 标注等**图上写字**用这三个）：
       // green/red/orange 是图形档，亮色主题下做文字只有 3.6:1 不达 AA（tokens.css 已注明
       // 「-text 档只给 color: 用」）；对比度回归测试扫不到 JS 对象键，故单源在这里给齐。

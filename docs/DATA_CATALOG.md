@@ -585,8 +585,21 @@ CFTC 官方周度持仓报告（周二数据、周五发布），`./bin/fetch_co
 | 商品类（disaggregated）`{SYM}_PROD_L/S`、`{SYM}_SWAP_L/S`、`{SYM}_MM_L/S` | 生产商/商户、掉期商、管理资金（投机）多/空持仓 |
 | 金融类（TFF）`{SYM}_DEALER_L/S`、`{SYM}_ASSET_L/S`、`{SYM}_HEDGE_L/S` | 做市商、资管、对冲基金多/空持仓 |
 
-覆盖品种：GC/SI/HG/CL/NG（disaggregated）+ ES/NQ/RTY/ZQ/VX/ZF/ZN/ZB/EUR/JPY（TFF）。
+覆盖品种：GC/SI/HG/CL/NG + SB/KC/CC/ZC/ZS/ZW（disaggregated，后 6 者为气候敏感型农产品/软商品，
+2026 年市场名与 Contract Code 已实测：SUGAR NO.11=080732 / COFFEE C=083731 / COCOA=073732 /
+CORN=002602 / SOYBEANS=005602 / WHEAT-SRW=001602）+ ES/NQ/RTY/ZQ/VX/ZF/ZN/ZB/EUR/JPY（TFF）。
 YM（道指）不在 CFTC COT 报告中（2024-26 均无）；DXY（ICE 美元指数）同样不在（2025/26 无）。
+
+## 12.8 NOAA ENSO 气候指标 — `data/macro/enso.csv` + `enso_discussion.json`
+
+NOAA CPC 官方源（免 key 直连），`./bin/fetch_enso` 拉取（Actions daily-full 每日跑，幂等）。
+
+| 文件 | 说明 |
+|------|------|
+| `data/macro/enso.csv` | ONI 指数（Niño-3.4 区 3 个月滑动海温距平，月频，index=季节中心月）：`season`（DJF…NDJ）/ `total`（海温 °C）/ `oni`（距平 °C；连续 5 期 ≥+0.5°C 确立厄尔尼诺，≤-0.5°C 拉尼娜） |
+| `data/macro/enso_discussion.json` | 最新一期 ENSO Diagnostic Discussion（覆盖写）：`as_of` / `status`（El Niño Advisory 等）/ `headline`（官方加粗结论句）/ `excerpt`（摘要，≤900 字符）/ `next_release` / `url` |
+
+消费方：`/assets/commodities` 的 `#enso` 专题段（`src/assets_analysis.py::enso_block`）。
 
 ## 12.5 FINRA 每日沽空量 — `data/short_selling/finra_daily.csv`
 
