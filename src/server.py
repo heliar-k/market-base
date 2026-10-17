@@ -829,6 +829,7 @@ def get_home_lines() -> dict:
         overview as assets_overview,  # 顶层未 import，按 server.py 惯例惰性取
     )
     from src.liquidity_analysis import liquidity_snapshot
+    from src.polymarket_analysis import geo_overview
 
     # (SITE_NAV 组键, 标签, 引擎入口, 从引擎输出取 (一句话原文, 观测日))
     specs = [
@@ -888,6 +889,15 @@ def get_home_lines() -> dict:
             "美联储",
             generate_fed_analysis,
             _fed_home,
+        ),
+        (
+            "geo",
+            "地缘与政治风险",
+            geo_overview,
+            lambda d: (
+                d["signals"][1] if len(d.get("signals") or []) > 1 else d["signals"][0],
+                d.get("as_of"),
+            ),
         ),
     ]
 

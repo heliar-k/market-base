@@ -1127,8 +1127,13 @@ body.dark .pm-topic-card { box-shadow: inset 0 0 0 1px rgba(255,255,255,.04); }
 .db-hv-member--absent i { color: var(--text-dim); }
 .db-alert-card { margin-bottom: 2px; }
 .db-hero-na { font-size: 13px; color: var(--text-secondary); }
-/* 背景锚点卡：FOMC/隐含/衰退 kv 行（一项一个数）；数据截至在页头 re-as-of，卡内不重复 */
-.db-bg-body { display: flex; flex-direction: column; }
+/* 背景锚点卡：FOMC/隐含/衰退/地缘 kv 行（一项一个数）；数据截至在页头 re-as-of，卡内不重复
+   行走 auto-fit 网格而不是单列 flex：卡片被铺到全宽（768–1227 区间，见下方媒体查询）时，
+   space-between 会把名称与数值拉开 700px，正是 AGENTS 「一项一个数」段不写宽键值表的原因 */
+.db-bg-body {
+  display: grid; gap: 0 28px;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr));
+}
 .db-bg-row {
   display: flex; justify-content: space-between; align-items: baseline; gap: 8px;
   padding: 7px 0; border-bottom: 1px solid var(--border-light); font-size: 12.5px;
@@ -1137,6 +1142,8 @@ body.dark .pm-topic-card { box-shadow: inset 0 0 0 1px rgba(255,255,255,.04); }
 .db-bg-k { color: var(--text-secondary); }
 .db-bg-v { font-weight: 600; color: var(--text); font-variant-numeric: tabular-nums; text-align: right; }
 .db-bg-v em { font-style: normal; font-weight: 400; font-size: 11px; color: var(--text-dim); margin-left: 4px; }
+.db-bg-link { text-decoration: none; padding: 5px 0; margin: -5px 0; }
+.db-bg-link:hover { color: var(--accent-ink); }
 /* 情景与报警（全宽卡）：情景结论一行（空态降次色），报警两行式（标题 + 正文放出 + 专题链） */
 .db-al-scen { font-size: 13.5px; font-weight: 600; color: var(--text); }
 .db-al-scen.empty { color: var(--text-secondary); }
@@ -1144,10 +1151,17 @@ body.dark .pm-topic-card { box-shadow: inset 0 0 0 1px rgba(255,255,255,.04); }
 .db-al-item + .db-al-item { border-top: 1px solid var(--border-light); }
 .db-al-title { font-size: 13px; font-weight: 600; color: var(--warning); }
 .db-al-text { font-size: 12px; color: var(--text-secondary); line-height: 1.55; margin-top: 2px; }
-.db-al-topic { font-size: 11.5px; color: var(--text-dim); text-decoration: none; margin-left: 8px; white-space: nowrap; }
+/* 触控目标 ≥24px：padding 撑高命中区，负 margin 抵消，不改变文字行盒与卡片高度 */
+.db-al-topic {
+  display: inline-block; font-size: 11.5px; color: var(--text-dim); text-decoration: none;
+  white-space: nowrap; padding: 6px 2px; margin: -6px 0 -6px 8px;
+}
 .db-al-topic:hover { color: var(--accent-ink); }
-/* 平板 768-1023：三状态卡 2+1，背景卡落单行时铺满（免得孤零零半宽） */
-@media (min-width: 768px) and (max-width: 1023.98px) {
+/* 三状态卡在「只排得下 2 列」的区间里，背景卡落单行时铺满（免得孤零零半宽 + 右侧一大片空白）。
+   上界 1227.98 = 3×300 卡 + 2×12 gap + 240 侧栏 + 64 页边距：≥1228 才排得下 3 列。
+   原来只写到 1023.98，漏掉 1024–1227（实测该区间右侧空 454px）。
+   shortcut: 改轨道 min 宽 / 侧栏宽要同步这个数；改成 @container 查询可彻底去掉魔数 */
+@media (min-width: 768px) and (max-width: 1227.98px) {
   .db-bg-card { grid-column: 1 / -1; }
 }
 /* 今日一句话（分层卡，自仪表盘 index.html 私有样式收编；有信号升卡 + 平稳胶囊；触控目标 ≥24px） */
@@ -1168,6 +1182,14 @@ body.dark .pm-topic-card { box-shadow: inset 0 0 0 1px rgba(255,255,255,.04); }
 .db-line-card-t { font-size: 13px; font-weight: 600; color: var(--text); }
 .db-line-card-x { font-size: 12.5px; line-height: 1.55; color: var(--text-secondary); }
 .db-line-card-go { font-size: 11px; color: var(--text-dim); margin-top: auto; padding-top: 4px; }
+.db-line-rest { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; margin-top: 10px; font-size: 12px; }
+.db-line-rest-k { color: var(--text-dim); }
+.db-line-pill {
+  display: inline-flex; align-items: center; min-height: 24px; padding: 2px 10px;
+  border-radius: 999px; border: 1px solid var(--border); background: var(--surface);
+  color: var(--text-secondary); text-decoration: none; font-size: 12px;
+}
+.db-line-pill:hover { color: var(--accent-ink); border-color: var(--accent-ink); background: var(--surface-hover); }
 /* 六板块快照（行情视角，自 app.css .dash-card/.dash-snap 收编；板块标题整行可点 ≥24px） */
 .db-boards { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr)); gap: 12px; align-items: start; }
 .db-board {
@@ -1192,6 +1214,13 @@ body.dark .pm-topic-card { box-shadow: inset 0 0 0 1px rgba(255,255,255,.04); }
 .db-snap-val { font-weight: 600; color: var(--text); text-align: right; font-variant-numeric: tabular-nums; font-family: var(--font-mono); }
 .db-snap-row > span:last-child { text-align: right; font-variant-numeric: tabular-nums; }
 /* 波动率信号卡（自 app.css .dash-sig-* 收编） */
+.db-vol-more { margin-left: auto; font-size: 12px; color: var(--text-secondary); text-decoration: none; white-space: nowrap; padding: 4px 0; }
+.db-vol-more:hover { color: var(--accent-ink); }
+.db-vol-verdict {
+  font-size: 12.5px; color: var(--text-secondary); line-height: 1.5;
+  padding: 8px 12px; margin-bottom: 10px; border-radius: 6px;
+  background: var(--surface); border: 1px solid var(--border); border-left: 3px solid var(--color-brand);
+}
 .db-sig-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr)); gap: 12px; }
 .db-sig-card {
   display: flex; flex-direction: column; gap: 6px;

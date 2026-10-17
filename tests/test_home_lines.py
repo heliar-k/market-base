@@ -24,6 +24,7 @@ EXPECTED_KEYS = {
     "liquidity",
     "assets",
     "fed",
+    "geo",
 }
 
 

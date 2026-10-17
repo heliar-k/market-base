@@ -296,7 +296,7 @@ def _corr_alerts() -> list[dict]:
                 else "股债负相关 — 对冲属性回归",
                 "text": f"SPX 与长债 30 日相关性 = {float(row['SPX_TLT_30d']):+.2f}。"
                 + ("对冲属性消失。" if float(row["SPX_TLT_30d"]) > 0 else "组合分散化有效。"),
-                "topics": ["assets"],
+                "topics": ["assets", "rates"],
             }
         )
     if pd.notna(row.get("WTI_SPX_30d")) and float(row["WTI_SPX_30d"]) <= -0.3:
@@ -306,7 +306,30 @@ def _corr_alerts() -> list[dict]:
                 "text": (
                     f"原油与 SPX 30 日相关性 = {float(row['WTI_SPX_30d']):.2f}，能源涨即股票跌。"
                 ),
-                "topics": ["assets"],
+                "topics": ["assets", "inflation"],
+            }
+        )
+    if pd.notna(row.get("DXY_HYG_30d")) and float(row["DXY_HYG_30d"]) <= -0.3:
+        out.append(
+            {
+                "title": "美元-信用负相关 — 金融条件同步收紧",
+                "text": (
+                    f"DXY 与 HYG 30 日相关性 = {float(row['DXY_HYG_30d']):.2f}，"
+                    "美元走强伴随高收益债承压。"
+                ),
+                "topics": ["credit", "assets"],
+            }
+        )
+    if pd.notna(row.get("MOVE_SPX_30d")) and abs(float(row["MOVE_SPX_30d"])) >= 0.3:
+        mv = float(row["MOVE_SPX_30d"])
+        out.append(
+            {
+                "title": "债波压制股市 — 利率波动向权益传染"
+                if mv < 0
+                else "债波与股市同向 — 久期对冲失效",
+                "text": f"MOVE 与 SPX 30 日相关性 = {mv:+.2f}，"
+                + ("债市波动抬升压制权益估值。" if mv < 0 else "股债波动共振。"),
+                "topics": ["vol", "rates"],
             }
         )
     return out

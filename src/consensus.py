@@ -60,7 +60,7 @@ STATE_DIV, STATE_NA = "分歧", "数据不足"
 
 # 成员 → 专题页跳转（首页卡点击联动）
 PAGE_LINKS = {
-    "趋势": "/daily/",
+    "趋势": "/assets/equities/",
     "波动率": "/volatility/vix/",
     "广度": "/assets/equities/",
     "信用": "/credit/",
