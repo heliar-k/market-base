@@ -238,7 +238,7 @@ const R = {
     // FRED / 官方宏观（披露）
     声明: 'disc', 演讲: 'disc', 初请: 'disc', 盈亏平衡: 'disc', 央行互换: 'disc',
     TIC: 'disc', 拍卖: 'disc', COT: 'disc', 'COT 报告': 'disc',
-    '利率/利差': 'disc', 资产: 'disc', FRED: 'disc',
+    '利率/利差': 'disc', 资产: 'disc', FRED: 'disc', ENSO: 'disc',
     // 交易所 / 平台官方（披露）
     CBOE: 'disc', 'CME 期货 OI': 'disc', 'CME 期货仓位': 'disc',
     衍生品快照: 'disc', Polymarket: 'disc', 预测市场: 'disc',

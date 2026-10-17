@@ -56,6 +56,16 @@ COT_MARKETS: dict[str, tuple[str, str]] = {
     "BTC": (r"^BITCOIN - CHICAGO MERCANTILE EXCHANGE", "fin"),
     # DXY（ICE 美元指数，code 098662）在 TFF 金融报告中，2024-2026 均已确认
     "DXY": (r"^USD INDEX - ICE FUTURES U.S.", "fin"),
+    # ── 农产品与软商品（气候敏感型，disagg 报告；2026 市场名与 code 已实测）──
+    "SB": (r"^SUGAR NO\. 11 - ICE FUTURES U\.S\.", "disagg"),  # 080732
+    "KC": (r"^COFFEE C - ICE FUTURES U\.S\.", "disagg"),  # 083731
+    "CC": (r"^COCOA - ICE FUTURES U\.S\.", "disagg"),  # 073732
+    "ZC": (r"^CORN - CHICAGO BOARD OF TRADE", "disagg"),  # 002602
+    "ZS": (
+        r"^SOYBEANS - CHICAGO BOARD OF TRADE",
+        "disagg",
+    ),  # 005602（^SOYBEANS 锚定，避开 SOYBEAN OIL/MEAL/MINI）
+    "ZW": (r"^WHEAT-SRW - CHICAGO BOARD OF TRADE", "disagg"),  # 001602（基准软红冬麦）
 }
 
 URL = "https://www.cftc.gov/files/dea/history/fut_{type}_txt_{year}.zip"

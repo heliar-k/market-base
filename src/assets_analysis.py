@@ -79,6 +79,15 @@ COMMODITY_ROWS = [
     ("NG", "天然气"),
     ("Copper", "铜"),
 ]
+# 软商品与谷物（气候敏感型，/assets/commodities 的 ENSO 专题；主页概览仍用 COMMODITY_ROWS）
+AGRI_ROWS = [
+    ("Sugar", "11号原糖"),
+    ("Coffee", "咖啡"),
+    ("Cocoa", "可可"),
+    ("Soybean", "大豆"),
+    ("Corn", "玉米"),
+    ("Wheat", "小麦"),
+]
 # 贵金属页价格卡（期货主力连续，与商品页同一数据源；产品视角归 /assets/metals）
 METALS_FUTURES_ROWS = [
     ("Gold", "COMEX 黄金"),
@@ -887,7 +896,7 @@ def equity_analysis(b: dict) -> dict:
 
 # 金融合约（对冲基金 L/S）与商品合约（管理资金 L/S）→ 测试可引用
 FIN_SYMBOLS = ("NQ", "ES", "RTY", "VX", "ZF", "ZN", "ZB", "EUR", "JPY", "DXY", "BTC")
-COMMODITY_SYMBOLS = ("GC", "SI", "HG", "CL", "NG")
+COMMODITY_SYMBOLS = ("GC", "SI", "HG", "CL", "NG", "SB", "KC", "CC", "ZC", "ZS", "ZW")
 
 
 def _ls_cols(sym: str) -> tuple[str, str]:
@@ -915,6 +924,12 @@ COT_META = {
     "HG": ("铜", "COPPER", "089692", "商品类 DISAGG"),
     "CL": ("WTI 原油", "WTI CRUDE OIL", "067651", "商品类 DISAGG"),
     "NG": ("天然气", "NATURAL GAS", "023651", "商品类 DISAGG"),
+    "SB": ("11号原糖", "SUGAR NO. 11", "080732", "商品类 DISAGG"),
+    "KC": ("咖啡", "COFFEE C", "083731", "商品类 DISAGG"),
+    "CC": ("可可", "COCOA", "073732", "商品类 DISAGG"),
+    "ZC": ("玉米", "CORN", "002602", "商品类 DISAGG"),
+    "ZS": ("大豆", "SOYBEANS", "005602", "商品类 DISAGG"),
+    "ZW": ("小麦", "WHEAT-SRW", "001602", "商品类 DISAGG"),
     "BTC": ("比特币", "BITCOIN", "133741", "金融类 TFF"),
 }
 COT_TIPS = {
@@ -922,6 +937,9 @@ COT_TIPS = {
     "rates": "美债仓位主要看市场是在押注利率下行，还是继续押注收益率上行。",
     "fx": "外汇仓位看美元与非美货币的拥挤方向。",
     "commodities": "商品仓位看再通胀交易是否拥挤，以及趋势资金有没有追随。",
+    # ag_softs：天气升水拥挤度（ENSO 专题联动，与 commodities 页 #enso 段同口径）
+    "ag_softs": "农产品与软商品仓位看天气升水（Weather Premium）是否已被投机资金买满；"
+    "极端多头下若产区降雨改善，极易引发踩踏式回吐。",
 }
 
 
@@ -952,12 +970,15 @@ COT_VERDICT = {
     "rates": "利率仓位不极端，长端利率的下一步更依赖通胀、财政供给和美联储定价。",
     "fx": "外汇仓位不极端，汇率方向更依赖利差和美元流动性。",
     "commodities": "商品仓位不极端，价格更需要库存、地缘和美元方向确认。",
+    "ag_softs": "农产品仓位不极端，价格方向更多跟随产区气象与单产报告，持仓只是背景。",
 }
 COT_VERDICT_EXTREME = {
     "index_vol": "股指投机仓位较极端，拥挤状态下价格反向时波动会放大，关注 " + "{f}" + "。",
     "rates": "利率仓位较极端，拥挤状态下数据反向时的波动会放大，关注 " + "{f}" + "。",
     "fx": "外汇仓位较极端，拥挤状态下汇率反向波动会放大，关注 " + "{f}" + "。",
     "commodities": "商品仓位较极端，拥挤状态下价格反向时的波动会放大，关注 " + "{f}" + "。",
+    "ag_softs": "农产品仓位较极端——天气升水已被投机资金买满，"
+    "产区降雨改善或丰产报告会引发踩踏式回吐，关注 " + "{f}" + "。",
 }
 
 
@@ -982,6 +1003,8 @@ def positioning() -> dict:
         "rates": ["ZF", "ZN", "ZB"],
         "fx": ["EUR", "DXY", "JPY"],
         "commodities": ["GC", "CL"],
+        # 气候敏感型农产品/软商品（天气升水拥挤度；timsun 扩展组）
+        "ag_softs": ["SB", "KC", "CC", "ZC", "ZS", "ZW"],
     }
     latest = cot.index[-1]
     out = {"latest_report": str(latest.date()), "groups": [], "crowding": None}
@@ -1381,25 +1404,353 @@ def _wgc_fund_flows_block() -> dict | None:
     }
 
 
+def _enso_phase(oni: float) -> str:
+    """ONI 值 → 中文相位标签（NOAA 官方阈值：±0.5/±1.0/±1.5/±2.0）。"""
+    if oni >= 2.0:
+        return "超强厄尔尼诺"
+    if oni >= 1.5:
+        return "强厄尔尼诺"
+    if oni >= 0.5:
+        return "厄尔尼诺"
+    if oni <= -2.0:
+        return "超强拉尼娜"
+    if oni <= -1.5:
+        return "强拉尼娜"
+    if oni <= -0.5:
+        return "拉尼娜"
+    return "ENSO 中性"
+
+
+def _enso_signals(
+    oni: float, chg_3m: float | None, mom: dict, cot: dict, cpi_food: dict
+) -> list[dict]:
+    """三段式规则引擎研判（结论/依据/触发，\n 分行，对齐 R.LINES_CONCLUSION）。"""
+    out = []
+    phase = _enso_phase(oni)
+    rising = chg_3m is not None and chg_3m > 0
+
+    # 段 1：气候相位与产区传导
+    if phase == "ENSO 中性":
+        concl = f"ENSO 中性（ONI {oni:+.2f}°C），气候对农产品定价的影响转入产区自身气象主导。"
+        trig = "观察项：ONI 连续两个月 ≥ +0.5°C 或 ≤ −0.5°C，将重新进入事件相位。"
+    elif "厄尔尼诺" in phase:
+        state = "建立/强化" if rising else "见顶/消退"
+        concl = (
+            f"厄尔尼诺{state}（{phase}，ONI {oni:+.2f}°C"
+            + (f"，3 个月走扩 {chg_3m:+.2f}°C" if chg_3m is not None else "")
+            + "），降水向中东太平洋转移，南亚/澳洲/东南亚偏干、巴西南部偏湿。"
+        )
+        trig = (
+            "触发观察：ONI 高于 +2.0°C（超强）时产区减产预期最盛；"
+            "若 Niño-3.4 距平连续两期回落 ≥0.5°C，视为事件见顶信号。"
+        )
+    else:
+        state = "建立/强化" if rising else "见顶/消退"
+        concl = (
+            f"拉尼娜{state}（{phase}，ONI {oni:+.2f}°C），中西部美国/阿根廷偏干、"
+            "澳洲北部偏湿，对玉米/大豆单产的威胁大于对软商品。"
+        )
+        trig = "触发观察：ONI 回到 −0.5°C 以上并持续，视为事件退出信号。"
+    parts = []
+    if mom.get("leaders"):
+        parts.append("领涨：" + "、".join(f"{n} {v:+.1f}%" for n, v in mom["leaders"][:2]))
+    if mom.get("avg_20d") is not None:
+        parts.append(f"6 品种 20D 等权 {mom['avg_20d']:+.2f}%")
+    basis = f"依据：{'；'.join(parts)}。" if parts else "依据：盘面动量数据不足。"
+    out.append(
+        {
+            "title": "气候相位与产区传导",
+            "text": f"{concl}\n{basis}\n{trig}",
+        }
+    )
+
+    # 段 2：盘面定价与持仓拥挤度
+    worst = cot.get("worst")
+    pct = worst.get("pct_2y") if worst else None
+    if pct is None:
+        concl2 = "农产品 COT 数据不足，拥挤度暂无法判定。"
+    elif pct >= 85 and (mom.get("avg_20d") or 0) > 0:
+        concl2 = (
+            f"天气升水高度拥挤：{worst['name']} 管理基金净多 2 年分位 {pct:.0f}%"
+            "，且盘面动量为正——产区降雨改善极易引发多头踩踏。"
+        )
+    elif pct <= 20 and "厄尔尼诺" in phase and rising:
+        concl2 = (
+            f"气候风险尚未被投机头寸充分定价：{worst['name']} 分位仅 {pct:.0f}%"
+            "，而 ONI 在走扩——具备空头回补弹性。"
+        )
+    else:
+        concl2 = (
+            f"农产品持仓拥挤度中性（最极值为 {worst['name']} 2 年分位 {pct:.0f}%），"
+            "天气升水未被单边买满，跟随产区气象节奏即可。"
+        )
+    parts = []
+    if worst:
+        parts.append(f"CFTC 最拥挤：{worst['name']}（2 年分位 {pct:.0f}%）")
+    if mom.get("leaders"):
+        parts.append("盘面领涨：" + "、".join(f"{n} {v:+.1f}%" for n, v in mom["leaders"][:2]))
+    basis2 = f"依据：{'；'.join(parts)}。" if parts else "依据：COT/盘面数据不足。"
+    trig2 = "触发观察：任一品种分位 ≥85% 后，跌破 20 日均线视为拥挤多头减仓信号。"
+    out.append(
+        {
+            "title": "盘面定价与持仓拥挤度",
+            "text": f"{concl2}\n{basis2}\n{trig2}",
+        }
+    )
+
+    # 段 3：宏观通胀外溢
+    val = cpi_food.get("value")
+    trend = cpi_food.get("chg_1m")
+    if val is None:
+        concl3 = "食品 CPI 数据不足，宏观传导暂无法判定。"
+        basis3 = "依据：FRED CPI_FOOD 缺失。"
+    else:
+        dir_txt = (
+            "上行" if (trend is not None and trend > 0) else "回落" if trend is not None else ""
+        )
+        concl3 = f"食品 CPI 同比 {val}%（较上月 {trend:+.2f}pp {dir_txt}），" + (
+            "上游农产品 20D 动量为正，气候升水正向居民食品通胀传导。"
+            if (mom.get("avg_20d") or 0) > 1 and (trend is not None and trend > 0)
+            else "上游农产品动量尚未显著外溢至居民食品价格。"
+        )
+        avg20 = mom.get("avg_20d") or 0
+        basis3 = (
+            f"依据：CPI_FOOD {val}%（{cpi_food.get('as_of', '')}）；农业篮子 20D {avg20:+.2f}%。"
+        )
+    trig3 = "触发观察：食品 CPI 同比连续两月上行且农业篮子 3 个月涨幅 >5%，视为外溢确认。"
+    out.append(
+        {
+            "title": "宏观通胀外溢",
+            "text": f"{concl3}\n{basis3}\n{trig3}",
+        }
+    )
+    return out
+
+
+# 厄尔尼诺经典传导路径（静态速查表：区域气象 → 期货 → 机制 → 可交易载体）
+ENSO_PLAYBOOK = [
+    [
+        "东南亚/印度 干旱少雨",
+        "11号原糖 SB",
+        "甘蔗压榨受挫 + 印度出口配额收紧，供给收缩弹性最大",
+        "DBA / ADM",
+    ],
+    [
+        "西非（科特迪瓦/加纳） 干热",
+        "可可 CC",
+        "哈马坦风叠加干旱，豆荚失水减产，主产区占全球 6 成",
+        "DBA / NIB 相关（无美股直接标的）",
+    ],
+    [
+        "巴西/阿根廷 降水反转",
+        "大豆 ZS / 玉米 ZC",
+        "巴西南部偏湿、阿根廷偏干，播种与灌浆期错配反复定价",
+        "SOYB / CORN / DE",
+    ],
+    [
+        "澳洲 干旱减产",
+        "小麦 ZW",
+        "东澳降水偏少，全球小麦贸易流收紧，替代买盘流向北美",
+        "WEAT / ADM",
+    ],
+    [
+        "北美 暖冬（厄尔尼诺典型）",
+        "天然气 NG",
+        "取暖需求下滑，库存去化放缓，冬季旺季预期被压制",
+        "UNG / BOIL",
+    ],
+    [
+        "南美 矿区洪涝/干旱",
+        "铜 HG",
+        "智利/秘鲁降水异常影响露天采矿与选矿，供给扰动溢价",
+        "FCX（铜）相关",
+    ],
+]
+
+
+def enso_block(p: pd.DataFrame) -> dict | None:
+    """ENSO 气候专题块（/assets/commodities #enso 段）：只读本地 CSV/JSON，不写盘。
+
+    ONI / 诊断研报 / 农产品价格 / COT 持仓 / 食品 CPI 任一主数据缺失时，
+    缺什么降什么（None 字段由前端段级隐藏），仅 ONI 完全缺失才返回 None。
+    """
+    oni_df = _csv("macro/enso.csv")
+    if oni_df.empty or "oni" not in oni_df.columns:
+        return None
+    oni_s = oni_df["oni"].dropna()
+    if oni_s.empty:
+        return None
+    cur = float(oni_s.iloc[-1])
+    chg_3m = None
+    if len(oni_s) >= 4:
+        chg_3m = round(cur - float(oni_s.iloc[-4]), 2)
+    season = str(oni_df["season"].iloc[-1])
+    label = f"{oni_s.index[-1].year} {season}"
+
+    # 农产品 20D 动量（等权均值 + 领涨/领跌）
+    agri_syms = [k for k, _ in AGRI_ROWS]
+    name_map = dict(AGRI_ROWS)
+    moms: dict[str, float] = {}
+    for s in agri_syms:
+        if s in p.columns:
+            c = _chg(p[s], 20)
+            if c is not None:
+                moms[s] = c
+    avg_20d = round(sum(moms.values()) / len(moms), 2) if moms else None
+    ranked = sorted(moms.items(), key=lambda kv: kv[1], reverse=True)
+    mom = {
+        "avg_20d": avg_20d,
+        "n": len(moms),
+        "leaders": [(name_map.get(k, k), round(v, 1)) for k, v in ranked[:2]],
+        "losers": [(name_map.get(k, k), round(v, 1)) for k, v in ranked[-2:]],
+    }
+
+    # COT 农产品拥挤度（6 品种中 |pct−50| 最大者）
+    cot = _csv("cot/cot.csv")
+    worst = None
+    cot_rows = []
+    if not cot.empty:
+        for s in ("SB", "KC", "CC", "ZC", "ZS", "ZW"):
+            lcol, scol = f"{s}_MM_L", f"{s}_MM_S"
+            if lcol not in cot.columns or scol not in cot.columns:
+                continue
+            net = (cot[lcol] - cot[scol]).dropna()
+            if len(net) < 52:
+                continue
+            val = float(net.iloc[-1])
+            s2y = net.tail(104)
+            pct = float(((s2y < val).sum() + 0.5) / len(s2y) * 100)
+            cot_rows.append(
+                {
+                    "symbol": s,
+                    "net": round(val, 0),
+                    "pct_2y": round(pct, 1),
+                    "week_chg": round(float(net.iloc[-1] - net.iloc[-2]), 0)
+                    if len(net) >= 2
+                    else None,
+                }
+            )
+        if cot_rows:
+            w = max(cot_rows, key=lambda r: abs(r["pct_2y"] - 50))
+            worst = {
+                "symbol": w["symbol"],
+                "name": name_map.get(_COT_TO_AGRI[w["symbol"]], w["symbol"]),
+                "pct_2y": w["pct_2y"],
+            }
+
+    # 食品 CPI（宏观终端传导锚）
+    infl = _csv("fred/inflation/inflation.csv")
+    cpi_food: dict = {}
+    if not infl.empty and "CPI_FOOD" in infl.columns:
+        # YoY（同月上年）：月频序列，直接 pct_change(12)
+        food = infl["CPI_FOOD"].dropna()
+        if len(food) >= 13:
+            yoy = (food.iloc[-1] / food.iloc[-13] - 1) * 100
+            prev_yoy = (food.iloc[-2] / food.iloc[-14] - 1) * 100 if len(food) >= 14 else None
+            cpi_food = {
+                "value": round(float(yoy), 1),
+                "chg_1m": round(float(yoy - prev_yoy), 2) if prev_yoy is not None else None,
+                "as_of": str(food.index[-1].date()),
+            }
+
+    # 近 10 年历史同框：ONI 月度 × DBA 月末收盘
+    history: dict | None = None
+    pool = _csv("etf/pool_prices.csv")
+    if not pool.empty and "DBA" in pool.columns:
+        dba = pool["DBA"].dropna()
+        if len(dba) > 60:
+            dba_m = dba.resample("ME").last().dropna()
+            oni10 = oni_s[oni_s.index >= oni_s.index[-1] - pd.DateOffset(years=10)]
+            # 对齐到 ONI 月份网格（取当月最后已知价）
+            aligned = dba_m.reindex(oni10.index, method="ffill")
+            m = pd.DataFrame({"oni": oni10, "dba": aligned}).dropna()
+            if len(m) >= 24:
+                history = {
+                    "dates": [str(d.date()) for d in m.index],
+                    "oni": [round(float(v), 2) for v in m["oni"]],
+                    "dba": [round(float(v), 2) for v in m["dba"]],
+                }
+
+    discussion = None
+    f = ROOT / "data" / "macro" / "enso_discussion.json"
+    if f.exists():
+        try:
+            discussion = json.loads(f.read_text())
+        except Exception as e:
+            logger.warning("读取 enso_discussion.json 失败: %s", e)
+
+    # 前端顶部 4 张 KPI 卡
+    kpis = {
+        "oni": {
+            "phase": _enso_phase(cur),
+            "oni": round(cur, 2),
+            "chg_3m": chg_3m,
+            "label": label,
+        },
+        "momentum": mom,
+        "cot": {
+            "worst": worst,
+            "n": len(cot_rows),
+        },
+        "cpi_food": cpi_food,
+    }
+    signals = _enso_signals(cur, chg_3m, mom, {"worst": worst}, cpi_food)
+    return {
+        "as_of": str(oni_s.index[-1].date()),
+        "kpis": kpis,
+        "signals": signals,
+        "generator": "rules",
+        "history": history,
+        "discussion": discussion,
+        "cot_rows": cot_rows,
+        "playbook": ENSO_PLAYBOOK,
+    }
+
+
+# COT 合约码 → YF 期货名（enso_block 内部映射）
+_COT_TO_AGRI = {
+    "SB": "Sugar",
+    "KC": "Coffee",
+    "CC": "Cocoa",
+    "ZC": "Corn",
+    "ZS": "Soybean",
+    "ZW": "Wheat",
+}
+
+
 def commodities() -> dict:
     p = asset_prices()
     cols = [k for k, _ in COMMODITY_ROWS]
+    agri_cols = [k for k, _ in AGRI_ROWS]
+
     # 归一化走势（2 年）；网格取全宽再逐列 dropna：NG 缺测日对齐 null
     # 而非压缩，日期轴不串位
-    norm = {}
-    sub = p[[c for c in cols if c in p.columns]].dropna(how="all").tail(500)
-    for c in cols:
-        if c in sub.columns:
-            s = sub[c].dropna()
-            if len(s) > 1:
-                base = float(s.iloc[0])
-                norm[c] = [
-                    None if pd.isna(v) else round(float(v) / base * 100 - 100, 2) for v in sub[c]
-                ]
+    def _norm(names: list[str]) -> tuple[dict, pd.DataFrame]:
+        sub = p[[c for c in names if c in p.columns]].dropna(how="all").tail(500)
+        norm = {}
+        for c in names:
+            if c in sub.columns:
+                s = sub[c].dropna()
+                if len(s) > 1:
+                    base = float(s.iloc[0])
+                    norm[c] = [
+                        None if pd.isna(v) else round(float(v) / base * 100 - 100, 2)
+                        for v in sub[c]
+                    ]
+        return norm, sub
+
+    norm, sub = _norm(cols)
+    agri_norm, agri_sub = _norm(agri_cols)
     return {
         "cards": _price_rows(p, COMMODITY_ROWS),
-        "recent": _recent_prices(p, cols),
+        "agri_cards": _price_rows(p, AGRI_ROWS),
+        "recent": _recent_prices(p, cols + agri_cols),
         "normalized": {"dates": [str(d.date()) for d in sub.index], "series": norm},
+        "agri_normalized": {
+            "dates": [str(d.date()) for d in agri_sub.index],
+            "series": agri_norm,
+        },
+        "enso": enso_block(p),  # 气候周期与厄尔尼诺专题（数据缺失返回 None，前端段级隐藏）
     }
 
 

@@ -88,6 +88,13 @@ STOCKS: list[SymbolConfig] = [
         ibkr_symbol="000660",
         yf_ticker="000660.KS",
     ),
+    # ── 农业供应链与气候受敏龙头（ENSO 专题，/assets/commodities 联动）──
+    SymbolConfig(
+        name="ADM", exchange="NYSE"
+    ),  # 阿彻丹尼尔斯米德兰（粮商贸易，受益于农产品波动率放大）
+    SymbolConfig(name="DE", exchange="NYSE"),  # 约翰迪尔（农机景气风向标）
+    SymbolConfig(name="CTVA", exchange="NYSE"),  # 科迪华（耐旱种子与农化龙头）
+    SymbolConfig(name="CF", exchange="NYSE"),  # CF 工业（北美氮肥龙头，灾后补种与气价敏感）
 ]
 
 # ── 指数 ──
@@ -461,6 +468,13 @@ YF_TICKERS = {
     # 韩股/中概等纯数字代码用可读名（SAMSUNG/SKHYNIX），不直接用 KRX 数字代码
     "SAMSUNG": "005930.KS",
     "SKHYNIX": "000660.KS",
+    # ── 农产品与软商品（厄尔尼诺/ENSO 气候敏感型主力连续）──
+    "Sugar": "SB=F",  # 11号原糖（巴西降雨阻碍压榨 + 印度/泰国干旱，厄尔尼诺第一弹性品种）
+    "Coffee": "KC=F",  # 阿拉比卡咖啡（巴西/哥伦比亚/东南亚主产区）
+    "Cocoa": "CC=F",  # 可可（西非哈马坦风与干旱冲击）
+    "Corn": "ZC=F",  # CBOT 玉米（美洲单产基准）
+    "Soybean": "ZS=F",  # CBOT 大豆（南美巴阿降水切换核心载体）
+    "Wheat": "ZW=F",  # CBOT 小麦（澳洲与南亚干旱减产基准）
 }
 
 
@@ -542,6 +556,13 @@ ETF_POOL: dict[str, tuple[str, str]] = {
     "TQQQ": ("纳指 3 倍做多", "leveraged_inverse"),
     "SQQQ": ("纳指 3 倍反向", "leveraged_inverse"),
     "SOXL": ("半导体 3 倍做多", "leveraged_inverse"),
+    # 农产品与气候敏感型商品 ETF
+    "DBA": ("农业一篮子", "commodity"),
+    "MOO": ("全球农业股", "commodity"),
+    "WEAT": ("小麦期货", "commodity"),
+    "CORN": ("玉米期货", "commodity"),
+    "SOYB": ("大豆期货", "commodity"),
+    "UNG": ("美国天然气", "commodity"),
 }
 
 # ETF 全量清单名称关键词 → 分类（Nasdaq Trader 清单 + 规则分类，timsun 口径简化版）

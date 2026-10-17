@@ -21,6 +21,7 @@ mkdir -p logs
 FETCHERS=(
     bin/fetch_fred
     bin/fetch_fsi
+    bin/fetch_enso
     bin/fetch_srf
     bin/fetch_cboe
     bin/fetch_shapiro

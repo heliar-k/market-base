@@ -121,7 +121,7 @@ def signal_drivers(comp: dict, shapiro: dict) -> str:
     basis = [
         f"分项：住所 {v('CPI_SHELTER')}% · 核心服务 {v('CORE_SERVICES')}% · "
         f"超级核心 PCE {v('SUPERCORE_PCE')}% · 核心商品 {v('CORE_GOODS')}% · "
-        f"能源 {v('CPI_ENERGY')}%"
+        f"能源 {v('CPI_ENERGY')}% · 食品 {v('CPI_FOOD')}%"
     ]
     goods = comp.get("CORE_GOODS", {}).get("value")
     if isinstance(goods, float) and goods < 0:
