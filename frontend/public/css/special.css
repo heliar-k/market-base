@@ -175,7 +175,10 @@ body.embedded .re-foot { display: none; } /* 内嵌 iframe 不重复页脚 */
 .re-group { font-size: 16px; font-weight: 800; margin: 24px 0 4px; padding-bottom: 6px; border-bottom: 2px solid var(--accent); color: var(--text); }
 .re-table { width: 100%; border-collapse: collapse; font-size: 13px; font-variant-numeric: tabular-nums; }
 .re-table-wrap { overflow-x: auto; margin-top: 8px; }
-.re-table th { background: var(--surface-alt); padding: 8px var(--re-cell-pad-x); text-align: left; font-size: 12px; color: var(--text-dim); font-weight: 600; border-bottom: 1px solid var(--border); position: sticky; top: 0; letter-spacing: .02em; }
+.re-table th { background: var(--surface-alt); padding: 8px var(--re-cell-pad-x); text-align: left; font-size: 12px; color: var(--text-dim); font-weight: 600; border-bottom: 1px solid var(--border); position: sticky; top: 0; letter-spacing: .02em; white-space: nowrap; }
+/* 表头禁止折行（全站单源）：CJK 逐字可断，auto 布局把窄汉字表头列挤到单字宽就竖折
+   （曾连「得分」「合约数」都在折：窄屏是列竞争挤压，桌面是内联定宽差 1px）。
+   代价：min-content 变宽，极端宽度下可能多几 px 滚动 —— 表头单行可读性优先。 */
 /* 表格节奏(Tabler):行 hover 透明叠加;末行去底线(卡片自带边框) */
 .re-table tbody tr:hover td { background: var(--hover-tint); }
 .re-table tr:last-child td { border-bottom: none; }
