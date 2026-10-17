@@ -447,6 +447,18 @@ a.re-badge:hover { color: var(--accent-ink); border-color: var(--accent-ink); }
 #asset-groups .re-table th:nth-child(4) { width: 19%; }    /* 日涨跌幅 */
 #asset-groups .re-table th:nth-child(5) { width: 21.5%; }  /* 日期 */
 
+/* 窄屏单栏（≤768）：fixed+480 是宽屏双栏「跨卡列成线」用的，单栏一张张排不存在对齐，
+   改 auto 布局随容器收缩（名称列可换行吃余量）。日期列隐藏 —— 7 表同源同日、页头
+   「数据截至」已有时间，而它是内容最宽列（实测 99px）；藏着它 360px 视口也放得下
+   其余 4 列（内容最小宽 ~253px），消除整卡横滚。涨跌幅列接走 nowrap 防折行
+   （原 nowrap 挂在日期列上）。 */
+@media (max-width: 768px) {
+  #asset-groups .re-table { table-layout: auto; min-width: 0; }
+  #asset-groups .re-table :is(th, td):last-child { display: none; }
+  #asset-groups .re-table td:nth-last-child(2) { white-space: nowrap; }
+  #asset-groups .re-table th:nth-child(2) { width: 100%; }
+}
+
 /* 首列光学对齐（全站，挂在出血规则上）：出血的表首列文字正好压在内容栅格线上，
  * 与同卡标题同线（数学对齐）。但表头/代码列多为拉丁缩写或日期（SPX / TLT / 2026-10-02），
  * 12px 小字号视觉重量比 14px/700 的中文标题轻，读起来像缩得少 —— 故首列右移 1px 找光学平衡
