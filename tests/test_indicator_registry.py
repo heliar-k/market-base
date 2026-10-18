@@ -18,8 +18,8 @@ from src.indicators import (
 )
 
 
-def _sample_df(n: int = 150) -> pd.DataFrame:
-    """足够长的 OHLCV 样本（>120 天保证 MA120 可算）。"""
+def _sample_df(n: int = 210) -> pd.DataFrame:
+    """足够长的 OHLCV 样本（>200 天保证 MA200 可算）。"""
     idx = pd.date_range("2025-01-01", periods=n, freq="D")
     return pd.DataFrame(
         {

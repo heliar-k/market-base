@@ -697,10 +697,10 @@ from src.indicators import load_data, compute_all_indicators
 
 df = load_data("data/AAPL.csv")
 df = compute_all_indicators(df)  # 返回带所有指标列的 DataFrame
-# 列: MA5/10/20/60/120, RSI, MACD/MACD_hist/MACD_signal,
-#      BB_lower/BB_mid/BB_upper, ATR, vol_MA20/vol_ratio,
+# 列: MA5/10/20/50/60/120/200, RSI, MACD/MACD_hist/MACD_signal,
+#      BB_lower/BB_mid/BB_upper/BB_width/BB_squeeze, ATR, vol_MA20/vol_ratio,
 #      ADX/DMP/DMN, STOCH_k/STOCH_d, SUPERT/SUPERT_dir,
-#      OBV, CCI, MFI, CDL_* (62 种 K 线形态)
+#      OBV, CCI, MFI, CDL_* (62 种 K 线形态，已剔除十字星/捉腰带高频噪声)
 ```
 
 ### 配置扩展

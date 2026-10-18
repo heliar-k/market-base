@@ -18,7 +18,7 @@ import pandas_ta_classic as ta
 # 新增指标列必须在此注册，否则 tests/test_indicator_registry.py 报红。
 # CDL_* 由 ta 库动态命名（62 种），按前缀约定不进注册表。
 
-MA_PERIODS = (5, 10, 20, 60, 120)
+MA_PERIODS = (5, 10, 20, 50, 60, 120, 200)
 
 INDICATOR_COLUMNS: frozenset[str] = frozenset(
     {
@@ -30,6 +30,8 @@ INDICATOR_COLUMNS: frozenset[str] = frozenset(
         "BB_lower",
         "BB_mid",
         "BB_upper",
+        "BB_width",
+        "BB_squeeze",
         "ATR",
         "vol_MA20",
         "vol_ratio",
@@ -141,7 +143,7 @@ def add_bollinger(
     period: int = 20,
     std_multiplier: float = 2.0,
 ) -> pd.DataFrame:
-    """计算布林带 (中轨/上轨/下轨)。"""
+    """计算布林带 (中轨/上轨/下轨/带宽/Squeeze压缩标记)。"""
     mstr = f"{std_multiplier:.1f}"
     _merge_ta_columns(
         df,
@@ -152,6 +154,15 @@ def add_bollinger(
             "BB_upper": f"BBU_{period}_{mstr}",
         },
     )
+    if {"BB_upper", "BB_lower", "BB_mid"} <= set(df.columns):
+        mid = df["BB_mid"].replace(0, np.nan)
+        bw = (df["BB_upper"] - df["BB_lower"]) / mid * 100.0
+        df["BB_width"] = bw
+        bw_q20 = bw.rolling(120, min_periods=20).quantile(0.20)
+        df["BB_squeeze"] = ((bw <= bw_q20) & bw.notna()).astype(int)
+    else:
+        df["BB_width"] = np.nan
+        df["BB_squeeze"] = 0
     return df
 
 
@@ -299,21 +310,19 @@ def add_mfi(
 
 # ── 蜡烛形态 ────────────────────────────────────────────────────────────
 
-# 关键反转形态
+# 关键反转形态（剔除日线高频噪声 CDL_DOJI / CDL_BELTHOLD）
 CDL_BULLISH = {
     "CDL_HAMMER": "锤子线",
     "CDL_INVERTEDHAMMER": "倒锤子",
     "CDL_ENGULFING": "看涨吞没",
     "CDL_MORNINGSTAR": "晨星",
     "CDL_PIERCING": "刺透形态",
-    "CDL_DOJI": "十字星",
 }
 CDL_BEARISH = {
     "CDL_SHOOTINGSTAR": "射击之星",
     "CDL_HANGINGMAN": "吊颈线",
     "CDL_EVENINGSTAR": "黄昏之星",
     "CDL_DARKCLOUDCOVER": "乌云盖顶",
-    "CDL_BELTHOLD": "捉腰带线",
 }
 
 
@@ -431,11 +440,13 @@ def add_smc_structure(df: pd.DataFrame, swing_length: int = 5) -> pd.DataFrame:
     trend = 0  # 0=undefined, 1=bullish, -1=bearish
 
     for i in range(n):
-        # 更新摆动点（只在确认后更新，避免用未确认的点）
-        if not np.isnan(swing_highs[i]):
-            last_sh = swing_highs[i]
-        if not np.isnan(swing_lows[i]):
-            last_sl = swing_lows[i]
+        # 摆动点在 idx = i - swing_length 处需满右半径确认，故在 bar i 才对外可见
+        confirm_idx = i - swing_length
+        if confirm_idx >= 0:
+            if not np.isnan(swing_highs[confirm_idx]):
+                last_sh = swing_highs[confirm_idx]
+            if not np.isnan(swing_lows[confirm_idx]):
+                last_sl = swing_lows[confirm_idx]
 
         if not np.isnan(last_sh) and closes[i] > last_sh:
             if trend == 1:
@@ -625,12 +636,15 @@ def add_smc_mtf(df: pd.DataFrame, swing_length: int = 3) -> pd.DataFrame:
     add_smc_swing(weekly, length=swing_length)
     add_smc_structure(weekly, swing_length=swing_length)
 
-    # 映射回日频（每根日K线继承所属周的结构）
+    # 映射回日频：shift(1) 只取已收盘的上一周结构与已确认的摆动点，消除周内未收盘未来函数
+    wk_struct_done = weekly["SMC_structure"].shift(1)
+    wk_sh_done = weekly["SMC_swing_high"].shift(swing_length + 1)
+    wk_sl_done = weekly["SMC_swing_low"].shift(swing_length + 1)
     df["SMC_weekly_structure"] = (
-        weekly["SMC_structure"].reindex(df.index, method="ffill").fillna(0).astype(int)
+        wk_struct_done.reindex(df.index, method="ffill").fillna(0).astype(int)
     )
-    df["SMC_weekly_swing_high"] = weekly["SMC_swing_high"].reindex(df.index, method="ffill")
-    df["SMC_weekly_swing_low"] = weekly["SMC_swing_low"].reindex(df.index, method="ffill")
+    df["SMC_weekly_swing_high"] = wk_sh_done.reindex(df.index, method="ffill")
+    df["SMC_weekly_swing_low"] = wk_sl_done.reindex(df.index, method="ffill")
 
     # 综合日线 + 周线方向
     daily = df["SMC_structure"] if "SMC_structure" in df.columns else pd.Series(0, index=df.index)

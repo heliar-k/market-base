@@ -67,10 +67,20 @@ def _format_diagnosis(r: dict) -> str:
     lines.append(f"[bold #58a6ff]{sym}[/]  [bold #c9d1d9]${price_str}[/]  [dim]{last_date}[/]")
     lines.append("[dim]" + "─" * 32 + "[/]")
 
-    # ── 综合评分 ──
+    # ── 综合评分与结论 ──
     total = r.get("total_score", 0)
     bar = _score_bar(total)
-    lines.append(f"[bold]综合评分:[/] {_sign(total)}  {bar}")
+    regime_label = r.get("regime_label", "")
+    setup_tag = r.get("setup_tag", "")
+    lines.append(f"[bold]综合评分:[/] {_sign(total)}  {bar}  [bold]{regime_label}[/]")
+    if setup_tag and setup_tag != regime_label:
+        lines.append(f"[bold]核心形态:[/] [cyan]{setup_tag}[/]")
+    if "trend_score" in r:
+        lines.append(
+            f"[dim]三维拆解:[/] 趋势 {_sign(r.get('trend_score', 0))} "
+            f"| 动量 {_sign(r.get('momentum_score', 0))} "
+            f"| 位置 {_sign(r.get('loc_score', 0))}"
+        )
     scores = r.get("scores") or []
     if scores:
         nonzero = [s for s in scores if s.get("value")]
@@ -84,7 +94,7 @@ def _format_diagnosis(r: dict) -> str:
     ma_signals = r.get("ma_signals") or {}
     if ma_signals:
         ma_parts = []
-        for p in (5, 10, 20, 60, 120):
+        for p in (5, 10, 20, 50, 60, 120, 200):
             key = f"MA{p}"
             if key in ma_signals:
                 direction = ma_signals[key]
@@ -164,5 +174,7 @@ def _format_diagnosis(r: dict) -> str:
     lines.append("[dim]" + "─" * 32 + "[/]")
     lines.append(f"[bold]支撑(90d):[/] [#3fb950]{_fmt(r.get('support_90d'))}[/]")
     lines.append(f"[bold]阻力(90d):[/] [#f85149]{_fmt(r.get('resistance_90d'))}[/]")
+    if r.get("pos_52w") is not None:
+        lines.append(f"[bold]52周分位:[/] {_fmt(r.get('pos_52w'))}%")
 
     return "\n".join(lines)

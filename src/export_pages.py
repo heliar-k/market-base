@@ -55,6 +55,7 @@ from src.server import (  # noqa: PLC2701 复用路由函数
     get_rates_real_rates,
     get_rates_yield_curve,
     get_symbols,
+    get_tech_overview,
     get_treasury_overview,
     get_volatility_analysis,
 )
@@ -89,6 +90,7 @@ def _safe(rel: str, fn: Callable[..., object], *args: object, **kwargs: object) 
 def export_api() -> None:
     symbols = get_symbols()
     _dump("api/symbols", symbols)
+    _safe("api/tech/overview", get_tech_overview)
 
     # K 线：近 3 年（导出侧按日期过滤，cutoff 之前的老数据不进静态包）；
     # days=2/5 变体取过滤后尾部（静态托管忽略 query，前端预取价格只用尾部几行）

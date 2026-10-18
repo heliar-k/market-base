@@ -223,6 +223,27 @@ def get_diag(symbol: str, as_of: str | None = Query(None)):
     return result
 
 
+@app.get("/api/tech/overview")
+def get_tech_overview():
+    """全标的（指数 + 个股）技术面诊断总览：供技术分析页结论总览视图一次拉齐。"""
+    items = []
+    for s in IBKR_SYMBOLS:
+        sym = s["name"]
+        csv = _csv_path(sym)
+        if not csv.exists():
+            continue
+        try:
+            df = load_or_compute(sym, csv)
+            if df.empty:
+                continue
+            d = analyze(df, sym)
+            d["type"] = s["type"]
+            items.append(d)
+        except Exception:
+            continue
+    return items
+
+
 # ── macro endpoints ──────────────────────────────────────────────────────────
 
 # 派生指标 → 所需原始列的源分类
