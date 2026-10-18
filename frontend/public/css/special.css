@@ -1153,6 +1153,18 @@ body.dark .pm-topic-card { box-shadow: inset 0 0 0 1px rgba(255,255,255,.04); }
 .db-hv-member--abst i { color: var(--text-dim); }
 .db-hv-member--absent { opacity: .45; }
 .db-hv-member--absent i { color: var(--text-dim); }
+/* 卡够宽才放大字号：三列铺满时卡 371px，成员链 11.5→13、状态字 16→19，正好填掉
+   「市场背景」卡撑高的那段下缘留白（实测 slack 37→19，与背景卡的 15 齐平）。
+   容器查询而非视口媒体查询：侧栏 240 / .re-root 1200 上限任一改动，视口阈值就静默失效。
+   阈值量的是内容盒（扣卡内 16×2 padding）：371 卡 = 339，故 300 可容 346 卡（1366 本） */
+.db-sc-card { container-type: inline-size; }
+@container (min-width: 300px) {
+  .db-sc-title { font-size: 14px; }
+  .db-sc-title > small { font-size: 11.5px; }
+  .db-sc-state b { font-size: 19px; }
+  .db-hv-member { font-size: 13px; }
+  .db-sc-votes .db-hv-member { padding: 7px 0; }
+}
 .db-alert-card { margin-bottom: 2px; }
 /* 背景锚点卡：FOMC/隐含/衰退/地缘（一项一个数），行形状单源 = R.kvRows 产的 .re-kv-grid
    （来源注挂名称后、读数贴右端一条纵线；铺到全宽时自动并多列，列间分隔线 .kv-cont 自带） */
