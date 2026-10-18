@@ -3,7 +3,7 @@
 import { CHART_OPTS, darkChartOpts, addLine, cssVar } from './charts-common.js';
 import { loadWatch, saveWatch, removeWatch } from './watchlist.js';
 
-const R = window.R;
+// 转义单源 R.esc（rates-common.js 已在 app/index.html 先于本模块加载；注意顶层 const R 属于全局词法作用域，不挂在 window.R 上）
 const esc = R.esc;
 
 // ── state ──────────────────────────────────────────────────────────────────
