@@ -59,6 +59,59 @@ def test_proxy_from_env(monkeypatch):
     assert seen.get("https") == "socks5h://127.0.0.1:7890"
 
 
+def _status_resp(status: int, text: str = ""):
+    class _S(_Resp):
+        status_code = status
+
+        def raise_for_status(self):
+            import requests
+
+            if status >= 400:
+                raise requests.HTTPError(f"{status}")
+
+    return _S({"content-type": "text/plain"}, text)
+
+
+def test_retry_on_403_then_success(monkeypatch):
+    """匿名档限流 403 → 按退避等待后重试成功。"""
+    import requests
+
+    from src.fetchers import jina_reader
+
+    sleeps: list[int] = []
+    calls: list[str] = []
+
+    def fake_get(url, **kw):
+        calls.append(url)
+        return _status_resp(403) if len(calls) == 1 else _status_resp(200, "ok")
+
+    monkeypatch.setattr(requests, "get", fake_get)
+    monkeypatch.setattr(jina_reader.time, "sleep", sleeps.append)
+    assert jina_fetch("https://example.com") == "ok"
+    assert len(calls) == 2
+    assert sleeps == [jina_reader._RETRY_BACKOFF[0]]
+
+
+def test_retry_gives_up_after_backoff(monkeypatch):
+    """一直 403 → 重试次数用尽后抛错，不无限重试。"""
+    import pytest
+    import requests
+
+    from src.fetchers import jina_reader
+
+    calls: list[str] = []
+
+    def fake_get(url, **kw):
+        calls.append(url)
+        return _status_resp(403)
+
+    monkeypatch.setattr(requests, "get", fake_get)
+    monkeypatch.setattr(jina_reader.time, "sleep", lambda s: None)
+    with pytest.raises(requests.HTTPError):
+        jina_fetch("https://example.com")
+    assert len(calls) == len(jina_reader._RETRY_BACKOFF) + 1
+
+
 def test_json_missing_content_raises(monkeypatch):
     import pytest
     import requests
