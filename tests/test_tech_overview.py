@@ -57,3 +57,27 @@ def test_export_pages_registers_tech_overview() -> None:
     src_text = Path(export_pages.__file__).read_text(encoding="utf-8")
     assert "get_tech_overview" in src_text
     assert '_safe("api/tech/overview", get_tech_overview)' in src_text
+
+
+def test_analyze_short_history_fallback_ma_labels() -> None:
+    """上市不足 200 天的次新标的回退 MA120/MA60 时，评分标签如实标注实际均线名而非假称 MA200。"""
+    import numpy as np
+    import pandas as pd
+
+    dates = pd.date_range("2024-01-01", periods=130, freq="B")
+    close = np.linspace(100.0, 150.0, 130)
+    short_raw = pd.DataFrame(
+        {
+            "open": close - 0.5,
+            "high": close + 1.0,
+            "low": close - 1.0,
+            "close": close,
+            "volume": 1_000_000,
+        },
+        index=dates,
+    )
+    short_df = compute_all_indicators(short_raw)
+    res = analyze(short_df, "NEWIPO")
+    labels = [s["label"] for s in res["trend_scores"]]
+    assert any("MA120" in lb for lb in labels)
+    assert not any("MA200" in lb for lb in labels)

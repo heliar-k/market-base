@@ -136,3 +136,22 @@ def test_load_or_compute_result_consumable_by_analyze(small_csv: Path, tmp_path:
     result = analyze(df, "AAPL")
     assert isinstance(result, dict)
     assert "symbol" in result
+
+
+def test_load_or_compute_recomputes_when_cache_missing_indicator_columns(
+    small_csv: Path, tmp_path: Path
+) -> None:
+    """旧缓存虽然 mtime 新鲜，但缺少新增指标列（如 MA200 / BB_squeeze）时自动触发重算。"""
+    data_dir = str(tmp_path / "data")
+    cache = cache_path("AAPL", data_dir)
+    cache.parent.mkdir(parents=True, exist_ok=True)
+    # 写入一个只有基础列的假旧缓存，并设 mtime 晚于 csv
+    stale_cols_df = pd.read_csv(small_csv, index_col="date", parse_dates=True)
+    stale_cols_df["MA5"] = stale_cols_df["close"]
+    stale_cols_df.to_parquet(cache)
+    csv_mtime = small_csv.stat().st_mtime
+    os.utime(cache, (csv_mtime + 100, csv_mtime + 100))
+
+    df = load_or_compute("AAPL", small_csv, data_dir=data_dir)
+    assert "MA200" in df.columns
+    assert "BB_squeeze" in df.columns

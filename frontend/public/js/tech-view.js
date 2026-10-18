@@ -4,7 +4,7 @@ import { CHART_OPTS, darkChartOpts, addLine, cssVar } from './charts-common.js';
 import { loadWatch, saveWatch, removeWatch } from './watchlist.js';
 
 const R = window.R;
-const esc = R ? R.esc : (s) => String(s ?? '');
+const esc = R.esc;
 
 // ── state ──────────────────────────────────────────────────────────────────
 const SUBVIEW_KEY = 'tech-subview';
@@ -38,12 +38,15 @@ const BB_COLOR = () => cssVar('--chart-slate');
 const ETF_LIKE = new Set(['SPY', 'QQQ']); // grouped with indices even though type=stock
 
 // ── helpers ────────────────────────────────────────────────────────────────
-function scoreTextToken(score) {
-  return score > 3 ? 'var(--color-up-text)' : score < -3 ? 'var(--color-down-text)' : 'var(--color-warn-text)';
+function scoreTokens(score) {
+  if (score > 3) return { text: 'var(--color-up-text)', fill: 'var(--color-up)' };
+  if (score < -3) return { text: 'var(--color-down-text)', fill: 'var(--color-down)' };
+  return { text: 'var(--color-warn-text)', fill: 'var(--color-warn)' };
 }
 
-function scoreGraphicToken(score) {
-  return score > 3 ? 'var(--color-up)' : score < -3 ? 'var(--color-down)' : 'var(--color-warn)';
+function rsiToneCls(rsi, neutralCls = '') {
+  if (rsi == null) return neutralCls;
+  return rsi < 30 ? 'up' : rsi > 70 ? 'down' : neutralCls;
 }
 
 function regimeBadgeCls(regime) {
@@ -55,8 +58,7 @@ function regimeBadgeCls(regime) {
 function fmtSigned(v, nd = 0, suffix = '') {
   if (v == null || !Number.isFinite(Number(v))) return '—';
   const n = Number(v);
-  const str = nd > 0 ? n.toFixed(nd) : String(Math.round(n));
-  return `${n > 0 ? '+' : ''}${str}${suffix}`;
+  return `${n > 0 ? '+' : ''}${R.num(n, nd)}${suffix}`;
 }
 
 function fmtVolume(v) {
@@ -66,6 +68,16 @@ function fmtVolume(v) {
   if (v >= 1e3) return (v / 1e3).toFixed(1) + 'K';
   return String(v);
 }
+
+// 扫描表筛选谓词单源（filterOverviewItems 与 counts 统计共用；超买/超卖与后端 osc_oversold 30/70 对齐）
+const SCAN_PREDICATES = {
+  all: () => true,
+  bullish: (d) => d.regime === 'bullish' || d.regime === 'mild_bullish',
+  bearish: (d) => d.regime === 'bearish' || d.regime === 'mild_bearish',
+  squeeze: (d) => Boolean(d.BB_squeeze),
+  oversold: (d) => (d.RSI != null && d.RSI < 30) || d.STOCH_detail === 'oversold' || d.SMC_pd_zone === 'discount',
+  overbought: (d) => (d.RSI != null && d.RSI > 70) || d.STOCH_detail === 'overbought' || d.SMC_pd_zone === 'premium',
+};
 
 // ── init ───────────────────────────────────────────────────────────────────
 export function initTechView() {
@@ -164,12 +176,14 @@ function initDiagToggle() {
 }
 
 // ── symbols sidebar ────────────────────────────────────────────────────────
+// collapse toggle — ResizeObserver on chart containers handles chart resize
 const app = document.querySelector('.app');
 const sidebarBtn = document.getElementById('sidebar-collapse-btn');
 function setSidebarHidden(hidden) {
   app.classList.toggle('sidebar-hidden', hidden);
   sidebarBtn.textContent = hidden ? '▶' : '◀';
   localStorage.setItem('sidebar-hidden', hidden ? '1' : '');
+  // 兜底：display:none 即时生效，下一帧容器宽度已变；显式 resize 防部分浏览器 RO 不触发
   resizeAllCharts();
 }
 sidebarBtn.addEventListener('click', () => setSidebarHidden(!app.classList.contains('sidebar-hidden')));
@@ -183,6 +197,7 @@ async function loadSymbols() {
     if (!res.ok) throw new Error(res.statusText);
     symbols = await res.json();
   } catch {
+    // README 式空态：失败要与「暂无自选/空列表」区分开（自 7d8111dd 意图移植，ADR-0005 合并）
     list.innerHTML = '<div class="sidebar-watch-empty">标的清单加载失败 · 确认 /api/symbols 已导出或服务已启动后刷新</div>';
     return;
   }
@@ -191,6 +206,7 @@ async function loadSymbols() {
   const indices = symbols.filter(s => s.type === 'index' || ETF_LIKE.has(s.name));
   const stocks   = symbols.filter(s => s.type === 'stock' && !ETF_LIKE.has(s.name));
 
+  // 自选（ADR-0005 T3：家住技术侧栏，与 symbol-list 同组同构；置顶分组，✕ 显式删除）
   const watchSet = new Set(loadWatch());
   const watchSyms = symbols.filter(s => watchSet.has(s.name));
 
@@ -219,6 +235,7 @@ async function loadSymbols() {
     items.forEach(s => list.appendChild(buildRow(s)));
   };
 
+  // 自选分组：置顶；头部带添加下拉（全部标的 - 已自选）；每行 ✕ 删除（≥24px 触控目标）
   const watchHdr = document.createElement('div');
   watchHdr.className = 'sidebar-section-header sidebar-watch-header';
   watchHdr.innerHTML = '<span>自选</span>';
@@ -271,6 +288,7 @@ async function loadSymbols() {
   fetchSidebarPrices(symbols);
 }
 
+// 添加后写回并重渲侧栏（统一入口，避免每处 saveWatch 后各自补渲染）
 function saveWatchAndReload(next) {
   saveWatch(next);
   loadSymbols();
@@ -334,7 +352,7 @@ async function loadTechOverview() {
   const scanEl = document.getElementById('tech-ov-scan');
   if (scanEl) scanEl.innerHTML = '<div class="tech-ov-card"><div class="loading">正在扫描全市场技术面信号…</div></div>';
   try {
-    const data = R?.getOpt ? await R.getOpt('/api/tech/overview') : await fetch('/api/tech/overview').then(r => r.ok ? r.json() : null);
+    const data = await R.getOpt('/api/tech/overview');
     if (!Array.isArray(data) || !data.length) throw new Error('empty overview');
     overviewList = data;
     renderScanSection();
@@ -359,14 +377,13 @@ function renderCurrentConclusion(d) {
   if (!host || !d) return;
 
   const chg1d = d.changes?.['1d'];
-  const chgHtml = chg1d != null && R?.chgSpan
-    ? R.chgSpan(chg1d)
-    : (chg1d != null ? `<span class="${chg1d >= 0 ? 'up' : 'down'}">${chg1d >= 0 ? '+' : ''}${Number(chg1d).toFixed(2)}%</span>` : '');
+  const chgHtml = chg1d != null ? R.chgSpan(chg1d) : '';
+  const asOfText = R.asOf(d.last_date || '');
 
   const lines = Array.isArray(d.summary_lines) && d.summary_lines.length
     ? d.summary_lines
     : [d.summary_text || '暂无研判结论'];
-  const lineLabels = R?.LINES_CONCLUSION || ['结论', '依据', '触发'];
+  const lineLabels = R.LINES_CONCLUSION;
 
   const scoreBreak = (title, total, items) => `
     <div class="tech-ov-dim-col">
@@ -384,6 +401,38 @@ function renderCurrentConclusion(d) {
   `;
 
   host.innerHTML = '';
+
+  // 1) 四张核心 KPI 卡作为顶层独立卡行（不塞进 .tech-ov-card，避免卡中卡双层框）
+  const kpis = R.cards([
+    {
+      label: '综合评分 / 状态',
+      value: `${fmtSigned(d.total_score)} · ${esc(d.regime_label || '—')}`,
+      sub: `趋势 ${fmtSigned(d.trend_score)} · 动量 ${fmtSigned(d.momentum_score)} · 位置 ${fmtSigned(d.loc_score)}`,
+      vcolor: scoreTokens(d.total_score).text,
+      cls: 're-card-dense',
+    },
+    {
+      label: '核心形态 / 信号',
+      value: esc(d.setup_tag || d.regime_label || '—'),
+      sub: `ADX ${d.ADX?.toFixed(1) ?? '—'} · RSI ${d.RSI?.toFixed(1) ?? '—'} · ${d.MACD_status === 'golden_cross' ? 'MACD金叉' : 'MACD死叉'}`,
+      cls: 're-card-dense re-card-wrap',
+    },
+    {
+      label: '关键支撑 / 阻力 (90D)',
+      value: `$${d.support_90d?.toFixed(2) ?? '—'} — $${d.resistance_90d?.toFixed(2) ?? '—'}`,
+      sub: `MA50 $${d.ma_values?.MA50?.toFixed(2) ?? '—'} (${fmtSigned(d.ma_dists?.MA50, 1, '%')}) · MA200 $${d.ma_values?.MA200?.toFixed(2) ?? '—'} (${fmtSigned(d.ma_dists?.MA200, 1, '%')})`,
+      cls: 're-card-dense',
+    },
+    {
+      label: '52 周区间分位 / 波幅',
+      value: d.pos_52w != null ? `${d.pos_52w.toFixed(1)}%` : '—',
+      sub: `52W $${d.low_52w?.toFixed(2) ?? '—'}–$${d.high_52w?.toFixed(2) ?? '—'} · ATR ${d.ATR_pct != null ? d.ATR_pct.toFixed(1) + '%' : '—'}${d.BB_width != null ? ` · 带宽 ${d.BB_width}%` : ''}`,
+      cls: 're-card-dense',
+    },
+  ]);
+  host.appendChild(kpis);
+
+  // 2) 深度结论与三维依据明细卡
   const card = document.createElement('div');
   card.className = 'tech-ov-card';
 
@@ -397,7 +446,7 @@ function renderCurrentConclusion(d) {
       <span class="${regimeBadgeCls(d.regime)}">${esc(d.regime_label || '—')}</span>
       ${d.setup_tag && d.setup_tag !== d.regime_label ? `<span class="tag tech-ov-tag-setup">${esc(d.setup_tag)}</span>` : ''}
       ${d.BB_squeeze ? '<span class="tag tech-ov-tag-warn">Squeeze 压缩</span>' : ''}
-      <span class="tech-ov-date">数据截至 ${esc(d.last_date || '')}</span>
+      <span class="tech-ov-date">${esc(asOfText)}</span>
     </div>
     <button type="button" class="range-btn" id="tech-ov-go-kline">查看 K 线与指标图 →</button>
   `;
@@ -415,38 +464,6 @@ function renderCurrentConclusion(d) {
   `).join('');
   card.appendChild(summaryBox);
 
-  // 四张核心 KPI 卡（复用 R.cards）
-  if (R?.cards) {
-    const kpis = R.cards([
-      {
-        label: '综合评分 / 状态',
-        value: `${fmtSigned(d.total_score)} · ${esc(d.regime_label || '—')}`,
-        sub: `趋势 ${fmtSigned(d.trend_score)} · 动量 ${fmtSigned(d.momentum_score)} · 位置 ${fmtSigned(d.loc_score)}`,
-        vcolor: scoreTextToken(d.total_score),
-        cls: 're-card-dense',
-      },
-      {
-        label: '核心形态 / 信号',
-        value: esc(d.setup_tag || d.regime_label || '—'),
-        sub: `ADX ${d.ADX?.toFixed(1) ?? '—'} · RSI ${d.RSI?.toFixed(1) ?? '—'} · ${d.MACD_status === 'golden_cross' ? 'MACD金叉' : 'MACD死叉'}`,
-        cls: 're-card-dense re-card-wrap',
-      },
-      {
-        label: '关键支撑 / 阻力 (90D)',
-        value: `$${d.support_90d?.toFixed(2) ?? '—'} — $${d.resistance_90d?.toFixed(2) ?? '—'}`,
-        sub: `MA50 $${d.ma_values?.MA50?.toFixed(2) ?? '—'} (${fmtSigned(d.ma_dists?.MA50, 1, '%')}) · MA200 $${d.ma_values?.MA200?.toFixed(2) ?? '—'} (${fmtSigned(d.ma_dists?.MA200, 1, '%')})`,
-        cls: 're-card-dense',
-      },
-      {
-        label: '52 周区间分位 / 波幅',
-        value: d.pos_52w != null ? `${d.pos_52w.toFixed(1)}%` : '—',
-        sub: `52W $${d.low_52w?.toFixed(2) ?? '—'}–$${d.high_52w?.toFixed(2) ?? '—'} · ATR ${d.ATR_pct != null ? d.ATR_pct.toFixed(1) + '%' : '—'}${d.BB_width != null ? ` · 带宽 ${d.BB_width}%` : ''}`,
-        cls: 're-card-dense',
-      },
-    ]);
-    card.appendChild(kpis);
-  }
-
   // 三维评分依据明细（趋势 / 动量 / 位置与反转）
   const dimGrid = document.createElement('div');
   dimGrid.className = 'tech-ov-dim-grid';
@@ -456,37 +473,24 @@ function renderCurrentConclusion(d) {
     scoreBreak('位置与反转 (Location)', d.loc_score, d.loc_scores);
   card.appendChild(dimGrid);
 
-  if (R?.secNote) {
-    card.appendChild(R.secNote('评分口径：趋势（MA20/50/200 排列、MA200 牛熊线、ADX、SuperTrend、周/日 SMC 结构）+ 动量（MACD 金死叉与柱体、RSI 动量带、OBV 背离）+ 位置反转（RSI/Stoch 去重超买超卖、MFI 背离、50 日折溢价区、流动性扫荡、关键 K 线形态）。点击下方任意标的切换结论，双击或点行末「K线」直达图表。'));
-  }
+  card.appendChild(R.secNote('评分口径：趋势（MA20/50/200 排列、MA200 牛熊线、ADX、SuperTrend、周/日 SMC 结构）+ 动量（MACD 金死叉与柱体、RSI 动量带、OBV 背离）+ 位置反转（RSI/Stoch 去重超买超卖、MFI 背离、50 日折溢价区、流动性扫荡、关键 K 线形态）。点击下方任意标的切换结论，双击或点行末「K线」直达图表。'));
 
   host.appendChild(card);
 }
 
 function filterOverviewItems(items) {
   if (!Array.isArray(items)) return [];
-  return items.filter(d => {
-    if (activeFilter === 'bullish') return d.regime === 'bullish' || d.regime === 'mild_bullish';
-    if (activeFilter === 'bearish') return d.regime === 'bearish' || d.regime === 'mild_bearish';
-    if (activeFilter === 'squeeze') return Boolean(d.BB_squeeze);
-    if (activeFilter === 'oversold') return (d.RSI != null && d.RSI < 35) || d.STOCH_detail === 'oversold' || d.SMC_pd_zone === 'discount';
-    if (activeFilter === 'overbought') return (d.RSI != null && d.RSI > 68) || d.STOCH_detail === 'overbought' || d.SMC_pd_zone === 'premium';
-    return true;
-  });
+  const pred = SCAN_PREDICATES[activeFilter] || SCAN_PREDICATES.all;
+  return items.filter(pred);
 }
 
 function renderScanSection() {
   const host = document.getElementById('tech-ov-scan');
   if (!host || !Array.isArray(overviewList)) return;
 
-  const counts = {
-    all: overviewList.length,
-    bullish: overviewList.filter(d => d.regime === 'bullish' || d.regime === 'mild_bullish').length,
-    bearish: overviewList.filter(d => d.regime === 'bearish' || d.regime === 'mild_bearish').length,
-    squeeze: overviewList.filter(d => d.BB_squeeze).length,
-    oversold: overviewList.filter(d => (d.RSI != null && d.RSI < 35) || d.STOCH_detail === 'oversold' || d.SMC_pd_zone === 'discount').length,
-    overbought: overviewList.filter(d => (d.RSI != null && d.RSI > 68) || d.STOCH_detail === 'overbought' || d.SMC_pd_zone === 'premium').length,
-  };
+  const counts = Object.fromEntries(
+    Object.entries(SCAN_PREDICATES).map(([k, fn]) => [k, overviewList.filter(fn).length])
+  );
 
   const filters = [
     { key: 'all', label: `全部 (${counts.all})` },
@@ -497,7 +501,7 @@ function renderScanSection() {
     { key: 'overbought', label: `超买/溢价区 (${counts.overbought})` },
   ];
 
-  // 按综合分降序排列（指数置顶或同权按分数排序，便于一眼扫出最强与最弱）
+  // 按综合分降序排列，便于一眼扫出最强与最弱
   const rows = [...filterOverviewItems(overviewList)].sort((a, b) => (b.total_score ?? 0) - (a.total_score ?? 0));
 
   host.innerHTML = '';
@@ -548,7 +552,7 @@ function renderScanSection() {
             <tr class="tech-ov-row${isAct ? ' active' : ''}" data-symbol="${esc(d.symbol)}">
               <td><strong>${esc(d.symbol)}</strong> <span class="tech-ov-type">${d.type === 'index' || ETF_LIKE.has(d.symbol) ? '指数' : ''}</span></td>
               <td class="num">${d.last_price != null ? '$' + d.last_price.toFixed(2) : '—'}</td>
-              <td class="num ${chg1d > 0 ? 'up' : chg1d < 0 ? 'down' : 'neutral'}">${chg1d != null ? fmtSigned(chg1d, 2, '%') : '—'}</td>
+              <td class="num ${chg1d != null ? (chg1d > 0 ? 'up' : chg1d < 0 ? 'down' : 'neutral') : ''}">${chg1d != null ? fmtSigned(chg1d, 2, '%') : '—'}</td>
               <td><span class="${regimeBadgeCls(d.regime)}">${esc(d.regime_label || '—')}</span></td>
               <td>
                 <span class="tag tech-ov-tag-setup">${esc(d.setup_tag || '—')}</span>
@@ -556,8 +560,8 @@ function renderScanSection() {
               </td>
               <td class="num"><strong class="${d.total_score > 0 ? 'up' : d.total_score < 0 ? 'down' : 'neutral'}">${fmtSigned(d.total_score)}</strong></td>
               <td class="num tech-ov-tri">${fmtSigned(d.trend_score)} / ${fmtSigned(d.momentum_score)} / ${fmtSigned(d.loc_score)}</td>
-              <td class="num ${d.RSI < 30 ? 'up' : d.RSI > 70 ? 'down' : ''}">${d.RSI != null ? d.RSI.toFixed(1) : '—'}</td>
-              <td class="num ${dist200 > 0 ? 'up' : dist200 < 0 ? 'down' : ''}">${dist200 != null ? fmtSigned(dist200, 1, '%') : '—'}</td>
+              <td class="num ${rsiToneCls(d.RSI)}">${d.RSI != null ? d.RSI.toFixed(1) : '—'}</td>
+              <td class="num ${dist200 != null ? (dist200 > 0 ? 'up' : dist200 < 0 ? 'down' : '') : ''}">${dist200 != null ? fmtSigned(dist200, 1, '%') : '—'}</td>
               <td class="num">${d.pos_52w != null ? d.pos_52w.toFixed(0) + '%' : '—'}</td>
               <td class="num"><button type="button" class="range-btn tech-ov-kbtn" data-go-kline="${esc(d.symbol)}">K线</button></td>
             </tr>
@@ -636,6 +640,7 @@ function initCharts() {
   mainChart = LightweightCharts.createChart(mainEl, { ...CHART_OPTS, width: mainEl.clientWidth || 600, height: mainEl.clientHeight || 260 });
   mainChart.priceScale('right').applyOptions({ autoScale: true, scaleMargins: { top: 0.1, bottom: 0.15 } });
   candleSeries = mainChart.addCandlestickSeries(candleColors());
+  // ponytail: thin volume overlay on main chart for quick visual reference
   volumeOverlaySeries = mainChart.addHistogramSeries({
     priceFormat: { type: 'volume' }, priceScaleId: 'vol',
     color: volumeColor(),
@@ -653,6 +658,7 @@ function initCharts() {
   macdLineSeries = macdChart.addLineSeries({ color: cssVar('--color-brand'), lineWidth: 1.5 });
   macdSignalSeries = macdChart.addLineSeries({ color: cssVar('--color-warn'), lineWidth: 1.5 });
 
+  // resize observer — auto-adapt when container size changes (panel toggle, window resize)
   _chartContainers.forEach(ro => ro?.disconnect());
   _chartContainers = [];
   const charts = [
@@ -672,16 +678,19 @@ function initCharts() {
     _chartContainers.push(ro);
   });
 
+  // 主题热切换：布局 + 各 series 颜色都重新从当前主题 token 取，再重绘（renderCharts 内含 overlay/逐点色重算）
   window.addEventListener('theme-changed', () => {
     [mainChart, rsiChart, macdChart].forEach(c => c.applyOptions(darkChartOpts()));
     applySeriesColors();
     renderCharts();
   });
+  // 应用初始主题
   if (document.body.classList.contains('dark')) {
     const darkOpts = darkChartOpts();
     [mainChart, rsiChart, macdChart].forEach(c => c.applyOptions(darkOpts));
   }
 
+  // sync time scales across all 3 charts
   const allCharts = [mainChart, rsiChart, macdChart];
   const syncFrom = (src, targets) => {
     src.timeScale().subscribeVisibleLogicalRangeChange(range => {
@@ -691,6 +700,11 @@ function initCharts() {
   };
   allCharts.forEach(src => syncFrom(src, allCharts.filter(t => t !== src)));
 
+  // crosshair sync → diag
+  // 副图十字光标同步：lightweight-charts v4.2.2 的签名是
+  // setCrosshairPosition(price, horizontalPosition: time, seriesApi)，第三参数必须是
+  // seriesApi 句柄（内部 xw.get(seriesApi) 查不到就静默 return）。
+  // 原实现传 (NaN, NaN, param.time) 从未生效，这里改为 [图, 该图的 seriesApi, 数据列名]。
   const subCharts = [[rsiChart, rsiSeries, 'RSI'], [macdChart, macdHistSeries, 'MACD_hist']];
   mainChart.subscribeCrosshairMove(param => {
     if (!param || !param.time) {
@@ -718,8 +732,10 @@ function candleColors() {
     priceFormat: { type: 'price', precision: 2, minMove: 0.01 },
   };
 }
+// 量能柱：品牌蓝半透明（8 位十六进制后缀，承接原浅蓝量能色的语义位）
 function volumeColor() { return cssVar('--color-brand') + '99'; }
 
+// 主题切换后把新色应用到非逐点着色的 series（逐点色由 renderCharts/refreshOverlays 重算）
 function applySeriesColors() {
   candleSeries.applyOptions(candleColors());
   volumeOverlaySeries.applyOptions({ color: volumeColor() });
@@ -742,6 +758,7 @@ function renderCharts() {
   candleSeries.setData(candles);
   volumeOverlaySeries.setData(volumes);
 
+  // RSI
   const rsi = data.filter(d => d.RSI != null).map(d => ({ time: d.date, value: d.RSI }));
   rsiSeries.setData(rsi);
   if (rsi.length) {
@@ -750,6 +767,7 @@ function renderCharts() {
     rsiLower.setData(times.map(t => ({ time: t, value: 30 })));
   }
 
+  // MACD
   const hist = data.filter(d => d.MACD_hist != null).map(d => ({
     time: d.date, value: d.MACD_hist,
     color: d.MACD_hist >= 0 ? cssVar('--color-up') : cssVar('--color-down'),
@@ -810,6 +828,7 @@ function debouncedDiag() {
 
 async function fetchDiag() {
   if (!currentSymbol) return;
+  // Pages 静态部署：as_of 光标回看无法预渲染所有日期，固定返回最新诊断
   const url = `/api/diag/${currentSymbol}`;
   try {
     const res = await fetch(url);
@@ -828,10 +847,9 @@ async function fetchDiag() {
 function renderDiag(d) {
   const el = document.getElementById('diag-content');
   if (!el || !d) return;
-  const maxScore = 15;
+  const maxScore = 18;
   const pct = Math.max(0, Math.min(100, ((d.total_score + maxScore) / (2 * maxScore)) * 100));
-  const scoreTxtTok = scoreTextToken(d.total_score);
-  const scoreFillTok = scoreGraphicToken(d.total_score);
+  const { text: scoreTxtTok, fill: scoreFillTok } = scoreTokens(d.total_score);
 
   let html = `
     <div class="diag-section">
@@ -866,7 +884,7 @@ function renderDiag(d) {
       <h4>RSI / 布林带</h4>
       <div class="diag-row">
         <span class="diag-label">RSI(14)</span>
-        <span class="diag-value ${d.RSI < 30 ? 'up' : d.RSI > 70 ? 'down' : 'neutral'}">${d.RSI?.toFixed(1) ?? '—'} (${esc(d.RSI_detail || '')})</span>
+        <span class="diag-value ${rsiToneCls(d.RSI, 'neutral')}">${d.RSI?.toFixed(1) ?? '—'} (${esc(d.RSI_detail || '')})</span>
       </div>
       <div class="diag-row"><span class="diag-label">BB 位置 / 带宽</span><span class="diag-value">${d.BB_position != null ? d.BB_position.toFixed(0) + '%' : '—'} · ${d.BB_width != null ? d.BB_width + '%' : '—'}${d.BB_squeeze ? ' (Squeeze)' : ''}</span></div>
     </div>
@@ -887,6 +905,14 @@ function renderDiag(d) {
       <div class="diag-row"><span class="diag-label">90d 阻力 / 支撑</span><span class="diag-value"><span class="down">${d.resistance_90d?.toFixed(2) ?? '—'}</span> / <span class="up">${d.support_90d?.toFixed(2) ?? '—'}</span></span></div>
       <div class="diag-row"><span class="diag-label">52w 区间 (${d.pos_52w != null ? d.pos_52w.toFixed(0) + '%' : '—'})</span><span class="diag-value">${d.low_52w?.toFixed(2) ?? '—'} – ${d.high_52w?.toFixed(2) ?? '—'}</span></div>
       <div class="diag-row"><span class="diag-label">ATR / 量比</span><span class="diag-value">${d.ATR?.toFixed(2) ?? '—'} (${d.ATR_pct ?? '—'}%) · ${d.vol_ratio?.toFixed(2) ?? '—'}x</span></div>
+    </div>
+
+    <div class="diag-section">
+      <h4>其它指标（CCI 仅展示不计分）</h4>
+      <div class="diag-row"><span class="diag-label">Stoch K/D</span><span class="diag-value">${d.STOCH_k?.toFixed(1) ?? '—'} / ${d.STOCH_d?.toFixed(1) ?? '—'} (${esc(d.STOCH_detail || '—')})</span></div>
+      <div class="diag-row"><span class="diag-label">CCI</span><span class="diag-value">${d.CCI?.toFixed(1) ?? '—'} (${esc(d.CCI_detail || '—')})</span></div>
+      <div class="diag-row"><span class="diag-label">MFI</span><span class="diag-value">${d.MFI?.toFixed(1) ?? '—'}</span></div>
+      <div class="diag-row"><span class="diag-label">OBV 背离</span><span class="diag-value">${esc(d.OBV_divergence || '无')}</span></div>
     </div>
 
     <div class="diag-section">
@@ -922,6 +948,11 @@ function renderDiag(d) {
 }
 
 // ── keyboard ───────────────────────────────────────────────────────────────
+// 方向键回看的两道守卫：
+// 1) 视图状态源 = app.js switchTab() 写入的 .app[data-view]（CSS 也靠它切换视图），
+//    离开技术视图（仪表盘/宏观/关联）或不在 K 线子视图时不接管，否则页面滚动会被吞。
+// 2) 焦点在可输入元素上（含 contenteditable / [role=combobox]）不接管，
+//    否则搜索框、代码输入、select 里的方向键全部失效。
 const EDITABLE_TAGS = new Set(['INPUT', 'TEXTAREA', 'SELECT']);
 function isEditableTarget(el) {
   if (!el || typeof el !== 'object') return false;
@@ -946,6 +977,7 @@ function initKeyboard() {
       idx += e.key === 'ArrowRight' ? 1 : -1;
       idx = Math.max(0, Math.min(totalBars - 1, idx));
       crosshairDate = data[idx].date;
+      // horizontalPosition 是 time（不是 bar index）：传 idx 会被当成 1970 年的时间戳，光标恒停在首根
       mainChart.setCrosshairPosition(data[idx].close, data[idx].date, candleSeries);
       debouncedDiag();
     }

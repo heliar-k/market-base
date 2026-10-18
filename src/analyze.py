@@ -218,27 +218,39 @@ def analyze(df: pd.DataFrame, symbol: str, as_of=None) -> dict:
 
     # 1) 趋势维度 (Trend)
     ma20 = last.get("MA20")
-    ma50 = last.get("MA50") if pd.notna(last.get("MA50")) else last.get("MA60")
-    ma200 = last.get("MA200") if pd.notna(last.get("MA200")) else last.get("MA120")
-    if pd.notna(ma20) and pd.notna(ma50) and pd.notna(ma200):
-        if cl > ma20 > ma50 > ma200:
-            trend_scores.append(("均线多头排列(MA20>50>200)", 2))
-        elif cl < ma20 < ma50 < ma200:
-            trend_scores.append(("均线空头排列(MA20<50<200)", -2))
-        elif cl > ma50 and ma20 > ma50:
-            trend_scores.append(("中期均线偏多(站上MA50)", 1))
-        elif cl < ma50 and ma20 < ma50:
-            trend_scores.append(("中期均线偏空(跌破MA50)", -1))
+    ma_mid_col = "MA50" if pd.notna(last.get("MA50")) else "MA60"
+    ma_long_col = "MA200" if pd.notna(last.get("MA200")) else "MA120"
+    ma_mid = last.get(ma_mid_col)
+    ma_long = last.get(ma_long_col)
+    stack_label = f"MA20>{ma_mid_col[2:]}>{ma_long_col[2:]}"
+    bear_stack = f"MA20<{ma_mid_col[2:]}<{ma_long_col[2:]}"
+    if pd.notna(ma20) and pd.notna(ma_mid) and pd.notna(ma_long):
+        if cl > ma20 > ma_mid > ma_long:
+            trend_scores.append((f"均线多头排列({stack_label})", 2))
+        elif cl < ma20 < ma_mid < ma_long:
+            trend_scores.append((f"均线空头排列({bear_stack})", -2))
+        elif cl > ma_mid and ma20 > ma_mid:
+            trend_scores.append((f"中期均线偏多(站上{ma_mid_col})", 1))
+        elif cl < ma_mid and ma20 < ma_mid:
+            trend_scores.append((f"中期均线偏空(跌破{ma_mid_col})", -1))
         else:
             trend_scores.append(("均线交织", 0))
-    elif pd.notna(ma50):
+    elif pd.notna(ma_mid):
         trend_scores.append(
-            ("价格站上中期均线" if cl > ma50 else "价格跌破中期均线", 1 if cl > ma50 else -1)
+            (
+                f"价格站上中期均线({ma_mid_col})"
+                if cl > ma_mid
+                else f"价格跌破中期均线({ma_mid_col})",
+                1 if cl > ma_mid else -1,
+            )
         )
 
-    if pd.notna(ma200):
+    if pd.notna(ma_long):
         trend_scores.append(
-            ("站上牛熊线(MA200)" if cl > ma200 else "跌破牛熊线(MA200)", 1 if cl > ma200 else -1)
+            (
+                f"站上牛熊线({ma_long_col})" if cl > ma_long else f"跌破牛熊线({ma_long_col})",
+                1 if cl > ma_long else -1,
+            )
         )
 
     if adx is not None and dmp is not None and dmn is not None:

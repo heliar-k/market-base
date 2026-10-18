@@ -29,7 +29,7 @@ market-base/
 │   ├── stock_snapshot.py         ← 盘前实时价 + OI 墙快照（yfinance）
 │   ├── volatility_dashboard.py   ← 波动率全景仪表盘分析层（30 指数 + 风险矩阵 + Trade Map + 7 段叙事，规则引擎 + LLM 预留）
 │   ├── compute_gex.py            ← Gamma Exposure 与期权墙计算（IBKR + yfinance）
-│   ├── cache.py                  ← 指标缓存层（parquet + mtime 失效，TUI 加速）
+│   ├── cache.py                  ← 指标缓存层（parquet + mtime & 列完整性失效，TUI/Web 加速）
 │   ├── macro.py                  ← 宏观派生指标（2s10s / 净流动性 / BEI / SOFR-IORB）
 │   ├── bill_share.py             ← 日频 Bill 占比（MSPD 锚 + 拍卖净发行派生）
 │   ├── pricing.py                ← 定价收敛点（compute_gex / sell_put / hedge_planner 三处重复的 BS 定价收敛）
@@ -37,7 +37,7 @@ market-base/
 │   ├── cross_asset.py            ← 跨资产相关性面板数据（22 标的 30 日矩阵 + 4 结构报警对，派生，依赖资产快照）
 │   ├── sell_put.py               ← Sell Put 选点位（期权墙 + 技术面交叉）
 │   ├── hedge_planner.py          ← 下跌保护结构报价器（put / 价差 / 领口）
-│   ├── server.py                 ← FastAPI Web 后端（45 routes，组合根：import 全部分析层）
+│   ├── server.py                 ← FastAPI Web 后端（46 routes，组合根：import 全部分析层）
 │   ├── export_pages.py           ← 静态站点导出（API JSON 预渲染 → frontend/public/api/）
 │   ├── *_analysis.py             ← 专题分析引擎（9 个，规则引擎生成叙事，只读 CSV 不写盘）：
 │   │     rates / credit / inflation / labor / treasury / fed / volatility /

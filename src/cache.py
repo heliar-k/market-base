@@ -13,7 +13,7 @@ from pathlib import Path
 
 import pandas as pd
 
-from src.indicators import compute_all_indicators, load_data
+from src.indicators import INDICATOR_COLUMNS, compute_all_indicators, load_data
 
 
 def cache_path(symbol: str, data_dir: str = "data") -> Path:
@@ -30,10 +30,12 @@ def is_cache_fresh(symbol: str, csv_path: Path, data_dir: str = "data") -> bool:
 
 
 def load_or_compute(symbol: str, csv_path: Path, data_dir: str = "data") -> pd.DataFrame:
-    """加载带指标的 df：缓存新鲜则读 parquet，否则读 CSV + 算指标 + 写 parquet。"""
+    """加载带指标的 df：缓存新鲜且列集完整则读 parquet，否则读 CSV + 算指标 + 写 parquet。"""
     cache = cache_path(symbol, data_dir)
     if is_cache_fresh(symbol, csv_path, data_dir):
-        return pd.read_parquet(cache)
+        df = pd.read_parquet(cache)
+        if all(col in df.columns for col in INDICATOR_COLUMNS):
+            return df
     cache.parent.mkdir(parents=True, exist_ok=True)
     df = compute_all_indicators(load_data(str(csv_path)))
     df.to_parquet(cache)

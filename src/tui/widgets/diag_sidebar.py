@@ -8,6 +8,8 @@ from __future__ import annotations
 
 from textual.widgets import Static
 
+from src.indicators import MA_PERIODS
+
 
 class DiagSidebar(Static):
     """诊断侧栏：把 analyze() dict 渲染成可读文本。"""
@@ -94,7 +96,7 @@ def _format_diagnosis(r: dict) -> str:
     ma_signals = r.get("ma_signals") or {}
     if ma_signals:
         ma_parts = []
-        for p in (5, 10, 20, 50, 60, 120, 200):
+        for p in MA_PERIODS:
             key = f"MA{p}"
             if key in ma_signals:
                 direction = ma_signals[key]

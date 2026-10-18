@@ -509,12 +509,15 @@ body.embedded .macro-nav, body.embedded #macro-nav-toggle { display: none; }
 .tech-ov-pane {
   display: flex; flex-direction: column; gap: 12px; flex: 1; min-height: 0; overflow-y: auto;
 }
+#tech-ov-current {
+  display: flex; flex-direction: column; gap: 12px;
+}
 .tech-ov-card {
   background: var(--surface); border: 1px solid var(--border); border-radius: 8px;
   padding: 16px 20px; box-shadow: var(--card-shadow);
   display: flex; flex-direction: column; gap: 14px;
 }
-body.dark .tech-ov-card { box-shadow: inset 0 0 0 1px rgba(255,255,255,.04); }
+body.dark .tech-ov-card { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--border) 60%, transparent); }
 .tech-ov-head {
   display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap;
 }
