@@ -42,14 +42,6 @@ document.body.classList.toggle('dark', window.matchMedia('(prefers-color-scheme:
 <div class="macro-nav-backdrop" id="macro-nav-backdrop"></div>
 
 <div class="app" data-view="tech">
-  <!-- Left sidebar (tech only) -->
-  <div class="sidebar">
-    <div class="sidebar-content">
-      <div class="symbol-list" id="symbol-list"><div class="loading">加载中…</div></div>
-    </div>
-  </div>
-  <button class="sidebar-collapse-btn" id="sidebar-collapse-btn" title="收起/展开标的列表">◀</button>
-
   <!-- Center -->
   <div class="center" id="app-main" tabindex="-1">
     <!-- Tech view -->
@@ -59,6 +51,7 @@ document.body.classList.toggle('dark', window.matchMedia('(prefers-color-scheme:
           <button class="range-btn active" data-subview="overview">结论总览</button>
           <button class="range-btn" data-subview="kline">K线与指标图</button>
         </div>
+        <select class="tech-sym-select" id="tech-sym-select" aria-label="选择标的"></select>
         <div class="tech-info-bar" id="tech-info-bar">
           <span class="tech-symbol" id="info-symbol">--</span>
           <span class="tech-price" id="info-price">--</span>
@@ -101,12 +94,6 @@ document.body.classList.toggle('dark', window.matchMedia('(prefers-color-scheme:
     <div class="correlation-view" style="flex:1;flex-direction:column">
       <div class="chart-card" id="correlation-card" style="flex:1;display:flex;flex-direction:column;overflow:hidden"></div>
     </div>
-  </div>
-
-  <!-- Right panel (tech only) -->
-  <div class="panel collapsed" id="diag-panel">
-    <div class="panel-header" id="diag-header">诊断分析 <span class="toggle-icon">◀</span></div>
-    <div id="diag-content"><div class="loading">请选择标的</div></div>
   </div>
 </div>
 

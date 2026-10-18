@@ -491,6 +491,12 @@ body.embedded .macro-nav, body.embedded #macro-nav-toggle { display: none; }
   padding: 6px 12px; background: var(--surface); border: 1px solid var(--border);
   border-radius: 8px; flex-shrink: 0; flex-wrap: wrap;
 }
+.tech-sym-select {
+  padding: 4px 8px; border: 1px solid var(--btn-border); border-radius: 4px;
+  font-size: 12px; font-weight: 600; background: var(--surface); color: var(--text);
+  font-family: var(--font-mono); cursor: pointer;
+}
+.tech-sym-select:hover { border-color: var(--border-strong); background: var(--hover-tint); }
 .tech-info-bar {
   display: flex; align-items: baseline; gap: 16px;
   flex: 1; min-width: 0;

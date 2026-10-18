@@ -1,10 +1,10 @@
 // tech-view.js — 技术分析视图：结论总览（默认） + K 线与指标图
 
 import { CHART_OPTS, darkChartOpts, addLine, cssVar } from './charts-common.js';
-import { loadWatch, saveWatch, removeWatch } from './watchlist.js';
 
 // 转义单源 R.esc（rates-common.js 已在 app/index.html 先于本模块加载；注意顶层 const R 属于全局词法作用域，不挂在 window.R 上）
 const esc = R.esc;
+const app = document.querySelector('.app');
 
 // ── state ──────────────────────────────────────────────────────────────────
 const SUBVIEW_KEY = 'tech-subview';
@@ -85,7 +85,6 @@ export function initTechView() {
   initCharts();
   initControls();
   initKeyboard();
-  initDiagToggle();
   applySubview(currentSubview, false);
   loadSymbols();
   loadTechOverview();
@@ -130,7 +129,7 @@ function applySubview(subview, persist = true) {
   }
 }
 
-// ── info bar ───────────────────────────────────────────────────────────────
+// ── info bar & symbol selector ─────────────────────────────────────────────
 function updateInfoBar() {
   const data = filteredData || klineData;
   const sym = document.getElementById('info-symbol');
@@ -164,163 +163,41 @@ function updateInfoBar() {
   ohlc.textContent = `O:${last.open.toFixed(2)} H:${last.high.toFixed(2)} L:${last.low.toFixed(2)} V:${fmtVolume(last.volume)}`;
 }
 
-// ── diagnosis toggle ───────────────────────────────────────────────────────
-function initDiagToggle() {
-  const panel = document.getElementById('diag-panel');
-  const header = document.getElementById('diag-header');
-  header.addEventListener('click', () => {
-    panel.classList.toggle('collapsed');
-    // wait for CSS transition (0.3s) then force chart resize
-    setTimeout(resizeAllCharts, 350);
-  });
-}
-
-// ── symbols sidebar ────────────────────────────────────────────────────────
-// collapse toggle — ResizeObserver on chart containers handles chart resize
-const app = document.querySelector('.app');
-const sidebarBtn = document.getElementById('sidebar-collapse-btn');
-function setSidebarHidden(hidden) {
-  app.classList.toggle('sidebar-hidden', hidden);
-  sidebarBtn.textContent = hidden ? '▶' : '◀';
-  localStorage.setItem('sidebar-hidden', hidden ? '1' : '');
-  // 兜底：display:none 即时生效，下一帧容器宽度已变；显式 resize 防部分浏览器 RO 不触发
-  resizeAllCharts();
-}
-sidebarBtn.addEventListener('click', () => setSidebarHidden(!app.classList.contains('sidebar-hidden')));
-setSidebarHidden(localStorage.getItem('sidebar-hidden') === '1');
-
 async function loadSymbols() {
-  const list = document.getElementById('symbol-list');
+  const sel = document.getElementById('tech-sym-select');
   let symbols;
   try {
     const res = await fetch('/api/symbols');
     if (!res.ok) throw new Error(res.statusText);
     symbols = await res.json();
   } catch {
-    // README 式空态：失败要与「暂无自选/空列表」区分开（自 7d8111dd 意图移植，ADR-0005 合并）
-    list.innerHTML = '<div class="sidebar-watch-empty">标的清单加载失败 · 确认 /api/symbols 已导出或服务已启动后刷新</div>';
+    if (sel) sel.innerHTML = '<option value="">加载失败</option>';
     return;
   }
-  list.innerHTML = '';
 
   const indices = symbols.filter(s => s.type === 'index' || ETF_LIKE.has(s.name));
   const stocks   = symbols.filter(s => s.type === 'stock' && !ETF_LIKE.has(s.name));
 
-  // 自选（ADR-0005 T3：家住技术侧栏，与 symbol-list 同组同构；置顶分组，✕ 显式删除）
-  const watchSet = new Set(loadWatch());
-  const watchSyms = symbols.filter(s => watchSet.has(s.name));
-
-  const buildRow = (s) => {
-    const row = document.createElement('div');
-    row.className = 'sidebar-row';
-    row.dataset.name = s.name;
-    if (s.name === currentSymbol) row.classList.add('active');
-    const nameSpan = document.createElement('span');
-    nameSpan.className = 'sidebar-row-name';
-    nameSpan.textContent = s.name;
-    row.appendChild(nameSpan);
-    const priceSpan = document.createElement('span');
-    priceSpan.className = 'sidebar-row-price';
-    priceSpan.textContent = '--';
-    row.appendChild(priceSpan);
-    row.addEventListener('click', () => selectSymbol(s.name));
-    return row;
-  };
-
-  const addSection = (title, items) => {
-    const hdr = document.createElement('div');
-    hdr.className = 'sidebar-section-header';
-    hdr.textContent = title;
-    list.appendChild(hdr);
-    items.forEach(s => list.appendChild(buildRow(s)));
-  };
-
-  // 自选分组：置顶；头部带添加下拉（全部标的 - 已自选）；每行 ✕ 删除（≥24px 触控目标）
-  const watchHdr = document.createElement('div');
-  watchHdr.className = 'sidebar-section-header sidebar-watch-header';
-  watchHdr.innerHTML = '<span>自选</span>';
-  const addSel = document.createElement('select');
-  addSel.className = 'sidebar-watch-add';
-  addSel.setAttribute('aria-label', '添加自选标的');
-  addSel.innerHTML = '<option value="">＋</option>'
-    + symbols.filter(s => !watchSet.has(s.name)).map(s => `<option>${s.name}</option>`).join('');
-  addSel.addEventListener('change', () => {
-    if (!addSel.value) return;
-    const next = loadWatch();
-    next.push(addSel.value);
-    saveWatchAndReload(next);
-  });
-  watchHdr.appendChild(addSel);
-  list.appendChild(watchHdr);
-  if (watchSyms.length) {
-    watchSyms.forEach(s => {
-      const row = buildRow(s);
-      const del = document.createElement('button');
-      del.type = 'button';
-      del.className = 'watch-del';
-      del.textContent = '✕';
-      del.title = '删除自选';
-      del.setAttribute('aria-label', `删除自选 ${s.name}`);
-      del.addEventListener('click', e => {
-        e.stopPropagation();
-        removeWatch(s.name);
-        loadSymbols();
-      });
-      row.appendChild(del);
-      list.appendChild(row);
+  if (sel) {
+    const mkGroup = (label, list) =>
+      `<optgroup label="${esc(label)}">${list.map(s => `<option value="${esc(s.name)}">${esc(s.name)}</option>`).join('')}</optgroup>`;
+    sel.innerHTML = mkGroup('指数 & ETF', indices) + mkGroup('个股', stocks);
+    sel.addEventListener('change', () => {
+      if (sel.value) selectSymbol(sel.value);
     });
-  } else {
-    const empty = document.createElement('div');
-    empty.className = 'sidebar-watch-empty';
-    empty.textContent = '暂无自选 · 用上方 ＋ 添加';
-    list.appendChild(empty);
   }
-
-  addSection('指数 & ETF', indices);
-  addSection('个股', stocks);
 
   // 默认选中第一个标的（优先 SPX / AAPL / 首项）
   if (!currentSymbol && symbols.length) {
     const def = symbols.find(s => s.name === 'SPX') || symbols.find(s => s.name === 'AAPL') || symbols[0];
     selectSymbol(def.name);
   }
-
-  fetchSidebarPrices(symbols);
-}
-
-// 添加后写回并重渲侧栏（统一入口，避免每处 saveWatch 后各自补渲染）
-function saveWatchAndReload(next) {
-  saveWatch(next);
-  loadSymbols();
-}
-
-async function fetchSidebarPrices(symbols) {
-  const results = await Promise.allSettled(
-    symbols.map(s => fetch(`/api/kline/${s.name}?days=2`).then(r => r.json()))
-  );
-  symbols.forEach((s, i) => {
-    const priceEls = document.querySelectorAll(`.sidebar-row[data-name="${s.name}"] .sidebar-row-price`);
-    if (!priceEls.length) return;
-    const r = results[i];
-    if (r.status === 'rejected' || !Array.isArray(r.value) || r.value.length < 2) {
-      priceEls.forEach(el => { el.textContent = '--'; });
-      return;
-    }
-    const data = r.value;
-    const last = data[data.length - 1];
-    const prev = data[data.length - 2];
-    const chg = ((last.close - prev.close) / prev.close) * 100;
-    const up = chg >= 0;
-    const html = `${last.close.toFixed(2)} <span class="${up ? 'up' : 'down'}">${up ? '+' : ''}${chg.toFixed(1)}%</span>`;
-    priceEls.forEach(el => { el.innerHTML = html; });
-  });
 }
 
 export async function selectSymbol(name) {
   currentSymbol = name;
-  document.querySelectorAll('.sidebar-row').forEach(el => {
-    el.classList.toggle('active', el.dataset.name === name);
-  });
+  const sel = document.getElementById('tech-sym-select');
+  if (sel && sel.value !== name) sel.value = name;
   document.querySelectorAll('.tech-ov-row').forEach(el => {
     el.classList.toggle('active', el.dataset.symbol === name);
   });
@@ -331,7 +208,6 @@ export async function selectSymbol(name) {
   if (cached) {
     currentDiag = cached;
     renderCurrentConclusion(cached);
-    renderDiag(cached);
   }
 
   fetchDiag();
@@ -361,7 +237,6 @@ async function loadTechOverview() {
       if (hit) {
         currentDiag = hit;
         renderCurrentConclusion(hit);
-        renderDiag(hit);
         updateInfoBar();
       }
     }
@@ -472,6 +347,22 @@ function renderCurrentConclusion(d) {
     scoreBreak('动量维度 (Momentum)', d.momentum_score, d.momentum_scores) +
     scoreBreak('位置与反转 (Location)', d.loc_score, d.loc_scores);
   card.appendChild(dimGrid);
+
+  // 辅助震荡与阶段涨跌快照（原右侧栏指标合入此处，CCI 仅展示不计分）
+  if (R.kvRows) {
+    const auxItems = [
+      { label: 'Stoch K / D', note: d.STOCH_detail || '', value: `${d.STOCH_k?.toFixed(1) ?? '—'} / ${d.STOCH_d?.toFixed(1) ?? '—'}` },
+      { label: 'CCI（仅展示不计分）', note: d.CCI_detail || '', value: d.CCI != null ? d.CCI.toFixed(1) : '—' },
+      { label: 'MFI 资金流', value: d.MFI != null ? d.MFI.toFixed(1) : '—' },
+      { label: 'OBV 量价背离', value: esc(d.OBV_divergence || '无') },
+      { label: '量比 (vs MA20)', value: d.vol_ratio != null ? `${d.vol_ratio.toFixed(2)}x` : '—' },
+      {
+        label: '阶段涨跌 (5D / 1M / 3M)',
+        value: ['5d', '1m', '3m'].map(k => d.changes?.[k] != null ? fmtSigned(d.changes[k], 1, '%') : '—').join(' / '),
+      },
+    ];
+    card.appendChild(R.kvRows(auxItems));
+  }
 
   card.appendChild(R.secNote('评分口径：趋势（MA20/50/200 排列、MA200 牛熊线、ADX、SuperTrend、周/日 SMC 结构）+ 动量（MACD 金死叉与柱体、RSI 动量带、OBV 背离）+ 位置反转（RSI/Stoch 去重超买超卖、MFI 背离、50 日折溢价区、流动性扫荡、关键 K 线形态）。点击下方任意标的切换结论，双击或点行末「K线」直达图表。'));
 
@@ -658,7 +549,7 @@ function initCharts() {
   macdLineSeries = macdChart.addLineSeries({ color: cssVar('--color-brand'), lineWidth: 1.5 });
   macdSignalSeries = macdChart.addLineSeries({ color: cssVar('--color-warn'), lineWidth: 1.5 });
 
-  // resize observer — auto-adapt when container size changes (panel toggle, window resize)
+  // resize observer — auto-adapt when container size changes (window resize / subview switch)
   _chartContainers.forEach(ro => ro?.disconnect());
   _chartContainers = [];
   const charts = [
@@ -700,7 +591,7 @@ function initCharts() {
   };
   allCharts.forEach(src => syncFrom(src, allCharts.filter(t => t !== src)));
 
-  // crosshair sync → diag
+  // crosshair sync
   // 副图十字光标同步：lightweight-charts v4.2.2 的签名是
   // setCrosshairPosition(price, horizontalPosition: time, seriesApi)，第三参数必须是
   // seriesApi 句柄（内部 xw.get(seriesApi) 查不到就静默 return）。
@@ -835,116 +726,11 @@ async function fetchDiag() {
     if (!res.ok) throw new Error(res.statusText);
     const d = await res.json();
     currentDiag = d;
-    renderDiag(d);
     renderCurrentConclusion(d);
+    updateInfoBar();
   } catch {
-    if (!currentDiag) {
-      document.getElementById('diag-content').innerHTML = `<div class="loading">诊断加载失败 —— 请确认服务已启动（uv run python -m src.server）</div>`;
-    }
+    // 已有 overview 缓存时保持当前展示
   }
-}
-
-function renderDiag(d) {
-  const el = document.getElementById('diag-content');
-  if (!el || !d) return;
-  const maxScore = 18;
-  const pct = Math.max(0, Math.min(100, ((d.total_score + maxScore) / (2 * maxScore)) * 100));
-  const { text: scoreTxtTok, fill: scoreFillTok } = scoreTokens(d.total_score);
-
-  let html = `
-    <div class="diag-section">
-      <div style="display:flex;align-items:baseline;gap:8px;flex-wrap:wrap">
-        <span class="score-text" style="color:${scoreTxtTok}">${fmtSigned(d.total_score)}</span>
-        <span class="${regimeBadgeCls(d.regime)}">${esc(d.regime_label || '—')}</span>
-        <span style="color:var(--text-secondary);font-size:12px;margin-left:auto">${esc(d.last_date || '')}</span>
-      </div>
-      <div class="score-bar"><div class="score-fill" style="width:${pct}%;background:${scoreFillTok}"></div></div>
-      <div style="display:flex;justify-content:space-between;align-items:baseline">
-        <span style="font-size:18px;font-weight:600">${d.last_price != null ? '$' + d.last_price.toFixed(2) : '—'}</span>
-        <span style="font-size:12px;color:var(--text-secondary)">趋势 ${fmtSigned(d.trend_score)} · 动量 ${fmtSigned(d.momentum_score)} · 位置 ${fmtSigned(d.loc_score)}</span>
-      </div>
-    </div>
-
-    <div class="diag-section">
-      <h4>均线 & 偏离度</h4>
-      ${Object.entries(d.ma_signals || {}).map(([k, v]) => {
-        const dist = d.ma_dists?.[k];
-        return `
-        <div class="diag-row">
-          <span class="diag-label">${esc(k)}</span>
-          <span class="diag-value">
-            ${(d.ma_values?.[k] ?? '—')}
-            <span class="${v === 'above' ? 'up' : 'down'}">${v === 'above' ? '↑' : '↓'}${dist != null ? ` ${fmtSigned(dist, 1, '%')}` : ''}</span>
-          </span>
-        </div>`;
-      }).join('')}
-    </div>
-
-    <div class="diag-section">
-      <h4>RSI / 布林带</h4>
-      <div class="diag-row">
-        <span class="diag-label">RSI(14)</span>
-        <span class="diag-value ${rsiToneCls(d.RSI, 'neutral')}">${d.RSI?.toFixed(1) ?? '—'} (${esc(d.RSI_detail || '')})</span>
-      </div>
-      <div class="diag-row"><span class="diag-label">BB 位置 / 带宽</span><span class="diag-value">${d.BB_position != null ? d.BB_position.toFixed(0) + '%' : '—'} · ${d.BB_width != null ? d.BB_width + '%' : '—'}${d.BB_squeeze ? ' (Squeeze)' : ''}</span></div>
-    </div>
-
-    <div class="diag-section">
-      <h4>MACD / ADX</h4>
-      <div class="diag-row">
-        <span class="diag-label">MACD 状态</span>
-        <span class="diag-value ${d.MACD_status === 'golden_cross' ? 'up' : 'down'}">
-          ${d.MACD_status === 'golden_cross' ? '✦ 金叉' : '✦ 死叉'} (${d.MACD_hist?.toFixed(3) ?? '—'})
-        </span>
-      </div>
-      <div class="diag-row"><span class="diag-label">ADX / ±DI</span><span class="diag-value">${d.ADX?.toFixed(1) ?? '—'} (<span class="up">+${d.DMP?.toFixed(0) ?? '—'}</span> / <span class="down">-${d.DMN?.toFixed(0) ?? '—'}</span>)</span></div>
-    </div>
-
-    <div class="diag-section">
-      <h4>关键位 & 52周</h4>
-      <div class="diag-row"><span class="diag-label">90d 阻力 / 支撑</span><span class="diag-value"><span class="down">${d.resistance_90d?.toFixed(2) ?? '—'}</span> / <span class="up">${d.support_90d?.toFixed(2) ?? '—'}</span></span></div>
-      <div class="diag-row"><span class="diag-label">52w 区间 (${d.pos_52w != null ? d.pos_52w.toFixed(0) + '%' : '—'})</span><span class="diag-value">${d.low_52w?.toFixed(2) ?? '—'} – ${d.high_52w?.toFixed(2) ?? '—'}</span></div>
-      <div class="diag-row"><span class="diag-label">ATR / 量比</span><span class="diag-value">${d.ATR?.toFixed(2) ?? '—'} (${d.ATR_pct ?? '—'}%) · ${d.vol_ratio?.toFixed(2) ?? '—'}x</span></div>
-    </div>
-
-    <div class="diag-section">
-      <h4>其它指标（CCI 仅展示不计分）</h4>
-      <div class="diag-row"><span class="diag-label">Stoch K/D</span><span class="diag-value">${d.STOCH_k?.toFixed(1) ?? '—'} / ${d.STOCH_d?.toFixed(1) ?? '—'} (${esc(d.STOCH_detail || '—')})</span></div>
-      <div class="diag-row"><span class="diag-label">CCI</span><span class="diag-value">${d.CCI?.toFixed(1) ?? '—'} (${esc(d.CCI_detail || '—')})</span></div>
-      <div class="diag-row"><span class="diag-label">MFI</span><span class="diag-value">${d.MFI?.toFixed(1) ?? '—'}</span></div>
-      <div class="diag-row"><span class="diag-label">OBV 背离</span><span class="diag-value">${esc(d.OBV_divergence || '无')}</span></div>
-    </div>
-
-    <div class="diag-section">
-      <h4>阶段涨跌幅</h4>
-      ${Object.entries(d.changes || {}).map(([k, v]) => `
-        <div class="diag-row">
-          <span class="diag-label">${esc(k)}</span>
-          <span class="diag-value ${v >= 0 ? 'up' : 'down'}">${v >= 0 ? '+' : ''}${Number(v).toFixed(2)}%</span>
-        </div>
-      `).join('')}
-    </div>
-
-    <div class="diag-section">
-      <h4>K线形态 (已滤除高频噪声)</h4>
-      <div class="cdl-list">
-        ${(d.cdl_bullish || []).map(n => `<span class="tag tag-bull">${esc(n)}</span>`).join('')}
-        ${(d.cdl_bearish || []).map(n => `<span class="tag tag-bear">${esc(n)}</span>`).join('')}
-        ${!(d.cdl_bullish?.length || d.cdl_bearish?.length) ? '<span style="color:var(--text-dim);font-size:12px">无显著反转形态</span>' : ''}
-      </div>
-    </div>
-
-    <div class="diag-section">
-      <h4>评分明细</h4>
-      ${(d.scores || []).map(s => `
-        <div class="diag-row">
-          <span class="diag-label">${esc(s.label)}</span>
-          <span class="diag-value ${s.value > 0 ? 'up' : s.value < 0 ? 'down' : 'neutral'}">${fmtSigned(s.value)}</span>
-        </div>
-      `).join('')}
-    </div>
-  `;
-  el.innerHTML = html;
 }
 
 // ── keyboard ───────────────────────────────────────────────────────────────
