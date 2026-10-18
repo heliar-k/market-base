@@ -88,7 +88,7 @@ async function load() {
       <td>${r.date} <span style="color:var(--text-dim)">${r.weekday}</span></td>
       <td style="color:var(--text-secondary);font-size:12px">${(r.flows || []).map(f => `${f.label} ${f.amount_b >= 0 ? '+' : ''}${f.amount_b.toFixed(1)}B`).join(' · ') || '—'}</td>
       <td style="text-align:right;color:${bucketTextColors[r.bucket]};font-weight:600">${(r.flows || []).length ? f1(r.net_b) : '—'}</td>
-      <td style="text-align:right"><span style="padding:2px 8px;border-radius:999px;font-size:11px;border:1px solid color-mix(in srgb, ${bucketColors[r.bucket]} 40%, transparent);color:${bucketTextColors[r.bucket]}">${BUCKET_LABEL[r.bucket] || r.bucket}</span></td>
+      <td style="text-align:right"><span style="display:inline-block;padding:0 6px;border-radius:4px;font-size:11px;line-height:16px;border:1px solid color-mix(in srgb, ${bucketColors[r.bucket]} 40%, transparent);color:${bucketTextColors[r.bucket]}">${BUCKET_LABEL[r.bucket] || r.bucket}</span></td>
     </tr>`).join('');
   document.getElementById('re-heat').innerHTML = `
     <div class="re-section">

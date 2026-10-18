@@ -449,6 +449,10 @@ uv run python src/sell_put.py --symbol TSM
   弱化说明走 `sub` prop（`.re-sec-sub`），需与数据联动的状态文字在 island 里用映射表（`TERM_STATE` 一类），
   标题本身不写成纯英文
 - **复用既有类，不造平行组件**：卡片 `.chart-card`、控件条 `.controls`/`.range-controls`/`.range-btn`、数据行 `.diag-row`、语义色 `.up/.down/.neutral`、统计卡 `.dash-stat`/`.dash-card`；只给面板私有结构加 `面板名-` 前缀的新类
+- **徽章与胶囊两档制（只读方胶囊 vs 交互圆胶囊）**：
+  1. **只读状态/标签徽章**（`.re-badge` / `.term-badge` / `.rh-badge` / `.pc-badge` / `.opt-chip` / `.rt-pill` / `.tr-pill` / `.fed-badge` / `.dchip` / `.sw-tag` / `.db-topic-tag` / `.vt-conf` / `.vol-score` / `.re-expectation` / `.pm-chip` 及内联状态标签）：一律用 **`border-radius: 4px` 方胶囊体** + 紧凑行高（`font-size: 11px; line-height: 16px~18px; padding: 0 6px`，含 1px 描边总高 **18px**），与旁侧 `12–13px` 正文/标题行盒严丝合缝平齐，不外鼓、不抢戏。
+  2. **可点击的导航/筛选胶囊与页头时效区**：仅交互控件（`.page-toc a`、`a.re-badge`、`.cons-vote`）与页头时效胶囊（`.re-as-of` / `.re-tier` / `.cons-intraday`）保留 `border-radius: 999px` 圆胶囊与 ≥24px 触控高度，让读者一眼区分「能点的按钮（圆）」与「只读的状态标签（方）」。
+  守卫：`tests/test_static_single_source.py::test_readonly_badges_use_square_capsule`
 - **「一项一个数」的段走键值行 `R.kvRows()`，不写键值表**（`rates-common.js` / `app.css` `.re-kv-grid`）：
   2-4 列的「指标 | 当前」表被拉到卡片全宽（1118px）时，数值列甩到最右、中间一大片空白；
   改 `R.cards()` 又会在窄屏炸（卡片 ≤768 强制单列，一张 ~117px，7 项 800px+，比表格还长）。

@@ -1,7 +1,7 @@
 /* fed 子站共享样式（公共 .re-* 类见 /css/special.css） */
 
-/* 鹰鸽徽章 */
-.fed-badge { display: inline-block; padding: 1px 8px; border-radius: 10px; font-size: 11px; font-weight: 600; }
+/* 鹰鸽徽章（对齐全站只读方胶囊 18px 规格） */
+.fed-badge { display: inline-block; padding: 0 6px; border-radius: 4px; font-size: 11px; line-height: 18px; font-weight: 600; }
 .fed-badge.hawk { background: var(--color-hawk-bg); color: var(--color-hawk-text); }
 .fed-badge.dove { background: var(--color-dove-bg); color: var(--color-dove-text); }
 .fed-badge.mid { background: var(--color-neutral-bg); color: var(--text-secondary); }

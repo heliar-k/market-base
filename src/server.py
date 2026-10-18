@@ -882,7 +882,10 @@ def get_home_lines() -> dict:
             "assets",
             "大类资产",
             assets_overview,
-            lambda d: (d["analysis"]["cross_asset"]["text"], d.get("as_of")),
+            lambda d: (
+                d["analysis"]["risk_appetite"]["text"].replace("。\n", " —— "),
+                d.get("as_of"),
+            ),
         ),
         (
             "fed",

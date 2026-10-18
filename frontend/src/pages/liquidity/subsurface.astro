@@ -51,7 +51,7 @@ async function load() {
     <div>
       <div class="label">综合次表层压力</div>
       <div style="font-size:16px;font-weight:600;margin:6px 0">
-        <span style="display:inline-block;padding:2px 12px;border-radius:999px;border:1px solid color-mix(in srgb, ${stateColor} 40%, transparent);background:color-mix(in srgb, ${stateColor} 9%, transparent);color:${stateTextColor}">● ${comp.state || '—'}</span>
+        <span style="display:inline-block;padding:1px 8px;border-radius:4px;font-size:12px;line-height:18px;border:1px solid color-mix(in srgb, ${stateColor} 40%, transparent);background:color-mix(in srgb, ${stateColor} 9%, transparent);color:${stateTextColor}">● ${comp.state || '—'}</span>
       </div>
       <div style="font-size:12px;color:var(--text-dim)">加权和 ${((comp.tail ?? 0) + (comp.volume ?? 0) + (comp.srf ?? 0) + (comp.swap ?? 0)).toFixed(1)}/10：≥2 轻微 · ≥4 承压</div>
     </div>

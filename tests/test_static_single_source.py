@@ -623,3 +623,38 @@ def test_multi_page_ids_have_no_css_selectors() -> None:
     assert not hits, (
         f"以下 id 被多页共用，CSS 却挂了 #id 选择器（私有规则会漏进同 id 的页）：{hits}"
     )
+
+
+# ── 徽章与胶囊两档制守卫：只读状态标签一律 4px 方胶囊，999px 仅限交互胶囊与页头时效 ──
+_PILL_RADIUS_ALLOWED_CSS = {
+    ".re-as-of",
+    ".re-tier",
+    ".page-toc a",
+    "a.re-badge",
+    ".cons-intraday",
+    ".cons-vote",
+}
+
+
+def test_readonly_badges_use_square_capsule() -> None:
+    """只读状态徽章一律用 border-radius: 4px 方胶囊（与旁侧文字等高）；
+    border-radius: 999px 仅允许用于可点击导航/筛选胶囊与页头时效区，页面内联 style 禁止写 999px。
+    """
+    css_bad = []
+    for path in sorted((FRONTEND / "public" / "css").glob("*.css")):
+        text = re.sub(r"/\*.*?\*/", "", path.read_text("utf-8"), flags=re.S)
+        for m in re.finditer(r"([^{}]+)\{([^{}]*)\}", text):
+            sel, body = " ".join(m.group(1).split()), m.group(2)
+            if "border-radius: 999px" in body or "border-radius:999px" in body:
+                if sel not in _PILL_RADIUS_ALLOWED_CSS:
+                    css_bad.append(f"{path.name}: {sel}")
+    assert not css_bad, f"只读徽章请改 border-radius: 4px 方胶囊（999px 仅限交互控件）：{css_bad}"
+
+    inline_bad = []
+    for page in sorted(ASTRO_PAGES.rglob("*.astro")):
+        for i, ln in enumerate(page.read_text("utf-8").splitlines(), 1):
+            if "border-radius:999px" in ln or "border-radius: 999px" in ln:
+                inline_bad.append(f"{page.relative_to(ASTRO_PAGES)}:{i}")
+    assert not inline_bad, (
+        f"页面内联 style 禁止写 border-radius: 999px（只读标签用 4px）：{inline_bad}"
+    )
