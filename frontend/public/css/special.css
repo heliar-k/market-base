@@ -25,6 +25,7 @@ body { height: auto; overflow-y: auto; display: block; }
 body.embedded .re-header h1 { display: none; } /* 内嵌时左卡已有标题 */
 /* 时效胶囊（timsun 徽章语言）：12% 中性底 + 全圆角，与各状态 tag 同构 */
 .re-as-of { font-size: 12px; color: var(--text-secondary); background: var(--color-neutral-bg); padding: 2px 10px; border-radius: 999px; white-space: normal; overflow-wrap: anywhere; }
+.re-as-of:empty { display: none; } /* 数据未就绪 / 取数失败时不留空胶囊（同 .re-root > :empty 的思路） */
 /* 多段时效串的分段结构（R.setAsOf 输出 .re-as-of-seg）：分隔点画在段首，
  * 窄屏（≤768）段变块级各占一行右对齐、藏分隔点，宽屏同行同旧渲染。 */
 .re-as-of-seg + .re-as-of-seg::before { content: ' · '; }
@@ -213,8 +214,11 @@ body.embedded .re-foot { display: none; } /* 内嵌 iframe 不重复页脚 */
  * （#dashboard 640px / .re-scroll-y 860px）保持滚动，只是更紧凑。 */
 @media (max-width: 768px) {
   .re-root { max-width: min(1200px, calc(100vw - 32px)); padding: 20px 16px 40px; }
-  /* 时效胶囊与正文卡片右缘对齐（用户验收）；浮钮让位只在宽档（1025-1500）需要 */
-  .re-header { padding-right: 0; }
+  /* 时效胶囊与正文卡片右缘对齐（用户验收）；浮钮让位只在宽档（1025-1500）需要。
+     align-items baseline→center：窄屏胶囊常 3 行、标题 1 行，baseline 对齐会让标题
+     黏在胶囊第一行、读作往左上吊（用户反馈「偏离中轴」）；居中后两块的视觉中心齐平，
+     仍是同一行（space-between 不动，胶囊仍贴右）。单行胶囊的子页也只是微调几 px。 */
+  .re-header { padding-right: 0; align-items: center; }
   :is(.re-section, .re-panel) { padding: 12px 14px; }
   :root { --re-cell-pad-x: 8px; }
   .re-table { font-size: 12px; }
