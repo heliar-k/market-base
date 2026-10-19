@@ -511,6 +511,7 @@ HERO,Global X Video Games & Esports ETF,broad
 HFSP,TradersAI Large Cap Equity & Cash ETF,theme
 HIDE,Alpha Architect High Inflation and Deflation ETF,broad
 HIMZ,Defiance Daily Target 2X Long HIMS ETF,leveraged_inverse
+HINC,Hartford High Yield ETF,bond
 HIS,Humilis US Focused Opportunities ETF,broad
 HISF,First Trust High Income Strategic Focus ETF,factor_income
 HLAL,Wahed FTSE USA Shariah ETF,broad
@@ -886,7 +887,6 @@ QBTZ,Defiance Daily Target 2x Short QBTS ETF,leveraged_inverse
 QBUF,Innovator Nasdaq-100 10 Buffer ETF Quarterly,broad
 QBY,GraniteShares YieldBoost QBTS ETF,broad
 QCLN,First Trust NASDAQ Clean Edge Green Energy Index Fund,commodity
-QCLR,Global X NASDAQ 100 Collar 95-110 ETF,broad
 QCMD,Direxion Daily QCOM Bear 1X ETF,theme
 QCML,GraniteShares 2x Long QCOM Daily ETF,leveraged_inverse
 QCMU,Direxion Daily QCOM Bull 2X ETF,leveraged_inverse
@@ -1327,6 +1327,7 @@ ACHX,Corgi ACHR 2x Daily ETF,leveraged_inverse
 ACIG,Hartford Alpha Capture International Growth ETF,global
 ACII,Innovator Index Autocallable Income Strategy ETF,factor_income
 ACIO,Aptus Collared Investment Opportunity ETF,broad
+ACIV,Hartford Alpha Capture International Value ETF,factor_income
 ACKY,VistaShares Target 15 ACKtivist Distribution ETF,broad
 ACLC,American Century Large Cap Equity ETF,broad
 ACLO,TCW AAA CLO ETF,broad
@@ -1388,6 +1389,7 @@ AHYB,American Century Select High Yield ETF,bond
 AIBD,Direxion Daily AI and Big Data Bear 2X ETF,leveraged_inverse
 AIBF,iShares Future AI Beneficiaries ETF,theme
 AIBU,Direxion Daily AI and Big Data Bull 2X ETF,leveraged_inverse
+AIED,Defiance LLM Catalyst Momentum ETF,factor_income
 AIEQ,Amplify AI Powered Equity ETF,theme
 AIHY,Defiance AI Hyperscale Leaders ETF,theme
 AINP,Allspring Income Plus ETF,factor_income
@@ -1423,7 +1425,6 @@ AMKL,Defiance Daily Target 2X Long AMKR ETF,leveraged_inverse
 AMKX,Corgi AMKR 2x Daily ETF,leveraged_inverse
 AMLP,Alerian MLP ETF,broad
 AMMO,VistaShares Defense Supercycle ETF,broad
-AMOM,QRAFT AI-Enhanced U.S. Large Cap Momentum ETF,factor_income
 AMPU,Defiance Daily Target 2X Long AMPX ETF,leveraged_inverse
 AMZA,InfraCap MLP ETF,broad
 AMZG,Leverage Shares 2X Long AMZN Daily ETF,leveraged_inverse
@@ -1784,7 +1785,6 @@ BTCU,Direxion Daily Bitcoin Bull 2X ETF,crypto
 BTCW,WisdomTree Bitcoin Fund,crypto
 BTCZ,T-Rex 2X Inverse Bitcoin Daily Target ETF,crypto
 BTOT,iShares Total USD Fixed Income Market ETF,factor_income
-BTRN,Global X Bitcoin Trend Strategy ETF,crypto
 BUCK,Simplify Treasury Option Income ETF,bond
 BUFB,Innovator Laddered Allocation Buffer ETF,broad
 BUFD,FT Vest Laddered Deep Buffer ETF,broad
@@ -3328,7 +3328,6 @@ IREX,Tradr 2X Long IREN Daily ETF,leveraged_inverse
 IREZ,Tradr 2X Short IREN Daily ETF,leveraged_inverse
 IROC,Invesco Rochester High Yield Municipal ETF,bond
 IRTR,iShares LifePath Retirement ETF,broad
-IRVH,Global X Interest Rate Volatility & Inflation Hedge ETF,broad
 ISBG,IncomeSTKd 1x Bitcoin & 1x Gold Premium ETF,commodity
 ISCF,iShares International Small-Cap Equity Factor ETF,global
 ISCG,iShares Morningstar Small-Cap Growth ETF,high_beta
@@ -4742,6 +4741,7 @@ SEPT,AllianzIM U.S. Large Cap Buffer10 Sep ETF,broad
 SEPU,AllianzIM U.S. Equity Buffer15 Uncapped Sep ETF,broad
 SEPW,AllianzIM U.S. Large Cap Buffer20 Sep ETF,broad
 SEPZ,TrueShares Structured Outcome (September) ETF,broad
+SEQ,Sequoia ETF,broad
 SETH,ProShares Short Ether ETF,broad
 SFEB,FT Vest U.S. Small Cap Moderate Buffer ETF - February,broad
 SFGV,Sequoia Global Value ETF,factor_income
@@ -4960,6 +4960,7 @@ SPYU,"MAX S&P 500 4X Leveraged ETNs due October 30, 2043",broad
 SPYV,State Street SPDR Portfolio S&P 500 Value ETF,factor_income
 SPYX,State Street SPDR S&P 500 Fossil Fuel Reserves Free ETF,broad
 SQBA,FT Vest U.S. Equity Quarterly 15 Buffer ETF,broad
+SQBR,FT Vest U.S. Equity Quarterly 20 Barrier ETF,broad
 SQLT,iShares MSCI USA Small-Cap Quality Factor ETF,factor_income
 SQMX,FT Vest U.S. Equity Quarterly Max Buffer ETF,broad
 SRHQ,SRH U.S. Quality GARP ETF,factor_income
@@ -5517,6 +5518,7 @@ WEEK,Roundhill Weekly T-Bill ETF,broad
 WEEL,Peerless Option Income Wheel ETF,factor_income
 WELD,Tema U.S. Manufacturing & Reshoring ETF,broad
 WEPN,Nicholas Defense and Rare Earth Income ETF,factor_income
+WINC,William Blair Emerging Income ETF,factor_income
 WINN,Harbor Long-Term Growers ETF,broad
 WIP,State Street SPDR FTSE International Government Inflation-Protected Bond ETF,bond
 WLDR,Simplify Affinity World Leaders Equity ETF,global
@@ -5570,7 +5572,6 @@ XC,WisdomTree True Emerging Markets Fund,global
 XCCC,BondBloxx CCC-Rated USD High Yield Corporate Bond ETF,bond
 XCEM,Columbia EM Core ex-China ETF,global
 XCHG,AB US Equity ETF,broad
-XCLR,Global X S&P 500 Collar 95-110 ETF,broad
 XCOM,Corgi All Commodities 2x Daily ETF,leveraged_inverse
 XCOR,FundX ETF,broad
 XDAT,Franklin Exponential Data ETF,broad
