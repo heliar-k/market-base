@@ -499,18 +499,22 @@ body.embedded .macro-nav, body.embedded #macro-nav-toggle { display: none; }
 .tech-sym-select:hover { border-color: var(--border-strong); background: var(--hover-tint); }
 .tech-info-bar {
   display: flex; align-items: baseline; gap: 16px;
-  flex: 1; min-width: 0;
+  /* min-width 兼作折行开关：装不下时整条掉下一行并撑满（窄屏曾被压成斜条，
+     内容没处换行只逐字堆高）；装得下就与左侧控件同排。 */
+  flex: 1 1 400px; min-width: min(100%, 400px);
+  /* space-between 而不是给 OHLC 写 margin-left:auto：一行时报价靠左、OHLC 贴右；
+     OHLC 单独掉到第二行时 space-between 把它放到行首 → 自动全条左对齐，无需断点。 */
+  justify-content: space-between;
   font-size: 13px; font-family: -apple-system, sans-serif;
 }
-.tech-symbol { font-weight: 700; font-size: 15px; }
+.tech-quote { display: flex; align-items: baseline; gap: inherit; }
 .tech-price { font-size: 18px; font-weight: 700; font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
 .tech-change { font-size: 13px; font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
 .tech-change.up { color: var(--color-up-text); }
 .tech-change.down { color: var(--color-down-text); }
-.tech-ohlc { color: var(--text-dim); font-size: 12px; font-family: var(--font-mono); font-variant-numeric: tabular-nums; margin-left: auto; }
+.tech-ohlc { color: var(--text-dim); font-size: 12px; font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
 /* K 线周期：只读方胶囊（本页 K 线/指标/评分全部日线口径，见 /api/kline 默认 interval=1d）。
-   与标的名同包一层 .tech-id，窄屏 flex-wrap 时胶囊不会单独掉行。 */
-.tech-id { display: inline-flex; align-items: baseline; gap: 8px; }
+   标的名不在本行重复（左侧下拉框已有），胶囊直接作行首标签。 */
 .tech-tf {
   flex: none; white-space: nowrap;
   font-size: 11px; line-height: 18px; padding: 0 6px; border-radius: 4px;
@@ -603,6 +607,13 @@ body.dark .tech-ov-card { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--b
 @media (max-width: 768px) {
   .tech-ov-card { padding: 12px 14px; }
   .tech-ov-table { font-size: 12px; }
+  /* 11 列在窄屏必然横滑（实测 390 视口：内容 914px / 容器 336px）：首列标的冻结，
+     否则滑到右侧就不知道在看哪只。sticky 层需自带不透明底，hover/active 要重给。 */
+  .tech-ov-table th:first-child,
+  .tech-ov-table td:first-child { position: sticky; left: 0; z-index: 1; background: var(--surface); }
+  .tech-ov-table th:first-child { background: var(--surface-alt); }
+  .tech-ov-row:hover td:first-child { background: var(--surface-hover); }
+  .tech-ov-row.active td:first-child { background: var(--accent-light); }
 }
 
 /* ── sidebar rows ───────────────────────────────────────── */
@@ -700,7 +711,7 @@ body.dark .tech-ov-card { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--b
   }
   .app[data-view="tech"] .panel.collapsed { width: auto; padding: 12px 16px; }
   .app[data-view="tech"] .panel.collapsed .panel-header { writing-mode: horizontal-tb; }
-  /* 信息条窄屏允许折行 */
+  /* 信息条窄屏：内部允许折行（整条掉行的判定看 .tech-info-bar 的 min-width）*/
   .tech-info-bar { flex-wrap: wrap; gap: 8px 12px; }
 }
 

@@ -137,13 +137,12 @@ function applySubview(subview, persist = true) {
 // ── info bar & symbol selector ─────────────────────────────────────────────
 function updateInfoBar() {
   const data = filteredData || klineData;
-  const sym = document.getElementById('info-symbol');
+  // 标的名不在此条重复：左侧下拉框已显示当前标的
   const price = document.getElementById('info-price');
   const change = document.getElementById('info-change');
   const ohlc = document.getElementById('info-ohlc');
-  if (!sym) return;
+  if (!price) return;
   if (!data || !data.length) {
-    sym.textContent = currentSymbol || '--';
     price.textContent = currentDiag?.last_price != null ? currentDiag.last_price.toFixed(2) : '--';
     const chg1d = currentDiag?.changes?.['1d'];
     if (chg1d != null) {
@@ -161,7 +160,6 @@ function updateInfoBar() {
   const prev = data.length >= 2 ? data[data.length - 2] : last;
   const chg = prev.close ? ((last.close - prev.close) / prev.close * 100) : 0;
   const up = chg >= 0;
-  sym.textContent = currentSymbol;
   price.textContent = last.close.toFixed(2);
   change.textContent = `${up ? '▲' : '▼'} ${up ? '+' : ''}${chg.toFixed(2)}%`;
   change.className = 'tech-change ' + (up ? 'up' : 'down');
