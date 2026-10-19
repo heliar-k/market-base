@@ -508,6 +508,15 @@ body.embedded .macro-nav, body.embedded #macro-nav-toggle { display: none; }
 .tech-change.up { color: var(--color-up-text); }
 .tech-change.down { color: var(--color-down-text); }
 .tech-ohlc { color: var(--text-dim); font-size: 12px; font-family: var(--font-mono); font-variant-numeric: tabular-nums; margin-left: auto; }
+/* K 线周期：只读方胶囊（本页 K 线/指标/评分全部日线口径，见 /api/kline 默认 interval=1d）。
+   与标的名同包一层 .tech-id，窄屏 flex-wrap 时胶囊不会单独掉行。 */
+.tech-id { display: inline-flex; align-items: baseline; gap: 8px; }
+.tech-tf {
+  flex: none; white-space: nowrap;
+  font-size: 11px; line-height: 18px; padding: 0 6px; border-radius: 4px;
+  border: 1px solid var(--border); color: var(--text-dim);
+  font-family: -apple-system, sans-serif;
+}
 
 .tech-kline-pane {
   display: flex; flex-direction: column; gap: 8px; flex: 1; min-height: 0;

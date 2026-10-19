@@ -53,7 +53,10 @@ document.body.classList.toggle('dark', window.matchMedia('(prefers-color-scheme:
         </div>
         <select class="tech-sym-select" id="tech-sym-select" aria-label="选择标的"></select>
         <div class="tech-info-bar" id="tech-info-bar">
-          <span class="tech-symbol" id="info-symbol">--</span>
+          <span class="tech-id">
+            <span class="tech-symbol" id="info-symbol">--</span>
+            <span class="tech-tf" title="K 线与全部指标均为日线（1d）口径">日线</span>
+          </span>
           <span class="tech-price" id="info-price">--</span>
           <span class="tech-change" id="info-change">--</span>
           <span class="tech-ohlc" id="info-ohlc">--</span>

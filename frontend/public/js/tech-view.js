@@ -35,7 +35,12 @@ const MA_COLORS = () => ({
 });
 const BB_COLOR = () => cssVar('--chart-slate');
 
-const ETF_LIKE = new Set(['SPY', 'QQQ']); // grouped with indices even though type=stock
+// type=stock 但语义是工具型 ETF：下拉框归到「指数 & ETF」组，扫描表标 ETF 而非 指数
+const ETF_LIKE = new Set([
+  'SPY', 'QQQ',
+  'TLT', 'LQD', 'HYG', 'GLD', 'SLV', 'USO', 'DBA', 'IBIT',
+  'SMH', 'IWM', 'XLK', 'XLE', 'XLF', 'XLV',
+]);
 
 // ── helpers ────────────────────────────────────────────────────────────────
 function scoreTokens(score) {
@@ -441,7 +446,7 @@ function renderScanSection() {
           const isAct = d.symbol === currentSymbol;
           return `
             <tr class="tech-ov-row${isAct ? ' active' : ''}" data-symbol="${esc(d.symbol)}">
-              <td><strong>${esc(d.symbol)}</strong> <span class="tech-ov-type">${d.type === 'index' || ETF_LIKE.has(d.symbol) ? '指数' : ''}</span></td>
+              <td><strong>${esc(d.symbol)}</strong> <span class="tech-ov-type">${d.type === 'index' ? '指数' : ETF_LIKE.has(d.symbol) ? 'ETF' : ''}</span></td>
               <td class="num">${d.last_price != null ? '$' + d.last_price.toFixed(2) : '—'}</td>
               <td class="num ${chg1d != null ? (chg1d > 0 ? 'up' : chg1d < 0 ? 'down' : 'neutral') : ''}">${chg1d != null ? fmtSigned(chg1d, 2, '%') : '—'}</td>
               <td><span class="${regimeBadgeCls(d.regime)}">${esc(d.regime_label || '—')}</span></td>

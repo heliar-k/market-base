@@ -95,6 +95,21 @@ STOCKS: list[SymbolConfig] = [
     SymbolConfig(name="DE", exchange="NYSE"),  # 约翰迪尔（农机景气风向标）
     SymbolConfig(name="CTVA", exchange="NYSE"),  # 科迪华（耐旱种子与农化龙头）
     SymbolConfig(name="CF", exchange="NYSE"),  # CF 工业（北美氮肥龙头，灾后补种与气价敏感）
+    # ── 利率 / 商品 / 行业 ETF（技术面页；代码与 data/etf/pool_prices.csv 精选池一致）──
+    SymbolConfig(name="TLT", exchange="SMART"),  # 20Y+ 国债（久期）
+    SymbolConfig(name="LQD", exchange="SMART"),  # 投资级信用债（IG 利差）
+    SymbolConfig(name="HYG", exchange="SMART"),  # 高收益信用债（HY 利差）
+    SymbolConfig(name="GLD", exchange="SMART"),  # 黄金
+    SymbolConfig(name="SLV", exchange="SMART"),  # 白银
+    SymbolConfig(name="USO", exchange="SMART"),  # 原油
+    SymbolConfig(name="DBA", exchange="SMART"),  # 农产品
+    SymbolConfig(name="SMH", exchange="SMART"),  # 半导体
+    SymbolConfig(name="IWM", exchange="SMART"),  # 罗素 2000 小盘
+    SymbolConfig(name="XLK", exchange="SMART"),  # 科技
+    SymbolConfig(name="XLE", exchange="SMART"),  # 能源
+    SymbolConfig(name="XLF", exchange="SMART"),  # 金融
+    SymbolConfig(name="XLV", exchange="SMART"),  # 医疗
+    SymbolConfig(name="IBIT", exchange="SMART"),  # BTC 现货 ETF
 ]
 
 # ── 指数 ──
