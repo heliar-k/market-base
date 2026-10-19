@@ -19,6 +19,13 @@ def _write_prices(tmp_path, months: int = 8) -> None:
             "WTI": [78.0 + i * 0.05 for i in range(n)],
             "NG": [2.8 + i * 0.005 for i in range(n)],
             "Copper": [3.9 + i * 0.002 for i in range(n)],
+            # 软商品与谷物（气候敏感型）：商品页只出全景卡/走势，明细在 /assets/agriculture
+            "Sugar": [20.0 + i * 0.01 for i in range(n)],
+            "Coffee": [180.0 + i * 0.1 for i in range(n)],
+            "Cocoa": [7000.0 + i for i in range(n)],
+            "Soybean": [1100.0 + i * 0.2 for i in range(n)],
+            "Corn": [480.0 + i * 0.1 for i in range(n)],
+            "Wheat": [600.0 + i * 0.1 for i in range(n)],
         },
         index=idx,
     )
@@ -100,3 +107,14 @@ class TestCommoditiesSlimmed:
             "Copper",
         ]
         assert "normalized" in out and "recent" in out
+
+    def test_enso_moved_to_agriculture(self, tmp_path, monkeypatch):
+        """ENSO 专题与农产品明细表迁 /api/assets/agriculture（本页只留全景）。"""
+        monkeypatch.setattr("src.assets_analysis.ROOT", tmp_path)
+        _write_prices(tmp_path)
+        out = commodities()
+        assert "enso" not in out
+        # 全景保留：价格卡 + 归一化走势，但 20 日表只剩能源/金属（不再 12 列混排）
+        assert len(out["agri_cards"]) == 6
+        assert out["agri_normalized"]["series"]
+        assert "Sugar" not in out["recent"]["series"]

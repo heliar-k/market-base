@@ -258,14 +258,55 @@ class TestEnsoBlock:
 
 
 class TestCommoditiesAndPositioning:
-    def test_commodities_has_agri_and_enso(self, monkeypatch, tmp_path):
+    def test_agriculture_page_blocks(self, monkeypatch, tmp_path):
+        """新子页 /assets/agriculture：农产品期货 + 农业 ETF + 走势 + ENSO + 20 日表。"""
         p = _prices_df()
+        etf_idx = pd.date_range("2026-01-01", periods=60, freq="D")
+        etf = pd.DataFrame({"DBA": range(20, 80), "CORN": range(15, 75)}, index=etf_idx)
         monkeypatch.setattr(A, "asset_prices", lambda: p)
         monkeypatch.setattr(
             A,
             "_csv",
-            lambda _p, **kw: _oni_df(),
+            lambda path, **kw: etf if path == "etf/pool_prices.csv" else _oni_df(),
         )
+        monkeypatch.setattr(A, "ROOT", tmp_path)
+        (tmp_path / "enso_discussion.json").write_text("{}")
+        a = A.agriculture()
+        assert [c["symbol"] for c in a["cards"]] == [
+            "Sugar",
+            "Coffee",
+            "Cocoa",
+            "Soybean",
+            "Corn",
+            "Wheat",
+        ]
+        assert [c["symbol"] for c in a["etf_quotes"]] == ["DBA", "CORN"]
+        assert set(a["normalized"]["series"]) == {
+            "Sugar",
+            "Coffee",
+            "Cocoa",
+            "Soybean",
+            "Corn",
+            "Wheat",
+        }
+        assert set(a["recent"]["series"]) == set(a["normalized"]["series"])
+        assert a["enso"] is not None
+
+    def test_agriculture_without_enso(self, monkeypatch, tmp_path):
+        """ENSO 主数据缺失不阻断价格/走势/明细（前端段级隐藏）。"""
+        monkeypatch.setattr(A, "asset_prices", _prices_df)
+        monkeypatch.setattr(A, "_csv", lambda _p, **kw: pd.DataFrame())
+        monkeypatch.setattr(A, "ROOT", tmp_path)
+        a = A.agriculture()
+        assert a["enso"] is None
+        assert len(a["cards"]) == 6
+        assert a["etf_quotes"] == []
+
+    def test_commodities_has_agri_overview_only(self, monkeypatch, tmp_path):
+        """商品页只留全景（卡 + 走势），ENSO 与农产品明细表迁子页。"""
+        p = _prices_df()
+        monkeypatch.setattr(A, "asset_prices", lambda: p)
+        monkeypatch.setattr(A, "_csv", lambda _p, **kw: _oni_df())
         monkeypatch.setattr(A, "ROOT", tmp_path)
         (tmp_path / "enso_discussion.json").write_text("{}")
         c = A.commodities()
@@ -278,8 +319,8 @@ class TestCommoditiesAndPositioning:
             "Corn",
             "Wheat",
         }
-        assert set(c["recent"]["series"]) >= {"Sugar", "Wheat", "Gold"}
-        assert c["enso"] is not None
+        assert "enso" not in c
+        assert "Wheat" not in c["recent"]["series"]
 
     def test_positioning_ag_softs_group(self, monkeypatch):
         idx = pd.date_range("2024-01-01", periods=110, freq="W")

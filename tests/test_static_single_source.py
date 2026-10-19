@@ -430,7 +430,9 @@ def test_wide_grid_tracks_have_narrow_fallback() -> None:
 # R.table 第 5 参 html=true 时，没写 formatter 的列走默认格式化器 = R.esc 转义（防名称类
 # 自由文本注入 HTML）。所以「markup 拼进行值 + 传空 formatter 表」会让 <span> 以字面文本
 # 显示出来（2026-10 波动率页 Top8 / 全量 30 指数表踩过）。着色 markup 一律放 formatter。
-_TABLE_NO_FMT = re.compile(r"R\.table\([^;]*?\{\},\s*[^;]*?,\s*true\s*\)", re.S)
+# `true,?\s*\)`：末参写成 `true,\n)` 与 `true)` 同等看待——旧正则只认后者，
+# 尾逗号写法可以绕过守卫（2026-10 agri 拆分被 code review 抓出）。
+_TABLE_NO_FMT = re.compile(r"R\.table\([^;]*?\{\},\s*[^;]*?,\s*true\s*,?\s*\)", re.S)
 
 
 def test_html_tables_never_pass_empty_formatters() -> None:

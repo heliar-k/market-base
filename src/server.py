@@ -1481,10 +1481,21 @@ def get_assets_bonds() -> dict:
 
 @app.get("/api/assets/commodities")
 def get_assets_commodities() -> dict:
-    """商品：卡片 + 近 20 日表 + 归一化走势（贵金属部分迁 /api/assets/metals）。"""
+    """商品：卡片 + 近 20 日表 + 归一化走势。
+
+    贵金属部分迁 /api/assets/metals，ENSO 专题迁 /api/assets/agriculture。
+    """
     from src.assets_analysis import commodities
 
     return commodities()
+
+
+@app.get("/api/assets/agriculture")
+def get_assets_agriculture() -> dict:
+    """农产品和气候：软商品与谷物期货 + 农业 ETF + ENSO 气候周期专题 + 近 20 日表。"""
+    from src.assets_analysis import agriculture
+
+    return agriculture()
 
 
 @app.get("/api/assets/metals")

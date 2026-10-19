@@ -1,5 +1,5 @@
 """
-大类资产专题分析引擎（对齐 timsun.net/assets：主页面 + 8 子页数据）。
+大类资产专题分析引擎（对齐 timsun.net/assets：主页面 + 各子页数据）。
 
 规则引擎生成（透明可复盘、LLM 预留——_llm_generate() 接 LLM 后返回同构 dict，
 未接入时回落规则引擎，参考 liquidity_analysis._llm_generate_dashboard 模式）：
@@ -7,12 +7,14 @@
   - equities：广度判读（SPX/RUT 差距 + ABV 占比）+ 动能集中度
   - fx：美元广度评分（2/15 对）+ 各分组 20D USD 压力
   - commodities / bonds：20 日收盘表 + 走势归一化（crypto 已去走势图，只留价比面板）
+  - agriculture：软商品/谷物 + 农业 ETF + 走势 + ENSO 气候专题（叙事段，LLM 预留）
   - positioning：CFTC 投机仓位拥挤度 + 分组合约（2 年百分位规则）
   - etfs：精选池温度筛选（1w/1m/3m 动量、20d 波动、3m 回撤、趋势判读）
   - crypto_derivatives：BTC 前瞻雷达（7 信号加权 + 触发/反证条件）
 
 LLM 钩子只装在叙事段（cross_analysis / equity_analysis / crypto_radar）——
-纯数据表页（bonds/commodities/etfs/fx/positioning）无叙事，不设 _llm_generate。
+纯数据表页（bonds/commodities/etfs/fx/positioning）无叙事，不设 _llm_generate
+（agriculture 的叙事在 enso_block 内部，共用同一个 enso 钩子）。
 
 数据层只读现有 CSV/JSON：
   data/yfinance/asset_prices.csv       资产价格宽表（日频快照）
@@ -79,7 +81,8 @@ COMMODITY_ROWS = [
     ("NG", "天然气"),
     ("Copper", "铜"),
 ]
-# 软商品与谷物（气候敏感型，/assets/commodities 的 ENSO 专题；主页概览仍用 COMMODITY_ROWS）
+# 软商品与谷物（气候敏感型，归 /assets/agriculture 子页；商品页只出全景卡/走势，
+# 主页概览仍用 COMMODITY_ROWS）
 AGRI_ROWS = [
     ("Sugar", "11号原糖"),
     ("Coffee", "咖啡"),
@@ -87,6 +90,14 @@ AGRI_ROWS = [
     ("Soybean", "大豆"),
     ("Corn", "玉米"),
     ("Wheat", "小麦"),
+]
+# 农牧与农产品 ETF（农产品和气候页价格上下文补充源，取自 ETF 精选池日线）
+AGRI_ETF_ROWS = [
+    ("DBA", "农业一篮子 ETF"),
+    ("MOO", "全球农业股 ETF"),
+    ("WEAT", "小麦 ETF"),
+    ("CORN", "玉米 ETF"),
+    ("SOYB", "大豆 ETF"),
 ]
 # 贵金属页价格卡（期货主力连续，与商品页同一数据源；产品视角归 /assets/metals）
 METALS_FUTURES_ROWS = [
@@ -992,7 +1003,7 @@ COT_TIPS = {
     "rates": "美债仓位主要看市场是在押注利率下行，还是继续押注收益率上行。",
     "fx": "外汇仓位看美元与非美货币的拥挤方向。",
     "commodities": "商品仓位看再通胀交易是否拥挤，以及趋势资金有没有追随。",
-    # ag_softs：天气升水拥挤度（ENSO 专题联动，与 commodities 页 #enso 段同口径）
+    # ag_softs：天气升水拥挤度（ENSO 专题联动，与 agriculture 页 #enso 段同口径）
     "ag_softs": "农产品与软商品仓位看天气升水（Weather Premium）是否已被投机资金买满；"
     "极端多头下若产区降雨改善，极易引发踩踏式回吐。",
 }
@@ -1620,7 +1631,7 @@ ENSO_PLAYBOOK = [
 
 
 def enso_block(p: pd.DataFrame) -> dict | None:
-    """ENSO 气候专题块（/assets/commodities #enso 段）：只读本地 CSV/JSON，不写盘。
+    """ENSO 气候专题块（/assets/agriculture #enso 段）：只读本地 CSV/JSON，不写盘。
 
     ONI / 诊断研报 / 农产品价格 / COT 持仓 / 食品 CPI 任一主数据缺失时，
     缺什么降什么（None 字段由前端段级隐藏），仅 ONI 完全缺失才返回 None。
@@ -1770,39 +1781,53 @@ _COT_TO_AGRI = {
 }
 
 
+def _norm_series(p: pd.DataFrame, names: list[str]) -> tuple[dict, pd.DataFrame]:
+    """2 年归一化走势：网格取全宽再逐列 dropna（NG 缺测日对齐 null 而非压缩，日期轴不串位）。"""
+    sub = p[[c for c in names if c in p.columns]].dropna(how="all").tail(500)
+    norm = {}
+    for c in names:
+        if c in sub.columns:
+            s = sub[c].dropna()
+            if len(s) > 1:
+                base = float(s.iloc[0])
+                norm[c] = [
+                    None if pd.isna(v) else round(float(v) / base * 100 - 100, 2) for v in sub[c]
+                ]
+    return norm, sub
+
+
 def commodities() -> dict:
     p = asset_prices()
     cols = [k for k, _ in COMMODITY_ROWS]
     agri_cols = [k for k, _ in AGRI_ROWS]
-
-    # 归一化走势（2 年）；网格取全宽再逐列 dropna：NG 缺测日对齐 null
-    # 而非压缩，日期轴不串位
-    def _norm(names: list[str]) -> tuple[dict, pd.DataFrame]:
-        sub = p[[c for c in names if c in p.columns]].dropna(how="all").tail(500)
-        norm = {}
-        for c in names:
-            if c in sub.columns:
-                s = sub[c].dropna()
-                if len(s) > 1:
-                    base = float(s.iloc[0])
-                    norm[c] = [
-                        None if pd.isna(v) else round(float(v) / base * 100 - 100, 2)
-                        for v in sub[c]
-                    ]
-        return norm, sub
-
-    norm, sub = _norm(cols)
-    agri_norm, agri_sub = _norm(agri_cols)
+    norm, sub = _norm_series(p, cols)
+    agri_norm, agri_sub = _norm_series(p, agri_cols)
     return {
         "cards": _price_rows(p, COMMODITY_ROWS),
         "agri_cards": _price_rows(p, AGRI_ROWS),
-        "recent": _recent_prices(p, cols + agri_cols),
+        "recent": _recent_prices(p, cols),
         "normalized": {"dates": [str(d.date()) for d in sub.index], "series": norm},
         "agri_normalized": {
             "dates": [str(d.date()) for d in agri_sub.index],
             "series": agri_norm,
         },
-        "enso": enso_block(p),  # 气候周期与厄尔尼诺专题（数据缺失返回 None，前端段级隐藏）
+    }
+
+
+def agriculture() -> dict:
+    """农产品和气候子页：软商品/谷物期货 + 农业 ETF 行情 + 2 年走势 + ENSO 专题 + 20 日表。"""
+    p = asset_prices()
+    agri_cols = [k for k, _ in AGRI_ROWS]
+    agri_norm, agri_sub = _norm_series(p, agri_cols)
+    return {
+        "cards": _price_rows(p, AGRI_ROWS),
+        "etf_quotes": _price_rows(_csv("etf/pool_prices.csv"), AGRI_ETF_ROWS),
+        "recent": _recent_prices(p, agri_cols),
+        "normalized": {
+            "dates": [str(d.date()) for d in agri_sub.index],
+            "series": agri_norm,
+        },
+        "enso": enso_block(p),
     }
 
 

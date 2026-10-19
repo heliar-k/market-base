@@ -599,7 +599,7 @@ NOAA CPC 官方源（免 key 直连），`./bin/fetch_enso` 拉取（Actions dai
 | `data/macro/enso.csv` | ONI 指数（Niño-3.4 区 3 个月滑动海温距平，月频，index=季节中心月）：`season`（DJF…NDJ）/ `total`（海温 °C）/ `oni`（距平 °C；连续 5 期 ≥+0.5°C 确立厄尔尼诺，≤-0.5°C 拉尼娜） |
 | `data/macro/enso_discussion.json` | 最新一期 ENSO Diagnostic Discussion（覆盖写）：`as_of` / `status`（El Niño Advisory 等）/ `headline`（官方加粗结论句）/ `excerpt`（摘要，≤900 字符）/ `next_release` / `url` |
 
-消费方：`/assets/commodities` 的 `#enso` 专题段（`src/assets_analysis.py::enso_block`）。
+消费方：`/assets/agriculture` 的 `#enso` 专题段（`src/assets_analysis.py::enso_block`）。
 
 ## 12.5 FINRA 每日沽空量 — `data/short_selling/finra_daily.csv`
 
@@ -794,6 +794,8 @@ API 响应 `generator` 字段标记 `rules` / `llm`，前端无感。
 | 持仓追踪（COT） | `/assets/equities/positioning/` | `/api/assets/positioning` |
 | 债券 | `/assets/bonds/` | `/api/assets/bonds` |
 | 商品 | `/assets/commodities/` | `/api/assets/commodities` |
+| 农产品和气候（ENSO） | `/assets/agriculture/` | `/api/assets/agriculture` |
+| 贵金属 | `/assets/metals/` | `/api/assets/metals` |
 | 加密货币 | `/assets/crypto/` | `/api/assets/crypto` |
 | 加密衍生品 | `/assets/crypto-derivatives/` | `/api/assets/crypto-derivatives` |
 | 加密期权（预测市场） | `/assets/crypto-options/` | 无独立端点，复用 `/api/assets/crypto-derivatives`（页内 `R.get`） |

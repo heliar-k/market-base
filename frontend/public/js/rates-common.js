@@ -242,7 +242,7 @@ const R = {
     // 交易所 / 平台官方（披露）
     CBOE: 'disc', 'CME 期货 OI': 'disc', 'CME 期货仓位': 'disc',
     衍生品快照: 'disc', Polymarket: 'disc', 预测市场: 'disc',
-    ZQ: 'disc', 期货价: 'disc', '贵金属ETF': 'disc', 'ETF 行情': 'disc',
+    ZQ: 'disc', 期货价: 'disc', '农产品价': 'disc', '贵金属ETF': 'disc', 'ETF 行情': 'disc',
     '外汇行情': 'disc', 公开市场操作: 'disc',
     // 派生 / 模型口径（估算）
     'Bill 占比': 'est', 净流动性: 'est', 流动性: 'est', 利率: 'est', 传导: 'est',
@@ -386,6 +386,9 @@ const R = {
       // 「-text 档只给 color: 用」）；对比度回归测试扫不到 JS 对象键，故单源在这里给齐。
       greenText: v('--color-up-text'), redText: v('--color-down-text'),
       orangeText: v('--color-warn-text'),
+      // brand 的文字档是 --accent-ink（AGENTS §8：亮 #155ecb 5.69:1、暗 #a5d3ff），
+      // 蓝色标注字一律用它，不要拿图形档 blue 写字
+      blueText: v('--accent-ink'),
     };
   },
 

@@ -182,6 +182,7 @@ def export_api() -> None:
 
     # 大类资产专题（复刻 timsun.net/assets 主页 + 子页）
     from src.assets_analysis import (
+        agriculture,
         bonds,
         commodities,
         crypto,
@@ -201,6 +202,7 @@ def export_api() -> None:
     _safe("api/assets/positioning", positioning)
     _safe("api/assets/bonds", bonds)
     _safe("api/assets/commodities", commodities)
+    _safe("api/assets/agriculture", agriculture)
     _safe("api/assets/metals", metals)
     _safe("api/assets/crypto", crypto)
     _safe("api/assets/crypto-derivatives", crypto_derivatives)

@@ -88,7 +88,7 @@ STOCKS: list[SymbolConfig] = [
         ibkr_symbol="000660",
         yf_ticker="000660.KS",
     ),
-    # ── 农业供应链与气候受敏龙头（ENSO 专题，/assets/commodities 联动）──
+    # ── 农业供应链与气候受敏龙头（ENSO 专题，/assets/agriculture 联动）──
     SymbolConfig(
         name="ADM", exchange="NYSE"
     ),  # 阿彻丹尼尔斯米德兰（粮商贸易，受益于农产品波动率放大）
