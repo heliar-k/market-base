@@ -51,9 +51,11 @@ document.body.classList.toggle('dark', window.matchMedia('(prefers-color-scheme:
           <button class="range-btn active" data-subview="overview">结论总览</button>
           <button class="range-btn" data-subview="kline">K线与指标图</button>
         </div>
-        <select class="tech-sym-select" id="tech-sym-select" aria-label="选择标的"></select>
         <div class="tech-info-bar" id="tech-info-bar">
+          <!-- 页面切换标签（左）与「当前标的 + 口径 + 报价」两组分开：窄屏时标签独占一行，
+               下拉框与日线/报价同排，不再和标签挤在一起。 -->
           <span class="tech-quote">
+            <select class="tech-sym-select" id="tech-sym-select" aria-label="选择标的"></select>
             <span class="tech-tf" title="K 线与全部指标均为日线（1d）口径">日线</span>
             <span class="tech-price" id="info-price">--</span>
             <span class="tech-change" id="info-change">--</span>

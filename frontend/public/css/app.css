@@ -497,6 +497,9 @@ body.embedded .macro-nav, body.embedded #macro-nav-toggle { display: none; }
   font-family: var(--font-mono); cursor: pointer;
 }
 .tech-sym-select:hover { border-color: var(--border-strong); background: var(--hover-tint); }
+/* 原生 select 的固有宽度按最长选项撑开（池里最长 SKHYNIX 7 字），实测 118px 里约 30px
+   是空白；窄屏收到 96px 仍能完整显示最长代码且箭头不裁，省下的宽度留给报价。 */
+@media (max-width: 600px) { .tech-sym-select { max-width: 96px; } }
 .tech-info-bar {
   display: flex; align-items: baseline; gap: 16px;
   /* min-width 兼作折行开关：装不下时整条掉下一行并撑满（窄屏曾被压成斜条，
@@ -507,7 +510,7 @@ body.embedded .macro-nav, body.embedded #macro-nav-toggle { display: none; }
   justify-content: space-between;
   font-size: 13px; font-family: -apple-system, sans-serif;
 }
-.tech-quote { display: flex; align-items: baseline; gap: inherit; }
+.tech-quote { display: flex; align-items: baseline; gap: inherit; flex-wrap: wrap; }
 .tech-price { font-size: 18px; font-weight: 700; font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
 .tech-change { font-size: 13px; font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
 .tech-change.up { color: var(--color-up-text); }
