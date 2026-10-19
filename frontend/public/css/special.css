@@ -703,7 +703,7 @@ a.re-badge:hover { color: var(--accent-ink); border-color: var(--accent-ink); }
 .re-corridor-value, .oas-card .value, .score-card .value, .proxy-card .value,
 .vol-hero-card .vh-value, .vol-stat .st-value, .vol-signal-card .vs-metric,
 .opt-big .v, .pos-cols .v, .range-val, .rk-v,
-.rh-score .num, .rh-bars .val, .ph-rules-text, .term-slope,
+.rh-score .num, .rh-bars .val, .radar-num b, .ph-rules-text, .term-slope,
 .vol-heat-cell .ht-value, .vol-heat-cell .ht-chg,
 .re-table td.num, .re-table td.mono {
   font-family: var(--font-mono);
@@ -1321,11 +1321,11 @@ details.db-scen-item[open] > summary.db-scen-head::after { content: '收起 ▴'
 .radar-top { display: grid; grid-template-columns: minmax(230px, 300px) 1fr; gap: 0 24px;
   container-type: inline-size; container-name: radar; }
 .radar-verdict { display: flex; flex-direction: column; gap: 10px; padding-right: 24px; }
-.radar-num { display: flex; align-items: baseline; gap: 7px; margin-top: -4px; }
-.radar-num b { font-size: 38px; font-weight: 800; line-height: .95; letter-spacing: -.02em;
+.radar-num { display: flex; align-items: baseline; gap: 6px; margin-top: 5px; }
+.radar-num b { font-size: clamp(22px, 20.5px + 0.4vw, 26px); font-weight: 700; line-height: 1; letter-spacing: -.02em;
   font-variant-numeric: tabular-nums; color: var(--rc-ink, var(--text)); }
-.radar-num .of { font-size: 12px; color: var(--text-dim); }
-.radar-state { display: flex; align-items: center; gap: 7px; font-size: 15px; font-weight: 700;
+.radar-num .of { font-size: 12px; color: var(--text-dim); font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+.radar-state { display: flex; align-items: center; gap: 7px; font-size: 14px; font-weight: 700;
   color: var(--rc-ink, var(--text)); }
 .radar-state i { width: 7px; height: 7px; border-radius: 2px; background: var(--rc-color, var(--color-neutral)); flex: 0 0 auto; }
 /* 双极刻度尺：轨道 = down→neutral→up 三段（图形档透明叠加，只当填充不当文字色），0 处一条中线，圆点随分数落位 */
@@ -1339,7 +1339,8 @@ details.db-scen-item[open] > summary.db-scen-head::after { content: '收起 ▴'
 .radar-scale .dot { position: absolute; top: 50%; width: 13px; height: 13px; margin: -6.5px 0 0 -6.5px;
   border-radius: 50%; background: var(--surface); border: 3px solid var(--rc-color, var(--color-neutral));
   animation: radar-dot-pop .5s cubic-bezier(.16, 1, .3, 1) both; }
-.radar-scale .ticks { display: flex; justify-content: space-between; font-size: 10px; color: var(--text-dim); margin-top: 5px; }
+.radar-scale .ticks { position: relative; display: flex; justify-content: space-between; font-size: 10px; color: var(--text-dim); margin-top: 5px; font-variant-numeric: tabular-nums; }
+.radar-scale .ticks span:nth-child(2) { position: absolute; left: 50%; transform: translateX(-50%); }
 /* 下排键值：整行四格（含置信度条），竖线分组 —— 横切让上排两栏高度对齐，不留空洞。
  * 自身也是容器：四等分要每格 ≥185px 才不折行（4×185+3×22 = 806），按视口判断会漏掉侧栏让位的 240px */
 .radar-kv { container: radarkv / inline-size; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0 22px;

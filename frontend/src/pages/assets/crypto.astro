@@ -268,7 +268,7 @@ function renderRadar(d) {
       <div class="radar-verdict">
         <div>
           <div class="radar-cap">综合分</div>
-          <div class="radar-num"><b>${radar.total == null ? '—' : (radar.total >= 0 ? '+' : '') + radar.total}</b><span class="of">/ ±4</span></div>
+          <div class="radar-num"><b>${radar.total == null ? '—' : (radar.total > 0 ? '+' : '') + radar.total}</b><span class="of">/ ±4</span></div>
         </div>
         <div class="radar-state"><i></i>${R.esc(radar.verdict)}</div>
         <div class="radar-scale">
