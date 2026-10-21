@@ -117,7 +117,7 @@ body.dark {
   --z-nav: 40;        /* 全局左侧导航 */
   --z-nav-toggle: 50; /* 窄屏 ☰ 按钮（须压住导航） */
   --z-overlay: 60;    /* 全屏弹层（关联钻取） */
-  --z-float: 100;     /* 悬浮按钮（主题切换 / 返回顶部） */
+  --z-float: 100;     /* 悬浮按钮与伴读抽屉（.ai-float / .ai-drawer / 返回顶部） */
 }
 /* 派生 token：值由上面的主题原语经 var()/color-mix 生成。选择器必须带上 body.dark——
  * var() 在声明所在元素上做替换，写在 :root(html) 里的派生值看不到 body.dark 的原语覆写，

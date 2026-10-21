@@ -660,3 +660,48 @@ def test_readonly_badges_use_square_capsule() -> None:
     assert not inline_bad, (
         f"页面内联 style 禁止写 border-radius: 999px（只读标签用 4px）：{inline_bad}"
     )
+
+
+# ── 伴读抽屉（ai-chat.js）与已删的手动主题开关 ─────────────────────────────
+# 主题改为恒跟随系统后，右上角 8/8 的悬浮位归伴读浮钮 .ai-float。主题脚本的
+# 手动覆盖（T.manual）一并删了：会话级覆盖会让「亮色用户存过 1 就再也回不去」。
+_THEME_UI = re.compile(r"theme-float|theme-toggle")
+_AI_CSS = re.compile(r"\.ai-[a-z-]+\b")
+
+
+def test_ai_chat_loaded_after_rates_common_and_theme_toggle_gone() -> None:
+    """ai-chat.js 紧跟 rates-common.js 加载（它只用 R.esc，不自带转义）；主题开关已清零。
+
+    ai-chat.js 依赖 rates-common.js 的 R.esc / 全局 R；加载顺序颠倒时 IIFE 里
+    `typeof R === 'undefined'` 直接 return，抽屉静默不出现（无报错）。
+    """
+    assert (STATIC / "js" / "ai-chat.js").is_file(), "frontend/public/js/ai-chat.js 文件缺失"
+    for src in (TOPIC_LAYOUT, SPA_ENTRY):
+        text = src.read_text(encoding="utf-8")
+        common = text.find('src="/js/rates-common.js"')
+        chat = text.find('src="/js/ai-chat.js"')
+        assert chat != -1, f"{src.relative_to(ROOT)} 没加载 ai-chat.js（伴读抽屉整页缺失）"
+        assert common != -1 and common < chat, (
+            f"{src.relative_to(ROOT)} ai-chat.js 必须排在 rates-common.js 之后"
+        )
+
+    sources = [
+        TOPIC_LAYOUT,
+        SPA_ENTRY,
+        *sorted(ASTRO_PAGES.rglob("*.astro")),
+        *sorted((STATIC / "js").glob("*.js")),
+        *sorted((STATIC / "css").glob("*.css")),
+        *sorted((ROOT / "scripts_dev").glob("*playwright*.py")),
+    ]
+    bad = [str(p.relative_to(ROOT)) for p in sources if _THEME_UI.search(p.read_text("utf-8"))]
+    assert not bad, f"手动主题开关已删（主题恒跟随系统），别再挂 .theme-float/theme-toggle：{bad}"
+
+    # .ai-* 样式单源在 app.css：SPA 壳不加载 special.css，写那边专题页有、SPA 没有
+    app_css = re.sub(
+        r"/\*.*?\*/", "", (STATIC / "css" / "app.css").read_text(encoding="utf-8"), flags=re.S
+    )
+    special_css = re.sub(
+        r"/\*.*?\*/", "", (STATIC / "css" / "special.css").read_text(encoding="utf-8"), flags=re.S
+    )
+    assert _AI_CSS.search(app_css), "app.css 缺 .ai-* 样式"
+    assert not _AI_CSS.search(special_css), "伴读抽屉样式写进 special.css 了（SPA 壳不加载它）"

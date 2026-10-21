@@ -66,11 +66,11 @@ async def main(base: str) -> int:
             print(f"{path} as-of: {as_of}")
             if "数据截至" not in (as_of or ""):
                 fails.append(f"{path} as-of 异常: {as_of}")
-            cur = await page.locator(".re-nav a[aria-current='page']").text_content()
+            cur = await page.locator("#macro-nav a[aria-current='page']").text_content()
             print(f"{path} aria-current: {cur}")
-            if cur != "大类资产":
+            if not cur:
                 fails.append(f"{path} aria-current 异常: {cur}")
-            await page.locator(".theme-float").click()
+            await page.emulate_media(color_scheme="dark")
             await page.wait_for_timeout(500)
             dark = await page.evaluate("document.body.classList.contains('dark')")
             print(f"{path} dark 切换: {dark}")

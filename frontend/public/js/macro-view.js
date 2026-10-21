@@ -97,7 +97,6 @@ export function initGlobalNav() {
         <a class="macro-nav-brand-name" href="/" style="display:block;color:var(--text);text-decoration:none">观澜台</a>
         <div class="macro-nav-brand-sub">美国宏观研究平台</div>
       </div>
-      <button class="theme-toggle" id="theme-toggle" title="切换暗色/亮色模式">🌙</button>
     </div>
     <div class="macro-nav-caption">核心入口</div>
     ${CORE.map(c => c.view

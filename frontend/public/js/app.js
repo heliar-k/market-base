@@ -24,25 +24,18 @@ import { initCorrelationView, updateStatus as correlationStatus } from './cross-
 const initialView = initGlobalNav(); // 返回 hash 里的 SPA 视图键（无则 null）
 
 // ── dark mode ──────────────────────────────────────────────────────────────
+// 主题恒跟随系统（手动切换按钮已删）；localStorage 只为「被外部 iframe 内嵌」保留
+// —— 专题页的 embedded 分支读它（站内已改整页跳转，主题走 prefers-color-scheme）。
 const DARK_KEY = 'ticker-toolkit-dark';
 const prefersDarkMedia = window.matchMedia('(prefers-color-scheme: dark)');
-let manual = false; // 会话级手动覆盖：点按钮后停止跟随系统，刷新恢复自动
 function applyTheme(dark) {
   document.body.classList.toggle('dark', dark);
-  document.getElementById('theme-toggle').textContent = dark ? '☀️' : '🌙';
-  localStorage.setItem(DARK_KEY, dark ? '1' : '0'); // 只为「被外部 iframe 内嵌」保留（专题页的
-  // embedded 分支读它）；#24 后站内改整页跳转，站内主题仍走 prefers-color-scheme（刷新恢复自动）
+  localStorage.setItem(DARK_KEY, dark ? '1' : '0');
   window.dispatchEvent(new CustomEvent('theme-changed', { detail: { dark } }));
 }
 applyTheme(prefersDarkMedia.matches);
-// 系统主题变化：未手动切换过则实时跟随
-prefersDarkMedia.addEventListener('change', () => {
-  if (!manual) applyTheme(prefersDarkMedia.matches);
-});
-document.getElementById('theme-toggle').addEventListener('click', () => {
-  manual = true;
-  applyTheme(!document.body.classList.contains('dark'));
-});
+// 系统主题变化实时跟随
+prefersDarkMedia.addEventListener('change', () => applyTheme(prefersDarkMedia.matches));
 
 // ── shared state ───────────────────────────────────────────────────────────
 export const state = {

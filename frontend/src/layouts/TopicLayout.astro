@@ -67,6 +67,8 @@ const parentGroup = SITE_NAV.groups.find(
 {chart && <script is:inline src="/vendor/echarts.min.js"></script>}
 <script is:inline src="/js/echarts-theme.js"></script>
 <script is:inline src="/js/rates-common.js"></script>
+<!-- 伴读抽屉：必须排在 rates-common 之后（用它的 R.esc），自建浮钮 + 抽屉，不依赖页面结构 -->
+<script is:inline src="/js/ai-chat.js"></script>
 <slot name="head" />
 </head>
 <body class="re-has-side">
@@ -83,10 +85,10 @@ window.__reTheme = (function () {
   var T = {
     DARK_KEY: DARK_KEY,
     embedded: window.self !== window.top, // 被外部页内嵌时主题由父页驱动（站内已无 iframe）
-    manual: false, // 会话级手动覆盖：点过悬浮按钮后停止跟随系统，刷新恢复自动
+    // 主题唯一来源 = 系统偏好（手动切换按钮已删，无手动覆盖分支）；
+    // 被外部页内嵌时听父页写入的 localStorage 信号。
     resolveDark: function () {
       if (T.embedded) return localStorage.getItem(DARK_KEY) === '1';
-      if (T.manual) return document.body.classList.contains('dark');
       return window.matchMedia('(prefers-color-scheme: dark)').matches;
     },
     apply: function () { document.body.classList.toggle('dark', T.resolveDark()); },
@@ -101,7 +103,7 @@ window.__reTheme = (function () {
 <button id="macro-nav-toggle" type="button" title="展开导航" aria-controls="macro-nav" aria-expanded="false">☰</button>
 <div class="macro-nav-backdrop" id="macro-nav-backdrop"></div>
 <!-- 左侧专题树：与 SPA 的 #macro-nav 同一套类名（app.css 单源），不造平行组件。
-     不含主题按钮（专题页已有 .theme-float）与美东时钟（那是 SPA 侧栏 JS 的活）。
+     不含主题按钮（主题跟随系统，无手动开关）与美东时钟（那是 SPA 侧栏 JS 的活）。
      窄屏（≤1024）由 CSS 整棵移出视口，靠上面的 #macro-nav-toggle 唤出抽屉（与 SPA 同一套）。 -->
 <nav class="macro-nav" id="macro-nav" aria-label="专题导航">
   <div class="macro-nav-brand">
@@ -262,10 +264,11 @@ window.__reTheme = (function () {
   }
 
   // 主题：class 已由 body 开标签后的提前脚本应用过（island 解析期取色即生效），这里不再重复 apply
-  // （二次 toggle 会闪烁），只补监听；resolveDark/apply/manual 全部复用 window.__reTheme。
+  // （二次 toggle 会闪烁），只补监听；resolveDark/apply 全部复用 window.__reTheme。
+  // 无手动开关后只跟系统（无「别覆盖用户手选」的判定）。
   var DARK_KEY = T.DARK_KEY;
   window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', function () {
-    if (!embedded && !T.manual) {
+    if (!embedded) {
       T.apply();
       window.dispatchEvent(new Event('theme-changed'));
     }
@@ -293,21 +296,6 @@ window.__reTheme = (function () {
     window.addEventListener('scroll', syncTop, { passive: true });
     syncTop();
   }
-
-  // 悬浮切换按钮仅独立访问时显示（内嵌时由父页统一控制）
-  if (embedded) return;
-  var tb = document.createElement('button');
-  tb.className = 'theme-float';
-  tb.title = '切换亮暗主题';
-  tb.textContent = T.resolveDark() ? '☀️' : '🌙';
-  tb.addEventListener('click', function () {
-    T.manual = true; // 会话级覆盖：停止跟随系统，刷新恢复自动
-    document.body.classList.toggle('dark');
-    tb.textContent = document.body.classList.contains('dark') ? '☀️' : '🌙';
-    // rates-common 等已监听该事件，图表随之重绘
-    window.dispatchEvent(new CustomEvent('theme-changed', { detail: { dark: document.body.classList.contains('dark') } }));
-  });
-  document.body.appendChild(tb);
 })();
 </script>
 </body>

@@ -40,8 +40,8 @@ async def main(base: str) -> int:
                 and n_canvas >= len(charts)
                 and not console_errors
             )
-            # 暗色切换:点悬浮按钮 → body.dark + 图表重绘(theme-changed)
-            await page.click(".theme-float")
+            # 暗色切换:系统偏好切 dark → body.dark + 图表重绘(theme-changed)
+            await page.emulate_media(color_scheme="dark")
             await page.wait_for_timeout(600)
             dark = await page.evaluate("document.body.classList.contains('dark')")
             bg = await page.evaluate("getComputedStyle(document.body).backgroundColor")
@@ -49,7 +49,7 @@ async def main(base: str) -> int:
             await page.screenshot(path=f"/tmp/liq_dark_{name}.png", full_page=False)
             print(f"  暗色切换: body.dark={dark} bg={bg}")
             ok &= dark
-            await page.click(".theme-float")  # 切回,不影响下一页
+            await page.emulate_media(color_scheme="light")  # 切回,不影响下一页
         await browser.close()
     print("RESULT:", "PASS" if ok else "FAIL")
     return 0 if ok else 1
