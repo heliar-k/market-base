@@ -34,6 +34,8 @@ AGMI,Themes Silver Miners ETF,commodity
 AGNG,Global X Aging Population ETF,broad
 AGZD,WisdomTree Interest Rate Hedged U.S. Aggregate Bond Fund,bond
 AHD,GraniteShares Autocallable HOOD ETF,broad
+AHIC,Allspring Short-Term High Income Fund ETF,factor_income
+AHYM,Allspring High Yield Municipal Bond Fund ETF,bond
 AIA,iShares Asia 50 ETF,global
 AICH,China AI ETF,global
 AIFD,TCW Artificial Intelligence ETF,broad
@@ -80,6 +82,7 @@ ASD,Defiance Autism Impact ETF,broad
 ASEC,American Century Securitized Credit ETF,bond
 ASMG,Leverage Shares 2X Long ASML Daily ETF,leveraged_inverse
 ASMU,Direxion Daily ASML Bull 2X ETF,leveraged_inverse
+ASTM,Allspring Strategic Municipal Bond Fund ETF,bond
 ATC,GraniteShares Autocallable COIN ETF,broad
 AUMI,Themes Gold Miners ETF,commodity
 AVGB,Avantis Credit ETF,bond
@@ -190,7 +193,6 @@ BSTU,Invesco BulletShares 2030 Treasury Bond ETF,bond
 BSTV,Invesco BulletShares 2031 Treasury Bond ETF,bond
 BSVO,EA Bridgeway Omni Small-Cap Value ETF,factor_income
 BTDL,GraniteShares 2x Long BTDR Daily ETF,leveraged_inverse
-BTF,CoinShares Bitcoin and Ether ETF,crypto
 BTGD,STKd 100% Bitcoin & 100% Gold ETF,commodity
 BUFC,AB Conservative Buffer ETF,broad
 BUFI,AB International Buffer ETF,global
@@ -279,7 +281,6 @@ DGLO,First Trust RBA Deglobalization ETF,broad
 DGRE,WisdomTree Emerging Markets Quality Dividend Growth Fund,factor_income
 DGRS,WisdomTree U.S. SmallCap Quality Dividend Growth Fund,factor_income
 DGRW,WisdomTree U.S. Quality Dividend Growth Fund,factor_income
-DIME,CoinShares Altcoins ETF,broad
 DINE,Simplify Tax Aware Diversified Income Strategy ETF,factor_income
 DIVD,Altrius Global Dividend ETF,factor_income
 DLCU,U.S. Large Company Portfolio: ETF Class Shares,broad
@@ -1077,6 +1078,7 @@ TILC,Thrivent International Large Cap ETF,global
 TISC,Thrivent International Small Cap ETF,global
 TKNS,21Shares Active Crypto ETF,crypto
 TLA,GraniteShares Autocallable TSLA ETF,broad
+TLCE,Thrivent Large Cap Stock ETF,broad
 TLG,Touchstone Large Company Growth ETF,high_beta
 TLT,iShares 20+ Year Treasury Bond ETF,bond
 TMB,Thornburg Multi Sector Bond ETF,bond
@@ -1107,6 +1109,7 @@ TSCM,TimesSquare Quality Mid Cap Growth ETF,factor_income
 TSDD,GraniteShares 2x Short TSLA Daily ETF,leveraged_inverse
 TSEE,T. Rowe Price Small Cap ETF,broad
 TSEL,Touchstone Sands Capital US Select Growth ETF,high_beta
+TSIE,Thrivent Securitized Income ETF,factor_income
 TSL,GraniteShares 1.25x Long TSLA Daily ETF,theme
 TSLG,Leverage Shares 2X Long TSLA Daily ETF,leveraged_inverse
 TSLL,Direxion Daily TSLA Bull 2X ETF,leveraged_inverse
@@ -1337,7 +1340,6 @@ ACYN,FT Vest Laddered Autocallable Barrier & Income ETF,factor_income
 ACYQ,FT Vest Autocallable Barrier & High Income ETF,factor_income
 ACYS,FT Vest Laddered Autocallable Barrier & Resilient Income ETF,factor_income
 ADBU,Direxion Daily ADBE Bull 2X ETF,leveraged_inverse
-ADDS,Hedgeye Index Adds ETF,broad
 ADIU,Leverage Shares 2X Long ADI Daily ETF,leveraged_inverse
 ADIV,Guinness Atkinson Asia Pacific Dividend Builder ETF,factor_income
 ADME,Aptus Drawdown Managed Equity ETF,broad
@@ -1981,7 +1983,6 @@ CPNJ,Calamos Nasdaq - 100 Structured Alt Protection ETF -June,broad
 CPNM,Calamos Nasdaq-100 Structured Alt Protection ETF - March,broad
 CPNQ,Calamos Nasdaq-100 Structured Alt Protection ETF December,broad
 CPNS,Calamos Nasdaq-100 Structured Alt Protection ETF  September,broad
-CPNX,Tradr 2X Long CPNG Daily ETF,leveraged_inverse
 CPRA,Calamos Russell 2000 Structured Alt Protection ETF - April,broad
 CPRJ,Calamos Russell 2000 Structured Alt Protection ETF  July,broad
 CPRO,Calamos Russell 2000 Structured Alt Protection ETF - October,broad
@@ -2908,6 +2909,7 @@ GMEC,Corgi GME 2x Daily ETF,leveraged_inverse
 GMEU,T-REX 2X Long GME Daily Target ETF,leveraged_inverse
 GMEY,YieldMax GME Option Income Strategy ETF,factor_income
 GMF,State Street SPDR S&P Emerging Asia Pacific ETF,global
+GMIE,"GMO International Equity Fund, ETF Class",global
 GMMA,GammaRoad Market Navigation ETF,broad
 GMMF,iShares Government Money Market ETF,broad
 GMNY,Goldman Sachs Dynamic New York Municipal Income ETF,bond
@@ -3033,7 +3035,6 @@ HEFA,iShares Currency Hedged MSCI EAFE ETF,currency
 HEFT,Hedgeye Fourth Turning ETF,broad
 HEGD,Swan Hedged Equity US Large Cap ETF,broad
 HELO,JPMorgan Hedged Equity Laddered Overlay ETF,broad
-HELS,Hedgeye 130/30 Equity ETF,broad
 HELX,Franklin Genomic Advancements ETF,broad
 HEMI,Hartford Equity Premium Income ETF,factor_income
 HEQT,Simplify Hedged Equity ETF,broad
@@ -3069,7 +3070,6 @@ HOID,Tuttle - Rareview Humanoid Robotics ETF,theme
 HOLA,JPMorgan International Hedged Equity Laddered Overlay ETF,global
 HOLD,Harbor Alpha Layering ETF,broad
 HOMZ,Hoya Capital Housing ETF,broad
-HONG,Leverage Shares 2X Long HON Daily ETF,leveraged_inverse
 HOOC,Corgi HOOD 2x Daily ETF,leveraged_inverse
 HOOW,Roundhill HOOD WeeklyPay ETF,broad
 HOOY,YieldMax HOOD Option Income Strategy ETF,factor_income
@@ -3929,7 +3929,6 @@ MUNJ,Northern Trust 2031 Tax-Exempt Distributing Ladder ETF,broad
 MUNX,AMG GW&K Muni Income ETF,factor_income
 MUNY,Vanguard New York Tax-Exempt Bond ETF,bond
 MUSE,TCW Multisector Credit Income ETF,bond
-MUSQ,MUSQ Global Music Industry Index ETF,broad
 MUST,Columbia Multi-Sector Municipal Income ETF,bond
 MUZ,Defiance Daily Target 2X Short MU ETF,leveraged_inverse
 MVAL,VanEck Morningstar Wide Moat Value ETF,factor_income
@@ -4071,7 +4070,6 @@ NVOX,Defiance Daily Target 2X Long NVO ETF,leveraged_inverse
 NVTC,Corgi NVTS 2x Daily ETF,leveraged_inverse
 NVTX,Tradr 2X Long NVTS Daily ETF,leveraged_inverse
 NXPG,Leverage Shares 2X Long NXPI Daily ETF,leveraged_inverse
-NXPX,Tradr 2X Long NXPI Daily ETF,leveraged_inverse
 NXTE,AXS Green Alpha ETF,broad
 NXTI,Simplify Next Intangible Core Index ETF,broad
 NXUS,Nuveen International Aggregate Bond ETF,bond
@@ -4296,7 +4294,7 @@ PMTL,First Trust Indxx Quality Precious Metals Miners ETF,commodity
 PNOV,Innovator U.S. Equity Power Buffer ETF - November,broad
 POCT,Innovator U.S. Equity Power Buffer ETF - October,broad
 POEL,Defiance Daily Target 2X Long POET ETF,leveraged_inverse
-PONX,Tradr 2X Long PONY Daily ETF,leveraged_inverse
+POMG,PRIMECAP Odyssey Discovery ETF,broad
 POW,VistaShares Electrification Supercycle ETF,broad
 POWA,Invesco Bloomberg Pricing Power ETF,broad
 POWR,iShares U.S. Power Infrastructure ETF,broad
@@ -4494,6 +4492,7 @@ RB,ProShares Russell 2000 Dynamic Buffer ETF,broad
 RBLD,First Trust Alerian US NextGen Infrastructure ETF,broad
 RBLU,T-REX 2X Long RBLX Daily Target ETF,leveraged_inverse
 RBLY,YieldMax RBLX Option Income Strategy ETF,factor_income
+RBTX,iShares Future Robotics and Related Technologies Active ETF,theme
 RBUF,Innovator U.S. Small Cap 10 Buffer ETF - Quarterly,broad
 RCLO,Reckoner BBB-B CLO ETF,broad
 RCLR,Reckoner BBB-B CLO Reinvesting ETF,broad
@@ -4678,6 +4677,7 @@ SCHV,Schwab U.S. Large-Cap Value ETF,factor_income
 SCHX,Schwab U.S. Large-Cap ETF,broad
 SCHY,Schwab International Dividend Equity ETF,factor_income
 SCHZ,Schwab US Aggregate Bond ETF,bond
+SCIN,Schwab International Bond ETF,bond
 SCIO,First Trust Structured Credit Income Opportunities ETF,bond
 SCJ,iShares MSCI Japan Sm Cap,global
 SCJL,Corgi U.S. Small-Cap 15% Structured Buffer ETF - July Series,broad
@@ -4846,7 +4846,6 @@ SMTH,ALPS Smith Core Plus Bond ETF,bond
 SMTJ,Synera Funds Takumi+ ETF,broad
 SMU,Tradr 2X Long SMR Daily ETF,leveraged_inverse
 SMUP,T-REX 2X Long SMR Daily Target ETF,leveraged_inverse
-SMZ,Tradr 2X Short SMR Daily ETF,leveraged_inverse
 SNAV,Mohr Sector Nav ETF,broad
 SNDC,Corgi SNDK 2x Daily ETF,leveraged_inverse
 SNDG,Leverage Shares 2X Long SNDK Daily ETF,leveraged_inverse
@@ -5201,7 +5200,6 @@ TSEC,Touchstone Securitized Income ETF,factor_income
 TSEG,Leverage Shares 2X Long TSEM Daily ETF,leveraged_inverse
 TSEP,FT Vest Emerging Market Buffer ETF - September,global
 TSES,Truth Social American Energy Security ETF,commodity
-TSEU,Tradr 2X Long TSEM Daily ETF,leveraged_inverse
 TSIB,Direxion TSLA Defined Income Boost ETF,factor_income
 TSIC,Truth Social American Icons ETF,broad
 TSII,REX TSLA Growth & Income ETF,factor_income
