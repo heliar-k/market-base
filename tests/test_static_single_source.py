@@ -670,12 +670,14 @@ _AI_CSS = re.compile(r"\.ai-[a-z-]+\b")
 
 
 def test_ai_chat_loaded_after_rates_common_and_theme_toggle_gone() -> None:
-    """ai-chat.js 紧跟 rates-common.js 加载（它只用 R.esc，不自带转义）；主题开关已清零。
+    """ai-chat.js 在 rates-common.js 之后以 module 加载；主题开关已清零。
 
-    ai-chat.js 依赖 rates-common.js 的 R.esc / 全局 R；加载顺序颠倒时 IIFE 里
+    ai-chat.js 依赖 rates-common.js 的全局 R.esc（经典同步脚本，module 是 deferred，
+    执行时 R 一定已就绪），且自身是 module 以 import ./ai-prompt.js；缺 R 时 IIFE 里
     `typeof R === 'undefined'` 直接 return，抽屉静默不出现（无报错）。
     """
     assert (STATIC / "js" / "ai-chat.js").is_file(), "frontend/public/js/ai-chat.js 文件缺失"
+    assert (STATIC / "js" / "ai-prompt.js").is_file(), "frontend/public/js/ai-prompt.js 文件缺失"
     for src in (TOPIC_LAYOUT, SPA_ENTRY):
         text = src.read_text(encoding="utf-8")
         common = text.find('src="/js/rates-common.js"')
@@ -683,6 +685,10 @@ def test_ai_chat_loaded_after_rates_common_and_theme_toggle_gone() -> None:
         assert chat != -1, f"{src.relative_to(ROOT)} 没加载 ai-chat.js（伴读抽屉整页缺失）"
         assert common != -1 and common < chat, (
             f"{src.relative_to(ROOT)} ai-chat.js 必须排在 rates-common.js 之后"
+        )
+        tag_start = text.rfind("<script", 0, chat)
+        assert 'type="module"' in text[tag_start:chat], (
+            f"{src.relative_to(ROOT)} ai-chat.js 必须以 module 加载（import ./ai-prompt.js）"
         )
 
     sources = [
@@ -705,3 +711,17 @@ def test_ai_chat_loaded_after_rates_common_and_theme_toggle_gone() -> None:
     )
     assert _AI_CSS.search(app_css), "app.css 缺 .ai-* 样式"
     assert not _AI_CSS.search(special_css), "伴读抽屉样式写进 special.css 了（SPA 壳不加载它）"
+
+
+def test_ai_prompt_text_single_sourced() -> None:
+    """提示词正文只在 ai-prompt.js，ai-chat.js 只能 import（改提示词只动一个文件）。
+
+    反向验法：把 SYSTEM_PROMPT 那段中文丢回 ai-chat.js → 本测试红。
+    """
+    chat = (STATIC / "js" / "ai-chat.js").read_text(encoding="utf-8")
+    prompt = (STATIC / "js" / "ai-prompt.js").read_text(encoding="utf-8")
+    assert "from './ai-prompt.js'" in chat, "ai-chat.js 未从 ./ai-prompt.js 导入提示词"
+    assert "export const AI_SYSTEM_PROMPT" in prompt, "ai-prompt.js 缺 AI_SYSTEM_PROMPT"
+    for line in ("你是观澜台（US Macro 研究平台）的伴读分析助手。", "页面没给出的数字不要编造"):
+        assert line in prompt, f"提示词正文不在 ai-prompt.js：{line[:12]}"
+        assert line not in chat, f"ai-chat.js 里又写了一份提示词正文（应只 import）：{line[:12]}"

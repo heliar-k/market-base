@@ -67,8 +67,9 @@ const parentGroup = SITE_NAV.groups.find(
 {chart && <script is:inline src="/vendor/echarts.min.js"></script>}
 <script is:inline src="/js/echarts-theme.js"></script>
 <script is:inline src="/js/rates-common.js"></script>
-<!-- 伴读抽屉：必须排在 rates-common 之后（用它的 R.esc），自建浮钮 + 抽屉，不依赖页面结构 -->
-<script is:inline src="/js/ai-chat.js"></script>
+<!-- 伴读抽屉：经典脚本 rates-common 先同步执行（模块是 deferred，R 一定已就绪），
+     module 形态是为了 import ./ai-prompt.js（提示词唯一数据源）。自建浮钮 + 抽屉，不依赖页面结构 -->
+<script is:inline type="module" src="/js/ai-chat.js"></script>
 <slot name="head" />
 </head>
 <body class="re-has-side">

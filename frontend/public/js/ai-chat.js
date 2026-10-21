@@ -1,13 +1,18 @@
 // ai-chat.js — 伴读抽屉（划词引用 + 页面上下文问答）
 //
-// 经典脚本（不是 module），在 TopicLayout.astro 与 SPA 壳里都紧跟 rates-common.js
-// 加载：本文件用 R.esc 转义，不能自带一份实现（守卫 tests/test_static_single_source.py）。
+// ESM 模块（与 site-nav.js 同一套模式），在 TopicLayout.astro 与 SPA 壳里都紧跟
+// rates-common.js、用 `type="module"` 加载：
+//   - 提示词与引用块模板单源在 ./ai-prompt.js —— 调提示词只改那个文件；
+//   - 本文件用 rates-common.js 的全局 R.esc，不自带一份实现（守卫见
+//     tests/test_static_single_source.py）。
 // 挂三样东西到 body 末尾（全是 position: fixed，不进 SPA 的 flex 流）：
 //   .ai-float   右上角浮钮（原主题切换位，主题已改恒跟随系统）
 //   .ai-sel-pop 划词气泡「问这段」
 //   .ai-drawer  右侧抽屉（对话 + 引用胶囊 + 设置 + 历史）
 // 数据全在本机 localStorage：三个键见下方 K_*，接口直连 OpenAI 兼容端点，
 // 没填 API Key 时走本站 /api/chat（后端代理位预留给后续接入，前端零改动）。
+
+import { AI_PROMPT_VERSION, AI_SYSTEM_PROMPT, formatQuote } from './ai-prompt.js';
 
 (function () {
   'use strict';
@@ -27,18 +32,9 @@
   const MAX_THREADS = 50;
   const DEF_CFG = { baseUrl: 'https://api.openai.com/v1', apiKey: '', model: 'gpt-4o-mini' };
 
-  // ── 伴读提示词（唯一可调处，改这里即可，不动请求逻辑）───────────────────
-  // 只放「角色 + 纪律」这类长期稳定的指令；页面上下文由 buildMessages() 拼在后面。
-  // 与后端研判提示词（src/llm.py 的 _SYSTEM_PROMPT，build-time 批量改写）分开：
-  // 那份输出的是定长卡片文案（受数字白名单与长度校验），这份是自由问答。
-  const SYSTEM_PROMPT = [
-    '你是观澜台（US Macro 研究平台）的伴读分析助手。',
-    '只依据当前页面披露/估算的数据与用户划词片段回答；页面没给出的数字不要编造，缺数据就直接说「页面未给出」。',
-    '回答简洁，中文为主，国际通用术语（VIX / GEX / Contango 等）保留英文；引用数字要带单位与口径。',
-  ].join('\n');
-  // 运行时覆写位（控制台调提示词用，刷新即恢复默认）：不改源文件也能试新版
+  // 提示词正文单源在 ./ai-prompt.js，这里只保留运行时覆写位（控制台试新版，刷新恢复）
   let systemPromptOverride = '';
-  const sysPrompt = () => systemPromptOverride || SYSTEM_PROMPT;
+  const sysPrompt = () => systemPromptOverride || AI_SYSTEM_PROMPT;
   // 内存兜底：配额满或隐私模式禁写 localStorage 时，当前会话仍在内存里完整可用
   const mem = {};
 
@@ -381,22 +377,10 @@
   }
 
   // ── 请求 ────────────────────────────────────────────────────────────────
+  // 引用块包装模板单源在 ./ai-prompt.js 的 formatQuote（改「引用怎么递给模型」只动那里）
   function quotePrefix(quotes) {
     if (!quotes || !quotes.length) return '';
-    return (
-      quotes
-        .map((q, i) => {
-          const lines = [
-            '【引用' + (i + 1) + '】页面：' + (q.pageTitle || '') + (q.asOf ? '（' + q.asOf + '）' : ''),
-          ];
-          if (q.section) lines.push('小节：' + q.section);
-          if (q.tableHeaders && q.tableHeaders.length) lines.push('表头：' + q.tableHeaders.join(' | '));
-          if (q.rowText) lines.push('本行：' + q.rowText);
-          lines.push('原文：「' + q.text + '」');
-          return lines.join('\n');
-        })
-        .join('\n\n') + '\n\n'
-    );
+    return quotes.map(formatQuote).join('\n\n') + '\n\n';
   }
 
   function buildMessages(thread, userText, quotes) {
@@ -873,11 +857,12 @@
     saveToServer,
     // 提示词可读可覆写：控制台里 __aiChat.systemPrompt = '…' 即可试新版本，刷新恢复
     get systemPrompt() {
-      return SYSTEM_PROMPT;
+      return sysPrompt();
     },
     set systemPrompt(v) {
       if (typeof v === 'string' && v.trim()) systemPromptOverride = v;
     },
+    promptVersion: AI_PROMPT_VERSION,
   };
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
