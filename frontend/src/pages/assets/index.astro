@@ -179,6 +179,44 @@ async function load() {
     .map(([k, v]) => R.judgeCard(v.title || labels[k] || k, v.text, R.LINES_JUDGE)).join(''));
 
   R.foot(null, { src: 'yfinance / FRED / Nasdaq Trader' });
+
+  // 页面事实集（契约见 js/ai-context.js）：7 张分组表和相关性热力只落在 DOM/canvas 上，
+  // 摘要抓不到数字，故按分组挑代表品种给「最新价 + 日涨跌」，相关矩阵整张交给 matrix 字段。
+  if (window.AICtx) AICtx.declare('assets', () => {
+    // symbol → 行：symbol 在 7 张表里唯一，拍平成一张索引表，只取值不重算
+    const idx = {};
+    Object.values(d.tables || {}).forEach(ts => (ts || []).forEach(r => { idx[r.symbol] = r; }));
+    const line = (sym) => {
+      const r = idx[sym];
+      // 涨跌只补方向位，数值仍走 R.fmtPct（不与 rates-common 的口径分叉）
+      return r ? R.num(r.last) + ' · ' + (r.chg_pct > 0 ? '+' : '') + R.fmtPct(r.chg_pct) : '—';
+    };
+    const cdate = idx.BTC ? '按 ' + idx.BTC.date + ' 收盘' : '';
+    return {
+      title: '大类资产价格与相关性',
+      src: 'yfinance 日频快照 · 30 日滚动相关（日收益）',
+      asOf: d.as_of,
+      priority: 10,
+      facts: [
+        ['SPX 标普500', line('SPX')],
+        ['NDX 纳指100', line('NDX')],
+        ['SOX 费城半导体', line('SOX')],
+        ['XLK 信息技术', line('XLK')],
+        ['XLE 能源', line('XLE')],
+        ['TLT 20年+国债', line('TLT')],
+        ['HYG 高收益债', line('HYG')],
+        ['Gold 黄金', line('Gold')],
+        ['Silver 白银', line('Silver')],
+        ['WTI 原油', line('WTI')],
+        ['NG 天然气', line('NG')],
+        ['DXY 美元指数', line('DXY')],
+        ['BTC 比特币', line('BTC'), cdate],
+        ['ETH 以太坊', line('ETH'), cdate],
+      ],
+      matrix: d.corr ? AICtx.matrix(d.corr.assets, d.corr.matrix) : null,
+      note: '价格按各资产自身报价单位；涨跌 = 较上一交易日 %；相关系数无量纲（-1 ~ +1）',
+    };
+  });
 }
 
 load().catch(e => R.fail(['asset-groups', 'correlation', 'cross-analysis'], e));

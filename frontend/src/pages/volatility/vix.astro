@@ -278,6 +278,46 @@ async function load() {
       SKEW: (v) => v ?? '—', OVX: (v) => v ?? '—',
     })
   );
+
+  // ── 页面事实集（契约见 js/ai-context.js）：本页读数几乎全在 canvas 上（近 2 年走势 /
+  //    VIX×SKEW 散点 / SKEW / 期限曲线），DOM 摘要只抓得到三张状态卡；故按「水平 → 变化 →
+  //    区间阈值 → 期限形状 → 尾部对冲 → 历史坐标」各给一条，覆盖「现在多少 / 算高吗 /
+  //    曲线什么形状 / SKEW 说明什么」四类追问。派生值（ratio / hc / zones）直接复用页面变量。
+  if (window.AICtx) AICtx.declare('volatility-vix', () => {
+    const r0 = (data.recent && data.recent[0]) || {};   // 最新一行的 VIX1Y / SKEW / OVX
+    const hs = data.vix_history || {};
+    const hsv = Array.isArray(hs.skew) && hs.skew.length ? hs.skew[hs.skew.length - 1] : null;
+    const skew = r0.SKEW ?? hsv;
+    // 带符号读数只拼符号，数字本体仍走 R.num（不另写平行格式化器，同 credit / metals 惯例）
+    const sgn = (x) => (x == null ? '—' : (x > 0 ? '+' : '') + R.num(x, 2));
+    const slopeTxt = t.slope == null
+      ? '—'
+      : (t.state === 'contango' ? '+' : '−') + R.num(Math.abs(t.slope), 2);  // 与期限徽章同一写法
+    const px = (arr) => arr.map(x => R.num(x, 2)).join(' · ');
+    const facts = [
+      ['VIX 最新值', `${R.num(v.value, 2)} · ${v.zone || '—'}`, v.percentile_1y == null ? '分位缺失' : `近一年 ${R.num(v.percentile_1y, 1)}% 分位`],
+      ['日 / 周涨跌', `${R.fmtPct(v.chg_1d_pct)} · ${R.fmtPct(v.chg_1w_pct)}`, `1 周 ${sgn(v.chg_1w)} 点`],
+      ['区间阈值', zones.map(z => z.label + ' ' + z.lo).join(' · '), '点 · 与状态卡区间同源'],
+      ['期限结构', `${TERM_STATE[t.state] || '—'} · ${slopeTxt}`, '斜率 = VIX − VIX9D'],
+      ['VIX / VIX3M', R.num(ratio, 3), '比值 <1 = 远月高于现月'],
+      ['期限曲线近端', px(t.values.slice(0, 3)), '点 · 1D / 9D / 30D'],
+      ['期限曲线远端', px([t.values[3], t.values[4], r0.VIX1Y]), '点 · 3M / 6M / 1Y'],
+      ['SKEW 看跌偏斜', R.num(skew, 2), '阈值 130 偏低 / 140 偏高 / 150 极端'],
+      ['VIX × SKEW 象限', s.state || '—', 'VIX 17 / 22 与 SKEW 130 / 150 为分界'],
+      ['OVX 原油波动率', R.num(r0.OVX, 2), '点 · 同日 CBOE'],
+    ];
+    if (hc) {
+      facts.push(['5 日变化历史分位', `${sgn(hc.cur)} 点 · 历史 ${R.num(hc.pct, 0)} 分位`, `上一窗口 ${sgn(hc.prev)} 点`]);
+    }
+    return {
+      title: 'VIX 波动率读数',
+      src: 'CBOE（VIX / VIX1D / VIX9D / VIX3M-1Y / SKEW / OVX）',
+      asOf: data.as_of,
+      priority: 10,
+      facts,
+      note: '单位为指数点（非百分比）；分位按近一年交易日计',
+    };
+  });
 }
 load().catch(e => R.fail(['status-cards', 'vix_long_chart', 'vix_skew_scatter', 'skew_chart', 'vix_term_chart', 'recent-table'], e));
 </script>

@@ -85,6 +85,31 @@ async function load() {
   document.getElementById('recent-body').replaceChildren(R.table(['日期'].concat(keys), rows, fmts));
 
   R.foot(null, { src: 'yfinance 日频快照', note: '口径为收盘价' });
+
+  // 可问答事实集：四只 ETF 的收盘价 + 日涨跌 + 图里已归一的 20 日相对涨跌，
+  // 加一行窗口起止——够回答「今天怎么样、这 20 天长债与信用谁强」。
+  if (window.AICtx) AICtx.declare('assets-bonds', () => {
+    // 复用页面已算好的 norm()（期初=0% 相对涨跌，时间正序，末位是最新一条）
+    const rel = k => { const a = norm(k); return a.length ? a[a.length - 1] : null; };
+    const sgn = v => (v > 0 ? '+' : '') + R.fmtPct(v);
+    const facts = (d.cards || []).map(c => [
+      c.symbol + ' ' + c.name,
+      R.num(c.last),
+      '日 ' + sgn(c.chg_pct) + ' · 20日相对 ' + sgn(rel(c.symbol)),
+    ]);
+    const dl = rc.dates || [];
+    if (dl.length) {
+      facts.push(['20 日窗口', dl[dl.length - 1] + ' → ' + dl[0], dl.length + ' 条日频收盘，周末为占位 · 期初 = 0%']);
+    }
+    return {
+      title: '债券 ETF 价格与相对强弱',
+      src: 'yfinance 日频快照 · 收盘价',
+      asOf: d.cards && d.cards[0] ? d.cards[0].date : '',
+      priority: 10,
+      facts,
+      note: '价格单位为美元；日涨跌与 20 日相对涨跌单位为 %',
+    };
+  });
 }
 
 const fmt = R.num;

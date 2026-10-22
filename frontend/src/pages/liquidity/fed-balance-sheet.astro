@@ -24,9 +24,11 @@ async function load() {
     ? R.judgeCard(d.judgement.title, d.judgement.text, R.LINES_CONCLUSION)
     : '<p style="color:var(--text-dim);font-size:13px;margin:0">研判数据不足。</p>');
 
+  // 接口 value_b 为十亿美元，页面统一折成万亿；单处定义，卡片与事实集共用
+  const tr = v => (v == null ? '—' : (Number(v) / 1000).toFixed(2) + ' 万亿');
   const card = (key, accent) => {
     const s = (d.cards || {})[key] || {};
-    return { label: s.label || key, accent, value: (s.value_b == null ? '—' : (s.value_b / 1000).toFixed(2) + ' 万亿'), sub: 'H.4.1 周度' };
+    return { label: s.label || key, accent, value: tr(s.value_b), sub: 'H.4.1 周度' };
   };
   document.getElementById('re-cards').appendChild(R.cards([
     card('WALCL'), card('TREAST'), card('WSHOMCB'), card('NET_LIQUIDITY', true),
@@ -43,6 +45,35 @@ async function load() {
   R.foot('rules', {
     src: 'FRED H.4.1（WALCL / RRP / TGA）',
     note: `${d.note || ''} 净流动性 = 总资产 − RRP − TGA（近似口径）· 单位 万亿 USD`.trim(),
+  });
+
+  // ── 页面事实集（契约见 js/ai-context.js）：卡片四读数 + 4 周变化 + 同日股指。
+  // 为什么是这几条：DOM 摘要只抓 .re-cards 的扁平文本，周变化藏在研判句子里、对照表里的
+  // SPX/NDX 根本抓不到，而「QT 停了吗 / 净流动性多少」恰好落在这两个缺口上。
+  if (window.AICtx) AICtx.declare('liquidity-fed-balance-sheet', () => {
+    const c = d.cards || {};
+    const all = d.rows || [];
+    const bs = all.filter(r => r.WALCL != null); // 非发布日整行为空，取最后一个有账目的日子
+    const last = bs[bs.length - 1] || all[all.length - 1] || {};
+    // 4 周变化只由后端写进研判正文（_pct_chg 28 天），这里原样摘出，不另算
+    const m4 = (d.judgement?.text || '').match(/4 周 ([+-][\d.]+)%(?:）)?(?:，其中 ([^。]+))?/);
+    const facts = [
+      ['美联储总资产', tr(c.WALCL?.value_b), 'WALCL · H.4.1 周度'],
+      ['国债持有', tr(c.TREAST?.value_b), 'TREAST'],
+      ['MBS 持有', tr(c.WSHOMCB?.value_b), 'WSHOMCB'],
+      ['净流动性', tr(c.NET_LIQUIDITY?.value_b), '总资产 − RRP − TGA（近似口径）'],
+    ];
+    if (m4) facts.push(['4 周变化', '总资产 ' + m4[1] + '%' + (m4[2] ? ' · ' + m4[2] : ''), '国债 / MBS 同为 4 周变动']);
+    if (last.SPX != null) facts.push(['标普500 / 纳指100', R.num(last.SPX) + ' / ' + R.num(last.NDX), '同一观测日收盘']);
+    return {
+      title: '美联储资产负债表',
+      src: 'FRED H.4.1：WALCL / TREAST / WSHOMCB / RRP / TGA',
+      // 该端点没有 as_of（只有 cards/rows/judgement/note），回落取最后一条有账目的日期
+      asOf: last.date || '',
+      priority: 10,
+      facts,
+      note: '单位 万亿 USD；H.4.1 为周度，非发布日为空',
+    };
   });
 }
 load().catch(e => R.fail(['re-cards', 'sec-judge', 're-table'], e));

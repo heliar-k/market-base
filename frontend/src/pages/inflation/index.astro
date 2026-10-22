@@ -120,6 +120,73 @@ async function load() {
     src: 'FRED（CPI / 核心 CPI / 核心 PCE / PPI / 盈亏平衡 / 消费预期）· NY Fed SCE · Shapiro 供需分解',
     note: 'YoY 由指数水平计算（月频），盈亏平衡为日频',
   });
+
+  // ── 伴读抽屉事实集 ──
+  // 为什么给这几条：问通胀时真会被引用的就是四个同比读数、分项结构、市场/调查两端预期与
+  // Shapiro 供需归因；10 年长序列本身不进上下文（只报覆盖区间），否则一条曲线就吃掉整档预算。
+  if (window.AICtx) AICtx.declare('inflation', () => {
+    const c = d.cards;
+    const comp = (n) => (d.components || []).find((x) => x.name === n) || {};
+    const mk = (k) => (d.expectations.market || []).find((x) => x.key === k) || {};
+    const sv = (kw) => (d.expectations.survey || []).find((x) => (x.name || '').includes(kw)) || {};
+    // 较上月差值：数字格式仍走 R.num，这里只补符号与 pp 单位
+    const pp = (v) => (v === null || v === undefined ? '—' : (v > 0 ? '+' : '') + R.num(v, 2) + 'pp');
+    // 年份从 recent 推，别写死（跨年后会与「09/08/07」三列不符）
+    const years = new Set((d.recent || []).slice(0, 3).map((r) => r.date.slice(0, 4)));
+    const facts = [
+      ['CPI 同比', R.fmtPct(c.cpi.value), 'as_of ' + (c.cpi.as_of || '—') + ' · 较上月 ' + pp(c.cpi.chg_1m)],
+      ['核心 CPI 同比', R.fmtPct(c.core_cpi.value), 'as_of ' + (c.core_cpi.as_of || '—') + ' · 较上月 ' + pp(c.core_cpi.chg_1m)],
+      ['核心 PCE 同比', R.fmtPct(c.core_pce.value), '美联储目标口径 · as_of ' + (c.core_pce.as_of || '—') + ' · 较上月 ' + pp(c.core_pce.chg_1m)],
+      ['PPI 同比', R.fmtPct(c.ppi.value), 'as_of ' + (c.ppi.as_of || '—') + ' · 较上月 ' + pp(c.ppi.chg_1m)],
+      [
+        'CPI 分项（同比）',
+        ['住所', '能源', '食品'].map((n) => n + ' ' + R.fmtPct(comp(n).yoy)).join(' · '),
+        '能源较上月 ' + pp(comp('能源').chg_1m),
+      ],
+      [
+        '核心分项（同比）',
+        ['核心服务', '核心商品'].map((n) => n + ' ' + R.fmtPct(comp(n).yoy)).join(' · '),
+        '超级核心 PCE ' + R.fmtPct(comp('超级核心 PCE（除住所服务）').yoy),
+      ],
+      ['市场隐含 5Y 盈亏平衡', R.fmtPct(mk('T5YIE').value), '日频 · as_of ' + (mk('T5YIE').as_of || '—')],
+      ['10Y 盈亏平衡', R.fmtPct(mk('T10YIE').value), '日频 · 较上月 ' + pp(mk('T10YIE').chg_1m)],
+      ['5y5y 远期通胀预期', R.fmtPct(mk('T5YIFR').value), '较上月 ' + pp(mk('T5YIFR').chg_1m)],
+      [
+        '调查端预期',
+        '密歇根 1Y ' + R.fmtPct(sv('密歇根').value) + ' · SCE 1Y ' + R.fmtPct(sv('SCE 1Y').value),
+        '月频调查，1 年期',
+      ],
+      [
+        '近 3 月 CPI 同比',
+        (d.recent || []).slice(0, 3).map((r) => r.date.slice(5, 7) + ' ' + R.fmtPct(r.cpi_yoy)).join(' · '),
+        years.size > 1 ? '跨年 · 新→旧' : years.size ? [...years][0] + ' 年 · 新→旧' : '新→旧',
+      ],
+    ];
+    // Shapiro 是条件渲染（页面上缺源就不出这一节），事实集同样不硬造
+    if (d.shapiro && d.shapiro.core) {
+      const s = d.shapiro.core;
+      facts.push([
+        'PCE 供需分解',
+        '供给 ' + R.num(s.supply, 2) + 'pp · 需求 ' + R.num(s.demand, 2) + 'pp · 无法归因 ' + R.num(s.ambig, 2) + 'pp',
+        '核心 PCE YoY 贡献 · as_of ' + (d.shapiro.as_of || '—'),
+      ]);
+    }
+    // 长序列只报覆盖区间：上百个点塞进上下文既超预算、模型也读不出形状
+    const hd = d.yoy_history && d.yoy_history.dates;
+    if (hd && hd.length) {
+      const first = hd[0].slice(0, 7);
+      const last = hd[hd.length - 1].slice(0, 7);
+      facts.push(['YoY 走势覆盖', first + ' 至 ' + last, '月频 ' + hd.length + ' 个点 · CPI / 核心 CPI / 核心 PCE']);
+    }
+    return {
+      title: '通胀读数',
+      src: 'FRED（CPI / 核心 PCE / PPI / 盈亏平衡）· NY Fed SCE · 旧金山联储 Shapiro 分解',
+      asOf: d.as_of,
+      priority: 10,
+      facts,
+      note: '同比与盈亏平衡单位为 %，较上月与贡献为 pp；CPI/PCE 由指数水平算 YoY（月频）',
+    };
+  });
 }
 load().catch(e => R.fail(['cards', 're-signals', 'history', 'components', 'expectations', 'shapiro', 'recent'], e));
 </script>

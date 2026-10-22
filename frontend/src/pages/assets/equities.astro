@@ -84,6 +84,68 @@ async function load() {
   renderRadar();
   renderRecent();
   R.foot(null, { src: 'yfinance（广度/目标价）+ Wikipedia（成分股）' });
+
+  // 页面事实集（契约见 js/ai-context.js）：这页可问的读数分四层 —— 5 个指数的收盘与日涨跌、
+  // 广度三件（ABV200 / ABV50 / 大小盘 20 日差）、走势图末端的近一年归一化、NDX 内部结构与
+  // 分析师隐含空间。走势图本身没有文字节点，不在这里补一条模型就查不到相对强弱。
+  if (window.AICtx) AICtx.declare('assets-equities', () => {
+    const idx = D.indices || [];
+    const b = D.breadth || {};
+    const r = D.radar || {};
+    const a = D.analyst || {};
+    const ch = D.chart || {};
+    // 复用 R.fmtPct / R.num，只补符号与单位（与 bonds/commodities 同形）
+    const sgn = v => (v == null ? '—' : (Number(v) > 0 ? '+' : '') + R.fmtPct(v));
+    const pp = v => (v == null ? '—' : (Number(v) > 0 ? '+' : '') + R.num(v, 2) + ' pp');
+    // 归一化序列（期初 = 0%）：取末位即近一年累计涨跌，图上只画不写数
+    const lastOf = k => {
+      const s = (ch.series || {})[k];
+      return s && s.length ? s[s.length - 1] : null;
+    };
+    const facts = [
+      ...idx.map(i => [i.name || i.symbol, R.num(i.last), sgn(i.chg_pct)]),
+      ['广度判定', b.verdict || '—', 'ABV200 ' + R.fmtPct(b.abv200) + ' · ' + (b.abv_date || '—')],
+      ['200 日均线上方占比', R.fmtPct(b.abv200), '标普500 成分 · 较前 ' + pp(b.abv200_chg)],
+      ['50 日均线上方占比', R.fmtPct(b.abv50), '标普500 成分 · 较前 ' + pp(b.abv50_chg)],
+      ['SPX − RUT 20 日差距', b.gap == null ? '—' : pp(b.gap), 'SPX ' + sgn(b.spx_20d) + ' / RUT ' + sgn(b.rut_20d)],
+    ];
+    if (ch.dates && ch.dates.length) {
+      facts.push([
+        '近一年归一化（' + ch.dates[0] + ' 起）',
+        'SPX ' + sgn(lastOf('SPX')) + ' · SOX ' + sgn(lastOf('SOX')),
+        'NDX ' + sgn(lastOf('NDX')) + ' · DJI ' + sgn(lastOf('DJI')) + ' · RUT ' + sgn(lastOf('RUT')),
+      ]);
+    }
+    // 与页面同条件：成分股快照不足 10 行时该节整段隐藏，事实集也不给
+    if (r.rows > 10) {
+      facts.push([
+        'NDX 内部结构',
+        R.num(r.today_up_pct, 1) + '% / ' + R.num(r.above50_pct, 1) + '% / ' + R.num(r.above200_pct, 1) + '%',
+        '上涨家数 / 50D / 200D 上方 · ' + r.rows + ' 只 · ' + (r.verdict || '—') + ' · ' + (r.date || '—'),
+      ]);
+      const top = (r.strong20 || [])[0];
+      const bot = (r.weak20 || [])[0];
+      if (top || bot) {
+        facts.push([
+          'NDX 20 日首尾',
+          [top ? top.ticker + ' ' + sgn(top.chg20) : '', bot ? bot.ticker + ' ' + sgn(bot.chg20) : ''].filter(Boolean).join(' / '),
+          '等权 20 日涨幅首 / 末',
+        ]);
+      }
+    }
+    if (a.rows > 10) {
+      facts.push(['分析师平均隐含空间', sgn(a.avg_upside), '中位 ' + sgn(a.med_upside) + ' · ' + a.rows + '/' + a.total + ' 有共识目标价 · ' + (a.date || '—')]);
+      facts.push(['目标价高于现价', a.above_share == null ? '—' : R.num(a.above_share, 1) + '%', a.above_cnt + '/' + a.rows + ' · 覆盖率 ' + R.fmtPct(a.coverage_pct)]);
+    }
+    return {
+      title: '美股指数、广度与目标价',
+      src: 'yfinance（指数/广度/目标价）· Wikipedia（Nasdaq-100 成分）',
+      asOf: (idx[0] && idx[0].date) || b.abv_date || '',
+      priority: 10,
+      facts,
+      note: '指数为收盘点位；占比/隐含空间/涨跌为 %，大小盘差距为 pp',
+    };
+  });
 }
 
 function renderIndices() {

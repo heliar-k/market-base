@@ -230,6 +230,53 @@ async function load() {
       { name: '10Y', type: 'line', data: d.nominal_10y.map(p => [p.date, p.value]), symbol: 'none', lineStyle: { color: colors.blue, width: 2 } },
     ],
   }, colors));
+
+  // ── 页面事实集（契约见 js/ai-context.js）：主数据到手、主渲染完成后的成功路径才声明。
+  // 为什么给这几条：本页只答两件事 ——「这一场会议怎么定价」（ZQ 隐含 vs PM 下注，两源平权）
+  // 与「长短端现在什么水平」（10Y 名义/实际/BEI/期限溢价 + 2s10s）；全年次数/路径/首次降息
+  // 是跨会议累计事件，与单场边际概率不可相加，模型最容易混读，所以单独列并各自带口径。
+  if (window.AICtx) AICtx.declare('rates-pricing', () => {
+    // 单场会议读数：方向取页面的 expectation，概率取同名 prob_ 档 + PM 三档聚合（与 hero 对垒同源）
+    // 3 位小数的隐含利率（R.num 保精度，空值整体回落 —）
+    const pct3 = (v) => (v == null ? '—' : R.num(v, 3) + '%');
+    const meet = (m) => {
+      const k = expCls(m.expectation);
+      const agg = pmAgg(m);
+      return {
+        v: `${m.meeting_date} ${m.expectation} · ZQ ${pct1(m['prob_' + k])} / PM ${agg ? pct1(agg[k]) : '—'}`,
+        n: `合约 ${m.contract_used}${m.contract_used !== m.contract ? ' = 下月合约整月采样' : ''} · 隐含 ${pct3(m.implied_rate)} → 会后 ${pct3(m.post_meeting_rate)}`,
+      };
+    };
+    const facts = [];
+    upcoming.slice(0, 2).forEach((m, i) => {
+      const x = meet(m);
+      facts.push([i ? '再下一场定价' : '下次会议定价', x.v, x.n]);
+    });
+    // 长端读数：都取曲线最后一个观测（与概览卡同一个 last()），日期随点给出，避免与定价时点混读
+    const obs = d.nominal_10y.length ? d.nominal_10y[d.nominal_10y.length - 1].date : d.as_of;
+    facts.push(
+      ['目标区间', tgt, fomc && fomc.next ? `FRED DFEDTARL/U · 下次会议 ${nxt}` : 'FRED DFEDTARL/U'],
+      ['10Y 名义利率', R.fmtPct(last(d.nominal_10y)), `DGS10 · ${obs}`],
+      ['10Y 实际利率', R.fmtPct(last(d.real_10y)), `TIPS DFII10 · ${obs}`],
+      ['10Y 盈亏平衡通胀', R.fmtPct(last(d.breakeven_10y)), `名义 − 实际 · ${obs}`],
+      ['10Y 期限溢价', R.fmtPct(last(d.term_premium)), tpChg == null ? 'NY Fed ACM 估计' : `NY Fed ACM · 近1月 ${R.fmtBp(tpChg)}bp`],
+      ['2Y 与 2s10s 利差', `${R.fmtPct(last(d.y2))} · ${R.fmtPct(last(d.spread_2s10))}`, `DGS2 · 10Y−2Y · ${obs}`],
+    );
+    // 累计口径三卡：值/注直接取 renderCumulative 留下的同一份结果，缺快照时给 '—' 不编造
+    [['全年加息次数', 0], ['路径序列', 1], ['首次降息时点', 2]].forEach(([label, i]) => {
+      const c = CUM_ODDS[i];
+      facts.push([label, c ? c.value : '—', c ? `${c.sub}；与单场边际概率不可相加` : '缺 Polymarket fed 快照']);
+    });
+
+    return {
+      title: '利率定价与政策路径',
+      src: 'CME ZQ 期货（IBKR / Barchart）· Polymarket Fed 事件 · FRED（DGS10 / DGS2 / DFII10 / ACMTP10）',
+      asOf: re.as_of,
+      priority: 10,
+      facts,
+      note: '利率单位为 %，期限溢价 1 月变动为 bp；ZQ 概率是会议后利率水平（累计口径），PM 是本场决定（边际口径），两源不可相加',
+    };
+  });
 }
 
 // ── hero 决策卡：选举夜对垒（PM vs ZQ 两栏平权 + Δ 徽章）+ 五档双条 ──
@@ -428,6 +475,8 @@ function pmFirstCut(odds) {
   return { value: hit.ym, sub: `${pct1(hit.p)} · 累计口径${hit.p >= 0.5 ? '' : ' · 未过半'}` };
 }
 
+// renderCumulative 的取值留一份给页面事实集：同一份 market_odds、同一套取法，事实集不重算
+let CUM_ODDS = [];
 // 三张卡顺序固定；任一张取不到值保留卡位（value 给 '—'，sub 给缺哪份数据）
 const CUM_SLOT = [
   { label: '全年加息次数', pick: pmHikeCount, miss: '全年累计事件无快照' },
@@ -442,6 +491,7 @@ function renderCumulative(odds) {
     if (odds && odds.events && odds.events.length) got = CUM_SLOT.map((s) => s.pick(odds));
   } catch { got = CUM_SLOT.map(() => null); }  // 快照结构异常时降级为全 '—'，不拖垮整页
   const empty = got.every((x) => !x);
+  CUM_ODDS = got;
   box.replaceChildren(R.cards(CUM_SLOT.map((s, i) => ({
     label: s.label,
     value: got[i] ? got[i].value : '—',

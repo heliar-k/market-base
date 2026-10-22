@@ -156,9 +156,7 @@ function renderHawkish(root, data) {
   //    着色评分列 + 标题鹰鸽计数替代图形的扫视优势）──
   const s1 = document.createElement('div');
   s1.className = 're-section';
-  const hawkN = roster.filter(r => r.score > 0).length;
-  const doveN = roster.filter(r => r.score < 0).length;
-  const midN = roster.length - hawkN - doveN;
+  const { hawk: hawkN, dove: doveN, mid: midN } = stanceMix(roster);
   const hdColor = (v) => v > 0 ? 'var(--color-hawk-text)' : v < 0 ? 'var(--color-dove-text)' : 'var(--flat)';
   // 整列同值的列不渲染（AGENTS.md：删列 + 上提到副标）。votes_all 由后端按当年名册算，
   // 出现非票委（地区联储主席轮值换人）时列自动回来，前端不用改。
@@ -335,6 +333,26 @@ function oddsCls(q) {
   return 'other';
 }
 
+// 三档中文名 / 概率格式化 / 三档聚合：卡片渲染与页面事实集共用同一处
+// （原先 pct 与聚合写在 renderOdds 里，事实集要报同一口径就得抄一份，抄了迟早漂移）
+const ODDS_LABEL = { cut: '降息', hold: '不变', hike: '加息' };
+const pct = (v) => (v * 100).toFixed(1) + '%';
+
+// 三档聚合（同 rates/pricing 的 pmAgg 口径：25bp 与 50bp+ 合并）
+function oddsAgg(ev) {
+  return ev ? ['cut', 'hold', 'hike'].map((c) => ({
+    c,
+    p: ev.markets.filter((m) => oddsCls(m.question) === c).reduce((s, m) => s + m.prob_yes, 0),
+  })) : null;
+}
+
+// 鹰 / 鸽 / 中性计数（评分正负分档）：成员表标题与页面事实集共用
+function stanceMix(roster) {
+  const hawk = roster.filter(r => r.score > 0).length;
+  const dove = roster.filter(r => r.score < 0).length;
+  return { hawk, dove, mid: roster.length - hawk - dove, n: roster.length };
+}
+
 // 下次会议：fed-decision 事件里 end_date 最早且未到期的一场；无决策事件时退回 24h 量最大者
 function nextDecision(events) {
   const today = R.todayISO();
@@ -345,16 +363,11 @@ function nextDecision(events) {
 
 function renderOdds(root, data) {
   const ev = data.market_odds?.events?.length ? nextDecision(data.market_odds.events) : null;
-  // 三档聚合（同 rates/pricing 的 pmAgg 口径：25bp 与 50bp+ 合并）
-  const pct = (v) => (v * 100).toFixed(1) + '%';
-  const agg = ev && ['cut', 'hold', 'hike'].map((c) => ({
-    c,
-    p: ev.markets.filter((m) => oddsCls(m.question) === c).reduce((s, m) => s + m.prob_yes, 0),
-  }));
+  const agg = oddsAgg(ev);
   // 着色走全站语义 class（app.css .up/.down/.neutral 已是文字档，不另造私有色类）
   const CLS = { cut: 'up', hold: 'neutral', hike: 'down' };
   const sum = agg ? agg.map((x) => `<span class="${CLS[x.c]}">${
-    { cut: '降息', hold: '不变', hike: '加息' }[x.c]} ${pct(x.p)}</span>`).join(' · ') : '';
+    ODDS_LABEL[x.c]} ${pct(x.p)}</span>`).join(' · ') : '';
   root.innerHTML = `
     <div class="fed-doc">
       ${ev && agg
@@ -417,6 +430,46 @@ async function load() {
   ]) {
     try { fn(document.getElementById(id), data); } catch (e) { R.fail([id], e); }
   }
+
+  // ── 页面事实集（契约见 js/ai-context.js）：主数据到手、主渲染完成后的成功路径才声明。
+  // 为什么是这几条：本页讲「联储说了什么」——声明/纪要 138 篇、演讲 190 场，DOM 摘要只截得到
+  // 分组表头；页头四卡（鹰鸽指示器 / 下次会议 / 目标利率 / 最新声明演讲）与 15 人名册才是可答的
+  // 读数，故按「鹰鸽读数 → 成员立场 → 最近文档 → 会议与利率 → 市场定价」各报一条。
+  if (window.AICtx) AICtx.declare('fed', () => {
+    const pm = ind.pre_meeting;
+    const mix = stanceMix(data.roster || []);
+    // 最鹰/最鸽：stances 本就是分数降序（后端排好），这里再排一次防上游换序，不另算新指标
+    const sorted = [...(data.stances || [])].sort((a, b) => b.score - a.score);
+    const top = sorted[0] || null;
+    const bot = sorted.length ? sorted[sorted.length - 1] : null;
+    const sp = data.speeches[0] || null;
+    const ev = data.market_odds?.events?.length ? nextDecision(data.market_odds.events) : null;
+    const agg = oddsAgg(ev);
+    // 评分带符号（−5 极鸽 ~ +5 极鹰），与页头统计卡同一写法
+    const sc = (v) => (v > 0 ? '+' : '') + v;
+    return {
+      title: '联储鹰鸽与会议预期',
+      src: 'federalreserve.gov 声明/纪要/演讲 · Polymarket · FOMC 日历',
+      asOf: fmtD(sp),
+      priority: 10,
+      facts: [
+        ['鹰鸽指示器', `${sc(ind.score)} 分 · ${ind.label}`, `最近 ${ind.sample} 条声明/纪要/演讲`],
+        ['会前鹰鸽', pm ? `${sc(pm.score)} 分 · ${pm.label}` : '—', pm ? `${pm.meeting} 会议前 14 天 · ${pm.sample} 条演讲` : ''],
+        ['成员立场分布', `${mix.hawk} 鹰 · ${mix.dove} 鸽 · ${mix.mid} 中性`, `${data.voting_year} 年名册 ${mix.n} 人 · 无近期演讲记中性`],
+        ['最鹰派官员', top ? `${top.speaker} ${sc(top.score)}` : '—', top ? `${top.label} · 最近演讲 ${fmtD(top)}` : ''],
+        ['最鸽派官员', bot ? `${bot.speaker} ${sc(bot.score)}` : '—', bot ? `${bot.label} · 最近演讲 ${fmtD(bot)}` : ''],
+        ['最新声明', latestStmt ? `${latestStmt.label} · ${sc(latestStmt.score)} 分` : '—', fmtD(latestStmt)],
+        ['最新演讲', sp ? `${sp.label} · ${sp.speaker}` : '—', fmtD(sp)],
+        ['下次 FOMC', nx ? `${nx.month} 月 ${nx.start_day}-${nx.end_day} 日` : '—', nx ? `${nx.year} 年，决议日 ${nx.end_day} 日` : '缺 FOMC 日历'],
+        ['目标利率区间', cal ? `${Number(cal.target_lower).toFixed(2)}–${Number(cal.target_upper).toFixed(2)}%` : '—',
+          cal ? '联邦基金目标区间' : '缺 FOMC 日历/目标区间'],
+        ['市场预期 · 下次会议', agg ? agg.map(x => ODDS_LABEL[x.c] + ' ' + pct(x.p)).join(' · ') : '—',
+          ev ? `Polymarket「${ev.title}」各档求和 · 到期 ${ev.end_date}` : '缺 Polymarket 快照'],
+        ['数据覆盖', `声明与纪要 ${data.statements.length} 篇 · 演讲 ${data.speeches.length} 场`, 'federalreserve.gov 抓取'],
+      ],
+      note: '鹰鸽评分为关键词规则打分（−5 极鸽 ~ +5 极鹰），非官方立场；地区联储主席的演讲发布在各自联储站点，本站未覆盖',
+    };
+  });
 }
 
 load().catch(e => R.fail(['cards', 'sec-stmts', 'sec-speeches', 'sec-hawk', 'sec-odds'], e));

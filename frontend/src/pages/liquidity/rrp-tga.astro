@@ -125,6 +125,38 @@ async function load() {
   }));
 
   R.foot('rules', { src: 'DTS（日度真实现金流）· FRED（SOFR / IORB 利率走廊）· Treasury 拍卖日历（未来热力估算）· H.4.1（RRP/TGA 周度）', note: 'DTS 日度优先于 H.4.1 周度' });
+
+  // ── 页面事实集（契约见 js/ai-context.js）：这页被问的多是「钱还够不够、下周抽多少水」，
+  //    所以给利差状态 + 四个余额 + 未来 7/14 日净冲击与逐日抽水 + TGA 近三日真实现金流 + 研判首句。
+  //    provider 闭包复用上面已算好的 net7/net14/heatDays/f1，提问时才求值，不再发请求 ──
+  if (window.AICtx) AICtx.declare('liquidity-rrp-tga', () => {
+    const flowDays = heatDays.filter(r => (r.flows || []).length);
+    // 研判正文首行即结论（「RRP 缓冲已耗尽。」这类），40 字上限只截不补
+    const verdict = ((d.judgement?.text || '').split('\n')[0] || '').slice(0, 40);
+    // 空值别连单位一起写（「—B」），数字仍只走 R.num；逐日表取整，免 3 位数把单条值顶过 40 字
+    const unit = (v, u, dg) => (v == null ? '—' : R.num(v, dg) + u);
+    const dayList = (rows) => rows.map(r => r.date.slice(5) + ' ' + (r.net_b >= 0 ? '+' : '') + R.num(r.net_b, 0)).join(' · ');
+    return {
+      title: 'RRP / TGA 流动性',
+      src: 'FRED（SOFR / IORB）· Treasury DTS（TGA / 日度现金流）· 拍卖日历 + WALCL（未来热力估算）',
+      asOf: d.data_date,
+      priority: 20,
+      facts: [
+        ['SOFR − IORB', a.sofr_iorb_bp == null ? '—' : R.fmtBp(a.sofr_iorb_bp) + 'bp', '状态：' + (a.state || '—')],
+        ['政策利率走廊', R.fmtPct(a.sofr) + ' / ' + R.fmtPct(a.iorb) + ' / ' + R.fmtPct(a.ffr_upper), 'SOFR / IORB / FFR 上限'],
+        ['RRP 余额', unit(cur.rrp_b, 'B'), '隔夜逆回购'],
+        ['TGA 余额', unit(cur.tga_b, 'B'), 'DTS ' + (cur.tga_date || '—')],
+        ['净流动性', unit(cur.net_liq_b, 'B'), '总资产 − RRP − TGA'],
+        ['SRF 使用', unit(cur.srf_m, ' 百万', 1), '0 表示未动用'],
+        ['未来 7 日净冲击', net7 == null ? '—' : f1(net7), '逐日资金流之和（估算）'],
+        ['未来 14 日净冲击', net14 == null ? '—' : f1(net14), '含国债结算与 SOMA 到期'],
+        ['未来资金流日', dayList(flowDays.slice(0, 3)) || '—', 'MM-DD 净冲击，整数十亿美元'],
+        ['TGA 近 3 日净现金流', dayList(cf.slice(-3)) || '—', 'DTS 存款 − 支出，整数十亿美元'],
+        ['研判结论', verdict || '—', '规则引擎生成'],
+      ],
+      note: '余额与现金流单位为十亿美元（B），SRF 为百万，利差为 bp；未来热力为估算：抽水 = 新债结算，SOMA 按 WALCL 4 周周均推算',
+    };
+  });
 }
 load().catch(e => R.fail(['re-alert', 're-cur', 're-heat', 'sec-judge', 'spread_chart', 'cash_chart'], e));
 </script>

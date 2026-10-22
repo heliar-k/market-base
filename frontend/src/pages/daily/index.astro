@@ -357,6 +357,81 @@ async function load() {
         </div>`).join('')}</div>` : '';
     }
   } catch (e) { R.fail(['db-vol-kpi', 'db-vol-signals'], e); }
+
+  // ── 页面事实集（契约见 js/ai-context.js）：本页是结论先行的汇总页，DOM 摘要只抓 .re-cards /
+  // .re-kv-grid；共识状态、命中情景、跨资产报警与六板块涨跌都不在那几个选择器里，这里补成结构化读数。
+  // 值有 40 字上限：板块只取代表标的（全表进对应专题页），证据只留前两条方向依据。
+  if (window.AICtx) AICtx.declare('daily', () => {
+    const facts = [];
+    const add = (f) => { if (f && f[1] != null && String(f[1]).length) facts.push(f); };
+
+    // 共识两卡：页面只画 ✓/✗/— 标记，state 这句话（成员投票聚合结论）正文里没有
+    for (const [label, grp] of [['市场共识', cons?.market], ['宏观共识', cons?.macro]]) {
+      if (!grp) continue;
+      add([label, `${grp.state || '—'} · ${grp.n_present ?? '—'}/${grp.n_members ?? '—'} 参与`,
+        '成员投票聚合' + (cons?.finalized === false ? ' · 盘中临时值' : '')]);
+    }
+
+    // 三情景：只有 matched 的那条是当日结论，evidence 是它命中的近 5 观测方向依据
+    const scens = d.scenarios || [];
+    const hit = scens.filter(s => s.matched);
+    if (scens.length) {
+      add(['主导情景', hit.length ? hit.map(s => s.title).join(' + ') : '无',
+        `近 5 观测方向核验 · ${hit.length}/${scens.length} 命中`]);
+      if (hit.length) add(['命中依据', (hit[0].evidence || []).slice(0, 2).join('、'), '近 5 观测方向']);
+    }
+
+    // 政策锚点：背景卡渲染成 kv 行（DOM 摘要会带），这里给可检索字段名与下次会期
+    if (d.fomc?.target_lower != null && d.fomc?.target_upper != null) {
+      const nx = R.nextMeeting(d.fomc) || d.fomc.next;
+      const iso = nx
+        ? `${nx.year}-${String(nx.month).padStart(2, '0')}-${String(nx.end_day).padStart(2, '0')}`
+        : '';
+      add(['目标利率', `${R.fmtPct(d.fomc.target_lower)}–${R.fmtPct(d.fomc.target_upper)}`,
+        'FOMC 目标区间' + (iso ? ` · 下次 ${iso}` : '')]);
+    }
+    const m0 = rex?.meetings?.[0];
+    if (m0) {
+      // prob_* 是 0-1 概率，×100 后才交给 R.fmtPct（单位换算不算新指标，页内 kv 行同口径）
+      add(['下次会议隐含', `维持 ${R.fmtPct(m0.prob_hold * 100)} · 降息 ${R.fmtPct(m0.prob_cut * 100)} · 加息 ${R.fmtPct(m0.prob_hike * 100)}`,
+        'CME ZQ 期货隐含']);
+    }
+    const rec = d.polymarket?.recession;
+    if (rec?.prob != null) add(['衰退概率', R.fmtPct(rec.prob * 100), `Polymarket · ${rec.end_date} 到期`]);
+
+    // 报警正文自带 30 日相关系数（最常被追问的数）；超 40 字退回标题——值有长度上限
+    (d.alerts || []).slice(0, 2).forEach(a => {
+      const title = String(a.title || '');
+      add(['报警 · ' + title.split(' — ')[0], a.text && a.text.length <= 40 ? a.text : title,
+        '30 日滚动相关性突破阈值']);
+    });
+
+    // 六板块：页内是 db-board 列表（不在 DOM 摘要的选择器里），每板取 2-3 个代表标的
+    const q = (key, sym) => (overview?.tables?.[key] || []).find(r => r.symbol === sym) || null;
+    const line = (rows) => rows.filter(Boolean)
+      .map(r => `${r.symbol} ${r.chg_pct == null ? '—' : (r.chg_pct > 0 ? '+' : '') + R.fmtPct(r.chg_pct)}`)
+      .join(' · ');
+    const bd = (key) => overview?.tables?.[key]?.[0]?.date || '—';
+    add(['股指', line([q('equities', 'SPX'), q('equities', 'NDX'), q('equities', 'SOX')]), `${bd('equities')} 日涨跌`]);
+    add(['债券 ETF', line([q('bonds', 'TLT'), q('bonds', 'IEF'), q('bonds', 'LQD')]), `${bd('bonds')} 日涨跌`]);
+    add(['商品', line([q('commodities', 'Gold'), q('commodities', 'WTI')]), `${bd('commodities')} 日涨跌`]);
+    add(['加密与美元', line([q('crypto', 'BTC'), q('fx', 'DXY')]), `BTC ${bd('crypto')} · DXY ${bd('fx')}`]);
+
+    // 波动率：四张 KPI 卡取三张（OVX 已在波动率专题页），1D 变动挂注
+    const vc = (sym) => (volDash?.hero?.cards || []).find(c => c.symbol === sym);
+    const vs = [vc('VIX'), vc('VVIX'), vc('MOVE')];
+    add(['核心波动率', vs.filter(Boolean).map(c => `${c.symbol} ${R.num(c.value)}`).join(' · '),
+      'pt；1D ' + vs.map(c => (c ? (c.chg1d > 0 ? '+' : '') + R.fmtPct(c.chg1d) : '—')).join(' / ')]);
+
+    return {
+      title: '今日研判读数',
+      src: 'daily-brief（FRED / yfinance / Polymarket）· consensus · rate-expectations · assets/overview · volatility',
+      asOf: d.indicators?.as_of || d.polymarket?.as_of || '',
+      priority: 10,
+      facts,
+      note: '板块为当日 % 涨跌至各自 as_of，利率与概率单位为 %，波动率指数为点位（pt）',
+    };
+  });
 }
 load().catch(e => R.fail(['db-sc-market', 'db-sc-macro', 'db-bg-body', 'db-scenarios', 'db-hero-sub', 'db-lines', 'db-boards', 'db-vol-kpi', 'db-vol-signals'], e));
 </script>

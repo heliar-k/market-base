@@ -222,6 +222,43 @@ async function load() {
   rsec.appendChild(R.table(['日期'].concat(rkeys), rows, fmts));
   } catch (e) { R.fail(['recent'], e); }
 
+  // 页面事实集（契约见 js/ai-context.js）：这页可问的数字集中在三层 —— 币价 / 净流动性溢出 / 价比轮动，
+  // 再挂衍生品端点的雷达与机构散户结论（次要端点 404 时后两条自动不出，不硬凑）。
+  if (window.AICtx) AICtx.declare('assets-crypto', () => {
+    const cs = d.cards || [];
+    const btc = cs.find(i => i.symbol === 'BTC') || {};
+    const eth = cs.find(i => i.symbol === 'ETH') || {};
+    const liq = d.liquidity || {};
+    const dv = liq.divergence || null;
+    const rot = (ra && ra.rotation) || null;
+    const fund = (ra && ra.funding) || null;
+    const radar = dd && dd.radar;
+    const cons = dd && dd.consensus;
+    return {
+      title: '加密价格与流动性溢出',
+      src: 'yfinance 日线 · FRED H.4.1（WALCL/TGA/RRP）· OKX / Deribit / CME 快照',
+      asOf: btc.date || (ra && ra.as_of) || '',
+      priority: 10,
+      facts: [
+        ['BTC', btc.last == null ? '—' : '$' + fmt(btc.last), `${btc.date || '—'} · 日 ${btc.chg_pct > 0 ? '+' : ''}${R.fmtPct(btc.chg_pct)}`],
+        ['ETH', eth.last == null ? '—' : '$' + fmt(eth.last), `${eth.date || '—'} · 日 ${eth.chg_pct > 0 ? '+' : ''}${R.fmtPct(eth.chg_pct)}`],
+        ['净流动性', liq.net == null ? '—' : `$${fmt(liq.net)}T`, `Fed ${fmt(liq.fed)}T − TGA ${fmt(liq.tga)}B − RRP ${fmt(liq.rrp)}B`],
+        ['20 日脉冲', liq.pulse_20d == null ? '—' : `${fmt(liq.pulse_20d)}B · ${liq.pulse_state || '—'}`, '正 = 扩张'],
+        ['BTC 流动性 Beta', liq.beta ?? '—', `SPX β ${liq.spx_beta ?? '—'} · R² ${liq.r2 ?? '—'} · 90 日`],
+        ['背离监控', dv ? dv.verdict : '—', dv ? `NL ${fmt(dv.nl)}T · BTC ${dv.btc > 0 ? '+' : ''}${fmt(dv.btc)}% · 30 日` : ''],
+        ['BTC/ETH 价比', ra ? fmt(ra.last) : '—', ra ? `MA20 ${fmt(ra.ma20)} · MA50 ${fmt(ra.ma50)} · ${ra.pct_label || ''}` : ''],
+        ['乖离率（vs MA50）', ra && ra.bias_ma50 != null ? `${ra.bias_ma50 > 0 ? '+' : ''}${R.fmtPct(ra.bias_ma50)}` : '—', ra && ra.bias_ma20 != null ? `vs MA20 ${ra.bias_ma20 > 0 ? '+' : ''}${R.fmtPct(ra.bias_ma20)}` : ''],
+        ['RSI(14)（价比）', ra && ra.rsi14 != null ? `${R.num(ra.rsi14, 1)} · ${ra.rsi14 >= 70 ? '超买' : ra.rsi14 <= 30 ? '超卖' : '中性'}` : '—', '14 日 · BTC/ETH 序列'],
+        ['30 日动量（价比）', ra && ra.mom_30d != null ? `${ra.mom_30d > 0 ? '+' : ''}${R.fmtPct(ra.mom_30d)}` : '—', `7 日 ${ra && ra.mom_7d != null ? (ra.mom_7d > 0 ? '+' : '') + R.fmtPct(ra.mom_7d) : '—'} · 负值=ETH 跑赢`],
+        ['Funding 差（ETH−BTC 年化）', fund && fund.diff != null ? `${fund.diff > 0 ? '+' : ''}${R.num(fund.diff, 2)}pp` : '—', fund ? `BTC ${fund.btc}% · ETH ${fund.eth}% · 7 日 ${fund.diff_chg_7d > 0 ? '+' : ''}${R.num(fund.diff_chg_7d, 2)}pp` : ''],
+        [rot ? `轮动判定（${rot.quality}）` : '轮动判定', rot ? rot.text : '—', ''],
+        ...(radar ? [['BTC 前瞻雷达', `${radar.total == null ? '—' : (radar.total > 0 ? '+' : '') + radar.total} / ±4 · ${radar.verdict || '—'}`, `3-7 日结构 ${radar.structure || '—'} · 杠杆风险 ${radar.lev_risk || '—'} · 置信度 ${radar.confidence ?? '—'}%`]] : []),
+        ...(cons ? [['机构 vs 散户', `机构 ${cons.inst.stance} · 散户 ${cons.retail.stance}`, cons.verdict]] : []),
+      ],
+      note: '币价 USD；净流动性万亿美元、TGA/RRP 十亿美元；funding 为年化 %，差值为 pp',
+    };
+  });
+
   R.foot(null, {
     src: 'yfinance（收盘价）· FRED H.4.1（WALCL/TGA/RRP）· OKX / Deribit / CME 衍生品快照',
     note: '流动性口径：WALCL − TGA − RRP；β 为 90 日净流动性变化对资产日收益率回归；价比指标算在 BTC/ETH 序列上（图取倒数轴）；funding 差 = ETH−BTC 永续年化；交叉验证 = PCR 差（衍生品快照历史）/ 30d 相关性（asset_prices 滚动）/ NL 脉冲 β（价比日收益 × NL 20 日脉冲，0/10/20 日滞后取主导）/ Polymarket 隐含涨幅比（年终 reach 阶梯 P≈50% 插值）/ BTCD / ETF 流量比（5d）',

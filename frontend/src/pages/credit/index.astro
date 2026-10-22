@@ -286,6 +286,53 @@ async function load() {
     src: 'FRED（ICE BofA OAS / HY / IG）· OFR FSI · yfinance',
     note: 'ICE BofA 系列经 FRED API 仅提供近 ~3 年，10Y 分位按可用历史计算',
   });
+
+  // ── 页面事实集（契约见 js/ai-context.js）：本页「一项一个数」的段多，DOM 摘要只抓得到
+  //    .re-kv-grid 首行与研判，故按段各取最常被追问的一条 —— 利差水平与分层回答「贵不贵」，
+  //    融资成本 / SLOOS / NFCI 回答「企业借钱多贵、银行收不收」，CDS 与压力指数是另外两个口径。
+  if (window.AICtx) AICtx.declare('credit', () => {
+    const layer = (n) => d.layers.find(x => x.name === n) || {};
+    const slo = (n) => d.sloos.find(x => x.name === n) || {};
+    const qua = (n) => d.quality.find(x => x.name === n) || {};
+    // 带符号读数只拼符号，数字本体仍走 R.num / R.fmtPct（不另写平行格式化器）
+    const sgn = (v) => (v == null ? '—' : (v > 0 ? '+' : '') + R.num(v, 2));
+    const sgnPct = (v) => (v == null ? '—' : (v > 0 ? '+' : '') + R.fmtPct(v));
+    // funding / sovereign 在 payload 里存 bp，页面显示折算为 %（与各段卡片同一口径）
+    const bpToPct = (p) => (p && p.value != null ? R.fmtPct(p.value / 100) : '—');
+    const fnd = d.funding || {};
+    const cccBb = d.spreads.ccc_bb || {};
+    const facts = [
+      ['信用状态', `Regime ${rg.score == null ? '—' : rg.score}/100 · ${rg.regime}`, '7 子分等权 · ≥75 = 收紧'],
+      ['IG OAS', `${R.num(d.ig.value, 0)}bp · 分位 1Y ${R.fmtPct(d.ig.pct_1y)} / 10Y ${R.fmtPct(d.ig.pct_10y)}`, '1M ' + R.fmtBp(d.ig.chg_1m) + 'bp'],
+      ['HY OAS', `${R.num(d.hy.value, 0)}bp · 分位 1Y ${R.fmtPct(d.hy.pct_1y)} / 10Y ${R.fmtPct(d.hy.pct_10y)}`, '1M ' + R.fmtBp(d.hy.chg_1m) + 'bp'],
+      ['HY − IG', `${R.num(d.hy_ig.value, 0)}bp · 分位 1Y ${R.fmtPct(d.hy_ig.pct_1y)} / 10Y ${R.fmtPct(d.hy_ig.pct_10y)}`, ''],
+      ['CCC 水平 / 尾部利差', `CCC ${R.num(layer('CCC').value, 0)}bp · CCC−BB ${R.num(cccBb.value, 0)}bp`, `CCC 10Y 分位 ${R.fmtPct(cccBb.pct_10y)}`],
+      ['All-in 有效收益率', `IG ${bpToPct(fnd.ig)} · HY ${bpToPct(fnd.hy)}`, 'all-in，bp 折算为 %'],
+      ['HY 超额利差', fnd.hy_ff == null || fnd.hy_10y == null ? '—' : `较 FF ${R.num(fnd.hy_ff, 0)}bp · 较 10Y ${R.num(fnd.hy_10y, 0)}bp`, '有效收益率分别剔除政策利率 / 无风险利率'],
+      ['SLOOS 贷款标准', `C&I ${sgnPct(slo('C&I 贷款标准').value)} · 消费 ${sgnPct(slo('消费贷款标准').value)}`, '净百分比 · 正 = 收紧 · 季度'],
+      ['逾期率', `C&I ${R.fmtPct(qua('C&I 逾期率').value)} · 信用卡 ${R.fmtPct(qua('信用卡逾期率').value)} · CRE ${R.fmtPct(qua('CRE 逾期率').value)}`, `10Y 分位 ${R.fmtPct(qua('C&I 逾期率').pct_10y)} / ${R.fmtPct(qua('信用卡逾期率').pct_10y)} / ${R.fmtPct(qua('CRE 逾期率').pct_10y)}`],
+      ['核销率', `商业 ${R.fmtPct(qua('商业贷款核销率').value)} · 消费 ${R.fmtPct(qua('消费贷款核销率').value)}`, `10Y 分位 ${R.fmtPct(qua('商业贷款核销率').pct_10y)} / ${R.fmtPct(qua('消费贷款核销率').pct_10y)}`],
+      ['金融条件', `NFCI ${sgn(fc.nfci.value)} · STLFSI ${sgn(fc.stlfsi.value)} · OFR ${sgn(fc.ofr_fsi.value)}`, '正 = 条件收紧 · OFR 为 105 系列加权'],
+      ['流动性代理', `HYG ${hyg ? '$' + R.num(hyg.value) : '—'} · LQD ${lqd ? '$' + R.num(lqd.value) : '—'}`, `收盘价 · 量 ${mvol(hyg && hyg.volume)} / ${mvol(lqd && lqd.volume)}`],
+    ];
+    // CDS / 压力指数走 getOpt（端点可合法 404）：缺源时该条直接不给，不编造
+    if (cds) {
+      const sov = cds.sovereign ? `10Y 美债 ${bpToPct(cds.sovereign)}` : '—';
+      const bank = cds.bank ? `银行−大盘 ${sgn(cds.bank.divergence)}pp` : '—';
+      facts.push(['CDS 代理读数', `${sov} · ${bank}`, cds.bank ? `主权用 10Y 美债；银行 = KBWB − SPX ${cds.bank.days} 日` : '主权用 10Y 美债']);
+    }
+    if (stress) {
+      facts.push(['压力指数', `${stress.composite == null ? '—' : stress.composite}/100 · ${stress.zone || '—'}`, '5 分量加权，阈值 30/70，口径异于 Regime Score']);
+    }
+    return {
+      title: '信用压力与利差读数',
+      src: 'FRED（ICE BofA OAS / SLOOS / NFCI）· OFR FSI · yfinance',
+      asOf: d.as_of,
+      priority: 10,
+      facts,
+      note: '利差与融资成本单位为 bp、有效收益率 %；分位为可用历史内百分位（ICE BofA 仅约 3 年）',
+    };
+  });
 }
 
 // ── CDS 专题：主权/银行系统风险代理 + 归一化双线 ──

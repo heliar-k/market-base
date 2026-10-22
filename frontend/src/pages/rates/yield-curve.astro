@@ -153,6 +153,46 @@ async function load() {
     { cur: R.fmtPct, w1: R.fmtPct, m1: R.fmtPct, m3: R.fmtPct, c1: bpHtml, c2: bpHtml, c3: bpHtml },
     null, true,
   ));
+
+  // 可问答事实集（契约见 js/ai-context.js）：问答时才求值，闭包直接读上面的 payload。
+  // 给这几条：形状/驱动是结论，四段期限是曲线本体，三档利差 + TIPS 是读法，
+  // 全球长端给外部坐标，研判出口（交易含义/失效条件）最常被追问。
+  if (window.AICtx) AICtx.declare('rates-yield-curve', () => {
+    const s = d.spreads || {};
+    const t = Object.fromEntries(tenors.map(x => [x.tenor, x]));
+    // 段内拼装只为把 11 个期限压进「值 ≤ 40 字符」的预算，数值仍走 R.fmtPct
+    const seg = (ks) => ks.map(k => k + ' ' + R.fmtPct(t[k] && t[k].current)).join(' · ');
+    // 空值整体回落 —，别拼出「—bp」
+    const bpText = (v) => (v == null ? '—' : R.fmtBp(v) + 'bp');
+    const tips10 = (d.tips || []).find(x => x.tenor === '10Y') || {};
+    const g = d.global_long_end || [];
+    const jp = g.find(x => x.market === '日本') || {};
+    const cn = g.find(x => x.market === '中国') || {};
+    return {
+      title: '收益率曲线读数',
+      src: 'FRED（DGS 全期限 / TIPS DFII / 日本 10Y）· chinamoney（中国 10Y/30Y）',
+      asOf: d.as_of,
+      priority: 10,
+      facts: [
+        ['曲线形态', d.shape || '—', '驱动：' + (d.driver || '—')],
+        ['短端 1M–3M', seg(['1M', '3M']), ''],
+        ['中段 6M–2Y', seg(['6M', '1Y', '2Y']), ''],
+        ['中长 3Y–7Y', seg(['3Y', '5Y', '7Y']), ''],
+        ['长端 10Y–30Y', seg(['10Y', '20Y', '30Y']), ''],
+        ['2s10s 利差', R.fmtBp(s['2s10s']), '1月 ' + bpText(s['2s10s_1m_chg'])],
+        ['3m10s 利差', R.fmtBp(s['3m10s']), ''],
+        ['5s30s 利差', R.fmtBp(s['5s30s']), ''],
+        ['10Y 1月变动', bpText(t['10Y'] && t['10Y'].chg_1m), '2Y ' + bpText(t['2Y'] && t['2Y'].chg_1m)],
+        ['10Y 实际利率（TIPS）', R.fmtPct(tips10.real), '10Y 盈亏平衡 ' + R.fmtPct(tips10.breakeven)],
+        ['全球 10Y 对照', '日 ' + R.fmtPct(jp.rate) + ' · 中 ' + R.fmtPct(cn.rate),
+          '对美利差 日 ' + R.fmtBp(jp.spread_vs_us) + ' · 中 ' + R.fmtBp(cn.spread_vs_us) + 'bp'],
+        ['交易含义', (d.trades || [])[0] || '—', '验证通过 ' + (d.confidence || '—')],
+        ['时间框架', d.time_frame || '—', ''],
+        ['失效条件', (d.invalidation || [])[0] || '—', '共 ' + (d.invalidation || []).length + ' 条'],
+      ],
+      note: '收益率/TIPS 单位为 %，利差与变动单位为 bp；日本 10Y 为月频、中国为日频',
+    };
+  });
 }
 
 load().catch(e => R.fail(['re-global', 're-analysis', 're-tenors'], e));

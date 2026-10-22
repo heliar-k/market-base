@@ -52,13 +52,15 @@ async function load() {
   const c = d.corridor;
   const p2575 = l.sofr_p2575_bp != null ? l.sofr_p2575_bp.toFixed(1) : '—';
   const p199 = l.sofr_p199_bp != null ? l.sofr_p199_bp.toFixed(1) : '—';
+  // SOFR 距目标上限（bp）：卡片与页面事实集共用这一份派生值，两处口径不分叉
+  const gapBp = l.target && l.sofr ? (l.target[1] - l.sofr.value) * 100 : null;
   document.getElementById('re-cards').replaceChildren(R.cards([
     { label: '联邦基金有效利率', value: R.fmtPct(l.effr?.value), sub: l.effr?.as_of, accent: true },
     { label: 'SOFR 利率', value: R.fmtPct(l.sofr?.value), sub: l.sofr?.as_of },
     { label: 'FOMC 目标区间', value: l.target ? `${l.target[0].toFixed(2)}–${l.target[1].toFixed(2)}%` : '—' },
     { label: '25th-75th 价差', value: `${p2575} bp`, sub: '中间 50% 分布宽度' },
     { label: '1st-99th 价差', value: `${p199} bp`, sub: '1–99 分位（含异常日）' },
-    { label: 'SOFR 距目标上限', value: l.target && l.sofr ? `${((l.target[1] - l.sofr.value) * 100).toFixed(1)}bp` : '—', sub: '越接近 = 流动性越紧' },
+    { label: 'SOFR 距目标上限', value: gapBp == null ? '—' : `${gapBp.toFixed(1)}bp`, sub: '越接近 = 流动性越紧' },
     { label: 'SOFR 成交量', value: l.sofr_vol ? `${(l.sofr_vol.value / 1000).toFixed(2)} 万亿` : '—', sub: l.sofr_vol?.as_of },
   ], 're-cards-2col'));
 
@@ -118,6 +120,33 @@ async function load() {
   // ── 近 30 条 ──
   const wrap = R.table(['日期', '有效利率 (%)'], d.recent.map(r => ({ date: r.date, effr: r.effr })), { effr: R.fmtPct });
   document.getElementById('re-recent').replaceChildren(wrap);
+
+  // ── 页面事实集（契约见 js/ai-context.js）：走廊五线只有 canvas、近 30 条表只有 EFFR，
+  // 而伴读被追问的是「EFFR/SOFR 现在多少、离目标上限多近、成交量在不在缩」——把这些读数交出去。
+  if (window.AICtx) AICtx.declare('rates-fed-funds', () => {
+    const last = (arr) => (arr && arr.length ? arr[arr.length - 1] : {});
+    const hist = d.effr_history || [];
+    const volAvg = volMa.length ? volMa[volMa.length - 1] : null;
+    return {
+      title: '联邦基金利率读数',
+      src: 'FRED（EFFR / SOFR / SOFRVOL / 目标区间）· NY Fed Markets（BGCR）',
+      asOf: d.as_of,
+      priority: 10,
+      facts: [
+        ['联邦基金有效利率（EFFR）', R.fmtPct(l.effr?.value), 'as_of ' + (l.effr?.as_of || '—')],
+        ['SOFR', R.fmtPct(l.sofr?.value), 'as_of ' + (l.sofr?.as_of || '—')],
+        ['FOMC 目标区间', l.target ? `${R.num(l.target[0], 2)}–${R.num(l.target[1], 2)}%` : '—', ''],
+        ['SOFR 距目标上限', gapBp == null ? '—' : R.fmtBp(gapBp) + 'bp', '越接近 = 流动性越紧'],
+        ['走廊末点', `TGCR ${R.fmtPct(last(c.tgcr).value)} · BGCR ${R.fmtPct(last(c.bgcr).value)} · ONRRP ${R.fmtPct(last(c.onrrp).value)}`, '各自最新观测'],
+        ['SOFR 25th–75th 分位价差', p2575 === '—' ? '—' : `${p2575} bp`, '中间 50% 分布宽度'],
+        ['SOFR 1st–99th 分位价差', p199 === '—' ? '—' : `${p199} bp`, '1–99 分位 · 含异常日'],
+        ['SOFR 成交量', l.sofr_vol ? R.num(l.sofr_vol.value / 1000, 2) + ' 万亿' : '—', 'as_of ' + (l.sofr_vol?.as_of || '—')],
+        ['SOFR 成交量 20 日均值', volAvg == null ? '—' : R.num(volAvg / 1000, 2) + ' 万亿', '近 20 个交易日'],
+        ['EFFR 走势端点', hist.length ? `${R.fmtPct(hist[0].value)} → ${R.fmtPct(hist[hist.length - 1].value)}` : '—', hist.length ? `${hist[0].date} 起` : ''],
+      ],
+      note: '利率单位为 %，价差单位为 bp，SOFR 成交量单位为万亿美元',
+    };
+  });
 }
 
 load().catch(e => R.fail(['re-cards', 're-recent'], e));

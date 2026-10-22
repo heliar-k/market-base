@@ -16,6 +16,7 @@
 from __future__ import annotations
 
 import json
+import re
 import shutil
 import subprocess
 from pathlib import Path
@@ -43,19 +44,63 @@ def test_chat_sends_structured_facts() -> None:
     assert "AI_CONTEXT_LABELS" in text, "页面数据块的标题文案未走 ai-prompt.js 单源"
 
 
-@pytest.mark.parametrize(
-    ("path", "needle"),
-    [
-        (JS / "cross-correlation.js", "AICtx.declare('cross-asset'"),
-        (FRONTEND / "src" / "pages" / "rates" / "index.astro", "AICtx.declare('rates'"),
-        (FRONTEND / "src" / "pages" / "treasury" / "index.astro", "AICtx.declare('treasury'"),
-    ],
-    ids=["correlation", "rates", "treasury"],
-)
-def test_pages_declare_context(path: Path, needle: str) -> None:
-    """已迁移的页必须真的声明事实集（迁移名单本身也在这张表里）。"""
-    text = path.read_text(encoding="utf-8")
-    assert needle in text, f"{path.relative_to(ROOT)} 未声明页面事实集"
+ASTRO_PAGES = FRONTEND / "src" / "pages"
+DECL_RE = re.compile(r"AICtx\.declare\('([^']+)'")
+
+
+def _declaring_files() -> list[tuple[Path, str, str]]:
+    """(文件, 相对路径, declare id)，只收声明过的页。"""
+    out = []
+    for f in sorted(ASTRO_PAGES.rglob("*.astro")):
+        text = f.read_text(encoding="utf-8")
+        for m in DECL_RE.finditer(text):
+            out.append((f, str(f.relative_to(ASTRO_PAGES)), m.group(1)))
+    return out
+
+
+def test_every_topic_page_declares_context() -> None:
+    """除 404 外每个专题页都要声明页面事实集。
+
+    漏一页不会报错、不会白屏——只是那一页的问答悄悄退回「只能看 DOM 摘要」，
+    也就是这次要修的那个毛病。所以做成全量守卫，而不是只盯迁移清单。
+    """
+    missing = [
+        str(f.relative_to(ASTRO_PAGES))
+        for f in sorted(ASTRO_PAGES.rglob("*.astro"))
+        if str(f.relative_to(ASTRO_PAGES)) != "404.astro"
+        and "AICtx.declare" not in f.read_text(encoding="utf-8")
+    ]
+    assert not missing, f"这些页没声明页面事实集：{missing}"
+
+
+def test_context_ids_unique_and_follow_path() -> None:
+    """id 取页面路径（去 .astro、去尾部 /index、/ 换 -），且全站唯一。
+
+    provider 的 id 是覆盖键：两页撞名 = 后声明的悄悄顶掉先声明的。
+    """
+    seen: dict[str, str] = {}
+    for _f, rel, ident in _declaring_files():
+        expected = rel[: -len(".astro")]
+        if expected.endswith("/index"):
+            expected = expected[: -len("/index")]
+        expected = expected.replace("/", "-")
+        assert ident == expected, f"{rel} 的 declare id 应为 {expected!r}，实际 {ident!r}"
+        assert ident not in seen, f"id 重复：{seen.get(ident)} 与 {rel} 都是 {ident!r}"
+        seen[ident] = rel
+
+
+def test_declarations_are_guarded_and_after_data() -> None:
+    """declare 必须包在 window.AICtx 守卫里（脚本没到位时不抛错），
+    且不能出现在文件第一次 await 之前（那时 provider 闭包里的 payload 还是 undefined）。"""
+    for f, rel, _ident in _declaring_files():
+        text = f.read_text(encoding="utf-8")
+        guard = text.find("if (window.AICtx")
+        decl = text.find("AICtx.declare")
+        assert guard != -1 and guard < decl, f"{rel} 的 declare 没有 window.AICtx 守卫"
+        first_await = text.find("await ")
+        assert first_await == -1 or first_await < decl, (
+            f"{rel} 的 declare 出现在首次 await 之前，取不到数据"
+        )
 
 
 def test_correlation_uses_matrix_helper() -> None:

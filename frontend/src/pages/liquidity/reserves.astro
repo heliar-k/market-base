@@ -65,6 +65,40 @@ async function load() {
     src: 'FRED H.4.1（WRESBAL，周度）· FRED 利率走廊（SOFR / IORB / DGS3MO，日度）',
     note: '准备金充裕时短端流动性压力较小',
   });
+
+  // ── 页面事实集（契约见 js/ai-context.js）：本页可问的数字只有卡片两项、两条利差与近端观测，
+  //    图上点值 DOM 抓不到；研判首句是「现在充裕还是稀缺」的直接答案，一并带上。表 20 行只取近 3 条。
+  if (window.AICtx) AICtx.declare('liquidity-reserves', () => {
+    const inter = d.cards?.intermediation || {};
+    const sp = d.spreads || {};
+    const until = (a) => {
+      const t = Array.isArray(a) && a.length ? a[a.length - 1].date : '';
+      return (t ? '截至 ' + t + ' · ' : '') + '60 日';
+    };
+    const recent = (d.rows || [])
+      .slice(-3)
+      .map(x => x.date.slice(5) + ' ' + (x.reserves_b == null ? '—' : R.num(x.reserves_b / 1000, 2)))
+      .join(' · ');
+    // 研判正文首行即结论（「准备金充裕。」这类），40 字上限只截不补
+    const verdict = ((d.judgement?.text || '').split('\n')[0] || '').slice(0, 40);
+    return {
+      title: '银行准备金读数',
+      src: 'FRED H.4.1（WRESBAL，周度）· FRED 利率走廊（SOFR / IORB / DGS3MO，日度）',
+      asOf: r.date,
+      priority: 10,
+      facts: [
+        ['银行准备金余额', r.value_b == null ? '—' : R.num(r.value_b / 1000, 2) + ' 万亿 USD', 'H.4.1 周度'],
+        ['4 周变化', (r.chg_4w_pct > 0 ? '+' : '') + R.fmtPct(r.chg_4w_pct), '对比 4 周前'],
+        ['银行中介意愿', inter.state || '—', inter.note || ''],
+        // 空值整体回落 —，别拼出「—bp」
+        ['SOFR − 3M T-Bill', sp.sofr_tbill3m_bp == null ? '—' : R.fmtBp(sp.sofr_tbill3m_bp) + 'bp', until(s.sofr_tbill3m_bp)],
+        ['SOFR − IORB', sp.sofr_iorb_bp == null ? '—' : R.fmtBp(sp.sofr_iorb_bp) + 'bp', until(s.sofr_iorb_bp)],
+        ['研判结论', verdict || '—', '规则引擎生成'],
+        ['近 3 个观测', recent || '—', '准备金，万亿 USD'],
+      ],
+      note: '准备金单位为万亿 USD，利差单位为 bp；利差走扩（上移）表示担保融资相对变贵',
+    };
+  });
 }
 load().catch(e => R.fail(['re-cards', 'sec-judge', 'chart1', 'chart2', 're-recent'], e));
 </script>

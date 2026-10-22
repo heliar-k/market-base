@@ -72,6 +72,47 @@ async function load() {
     src: 'yfinance 期权链（真实 OI + IV）',
     note: 'GEX/DEX/Vanna/Charm 为 BSM 模型估算，非交易所官方持仓方向',
   });
+
+  // ── 页面事实集（契约见 js/ai-context.js）──
+  // 为什么给这几条：Regime 卡与 7 个 Tab 讲的都是「当前选中标的」的结构读数，
+  // 看板只列标的与 Net GEX，被追问的恰是墙位 / Flip / Skew / 期限结构 / 到期 Gamma 分布，
+  // 全部来自同一个 D.symbols[S]，provider 在提问时求值，零额外请求。
+  if (window.AICtx) AICtx.declare('assets-equities-options', () => {
+    const v = D.symbols[S];
+    if (!v) return null;
+    const n = v.narrative;
+    const wall = (w, label) => [label, w ? R.num(w.strike, 1) : '—', w ? R.num(w.per_point_m, 1) + ' M/点' : '—'];
+    const oiTop = (v.oi_top || []).reduce((a, b) => ((b.total ?? 0) > (a?.total ?? -1) ? b : a), null);
+    return {
+      title: '期权结构读数',
+      src: 'yfinance 期权链（真实 OI + IV）· BSM 估算 GEX/DEX',
+      asOf: D.date ? D.date.slice(0, 10) : '',
+      priority: 10,
+      facts: [
+        ['当前选中标的', S + ' · ' + REGIME_INFO[regimeKey(v)].label, '现价 ' + R.num(v.spot)],
+        ['结构解读', n && n.gamma ? n.gamma.title : '—', n && n.range && n.vol ? `置信度：区间 ${n.range.confidence} · 波动 ${n.vol.confidence}` : ''],
+        ['Net GEX', `${v.net_gex >= 0 ? '+' : ''}${R.num(v.net_gex)} B`, '全合约合计，仅作强度参考'],
+        ['Net DEX', `${v.net_dex >= 0 ? '+' : ''}${R.num(v.net_dex)} B`, 'dealer 净 delta 敞口'],
+        ['Gamma Flip', v.gamma_flip == null ? '—' : R.num(v.gamma_flip, 1),
+          v.flip_dist == null ? '全链累计无翻转点' : `现价较 Flip ${v.flip_dist >= 0 ? '高' : '低'} ${R.num(Math.abs(v.flip_dist))}%`],
+        wall(v.call_wall, 'Call Wall · 阻力'),
+        wall(v.put_wall, 'Put Wall · 支撑'),
+        ['25Δ Skew', R.num(v.skew), `${v.skew_dte || '—'}D · P ${R.fmtPct(v.skew_put_iv)} / C ${R.fmtPct(v.skew_call_iv)}`],
+        ['ATM IV 期限', v.iv_front && v.iv_back
+          ? `Front ${v.iv_front.dte}D ${R.fmtPct(v.iv_front.iv)} / Back ${v.iv_back.dte}D ${R.fmtPct(v.iv_back.iv)}`
+          : '—', '斜率 ' + R.num(v.iv_slope) + ' pt'],
+        ['Net Vanna', `${v.net_vanna >= 0 ? '+' : ''}${R.num(v.net_vanna)} B`, (v.net_vanna ?? 0) >= 0 ? '正 = IV 下行助推上涨' : '负 = IV 下行削弱上涨'],
+        ['Net Charm', `${v.net_charm >= 0 ? '+' : ''}${R.num(v.net_charm)} B`, v.charm_near7 == null ? '近 7 天到期占比 —' : `近 7 天到期占 ${R.num(v.charm_near7, 1)}%`],
+        ['P/C OI 比', `ATM ${R.num(v.pcr_oi_atm ?? v.pcr_oi)} · 全链 ${R.num(v.pcr_oi)} · 量 ${R.num(v.pcr_vol)}`, 'ATM 区 ±10%'],
+        ['到期 Gamma 占比', Object.entries(v.buckets || {}).map(([k, x]) => k + ' ' + R.num(x.gex_pct, 0) + '%').join(' · ') || '—', '各段 Σ|GEX| / 全链'],
+        // oi_top 不是按 total 排序的（实测 22 个标的里 15 个首条并非最大），必须自己取 max
+        ['OI 最大集中位', oiTop
+          ? `${R.num(oiTop.strike, 1)} · ${R.num(oiTop.total / 1000, 1)}K` : '—',
+          oiTop ? `${oiTop.expiration} · call+put 合计` : '—'],
+      ],
+      note: 'GEX/DEX/Vanna/Charm 单位为十亿美元（B），IV 为 %，Skew 为 pt',
+    };
+  });
 }
 
 // ── Regime 大卡 + 4 指标卡（timsun 复刻） ──

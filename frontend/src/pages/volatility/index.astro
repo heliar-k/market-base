@@ -289,6 +289,46 @@ async function load() {
   R.foot(data.generator, {
     src: 'Barchart（30 指数快照）· CBOE（VIX 期限结构 / SKEW / OVX）',
   });
+
+  // ── 页面事实集（契约见 js/ai-context.js）：本页被追问的就三件事 —— 四个头条指数现在多少、
+  //    期限结构是升水还是贴水、30 个指数里谁在升温谁在降温；再补统计条与交易地图的档位读数。
+  //    hero 卡片只渲染了 VIX 值，其余读数（1M 变化、六组矩阵）在 DOM 里是散落文字，故按条上交。
+  if (window.AICtx) AICtx.declare('volatility', () => {
+    // hero 卡只带 value / chg1d，1M 变化要从同一 payload 的 indices 行取（页面全量表已在渲染它）
+    const h = Object.fromEntries(data.hero.cards.map(k => [k.symbol, k]));
+    const idx = Object.fromEntries(data.indices.map(r => [r.symbol, r]));
+    const pick = (sym, k) => (idx[sym] ? idx[sym][k] : h[sym] ? h[sym][k] : null);
+    const px = (sym) => (pick(sym, 'value') == null ? '—' : R.num(pick(sym, 'value')));
+    // 变化本身已是以 % 为单位的数，这里只补正号，数字格式仍走 R.fmtPct（不写平行格式化器）
+    const chg = (v) => (v == null ? '—' : (v > 0 ? '+' : '') + R.fmtPct(v));
+    const hNote = (sym) => `1D ${chg(pick(sym, 'chg1d'))} · 1M ${chg(pick(sym, 'chg1m'))}`;
+    const lead = (rows) => rows.map(r => r.symbol + ' ' + chg(r.chg1d)).join(' · ');
+    const sc = (data.narrative.find(n => n.score != null) || {}).score;
+    const termVals = term.values || [];
+    return {
+      title: '波动率全景读数',
+      src: 'Barchart（30 指数快照）· CBOE（VIX 期限结构）',
+      asOf: data.as_of_snapshot && data.as_of_snapshot > data.as_of ? data.as_of_snapshot : data.as_of,
+      priority: 10,
+      facts: [
+        ['VIX', px('VIX'), hNote('VIX')],
+        ['VVIX', px('VVIX'), hNote('VVIX')],
+        ['MOVE', px('MOVE'), hNote('MOVE')],
+        ['OVX', px('OVX'), hNote('OVX')],
+        ['期限结构', (TERM_STATE[term.state] ?? '—') + ' · 斜率 ' + R.num(term.slope), '斜率 = VIX − VIX9D'],
+        ['VIX 1D/9D/30D', termVals.slice(0, 3).map(v => R.num(v)).join(' / '), '期限 ' + term.labels.slice(0, 3).join('/')],
+        ['VIX 3M/6M/1Y', termVals.slice(3).map(v => R.num(v)).join(' / '), '期限 ' + term.labels.slice(3).join('/')],
+        ['30 指数涨跌', st.up + ' 涨 / ' + st.down + ' 跌', '样本 ' + st.n + ' 个'],
+        ['平均变化 1D/5D/1M', chg(st.avg1d) + ' / ' + chg(st.avg5d) + ' / ' + chg(st.avg1m), '30 指数等权'],
+        ['1D 升温前二', lead(hot.slice(0, 2)), '按 1D 降序'],
+        ['1D 降温前二', lead(cool.slice(0, 2)), '按 1D 升序'],
+        ['交易地图', tm.title, '置信度 ' + tm.confidence],
+        ['触发条件', tm.trigger, '失效：' + tm.invalidate],
+        ['风险评分', sc == null ? '—' : sc + ' / 10', '规则引擎综合评分'],
+      ],
+      note: '点位为点数；变化单位为 %，期限结构斜率单位为 pt',
+    };
+  });
 }
 load().catch(e => R.fail(['vol-hero', 'vol-verdict', 'vol-signals', 'vol-risk', 'vol-trade', 'vol-stats', 'vol-heat', 'vol-term-chart', 'vol-cross-chart', 'vol-narrative', 'vol-top', 'vol-table'], e));
 </script>

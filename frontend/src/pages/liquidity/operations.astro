@@ -90,6 +90,37 @@ async function load() {
     <b>激活天数（90 天）：${srf.active_days_90 ?? 0}</b> · 最新使用 <b>$${srf.latest_m ?? 0}M</b>。
     SRF 为美联储常设回购便利，市场紧张时银行可通过抵押国债换取隔夜融资；正常状态应为零，使用量持续非零或单日规模偏大，才说明回购市场紧张。</p></div>`;
 
+  // 伴读抽屉事实集：RMP 节奏、最近操作、SOMA 三档、SRF 使用量原本散在四张卡/表/图里，
+  // 这里合成一张读数表，回答「买了多少、买的是什么、SRF 有没有用」不用跨段拼。
+  if (window.AICtx) AICtx.declare('liquidity-operations', () => {
+    // 带符号变化量只拼符号，数字本体仍走 R.num（不另写平行格式化器）
+    const sgnB = v => (v == null ? '—' : (v > 0 ? '+' : '') + R.num(v, 2) + 'B');
+    const latest = (d.recent || [])[0] || {};
+    // 表里 40 条几乎全是买 Bill，唯一一次卖 Coupon 是 QT 的痕迹，单独给一条
+    const sale = (d.recent || []).find(x => x.type === 'Outright Coupon Sale') || {};
+    const hold = (name) => (d.soma || {})[name] || {};
+    return {
+      title: '公开市场操作读数',
+      src: 'NY Fed 公开市场操作明细（tsy_operations）· H.4.1（SOMA）· NY Fed Markets（SRF）',
+      asOf: d.as_of,
+      priority: 10,
+      facts: [
+        ['RMP 启动 / 次数', `${rmp.start || '—'} · ${rmp.count ?? '—'} 次`, '技术性补充银行准备金，非 QE'],
+        ['RMP 累计购买', fmtB(rmp.cumulative_b), '自启动以来'],
+        ['RMP 月均节奏', rmp.monthly_b == null ? '—' : '$' + R.num(rmp.monthly_b, 1) + 'B/月', rmp.target_b == null ? '' : '目标 $' + rmp.target_b + 'B/月'],
+        ['最近一次操作', latest.date ? `${latest.date} · ${latest.type}` : '—', `提交 ${fmtB(latest.submitted_b)} / 接受 ${fmtB(latest.accepted_b)}`],
+        ['最近接受比', R.fmtPct(latest.accept_ratio), '接受额 / 提交额'],
+        ['最近 Coupon 卖出', sale.date ? `${sale.date} · ${sale.type}` : '—', sale.date ? `提交 ${fmtB(sale.submitted_b)} / 接受 ${fmtB(sale.accepted_b)}` : ''],
+        ['SOMA 国债', fmtB(hold('国债').holdings_b), `周 ${sgnB(hold('国债').week_b)} · 月 ${sgnB(hold('国债').month_b)}`],
+        ['SOMA MBS', fmtB(hold('MBS').holdings_b), `周 ${sgnB(hold('MBS').week_b)} · 月 ${sgnB(hold('MBS').month_b)}`],
+        ['联储总资产', fmtB(hold('联储总资产').holdings_b), `周 ${sgnB(hold('联储总资产').week_b)} · 月 ${sgnB(hold('联储总资产').month_b)}`],
+        ['SRF 90 天激活', srf.active_days_90 == null ? '—' : srf.active_days_90 + ' 天', '常备回购便利；— = SRF 源缺失，不是零使用'],
+        ['SRF 最新使用', srf.latest_m == null ? '—' : '$' + R.num(srf.latest_m) + 'M', '百万美元'],
+      ],
+      note: '金额单位为十亿美元（$B），SRF 最新使用为百万美元（$M）；接受比 = 接受额 / 提交额',
+    };
+  });
+
   R.foot('rules', { src: 'NY Fed 公开市场操作明细（tsy_operations）· H.4.1（SOMA）· NY Fed Markets（SRF）' });
 }
 load().catch(e => R.fail(['re-rmp-cards', 'rmp_chart', 're-recent', 're-soma', 'sec-judge', 're-srf'], e));

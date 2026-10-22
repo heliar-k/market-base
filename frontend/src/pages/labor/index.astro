@@ -92,6 +92,34 @@ async function load() {
     }, ['指标', '最新', '较上期', '观测期', '发布'], true));
   document.getElementById('indicators').appendChild(tsec);
 
+  // ── 伴读抽屉事实集（主渲染完成后才声明；provider 闭包取本页已 fetch 的 d，不另发请求）──
+  // 为什么是这几条：失业率/非农/初请/JOLTS 是读者最常追问「现在多少、较上期怎么变」的四个主读数，
+  // 再补明细表里被卡片折叠的结构项（失业人数/主动离职/ECI）与失业率缺口月，研判叙事不复述。
+  if (window.AICtx) {
+    const pick = (name) => d.indicators.find(x => x.name === name) || {};
+    const kN = (v) => (v == null ? '—' : R.num(v) + 'K');
+    const gaps = d.nfp_history.dates.filter((dt, i) => d.nfp_history.unrate[i] == null).map(dt => dt.slice(0, 7));
+    AICtx.declare('labor', () => ({
+      title: '就业读数',
+      src: 'FRED（UNRATE / PAYEMS / ICSA / JOLTS）· ECI 薪资',
+      asOf: d.as_of,
+      priority: 10,
+      facts: [
+        ['失业率', R.fmtPct(c.unrate.value), '较 3 月前 ' + R.fmtBp(c.unrate.chg_3m) + 'pp · Sahm ' + R.num(c.unrate.sahm)],
+        ['Sahm 指标', R.num(c.unrate.sahm), '衰退阈值 0.5pp，3M 均值较 12M 低点'],
+        ['新增非农（近月）', kN(c.nfp.value), '3M 均值 ' + kN(c.nfp.avg_3m)],
+        ['近 3 月非农', d.nfp_history.nfp.slice(-3).map(v => R.num(v)).join(' · '), '单位 K，由旧到新，负值 = 就业减少'],
+        ['初请失业金（周）', kN(c.icsa.value), 'as_of ' + (c.icsa.as_of || '—') + ' · 4W 均值 ' + kN(c.icsa.avg_4w) + ' · 较 4 周前 ' + R.fmtBp(c.icsa.chg_4w) + 'K'],
+        ['JOLTS 职位空缺', c.jolts.value == null ? '—' : R.num(c.jolts.value, 2) + 'M', 'as_of ' + (c.jolts.as_of || '—') + ' · V/U ' + R.num(c.jolts.vu)],
+        ['失业人数', kN(pick('失业人数').value), '较上月 ' + R.fmtBp(pick('失业人数').chg) + 'K'],
+        ['JOLTS 主动离职', kN(pick('JOLTS 主动离职').value), 'as_of ' + (pick('JOLTS 主动离职').as_of || '—') + ' · 较上月 ' + R.fmtBp(pick('JOLTS 主动离职').chg) + 'K'],
+        ['ECI 薪资指数', R.num(pick('ECI 薪资指数').value), 'as_of ' + (pick('ECI 薪资指数').as_of || '—') + ' · 季频，较上季 ' + R.fmtBp(pick('ECI 薪资指数').chg)],
+        ['失业率空缺月', gaps.join(' · ') || '无', '该月 BLS 未采集 CPS，官方不回溯补采'],
+      ],
+      note: '单位：非农/初请/失业人数为 K（千人），JOLTS 空缺为 M；NFP = PAYEMS 一阶差分',
+    }));
+  }
+
   R.foot(d.generator, {
     src: 'FRED（UNRATE / PAYEMS / ICSA / JOLTS）',
     note: 'NFP = PAYEMS 一阶差分；V/U = JOLTS 空缺 / 失业人数',

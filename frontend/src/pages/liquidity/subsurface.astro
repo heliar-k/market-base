@@ -33,6 +33,8 @@ async function load() {
   const d = await R.get('/api/liquidity/subsurface');
   R.setAsOf([['净流动性', d.as_of]]);
   const comp = d.composite || {};
+  // 加权和：评分卡文案与下方事实集共用，避免两处各拼一次口径
+  const compositeSum = ((comp.tail ?? 0) + (comp.volume ?? 0) + (comp.srf ?? 0) + (comp.swap ?? 0)).toFixed(1);
   // 承压/正常走涨跌 token（轻微档走警示梯度 token）；只给 token 名，徽章边框/底色用 color-mix
   // 在样式计算期解析 var()，切亮暗主题即时跟随（旧写法拼 hex 透明度后缀，一进 DOM 就固化）
   const stateColor = comp.state === '承压' ? 'var(--color-down)' : comp.state === '轻微' ? 'var(--color-warn-light)' : 'var(--color-up)';
@@ -53,7 +55,7 @@ async function load() {
       <div style="font-size:16px;font-weight:600;margin:6px 0">
         <span style="display:inline-block;padding:1px 8px;border-radius:4px;font-size:12px;line-height:18px;border:1px solid color-mix(in srgb, ${stateColor} 40%, transparent);background:color-mix(in srgb, ${stateColor} 9%, transparent);color:${stateTextColor}">● ${comp.state || '—'}</span>
       </div>
-      <div style="font-size:12px;color:var(--text-dim)">加权和 ${((comp.tail ?? 0) + (comp.volume ?? 0) + (comp.srf ?? 0) + (comp.swap ?? 0)).toFixed(1)}/10：≥2 轻微 · ≥4 承压</div>
+      <div style="font-size:12px;color:var(--text-dim)">加权和 ${compositeSum}/10：≥2 轻微 · ≥4 承压</div>
     </div>
     <div style="display:flex;gap:18px;flex-wrap:wrap;flex:1">
       ${bar('尾部宽度', comp.tail ?? 0, comp.tail_max ?? 3, 'var(--color-brand)')}
@@ -101,6 +103,40 @@ async function load() {
     <p style="margin:8px 0 0;font-size:12px;color:var(--text-dim)">主流指标（SOFR 中位数/RRP/总资产）是均衡后的读数；次表层看的是没被均衡吸收的摩擦——SOFR 99 分位是最紧张一批机构的边际融资价，成交量 z-score 捕捉市场结构突变，SRF 动用即说明融资端已紧张，央行互换是海外美元压力的被动读数。这些读数属于主流指标确认之前的观察窗口（领先幅度未经回测）。${zHtml}</p></div>`;
 
   R.foot('rules', { src: 'FRED（SOFR 分位 / SOFRVOL 成交额）· NY Fed Markets（SRF）· FRED H.4.1（SWPT 央行互换）', note: 'SOFRVOL 单位为十亿美元' });
+
+  // 页面事实集（契约见 js/ai-context.js）：综合分、四项分项、SOFR 尾端分位、成交量 z、SRF/互换，
+  // 原本散在评分卡、分位表、成交量图和说明段四处，图上点值 DOM 抓不到；合成一段才答得了「紧不紧、紧在哪一项」。
+  if (window.AICtx) AICtx.declare('liquidity-subsurface', () => {
+    const tail = p['99分位'];
+    const srf = d.srf || {};
+    const swap = d.swap || {};
+    // 研判正文首行即结论（「次表层压力承压（6.0/10）。」），40 字上限只截不补
+    const verdict = ((d.judgement?.text || '').split('\n')[0] || '').slice(0, 40);
+    // 缺值一律 —，不折 0（折 0 会把「没数据」说成「没使用」）
+    const num = (v, dg = 1, unit = '') => (v == null ? '—' : R.num(v, dg) + unit);
+    return {
+      title: '次表层资金流读数',
+      src: 'FRED（SOFR 分位 / SOFRVOL 成交额）· NY Fed Markets（SRF）· FRED H.4.1（SWPT 央行互换）',
+      asOf: d.as_of,
+      priority: 10,
+      facts: [
+        ['综合压力', comp.state || '—', '加权和 ' + compositeSum + '/10：≥2 轻微 · ≥4 承压'],
+        // 缺源时不能折成 0：后端的 srf/swap 只在有数据时才写，折 0 等于凭空断言「没使用」
+        ['四项分项', [['尾', 'tail'], ['量', 'volume'], ['SRF', 'srf'], ['互换', 'swap']].map(([zh, k]) => zh + ' ' + num(comp[k])).join(' · '), `各档上限 ${comp.tail_max ?? '—'} / ${comp.volume_max ?? '—'} / ${comp.srf_max ?? '—'} / ${comp.swap_max ?? '—'}`],
+        // 与分位表同一换算（百分数 ×100 得当量 bp），数字本体仍走 R.fmtBp
+        ['SOFR 99 分位', R.fmtPct(tail), 'vs IORB ' + (tail == null || pct.iorb == null ? '—' : R.fmtBp((tail - pct.iorb) * 100) + 'bp') + ' · 尾部宽度分项满档'],
+        ['SOFR 分位（1/25/中/75/99）', ['1分位', '25分位', '中位数', '75分位', '99分位'].map(k => R.fmtPct(p[k])).join(' · '), ''],
+        ['SOFR 成交量 60 日 z', vol.z60 == null ? '—' : (vol.z60 >= 0 ? '+' : '') + R.num(vol.z60, 2),
+          '最新 ' + num(vol.latest_b, 2, 'B') + ' / 60 日均值 ' + num(vol.mean_60d_b, 2, 'B')],
+        ['SRF 近 30 天激活', srf.active_30d == null ? '—' : srf.active_30d + ' 天',
+          '最新使用 ' + (srf.latest_m == null ? '—' : '$' + R.num(srf.latest_m) + 'M')],
+        ['央行互换余额', swap.balance_m == null ? '—' : '$' + R.num(swap.balance_m) + 'M',
+          '30 日变化 ' + (swap.chg_30d_m == null ? '—' : (swap.chg_30d_m >= 0 ? '+' : '') + R.num(swap.chg_30d_m) + 'M')],
+        ['研判结论', verdict || '—', '规则引擎生成'],
+      ],
+      note: '利率单位为 %，利差为 bp；成交量十亿美元，SRF/互换百万美元',
+    };
+  });
 }
 load().catch(e => R.fail(['re-composite', 'sec-judge', 're-pct', 'vol_chart', 're-srf'], e));
 </script>

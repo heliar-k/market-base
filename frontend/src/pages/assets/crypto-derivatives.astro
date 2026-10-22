@@ -239,6 +239,55 @@ async function load() {
     document.getElementById('coinglass').appendChild(gsec);
   }
 
+  // 页面事实集（契约见 js/ai-context.js）：这页的结论都压在「杠杆成本 / 持仓规模 / 期权墙 / 机构资金」四组数上，
+  // DOM 摘要只截得到卡片标题，所以这里只把已渲染的读数交出去，不另算新指标（派生值直接复用页内变量）。
+  if (window.AICtx) AICtx.declare('assets-crypto-derivatives', () => {
+    // 子源（ETF / 基差 / Coinglass / 期权）都可能整块缺失：先判空再拼单位，
+    // 免得出现「$— B」这种半截读数（空值一律单个 '—'）。格式化仍只走 R.num / R.fmtPct。
+    const oiPair = BTC.oi_usd == null && ETH.oi_usd == null ? '—'
+      : (BTC.oi_usd == null ? '—' : '$' + R.num(BTC.oi_usd / 1e9) + ' B')
+        + ' / ' + (ETH.oi_usd == null ? '—' : '$' + R.num(ETH.oi_usd / 1e9) + ' B');
+    const maxPain = (optB.near_max_pain ?? optB.max_pain);
+    const wallPair = optB.near_call_wall == null && optB.near_put_wall == null ? '—'
+      : 'Call ' + (optB.near_call_wall == null ? '—' : '$' + fmt(optB.near_call_wall, 0))
+        + ' / Put ' + (optB.near_put_wall == null ? '—' : '$' + fmt(optB.near_put_wall, 0));
+    const etfFlow = etf.sum5d_busd == null && etf.sum30d_busd == null ? '—'
+      : (etf.sum5d_busd == null ? '—' : (etf.sum5d_busd >= 0 ? '+' : '') + R.num(etf.sum5d_busd, 2) + ' B（5 日）')
+        + ' · ' + (etf.sum30d_busd == null ? '—' : (etf.sum30d_busd >= 0 ? '+' : '') + R.num(etf.sum30d_busd, 2) + ' B（30 日）');
+    const cgOi = cg.all_open_interest_usd == null && cg.btc_oi_usd == null ? '—'
+      : (cg.all_open_interest_usd == null ? '—' : '$' + R.num(cg.all_open_interest_usd / 1e9) + ' B（全币）')
+        + ' · ' + (cg.btc_oi_usd == null ? '—' : '$' + R.num(cg.btc_oi_usd / 1e9) + ' B（BTC）');
+    return {
+      title: '加密衍生品杠杆读数',
+      src: 'OKX 永续 / Deribit 期权 / CME（Yahoo）/ Farside / Coinglass',
+      asOf: d.ts.slice(0, 10),
+      priority: 10,
+      facts: [
+        ['BTC 永续现价', BTC.last == null ? '—' : '$' + fmt(BTC.last, 0), 'OKX 永续 · 美元计价'],
+        ['BTC 资金费率（8h）', BTC.funding_rate == null ? '—' : (BTC.funding_rate * 100).toFixed(4) + '%',
+          ann == null ? '年化 —' : '年化 ' + R.fmtPct(ann * 100) + ' · ' + stance(ann)],
+        ['ETH 资金费率（8h）', ETH.funding_rate == null ? '—' : (ETH.funding_rate * 100).toFixed(4) + '%',
+          ETH.funding_annual == null ? '年化 —' : '年化 ' + R.fmtPct(ETH.funding_annual * 100) + ' · ' + stance(ETH.funding_annual)],
+        ['永续 OI（BTC / ETH）', oiPair, 'OKX 永续 · BTC ' + fmt(BTC.oi_ccy, 0) + ' 枚 / ETH ' + fmt(ETH.oi_ccy, 0) + ' 枚'],
+        ['散户多空比（3 日 taker）', ls == null ? '—' : ls.toFixed(2),
+          ls == null ? 'taker 数据不可用' : Math.round(ls / (1 + ls) * 100) + '% 多 · OKX 逐笔买卖额'],
+        ['CME BTC 期货 OI', cmeK.fut_oi == null ? '—' : fmt(cmeK.fut_oi, 0) + ' 份',
+          cmeK.fut_oi == null ? '—' : '≈ ' + fmt(cmeK.fut_oi * 5, 0) + ' BTC · Micro 另 ' + fmt(cmeK.micro_oi, 0) + ' 份 · ' + (cmeK.as_of || '')],
+        ['CME BTC 基差（年化）', R.fmtPct(bz.current), '30 日均值 ' + R.fmtPct(bz.ma30) + ' · 1 年分位 ' + R.fmtPct(bz.pct_rank) + ' · ' + (bz.latest || '—')],
+        ['基差−SOFR 价差', R.fmtPct(bz.spread), 'SOFR ' + R.fmtPct(bz.sofr) + ' · >5% 为套利空间充足'],
+        ['BTC 期权 P/C（OI）', R.num(optB.pcr, 2), pcrStance(optB.pcr) + '区间 · Deribit 全到期'],
+        ['BTC Max Pain（最近到期）', maxPain == null ? '—' : '$' + fmt(maxPain, 0), (optB.nearest_exp || '—') + ' 到期'],
+        ['BTC 期权墙（最近到期）', wallPair, 'OI 最大行权价 · ' + (optB.nearest_exp || '—')],
+        ['BTC 现货 ETF 净流入', etfFlow,
+          'Farside · ' + (etf.latest || '—') + (etf.stale ? ' · 时效超阈值，不参与方向' : '')],
+        ['全市场期货 OI', cgOi, 'Coinglass 快照 ' + (cg.ts ? cg.ts.slice(0, 10) : '—')],
+        ['24h 清算', cg.liq24h_usd == null ? '—' : '$' + R.num(cg.liq24h_usd / 1e6, 1) + ' M',
+          '较前日 ' + (cg.liq24h_chg_pct == null ? '—' : cg.liq24h_chg_pct + '%') + ' · 多空比 ' + (cg.ls_ratio ? cg.ls_ratio.long_pct + '/' + cg.ls_ratio.short_pct : '—')],
+      ].filter((f) => f[1] !== '—'),  // 整条空值（子源缺席）直接不给，别让模型读到一行破折号
+      note: '费率按 8h 结算、年化为折算值；OI 与 ETF 流入以美元计（B = 十亿美元）；基差为年化 %',
+    };
+  });
+
   R.foot(null, { src: 'OKX / Deribit / yfinance（CME）/ CFTC COT / Farside / Coinglass（经 Jina）' });
 }
 

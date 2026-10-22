@@ -100,6 +100,28 @@ async function load() {
     src: 'yfinance 日频快照',
     note: '归一化起点 = 2 年前首交易日收盘 · 跨资产价格总表见「大类资产」页 · 油价地缘风险定价见「地缘与政治风险」页 · 黄金/白银持仓与资金流见「贵金属」页 · 气候周期与厄尔尼诺研判见「农产品和气候」页',
   });
+
+  // 页面事实集（契约见 js/ai-context.js）：两组品种卡的收盘 + 日涨跌是本页唯一的一手读数，
+  // 再补三条「覆盖什么、走势/明细表看多久」的窗口，免得追问点位时去猜卡片结构。
+  const priced = energy.concat(agri);
+  if (window.AICtx && priced.length) AICtx.declare('assets-commodities', () => {
+    const facts = priced.map(i => [
+      i.name + '（' + i.symbol + '）',
+      // 涨跌只有方向需要补位，数值仍走 R.fmtPct，避免与 rates-common 的口径分叉
+      R.num(i.last, 4) + (i.chg_pct == null ? '' : ' · ' + (i.chg_pct >= 0 ? '+' : '') + R.fmtPct(i.chg_pct)),
+    ]);
+    if (n.dates.length) facts.push(['归一化走势', '近 2 年 · ' + n.dates.length + ' 个观测', '两年前首日收盘 = 0%']);
+    if (rc.dates.length) facts.push(['近期表窗口', rc.dates[rc.dates.length - 1] + ' – ' + rc.dates[0], rc.dates.length + ' 个交易日 · 最新在前']);
+    facts.push(['覆盖品种', energy.length + ' 能源金属 / ' + agri.length + ' 软商品谷物', '深挖见贵金属、农产品页']);
+    return {
+      title: '大宗商品期货读数',
+      src: 'yfinance 日频快照 · 期货主力连续',
+      asOf: (energy[0] || agri[0] || {}).date || '',
+      priority: 10,
+      facts,
+      note: '各品种按自身期货合约单位报价，绝对值不可跨品种横向比较；涨跌为较上一交易日收盘',
+    };
+  });
 }
 function seriesKeys(rc) { return Object.keys(rc.series || {}); }
 const fmt = (v) => R.num(v, 4);

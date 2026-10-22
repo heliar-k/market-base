@@ -291,6 +291,54 @@ async function load() {
   rsec.appendChild(R.table(['日期'].concat(keys2(rc)), rows, fmts));
   document.getElementById('recent').appendChild(rsec);
 
+  // ── 页面事实集：期货价 / ETF 持仓与资金流 / WGC 全球口径 / 交叉验证四项 ──
+  // 为什么是这几条：提问多集中在「金价多少、谁在买、仓位挤不挤」，
+  // 图上的 500 日持仓与 90 日相关曲线不进上下文，只留最新读数与分位。
+  if (window.AICtx) AICtx.declare('assets-metals', () => {
+    const cds = d.cards || [], qs = d.etf_quotes || [];
+    const eh = d.etf_holdings || {}, gfl = (eh.gld || {}).flows || {}, sfl = (eh.slv || {}).flows || {};
+    const wgc = d.wgc_flows || {}, whd = d.wgc_holdings || {}, wff = d.wgc_fund_flows || {};
+    const corr = d.correlation || {}, ry = corr.real_yield || {}, gs = corr.gold_silver || {};
+    const cot = corr.cot || {}, ef = corr.etf_flow || {};
+    const plus = v => (v == null || v < 0 ? '' : '+'); // 只补正号，数值仍走 R.num
+    const facts = [];
+    if (cds[0]) facts.push(['COMEX 黄金', R.num(cds[0].last, 2) + ' 美元/盎司', '日 ' + plus(cds[0].chg_pct) + R.fmtPct(cds[0].chg_pct)]);
+    if (cds[1]) facts.push(['COMEX 白银', R.num(cds[1].last, 2) + ' 美元/盎司', '日 ' + plus(cds[1].chg_pct) + R.fmtPct(cds[1].chg_pct)]);
+    if (qs.length) facts.push(['GLD / SLV 报价', qs.map(q => q.symbol + ' ' + R.num(q.last, 2)).join(' · '), '美元 · 二级市场收盘']);
+    if (gfl.latest != null) {
+      facts.push(['GLD 黄金 ETF 持仓', R.num(gfl.latest, 1) + ' 吨',
+        '1周 ' + plus(gfl.w1) + R.num(gfl.w1, 1) + ' · 1月 ' + plus(gfl.m1) + R.num(gfl.m1, 1) + ' · 3月 ' + plus(gfl.m3) + R.num(gfl.m3, 1) + ' 吨']);
+    }
+    if (sfl.latest != null) {
+      facts.push(['SLV 白银 ETF 持仓', R.num(sfl.latest, 0) + ' 吨',
+        '估算值 · 1周 ' + plus(sfl.w1) + R.num(sfl.w1, 1) + ' · 1月 ' + plus(sfl.m1) + R.num(sfl.m1, 1) + ' · 3月 ' + plus(sfl.m3) + R.num(sfl.m3, 1) + ' 吨']);
+    }
+    if (wgc.latest_month && wgc.series) {
+      const i = (wgc.months || []).length - 1, s = wgc.series;
+      const row = k => (s[k] ? plus(s[k][i]) + R.num(s[k][i], 0) : '—');
+      facts.push(['WGC 月度净流入', '北美 ' + row('North America') + ' · 欧 ' + row('Europe') + ' · 亚 ' + row('Asia'), wgc.latest_month + ' · 百万美元']);
+    }
+    if (whd.latest != null) facts.push(['全球黄金 ETF 总持仓', R.num(whd.latest, 1) + ' 吨', (whd.latest_date || '—') + ' · WGC 月末']);
+    if (gs.latest != null) facts.push(['金银比', R.num(gs.latest, 1), '近 2 年分位 ' + (gs.pct == null ? '—' : R.num(gs.pct, 0) + '%')]);
+    if (ry.latest != null) facts.push(['金×实际利率 90 日相关', R.num(ry.latest, 2), '10Y TIPS 日差分 · ' + (ry.as_of || '—')]);
+    if (cot.latest != null) facts.push(['COT 管理基金净多', R.num(cot.latest, 0) + ' 手', 'GC · 近 2 年分位 ' + (cot.pct == null ? '—' : R.num(cot.pct, 0) + '%')]);
+    if (ef.hit_rate != null) facts.push(['ETF 持仓验证一致率', R.num(ef.hit_rate, 1) + '%', 'GLD 持仓 5 日 vs 金价同向']);
+    if (wff.inflow && wff.inflow[0]) {
+      const f = wff.inflow[0], nm = String(f.name || '—');
+      // 基金名可能很长，截到 24 字保住「值 ≤ 40 字符」的预算
+      facts.push(['单基金月流入第一', (nm.length > 24 ? nm.slice(0, 24) + '…' : nm) + ' ' + plus(f.m_flows_musd) + R.num(f.m_flows_musd, 0), (wff.as_of || '—') + ' · 百万美元']);
+    }
+    if (corr.judgement && corr.judgement.text) facts.push(['交叉验证研判', String(corr.judgement.text).split('。')[0], '规则引擎']);
+    return {
+      title: '贵金属价格与持仓',
+      src: 'yfinance 快照 · GLD/SLV 官方持仓 · WGC Goldhub · CFTC COT',
+      asOf: (cds[0] || {}).date || '',
+      priority: 10,
+      facts,
+      note: '价格美元/盎司为期货主力连续，持仓与净流入为吨，WGC 资金流为百万美元，正值为流入',
+    };
+  });
+
   // 时效行（期货价 / 贵金属 ETF 两段）
   const segs = [];
   if (d.cards && d.cards.length) segs.push(['期货价', d.cards[0].date]);

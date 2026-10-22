@@ -197,6 +197,63 @@ async function load() {
   if (d.enso && d.enso.as_of) segs.push(['ENSO', d.enso.as_of]);
   R.setAsOf(segs);
 
+  // ── 页面事实集（契约见 js/ai-context.js）：卡面只有「名称 / 值 / 涨跌」各自成卡，ENSO 的四张
+  // KPI 卡与研报状态散在两张区块里，DOM 摘要会把它们串成一团；这里按「品种 → 价与当日涨跌」
+  // 逐条给，再补 ENSO 相位/动量/拥挤度/食品 CPI/NOAA 状态五条跨卡读数（研报原文与速查表是
+  // 纯文字、模型读得到，不重复塞）。数字格式一律复用 fmt（R.num）与 R.fmtPct。
+  if (window.AICtx) AICtx.declare('assets-agriculture', () => {
+    const eq = d.etf_quotes || [];
+    const e = d.enso || {};
+    const k = e.kpis || {};
+    const oni = k.oni || {};
+    const mom = k.momentum || {};
+    const lead = (mom.leaders || [])[0];
+    const cot = (k.cot || {}).worst;
+    const food = k.cpi_food || {};
+    const disc = e.discussion || {};
+    // 单点展示串 = 价 +（当日涨跌）；只是拼 R 系格式化结果，不另写小数位
+    const px = (i) => fmt(i.last) + '（' + (i.chg_pct > 0 ? '+' : '') + R.fmtPct(i.chg_pct) + '）';
+    // 主力连续六个品种各占一条（逐条给，模型问「小麦多少」不用自己数位置）
+    const facts = agri.map(i => [i.name + ' · ' + i.symbol, px(i), '']);
+    // ETF 五只按两只一行拼：单条值上限 40 字，五只并排会超
+    for (let i = 0; i < eq.length; i += 2) {
+      const grp = eq.slice(i, i + 2);
+      facts.push([grp.map(x => x.symbol).join(' · ') + ' 收盘', grp.map(px).join(' · '), '']);
+    }
+    if (k.oni) {
+      // ONI 与 3 个月变化合在一个括号里：render 已给 note 套一层（），注释再套一层读着别扭
+      facts.push(['ENSO 相位',
+        (oni.phase || '—') + (oni.oni == null ? '' : '（ONI ' + (oni.oni > 0 ? '+' : '') + oni.oni + '°C'
+          + (oni.chg_3m == null ? '' : '，3M ' + (oni.chg_3m > 0 ? '+' : '') + oni.chg_3m + '°C') + '）'),
+        oni.label ? '月频 · ' + oni.label : '']);
+    }
+    if (k.momentum) {
+      facts.push(['农产品 20D 动量',
+        mom.avg_20d == null ? '—' : (mom.avg_20d > 0 ? '+' : '') + mom.avg_20d + '%'
+          + (mom.n ? '（' + mom.n + ' 品种等权' + (lead ? '，领涨 ' + lead[0] + ' ' + (lead[1] > 0 ? '+' : '') + lead[1] + '%' : '') + '）' : ''),
+        '']);
+    }
+    if (k.cot) {
+      facts.push(['CFTC 最拥挤', cot ? cot.name + '（2 年分位 ' + cot.pct_2y + '%）' : '—', '']);
+    }
+    if (k.cpi_food) {
+      facts.push(['食品 CPI 同比', food.value == null ? '—' : food.value + '%',
+        (food.as_of || '') + (food.chg_1m == null ? '' : ' · 1M ' + (food.chg_1m > 0 ? '+' : '') + food.chg_1m + 'pp')]);
+    }
+    if (e.discussion) {
+      facts.push(['NOAA CPC 诊断', disc.status || '—',
+        (disc.as_of ? '发布 ' + disc.as_of : '') + (disc.next_release ? ' · 下期 ' + disc.next_release : '')]);
+    }
+    return {
+      title: '农产品价格与 ENSO 气候',
+      src: 'yfinance 主力连续 · ETF 精选池 · NOAA CPC ONI/诊断 · CFTC COT · FRED 食品 CPI',
+      asOf: [agri.length ? '价格 ' + agri[0].date : '', e.as_of ? 'ENSO ' + e.as_of : ''].filter(Boolean).join(' · '),
+      priority: 10,
+      facts,
+      note: '期货为主力连续合约、ETF 为收盘价，单位随品种不同（只比涨跌幅）；ONI 为 Niño-3.4 区 °C 距平，动量与分位为 %',
+    };
+  });
+
   R.foot(d.enso && d.enso.generator ? d.enso.generator : null, {
     src: 'yfinance 日频快照 · ETF 精选池日线（DBA/MOO/WEAT/CORN/SOYB）· NOAA CPC（ONI 指数与月度诊断讨论）· CFTC COT 周报 · FRED（食品 CPI）',
     note: '期货为主力连续合约口径，归一化起点 = 2 年前首交易日收盘 · 能源/金属与原油价格总表见「大宗商品」页 · 黄金/白银持仓与资金流见「贵金属」页',

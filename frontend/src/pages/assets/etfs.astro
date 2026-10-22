@@ -49,16 +49,65 @@ async function load() {
     src: 'Nasdaq Trader（全量清单）· yfinance（精选池日线）',
     note: '判断为规则化市场描述，不是买卖建议；日线价格以最近可得美股交易日收盘为准',
   });
+
+  // 页面事实集（契约见 js/ai-context.js）：统计卡与全量分类分处两块 DOM、54 行表进不了预算，
+  // 故给规模/趋势/中位动量三条池内聚合，再按分类各取一只代表标的（宽基→半导体→行业→债券→商品→加密→货币→杠杆）报价与动量。
+  if (window.AICtx) AICtx.declare('assets-etfs', () => {
+    const p = D.pool;
+    const u = D.universe || {};
+    const { up, down, meds } = poolAgg();
+    const by = Object.fromEntries(p.map(r => [r.ticker, r]));
+    // 只在 R.fmtPct 的结果前补方向号，小数位仍由 R 定
+    const sgn = (v) => (v == null ? '—' : (v >= 0 ? '+' : '') + R.fmtPct(v));
+    const facts = [
+      ['精选池', R.num(p.length) + ' 只 ETF', '全量清单 ' + (u.total == null ? '—' : R.num(u.total) + ' 只') + ' · 有日线的子集'],
+      ['趋势分布', '向上 ' + up + ' · 分化 ' + (p.length - up - down) + ' · 向下 ' + down, '按动量/波动/回撤规则归类'],
+      ['中位动量', '1周 ' + sgn(meds[0].v) + ' · 1月 ' + sgn(meds[1].v) + ' · 3月 ' + sgn(meds[2].v), '池内全部 ETF 的中位数'],
+    ];
+    ['SPY', 'QQQ', 'SMH', 'XLE', 'TLT', 'GLD', 'USO', 'IBIT', 'UUP', 'SOXL'].forEach(t => {
+      const r = by[t];
+      if (!r) return;
+      facts.push([
+        r.ticker + ' ' + r.name,
+        '$' + R.num(r.last) + ' · 1周 ' + sgn(r.w1),
+        '1月 ' + sgn(r.m1) + ' · 3月 ' + sgn(r.m3) + ' · ' + r.trend,
+      ]);
+    });
+    const cats = Object.entries(u.categories || {}).sort((a, b) => b[1] - a[1]);
+    if (cats.length) {
+      facts.push([
+        '全量分类前 3',
+        cats.slice(0, 3).map(([c, n]) => categories(c) + ' ' + R.num(n)).join(' · '),
+        '共 ' + cats.length + ' 类 · Nasdaq Trader 名单',
+      ]);
+    }
+    return {
+      title: 'ETF 精选池读数',
+      src: 'Nasdaq Trader 全量清单 · yfinance 精选池日线',
+      asOf: D.as_of,
+      priority: 10,
+      facts,
+      note: '价格单位为美元，动量/波动/回撤为 %；趋势由 1周/1月/3月动量 + 20 日波动 + 3 月回撤归类',
+    };
+  });
+}
+
+// 池内聚合（趋势计数 / 动量中位）：统计卡与事实集共用这一份口径，不两处各算一遍
+function poolAgg() {
+  const p = D.pool;
+  const up = p.filter(r => r.trend === '趋势向上').length;
+  const down = p.filter(r => r.trend === '趋势向下').length;
+  const meds = ['w1', 'm1', 'm3'].map(k => {
+    const vs = p.map(r => r[k]).filter(v => v != null).sort((a, b) => a - b);
+    return { label: { w1: '中位 1 周', m1: '中位 1 月', m3: '中位 3 月' }[k], v: vs.length ? vs[Math.floor(vs.length / 2)] : null };
+  });
+  return { up, down, meds };
 }
 
 // 顶部指标卡（与其他子页 re-cards 行对齐）：池规模 / 向上 / 向下 / 中位动量
 function renderStats() {
-  const p = D.pool, up = p.filter(r => r.trend === '趋势向上').length, down = p.filter(r => r.trend === '趋势向下').length;
-  const meds = ['w1', 'm1', 'm3'].map(k => {
-    const vs = p.map(r => r[k]).filter(v => v != null).sort((a, b) => a - b);
-    const m = vs.length ? vs[Math.floor(vs.length / 2)] : null;
-    return { label: { w1: '中位 1 周', m1: '中位 1 月', m3: '中位 3 月' }[k], v: m };
-  });
+  const p = D.pool;
+  const { up, down, meds } = poolAgg();
   document.getElementById('stats').replaceChildren(R.cards([
     { label: '精选池', value: p.length, sub: `全量 ETF ${D.universe ? D.universe.total : '—'} 只` },
     { label: '趋势向上', value: up, sub: `${(up / p.length * 100).toFixed(0)}% 池内占比`, vcolor: UP },

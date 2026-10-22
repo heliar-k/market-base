@@ -36,6 +36,60 @@ async function load() {
   renderExplain();
   R.setAsOf([['外汇行情', d.as_of]]);
   R.foot(null, { src: 'yfinance 外汇日线' });
+
+  // 页面事实集（契约见 js/ai-context.js）：这页被问的是「美元到底强不强、强/弱在哪一块、某对多少」——
+  // 广度结论 + 分组 20D 压力 + 关键对价位三层一次给全，再补归一化图的时间窗，够定位到表和口径。
+  if (window.AICtx) AICtx.declare('assets-fx', () => {
+    const b = d.breadth || {}, o = b.overall || {};
+    const g = name => (b.groups || []).find(x => x.group === name) || {};
+    const row = k => (d.dashboard || []).find(r => r.key === k) || {};
+    const jp = b.jpy_carry || {};
+    const dl = (d.chart || {}).dates || [];
+    // 分组读数 = 组内「20D 美元压力」均值 + 判定（与顶部卡同源，不再自己加权）
+    const grp = (name, label, extra) => {
+      const x = g(name);
+      return [
+        label,
+        x.avg_pressure == null ? '—' : sg(x.avg_pressure) + ' · ' + (x.verdict || '—'),
+        `${x.n || 0} 对` + (extra ? ' · ' + extra : ' · 20D 美元压力均值'),
+      ];
+    };
+    // 表里同屏有「本对 20D 涨跌」与「20D 美元压力」两列（间接报价符号相反），一对都写出来免得把方向读反
+    const pair = (k, label) => {
+      const r = row(k);
+      // 直接报价（USD/XXX）两者同值，只写一次；间接报价（XXX/USD）符号相反，两个都写
+      const diverge = Math.abs((r.d20 ?? 0) - (r.pressure ?? 0)) > 1e-9;
+      return [
+        label,
+        r.last == null ? '—' : R.num(r.last, 4),
+        k === 'DXY'
+          ? `20D ${sg(r.d20)} · 60D ${sg(r.d60)}`
+          : `20D ${sg(r.d20)}` + (diverge ? ` · 美元压力 ${sg(r.pressure)}` : ''),
+      ];
+    };
+    return {
+      title: '外汇与美元广度',
+      src: 'yfinance 外汇日线 16 对 · 20D 美元压力 = 20 日涨跌统一换算成「对美元强弱」',
+      asOf: d.as_of,
+      priority: 10,
+      facts: [
+        ['美元广度', `${o.weak ?? '—'} / ${o.total ?? '—'} 对走弱`, `${o.verdict || '—'} · ${o.note || ''}`],
+        grp('G10', 'G10 组'),
+        grp('商品货币', '商品货币组'),
+        grp('亚洲/EM', '亚洲/EM 组'),
+        grp('高贝塔EM', '高贝塔 EM 组', '组内强弱不齐，均值不代表全组'),
+        ['JPY Carry', `${sg(jp.d20)} · ${jp.verdict || '—'}`, 'USD/JPY 与 EUR/JPY 未同向越过 ±1% 即中性'],
+        pair('DXY', 'DXY'),
+        pair('EURUSD', 'EUR/USD'),
+        pair('USDJPY', 'USD/JPY'),
+        pair('USDCNH', 'USD/CNH'),
+        pair('USDKRW', 'USD/KRW'),
+        pair('USDMXN', 'USD/MXN'),
+        ...(dl.length ? [['归一化走势窗口', `${dl[0]} → ${dl[dl.length - 1]}`, `${dl.length} 个观测 · 首日 = 0%`]] : []),
+      ],
+      note: '美元压力与涨跌单位为 %，正值 = 美元走强；价位为各货币对自身报价口径',
+    };
+  });
 }
 
 // ── 顶部 4 张 verdict 卡 ──

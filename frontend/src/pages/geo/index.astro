@@ -179,6 +179,45 @@ async function load() {
     </div>`;
   }
 
+  // 可问答事实集：这页的提问几乎都落在「某条战线的概率是多少、7 日变了多少」，
+  // 所以给「主题焦点 + 各主题概率最高的具名归类」（焦点按 |7日变动| 选，和最高概率常不是同一条），
+  // 外加监测规模与未命中归类数（后者解释「为什么有些合约落在其它事件」）。
+  if (window.AICtx) AICtx.declare('geo', () => {
+    // 变动统一走 R.fmtBp（只出符号+1 位小数），单位 pp 由这里补，与页面 chip 的写法一致
+    const pp = v => (v == null ? '—' : R.fmtBp(v) + 'pp');
+    const nEvents = d.topics.reduce((s, t) => s + t.events.length, 0);
+    // 兜底的「其它事件」不算具名归类，否则每条主题的最高概率都被这个桶占掉
+    const topNamed = t => (t.clusters || []).filter(c => c.name !== '其它事件')
+      .sort((a, b) => b.prob - a.prob)[0] || null;
+    const facts = [
+      ['监测规模', d.topics.length + ' 主题 · ' + nEvents + ' 事件 · 24h ' + fmtVol(total), 'Polymarket geo + policy 类别'],
+    ];
+    for (const t of d.topics) {
+      const h = t.headline;
+      facts.push([
+        t.name,
+        h ? '焦点「' + h.name + '」' + fmtPct(h.prob) + (h.chg7d == null ? '' : ' · 7日 ' + pp(h.chg7d)) : '—',
+        '24h ' + fmtVol(t.volume24hr) + ' · 占 ' + (total ? R.fmtPct(t.volume24hr / total * 100) : '—') + ' · ' + t.events.length + ' 事件',
+      ]);
+      const c = topNamed(t);
+      if (c && (!h || c.name !== h.name)) {
+        facts.push([t.name + '·' + c.name, fmtPct(c.prob) + (c.chg7d == null ? '' : ' · 7日 ' + pp(c.chg7d)),
+          '归类均概率 · ' + c.count + ' 合约']);
+      }
+    }
+    if (d.unmatched && d.unmatched.count) {
+      facts.push(['未命中中文归类', d.unmatched.count + ' 个合约', '兜底归入「其它事件」· 需补 GEO_CLUSTERS 关键词']);
+    }
+    return {
+      title: '地缘风险概率',
+      src: 'Polymarket gamma/clob API · 每日快照 · 关键词归类',
+      asOf: d.as_of,
+      priority: 10,
+      facts,
+      note: '概率为 %（归类内合约概率均值）；焦点 = 7 日变动绝对值最大的归类；变动为 pp，成交为美元',
+    };
+  });
+
   R.foot(null, {
     src: 'Polymarket gamma/clob API（每日快照 + 概率时序）',
     note: '主题/中文归类为关键词规则，图上折线为归类内合约概率均值；英文原文见各主题折叠明细',

@@ -30,6 +30,9 @@ function badgeClass(label) {
   return 'neutral';
 }
 function num(v) { return v == null ? '—' : Number(v).toLocaleString(); }
+// 拥挤度标签与极端合约串在渲染和事实集两处都要用，抽成函数避免两套口径
+function crowdLabelOf(c) { return c == null ? '数据不足' : c >= 50 ? '仓位偏拥挤' : c >= 30 ? '仓位中性' : '仓位分散'; }
+function extremesText(o) { return (o.extremes || []).map(x => `${x.name}(${x.pct_2y.toFixed(1)})`).join('、'); }
 
 async function load() {
   const d = await R.get('/api/assets/positioning');
@@ -42,14 +45,58 @@ async function load() {
     src: 'CFTC COT 周报',
     note: '持仓统计截至周二收盘、周五 15:30 ET 公布（比盘面晚约一周）· 投机方：股指/利率/外汇 = 对冲基金（Leveraged Money），商品 = 管理资金（Managed Money）· 判读规则见页首卡片底部',
   });
+
+  // ── 页面事实集（契约见 js/ai-context.js）：总览三读数 + 五组「最需要关注」合约
+  //    + 股/债/金三个基准合约。17 个合约不逐一列（同屏卡片已在页面上），
+  //    只留「哪组挤、挤的是谁、净仓与周环比」这三层被追问最多的数。
+  if (window.AICtx) AICtx.declare('assets-equities-positioning', () => {
+    const o = d.overview || {};
+    const counts = o.counts || {};
+    const bySymbol = {};
+    (d.groups || []).forEach(g => (g.contracts || []).forEach(c => { bySymbol[c.symbol] = c; }));
+    // 净持仓带符号（与卡片同口径），数字本身仍走 R.num
+    const netText = c => (c.net == null ? '—' : (c.net >= 0 ? '+' : '') + R.num(c.net));
+    const wkNote = c => '本周' + (c.week_dir || '—') + ' ' +
+      (c.week_chg == null ? '—' : (c.week_chg > 0 ? '+' : '') + R.num(c.week_chg));
+    const groupFacts = (d.groups || []).map(g => {
+      const f = g.focus || {};
+      const c = bySymbol[f.symbol] || {};
+      const p = f.pct_2y == null ? '—' : Number(f.pct_2y).toFixed(1);
+      return [
+        GNAMES[g.name] || g.name,
+        `${f.name || c.name || f.symbol || '—'} 分位 ${p} · ${c.label || '—'} · 净 ${netText(c)}`,
+        g.verdict || '',
+      ];
+    });
+    const anchors = ['ES', 'ZN', 'GC'].map(sym => {
+      const c = bySymbol[sym];
+      if (!c) return null;
+      const p = c.pct_2y == null ? '—' : Number(c.pct_2y).toFixed(1);
+      return [c.name, `净 ${netText(c)} · 分位 ${p} · ${c.label || '—'}`, wkNote(c)];
+    }).filter(Boolean);
+    return {
+      title: 'CFTC 投机仓位',
+      src: 'CFTC COT 周报 · 2 年净多百分位',
+      asOf: d.latest_report,
+      priority: 10,
+      facts: [
+        ['投机仓位拥挤度', (d.crowding == null ? '—' : Number(d.crowding).toFixed(1)) + '/100', crowdLabelOf(d.crowding)],
+        ['方向分布', `偏多 ${counts.bull ?? '—'} · 偏空 ${counts.bear ?? '—'} · 极端 ${counts.extreme ?? '—'}`, o.bias ? '整体 ' + o.bias : ''],
+        ['最极端合约', extremesText(o) || '—', '括号内为 2 年净多百分位'],
+        ...groupFacts,
+        ...anchors,
+      ],
+      note: '净持仓单位为张（合约数），百分位为 2 年窗口',
+    };
+  });
 }
 
 // ── Positioning Readthrough（timsun 复刻）──
 function renderOverview(d) {
   const o = d.overview || {};
   const c = d.crowding;
-  const crowdLabel = c == null ? '数据不足' : c >= 50 ? '仓位偏拥挤' : c >= 30 ? '仓位中性' : '仓位分散';
-  const extremes = (o.extremes || []).map(x => `${x.name}(${x.pct_2y.toFixed(1)})`).join('、');
+  const crowdLabel = crowdLabelOf(c);
+  const extremes = extremesText(o);
   const desc = c == null ? ''
     : `当前 CFTC 投机仓位整体为「${crowdLabel}」，方向上${o.bias || '中性'}。最极端的合约是 ${extremes}。仓位已包含一部分市场共识，接下来看价格是否继续确认，不只看净多净空绝对值。`;
   const el = document.getElementById('overview');

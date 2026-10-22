@@ -286,6 +286,55 @@ async function load() {
   // ── POLYMARKET 加密价位市场（geo 同款结构：归类趋势线 + 原始事件折叠）──
   renderPolymarket(d.polymarket, { BTC: optB.spot_anchor, ETH: optE.spot_anchor });
 
+  // ── 页面事实集（契约见 js/ai-context.js）──
+  // 为什么给这几条：墙位/Gamma Flip/PCR/CME 仓位是这一屏最常被追问的读数，
+  // 但它们散在图表标题行与横向条里，DOM 摘要只抓得到标签、抓不到「墙在哪、离现价多远」。
+  if (window.AICtx) AICtx.declare('assets-crypto-options', () => {
+    const bSpot = optB.spot_anchor, eSpot = optE.spot_anchor;
+    // 近月墙优先、全到期为回退（与卡内 headNote 同一取法，不另算）
+    const bCW = optB.near_call_wall ?? optB.call_wall, bPW = optB.near_put_wall ?? optB.put_wall;
+    const eCW = optE.near_call_wall ?? optE.call_wall, ePW = optE.near_put_wall ?? optE.put_wall;
+    const pm = d.polymarket || {};
+    // 墙位区间：两档都缺时给一个 '—'，别渲染成「—–—」（Deribit 单侧缺数据时 headNote 也会报缺失）
+    const wall = (pw, cw, sep = '–') => (pw == null && cw == null ? '—' : `${usd0(pw)}${sep}${usd0(cw)}`);
+    // Gamma Flip / 净 GEX 合成一条：只缺一侧时另一侧照给，别渲染成「—M USD/1%」
+    const gexText = (o) => {
+      const g = o.gex || {};
+      if (g.gamma_flip == null && g.net_gex_musd == null) return '—';
+      return `${usd0(g.gamma_flip)} · ${g.net_gex_musd == null ? '—' : (g.net_gex_musd >= 0 ? '+' : '') + fmt(g.net_gex_musd, 1) + 'M USD/1%'}`;
+    };
+    // Polymarket 只取「24h 成交 + 动能最大归纳的概率」，价位阶梯逐档不搬（体积大、追问再划词）
+    const pmOf = (k) => {
+      const t = (pm.topics || []).find(x => x.key === k);
+      if (!t) return null;
+      const h = t.headline || {};
+      return [`${k} Polymarket 24h`, `${R.usd(t.volume24hr) || '—'} · ${t.events.length} 事件`,
+        h.name ? `动能最大「${h.name}」${h.prob == null ? '' : '均概率 ' + R.fmtPct(h.prob * 100)}` : ''];
+    };
+    return {
+      title: '加密期权墙与价位市场',
+      src: 'Deribit API / CME Settlements / Polymarket gamma-api',
+      asOf: d.ts ? d.ts.slice(0, 10) : '',
+      priority: 10,
+      facts: [
+        ['BTC 现价锚 / 近月墙', `${usd0(bSpot)} · ${wall(bPW, bCW)}`, `Deribit · 近月到期 ${optB.nearest_exp || '—'}`],
+        ['BTC Call 墙', `${usd0(bCW)} · OI ${fmt(optB.near_call_wall_oi, 0)} 张`, bCW != null && bSpot ? `距现价 ${R.dist(bCW, bSpot)}` : ''],
+        ['BTC Put 墙', `${usd0(bPW)} · OI ${fmt(optB.near_put_wall_oi, 0)} 张`, bPW != null && bSpot ? `距现价 ${R.dist(bPW, bSpot)}` : ''],
+        ['BTC Gamma Flip / 净 GEX', gexText(optB), optB.gex && optB.gex.gamma_flip != null && bSpot ? `Flip 距现价 ${R.dist(optB.gex.gamma_flip, bSpot)}` : ''],
+        ['BTC PCR / Max Pain', `${optB.pcr == null ? '—' : optB.pcr} · ${usd0(optB.max_pain)}`, 'PCR = 全到期 Put OI / Call OI'],
+        ['BTC 全到期墙', wall(optB.put_wall, optB.call_wall, ' – '), `${optB.d_exp || '—'} 个到期月 · 总 OI ${fmt(optB.total_oi, 0)} 张`],
+        ['ETH 现价锚 / 近月墙', `${usd0(eSpot)} · ${wall(ePW, eCW)}`, `Deribit · 近月到期 ${optE.nearest_exp || '—'}`],
+        ['ETH Call / Put 墙', wall(eCW, ePW, ' / '), `近月 OI ${fmt(optE.near_call_wall_oi, 0)} / ${fmt(optE.near_put_wall_oi, 0)} 张`],
+        ['ETH Gamma Flip / 净 GEX', gexText(optE), optE.gex && optE.gex.gamma_flip != null && eSpot ? `Flip 距现价 ${R.dist(optE.gex.gamma_flip, eSpot)}` : ''],
+        ['ETH PCR / Max Pain', `${optE.pcr == null ? '—' : optE.pcr} · ${usd0(optE.max_pain)}`, `全到期口径 · ${optE.d_exp || '—'} 个到期月`],
+        ['CME BTC 期货总 OI', `${fmt(cf.total_oi, 0)} 张 ≈ ${fmt(cf.total_oi_btc, 0)} BTC`, `1 张 = 5 BTC · 截至 ${cf.as_of || '—'}`],
+        ['CME 主力 / 年化基差', `${cf.front ? cf.front.month + ' ' + usd0(cf.front.settle) : '—'} · ${R.fmtPct(cf.basis_ann_pct)}`, `${({ contango: '升水', backwardation: '贴水', flat: '平水' }[cf.term]) || '—'}`],
+        ...[pmOf('BTC'), pmOf('ETH')].filter(Boolean),
+      ],
+      note: '期权 OI 单位为张（1 张 = 1 BTC / 1 ETH）；CME 期货 1 张 = 5 BTC；PCR = 全到期 Put/Call OI，Polymarket 为隐含触及概率',
+    };
+  });
+
   R.foot(null, { src: 'Deribit API / CME Settlements / Polymarket gamma-api' });
 }
 

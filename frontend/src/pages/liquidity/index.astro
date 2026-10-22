@@ -103,6 +103,37 @@ async function load() {
     src: 'FRED（H.4.1 / 利率走廊 / NFCI）· DTS 日度现金流 · Treasury 拍卖 · CFETS 掉期点 · 央行互换（SWPT）',
     note: '金额单位：百万美元（原始），页面按万亿/十亿显示',
   });
+
+  // ── AI 伴读事实集 ──
+  // 只给四张主卡读数 + 三段研判的首句：这三段就是本页第一屏的全部结论，
+  // 正文里的阈值/WTI/VIX 是叙事的支撑细节，不从文本串里二次抠数（容易被截断、也不是本条口径）。
+  if (window.AICtx) AICtx.declare('liquidity', () => {
+    const s = (k) => c[k] || {};
+    // 正数补 +，格式化仍走 R.fmtPct（单源，别再造 signedPct）
+    const chg = (p) => (p == null ? '—' : (p > 0 ? '+' : '') + R.fmtPct(p));
+    // 首句即结论；超 40 字按值长上限截断并留省略号（不截半句数字）
+    const lead = (sec) => {
+      const t = ((sec && sec.text) || '').split('\n')[0].trim();
+      return t ? (t.length > 40 ? t.slice(0, 39) + '…' : t) : '—';
+    };
+    const row = (key, fmt) => [fmt(s(key).value), '1M ' + chg(s(key).change_1m) + ' · 1Y ' + chg(s(key).change_1y)];
+    return {
+      title: '流动性概览',
+      src: 'FRED（H.4.1 / NFCI / 利率走廊）· DTS 日度现金流',
+      asOf: d.data_date,
+      priority: 10,
+      facts: [
+        [s('WALCL').label || '美联储总资产', ...row('WALCL', fmtT)],
+        [s('RRPONTSYD').label || 'RRP 余额', ...row('RRPONTSYD', fmtB)],
+        [s('WTREGEN').label || 'TGA 余额', ...row('WTREGEN', fmtT)],
+        [s('NET_LIQUIDITY').label || '净流动性', fmtT(s('NET_LIQUIDITY').value), '总资产 − TGA − RRP · 1M ' + chg(s('NET_LIQUIDITY').change_1m) + ' · 1Y ' + chg(s('NET_LIQUIDITY').change_1y)],
+        ['净流动性研判', lead(ev.net_liquidity), ''],
+        ['展望', lead(ev.outlook), ''],
+        ['准备金', lead(ev.reserves), ''],
+      ],
+      note: '金额按万亿/十亿折算，变化为 1M/1Y 百分数',
+    };
+  });
 }
 load().catch(e => R.fail(['re-cards', 're-eval'], e));
 </script>
