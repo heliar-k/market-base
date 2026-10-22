@@ -41,7 +41,10 @@ const parentGroup = SITE_NAV.groups.find(
 <head>
 <meta charset="UTF-8">
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<!-- interactive-widget：Android Chrome 键盘弹出时收缩布局视口，
+     否则伴读抽屉的 fixed 底栏（输入框）会落在键盘后面；iOS 不认这个值，
+     由 ai-chat.js 的 visualViewport 兜底。 -->
+<meta name="viewport" content="width=device-width, initial-scale=1.0, interactive-widget=resizes-content">
 <meta name="description" content={desc}>
 <meta property="og:type" content="website">
 <meta property="og:title" content={`${title} — ${BRAND}`}>

@@ -648,6 +648,8 @@ _PILL_RADIUS_ALLOWED_CSS = {
     "a.re-badge",
     ".cons-intraday",
     ".cons-vote",
+    # 窄屏伴读浮钮是右下角 44px 圆 FAB（可点击控件；桌面仍是 6px 方钮）
+    "body .ai-float",
 }
 
 

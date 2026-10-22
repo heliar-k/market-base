@@ -205,9 +205,8 @@ body.embedded .re-foot { display: none; } /* 内嵌 iframe 不重复页脚 */
  * ≈ 90px chrome，表格只剩 ~346px；字号内距又不随视口缩 → 6-8 列表全出横向滚动。
  * 这里整链路收一档（KPI 卡三档收缩同思路）：
  *   .re-root   两侧 32→16，max-width 的 100vw-64 同步 100vw-32（不然外留白还在）；
- *              `.ai-float`（伴读抽屉浮钮）fixed 占视口右 6+26=32px，左缘=vw-32=内容右缘：
- *              页头不再让位（padding-right 0），时效胶囊贴内容右缘与正文卡片对齐，
- *              与浮钮仅角落相切（圆角错开，不相交）；
+ *              窄屏浮钮已挪到右下角 FAB（app.css 的 .ai-float），页头不再需要为它让位
+ *              （padding-right 0），时效胶囊贴内容右缘与正文卡片对齐；
  *   卡面       20→14；出血/光学补偿挂 --re-cell-pad-x，自动跟着缩放不变式；
  *   表格       tier-1 见下；≤600 再收 tier-2（pad 6 + 字号 11）。
  * .re-duo / .re-scroll-y 的表内距是显式覆盖，不受影响；min-width 强制滚动的表
@@ -223,9 +222,13 @@ body.embedded .re-foot { display: none; } /* 内嵌 iframe 不重复页脚 */
   :root { --re-cell-pad-x: 8px; }
   .re-table { font-size: 12px; }
   .re-table th { font-size: 11px; }
-  /* 浮钮同步收一档（☰ / .ai-float 在 app.css 同档收）：偏移 8→6，30→26，≥24 触控下限。
+  /* 返回顶部让位给右下角的伴读 FAB（app.css 的 .ai-float 窄屏 44px、bottom 14）：
+     抬到 FAB 上方 16px，也放大到 32px；触控目标别比 FAB 小太多。
      body 前缀提特异性：.back-top 的基础定义在本文件更后面，同特异性会被盖回。 */
-  body .back-top { right: 6px; bottom: 6px; width: 26px; height: 26px; font-size: 12px; }
+  body .back-top { right: 20px; bottom: calc(74px + env(safe-area-inset-bottom)); width: 32px; height: 32px; font-size: 13px; }
+  /* 内嵌 iframe 里没有伴读 FAB（ai-chat.js 在 iframe 直接 return），返回顶部回原位，
+     否则它会悬在离底 74px 的空中。特异性高于上一条，顺序无关。 */
+  body.embedded .back-top { right: 6px; bottom: 6px; width: 26px; height: 26px; font-size: 12px; }
   /* 内容左缘 32 = ☰ 右缘 32：‹ 返回xx 首行贴上按钮边，缩进 8px 让出呼吸
      （仅此行让位；h1 顶 45 > 按钮 bottom 32 不需让） */
   .re-back { padding-left: 8px; }

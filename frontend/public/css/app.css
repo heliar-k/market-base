@@ -736,23 +736,42 @@ body.dark .tech-ov-card { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--b
 .ai-float { position: fixed; top: 8px; right: 8px; z-index: var(--z-float); width: 30px; height: 30px; border-radius: 6px; border: 1px solid var(--btn-border); background: var(--surface); color: var(--text-secondary); cursor: pointer; font-size: 14px; line-height: 1; padding: 0; box-shadow: var(--shadow-float); display: inline-flex; align-items: center; justify-content: center; transition: border-color .15s, transform .1s; }
 .ai-float:hover { border-color: var(--accent-ink); color: var(--accent-ink); }
 .ai-float:active { transform: scale(.94); }
-@media (max-width: 768px) { body .ai-float { top: 6px; right: 6px; width: 26px; height: 26px; font-size: 12px; } }
+/* 窄屏：页头右上角被「数据截至」时效块占着（375 宽实测浮钮左缘正好顶到它的右缘），
+   浮钮挪到底部右侧做 FAB —— 44px 触控目标、圆胶囊（交互控件走 999px 的既有语言）。
+   SPA 底部另有 28px 状态栏，多让 32px；抽屉打开时被 .ai-drawer 整屏盖住，不用另收。
+   SPA 用 body.app-shell 标记（别拿 .re-has-side 反推「有侧栏 = 专题页」）。 */
+@media (max-width: 768px) {
+  body .ai-float { top: auto; right: 14px; bottom: calc(14px + env(safe-area-inset-bottom)); width: 44px; height: 44px; border-radius: 999px; font-size: 20px; box-shadow: var(--shadow-pop); }
+  body.app-shell .ai-float { bottom: calc(46px + env(safe-area-inset-bottom)); }
+}
 
 /* 划词「问这段」气泡：贴选区上沿，选中才显示 */
 .ai-sel-pop { position: fixed; z-index: var(--z-float); padding: 3px 8px; border-radius: 4px; border: 1px solid var(--accent); background: var(--surface); color: var(--accent-ink); font-size: 12px; font-weight: 600; line-height: 18px; cursor: pointer; box-shadow: var(--shadow-pop); display: none; align-items: center; gap: 4px; user-select: none; }
 .ai-sel-pop.show { display: inline-flex; }
 .ai-sel-pop:hover { background: var(--accent-light); }
+/* 触屏上要拿手指戳：把气泡抬到 34px 高（仍贴选区上沿，翻边逻辑在 JS） */
+@media (pointer: coarse) { .ai-sel-pop { min-height: 34px; padding: 6px 12px; font-size: 13px; } }
 
 /* 右侧抽屉：transform 滑入（不用 display，动画才连贯） */
 .ai-drawer { position: fixed; top: 0; right: 0; bottom: 0; width: 380px; max-width: 100vw; z-index: var(--z-float); background: var(--surface); border-left: 1px solid var(--border); box-shadow: var(--shadow-pop); display: flex; flex-direction: column; transform: translateX(100%); transition: transform .2s ease; }
 .ai-drawer.open { transform: translateX(0); }
+.ai-drawer:focus { outline: none; } /* 程序化聚焦的容器，不该画焦点圈 */
 @media (max-width: 768px) { .ai-drawer { width: 100vw; } }
+/* 窄屏抽屉是整屏模态：背景页不能再滚（iOS 的 overflow:hidden 拦不住，JS 侧用
+   body position:fixed 兜底），见 ai-chat.js 的 lockScroll/unlockScroll */
+html.ai-lock, html.ai-lock body { overflow: hidden; }
 
-.ai-head { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; padding: 8px 10px; border-bottom: 1px solid var(--border); flex: 0 0 auto; }
-.ai-title { font-size: 13px; font-weight: 700; color: var(--text); margin-right: auto; }
+.ai-head { position: relative; display: flex; align-items: center; gap: 4px; flex-wrap: nowrap; padding: 8px 10px; border-bottom: 1px solid var(--border); flex: 0 0 auto; }
+.ai-title { min-width: 0; max-width: 40%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; font-weight: 700; color: var(--text); margin-right: auto; }
 .ai-btn { padding: 3px 8px; border: 1px solid var(--btn-border); border-radius: 6px; background: var(--surface); color: var(--text-secondary); font-size: 12px; line-height: 18px; cursor: pointer; white-space: nowrap; }
-/* 抽屉头 6 个控件要在 380px 内排一行：头内按钮比正文按钮再紧 2px（关闭钮不再掉到第二行） */
+/* 抽屉头在 380px 侧栏里要排一行：头内按钮比正文按钮再紧 2px */
 .ai-head .ai-btn { padding: 3px 6px; }
+/* 「⋯」菜单：窄屏收起低频三项（导出/存笔记/设置），点开是贴在头下面的小卡 */
+.ai-more { display: none; }
+.ai-menu { position: absolute; top: calc(100% - 2px); right: 8px; z-index: 5; min-width: 140px; padding: 4px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); box-shadow: var(--shadow-pop); display: flex; flex-direction: column; gap: 2px; }
+.ai-menu[hidden] { display: none; }
+.ai-menu .ai-btn { display: flex; align-items: center; width: 100%; border-color: transparent; background: none; text-align: left; }
+.ai-menu .ai-btn:hover { background: var(--hover-tint); }
 .ai-btn:hover { border-color: var(--accent-ink); color: var(--accent-ink); }
 .ai-btn.on { background: var(--accent-light); border-color: var(--accent); color: var(--accent-ink); }
 .ai-btn[disabled] { opacity: .55; cursor: default; }
@@ -762,8 +781,22 @@ body.dark .tech-ov-card { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--b
 .ai-flash { padding: 6px 12px; border-bottom: 1px solid var(--border); background: var(--surface-alt); color: var(--text-secondary); font-size: 12px; line-height: 1.55; word-break: break-word; }
 .ai-flash.err { color: var(--color-down-text); }
 
-/* 设置面板 / 历史列表：抽屉内的次级面板，底色下沉一档（surface-alt） */
-.ai-cfg, .ai-hist { padding: 10px 12px; border-bottom: 1px solid var(--border); background: var(--surface-alt); flex: 0 0 auto; }
+/* 设置面板 / 历史列表：抽屉内的次级面板，底色下沉一档（surface-alt）。
+   两者都封顶可滚：设置面板在 320×568 上内容 433px，不封顶会把输入区顶出屏幕外
+   （flex 不收缩，抽屉自身 overflow:visible）。 */
+.ai-cfg, .ai-hist { padding: 10px 12px; border-bottom: 1px solid var(--border); background: var(--surface-alt); flex: 0 1 auto; min-height: 0; }
+.ai-cfg { max-height: 60vh; overflow-y: auto; padding-bottom: 0; }
+/* 面板滚起来时「保存/收起」贴着面板底，别让它滚出可视区；底内距挪到按钮行，
+   否则行下面会漏出一条滚动内容 */
+.ai-cfg > .ai-acts { position: sticky; bottom: 0; padding: 6px 0 10px; background: var(--surface-alt); }
+/* 抽屉被键盘压矮（<480px，ai-chat.js 打 .ai-kb）时不吸底：面板只剩几十 px，
+   48px 的按钮行会把输入框盖掉，宁可让它跟着内容滚 */
+.ai-drawer.ai-kb .ai-cfg > .ai-acts { position: static; }
+/* 矮抽屉里打开次级面板时让出消息区：300px 高度下，面板能从 77px 长到 117px，
+   多露一行输入框（面板本身就是这一刻的主体） */
+.ai-drawer.ai-kb:has(> .ai-cfg:not([hidden])) > .ai-msgs,
+.ai-drawer.ai-kb:has(> .ai-hist:not([hidden])) > .ai-msgs { display: none; }
+.ai-drawer.ai-kb:has(> .ai-cfg:not([hidden])) > .ai-cfg { flex: 1 1 auto; max-height: none; }
 .ai-hist { max-height: 40vh; overflow-y: auto; }
 .ai-row { display: flex; flex-direction: column; gap: 3px; margin-bottom: 8px; }
 .ai-row label { font-size: 11px; color: var(--text-dim); }
@@ -785,8 +818,8 @@ body.dark .tech-ov-card { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--b
 .ai-empty { padding: 8px 0; font-size: 12px; line-height: 1.7; color: var(--text-dim); }
 .ai-empty p { margin: 0 0 4px; }
 
-/* 消息流：自动滚到底，卡片圆角 6px（同卡面家族） */
-.ai-msgs { flex: 1 1 auto; overflow-y: auto; padding: 12px; display: flex; flex-direction: column; gap: 10px; }
+/* 消息流：贴底才自动跟随（往上翻读时流式输出不抢滚动），卡片圆角 6px（同卡面家族） */
+.ai-msgs { flex: 1 1 auto; overflow-y: auto; overscroll-behavior: contain; padding: 12px; display: flex; flex-direction: column; gap: 10px; }
 .ai-msg { border-radius: 6px; padding: 8px 10px; font-size: 13px; line-height: 1.65; color: var(--text); word-break: break-word; }
 .ai-msg p { margin: 0 0 6px; }
 .ai-msg p:last-child, .ai-msg ul:last-child, .ai-msg ol:last-child { margin-bottom: 0; }
@@ -831,3 +864,24 @@ body.dark .tech-ov-card { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--b
 .ai-foot-row .ai-hint { margin-right: auto; }
 .ai-send { padding: 5px 12px; border-radius: 6px; border: 1px solid var(--accent); background: var(--accent); color: var(--text-on-accent); font-size: 12px; font-weight: 600; cursor: pointer; }
 .ai-send:hover { opacity: .9; }
+
+/* ── 伴读抽屉的窄屏档（≤768 全屏模态）────────────────────────────────────
+   一段集中：头部只留 标题/＋新对话/历史/⋯/✕（其余进 ⋯ 菜单，✕ 永远右上）、
+   输入框 16px（iOS 对 <16px 输入框聚焦会强制放大整页）、触控目标加到 32-44px、
+   底部只留发送钮。断点与 .ai-drawer 整屏那档一致。 */
+@media (max-width: 768px) {
+  .ai-head > [data-act="export"], .ai-head > [data-act="save"], .ai-head > [data-act="cfg"] { display: none; }
+  .ai-head .ai-more { display: inline-flex; font-size: 15px; }
+  .ai-head .ai-btn { min-height: 32px; padding: 4px 8px; }
+  .ai-head > [data-act="close"] { width: 36px; height: 36px; padding: 0; justify-content: center; font-size: 15px; }
+  .ai-head .ai-title { max-width: 30%; }
+  .ai-input, .ai-row input, .ai-row select { font-size: 16px; }
+  .ai-input { min-height: 64px; }
+  .ai-foot-row { justify-content: flex-end; }
+  .ai-foot-row .ai-hint { display: none; }
+  .ai-send { min-height: 38px; padding: 8px 16px; font-size: 13px; }
+  .ai-msg-acts .ai-btn, .ai-hist .ai-btn, .ai-cfg .ai-btn { min-height: 32px; padding: 5px 10px; }
+  .ai-hist-rm, .ai-chip-rm { width: 32px; height: 32px; margin: -6px -4px; }
+  .ai-hist-item { padding: 8px; }
+}
+@media (pointer: coarse) { .ai-input { resize: none; } }

@@ -6,9 +6,11 @@
 //   - 本文件用 rates-common.js 的全局 R.esc，不自带一份实现（守卫见
 //     tests/test_static_single_source.py）。
 // 挂三样东西到 body 末尾（全是 position: fixed，不进 SPA 的 flex 流）：
-//   .ai-float   右上角浮钮（原主题切换位，主题已改恒跟随系统）
-//   .ai-sel-pop 划词气泡「问这段」
-//   .ai-drawer  右侧抽屉（对话 + 引用胶囊 + 设置 + 历史）
+//   .ai-float   浮钮：桌面在右上角（原主题切换位）；窄屏挪到右下角 44px FAB
+//               —— 页头右上角被「数据截至」时效块占着，26px 小钮贴上去会打架
+//   .ai-sel-pop 划词气泡「问这段」（触屏补了 touchend / selectionchange）
+//   .ai-drawer  右侧抽屉：>768 是 380px 侧栏（非模态），≤768 整屏模态
+//               （锁背景滚动 / 焦点陷阱 / 接管返回键；头部低频项收进「⋯」）
 // 数据全在本机 localStorage：四个键见下方 K_*，接口直连 OpenAI 兼容端点；
 // Base URL 保持默认且没填 API Key 时走本站 /api/chat（本地 FastAPI / 线上 Pages Function）。
 
@@ -221,7 +223,27 @@ import { mdToHtml } from './ai-md.js';
   let probeNote = '';
 
   let drawer, floatBtn, selPop, msgsEl, quotesEl, inputEl, sendBtn, cfgEl, histEl, histN, flashEl;
+  let menuEl, moreBtn;
   let flashTimer = 0;
+  // 窄屏 = 全屏模态（锁滚动 / 焦点陷阱 / 接管返回键）；桌面侧栏保持非模态
+  let stickBottom = true; // 消息流是否贴底（往上翻读时流式输出不再抢滚动）
+  let locked = false;
+  let lockY = 0;
+  let drawerPushed = false; // 打开时压了一个 history state，返回键/关闭时弹掉
+  const isNarrow = () => {
+    try {
+      return window.matchMedia('(max-width: 768px)').matches;
+    } catch (e) {
+      return false;
+    }
+  };
+  const isCoarse = () => {
+    try {
+      return window.matchMedia('(pointer: coarse)').matches;
+    } catch (e) {
+      return false;
+    }
+  };
 
   const trunc = (s, n) => (String(s || '').length > n ? String(s).slice(0, n) + '…' : String(s || ''));
   const pad2 = (n) => (n < 10 ? '0' + n : '' + n);
@@ -230,18 +252,53 @@ import { mdToHtml } from './ai-md.js';
     return d.getFullYear() + '-' + pad2(d.getMonth() + 1) + '-' + pad2(d.getDate());
   }
   const fmtFull = (ts) => new Date(ts || Date.now()).toLocaleString('zh-CN', { hour12: false });
-  const scrollBottom = () => {
-    if (msgsEl) msgsEl.scrollTop = msgsEl.scrollHeight;
+  // 贴底才滚：用户往上翻读历史/答案时，流式 chunk 不再把人拽回底部
+  const atBottom = () =>
+    !msgsEl || msgsEl.scrollHeight - msgsEl.scrollTop - msgsEl.clientHeight < 48;
+  const scrollBottom = (force) => {
+    if (!msgsEl || (!force && !stickBottom)) return;
+    msgsEl.scrollTop = msgsEl.scrollHeight;
+    stickBottom = true;
   };
 
-  // 保存/代理失败这类一次性结果走抽屉顶部细条，不塞进对话流里污染历史
-  function flash(msg, isErr) {
+  // 保存/代理失败这类一次性结果走抽屉顶部细条，不塞进对话流里污染历史。
+  // sticky：进行中状态（如「保存中…」）不自动收，等结果来顶掉
+  function flash(msg, isErr, sticky) {
     if (!flashEl) return;
     flashEl.textContent = msg;
     flashEl.classList.toggle('err', !!isErr);
     flashEl.removeAttribute('hidden');
     clearTimeout(flashTimer);
-    flashTimer = setTimeout(() => flashEl.setAttribute('hidden', ''), isErr ? 9000 : 4000);
+    if (!sticky) flashTimer = setTimeout(() => flashEl.setAttribute('hidden', ''), isErr ? 9000 : 4000);
+  }
+
+  // 复制答案：手机上手动拖选 Markdown 很痛苦，给一键复制（非安全上下文回退 execCommand）
+  async function copyText(text) {
+    const s = String(text || '');
+    if (!s) return;
+    try {
+      await navigator.clipboard.writeText(s);
+      flash('已复制到剪贴板');
+      return;
+    } catch (e) {
+      /* 没权限 / http 环境：走下面的回退 */
+    }
+    const ta = document.createElement('textarea');
+    ta.value = s;
+    ta.setAttribute('readonly', '');
+    ta.style.position = 'fixed';
+    ta.style.top = '-1000px';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.select();
+    let ok = false;
+    try {
+      ok = document.execCommand('copy');
+    } catch (e) {
+      ok = false;
+    }
+    ta.remove();
+    flash(ok ? '已复制到剪贴板' : '复制失败，请手动选择', !ok);
   }
 
   // ── 对话线程 ────────────────────────────────────────────────────────────
@@ -291,12 +348,11 @@ import { mdToHtml } from './ai-md.js';
   }
 
   function emptyHtml() {
+    // 窄屏也读得完的两段；「划词」在触屏上是长按选词，措辞不写死在鼠标上
     return (
       '<div class="ai-empty">' +
-      '<p>把本页的读数变成能追问的对话：</p>' +
-      '<p>1）页面任意位置划词，点浮出的「💬 问这段」——片段连同小节名、表头与本行一起进入引用胶囊；</p>' +
-      '<p>2）直接提问也会自动带上本页结论与时效坐标，不必手动贴数据；</p>' +
-      '<p>3）本站配了代理（<code>/api/chat</code>）时直接提问即可；要换成自己的模型，点右上「⚙ 设置」填 OpenAI 兼容接口，点「探测模型」可把网关的模型与推理强度一起列出来。</p>' +
+      '<p>直接问，或选中本页任意片段（会带上小节名与表头），提问会自动附上本页结论与时效坐标。</p>' +
+      '<p>想换模型：点右上「设置」填 OpenAI 兼容接口；窄屏在「⋯」里。</p>' +
       '</div>'
     );
   }
@@ -322,12 +378,17 @@ import { mdToHtml } from './ai-md.js';
         const body = isUser
           ? '<p>' + esc(m.content || '').replace(/\n/g, '<br>') + '</p>'
           : mdToHtml(m.content || '');
-        // 提问可回填重发；答案只有最后一条给「重试」（中途的答案后面还有问答，重发没有意义）
-        const acts = isUser
-          ? '<button class="ai-btn" type="button" data-mact="edit" data-mi="' + i + '">编辑</button>'
-          : i === t.messages.length - 1
-            ? '<button class="ai-btn" type="button" data-mact="retry">重试</button>'
-            : '';
+        // 提问可回填重发；答案给「复制」（手机上手动选 Markdown 太费劲），
+        // 只有最后一条给「重试」（中途的答案后面还有问答，重发没有意义）
+        let acts = '';
+        if (isUser) {
+          acts = '<button class="ai-btn" type="button" data-mact="edit" data-mi="' + i + '">编辑</button>';
+        } else {
+          acts = '<button class="ai-btn" type="button" data-mact="copy" data-mi="' + i + '">复制</button>';
+          if (i === t.messages.length - 1) {
+            acts += '<button class="ai-btn" type="button" data-mact="retry">重试</button>';
+          }
+        }
         return (
           '<div class="ai-msg ' + (isUser ? 'ai-msg-user' : 'ai-msg-assistant') + '">' +
           (meta ? '<div class="ai-msg-meta">' + esc(meta) + '</div>' : '') +
@@ -356,19 +417,128 @@ import { mdToHtml } from './ai-md.js';
   }
 
   // ── 抽屉开合 ────────────────────────────────────────────────────────────
+  function showMenu(on) {
+    if (!menuEl) return;
+    if (on) menuEl.removeAttribute('hidden');
+    else menuEl.setAttribute('hidden', '');
+    if (moreBtn) moreBtn.setAttribute('aria-expanded', on ? 'true' : 'false');
+  }
+  function hideMenu() {
+    showMenu(false);
+  }
+  const menuOpen = () => !!(menuEl && !menuEl.hasAttribute('hidden'));
+
+  // 键盘弹出后 visual viewport 比 layout viewport 矮：把抽屉钉在可见区，
+  // 否则 fixed 底栏（输入框 + 发送）会落在键盘后面（iOS Safari 不认 interactive-widget）
+  function syncDrawerToViewport() {
+    if (!drawer || !drawer.classList.contains('open')) return;
+    const vv = window.visualViewport;
+    if (!vv) return;
+    if (window.innerHeight - vv.height > 80) {
+      drawer.style.top = Math.max(0, vv.offsetTop) + 'px';
+      drawer.style.height = vv.height + 'px';
+    } else {
+      drawer.style.top = '';
+      drawer.style.height = '';
+    }
+    // 可见高度不足时（键盘弹出 / 横屏手机）关掉设置面板的吸底按钮：
+    // 48px 的吸底行会把只剩 ~80px 的面板再啃掉一半，输入框反而看不见
+    const short = drawer.getBoundingClientRect().height < 480;
+    drawer.classList.toggle('ai-kb', short);
+  }
+
+  // 整屏模态时锁背景滚动；iOS 的 body overflow:hidden 拦不住，用 position:fixed + 负 top 定住
+  function lockScroll() {
+    if (locked) return;
+    locked = true;
+    lockY = window.scrollY || document.documentElement.scrollTop || 0;
+    document.documentElement.classList.add('ai-lock');
+    document.body.style.position = 'fixed';
+    document.body.style.top = -lockY + 'px';
+    document.body.style.left = '0';
+    document.body.style.right = '0';
+    document.body.style.width = '100%';
+  }
+  function unlockScroll() {
+    if (!locked) return;
+    locked = false;
+    document.body.style.position = '';
+    document.body.style.top = '';
+    document.body.style.left = '';
+    document.body.style.right = '';
+    document.body.style.width = '';
+    document.documentElement.classList.remove('ai-lock');
+    window.scrollTo(0, lockY);
+  }
+
+  // 接管 Android 返回键：压一条同 URL 的 history，返回时只关抽屉不离开页面
+  function pushDrawerState() {
+    if (drawerPushed) return;
+    try {
+      history.pushState({ aiDrawer: 1 }, '');
+      drawerPushed = true;
+    } catch (e) {
+      drawerPushed = false;
+    }
+  }
+
+  // 模态与否只由宽度决定，但宽度会在抽屉开着时变（转屏 / 拉窗）。
+  // 不跟着改的话：≤768 开→拉宽，body 一直 fixed、页面锁死；>768 开→缩窄，
+  // 全屏抽屉却没有锁滚/焦点陷阱。mql 的 change 在 init 里挂。
+  function syncModalMode() {
+    if (!drawer || !drawer.classList.contains('open')) return;
+    if (isNarrow()) {
+      if (drawer.getAttribute('aria-modal') === 'true') return;
+      drawer.setAttribute('aria-modal', 'true');
+      lockScroll();
+      pushDrawerState();
+    } else {
+      drawer.removeAttribute('aria-modal');
+      unlockScroll();
+    }
+  }
+
   function open() {
     if (!drawer) return;
     drawer.classList.add('open');
     drawer.inert = false;
     drawer.setAttribute('aria-hidden', 'false');
-    if (inputEl) inputEl.focus();
+    if (isNarrow()) {
+      drawer.setAttribute('aria-modal', 'true');
+      lockScroll();
+      pushDrawerState();
+    }
+    // 触屏不自动聚焦输入框（一开就弹键盘会把说明/历史顶掉一半）；
+    // 焦点落到抽屉本身（tabindex=-1，不会弹键盘），读屏才知道对话框开了
+    if (!isCoarse() && inputEl) inputEl.focus();
+    else if (isNarrow()) drawer.focus({ preventScroll: true });
+    requestAnimationFrame(syncDrawerToViewport);
   }
-  function close() {
+  function close(fromPop) {
     if (!drawer) return;
+    // inert 会把焦点踢到 body，先记住，关完再还给浮钮
+    const hadFocus = drawer.contains(document.activeElement);
+    hideMenu();
     drawer.classList.remove('open');
     drawer.inert = true; // 关着时 Tab 不能进去（aria-hidden 拦不住焦点）
     drawer.setAttribute('aria-hidden', 'true');
+    drawer.removeAttribute('aria-modal');
+    drawer.style.top = '';
+    drawer.style.height = '';
+    drawer.classList.remove('ai-kb');
     hidePop();
+    unlockScroll();
+    if (drawerPushed) {
+      drawerPushed = false;
+      if (!fromPop) {
+        try {
+          history.back();
+        } catch (e) {
+          /* 无 history 的环境（如 file://）直接关 */
+        }
+      }
+    }
+    if (hadFocus && floatBtn) floatBtn.focus({ preventScroll: true });
   }
   const toggle = () => (drawer && drawer.classList.contains('open') ? close() : open());
 
@@ -665,6 +835,7 @@ import { mdToHtml } from './ai-md.js';
     pendingQuotes = [];
     renderChips();
     inputEl.value = '';
+    stickBottom = true; // 自己发的新提问一定跳到底部
     renderMessages();
     renderHist();
     await runTurn(thread);
@@ -679,6 +850,7 @@ import { mdToHtml } from './ai-md.js';
     if (!thread.messages.length || thread.messages[thread.messages.length - 1].role !== 'user') return;
     thread.updatedAt = Date.now();
     persist(thread);
+    stickBottom = true;
     renderMessages();
     await runTurn(thread);
   }
@@ -876,21 +1048,24 @@ import { mdToHtml } from './ai-md.js';
   async function saveActiveThread() {
     const thread = getActiveThread();
     if (!thread) return flash('还没有对话可保存', true);
-    const btn = drawer && drawer.querySelector('[data-act="save"]');
-    if (btn) {
+    // 头部按钮与 ⋯ 菜单里各有一个「存笔记」，两个都切状态（点菜单项后菜单即收，
+    // 真正给人看的是顶部细条里的「保存中…」）
+    const btns = drawer ? Array.from(drawer.querySelectorAll('[data-act="save"]')) : [];
+    btns.forEach((btn) => {
       btn.disabled = true;
       btn.textContent = '保存中…';
-    }
+    });
+    flash('保存到笔记中…', false, true);
     try {
       const r = await saveToServer(thread);
       flash('已保存：' + (r.path || r.key || 'OK'));
     } catch (e) {
       flash('保存失败：' + (e && e.message ? e.message : e), true);
     } finally {
-      if (btn) {
+      btns.forEach((btn) => {
         btn.disabled = false;
         btn.textContent = '存笔记';
-      }
+      });
     }
   }
 
@@ -898,15 +1073,24 @@ import { mdToHtml } from './ai-md.js';
   const SHELL =
     '<button class="ai-float" type="button" title="伴读问答（⌘/Ctrl + K）" aria-label="伴读问答">💬</button>' +
     '<button class="ai-sel-pop" type="button">💬 问这段</button>' +
-    '<div class="ai-drawer" role="dialog" aria-label="伴读问答" aria-hidden="true">' +
+    // tabindex=-1：打开时焦点能落在对话框上（读屏播报），又不进 Tab 序列、不弹键盘
+    '<div class="ai-drawer" role="dialog" tabindex="-1" aria-labelledby="ai-title" aria-hidden="true">' +
     '<div class="ai-head">' +
-    '<span class="ai-title">伴读问答</span>' +
+    '<span class="ai-title" id="ai-title">伴读问答</span>' +
     '<button class="ai-btn" type="button" data-act="new">＋ 新对话</button>' +
     '<button class="ai-btn" type="button" data-act="hist">历史 <span data-hist-n>0</span></button>' +
     '<button class="ai-btn" type="button" data-act="export" title="导出为 Markdown（.md）">导出</button>' +
     '<button class="ai-btn" type="button" data-act="save" title="保存到 data/notes/（本地）或 NOTES KV（线上）">存笔记</button>' +
     '<button class="ai-btn" type="button" data-act="cfg">⚙ 设置</button>' +
-    '<button class="ai-btn" type="button" data-act="close" title="关闭（Esc）">✕</button>' +
+    // 窄屏：上面三项收进这里（CSS 在 ≤768 隐藏旧钮、显示 ⋯），✕ 永远压在最右。
+    // 弹层是普通按钮组（disclosure），不用 aria-haspopup（那是 menu 语义），只留 aria-expanded
+    '<button class="ai-btn ai-more" type="button" data-act="more" aria-expanded="false" aria-label="更多操作">⋯</button>' +
+    '<button class="ai-btn" type="button" data-act="close" title="关闭（Esc）" aria-label="关闭">✕</button>' +
+    '<div class="ai-menu" data-menu hidden>' +
+    '<button class="ai-btn" type="button" data-act="cfg">⚙ 设置</button>' +
+    '<button class="ai-btn" type="button" data-act="export">导出 Markdown</button>' +
+    '<button class="ai-btn" type="button" data-act="save">存笔记</button>' +
+    '</div>' +
     '</div>' +
     '<div class="ai-flash" data-flash role="status" hidden></div>' +
     '<div class="ai-cfg" data-cfg hidden></div>' +
@@ -939,8 +1123,36 @@ import { mdToHtml } from './ai-md.js';
     histEl = drawer.querySelector('[data-hist]');
     histN = drawer.querySelector('[data-hist-n]');
     flashEl = drawer.querySelector('[data-flash]');
+    menuEl = drawer.querySelector('[data-menu]');
+    moreBtn = drawer.querySelector('[data-act="more"]');
 
     floatBtn.addEventListener('click', toggle);
+
+    // 贴底判定：只有本来就贴着底（或内容还没撑满）才跟着新 chunk 滚
+    msgsEl.addEventListener('scroll', () => { stickBottom = atBottom(); }, { passive: true });
+
+    // 键盘弹出/收起时把抽屉钉在可见区（iOS Safari）
+    if (window.visualViewport) {
+      window.visualViewport.addEventListener('resize', syncDrawerToViewport);
+      window.visualViewport.addEventListener('scroll', syncDrawerToViewport);
+    }
+
+    // Android 返回键：只关抽屉，不离开页面（open() 时压了一条同 URL 的 state）
+    window.addEventListener('popstate', () => {
+      if (drawerPushed && drawer.classList.contains('open')) {
+        drawerPushed = false;
+        close(true);
+      }
+    });
+
+    window.addEventListener('resize', syncDrawerToViewport);
+
+    // 跨过 768 断点时补一次模态状态（老 Safari 只有 addListener）
+    const narrowMq = window.matchMedia ? window.matchMedia('(max-width: 768px)') : null;
+    if (narrowMq) {
+      if (narrowMq.addEventListener) narrowMq.addEventListener('change', syncModalMode);
+      else if (narrowMq.addListener) narrowMq.addListener(syncModalMode);
+    }
 
     // mousedown + preventDefault：否则点击瞬间选区被浏览器清掉，「问这段」拿不到 range
     selPop.addEventListener('mousedown', (e) => {
@@ -958,20 +1170,35 @@ import { mdToHtml } from './ai-md.js';
     });
     document.addEventListener('mousedown', (e) => {
       if (!e.target.closest || !e.target.closest('.ai-sel-pop')) hidePop();
+      if (!e.target.closest || !e.target.closest('.ai-menu, [data-act="more"]')) hideMenu();
     });
+
+    // 触屏选词：长按选词、拖选择手柄都不触发 mouseup，补 touchend + selectionchange
+    document.addEventListener('touchend', () => setTimeout(onSelect, 120), { passive: true });
+    let selTimer = 0;
+    document.addEventListener('selectionchange', () => {
+      clearTimeout(selTimer);
+      selTimer = setTimeout(onSelect, 260);
+    });
+
+    // 选区气泡是 fixed 定位，页面一滚就错位：任何滚动都收起（捕获阶段含内部滚动容器）
+    window.addEventListener('scroll', hidePop, { passive: true, capture: true });
 
     drawer.addEventListener('click', (e) => {
       const t = e.target;
+      if (!t.closest('.ai-menu') && !t.closest('[data-act="more"]')) hideMenu();
       const act = t.closest('[data-act]');
       if (act) {
         const a = act.dataset.act;
+        if (act.closest('.ai-menu')) hideMenu(); // 菜单项点完即收
+        if (a === 'more') return showMenu(!menuOpen());
         if (a === 'close') return close();
         if (a === 'new') {
           if (controller) controller.abort();
           newThread();
           renderMessages();
           renderHist();
-          if (inputEl) inputEl.focus();
+          if (inputEl) inputEl.focus(); // 主动点「新对话」就是准备输入，弹键盘符合预期
           return;
         }
         if (a === 'hist') {
@@ -999,8 +1226,13 @@ import { mdToHtml } from './ai-md.js';
       }
       const mact = t.closest('[data-mact]');
       if (mact) {
-        if (mact.dataset.mact === 'retry') retry();
-        else editAt(Number(mact.dataset.mi));
+        const kind = mact.dataset.mact;
+        if (kind === 'retry') retry();
+        else if (kind === 'copy') {
+          const thread = getActiveThread();
+          const msg = thread && thread.messages[Number(mact.dataset.mi)];
+          if (msg) copyText(msg.content || '');
+        } else editAt(Number(mact.dataset.mi));
         return;
       }
       if (t.closest('[data-probe]')) return probeModels();
@@ -1060,6 +1292,7 @@ import { mdToHtml } from './ai-md.js';
         if (activeId() !== item.dataset.tid && controller) controller.abort();
         setActiveId(item.dataset.tid);
         renderHist();
+        stickBottom = true; // 换会话看的是最新几条，别沿用上一个会话的滚动位置
         renderMessages();
       }
     });
@@ -1107,7 +1340,33 @@ import { mdToHtml } from './ai-md.js';
         toggle();
         return;
       }
-      if (e.key === 'Escape' && drawer.classList.contains('open')) close();
+      // 窄屏整屏模态：Tab 在抽屉内循环，别跑到底下的页面和 Astro 开发工具条
+      if (e.key === 'Tab' && drawer.getAttribute('aria-modal') === 'true') {
+        const items = Array.from(
+          drawer.querySelectorAll(
+            'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+          )
+        ).filter((el) => !el.disabled && el.getClientRects().length);
+        if (!items.length) return;
+        const first = items[0];
+        const last = items[items.length - 1];
+        // 焦点在抽屉自身（刚打开时）等于「还没进第一个控件」，两个方向都从头/尾接
+        if (document.activeElement === drawer || !drawer.contains(document.activeElement)) {
+          e.preventDefault();
+          (e.shiftKey ? last : first).focus();
+        } else if (e.shiftKey && document.activeElement === first) {
+          e.preventDefault();
+          last.focus();
+        } else if (!e.shiftKey && document.activeElement === last) {
+          e.preventDefault();
+          first.focus();
+        }
+        return;
+      }
+      if (e.key === 'Escape' && drawer.classList.contains('open')) {
+        if (menuOpen()) return hideMenu();
+        close();
+      }
     });
 
     normalizeSavedCfg();

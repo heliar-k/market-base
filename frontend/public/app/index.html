@@ -3,7 +3,9 @@
 <head>
 <meta charset="UTF-8">
   <link rel="icon" href="/favicon.svg" type="image/svg+xml">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<!-- interactive-widget：键盘弹出时收缩布局视口，伴读抽屉的 fixed 底栏才不会被键盘盖住
+     （Android Chrome 认这个值；iOS 由 ai-chat.js 的 visualViewport 兜底） -->
+<meta name="viewport" content="width=device-width, initial-scale=1.0, interactive-widget=resizes-content">
 <meta name="description" content="观澜台 — 美股与宏观研究平台：K 线技术面、GEX 期权墙、利率/流动性/信用/通胀专题仪表盘。">
 <meta property="og:type" content="website">
 <meta property="og:title" content="观澜台 — US Macro 研究平台">
@@ -28,7 +30,7 @@
 <script type="module" src="/js/ai-chat.js"></script>
 <script type="module" src="/js/site-nav.js"></script>
 </head>
-<body>
+<body class="app-shell">
 <!-- 主题提前应用（修 SPA 首屏白闪）：app.js 是 type="module"（deferred），其 applyTheme 要等文档
      解析完才执行 → 暗色用户每次先白一下。这里在 body 开标签后立刻打 dark class（CSS 钩子是
      body.dark，head 里 document.body 还不存在，故不能前移到 head）。
