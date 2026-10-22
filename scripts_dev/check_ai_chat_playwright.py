@@ -9,7 +9,9 @@
 - 模型表按 base + 代理/直连模式缓存，代理白名单不会串进 BYOK；
 - effort 在缓存有效时发送，缓存过期时页面加载即清空且不发送；
 - 工具循环正常往返 / 预算用尽强制作答 / 端点 404；
-- T3 失败与降级：单次超时降级、同轮重复调用只取一次数、全部端点失败时 meta 有失败标记。
+- T3 失败与降级：单次超时降级、同轮重复调用只取一次数、全部端点失败时 meta 有失败标记；
+- T4 跨端点工具：相关性结果带标的名字（不是裸矩阵）、期权工具查未知标的返回结构化错误
+  （含可用清单）且对话不中断。
 """
 
 from __future__ import annotations
@@ -527,7 +529,7 @@ _JS_TOOL_PRELUDE = r"""
     });
   const ev = (obj) => 'data: ' + JSON.stringify(obj) + '\n\n';
   const DONE = 'data: [DONE]\n\n';
-  const toolCall = (index, id, args) =>
+  const toolCallNamed = (name, index, id, args) =>
     ev({
       choices: [
         {
@@ -537,13 +539,14 @@ _JS_TOOL_PRELUDE = r"""
                 index: index,
                 id: id,
                 type: 'function',
-                function: { name: 'query_site_data', arguments: args },
+                function: { name: name, arguments: args },
               },
             ],
           },
         },
       ],
     });
+  const toolCall = (index, id, args) => toolCallNamed('query_site_data', index, id, args);
   const text = (t) => ev({ choices: [{ delta: { content: t } }] });
   const stop = ev({ choices: [{ delta: {}, finish_reason: 'stop' }] });
   const needTools = ev({ choices: [{ delta: {}, finish_reason: 'tool_calls' }] });
@@ -710,6 +713,109 @@ OK_PATCH = (
 )
 
 
+# ── T4：跨端点工具（相关性 / 期权墙） ─────────────────────────────────────
+# 假端点只造三个标的小矩阵 / 一个标的的快照：断言只看「行为与字段存在性」，
+# 不依赖实现的内部函数名，也不依赖真实产物里有多少个标的。
+CORRELATION_PATCH = (
+    "() => {\n"
+    "  window.__REQS = [];\n"
+    "  window.__CROSS_HIT = 0;\n"
+    + _JS_TOOL_PRELUDE
+    + r"""
+  // 真实端点是 22×22（名字在 assets，数字在 matrix）；这里缩到 3 个：
+  // SPX 与 BTC 正相关 0.61、与 TLT 负相关 -0.42。断言只认「名字 + 系数」同时出现。
+  const CROSS = {
+    as_of: '2026-10-21',
+    window: 30,
+    assets: [
+      { name: 'SPX', group: 'equity', label: '标普500' },
+      { name: 'TLT', group: 'bond', label: '长期国债' },
+      { name: 'BTC', group: 'crypto', label: '比特币' },
+    ],
+    groups: { equity: '美股', bond: '国债', crypto: '加密' },
+    matrix: [
+      [1, -0.42, 0.61],
+      [-0.42, 1, -0.18],
+      [0.61, -0.18, 1],
+    ],
+    alerts: [
+      {
+        key: 'SPX_TLT_30d',
+        label: '股债相关性（60/40 分散化有效性）',
+        latest: -0.42,
+        prev: -0.35,
+        series: [
+          { date: '2026-10-20', value: -0.35 },
+          { date: '2026-10-21', value: -0.42 },
+        ],
+      },
+    ],
+  };
+  const orig = window.fetch;
+  window.fetch = async (url, opts) => {
+    const u = String(url);
+    if (u.indexOf('/api/cross-asset') >= 0) {
+      window.__CROSS_HIT += 1;
+      return json(CROSS);
+    }
+    if (u.indexOf('/api/chat') < 0) return orig(url, opts);
+    const body = chatBody(opts);
+    window.__REQS.push(body);
+    if (hasToolMsg(body)) {
+      return sse([text('SPX 与 TLT 的 30 日相关性 -0.42（反向），与 BTC 为 0.61。'), stop, DONE]);
+    }
+    return sse([
+      toolCallNamed('query_correlation', 0, 'call_corr', JSON.stringify({ symbol: 'SPX' })),
+      needTools,
+      DONE,
+    ]);
+  };
+}
+"""
+)
+
+OPTIONS_UNKNOWN_PATCH = (
+    "() => {\n"
+    "  window.__REQS = [];\n"
+    "  window.__OPT_HIT = 0;\n"
+    + _JS_TOOL_PRELUDE
+    + r"""
+  // 端点里只有 SPY：模型问 NOPE 时，工具必须从这份数据里拿到「可用清单」再报错。
+  const OPTIONS = {
+    date: '2026-10-22T00:00:00Z',
+    symbols: {
+      SPY: {
+        spot: 763.25,
+        net_gex: -1.46,
+        call_wall: { strike: 770, per_point_m: 70.7 },
+        put_wall: { strike: 760, per_point_m: -206.5 },
+      },
+    },
+  };
+  const orig = window.fetch;
+  window.fetch = async (url, opts) => {
+    const u = String(url);
+    if (u.indexOf('/api/assets/equities-options') >= 0) {
+      window.__OPT_HIT += 1;
+      return json(OPTIONS);
+    }
+    if (u.indexOf('/api/chat') < 0) return orig(url, opts);
+    const body = chatBody(opts);
+    window.__REQS.push(body);
+    if (hasToolMsg(body)) {
+      return sse([text('快照里没有 NOPE，只有 SPY：call wall 770 / put wall 760。'), stop, DONE]);
+    }
+    return sse([
+      toolCallNamed('query_options_wall', 0, 'call_opt', JSON.stringify({ symbol: 'NOPE' })),
+      needTools,
+      DONE,
+    ]);
+  };
+}
+"""
+)
+
+
 def _last_tool_messages(reqs: list[dict]) -> list[dict]:
     """最后一次请求里回填的 tool 消息（即本轮实际交给模型的取数结果）。"""
     if not reqs:
@@ -725,6 +831,27 @@ def _json_object(text) -> dict | None:
     except ValueError:
         return None
     return value if isinstance(value, dict) else None
+
+
+def _available_names(payload: dict) -> list[str] | None:
+    """错误里的「可用清单」：优先认 available，否则取任意「全是字符串的数组」。
+
+    实现可能把清单叫 available / symbols / choices，这里不认死键名，只认形状
+    （至少一个字符串元素，且整条数组都是字符串——数字数组不算清单）。
+    """
+    direct = payload.get("available")
+    if isinstance(direct, list) and direct and all(isinstance(x, str) for x in direct):
+        return direct
+    stack: list[object] = [payload]
+    while stack:
+        node = stack.pop()
+        if isinstance(node, dict):
+            stack.extend(node.values())
+        elif isinstance(node, list):
+            if node and all(isinstance(x, str) for x in node):
+                return node
+            stack.extend(node)
+    return None
 
 
 def _meta_without_names(meta: str, endpoints: list[str]) -> str:
@@ -846,6 +973,67 @@ async def check_tool_all_fail(browser, base: str) -> None:
     )
 
 
+async def check_correlation_tool(browser, base: str) -> None:
+    """T4-A 相关性工具：矩阵在客户端连上名字 → 回填可读的系数行，不是 3×3 裸数字。"""
+    ctx, page = await new_page(browser, base)
+    await page.evaluate(CORRELATION_PATCH)
+    await page.locator(".ai-input").fill("验收相关性工具")
+    await page.locator("[data-send]").click()
+    await wait_idle(page, 8000)
+
+    reqs = await page.evaluate("() => window.__REQS")
+    hit = await page.evaluate("() => window.__CROSS_HIT")
+    tools = _last_tool_messages(reqs)
+    content = (tools[0] if tools else {}).get("content") or ""
+    payload = _json_object(content) or {}
+    check(hit >= 1, "相关性工具请求了 /api/cross-asset（不是本地硬编码的表）")
+    check(len(tools) == 1 and bool(payload), "回填的 tool 结果是可 JSON.parse 的对象")
+    # 这条是本组的核心：只回数字（matrix / matrix.0 那种）说明没做「下标→名字」连接
+    check(
+        "TLT" in content and "0.42" in content,
+        "结果里标的名字与对应系数同时出现（不是 3×3 裸数字）",
+    )
+    check("SPX" in content, "结果回显被查询的标的（模型能对上问的是谁）")
+    check(len(content) <= 2000, "相关性结果 ≤2000 字（单次工具结果上限）")
+    check(len(reqs) == 2, "工具往返后照常发起续流请求（第二轮请求）")
+    body = await page.locator(".ai-msg-assistant").last.inner_text()
+    check("-0.42" in body and "接口没有返回内容" not in body, "最终正文渲染出相关性结论")
+    await ctx.close()
+
+
+async def check_options_tool_unknown_symbol(browser, base: str) -> None:
+    """T4-B 期权工具查未知标的：结构化错误带可用清单，且整轮对话不断。"""
+    ctx, page = await new_page(browser, base)
+    await page.evaluate(OPTIONS_UNKNOWN_PATCH)
+    await page.locator(".ai-input").fill("验收期权工具未知标的")
+    await page.locator("[data-send]").click()
+    await wait_idle(page, 8000)
+
+    reqs = await page.evaluate("() => window.__REQS")
+    hit = await page.evaluate("() => window.__OPT_HIT")
+    tools = _last_tool_messages(reqs)
+    content = (tools[0] if tools else {}).get("content") or ""
+    payload = _json_object(content) or {}
+    check(hit >= 1, "期权工具请求了 /api/assets/equities-options（可用清单来自端点）")
+    check(len(tools) == 1, "未知标的后仍回填一条 tool 结果（没有把整轮打断）")
+    error = payload.get("error")
+    check(
+        isinstance(error, str) and bool(error.strip()),
+        "未知标的返回结构化错误（JSON 里有非空 error，不是抛异常）",
+    )
+    names = _available_names(payload)
+    check(
+        bool(names) and "SPY" in names,
+        "错误里带可用清单，且含端点里真实存在的 SPY",
+    )
+    check(len(reqs) == 2, "未知标的照常发起续流请求（第二轮请求）")
+    body = await page.locator(".ai-msg-assistant").last.inner_text()
+    check(
+        "770" in body and "接口没有返回内容" not in body, "最终正文照常渲染（模型改答 SPY 的墙位）"
+    )
+    await ctx.close()
+
+
 async def main(base: str) -> int:
     base = base.rstrip("/") + "/"
     async with async_playwright() as p:
@@ -861,6 +1049,8 @@ async def main(base: str) -> int:
         await check_tool_slow_endpoint(browser, base)
         await check_tool_dup_calls(browser, base)
         await check_tool_all_fail(browser, base)
+        await check_correlation_tool(browser, base)
+        await check_options_tool_unknown_symbol(browser, base)
         await check_save_note(browser, base)
         await browser.close()
     print(f"\n{len(FAILS)} failure(s)")

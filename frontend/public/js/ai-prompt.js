@@ -26,6 +26,14 @@ export const AI_ENDPOINT_INDEX = [
   '不确定选哪个就先调最接近的，拿结构摘要再换。',
 ].join('\n');
 
+// 三个工具的分工（T4）：一句话说清，不展开成三段。
+// 工具名是稳定接口，可以直接写死；端点名仍只由上面的 toolCatalogLegend() 生成
+// （tests/test_ai_tools.py 有硬编码守卫，别在这里抄任何端点路径）。
+export const AI_TOOL_DIVISION =
+  '工具分工：query_site_data 查原始读数；query_correlation 查「谁跟谁一起动」' +
+  '（给 symbol 看它和谁同涨同跌，不给看强相关对与结构报警）；' +
+  'query_options_wall 查单个标的的期权结构（Gamma/DEX、call/put 墙、PCR、IV 与 skew）。';
+
 // 系统提示词（静态段）。页面标题 / 路径 / 时效 / 结论摘要由 ai-chat.js 的
 // buildMessages() 拼在后面，不写在提示词里——提示词只放「角色 + 纪律」这类长期稳定的指令。
 export const AI_SYSTEM_PROMPT = [
@@ -35,6 +43,7 @@ export const AI_SYSTEM_PROMPT = [
   '③ 工具返回 error（本期未导出 / 404 / 超时）时，明确说「本期未导出」或「页面未给出」，页面没给出的数字不要编造。',
   // 索引放在三层之后：夹在 ②③ 之间会把「三层优先级」这条列表切断，指令结构反而变弱
   AI_ENDPOINT_INDEX,
+  AI_TOOL_DIVISION,
   '回答简洁，中文为主，国际通用术语（VIX / GEX / Contango 等）保留英文；引用数字要带单位与口径。',
 ].join('\n');
 

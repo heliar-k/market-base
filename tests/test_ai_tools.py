@@ -24,6 +24,20 @@ T3「失败与降级」再补五处（单次超时 / 同轮缓存 / 失败可观
 - 同轮 endpoint+json_path 缓存命中不发请求、callId 仍是本次调用的；换路径/换 Map 不命中；
 - 失败结果同样缓存（同一轮里同端点结果不会变）；
 - ok 标志与 summarizeToolRuns() 把成功/失败端点分开（msg.tools / msg.toolsFailed）。
+
+T4「两个跨端点工具」再补十处（参数解析 / 客户端连接 / 压缩 / 排序 / 缓存隔离）：
+- TOOLS 从 1 个变 3 个，两个新工具的名字、参数与 description 一字不改；
+- 相关性矩阵做「下标→名字」连接，pairs 里的名字与系数对得上（不是下标）；
+- pairs 按 |corr| 降序、最多 8 条、排除自身，null/NaN 的格子跳过；
+- 不给 symbol 时返回 4 条 alerts（不带 series 序列）+ 最多 5 条 strongest（不含对角线）；
+- 未知标的 → 结构化错误 + available 全部名字（相关性 22 个 / 期权 22 个），ok === false；
+- 期权摘要只留 21 个结构字段 + oi_top 前 5 + iv_curve 前 3，丢掉 wall / gex_dist /
+  narrative，序列化后 ≤2000 字（不再触发结构摘要）；
+- oi_top 端点给的不是降序：按 total 降序取前 5，缺 total / 非数字不崩且排后面；
+  iv_curve 按 dte 升序取前 3；
+- 新工具不另写执行器：单次 3.5s 超时与 404 归形都走同一套（T3 行为不退）；
+- 缓存键带工具名：同轮 query_correlation 两次只 1 次网络，两个新工具各自独立键；
+- 提示词加一句三者分工（工具名可硬编码，端点名仍只能由 legend 生成）。
 """
 
 from __future__ import annotations
@@ -75,6 +89,11 @@ const catalog = {
   count: tools.TOOLS.length,
   type: tools.TOOLS[0].type,
   name: fn.name,
+  names: tools.TOOLS.map((t) => t.function.name),
+  types: tools.TOOLS.map((t) => t.type),
+  requiredByTool: tools.TOOLS.map((t) => t.function.parameters.required),
+  propsByTool: tools.TOOLS.map((t) => Object.keys(t.function.parameters.properties)),
+  descLens: tools.TOOLS.map((t) => t.function.description.length),
   enum: fn.parameters.properties.endpoint.enum,
   required: fn.parameters.required,
   jsonPathType: fn.parameters.properties.json_path.type,
@@ -86,6 +105,7 @@ const catalog = {
   maxRounds: tools.MAX_TOOL_ROUNDS,
   timeout: tools.TOOL_TIMEOUT_MS,
   byName: !!tools.toolByName('query_site_data'),
+  byNameAll: tools.TOOLS.every((t) => !!tools.toolByName(t.function.name)),
   byNameMissing: tools.toolByName('nope') === null,
 };
 
@@ -791,24 +811,481 @@ def _run_t3() -> dict:
     return run_node(T3_BODY.replace("__TOOLS__", TOOLS.as_uri()), timeout=30)
 
 
+# T4 单独一段脚本：两个跨端点工具的参数解析 / 连接 / 压缩 / 缓存隔离都在这里。
+# 假 payload 按真实形状裁（3×3 矩阵、2 个标的的期权快照），不依赖 public/api 里
+# 的当日产物（干净 clone 没有 frontend/public/api）。
+T4_BODY = """
+const tools = await import('__TOOLS__');
+const prompt = await import('__PROMPT__');
+
+const named = (name, id, args) => ({
+  id,
+  type: 'function',
+  function: { name, arguments: JSON.stringify(args) },
+});
+const fetchConst = (payload) => async () => ({
+  ok: true,
+  status: 200,
+  json: async () => payload,
+});
+
+// ── 1. 3×3 假矩阵：连接正确性（名字与系数，不是下标） ────────────────────
+const baseAssets = [
+  { name: 'SPX', group: 'equity', label: '标普500' },
+  { name: 'NDX', group: 'equity', label: '纳指100' },
+  { name: 'TLT', group: 'bond', label: '长期国债' },
+];
+const baseMatrix = [
+  [1.0, 0.92, 0.21],
+  [0.92, 1.0, 0.05],
+  [0.21, 0.05, 1.0],
+];
+const baseAlerts = [
+  {
+    key: 'SPX_TLT_30d',
+    label: '股债相关性',
+    latest: 0.2151,
+    prev: 0.201,
+    series: [{ date: '2026-01-01', value: 0.1 }],
+  },
+  { key: 'WTI_SPX_30d', label: '油股相关性', latest: -0.4488, prev: -0.4455, series: [] },
+  { key: 'DXY_HYG_30d', label: '美元-信用', latest: -0.5577, prev: -0.5459, series: [] },
+  { key: 'MOVE_SPX_30d', label: '债市波动-股票', latest: -0.2761, prev: -0.2629, series: [] },
+];
+const baseCross = {
+  as_of: '2026-10-18',
+  window: 30,
+  assets: baseAssets,
+  groups: { equity: '美股', bond: '国债' },
+  matrix: baseMatrix,
+  alerts: baseAlerts,
+};
+
+const bySymbol = await tools.runToolCall(
+  named('query_correlation', 'call_corr_1', { symbol: 'ndx' }),
+  { fetchImpl: fetchConst(baseCross) }
+);
+const corr = JSON.parse(bySymbol.content);
+const connect = {
+  ok: bySymbol.ok,
+  endpoint: bySymbol.endpoint,
+  symbol: corr.symbol,
+  label: corr.label,
+  group: corr.group,
+  asOf: corr.as_of,
+  window: corr.window,
+  pairNames: corr.pairs.map((p) => p.name),
+  pairLabels: corr.pairs.map((p) => p.label),
+  pairCorrs: corr.pairs.map((p) => p.corr),
+  // 没做连接的话这里会是 0/1 这类下标，pairs 里的名字必须都是标的代码
+  allNamesAreTickers: corr.pairs.every((p) => typeof p.name === 'string' && p.name.length >= 2),
+  selfExcluded: corr.pairs.every((p) => p.name !== 'NDX'),
+  noRawMatrix: bySymbol.content.indexOf('[[1') < 0,
+};
+
+// ── 2. 排序 / 截断：|corr| 降序、最多 8 条、排除自身 ──────────────────────
+const many = Array.from({ length: 10 }, (_, i) => ({
+  name: 'A' + i,
+  group: 'equity',
+  label: '标的' + i,
+}));
+const row = [1.0, -0.95, 0.91, -0.87, 0.83, -0.79, 0.75, -0.71, 0.67, 0.63];
+const manyMatrix = many.map((_, i) =>
+  many.map((_, j) => {
+    if (i === j) return 1.0;
+    if (i === 0) return row[j];
+    if (j === 0) return row[i];
+    return 0.5;
+  })
+);
+const truncated = JSON.parse(
+  (
+    await tools.runToolCall(named('query_correlation', 'call_corr_2', { symbol: 'A0' }), {
+      fetchImpl: fetchConst({
+        as_of: '2026-10-18',
+        window: 30,
+        assets: many,
+        groups: {},
+        matrix: manyMatrix,
+        alerts: [],
+      }),
+    })
+  ).content
+);
+const truncation = {
+  count: truncated.pairs.length,
+  names: truncated.pairs.map((p) => p.name),
+  corrs: truncated.pairs.map((p) => p.corr),
+  selfExcluded: truncated.pairs.every((p) => p.name !== 'A0'),
+  droppedWeakest: truncated.pairs.every((p) => p.name !== 'A9'),
+  sortedDesc: truncated.pairs.every(
+    (p, i, arr) => i === 0 || Math.abs(arr[i - 1].corr) >= Math.abs(p.corr)
+  ),
+};
+
+// null / NaN 的格子跳过，不编一个 0 出来
+const gapPayload = {
+  as_of: '2026-10-18',
+  window: 30,
+  assets: baseAssets,
+  matrix: [
+    [1.0, null, Number.NaN],
+    [null, 1.0, 0.5],
+    [Number.NaN, 0.5, 1.0],
+  ],
+  alerts: [],
+};
+const gapPairs = JSON.parse(
+  (
+    await tools.runToolCall(named('query_correlation', 'call_corr_3', { symbol: 'SPX' }), {
+      fetchImpl: fetchConst(gapPayload),
+    })
+  ).content
+).pairs;
+const gaps = { count: gapPairs.length };
+
+// ── 3. 不给 symbol：alerts（无 series）+ strongest（不含对角线） ─────────
+const overview = JSON.parse(
+  (
+    await tools.runToolCall(named('query_correlation', 'call_corr_4', {}), {
+      fetchImpl: fetchConst(baseCross),
+    })
+  ).content
+);
+const overviewOut = {
+  alertCount: overview.alerts.length,
+  alertKeys: Object.keys(overview.alerts[0]).sort(),
+  alertFirst: overview.alerts[0],
+  hasSeries: overview.alerts.some((a) =>
+    Object.prototype.hasOwnProperty.call(a, 'series')
+  ),
+  strongestCount: overview.strongest.length,
+  strongest: overview.strongest,
+  noDiagonal: overview.strongest.every((p) => p.a !== p.b),
+  uniquePairs:
+    new Set(overview.strongest.map((p) => [p.a, p.b].sort().join('-'))).size ===
+    overview.strongest.length,
+};
+
+// ── 4. 未知标的：结构化错误 + available 全部 22 个名字 ──────────────────
+const allNames = [
+  'SPX', 'NDX', 'RUT', 'DJI', 'SOX', 'TLT', 'IEF', 'HYG', 'LQD', 'KBWB', 'Gold',
+  'Silver', 'WTI', 'Brent', 'Copper', 'NG', 'BTC', 'ETH', 'DXY', 'USDJPY',
+  'EURUSD', 'MOVE',
+];
+const bigAssets = allNames.map((name) => ({ name, group: 'equity', label: name }));
+const bigMatrix = allNames.map((_, i) => allNames.map((_, j) => (i === j ? 1.0 : 0.1)));
+const bigCross = {
+  as_of: '2026-10-18',
+  window: 30,
+  assets: bigAssets,
+  matrix: bigMatrix,
+  alerts: [],
+};
+const unknownCorrRun = await tools.runToolCall(
+  named('query_correlation', 'call_corr_5', { symbol: 'AAPL' }),
+  { fetchImpl: fetchConst(bigCross) }
+);
+const unknownCorr = { ok: unknownCorrRun.ok, content: JSON.parse(unknownCorrRun.content) };
+
+// 原型链上的名字不能被当成工具（'constructor' 不是 TOOL_HANDLERS 的自有键）
+const protoRun = await tools.runToolCall(named('constructor', 'call_proto', {}), {
+  fetchImpl: fetchConst(baseCross),
+});
+const proto = { ok: protoRun.ok, content: JSON.parse(protoRun.content) };
+
+// ── 5. 期权快照压缩：真实形状（含 wall / gex_dist / narrative 三个大字段） ─
+const optSymbol = (symbol, spot) => ({
+  spot,
+  net_gex: -1.46,
+  net_dex: 87.81,
+  call_dex: 26.9,
+  put_dex: 60.92,
+  pcr_oi: 2.65,
+  pcr_oi_atm: 1.61,
+  pcr_vol: 1.72,
+  gamma_flip: 758.4,
+  flip_dist: -0.64,
+  call_wall: { strike: 770.0, per_point_m: 70.7 },
+  put_wall: { strike: 760.0, per_point_m: -206.5 },
+  iv_front: { dte: 0, iv: 13.06 },
+  iv_back: { dte: 333, iv: 22.67 },
+  iv_slope: 9.61,
+  skew: -1.5,
+  skew_dte: 7,
+  skew_put_iv: 16.69,
+  skew_call_iv: 18.19,
+  net_vanna: 0.34,
+  net_charm: 0.96,
+  charm_near7: 55.3,
+  buckets: {
+    '0DTE': { gex_pct: 10.0, gex_m: -214.7, contracts: 389927 },
+    '本周': { gex_pct: 28.6, gex_m: -482.6, contracts: 1054584 },
+    '月度': { gex_pct: 55.0, gex_m: -745.9, contracts: 4933421 },
+    '季度+': { gex_pct: 6.4, gex_m: -13.4, contracts: 1190258 },
+  },
+  wall: Array.from({ length: 300 }, (_, i) => ({
+    strike: 50 + i,
+    gex_m: -0.0,
+    call_gex_m: 0.0,
+    put_gex_m: -0.0,
+    oi: 10653,
+  })),
+  iv_curve: Array.from({ length: 17 }, (_, i) => ({
+    expiration: '2026' + String(1019 + i),
+    dte: i,
+    iv: 13.06 + i,
+  })),
+  oi_top: Array.from({ length: 20 }, (_, i) => ({
+    strike: 760 + i,
+    expiration: '2026-10-30',
+    call_oi: 3702 + i,
+    put_oi: 75524,
+    total: 79226,
+    call_vol: 988,
+    put_vol: 7505,
+  })),
+  gex_dist: Array.from({ length: 300 }, (_, i) => ({ strike: 50 + i, gex_m: -0.0 })),
+  narrative: {
+    gamma: { title: '负 Gamma：波动更容易放大', text: 'x'.repeat(1200) },
+    charm: { title: 'Charm 偏空', text: 'y'.repeat(800) },
+  },
+  symbol,
+  name: symbol,
+});
+const optionsPayload = {
+  date: '2026-10-18T23:05:17Z',
+  symbols: { SPY: optSymbol('SPY', 763.25), QQQ: optSymbol('QQQ', 612.4) },
+};
+const optRun = await tools.runToolCall(
+  named('query_options_wall', 'call_opt_1', { symbol: 'spy' }),
+  { fetchImpl: fetchConst(optionsPayload) }
+);
+const opt = JSON.parse(optRun.content);
+const requiredFields = [
+  'symbol', 'name', 'date', 'spot', 'net_gex', 'net_dex', 'pcr_oi', 'pcr_oi_atm',
+  'gamma_flip', 'flip_dist', 'call_wall', 'put_wall', 'iv_front', 'iv_back',
+  'iv_slope', 'skew', 'skew_dte', 'net_vanna', 'net_charm', 'charm_near7', 'buckets',
+];
+const options = {
+  ok: optRun.ok,
+  endpoint: optRun.endpoint,
+  symbol: opt.symbol,
+  name: opt.name,
+  date: opt.date,
+  spot: opt.spot,
+  netGex: opt.net_gex,
+  netDex: opt.net_dex,
+  callWall: opt.call_wall.strike,
+  putWall: opt.put_wall.strike,
+  pcr: opt.pcr_oi,
+  missing: requiredFields.filter((k) => !(k in opt)),
+  oiTop: opt.oi_top.length,
+  ivCurve: opt.iv_curve.length,
+  hasWallKey: Object.prototype.hasOwnProperty.call(opt, 'wall'),
+  hasGexDist: optRun.content.indexOf('gex_dist') >= 0,
+  hasNarrative: optRun.content.indexOf('narrative') >= 0,
+  len: optRun.content.length,
+  maxChars: tools.TOOL_MAX_CHARS,
+  isSummary: Object.prototype.hasOwnProperty.call(opt, '_note'),
+};
+
+const unknownOptRun = await tools.runToolCall(
+  named('query_options_wall', 'call_opt_2', { symbol: 'NOPE' }),
+  { fetchImpl: fetchConst(optionsPayload) }
+);
+const unknownOpt = { ok: unknownOptRun.ok, content: JSON.parse(unknownOptRun.content) };
+
+// ── 5b. 数组字段排序口径：oi_top 按 total 降序、iv_curve 按 dte 升序 ─────
+// 真实端点的 oi_top 22/22 个标的都不是降序（SPY 最大值在第 4 条、AAPL 在第 17 条），
+// 「谁排前面取谁」会漏掉 OI 最大的行权价。
+const unsortedOpt = optSymbol('AAA', 100);
+unsortedOpt.oi_top = [10, 300, 50, 900, 20, 700].map((total, i) => ({
+  strike: 100 + i,
+  expiration: '2026-10-30',
+  total,
+}));
+unsortedOpt.iv_curve = [
+  { expiration: '20261120', dte: 30, iv: 20 },
+  { expiration: '20261023', dte: 2, iv: 15 },
+  { expiration: '20261025', dte: 9, iv: 16 },
+  { expiration: '20261021', dte: 1, iv: 14 },
+];
+// 缺 total / total 非数字 / 同值：缺的排后面、同值保持原相对顺序
+const messyOpt = optSymbol('BBB', 50);
+messyOpt.oi_top = [
+  { strike: 1, total: 40 },
+  { strike: 2 },
+  { strike: 3, total: 500 },
+  { strike: 4, total: null },
+  { strike: 5, total: 500 },
+];
+messyOpt.iv_curve = [
+  { expiration: '20261120', dte: 30, iv: 20 },
+  { expiration: '20261021', dte: null, iv: 14 },
+  { expiration: '20261025', dte: 9, iv: 16 },
+];
+const sortedPayload = {
+  date: '2026-10-18T23:05:17Z',
+  symbols: { AAA: unsortedOpt, BBB: messyOpt },
+};
+const sortedRun = await tools.runToolCall(
+  named('query_options_wall', 'call_opt_sort', { symbol: 'AAA' }),
+  { fetchImpl: fetchConst(sortedPayload) }
+);
+const messyRun = await tools.runToolCall(
+  named('query_options_wall', 'call_opt_messy', { symbol: 'BBB' }),
+  { fetchImpl: fetchConst(sortedPayload) }
+);
+const sortedOpt = JSON.parse(sortedRun.content);
+const messy = JSON.parse(messyRun.content);
+const ordering = {
+  oiTotals: sortedOpt.oi_top.map((r) => r.total),
+  oiCount: sortedOpt.oi_top.length,
+  ivDtes: sortedOpt.iv_curve.map((r) => r.dte),
+  ivCount: sortedOpt.iv_curve.length,
+  messyOk: messyRun.ok,
+  messyTotals: messy.oi_top.map((r) => (r.total === undefined ? 'missing' : r.total)),
+  messyStrikes: messy.oi_top.map((r) => r.strike),
+  messyIvDtes: messy.iv_curve.map((r) => r.dte),
+};
+
+// ── 6. 共用管线：新工具同样受单次超时 / 404 归形约束 ─────────────────────
+const timeoutStarted = Date.now();
+const timedCorr = await tools.runToolCall(
+  named('query_correlation', 'call_timeout', { symbol: 'SPX' }),
+  {
+    deadline: Date.now() + 500,
+    callTimeoutMs: 60, // 测试覆写：生产是 3.5s
+    fetchImpl: () => new Promise(() => {}),
+  }
+);
+const timeout = {
+  ok: timedCorr.ok,
+  endpoint: timedCorr.endpoint,
+  error: JSON.parse(timedCorr.content),
+  elapsedMs: Date.now() - timeoutStarted,
+};
+const notFoundRun = await tools.runToolCall(
+  named('query_options_wall', 'call_nf', { symbol: 'SPY' }),
+  { fetchImpl: async () => ({ ok: false, status: 404, json: async () => ({}) }) }
+);
+const notFound = { ok: notFoundRun.ok, content: JSON.parse(notFoundRun.content) };
+
+// ── 7. 缓存：键带工具名；同工具重复命中、两个工具各自独立 ────────────────
+const cache = new Map();
+const urls = [];
+const fetchBoth = async (url) => {
+  urls.push(url);
+  return {
+    ok: true,
+    status: 200,
+    json: async () => (url.indexOf('cross-asset') >= 0 ? baseCross : optionsPayload),
+  };
+};
+const cacheFirst = await tools.runToolCall(
+  named('query_correlation', 'call_cache_1', { symbol: 'NDX' }),
+  { fetchImpl: fetchBoth, cache }
+);
+const cacheSecond = await tools.runToolCall(
+  named('query_correlation', 'call_cache_2', { symbol: 'ndx' }),
+  { fetchImpl: fetchBoth, cache }
+);
+const cacheWall = await tools.runToolCall(
+  named('query_options_wall', 'call_cache_3', { symbol: 'SPY' }),
+  { fetchImpl: fetchBoth, cache }
+);
+const cacheNoSymbol = await tools.runToolCall(
+  named('query_correlation', 'call_cache_4', {}),
+  { fetchImpl: fetchBoth, cache }
+);
+const cacheBlankSymbol = await tools.runToolCall(
+  named('query_correlation', 'call_cache_5', { symbol: '   ' }),
+  { fetchImpl: fetchBoth, cache }
+);
+const cacheOut = {
+  urls,
+  first: { callId: cacheFirst.callId, content: cacheFirst.content },
+  second: {
+    callId: cacheSecond.callId,
+    content: cacheSecond.content,
+    cached: cacheSecond.cached,
+    ok: cacheSecond.ok,
+  },
+  wall: { ok: cacheWall.ok, content: cacheWall.content, cached: cacheWall.cached },
+  noSymbol: { cached: cacheNoSymbol.cached },
+  blankSymbol: { cached: cacheBlankSymbol.cached },
+  keys: {
+    corr: tools.toolCacheKey('query_correlation', 'cross-asset', 'spx'),
+    site: tools.toolCacheKey('query_site_data', 'cross-asset', 'spx'),
+    wall: tools.toolCacheKey('query_options_wall', 'assets/equities-options', 'spy'),
+    emptyVariant: tools.toolCacheKey('query_correlation', 'cross-asset'),
+  },
+};
+
+// ── 8. 提示词：一句话分工（三个工具名都出现，且不是三段） ────────────────
+const promptOut = {
+  division: prompt.AI_TOOL_DIVISION,
+  inSystem: prompt.AI_SYSTEM_PROMPT.indexOf(prompt.AI_TOOL_DIVISION) >= 0,
+  count: prompt.AI_SYSTEM_PROMPT.split(prompt.AI_TOOL_DIVISION).length - 1,
+  oneLine: prompt.AI_TOOL_DIVISION.indexOf('\\n') < 0,
+  names: ['query_site_data', 'query_correlation', 'query_options_wall'].map(
+    (n) => prompt.AI_SYSTEM_PROMPT.indexOf(n) >= 0
+  ),
+};
+
+console.log(
+  JSON.stringify({
+    connect,
+    truncation,
+    gaps,
+    overview: overviewOut,
+    unknownCorr,
+    proto,
+    options,
+    unknownOpt,
+    ordering,
+    timeout,
+    notFound,
+    cache: cacheOut,
+    prompt: promptOut,
+  })
+);
+"""
+
+
+@lru_cache(maxsize=1)
+def _run_t4() -> dict:
+    script = T4_BODY.replace("__TOOLS__", TOOLS.as_uri()).replace("__PROMPT__", PROMPT.as_uri())
+    return run_node(script, timeout=60)
+
+
 def test_tool_catalog_schema() -> None:
     out = _run()["catalog"]
-    assert out["count"] == 1
+    # T4 起三个工具：query_site_data + 两个跨端点工具（服务端上限 8 个，还够）
+    assert out["count"] == 3
+    assert out["count"] <= 8
+    assert out["names"] == ["query_site_data", "query_correlation", "query_options_wall"]
+    assert out["types"] == ["function", "function", "function"]
     assert out["type"] == "function"
     assert out["name"] == "query_site_data"
+    assert out["requiredByTool"] == [["endpoint"], [], ["symbol"]]
+    assert out["propsByTool"] == [["endpoint", "json_path"], ["symbol"], ["symbol"]]
     assert out["enum"] == EXPECTED_PATHS
     assert out["required"] == ["endpoint"]
     assert out["jsonPathType"] == "string"
     assert out["jsonPathRequired"] is False
     assert out["descHasPath"] is True
+    assert out["descLen"] > 0
     # 服务端（functions/_lib/common.js 与 src/chat_proxy.py）都卡 500 字上限：
-    # 17 个端点的说明只能进提示词索引，不能塞进 tool description。
-    assert 0 < out["descLen"] <= 500
+    # 17 个端点的说明只能进提示词索引，不能塞进 tool description；三个工具都一样。
+    assert all(0 < n <= 500 for n in out["descLens"]), out["descLens"]
     assert out["maxChars"] == 2000
     assert out["maxCalls"] == 3
     assert out["maxRounds"] == 2
     assert out["timeout"] == 8000
     assert out["byName"] is True
+    assert out["byNameAll"] is True
     assert out["byNameMissing"] is True
 
 
@@ -1231,3 +1708,185 @@ def test_chat_wires_turn_cache_and_failed_meta() -> None:
     assert "msg.tools = runSummary.tools;" in src
     assert "msg.toolsFailed = runSummary.toolsFailed;" in src
     assert "'未取到 ' + list.join(' / ')" in src
+
+
+# ── T4：两个跨端点工具 ────────────────────────────────────────────────────
+
+
+def test_correlation_connects_names_not_indices() -> None:
+    """3×3 假矩阵：pairs 里必须是标的代码 + 对得上的系数，不是矩阵下标。"""
+    out = _run_t4()["connect"]
+    assert out["ok"] is True
+    assert out["endpoint"] == "cross-asset"
+    # 小写输入按端点目录回填规范名
+    assert out["symbol"] == "NDX"
+    assert out["label"] == "纳指100"
+    assert out["group"] == "equity"
+    assert out["asOf"] == "2026-10-18"
+    assert out["window"] == 30
+    assert out["pairNames"] == ["SPX", "TLT"]
+    assert out["pairLabels"] == ["标普500", "长期国债"]
+    assert out["pairCorrs"] == [0.92, 0.05]
+    assert out["allNamesAreTickers"] is True
+    assert out["selfExcluded"] is True
+    # 裸矩阵不许透传（模型读不懂 22×22 的浮点表，也对不上标的）
+    assert out["noRawMatrix"] is True
+
+
+def test_correlation_sorts_and_truncates_pairs() -> None:
+    """|corr| 降序、最多 8 条、排除自身；null / NaN 的格子跳过。"""
+    out = _run_t4()["truncation"]
+    assert out["count"] == 8
+    assert out["names"] == ["A1", "A2", "A3", "A4", "A5", "A6", "A7", "A8"]
+    assert out["corrs"] == [-0.95, 0.91, -0.87, 0.83, -0.79, 0.75, -0.71, 0.67]
+    assert out["selfExcluded"] is True
+    assert out["droppedWeakest"] is True
+    assert out["sortedDesc"] is True
+    assert _run_t4()["gaps"]["count"] == 0
+
+
+def test_correlation_overview_alerts_and_strongest() -> None:
+    """不给 symbol：4 条结构报警（去掉 67 点 series）+ 最强 5 对（不含对角线）。"""
+    out = _run_t4()["overview"]
+    assert out["alertCount"] == 4
+    assert out["alertKeys"] == ["key", "label", "latest", "prev"]
+    assert out["alertFirst"]["key"] == "SPX_TLT_30d"
+    assert out["alertFirst"]["latest"] == 0.2151
+    assert out["alertFirst"]["prev"] == 0.201
+    assert out["hasSeries"] is False
+    assert out["strongestCount"] == 3
+    assert out["strongest"][0] == {"a": "SPX", "b": "NDX", "corr": 0.92}
+    assert out["noDiagonal"] is True
+    assert out["uniquePairs"] is True
+
+
+def test_correlation_unknown_symbol_lists_available() -> None:
+    """未知标的 → 结构化错误（status 0）+ available 全部 22 个名字。"""
+    out = _run_t4()["unknownCorr"]
+    assert out["ok"] is False
+    content = out["content"]
+    assert content["error"] == "未知标的：AAPL"
+    assert content["endpoint"] == "cross-asset"
+    assert content["status"] == 0
+    assert len(content["available"]) == 22
+    assert content["available"][0] == "SPX"
+    assert "MOVE" in content["available"]
+    assert "AAPL" not in content["available"]
+    # 原型链上的名字不是工具（分派表用 hasOwnProperty 守卫）
+    proto = _run_t4()["proto"]
+    assert proto["ok"] is False
+    assert "未知工具" in proto["content"]["error"]
+
+
+def test_options_summary_is_compressed() -> None:
+    """真实形状的期权快照 → 21 个结构字段 + oi_top 5 + iv_curve 3，丢掉三个大字段。"""
+    out = _run_t4()["options"]
+    assert out["ok"] is True
+    assert out["endpoint"] == "assets/equities-options"
+    assert out["symbol"] == "SPY"
+    assert out["name"] == "SPY"
+    assert out["date"] == "2026-10-18T23:05:17Z"
+    assert out["spot"] == 763.25
+    assert out["netGex"] == -1.46
+    assert out["netDex"] == 87.81
+    assert out["callWall"] == 770.0
+    assert out["putWall"] == 760.0
+    assert out["pcr"] == 2.65
+    assert out["missing"] == []
+    assert out["oiTop"] == 5
+    assert out["ivCurve"] == 3
+    # 三个大字段必须丢：wall 逐行权、gex_dist 分布、narrative 散文
+    assert out["hasWallKey"] is False
+    assert out["hasGexDist"] is False
+    assert out["hasNarrative"] is False
+    # 压缩后直接给 JSON，不触发结构摘要
+    assert out["isSummary"] is False
+    assert out["maxChars"] == 2000
+    assert out["len"] <= 2000
+
+
+def test_options_oi_top_sorted_by_total() -> None:
+    """oi_top 端点给的不是降序：按 total 降序取前 5；缺 total 不崩且排后面。"""
+    out = _run_t4()["ordering"]
+    assert out["oiCount"] == 5
+    assert out["oiTotals"] == [900, 700, 300, 50, 20]
+    assert 10 not in out["oiTotals"], "最小值 10 不该挤掉 900/700"
+    # iv_curve 按 dte 升序（最近的到期在前）
+    assert out["ivCount"] == 3
+    assert out["ivDtes"] == [1, 2, 9]
+    # total 缺失 / null 不崩：缺的排后面，同值保持原相对顺序（strike 3 在 5 前）
+    assert out["messyOk"] is True
+    assert out["messyTotals"] == [500, 500, 40, "missing", None]
+    assert out["messyStrikes"] == [3, 5, 1, 2, 4]
+    # dte 缺失同样排后面
+    assert out["messyIvDtes"] == [9, 30, None]
+
+
+def test_options_unknown_symbol_lists_available() -> None:
+    out = _run_t4()["unknownOpt"]
+    assert out["ok"] is False
+    content = out["content"]
+    assert content["error"] == "未知标的：NOPE"
+    assert content["endpoint"] == "assets/equities-options"
+    assert content["status"] == 0
+    assert content["available"] == ["SPY", "QQQ"]
+
+
+def test_new_tools_share_executor_pipeline() -> None:
+    """新工具不另写执行器：单次超时与 404 归形都走同一套（T3 行为不退）。"""
+    out = _run_t4()
+    timed = out["timeout"]
+    assert timed["ok"] is False
+    assert timed["endpoint"] == "cross-asset"
+    assert timed["error"]["status"] == 0
+    assert "单次" in timed["error"]["error"]
+    # 永不 resolve 的 fetch 也只烧掉单次上限（60ms 测试覆写），不吃整轮 8s
+    assert timed["elapsedMs"] < 1000
+    nf = out["notFound"]
+    assert nf["ok"] is False
+    assert nf["content"]["endpoint"] == "assets/equities-options"
+    assert nf["content"]["status"] == 404
+    assert "未导出" in nf["content"]["error"]
+
+
+def test_t4_cache_keys_include_tool_name() -> None:
+    """同轮缓存：同工具同参数只 1 次网络；两个工具各自独立键。"""
+    out = _run_t4()["cache"]
+    assert out["urls"] == [
+        "/api/cross-asset",
+        "/api/assets/equities-options",
+        "/api/cross-asset",
+    ]
+    assert out["first"]["callId"] == "call_cache_1"
+    # 大小写归一后命中同一键；callId 仍是本次调用自己的
+    assert out["second"]["cached"] is True
+    assert out["second"]["callId"] == "call_cache_2"
+    assert out["second"]["content"] == out["first"]["content"]
+    # 另一个工具读另一个端点，不命中相关性那条
+    assert out["wall"].get("cached") is None
+    assert out["wall"]["ok"] is True
+    # 不给 symbol / 空白 symbol 是同一个键（第二次命中）
+    assert out["noSymbol"].get("cached") is None
+    assert out["blankSymbol"]["cached"] is True
+    keys = out["keys"]
+    assert keys["corr"] == "query_correlation|cross-asset|spx"
+    assert keys["site"] == "query_site_data|cross-asset|spx"
+    assert keys["corr"] != keys["site"], "缓存键必须带工具名"
+    assert keys["wall"] == "query_options_wall|assets/equities-options|spy"
+    assert keys["emptyVariant"] == "query_correlation|cross-asset|"
+
+
+def test_prompt_states_tool_division_in_one_sentence() -> None:
+    """提示词加一句三者分工（工具名可硬编码，端点名仍只能由 legend 生成）。"""
+    out = _run_t4()["prompt"]
+    assert out["inSystem"] is True
+    assert out["count"] == 1, "分工说明只出现一次"
+    assert out["oneLine"] is True, "别展开成三段"
+    assert out["names"] == [True, True, True]
+    sentence = out["division"]
+    assert "query_site_data" in sentence
+    assert "原始读数" in sentence
+    assert "query_correlation" in sentence
+    assert "谁跟谁一起动" in sentence
+    assert "query_options_wall" in sentence
+    assert "期权结构" in sentence

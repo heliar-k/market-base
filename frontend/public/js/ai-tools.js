@@ -9,8 +9,26 @@
 // 失败一律收敛成 {error, endpoint, status} 的 JSON 文本，绝不抛：
 // 静态站端点可合法 404（src/export_pages.py 的 _safe() 跳过当日缺数据的端点），
 // 网络断/超时同理，抛异常会让整轮对话断掉。
+//
+// T4 起工具不止「往 enum 里加端点」这一种：query_correlation / query_options_wall
+// 是「固定端点 + 带标的参数」，由客户端做「下标→名字」连接与体积压缩后再给模型。
+// 三个工具共用一套执行管线（参数解析 → 同轮缓存 → 单次 3.5s 超时/重试 → 结构化错误
+// → 2000 字上限），差异只落在下面的 TOOL_HANDLERS 表里。
 
 export const TOOL_NAME = 'query_site_data';
+// 两个跨端点工具的名字（稳定接口，提示词里也按这三个名字说分工）。
+export const CORRELATION_TOOL_NAME = 'query_correlation';
+export const OPTIONS_WALL_TOOL_NAME = 'query_options_wall';
+// 两个新工具各自绑定的端点。刻意不进 TOOL_CATALOG：它们有专属参数与压缩逻辑，
+// 不是 query_site_data 的 enum 候选（枚举仍是 17 个原始读数端点）。
+const CROSS_ASSET_ENDPOINT = 'cross-asset';
+const OPTIONS_ENDPOINT = 'assets/equities-options';
+// 结果形状限额：相关性只给最强的 8 对，全局摘要只给最强的 5 对；
+// 期权快照里 oi_top / iv_curve 只留头部（全量 20 / 17 条会吃掉大半预算）。
+const CORRELATION_PAIRS_MAX = 8;
+const CORRELATION_STRONGEST_MAX = 5;
+const OPTIONS_OI_TOP_MAX = 5;
+const OPTIONS_IV_CURVE_MAX = 3;
 
 // 具名端点目录（单源）：白名单、tool enum、提示词索引全部从这里派生。
 // 加端点只改这一处；只暴露真正稳定的读数，`liquidity/overview_*.json` 那组
@@ -89,6 +107,41 @@ export const TOOLS = [
           },
         },
         required: ['endpoint'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: CORRELATION_TOOL_NAME,
+      description:
+        '查站内 22 个标的的 30 日相关性矩阵（已按标的连接好，直接给相关系数）。' +
+        '给 symbol 看它和谁同涨同跌；不给看最值得注意的强相关对与结构报警。',
+      parameters: {
+        type: 'object',
+        properties: {
+          symbol: {
+            type: 'string',
+            description: '标的代码，如 SPX / NDX / TLT / Gold / BTC / DXY；不给则返回全局摘要',
+          },
+        },
+        required: [],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: OPTIONS_WALL_TOOL_NAME,
+      description:
+        '查单个标的的期权结构（Gamma/DEX 敞口、call/put 墙、PCR、IV 前后端、skew、' +
+        '分期限 Gamma 分布）。数据来自站内期权快照，不是实时行情。',
+      parameters: {
+        type: 'object',
+        properties: {
+          symbol: { type: 'string', description: '标的代码，如 SPY / QQQ / NVDA / TSLA' },
+        },
+        required: ['symbol'],
       },
     },
   },
@@ -360,9 +413,115 @@ export function parseToolArgs(raw) {
   return { ok: true, value: v };
 }
 
+// ── 工具分派表（T4） ──────────────────────────────────────────────────────
+//
+// 三个工具共用同一条执行管线，差异只有三处，全部落在这张表里：
+//   prepare(args) → {ok:true, endpoint, variant, path?, symbol?}
+//                  | {ok:false, endpoint, content}（参数错误，直接作为结构化结果返回）
+//   build(data, prep) → {ok:true, value}（整形后的对象，交给 renderToolResult）
+//                     | {ok:false, error, extra?, status?}（取到数据但没法用，如未知标的）
+//   variant：同轮缓存的第二段。query_site_data 用 json_path，两个新工具用规范化后的标的，
+//   缓存键由 toolCacheKey() 拼上工具名（同一端点在两个工具下也不会串结果）。
+const TOOL_HANDLERS = {
+  [TOOL_NAME]: {
+    prepare(args) {
+      const wanted = typeof args.endpoint === 'string' ? args.endpoint.trim() : '';
+      if (TOOL_ENDPOINTS.indexOf(wanted) < 0) {
+        // 顶层 endpoint 保持空串（旧形状）：结构化错误 content 里才带模型传的原值
+        return {
+          ok: false,
+          endpoint: '',
+          content: safeStringify(toolError(wanted, 0, '端点不在白名单：' + (wanted || '(空)'))),
+        };
+      }
+      if (args.json_path !== undefined && typeof args.json_path !== 'string') {
+        return {
+          ok: false,
+          endpoint: wanted,
+          content: safeStringify(toolError(wanted, 0, 'json_path 必须是字符串')),
+        };
+      }
+      const path = typeof args.json_path === 'string' ? args.json_path.trim() : '';
+      return { ok: true, endpoint: wanted, variant: path, path };
+    },
+    build(data, prep) {
+      if (!prep.path) return { ok: true, value: data };
+      const down = jsonPath(data, prep.path);
+      if (!down.found) {
+        return {
+          ok: false,
+          error: 'JSON 路径不存在：' + prep.path,
+          extra: { available: down.available },
+        };
+      }
+      return { ok: true, value: down.value };
+    },
+  },
+  [CORRELATION_TOOL_NAME]: {
+    prepare(args) {
+      const raw = args.symbol;
+      if (raw !== undefined && typeof raw !== 'string') {
+        return {
+          ok: false,
+          endpoint: CROSS_ASSET_ENDPOINT,
+          content: safeStringify(
+            toolError(CROSS_ASSET_ENDPOINT, 0, 'symbol 必须是字符串（如 SPX）')
+          ),
+        };
+      }
+      // 大小写不敏感：缓存键统一小写，规范名在 build 里按端点目录回填
+      const symbol = typeof raw === 'string' ? raw.trim() : '';
+      return {
+        ok: true,
+        endpoint: CROSS_ASSET_ENDPOINT,
+        variant: symbol.toLowerCase(),
+        symbol,
+      };
+    },
+    build(data, prep) {
+      return correlationResult(data, prep.symbol);
+    },
+  },
+  [OPTIONS_WALL_TOOL_NAME]: {
+    prepare(args) {
+      const raw = args.symbol;
+      if (typeof raw !== 'string') {
+        return {
+          ok: false,
+          endpoint: OPTIONS_ENDPOINT,
+          content: safeStringify(
+            toolError(OPTIONS_ENDPOINT, 0, 'symbol 必须是字符串（如 SPY）')
+          ),
+        };
+      }
+      const symbol = raw.trim();
+      if (!symbol) {
+        return {
+          ok: false,
+          endpoint: OPTIONS_ENDPOINT,
+          content: safeStringify(toolError(OPTIONS_ENDPOINT, 0, 'symbol 必填')),
+        };
+      }
+      return { ok: true, endpoint: OPTIONS_ENDPOINT, variant: symbol.toLowerCase(), symbol };
+    },
+    build(data, prep) {
+      return optionsWallResult(data, prep.symbol);
+    },
+  },
+};
+
+/**
+ * 同轮缓存键：工具名 + 端点 + 参数变体。
+ * 工具名必须在前：T4 后 query_correlation 与 query_options_wall 各绑一个端点，
+ * 未来若两个工具读同一端点（如都给 cross-asset 加不同视角），键里没有工具名就会串。
+ */
+export function toolCacheKey(name, endpoint, variant) {
+  return [name, endpoint, variant == null ? '' : variant].join('|');
+}
+
 /**
  * 执行一次工具调用（永不抛）：
- *   参数校验 → 白名单校验 → 同轮缓存 → GET /api/{endpoint} → 可选 json_path 下钻
+ *   按名字分派 → 参数校验 → 同轮缓存 → GET /api/{endpoint} → 工具自己的整形
  *   → 体积策略序列化。
  * fetch 通过 opts.fetchImpl 注入（默认 globalThis.fetch），node 测试不需要起服务。
  * 每次尝试独立计时（上限 min(剩余预算, TOOL_CALL_TIMEOUT_MS)），超时只废掉这一次尝试，
@@ -383,28 +542,26 @@ export async function runToolCall(call, opts = {}) {
   try {
     const fn = (call && call.function) || {};
     const name = String(fn.name || '');
-    if (name !== TOOL_NAME) {
+    // hasOwnProperty 守卫：'constructor' / 'toString' 命中的是 Object 原型，不是工具
+    const handler = Object.prototype.hasOwnProperty.call(TOOL_HANDLERS, name)
+      ? TOOL_HANDLERS[name]
+      : null;
+    if (!handler) {
       return fail('', safeStringify(toolError('', 0, '未知工具：' + (name || '(空)'))));
     }
     const parsed = parseToolArgs(fn.arguments);
     if (!parsed.ok) {
       return fail('', safeStringify(toolError('', 0, parsed.error)));
     }
-    const args = parsed.value || {};
-    const wanted = typeof args.endpoint === 'string' ? args.endpoint.trim() : '';
-    const path = typeof args.json_path === 'string' ? args.json_path.trim() : '';
-    if (TOOL_ENDPOINTS.indexOf(wanted) < 0) {
-      // 顶层 endpoint 保持空串（旧形状）：结构化错误 content 里才带模型传的原值
-      return fail('', safeStringify(toolError(wanted, 0, '端点不在白名单：' + (wanted || '(空)'))));
+    const prepared = handler.prepare(parsed.value || {});
+    if (!prepared.ok) {
+      return fail(prepared.endpoint || '', prepared.content);
     }
-    endpoint = wanted;
-    if (args.json_path !== undefined && typeof args.json_path !== 'string') {
-      return fail(endpoint, safeStringify(toolError(endpoint, 0, 'json_path 必须是字符串')));
-    }
-    // 同轮缓存键：端点 + 下钻路径。同一轮里同键的结果不会变，失败也值得复用
+    endpoint = prepared.endpoint;
+    // 同轮缓存键：工具名 + 端点 + 参数变体。同一轮里同键的结果不会变，失败也值得复用
     // （省下的是一次调用预算，不是一次重试）；跨轮必须换新 Map（结果有时效性）。
-    const cacheKey = endpoint + '|' + path;
-    const run = () => executeToolCall(endpoint, path, opts);
+    const cacheKey = toolCacheKey(name, endpoint, prepared.variant);
+    const run = () => executeToolCall(handler, prepared, opts);
     if (!cacheable) {
       const entry = await run();
       return { callId, endpoint: entry.endpoint, content: entry.content, ok: entry.ok };
@@ -438,9 +595,13 @@ function toolEntry(endpoint, content) {
  * 真正取数并序列化（不含 callId / 缓存包装）。永不 reject：
  * 缓存里存的是它返回的 promise，一旦 reject，并发等待者会拿到一个 rejected promise，
  * 后续命中还会变成 unhandled rejection。所有失败都收敛成 content 里的结构化错误。
+ * 取到数据后交给 handler.build() 整形（下钻 / 下标→名字连接 / 期权压缩），
+ * build 返回的错误同样走 toolError：status 默认沿用本次 HTTP 状态，未知标的一类
+ * 本地错误由 build 显式指定 status 0。
  * @returns {Promise<{endpoint: string, content: string, ok: boolean}>}
  */
-async function executeToolCall(endpoint, path, opts) {
+async function executeToolCall(handler, prep, opts) {
+  const endpoint = prep.endpoint;
   try {
     const fetchImpl =
       typeof opts.fetchImpl === 'function'
@@ -508,29 +669,203 @@ async function executeToolCall(endpoint, path, opts) {
         safeStringify(toolError(endpoint, failStatus, msg + retryNote(attempt)))
       );
     }
-    let picked = data;
-    if (path) {
-      const down = jsonPath(data, path);
-      if (!down.found) {
-        return toolEntry(
-          endpoint,
-          safeStringify(
-            toolError(endpoint, finalStatus, 'JSON 路径不存在：' + path, {
-              available: down.available,
-            })
-          )
-        );
-      }
-      picked = down.value;
+    const built = handler.build(data, prep);
+    if (!built.ok) {
+      const status = built.status === undefined ? finalStatus : built.status;
+      return toolEntry(
+        endpoint,
+        safeStringify(toolError(endpoint, status, built.error, built.extra))
+      );
     }
     const maxChars = Number(opts.maxChars) || TOOL_MAX_CHARS;
-    return toolEntry(endpoint, renderToolResult(picked, { maxChars, jsonPath: path }));
+    return toolEntry(
+      endpoint,
+      renderToolResult(built.value, { maxChars, jsonPath: prep.path || '' })
+    );
   } catch (e) {
     return toolEntry(
       endpoint,
       safeStringify(toolError(endpoint, 0, '工具执行异常：' + truncateText((e && e.message) || e, 160)))
     );
   }
+}
+
+// ── T4 结果整形：相关性矩阵「下标→名字」连接 / 期权快照压缩 ────────────────
+//
+// 两个新工具的共同点：原始端点要么给矩阵（22×22 裸浮点，模型无法解读），要么给
+// 514KB 的逐标的快照（单份 wall 就 33KB）。客户端必须先连接/压缩，不能把原样丢给模型：
+// 模型拿到裸矩阵既对不上标的，也会把 2000 字预算烧在逐行权上。
+
+/** 数字读数：null / NaN / 非数字一律当缺失（JSON 里可能是 null，序列化时也可能缺键）。 */
+function numberOrNull(v) {
+  return typeof v === 'number' && Number.isFinite(v) ? v : null;
+}
+
+function round4(v) {
+  return Math.round(v * 10000) / 10000;
+}
+
+function roundOrNull(v) {
+  const n = numberOrNull(v);
+  return n === null ? null : round4(n);
+}
+
+function textOr(v, fallback) {
+  return typeof v === 'string' && v ? v : fallback;
+}
+
+/**
+ * 按某个数值键排序后取前 N 条（端点给的数组不保证有序）：
+ *   oi_top   → total 降序（要的是「OI 最大的 5 个行权价」，不是「谁排前面取谁」）；
+ *   iv_curve → dte 升序（最近的到期在前）。
+ * 缺失 / 非数字的键一律排到后面，且彼此保持原相对顺序；同值也保持原顺序。
+ * 比较函数显式用原下标兜底，不依赖运行时的 sort 稳定性（V8 现在稳定，但别当契约）；
+ * 缺失值不参与减法（undefined / NaN 相减会得到 NaN，排序结果不可预测）。
+ */
+function headByNumber(rows, key, dir, max) {
+  const list = Array.isArray(rows) ? rows : [];
+  const sign = dir === 'asc' ? 1 : -1;
+  return list
+    .map((row, i) => ({ row, i, v: numberOrNull(row && row[key]) }))
+    .sort((a, b) => {
+      if (a.v === null || b.v === null) {
+        if (a.v === b.v) return a.i - b.i;
+        return a.v === null ? 1 : -1; // 缺的永远在后面，与升降序无关
+      }
+      if (a.v !== b.v) return (a.v - b.v) * sign;
+      return a.i - b.i;
+    })
+    .slice(0, max)
+    .map((item) => item.row);
+}
+
+/**
+ * 相关性端点 → 两种形状：
+ *   给 symbol：{as_of, window, symbol, label, group, pairs:[{name,label,corr}]}
+ *   不给：    {as_of, window, alerts:[{key,label,latest,prev}], strongest:[{a,b,corr}]}
+ * 未知标的是本地错误（status 0），available 带上端点里的全部名字，模型第二次能改。
+ */
+function correlationResult(data, rawSymbol) {
+  const assets = data && Array.isArray(data.assets) ? data.assets : null;
+  const matrix = data && Array.isArray(data.matrix) ? data.matrix : null;
+  if (!assets || !assets.length || !matrix || !matrix.length) {
+    return { ok: false, error: '端点返回的数据缺少 assets / matrix' };
+  }
+  const names = assets.map((a, i) => String((a && a.name) || '#' + i));
+  const wanted = String(rawSymbol || '');
+  if (!wanted) return { ok: true, value: correlationOverview(data, matrix, names) };
+  const idx = names.findIndex((n) => n.toLowerCase() === wanted.toLowerCase());
+  if (idx < 0) {
+    return { ok: false, error: '未知标的：' + wanted, extra: { available: names }, status: 0 };
+  }
+  if (!Array.isArray(matrix[idx])) {
+    return { ok: false, error: '相关性矩阵缺少 ' + names[idx] + ' 的行' };
+  }
+  return { ok: true, value: correlationForSymbol(data, assets, matrix, names, idx) };
+}
+
+function correlationForSymbol(data, assets, matrix, names, idx) {
+  const row = matrix[idx];
+  const pairs = [];
+  for (let j = 0; j < names.length; j += 1) {
+    if (j === idx) continue; // 排除自己（对角线是 1.0，留着会永远排第一）
+    const corr = numberOrNull(row[j]);
+    if (corr === null) continue; // null / NaN 的格子直接跳过，不编一个 0 出来
+    const asset = assets[j] || {};
+    pairs.push({ name: names[j], label: textOr(asset.label, names[j]), corr: round4(corr) });
+  }
+  // 按 |corr| 降序（负相关同样值得注意），只留最强的 8 条
+  pairs.sort((a, b) => Math.abs(b.corr) - Math.abs(a.corr));
+  const self = assets[idx] || {};
+  const out = {
+    as_of: data.as_of,
+    window: data.window,
+    symbol: names[idx],
+    label: textOr(self.label, names[idx]),
+  };
+  if (typeof self.group === 'string' && self.group) out.group = self.group;
+  out.pairs = pairs.slice(0, CORRELATION_PAIRS_MAX);
+  return out;
+}
+
+function correlationOverview(data, matrix, names) {
+  const alerts = (Array.isArray(data.alerts) ? data.alerts : [])
+    .filter((a) => a && typeof a === 'object')
+    .map((a) => ({
+      key: a.key,
+      label: a.label,
+      latest: roundOrNull(a.latest),
+      prev: roundOrNull(a.prev),
+    }));
+  const pairs = [];
+  for (let i = 0; i < names.length; i += 1) {
+    const row = matrix[i];
+    if (!Array.isArray(row)) continue;
+    // 上三角遍历：每对只看一次，对角线天然不进循环（去重 + 不含自身）
+    for (let j = i + 1; j < names.length; j += 1) {
+      const corr = numberOrNull(row[j]);
+      if (corr === null) continue;
+      pairs.push({ a: names[i], b: names[j], corr: round4(corr) });
+    }
+  }
+  pairs.sort((x, y) => Math.abs(y.corr) - Math.abs(x.corr));
+  return {
+    as_of: data.as_of,
+    window: data.window,
+    alerts,
+    strongest: pairs.slice(0, CORRELATION_STRONGEST_MAX),
+  };
+}
+
+/**
+ * 期权快照 → 压缩摘要（实测 22 个标的都在 1.4–1.5k 字，稳过 2000 上限）。
+ * 必须丢掉的三个字段（它们每一份都能单独吃光预算）：
+ *   - wall（~33KB）：逐行权价的 GEX/OI 明细，模型读不动，也没法引用；
+ *   - gex_dist（~13KB）：同上的分布曲线；
+ *   - narrative（~1.2KB 散文）：本站规则引擎的解读，页面 DOM 摘要里已有，当读数复述会失去溯源。
+ * 保留的是「一个标的的结构结论」：敞口、墙位、PCR、IV 前后端与 skew、分期限 Gamma 占位。
+ * 两个数组字段的口径见 headByNumber()：oi_top 按 total 降序、iv_curve 按 dte 升序，
+ * 都是「先排序再取前 N」——端点给的是未排序数组（实测 22/22 个标的的 oi_top 都不是降序）。
+ */
+function optionsWallResult(data, rawSymbol) {
+  const symbols = data && data.symbols && typeof data.symbols === 'object' ? data.symbols : null;
+  if (!symbols) return { ok: false, error: '端点返回的数据缺少 symbols' };
+  const names = Object.keys(symbols);
+  const wanted = String(rawSymbol || '');
+  const key = names.find((n) => n.toLowerCase() === wanted.toLowerCase());
+  if (!key) {
+    return { ok: false, error: '未知标的：' + wanted, extra: { available: names }, status: 0 };
+  }
+  const o = symbols[key] && typeof symbols[key] === 'object' ? symbols[key] : {};
+  return {
+    ok: true,
+    value: {
+      symbol: textOr(o.symbol, key),
+      name: textOr(o.name, key),
+      date: data.date,
+      spot: o.spot,
+      net_gex: o.net_gex,
+      net_dex: o.net_dex,
+      pcr_oi: o.pcr_oi,
+      pcr_oi_atm: o.pcr_oi_atm,
+      gamma_flip: o.gamma_flip,
+      flip_dist: o.flip_dist,
+      call_wall: o.call_wall,
+      put_wall: o.put_wall,
+      iv_front: o.iv_front,
+      iv_back: o.iv_back,
+      iv_slope: o.iv_slope,
+      skew: o.skew,
+      skew_dte: o.skew_dte,
+      net_vanna: o.net_vanna,
+      net_charm: o.net_charm,
+      charm_near7: o.charm_near7,
+      buckets: o.buckets,
+      // 两个数组端点都没保证有序：oi_top 按 total 取最大的 5 个，iv_curve 取最近到期的 3 个
+      oi_top: headByNumber(o.oi_top, 'total', 'desc', OPTIONS_OI_TOP_MAX),
+      iv_curve: headByNumber(o.iv_curve, 'dte', 'asc', OPTIONS_IV_CURVE_MAX),
+    },
+  };
 }
 
 // ── 单次取数超时（T3 主修） ───────────────────────────────────────────────
