@@ -32,5 +32,6 @@
 - **专题页**：挂在主站导航下的 32 个静态内容页（rates / credit / liquidity / assets / fed / treasury…），frontend/src/pages/ 下的 .astro 源 + ECharts 图表 + 规则引擎叙事。样板重复痛点的所在，Astro 迁移的唯一对象（已全部迁完，工单 #18）。
 - **island**：专题页里的交互孤岛（ECharts 图表组件）。页面其余部分为零 JS 静态 HTML，由 Layout 统一渲染 head / 导航 / 样板。
 - **预渲染数据**：export_pages.py 构建期调分析层路由产出的静态 JSON（与本地 FastAPI 的 /api/* 同路径）。页面运行时 fetch 它——数据日更与代码改动解耦的关键机制，迁移不触碰。
-- **伴读抽屉（companion drawer）**：全站共享（专题页 + 主站 SPA）的右侧可折叠 LLM 问答面板。携带本页时效、结论摘要与用户划词的引用胶囊发起对话；会话跨页延续、持久化于本地存储，并支持导出为结构化 Markdown 研报笔记。
+- **伴读抽屉（companion drawer）**：全站共享（专题页 + 主站 SPA）的右侧可折叠 LLM 问答面板。携带本页时效、结论摘要与用户划词的引用胶囊发起对话；答案按 Markdown 渲染（标题 / 有序无序列表 / 表格 / 围栏代码块 / 引用，单源 frontend/public/js/ai-md.js）；已发出的提问可「编辑」——该条及之后作废、文本与引用回填重发，末条答案可「重试」按当前设置重来；会话跨页延续、持久化于本地存储，并支持导出为结构化 Markdown 研报笔记。
+- **模型探测（model probe）**：伴读抽屉设置里的按钮，GET `{BaseURL}/models` 列出网关模型（magpie 的 65 个带 display_name），并按所选模型的 reasoning_levels 填充「推理强度」，随请求以 `reasoning_effort` 透传（网关不认就忽略）。Base URL 保持默认且无 Key 时才回落本站 `/api/chat` 代理位；改成别的地址即直连——本地网关多半不校验 key。
 - **引用胶囊（quote chip）**：用户在页面正文或表格划词后注入伴读抽屉的上下文片段。除选中文本外，自动锚定所属页面、数据时效、所在小节标题及表头行，支持跨小节/跨页叠加多枚后一并提问。

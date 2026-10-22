@@ -760,6 +760,11 @@ body.dark .tech-ov-card { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--b
 .ai-row { display: flex; flex-direction: column; gap: 3px; margin-bottom: 8px; }
 .ai-row label { font-size: 11px; color: var(--text-dim); }
 .ai-row input { padding: 5px 8px; border: 1px solid var(--btn-border); border-radius: 4px; background: var(--surface); color: var(--text); font-size: 12px; font-family: var(--font-mono); }
+/* 探测模型：下拉占满，按钮跟手在右 */
+.ai-row select { padding: 5px 8px; border: 1px solid var(--btn-border); border-radius: 4px; background: var(--surface); color: var(--text); font-size: 12px; font-family: var(--font-mono); }
+.ai-row select:disabled { color: var(--text-dim); }
+.ai-cfg-pick { display: flex; gap: 6px; align-items: center; }
+.ai-cfg-pick select { flex: 1 1 auto; min-width: 0; }
 .ai-hint { font-size: 11px; line-height: 1.6; color: var(--text-dim); }
 .ai-acts { display: flex; gap: 6px; align-items: center; }
 .ai-hist-item { display: flex; align-items: center; gap: 6px; padding: 6px 8px; border-radius: 4px; cursor: pointer; }
@@ -776,10 +781,23 @@ body.dark .tech-ov-card { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--b
 .ai-msgs { flex: 1 1 auto; overflow-y: auto; padding: 12px; display: flex; flex-direction: column; gap: 10px; }
 .ai-msg { border-radius: 6px; padding: 8px 10px; font-size: 13px; line-height: 1.65; color: var(--text); word-break: break-word; }
 .ai-msg p { margin: 0 0 6px; }
-.ai-msg p:last-child, .ai-msg ul:last-child { margin-bottom: 0; }
-.ai-msg ul { margin: 0 0 6px; padding-left: 18px; }
+.ai-msg p:last-child, .ai-msg ul:last-child, .ai-msg ol:last-child { margin-bottom: 0; }
+.ai-msg ul, .ai-msg ol { margin: 0 0 6px; padding-left: 18px; }
 .ai-msg li { margin: 0 0 2px; }
 .ai-msg code { padding: 1px 4px; border-radius: 4px; background: var(--surface); font-family: var(--font-mono); font-size: 12px; }
+/* markdown：标题两档 / 代码块 / 表格 / 引用 / 分隔线（ai-md.js 产出） */
+.ai-msg .ai-h1 { margin: 10px 0 5px; font-size: 14px; font-weight: 700; color: var(--text); }
+.ai-msg .ai-h2 { margin: 9px 0 4px; font-size: 13px; font-weight: 700; color: var(--text-secondary); }
+.ai-msg .ai-h1:first-child, .ai-msg .ai-h2:first-child { margin-top: 0; }
+.ai-pre { margin: 0 0 6px; padding: 8px; border: 1px solid var(--border); border-radius: 4px; background: var(--surface); overflow-x: auto; }
+.ai-pre code { padding: 0; background: none; font-size: 12px; line-height: 1.55; white-space: pre; }
+.ai-table { width: 100%; margin: 0 0 6px; border-collapse: collapse; font-size: 12px; }
+.ai-table th, .ai-table td { padding: 3px 6px; border: 1px solid var(--border); text-align: left; vertical-align: top; }
+.ai-table th { background: var(--surface); font-weight: 600; color: var(--text-secondary); }
+.ai-msg blockquote { margin: 0 0 6px; padding-left: 8px; border-left: 2px solid var(--border); color: var(--text-secondary); }
+.ai-msg hr { margin: 8px 0; border: none; border-top: 1px solid var(--border); }
+.ai-msg a { color: var(--accent-ink); }
+.ai-msg-acts { margin-top: 6px; }
 .ai-msg-user { background: var(--accent-light); }
 .ai-msg-assistant { background: var(--surface-alt); }
 .ai-msg-assistant code { background: var(--surface); }

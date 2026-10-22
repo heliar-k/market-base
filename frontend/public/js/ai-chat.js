@@ -9,10 +9,11 @@
 //   .ai-float   右上角浮钮（原主题切换位，主题已改恒跟随系统）
 //   .ai-sel-pop 划词气泡「问这段」
 //   .ai-drawer  右侧抽屉（对话 + 引用胶囊 + 设置 + 历史）
-// 数据全在本机 localStorage：三个键见下方 K_*，接口直连 OpenAI 兼容端点，
-// 没填 API Key 时走本站 /api/chat（后端代理位预留给后续接入，前端零改动）。
+// 数据全在本机 localStorage：三个键见下方 K_*，接口直连 OpenAI 兼容端点；
+// Base URL 保持默认且没填 API Key 时走本站 /api/chat（后端代理位预留给后续接入）。
 
 import { AI_PROMPT_VERSION, AI_SYSTEM_PROMPT, formatQuote } from './ai-prompt.js';
+import { mdToHtml } from './ai-md.js';
 
 (function () {
   'use strict';
@@ -30,7 +31,7 @@ import { AI_PROMPT_VERSION, AI_SYSTEM_PROMPT, formatQuote } from './ai-prompt.js
   const K_ACTIVE = 'guanlantai-ai-active-thread';
   // localStorage 有 ~5MB 硬上限：对话不封顶迟早写不进（写失败整个历史静默丢）。
   const MAX_THREADS = 50;
-  const DEF_CFG = { baseUrl: 'https://api.openai.com/v1', apiKey: '', model: 'gpt-4o-mini' };
+  const DEF_CFG = { baseUrl: 'https://api.openai.com/v1', apiKey: '', model: 'gpt-4o-mini', effort: '' };
 
   // 提示词正文单源在 ./ai-prompt.js，这里只保留运行时覆写位（控制台试新版，刷新恢复）
   let systemPromptOverride = '';
@@ -158,6 +159,8 @@ import { AI_PROMPT_VERSION, AI_SYSTEM_PROMPT, formatQuote } from './ai-prompt.js
   let lastRange = null;
   let lastText = '';
   let histOnlyPage = false;
+  let modelCache = []; // 「探测模型」拿到的网关模型表（含 reasoning_levels）
+  let probeNote = '';
 
   let drawer, floatBtn, selPop, msgsEl, quotesEl, inputEl, sendBtn, cfgEl, histEl, histN;
 
@@ -207,34 +210,7 @@ import { AI_PROMPT_VERSION, AI_SYSTEM_PROMPT, formatQuote } from './ai-prompt.js
   }
 
   // ── 渲染：消息 / 引用胶囊 ────────────────────────────────────────────────
-  function mdToHtml(src) {
-    const lines = esc(src || '').split('\n');
-    const out = [];
-    let inList = false;
-    const inline = (s) =>
-      s
-        .replace(/`([^`]+)`/g, '<code>$1</code>')
-        .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
-    for (const raw of lines) {
-      const ln = raw.trim();
-      const li = ln.match(/^(?:[-*]|\d+[.)])\s+(.*)$/);
-      if (li) {
-        if (!inList) {
-          out.push('<ul>');
-          inList = true;
-        }
-        out.push('<li>' + inline(li[1]) + '</li>');
-        continue;
-      }
-      if (inList) {
-        out.push('</ul>');
-        inList = false;
-      }
-      if (ln) out.push('<p>' + inline(ln) + '</p>');
-    }
-    if (inList) out.push('</ul>');
-    return out.join('');
-  }
+  // mdToHtml 单源在 ./ai-md.js（能直接过 node 测，见 tests/test_ai_md.py）
 
   function quoteHtml(q) {
     const head = esc(q.section || q.pageTitle || '引用') + (q.asOf ? ' · ' + esc(q.asOf) : '');
@@ -251,7 +227,7 @@ import { AI_PROMPT_VERSION, AI_SYSTEM_PROMPT, formatQuote } from './ai-prompt.js
       '<p>把本页的读数变成能追问的对话：</p>' +
       '<p>1）页面任意位置划词，点浮出的「💬 问这段」——片段连同小节名、表头与本行一起进入引用胶囊；</p>' +
       '<p>2）直接提问也会自动带上本页结论与时效坐标，不必手动贴数据；</p>' +
-      '<p>3）首次使用点右上「⚙ 设置」填 OpenAI 兼容接口；留空 API Key 则走本站 <code>/api/chat</code>。</p>' +
+      '<p>3）首次使用点右上「⚙ 设置」填 OpenAI 兼容接口，点「探测模型」可把网关的模型与推理强度一起列出来。</p>' +
       '</div>'
     );
   }
@@ -264,18 +240,25 @@ import { AI_PROMPT_VERSION, AI_SYSTEM_PROMPT, formatQuote } from './ai-prompt.js
       return;
     }
     msgsEl.innerHTML = t.messages
-      .map((m) => {
+      .map((m, i) => {
         const isUser = m.role === 'user';
         const meta = [m.pageTitle, m.asOf].filter(Boolean).join(' · ');
         const quotes = (m.quotes || []).map(quoteHtml).join('');
         const body = isUser
           ? '<p>' + esc(m.content || '').replace(/\n/g, '<br>') + '</p>'
           : mdToHtml(m.content || '');
+        // 提问可回填重发；答案只有最后一条给「重试」（中途的答案后面还有问答，重发没有意义）
+        const acts = isUser
+          ? '<button class="ai-btn" type="button" data-mact="edit" data-mi="' + i + '">编辑</button>'
+          : i === t.messages.length - 1
+            ? '<button class="ai-btn" type="button" data-mact="retry">重试</button>'
+            : '';
         return (
           '<div class="ai-msg ' + (isUser ? 'ai-msg-user' : 'ai-msg-assistant') + '">' +
           (meta ? '<div class="ai-msg-meta">' + esc(meta) + '</div>' : '') +
           body +
           (quotes ? '<div class="ai-msg-quotes">' + quotes + '</div>' : '') +
+          (acts ? '<div class="ai-acts ai-msg-acts">' + acts + '</div>' : '') +
           '</div>'
         );
       })
@@ -383,7 +366,9 @@ import { AI_PROMPT_VERSION, AI_SYSTEM_PROMPT, formatQuote } from './ai-prompt.js
     return quotes.map(formatQuote).join('\n\n') + '\n\n';
   }
 
-  function buildMessages(thread, userText, quotes) {
+  // thread 末尾那条 user 消息就是本轮要回答的（send / retry 都先把它压好）
+  function buildMessages(thread) {
+    const last = thread.messages[thread.messages.length - 1] || { content: '', quotes: [] };
     const ctx = getPageContext();
     // 提示词静态段单源在 SYSTEM_PROMPT；这里只拼接页面的动态坐标与读数
     const sys = [
@@ -398,11 +383,11 @@ import { AI_PROMPT_VERSION, AI_SYSTEM_PROMPT, formatQuote } from './ai-prompt.js
       .filter(Boolean)
       .join('\n');
     const messages = [{ role: 'system', content: sys }];
-    // 只带本轮之前的最近 11 条历史（send() 已把当前 user 消息压入末尾，slice(0, -1) 避免重复发送）
+    // 只带本轮之前的最近 11 条历史（slice(0, -1) 去掉末尾本轮，避免重复发送）
     thread.messages.slice(0, -1).slice(-11).forEach((m) =>
       messages.push({ role: m.role, content: quotePrefix(m.quotes) + (m.content || '') })
     );
-    messages.push({ role: 'user', content: quotePrefix(quotes) + userText });
+    messages.push({ role: 'user', content: quotePrefix(last.quotes) + (last.content || '') });
     return messages;
   }
 
@@ -416,11 +401,15 @@ import { AI_PROMPT_VERSION, AI_SYSTEM_PROMPT, formatQuote } from './ai-prompt.js
   function request(cfg, messages, signal) {
     const headers = { 'content-type': 'application/json' };
     if (cfg.apiKey) headers.authorization = 'Bearer ' + cfg.apiKey;
-    const url = cfg.apiKey ? cfg.baseUrl.replace(/\/+$/, '') + '/chat/completions' : '/api/chat';
+    // baseUrl 一旦不是默认值就直连它：本地网关多半不校验 key，别再回落到不存在的本站代理
+    const base = (cfg.baseUrl || '').replace(/\/+$/, '');
+    const url = cfg.apiKey || base !== DEF_CFG.baseUrl ? base + '/chat/completions' : '/api/chat';
+    const body = { model: cfg.model, stream: true, messages };
+    if (cfg.effort) body.reasoning_effort = cfg.effort; // 网关认就生效，不认的直接忽略
     return fetch(url, {
       method: 'POST',
       headers,
-      body: JSON.stringify({ model: cfg.model, stream: true, messages }),
+      body: JSON.stringify(body),
       signal,
     });
   }
@@ -511,6 +500,46 @@ import { AI_PROMPT_VERSION, AI_SYSTEM_PROMPT, formatQuote } from './ai-prompt.js
     return el;
   }
 
+  // 一轮问答：thread 末尾已是本轮要回答的 user 消息（send / retry 都先把末尾摆好）
+  async function runTurn(thread) {
+    const last = thread.messages[thread.messages.length - 1];
+    if (!last || last.role !== 'user') return;
+    const cfg = getCfg();
+    controller = new AbortController();
+    setBusy(true);
+    const node = appendStream();
+    let live = '';
+    try {
+      const res = await request(cfg, buildMessages(thread), controller.signal);
+      if (!res.ok) throw new Error(resErr(res));
+      await consume(res, (chunk) => {
+        live += chunk;
+        node.innerHTML = mdToHtml(live);
+        scrollBottom();
+      });
+      if (!live.trim()) live = '（接口没有返回内容）';
+    } catch (e) {
+      const aborted = e && e.name === 'AbortError';
+      const note = aborted ? '（已停止）' : '请求失败：' + (e && e.message ? e.message : e);
+      live = (live ? live + '\n\n' : '') + note;
+    } finally {
+      controller = null;
+      setBusy(false);
+    }
+    thread.messages.push({
+      role: 'assistant',
+      content: live,
+      pagePath: last.pagePath,
+      pageTitle: last.pageTitle,
+      asOf: last.asOf,
+      ts: Date.now(),
+    });
+    thread.updatedAt = Date.now();
+    const stillActive = activeId() === thread.id;
+    persist(thread, stillActive);
+    if (stillActive) renderMessages();
+  }
+
   async function send() {
     if (busy || !inputEl) return;
     const text = (inputEl.value || '').trim();
@@ -537,41 +566,39 @@ import { AI_PROMPT_VERSION, AI_SYSTEM_PROMPT, formatQuote } from './ai-prompt.js
     inputEl.value = '';
     renderMessages();
     renderHist();
+    await runTurn(thread);
+  }
 
-    const cfg = getCfg();
-    controller = new AbortController();
-    setBusy(true);
-    const node = appendStream();
-    let live = '';
-    try {
-      const res = await request(cfg, buildMessages(thread, text, quotes), controller.signal);
-      if (!res.ok) throw new Error(resErr(res));
-      await consume(res, (chunk) => {
-        live += chunk;
-        node.innerHTML = mdToHtml(live);
-        scrollBottom();
-      });
-      if (!live.trim()) live = '（接口没有返回内容）';
-    } catch (e) {
-      const aborted = e && e.name === 'AbortError';
-      const note = aborted ? '（已停止）' : '请求失败：' + (e && e.message ? e.message : e);
-      live = (live ? live + '\n\n' : '') + note;
-    } finally {
-      controller = null;
-      setBusy(false);
-    }
-    thread.messages.push({
-      role: 'assistant',
-      content: live,
-      pagePath: ctx.pagePath,
-      pageTitle: ctx.pageTitle,
-      asOf: ctx.asOf,
-      ts: Date.now(),
-    });
+  // 重试：砍掉末尾答案，按当前设置重发同一条提问
+  async function retry() {
+    if (busy) return;
+    const thread = getActiveThread();
+    if (!thread || !thread.messages.length) return;
+    if (thread.messages[thread.messages.length - 1].role === 'assistant') thread.messages.pop();
+    if (!thread.messages.length || thread.messages[thread.messages.length - 1].role !== 'user') return;
     thread.updatedAt = Date.now();
-    const stillActive = activeId() === thread.id;
-    persist(thread, stillActive);
-    if (stillActive) renderMessages();
+    persist(thread);
+    renderMessages();
+    await runTurn(thread);
+  }
+
+  // 改已发出的提问：该条及其之后全部作废，文本与引用回填到输入框/胶囊，改完自己再发
+  function editAt(i) {
+    if (busy) return;
+    const thread = getActiveThread();
+    const m = thread && thread.messages[i];
+    if (!m || m.role !== 'user') return;
+    thread.messages.length = i;
+    thread.updatedAt = Date.now();
+    pendingQuotes = (m.quotes || []).slice();
+    persist(thread);
+    renderChips();
+    renderMessages();
+    renderHist();
+    if (inputEl) {
+      inputEl.value = m.content || '';
+      inputEl.focus();
+    }
   }
 
   // ── 历史 / 设置 / 导出 ──────────────────────────────────────────────────
@@ -606,19 +633,72 @@ import { AI_PROMPT_VERSION, AI_SYSTEM_PROMPT, formatQuote } from './ai-prompt.js
         : '<div class="ai-empty">还没有对话。划词或直接提问就开始一条。</div>');
   }
 
+  // 探测结果里这个模型支持的推理强度档位（OpenAI 语义 reasoning_effort）
+  function effortLevels(modelId) {
+    const m = modelCache.find((x) => x.id === modelId);
+    if (!m) return [];
+    if (Array.isArray(m.reasoning_levels)) return m.reasoning_levels.filter(Boolean);
+    return (m.supported_reasoning_levels || []).map((x) => x && x.effort).filter(Boolean);
+  }
+
   function renderCfg() {
     if (!cfgEl) return;
     const c = getCfg();
+    const ids = modelCache.map((m) => m.id);
+    // 手填过、但网关没报的旧值也留着，不静默换模型
+    if (c.model && ids.indexOf(c.model) < 0) ids.unshift(c.model);
+    const opt = (v, label, cur) =>
+      '<option value="' + esc(v) + '"' + (v === cur ? ' selected' : '') + '>' + esc(label || v) + '</option>';
+    const modelOpts = ids.length
+      ? ids
+          .map((id) => {
+            const m = modelCache.find((x) => x.id === id) || {};
+            return opt(id, m.display_name ? m.display_name + ' · ' + id : id, c.model);
+          })
+          .join('')
+      : opt(c.model, c.model, c.model);
+    const levels = effortLevels(c.model);
     cfgEl.innerHTML =
       '<div class="ai-row"><label>Base URL</label>' +
       '<input type="text" spellcheck="false" data-k="baseUrl" value="' + esc(c.baseUrl) + '"></div>' +
       '<div class="ai-row"><label>API Key</label>' +
       '<input type="password" spellcheck="false" autocomplete="off" placeholder="sk-…" data-k="apiKey" value="' + esc(c.apiKey) + '"></div>' +
       '<div class="ai-row"><label>Model</label>' +
-      '<input type="text" spellcheck="false" data-k="model" value="' + esc(c.model) + '"></div>' +
-      '<p class="ai-hint">留空 API Key 则走本站 <code>/api/chat</code> 后端代理（未部署时会提示你回来填 Key）。Key 只存本机 localStorage，不随页面数据上传。</p>' +
+      '<div class="ai-cfg-pick"><select data-k="model">' + modelOpts + '</select>' +
+      '<button class="ai-btn" type="button" data-probe="1">探测模型</button></div></div>' +
+      '<div class="ai-row"><label>推理强度' + (levels.length ? '' : '（网关没报这个模型的档位）') + '</label>' +
+      '<select data-k="effort"' + (levels.length ? '' : ' disabled') + '>' +
+      opt('', '默认（不传 reasoning_effort）', c.effort) +
+      levels.map((lv) => opt(lv, lv, c.effort)).join('') +
+      '</select></div>' +
+      (probeNote ? '<p class="ai-hint">' + esc(probeNote) + '</p>' : '') +
+      '<p class="ai-hint">Base URL 填到 <code>/v1</code> 为止（代码自己拼 <code>/chat/completions</code>）；只留空 Key 且 Base URL 保持默认时才走本站 <code>/api/chat</code> 代理位。Key 只存本机 localStorage。</p>' +
       '<div class="ai-acts"><button class="ai-btn" type="button" data-cfgsave="1">保存</button>' +
       '<button class="ai-btn" type="button" data-cfgclose="1">收起</button></div>';
+  }
+
+  // 从网关把模型表拉回来（不在时给每行错误，不静默）
+  async function probeModels() {
+    const field = (k) => {
+      const el = cfgEl.querySelector('[data-k="' + k + '"]');
+      return el ? String(el.value || '').trim() : '';
+    };
+    const base = (field('baseUrl') || getCfg().baseUrl).replace(/\/+$/, '');
+    const key = field('apiKey');
+    probeNote = '探测中…';
+    renderCfg();
+    try {
+      const res = await fetch(base + '/models', { headers: key ? { authorization: 'Bearer ' + key } : {} });
+      if (!res.ok) throw new Error(resErr(res));
+      const j = await res.json();
+      const list = (Array.isArray(j.data) ? j.data : []).filter((m) => m && m.id);
+      if (!list.length) throw new Error('网关没有返回模型列表');
+      modelCache = list;
+      probeNote = '探测到 ' + list.length + ' 个模型 · ' + base;
+    } catch (e) {
+      probeNote = '探测失败：' + (e && e.message ? e.message : e);
+    }
+    renderCfg();
   }
 
   function toMarkdown(t) {
@@ -772,6 +852,13 @@ import { AI_PROMPT_VERSION, AI_SYSTEM_PROMPT, formatQuote } from './ai-prompt.js
           return;
         }
       }
+      const mact = t.closest('[data-mact]');
+      if (mact) {
+        if (mact.dataset.mact === 'retry') retry();
+        else editAt(Number(mact.dataset.mi));
+        return;
+      }
+      if (t.closest('[data-probe]')) return probeModels();
       const rm = t.closest('[data-rm]');
       if (rm) {
         pendingQuotes = pendingQuotes.filter((q) => q.id !== rm.dataset.rm);
@@ -781,8 +868,8 @@ import { AI_PROMPT_VERSION, AI_SYSTEM_PROMPT, formatQuote } from './ai-prompt.js
       const cfgsave = t.closest('[data-cfgsave]');
       if (cfgsave) {
         const cfg = getCfg();
-        cfgEl.querySelectorAll('input[data-k]').forEach((inp) => {
-          cfg[inp.dataset.k] = inp.value.trim();
+        cfgEl.querySelectorAll('[data-k]').forEach((el) => {
+          cfg[el.dataset.k] = el.value.trim();
         });
         if (!cfg.baseUrl) cfg.baseUrl = DEF_CFG.baseUrl;
         if (!cfg.model) cfg.model = DEF_CFG.model;
@@ -815,6 +902,23 @@ import { AI_PROMPT_VERSION, AI_SYSTEM_PROMPT, formatQuote } from './ai-prompt.js
         renderHist();
         renderMessages();
       }
+    });
+
+    // 下拉选择立即落盘（保存按钮只管文本输入）；换模型时推理强度档位跟着刷新
+    cfgEl.addEventListener('change', (e) => {
+      const sel = e.target.closest && e.target.closest('select[data-k]');
+      if (!sel) return;
+      const cfg = getCfg();
+      cfg[sel.dataset.k] = sel.value;
+      if (sel.dataset.k === 'model') {
+        const lv = effortLevels(sel.value);
+        if (cfg.effort && lv.indexOf(cfg.effort) < 0) cfg.effort = ''; // 新模型没这档，别留着发不存在的值
+        saveJSON(K_CFG, cfg);
+        probeNote = '';
+        renderCfg();
+        return;
+      }
+      saveJSON(K_CFG, cfg);
     });
 
     sendBtn.addEventListener('click', () => {
