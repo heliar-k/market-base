@@ -748,11 +748,19 @@ body.dark .tech-ov-card { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--b
 .ai-drawer.open { transform: translateX(0); }
 @media (max-width: 768px) { .ai-drawer { width: 100vw; } }
 
-.ai-head { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; padding: 10px 12px; border-bottom: 1px solid var(--border); flex: 0 0 auto; }
+.ai-head { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; padding: 8px 10px; border-bottom: 1px solid var(--border); flex: 0 0 auto; }
 .ai-title { font-size: 13px; font-weight: 700; color: var(--text); margin-right: auto; }
 .ai-btn { padding: 3px 8px; border: 1px solid var(--btn-border); border-radius: 6px; background: var(--surface); color: var(--text-secondary); font-size: 12px; line-height: 18px; cursor: pointer; white-space: nowrap; }
+/* 抽屉头 6 个控件要在 380px 内排一行：头内按钮比正文按钮再紧 2px（关闭钮不再掉到第二行） */
+.ai-head .ai-btn { padding: 3px 6px; }
 .ai-btn:hover { border-color: var(--accent-ink); color: var(--accent-ink); }
 .ai-btn.on { background: var(--accent-light); border-color: var(--accent); color: var(--accent-ink); }
+.ai-btn[disabled] { opacity: .55; cursor: default; }
+.ai-btn[disabled]:hover { border-color: var(--btn-border); color: var(--text-secondary); }
+
+/* 保存/代理结果细条：一次性反馈，不混进对话流 */
+.ai-flash { padding: 6px 12px; border-bottom: 1px solid var(--border); background: var(--surface-alt); color: var(--text-secondary); font-size: 12px; line-height: 1.55; word-break: break-word; }
+.ai-flash.err { color: var(--color-down-text); }
 
 /* 设置面板 / 历史列表：抽屉内的次级面板，底色下沉一档（surface-alt） */
 .ai-cfg, .ai-hist { padding: 10px 12px; border-bottom: 1px solid var(--border); background: var(--surface-alt); flex: 0 0 auto; }

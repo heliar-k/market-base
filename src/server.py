@@ -5,19 +5,36 @@ from __future__ import annotations
 
 import math
 import re
+import time
+from collections.abc import Iterator
 from datetime import date
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlparse
 
 import numpy as np
 import pandas as pd
+import requests
 from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse, RedirectResponse
+from fastapi.responses import JSONResponse, RedirectResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
+from pydantic import BaseModel
 
 from src.analyze import analyze
 from src.cache import load_or_compute
+from src.chat_proxy import (
+    BODY_MAX as CHAT_BODY_MAX,
+)
+from src.chat_proxy import (
+    MISSING_KEY,
+    ChatValidationError,
+    build_payload,
+    chat_models,
+    llm_base,
+    llm_key,
+    validate_messages,
+)
 from src.config import (
     FOMC_MEETINGS,
     IBKR_SYMBOLS,
@@ -45,6 +62,15 @@ from src.macro import (
     load_macro_category,
     read_macro_category,
     rrp_in_millions,
+)
+from src.notes_store import (
+    BODY_MAX as NOTES_BODY_MAX,
+)
+from src.notes_store import (
+    MAX_BYTES as NOTES_MAX_BYTES,
+)
+from src.notes_store import (
+    save_note as save_note_file,
 )
 from src.rates_analysis import generate_analysis
 from src.treasury_analysis import generate_treasury_overview
@@ -1606,6 +1632,209 @@ def get_cross_asset() -> dict:
         "matrix": [[None if pd.isna(v) else round(float(v), 4) for v in row] for row in sub.values],
         "alerts": alerts,
     }
+
+
+# ── 伴读抽屉后端通道（/api/chat · /api/models · /api/notes）─────────────────
+# 线上是 Cloudflare Pages 静态站，同一组路由另有一份 Pages Functions 实现
+# （仓库根 functions/api/*.js，由 `wrangler pages deploy` 自动拾取）。两边契约一致：
+#   POST /api/chat   {model?, messages:[{role,content}], stream?, reasoning_effort?}
+#                    → 透传上游 SSE（text/event-stream），Key 只留在服务端
+#   GET  /api/models → {data:[{id,display_name}], proxy:true}，供抽屉「探测模型」
+#   POST /api/notes  {filename?, markdown, thread?} → 写 data/notes/（本地）
+# 没配 LLM_API_KEY 时 /api/chat 返回 503，前端提示「填自己的 Key 直连」。
+# 细节与 Cloudflare 环境变量见 docs/ai-chat-backend.md。
+
+_CHAT_HITS: dict[str, list[float]] = {}
+# 限额与 functions/_lib/common.js 的 RATE_LIMITS、docs/ai-chat-backend.md 的表同步
+_LIMITS = {
+    "chat": (10, 60),
+    "models": (30, 60),
+    "notes": (20, 3600),
+}
+_API_BODY_LIMITS = {"/api/chat": CHAT_BODY_MAX, "/api/notes": NOTES_BODY_MAX}
+_LOCAL_WRITE_PATHS = {"/api/chat", "/api/notes"}
+
+
+def _json_error(status: int, message: str, headers: dict[str, str] | None = None) -> JSONResponse:
+    return JSONResponse(status_code=status, content={"error": message}, headers=headers)
+
+
+def _rate_ok(key: str, limit: int, window_seconds: float) -> bool:
+    """进程内滑动窗口限流（单机够用；线上同名逻辑在 Pages Function 里）。"""
+    now = time.monotonic()
+    hits = [t for t in _CHAT_HITS.get(key, []) if now - t < window_seconds]
+    if len(hits) >= limit:
+        _CHAT_HITS[key] = hits
+        return False
+    hits.append(now)
+    _CHAT_HITS[key] = hits
+    if len(_CHAT_HITS) > 2000:  # 别让异常 IP 把内存撑大
+        for k in list(_CHAT_HITS)[:1000]:
+            _CHAT_HITS.pop(k, None)
+    return True
+
+
+def _client_ip(request: Request) -> str:
+    fwd = request.headers.get("x-forwarded-for", "")
+    if fwd:
+        return fwd.split(",")[0].strip()
+    return request.client.host if request.client else "unknown"
+
+
+def _is_local_origin(origin: str) -> bool:
+    """只允许本机页面调用会写文件/花 Key 的接口（CORS 的 * 不覆盖这层）。"""
+    if not origin:
+        return True
+    try:
+        host = urlparse(origin).hostname
+    except ValueError:
+        return False
+    return host in {"localhost", "127.0.0.1", "::1", "0.0.0.0"}
+
+
+@app.middleware("http")
+async def _guard_api(request: Request, call_next):
+    """拦截跨站调用 + 超限 body：新端点能写 data/notes、花 LLM_API_KEY。"""
+    path = request.url.path
+    if path not in _LOCAL_WRITE_PATHS:
+        return await call_next(request)
+    origin = request.headers.get("origin", "")
+    if origin and not _is_local_origin(origin):
+        return _json_error(403, "只允许本机页面调用该接口")
+    if request.method == "POST":
+        if "chunked" in request.headers.get("transfer-encoding", "").lower():
+            return _json_error(411, "请带 Content-Length 发送请求体")
+        raw = request.headers.get("content-length")
+        if raw:
+            try:
+                size = int(raw)
+            except ValueError:
+                return _json_error(400, "非法 Content-Length")
+            limit = _API_BODY_LIMITS[path]
+            if size > limit:
+                return _json_error(413, f"请求体超过 {limit // 1024} KB")
+    return await call_next(request)
+
+
+class ChatMessageIn(BaseModel):
+    role: str
+    content: str
+
+
+class ChatBodyIn(BaseModel):
+    model: str | None = None
+    messages: list[ChatMessageIn]
+    reasoning_effort: str | None = None
+
+
+class NoteBodyIn(BaseModel):
+    filename: str | None = None
+    markdown: str
+    thread: dict[str, Any] | None = None
+
+
+@app.get("/api/models")
+def get_chat_models(request: Request) -> Any:
+    """本站代理可用的模型白名单（抽屉设置里的「探测模型」走这里）。"""
+    if not llm_key():
+        return _json_error(503, MISSING_KEY)
+    if not _rate_ok("models:" + _client_ip(request), *_LIMITS["models"]):
+        return _json_error(
+            429,
+            f"请求过于频繁（模型列表每分钟 {_LIMITS['models'][0]} 次），请稍后再试。",
+            {"Retry-After": "60"},
+        )
+    return {"data": [{"id": m, "display_name": m} for m in chat_models()], "proxy": True}
+
+
+@app.post("/api/chat")
+def chat_proxy(body: ChatBodyIn, request: Request) -> Any:
+    """OpenAI 兼容代理：浏览器 → 本站 → 上游，SSE 原样透传，Key 不下发。"""
+    key = llm_key()
+    if not key:
+        return _json_error(503, MISSING_KEY)
+    if not _rate_ok("chat:" + _client_ip(request), *_LIMITS["chat"]):
+        return _json_error(
+            429,
+            f"请求过于频繁（本站代理每分钟 {_LIMITS['chat'][0]} 次），请稍后再试。",
+            {"Retry-After": "60"},
+        )
+
+    try:
+        messages = validate_messages([(m.role, m.content) for m in body.messages])
+    except ChatValidationError as exc:
+        return _json_error(exc.status, str(exc))
+    payload = build_payload(body.model, messages, body.reasoning_effort)
+
+    try:
+        upstream = requests.post(
+            llm_base() + "/chat/completions",
+            headers={
+                "Authorization": f"Bearer {key}",
+                "Content-Type": "application/json",
+                "Accept": "text/event-stream",
+            },
+            json=payload,
+            stream=True,
+            timeout=(10, 300),
+        )
+    except requests.RequestException as exc:
+        return _json_error(502, f"上游连接失败：{exc}")
+
+    if upstream.status_code != 200:
+        detail = upstream.text[:2000]
+        upstream.close()
+        return _json_error(upstream.status_code, f"上游 {upstream.status_code}：{detail}")
+
+    ctype = upstream.headers.get("content-type") or "text/event-stream; charset=utf-8"
+
+    def _iter_upstream() -> Iterator[bytes]:
+        try:
+            for chunk in upstream.iter_content(chunk_size=None):
+                if chunk:
+                    yield chunk
+        finally:
+            upstream.close()
+
+    return StreamingResponse(
+        _iter_upstream(),
+        headers={
+            "Content-Type": ctype,
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",
+            "X-LLM-Model": str(payload["model"]),
+        },
+    )
+
+
+@app.post("/api/notes")
+def save_note(body: NoteBodyIn, request: Request) -> Any:
+    """把一条对话落盘到 data/notes/（本地服务专有；静态站由其 Pages Function 返回 503）。"""
+    if not _rate_ok("notes:" + _client_ip(request), *_LIMITS["notes"]):
+        return _json_error(
+            429,
+            f"保存过于频繁（每小时 {_LIMITS['notes'][0]} 次），请稍后再试。",
+            {"Retry-After": "600"},
+        )
+    markdown = body.markdown or ""
+    if not markdown.strip():
+        return _json_error(400, "markdown 为空")
+    raw = markdown.encode("utf-8")
+    if len(raw) > NOTES_MAX_BYTES:
+        return _json_error(413, "笔记超过 1 MB")
+
+    title = ""
+    if isinstance(body.thread, dict):
+        title = str(body.thread.get("title") or "")
+    try:
+        path = save_note_file(markdown, filename=body.filename, title=title)
+    except OSError as exc:
+        return _json_error(500, f"保存失败：{exc}")
+    try:
+        rel = str(path.relative_to(ROOT))
+    except ValueError:
+        rel = str(path)
+    return {"ok": True, "path": rel, "bytes": len(raw)}
 
 
 # ── static files (must be last) ─────────────────────────────────────────────

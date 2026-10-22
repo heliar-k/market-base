@@ -94,7 +94,7 @@ market-base/
 │       ├── screens.py            ← 屏幕组装（三栏布局 + 模式切换）
 │       └── widgets/              ← 可复用组件（kline_chart / diag_sidebar / macro_chart / _plot_common）
 │
-├── tests/                        ← pytest 测试套件（707 个测试，tmp_path 隔离 + autouse 清缓存）
+├── tests/                        ← pytest 测试套件（969 个测试，tmp_path 隔离 + autouse 清缓存）
 │
 ├── docs/adr/                     ← 架构决策记录（0001 回看交互、0002 重命名 code→src）
 │
@@ -181,8 +181,10 @@ market-base/
 │   ├── coinglass/{date}.json           ← Coinglass 全市场聚合快照（OI/清算/交易所分布）
 │   ├── cme_futures/{date}.json         ← CME BTC 期货仓位快照（全月份 OI + 期限结构）
 │   ├── etf_flows/etf_flows.csv         ← BTC 现货 ETF 资金流（Farside，12 ETF + Total，M USD）
+│   ├── notes/{filename}.md             ← 伴读抽屉「存笔记」（个人内容，已在 .gitignore）
 │   └── cache/{SYMBOL}_indicators.parquet ← 指标缓存（派生产物，mtime 失效）
 │
+├── functions/                    ← Cloudflare Pages Functions（伴读抽屉 /api/chat · /api/models · /api/notes）
 ├── frontend/                     ← Web 前端（Astro，ADR-0003：34 专题页已全迁 .astro，迁移完成）
 │   ├── src/
 │   │   ├── layouts/TopicLayout.astro ← 专题页通用骨架（head 样板/左侧树+窄屏抽屉/页头/主题等运行时行为）
@@ -199,6 +201,7 @@ market-base/
     ├── DATA_CATALOG.md           ← 数据目录文档
     ├── TUI_K线分析工具_技术调研.md ← Textual TUI 选型调研
     ├── web-refactor-plan.md      ← Web 重构计划
+    ├── ai-chat-backend.md        ← 伴读抽屉后端通道（/api/chat · /api/models · /api/notes）
     └── adr/                      ← 架构决策记录（0001 回看交互、0002 重命名 code→src）
 ```
 
@@ -330,9 +333,13 @@ uv run python -m src.server                        # 启动 Web，浏览器打�
 # 限制：K 线仅近 3 年、相关性页仅近 5 年、诊断面板无光标回看（静态预渲染的固有降级）
 # 利率专题（timsun.net/rates 复刻）：/rates/ 入口页 → 联邦基金/收益率曲线/利率定价（拍卖已并入 /treasury/）
 # 研判由 src/rates_analysis.py 规则引擎生成，LLM 接入点：generate_analysis() → _llm_generate()
+# 伴读抽屉的 /api/chat（服务端 Key 代理）、/api/models、/api/notes（本地写 data/notes/，
+# 线上绑 NOTES KV）见 docs/ai-chat-backend.md；deploy-pages 会把 GitHub secret LLM_API_KEY
+# 同步成 Pages Functions 运行时变量（Sync Pages LLM secret，空则跳过）；
+# 手动续期：`npx wrangler pages secret put LLM_API_KEY --project-name=market-base`
 
 # 测试
-uv run python -m pytest                            # 全量测试（707 个）
+uv run python -m pytest                            # 全量测试（969 个）
 
 # GEX 计算（IBKR 优先，拿不到 Greeks 自动降级 yfinance）
 uv run python src/compute_gex.py                        # AAPL（默认）
@@ -425,7 +432,7 @@ uv run python src/sell_put.py --symbol TSM
 - **格式化**: ruff (select E/F/I/W) + ruff-format，行宽 100，`pre-commit` 在 git commit 时自动执行（`ruff --fix` + `ruff-format` 自动修并重新暂存）。**写完代码无需手动跑 ruff/pre-commit**，只验证功能正确性（代码能跑）即可；E501（>100 行长）不会被自动修，commit 被拦时再手动改
 - **类型提示**: 所有函数签名带类型注解，用 `|` 替代 `Optional`（Python 3.10+）
 - **import**: 先标准库 → 第三方 → `src.*`（`isort` 自动处理）
-- **测试**: pytest 测试套件（`tests/`，707 个测试），用 `tmp_path` 隔离 + autouse fixture 清理缓存。运行 `uv run python -m pytest`
+- **测试**: pytest 测试套件（`tests/`，969 个测试），用 `tmp_path` 隔离 + autouse fixture 清理缓存。运行 `uv run python -m pytest`
 - **分析层约定**: 专题分析模块（`*_analysis.py`）只读 CSV 不写盘，读 CSV 统一走 `src/analysis_utils.py` 的 `read_csv_or_empty`，不各写各的 `_read`
 
 ### 8. 主站 Web UI/UX 设计原则（新面板/重构对齐用）

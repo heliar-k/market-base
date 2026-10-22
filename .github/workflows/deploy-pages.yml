@@ -21,6 +21,7 @@ on:
       # data/** 保留：人工本地提交数据时仍能自动部署（自动链靠上面的 dispatch）
       - "data/**"
       - "frontend/**"
+      - "functions/**"
       - "src/**"
       - "pyproject.toml"
       - "uv.lock"
@@ -95,6 +96,21 @@ jobs:
       - name: Build frontend (astro)
         run: npm run build
         working-directory: frontend
+
+      # Pages Functions 的运行时环境变量与 build 用的 secret 是两套：
+      # 把同一个 LLM_API_KEY 写进 Pages 项目（wrangler 非交互时从 stdin 读值，CI 可用）。
+      # 空 secret 跳过：/api/chat 会 503，抽屉提示填自己的 Key（BYOK 仍可用）。
+      - name: Sync Pages LLM secret
+        working-directory: frontend
+        continue-on-error: true  # 同步失败不拦站点部署：代理会 503，BYOK 仍可用
+        env:
+          LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
+        run: |
+          if [ -z "$LLM_API_KEY" ]; then
+            echo "::notice::LLM_API_KEY 未设置，跳过 Pages 代理 secret；伴读抽屉将只能 BYOK"
+            exit 0
+          fi
+          printf '%s' "$LLM_API_KEY" | npx --yes wrangler@4 pages secret put LLM_API_KEY --project-name=market-base
 
       - name: Deploy to Cloudflare Pages
         uses: cloudflare/wrangler-action@v4  # v3 声明 node20 已被 GitHub 强制迁移 node24（日志告警）；v4 原生 node24，默认 wrangler 升 v4；但 v4 新加了 accountId 的 env 覆写，见下方注释

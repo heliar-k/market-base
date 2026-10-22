@@ -9,10 +9,20 @@
 //   .ai-float   右上角浮钮（原主题切换位，主题已改恒跟随系统）
 //   .ai-sel-pop 划词气泡「问这段」
 //   .ai-drawer  右侧抽屉（对话 + 引用胶囊 + 设置 + 历史）
-// 数据全在本机 localStorage：三个键见下方 K_*，接口直连 OpenAI 兼容端点；
-// Base URL 保持默认且没填 API Key 时走本站 /api/chat（后端代理位预留给后续接入）。
+// 数据全在本机 localStorage：四个键见下方 K_*，接口直连 OpenAI 兼容端点；
+// Base URL 保持默认且没填 API Key 时走本站 /api/chat（本地 FastAPI / 线上 Pages Function）。
 
 import { AI_PROMPT_VERSION, AI_SYSTEM_PROMPT, formatQuote } from './ai-prompt.js';
+import {
+  DEFAULT_CFG as DEF_CFG,
+  chatPayload,
+  effortLevels,
+  isProxyMode,
+  modelCacheMatches,
+  normalizeBase,
+  readCfgDraft,
+  reconcileCfg,
+} from './ai-config.js';
 import { mdToHtml } from './ai-md.js';
 
 (function () {
@@ -29,9 +39,10 @@ import { mdToHtml } from './ai-md.js';
   const K_CFG = 'guanlantai-ai-config';
   const K_THREADS = 'guanlantai-ai-threads';
   const K_ACTIVE = 'guanlantai-ai-active-thread';
+  const K_MODELS = 'guanlantai-ai-model-cache';
   // localStorage 有 ~5MB 硬上限：对话不封顶迟早写不进（写失败整个历史静默丢）。
   const MAX_THREADS = 50;
-  const DEF_CFG = { baseUrl: 'https://api.openai.com/v1', apiKey: '', model: 'gpt-4o-mini', effort: '' };
+  const MODEL_CACHE_TTL = 7 * 24 * 3600 * 1000;
 
   // 提示词正文单源在 ./ai-prompt.js，这里只保留运行时覆写位（控制台试新版，刷新恢复）
   let systemPromptOverride = '';
@@ -64,6 +75,30 @@ import { mdToHtml } from './ai-md.js';
   function saveThreads(list) {
     list.sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
     saveJSON(K_THREADS, list.slice(0, MAX_THREADS));
+  }
+  // 模型表（含 reasoning_levels）缓存 7 天：刷新后仍知道该模型有哪些推理档位，
+  // 否则设置面板只能显示「网关没报档位」，已存的 effort 会和实际发送值打架。
+  function loadModelCache() {
+    const c = loadJSON(K_MODELS, null);
+    if (!c || !c.ts) return [];
+    if (Date.now() - c.ts > MODEL_CACHE_TTL) return [];
+    const cfg = getCfg();
+    if (!modelCacheMatches(c, cfg.baseUrl, isProxyMode(cfg, DEF_CFG.baseUrl))) return [];
+    return c.list;
+  }
+  function saveModelCache(list, base, proxy) {
+    saveJSON(K_MODELS, {
+      base: normalizeBase(base || getCfg().baseUrl),
+      proxy: !!proxy,
+      ts: Date.now(),
+      list: Array.isArray(list) ? list : [],
+    });
+  }
+  // 页面加载时就用缓存对账一次 effort：cache 过期/为空时清掉，别让配置里留着一个不发出去的值
+  function normalizeSavedCfg() {
+    const cfg = getCfg();
+    const next = reconcileCfg(cfg, modelCache);
+    if (next.effort !== cfg.effort) saveJSON(K_CFG, next);
   }
   const activeId = () => {
     if (Object.prototype.hasOwnProperty.call(mem, K_ACTIVE)) return mem[K_ACTIVE] || '';
@@ -159,10 +194,11 @@ import { mdToHtml } from './ai-md.js';
   let lastRange = null;
   let lastText = '';
   let histOnlyPage = false;
-  let modelCache = []; // 「探测模型」拿到的网关模型表（含 reasoning_levels）
+  let modelCache = loadModelCache(); // 「探测模型」拿到的网关模型表（含 reasoning_levels）
   let probeNote = '';
 
-  let drawer, floatBtn, selPop, msgsEl, quotesEl, inputEl, sendBtn, cfgEl, histEl, histN;
+  let drawer, floatBtn, selPop, msgsEl, quotesEl, inputEl, sendBtn, cfgEl, histEl, histN, flashEl;
+  let flashTimer = 0;
 
   const trunc = (s, n) => (String(s || '').length > n ? String(s).slice(0, n) + '…' : String(s || ''));
   const pad2 = (n) => (n < 10 ? '0' + n : '' + n);
@@ -174,6 +210,16 @@ import { mdToHtml } from './ai-md.js';
   const scrollBottom = () => {
     if (msgsEl) msgsEl.scrollTop = msgsEl.scrollHeight;
   };
+
+  // 保存/代理失败这类一次性结果走抽屉顶部细条，不塞进对话流里污染历史
+  function flash(msg, isErr) {
+    if (!flashEl) return;
+    flashEl.textContent = msg;
+    flashEl.classList.toggle('err', !!isErr);
+    flashEl.removeAttribute('hidden');
+    clearTimeout(flashTimer);
+    flashTimer = setTimeout(() => flashEl.setAttribute('hidden', ''), isErr ? 9000 : 4000);
+  }
 
   // ── 对话线程 ────────────────────────────────────────────────────────────
   function newThread() {
@@ -227,7 +273,7 @@ import { mdToHtml } from './ai-md.js';
       '<p>把本页的读数变成能追问的对话：</p>' +
       '<p>1）页面任意位置划词，点浮出的「💬 问这段」——片段连同小节名、表头与本行一起进入引用胶囊；</p>' +
       '<p>2）直接提问也会自动带上本页结论与时效坐标，不必手动贴数据；</p>' +
-      '<p>3）首次使用点右上「⚙ 设置」填 OpenAI 兼容接口，点「探测模型」可把网关的模型与推理强度一起列出来。</p>' +
+      '<p>3）本站配了代理（<code>/api/chat</code>）时直接提问即可；要换成自己的模型，点右上「⚙ 设置」填 OpenAI 兼容接口，点「探测模型」可把网关的模型与推理强度一起列出来。</p>' +
       '</div>'
     );
   }
@@ -242,7 +288,13 @@ import { mdToHtml } from './ai-md.js';
     msgsEl.innerHTML = t.messages
       .map((m, i) => {
         const isUser = m.role === 'user';
-        const meta = [m.pageTitle, m.asOf].filter(Boolean).join(' · ');
+        const meta = [
+          isUser ? '' : m.model ? '模型 ' + m.model : '',
+          m.pageTitle,
+          m.asOf,
+        ]
+          .filter(Boolean)
+          .join(' · ');
         const quotes = (m.quotes || []).map(quoteHtml).join('');
         const body = isUser
           ? '<p>' + esc(m.content || '').replace(/\n/g, '<br>') + '</p>'
@@ -391,21 +443,39 @@ import { mdToHtml } from './ai-md.js';
     return messages;
   }
 
-  function resErr(res) {
-    if (res.status === 404 || res.status === 405) {
-      return '本站 /api/chat 未启用（' + res.status + '）。请点右上「⚙ 设置」填 Base URL 与 API Key 直连 OpenAI 兼容接口。';
+  // 把后端 {error} / FastAPI {detail} / 静态站非 JSON 响应统一成一句人话。
+  // 404/405 只在「真的没有这个接口」时出现，别把探测 /models 的失败也说成 /api/chat。
+  async function apiError(res, label) {
+    let detail = '';
+    try {
+      const j = await res.json();
+      if (j && typeof j.error === 'string') detail = j.error;
+      else if (j && typeof j.detail === 'string') detail = j.detail;
+      else if (j && j.detail) detail = JSON.stringify(j.detail);
+    } catch (e) {
+      /* 非 JSON（Pages 405 HTML / 代理错误页）：走下面的状态码兜底 */
     }
-    return '接口返回 ' + res.status + (res.statusText ? ' ' + res.statusText : '');
+    if (detail) return detail;
+    if (res.status === 404 || res.status === 405) {
+      return (
+        label +
+        ' 接口不可用（' +
+        res.status +
+        '）。点右上「⚙ 设置」填 Base URL 与 API Key 直连 OpenAI 兼容接口。'
+      );
+    }
+    return label + ' 返回 ' + res.status + (res.statusText ? ' ' + res.statusText : '');
   }
 
   function request(cfg, messages, signal) {
     const headers = { 'content-type': 'application/json' };
     if (cfg.apiKey) headers.authorization = 'Bearer ' + cfg.apiKey;
-    // baseUrl 一旦不是默认值就直连它：本地网关多半不校验 key，别再回落到不存在的本站代理
-    const base = (cfg.baseUrl || '').replace(/\/+$/, '');
-    const url = cfg.apiKey || base !== DEF_CFG.baseUrl ? base + '/chat/completions' : '/api/chat';
-    const body = { model: cfg.model, stream: true, messages };
-    if (cfg.effort) body.reasoning_effort = cfg.effort; // 网关认就生效，不认的直接忽略
+    const base = normalizeBase(cfg.baseUrl);
+    // 没填 Key 且 Base URL 保持默认 → 本站代理；其余一律直连
+    const proxy = isProxyMode(cfg, DEF_CFG.baseUrl);
+    const url = proxy ? '/api/chat' : base + '/chat/completions';
+    // 档位/模型规则单源在 ai-config.js 的 chatPayload（代理不传 effort）
+    const body = chatPayload(cfg, messages, modelCache, proxy);
     return fetch(url, {
       method: 'POST',
       headers,
@@ -509,9 +579,11 @@ import { mdToHtml } from './ai-md.js';
     setBusy(true);
     const node = appendStream();
     let live = '';
+    let answeredModel = '';
     try {
       const res = await request(cfg, buildMessages(thread), controller.signal);
-      if (!res.ok) throw new Error(resErr(res));
+      if (!res.ok) throw new Error(await apiError(res, '本站 /api/chat'));
+      answeredModel = res.headers.get('x-llm-model') || cfg.model || '';
       await consume(res, (chunk) => {
         live += chunk;
         node.innerHTML = mdToHtml(live);
@@ -529,6 +601,7 @@ import { mdToHtml } from './ai-md.js';
     thread.messages.push({
       role: 'assistant',
       content: live,
+      model: answeredModel,
       pagePath: last.pagePath,
       pageTitle: last.pageTitle,
       asOf: last.asOf,
@@ -633,17 +706,18 @@ import { mdToHtml } from './ai-md.js';
         : '<div class="ai-empty">还没有对话。划词或直接提问就开始一条。</div>');
   }
 
-  // 探测结果里这个模型支持的推理强度档位（OpenAI 语义 reasoning_effort）
-  function effortLevels(modelId) {
-    const m = modelCache.find((x) => x.id === modelId);
-    if (!m) return [];
-    if (Array.isArray(m.reasoning_levels)) return m.reasoning_levels.filter(Boolean);
-    return (m.supported_reasoning_levels || []).map((x) => x && x.effort).filter(Boolean);
-  }
+  // 探测结果里这个模型支持的推理强度档位 —— 单源在 ai-config.js 的 effortLevels
+  // （纯函数，node 直接可测；这里不再留第二份实现）
 
-  function renderCfg() {
+  function renderCfg(draft, persist = true) {
     if (!cfgEl) return;
-    const c = getCfg();
+    const source = draft || getCfg();
+    const c = reconcileCfg(source, modelCache);
+    // 打开设置时把「已保存但当前模型不认」的 effort 清掉并落盘：
+    // 否则面板显示「默认」、请求却还带着它（见 ai-config.js 的 reconcileCfg）
+    if (persist && c.effort !== source.effort) saveJSON(K_CFG, c);
+    const proxy = isProxyMode(c, DEF_CFG.baseUrl);
+    if (proxy && c.effort) c.effort = ''; // 代理模式不传档位，面板别显示一个其实不发的值
     const ids = modelCache.map((m) => m.id);
     // 手填过、但网关没报的旧值也留着，不静默换模型
     if (c.model && ids.indexOf(c.model) < 0) ids.unshift(c.model);
@@ -657,7 +731,12 @@ import { mdToHtml } from './ai-md.js';
           })
           .join('')
       : opt(c.model, c.model, c.model);
-    const levels = effortLevels(c.model);
+    const levels = effortLevels(modelCache, c.model);
+    const effortHint = proxy
+      ? '（本站代理固定）'
+      : levels.length
+        ? ''
+        : '（网关没报这个模型的档位）';
     cfgEl.innerHTML =
       '<div class="ai-row"><label>Base URL</label>' +
       '<input type="text" spellcheck="false" data-k="baseUrl" value="' + esc(c.baseUrl) + '"></div>' +
@@ -666,39 +745,46 @@ import { mdToHtml } from './ai-md.js';
       '<div class="ai-row"><label>Model</label>' +
       '<div class="ai-cfg-pick"><select data-k="model">' + modelOpts + '</select>' +
       '<button class="ai-btn" type="button" data-probe="1">探测模型</button></div></div>' +
-      '<div class="ai-row"><label>推理强度' + (levels.length ? '' : '（网关没报这个模型的档位）') + '</label>' +
-      '<select data-k="effort"' + (levels.length ? '' : ' disabled') + '>' +
+      '<div class="ai-row"><label>推理强度' + effortHint + '</label>' +
+      '<select data-k="effort"' + (proxy || !levels.length ? ' disabled' : '') + '>' +
       opt('', '默认（不传 reasoning_effort）', c.effort) +
       levels.map((lv) => opt(lv, lv, c.effort)).join('') +
       '</select></div>' +
       (probeNote ? '<p class="ai-hint">' + esc(probeNote) + '</p>' : '') +
-      '<p class="ai-hint">Base URL 填到 <code>/v1</code> 为止（代码自己拼 <code>/chat/completions</code>）；只留空 Key 且 Base URL 保持默认时才走本站 <code>/api/chat</code> 代理位。Key 只存本机 localStorage。</p>' +
+      (proxy
+        ? '<p class="ai-hint"><b>本站代理</b>：未填 Key 时请求走 <code>/api/chat</code>，模型以服务端白名单为准（下方 Model 可能被覆盖）；推理强度只对直连生效。</p>'
+        : '') +
+      '<p class="ai-hint">Base URL 填到 <code>/v1</code> 为止（代码自己拼 <code>/chat/completions</code>）；留空 Key 且 Base URL 保持默认时走本站 <code>/api/chat</code> 代理（需服务端配了 LLM_API_KEY），填了 Key 就直连。Key 只存本机 localStorage。</p>' +
       '<div class="ai-acts"><button class="ai-btn" type="button" data-cfgsave="1">保存</button>' +
       '<button class="ai-btn" type="button" data-cfgclose="1">收起</button></div>';
   }
 
-  // 从网关把模型表拉回来（不在时给每行错误，不静默）
+  // 从网关（或本站代理）把模型表拉回来（失败给一句人话，不静默）
   async function probeModels() {
-    const field = (k) => {
-      const el = cfgEl.querySelector('[data-k="' + k + '"]');
-      return el ? String(el.value || '').trim() : '';
-    };
-    const base = (field('baseUrl') || getCfg().baseUrl).replace(/\/+$/, '');
-    const key = field('apiKey');
+    // 先读草稿：探测会重渲染面板，不能从「已保存配置」重建，否则没保存的 Base/Key 被清空
+    const draft = readCfgDraft(cfgEl, getCfg());
+    const base = normalizeBase(draft.baseUrl || DEF_CFG.baseUrl);
+    const key = String(draft.apiKey || '').trim();
+    const proxy = isProxyMode(draft, DEF_CFG.baseUrl);
     probeNote = '探测中…';
-    renderCfg();
+    renderCfg(draft, false);
     try {
-      const res = await fetch(base + '/models', { headers: key ? { authorization: 'Bearer ' + key } : {} });
-      if (!res.ok) throw new Error(resErr(res));
+      const res = await fetch(proxy ? '/api/models' : base + '/models', {
+        headers: key ? { authorization: 'Bearer ' + key } : {},
+      });
+      if (!res.ok) throw new Error(await apiError(res, '模型列表'));
       const j = await res.json();
       const list = (Array.isArray(j.data) ? j.data : []).filter((m) => m && m.id);
       if (!list.length) throw new Error('网关没有返回模型列表');
       modelCache = list;
-      probeNote = '探测到 ' + list.length + ' 个模型 · ' + base;
+      saveModelCache(list, base, proxy);
+      probeNote = proxy
+        ? '本站代理：' + list.length + ' 个模型（由服务端决定）'
+        : '探测到 ' + list.length + ' 个模型 · ' + base;
     } catch (e) {
       probeNote = '探测失败：' + (e && e.message ? e.message : e);
     }
-    renderCfg();
+    renderCfg(draft, false);
   }
 
   function toMarkdown(t) {
@@ -709,7 +795,9 @@ import { mdToHtml } from './ai-md.js';
     out.push('');
     (t.messages || []).forEach((m) => {
       out.push('## ' + (m.role === 'user' ? '我' : '伴读'));
-      const meta = [m.pageTitle, m.asOf].filter(Boolean).join(' · ');
+      const meta = [m.model ? '模型 ' + m.model : '', m.pageTitle, m.asOf]
+        .filter(Boolean)
+        .join(' · ');
       if (meta) out.push('> ' + meta);
       (m.quotes || []).forEach((q) => {
         out.push('', '> 引用 · ' + (q.section || q.pageTitle || '') + (q.asOf ? ' · ' + q.asOf : ''));
@@ -743,7 +831,8 @@ import { mdToHtml } from './ai-md.js';
     }, 0);
   }
 
-  // 预留挂点：接上后端后把对话落进 data/（POST /api/notes {filename, markdown, thread}）
+  // 把当前对话落盘：本地 FastAPI 写 data/notes/，线上 Pages Function 落 NOTES KV；
+  // 静态站没绑 KV 时返回 503，apiError 会把「请本地运行 / 导出 .md」原样带出来。
   async function saveToServer(t) {
     const thread = t || getActiveThread();
     if (!thread) throw new Error('没有可保存的对话');
@@ -752,8 +841,29 @@ import { mdToHtml } from './ai-md.js';
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ filename: fileName(thread), markdown: toMarkdown(thread), thread }),
     });
-    if (!res.ok) throw new Error('保存失败 ' + res.status);
+    if (!res.ok) throw new Error(await apiError(res, '保存接口'));
     return res.json();
+  }
+
+  async function saveActiveThread() {
+    const thread = getActiveThread();
+    if (!thread) return flash('还没有对话可保存', true);
+    const btn = drawer && drawer.querySelector('[data-act="save"]');
+    if (btn) {
+      btn.disabled = true;
+      btn.textContent = '保存中…';
+    }
+    try {
+      const r = await saveToServer(thread);
+      flash('已保存：' + (r.path || r.key || 'OK'));
+    } catch (e) {
+      flash('保存失败：' + (e && e.message ? e.message : e), true);
+    } finally {
+      if (btn) {
+        btn.disabled = false;
+        btn.textContent = '存笔记';
+      }
+    }
   }
 
   // ── DOM ─────────────────────────────────────────────────────────────────
@@ -765,10 +875,12 @@ import { mdToHtml } from './ai-md.js';
     '<span class="ai-title">伴读问答</span>' +
     '<button class="ai-btn" type="button" data-act="new">＋ 新对话</button>' +
     '<button class="ai-btn" type="button" data-act="hist">历史 <span data-hist-n>0</span></button>' +
-    '<button class="ai-btn" type="button" data-act="export">导出 .md</button>' +
+    '<button class="ai-btn" type="button" data-act="export" title="导出为 Markdown（.md）">导出</button>' +
+    '<button class="ai-btn" type="button" data-act="save" title="保存到 data/notes/（本地）或 NOTES KV（线上）">存笔记</button>' +
     '<button class="ai-btn" type="button" data-act="cfg">⚙ 设置</button>' +
     '<button class="ai-btn" type="button" data-act="close" title="关闭（Esc）">✕</button>' +
     '</div>' +
+    '<div class="ai-flash" data-flash role="status" hidden></div>' +
     '<div class="ai-cfg" data-cfg hidden></div>' +
     '<div class="ai-hist" data-hist hidden></div>' +
     '<div class="ai-msgs" data-msgs></div>' +
@@ -798,6 +910,7 @@ import { mdToHtml } from './ai-md.js';
     cfgEl = drawer.querySelector('[data-cfg]');
     histEl = drawer.querySelector('[data-hist]');
     histN = drawer.querySelector('[data-hist-n]');
+    flashEl = drawer.querySelector('[data-flash]');
 
     floatBtn.addEventListener('click', toggle);
 
@@ -851,6 +964,10 @@ import { mdToHtml } from './ai-md.js';
           download(fileName(thread), toMarkdown(thread));
           return;
         }
+        if (a === 'save') {
+          saveActiveThread();
+          return;
+        }
       }
       const mact = t.closest('[data-mact]');
       if (mact) {
@@ -867,13 +984,28 @@ import { mdToHtml } from './ai-md.js';
       }
       const cfgsave = t.closest('[data-cfgsave]');
       if (cfgsave) {
+        const prev = getCfg();
+        const prevBase = normalizeBase(prev.baseUrl);
+        const wasProxy = isProxyMode(prev, DEF_CFG.baseUrl);
         const cfg = getCfg();
         cfgEl.querySelectorAll('[data-k]').forEach((el) => {
-          cfg[el.dataset.k] = el.value.trim();
+          cfg[el.dataset.k] = String(el.value || '').trim();
         });
         if (!cfg.baseUrl) cfg.baseUrl = DEF_CFG.baseUrl;
         if (!cfg.model) cfg.model = DEF_CFG.model;
-        saveJSON(K_CFG, cfg);
+        let next = reconcileCfg(cfg, modelCache); // 该模型没这个档位就别留着
+        saveJSON(K_CFG, next);
+        const nowProxy = isProxyMode(next, DEF_CFG.baseUrl);
+        if (prevBase !== normalizeBase(next.baseUrl) || wasProxy !== nowProxy) {
+          // 换网关或切代理/直连：旧模型表不再适用，换成新模式的缓存（没有就空），
+          // 再清一次失效 effort——否则代理白名单会串到 BYOK 的 Model 下拉里
+          modelCache = loadModelCache();
+          const fixed = reconcileCfg(next, modelCache);
+          if (fixed.effort !== next.effort) {
+            next = fixed;
+            saveJSON(K_CFG, next);
+          }
+        }
         panel(cfgEl, false);
         return;
       }
@@ -908,17 +1040,23 @@ import { mdToHtml } from './ai-md.js';
     cfgEl.addEventListener('change', (e) => {
       const sel = e.target.closest && e.target.closest('select[data-k]');
       if (!sel) return;
-      const cfg = getCfg();
-      cfg[sel.dataset.k] = sel.value;
       if (sel.dataset.k === 'model') {
-        const lv = effortLevels(sel.value);
-        if (cfg.effort && lv.indexOf(cfg.effort) < 0) cfg.effort = ''; // 新模型没这档，别留着发不存在的值
-        saveJSON(K_CFG, cfg);
+        const next = getCfg();
+        next.model = sel.value;
+        const lv = effortLevels(modelCache, sel.value);
+        if (next.effort && lv.indexOf(next.effort) < 0) next.effort = ''; // 新模型没这档
+        saveJSON(K_CFG, next);
+        // 重渲染必须带草稿：否则没保存的 Base URL / Key 会被已保存配置顶掉
+        const draft = readCfgDraft(cfgEl, next);
+        draft.model = sel.value;
+        draft.effort = next.effort;
         probeNote = '';
-        renderCfg();
+        renderCfg(draft, false);
         return;
       }
-      saveJSON(K_CFG, cfg);
+      const next = getCfg();
+      next[sel.dataset.k] = sel.value;
+      saveJSON(K_CFG, next);
     });
 
     sendBtn.addEventListener('click', () => {
@@ -944,6 +1082,7 @@ import { mdToHtml } from './ai-md.js';
       if (e.key === 'Escape' && drawer.classList.contains('open')) close();
     });
 
+    normalizeSavedCfg();
     updateHistCount();
     renderChips();
     renderMessages();

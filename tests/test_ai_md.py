@@ -5,12 +5,9 @@ mdToHtml 是手写的块级/行内解析，属于"非平凡逻辑"，用真实�
 """
 
 import json
-import shutil
-import subprocess
-import tempfile
 from pathlib import Path
 
-import pytest
+from tests.node_runner import run_node
 
 ROOT = Path(__file__).resolve().parent.parent
 MD = ROOT / "frontend" / "public" / "js" / "ai-md.js"
@@ -38,15 +35,7 @@ console.log(JSON.stringify({
 
 
 def _render() -> dict:
-    if shutil.which("node") is None:
-        pytest.skip("无 node，跳过 Markdown 渲染检查")
-    with tempfile.NamedTemporaryFile("w", suffix=".mjs", delete=False, encoding="utf-8") as f:
-        f.write(BODY % json.dumps(MD.as_uri()))
-        tmp = f.name
-    r = subprocess.run(["node", tmp], capture_output=True, text=True, encoding="utf-8")
-    Path(tmp).unlink(missing_ok=True)
-    assert r.returncode == 0, r.stderr
-    return json.loads(r.stdout)
+    return run_node(BODY % json.dumps(MD.as_uri()))
 
 
 def test_markdown_blocks() -> None:

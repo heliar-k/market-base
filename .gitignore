@@ -33,6 +33,9 @@ frontend/public/api/
 trade-journal/
 data/options_structure/raw_*.csv
 
+# 伴读抽屉「存笔记」写入的个人对话（本地保留，不公开）
+data/notes/
+
 # pi planning-with-files 会话计划文件（每次会话重写，不入库）
 task_plan.md
 findings.md
@@ -44,3 +47,6 @@ data/wgc/*.xlsx
 
 # cf-cron-dispatch（Cloudflare Worker）本地状态
 cf-cron-dispatch/.wrangler/
+
+# wrangler 本地状态（pages dev / functions build）
+.wrangler/
