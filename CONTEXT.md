@@ -37,3 +37,4 @@
 - **笔记落盘（note save）**：抽屉「存笔记」把整条对话（含引用块）落成 Markdown。本地 `data/notes/`；线上绑 `NOTES` KV 时落 KV，未绑返回 503 并提示导出 `.md`——静态站没有 `data/` 写权限。
 - **模型探测（model probe）**：伴读抽屉设置里的按钮，GET `{BaseURL}/models` 列出网关模型（magpie 的 65 个带 display_name），并按所选模型的 reasoning_levels 填充「推理强度」，随请求以 `reasoning_effort` 透传（网关不认就忽略）。Base URL 保持默认且无 Key 时才回落本站 `/api/chat` 代理位；改成别的地址即直连——本地网关多半不校验 key。
 - **引用胶囊（quote chip）**：用户在页面正文或表格划词后注入伴读抽屉的上下文片段。除选中文本外，自动锚定所属页面、数据时效、所在小节标题及表头行，支持跨小节/跨页叠加多枚后一并提问。
+- **伴读工具（drawer tool）**：伴读抽屉里模型可主动调用的只读取数通道，把站内预渲染端点包装成 LLM function tools，补齐「页面摘要里没有、但站内已导出」的读数（其他页面、更长历史、其他标的）。执行在浏览器（同源 `/api/*`），不是服务端；工具是**具名端点枚举**而非自由路径，模型只能选不能拼。工具往返只在内存里跑，不进 `thread.messages`。边界见 ADR-0006，切片见 `docs/SPEC-ai-drawer-tools.md`。
