@@ -105,6 +105,36 @@ T1 必须先解掉这一条，两种走法：
 T1 开工第一件事是**用一个最小请求验证**：历史 assistant 消息缺 `reasoning_content` 时，
 带 tools 的请求到底会不会 400。文档写得很硬，但这条要实测，别按文档猜——它决定 A/B 怎么选。
 
+### 实测结论（2026-10-22，已验）
+
+跑 `uv run python scripts_dev/check_tools_upstream.py`，六项全 PASS：
+
+| 项 | 结果 |
+|---|---|
+| R2 思考模式回 `reasoning_content` | 是（84 字） |
+| R3 带 tools 触发 `tool_calls` | 是，`finish_reason: tool_calls` |
+| R4 流式 `arguments` 分片拼接 | 26 个分片拼回合法 JSON |
+| R5 回填 `tool` 结果后续流 | 正文引用了回填的 4.812 |
+| **R6 历史 assistant 缺 `reasoning_content` + tools** | **200，不强制** |
+
+R6 还测了更严的形状（assistant 带 `tool_calls` 但无 `reasoning_content` + `tool` 回填），同样 200。
+
+**结论：A / B 都不用做。** thread schema 维持现状，`buildMessages()` 不额外回传
+`reasoning_content`（每轮带上 4000 字的思维链只会挤爆 40k 字符预算），
+`think` 继续是「显示用的截断值」。
+
+**为什么这个 200 可信**：同一条链上 `tool_choice: "required"` 在思考模式下确实 400
+（`雷火网关: Thinking mode does not support this tool_choice`）—— 说明上游错误是原样透传的，
+不是网关把 messages 规范化后吞掉，R6 的 200 不是假阴性。
+
+**残余风险与防线**：实测打的是本地网关（magpie → 雷火 → deepseek 兼容链），
+而生产默认 base 是 `https://api.deepseek.com`（`deploy-pages.yml` 只同步 key、不设 base）。
+官方若更严格，症状是「带 tools 的第二轮及以后 400」。防线只写一条、十行以内：
+`runTurn` 捕获「400 且响应体提到 `reasoning_content`」→ 丢掉历史里除最后一条 user 之外的消息
+重发一次（**保留 tools**）。只降级该轮记忆，不丢查数能力。
+
+**重跑时机**：换 `LLM_BASE_URL` / 换 key / 网关改版后重跑该脚本，别继承旧结论。
+
 ## 工具目录 v1（T1 只发这一个）
 
 ```json
