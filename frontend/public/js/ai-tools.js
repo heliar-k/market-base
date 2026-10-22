@@ -12,17 +12,69 @@
 
 export const TOOL_NAME = 'query_site_data';
 
-// 具名端点白名单：加端点必须同时改这里与下面 TOOLS 的 enum，且只暴露真正稳定的读数。
-export const TOOL_ENDPOINTS = ['rates/yield-curve', 'rates/real-rates', 'volatility/dashboard'];
+// 具名端点目录（单源）：白名单、tool enum、提示词索引全部从这里派生。
+// 加端点只改这一处；只暴露真正稳定的读数，`liquidity/overview_*.json` 那组
+// 区间图表数据（830KB–2MB）刻意不进目录。
+//   - path  静态站 /api/{path}（无 .json 后缀，Astro directory 路由）
+//   - group 族名，toolCatalogLegend() 按它分行
+//   - label 给模型看的短中文含义（同族端点必须能区分开）
+export const TOOL_CATALOG = [
+  { path: 'rates/yield-curve', group: 'rates', label: '期限结构与曲线形态' },
+  { path: 'rates/real-rates', group: 'rates', label: '实际利率与盈亏平衡' },
+  { path: 'rates/fed-funds', group: 'rates', label: '联邦基金利率与政策走廊' },
+  { path: 'rates/auctions', group: 'rates', label: '国债拍卖需求与日历' },
+  { path: 'rates/analysis', group: 'rates', label: '利率研判（规则引擎）' },
+  { path: 'credit/overview', group: 'credit', label: '信用利差与融资成本总览' },
+  { path: 'credit/stress', group: 'credit', label: '信用压力五分量指数' },
+  { path: 'credit/cds', group: 'credit', label: '主权与银行 CDS 代理' },
+  { path: 'liquidity/snapshot', group: 'liquidity', label: '流动性总览快照' },
+  { path: 'liquidity/reserves', group: 'liquidity', label: '准备金与银行中介意愿' },
+  { path: 'liquidity/rrp-tga', group: 'liquidity', label: 'RRP 与 TGA 余额' },
+  { path: 'liquidity/fed-balance-sheet', group: 'liquidity', label: '美联储资产负债表' },
+  { path: 'liquidity/operations', group: 'liquidity', label: '公开市场操作与 SRF' },
+  { path: 'liquidity/subsurface', group: 'liquidity', label: '次表层融资压力' },
+  { path: 'liquidity/transmission-chain', group: 'liquidity', label: '流动性压力指数 LPI' },
+  { path: 'liquidity/global-dollar', group: 'liquidity', label: '全球美元与央行互换' },
+  { path: 'volatility/dashboard', group: 'volatility', label: '波动率全景仪表盘' },
+];
 
-// 工具目录 v1（与 docs/SPEC-ai-drawer-tools.md「工具目录 v1」逐字一致）。
+// 白名单是执行器唯一的放行依据：端点外一律拒绝且不发请求。
+export const TOOL_ENDPOINTS = TOOL_CATALOG.map((t) => t.path);
+
+/**
+ * 按 group 生成紧凑的「英文端点名=中文含义」索引，供系统提示词使用。
+ * 为什么不在提示词里手抄清单：17 个端点靠 enum 名猜不准（credit/overview 与
+ * credit/stress 差别在哪，模型看不出来），而 tool description 有 500 字上限，
+ * 塞不下整张表。索引由目录生成，TOOL_CATALOG 加端点提示词自动跟上。
+ * @returns {string} 每个 group 一行，如 `rates: yield-curve=期限结构；…`
+ */
+export function toolCatalogLegend(catalog = TOOL_CATALOG) {
+  const order = [];
+  const groups = new Map();
+  (Array.isArray(catalog) ? catalog : []).forEach((t) => {
+    if (!t || !t.path || !t.group) return;
+    const group = String(t.group);
+    if (!groups.has(group)) {
+      groups.set(group, []);
+      order.push(group);
+    }
+    const name = String(t.path).split('/').pop();
+    const label = t.label ? String(t.label) : name;
+    groups.get(group).push(name + '=' + label);
+  });
+  return order.map((g) => g + ': ' + groups.get(g).join('；')).join('\n');
+}
+
+// 工具目录（工具 description 只写「查什么 + 有哪几族」，端点索引放系统提示词）。
 export const TOOLS = [
   {
     type: 'function',
     function: {
       name: TOOL_NAME,
       description:
-        '查询本站已导出的数据端点。用于页面摘要里没有的读数（其他页面、更长历史、其他标的）。返回 JSON 文本。',
+        '查询本站已导出的数据端点（rates 利率 / credit 信用 / liquidity 流动性 / volatility 波动率）。' +
+        '用于页面摘要里没有的读数（其他页面、更长历史、其他标的）。返回 JSON 文本，' +
+        '结果过大时按提示用 json_path 下钻。',
       parameters: {
         type: 'object',
         properties: {

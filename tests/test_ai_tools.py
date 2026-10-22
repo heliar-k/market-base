@@ -10,10 +10,18 @@
 - 每轮 ≤3 次、≤2 轮往返的限额（planToolRound）；
 - 预算用尽仍要工具时 nextLoopAction 强制下一轮 tool_choice:'none'。
 顺带锁住提示词三层优先级与 chatPayload 的 tools 单源接线。
+
+T2 扩到 17 端点后补四条守卫：
+- 目录路径唯一、格式合法、四族齐全、17 条，且每条都能在 src/export_pages.py 找到导出；
+- toolCatalogLegend() 覆盖每个 group / label，且提示词里的索引确实由它生成
+  （ai-prompt.js 源码不许出现任何端点路径字面量）；
+- tool description 仍在服务端 500 字上限内（索引只能放提示词）；
+- 大端点（80KB 级）仍返回结构摘要而不是前 2000 字半截 JSON。
 """
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 from tests.node_runner import run_node
@@ -23,6 +31,30 @@ JS = ROOT / "frontend" / "public" / "js"
 TOOLS = JS / "ai-tools.js"
 PROMPT = JS / "ai-prompt.js"
 CONFIG = JS / "ai-config.js"
+EXPORT_PAGES = ROOT / "src" / "export_pages.py"
+
+# 与 frontend/public/js/ai-tools.js 的 TOOL_CATALOG 逐条对应（顺序也计入：
+# 提示词索引按目录顺序分行，模型看到的族顺序应当稳定）。
+EXPECTED_PATHS = [
+    "rates/yield-curve",
+    "rates/real-rates",
+    "rates/fed-funds",
+    "rates/auctions",
+    "rates/analysis",
+    "credit/overview",
+    "credit/stress",
+    "credit/cds",
+    "liquidity/snapshot",
+    "liquidity/reserves",
+    "liquidity/rrp-tga",
+    "liquidity/fed-balance-sheet",
+    "liquidity/operations",
+    "liquidity/subsurface",
+    "liquidity/transmission-chain",
+    "liquidity/global-dollar",
+    "volatility/dashboard",
+]
+PATH_RE = re.compile(r"^[a-z0-9-]+/[a-z0-9-]+$")
 
 BODY = """
 const tools = await import('__TOOLS__');
@@ -40,12 +72,26 @@ const catalog = {
   jsonPathType: fn.parameters.properties.json_path.type,
   jsonPathRequired: (fn.parameters.required || []).includes('json_path'),
   descHasPath: fn.description.includes('JSON'),
+  descLen: fn.description.length,
   maxChars: tools.TOOL_MAX_CHARS,
   maxCalls: tools.MAX_CALLS_PER_ROUND,
   maxRounds: tools.MAX_TOOL_ROUNDS,
   timeout: tools.TOOL_TIMEOUT_MS,
   byName: !!tools.toolByName('query_site_data'),
   byNameMissing: tools.toolByName('nope') === null,
+};
+
+// ── 1b. 目录元数据与提示词索引（T2：单源，17 端点） ──────────────────────
+const catalogMeta = {
+  entries: tools.TOOL_CATALOG.map((t) => ({ path: t.path, group: t.group, label: t.label })),
+  count: tools.TOOL_CATALOG.length,
+  endpointsMatch:
+    JSON.stringify(tools.TOOL_ENDPOINTS) ===
+    JSON.stringify(tools.TOOL_CATALOG.map((t) => t.path)),
+  enumMatch:
+    JSON.stringify(fn.parameters.properties.endpoint.enum) ===
+    JSON.stringify(tools.TOOL_ENDPOINTS),
+  legend: tools.toolCatalogLegend(),
 };
 
 // ── 2. json_path 下钻 ────────────────────────────────────────────────────
@@ -145,6 +191,14 @@ const evil = await tools.runToolCall(call({ endpoint: 'https://evil.example/x' }
     return { ok: true, status: 200, json: async () => ({}) };
   },
 });
+// 目录外但「长得像真端点」的路径同样拒绝（liquidity/overview_* 是 830KB–2MB 图表数据）
+let overviewCalled = false;
+const overview = await tools.runToolCall(call({ endpoint: 'liquidity/overview_all' }), {
+  fetchImpl: async () => {
+    overviewCalled = true;
+    return { ok: true, status: 200, json: async () => ({}) };
+  },
+});
 const missing = await tools.runToolCall(
   call({ endpoint: 'rates/real-rates', json_path: 'data.nope' }),
   {
@@ -173,6 +227,8 @@ const execute = {
   timeoutError: JSON.parse(timeout.content),
   evilCalled,
   evil: JSON.parse(evil.content),
+  overviewCalled,
+  overview: JSON.parse(overview.content),
   missing: JSON.parse(missing.content),
   badJson: JSON.parse(badJson.content),
   unknown: JSON.parse(unknown.content),
@@ -438,9 +494,43 @@ const wiring = {
   ).tool_choice,
 };
 
+// ── 8b. 端点索引进提示词（由 TOOL_CATALOG 生成，不手抄） ────────────────
+const promptIndex = {
+  text: prompt.AI_ENDPOINT_INDEX,
+  inSystem: prompt.AI_SYSTEM_PROMPT.includes(prompt.AI_ENDPOINT_INDEX),
+  hasLegend: prompt.AI_SYSTEM_PROMPT.includes(tools.toolCatalogLegend()),
+  fallbackHint: prompt.AI_SYSTEM_PROMPT.includes('不确定选哪个就先调最接近的'),
+  lines: prompt.AI_ENDPOINT_INDEX.split('\\n').length,
+};
+
+// ── 9. 大端点仍走结构摘要（80KB 级真实体积） ─────────────────────────────
+const bigPayload = {
+  as_of: '2026-10-21',
+  narrative: 'x'.repeat(4000),
+  series: Array.from({ length: 1800 }, (_, i) => ({
+    date: '2026-01-01',
+    value: i,
+    label: 'row',
+  })),
+};
+const bigRun = await tools.runToolCall(call({ endpoint: 'liquidity/transmission-chain' }), {
+  fetchImpl: async () => ({ ok: true, status: 200, json: async () => bigPayload }),
+});
+const bigSummary = JSON.parse(bigRun.content);
+const bigEndpoint = {
+  rawLen: JSON.stringify(bigPayload).length,
+  len: bigRun.content.length,
+  endpoint: bigRun.endpoint,
+  note: bigSummary._note,
+  total: bigSummary.total_chars,
+  asOf: bigSummary.summary.as_of,
+  seriesType: bigSummary.summary.series,
+};
+
 console.log(
   JSON.stringify({
     catalog,
+    catalogMeta,
     drill,
     volume,
     execute,
@@ -450,6 +540,8 @@ console.log(
     degrade,
     describe,
     wiring,
+    promptIndex,
+    bigEndpoint,
   })
 );
 """
@@ -469,21 +561,118 @@ def test_tool_catalog_schema() -> None:
     assert out["count"] == 1
     assert out["type"] == "function"
     assert out["name"] == "query_site_data"
-    assert out["enum"] == [
-        "rates/yield-curve",
-        "rates/real-rates",
-        "volatility/dashboard",
-    ]
+    assert out["enum"] == EXPECTED_PATHS
     assert out["required"] == ["endpoint"]
     assert out["jsonPathType"] == "string"
     assert out["jsonPathRequired"] is False
     assert out["descHasPath"] is True
+    # 服务端（functions/_lib/common.js 与 src/chat_proxy.py）都卡 500 字上限：
+    # 17 个端点的说明只能进提示词索引，不能塞进 tool description。
+    assert 0 < out["descLen"] <= 500
     assert out["maxChars"] == 2000
     assert out["maxCalls"] == 3
     assert out["maxRounds"] == 2
     assert out["timeout"] == 8000
     assert out["byName"] is True
     assert out["byNameMissing"] is True
+
+
+def test_catalog_paths_are_unique_and_grouped() -> None:
+    out = _run()["catalogMeta"]
+    entries = out["entries"]
+    assert out["count"] == 17 == len(entries)
+    paths = [e["path"] for e in entries]
+    assert paths == EXPECTED_PATHS
+    assert len(set(paths)) == 17, "端点路径重复"
+    bad = [p for p in paths if not PATH_RE.match(p)]
+    assert not bad, f"端点路径格式应为 group/name（小写字母数字连字符）：{bad}"
+    groups = {e["group"] for e in entries}
+    assert groups == {"rates", "credit", "liquidity", "volatility"}
+    # 白名单 / enum 都必须从目录派生，不能各写一份
+    assert out["endpointsMatch"] is True
+    assert out["enumMatch"] is True
+    # 830KB–2MB 的区间图表数据不进目录（白名单只暴露稳定读数）
+    assert not any("overview_" in p for p in paths)
+
+
+def test_every_catalog_path_has_an_exporter() -> None:
+    """每条路径都要在 src/export_pages.py 里有对应导出（干净 clone 没有 public/api）。
+
+    两种写法：
+    - 显式字符串：`_safe("api/credit/stress", ...)` → 断言 `api/<path>` 出现在源码；
+    - rates 族元组表：`("yield-curve", get_rates_yield_curve)` → 断言最后一段以
+      `("<name>"` 出现在那张表的区间内。
+    """
+    src = EXPORT_PAGES.read_text(encoding="utf-8")
+    start = src.find("for name, fn in [")
+    assert start != -1, "export_pages.py 的 rates 元组表不见了，测试需要同步"
+    end = src.find("]:", start)
+    assert end != -1, "rates 元组表没有闭合"
+    rates_block = src[start:end]
+    entries = _run()["catalogMeta"]["entries"]
+    missing = []
+    reasons = {}
+    for e in entries:
+        path = e["path"]
+        if f"api/{path}" in src:
+            reasons[path] = "explicit"
+            continue
+        name = path.rsplit("/", 1)[-1]
+        if path.startswith("rates/") and f'("{name}"' in rates_block:
+            reasons[path] = "rates-tuple"
+            continue
+        missing.append(path)
+    assert not missing, f"目录里有端点没有导出实现：{missing}"
+    # 守住测试本身：rates 族必须真的走元组表分支，而不是被显式字符串兜住
+    rates = [p for p in EXPECTED_PATHS if p.startswith("rates/")]
+    assert rates and all(reasons.get(p) == "rates-tuple" for p in rates)
+
+
+def test_catalog_legend_feeds_prompt_without_hardcoding() -> None:
+    out = _run()
+    meta = out["catalogMeta"]
+    index = out["promptIndex"]
+    entries = meta["entries"]
+    legend = meta["legend"]
+    lines = legend.splitlines()
+    assert len(lines) == 4, f"应按 group 每个一行，实际 {len(lines)} 行：{legend!r}"
+    for group in ("rates", "credit", "liquidity", "volatility"):
+        assert any(line.startswith(group + ": ") for line in lines), f"索引缺 {group} 族"
+    for e in entries:
+        name = e["path"].rsplit("/", 1)[-1]
+        assert name + "=" in legend, f"索引缺端点 {e['path']}"
+        assert e["label"] in legend, f"索引缺 {e['path']} 的中文含义"
+    # 提示词里确实嵌入了整段索引，而不是另写一份
+    assert index["inSystem"] is True
+    assert index["hasLegend"] is True
+    assert index["fallbackHint"] is True
+    # 标题 + 四族各一行 + 换路提示 = 6 行
+    assert index["lines"] == 6
+    # 反向守卫：ai-prompt.js 不许出现任何端点路径字面量（必须由函数生成）
+    prompt_src = PROMPT.read_text(encoding="utf-8")
+    assert "toolCatalogLegend(" in prompt_src, "提示词没走 toolCatalogLegend() 生成索引"
+    hardcoded = [p for p in EXPECTED_PATHS if p in prompt_src]
+    assert not hardcoded, f"ai-prompt.js 手抄了端点路径：{hardcoded}"
+    # 连「端点名=含义」这种索引条目也不许抄：必须 run-time 由 toolCatalogLegend() 生成
+    copied = []
+    for e in entries:
+        name = e["path"].rsplit("/", 1)[-1]
+        if name + "=" in prompt_src or e["label"] in prompt_src:
+            copied.append(e["path"])
+    assert not copied, f"ai-prompt.js 手抄了索引条目：{copied}"
+
+
+def test_large_endpoint_returns_structured_summary() -> None:
+    """80KB 端点不能硬截前 2000 字：要给结构摘要 + json_path 下钻提示。"""
+    out = _run()["bigEndpoint"]
+    assert out["rawLen"] > 80000, f"测试载荷不够大：{out['rawLen']}"
+    assert out["endpoint"] == "liquidity/transmission-chain"
+    assert out["len"] <= 2000
+    assert out["total"] == out["rawLen"]
+    assert "json_path" in out["note"]
+    assert out["asOf"] == "2026-10-21"
+    assert out["seriesType"].startswith("array[1800]")
+    assert "date" in out["seriesType"]
 
 
 def test_json_path_drilldown() -> None:
@@ -548,9 +737,11 @@ def test_executor_shapes_failures_without_throwing() -> None:
     assert "网络" in out["networkError"]["error"]
     assert out["timeoutError"]["status"] == 0
     assert "超时" in out["timeoutError"]["error"] or "取消" in out["timeoutError"]["error"]
-    # 白名单外端点不发起请求
+    # 白名单外端点不发起请求（含目录外但形似真端点的路径）
     assert out["evilCalled"] is False
     assert "白名单" in out["evil"]["error"]
+    assert out["overviewCalled"] is False
+    assert "白名单" in out["overview"]["error"]
     # 路径不存在时带该层可用 key，模型第二次能改
     missing = out["missing"]
     assert missing["available"] == ["a", "b"]

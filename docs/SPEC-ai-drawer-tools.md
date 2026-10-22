@@ -176,7 +176,146 @@ R6 还测了更严的形状（assistant 带 `tool_calls` 但无 `reasoning_conte
 ```
 
 执行器 `GET /api/{endpoint}`（静态站无 `.json` 后缀）→ 可选 `json_path` 下钻 →
-`JSON.stringify` → 截断 2000 字。
+序列化时按第 4 条走体积策略（≤2000 字原样返回，超了给结构摘要或首尾采样，不硬截半截 JSON）。
+
+## 工具目录 v2（T2）
+
+17 个端点 / 4 族（v1 的 3 个 + 新增 14 个）。目录单源是 `TOOL_CATALOG`
+（`frontend/public/js/ai-tools.js`：`path` / `group` / `label`），`enum` 与提示词里的端点索引都从它派生；
+下面这张表是那张表的审计依据，逐个数的是 `frontend/public/api/` 里 2026-10-19 的真实产物。
+
+> 「下钻后」的字数不是估的：把真实 JSON 喂给执行器的 `jsonPath()` + `renderToolResult()`
+> 跑一遍，得到的就是**模型实际收到的那段文本的字符数**（含 `_note`）。全部 ≤2000 字上限。
+
+| 端点 | 分组 | 大小 | 顶层键 | 能回答什么 | 推荐下钻路径（下钻后字数） |
+|---|---|---|---|---|---|
+| `rates/yield-curve` | rates | 16.9KB | `generator` · `yield_curve`（14 子键） | 曲线形态与驱动、2s10s/3m10s/5s30s 及 1 个月变化、11 个期限收益率、5 个期限的名义-实际-盈亏平衡、132 日利差历史、中美日长端对照 | `yield_curve.spreads`（82，四组利差 + 1m 变化）/ `yield_curve.tenors`（1207，11 行含 1w/1m/3m 变化）/ `yield_curve.spreads_history.2s10s`（295，首尾采样） |
+| `rates/real-rates` | rates | 86.4KB | `as_of` · `nominal_10y` · `real_10y` · `breakeven_10y` · `term_premium` · `term_premium_chg_1m` · `y2` · `spread_2s10` | 10Y 名义/实际/盈亏平衡/期限溢价的当前值与一年路径、2s10s | **顶层没有标量当前值**（8 个键里 6 个是 365 点数组）：`term_premium_chg_1m`（3）是唯一数值标量；当前读数钻 `real_10y` / `nominal_10y`（305 / 307，`last` 末条即最新）/ `spread_2s10`（379，单位 %，末条 0.33 = 33bp） |
+| `rates/fed-funds` | rates | 68.7KB | `as_of` · `latest` · `corridor` · `sofr_vol` · `effr_history` · `recent` | EFFR、SOFR、SOFR 成交量、目标区间、政策走廊 7 条 90 日序列（EFFR/SOFR/TGCR/BGCR/ON RRP/目标区间上下限）、1250 日 EFFR 历史 | `latest`（188，6 个当前读数）/ `latest.effr`（35）/ `recent`（1021，30 天）；别直接钻 `effr_history`（1250 点只剩首尾） |
+| `rates/auctions` | rates | 38.9KB | `as_of` · `avg_cover_10_coupon` · `upcoming_count` · `recent` · `upcoming` · `trend` · `tail_trend` · `indirect_trend` · `bill_share` · `bill_share_latest` · `borrowing` | 近 10 场名义付息券平均认购倍数、未来 16 场日历、四期限 365 天需求趋势、Bill 占比、QRA 借款估算 | 按期限一律 `trend.10Y`（748，认购倍数 12 行）/ `tail_trend.10Y`（735）/ `indirect_trend.10Y`（743）；`bill_share_latest`（5）/ `borrowing`（100）；**别用 `recent`**（106 行混 Bill/Note/Bond，采样只给最新 3 条 Bill） |
+| `rates/analysis` | rates | 4.5KB | `generator` · `overview` · `yield_curve` | 规则引擎的四段研判（曲线形态 / 实际利率 / 联储预期 / 展望）+ `overview.effr` | `overview`（669，四段正文 + effr）/ `overview.sections`（581，只要散文）/ `yield_curve.spreads`（82，与 yield-curve 同值） |
+| `credit/overview` | credit | 4.5KB | `regime` · `ig` · `hy` · `hy_ig` · `layers` · `spreads` · `funding` · `sloos` · `quality` · `fincond` · `liq_etf` · `signals` · `generator` · `as_of`（14 键） | IG/HY OAS 与分位、6 层利差（IG→CCC）、CCC−BB / BBB−IG、企业与银行融资成本、SLOOS、逾期率与核销率、NFCI 家族、三段 where/what/watch | `regime`（475，61.0 + 7 分量）/ `hy`（114）/ `spreads`（373）/ `signals`（316） |
+| `credit/stress` | credit | 9.7KB | `composite` · `zone` · `components` · `cross` · `history` | 0-100 压力指数（44.7/中性）、5 分量与权重、与 VIX/MOVE/DXY/10Y 的横向偏离、500 日历史 | **整包摘要即答案**（`composite`/`zone` 是顶层标量）；历史钻 `history.values`（127，首尾采样，末条=最新） |
+| `credit/cds` | credit | 1.0KB | `sovereign` · `bank` · `generator` · `as_of` | 主权 CDS 代理 510bp、银行 CDS 与 SPX 的 14 日背离（−1.8pp）、30 日两只走势 | **整包**（1034，不用 json_path）；只要背离 `bank`（925） |
+| `liquidity/snapshot` | liquidity | 1.5KB | `cards` · `evaluation` · `data_date` | 四个余额卡（总资产 / RRP / TGA / 净流动性，含 1m/1y 变化）+ 三段研判 | **整包**（1081）；单卡 `cards.NET_LIQUIDITY`（95） |
+| `liquidity/reserves` | liquidity | 5.5KB | `cards` · `spreads` · `rows` · `series` · `judgement` | 准备金余额（4 周变化）、SOFR−3M T-Bill 与 SOFR−IORB、20 天余额、60 日利差序列 | `cards`（159）/ `spreads`（41，两个标量）/ `rows`（861，20 天） |
+| `liquidity/rrp-tga` | liquidity | 11.4KB | `alert` · `calendar` · `current` · `cashflows` · `data_date` · `series` · `judgement` | RRP / TGA / 净流动性当前值、未来 21 天财政日历（7d/14d 净抽水）、SOFR−IORB 档位、60 日现金流 | `current`（80）/ `alert`（69）/ `calendar.net_7d_b`（5）/ `judgement`（119） |
+| `liquidity/fed-balance-sheet` | liquidity | 3.1KB | `cards` · `rows` · `judgement` · `note` | 总资产 / 国债 / MBS / 净流动性（万亿）、20 行日轴（周度发布，非发布日为 null，附 SPX/NDX）、缩表研判 | `cards`（190，最新值）/ `rows`（862，20 行）；**别读 `rows` 末行**（Fed 字段为 null） |
+| `liquidity/operations` | liquidity | 9.6KB | `rmp` · `recent` · `soma` · `srf` · `as_of` · `rmp_series` · `judgement` | RMP 累计投放与月均（vs 目标）、SOMA 三项周/月变化、SRF 90 天激活天数、40 笔操作明细 | `rmp`（85）/ `soma`（175）/ `srf`（34）/ `recent`（971） |
+| `liquidity/subsurface` | liquidity | 2.9KB | `percentiles` · `volume` · `srf` · `swap` · `composite` · `as_of` · `volume_series` · `judgement` | 次表层压力 6.0/10（承压）、SOFR 五档分位 vs IORB、成交量 z 值、SRF 与互换余额 | `composite`（104，四项分 + state）/ `percentiles`（81）/ `judgement`（150） |
+| `liquidity/transmission-chain` | liquidity | 3.1KB | `score` · `score_raw` · `band` · `pctile_30d` · `history` · `layers` · `confirmations` · `offshore` · `external` · `evidence` · `data_date` | LPI 4.7/中性（30 日 73 分位）、三层加权拆解、6 条确认项、5 个货币基差、证据面板 | **整包摘要即答案**（`score`/`band`/`pctile_30d` 是顶层标量）；拆解钻 `layers`（626）/ `confirmations`（394）/ `evidence`（418） |
+| `liquidity/global-dollar` | liquidity | 0.5KB | `dxy` · `swap` · `pairs` · `score` | DXY 与日变动、央行互换余额（30 日变化）、5 个货币对 1W–1Y 基差、全球美元指数 | **整包**（474）；单看 `dxy`（50）/ `pairs`（334） |
+| `volatility/dashboard` | volatility | 11.1KB | `generator` · `as_of` · `as_of_snapshot` · `hero` · `signals` · `indices` · `stats` · `risk_matrix` · `trade_map` · `narrative` · `term_structure` · `zones` | VIX / VVIX / MOVE / OVX、30 个波动率指数涨跌、6 组风险矩阵、期限结构与升贴水、交易地图、六段叙事 | `hero`（301）/ `term_structure`（160）/ `risk_matrix`（1033）/ `indices`（973，30 行首尾采样）；`narrative`（1519）是规则引擎散文 |
+
+**这张表读出来的三件事**：
+
+1. **17/17 都能「一次 `json_path`」落到能回答问题的层**——12 个需要一次下钻，2 个首跳摘要里
+   已有主读数（`credit/stress` 的 `composite`、`transmission-chain` 的 `score`），3 个整包就
+   ≤2000 字（`credit/cds`、`liquidity/snapshot`、`liquidity/global-dollar`）。
+2. **路径猜错不是多花一跳，是烧掉 1/3 的每轮调用预算**：`json_path` 打偏时执行器返回
+   `{error:"JSON 路径不存在：…", available:[该层可用键]}`，这次调用算数、但一个数据都没拿到
+   （每轮 3 次调用 / 2 轮往返，见第 4 条）。所以「端点名 → 含义」的索引还不够，**下钻路径的
+   可猜性**才是这张表要保的东西：顶层键名自己得说得清（`current` / `latest` / `cards` / `spreads`），
+   别让模型在两跳之外才见到主读数。
+3. 真正吃紧的不是深度而是**宽度**：`rates/auctions.recent`（106 行）、`credit/stress.history`
+   （500 点）、`volatility/dashboard.indices`（30 行）这类长数组，采样只剩首尾 3 条；
+   缺的是「按 key 过滤」（如只取 `security_term` 命中的行），T2 不做，改成在同一包里预先
+   聚合成按期限分桶的 `trend.*`（auctions 已经这么做了）。
+
+### 选型：为什么不收 `liquidity/overview_*`
+
+`export_pages.py` 会为 liquidity 的 10 个区间（1m/3m/6m/1y/2y/3y/5y/10y/30y/all）各导一份
+`api/liquidity/overview_{range}.json`（**这组带 `.json` 后缀**，与目录里其他端点不同）。
+10 个文件合计 5.2MB，最大 `overview_all` 1.9MB、`overview_30y` 1.5MB。
+
+拆 `overview_all` 看：`summary` 0.4KB + `series` 1276KB + `stacked` 649KB —— **99.97% 是图表点对**。
+而 `summary` 里那 5 个 `latest_value` 已被 `liquidity/snapshot.cards`（WALCL / RRP / TGA /
+净流动性）与 `liquidity/reserves.cards`（准备金）覆盖，没有独占读数。模型真要时间序列，
+钻具体端点里的短序列更划算：`reserves.rows` 20 点 861 字、`rrp-tga.series.tga_b` 60 点 205 字、
+`fed-balance-sheet.rows` 20 行 862 字——都比 850KB 的 `overview_10y` 强。
+
+所以剔除的理由**不是「体积大」本身**（单次 GET 的大小不进上下文，只影响一次请求的耗时），
+而是**形状不对**：这批端点只有「图表区间」层，没有「单点读数」层。模型拿到它只有两条路——
+整包被采成首尾 3 天（等于没给），或下钻 `series.*` 拿到几百个点对（2000 字装不下、也没人读）。
+顺带纠一个口径：`overview_1m/3m/6m/1y` 其实只有 7–83KB，并不是全都 830KB 起步；
+真正到 MB 级的是 `10y` / `30y` / `all` 三个。
+
+### 已知的坑（提示词必须能区分）
+
+1. **`credit/overview` 与 `credit/stress` 是两个不同的 0-100 分，结论会打架。**
+   overview 的 `regime.score` = 61.0「中性偏紧」（7 分量等权，定位**信用周期位置**）；
+   stress 的 `composite` = 44.7「中性」（5 分量加权，量**当期压力**）。这两个分在同一页上并存
+   （AGENTS.md §8 记的「一页两份压力色标」老账，stress 那个已降为图注）。提示词口径：regime
+   答「在周期哪一段」，stress 答「现在有多紧」，回答里说明用的是哪个，别把 61/44.7 混成一个数。
+2. **`rates/analysis` 是规则引擎研判，不是原始数据。** `overview.sections` 是四段散文，
+   `yield_curve` 子树与 `rates/yield-curve` 的 `yield_curve` 同源（同 `as_of`、同 `spreads` 值）。
+   问「10Y 多少」钻 `yield-curve`；`analysis` 只用来取「本站怎么解读」。
+3. **同一个量两种单位。** `rates/real-rates.spread_2s10` 是 **%**（末条 0.33），
+   `rates/yield-curve.yield_curve.spreads.2s10s` 是 **bp**（33）。信用侧一律 bp
+   （`hy` 323 = 3.23%）。不带单位回答时，0.33 会被读成 0.33bp。
+4. **`as_of` 是生成日，不是读数日。** `rates/real-rates.as_of` 2026-10-19，但序列末点是
+   2026-10-15（差 4 天）；`liquidity/fed-balance-sheet` 的 `rows` 末两行 Fed 字段是
+   `null`（H.4.1 未发布，只剩 SPX/NDX 快照）。读数日期一律取数据点自带的 `date` / `as_of`。
+5. **数组下钻只认非负下标**：`rows.19` 可以，`rows.-1` 返回「JSON 路径不存在」+ 可用键。
+   但长数组本来就会被采成 `{first:[3], last:[3]}`，**最新值在 `last` 里**，通常不需要下标。
+6. **`rates/auctions.recent` 不能按期限查。** 106 行混 Bill / Note / Bond，`security_term` 是
+   「9-Year 10-Month」这类发行名（10Y 的续发就长这样），采样只给最新 3 条（全是 Bill）。
+   按期限问需求一律走 `trend.<2Y|5Y|10Y|30Y>`（365 天分桶）、`tail_trend.*`、`indirect_trend.*`。
+7. **重复读数**：`liquidity/snapshot.cards` ⊂ `fed-balance-sheet.cards` ∪ `rrp-tga.current`
+   （WALCL / RRP / TGA / NET_LIQUIDITY 同一批数）。snapshot 的唯一增量是 3 段 `evaluation`
+   文案；问具体某个余额，钻细端点的那一个字段更省字。
+8. **规则引擎散文别当数据**：`volatility/dashboard.narrative`（1519 字 / 6 段）、
+   `rates/analysis.overview.sections`、`credit/overview.signals` 都是「本站的解读」，
+   页面 DOM 摘要里通常已有；当「查到的读数」复述既重复又无法溯源。
+9. **`pct_10y` 的窗口可能只有 3 年。** `credit/overview` 的 `ig` / `hy` / `spreads` / `quality`
+   都带 `pct_10y` + `obs` + `full_10y`：分位取最近 2500 个观测算，样本不足就按现有样本算并置
+   `full_10y: false`（IG / HY 当前 `obs` 842 ≈ 3.3 年）。所以「10 年分位 82.8%」是错的，
+   得说「近 842 个交易日的 82.8 分位（10 年窗口未满）」。限定的线索只在这个布尔字段里，
+   页面与工具结果都没有替它说这句话。
+
+### `description` 500 字上限：算过了，分工成立
+
+`docs/ai-chat-backend.md` 的工具通道给 `description` 卡了 ≤500 字（两份实现同一条校验）。
+拿真实目录量一遍：
+
+| 放哪 | 实测字数 | 说明 |
+|---|---|---|
+| tool `description`（只写族） | **131** | 「查询本站已导出的数据端点（rates / credit / liquidity / volatility）…结果过大时按提示用 json_path 下钻」 |
+| 端点索引（17 条「英文名=中文含义」） | **397**（4 行） | `toolCatalogLegend()` 按 group 分行生成 |
+| 上面两项相加 | 528 | **超 28 字**，而且还没算「不确定选哪个就先调最接近的」这类用法说明 |
+| 系统提示词整块 `AI_ENDPOINT_INDEX`（表头 + 索引 + 尾注） | **448** | 占 40k 字符预算 1.1% |
+| `parameters.properties.endpoint.enum` | **337**（17 个路径） | 在 `parameters` 里，服务端**不校验**其长度 |
+
+**结论：分工成立，而且是被上限逼出来的。** 131 + 397 = 528 > 500，索引硬塞
+`description` 当场 422；而索引本来也不该吃那个额度——`enum` 已经把 17 个路径下发了
+（337 字走 `parameters`，不占 description），description 缺的只是「中文含义 + 哪族查什么」，
+这部分放系统提示词一次讲清，还能顺带放调用纪律（「不确定就先调最接近的」）。两边都是
+每轮随请求下发，所以不是省不省 token 的问题，是**硬上限放不下**。
+
+按 23 字/端点算，再加 10 个端点索引会涨到 ~630 字（仍在 system prompt 里，description 早就爆了）：
+**以后扩端点只扩索引，不扩 description。** 这也是 `TOOL_CATALOG` 单源的意义——
+索引由目录生成，加端点不会有人忘记同步提示词。
+
+### 遗留：端点数据的可读性（不在目录层，留给 T3 / 数据层）
+
+审计 17 个端点时发现、但**改工具目录解决不了**的 8 条。都记在这里，别让它们随着审计报告蒸发：
+
+1. `liquidity/subsurface.percentiles.values` 的键是中文（`1分位` / `中位数`），`json_path` 也得写中文，
+   模型容易转义错或拼错。数据层应加英文键或别名。
+2. **同一个量两种类型**：`transmission-chain.evidence.balancesheet.reserves_b` 是字符串 `"3,022.1"`，
+   而 `liquidity/reserves.cards.reserves.value_b` 是数字 `3022.14`。模型会拿字符串做算术。
+3. UI 字段混进数据端点：`transmission-chain.band` 是 `["中性","blue"]`、`volatility/dashboard.zones`
+   是纯图例 `{label,color}`——颜色名进模型上下文只是噪声。
+4. `volatility/dashboard` 有两个日期（`as_of` 与 `as_of_snapshot`），哪个是读数日、哪个是快照日，
+   页面和文档都没写明。
+5. **执行器没有 per-turn 缓存**：同一端点查两次算两次调用（每轮只有 3 次）。属 T3。
+6. `credit/overview.sloos` 数组里有 `null` 元素（如 `CRE 贷款标准: null`），模型容易读成 0。
+7. `rates/auctions.avg_cover_10_coupon` 的名字读起来像「10Y 的平均认购倍数」，实际是
+   「最近 10 场名义付息券」——提示词若要引用必须复述口径。
+8. `rates/auctions.recent` 是「近 90 天」而不是「最近 106 场」，两者不等价。
+
+前四条是**后端数据形状**问题（`src/server.py` 与各 `*_analysis.py` 的产出口径），要修得单独开票；
+第 5 条归 T3；第 6–8 条改提示词或字段名即可，成本很低。
 
 ## 验收标准
 
@@ -195,7 +334,7 @@ R6 还测了更严的形状（assistant 带 `tool_calls` 但无 `reasoning_conte
 |---|---|---|
 | T0 | `deepseek-chat` → `deepseek-flash`；思考模式默认**开**，抽屉渲染可折叠思维链 | 无（**已完成**） |
 | T1 | `query_site_data` 单工具 + 浏览器循环 + 契约放行 | T0（**已完成 2026-10-22**） |
-| T2 | 工具按族扩到 rates / credit / liquidity | T1 |
+| T2 | 工具按族扩到 rates / credit / liquidity（17 个端点，见「工具目录 v2」） | T1（**已完成 2026-10-22**） |
 | T3 | 失败与降级（404 / 超时 / 截断 / 轮数上限） | T1 |
 | T4 | 跨端点工具（相关性矩阵、期权墙） | T2 |
 | T5 | 提示词口径改写 + 文档 + 测试收尾 | T1–T4 |

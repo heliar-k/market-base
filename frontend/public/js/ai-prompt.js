@@ -12,7 +12,19 @@
 //   本文件的提示词只服务「自由问答」——用户随时提问、无结构约束、流式直出。
 //   两者不共用：那份要 JSON 骨架，这份要自然语言；混用会把卡片版式约束带进对话。
 
+// 端点索引必须由目录生成（ai-prompt → ai-tools 单向依赖；ai-tools 不反向 import）。
+import { toolCatalogLegend } from './ai-tools.js';
+
 export const AI_PROMPT_VERSION = '2026-10-22';
+
+// 站内端点索引：由 ai-tools.js 的 TOOL_CATALOG 生成，不在本文件手抄端点清单。
+// 17 个端点靠 enum 名猜不准（同族的总览与压力指数差别在哪，模型看不出来），
+// 所以把中文含义放进提示词；tool description 有 500 字上限，索引不能塞那里。
+export const AI_ENDPOINT_INDEX = [
+  '【站内端点索引】按族列出可查端点（英文名=中文含义）：',
+  toolCatalogLegend(),
+  '不确定选哪个就先调最接近的，拿结构摘要再换。',
+].join('\n');
 
 // 系统提示词（静态段）。页面标题 / 路径 / 时效 / 结论摘要由 ai-chat.js 的
 // buildMessages() 拼在后面，不写在提示词里——提示词只放「角色 + 纪律」这类长期稳定的指令。
@@ -21,6 +33,8 @@ export const AI_SYSTEM_PROMPT = [
   '取数按三层优先级：① 当前页面事实集 / DOM 摘要里有的，直接用（已能回答就不调工具）；',
   '② 页面没有的站内读数调 query_site_data 查，别凭记忆答；最多查两次，没拿到就基于已有信息作答并说明哪项没查到；结果过大按提示用 json_path 下钻。',
   '③ 工具返回 error（本期未导出 / 404 / 超时）时，明确说「本期未导出」或「页面未给出」，页面没给出的数字不要编造。',
+  // 索引放在三层之后：夹在 ②③ 之间会把「三层优先级」这条列表切断，指令结构反而变弱
+  AI_ENDPOINT_INDEX,
   '回答简洁，中文为主，国际通用术语（VIX / GEX / Contango 等）保留英文；引用数字要带单位与口径。',
 ].join('\n');
 
