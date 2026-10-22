@@ -17,11 +17,19 @@ T2 扩到 17 端点后补四条守卫：
   （ai-prompt.js 源码不许出现任何端点路径字面量）；
 - tool description 仍在服务端 500 字上限内（索引只能放提示词）；
 - 大端点（80KB 级）仍返回结构摘要而不是前 2000 字半截 JSON。
+
+T3「失败与降级」再补五处（单次超时 / 同轮缓存 / 失败可观测）：
+- 单次尝试 3.5s 上限独立于 8s 批次预算，卡死不再吃光整轮；超时后仍能重试一次；
+- 永不 resolve 的 fetchImpl 也不会把 runToolCall 挂死（执行器自己判 abort）；
+- 同轮 endpoint+json_path 缓存命中不发请求、callId 仍是本次调用的；换路径/换 Map 不命中；
+- 失败结果同样缓存（同一轮里同端点结果不会变）；
+- ok 标志与 summarizeToolRuns() 把成功/失败端点分开（msg.tools / msg.toolsFailed）。
 """
 
 from __future__ import annotations
 
 import re
+from functools import lru_cache
 from pathlib import Path
 
 from tests.node_runner import run_node
@@ -556,6 +564,233 @@ def _run() -> dict:
     return run_node(script, timeout=30)
 
 
+# T3 单独一段脚本：这里有真实计时（单次超时 60ms 的测试覆写），不必让上面每个测试
+# 都重跑一遍；lru_cache 让它只跑一次（纯逻辑、无随机，重复跑没有价值）。
+T3_BODY = """
+const tools = await import('__TOOLS__');
+
+const call = (id, args) => ({
+  id,
+  type: 'function',
+  function: { name: 'query_site_data', arguments: JSON.stringify(args) },
+});
+
+// ── 1. 限额常量：单次 3.5s 新增，其余三个值不动 ─────────────────────────
+const constants = {
+  callTimeout: tools.TOOL_CALL_TIMEOUT_MS,
+  roundBudget: tools.TOOL_TIMEOUT_MS,
+  maxChars: tools.TOOL_MAX_CHARS,
+  maxCalls: tools.MAX_CALLS_PER_ROUND,
+  maxRounds: tools.MAX_TOOL_ROUNDS,
+};
+
+// ── 2. 永不 resolve 的 fetch：单次超时掐断，且只烧掉这一次尝试 ─────────
+// callTimeoutMs 是测试覆写（生产走 TOOL_CALL_TIMEOUT_MS=3500），否则这条要真等几秒。
+// 剩余预算 500ms < 2s 时重试规则不触发：正好量「一次卡死 ≈ 单次上限」而不是 8s。
+let timeoutAttempts = 0;
+const timeoutStarted = Date.now();
+const timed = await tools.runToolCall(call('call_timeout', { endpoint: 'rates/yield-curve' }), {
+  deadline: Date.now() + 500,
+  callTimeoutMs: 60,
+  fetchImpl: () => {
+    timeoutAttempts += 1;
+    return new Promise(() => {});
+  },
+});
+const timeout = {
+  ok: timed.ok,
+  error: JSON.parse(timed.content),
+  attempts: timeoutAttempts,
+  elapsedMs: Date.now() - timeoutStarted,
+};
+
+// ── 2b. 剩余预算充足：两次都超时才落成错误，且只重试一次 ────────────────
+let twiceAttempts = 0;
+const twiceStarted = Date.now();
+const twice = await tools.runToolCall(
+  call('call_timeout_twice', { endpoint: 'rates/yield-curve' }),
+  {
+    deadline: Date.now() + 8000,
+    callTimeoutMs: 60,
+    fetchImpl: () => {
+      twiceAttempts += 1;
+      return new Promise(() => {});
+    },
+  }
+);
+const timeoutTwice = {
+  ok: twice.ok,
+  error: JSON.parse(twice.content),
+  attempts: twiceAttempts,
+  elapsedMs: Date.now() - twiceStarted,
+};
+
+// ── 3. 第一次挂住、第二次成功：单次超时后仍能走重试规则救回来 ──────────
+let retryAttempts = 0;
+const retryStarted = Date.now();
+const rescued = await tools.runToolCall(call('call_rescue', { endpoint: 'rates/yield-curve' }), {
+  deadline: Date.now() + 8000,
+  callTimeoutMs: 60,
+  fetchImpl: () => {
+    retryAttempts += 1;
+    if (retryAttempts === 1) return new Promise(() => {});
+    return Promise.resolve({
+      ok: true,
+      status: 200,
+      json: async () => ({ value: 5.43 }),
+    });
+  },
+});
+const rescue = {
+  ok: rescued.ok,
+  content: JSON.parse(rescued.content),
+  attempts: retryAttempts,
+  elapsedMs: Date.now() - retryStarted,
+};
+
+// ── 4. 同轮缓存：同 endpoint+json_path 第二次不发请求 ────────────────────
+const cache = new Map();
+let cacheFetches = 0;
+const cacheFetch = async () => {
+  cacheFetches += 1;
+  return { ok: true, status: 200, json: async () => ({ as_of: '2026-10-21' }) };
+};
+const cachedFirst = await tools.runToolCall(
+  call('call_cache_1', { endpoint: 'rates/real-rates', json_path: 'as_of' }),
+  { fetchImpl: cacheFetch, cache }
+);
+const cachedSecond = await tools.runToolCall(
+  call('call_cache_2', { endpoint: 'rates/real-rates', json_path: 'as_of' }),
+  { fetchImpl: cacheFetch, cache }
+);
+// 换 json_path 是另一个键
+const cachedOtherPath = await tools.runToolCall(
+  call('call_cache_3', { endpoint: 'rates/real-rates', json_path: 'data' }),
+  { fetchImpl: cacheFetch, cache }
+);
+// 换新 Map（= 新的一轮）不命中
+const cachedNewTurn = await tools.runToolCall(
+  call('call_cache_4', { endpoint: 'rates/real-rates', json_path: 'as_of' }),
+  { fetchImpl: cacheFetch, cache: new Map() }
+);
+const cacheOut = {
+  fetches: cacheFetches,
+  first: { ok: cachedFirst.ok, content: cachedFirst.content, callId: cachedFirst.callId },
+  second: {
+    ok: cachedSecond.ok,
+    content: cachedSecond.content,
+    callId: cachedSecond.callId,
+    cached: cachedSecond.cached,
+  },
+  otherPath: {
+    ok: cachedOtherPath.ok,
+    content: JSON.parse(cachedOtherPath.content),
+    cached: cachedOtherPath.cached,
+  },
+  newTurn: {
+    ok: cachedNewTurn.ok,
+    content: cachedNewTurn.content,
+    cached: cachedNewTurn.cached,
+  },
+};
+
+// ── 4b. 同一批并发两个相同调用：只发一次 GET，callId 各自对上 ──────────
+// 模型同轮完全可能吐两条参数一样的 tool_calls；缓存必须「先占位再 await」才能去重。
+const concurrentCache = new Map();
+let concurrentFetches = 0;
+const concurrentFetch = async () => {
+  concurrentFetches += 1;
+  return { ok: true, status: 200, json: async () => ({ value: 42 }) };
+};
+const [dupA, dupB] = await Promise.all([
+  tools.runToolCall(call('call_dup_a', { endpoint: 'credit/stress' }), {
+    fetchImpl: concurrentFetch,
+    cache: concurrentCache,
+  }),
+  tools.runToolCall(call('call_dup_b', { endpoint: 'credit/stress' }), {
+    fetchImpl: concurrentFetch,
+    cache: concurrentCache,
+  }),
+]);
+const concurrent = {
+  fetches: concurrentFetches,
+  a: { callId: dupA.callId, content: dupA.content, cached: dupA.cached },
+  b: { callId: dupB.callId, content: dupB.content, cached: dupB.cached },
+};
+
+// ── 5. 失败也缓存（404 两次只请求一次） ─────────────────────────────────
+const failCache = new Map();
+let failFetches = 0;
+const failFetch = async () => {
+  failFetches += 1;
+  return { ok: false, status: 404, json: async () => ({}) };
+};
+const failFirst = await tools.runToolCall(
+  call('call_fail_1', { endpoint: 'rates/auctions' }),
+  { fetchImpl: failFetch, cache: failCache }
+);
+const failSecond = await tools.runToolCall(
+  call('call_fail_2', { endpoint: 'rates/auctions' }),
+  { fetchImpl: failFetch, cache: failCache }
+);
+const failCacheOut = {
+  fetches: failFetches,
+  first: { ok: failFirst.ok, content: failFirst.content, cached: failFirst.cached },
+  second: { ok: failSecond.ok, content: failSecond.content, cached: failSecond.cached },
+};
+
+// ── 6. ok 标志：200 → true，404 → false ──────────────────────────────────
+const okFlag = {
+  success: (
+    await tools.runToolCall(call('call_ok', { endpoint: 'liquidity/snapshot' }), {
+      fetchImpl: async () => ({ ok: true, status: 200, json: async () => ({ cards: [] }) }),
+    })
+  ).ok,
+  notFound: (
+    await tools.runToolCall(call('call_nf', { endpoint: 'liquidity/snapshot' }), {
+      fetchImpl: async () => ({ ok: false, status: 404, json: async () => ({}) }),
+    })
+  ).ok,
+};
+
+// ── 7. 成功/失败端点分组（runTurn 的 msg.tools / msg.toolsFailed 单源） ──
+const summarize = {
+  mixed: tools.summarizeToolRuns([
+    { endpoint: 'rates/yield-curve', ok: true },
+    { endpoint: 'credit/stress', ok: false },
+    { endpoint: 'rates/yield-curve', ok: true },
+    { endpoint: '', ok: false },
+    { endpoint: 'credit/cds', content: '{"error":"x","endpoint":"credit/cds","status":0}' },
+    { endpoint: 'liquidity/snapshot', content: '{"cards":[]}' },
+  ]),
+  both: tools.summarizeToolRuns([
+    { endpoint: 'rates/auctions', ok: false },
+    { endpoint: 'rates/auctions', ok: true },
+  ]),
+  empty: tools.summarizeToolRuns(null),
+};
+
+console.log(
+  JSON.stringify({
+    constants,
+    timeout,
+    timeoutTwice,
+    rescue,
+    cache: cacheOut,
+    concurrent,
+    failCache: failCacheOut,
+    okFlag,
+    summarize,
+  })
+);
+"""
+
+
+@lru_cache(maxsize=1)
+def _run_t3() -> dict:
+    return run_node(T3_BODY.replace("__TOOLS__", TOOLS.as_uri()), timeout=30)
+
+
 def test_tool_catalog_schema() -> None:
     out = _run()["catalog"]
     assert out["count"] == 1
@@ -871,3 +1106,128 @@ def test_prompt_and_payload_wire_tools() -> None:
     assert out["directChoice"] == "auto"
     assert out["directEffort"] == "high"
     assert out["forcedChoice"] == "none"
+
+
+# ── T3：失败与降级 ────────────────────────────────────────────────────────
+
+
+def test_t3_limits_keep_other_budgets() -> None:
+    """新增单次 3.5s 上限，但 8s / 2000 字 / 3 次 / 2 轮一个都不许动。"""
+    out = _run_t3()["constants"]
+    assert out["callTimeout"] == 3500
+    assert out["roundBudget"] == 8000
+    assert out["maxChars"] == 2000
+    assert out["maxCalls"] == 3
+    assert out["maxRounds"] == 2
+
+
+def test_single_attempt_timeout_is_bounded() -> None:
+    """一次取数卡死只烧掉单次上限，不吃光整轮 8s（这里是 60ms 的测试覆写）。"""
+    out = _run_t3()["timeout"]
+    err = out["error"]
+    assert out["ok"] is False
+    assert "单次" in err["error"]
+    assert "已重试一次" not in err["error"]
+    assert err["status"] == 0
+    assert err["endpoint"] == "rates/yield-curve"
+    # 永不 resolve 的 fetchImpl 也必须被计时器掐断：一次尝试 ≈60ms，
+    # 若退回「等批次 8s」这里会是 ~8s（断言 1s 留足 CI 抖动余量）。
+    assert out["attempts"] == 1
+    assert out["elapsedMs"] < 1000
+
+
+def test_two_single_timeouts_retry_once() -> None:
+    """剩余预算 ≥2s：单次超时后再试一次，两次都超时才落成错误。"""
+    out = _run_t3()["timeoutTwice"]
+    err = out["error"]
+    assert out["ok"] is False
+    assert out["attempts"] == 2
+    assert "单次" in err["error"]
+    assert "已重试一次" in err["error"]
+    assert err["status"] == 0
+    assert out["elapsedMs"] < 1000
+
+
+def test_single_timeout_then_retry_succeeds() -> None:
+    """单次超时后通常还剩 ~4.5s：重试规则能再起一次并救回来。"""
+    out = _run_t3()["rescue"]
+    assert out["attempts"] == 2
+    assert out["ok"] is True
+    assert out["content"] == {"value": 5.43}
+    assert out["elapsedMs"] < 1000
+
+
+def test_same_turn_cache_hits_once() -> None:
+    """endpoint+json_path 同轮只取一次；换路径 / 换 Map 都不命中。"""
+    out = _run_t3()["cache"]
+    # 第一次 + 换 json_path + 换新 Map = 3 次请求；第二次命中不请求
+    assert out["fetches"] == 3
+    assert out["first"]["callId"] == "call_cache_1"
+    # callId 必须是本次调用自己的，tool_call_id 才能对上
+    assert out["second"]["callId"] == "call_cache_2"
+    assert out["second"]["cached"] is True
+    assert out["second"]["ok"] is True
+    assert out["second"]["content"] == out["first"]["content"]
+    # 换 json_path 是另一个键：真的发了请求，且拿到该层的「路径不存在」错误
+    assert out["otherPath"].get("cached") is None
+    assert out["otherPath"]["ok"] is False
+    assert "JSON 路径不存在" in out["otherPath"]["content"]["error"]
+    # 换新 Map（= 新的一轮）不命中，但内容与首轮一致
+    assert out["newTurn"].get("cached") is None
+    assert out["newTurn"]["ok"] is True
+    assert out["newTurn"]["content"] == out["first"]["content"]
+
+
+def test_concurrent_same_call_fetches_once() -> None:
+    """同一批 Promise.all 里两条相同调用：先占位再 await，真实网络只命中 1 次。"""
+    out = _run_t3()["concurrent"]
+    assert out["fetches"] == 1
+    # 两个 tool_call_id 分别对得上（不能用被缓存那条的 id 顶替）
+    assert out["a"]["callId"] == "call_dup_a"
+    assert out["b"]["callId"] == "call_dup_b"
+    assert out["a"]["content"] == out["b"]["content"]
+    # 后到的那条命中的是在途 promise；发起的那条不算「命中缓存」
+    assert out["a"].get("cached") is None
+    assert out["b"]["cached"] is True
+
+
+def test_failed_results_are_cached_too() -> None:
+    """失败也缓存：同一轮里同端点结果不会变，404 只打一次。"""
+    out = _run_t3()["failCache"]
+    assert out["fetches"] == 1
+    assert out["first"]["ok"] is False
+    assert out["second"]["ok"] is False
+    assert out["second"]["cached"] is True
+    assert out["first"]["content"] == out["second"]["content"]
+    assert "未导出" in out["second"]["content"]
+
+
+def test_ok_flag_marks_structured_errors() -> None:
+    """200 → ok true；404 → ok false（UI/msg.toolsFailed 靠它分流）。"""
+    assert _run_t3()["okFlag"] == {"success": True, "notFound": False}
+
+
+def test_summarize_tool_runs_splits_endpoints() -> None:
+    """msg.tools / msg.toolsFailed 的单源纯函数：去重、保序、成功优先。"""
+    out = _run_t3()["summarize"]
+    assert out["mixed"]["tools"] == ["rates/yield-curve", "liquidity/snapshot"]
+    assert out["mixed"]["toolsFailed"] == ["credit/stress", "credit/cds"]
+    # 同一端点既有成功又有失败（不同 json_path）：能取到就算成功，不重复标「未取到」
+    assert out["both"] == {"tools": ["rates/auctions"], "toolsFailed": []}
+    assert out["empty"] == {"tools": [], "toolsFailed": []}
+
+
+def test_chat_wires_turn_cache_and_failed_meta() -> None:
+    """ai-chat.js 的接线守卫：缓存 Map 必须建在 runTurn 函数体内（跨轮清空）。"""
+    src = (JS / "ai-chat.js").read_text(encoding="utf-8")
+    run_turn = src.index("async function runTurn")
+    cache_decl = src.index("const toolCache = new Map();")
+    assert cache_decl > run_turn, "toolCache 必须在 runTurn 内新建，不能是模块级变量"
+    assert src.count("const toolCache = new Map();") == 1
+    # 透传给 runToolBatch → runToolCall，而不是在执行器里另建
+    assert "turn.signal,\n          toolCache" in src
+    assert "summarizeToolRuns(toolRuns)" in src
+    # msg.tools 形状不变（字符串数组），失败端点进新字段；渲染为灰字「未取到」
+    assert "msg.tools = runSummary.tools;" in src
+    assert "msg.toolsFailed = runSummary.toolsFailed;" in src
+    assert "'未取到 ' + list.join(' / ')" in src

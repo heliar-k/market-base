@@ -39,6 +39,7 @@ import {
   parseSseLine,
   runToolCall,
   safeStringify,
+  summarizeToolRuns,
   toolError,
 } from './ai-tools.js';
 
@@ -375,6 +376,13 @@ import {
     );
   }
 
+  // T3：失败端点单独一段灰字（旧 thread 没有 toolsFailed → 空串，行为不变）。
+  // 不弹窗、不用红色：失败与「查数」同级，只换一句「未取到」，不打断阅读。
+  function failedMeta(m) {
+    const list = m && Array.isArray(m.toolsFailed) ? m.toolsFailed : [];
+    return list.length ? '未取到 ' + list.join(' / ') : '';
+  }
+
   function renderMessages() {
     const t = getActiveThread();
     if (!msgsEl) return;
@@ -388,6 +396,7 @@ import {
         const meta = [
           isUser ? '' : m.model ? '模型 ' + m.model : '',
           m.tools && m.tools.length ? '查数 ' + m.tools.join(' / ') : '',
+          failedMeta(m),
           m.pageTitle,
           m.asOf,
         ]
@@ -815,8 +824,10 @@ import {
 
   // 一批工具调用共享一个 AbortController：预算从本次执行开始算（跨往返累计 8s），
   // 用户点「停止」时把外层 signal 转发进来，取数立刻中断。
+  // cache 是 runTurn 每轮新建的同轮端点缓存（endpoint|json_path → 取数 promise）：
+  // 先占位再 await，同一批 Promise.all 里的重复调用也只发一次请求；跨轮必须换新 Map。
   // runToolCall 自身永不 reject，这里再兜一层，保证任何异常都只是「一条工具结果」。
-  async function runToolBatch(calls, budgetMs, outerSignal) {
+  async function runToolBatch(calls, budgetMs, outerSignal, cache) {
     // 预算算错（undefined/NaN）时退回完整 8s，绝不落成 setTimeout(0) 瞬时 abort：
     // 那样每条结果都会变成 status 0「超时」，把真正原因盖掉。
     const rawBudget = Number(budgetMs);
@@ -826,6 +837,7 @@ import {
         callId: c.id || '',
         endpoint: '',
         content: safeStringify(toolError('', 0, msg)),
+        ok: false,
       }));
     // 已经在停止流程里 / 预算已用尽：不再起 fetch。以前用 setTimeout(0) 瞬断，
     // 会把「用户取消」与「8s 超时」混成同一个 AbortError，排障时看不到真实原因。
@@ -839,14 +851,15 @@ import {
     try {
       return await Promise.all(
         calls.map((c) =>
-          // deadline 透传：runToolCall 只用它判断「网络层失败后还剩 ≥2s 才重试一次」，
-          // 真正的超时中断仍由上面的 ctl.signal 负责。
-          runToolCall(c, { signal: ctl.signal, deadline, outerSignal }).catch((e) => ({
+          // deadline 透传：runToolCall 用它算「本次尝试还剩多少」与重试门槛；
+          // 单次 3.5s 上限在 runToolCall 内部另建 controller，批次 ctl 仍是 8s 硬上限。
+          runToolCall(c, { signal: ctl.signal, deadline, outerSignal, cache }).catch((e) => ({
             callId: c.id || '',
             endpoint: '',
             content: safeStringify(
               toolError('', 0, '工具执行异常：' + ((e && e.message) || e))
             ),
+            ok: false,
           }))
         )
       );
@@ -889,7 +902,11 @@ import {
     let degraded = false;
     let choice = 'auto';
     let forced = false;
-    const toolsUsed = [];
+    // 同轮端点缓存：只活在本轮内存里，跨 turn 一律换新 Map（spec 第 3 条，结果有时效性）。
+    // 模型完全可能把同一端点问两遍（尤其下钻时），每轮却只有 3 次调用预算。
+    const toolCache = new Map();
+    // 每批结果都留一份，收尾交给 summarizeToolRuns 分成「查到的 / 未取到」两组
+    const toolRuns = [];
     try {
       // 循环直到模型不再要工具，或撞上轮数上限（超了就用已有正文收尾）
       for (;;) {
@@ -970,11 +987,12 @@ import {
         const results = await runToolBatch(
           plan.calls,
           TOOL_TIMEOUT_MS - toolSpent,
-          turn.signal
+          turn.signal,
+          toolCache
         );
         toolSpent += Date.now() - started;
+        toolRuns.push(...results);
         results.forEach((r) => {
-          if (r.endpoint && toolsUsed.indexOf(r.endpoint) < 0) toolsUsed.push(r.endpoint);
           reqMessages.push({ role: 'tool', tool_call_id: r.callId, content: r.content });
         });
         if (turn.signal.aborted) break; // 用户已停止：别再发起下一轮
@@ -1007,8 +1025,12 @@ import {
       asOf: last.asOf,
       ts: Date.now(),
     };
-    // 轻量回显字段：只记端点名，供 UI 显示「查数 …」；导出/落盘消费者忽略它
-    if (toolsUsed.length) msg.tools = toolsUsed.slice();
+    // 轻量回显字段：只记端点名，供 UI 显示「查数 …」/「未取到 …」；导出/落盘消费者忽略它。
+    // tools 保持字符串数组（旧 thread 兼容），toolsFailed 是 T3 新增的第二个数组：
+    // 旧消息没有这个字段 → renderMessages 读成空数组，行为与之前完全一致。
+    const runSummary = summarizeToolRuns(toolRuns);
+    if (runSummary.tools.length) msg.tools = runSummary.tools;
+    if (runSummary.toolsFailed.length) msg.toolsFailed = runSummary.toolsFailed;
     thread.messages.push(msg);
     thread.updatedAt = Date.now();
     const stillActive = activeId() === thread.id;

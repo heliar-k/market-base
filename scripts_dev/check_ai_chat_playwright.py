@@ -1,13 +1,15 @@
-"""伴读抽屉 Playwright 验收：代理 / 探测 / 缓存 / effort / 存笔记。
+"""伴读抽屉 Playwright 验收：代理 / 探测 / 缓存 / effort / 存笔记 / 工具循环。
 
 用法（需要先起一个能打开 /rates/ 的站点）：
     uv run python scripts_dev/check_ai_chat_playwright.py http://127.0.0.1:8000
     uv run python scripts_dev/check_ai_chat_playwright.py http://127.0.0.1:4399  # 静态 dist
 
-脚本用 page.route 假造 /api/* 与直连上游，不花钱、不连网。覆盖两条 P1 验收：
+脚本用 page.route 假造 /api/* 与直连上游，不花钱、不连网。覆盖 P1 验收：
 - 探测模型/换模型后，未保存的 Base URL + API Key 仍在（readCfgDraft + renderCfg 草稿）；
 - 模型表按 base + 代理/直连模式缓存，代理白名单不会串进 BYOK；
-- effort 在缓存有效时发送，缓存过期时页面加载即清空且不发送。
+- effort 在缓存有效时发送，缓存过期时页面加载即清空且不发送；
+- 工具循环正常往返 / 预算用尽强制作答 / 端点 404；
+- T3 失败与降级：单次超时降级、同轮重复调用只取一次数、全部端点失败时 meta 有失败标记。
 """
 
 from __future__ import annotations
@@ -514,6 +516,336 @@ async def check_tool_404(browser, base: str) -> None:
     await ctx.close()
 
 
+# ── T3：失败与降级（慢端点 / 同轮重复调用 / 全部端点失败） ─────────────────
+# 三个假 fetch 共用一段 SSE 构建 helper：tool_calls 的 arguments 本身是 JSON 字符串，
+# 用 JSON.stringify 现场拼，避免在 Python 字符串里叠四层转义。
+_JS_TOOL_PRELUDE = r"""
+  const sse = (chunks) =>
+    new Response(chunks.join(''), {
+      status: 200,
+      headers: { 'content-type': 'text/event-stream', 'x-llm-model': 'deepseek-flash' },
+    });
+  const ev = (obj) => 'data: ' + JSON.stringify(obj) + '\n\n';
+  const DONE = 'data: [DONE]\n\n';
+  const toolCall = (index, id, args) =>
+    ev({
+      choices: [
+        {
+          delta: {
+            tool_calls: [
+              {
+                index: index,
+                id: id,
+                type: 'function',
+                function: { name: 'query_site_data', arguments: args },
+              },
+            ],
+          },
+        },
+      ],
+    });
+  const text = (t) => ev({ choices: [{ delta: { content: t } }] });
+  const stop = ev({ choices: [{ delta: {}, finish_reason: 'stop' }] });
+  const needTools = ev({ choices: [{ delta: {}, finish_reason: 'tool_calls' }] });
+  const json = (value, status) =>
+    new Response(JSON.stringify(value), {
+      status: status || 200,
+      headers: { 'content-type': 'application/json' },
+    });
+  const chatBody = (opts) => JSON.parse(opts.body);
+  const hasToolMsg = (body) => (body.messages || []).some((m) => m && m.role === 'tool');
+"""
+
+SLOW_PATCH = (
+    "() => {\n"
+    "  window.__REQS = [];\n"
+    "  window.__SLOW_HIT = 0;\n"
+    + _JS_TOOL_PRELUDE
+    + r"""
+  // 延迟 4.5s：超过单次 3.5s 上限，但没超过 8s 批次预算。
+  // 必须像真 fetch 一样响应 abort，否则「单次超时靠 signal 中断」这条路径验不到。
+  const sleep = (ms, signal) =>
+    new Promise((resolve, reject) => {
+      const abort = () => {
+        const e = new Error('The operation was aborted.');
+        e.name = 'AbortError';
+        reject(e);
+      };
+      if (signal) {
+        if (signal.aborted) return abort();
+        if (signal.addEventListener) signal.addEventListener('abort', abort, { once: true });
+      }
+      setTimeout(() => {
+        if (signal && signal.removeEventListener) signal.removeEventListener('abort', abort);
+        resolve();
+      }, ms);
+    });
+  const orig = window.fetch;
+  window.fetch = async (url, opts) => {
+    const u = String(url);
+    if (u.indexOf('/api/rates/yield-curve') >= 0) {
+      window.__SLOW_HIT += 1;
+      await sleep(4500, opts && opts.signal);
+      return json({ current: { '30Y': 4.812 }, as_of: '2026-10-21' });
+    }
+    if (u.indexOf('/api/chat') < 0) return orig(url, opts);
+    const body = chatBody(opts);
+    window.__REQS.push(body);
+    if (hasToolMsg(body)) {
+      return sse([text('慢端点超时，先按页面摘要回答：10Y 约 4.2%。'), stop, DONE]);
+    }
+    return sse([
+      toolCall(0, 'call_slow', JSON.stringify({ endpoint: 'rates/yield-curve' })),
+      needTools,
+      DONE,
+    ]);
+  };
+}
+"""
+)
+
+DUP_PATCH = (
+    "() => {\n"
+    "  window.__REQS = [];\n"
+    "  window.__TOOL_HIT = 0;\n"
+    + _JS_TOOL_PRELUDE
+    + r"""
+  const orig = window.fetch;
+  window.fetch = async (url, opts) => {
+    const u = String(url);
+    if (u.indexOf('/api/rates/yield-curve') >= 0) {
+      window.__TOOL_HIT += 1;
+      return json({
+        yield_curve: { spreads: { '2s10s': 33, '3m10s': -12 } },
+        as_of: '2026-10-21',
+      });
+    }
+    if (u.indexOf('/api/chat') < 0) return orig(url, opts);
+    const body = chatBody(opts);
+    window.__REQS.push(body);
+    if (hasToolMsg(body)) {
+      return sse([text('同轮只取一次数：2s10s = 33bp。'), stop, DONE]);
+    }
+    // 两个不同 id 的调用，端点与 json_path 完全相同 → 同轮缓存应只发一次 GET
+    const args = JSON.stringify({
+      endpoint: 'rates/yield-curve',
+      json_path: 'yield_curve.spreads',
+    });
+    return sse([
+      toolCall(0, 'call_dup_a', args),
+      toolCall(1, 'call_dup_b', args),
+      needTools,
+      DONE,
+    ]);
+  };
+}
+"""
+)
+
+FAIL_PATCH = (
+    "() => {\n"
+    "  window.__REQS = [];\n"
+    + _JS_TOOL_PRELUDE
+    + r"""
+  const orig = window.fetch;
+  window.fetch = async (url, opts) => {
+    const u = String(url);
+    if (u.indexOf('/api/rates/yield-curve') >= 0) return json({ error: 'not exported' }, 404);
+    if (u.indexOf('/api/credit/stress') >= 0) return json({ error: 'not exported' }, 404);
+    if (u.indexOf('/api/chat') < 0) return orig(url, opts);
+    const body = chatBody(opts);
+    window.__REQS.push(body);
+    if (hasToolMsg(body)) {
+      return sse([text('两个端点本期未导出，无法给出读数。'), stop, DONE]);
+    }
+    const argsA = JSON.stringify({
+      endpoint: 'rates/yield-curve',
+      json_path: 'yield_curve.spreads',
+    });
+    const argsB = JSON.stringify({ endpoint: 'credit/stress', json_path: 'composite' });
+    return sse([
+      toolCall(0, 'call_fail_a', argsA),
+      toolCall(1, 'call_fail_b', argsB),
+      needTools,
+      DONE,
+    ]);
+  };
+}
+"""
+)
+
+# 控制组：同样两个端点的成功形状，用来对照「失败 meta 不能跟成功长得一样」。
+OK_PATCH = (
+    "() => {\n"
+    "  window.__REQS = [];\n"
+    + _JS_TOOL_PRELUDE
+    + r"""
+  const orig = window.fetch;
+  window.fetch = async (url, opts) => {
+    const u = String(url);
+    if (u.indexOf('/api/rates/yield-curve') >= 0) {
+      return json({ yield_curve: { spreads: { '2s10s': 33, '3m10s': -12 } } });
+    }
+    if (u.indexOf('/api/credit/stress') >= 0) return json({ composite: 44.7, zone: '中性' });
+    if (u.indexOf('/api/chat') < 0) return orig(url, opts);
+    const body = chatBody(opts);
+    window.__REQS.push(body);
+    if (hasToolMsg(body)) {
+      return sse([text('两个端点都查到了：2s10s = 33bp，压力 44.7。'), stop, DONE]);
+    }
+    const argsA = JSON.stringify({
+      endpoint: 'rates/yield-curve',
+      json_path: 'yield_curve.spreads',
+    });
+    const argsB = JSON.stringify({ endpoint: 'credit/stress', json_path: 'composite' });
+    return sse([
+      toolCall(0, 'call_ok_a', argsA),
+      toolCall(1, 'call_ok_b', argsB),
+      needTools,
+      DONE,
+    ]);
+  };
+}
+"""
+)
+
+
+def _last_tool_messages(reqs: list[dict]) -> list[dict]:
+    """最后一次请求里回填的 tool 消息（即本轮实际交给模型的取数结果）。"""
+    if not reqs:
+        return []
+    return [m for m in (reqs[-1].get("messages") or []) if m.get("role") == "tool"]
+
+
+def _json_object(text) -> dict | None:
+    if not isinstance(text, str):
+        return None
+    try:
+        value = json.loads(text)
+    except ValueError:
+        return None
+    return value if isinstance(value, dict) else None
+
+
+def _meta_without_names(meta: str, endpoints: list[str]) -> str:
+    """meta 去掉端点名后的残差：用于断言「除端点名之外还有额外标记」，不认死文案。"""
+    out = meta
+    for endpoint in endpoints:
+        out = out.replace(endpoint, "")
+    return "".join(out.split())
+
+
+async def check_tool_slow_endpoint(browser, base: str) -> None:
+    """T3-A 慢端点：GET 拖 4.5s（> 单次 3.5s，< 8s 批次）→ 单次超时降级，本轮不卡死。"""
+    ctx, page = await new_page(browser, base)
+    await page.evaluate(SLOW_PATCH)
+    await page.locator(".ai-input").fill("验收慢端点")
+    await page.locator("[data-send]").click()
+    # 单次超时（可能重试一次）比默认 6s 长，给到 15s；仍靠轮询按钮状态，不硬等
+    await wait_idle(page, 15000)
+
+    reqs = await page.evaluate("() => window.__REQS")
+    hit = await page.evaluate("() => window.__SLOW_HIT")
+    check(hit >= 1, "慢端点确实被请求过（场景生效）")
+    check(
+        (await page.locator("[data-send]").inner_text()).strip() == "发送",
+        "慢端点这一轮回到可发送状态（按钮 = 发送，对话没卡死）",
+    )
+    tools = _last_tool_messages(reqs)
+    check(len(tools) == 1, "超时后仍回填一条 tool 结果（没把整轮对话打断）")
+    payload = _json_object((tools[0] if tools else {}).get("content")) or {}
+    check(bool(payload), "慢端点的 tool 结果 content 可解析出 JSON 对象")
+    error = payload.get("error")
+    check(
+        isinstance(error, str) and bool(error.strip()),
+        "tool 结果带非空 error 字段（单次超时收敛成结构化错误）",
+    )
+    check(payload.get("endpoint") == "rates/yield-curve", "结构化错误标明是哪个端点超时")
+    body = await page.locator(".ai-msg-assistant").last.inner_text()
+    check(
+        "4.2" in body and "接口没有返回内容" not in body,
+        "最终正文照常渲染、不是空白",
+    )
+    await ctx.close()
+
+
+async def check_tool_dup_calls(browser, base: str) -> None:
+    """T3-B 同轮重复调用：同端点 + 同 json_path 的两个 id → 只发一次 GET，结果各自回填。"""
+    ctx, page = await new_page(browser, base)
+    await page.evaluate(DUP_PATCH)
+    await page.locator(".ai-input").fill("验收同轮重复调用")
+    await page.locator("[data-send]").click()
+    await wait_idle(page, 8000)
+
+    reqs = await page.evaluate("() => window.__REQS")
+    hit = await page.evaluate("() => window.__TOOL_HIT")
+    tools = _last_tool_messages(reqs)
+    check(hit == 1, "同轮两次相同查询只发 1 次 /api/rates/yield-curve（同轮缓存）")
+    check(len(tools) == 2, "两条 tool 结果都回填给模型")
+    contents = [m.get("content") for m in tools]
+    check(
+        len(contents) == 2 and contents[0] == contents[1],
+        "两条 tool 结果的 content 完全相同（命中的是同一份结果）",
+    )
+    ids = [m.get("tool_call_id") for m in tools]
+    check(
+        sorted(ids) == ["call_dup_a", "call_dup_b"], "两个 tool_call_id 分别对得上（不是同一个 id）"
+    )
+    messages = (reqs[-1].get("messages") or []) if reqs else []
+    calls = [call.get("id") for m in messages for call in (m.get("tool_calls") or [])]
+    check(sorted(calls) == sorted(ids), "回填的 assistant.tool_calls 与两条 tool 结果 id 一一对应")
+    body = await page.locator(".ai-msg-assistant").last.inner_text()
+    check("33bp" in body, "最终正文照常渲染")
+    await ctx.close()
+
+
+async def check_tool_all_fail(browser, base: str) -> None:
+    """T3-C 全部端点 404：两次都是结构化错误，正文照出，meta 与成功形状不同。"""
+    endpoints = ["rates/yield-curve", "credit/stress"]
+    ctx, page = await new_page(browser, base)
+    await page.evaluate(FAIL_PATCH)
+    await page.locator(".ai-input").fill("验收两个端点都 404")
+    await page.locator("[data-send]").click()
+    await wait_idle(page, 8000)
+
+    reqs = await page.evaluate("() => window.__REQS")
+    tools = _last_tool_messages(reqs)
+    payloads = [_json_object(m.get("content")) or {} for m in tools]
+    check(len(tools) == 2, "两次工具调用都回填了结果")
+    check(
+        len(payloads) == 2 and all(p.get("status") == 404 for p in payloads),
+        "两次 tool 结果都是结构化错误（status === 404）",
+    )
+    check(
+        {p.get("endpoint") for p in payloads} == set(endpoints),
+        "两条错误各自标明端点（没有串成一个）",
+    )
+    body = await page.locator(".ai-msg-assistant").last.inner_text()
+    check("本期未导出" in body, "正文照常渲染（模型说本期未导出）")
+    meta_fail = await page.locator(".ai-msg-assistant .ai-msg-meta").last.inner_text()
+    check(
+        all(endpoint in meta_fail for endpoint in endpoints),
+        "失败轮的 meta 仍回显两个端点名",
+    )
+    await ctx.close()
+
+    # 控制组：同样两个端点、同样两次调用，但都成功 → meta 形状必须与失败那次不同。
+    # 不写死「未取到 / 失败」这类文案，只比较「同一个页面、同样端点」的两种结果。
+    ctx, page = await new_page(browser, base)
+    await page.evaluate(OK_PATCH)
+    await page.locator(".ai-input").fill("验收两个端点都成功")
+    await page.locator("[data-send]").click()
+    await wait_idle(page, 8000)
+    meta_ok = await page.locator(".ai-msg-assistant .ai-msg-meta").last.inner_text()
+    await ctx.close()
+
+    check(meta_fail != meta_ok, "失败端点的 meta 与成功端点不同（失败与成功不能长得一样）")
+    check(
+        _meta_without_names(meta_fail, endpoints) != _meta_without_names(meta_ok, endpoints),
+        "meta 在端点名之外还有额外标记（失败标记，不认死文案）",
+    )
+
+
 async def main(base: str) -> int:
     base = base.rstrip("/") + "/"
     async with async_playwright() as p:
@@ -526,6 +858,9 @@ async def main(base: str) -> int:
         await check_tool_loop(browser, base)
         await check_tool_force_answer(browser, base)
         await check_tool_404(browser, base)
+        await check_tool_slow_endpoint(browser, base)
+        await check_tool_dup_calls(browser, base)
+        await check_tool_all_fail(browser, base)
         await check_save_note(browser, base)
         await browser.close()
     print(f"\n{len(FAILS)} failure(s)")

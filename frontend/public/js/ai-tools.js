@@ -95,11 +95,15 @@ export const TOOLS = [
 ];
 
 // 契约限额（docs/SPEC-ai-drawer-tools.md 第 4 条）：单次结果 2000 字、每轮 3 次、
-// 往返 2 轮、工具总耗时 8s。前三个是纯逻辑，后一个由 ai-chat.js 的 AbortController 执行。
+// 往返 2 轮、工具总耗时 8s。前三个是纯逻辑，8s 由 ai-chat.js 的 AbortController 执行；
+// 单次尝试另有 3.5s 上限（T3），由 runToolCall 每次尝试自建 controller 执行。
 export const TOOL_MAX_CHARS = 2000;
 export const MAX_CALLS_PER_ROUND = 3;
 export const MAX_TOOL_ROUNDS = 2;
 export const TOOL_TIMEOUT_MS = 8000;
+// 单次取数上限（T3）：一次 GET 卡死不该吃掉整轮 8s 预算。每次尝试独立计时，
+// 超时通常还剩 ~4.5s，仍能按 canRetryTool 的规则重试一次；批次 controller 仍是硬上限。
+export const TOOL_CALL_TIMEOUT_MS = 3500;
 // 网络层偶发卡死只重试一次；剩余预算不足 2s 就不值得再起一次（还会挤压后续轮次）。
 export const TOOL_RETRY_MIN_MS = 2000;
 
@@ -358,45 +362,86 @@ export function parseToolArgs(raw) {
 
 /**
  * 执行一次工具调用（永不抛）：
- *   参数校验 → 白名单校验 → GET /api/{endpoint} → 可选 json_path 下钻 → 体积策略序列化。
+ *   参数校验 → 白名单校验 → 同轮缓存 → GET /api/{endpoint} → 可选 json_path 下钻
+ *   → 体积策略序列化。
  * fetch 通过 opts.fetchImpl 注入（默认 globalThis.fetch），node 测试不需要起服务。
- * @returns {Promise<{callId: string, endpoint: string, content: string}>}
+ * 每次尝试独立计时（上限 min(剩余预算, TOOL_CALL_TIMEOUT_MS)），超时只废掉这一次尝试，
+ * 不废整轮；重试规则仍是 canRetryTool（status 0、剩余 ≥2s、非用户 abort）。
+ * opts.cache 由 runTurn 每轮新建：值是 executeToolCall() 的 promise（先占位再 await），
+ * 所以同一批 Promise.all 里的重复调用也只会发一次 GET；命中时 callId 用本次调用自己的。
+ * opts.callTimeoutMs 只给测试/探针缩短单次上限，生产不传。
+ * @returns {Promise<{callId: string, endpoint: string, content: string, ok: boolean,
+ *   cached?: boolean}>}
  */
 export async function runToolCall(call, opts = {}) {
   const callId = String((call && call.id) || '');
+  const cache = opts.cache;
+  const cacheable = !!cache && typeof cache.get === 'function' && typeof cache.set === 'function';
   let endpoint = '';
+  // 非缓存路径（参数/白名单错误）的统一出口：没有可复用结果，直接结构化失败
+  const fail = (ep, content) => ({ callId, endpoint: ep, content, ok: false });
   try {
     const fn = (call && call.function) || {};
     const name = String(fn.name || '');
     if (name !== TOOL_NAME) {
-      return {
-        callId,
-        endpoint: '',
-        content: safeStringify(toolError('', 0, '未知工具：' + (name || '(空)'))),
-      };
+      return fail('', safeStringify(toolError('', 0, '未知工具：' + (name || '(空)'))));
     }
     const parsed = parseToolArgs(fn.arguments);
     if (!parsed.ok) {
-      return { callId, endpoint: '', content: safeStringify(toolError('', 0, parsed.error)) };
+      return fail('', safeStringify(toolError('', 0, parsed.error)));
     }
     const args = parsed.value || {};
     const wanted = typeof args.endpoint === 'string' ? args.endpoint.trim() : '';
     const path = typeof args.json_path === 'string' ? args.json_path.trim() : '';
     if (TOOL_ENDPOINTS.indexOf(wanted) < 0) {
-      return {
-        callId,
-        endpoint: '',
-        content: safeStringify(toolError(wanted, 0, '端点不在白名单：' + (wanted || '(空)'))),
-      };
+      // 顶层 endpoint 保持空串（旧形状）：结构化错误 content 里才带模型传的原值
+      return fail('', safeStringify(toolError(wanted, 0, '端点不在白名单：' + (wanted || '(空)'))));
     }
     endpoint = wanted;
     if (args.json_path !== undefined && typeof args.json_path !== 'string') {
-      return {
-        callId,
-        endpoint,
-        content: safeStringify(toolError(endpoint, 0, 'json_path 必须是字符串')),
-      };
+      return fail(endpoint, safeStringify(toolError(endpoint, 0, 'json_path 必须是字符串')));
     }
+    // 同轮缓存键：端点 + 下钻路径。同一轮里同键的结果不会变，失败也值得复用
+    // （省下的是一次调用预算，不是一次重试）；跨轮必须换新 Map（结果有时效性）。
+    const cacheKey = endpoint + '|' + path;
+    const run = () => executeToolCall(endpoint, path, opts);
+    if (!cacheable) {
+      const entry = await run();
+      return { callId, endpoint: entry.endpoint, content: entry.content, ok: entry.ok };
+    }
+    let pending = cache.get(cacheKey);
+    const hit = !!pending;
+    if (!pending) {
+      // 先占位再 await：同一批 Promise.all 里后到的重复调用拿到的是这个 promise，
+      // 不会两条都 miss 再各发一次 GET（模型同轮问两遍同一端点时很常见）。
+      pending = run();
+      cache.set(cacheKey, pending);
+    }
+    const entry = await pending;
+    const out = { callId, endpoint: entry.endpoint, content: entry.content, ok: entry.ok };
+    if (hit) out.cached = true; // callId 始终是本次调用自己的，tool_call_id 才对得上
+    return out;
+  } catch (e) {
+    return fail(
+      endpoint,
+      safeStringify(toolError(endpoint, 0, '工具执行异常：' + truncateText((e && e.message) || e, 160)))
+    );
+  }
+}
+
+/** 工具结果条目（缓存里存的就是它的 promise）：content 决定 ok。 */
+function toolEntry(endpoint, content) {
+  return { endpoint, content, ok: !contentHasError(content) };
+}
+
+/**
+ * 真正取数并序列化（不含 callId / 缓存包装）。永不 reject：
+ * 缓存里存的是它返回的 promise，一旦 reject，并发等待者会拿到一个 rejected promise，
+ * 后续命中还会变成 unhandled rejection。所有失败都收敛成 content 里的结构化错误。
+ * @returns {Promise<{endpoint: string, content: string, ok: boolean}>}
+ */
+async function executeToolCall(endpoint, path, opts) {
+  try {
     const fetchImpl =
       typeof opts.fetchImpl === 'function'
         ? opts.fetchImpl
@@ -404,105 +449,234 @@ export async function runToolCall(call, opts = {}) {
           ? globalThis.fetch
           : null;
     if (!fetchImpl) {
-      return {
-        callId,
+      return toolEntry(
         endpoint,
-        content: safeStringify(toolError(endpoint, 0, '当前环境没有 fetch，无法查询站内数据')),
-      };
+        safeStringify(toolError(endpoint, 0, '当前环境没有 fetch，无法查询站内数据'))
+      );
     }
     const root = typeof opts.root === 'string' && opts.root ? opts.root : DEFAULT_ROOT;
     const url = root.replace(/\/+$/, '/') + endpoint;
-    let res = null;
     let attempt = 0;
+    let data;
+    let finalStatus = 0;
     // 网络层偶发卡顿（浏览器传输层没把 GET 发出去）只重试一次；
     // 用户主动停止、预算不足、HTTP 4xx/5xx 都不重试。
     for (;;) {
       attempt += 1;
-      try {
-        res = await fetchImpl(url, {
-          method: 'GET',
-          headers: { accept: 'application/json' },
-          signal: opts.signal,
-        });
-      } catch (e) {
-        const userAborted = isUserAborted(opts);
-        const msg = userAborted
-          ? '工具执行已取消（用户停止）'
-          : isAbort(e)
-            ? '工具执行超时或已取消'
-            : '网络请求失败：' + truncateText((e && e.message) || e, 160);
-        if (retryAllowed(opts, attempt, 0)) continue;
-        return {
-          callId,
-          endpoint,
-          content: safeStringify(toolError(endpoint, 0, msg + retryNote(attempt))),
-        };
-      }
+      const a = await runToolAttempt(fetchImpl, url, opts);
+      const res = a.res;
       const status = res && Number.isInteger(res.status) ? res.status : 0;
-      if (!res || !res.ok) {
-        const userAborted = isUserAborted(opts);
-        const msg = userAborted
-          ? '工具执行已取消（用户停止）'
-          : status === 404
-            ? '本期未导出（端点 404）'
-            : status === 0
-              ? '网络请求失败：端点没有返回状态'
-              : '端点返回 ' + status;
-        if (retryAllowed(opts, attempt, status)) continue;
-        return {
-          callId,
-          endpoint,
-          content: safeStringify(toolError(endpoint, status, msg + retryNote(attempt))),
-        };
+      const userAborted = !!(a.why && a.why.user) || isUserAborted(opts);
+      const batchAborted =
+        !userAborted && (!!(a.why && a.why.batch) || !!(opts.signal && opts.signal.aborted));
+      const timedOut = !userAborted && !batchAborted && !!(a.why && a.why.timedOut);
+      if (res && res.ok && !a.jsonError && !userAborted && !batchAborted && !timedOut) {
+        data = a.data;
+        finalStatus = status;
+        break;
       }
-      break;
-    }
-    const status = res && Number.isInteger(res.status) ? res.status : 0;
-    if (typeof res.json !== 'function') {
-      return {
-        callId,
+      let failStatus = status;
+      let msg;
+      if (userAborted) {
+        failStatus = 0;
+        msg = '工具执行已取消（用户停止）';
+      } else if (batchAborted) {
+        failStatus = 0;
+        msg = '工具执行超时（本轮 8s 预算已用尽）';
+      } else if (timedOut) {
+        failStatus = 0;
+        // 本次尝试自己的计时器先响：上限可能是 3.5s，也可能是更短的剩余预算；
+        // 批次 8s controller 先响的情况走上面的 batchAborted，不会被这里吞掉。
+        msg = '工具执行超时（单次 ' + timeoutLabel(a.why && a.why.limit) + '）';
+      } else if (!res) {
+        failStatus = 0;
+        msg = isAbort(a.error)
+          ? '工具执行超时或已取消'
+          : '网络请求失败：' + truncateText((a.error && a.error.message) || a.error, 160);
+      } else if (a.jsonError) {
+        msg = '端点返回的不是合法 JSON';
+      } else if (status === 404) {
+        msg = '本期未导出（端点 404）';
+      } else if (status === 0) {
+        msg = '网络请求失败：端点没有返回状态';
+      } else {
+        msg = '端点返回 ' + status;
+      }
+      if (retryAllowed(opts, attempt, failStatus)) continue;
+      return toolEntry(
         endpoint,
-        content: safeStringify(toolError(endpoint, status, '端点没有返回 JSON')),
-      };
-    }
-    let data;
-    try {
-      data = await res.json();
-    } catch (e) {
-      return {
-        callId,
-        endpoint,
-        content: safeStringify(toolError(endpoint, status, '端点返回的不是合法 JSON')),
-      };
+        safeStringify(toolError(endpoint, failStatus, msg + retryNote(attempt)))
+      );
     }
     let picked = data;
     if (path) {
       const down = jsonPath(data, path);
       if (!down.found) {
-        return {
-          callId,
+        return toolEntry(
           endpoint,
-          content: safeStringify(
-            toolError(endpoint, status, 'JSON 路径不存在：' + path, { available: down.available })
-          ),
-        };
+          safeStringify(
+            toolError(endpoint, finalStatus, 'JSON 路径不存在：' + path, {
+              available: down.available,
+            })
+          )
+        );
       }
       picked = down.value;
     }
     const maxChars = Number(opts.maxChars) || TOOL_MAX_CHARS;
-    return {
-      callId,
-      endpoint,
-      content: renderToolResult(picked, { maxChars, jsonPath: path }),
-    };
+    return toolEntry(endpoint, renderToolResult(picked, { maxChars, jsonPath: path }));
   } catch (e) {
-    return {
-      callId,
+    return toolEntry(
       endpoint,
-      content: safeStringify(
-        toolError(endpoint, 0, '工具执行异常：' + truncateText((e && e.message) || e, 160))
-      ),
-    };
+      safeStringify(toolError(endpoint, 0, '工具执行异常：' + truncateText((e && e.message) || e, 160)))
+    );
+  }
+}
+
+// ── 单次取数超时（T3 主修） ───────────────────────────────────────────────
+//
+// 为什么每次尝试单独建 controller：一次 GET 卡在传输层（实测 status=0 / 8002ms）
+// 不该把整轮 8s 预算一起吃光。单次上限 3.5s 先触发时，通常还剩 ~4.5s，
+// 重试规则（剩余 ≥2s）能再试一次；两次都超时才落成结构化错误。
+// 三个信号谁先触发都中断本次尝试：
+//   - 自己计时器 → 单次超时；
+//   - opts.signal（批次 8s controller）→ 本轮预算用尽；
+//   - opts.outerSignal（用户点停止）→ 取消。
+// 计时器只负责 abort，真正的分类靠 why 标记（abort 之后仍能分清是哪一种）。
+
+/** 单次尝试的标称上限（生产固定 3.5s；测试/探针可用 callTimeoutMs 缩短）。 */
+function callTimeoutCap(opts) {
+  const override = Number(opts && opts.callTimeoutMs);
+  return Number.isFinite(override) && override > 0 ? override : TOOL_CALL_TIMEOUT_MS;
+}
+
+/** 本次尝试的计时上限：min(剩余总预算, TOOL_CALL_TIMEOUT_MS)。 */
+function attemptLimitMs(opts) {
+  const cap = callTimeoutCap(opts);
+  const remaining = hasBudget(opts) ? retryBudgetLeft(opts) : cap;
+  return Math.max(0, Math.min(remaining, cap));
+}
+
+function hasBudget(opts) {
+  return (
+    Number.isFinite(Number(opts && opts.deadline)) || Number.isFinite(Number(opts && opts.budgetMs))
+  );
+}
+
+/** 超时文案里的秒数：3500 → 3.5s，80 → 0.1s。 */
+function timeoutLabel(ms) {
+  return Math.max(0.1, Math.round(Number(ms) / 100) / 10) + 's';
+}
+
+function abortError() {
+  const e = new Error('aborted');
+  e.name = 'AbortError';
+  return e;
+}
+
+/**
+ * 让一次 fetch 与 abort 赛跑：注入的 fetchImpl 可能不认 signal（测试里的「永不 resolve」），
+ * 光靠 fetch 自己 reject 会让 await 永远挂着，所以这里必须自己判 abort。
+ */
+function raceAbort(task, signal) {
+  const p = Promise.resolve(task);
+  if (!signal) return p;
+  if (signal.aborted) {
+    // 尝试还没开始就已经被取消：task 仍被创建了（fetchImpl 已被调用），
+    // 它之后的 rejection 必须有人接住，否则 node 会报 unhandled rejection。
+    p.catch(() => {});
+    return Promise.reject(abortError());
+  }
+  return new Promise((resolve, reject) => {
+    const onAbort = () => reject(abortError());
+    signal.addEventListener('abort', onAbort, { once: true });
+    p.then(
+      (v) => {
+        signal.removeEventListener('abort', onAbort);
+        resolve(v);
+      },
+      (e) => {
+        signal.removeEventListener('abort', onAbort);
+        reject(e);
+      }
+    );
+  });
+}
+
+/** 一次尝试：独立 controller + 超时计时器 + 联动批次/用户 signal；finally 清干净监听。 */
+async function runToolAttempt(fetchImpl, url, opts) {
+  const limit = attemptLimitMs(opts);
+  const why = { user: false, batch: false, timedOut: false, limit };
+  const ctl = new AbortController();
+  const onUser = () => {
+    why.user = true;
+    ctl.abort();
+  };
+  const onBatch = () => {
+    if (!why.user) why.batch = true;
+    ctl.abort();
+  };
+  // 信号可能在进入本次尝试前就已 abort（用户已停止 / 批次已超时）：先置标记再挂监听，
+  // 否则 abort 事件已经错过，fetch 会拿着一个永远不触发的 signal 干等。
+  if (opts.outerSignal && opts.outerSignal.aborted) onUser();
+  else if (opts.signal && opts.signal.aborted) onBatch();
+  if (opts.outerSignal && opts.outerSignal.addEventListener) {
+    opts.outerSignal.addEventListener('abort', onUser);
+  }
+  if (opts.signal && opts.signal.addEventListener) {
+    opts.signal.addEventListener('abort', onBatch);
+  }
+  let timer = 0;
+  if (limit > 0 && !ctl.signal.aborted) {
+    timer = setTimeout(() => {
+      if (!why.user && !why.batch) why.timedOut = true;
+      ctl.abort();
+    }, limit);
+  }
+  try {
+    if (limit <= 0) {
+      // 剩余预算已经归零（批次级）：不是单次上限的问题
+      if (!why.user) why.batch = true;
+      return { why };
+    }
+    const res = await raceAbort(
+      fetchImpl(url, {
+        method: 'GET',
+        headers: { accept: 'application/json' },
+        signal: ctl.signal,
+      }),
+      ctl.signal
+    );
+    if (!res || !res.ok || typeof res.json !== 'function') return { res, why };
+    let data;
+    try {
+      // 读 body 也归本次尝试管：fetch 已返回但 body 卡住时，单次超时同样要能把它掐掉
+      data = await raceAbort(Promise.resolve(res.json()), ctl.signal);
+    } catch (e) {
+      return { res, why, jsonError: e };
+    }
+    return { res, data, why };
+  } catch (e) {
+    return { error: e, why };
+  } finally {
+    clearTimeout(timer);
+    if (opts.outerSignal && opts.outerSignal.removeEventListener) {
+      opts.outerSignal.removeEventListener('abort', onUser);
+    }
+    if (opts.signal && opts.signal.removeEventListener) {
+      opts.signal.removeEventListener('abort', onBatch);
+    }
+  }
+}
+
+/** content 是否结构化错误（解析出 error 字段即失败；正常数据不是 JSON 对象也算成功）。 */
+function contentHasError(content) {
+  try {
+    const j = JSON.parse(String(content));
+    if (!j || typeof j !== 'object' || Array.isArray(j)) return false;
+    return Object.prototype.hasOwnProperty.call(j, 'error');
+  } catch (e) {
+    return false;
   }
 }
 
@@ -552,6 +726,31 @@ export function canRetryTool(state = {}) {
     !state.signalAborted &&
     Number(state.remainingMs) >= minMs
   );
+}
+
+/**
+ * 一批工具结果 → 本轮「查到的」与「没取到的」端点（字符串数组，去重、保持出现顺序）。
+ * 只认 endpoint 非空的结果：预算不足 / 用户停止时执行器的兜底结果没有端点，不算查过。
+ * 同一端点本轮既有成功又有失败（不同 json_path）时按成功算，避免 meta 里出现
+ * 「查数 A · 未取到 A」这种自相矛盾的同一行。
+ * 抽成纯函数是为了让 runTurn 只负责收集结果，UI 文案（查数 / 未取到）由这里定形状。
+ * @returns {{tools: string[], toolsFailed: string[]}}
+ */
+export function summarizeToolRuns(results) {
+  const tools = [];
+  const failed = [];
+  (Array.isArray(results) ? results : []).forEach((r) => {
+    if (!r || !r.endpoint) return;
+    const endpoint = String(r.endpoint);
+    // 兼容旧形状（没有 ok 标志）：仍能从结构化错误 content 判出失败
+    const ok = typeof r.ok === 'boolean' ? r.ok : !contentHasError(r.content);
+    const list = ok ? tools : failed;
+    if (list.indexOf(endpoint) < 0) list.push(endpoint);
+  });
+  return {
+    tools,
+    toolsFailed: failed.filter((endpoint) => tools.indexOf(endpoint) < 0),
+  };
 }
 
 // ── 流式 SSE：分片解析与累积（纯函数；ai-chat.js 的 sseDelta / consume 都用这里） ──
