@@ -1,7 +1,7 @@
 # 伴读抽屉后端通道（/api/chat · /api/models · /api/notes）
 
 > 2026-10-22 落地。前端单源 `frontend/public/js/ai-chat.js`（配置纯逻辑在 `ai-config.js`）；
-> 本文件只讲服务端通道与部署配置。领域术语见 `CONTEXT.md`。
+> 本文件讲服务端通道、部署配置，以及「模型到底看得见页面上的什么」。领域术语见 `CONTEXT.md`。
 
 ## 为什么有两套实现
 
@@ -41,6 +41,57 @@ POST /api/notes
   模型由服务端白名单决定；设置面板禁用推理强度，并显示代理提示。
 - **填了 Key，或 Base URL 改成别的** → 直连 `{Base URL}/chat/completions`（BYOK，行为不变）。
 - 代理模式下「探测模型」请求 `/api/models`；直连模式仍请求 `{Base URL}/models`。
+
+## 页面上下文（模型到底看得见什么）
+
+三层进 system message、一层进 user message（`ai-chat.js` 的 `buildMessages`）：
+
+| 层 | 落到哪条消息 | 内容 | 预算 | 单源 |
+|---|---|---|---|---|
+| 页面坐标 | system | 标题 / 路径 / 时效（页头 `re-as-of`，SPA 用「标的 · 最新价」顶替） | — | `getPageContext()` + `AI_CONTEXT_LABELS` |
+| 页面事实集 | system | 页面自己声明的结构化读数、关系矩阵 | 2600 字 | `js/ai-context.js`（页面 `AICtx.declare`） |
+| DOM 摘要 | system | 结论行 / KPI 卡 / 键值行 / 结构洞察 / 小节标题 | 1500 字；有事实集时 1200 字 | `pageSummary()` |
+| 划词引用 | **user**（每条消息前缀） | 选中片段 + 就近小节标题 + 表格表头与本行 | 2–2000 字/条 | `ai-prompt.js` 的 `formatQuote` |
+
+三条硬约束：
+
+1. **DOM 摘要只收可见元素**（`offsetWidth/Height/getClientRects` 全零即跳过）。SPA 是双视图、
+   切换只改 `.app[data-view]`，隐藏视图的文字仍在 DOM 里——不加这条，关联视图会把技术视图的
+   1119 字读数（RSI / MACD）当成页面上下文送进模型，模型拿它编相关性。
+2. **canvas 上的数据必须由页面显式声明**。相关性热力图、K 线、GEX 曲面在 DOM 里一个数都没有；
+   只抓 DOM 时模型看得见「结构洞察」那几句话，任意两标的的系数一概查不到。
+3. **明细表这一类暂不迁**（本轮只做标量读数与关系矩阵）：拍卖明细 106 行、持仓表这类
+   整表塞不进预算，模型对表内具体行的了解仍靠划词——引用块会带表头与本行
+   （`formatQuote`），不划词就只有该页声明的那几条汇总读数。
+
+给新页接入：
+
+```js
+// 数据到手之后（id 幂等，重复 declare 即覆盖）。守卫可省——本脚本与页面脚本同为
+// 同步经典脚本且排在前面，但线上 CDN 半失败时少写一行就少一次白屏机会
+if (window.AICtx) AICtx.declare('rates', () => ({
+  title: '利率曲线读数',
+  src: 'FRED（DGS / EFFR / TIPS）',
+  asOf: d.as_of,
+  // 数值格式化一律复用 rates-common 的 R.fmtPct / R.fmtBp / R.num，页面不自写 toFixed
+  facts: [['10Y', R.fmtPct(t['10Y'].current), '1周 ' + R.fmtBp(t['10Y'].chg_1w) + 'bp']],
+  matrix: AICtx.matrix(labels, square), // 可选：交方阵，下三角由 ai-context 转
+}));
+```
+
+矩阵交**方阵**给 `AICtx.matrix(labels, square)`，由它转下三角（第 i 行取 `square[i][0..i]`）：
+22 标的编码后约 2.1k 字，整张 22×22 塞得进一档预算。预算不够时**整块丢矩阵**而不是截一半
+（半张表会让模型查到错位的对），并留一行「关系矩阵超出上下文预算，已省略」；
+连读数都放不下时逐条截断并报省略条数，整块都放不下的块合并成一行「另有 N 个数据块……已省略」。
+
+分界：**块长什么样、怎么编码、预算怎么裁**只在 `js/ai-context.js`（`render()` 的默认预算也在那里，
+`ai-chat.js` 不传参）；**这句话怎么对模型说**只在 `ai-prompt.js`（`AI_SYSTEM_PROMPT` /
+`AI_FACTS_HINT` / `AI_CONTEXT_LABELS`）；**每条读数取哪个字段**由页面自己写。
+页面若要用「现在是否看得见」决定送不送（SPA 切视图、同页子模式），用 `AICtx.isVisible(el)`
+而不是自己判 `data-view`：关联页的「宏观联动」子模式就是这么把 `#corr-asset-wrap` 置
+`display:none` 的，只看 `data-view` 会把看不见的矩阵继续送出去。
+已接入：相关性（SPA）、`/rates/`、`/treasury/`。
+
 
 ## 环境变量
 

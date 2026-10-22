@@ -207,10 +207,40 @@ async function loadCrossAsset() {
     renderMatrix();
     renderInsights(crossData);
     updateStatus();
+    declareCrossAssetContext(crossData);
   } catch (e) {
     const row = document.getElementById('corr-status-row');
     if (row) row.innerHTML = `<div class="loading" style="height:auto;padding:24px">加载失败: ${e.message}</div>`;
   }
+}
+
+// 伴读抽屉的事实集（契约见 js/ai-context.js）。
+// 为什么这页必须显式声明：热力图是 ECharts canvas，DOM 里一个相关系数都没有——
+// 只抓 DOM 时模型只能看见「结构洞察」那几句话，任意两标的的系数它一概查不到。
+// 整张 22×22 下三角编码后 ~1.5k 字，正好是一档预算，比只给 top-N 更经得起追问。
+function declareCrossAssetContext(d) {
+  if (!window.AICtx || !d || !Array.isArray(d.assets) || !Array.isArray(d.matrix)) return;
+  window.AICtx.declare('cross-asset', () => {
+    // provider 在提问时才求值 → 这里按「当前是否真的看得见矩阵」决定送不送：
+    // ① 切回技术视图时整个关联视图是 display:none；② 关联视图里的「宏观联动」子模式
+    // 会保留 #corr-asset-wrap 只把 display 置 none。两种都算看不见，一律不送。
+    const app = document.querySelector('.app');
+    if (app && app.dataset.view && app.dataset.view !== 'correlation') return null;
+    if (!window.AICtx.isVisible(document.getElementById('corr-asset-wrap'))) return null;
+    return {
+      title: '跨资产相关性矩阵（' + d.assets.length + ' 标的）',
+      src: 'cross_asset · 日收益相关',
+      asOf: d.as_of,
+      priority: 10,
+      facts: [
+        ['窗口', (d.window || 30) + ' 日滚动', '相关系数用日收益率算'],
+        ['标的与中文名', d.assets.map((a) => a.name + '=' + a.label).join(' · '), ''],
+      ],
+      // 方阵 → 下三角的转换单源在 AICtx.matrix（越界/错位只在那里出一处错）
+      matrix: window.AICtx.matrix(d.assets.map((a) => a.name), d.matrix),
+      note: '|r|≥0.3 视为有意义的联动，<0.2 基本无关；正负号决定同向还是反向',
+    };
+  });
 }
 
 // 状态条：四张结构卡（先看结构）

@@ -12,7 +12,7 @@
 // 数据全在本机 localStorage：四个键见下方 K_*，接口直连 OpenAI 兼容端点；
 // Base URL 保持默认且没填 API Key 时走本站 /api/chat（本地 FastAPI / 线上 Pages Function）。
 
-import { AI_PROMPT_VERSION, AI_SYSTEM_PROMPT, formatQuote } from './ai-prompt.js';
+import { AI_CONTEXT_LABELS, AI_FACTS_HINT, AI_PROMPT_VERSION, AI_SYSTEM_PROMPT, formatQuote } from './ai-prompt.js';
 import {
   DEFAULT_CFG as DEF_CFG,
   chatPayload,
@@ -119,25 +119,48 @@ import { mdToHtml } from './ai-md.js';
 
   // ── 页面上下文 ──────────────────────────────────────────────────────────
   // 划词片段与提问都要带「这数是哪页、几时的」：没有坐标的引用模型只能瞎猜口径。
-  const SUMMARY_SELS = ['.sig-row', '.re-cards', '.re-kv-grid', '#tech-ov-current', '.re-sec-title'];
+  //
+  // 结构化数据走 ./ai-context.js 的 AICtx（页面自己声明事实集，矩阵/表格由页面编码）；
+  // 这里只兜底「DOM 长什么样」这一段，给模型一张小节地图与页面上已经写死的结论。
+  // 两个坑（都实测过）：① 必须跳过不可见元素——SPA 双视图时技术视图是 display:none
+  // 却仍在 DOM 里，曾吃掉 1500 字预算的 1119 字，模型拿 BTC 的 RSI 去答相关性；
+  // ② 预算别给太大，事实集已经占了主预算，这里只补结论层。
+  const SUMMARY_SELS = ['.sig-row', '.re-cards', '.re-kv-grid', '#tech-ov-current', '#corr-insights', '.re-sec-title'];
+  const SUMMARY_BUDGET = 1500; // 没声明事实集的页（多数页）保持原量，别因为别处加了上下文就偷偷截短
+  const SUMMARY_BUDGET_WITH_FACTS = 1200; // 有结构化事实集的页让出一档给它
 
-  function pageSummary() {
+  // 可见性判定单源在 ai-context.js（与 pageSummary 共用一份）；脚本没到位时退回「全算可见」
+  const isVisible = (el) =>
+    window.AICtx && typeof AICtx.isVisible === 'function' ? AICtx.isVisible(el) : true;
+
+  function pageSummary(budget = SUMMARY_BUDGET) {
     const out = [];
     let len = 0;
     for (const sel of SUMMARY_SELS) {
       for (const el of document.querySelectorAll(sel)) {
         if (el.closest('.ai-drawer')) continue;
+        if (!isVisible(el)) continue; // 别的视图 / 折叠面板里的读数一律不送
         const txt = (el.textContent || '').replace(/\s+/g, ' ').trim();
         if (!txt) continue;
         out.push(txt);
         len += txt.length;
-        if (len >= 1500) return out.join(' | ').slice(0, 1500);
+        if (len >= budget) return out.join(' | ').slice(0, budget);
       }
     }
-    return out.join(' | ').slice(0, 1500);
+    return out.join(' | ').slice(0, budget);
   }
 
-  function getPageContext() {
+  // 页面事实集（单源在 ./ai-context.js；未加载或被 CSP 拦住时安静降级成空串）
+  function pageFacts() {
+    try {
+      if (window.AICtx && typeof window.AICtx.render === 'function') return window.AICtx.render(); // 预算单源在 ai-context.js
+    } catch (e) {
+      /* 页面 provider 出错不该拖垮对话 */
+    }
+    return '';
+  }
+
+  function getPageContext(summaryBudget = SUMMARY_BUDGET) {
     const pagePath = location.pathname + location.hash;
     const h1 = document.querySelector('.re-header h1');
     const pageTitle = (h1 && h1.textContent.trim()) || document.title || pagePath;
@@ -156,7 +179,7 @@ import { mdToHtml } from './ai-md.js';
       if (rng && rng.textContent.trim()) bits.push(rng.textContent.trim());
       if (bits.length) asOf = bits.join(' · ');
     }
-    return { pagePath, pageTitle, asOf, summary: pageSummary() };
+    return { pagePath, pageTitle, asOf, summary: pageSummary(summaryBudget) };
   }
 
   // ── 划词：最近的小节标题 + 表格表头/本行 ─────────────────────────────────
@@ -421,16 +444,21 @@ import { mdToHtml } from './ai-md.js';
   // thread 末尾那条 user 消息就是本轮要回答的（send / retry 都先把它压好）
   function buildMessages(thread) {
     const last = thread.messages[thread.messages.length - 1] || { content: '', quotes: [] };
-    const ctx = getPageContext();
-    // 提示词静态段单源在 SYSTEM_PROMPT；这里只拼接页面的动态坐标与读数
+    const facts = pageFacts(); // 页面声明的事实集（矩阵/读数），DOM 摘要之外的另一档
+    const ctx = getPageContext(facts ? SUMMARY_BUDGET_WITH_FACTS : SUMMARY_BUDGET);
+    // 提示词静态段单源在 ai-prompt.js（AI_SYSTEM_PROMPT / AI_FACTS_HINT / AI_CONTEXT_LABELS）；
+    // 这里只按固定顺序把页面的动态坐标与读数填进去，不写任何提示词正文
+    const L = AI_CONTEXT_LABELS;
     const sys = [
       sysPrompt(),
       '',
-      '【当前页面】',
-      '标题：' + ctx.pageTitle,
-      '路径：' + ctx.pagePath,
-      ctx.asOf ? '时效：' + ctx.asOf : '',
-      ctx.summary ? '结论与读数：' + ctx.summary : '',
+      L.page,
+      L.title + ctx.pageTitle,
+      L.path + ctx.pagePath,
+      ctx.asOf ? L.asOf + ctx.asOf : '',
+      ctx.summary ? L.summary + ctx.summary : '',
+      facts ? '\n' + L.facts + '\n' + facts : '',
+      facts ? AI_FACTS_HINT : '',
     ]
       .filter(Boolean)
       .join('\n');

@@ -67,6 +67,10 @@ const parentGroup = SITE_NAV.groups.find(
 {chart && <script is:inline src="/vendor/echarts.min.js"></script>}
 <script is:inline src="/js/echarts-theme.js"></script>
 <script is:inline src="/js/rates-common.js"></script>
+<!-- 页面事实集：页面 island 脚本用它 declare 结构化数据（相关性矩阵这类只在 canvas 上的东西），
+     ai-chat.js 提问时读取。经典同步脚本——必须早于页面底部的 inline 脚本，
+     否则 declare 时 window.AICtx 还不存在（module 是 deferred，赶不上）。 -->
+<script is:inline src="/js/ai-context.js"></script>
 <!-- 伴读抽屉：经典脚本 rates-common 先同步执行（模块是 deferred，R 一定已就绪），
      module 形态是为了 import ./ai-prompt.js（提示词唯一数据源）。自建浮钮 + 抽屉，不依赖页面结构 -->
 <script is:inline type="module" src="/js/ai-chat.js"></script>

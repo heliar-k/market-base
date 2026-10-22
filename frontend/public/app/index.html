@@ -21,6 +21,9 @@
 <script src="/vendor/echarts.min.js"></script>
 <script src="/js/echarts-theme.js"></script>
 <script src="/js/rates-common.js"></script>
+<!-- 页面事实集：SPA 双视图的结构化数据由 cross-correlation.js 等模块 declare，
+     ai-chat.js 提问时读取；必须先于 ai-chat.js 的 module 求值 -->
+<script src="/js/ai-context.js"></script>
 <!-- 伴读抽屉：module 形态（import ./ai-prompt.js 提示词数据源）；rates-common 是经典同步脚本，R 已就绪 -->
 <script type="module" src="/js/ai-chat.js"></script>
 <script type="module" src="/js/site-nav.js"></script>

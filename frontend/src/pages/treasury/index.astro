@@ -69,6 +69,30 @@ async function load() {
   R.setSection('re-signals', (d.signals || [])
     .map(s => R.judgeCard(s.title, s.text, R.LINES_JUDGE)).join(''));
 
+  // ── 页面事实集（契约见 js/ai-context.js）：卡片与最近拍卖的结构化读数。
+  // 拍卖明细有 106 行，DOM 摘要只截得到表头；这里给最近 3 场 coupon + 未来发行量，
+  // 追问具体某场再靠划词（引用块会带表头与本行）。
+  if (window.AICtx) AICtx.declare('treasury', () => {
+    // /api/rates/auctions 的 recent 是「新在前」（首条是最近一场），取最近 3 场要 slice(0,3)：
+    // slice(-3) 拿到的是三个月前那三场（实测 07-27/07-23/07-22，10Y 还挂着旧利率）
+    const recent = (auc && auc.recent || []).filter(a => a.security_type !== 'Bill').slice(0, 3);
+    return {
+      title: '美债供需与发行',
+      src: 'Treasury Fiscal Data（TIC / MSPD / 拍卖）',
+      asOf: d.as_of,
+      priority: 10,
+      facts: [
+        ['海外持仓总额', c.hold_total.value == null ? '—' : c.hold_total.value + ' 万亿美元', `as_of ${c.hold_total.as_of} · 1Y ${c.hold_total.chg_1y_b == null ? '—' : (c.hold_total.chg_1y_b > 0 ? '+' : '') + c.hold_total.chg_1y_b + 'B'}`],
+        ['海外官方占比', R.fmtPct(c.official_share.value), `${c.official_share.as_of || ''} · ${c.official_share.pct_label || ''}`],
+        ['月度' + (c.net_total.value >= 0 ? '净买入' : '净卖出') + '（TIC）', '$' + Math.abs(c.net_total.value) + 'B', `as_of ${c.net_total.as_of} · 12M 累计 ${Math.abs(c.net_total.net_12m_b)}B`],
+        ['Bill 占比', R.fmtPct(c.bill_share.value), `${c.bill_share.as_of || ''}${c.bill_share.chg_1y == null ? '' : ' · 1Y ' + (c.bill_share.chg_1y > 0 ? '+' : '') + c.bill_share.chg_1y + 'pp'}${c.bill_share.pct_label ? ' · ' + c.bill_share.pct_label : ''}`],
+        ['未来两周发行场次', auc ? String(auc.upcoming_count ?? (auc.upcoming || []).length) : '—', '含 Bill 与 Coupon'],
+        ['最近 coupon 拍卖', recent.length ? recent.map(a => `${a.auction_date} ${a.security_term} 得标 ${R.fmtPct(a.high_rate)} · BTC ${a.bid_to_cover ?? '—'} · tail ${a.tail_bp == null ? '—' : a.tail_bp + 'bp'}`).join(' ｜ ') : '—', 'tail 为正 = 需求偏弱'],
+      ],
+      note: 'TIC 月频滞后约 6 周；拍卖是逐场流量，Bill 占比是存量结构，两者口径不同别混用',
+    };
+  });
+
   // ══ 拍卖（发行端）══ 次要端点：缺数据/字段炸只降级 auctions 段（块内只用 auc，不碰 d）
   if (!auc) R.fail(['auctions'], new Error('拍卖数据缺失：data/treasury/auction_results.csv 未更新，先运行 ./bin/fetch_treasury 后重新导出'), '线上请重新导出拍卖数据（./bin/fetch_treasury）');
   else try {

@@ -22,6 +22,21 @@ export const AI_SYSTEM_PROMPT = [
   '回答简洁，中文为主，国际通用术语（VIX / GEX / Contango 等）保留英文；引用数字要带单位与口径。',
 ].join('\n');
 
+// 【页面数据】块存在时的追加纪律（块本身的格式由 ai-context.js 编码，
+// 这句话是给模型的用法说明，属提示词，所以留在这里而不是拼在 ai-chat.js 里）
+export const AI_FACTS_HINT =
+  '用户问到的标的/指标，先在【页面数据】里查（那里是本页的结构化读数与关系矩阵）；查不到再说「页面未给出」。';
+
+// 页面坐标段的标签文案（标题/路径/时效/结论），改口径措辞只动这里
+export const AI_CONTEXT_LABELS = {
+  page: '【当前页面】',
+  title: '标题：',
+  path: '路径：',
+  asOf: '时效：',
+  summary: '页面上已给出的结论与读数：',
+  facts: '【页面数据】',
+};
+
 // 引用块模板：划词片段进请求时的包装格式。改这里即可换「引用怎么递给模型」。
 export function formatQuote(q, i) {
   const lines = [

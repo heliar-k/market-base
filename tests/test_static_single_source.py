@@ -57,6 +57,19 @@ def test_echarts_theme_before_rates_common(src: Path) -> None:
         assert theme < common, f"{src.relative_to(ROOT)} 加载顺序颠倒"
 
 
+@pytest.mark.parametrize("src", [TOPIC_LAYOUT, SPA_ENTRY], ids=["TopicLayout.astro", "index.html"])
+def test_ai_context_before_ai_chat(src: Path) -> None:
+    """ai-context.js 是经典同步脚本，页面 inline 脚本与 ai-chat.js 的 module 都依赖它：
+    排在 ai-chat.js 之后 → declare 时 window.AICtx 不存在，页面静默不声明
+    （模型又回到“读不到”的状态，且控制台一声不响）。"""
+    text = src.read_text(encoding="utf-8")
+    ctx = text.find('src="/js/ai-context.js"')
+    chat = text.find('src="/js/ai-chat.js"')
+    assert ctx != -1, f"{src.relative_to(ROOT)} 缺 ai-context.js"
+    assert chat != -1, f"{src.relative_to(ROOT)} 缺 ai-chat.js"
+    assert ctx < chat, f"{src.relative_to(ROOT)} 里 ai-context.js 必须排在 ai-chat.js 之前"
+
+
 def _site_nav_js() -> str:
     return (STATIC / "js" / "site-nav.js").read_text(encoding="utf-8")
 

@@ -67,6 +67,9 @@ async function load() {
   const chgSub = (v, label) => v === null || v === undefined ? ''
     : `<span style="color:${v > 0 ? 'var(--up)' : v < 0 ? 'var(--down)' : 'var(--flat)'}">${v > 0 ? '▲ +' : v < 0 ? '▼ ' : ''}${Number(v).toFixed(0)}bp</span> · ${label}`;
   const effr = data.overview.effr || {};
+  // 纯文本版变动：卡片的 chgSub 带 HTML 着色，事实集只要数字；数值本身仍走 R.fmtBp，
+  // 这里只补单位与空值（不重算 toFixed，避免与 rates-common 的口径分叉）
+  const bpText = (v) => (v === null || v === undefined ? '—' : R.fmtBp(v) + 'bp');
   document.getElementById('re-cards').replaceChildren(R.cards([
     { label: '联邦基金有效利率', value: R.fmtPct(effr.value), sub: chgSub(effr.chg_1w, '1周'), accent: true },
     { label: '2Y', value: R.fmtPct(t['2Y'].current), sub: chgSub(t['2Y'].chg_1w, '1周') },
@@ -78,6 +81,29 @@ async function load() {
 
   // ── 曲线四线快照（tenors 自带 1周/1月/3月前，零新请求）──
   R.curveCompare('yc_compare', d.tenors);
+
+  // ── 页面事实集（契约见 js/ai-context.js）：把这一屏的读数交给伴读抽屉。
+  // 研判正文已渲染成 .sig-row，DOM 摘要会带；这里补的是「模型会被追问的具体数字」。
+  if (window.AICtx) AICtx.declare('rates', () => ({
+    title: '利率曲线读数',
+    src: 'FRED（DGS / EFFR / TIPS）· NY Fed BGCR',
+    asOf: d.as_of,
+    priority: 10,
+    facts: [
+      ['曲线形态', d.shape || '—', '驱动：' + (d.driver || '—') + ' · 信心 ' + (d.confidence || '—')],
+      ['联邦基金有效利率', R.fmtPct(effr.value), `as_of ${effr.as_of || '—'} · 1周 ${bpText(effr.chg_1w)}`],
+      ['2Y', R.fmtPct(t['2Y'].current), '1周 ' + bpText(t['2Y'].chg_1w)],
+      ['10Y', R.fmtPct(t['10Y'].current), '1周 ' + bpText(t['10Y'].chg_1w)],
+      ['30Y', R.fmtPct(t['30Y'].current), '1周 ' + bpText(t['30Y'].chg_1w)],
+      ['2s10s 利差', R.fmtBp(s['2s10s']), '1月 ' + bpText(s['2s10s_1m_chg'])],
+      ['3m10s 利差', R.fmtBp(s['3m10s']), ''],
+      ['5s30s 利差', R.fmtBp(s['5s30s']), ''],
+      ['10Y 实际利率（TIPS）', R.fmtPct(tips10 && tips10.real), '10Y 盈亏平衡 ' + R.fmtPct(tips10 && tips10.breakeven)],
+      ['全期限', d.tenors.map(x => x.tenor + ' ' + R.fmtPct(x.current)).join(' · '), '1M 起至 30Y'],
+      ['全球长端 10Y', (d.global_long_end || []).slice(0, 5).map(g => g.market + ' ' + R.fmtPct(g.rate)).join(' · '), '对美 spread 见页内表'],
+    ],
+    note: '利率单位为 %，利差单位为 bp；变动方向以 bp 计',
+  }));
 
   // ── 四段研判：三行契约（结论 / 依据 / 触发）统一走 R.sigBlocks ──
   document.getElementById('re-sections').innerHTML =

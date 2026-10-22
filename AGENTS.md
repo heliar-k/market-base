@@ -191,7 +191,7 @@ market-base/
 │   │   └── pages/                ← 34 个专题页 .astro（liquidity 8 / rates 4 / 单页族 9 / assets 13）
 │   ├── public/                   ← SPA 壳 + 共享资源（原 static/ 搬入，Astro publicDir 原样拷贝）
 │   │   ├── app/index.html        ← 工具 SPA 壳（技术/关联两视图，vanilla，不迁；/app/ 访问）
-│   │   ├── js/                   ← 共享 JS（site-nav / echarts-theme / rates-common 等，不进打包管线）
+│   │   ├── js/                   ← 共享 JS（site-nav / echarts-theme / rates-common / ai-context 等，不进打包管线）
 │   │   └── css/ vendor/ api/ favicon.svg _redirects
 │   ├── astro.config.mjs          ← Astro 配置（output static，publicDir/outDir 用默认）
 │   ├── package.json              ← npm 依赖（仅 astro）
