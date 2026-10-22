@@ -79,6 +79,114 @@ const cjkRes = await chat.onRequestPost({
 out.cjk = { status: cjkRes.status, bytes: new TextEncoder().encode(cjk).length };
 await cjkRes.text();
 
+// ── 工具通道：与 test_chat_backend.py 同一批畸形请求（状态码必须一一对应）────
+const TOOL = {
+  type: 'function',
+  function: {
+    name: 'query_site_data',
+    description: '查询本站已导出的数据端点。',
+    parameters: { type: 'object', properties: { endpoint: { type: 'string' } } },
+  },
+};
+const TOOL_CALL = {
+  id: 'call_1',
+  type: 'function',
+  function: { name: 'query_site_data', arguments: '{"endpoint":"rates/yield-curve"}' },
+};
+const USER = { role: 'user', content: 'hi' };
+
+const nineTools = await chat.onRequestPost({
+  request: req('/api/chat', { messages: [USER], tools: Array(9).fill(TOOL) }, __IP14__),
+  env: { LLM_API_KEY: 'k' },
+});
+out.tooManyTools = { status: nineTools.status, body: await nineTools.json() };
+
+const requiredChoice = await chat.onRequestPost({
+  request: req('/api/chat', { messages: [USER], tool_choice: 'required' }, __IP15__),
+  env: { LLM_API_KEY: 'k' },
+});
+out.requiredChoice = { status: requiredChoice.status, body: await requiredChoice.json() };
+
+const namedChoice = await chat.onRequestPost({
+  request: req(
+    '/api/chat',
+    {
+      messages: [USER],
+      tool_choice: { type: 'function', function: { name: 'query_site_data' } },
+    },
+    __IP16__
+  ),
+  env: { LLM_API_KEY: 'k' },
+});
+out.namedChoice = { status: namedChoice.status, body: await namedChoice.json() };
+
+const toolNoId = await chat.onRequestPost({
+  request: req(
+    '/api/chat',
+    {
+      messages: [
+        USER,
+        { role: 'assistant', content: null, tool_calls: [TOOL_CALL] },
+        { role: 'tool', content: 'x' },
+      ],
+    },
+    __IP17__
+  ),
+  env: { LLM_API_KEY: 'k' },
+});
+out.toolNoId = { status: toolNoId.status, body: await toolNoId.json() };
+
+// 合法往返：tools / tool_choice 原样进上游 payload，tool_calls / tool_call_id 不被抹掉
+const okTools = await chat.onRequestPost({
+  request: req(
+    '/api/chat',
+    {
+      messages: [
+        { role: 'user', content: '30Y 现在多少' },
+        { role: 'assistant', content: null, tool_calls: [TOOL_CALL] },
+        { role: 'tool', tool_call_id: 'call_1', content: '{"current":4.812}' },
+      ],
+      tools: [TOOL],
+      tool_choice: 'auto',
+    },
+    __IP18__
+  ),
+  env: { LLM_API_KEY: 'k' },
+});
+out.toolsOk = { status: okTools.status, payload: JSON.parse(captured.init.body) };
+await okTools.text();
+
+// arguments 计入 40k 总字符：'hi'(2) + 39998 刚好卡线，多 1 字就 413
+const budget = async (argLen, ip) => {
+  const r = await chat.onRequestPost({
+    request: req(
+      '/api/chat',
+      {
+        messages: [
+          { role: 'user', content: 'hi' },
+          {
+            role: 'assistant',
+            content: '',
+            tool_calls: [
+              {
+                id: 'c1',
+                type: 'function',
+                function: { name: 'query_site_data', arguments: 'x'.repeat(argLen) },
+              },
+            ],
+          },
+        ],
+      },
+      ip
+    ),
+    env: { LLM_API_KEY: 'k' },
+  });
+  await r.text();
+  return r.status;
+};
+out.argsOk = await budget(39998, __IP19__);
+out.argsOver = await budget(39999, __IP20__);
+
 // ── models ─────────────────────────────────────────────────────────────────
 const list = await models.onRequestGet({
   request: new Request('https://site.test/api/models', {
@@ -168,7 +276,7 @@ console.log(JSON.stringify(out));
 
 def _run() -> dict:
     script = JS.replace("__BASE__", json.dumps(FUNCS.as_uri() + "/"))
-    for i in range(1, 14):
+    for i in range(1, 21):
         script = script.replace(f"__IP{i}__", json.dumps(f"10.1.0.{i}"))
     return run_node(script)
 
@@ -232,6 +340,46 @@ def test_rate_limits(out: dict) -> None:
     assert out["modelsRate"][-1] == 429
     assert out["notesRate"][0] == 200
     assert out["notesRate"][-1] == 429
+
+
+def test_tools_contract_status_matches_python(out: dict) -> None:
+    """验收标准第 6 条：同一批畸形请求，两侧状态码一致（见 test_chat_backend.py）。"""
+    for key in ("tooManyTools", "requiredChoice", "namedChoice", "toolNoId"):
+        assert out[key]["status"] == 422, key
+        assert out[key]["body"]["error"]  # 前端直接显示这句话
+
+
+def test_tools_pass_through_upstream_payload(out: dict) -> None:
+    assert out["toolsOk"]["status"] == 200
+    payload = out["toolsOk"]["payload"]
+    assert payload["tool_choice"] == "auto"
+    # tools 原样透传（name / description / parameters 一个字段都不裁）
+    tool = payload["tools"][0]
+    assert tool["type"] == "function"
+    assert tool["function"]["name"] == "query_site_data"
+    assert tool["function"]["description"] == "查询本站已导出的数据端点。"
+    assert tool["function"]["parameters"] == {
+        "type": "object",
+        "properties": {"endpoint": {"type": "string"}},
+    }
+    # assistant 只带工具调用（content: null）→ 归一成 ""，tool_calls 原样保留
+    assert payload["messages"][1]["content"] == ""
+    assert payload["messages"][1]["tool_calls"] == [
+        {
+            "id": "call_1",
+            "type": "function",
+            "function": {
+                "name": "query_site_data",
+                "arguments": '{"endpoint":"rates/yield-curve"}',
+            },
+        }
+    ]
+    assert payload["messages"][2]["tool_call_id"] == "call_1"
+
+
+def test_tool_arguments_count_toward_char_budget(out: dict) -> None:
+    assert out["argsOk"] == 200  # 'hi' + 39998 = 40000，刚好卡线
+    assert out["argsOver"] == 413  # 多 1 字即超限（arguments 不能绕过 40k）
 
 
 def test_routes_json_covers_functions() -> None:

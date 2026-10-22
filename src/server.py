@@ -34,6 +34,8 @@ from src.chat_proxy import (
     llm_base,
     llm_key,
     validate_messages,
+    validate_tool_choice,
+    validate_tools,
 )
 from src.config import (
     FOMC_MEETINGS,
@@ -1717,14 +1719,26 @@ async def _guard_api(request: Request, call_next):
 
 
 class ChatMessageIn(BaseModel):
+    """一条对话消息。
+
+    `content` 可空：assistant 只带工具调用时上游就发 null，校验层归一成 ""。
+    `tool_calls` 用宽松类型承接（`list[Any]`）——结构校验在 chat_proxy 里做，
+    与 Pages Functions 逐条对齐，且保证原样透传（子模型会裁掉未知字段）。
+    """
+
     role: str
-    content: str
+    content: str | None = None
+    tool_call_id: str | None = None
+    tool_calls: list[Any] | None = None
 
 
 class ChatBodyIn(BaseModel):
     model: str | None = None
     messages: list[ChatMessageIn]
     reasoning_effort: str | None = None
+    tools: list[Any] | None = None
+    # 具名函数对象也是「非法值」的一种形状，这里不收紧类型，交给校验层统一 422
+    tool_choice: Any = None
 
 
 class NoteBodyIn(BaseModel):
@@ -1761,10 +1775,13 @@ def chat_proxy(body: ChatBodyIn, request: Request) -> Any:
         )
 
     try:
-        messages = validate_messages([(m.role, m.content) for m in body.messages])
+        # 顺序与 functions/api/chat.js 一致：先 messages，再 tools / tool_choice
+        messages = validate_messages([m.model_dump(exclude_none=True) for m in body.messages])
+        tools = validate_tools(body.tools)
+        tool_choice = validate_tool_choice(body.tool_choice)
     except ChatValidationError as exc:
         return _json_error(exc.status, str(exc))
-    payload = build_payload(body.model, messages, body.reasoning_effort)
+    payload = build_payload(body.model, messages, body.reasoning_effort, tools, tool_choice)
 
     try:
         upstream = requests.post(

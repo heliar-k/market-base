@@ -19,8 +19,13 @@
 
 ```
 POST /api/chat
-  { model?: string, messages: [{role: "system"|"user"|"assistant", content: string}],
-    stream?: true, reasoning_effort?: string }
+  { model?: string,
+    messages: [{role: "system"|"user"|"assistant"|"tool", content: string | null,
+                tool_calls?: object[],      # 仅 assistant：原样透传，≤8 条
+                tool_call_id?: string}],    # 仅 tool 角色必填，≤128 字
+    stream?: true, reasoning_effort?: string,
+    tools?: [{type: "function", function: {name, description, parameters}}],  # ≤8 个
+    tool_choice?: "auto" | "none" }
   → 200 text/event-stream（上游 SSE 原样透传；响应头 X-LLM-Model = 实际使用的模型）
   → 4xx/5xx {error: "..."}（前端 apiError 直接显示这句话）
 
@@ -34,6 +39,53 @@ POST /api/notes
   → { ok: true, key: "notes/YYYY-MM-DD/...", storage: "kv" }  # 线上绑了 NOTES
   → 503 {error: "静态部署没有 data/ 写权限..."}
 ```
+
+## 工具通道（tools / tool_choice / tool 角色）
+
+> 2026-10-22（T1）。浏览器侧工具循环的前置条件，见 ADR-0006。
+> **服务端不在 Worker 里跑循环**：只放行字段、继续原样透传 SSE，循环在 `ai-chat.js` 的 `runTurn`。
+
+两份实现同一套规则：`functions/_lib/common.js` 的 `validateTools` / `validateToolChoice` /
+`validateMessages` 与 `src/chat_proxy.py` 的同名函数逐条对齐；`tests/test_pages_functions.py`
+对**同一批**畸形请求断言与 `tests/test_chat_backend.py` 相同的状态码（验收标准第 6 条）。
+
+**请求体新增（均可选）**：
+
+| 字段 | 形状 | 校验 | 违规 |
+|---|---|---|---|
+| `tools` | `[{type:"function", function:{name, description, parameters}}]` | 数组 ≤8 个；每项四个字段都必填：`type` 只准 `"function"`、`name` 匹配 `^[a-zA-Z0-9_-]{1,64}$`、`description` 是字符串且 ≤500 字、`parameters` 是对象（**不校验 JSON Schema 内容**） | 422 |
+| `tool_choice` | `"auto"` \| `"none"` | 只认这两个值（大小写敏感） | 422 |
+
+`tool_choice: "required"` 与具名函数对象在思考模式下会被上游直接 400（实测原文
+`雷火网关: Thinking mode does not support this tool_choice`），所以入口就拒掉，不把错误留给上游。
+空 `tools: []` 视同未传（不下发），避免上游对空数组的行为不确定。
+
+**messages 扩展**：
+
+| 角色 | 新字段 | 规则 | 违规 |
+|---|---|---|---|
+| `tool`（新增） | `tool_call_id` | **必填**，非空字符串，≤128 字 | 422 |
+| `assistant` | `tool_calls` | 可选，数组 ≤8 条，每项是对象，`function.arguments` 是字符串；**原样透传**（不重排、不裁字段） | 422 |
+| 任意 | `content` | 允许 `null` / 缺失（assistant 只带工具调用时上游就发 null），校验层归一成 `""` | 非字符串且非 null → 422 |
+
+两侧校验层都会重建 message 对象（原先只保留 `role` / `content`），**最容易漏的就是
+`tool_call_id` / `tool_calls`**——不显式带上，工具往返会被抹成两条无关联的普通消息。
+
+**40k 总字符预算**仍按 `content` 累加，另加 `tool_calls[].function.arguments` 的字符数——
+否则工具参数可以绕过预算。两侧都有同一条跨线用例：`'hi'` + 39998 过、+ 39999 → 413。
+
+**工具限额**（两份实现取同一组数，但**这几项落在前端执行器**，服务端不重复校验）：
+
+| 项 | 值 | 落点 |
+|---|---|---|
+| 单次工具结果 | ≤2000 字 | 前端执行器截断并标注 |
+| 每轮工具调用 | ≤3 次 | 前端 `runTurn` |
+| 往返轮数 | ≤2 轮 | 前端 `runTurn` |
+| 工具总耗时 | 8s | 前端 `AbortController` |
+
+服务端只校验「单条请求长什么样」，不管「一轮里调了几个工具、跑了几轮」——它看不见循环
+（ADR-0006 的 Consequences）。工具失败也由前端收敛成 `{error, endpoint, status}`，服务端不参与。
+
 
 ## 前端怎么选通道
 
@@ -107,6 +159,10 @@ if (window.AICtx) AICtx.declare('rates', () => ({
 | `LLM_CHAT_ALLOW_EFFORT` | 关 | 打开后才把 `reasoning_effort` 透传给上游（默认丢弃，避免网关 400） |
 | `LLM_THINKING` | **开** | DeepSeek 地址上显式发 `thinking:{type:"enabled"}`（不依赖上游默认值）；设 `off` 关闭。`src/llm.py` 的叙事改写共用同一开关。非 DeepSeek 地址永不下发该字段 |
 
+工具通道**不引入新环境变量**（工具目录在前端，`/api/chat` 只透传）。要留意的是
+`LLM_THINKING` 与 `tool_choice` 的相互作用：思考模式下上游只接受 `auto` / `none`，
+`required` / 具名函数会 400，所以入口层就直接 422（见上节）。
+
 Cloudflare 侧一次性设置（Base/Model 用默认就不用额外设）：
 
 ```bash
@@ -127,7 +183,8 @@ Pages 面板里设。
   notes 20 次/小时/IP；超了 429 + `Retry-After`。数值三处同步：`src/server.py` 的
   `_LIMITS`、`functions/_lib/common.js` 的 `RATE_LIMITS`、本表。
 - 输入上限：
-  - chat：HTTP body ≤ 256 KB，messages ≤ 30 条，总字符 ≤ 40k，至少一条 `user`。
+  - chat：HTTP body ≤ 256 KB，messages ≤ 30 条，总字符 ≤ 40k（**含 `tool_calls[].function.arguments`**），
+    至少一条 `user`。工具字段：`tools` ≤ 8 个、`tool_calls` ≤ 8 条、`tool_call_id` ≤ 128 字（见上节）。
     256 KB 是按字节留的余量：40k 中文字符 ≈120 KB UTF-8（旧的 64 KB 上限会误杀合法输入）。
   - notes：markdown ≤ 1 MB **字节**，JSON body ≤ 4 MB（含 thread/转义）。
   - 本地 FastAPI 用 `Content-Length` 拦超限并拒绝 chunked（411）；Pages 侧读完后按
@@ -185,8 +242,11 @@ uv run python -m pytest tests/test_chat_backend.py tests/test_pages_functions.py
 uv run python scripts_dev/check_ai_chat_playwright.py http://127.0.0.1:8000
 ```
 
-- `test_chat_backend.py`：FastAPI 路由（key 缺失 / 校验 / 白名单 / 限流 / 跨站与 body 上限 / 落盘去重）
-- `test_pages_functions.py`：node 直接 import Pages Functions，假 fetch / 假 KV
+- `test_chat_backend.py`：FastAPI 路由（key 缺失 / 校验 / 白名单 / 限流 / 跨站与 body 上限 / 落盘去重）；
+  工具契约（9 个 tools → 422、非法 `tool_choice` → 422、`tool` 缺 `tool_call_id` → 422、
+  `arguments` 计入 40k → 413、合法 tools 透传到上游 payload）
+- `test_pages_functions.py`：node 直接 import Pages Functions，假 fetch / 假 KV；工具契约与
+  Python 侧**同一批**畸形请求，断言状态码一一对应
 - `test_ai_config.py`：代理模式判定、推理档位、重渲染草稿、effort 清理、缓存模式隔离、payload
 - `scripts_dev/check_ai_chat_playwright.py`：浏览器侧验收（探测/换模型保留未保存字段、缓存切模式、
   effort 跨刷新、存笔记、答案显示实际模型）

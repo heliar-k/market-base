@@ -3,6 +3,8 @@
 // ESM 模块（与 site-nav.js 同一套模式），在 TopicLayout.astro 与 SPA 壳里都紧跟
 // rates-common.js、用 `type="module"` 加载：
 //   - 提示词与引用块模板单源在 ./ai-prompt.js —— 调提示词只改那个文件；
+//   - 站内数据工具（目录 / 执行器 / SSE 分片累积）单源在 ./ai-tools.js；
+//     工具往返只活在 runTurn 的内存里，不落 thread（spec 第 3 条）；
 //   - 本文件用 rates-common.js 的全局 R.esc，不自带一份实现（守卫见
 //     tests/test_static_single_source.py）。
 // 挂三样东西到 body 末尾（全是 position: fixed，不进 SPA 的 flex 流）：
@@ -26,6 +28,19 @@ import {
   reconcileCfg,
 } from './ai-config.js';
 import { mdToHtml } from './ai-md.js';
+import {
+  TOOL_TIMEOUT_MS,
+  accumulateToolCalls,
+  finalizeToolCalls,
+  isReasoningReject,
+  minimalMessages,
+  nextLoopAction,
+  normalizeDelta,
+  parseSseLine,
+  runToolCall,
+  safeStringify,
+  toolError,
+} from './ai-tools.js';
 
 (function () {
   'use strict';
@@ -372,6 +387,7 @@ import { mdToHtml } from './ai-md.js';
         const isUser = m.role === 'user';
         const meta = [
           isUser ? '' : m.model ? '模型 ' + m.model : '',
+          m.tools && m.tools.length ? '查数 ' + m.tools.join(' / ') : '',
           m.pageTitle,
           m.asOf,
         ]
@@ -670,15 +686,16 @@ import { mdToHtml } from './ai-md.js';
     return label + ' 返回 ' + res.status + (res.statusText ? ' ' + res.statusText : '');
   }
 
-  function request(cfg, messages, signal) {
+  function request(cfg, messages, signal, toolChoice = 'auto') {
     const headers = { 'content-type': 'application/json' };
     if (cfg.apiKey) headers.authorization = 'Bearer ' + cfg.apiKey;
     const base = normalizeBase(cfg.baseUrl);
     // 没填 Key 且 Base URL 保持默认 → 本站代理；其余一律直连
     const proxy = isProxyMode(cfg, DEF_CFG.baseUrl);
     const url = proxy ? '/api/chat' : base + '/chat/completions';
-    // 档位/模型规则单源在 ai-config.js 的 chatPayload（代理不传 effort）
-    const body = chatPayload(cfg, messages, modelCache, proxy);
+    // 档位/模型规则单源在 ai-config.js 的 chatPayload（代理不传 effort；
+    // tool_choice 由 runTurn 按预算传 'auto' / 'none'）
+    const body = chatPayload(cfg, messages, modelCache, proxy, undefined, toolChoice);
     return fetch(url, {
       method: 'POST',
       headers,
@@ -687,27 +704,22 @@ import { mdToHtml } from './ai-md.js';
     });
   }
 
-  // 解析一条 SSE：→ {content, reasoning} / '[DONE]' / null（非 data 行）
-  // 思考模式下思维链与正文同级返回（reasoning_content），两者都要接住
+  // 解析一条 SSE：→ {content, reasoning, toolCalls, finishReason} / '[DONE]' / null
+  // 思考模式下思维链与正文同级返回（reasoning_content）；工具调用是 delta.tool_calls 分片。
+  // 解析单源在 ai-tools.js 的 parseSseLine（纯函数，node 可直接测）。
   function sseDelta(line) {
-    const t = line.trim();
-    if (t.slice(0, 5) !== 'data:') return null;
-    const payload = t.slice(5).trim();
-    if (payload === '[DONE]') return '[DONE]';
-    try {
-      const j = JSON.parse(payload);
-      const c = j.choices && j.choices[0];
-      const d = c && (c.delta || c.message);
-      if (!d) return { content: '', reasoning: '' };
-      return { content: d.content || '', reasoning: d.reasoning_content || '' };
-    } catch (e) {
-      return { content: '', reasoning: '' };
-    }
+    return parseSseLine(line);
   }
 
+  // 消费一条响应流；返回本轮累积的工具调用分片与 finish_reason。
   async function consume(res, on) {
+    let calls = [];
+    let finishReason = '';
     const emit = (d) => {
       if (!d || d === '[DONE]') return;
+      // 按 index 拼 arguments 字符串；id / name 只在首片出现（ai-tools.js 的累积器）
+      if (d.toolCalls && d.toolCalls.length) calls = accumulateToolCalls(calls, d.toolCalls);
+      if (d.finishReason) finishReason = d.finishReason;
       if (d.reasoning) on.reasoning(d.reasoning);
       if (d.content) on.content(d.content);
     };
@@ -737,12 +749,12 @@ import { mdToHtml } from './ai-md.js';
           } catch (e) {
             /* 已关闭 */
           }
-          return;
+          return { toolCalls: calls, finishReason };
         }
       }
       const tail = sseDelta(buf);
       if (tail !== '[DONE]') emit(tail);
-      return;
+      return { toolCalls: calls, finishReason };
     }
     // 有代理会忽略 stream:true 直接回整包：同时兜住 SSE 文本与普通 JSON
     const raw = await res.text();
@@ -751,7 +763,7 @@ import { mdToHtml } from './ai-md.js';
         const d = sseDelta(line);
         if (d !== '[DONE]') emit(d);
       });
-      return;
+      return { toolCalls: calls, finishReason };
     }
     let j;
     try {
@@ -761,10 +773,11 @@ import { mdToHtml } from './ai-md.js';
     }
     const c = j.choices && j.choices[0];
     const d = c && (c.message || c.delta);
-    if (!d || (!d.content && !d.reasoning_content)) {
+    if (!d || (!d.content && !d.reasoning_content && !(d.tool_calls && d.tool_calls.length))) {
       throw new Error('返回为空' + (j.error && j.error.message ? '：' + j.error.message : ''));
     }
-    emit({ content: d.content || '', reasoning: d.reasoning_content || '' });
+    emit(normalizeDelta(d, c.finish_reason));
+    return { toolCalls: calls, finishReason };
   }
 
   function setBusy(on) {
@@ -800,12 +813,63 @@ import { mdToHtml } from './ai-md.js';
     );
   }
 
-  // 一轮问答：thread 末尾已是本轮要回答的 user 消息（send / retry 都先把末尾摆好）
+  // 一批工具调用共享一个 AbortController：预算从本次执行开始算（跨往返累计 8s），
+  // 用户点「停止」时把外层 signal 转发进来，取数立刻中断。
+  // runToolCall 自身永不 reject，这里再兜一层，保证任何异常都只是「一条工具结果」。
+  async function runToolBatch(calls, budgetMs, outerSignal) {
+    // 预算算错（undefined/NaN）时退回完整 8s，绝不落成 setTimeout(0) 瞬时 abort：
+    // 那样每条结果都会变成 status 0「超时」，把真正原因盖掉。
+    const rawBudget = Number(budgetMs);
+    const budget = Number.isFinite(rawBudget) ? Math.max(0, rawBudget) : TOOL_TIMEOUT_MS;
+    const aborted = (msg) =>
+      calls.map((c) => ({
+        callId: c.id || '',
+        endpoint: '',
+        content: safeStringify(toolError('', 0, msg)),
+      }));
+    // 已经在停止流程里 / 预算已用尽：不再起 fetch。以前用 setTimeout(0) 瞬断，
+    // 会把「用户取消」与「8s 超时」混成同一个 AbortError，排障时看不到真实原因。
+    if (outerSignal && outerSignal.aborted) return aborted('工具执行已取消（用户停止）');
+    if (budget <= 0) return aborted('工具执行超时（本轮 8s 预算已用尽）');
+    const ctl = new AbortController();
+    const deadline = Date.now() + budget;
+    const timer = setTimeout(() => ctl.abort(), Math.max(0, deadline - Date.now()));
+    const onOuterAbort = () => ctl.abort();
+    if (outerSignal) outerSignal.addEventListener('abort', onOuterAbort);
+    try {
+      return await Promise.all(
+        calls.map((c) =>
+          // deadline 透传：runToolCall 只用它判断「网络层失败后还剩 ≥2s 才重试一次」，
+          // 真正的超时中断仍由上面的 ctl.signal 负责。
+          runToolCall(c, { signal: ctl.signal, deadline, outerSignal }).catch((e) => ({
+            callId: c.id || '',
+            endpoint: '',
+            content: safeStringify(
+              toolError('', 0, '工具执行异常：' + ((e && e.message) || e))
+            ),
+          }))
+        )
+      );
+    } finally {
+      clearTimeout(timer);
+      if (outerSignal && outerSignal.removeEventListener) {
+        outerSignal.removeEventListener('abort', onOuterAbort);
+      }
+    }
+  }
+
+  // 一轮问答：thread 末尾已是本轮要回答的 user 消息（send / retry 都先把末尾摆好）。
+  //
+  // 工具循环只活在本次请求的内存里：reqMessages 是 buildMessages(thread) 的副本，
+  // assistant.tool_calls 与 tool 结果只进它，不进 thread.messages ——
+  // localStorage / 导出 Markdown / /api/notes 三个消费者零改动（spec 第 3 条）。
+  // 上限：每轮 ≤3 次调用、≤2 轮往返（nextLoopAction），工具执行合计 8s。
   async function runTurn(thread) {
     const last = thread.messages[thread.messages.length - 1];
     if (!last || last.role !== 'user') return;
     const cfg = getCfg();
-    controller = new AbortController();
+    const turn = new AbortController();
+    controller = turn;
     setBusy(true);
     const node = appendStream();
     const metaEl = node.querySelector('.ai-msg-meta');
@@ -813,44 +877,117 @@ import { mdToHtml } from './ai-md.js';
     const thinkEl = node.querySelector('.ai-think');
     const thinkBody = node.querySelector('.ai-think-body');
     const thinkSummary = node.querySelector('.ai-think summary');
+    const reqMessages = buildMessages(thread);
     let live = '';
     let think = '';
     let thinkAt = 0; // 首个思维链分片到达的时刻，用于算耗时
     let thinkMs = 0;
     let answeredModel = '';
+    let finishReason = '';
+    let rounds = 0;
+    let toolSpent = 0;
+    let degraded = false;
+    let choice = 'auto';
+    let forced = false;
+    const toolsUsed = [];
     try {
-      const res = await request(cfg, buildMessages(thread), controller.signal);
-      if (!res.ok) throw new Error(await apiError(res, '本站 /api/chat'));
-      answeredModel = res.headers.get('x-llm-model') || cfg.model || '';
-      await consume(res, {
-        reasoning: (r) => {
-          if (!thinkAt) {
-            thinkAt = Date.now();
-            thinkEl.hidden = false;
-            thinkEl.open = true;
-            metaEl.textContent = '思考中…';
+      // 循环直到模型不再要工具，或撞上轮数上限（超了就用已有正文收尾）
+      for (;;) {
+        let res = await request(cfg, reqMessages, turn.signal, choice);
+        if (!res.ok) {
+          let detail = await apiError(res, '本站 /api/chat');
+          // 残余风险防线（spec 第 6 条）：官方若比实测更严，带 tools 的历史缺
+          // reasoning_content 会 400。只降级本轮记忆（system + 最后一条 user）
+          // 重发一次、保留 tools，不丢查数能力；再失败就正常报错。
+          if (!degraded && isReasoningReject(res.status, detail)) {
+            degraded = true;
+            const slim = minimalMessages(reqMessages);
+            reqMessages.length = 0;
+            slim.forEach((m) => reqMessages.push(m));
+            res = await request(cfg, reqMessages, turn.signal, choice);
+            if (!res.ok) detail = await apiError(res, '本站 /api/chat');
           }
-          think += r;
-          thinkBody.textContent = think;
-          thinkBody.scrollTop = thinkBody.scrollHeight;
-          scrollBottom();
-        },
-        content: (c) => {
-          // 正文一到就把思考栏收成一行，标题仍可点开回看
-          if (thinkAt && !thinkMs) {
-            thinkMs = Date.now() - thinkAt;
-            thinkEl.open = false;
-            const spin = thinkEl.querySelector('.ai-spin');
-            if (spin) spin.remove();
-            thinkSummary.textContent = '思考 ' + Math.max(1, Math.round(thinkMs / 1000)) + ' 秒';
+          if (!res.ok) throw new Error(detail);
+        }
+        answeredModel = res.headers.get('x-llm-model') || answeredModel || cfg.model || '';
+        let roundText = '';
+        const out = await consume(res, {
+          reasoning: (r) => {
+            if (!thinkAt) {
+              thinkAt = Date.now();
+              thinkEl.hidden = false;
+              thinkEl.open = true;
+              metaEl.textContent = '思考中…';
+            }
+            think += r;
+            thinkBody.textContent = think;
+            thinkBody.scrollTop = thinkBody.scrollHeight;
+            scrollBottom();
+          },
+          content: (c) => {
+            // 正文一到就把思考栏收成一行，标题仍可点开回看（跨往返也只算一次）
+            if (thinkAt && !thinkMs) {
+              thinkMs = Math.max(1, Date.now() - thinkAt - toolSpent);
+              thinkEl.open = false;
+              const spin = thinkEl.querySelector('.ai-spin');
+              if (spin) spin.remove();
+              const secs = Math.max(1, Math.round(thinkMs / 1000));
+              thinkSummary.textContent = '思考 ' + secs + ' 秒';
+            }
             metaEl.textContent = '生成中…';
-          }
-          live += c;
-          bodyEl.innerHTML = mdToHtml(live);
-          scrollBottom();
-        },
-      });
-      if (!live.trim()) live = '（接口没有返回内容）';
+            live += c;
+            roundText += c;
+            bodyEl.innerHTML = mdToHtml(live);
+            scrollBottom();
+          },
+        });
+        finishReason = out.finishReason || finishReason;
+        // reasoning_content 不回传：已实测上游不强制（spec 第 6 条 R6），
+        // 每轮带上完整思维链只会挤爆 40k 字符预算。
+        const calls = finalizeToolCalls(out.toolCalls).filter((c) => c.function.name);
+        const step = nextLoopAction(calls, rounds, forced);
+        if (step.kind === 'stop') break;
+        // 往返预算用尽但模型还在要工具：别直接 break（正文为空会落成
+        // 「接口没有返回内容」）。再发一次请求、带 tool_choice:'none'，
+        // 让它用已查到的信息作答；最坏也是「未导出」，不是空白。
+        if (step.kind === 'force') {
+          choice = step.toolChoice;
+          forced = true;
+          metaEl.textContent = '整理回答…';
+          continue;
+        }
+        const plan = step.plan;
+        rounds = plan.round;
+        metaEl.textContent = '查数中…';
+        // 只把本轮正文 + 被执行的 tool_calls 塞回请求；被限额丢掉的调用不能出现在
+        // assistant 消息里，否则 tool 结果条数对不上，上游会 400/422。
+        reqMessages.push({
+          role: 'assistant',
+          content: roundText || '',
+          tool_calls: plan.calls,
+        });
+        const started = Date.now();
+        const results = await runToolBatch(
+          plan.calls,
+          TOOL_TIMEOUT_MS - toolSpent,
+          turn.signal
+        );
+        toolSpent += Date.now() - started;
+        results.forEach((r) => {
+          if (r.endpoint && toolsUsed.indexOf(r.endpoint) < 0) toolsUsed.push(r.endpoint);
+          reqMessages.push({ role: 'tool', tool_call_id: r.callId, content: r.content });
+        });
+        if (turn.signal.aborted) break; // 用户已停止：别再发起下一轮
+      }
+      if (!live.trim()) {
+        live = turn.signal.aborted
+          ? '（已停止）'
+          : forced
+            ? '（已到查询上限，但模型未给出正文，请重试）'
+            : finishReason === 'length'
+              ? '（回答被长度限制截断，请重试）'
+              : '（接口没有返回内容）';
+      }
     } catch (e) {
       const aborted = e && e.name === 'AbortError';
       const note = aborted ? '（已停止）' : '请求失败：' + (e && e.message ? e.message : e);
@@ -859,7 +996,7 @@ import { mdToHtml } from './ai-md.js';
       controller = null;
       setBusy(false);
     }
-    thread.messages.push({
+    const msg = {
       role: 'assistant',
       content: live,
       think: think ? think.slice(0, THINK_MAX) : '',
@@ -869,7 +1006,10 @@ import { mdToHtml } from './ai-md.js';
       pageTitle: last.pageTitle,
       asOf: last.asOf,
       ts: Date.now(),
-    });
+    };
+    // 轻量回显字段：只记端点名，供 UI 显示「查数 …」；导出/落盘消费者忽略它
+    if (toolsUsed.length) msg.tools = toolsUsed.slice();
+    thread.messages.push(msg);
     thread.updatedAt = Date.now();
     const stillActive = activeId() === thread.id;
     persist(thread, stillActive);

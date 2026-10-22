@@ -1,9 +1,10 @@
 """伴读抽屉的配置纯逻辑（frontend/public/js/ai-config.js）—— node 直接跑。
 
-覆盖两个回归点：
+覆盖三个回归点：
 - 探测/换模型重渲染时，未保存的 Base URL / Key 必须能通过草稿读回来（readCfgDraft）；
 - 刷新后模型表为空时，已保存但不被当前模型支持的 effort 必须被清掉（reconcileCfg），
-  否则 UI 显示「默认」、请求却还带着它。
+  否则 UI 显示「默认」、请求却还带着它；
+- tools / tool_choice 走 chatPayload 单源，且不能破坏「代理模式不传 reasoning_effort」。
 """
 
 from __future__ import annotations
@@ -81,6 +82,14 @@ console.log(JSON.stringify({
     cache,
     false
   ),
+  payloadNone: m.chatPayload(
+    { model: 'm1', effort: 'high' },
+    [{ role: 'user', content: 'hi' }],
+    cache,
+    true,
+    undefined,
+    'none'
+  ),
   keep: m.reconcileCfg({ model: 'm1', effort: 'high' }, cache),
   clear: m.reconcileCfg({ model: 'm1', effort: 'medium' }, cache),
   clearNoModel: m.reconcileCfg({ model: 'nope', effort: 'high' }, cache),
@@ -129,15 +138,34 @@ def test_model_cache_is_mode_scoped() -> None:
 def test_chat_payload_proxy_and_effort() -> None:
     out = _run()
     user = [{"role": "user", "content": "hi"}]
-    assert out["payloadProxy"] == {"model": "m1", "stream": True, "messages": user}
-    assert out["payloadDirect"] == {
+    proxy = out["payloadProxy"]
+    direct = out["payloadDirect"]
+    unknown = out["payloadUnknown"]
+    # 工具目录每次请求都带（单源在 ai-tools.js 的 TOOLS），且不传空数组
+    assert proxy["tools"][0]["function"]["name"] == "query_site_data"
+    assert proxy["tool_choice"] == "auto"
+    assert direct["tools"][0]["function"]["name"] == "query_site_data"
+    assert direct["tool_choice"] == "auto"
+    assert unknown["tools"][0]["function"]["name"] == "query_site_data"
+    # 除 tools / tool_choice 外，body 形状与 effort 规则保持不变
+    assert _without_tools(proxy) == {"model": "m1", "stream": True, "messages": user}
+    assert _without_tools(direct) == {
         "model": "m1",
         "stream": True,
         "messages": user,
         "reasoning_effort": "high",
     }
     # m2 只有 medium 档，high 不该被带出去
-    assert out["payloadUnknown"] == {"model": "m2", "stream": True, "messages": user}
+    assert _without_tools(unknown) == {"model": "m2", "stream": True, "messages": user}
+    # 预算用尽时 runTurn 传 'none' 强制开口；tools 仍要发（只是禁用调用）
+    forced = out["payloadNone"]
+    assert forced["tool_choice"] == "none"
+    assert forced["tools"][0]["function"]["name"] == "query_site_data"
+    assert _without_tools(forced) == {"model": "m1", "stream": True, "messages": user}
+
+
+def _without_tools(body: dict) -> dict:
+    return {k: v for k, v in body.items() if k not in ("tools", "tool_choice")}
 
 
 def test_reconcile_clears_unsupported_effort() -> None:

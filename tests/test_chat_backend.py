@@ -41,6 +41,32 @@ def _body(messages=None, **kw):
     )
 
 
+def _tool(name: str = "query_site_data", **fn_kw) -> dict:
+    """一个形状合法的工具定义（T1 的 query_site_data 精简版）。"""
+    fn = {
+        "name": name,
+        "description": "查询本站已导出的数据端点。",
+        "parameters": {
+            "type": "object",
+            "properties": {"endpoint": {"type": "string"}},
+            "required": ["endpoint"],
+        },
+    }
+    fn.update(fn_kw)
+    return {"type": "function", "function": fn}
+
+
+def _tool_call(
+    call_id: str = "call_1", arguments: str = '{"endpoint":"rates/yield-curve"}'
+) -> dict:
+    """assistant 消息里的一个 tool_calls 项（OpenAI 协议形状）。"""
+    return {
+        "id": call_id,
+        "type": "function",
+        "function": {"name": "query_site_data", "arguments": arguments},
+    }
+
+
 def _collect(resp) -> bytes:
     it = resp.body_iterator
     if hasattr(it, "__aiter__"):
@@ -110,15 +136,15 @@ def test_build_payload_sends_thinking_mode(monkeypatch) -> None:
 
 
 def test_validate_messages(monkeypatch) -> None:
-    ok = chat_proxy.validate_messages([("user", "hi")])
+    ok = chat_proxy.validate_messages([{"role": "user", "content": "hi"}])
     assert ok == [{"role": "user", "content": "hi"}]
 
     for items, status in [
         ([], 422),
-        ([("tool", "x")], 422),
-        ([("assistant", "x")], 422),
-        ([("user", "x" * (chat_proxy.MAX_CHARS + 1))], 413),
-        ([("user", "x")] * (chat_proxy.MAX_MESSAGES + 1), 413),
+        ([{"role": "tool", "content": "x"}], 422),  # tool 角色缺 tool_call_id
+        ([{"role": "assistant", "content": "x"}], 422),  # 没有 user
+        ([{"role": "user", "content": "x" * (chat_proxy.MAX_CHARS + 1)}], 413),
+        ([{"role": "user", "content": "x"}] * (chat_proxy.MAX_MESSAGES + 1), 413),
     ]:
         try:
             chat_proxy.validate_messages(items)
@@ -126,6 +152,123 @@ def test_validate_messages(monkeypatch) -> None:
             assert exc.status == status
         else:  # pragma: no cover
             raise AssertionError(f"expected ChatValidationError for {items[:1]}...")
+
+
+# ── 工具契约（与 functions/_lib/common.js 逐条对齐，见 docs/ai-chat-backend.md）──
+
+
+def test_validate_tools_shape_and_limits() -> None:
+    tool = _tool()
+    assert chat_proxy.validate_tools([tool]) == [tool]
+    assert chat_proxy.validate_tools(None) is None
+    assert chat_proxy.validate_tools([]) is None  # 空数组视同未传
+
+    bad_cases = [
+        [_tool()] * (chat_proxy.MAX_TOOLS + 1),  # 9 个 → 422
+        ["not-an-object"],
+        [{**tool, "type": "code"}],  # type 只准 function
+        [{"type": "function"}],  # 缺 function 对象
+        [_tool(name="bad name")],  # 名字带空格
+        [_tool(name="x" * 65)],  # 超过 64 位
+        [_tool(description="x" * (chat_proxy.TOOL_DESC_MAX + 1))],
+        [_tool(description=123)],
+        [_tool(parameters=[])],  # parameters 必须是对象
+        [_tool(parameters=None)],
+    ]
+    for items in bad_cases:
+        try:
+            chat_proxy.validate_tools(items)
+        except chat_proxy.ChatValidationError as exc:
+            assert exc.status == 422, items
+        else:  # pragma: no cover
+            raise AssertionError(f"expected 422 for {items!r}")
+
+    # parameters 的内容（JSON Schema 细节）不校验
+    loose = _tool(parameters={"type": "object", "whatever": ["nonsense"]})
+    assert chat_proxy.validate_tools([loose]) == [loose]
+
+
+def test_validate_tool_choice_only_auto_none() -> None:
+    assert chat_proxy.validate_tool_choice("auto") == "auto"
+    assert chat_proxy.validate_tool_choice("none") == "none"
+    assert chat_proxy.validate_tool_choice(None) is None
+
+    for bad in ("required", "AUTO", "", {"type": "function", "function": {"name": "x"}}, 1):
+        try:
+            chat_proxy.validate_tool_choice(bad)
+        except chat_proxy.ChatValidationError as exc:
+            assert exc.status == 422, bad
+        else:  # pragma: no cover
+            raise AssertionError(f"expected 422 for {bad!r}")
+
+
+def test_validate_messages_tool_role_and_passthrough() -> None:
+    """tool 角色必须带 tool_call_id；assistant 的 tool_calls 原样保留。"""
+    msgs = [
+        {"role": "user", "content": "30Y 现在多少"},
+        {"role": "assistant", "content": None, "tool_calls": [_tool_call()]},
+        {"role": "tool", "tool_call_id": "call_1", "content": '{"current":4.812}'},
+    ]
+    out = chat_proxy.validate_messages(msgs)
+    # assistant 只带工具调用时 content 是 null → 归一成 ""
+    assert out[1]["content"] == ""
+    # 不重排、不裁字段
+    assert out[1]["tool_calls"] == [_tool_call()]
+    assert out[2]["tool_call_id"] == "call_1"
+    assert out[2]["content"] == '{"current":4.812}'
+
+    bad_cases = [
+        [{"role": "tool", "content": "x"}],  # 缺 tool_call_id
+        [{"role": "tool", "tool_call_id": "  ", "content": "x"}],  # 空 id
+        [
+            {
+                "role": "tool",
+                "tool_call_id": "c" * (chat_proxy.TOOL_CALL_ID_MAX + 1),
+                "content": "x",
+            }
+        ],
+        [{"role": "assistant", "content": "", "tool_calls": [_tool_call()] * 9}],  # >8 条
+        [{"role": "assistant", "content": "", "tool_calls": "nope"}],
+        [{"role": "assistant", "content": "", "tool_calls": ["nope"]}],
+        [
+            {
+                "role": "assistant",
+                "content": "",
+                "tool_calls": [{"function": {"arguments": {"a": 1}}}],
+            }
+        ],
+    ]
+    for body in bad_cases:
+        items = [{"role": "user", "content": "hi"}, *body]
+        try:
+            chat_proxy.validate_messages(items)
+        except chat_proxy.ChatValidationError as exc:
+            assert exc.status == 422, body
+        else:  # pragma: no cover
+            raise AssertionError(f"expected 422 for {body!r}")
+
+
+def test_validate_messages_counts_tool_arguments() -> None:
+    """tool_calls 里的 arguments 也计入 40k 总字符（否则可以绕过）。"""
+    room = chat_proxy.MAX_CHARS - len("hi")
+    ok = chat_proxy.validate_messages(
+        [
+            {"role": "user", "content": "hi"},
+            {"role": "assistant", "content": "", "tool_calls": [_tool_call(arguments="x" * room)]},
+        ]
+    )
+    assert ok
+
+    over = [{"role": "user", "content": "hi"}]
+    over.append(
+        {"role": "assistant", "content": "", "tool_calls": [_tool_call(arguments="x" * (room + 1))]}
+    )
+    try:
+        chat_proxy.validate_messages(over)
+    except chat_proxy.ChatValidationError as exc:
+        assert exc.status == 413
+    else:  # pragma: no cover
+        raise AssertionError("arguments 未计入字符上限")
 
 
 def test_rate_limit_window(monkeypatch) -> None:
@@ -248,6 +391,8 @@ def test_chat_rejects_bad_messages(monkeypatch) -> None:
 def test_chat_streams_upstream_and_resolves_model(monkeypatch) -> None:
     monkeypatch.setenv("LLM_API_KEY", "secret")
     monkeypatch.setenv("LLM_MODEL", "server-model")
+    # .env 里若指了本地网关，断言默认 base 会失败——本用例钉的是「默认 base」这条
+    monkeypatch.delenv("LLM_BASE_URL", raising=False)
     monkeypatch.delenv("LLM_CHAT_ALLOW_EFFORT", raising=False)
     monkeypatch.delenv("LLM_CHAT_MAX_TOKENS", raising=False)
     captured: dict = {}
@@ -285,6 +430,7 @@ def test_chat_streams_upstream_and_resolves_model(monkeypatch) -> None:
     assert payload["stream"] is True
     assert payload["max_tokens"] == chat_proxy.MAX_TOKENS_THINKING
     assert "reasoning_effort" not in payload  # 默认不透传（避免不认的网关 400）
+    assert "tools" not in payload and "tool_choice" not in payload  # 不带工具时不下发
     assert _collect(resp) == b"data: one\n\ndata: [DONE]\n\n"
     assert fake.closed is True
 
@@ -328,6 +474,68 @@ def test_chat_returns_upstream_error(monkeypatch) -> None:
     resp = server.chat_proxy(_body(), _Req("10.0.1.7"))
     assert resp.status_code == 401
     assert "上游 401" in json.loads(resp.body)["error"]
+
+
+def test_chat_rejects_bad_tool_payload(monkeypatch) -> None:
+    """三种畸形工具请求的状态码，与 test_pages_functions.py 的同一批断言对齐。"""
+    monkeypatch.setenv("LLM_API_KEY", "k")
+    cases = [
+        _body(tools=[_tool()] * (chat_proxy.MAX_TOOLS + 1)),  # 9 个工具
+        _body(tool_choice="required"),  # 思考模式下上游会 400
+        _body(tool_choice={"type": "function", "function": {"name": "query_site_data"}}),
+        _body(messages=[server.ChatMessageIn(role="tool", content="x")]),  # 缺 tool_call_id
+        _body(tools=[_tool(parameters="not-an-object")]),
+    ]
+    for body in cases:
+        resp = server.chat_proxy(body, _Req("10.0.3.1"))
+        assert resp.status_code == 422, body
+        assert json.loads(resp.body)["error"]  # 前端直接显示这句话
+
+
+def test_chat_passes_tools_and_tool_messages_upstream(monkeypatch) -> None:
+    """校验通过后 tools / tool_choice 原样进上游，tool_calls / tool_call_id 不被抹掉。"""
+    monkeypatch.setenv("LLM_API_KEY", "k")
+    monkeypatch.delenv("LLM_CHAT_ALLOW_EFFORT", raising=False)
+    captured: dict = {}
+
+    class _FakeUpstream:
+        status_code = 200
+        headers = {"content-type": "text/event-stream"}
+
+        def iter_content(self, chunk_size=None):
+            yield b"data: [DONE]\n\n"
+
+        def close(self) -> None:
+            pass
+
+    def _post(url, **kwargs):
+        captured.update(kwargs)
+        return _FakeUpstream()
+
+    monkeypatch.setattr(server.requests, "post", _post)
+    tool_call = _tool_call()
+    resp = server.chat_proxy(
+        _body(
+            messages=[
+                server.ChatMessageIn(role="user", content="30Y 现在多少"),
+                server.ChatMessageIn(role="assistant", tool_calls=[tool_call]),
+                server.ChatMessageIn(
+                    role="tool", tool_call_id="call_1", content='{"current":4.812}'
+                ),
+            ],
+            tools=[_tool()],
+            tool_choice="auto",
+        ),
+        _Req("10.0.3.2"),
+    )
+    assert resp.status_code == 200
+    payload = captured["json"]
+    assert payload["tools"] == [_tool()]
+    assert payload["tool_choice"] == "auto"
+    assert payload["messages"][1]["content"] == ""  # null → ""
+    assert payload["messages"][1]["tool_calls"] == [tool_call]
+    assert payload["messages"][2]["tool_call_id"] == "call_1"
+    assert payload["messages"][2]["content"] == '{"current":4.812}'
 
 
 # ── /api/notes ──────────────────────────────────────────────────────────────

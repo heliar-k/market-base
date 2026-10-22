@@ -294,6 +294,226 @@ async def check_thinking_ui(browser, base: str) -> None:
     await ctx.close()
 
 
+async def wait_idle(page, timeout_ms: int = 6000) -> None:
+    """等这一轮问答结束（发送按钮从「停止」回到「发送」）。"""
+    await page.wait_for_timeout(150)
+    for _ in range(timeout_ms // 100):
+        if (await page.locator("[data-send]").inner_text()).strip() == "发送":
+            return
+        await page.wait_for_timeout(100)
+
+
+TOOL_PATCH = r"""
+() => {
+  window.__REQS = [];
+  window.__TOOL_HIT = 0;
+  const sse = (chunks) =>
+    new Response(chunks.join(''), {
+      status: 200,
+      headers: { 'content-type': 'text/event-stream', 'x-llm-model': 'deepseek-flash' },
+    });
+  const orig = window.fetch;
+  window.fetch = async (url, opts) => {
+    const u = String(url);
+    if (u.indexOf('/api/rates/yield-curve') >= 0) {
+      window.__TOOL_HIT += 1;
+      return new Response(JSON.stringify({ current: { '30Y': 4.812 }, as_of: '2026-10-21' }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      });
+    }
+    if (u.indexOf('/api/chat') < 0) return orig(url, opts);
+    const body = JSON.parse(opts.body);
+    window.__REQS.push(body);
+    const toolRound = (body.messages || []).some((m) => m && m.role === 'tool');
+    if (toolRound) {
+      return sse([
+        'data: {"choices":[{"delta":{"content":"30Y = "}}]}\n\n',
+        'data: {"choices":[{"delta":{"content":"4.812%"}}]}\n\n',
+        'data: {"choices":[{"delta":{},"finish_reason":"stop"}]}\n\n',
+        'data: [DONE]\n\n',
+      ]);
+    }
+    return sse([
+      'data: {"choices":[{"delta":{"tool_calls":[{"index":0,"id":"call_1","type":"function",' +
+        '"function":{"name":"query_site_data","arguments":""}}]}}]}\n\n',
+      'data: {"choices":[{"delta":{"tool_calls":[{"index":0,' +
+        '"function":{"arguments":"{\\"endpoint\\":\\"rates/yield-curve\\"}"}}]}}]}\n\n',
+      'data: {"choices":[{"delta":{},"finish_reason":"tool_calls"}]}\n\n',
+      'data: [DONE]\n\n',
+    ]);
+  };
+}
+"""
+
+
+async def check_tool_loop(browser, base: str) -> None:
+    """工具往返：假 SSE 吐 tool_calls → 页面取数 → 回填 → 续流 → 正文；不落 thread。"""
+    ctx, page = await new_page(browser, base)
+    await page.evaluate(TOOL_PATCH)
+    await page.locator(".ai-input").fill("验收工具循环")
+    await page.locator("[data-send]").click()
+    await wait_idle(page)
+
+    reqs = await page.evaluate("() => window.__REQS")
+    hit = await page.evaluate("() => window.__TOOL_HIT")
+    check(hit == 1, "工具执行器命中 /api/rates/yield-curve")
+    check(len(reqs) == 2, "工具往返共两次请求")
+
+    first = reqs[0] if reqs else {}
+    second = reqs[-1] if reqs else {}
+    check(bool(first.get("tools")), "首次请求带 tools")
+    check(first.get("tool_choice") == "auto", "首次请求 tool_choice=auto")
+    msgs = second.get("messages") or []
+    call_msg = next((m for m in msgs if m.get("tool_calls")), None)
+    tool_msg = next((m for m in msgs if m.get("role") == "tool"), None)
+    check(bool(call_msg), "回填请求里有 assistant.tool_calls")
+    check(
+        bool(call_msg)
+        and call_msg["tool_calls"][0]["function"]["arguments"]
+        == json.dumps({"endpoint": "rates/yield-curve"}, separators=(",", ":")),
+        "分片拼回的 arguments 完整",
+    )
+    check(bool(tool_msg) and tool_msg.get("tool_call_id") == "call_1", "tool 消息带 tool_call_id")
+    check("4.812" in (tool_msg or {}).get("content", ""), "tool 结果回填的是端点读数")
+    check(bool(second.get("tools")), "续流请求仍带 tools")
+
+    body = await page.locator(".ai-msg-assistant").last.inner_text()
+    check("4.812" in body, "最终正文渲染出工具结果")
+    check("查数 rates/yield-curve" in body, "meta 回显查过的端点")
+
+    thread = await page.evaluate("() => localStorage.getItem('guanlantai-ai-threads') || ''")
+    check('"role":"tool"' not in thread, "thread 里没有 tool 角色")
+    check("tool_calls" not in thread, "thread 里没有 tool_calls")
+    await ctx.close()
+
+
+FORCE_PATCH = r"""
+() => {
+  window.__REQS = [];
+  const sse = (chunks) =>
+    new Response(chunks.join(''), {
+      status: 200,
+      headers: { 'content-type': 'text/event-stream', 'x-llm-model': 'deepseek-flash' },
+    });
+  const orig = window.fetch;
+  window.fetch = async (url, opts) => {
+    const u = String(url);
+    if (u.indexOf('/api/rates/yield-curve') >= 0) {
+      return new Response(JSON.stringify({ current: { '30Y': 4.812 } }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      });
+    }
+    if (u.indexOf('/api/chat') < 0) return orig(url, opts);
+    const body = JSON.parse(opts.body);
+    window.__REQS.push(body);
+    // 模型「钻牛角尖」：只要还允许调工具就一直要工具，只有被禁了才开口
+    if (body.tool_choice === 'none') {
+      return sse([
+        'data: {"choices":[{"delta":{"content":"收到上限，已尽力作答：30Y = 4.812%"}}]}\n\n',
+        'data: {"choices":[{"delta":{},"finish_reason":"stop"}]}\n\n',
+        'data: [DONE]\n\n',
+      ]);
+    }
+    return sse([
+      'data: {"choices":[{"delta":{"tool_calls":[{"index":0,"id":"call_1","type":"function",' +
+        '"function":{"name":"query_site_data","arguments":"{\\"endpoint\\":\\"rates/yield-curve\\"}"}}]}}]}\n\n',
+      'data: {"choices":[{"delta":{},"finish_reason":"tool_calls"}]}\n\n',
+      'data: [DONE]\n\n',
+    ]);
+  };
+}
+"""
+
+
+async def check_tool_force_answer(browser, base: str) -> None:
+    """预算用尽仍在要工具 → 最后一轮强制 tool_choice:none，必须落到正文而不是空白。"""
+    ctx, page = await new_page(browser, base)
+    await page.evaluate(FORCE_PATCH)
+    await page.locator(".ai-input").fill("验收强制作答")
+    await page.locator("[data-send]").click()
+    await wait_idle(page)
+
+    reqs = await page.evaluate("() => window.__REQS")
+    # 2 轮往返（各执行一次工具）+ 第 3 次仍要工具 → 第 4 次强制开口
+    check(len(reqs) == 4, "钻牛角尖时四次请求（1 首问 + 2 查数 + 1 强制）")
+    check(
+        bool(reqs) and [r.get("tool_choice") for r in reqs[:3]] == ["auto"] * 3,
+        "前三次 tool_choice 仍是 auto",
+    )
+    check(
+        len(reqs) >= 4 and reqs[3].get("tool_choice") == "none",
+        "预算用尽后最后一轮 tool_choice=none",
+    )
+    check(len(reqs) >= 4 and bool(reqs[3].get("tools")), "强制作答轮仍带 tools")
+    body = await page.locator(".ai-msg-assistant").last.inner_text()
+    check("4.812" in body, "强制作答轮渲染出正文（不是「接口没有返回内容」）")
+    await ctx.close()
+
+
+MISSING_PATCH = r"""
+() => {
+  window.__REQS = [];
+  const sse = (chunks) =>
+    new Response(chunks.join(''), {
+      status: 200,
+      headers: { 'content-type': 'text/event-stream', 'x-llm-model': 'deepseek-flash' },
+    });
+  const orig = window.fetch;
+  window.fetch = async (url, opts) => {
+    const u = String(url);
+    if (u.indexOf('/api/rates/yield-curve') >= 0) {
+      return new Response('{"error":"not exported"}', {
+        status: 404,
+        headers: { 'content-type': 'application/json' },
+      });
+    }
+    if (u.indexOf('/api/chat') < 0) return orig(url, opts);
+    const body = JSON.parse(opts.body);
+    window.__REQS.push(body);
+    if ((body.messages || []).some((m) => m && m.role === 'tool')) {
+      return sse([
+        'data: {"choices":[{"delta":{"content":"本期未导出。"}}]}\n\n',
+        'data: {"choices":[{"delta":{},"finish_reason":"stop"}]}\n\n',
+        'data: [DONE]\n\n',
+      ]);
+    }
+    return sse([
+      'data: {"choices":[{"delta":{"tool_calls":[{"index":0,"id":"call_404","type":"function",' +
+        '"function":{"name":"query_site_data","arguments":"{\\"endpoint\\":\\"rates/yield-curve\\"}"}}]}}]}\n\n',
+      'data: {"choices":[{"delta":{},"finish_reason":"tool_calls"}]}\n\n',
+      'data: [DONE]\n\n',
+    ]);
+  };
+}
+"""
+
+
+async def check_tool_404(browser, base: str) -> None:
+    """端点 404（静态站可合法缺数据）→ 结构化结果回填，对话不断、正文照出。"""
+    ctx, page = await new_page(browser, base)
+    await page.evaluate(MISSING_PATCH)
+    await page.locator(".ai-input").fill("验收 404")
+    await page.locator("[data-send]").click()
+    await wait_idle(page)
+
+    reqs = await page.evaluate("() => window.__REQS")
+    tool_msg = None
+    for r in reqs:
+        for m in r.get("messages") or []:
+            if m.get("role") == "tool":
+                tool_msg = m
+    check(bool(tool_msg), "404 后仍把 tool 结果回填（对话没断）")
+    payload = json.loads((tool_msg or {}).get("content") or "{}")
+    check(payload.get("status") == 404, "回填结果是结构化错误：status=404")
+    check("未导出" in str(payload.get("error") or ""), "错误文案说明本期未导出")
+    check(len(reqs) == 2, "404 后照常发起续流请求")
+    body = await page.locator(".ai-msg-assistant").last.inner_text()
+    check("本期未导出" in body, "正文照常渲染")
+    await ctx.close()
+
+
 async def main(base: str) -> int:
     base = base.rstrip("/") + "/"
     async with async_playwright() as p:
@@ -303,6 +523,9 @@ async def main(base: str) -> int:
         await check_cache_mode(browser, base)
         await check_effort(browser, base)
         await check_thinking_ui(browser, base)
+        await check_tool_loop(browser, base)
+        await check_tool_force_answer(browser, base)
+        await check_tool_404(browser, base)
         await check_save_note(browser, base)
         await browser.close()
     print(f"\n{len(FAILS)} failure(s)")

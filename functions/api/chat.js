@@ -17,6 +17,8 @@ import {
   resolveModel,
   thinkingMode,
   validateMessages,
+  validateToolChoice,
+  validateTools,
 } from '../_lib/common.js';
 
 export async function onRequestPost({ request, env }) {
@@ -31,13 +33,19 @@ export async function onRequestPost({ request, env }) {
     }
 
     const body = await readJson(request);
+    // 校验顺序与 src/server.py 的 /api/chat 一致：先 messages，再 tools / tool_choice
     const messages = validateMessages(body && body.messages);
+    const tools = validateTools(body && body.tools);
+    const toolChoice = validateToolChoice(body && body.tool_choice);
     const payload = {
       model: resolveModel(env, body && body.model),
       messages,
       stream: true,
       max_tokens: maxTokens(env),
     };
+    // 工具通道只放行不下发循环：工具定义与选择原样进上游，SSE 继续原样回浏览器
+    if (tools) payload.tools = tools;
+    if (toolChoice) payload.tool_choice = toolChoice;
     const effort = String((body && body.reasoning_effort) || '').trim();
     if (allowEffort(env) && ['minimal', 'low', 'medium', 'high'].includes(effort)) {
       payload.reasoning_effort = effort;

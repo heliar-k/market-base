@@ -141,9 +141,11 @@ def test_validation_failure_falls_back(monkeypatch: pytest.MonkeyPatch) -> None:
 # ── rates 试点接入 ────────────────────────────────────────────────────────
 
 
-def test_no_key_means_rules() -> None:
+def test_no_key_means_rules(monkeypatch: pytest.MonkeyPatch) -> None:
     import src.rates_analysis as ra
 
+    # 本地 .env 若配了 LLM_API_KEY（开发机常见），这条断言会假红——本用例钉的是「没有 key」这条
+    monkeypatch.delenv("LLM_API_KEY", raising=False)
     assert not llm_enabled()
     out = ra.generate_analysis()
     assert out["generator"] == "rules"

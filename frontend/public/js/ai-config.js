@@ -4,6 +4,8 @@
 // 重建输入框，用户刚敲的 Base URL / Key 会被清空；推理强度也需要在重载后与
 // 实际发送值保持一致。这两类判断放这里，ai-chat.js 只负责调用与渲染。
 
+import { TOOLS } from './ai-tools.js';
+
 export const DEFAULT_CFG = {
   baseUrl: 'https://api.openai.com/v1',
   apiKey: '',
@@ -28,9 +30,18 @@ export function modelCacheMatches(cache, base, proxy) {
   );
 }
 
-/** 请求体单源：代理模式不传 reasoning_effort；直连只发当前模型明确支持的档位。 */
-export function chatPayload(cfg, messages, models, proxy) {
+/**
+ * 请求体单源：代理模式不传 reasoning_effort；直连只发当前模型明确支持的档位。
+ * tools / tool_choice 也在这里单源：每次请求都带工具目录 v1（不传空数组，
+ * 部分网关会把 tools: [] 当成非法值）。toolChoice 只有 'auto' / 'none'，
+ * 预算用尽时由 runTurn 传 'none' 强制模型开口作答。
+ */
+export function chatPayload(cfg, messages, models, proxy, tools = TOOLS, toolChoice = 'auto') {
   const body = { model: cfg.model, stream: true, messages };
+  if (Array.isArray(tools) && tools.length) {
+    body.tools = tools;
+    body.tool_choice = toolChoice === 'none' ? 'none' : 'auto';
+  }
   const levels = effortLevels(models, cfg.model);
   if (!proxy && cfg.effort && levels.indexOf(cfg.effort) >= 0) {
     body.reasoning_effort = cfg.effort;
