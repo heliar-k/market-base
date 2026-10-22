@@ -93,7 +93,9 @@ let activePreset = null;
 let crossData = null; // /api/cross-asset payload
 let matrixChart = null;
 let matrixObserver = null;
-let drillChart = null;
+let drillChart = null;      // 弹层上图：滚动相关
+let drillPriceChart = null; // 弹层下图：归一化价格
+let drillPair = null;       // 当前弹层的标的对（主题切换时原对重绘）
 let corrChart = null;
 let corrObserver = null;
 let seriesMapCache = null; // 宏观模式最近一次渲染的 seriesMap（状态栏数据截至用）
@@ -122,6 +124,10 @@ function onThemeChanged() {
   renderStatusRow(crossData);
   renderMatrix();
   renderInsights(crossData);
+  // 弹层开着时按同一对标的重绘（否则图仍是旧主题色）；矩阵照常重建，互不干扰
+  if (drillPair && pricesCache && document.getElementById('corr-drill-corr')) {
+    renderDrillCharts(drillPair.a, drillPair.b, pricesCache.prices);
+  }
 }
 
 // ── UI scaffold ────────────────────────────────────────────────────────────
@@ -380,7 +386,9 @@ function hookMatrixEvents(chart) {
 // drill-down 弹层：两标的滚动相关 + 各自价格归一化
 let pricesCache = null; // /api/assets/prices 全量宽表（首次点击后缓存，静态站也可用）
 async function openDrilldown(a, b) {
-  disposeMatrixCharts(); // 释放上一次 drill-down 的图实例
+  // 只释放上一次弹层的图实例：矩阵实例与它的 ResizeObserver 必须活着，
+  // 否则关掉弹层后热力图没有 canvas（曾在此调用 disposeMatrixCharts，矩阵就再也画不回来）
+  disposeDrillCharts();
   const overlay = document.createElement('div');
   overlay.className = 'corr-drill-overlay';
   overlay.innerHTML = `
@@ -398,6 +406,7 @@ async function openDrilldown(a, b) {
   // 关闭统一走 close()：点遮罩 / 点 × / 按 Esc
   function close() {
     overlay.remove();
+    disposeDrillCharts(); // 图随弹层 DOM 一起消失，实例要显式释放，否则每次点击留一份 canvas
     document.removeEventListener('keydown', onKey);
   }
   function onKey(e) { if (e.key === 'Escape') close(); }
@@ -406,6 +415,7 @@ async function openDrilldown(a, b) {
   document.addEventListener('keydown', onKey);
   document.getElementById('corr-asset-wrap').appendChild(overlay);
   overlay.querySelector('.corr-drill-close').focus(); // 打开即聚焦关闭钮，键盘立即可操作
+  drillPair = { a, b };
 
   try {
     if (!pricesCache) {
@@ -413,6 +423,7 @@ async function openDrilldown(a, b) {
       if (!res.ok) throw new Error(`API error: ${res.status}`);
       pricesCache = await res.json();
     }
+    if (!overlay.isConnected) return; // 请求期间已被关掉，别往脱离文档的容器里 init
     renderDrillCharts(a, b, pricesCache.prices);
   } catch {
     overlay.querySelector('.corr-drill-note').textContent = '价格序列加载失败（数据源 asset_prices.csv 缺失）';
@@ -425,6 +436,8 @@ function labelOf(name) {
 }
 
 function renderDrillCharts(a, b, rows) {
+  disposeDrillCharts(); // 主题切换原对重绘：同一 DOM 上不能叠加第二个实例
+  drillPair = { a, b };
   const dark = document.body.classList.contains('dark');
   const theme = dark ? 'macroDark' : 'macro';
   const dates = rows.map(r => r.date);
@@ -471,6 +484,7 @@ function renderDrillCharts(a, b, rows) {
 
   const pDom = document.getElementById('corr-drill-price');
   const pChart = echarts.init(pDom, theme, { renderer: 'canvas' });
+  drillPriceChart = pChart;
   const pal = MACRO_COLORS(); // 惰性取色板：主题切换后重渲染拿到的是新主题色
   pChart.setOption(reSyncLegend({
     grid: { left: 8, right: 16, top: 12, bottom: 24, containLabel: true },
@@ -1006,10 +1020,16 @@ function removeIndicator(name) {
   loadAndRender();
 }
 
+function disposeDrillCharts() {
+  if (drillChart) { drillChart.dispose(); drillChart = null; }
+  if (drillPriceChart) { drillPriceChart.dispose(); drillPriceChart = null; }
+  drillPair = null;
+}
+
 function disposeMatrixCharts() {
   if (matrixObserver) { matrixObserver.disconnect(); matrixObserver = null; }
   if (matrixChart) { matrixChart.dispose(); matrixChart = null; }
-  if (drillChart) { drillChart.dispose(); drillChart = null; }
+  disposeDrillCharts();
 }
 
 // ── status ─────────────────────────────────────────────────────────────────

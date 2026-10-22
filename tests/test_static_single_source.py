@@ -725,3 +725,23 @@ def test_ai_prompt_text_single_sourced() -> None:
     for line in ("你是观澜台（US Macro 研究平台）的伴读分析助手。", "页面没给出的数字不要编造"):
         assert line in prompt, f"提示词正文不在 ai-prompt.js：{line[:12]}"
         assert line not in chat, f"ai-chat.js 里又写了一份提示词正文（应只 import）：{line[:12]}"
+
+
+def test_drilldown_keeps_matrix_chart_alive() -> None:
+    """相关性矩阵必须活过 drill-down 弹层的开关。
+
+    症状：点矩阵格子看滚动相关曲线，关掉弹层后矩阵整块空白（只剩标题和图例）。
+    根因：openDrilldown() 里调了 disposeMatrixCharts()，把热力图实例 + ResizeObserver
+    一起销毁，关闭路径没有任何重建。修复后：打开时只释放上一次弹层的图，
+    矩阵实例长住；弹层图在 close() 里显式 dispose。守卫锁住这两条。
+    """
+    js = (STATIC / "js" / "cross-correlation.js").read_text(encoding="utf-8")
+    calls = re.findall(r"disposeMatrixCharts\(\);", js)
+    assert len(calls) == 1, (
+        f"disposeMatrixCharts() 只该在模式切换（资产 ↔ 宏观）时调用一次，现 {len(calls)} 处；"
+        "弹层开关若调用它，关掉弹层后矩阵不会再绘制"
+    )
+    assert "function disposeDrillCharts" in js, "缺少弹层图的独立释放函数"
+    assert re.search(r"function close\(\)\s*\{.{0,400}?disposeDrillCharts\(\)", js, re.S), (
+        "close() 未释放弹层图实例（每次点格子会留一份 canvas）"
+    )
