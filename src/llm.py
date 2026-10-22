@@ -6,7 +6,7 @@
 - 供应商走 OpenAI 兼容协议，env 三件套决定（换 OpenAI 兼容商改 env 零代码）：
     LLM_API_KEY   必填，未填 = 未启用（各模块直接回落规则引擎）
     LLM_BASE_URL  默认 https://api.deepseek.com
-    LLM_MODEL     默认 deepseek-chat
+    LLM_MODEL     默认 deepseek-flash（思考模式默认开，见 _thinking_mode）
 - fail-open：任何故障（key 缺失 / 网络超时 / 返回非 JSON / 校验不过）返回 None，
   调用方回落规则引擎；回落时 stderr 留一行 LLM_FALLBACK 标记，
   deploy-pages.yml 的「LLM fallback → warning」step grep 这个串发 CI 告警注解
@@ -32,6 +32,21 @@ from src.config import ROOT
 
 _TIMEOUT = 60  # 秒
 _CACHE_TTL_DAYS = 7  # 数据日更，超过 7 天的缓存条目必已失效，写入时顺手清掉
+
+
+def _thinking_mode() -> str | None:
+    """思考模式档位：'enabled' | 'disabled' | None（None = 不下发该字段）。
+
+    DeepSeek 侧默认开启并显式写进请求体——上游默认值会变，客户端不该依赖它。
+    与 src/chat_proxy.py 的同名判定同口径：`LLM_THINKING=off` 可关掉（两处共用一个开关）。
+    注意思考模式下 `temperature` 不生效（官方文档），叙事改写因此少一道确定性保障。
+    """
+    base = os.environ.get("LLM_BASE_URL", "").strip() or "https://api.deepseek.com"
+    if "api.deepseek.com" not in base:
+        return None
+    off = os.environ.get("LLM_THINKING", "").strip().lower() in {"0", "false", "no", "off"}
+    return "disabled" if off else "enabled"
+
 
 _SYSTEM_PROMPT = """\
 你是美股宏观研究站「观澜台」的研判撰写员，读者是懂市场的自己人。
@@ -103,7 +118,7 @@ def _cache_path(module: str, payload: dict, prompt_hint: str) -> Path:
         (
             prompt_hint
             + json.dumps(payload, sort_keys=True, ensure_ascii=False, default=str)
-            + os.environ.get("LLM_MODEL", "deepseek-chat")
+            + os.environ.get("LLM_MODEL", "deepseek-flash")
             + os.environ.get("LLM_BASE_URL", "https://api.deepseek.com")
         ).encode()
     ).hexdigest()[:24]
@@ -137,11 +152,14 @@ def generate_narrative(module: str, payload: dict, prompt_hint: str) -> dict | N
         except Exception:  # noqa: BLE001 缓存坏了当 miss
             pass
     try:
+        # 思考模式与 chat 侧共用一个开关；关掉时 temperature=0 才真正生效
+        _mode = _thinking_mode()
+        extra = {"thinking": {"type": _mode}} if _mode else {}
         resp = requests.post(
             f"{os.environ.get('LLM_BASE_URL', 'https://api.deepseek.com')}/chat/completions",
             headers={"Authorization": f"Bearer {os.environ['LLM_API_KEY']}"},
             json={
-                "model": os.environ.get("LLM_MODEL", "deepseek-chat"),
+                "model": os.environ.get("LLM_MODEL", "deepseek-flash"),
                 "messages": [
                     {"role": "system", "content": _SYSTEM_PROMPT},
                     {
@@ -152,6 +170,7 @@ def generate_narrative(module: str, payload: dict, prompt_hint: str) -> dict | N
                 ],
                 "temperature": 0,
                 "response_format": {"type": "json_object"},
+                **extra,
             },
             timeout=_TIMEOUT,
         )

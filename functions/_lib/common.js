@@ -7,7 +7,9 @@
 //   POST /api/notes  → 写 NOTES KV（未绑定则 503，提示回本地落 data/）
 
 export const DEFAULT_BASE = 'https://api.deepseek.com';
-export const DEFAULT_MODEL = 'deepseek-chat';
+// deepseek-chat / deepseek-reasoner 已于 2026-07-24 停用（官方更新日志），
+// 现行枚举只剩 deepseek-flash（思考/非思考同体，靠 thinking 字段切换）与 deepseek-v4-pro。
+export const DEFAULT_MODEL = 'deepseek-flash';
 export const NOTES_MAX = 1_000_000; // markdown 字节上限
 export const NOTES_BODY_MAX = 4 * 1024 * 1024; // JSON body（含 thread/转义）
 export const MISSING_KEY =
@@ -82,13 +84,34 @@ export function resolveModel(env, requested) {
 
 export function maxTokens(env) {
   const n = Number(env && env.LLM_CHAT_MAX_TOKENS);
-  return Number.isFinite(n) && n > 0 ? Math.min(8000, Math.max(64, Math.round(n))) : 1200;
+  if (Number.isFinite(n) && n > 0) return Math.min(8000, Math.max(64, Math.round(n)));
+  // 思考模式下 reasoning token 计入 max_tokens：1200 会被思维链吃光、正文被截断
+  return thinkingMode(env) === 'enabled' ? 4000 : 1200;
 }
 
 export function allowEffort(env) {
   return ['1', 'true', 'yes'].includes(
     String((env && env.LLM_CHAT_ALLOW_EFFORT) || '').toLowerCase()
   );
+}
+
+/** 只有 DeepSeek 官方地址认 `thinking` 字段；别的 OpenAI 兼容网关会 400。 */
+function isDeepSeek(base) {
+  return String(base || '').includes('api.deepseek.com');
+}
+
+/**
+ * 思考模式档位：'enabled' | 'disabled' | null（null = 不下发该字段）。
+ * DeepSeek 侧默认开启并显式写进请求体——上游默认值会变，客户端不该依赖它。
+ * `LLM_THINKING=off` 可关掉（`src/llm.py` 的叙事改写共用同一个开关）。
+ */
+export function thinkingMode(env) {
+  if (!isDeepSeek(baseUrl(env))) return null;
+  return ['0', 'false', 'no', 'off'].includes(
+    String((env && env.LLM_THINKING) || '').toLowerCase()
+  )
+    ? 'disabled'
+    : 'enabled';
 }
 
 // ── 请求校验 ────────────────────────────────────────────────────────────────

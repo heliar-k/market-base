@@ -10,8 +10,12 @@ import os
 from typing import Any
 
 DEFAULT_BASE = "https://api.deepseek.com"
-DEFAULT_MODEL = "deepseek-chat"
+# deepseek-chat / deepseek-reasoner 已于 2026-07-24 停用（官方更新日志），
+# 现行枚举只剩 deepseek-flash（思考/非思考同体，靠 thinking 字段切换）与 deepseek-v4-pro。
+DEFAULT_MODEL = "deepseek-flash"
 MAX_TOKENS = 1200
+# 思考模式下 reasoning token 计入 max_tokens：1200 会被思维链吃光、正文被截断
+MAX_TOKENS_THINKING = 4000
 MAX_MESSAGES = 30
 MAX_CHARS = 40_000
 # HTTP body 上限按字节算：40k 中文字符 ≈120KB UTF-8，留出 JSON 包装余量
@@ -54,14 +58,33 @@ def resolve_model(requested: str | None) -> str:
 
 
 def max_tokens() -> int:
-    try:
-        return max(64, min(8000, int(os.environ.get("LLM_CHAT_MAX_TOKENS", MAX_TOKENS))))
-    except ValueError:
-        return MAX_TOKENS
+    raw = os.environ.get("LLM_CHAT_MAX_TOKENS", "").strip()
+    if raw:
+        try:
+            return max(64, min(8000, int(raw)))
+        except ValueError:
+            pass
+    return MAX_TOKENS_THINKING if thinking_mode() == "enabled" else MAX_TOKENS
 
 
 def allow_effort() -> bool:
     return os.environ.get("LLM_CHAT_ALLOW_EFFORT", "").lower() in {"1", "true", "yes"}
+
+
+def thinking_mode() -> str | None:
+    """思考模式档位：'enabled' | 'disabled' | None（None = 不下发该字段）。
+
+    DeepSeek 侧默认开启并显式写进请求体——上游默认值会变，客户端不该依赖它。
+    `LLM_THINKING=off` 可关掉（`src/llm.py` 的叙事改写共用同一个开关）。
+    别的 OpenAI 兼容网关不认 `thinking` 字段，一律不下发。
+    """
+    if "api.deepseek.com" not in llm_base():
+        return None
+    return (
+        "disabled"
+        if os.environ.get("LLM_THINKING", "").strip().lower() in {"0", "false", "no", "off"}
+        else "enabled"
+    )
 
 
 def validate_messages(items: list[tuple[str, str]]) -> list[dict[str, str]]:
@@ -101,4 +124,6 @@ def build_payload(
     effort = (requested_effort or "").strip()
     if allow_effort() and effort in EFFORTS:
         payload["reasoning_effort"] = effort
+    if thinking_mode():
+        payload["thinking"] = {"type": thinking_mode()}
     return payload

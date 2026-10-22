@@ -101,10 +101,11 @@ if (window.AICtx) AICtx.declare('rates', () => ({
 |---|---|---|
 | `LLM_API_KEY` | 空 | **必填**；为空时 `/api/chat`、`/api/models` 返回 503，前端提示填自己的 Key |
 | `LLM_BASE_URL` | `https://api.deepseek.com` | OpenAI 兼容根地址，代码自己拼 `/chat/completions` |
-| `LLM_MODEL` | `deepseek-chat` | 默认模型，同时是白名单默认值 |
+| `LLM_MODEL` | `deepseek-flash` | 默认模型，同时是白名单默认值（`deepseek-chat` 已于 2026-07-24 停用） |
 | `LLM_CHAT_MODELS` | 取 `LLM_MODEL` | 逗号分隔的代理模型白名单；客户端传别的会被覆盖成第一个 |
-| `LLM_CHAT_MAX_TOKENS` | `1200` | 服务端封顶 64–8000，防止公开端点被刷长文 |
+| `LLM_CHAT_MAX_TOKENS` | 思考开 `4000` / 关 `1200` | 服务端封顶 64–8000。思考 token 也计入 `max_tokens`，所以开着思考时必须抬高，否则正文被思维链吃光 |
 | `LLM_CHAT_ALLOW_EFFORT` | 关 | 打开后才把 `reasoning_effort` 透传给上游（默认丢弃，避免网关 400） |
+| `LLM_THINKING` | **开** | DeepSeek 地址上显式发 `thinking:{type:"enabled"}`（不依赖上游默认值）；设 `off` 关闭。`src/llm.py` 的叙事改写共用同一开关。非 DeepSeek 地址永不下发该字段 |
 
 Cloudflare 侧一次性设置（Base/Model 用默认就不用额外设）：
 

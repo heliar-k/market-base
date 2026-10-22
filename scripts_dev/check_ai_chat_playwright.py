@@ -19,6 +19,36 @@ import sys
 from playwright.async_api import async_playwright
 
 SSE = 'data: {"choices":[{"delta":{"content":"验收答"}}]}\n\ndata: [DONE]\n\n'
+# 思考模式必须用「慢流」验：route.fulfill 一次性整包会让「思考中」那一瞬直接跳过去。
+# 在页面里替换 fetch，逐块吐 SSE，才能看到展开态与转圈图标。
+THINK_PATCH = """
+() => {
+  const chunks = [
+    'data: {"choices":[{"delta":{"reasoning_content":"先看曲线形态，"}}]}\\n\\n',
+    'data: {"choices":[{"delta":{"reasoning_content":"再看期限结构。"}}]}\\n\\n',
+    'data: {"choices":[{"delta":{"content":"验收答"}}]}\\n\\n',
+    'data: [DONE]\\n\\n'
+  ];
+  const orig = window.fetch;
+  window.fetch = async (url, opts) => {
+    if (String(url).indexOf('/api/chat') < 0) return orig(url, opts);
+    const enc = new TextEncoder();
+    let i = 0;
+    const stream = new ReadableStream({
+      start(c) {
+        const t = setInterval(() => {
+          if (i >= chunks.length) { clearInterval(t); c.close(); return; }
+          c.enqueue(enc.encode(chunks[i++]));
+        }, 400);
+      },
+    });
+    return new Response(stream, {
+      status: 200,
+      headers: { 'content-type': 'text/event-stream', 'x-llm-model': 'deepseek-flash' },
+    });
+  };
+}
+"""
 FAILS: list[str] = []
 
 
@@ -54,7 +84,7 @@ async def check_proxy_model_header(browser, base: str) -> None:
         )
         await route.fulfill(
             status=200,
-            headers={"content-type": "text/event-stream", "x-llm-model": "deepseek-chat"},
+            headers={"content-type": "text/event-stream", "x-llm-model": "deepseek-flash"},
             body=SSE,
         )
 
@@ -65,7 +95,7 @@ async def check_proxy_model_header(browser, base: str) -> None:
     meta = await page.locator(".ai-msg-assistant .ai-msg-meta").last.inner_text()
     check(bool(seen) and seen[0]["url"].endswith("/api/chat"), "默认配置走同源 /api/chat")
     check(seen[0]["auth"] is None, "代理模式不向浏览器暴露服务端 Key")
-    check("模型 deepseek-chat" in meta, "答案 meta 显示实际使用的模型")
+    check("模型 deepseek-flash" in meta, "答案 meta 显示实际使用的模型")
     await ctx.close()
 
 
@@ -86,7 +116,7 @@ async def check_probe_keeps_fields(browser, base: str) -> None:
         )
 
     await page.route("**/v1/models", models)
-    await page.locator('[data-act="cfg"]').click()
+    await page.locator('[data-act="cfg"]').first.click()
     await page.fill('[data-k="baseUrl"]', "https://example.com/v1")
     await page.fill('[data-k="apiKey"]', "sk-keepme")
     await page.locator("[data-probe]").click()
@@ -120,12 +150,15 @@ async def check_cache_mode(browser, base: str) -> None:
             status=200,
             content_type="application/json",
             body=json.dumps(
-                {"data": [{"id": "deepseek-chat", "display_name": "deepseek-chat"}], "proxy": True}
+                {
+                    "data": [{"id": "deepseek-flash", "display_name": "deepseek-flash"}],
+                    "proxy": True,
+                }
             ),
         )
 
     await page.route("**/api/models", proxy_models)
-    await page.locator('[data-act="cfg"]').click()
+    await page.locator('[data-act="cfg"]').first.click()
     await page.locator("[data-probe]").click()
     await page.wait_for_timeout(600)
     cache = json.loads(await page.evaluate("localStorage.getItem('guanlantai-ai-model-cache')"))
@@ -133,7 +166,7 @@ async def check_cache_mode(browser, base: str) -> None:
     await page.fill('[data-k="apiKey"]', "sk-openai")
     await page.locator("[data-cfgsave]").click()
     await page.wait_for_timeout(300)
-    await page.locator('[data-act="cfg"]').click()
+    await page.locator('[data-act="cfg"]').first.click()
     await page.wait_for_timeout(250)
     options = await page.locator('[data-k="model"] option').all_inner_texts()
     check(
@@ -218,7 +251,7 @@ async def check_save_note(browser, base: str) -> None:
           localStorage.setItem('guanlantai-ai-threads', JSON.stringify([{
             id: 't1', title: '验收存笔记', createdAt: now, updatedAt: now,
             messages: [{ role: 'user', content: 'hi', ts: now },
-                       { role: 'assistant', content: '你好', model: 'deepseek-chat', ts: now }]
+                       { role: 'assistant', content: '你好', model: 'deepseek-flash', ts: now }]
           }]));
           localStorage.setItem('guanlantai-ai-active-thread', 't1');
         }"""
@@ -226,11 +259,38 @@ async def check_save_note(browser, base: str) -> None:
     await page.reload(wait_until="domcontentloaded")
     await page.wait_for_timeout(900)
     await page.locator(".ai-float").click()
-    await page.locator('[data-act="save"]').click()
+    await page.locator('[data-act="save"]').first.click()
     await page.wait_for_timeout(400)
     flash = await page.locator("[data-flash]").inner_text()
     check(("已保存" in flash) and ("demo.md" in flash), "存笔记成功并在顶部细条回显路径")
-    check(bool(sent) and "模型 deepseek-chat" in sent[0]["markdown"], "导出的 Markdown 带模型口径")
+    check(bool(sent) and "模型 deepseek-flash" in sent[0]["markdown"], "导出的 Markdown 带模型口径")
+    await ctx.close()
+
+
+async def check_thinking_ui(browser, base: str) -> None:
+    """思考模式：流式时展开 + 转圈 + 逐字显示；正文一到收成一行，点开可回看。"""
+    ctx, page = await new_page(browser, base)
+    await page.evaluate(THINK_PATCH)
+    await page.locator(".ai-input").fill("验收思考")
+    await page.locator("[data-send]").click()
+    await page.wait_for_timeout(1000)  # 两个思维链分片已到，正文还没来
+
+    think = page.locator(".ai-msg-assistant .ai-think").last
+    check(await think.count() > 0, "思考栏出现")
+    check(await think.evaluate("el => el.open") is True, "思考时自动展开")
+    check(await think.locator(".ai-spin").count() == 1, "思考时有转圈图标")
+    check(
+        "先看曲线形态" in await think.locator(".ai-think-body").evaluate("el => el.textContent"),
+        "思维链逐字渲染",
+    )
+
+    await page.wait_for_timeout(2200)  # 等 [DONE] 与收尾重渲染
+    think = page.locator(".ai-msg-assistant .ai-think").last
+    check(await think.evaluate("el => el.open") is False, "答完自动折叠")
+    check((await think.locator("summary").inner_text()).startswith("思考 "), "折叠后标题是耗时")
+    await think.locator("summary").click()
+    await page.wait_for_timeout(150)
+    check(await think.evaluate("el => el.open") is True, "点标题可重新展开")
     await ctx.close()
 
 
@@ -242,6 +302,7 @@ async def main(base: str) -> int:
         await check_probe_keeps_fields(browser, base)
         await check_cache_mode(browser, base)
         await check_effort(browser, base)
+        await check_thinking_ui(browser, base)
         await check_save_note(browser, base)
         await browser.close()
     print(f"\n{len(FAILS)} failure(s)")

@@ -45,7 +45,7 @@ def generate_narrative(module: str, facts: dict, prompt_hint: str) -> dict | Non
     # 2. requests 直连 {LLM_BASE_URL}/chat/completions，OpenAI 兼容协议
     #    temperature=0, timeout=60, response_format={"type": "json_object"}
     #    供应商由三个 env 决定：LLM_BASE_URL（默认 deepseek 官方）/ LLM_API_KEY
-    #    / LLM_MODEL（默认 deepseek-chat）——换 OpenAI 兼容商 = 改 env，零代码
+    #    / LLM_MODEL（默认 deepseek-flash）——换 OpenAI 兼容商 = 改 env，零代码
     # 3. 解析前剥 ```json 围栏（无 JSON mode 的兼容商也能用）
     #    → json.loads → validate_sections(out, facts) → 过则返回，不过返回 None
     # 4. 任何异常 except Exception → stderr 一行标记 + None（不影响部署）：
@@ -154,7 +154,7 @@ def _llm_generate() -> dict | None:
 
 ## 7. 成本量级
 
-rates 试点 2 段/次 × ~15 次部署/天 ≈ 30 次调用/天；deepseek-chat 计价下每天几毛钱、每月个位数人民币。全铺 10 模块约 ×5，仍在忽略不计区间。
+rates 试点 2 段/次 × ~15 次部署/天 ≈ 30 次调用/天；deepseek-flash 计价下每天几毛钱、每月个位数人民币。全铺 10 模块约 ×5，仍在忽略不计区间。
 
 ## 8. 铺开（试点验收后）
 

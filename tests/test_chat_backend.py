@@ -58,7 +58,7 @@ def _collect(resp) -> bytes:
 def test_chat_models_default_and_env(monkeypatch) -> None:
     monkeypatch.delenv("LLM_CHAT_MODELS", raising=False)
     monkeypatch.delenv("LLM_MODEL", raising=False)
-    assert chat_proxy.chat_models() == ["deepseek-chat"]
+    assert chat_proxy.chat_models() == ["deepseek-flash"]
 
     monkeypatch.setenv("LLM_MODEL", "m1")
     assert chat_proxy.chat_models() == ["m1"]
@@ -72,6 +72,41 @@ def test_resolve_model_falls_back_to_whitelist(monkeypatch) -> None:
     assert chat_proxy.resolve_model("b") == "b"
     assert chat_proxy.resolve_model("evil") == "a"
     assert chat_proxy.resolve_model(None) == "a"
+
+
+# ── 思考模式（deepseek-flash 默认开，抽屉只渲染 content 流必须钉住非思考）──
+
+
+def test_thinking_mode_defaults_enabled_on_deepseek(monkeypatch) -> None:
+    monkeypatch.delenv("LLM_BASE_URL", raising=False)
+    monkeypatch.delenv("LLM_THINKING", raising=False)
+    assert chat_proxy.thinking_mode() == "enabled"
+
+    monkeypatch.setenv("LLM_THINKING", "off")
+    assert chat_proxy.thinking_mode() == "disabled"
+
+    monkeypatch.delenv("LLM_THINKING", raising=False)
+    monkeypatch.setenv("LLM_BASE_URL", "https://api.openai.com/v1")
+    assert chat_proxy.thinking_mode() is None  # 别的网关不认 thinking 字段
+
+
+def test_build_payload_sends_thinking_mode(monkeypatch) -> None:
+    monkeypatch.delenv("LLM_BASE_URL", raising=False)
+    monkeypatch.delenv("LLM_THINKING", raising=False)
+    monkeypatch.delenv("LLM_CHAT_MAX_TOKENS", raising=False)
+    payload = chat_proxy.build_payload(None, [{"role": "user", "content": "hi"}], None)
+    assert payload["thinking"] == {"type": "enabled"}
+    # 思考 token 计入 max_tokens：默认档必须比非思考高，否则正文被思维链吃光
+    assert payload["max_tokens"] == chat_proxy.MAX_TOKENS_THINKING
+
+    monkeypatch.setenv("LLM_THINKING", "off")
+    payload = chat_proxy.build_payload(None, [{"role": "user", "content": "hi"}], None)
+    assert payload["thinking"] == {"type": "disabled"}
+    assert payload["max_tokens"] == chat_proxy.MAX_TOKENS
+
+    monkeypatch.setenv("LLM_BASE_URL", "https://api.openai.com/v1")
+    payload = chat_proxy.build_payload(None, [{"role": "user", "content": "hi"}], None)
+    assert "thinking" not in payload
 
 
 def test_validate_messages(monkeypatch) -> None:
@@ -248,7 +283,7 @@ def test_chat_streams_upstream_and_resolves_model(monkeypatch) -> None:
     payload = captured["json"]
     assert payload["model"] == "server-model"  # 客户端不在白名单 → 服务端覆盖
     assert payload["stream"] is True
-    assert payload["max_tokens"] == chat_proxy.MAX_TOKENS
+    assert payload["max_tokens"] == chat_proxy.MAX_TOKENS_THINKING
     assert "reasoning_effort" not in payload  # 默认不透传（避免不认的网关 400）
     assert _collect(resp) == b"data: one\n\ndata: [DONE]\n\n"
     assert fake.closed is True

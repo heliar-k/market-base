@@ -186,8 +186,11 @@ def test_chat_proxies_and_resolves_model(out: dict) -> None:
     assert chat["url"] == "https://api.deepseek.com/chat/completions"
     assert chat["payload"]["model"] == "m1"  # 客户端模型不在白名单 → 服务端覆盖
     assert chat["payload"]["stream"] is True
-    assert chat["payload"]["max_tokens"] == 1200
+    # 思考 token 计入 max_tokens，默认档随思考模式抬高
+    assert chat["payload"]["max_tokens"] == 4000
     assert "reasoning_effort" not in chat["payload"]
+    # 思考模式默认开启，代理显式下发，不依赖上游默认值
+    assert chat["payload"]["thinking"] == {"type": "enabled"}
 
 
 def test_chat_requires_key_and_limits(out: dict) -> None:

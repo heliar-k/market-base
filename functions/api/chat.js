@@ -15,6 +15,7 @@ import {
   rateLimit,
   readJson,
   resolveModel,
+  thinkingMode,
   validateMessages,
 } from '../_lib/common.js';
 
@@ -41,6 +42,9 @@ export async function onRequestPost({ request, env }) {
     if (allowEffort(env) && ['minimal', 'low', 'medium', 'high'].includes(effort)) {
       payload.reasoning_effort = effort;
     }
+    // 思考模式：DeepSeek 侧显式下发（默认 enabled），上游默认值不可依赖
+    const think = thinkingMode(env);
+    if (think) payload.thinking = { type: think };
 
     const upstream = await fetch(baseUrl(env) + '/chat/completions', {
       method: 'POST',

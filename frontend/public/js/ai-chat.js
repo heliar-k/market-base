@@ -130,6 +130,9 @@ import { mdToHtml } from './ai-md.js';
   const SUMMARY_SELS = ['.sig-row', '.re-cards', '.re-kv-grid', '#tech-ov-current', '#corr-insights', '.re-sec-title'];
   const SUMMARY_BUDGET = 1500; // 没声明事实集的页（多数页）保持原量，别因为别处加了上下文就偷偷截短
   const SUMMARY_BUDGET_WITH_FACTS = 1200; // 有结构化事实集的页让出一档给它
+  // 思维链落盘上限：只是给人回看，吃 localStorage 与 NOTES KV 的额度不划算；
+  // 截断只影响回看（单轮内的 reasoning_content 仍完整，T1 的工具回传要用全量）
+  const THINK_MAX = 6000;
 
   // 可见性判定单源在 ai-context.js（与 pageSummary 共用一份）；脚本没到位时退回「全算可见」
   const isVisible = (el) =>
@@ -375,6 +378,7 @@ import { mdToHtml } from './ai-md.js';
           .filter(Boolean)
           .join(' · ');
         const quotes = (m.quotes || []).map(quoteHtml).join('');
+        const thought = isUser ? '' : thinkHtml(m);
         const body = isUser
           ? '<p>' + esc(m.content || '').replace(/\n/g, '<br>') + '</p>'
           : mdToHtml(m.content || '');
@@ -392,6 +396,7 @@ import { mdToHtml } from './ai-md.js';
         return (
           '<div class="ai-msg ' + (isUser ? 'ai-msg-user' : 'ai-msg-assistant') + '">' +
           (meta ? '<div class="ai-msg-meta">' + esc(meta) + '</div>' : '') +
+          thought +
           body +
           (quotes ? '<div class="ai-msg-quotes">' + quotes + '</div>' : '') +
           (acts ? '<div class="ai-acts ai-msg-acts">' + acts + '</div>' : '') +
@@ -682,6 +687,8 @@ import { mdToHtml } from './ai-md.js';
     });
   }
 
+  // 解析一条 SSE：→ {content, reasoning} / '[DONE]' / null（非 data 行）
+  // 思考模式下思维链与正文同级返回（reasoning_content），两者都要接住
   function sseDelta(line) {
     const t = line.trim();
     if (t.slice(0, 5) !== 'data:') return null;
@@ -691,13 +698,19 @@ import { mdToHtml } from './ai-md.js';
       const j = JSON.parse(payload);
       const c = j.choices && j.choices[0];
       const d = c && (c.delta || c.message);
-      return (d && d.content) || '';
+      if (!d) return { content: '', reasoning: '' };
+      return { content: d.content || '', reasoning: d.reasoning_content || '' };
     } catch (e) {
-      return '';
+      return { content: '', reasoning: '' };
     }
   }
 
-  async function consume(res, onChunk) {
+  async function consume(res, on) {
+    const emit = (d) => {
+      if (!d || d === '[DONE]') return;
+      if (d.reasoning) on.reasoning(d.reasoning);
+      if (d.content) on.content(d.content);
+    };
     const ct = res.headers.get('content-type') || '';
     if (ct.indexOf('event-stream') >= 0 && res.body && res.body.getReader) {
       const reader = res.body.getReader();
@@ -716,7 +729,7 @@ import { mdToHtml } from './ai-md.js';
             done = true;
             break;
           }
-          if (d) onChunk(d);
+          emit(d);
         }
         if (done) {
           try {
@@ -728,7 +741,7 @@ import { mdToHtml } from './ai-md.js';
         }
       }
       const tail = sseDelta(buf);
-      if (tail && tail !== '[DONE]') onChunk(tail);
+      if (tail !== '[DONE]') emit(tail);
       return;
     }
     // 有代理会忽略 stream:true 直接回整包：同时兜住 SSE 文本与普通 JSON
@@ -736,7 +749,7 @@ import { mdToHtml } from './ai-md.js';
     if (raw.trim().slice(0, 5) === 'data:') {
       raw.split('\n').forEach((line) => {
         const d = sseDelta(line);
-        if (d && d !== '[DONE]') onChunk(d);
+        if (d !== '[DONE]') emit(d);
       });
       return;
     }
@@ -748,10 +761,10 @@ import { mdToHtml } from './ai-md.js';
     }
     const c = j.choices && j.choices[0];
     const d = c && (c.message || c.delta);
-    if (!d || !d.content) {
+    if (!d || (!d.content && !d.reasoning_content)) {
       throw new Error('返回为空' + (j.error && j.error.message ? '：' + j.error.message : ''));
     }
-    onChunk(d.content);
+    emit({ content: d.content || '', reasoning: d.reasoning_content || '' });
   }
 
   function setBusy(on) {
@@ -762,10 +775,29 @@ import { mdToHtml } from './ai-md.js';
   function appendStream() {
     const el = document.createElement('div');
     el.className = 'ai-msg ai-msg-assistant';
-    el.innerHTML = '<div class="ai-msg-meta">生成中…</div>';
+    // 思考栏默认隐藏：不思考的通道（BYOK 的普通模型）不该出现空壳
+    el.innerHTML =
+      '<div class="ai-msg-meta">生成中…</div>' +
+      '<details class="ai-think" hidden>' +
+      '<summary><span class="ai-spin"></span>正在思考</summary>' +
+      '<div class="ai-think-body"></div>' +
+      '</details>' +
+      '<div class="ai-msg-body"></div>';
     msgsEl.appendChild(el);
     scrollBottom();
     return el;
+  }
+
+  // 已落盘的思考过程：默认折叠的一行（「思考 N 秒」），点开看全文
+  function thinkHtml(m) {
+    if (!m || !m.think) return '';
+    const secs = m.thinkMs ? Math.max(1, Math.round(m.thinkMs / 1000)) : 0;
+    return (
+      '<details class="ai-think">' +
+      '<summary>' + esc(secs ? '思考 ' + secs + ' 秒' : '思考过程') + '</summary>' +
+      '<div class="ai-think-body">' + esc(m.think) + '</div>' +
+      '</details>'
+    );
   }
 
   // 一轮问答：thread 末尾已是本轮要回答的 user 消息（send / retry 都先把末尾摆好）
@@ -776,16 +808,47 @@ import { mdToHtml } from './ai-md.js';
     controller = new AbortController();
     setBusy(true);
     const node = appendStream();
+    const metaEl = node.querySelector('.ai-msg-meta');
+    const bodyEl = node.querySelector('.ai-msg-body');
+    const thinkEl = node.querySelector('.ai-think');
+    const thinkBody = node.querySelector('.ai-think-body');
+    const thinkSummary = node.querySelector('.ai-think summary');
     let live = '';
+    let think = '';
+    let thinkAt = 0; // 首个思维链分片到达的时刻，用于算耗时
+    let thinkMs = 0;
     let answeredModel = '';
     try {
       const res = await request(cfg, buildMessages(thread), controller.signal);
       if (!res.ok) throw new Error(await apiError(res, '本站 /api/chat'));
       answeredModel = res.headers.get('x-llm-model') || cfg.model || '';
-      await consume(res, (chunk) => {
-        live += chunk;
-        node.innerHTML = mdToHtml(live);
-        scrollBottom();
+      await consume(res, {
+        reasoning: (r) => {
+          if (!thinkAt) {
+            thinkAt = Date.now();
+            thinkEl.hidden = false;
+            thinkEl.open = true;
+            metaEl.textContent = '思考中…';
+          }
+          think += r;
+          thinkBody.textContent = think;
+          thinkBody.scrollTop = thinkBody.scrollHeight;
+          scrollBottom();
+        },
+        content: (c) => {
+          // 正文一到就把思考栏收成一行，标题仍可点开回看
+          if (thinkAt && !thinkMs) {
+            thinkMs = Date.now() - thinkAt;
+            thinkEl.open = false;
+            const spin = thinkEl.querySelector('.ai-spin');
+            if (spin) spin.remove();
+            thinkSummary.textContent = '思考 ' + Math.max(1, Math.round(thinkMs / 1000)) + ' 秒';
+            metaEl.textContent = '生成中…';
+          }
+          live += c;
+          bodyEl.innerHTML = mdToHtml(live);
+          scrollBottom();
+        },
       });
       if (!live.trim()) live = '（接口没有返回内容）';
     } catch (e) {
@@ -799,6 +862,8 @@ import { mdToHtml } from './ai-md.js';
     thread.messages.push({
       role: 'assistant',
       content: live,
+      think: think ? think.slice(0, THINK_MAX) : '',
+      thinkMs,
       model: answeredModel,
       pagePath: last.pagePath,
       pageTitle: last.pageTitle,
