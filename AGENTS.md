@@ -620,8 +620,14 @@ uv run python src/sell_put.py --symbol TSM
   SPA 的 `100dvh` flex 壳都吃这一条，34 个专题页零改动），抽屉仍 `fixed` 在右缘，左缘 `.ai-grip` 可拖宽。
   三个数**单源在 `js/ai-pane.js`**：min 320（抽屉头 6 个按钮实测 275）、max `min(640, 100vw−1004)`（正文内宽地板 700）、
   断点 1324 = 240 导航 + 700 地板 + 64 内距 + 320。要用这套判断就 import 那个模块，别在 CSS/页面里再写一遍断点；
-  拖拽改宽会让整页图表重排，所以 50ms 节流（treasury 一页 9 张 ECharts）。守卫：`tests/test_ai_pane.py`
+  拖拽改宽会让整页图表重排，所以 50ms 节流（treasury 一页 9 张 ECharts）。
+  三条容易踩回去的：① 拖拽柄命中区细指针 11px、`pointer: coarse` 24px（iPad 横屏 1366 正好落进分栏档，
+  11px 手指捏不住）；② 宽度偏好只在**真拖过**之后落盘，零位移点击不能把「按视口夹过的值」写进去；
+  ③ 关抽屉时让位要延后 220ms（等 transform 滑完），否则抽屉宽度会在动画中途从 `--ai-w` 硬跳回 380。
+  守卫：`tests/test_ai_pane.py`
 - **已审计过的死路（勿重开）**：全站零自实现手势，不加 `touch-action`（加了反而禁掉表格纵向滑动）；
+  例外只有两处拖拽控件（`.ai-float` 窄屏拖拽、分栏 `.ai-grip`）——它们的 `touch-action: none` 是手势前提，
+  别把这个例外当成「可以给内容容器加」的先例；
   触控目标门槛是 **24 CSS px**（WCAG 2.2），44 是 iOS pt / Android dp，`.range-btn` 实算 ≈24.4px 已过线
 
 ### 9. 前端视觉调试回路（像素级对齐 / 部署验证）

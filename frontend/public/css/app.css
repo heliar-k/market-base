@@ -773,8 +773,10 @@ body [data-scroll-hide].scroll-away { opacity: 0; pointer-events: none; }
 html.ai-pane body { padding-right: var(--ai-w, 380px); }
 html.ai-pane .ai-drawer { width: var(--ai-w, 380px); }
 html.ai-pane .ai-float { display: none; } /* 分栏时浮钮会压在抽屉头上（头里有 ✕ 和 ⌘K） */
-/* 左缘拖拽柄：11px 命中区 / 1px 视觉线（hover 才上 accent，不跟正文抢注意力）。
-   z-index 压在抽屉自己的内容之上；::after 与抽屉的 border-left 重合，看起来就是那条边在亮。 */
+/* 左缘拖拽柄：1px 视觉线（hover 才上 accent，不跟正文抢注意力），命中区比线宽得多。
+   z-index 压在抽屉自己的内容之上；::after 与抽屉的 border-left 重合，看起来就是那条边在亮。
+   指针细（鼠标/触控板）11px 够；粗指针（iPad 横屏 1366 正好落进分栏档）按 AGENTS 的
+   24px 触控门槛加宽 —— 11px 用手指根本捏不住。 */
 .ai-grip { display: none; }
 html.ai-pane .ai-grip { display: block; position: absolute; top: 0; bottom: 0; left: -5px; width: 11px; z-index: 2; cursor: col-resize; touch-action: none; }
 html.ai-pane .ai-grip::after { content: ''; position: absolute; top: 0; bottom: 0; left: 5px; width: 1px; background: transparent; transition: background .15s; }
@@ -782,9 +784,15 @@ html.ai-pane .ai-grip:hover::after,
 html.ai-pane .ai-grip:focus-visible::after,
 html.ai-resizing .ai-grip::after { background: var(--accent); }
 html.ai-pane .ai-grip:focus-visible { outline: 2px solid var(--accent); outline-offset: -4px; }
+@media (pointer: coarse) {
+  html.ai-pane .ai-grip { left: -12px; width: 24px; }
+  html.ai-pane .ai-grip::after { left: 12px; }
+}
 /* 拖拽中：全局 col-resize + 禁选中（否则拖到正文上会顺手选中一片字） */
 html.ai-resizing, html.ai-resizing * { cursor: col-resize !important; user-select: none !important; }
-/* 设置面板里的复选框行（分栏开关）：一行读完，不另造组件语言 */
+/* 设置面板里的复选框行（分栏开关）：复用 .ai-row 的行距，样式只补「一行读完」。
+   .ai-row 的两条通用规则要排除它，否则标题规则（0,1,1）压过 .ai-check（0,1,0）——
+   实测字号/颜色根本不生效，输入框那套 padding+border 也会套到 checkbox 上。 */
 .ai-check { display: flex; align-items: center; gap: 6px; font-size: 12px; line-height: 1.6; color: var(--text-secondary); min-height: 24px; cursor: pointer; }
 .ai-check input { flex: 0 0 auto; accent-color: var(--accent); cursor: pointer; }
 
@@ -830,8 +838,8 @@ html.ai-lock, html.ai-lock body { overflow: hidden; }
 .ai-drawer.ai-kb:has(> .ai-cfg:not([hidden])) > .ai-cfg { flex: 1 1 auto; max-height: none; }
 .ai-hist { max-height: 40vh; overflow-y: auto; }
 .ai-row { display: flex; flex-direction: column; gap: 3px; margin-bottom: 8px; }
-.ai-row label { font-size: 11px; color: var(--text-dim); }
-.ai-row input { padding: 5px 8px; border: 1px solid var(--btn-border); border-radius: 4px; background: var(--surface); color: var(--text); font-size: 12px; font-family: var(--font-mono); }
+.ai-row > label:not(.ai-check) { font-size: 11px; color: var(--text-dim); }
+.ai-row input:not([type="checkbox"]) { padding: 5px 8px; border: 1px solid var(--btn-border); border-radius: 4px; background: var(--surface); color: var(--text); font-size: 12px; font-family: var(--font-mono); }
 /* 探测模型：下拉占满，按钮跟手在右 */
 .ai-row select { padding: 5px 8px; border: 1px solid var(--btn-border); border-radius: 4px; background: var(--surface); color: var(--text); font-size: 12px; font-family: var(--font-mono); }
 .ai-row select:disabled { color: var(--text-dim); }
@@ -917,7 +925,7 @@ html.ai-lock, html.ai-lock body { overflow: hidden; }
   .ai-head .ai-btn { min-height: 32px; padding: 4px 8px; }
   .ai-head > [data-act="close"] { width: 36px; height: 36px; padding: 0; justify-content: center; font-size: 15px; }
   .ai-head .ai-title { max-width: 30%; }
-  .ai-input, .ai-row input, .ai-row select { font-size: 16px; }
+  .ai-input, .ai-row input:not([type="checkbox"]), .ai-row select { font-size: 16px; }
   .ai-input { min-height: 64px; }
   .ai-foot-row { justify-content: flex-end; }
   .ai-foot-row .ai-hint { display: none; }

@@ -34,13 +34,15 @@ import {
 } from './ai-config.js';
 import { mdToHtml } from './ai-md.js';
 import {
+  NARROW_MAX,
   PANE_BREAKPOINT,
   PANE_DEFAULT,
   PANE_MAX,
   PANE_MIN,
   PANE_MQ,
   clampPaneWidth,
-  paneMode,
+  paneMaxWidth,
+  panePushes,
 } from './ai-pane.js';
 import {
   CHAT_HEADER_TIMEOUT_MS,
@@ -280,14 +282,17 @@ import {
   let paneTimer = 0; // 拖拽节流（每次改宽都会让页内图表重排，见 queuePaneWidth）
   let paneLastApply = 0;
   const PANE_FRAME_MS = 50; // 拖拽时最快 20fps 生效（9 张 ECharts 的页逐帧 resize 会拖成幻灯）
+  const PANE_CLOSE_MS = 220; // 与 app.css 的 .ai-drawer transform .2s 对齐（滑出后再收回让位）
+  let paneCloseTimer = 0;
   // 窄屏 = 全屏模态（锁滚动 / 焦点陷阱 / 接管返回键）；桌面侧栏保持非模态
   let stickBottom = true; // 消息流是否贴底（往上翻读时流式输出不再抢滚动）
   let locked = false;
   let lockY = 0;
   let drawerPushed = false; // 打开时压了一个 history state，返回键/关闭时弹掉
+  const NARROW_MQ = '(max-width: ' + NARROW_MAX + 'px)'; // 与 app.css 的整屏档同值，改 ai-pane.js
   const isNarrow = () => {
     try {
-      return window.matchMedia('(max-width: 768px)').matches;
+      return window.matchMedia(NARROW_MQ).matches;
     } catch (e) {
       return false;
     }
@@ -501,13 +506,17 @@ import {
   // 形态：html.ai-pane 打开时正文让出 --ai-w（body padding-right），抽屉仍 fixed 在右缘。
   // 关闭 / 回落浮层时只撤 class，--ai-w 一并移除（抽屉回到 CSS 里的 380 浮层宽）。
   const paneActive = () =>
-    !!(drawer && drawer.classList.contains('open') && paneMode(window.innerWidth, paneWanted) === 'pane');
+    !!(drawer && drawer.classList.contains('open') && panePushes(window.innerWidth, paneWanted));
 
   function syncGripAria() {
     if (!gripEl) return;
     gripEl.setAttribute('aria-valuenow', String(paneShown));
     gripEl.setAttribute('aria-valuemin', String(PANE_MIN));
-    gripEl.setAttribute('aria-valuemax', String(clampPaneWidth(PANE_MAX, window.innerWidth)));
+    // 上限随视口收缩；浮层态下可能算出 0，夹到 min，免得 aria-valuemax < valuemin
+    gripEl.setAttribute(
+      'aria-valuemax',
+      String(Math.max(PANE_MIN, paneMaxWidth(window.innerWidth)))
+    );
   }
 
   // 把偏好按当前视口夹一遍再落到 --ai-w；窗口缩放只走这里，不改 paneW（偏好不被中间值吃掉）
@@ -521,6 +530,33 @@ import {
       html.style.removeProperty('--ai-w');
     }
     syncGripAria();
+  }
+
+  // 不落盘地改宽（pointercancel 退回拖拽前用）
+  function applyPaneWidth(w) {
+    paneW = clampPaneWidth(w, window.innerWidth);
+    layoutPane();
+  }
+  // 改宽并记为偏好：拖完 / 方向键 / 双击复位三处共用一份，别再各写 clamp+layout+save
+  function commitPaneWidth(w) {
+    applyPaneWidth(w);
+    saveJSON(K_PANE_W, paneW);
+  }
+
+  // 关抽屉时别立刻撤让位：.open 的 transform 还要跑 200ms，中途撤 padding 会让抽屉
+  // 宽度从 --ai-w 硬跳回 380（436→380 的横向抽动），正文也会在抽屉还盖着时重排。
+  // 等它滑出再收；期间又被打开就作废（open() 里清定时器）。
+  function collapsePaneSoon() {
+    if (!document.documentElement.classList.contains('ai-pane')) {
+      layoutPane();
+      return;
+    }
+    if (paneCloseTimer) clearTimeout(paneCloseTimer);
+    paneCloseTimer = setTimeout(() => {
+      paneCloseTimer = 0;
+      if (drawer && drawer.classList.contains('open')) return;
+      layoutPane();
+    }, PANE_CLOSE_MS);
   }
 
   // 拖拽节的收尾：立即把 paneShown 写进变量（不等节流那一拍）
@@ -546,14 +582,25 @@ import {
     }, wait);
   }
 
-  function endPaneDrag() {
+  function endPaneDrag(commit) {
     if (!paneDrag) return;
-    const id = paneDrag.id;
+    const { id, w0 } = paneDrag;
+    const moved = Math.abs(paneShown - w0) >= 1;
     paneDrag = null;
     document.documentElement.classList.remove('ai-resizing');
-    flushPaneWidth();
-    paneW = paneShown; // 松手才认这个宽度为偏好（拖拽中途的中间值不落盘）
-    saveJSON(K_PANE_W, paneW);
+    if (paneTimer) {
+      clearTimeout(paneTimer);
+      paneTimer = 0;
+    }
+    if (!moved) {
+      // 只是点了一下手柄、没拖：不能把 paneShown 写成偏好 —— 它是「按当前视口夹过的值」，
+      // 存过 640 的人缩到 1440 点一下就会变成 436（实测踩过）
+      flushPaneWidth();
+    } else if (commit) {
+      commitPaneWidth(paneShown); // 真拖过才落盘
+    } else {
+      applyPaneWidth(paneW); // pointercancel：退回拖拽前，不落盘
+    }
     try {
       gripEl.releasePointerCapture(id);
     } catch (e) {
@@ -579,15 +626,11 @@ import {
       // 柄在抽屉左缘：指针往左（clientX 变小）= 抽屉变宽
       queuePaneWidth(paneDrag.w0 + (paneDrag.x0 - e.clientX));
     });
-    gripEl.addEventListener('pointerup', endPaneDrag);
-    gripEl.addEventListener('pointercancel', endPaneDrag);
-    gripEl.addEventListener('lostpointercapture', endPaneDrag);
+    gripEl.addEventListener('pointerup', () => endPaneDrag(true));
+    gripEl.addEventListener('pointercancel', () => endPaneDrag(false));
+    gripEl.addEventListener('lostpointercapture', () => endPaneDrag(false));
     // 双击复位：拖到一个别扭的宽度后不用去设置里找
-    gripEl.addEventListener('dblclick', () => {
-      paneW = clampPaneWidth(PANE_DEFAULT, window.innerWidth);
-      layoutPane();
-      saveJSON(K_PANE_W, paneW);
-    });
+    gripEl.addEventListener('dblclick', () => commitPaneWidth(PANE_DEFAULT));
     // 键盘可达：方向键 16px、Shift 64px、Home/End 两端（分隔条是 1D 控件，只该管宽度）
     gripEl.addEventListener('keydown', (e) => {
       if (!paneActive()) return;
@@ -599,9 +642,7 @@ import {
       else if (e.key === 'End') next = PANE_MAX;
       else return;
       e.preventDefault();
-      paneW = clampPaneWidth(next, window.innerWidth);
-      layoutPane();
-      saveJSON(K_PANE_W, paneW);
+      commitPaneWidth(next);
     });
   }
 
@@ -680,6 +721,10 @@ import {
     drawer.classList.add('open');
     drawer.inert = false;
     drawer.setAttribute('aria-hidden', 'false');
+    if (paneCloseTimer) {
+      clearTimeout(paneCloseTimer); // 关上又马上打开：别让上一次的收回把新分栏撤掉
+      paneCloseTimer = 0;
+    }
     layoutPane(); // 宽屏分栏：先让正文让位，再让抽屉滑进来（同一个任务内，不会闪一下 380）
     if (isNarrow()) {
       drawer.setAttribute('aria-modal', 'true');
@@ -704,7 +749,7 @@ import {
     drawer.style.top = '';
     drawer.style.height = '';
     drawer.classList.remove('ai-kb');
-    layoutPane(); // 撤掉分栏：正文立刻收回让位（抽屉此时正滑出，盖不到刚展开的内容）
+    collapsePaneSoon(); // 撤掉分栏（等滑出动画走完，见 collapsePaneSoon）
     hidePop();
     unlockScroll();
     if (drawerPushed) {
@@ -1811,7 +1856,7 @@ import {
     }
 
     // 跨过 768 断点时补一次模态状态（老 Safari 只有 addListener）
-    const narrowMq = window.matchMedia ? window.matchMedia('(max-width: 768px)') : null;
+    const narrowMq = window.matchMedia ? window.matchMedia(NARROW_MQ) : null;
     if (narrowMq) {
       if (narrowMq.addEventListener) narrowMq.addEventListener('change', syncModalMode);
       else if (narrowMq.addListener) narrowMq.addListener(syncModalMode);
