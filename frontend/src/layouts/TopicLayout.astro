@@ -297,12 +297,19 @@ window.__reTheme = (function () {
     // 滚动中淡出（rates-common 的 R.watchScrollHide 统一接管，与伴读浮钮同一套）
     topBtn.setAttribute('data-scroll-hide', '');
     topBtn.title = '返回顶部';
-    topBtn.textContent = '↑';
+    // 带文字标签：裸箭头语义不明（NN/g《Back-to-Top》第 3 条）
+    topBtn.textContent = '↑ 顶部';
     topBtn.addEventListener('click', function () {
       window.scrollTo({ top: 0, behavior: 'smooth' });
     });
     document.body.appendChild(topBtn);
-    var syncTop = function () { topBtn.classList.toggle('show', window.scrollY > 300); };
+    // NN/g：短页用回顶是 clutter，只有长页（>3 屏）才需要；
+    // 出现时机也放晚——滚过约一屏半才浮现，开页不占右下角。
+    var syncTop = function () {
+      var vh = window.innerHeight || 1;
+      var tall = document.documentElement.scrollHeight > vh * 3;
+      topBtn.classList.toggle('show', tall && window.scrollY > vh * 1.5);
+    };
     window.addEventListener('scroll', syncTop, { passive: true });
     syncTop();
   }

@@ -650,6 +650,8 @@ _PILL_RADIUS_ALLOWED_CSS = {
     ".cons-vote",
     # 窄屏伴读浮钮是右下角 44px 圆 FAB（可点击控件；桌面仍是 6px 方钮）
     "body .ai-float",
+    # 返回顶部是交互控件（当前改成「↑ 顶部」文字胶囊），与只读徽章不同
+    ".back-top",
 }
 
 

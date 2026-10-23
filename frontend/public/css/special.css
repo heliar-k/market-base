@@ -225,10 +225,10 @@ body.embedded .re-foot { display: none; } /* 内嵌 iframe 不重复页脚 */
   /* 返回顶部让位给右下角的伴读 FAB（app.css 的 .ai-float 窄屏 44px、bottom 14）：
      抬到 FAB 上方 16px，也放大到 32px；触控目标别比 FAB 小太多。
      body 前缀提特异性：.back-top 的基础定义在本文件更后面，同特异性会被盖回。 */
-  body .back-top { right: 20px; bottom: calc(74px + env(safe-area-inset-bottom)); width: 32px; height: 32px; font-size: 13px; }
+  body .back-top { right: 14px; bottom: calc(74px + env(safe-area-inset-bottom)); height: 30px; padding: 0 12px; font-size: 12px; }
   /* 内嵌 iframe 里没有伴读 FAB（ai-chat.js 在 iframe 直接 return），返回顶部回原位，
      否则它会悬在离底 74px 的空中。特异性高于上一条，顺序无关。 */
-  body.embedded .back-top { right: 6px; bottom: 6px; width: 26px; height: 26px; font-size: 12px; }
+  body.embedded .back-top { right: 6px; bottom: 6px; height: 24px; padding: 0 8px; font-size: 11px; }
   /* 内容左缘 32 = ☰ 右缘 32：‹ 返回xx 首行贴上按钮边，缩进 8px 让出呼吸
      （仅此行让位；h1 顶 45 > 按钮 bottom 32 不需让） */
   .re-back { padding-left: 8px; }
@@ -444,7 +444,9 @@ a.re-badge:hover { color: var(--accent-ink); border-color: var(--accent-ink); }
    手动亮/暗主题开关已删，主题恒跟随系统。 */
 
 /* 返回顶部悬浮按钮（专题入口页右下角，滚动超过一屏才显示） */
-.back-top { position: fixed; right: 8px; bottom: 8px; z-index: var(--z-float); width: 30px; height: 30px; border-radius: 6px; border: 1px solid var(--btn-border); background: var(--surface); color: var(--text-secondary); cursor: pointer; font-size: 14px; line-height: 1; opacity: 0; pointer-events: none; transition: opacity .2s, border-color .15s, transform .1s; box-shadow: var(--shadow-float); }
+/* 返回顶部：交互控件 → 999px 胶囊 + 文字标签（NN/g：裸箭头语义不明，Label it）。
+   高度固定、宽度随文字，静止在右下角，不跟随伴读浮钮移动（NN/g：Moving elements cause distraction）。 */
+.back-top { position: fixed; right: 8px; bottom: 8px; z-index: var(--z-float); height: 28px; padding: 0 10px; border-radius: 999px; border: 1px solid var(--btn-border); background: var(--surface); color: var(--text-secondary); cursor: pointer; font-size: 12px; line-height: 1; white-space: nowrap; opacity: 0; pointer-events: none; transition: opacity .2s, border-color .15s, transform .1s; box-shadow: var(--shadow-float); }
 .back-top:active { transform: scale(.94); }
 .back-top.show { opacity: 1; pointer-events: auto; }
 .back-top:hover { color: var(--accent-ink); border-color: var(--accent-ink); }

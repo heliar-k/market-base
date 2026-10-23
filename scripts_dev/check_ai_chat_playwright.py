@@ -1184,6 +1184,16 @@ async def check_mobile_fab(browser, base: str) -> None:
         " (document.querySelector('.back-top') || {className: ''}).className]"
     )
     check("scroll-away" not in cls2[0] and "scroll-away" not in cls2[1], "停手后两者一起浮回")
+
+    # 返回顶部：带文字标签、静止在右下、不跟浮钮跑（NN/g：Label it + Stationary）
+    bt = await page.locator(".back-top").bounding_box()
+    label = await page.locator(".back-top").inner_text()
+    check("顶部" in label, "「返回顶部」带文字标签（不是裸箭头）")
+    check(bt["x"] + bt["width"] > vw - 30, "「返回顶部」仍贴右下角")
+    # 浮钮拖到左边后，返回顶部不该跟着动
+    fab_left = await page.locator(".ai-float").bounding_box()
+    check(fab_left["x"] < 0, "浮钮已在左侧吸附（对照组）")
+    check(bt["x"] > vw / 2, "浮钮拖走后「返回顶部」仍在右下，没有跟着跑")
     await ctx.close()
 
 
