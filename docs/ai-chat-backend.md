@@ -47,7 +47,8 @@ POST /api/notes
 
 两份实现同一套规则：`functions/_lib/common.js` 的 `validateTools` / `validateToolChoice` /
 `validateMessages` 与 `src/chat_proxy.py` 的同名函数逐条对齐；`tests/test_pages_functions.py`
-对**同一批**畸形请求断言与 `tests/test_chat_backend.py` 相同的状态码（验收标准第 6 条）。
+对**同一批**畸形请求断言与 `tests/test_chat_backend.py` 相同的状态码（`docs/SPEC-ai-drawer-tools.md`
+验收标准第 10 条）。
 
 **请求体新增（均可选）**：
 
@@ -85,6 +86,10 @@ POST /api/notes
 
 服务端只校验「单条请求长什么样」，不管「一轮里调了几个工具、跑了几轮」——它看不见循环
 （ADR-0006 的 Consequences）。工具失败也由前端收敛成 `{error, endpoint, status}`，服务端不参与。
+
+**工具的目录与契约见 `docs/SPEC-ai-drawer-tools.md`；服务端只知道 `tools` / `tool_choice` / `tool`
+角色，不知道有哪几个工具。** 加工具改的是前端的工具目录、提示词索引与执行器，本节与两份代理
+实现都不用动——除非新工具需要契约里没有的字段。
 
 
 ## 前端怎么选通道

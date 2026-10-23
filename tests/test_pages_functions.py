@@ -343,7 +343,7 @@ def test_rate_limits(out: dict) -> None:
 
 
 def test_tools_contract_status_matches_python(out: dict) -> None:
-    """验收标准第 6 条：同一批畸形请求，两侧状态码一致（见 test_chat_backend.py）。"""
+    """验收标准第 10 条：同一批畸形请求，两侧状态码一致（见 test_chat_backend.py）。"""
     for key in ("tooManyTools", "requiredChoice", "namedChoice", "toolNoId"):
         assert out[key]["status"] == 422, key
         assert out[key]["body"]["error"]  # 前端直接显示这句话

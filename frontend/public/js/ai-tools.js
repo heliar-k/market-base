@@ -14,6 +14,8 @@
 // 是「固定端点 + 带标的参数」，由客户端做「下标→名字」连接与体积压缩后再给模型。
 // 三个工具共用一套执行管线（参数解析 → 同轮缓存 → 单次 3.5s 超时/重试 → 结构化错误
 // → 2000 字上限），差异只落在下面的 TOOL_HANDLERS 表里。
+// T5 起回显字段（msg.tools / toolsFailed）用 TOOL_RESULT_LABELS 的显示名，
+// 旧 thread 里的裸端点路径由渲染端 toolDisplayNames() 幂等映射，不迁移数据。
 
 export const TOOL_NAME = 'query_site_data';
 // 两个跨端点工具的名字（稳定接口，提示词里也按这三个名字说分工）。
@@ -23,6 +25,44 @@ export const OPTIONS_WALL_TOOL_NAME = 'query_options_wall';
 // 不是 query_site_data 的 enum 候选（枚举仍是 17 个原始读数端点）。
 const CROSS_ASSET_ENDPOINT = 'cross-asset';
 const OPTIONS_ENDPOINT = 'assets/equities-options';
+
+// 回显用显示名（T5）：meta 里不再出现 cross-asset / assets/equities-options 这类内部路径。
+// 只登记两个跨端点工具；query_site_data 的 17 个端点本身就是「rates/yield-curve」这种
+// 可读名，不登记、原样返回。键用上面的端点常量拼，端点改名时这里自动跟上。
+export const TOOL_RESULT_LABELS = {
+  [CROSS_ASSET_ENDPOINT]: '相关性矩阵',
+  [OPTIONS_ENDPOINT]: '期权结构',
+};
+
+/**
+ * 端点 → 人话名。未登记的端点原样返回（query_site_data 的 17 个都走这条），
+ * 空值 / 非字符串返回空串——渲染端只负责 join，不该冒出 undefined。
+ * 旧 thread 存的是裸路径，渲染前再映射一次即可，不迁移数据（映射是幂等的）。
+ * @param {unknown} endpoint
+ * @returns {string}
+ */
+export function toolDisplayName(endpoint) {
+  if (typeof endpoint !== 'string' || !endpoint) return '';
+  return Object.prototype.hasOwnProperty.call(TOOL_RESULT_LABELS, endpoint)
+    ? TOOL_RESULT_LABELS[endpoint]
+    : endpoint;
+}
+
+/**
+ * 一组端点 → 显示名（去重保序）。旧 thread 的裸路径与新 thread 的显示名混进来都稳定；
+ * 非数组 / 空值 / 非字符串直接丢弃，渲染端拿到的永远是字符串数组。
+ * @param {unknown} list
+ * @returns {string[]}
+ */
+export function toolDisplayNames(list) {
+  const names = [];
+  (Array.isArray(list) ? list : []).forEach((endpoint) => {
+    const name = toolDisplayName(endpoint);
+    if (name && names.indexOf(name) < 0) names.push(name);
+  });
+  return names;
+}
+
 // 结果形状限额：相关性只给最强的 8 对，全局摘要只给最强的 5 对；
 // 期权快照里 oi_top / iv_curve 只留头部（全量 20 / 17 条会吃掉大半预算）。
 const CORRELATION_PAIRS_MAX = 8;
@@ -116,7 +156,8 @@ export const TOOLS = [
       name: CORRELATION_TOOL_NAME,
       description:
         '查站内 22 个标的的 30 日相关性矩阵（已按标的连接好，直接给相关系数）。' +
-        '给 symbol 看它和谁同涨同跌；不给看最值得注意的强相关对与结构报警。',
+        '给 symbol 看它和谁同涨同跌；不给看最值得注意的强相关对与结构报警。' +
+        '标的范围是 22 个指数/ETF/商品/加密，不含单只个股（个股请用 query_options_wall）。',
       parameters: {
         type: 'object',
         properties: {
@@ -818,7 +859,7 @@ function correlationOverview(data, matrix, names) {
 }
 
 /**
- * 期权快照 → 压缩摘要（实测 22 个标的都在 1.4–1.5k 字，稳过 2000 上限）。
+ * 期权快照 → 压缩摘要（实测 22 个标的 1.3–1.4k 字，1,325–1,405，稳过 2000 上限）。
  * 必须丢掉的三个字段（它们每一份都能单独吃光预算）：
  *   - wall（~33KB）：逐行权价的 GEX/OI 明细，模型读不动，也没法引用；
  *   - gex_dist（~13KB）：同上的分布曲线；
@@ -1064,10 +1105,12 @@ export function canRetryTool(state = {}) {
 }
 
 /**
- * 一批工具结果 → 本轮「查到的」与「没取到的」端点（字符串数组，去重、保持出现顺序）。
+ * 一批工具结果 → 本轮「查到的」与「没取到的」显示名（字符串数组，去重、保持出现顺序）。
  * 只认 endpoint 非空的结果：预算不足 / 用户停止时执行器的兜底结果没有端点，不算查过。
  * 同一端点本轮既有成功又有失败（不同 json_path）时按成功算，避免 meta 里出现
  * 「查数 A · 未取到 A」这种自相矛盾的同一行。
+ * 分组与去重按裸端点做，最后才映射显示名（T5）：两个端点若映射到同名，也不会在
+ * 分组阶段被合并掉；同一端点在一处成功一处失败时，两边算出的显示名必然一致。
  * 抽成纯函数是为了让 runTurn 只负责收集结果，UI 文案（查数 / 未取到）由这里定形状。
  * @returns {{tools: string[], toolsFailed: string[]}}
  */
@@ -1083,8 +1126,10 @@ export function summarizeToolRuns(results) {
     if (list.indexOf(endpoint) < 0) list.push(endpoint);
   });
   return {
-    tools,
-    toolsFailed: failed.filter((endpoint) => tools.indexOf(endpoint) < 0),
+    tools: tools.map(toolDisplayName),
+    toolsFailed: failed
+      .filter((endpoint) => tools.indexOf(endpoint) < 0)
+      .map(toolDisplayName),
   };
 }
 

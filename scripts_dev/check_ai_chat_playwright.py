@@ -1034,6 +1034,104 @@ async def check_options_tool_unknown_symbol(browser, base: str) -> None:
     await ctx.close()
 
 
+OPTIONS_OK_PATCH = (
+    "() => {\n"
+    "  window.__REQS = [];\n"
+    "  window.__OPT_HIT = 0;\n"
+    + _JS_TOOL_PRELUDE
+    + r"""
+  // 正向用例：SPY 带齐结论字段，另外塞三坨绘图/散文噪声（wall/gex_dist/narrative），
+  // 断言它们不会出现在回填给模型的文本里。
+  const OPTIONS = {
+    date: '2026-10-22T00:00:00Z',
+    symbols: {
+      SPY: {
+        symbol: 'SPY',
+        name: 'SPY',
+        spot: 763.25,
+        net_gex: -1.46,
+        net_dex: 87.81,
+        pcr_oi: 2.65,
+        pcr_oi_atm: 1.61,
+        gamma_flip: null,
+        flip_dist: null,
+        call_wall: { strike: 770, per_point_m: 70.7 },
+        put_wall: { strike: 760, per_point_m: -206.5 },
+        iv_front: { dte: 0, iv: 13.06 },
+        iv_back: { dte: 333, iv: 22.67 },
+        buckets: { '0DTE': { gex_pct: 10, gex_m: -214.7, contracts: 389927 } },
+        oi_top: [
+          { strike: 700, total: 100 },
+          { strike: 760, total: 75524 },
+          { strike: 800, total: 300 }
+        ],
+        iv_curve: [{ dte: 3, iv: 12 }, { dte: 0, iv: 13.06 }, { dte: 30, iv: 18 }],
+        wall: Array.from({ length: 50 }, (_, i) => ({ strike: 600 + i, gex_m: i * 1.5 })),
+        gex_dist: Array.from({ length: 50 }, (_, i) => ({ strike: 600 + i, gex_m: i })),
+        narrative: {
+          gamma: { title: '负 Gamma：波动更容易放大', text: '现价位于 Gamma Flip 下方' }
+        }
+      },
+    },
+  };
+  const orig = window.fetch;
+  window.fetch = async (url, opts) => {
+    const u = String(url);
+    if (u.indexOf('/api/assets/equities-options') >= 0) {
+      window.__OPT_HIT += 1;
+      return json(OPTIONS);
+    }
+    if (u.indexOf('/api/chat') < 0) return orig(url, opts);
+    const body = chatBody(opts);
+    window.__REQS.push(body);
+    if (hasToolMsg(body)) {
+      return sse([text('SPY 快照：call wall 770、put wall 760、spot 763.25。'), stop, DONE]);
+    }
+    return sse([
+      toolCallNamed('query_options_wall', 0, 'call_opt', JSON.stringify({ symbol: 'SPY' })),
+      needTools,
+      DONE,
+    ]);
+  };
+}
+"""
+)
+
+
+async def check_options_tool_summary(browser, base: str) -> None:
+    """T4-B 正向：已知标的返回压缩摘要（含结论字段、不含绘图明细、≤2000 字）。"""
+    ctx, page = await new_page(browser, base)
+    await page.evaluate(OPTIONS_OK_PATCH)
+    await page.locator(".ai-input").fill("验收期权工具正向")
+    await page.locator("[data-send]").click()
+    await wait_idle(page, 8000)
+
+    reqs = await page.evaluate("() => window.__REQS")
+    hit = await page.evaluate("() => window.__OPT_HIT")
+    tools = _last_tool_messages(reqs)
+    content = (tools[0] if tools else {}).get("content") or ""
+    payload = _json_object(content) or {}
+    check(hit >= 1, "期权工具请求了 /api/assets/equities-options")
+    check(bool(payload), "回填的 tool 结果是一段可解析的 JSON 对象")
+    check(payload.get("spot") == 763.25, "摘要里带 spot（结论读数没被摘要吃掉）")
+    check((payload.get("call_wall") or {}).get("strike") == 770, "摘要里带 call wall 行权价")
+    check((payload.get("put_wall") or {}).get("strike") == 760, "摘要里带 put wall 行权价")
+    check(
+        all(k not in content for k in ('"wall"', '"gex_dist"', '"narrative"')),
+        "绘图明细与规则引擎散文没有进上下文（wall / gex_dist / narrative）",
+    )
+    check(len(content) <= 2000, "压缩后不超过 2000 字上限")
+    oi = payload.get("oi_top") or []
+    check(
+        [x.get("total") for x in oi] == sorted([x.get("total") for x in oi], reverse=True),
+        "oi_top 按 total 降序（不是按端点给的顺序切前 5）",
+    )
+    check(len(reqs) == 2, "取数后照常发起续流请求")
+    body = await page.locator(".ai-msg-assistant").last.inner_text()
+    check("770" in body, "最终正文照常渲染")
+    await ctx.close()
+
+
 async def main(base: str) -> int:
     base = base.rstrip("/") + "/"
     async with async_playwright() as p:
@@ -1051,6 +1149,7 @@ async def main(base: str) -> int:
         await check_tool_all_fail(browser, base)
         await check_correlation_tool(browser, base)
         await check_options_tool_unknown_symbol(browser, base)
+        await check_options_tool_summary(browser, base)
         await check_save_note(browser, base)
         await browser.close()
     print(f"\n{len(FAILS)} failure(s)")

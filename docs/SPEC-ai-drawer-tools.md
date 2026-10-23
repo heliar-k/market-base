@@ -291,9 +291,11 @@ R6 还测了更严的形状（assistant 带 `tool_calls` 但无 `reasoning_conte
    页面 DOM 摘要里通常已有；当「查到的读数」复述既重复又无法溯源。
 9. **`pct_10y` 的窗口可能只有 3 年。** `credit/overview` 的 `ig` / `hy` / `spreads` / `quality`
    都带 `pct_10y` + `obs` + `full_10y`：分位取最近 2500 个观测算，样本不足就按现有样本算并置
-   `full_10y: false`（IG / HY 当前 `obs` 842 ≈ 3.3 年）。所以「10 年分位 82.8%」是错的，
-   得说「近 842 个交易日的 82.8 分位（10 年窗口未满）」。限定的线索只在这个布尔字段里，
-   页面与工具结果都没有替它说这句话。
+   `full_10y: false`。当前产物 IG `obs 842` / `pct_10y 44.1`、HY `obs 843` / `pct_10y 69.2`，
+   两条都是 `full_10y: false`（≈3.3 年）。所以不能写「10 年分位 69.2%」，得说
+   「近 843 个交易日的 69.2 分位（10 年窗口未满）」。限定的线索只在这个布尔字段里，
+   页面与工具结果都没有替它说这句话。数字会随行情变，口径不会变——引用的永远该是
+   「obs 对应的窗口 + 未满」这个组合，而不是某个具体分位值。
 
 ### `description` 500 字上限：算过了，分工成立
 
@@ -532,16 +534,71 @@ SPX / NDX / RUT / DJI / SOX 五个指数，半导体只有 SOX。所以「NVDA �
    说成「快照时刻」。
 7. **单标的体积差 5 倍**（11,079–53,380 字），压缩层的预算要按最大值定，不能按平均值定。
 
+## 提示词口径（T5）
+
+工具让模型第一次能引用「不是本页的数字」，也让同一句答案里第一次可能并存三个时效：页头
+`re-as-of`、端点的 `as_of`、期权快照的 `date`。旧提示词只有一句「引用数字要带单位与口径」，
+撑不住这层区分，T5 把措辞纪律单独定下来。
+
+**文案单源**：`frontend/public/js/ai-prompt.js` 的 `AI_CITATION_RULES`（随 `AI_SYSTEM_PROMPT`
+每轮下发，`AI_PROMPT_VERSION` 同步改为 `2026-10-23`）。本节只记纪律与理由，不复述文案——
+改措辞只动那个文件。
+
+| # | 纪律 | 不写会漂成什么样（数字取自 `frontend/public/api/` 现有产物） |
+|---|---|---|
+| 1 | 引用读数必须带**该端点自己的** `as_of`（期权用快照 `date`）；字段缺失写「未标注」，不拿页面时效顶替 | 在 `/rates/` 说「10Y 实际利率 2.78，截至 2026-10-19」——`real-rates.as_of` 是生成日，`real_10y` 末点是 **2026-10-15**；`yield-curve` 的 `as_of` 还不在顶层（在 `yield_curve.as_of`） |
+| 2 | 页面数据与工具数据不共用一个时效：一段里两个来源就各标各的 | 把「SPX 相关性 0.92（`cross-asset.as_of` 2026-10-18，交易日）」与「SPY 墙位 770（`equities-options.date` 2026-10-18T23:05Z，快照时刻）」并成一句「截至 10-18」 |
+| 3 | 相关性必须报「30 日窗口 + as_of」，窗口以返回体的 `window` 为准；期权必须说「快照日、非实时」 | 「SPX 和 NDX 相关性 0.92」不带窗口；「SPY 现在 spot 763.25」把 2026-10-18T23:05Z 的存档快照说成现价 |
+| 4 | 数字对不上、字段是 `null`、工具报 error 时写「未取到」；不近似、不补全、不拿相邻值代替 | SPY 的 `gamma_flip` 是 `null`（22 个标的里 15 个如此），却编一个「Gamma Flip 在 745」；`credit/overview.hy.pct_10y` 是 69.2 但 `obs` 只有 843、`full_10y: false`，说成「10 年分位」 |
+
+这四条覆盖「已知的坑」第 4 条（`as_of` 是生成日）、第 9 条（`pct_10y` 样本不足）与「端点侧的
+数据问题」第 2 条（`gamma_flip` 为 `null`）、第 6 条（两个端点时间口径不同）。另外两条坑不在
+这个提示词里：第 3 条（同一个量 % 与 bp 两种单位）仍由系统提示词末句「引用数字要带单位与口径」
+兜；第 1 条（`credit/overview.regime.score` 61.0 与 `credit/stress.composite` 44.7 是两个不同的
+0-100 分）本轮没有单独一句，只能靠字段名（`regime` / `composite`）与端点中文含义区分——
+要不要补，留给提示词侧决定。
+
+守卫：`tests/test_ai_tools.py::test_citation_rules_are_compact_and_adjacent` 锁口径块本身——
+≤260 字、3–4 句、只出现一次、紧接 `AI_TOOL_DIVISION`（长清单会被模型只记首尾，所以不给它长清单）。
+
+### 为什么这些进提示词，不进代码
+
+| 约束 | 落点 | 放错地方会怎样 |
+|---|---|---|
+| 缺失时效写「未标注」、失败说「未取到」 | 提示词 | 代码只能保证包里**有** `as_of`，保证不了正文**写了**它；也判断不了模型是不是把页面时效安到了工具读数上 |
+| 页面与工具不共用一个时效 | 提示词 | 这是跨来源的措辞判断，执行器看不到模型怎么组织一句话 |
+| 相关窗口 = 30 天 | **返回体的 `window`**（提示词只要求「必须报窗口」） | 写死进提示词，端点哪天改成 60 天，模型仍说 30，且没人会想起改那句 |
+| 能调哪 17 个端点 · 每轮 3 次 · 单次 2000 字 · 单次 3.5s | 代码（`TOOL_CATALOG` / `runTurn` 限额） | 提示词挡不住越界：模型记错就是白烧预算，或编一个不存在的端点 |
+
+判断标准一句话：**这条约束能不能写成断言？能，进代码；只能判断「话说得对不对」，进提示词。**
+窗口长度是数据（`window`）、快照时刻是数据（`date`）、字段缺没缺是数据（`null`）——这三类都该由
+字段说，别让模型背；「引用时必须把窗口说出来」才是措辞，才进提示词。
+
 ## 验收标准
 
-1. 在 `/rates/` 问「30Y 现在多少」（该数不在页面上）→ 模型调用 `query_site_data`，
-   答案里的数字与 `/api/rates/yield-curve` 一致。
-2. 页面已经给出答案时（如 `/rates/` 问 10Y）→ **不调用工具**，直接答。
-3. 端点 404（模拟静态站缺数据）→ 模型说「本期未导出」，不得编造数字。
-4. 断网 / 超时 → 同一句话术，对话不中断。
-5. 工具往返不出现在 `localStorage` 的 thread 里，导出 Markdown 只有正文。
-6. 两份代理实现（Pages / FastAPI）对同一份畸形请求（缺 `tool_call_id`、9 个工具、
-   非法 `tool_choice`）返回同一批状态码。
+T1 时的 6 条只覆盖「查 / 不查 / 404 / 断网 / 不落盘 / 两侧一致」，之后补的强制作答、单次 3.5s
+超时、同轮缓存、两个跨端点工具都没有落点。下表按现在的实现重写，每条都指明用什么验。
+
+> **自动** = 一条命令跑得出、失败会红；**手验** = 必须真网关 + 真浏览器，脚本里的假 SSE 替不了。
+> `P:<函数名>` 指 `scripts_dev/check_ai_chat_playwright.py` 里的检查项，先起站点：
+> `uv run python scripts_dev/check_ai_chat_playwright.py http://127.0.0.1:8000`（静态 dist 用 `:4399`）。
+> `T:<用例名>` 指 `uv run python -m pytest tests/test_ai_tools.py -q`。
+
+| # | 场景 | 期望 | 怎么验 |
+|---|---|---|---|
+| 1 | 页面没有的跨页读数（`/rates/` 问 30Y） | 模型调 `query_site_data`；tool 结果与 `/api/rates/yield-curve` 同值；正文复述该值；meta 出现「查数 rates/yield-curve」 | 自动：`P:check_tool_loop`（假端点返 4.812，断言 tool 结果与正文都是 4.812）。手验：真网关问一句，与 `yield_curve.tenors` 的 30Y `current` 对 |
+| 2 | 页面已经给出的读数（`/rates/` 问 10Y） | **不调工具**，直接用页面事实集作答 | 手验：Network 里除 `/api/chat` 无 `/api/*` GET、meta 无「查数」。脚本的假 SSE 无条件发 `tool_calls`，验不了「不调」 |
+| 3 | 端点 404（静态站缺当日数据） | 结构化错误 `{status:404,…}`；模型说「本期未导出」；对话不断、正文照出 | 自动：`P:check_tool_404`（status、error 文案、仍发第二轮、正文含「本期未导出」）；两个端点全 404 时 meta 形状另见 `P:check_tool_all_fail` |
+| 4 | 慢端点（4.5s > 3.5s 单次上限） | 单次超时收敛成结构化错误；按钮回到「发送」；正文照出，不是空白 | 自动：`P:check_tool_slow_endpoint`（断言按钮回「发送」、正文含 4.2 且非「接口没有返回内容」）；`T:test_single_attempt_timeout_is_bounded` / `T:test_two_single_timeouts_retry_once` 锁「只烧单次上限、只重试一次」，3.5s 与 8s 常量由 `T:test_t3_limits_keep_other_budgets` 锁 |
+| 5 | 同一轮两个相同调用 | 只发一次网络请求（同轮缓存）；两条 `tool_call_id` 各自回填 | 自动：`P:check_tool_dup_calls`（`hit == 1`、两条 content 相同、id 一一对应）；`T:test_concurrent_same_call_fetches_once` |
+| 6 | 模型一直要工具 | 两次往返后用 `tool_choice:'none'` 强制作答；不出现空白 | 自动：`P:check_tool_force_answer`（共 4 次请求，前三次 `auto`、第四次 `none` 且仍带 tools，正文有 4.812）；`T:test_tool_round_limits` |
+| 7 | 相关性工具 | 返回带名字的配对（不是裸矩阵）；未知标的给 `available` | 自动：`P:check_correlation_tool`（`TLT` 与 `0.42` 同现、`SPX` 回显、≤2000 字、仍发第二轮）；`T:test_correlation_unknown_symbol_lists_available`。真实产物：22 个标的 443–464 字、全局摘要 560 字 |
+| 8 | 期权工具 | 压缩摘要含 `spot` / 墙位 / `pcr_oi`；不含 `wall` / `gex_dist` / `narrative`；≤2000 字 | 自动：`P:check_options_tool_summary`（正向：spot/墙位在、`wall`/`gex_dist`/`narrative` 不在、`oi_top` 降序、≤2000）+ `P:check_options_tool_unknown_symbol`（逆路径）+ `T:test_options_summary_is_compressed`。真实产物 22 个标的 1,325–1,405 字 |
+| 9 | 工具往返不落盘 | `localStorage` 的 thread 里没有 `tool` 角色、没有 `tool_calls`；导出 Markdown 只有正文 | 自动：`P:check_tool_loop` 末尾读 `localStorage['guanlantai-ai-threads']`，断言无 `"role":"tool"`、无 `tool_calls`。导出侧 `toMarkdown()` 只读 `msg.content`，不读 `tools` / `toolsFailed`（代码路径，无断言） |
+| 10 | 两份代理实现对同一批畸形请求 | 同一批请求返回同一批状态码（缺 `tool_call_id` / 9 个 tools / 非法 `tool_choice` / `arguments` 撞 40k） | 自动：`uv run python -m pytest tests/test_chat_backend.py tests/test_pages_functions.py -q`，逐条对齐在 `test_tools_contract_status_matches_python` |
+
+10 条里 9 条有自动化落点，只有第 2 条**只能真网关手验**；第 1 条一半自动（管线）、一半手验
+（与真实端点比对）。第 8 条的脚本侧正向用例由 `P:check_options_tool_summary` 补齐。
 
 ## 切片
 
@@ -552,7 +609,7 @@ SPX / NDX / RUT / DJI / SOX 五个指数，半导体只有 SOX。所以「NVDA �
 | T2 | 工具按族扩到 rates / credit / liquidity（17 个端点，见「工具目录 v2」） | T1（**已完成 2026-10-22**） |
 | T3 | 失败与降级（404 / 超时 / 截断 / 轮数上限） | T1（**已完成 2026-10-22**） |
 | T4 | 跨端点工具（相关性矩阵、期权墙），见「跨端点工具 v1（T4）」 | T2（**已完成 2026-10-22**） |
-| T5 | 提示词口径改写 + 文档 + 测试收尾 | T1–T4 |
+| T5 | 提示词口径改写 + 文档 + 测试收尾 | T1–T4（**已完成 2026-10-23**） |
 
 T1 是 tracer bullet：它证明了「模型发 `tool_calls` → 页面取数 → 回填 → 续流」这条链能通，
 T2 之后全是往枚举里加值。**T1 通了但 T2 没做完，功能仍然可用**（一个端点也能答收益率问题）。

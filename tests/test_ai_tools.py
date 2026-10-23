@@ -26,7 +26,8 @@ T3「失败与降级」再补五处（单次超时 / 同轮缓存 / 失败可观
 - ok 标志与 summarizeToolRuns() 把成功/失败端点分开（msg.tools / msg.toolsFailed）。
 
 T4「两个跨端点工具」再补十处（参数解析 / 客户端连接 / 压缩 / 排序 / 缓存隔离）：
-- TOOLS 从 1 个变 3 个，两个新工具的名字、参数与 description 一字不改；
+- TOOLS 从 1 个变 3 个，两个新工具的名字与参数一字不改（description 在 T5 补了标的范围，
+  仍 ≤500 字）；
 - 相关性矩阵做「下标→名字」连接，pairs 里的名字与系数对得上（不是下标）；
 - pairs 按 |corr| 降序、最多 8 条、排除自身，null/NaN 的格子跳过；
 - 不给 symbol 时返回 4 条 alerts（不带 series 序列）+ 最多 5 条 strongest（不含对角线）；
@@ -38,6 +39,12 @@ T4「两个跨端点工具」再补十处（参数解析 / 客户端连接 / 压
 - 新工具不另写执行器：单次 3.5s 超时与 404 归形都走同一套（T3 行为不退）；
 - 缓存键带工具名：同轮 query_correlation 两次只 1 次网络，两个新工具各自独立键；
 - 提示词加一句三者分工（工具名可硬编码，端点名仍只能由 legend 生成）。
+
+T5「口径与回显收口」补四处：
+- AI_CITATION_RULES 存在、3–4 句、≤260 字、紧接工具分工且只出现一次；
+- toolDisplayName() 把 cross-asset → 相关性矩阵、期权端点 → 期权结构，其余原样；
+- summarizeToolRuns() 返回显示名，成功/失败分组与去重语义不变（同端点成功优先）；
+- 旧 thread 只有 tools 裸路径（无 toolsFailed）：渲染前映射，不冒 undefined。
 """
 
 from __future__ import annotations
@@ -94,6 +101,7 @@ const catalog = {
   requiredByTool: tools.TOOLS.map((t) => t.function.parameters.required),
   propsByTool: tools.TOOLS.map((t) => Object.keys(t.function.parameters.properties)),
   descLens: tools.TOOLS.map((t) => t.function.description.length),
+  descriptions: tools.TOOLS.map((t) => t.function.description),
   enum: fn.parameters.properties.endpoint.enum,
   required: fn.parameters.required,
   jsonPathType: fn.parameters.properties.json_path.type,
@@ -505,7 +513,9 @@ const wiring = {
   version: prompt.AI_PROMPT_VERSION,
   system: prompt.AI_SYSTEM_PROMPT,
   factsHint: prompt.AI_FACTS_HINT,
-  hasBudget: prompt.AI_SYSTEM_PROMPT.includes('最多查两次'),
+  hasRounds: prompt.AI_SYSTEM_PROMPT.includes('最多两轮'),
+  hasParallel: prompt.AI_SYSTEM_PROMPT.includes('并列查几个端点'),
+  hasOldBudget: prompt.AI_SYSTEM_PROMPT.includes('最多查两次'),
   proxyTool: payloadProxy.tools[0].function.name,
   proxyChoice: payloadProxy.tool_choice,
   proxyEffort: Object.prototype.hasOwnProperty.call(payloadProxy, 'reasoning_effort'),
@@ -1260,6 +1270,94 @@ def _run_t4() -> dict:
     return run_node(script, timeout=60)
 
 
+# T5 单独一段：提示词口径块 + 回显显示名。旧 thread 的裸路径不迁移，
+# 由渲染端 toolDisplayNames() 幂等映射（这里直接喂一条旧形状的 assistant 消息）。
+T5_BODY = """
+const tools = await import('__TOOLS__');
+const prompt = await import('__PROMPT__');
+
+// 旧 thread 的一条 assistant 消息：只有 tools，没有 toolsFailed / 新字段
+const oldMsg = { role: 'assistant', content: '旧回答', tools: ['cross-asset'] };
+const oldThread = {
+  tools: tools.toolDisplayNames(oldMsg.tools),
+  failed: tools.toolDisplayNames(oldMsg.toolsFailed),
+  joined: tools.toolDisplayNames(oldMsg.tools).join(' / '),
+};
+
+const display = {
+  correlation: tools.toolDisplayName('cross-asset'),
+  options: tools.toolDisplayName('assets/equities-options'),
+  unknown: tools.toolDisplayName('rates/yield-curve'),
+  empty: tools.toolDisplayName(''),
+  nil: tools.toolDisplayName(null),
+  undef: tools.toolDisplayName(undefined),
+  number: tools.toolDisplayName(42),
+  proto: tools.toolDisplayName('toString'),
+  labels: tools.TOOL_RESULT_LABELS,
+  list: tools.toolDisplayNames([
+    'cross-asset',
+    'assets/equities-options',
+    '',
+    null,
+    'rates/yield-curve',
+    'cross-asset',
+  ]),
+  notArray: tools.toolDisplayNames('cross-asset'),
+  mixed: tools.toolDisplayNames(['cross-asset', '相关性矩阵']),
+};
+
+const summarize = {
+  cross: tools.summarizeToolRuns([
+    { endpoint: 'cross-asset', ok: true },
+    { endpoint: 'assets/equities-options', ok: false },
+  ]),
+  sameEndpoint: tools.summarizeToolRuns([
+    { endpoint: 'cross-asset', ok: false },
+    { endpoint: 'cross-asset', ok: true },
+  ]),
+  failedDedupe: tools.summarizeToolRuns([
+    { endpoint: 'assets/equities-options', ok: false },
+    { endpoint: 'assets/equities-options', ok: false },
+  ]),
+  site: tools.summarizeToolRuns([{ endpoint: 'rates/yield-curve', ok: true }]),
+};
+
+const citation = {
+  text: prompt.AI_CITATION_RULES,
+  length: prompt.AI_CITATION_RULES.length,
+  sentences: prompt.AI_CITATION_RULES.split('。').filter(Boolean).length,
+  oneLine: prompt.AI_CITATION_RULES.indexOf('\\n') < 0,
+  inSystem: prompt.AI_SYSTEM_PROMPT.indexOf(prompt.AI_CITATION_RULES) >= 0,
+  count: prompt.AI_SYSTEM_PROMPT.split(prompt.AI_CITATION_RULES).length - 1,
+  afterDivision:
+    prompt.AI_SYSTEM_PROMPT.indexOf(prompt.AI_TOOL_DIVISION + '\\n' + prompt.AI_CITATION_RULES) >=
+    0,
+  version: prompt.AI_PROMPT_VERSION,
+  has: {
+    asOf: prompt.AI_CITATION_RULES.indexOf('as_of') >= 0,
+    date: prompt.AI_CITATION_RULES.indexOf('date') >= 0,
+    page: prompt.AI_CITATION_RULES.indexOf('页面') >= 0,
+    site: prompt.AI_CITATION_RULES.indexOf('站内') >= 0,
+    missing: prompt.AI_CITATION_RULES.indexOf('未标注') >= 0,
+    emptyField: prompt.AI_CITATION_RULES.indexOf('字段为空') >= 0,
+    window: prompt.AI_CITATION_RULES.indexOf('30 日窗口') >= 0,
+    windowField: prompt.AI_CITATION_RULES.indexOf('window') >= 0,
+    snapshot: prompt.AI_CITATION_RULES.indexOf('快照日') >= 0,
+    noRealtime: prompt.AI_CITATION_RULES.indexOf('实时行情') >= 0,
+    notFound: prompt.AI_CITATION_RULES.indexOf('未取到') >= 0,
+  },
+};
+
+console.log(JSON.stringify({ oldThread, display, summarize, citation }));
+"""
+
+
+@lru_cache(maxsize=1)
+def _run_t5() -> dict:
+    script = T5_BODY.replace("__TOOLS__", TOOLS.as_uri()).replace("__PROMPT__", PROMPT.as_uri())
+    return run_node(script, timeout=30)
+
+
 def test_tool_catalog_schema() -> None:
     out = _run()["catalog"]
     # T4 起三个工具：query_site_data + 两个跨端点工具（服务端上限 8 个，还够）
@@ -1280,6 +1378,10 @@ def test_tool_catalog_schema() -> None:
     # 服务端（functions/_lib/common.js 与 src/chat_proxy.py）都卡 500 字上限：
     # 17 个端点的说明只能进提示词索引，不能塞进 tool description；三个工具都一样。
     assert all(0 < n <= 500 for n in out["descLens"]), out["descLens"]
+    # T5：相关性 description 写明标的范围（指数/ETF/商品/加密，无个股），别让模型拿 NVDA 去撞
+    corr_desc = out["descriptions"][1]
+    assert "不含单只个股" in corr_desc
+    assert "query_options_wall" in corr_desc
     assert out["maxChars"] == 2000
     assert out["maxCalls"] == 3
     assert out["maxRounds"] == 2
@@ -1570,11 +1672,14 @@ def test_reasoning_reject_fallback_helpers() -> None:
 
 def test_prompt_and_payload_wire_tools() -> None:
     out = _run()["wiring"]
-    assert out["version"] == "2026-10-22"
+    assert out["version"] == "2026-10-23"
     assert "query_site_data" in out["system"]
     assert "只依据当前页面" not in out["system"]
-    assert out["hasBudget"] is True
-    assert "query_site_data" in out["factsHint"]
+    assert out["hasRounds"] is True
+    assert out["hasParallel"] is True
+    assert out["hasOldBudget"] is False, "旧「最多查两次」与 3 次 × 2 轮不同构"
+    assert "query_site_data" not in out["factsHint"], "追加提示不能点名，否则排除另外两个工具"
+    assert "查询工具" in out["factsHint"]
     # 代理与直连都带工具目录；代理仍不传 reasoning_effort（单源规则没被破坏）
     assert out["proxyTool"] == "query_site_data"
     assert out["proxyChoice"] == "auto"
@@ -1890,3 +1995,68 @@ def test_prompt_states_tool_division_in_one_sentence() -> None:
     assert "谁跟谁一起动" in sentence
     assert "query_options_wall" in sentence
     assert "期权结构" in sentence
+
+
+# ── T5：口径与回显收口 ────────────────────────────────────────────────────
+
+
+def test_citation_rules_are_compact_and_adjacent() -> None:
+    """口径块 3–4 句 / ≤260 字 / 只在系统提示词里出现一次，且紧接工具分工。"""
+    out = _run_t5()["citation"]
+    assert 0 < out["length"] <= 260, f"口径块太长：{out['length']} 字"
+    assert 3 <= out["sentences"] <= 4, f"应当 3–4 句，实际 {out['sentences']} 句"
+    assert out["oneLine"] is True, "别展开成十行清单"
+    assert out["inSystem"] is True
+    assert out["count"] == 1, "口径块只出现一次（别在别处再抄一遍）"
+    assert out["afterDivision"] is True, "AI_CITATION_RULES 必须紧接 AI_TOOL_DIVISION"
+    assert out["version"] == "2026-10-23"
+    missing = [k for k, ok in out["has"].items() if not ok]
+    assert not missing, f"口径块缺要素：{missing}"
+
+
+def test_tool_display_names_are_human_readable() -> None:
+    """两个跨端点工具给人话名；query_site_data 的 17 个端点原样；空值不崩。"""
+    out = _run_t5()["display"]
+    assert out["correlation"] == "相关性矩阵"
+    assert out["options"] == "期权结构"
+    assert out["unknown"] == "rates/yield-curve", "query_site_data 端点本身可读，不改名"
+    assert out["empty"] == ""
+    assert out["nil"] == ""
+    assert out["undef"] == ""
+    assert out["number"] == ""
+    assert out["proto"] == "toString", "别被 Object 原型键误伤"
+    assert out["labels"] == {
+        "cross-asset": "相关性矩阵",
+        "assets/equities-options": "期权结构",
+    }
+    assert out["list"] == ["相关性矩阵", "期权结构", "rates/yield-curve"]
+    assert out["notArray"] == []
+    assert out["mixed"] == ["相关性矩阵"], "旧路径与新显示名映射到同一个名字"
+
+
+def test_summarize_tool_runs_uses_display_names() -> None:
+    """msg.tools / toolsFailed 用显示名；成功/失败分组、去重、成功优先都按裸端点算。"""
+    out = _run_t5()["summarize"]
+    assert out["cross"] == {"tools": ["相关性矩阵"], "toolsFailed": ["期权结构"]}
+    # T3 语义不退：同端点一处成功一处失败按成功算，两边显示名一致
+    assert out["sameEndpoint"] == {"tools": ["相关性矩阵"], "toolsFailed": []}
+    assert out["failedDedupe"] == {"tools": [], "toolsFailed": ["期权结构"]}
+    assert out["site"] == {"tools": ["rates/yield-curve"], "toolsFailed": []}
+
+
+def test_old_thread_tools_render_without_new_fields() -> None:
+    """旧 thread 只有 tools 裸路径、没有 toolsFailed：映射后照常显示，不冒 undefined。"""
+    out = _run_t5()["oldThread"]
+    assert out["tools"] == ["相关性矩阵"]
+    assert out["failed"] == [], "旧消息没有 toolsFailed，按空数组处理"
+    assert out["joined"] == "相关性矩阵"
+    assert "undefined" not in out["joined"]
+
+
+def test_chat_renders_old_paths_through_display_names() -> None:
+    """渲染端接线：查数 / 未取到两段都先过 toolDisplayNames，再 join。"""
+    src = (JS / "ai-chat.js").read_text(encoding="utf-8")
+    assert "toolDisplayNames(m.tools)" in src
+    assert "toolDisplayNames(m && m.toolsFailed)" in src
+    assert "'查数 ' + usedTools.join(' / ')" in src
+    assert "'未取到 ' + list.join(' / ')" in src

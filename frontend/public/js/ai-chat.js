@@ -40,6 +40,7 @@ import {
   runToolCall,
   safeStringify,
   summarizeToolRuns,
+  toolDisplayNames,
   toolError,
 } from './ai-tools.js';
 
@@ -376,10 +377,12 @@ import {
     );
   }
 
-  // T3：失败端点单独一段灰字（旧 thread 没有 toolsFailed → 空串，行为不变）。
+  // T3：失败端点单独一段灰字（旧 thread 没有 toolsFailed → 空数组，行为不变）。
   // 不弹窗、不用红色：失败与「查数」同级，只换一句「未取到」，不打断阅读。
+  // T5：存的是端点（新 thread 已是显示名，旧 thread 是裸路径）→ 统一过一次 toolDisplayNames，
+  // 旧消息也能显示「相关性矩阵」；空值/坏值被过滤，join 永远不会拼出 undefined。
   function failedMeta(m) {
-    const list = m && Array.isArray(m.toolsFailed) ? m.toolsFailed : [];
+    const list = toolDisplayNames(m && m.toolsFailed);
     return list.length ? '未取到 ' + list.join(' / ') : '';
   }
 
@@ -393,9 +396,10 @@ import {
     msgsEl.innerHTML = t.messages
       .map((m, i) => {
         const isUser = m.role === 'user';
+        const usedTools = isUser ? [] : toolDisplayNames(m.tools);
         const meta = [
           isUser ? '' : m.model ? '模型 ' + m.model : '',
-          m.tools && m.tools.length ? '查数 ' + m.tools.join(' / ') : '',
+          usedTools.length ? '查数 ' + usedTools.join(' / ') : '',
           failedMeta(m),
           m.pageTitle,
           m.asOf,
@@ -1025,9 +1029,10 @@ import {
       asOf: last.asOf,
       ts: Date.now(),
     };
-    // 轻量回显字段：只记端点名，供 UI 显示「查数 …」/「未取到 …」；导出/落盘消费者忽略它。
-    // tools 保持字符串数组（旧 thread 兼容），toolsFailed 是 T3 新增的第二个数组：
-    // 旧消息没有这个字段 → renderMessages 读成空数组，行为与之前完全一致。
+    // 轻量回显字段：只记「查过什么」，供 UI 显示「查数 …」/「未取到 …」；导出/落盘消费者忽略它。
+    // tools 仍是字符串数组（旧 thread 兼容），T5 起 summarizeToolRuns 直接给显示名；
+    // 旧 thread 里的裸路径由渲染端 toolDisplayNames() 再映射一次，数据不迁移。
+    // toolsFailed 是 T3 新增的第二个数组：旧消息没有这个字段 → 渲染读成空数组，行为不变。
     const runSummary = summarizeToolRuns(toolRuns);
     if (runSummary.tools.length) msg.tools = runSummary.tools;
     if (runSummary.toolsFailed.length) msg.toolsFailed = runSummary.toolsFailed;
