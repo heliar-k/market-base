@@ -100,9 +100,12 @@ CHECKS: list[Check] = [
     _c("data/sce/sce.csv", 72, "NY Fed SCE 月频（发布 T+38，波峰 67+余量）"),
     _c("data/barchart/volatility_snapshot.csv", 8, "Barchart 波动率 30 指数"),
     _c("data/cot/cot.csv", 16, "CFTC COT 周频"),
-    _c("data/macro/enso.csv", 80, "NOAA ONI 指数（月频，JAS 期 9 月初发布，波峰 77+余量）"),
+    # ONI 是三月滑窗，末行标记是窗口中心月：JAS（08-01）10 月初才发、ASO（09-01）要等
+    # 10 月过完 11 月初才发 → 跨月波峰 ≈96 天。按「当下年龄 + 小余量」标会每逢月末误报。
+    _c("data/macro/enso.csv", 105, "NOAA ONI 指数（三月滑窗，末行是窗口中心月，跨月波峰 96 天）"),
     _c("data/commodities/etf_holdings.csv", D, "贵金属 ETF 持仓（GLD/SLV 官方日度）"),
-    _c("data/wgc/etf_flows.csv", 50, "WGC 区域 ETF 流入（月频，月初 +1 周内更新，发布偶有延迟）"),
+    # 末行是「月初标记」（2026-09 = 9 月），要等次月月初才发布 → 跨月波峰 ≈63 天
+    _c("data/wgc/etf_flows.csv", 70, "WGC 区域 ETF 流入（月频，月初标记，次月月初发布）"),
     _c("data/wgc/wgc_holdings.csv", 50, "WGC 全球黄金 ETF 总持仓（月频，同上）"),
     _c("data/fx/fx_pairs.csv", D, "外汇 16 对日线"),
     _c("data/etf/pool_prices.csv", D, "精选池 ETF 日线"),

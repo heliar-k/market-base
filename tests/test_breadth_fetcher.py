@@ -130,3 +130,40 @@ def test_download_closes_drops_all_nan_row(monkeypatch, tmp_path):
     closes = bf.download_closes(["AAPL", "MSFT"])
     assert len(closes) == 2  # 坏帧行被丢掉
     assert closes.index[-1] == idx[1]
+
+
+def test_download_closes_trims_partial_tail(monkeypatch, tmp_path):
+    """尾部残行（末行只有 1 只票的盘后成交）要截掉，不能骗过覆盖率哨兵。"""
+    monkeypatch.setattr(bf, "COMPONENTS_PATH", tmp_path / "c.csv")
+    idx = pd.date_range("2026-10-20", periods=3)
+    raw = pd.DataFrame(
+        {
+            ("Close", "AAPL"): [100.0, 101.0, 102.0],  # 末行只有 AAPL 有值
+            ("Close", "MSFT"): [200.0, 201.0, None],
+            ("Close", "NVDA"): [300.0, 301.0, None],
+        },
+        index=idx,
+    )
+    raw.columns = pd.MultiIndex.from_tuples(raw.columns)
+    fake_yf = MagicMock()
+    fake_yf.download.return_value = raw
+    import sys
+
+    monkeypatch.setitem(sys.modules, "yfinance", fake_yf)
+    from src.fetchers import yfinance_fetcher
+
+    monkeypatch.setattr(yfinance_fetcher, "ensure_yf_proxy", lambda: None)
+
+    closes = bf.download_closes(["AAPL", "MSFT", "NVDA"])
+    # 3 只票里末行只覆盖 1 只 → 截到 idx[1]；否则 _validate 会报「部分下载 1/3」
+    assert list(closes.index) == list(idx[:2])
+    assert closes.iloc[-1].notna().all()
+    bf._validate(closes, bf.compute_abv(closes), n_components=3)  # 不再误报
+
+
+def test_trim_partial_tail_keeps_all_when_every_row_covered():
+    """全部行都达标时原样返回（不误伤正常数据）。"""
+    idx = pd.date_range("2026-10-20", periods=3)
+    closes = pd.DataFrame({"A": [1.0, 2.0, 3.0], "B": [4.0, 5.0, 6.0]}, index=idx)
+    out = bf._trim_partial_tail(closes)
+    assert list(out.index) == list(idx)

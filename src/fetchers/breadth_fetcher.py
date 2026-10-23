@@ -56,7 +56,25 @@ def download_closes(tickers: list[str]) -> pd.DataFrame:
     # yfinance 盘前/拉取失败会给一整行 NaN 的当日帧，写盘前丢掉（否则 upsert 进宽表
     # 后续分析会把空帧当「最新日」，如 ndx_radar 因此 rows=0，2026-10-06 实测）
     closes = closes.dropna(how="all")
-    return closes.sort_index()
+    return _trim_partial_tail(closes.sort_index())
+
+
+def _trim_partial_tail(closes: pd.DataFrame, min_coverage: float = MIN_COVERAGE) -> pd.DataFrame:
+    """截掉尾部覆盖率不足的行（yfinance 跨 UTC 日的盘后残行）。
+
+    收盘后第二班（美东 20:00 之后）yfinance 偶尔把末行换成 UTC 次日、只留一只票的
+    盘后成交（2026-10-23 实测末行 1/503）。只丢全 NaN 行不够：这种残行会让 _validate
+    按末行判覆盖率、误报「部分下载」拒写；若放行又会把 1 只票的分母写进 ABV。
+    历史中间的空帧（休市）上游 dropna(how="all") 已处理，这里只管尾部——
+    找到最后一条覆盖达标的行，截掉它之后的部分。
+    """
+    if closes.empty:
+        return closes
+    coverage = closes.notna().sum(axis=1)
+    covered = closes.index[coverage >= len(closes.columns) * min_coverage]
+    if len(covered) == 0:
+        return closes  # 全不达标（只有部分数据）→ 原样交给 _validate 报错
+    return closes.loc[: covered[-1]]
 
 
 def compute_abv(closes: pd.DataFrame, windows: list[int] | None = None) -> pd.DataFrame:
