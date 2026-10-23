@@ -294,6 +294,8 @@ window.__reTheme = (function () {
   if (isIndex) {
     var topBtn = document.createElement('button');
     topBtn.className = 'back-top';
+    // 滚动中淡出（rates-common 的 R.watchScrollHide 统一接管，与伴读浮钮同一套）
+    topBtn.setAttribute('data-scroll-hide', '');
     topBtn.title = '返回顶部';
     topBtn.textContent = '↑';
     topBtn.addEventListener('click', function () {

@@ -1132,6 +1132,61 @@ async def check_options_tool_summary(browser, base: str) -> None:
     await ctx.close()
 
 
+async def check_mobile_fab(browser, base: str) -> None:
+    """窄屏浮钮：40px / 贴边只露 24 / 点一下弹全并开抽屉 / 拖拽换边 / 滚动隐去。"""
+    ctx = await browser.new_context(
+        viewport={"width": 390, "height": 844},
+        device_scale_factor=2,
+        is_mobile=True,
+        has_touch=True,
+    )
+    page = await ctx.new_page()
+    await page.goto(base + "assets/", wait_until="domcontentloaded")
+    await page.wait_for_timeout(1200)
+
+    vw = 390
+    box = await page.locator(".ai-float").bounding_box()
+    check(abs(box["width"] - 40) < 1, "窄屏浮钮 40px（44 → 40）")
+    check(20 <= vw - box["x"] <= 28, "默认贴右边、只露约 24px（半吸附）")
+
+    await page.locator(".ai-float").click()
+    await page.wait_for_timeout(400)
+    opened = await page.locator(".ai-drawer.open").count() == 1
+    box2 = await page.locator(".ai-float").bounding_box()
+    check(opened, "点一下打开抽屉")
+    check(box2["x"] + box2["width"] <= vw + 1, "点开后浮钮弹到全可见")
+    await page.locator('[data-act="close"]').first.click()
+    await page.wait_for_timeout(400)
+    box3 = await page.locator(".ai-float").bounding_box()
+    check(20 <= vw - box3["x"] <= 28, "关抽屉后重新吸回边缘")
+
+    cx, cy = box3["x"] + box3["width"] / 2, box3["y"] + box3["height"] / 2
+    await page.mouse.move(cx, cy)
+    await page.mouse.down()
+    for i in range(1, 13):
+        await page.mouse.move(cx - (cx - 120) * i / 12, cy - 200 * i / 12)
+    await page.mouse.up()
+    await page.wait_for_timeout(400)
+    box4 = await page.locator(".ai-float").bounding_box()
+    check(box4["x"] < 0, "拖到左半边松手后吸附左侧（负 x）")
+
+    await page.evaluate("window.scrollTo(0, 900)")
+    await page.wait_for_timeout(100)
+    cls = await page.evaluate(
+        "() => [document.querySelector('.ai-float').className,"
+        " (document.querySelector('.back-top') || {className: ''}).className]"
+    )
+    check("scroll-away" in cls[0], "滚动中伴读浮钮隐去")
+    check("scroll-away" in cls[1], "滚动中「返回顶部」一起隐去")
+    await page.wait_for_timeout(500)
+    cls2 = await page.evaluate(
+        "() => [document.querySelector('.ai-float').className,"
+        " (document.querySelector('.back-top') || {className: ''}).className]"
+    )
+    check("scroll-away" not in cls2[0] and "scroll-away" not in cls2[1], "停手后两者一起浮回")
+    await ctx.close()
+
+
 async def main(base: str) -> int:
     base = base.rstrip("/") + "/"
     async with async_playwright() as p:
@@ -1150,6 +1205,7 @@ async def main(base: str) -> int:
         await check_correlation_tool(browser, base)
         await check_options_tool_unknown_symbol(browser, base)
         await check_options_tool_summary(browser, base)
+        await check_mobile_fab(browser, base)
         await check_save_note(browser, base)
         await browser.close()
     print(f"\n{len(FAILS)} failure(s)")

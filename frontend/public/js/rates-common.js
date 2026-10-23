@@ -711,7 +711,59 @@ const R = {
     });
     return row;
   },
+
+  /**
+   * 滚动时把悬浮件隐去、停手 idleMs 后再浮出（伴读浮钮 / 「返回顶部」共用）。
+   * 为什么单源在这里：两个按钮的创建者不同（浮钮由 ai-chat.js 这个 ESM 建、返回顶部由
+   * TopicLayout 的内联脚本建），而 rates-common 是唯一「全站加载、经典脚本、先于两者」的位置。
+   * 用 class 而不是内联样式：返回顶部本来就靠 .show 控制显隐，交给 CSS 组合优先级，
+   * JS 只负责说「现在在滚」。
+   * 拖拽中的浮钮会被跳过（.fab-dragging），不然一边拖一边淡出。
+   */
+  watchScrollHide: function (selector, idleMs) {
+    var sel = selector || '[data-scroll-hide]';
+    var idle = typeof idleMs === 'number' ? idleMs : 220;
+    var timer = 0;
+    var ticking = false;
+    var apply = function (hidden) {
+      var els = document.querySelectorAll(sel);
+      for (var i = 0; i < els.length; i += 1) {
+        if (els[i].classList.contains('fab-dragging')) continue;
+        els[i].classList.toggle('scroll-away', hidden);
+      }
+    };
+    var onScroll = function () {
+      if (ticking) return;
+      ticking = true;
+      window.requestAnimationFrame(function () {
+        ticking = false;
+        apply(true);
+        clearTimeout(timer);
+        timer = setTimeout(function () {
+          apply(false);
+        }, idle);
+      });
+    };
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return {
+      hide: function () {
+        apply(true);
+      },
+      show: function () {
+        apply(false);
+      },
+    };
+  },
 };
 
 // 主题由 TopicLayout（专题页）/ SPA 壳统一管理（localStorage 'ticker-toolkit-dark'，无偏好时跟随系统）；
 // 本文件只需监听 theme-changed 重绘图表（见上方监听器）
+
+// 自动接管：页面上所有 [data-scroll-hide]（伴读浮钮、返回顶部）滚动时淡出、停手浮现
+// 注意是 R. 不是 window.R：本文件用 `const R = {...}` 声明，const 只进全局词法作用域，
+// 不挂到 window 上（挂 window 会拿到 undefined，监听静默不生效）。
+try {
+  R.watchScrollHide('[data-scroll-hide]', 220);
+} catch (e) {
+  /* 老浏览器没有 classList.toggle 双参时静默跳过：按钮照常常显 */
+}

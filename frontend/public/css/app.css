@@ -733,15 +733,22 @@ body.dark .tech-ov-card { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--b
    单源在本文件：SPA 壳与全部 .astro 专题页都加载 app.css（special.css 只有专题页有），
    所以 ai-* 一律写这里，两边才能共用一份。颜色一律走文本档（品牌蓝写字用
    --accent-ink，--accent 只做边框/填充），徽章一律 4px 方胶囊。 */
-.ai-float { position: fixed; top: 8px; right: 8px; z-index: var(--z-float); width: 30px; height: 30px; border-radius: 6px; border: 1px solid var(--btn-border); background: var(--surface); color: var(--text-secondary); cursor: pointer; font-size: 14px; line-height: 1; padding: 0; box-shadow: var(--shadow-float); display: inline-flex; align-items: center; justify-content: center; transition: border-color .15s, transform .1s; }
+.ai-float { position: fixed; top: 8px; right: 8px; z-index: var(--z-float); width: 30px; height: 30px; border-radius: 6px; border: 1px solid var(--btn-border); background: var(--surface); color: var(--text-secondary); cursor: pointer; font-size: 14px; line-height: 1; padding: 0; box-shadow: var(--shadow-float); display: inline-flex; align-items: center; justify-content: center; /* 吸附位偏移走 --fab-dx（窄屏拖拽用），:active 缩放走 --fab-scale（内联 transform 会盖掉 :active，所以都走变量） */ transform: translateX(var(--fab-dx, 0px)) scale(var(--fab-scale, 1)); transition: border-color .15s, transform .18s ease, opacity .2s ease; }
 .ai-float:hover { border-color: var(--accent-ink); color: var(--accent-ink); }
-.ai-float:active { transform: scale(.94); }
+.ai-float:active { --fab-scale: .94; }
+/* 滚动中隐去：rates-common 的 watchScrollHide 挂 .scroll-away（伴读浮钮与「返回顶部」共用）。
+   body 前缀是为了压过 .back-top.show 的同特异性规则。 */
+body [data-scroll-hide].scroll-away { opacity: 0; pointer-events: none; }
+/* 拖拽中禁用触屏滚动（touch-action 在窄屏规则里常驻，见下） */
+.ai-float.fab-dragging { cursor: grabbing; }
 /* 窄屏：页头右上角被「数据截至」时效块占着（375 宽实测浮钮左缘正好顶到它的右缘），
    浮钮挪到底部右侧做 FAB —— 44px 触控目标、圆胶囊（交互控件走 999px 的既有语言）。
    SPA 底部另有 28px 状态栏，多让 32px；抽屉打开时被 .ai-drawer 整屏盖住，不用另收。
    SPA 用 body.app-shell 标记（别拿 .re-has-side 反推「有侧栏 = 专题页」）。 */
 @media (max-width: 768px) {
-  body .ai-float { top: auto; right: 14px; bottom: calc(14px + env(safe-area-inset-bottom)); width: 44px; height: 44px; border-radius: 999px; font-size: 20px; box-shadow: var(--shadow-pop); }
+  /* 40px：44 在 375 宽上偏抢眼（用户反馈），40 仍是 WCAG 2.2 触控门槛（24px）的近两倍。
+     touch-action: none 必须常驻——它只在手势起始时判定，拖拽开始后再设不生效。 */
+  body .ai-float { top: auto; right: 14px; bottom: calc(14px + env(safe-area-inset-bottom)); width: 40px; height: 40px; border-radius: 999px; font-size: 17px; box-shadow: var(--shadow-pop); touch-action: none; }
   body.app-shell .ai-float { bottom: calc(46px + env(safe-area-inset-bottom)); }
 }
 

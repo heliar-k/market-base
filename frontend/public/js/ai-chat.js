@@ -573,6 +573,15 @@ import {
       }
     }
     if (hadFocus && floatBtn) floatBtn.focus({ preventScroll: true });
+    // 点一下弹全的浮钮，关抽屉后吸回边缘（拖拽过的新位置已在 fabPlace 里存过）
+    if (fabExpandedByTap && floatBtn) {
+      fabPlace(
+        floatBtn.dataset.fabSide || 'right',
+        Number(floatBtn.dataset.fabY) || fabDefaultY(),
+        true
+      );
+      fabExpandedByTap = false;
+    }
   }
   const toggle = () => (drawer && drawer.classList.contains('open') ? close() : open());
 
@@ -1303,7 +1312,7 @@ import {
 
   // ── DOM ─────────────────────────────────────────────────────────────────
   const SHELL =
-    '<button class="ai-float" type="button" title="伴读问答（⌘/Ctrl + K）" aria-label="伴读问答">💬</button>' +
+    '<button class="ai-float" type="button" data-scroll-hide title="伴读问答（⌘/Ctrl + K）" aria-label="伴读问答">💬</button>' +
     '<button class="ai-sel-pop" type="button">💬 问这段</button>' +
     // tabindex=-1：打开时焦点能落在对话框上（读屏播报），又不进 Tab 序列、不弹键盘
     '<div class="ai-drawer" role="dialog" tabindex="-1" aria-labelledby="ai-title" aria-hidden="true">' +
@@ -1342,6 +1351,142 @@ import {
     else el.setAttribute('hidden', '');
   }
 
+  // ── 浮钮：窄屏可拖动、松手贴最近一侧只露一半，点一下弹全并开抽屉 ──────────
+  // 位置只存 {side, y}：横竖屏切换时按 side 重新贴边，而不是记住一个会过期的 left。
+  // 吸附偏移走 CSS 变量 --fab-dx（transform 被拖拽/缩放共用，内联 transform 会盖掉 :active）。
+  const FAB_POS_KEY = 'guanlantai-ai-fab-pos';
+  const FAB_DOCK_VISIBLE = 24; // 吸附时露出的宽度（px）
+  let fabDrag = null;
+  let fabSuppressClick = false; // 拖完那一下不再当成「点开抽屉」
+  let fabExpandedByTap = false;
+
+  function fabReadPos() {
+    try {
+      const v = JSON.parse(localStorage.getItem(FAB_POS_KEY) || 'null');
+      if (v && (v.side === 'left' || v.side === 'right') && isFinite(v.y)) return v;
+    } catch (e) {
+      /* 隐私模式 / 脏数据：回默认位置 */
+    }
+    return null;
+  }
+
+  function fabWritePos(pos) {
+    try {
+      localStorage.setItem(FAB_POS_KEY, JSON.stringify(pos));
+    } catch (e) {
+      /* 写不进就只本次会话有效 */
+    }
+  }
+
+  // 默认落点按 CSS 的 bottom 反推：专题页 14px、SPA 多让 32px 状态栏
+  function fabDefaultY() {
+    const gap = document.body.classList.contains('app-shell') ? 86 : 54;
+    return Math.max(8, window.innerHeight - gap - 40);
+  }
+
+  // docked=true → 贴边只露 FAB_DOCK_VISIBLE；false → 整颗露出（点开时）
+  function fabPlace(side, y, docked) {
+    if (!floatBtn || !isNarrow()) return;
+    const w = floatBtn.offsetWidth || 40;
+    const h = floatBtn.offsetHeight || 40;
+    const top = Math.min(Math.max(8, y), Math.max(8, window.innerHeight - h - 8));
+    // 右侧还要吃掉 CSS 那 8px 外边距，over 多算 8 才能让「露出宽度」稳定等于 24
+    const over = Math.max(8, w + 8 - FAB_DOCK_VISIBLE);
+    floatBtn.style.top = top + 'px';
+    floatBtn.style.bottom = 'auto';
+    floatBtn.style.right = 'auto';
+    floatBtn.style.left = (side === 'left' ? 8 : window.innerWidth - w - 8) + 'px';
+    floatBtn.style.setProperty(
+      '--fab-dx',
+      docked ? (side === 'left' ? -over : over) + 'px' : '0px'
+    );
+    floatBtn.dataset.fabSide = side;
+    floatBtn.dataset.fabY = String(top);
+    floatBtn.dataset.fabDocked = docked ? '1' : '0';
+  }
+
+  // 回到 CSS 原位（宽度回到桌面档时用）
+  function fabResetInline() {
+    if (!floatBtn) return;
+    ['top', 'bottom', 'left', 'right'].forEach((k) => floatBtn.style.removeProperty(k));
+    floatBtn.style.removeProperty('--fab-dx');
+    delete floatBtn.dataset.fabSide;
+    delete floatBtn.dataset.fabY;
+    delete floatBtn.dataset.fabDocked;
+  }
+
+  function fabLayout() {
+    if (!floatBtn) return;
+    if (!isNarrow()) {
+      fabResetInline();
+      return;
+    }
+    const saved = fabReadPos();
+    const y = saved ? saved.y : fabDefaultY();
+    fabPlace(saved ? saved.side : 'right', y, true);
+  }
+
+  function fabBind() {
+    if (!floatBtn || floatBtn.dataset.fabBound) return;
+    floatBtn.dataset.fabBound = '1';
+
+    floatBtn.addEventListener('pointerdown', (e) => {
+      if (!isNarrow() || (e.button !== undefined && e.button > 0)) return;
+      const rect = floatBtn.getBoundingClientRect();
+      fabDrag = {
+        startX: e.clientX,
+        startY: e.clientY,
+        offX: e.clientX - rect.left,
+        offY: e.clientY - rect.top,
+        moved: false,
+      };
+      try {
+        floatBtn.setPointerCapture(e.pointerId);
+      } catch (err) {
+        /* 老浏览器没有 pointer capture，靠 document 上的 pointermove 兜底 */
+      }
+    });
+
+    floatBtn.addEventListener('pointermove', (e) => {
+      if (!fabDrag) return;
+      const dx = e.clientX - fabDrag.startX;
+      const dy = e.clientY - fabDrag.startY;
+      if (!fabDrag.moved) {
+        // 6px 抖动阈值：小于它就是手抖，仍算「点一下」
+        if (Math.abs(dx) + Math.abs(dy) < 6) return;
+        fabDrag.moved = true;
+        floatBtn.classList.add('fab-dragging');
+        floatBtn.classList.remove('scroll-away');
+      }
+      const w = floatBtn.offsetWidth;
+      const h = floatBtn.offsetHeight;
+      const left = Math.min(Math.max(0, e.clientX - fabDrag.offX), window.innerWidth - w);
+      const top = Math.min(Math.max(0, e.clientY - fabDrag.offY), window.innerHeight - h);
+      floatBtn.style.left = left + 'px';
+      floatBtn.style.top = top + 'px';
+      floatBtn.style.setProperty('--fab-dx', '0px');
+      floatBtn.dataset.fabDocked = '0';
+    });
+
+    const endDrag = () => {
+      if (!fabDrag) return;
+      const dragged = fabDrag.moved;
+      fabDrag = null;
+      floatBtn.classList.remove('fab-dragging');
+      if (!dragged) return; // 没拖动：交给 click 处理
+      const rect = floatBtn.getBoundingClientRect();
+      const side = rect.left + rect.width / 2 < window.innerWidth / 2 ? 'left' : 'right';
+      fabWritePos({ side, y: rect.top });
+      fabPlace(side, rect.top, true);
+      fabSuppressClick = true;
+      setTimeout(() => {
+        fabSuppressClick = false;
+      }, 0);
+    };
+    floatBtn.addEventListener('pointerup', endDrag);
+    floatBtn.addEventListener('pointercancel', endDrag);
+  }
+
   function init() {
     document.body.insertAdjacentHTML('beforeend', SHELL);
     floatBtn = document.querySelector('.ai-float');
@@ -1358,7 +1503,27 @@ import {
     menuEl = drawer.querySelector('[data-menu]');
     moreBtn = drawer.querySelector('[data-act="more"]');
 
-    floatBtn.addEventListener('click', toggle);
+    floatBtn.addEventListener('click', () => {
+      if (fabSuppressClick) return; // 刚拖完，那一下不算点击
+      if (isNarrow() && floatBtn.dataset.fabDocked === '1') {
+        // 点一下先弹全：开抽屉后全屏抽屉会盖住浮钮，关掉时再由 close() 吸回去
+        fabPlace(
+          floatBtn.dataset.fabSide || 'right',
+          Number(floatBtn.dataset.fabY) || fabDefaultY(),
+          false
+        );
+        fabExpandedByTap = true;
+      }
+      toggle();
+    });
+    fabBind();
+    fabLayout(); // 窄屏按记住的 side/y 贴边；桌面清掉内联样式回到 CSS 位
+
+    // 转屏 / 拉窗：重新贴边（宽度跨过 768 时两种形态互切）
+    window.addEventListener('resize', () => {
+      if (!floatBtn || fabDrag) return;
+      fabLayout();
+    });
 
     // 贴底判定：只有本来就贴着底（或内容还没撑满）才跟着新 chunk 滚
     msgsEl.addEventListener('scroll', () => { stickBottom = atBottom(); }, { passive: true });
