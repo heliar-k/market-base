@@ -17,9 +17,9 @@ body { height: auto; overflow-y: auto; display: block; }
  *       toc → 第一块 = 20px（见下方 .page-toc + .re-sec，不走 --re-sec-gap）。 */
 :root { --re-sec-gap: 16px; --re-inner-gap: 16px; --re-head-gap: 14px; --re-cell-pad-x: 12px; }
 .re-root { max-width: min(1200px, calc(100vw - 64px)); margin: 0 auto; padding: 28px 32px 48px; display: flex; flex-direction: column; gap: var(--re-inner-gap); }
-/* padding-right 给右上角悬浮的伴读抽屉按钮（.ai-float）让位：它 fixed 占视口右侧 38px，而 .re-root 最窄时
-   内容右边只距视口 32px（max-width 被 100vw-64 卡住那一档）→ 两者会在 ~1025-1500 区间压上。 */
-.re-header { display: flex; justify-content: space-between; align-items: baseline; flex-wrap: wrap; gap: 8px; padding-right: 20px; padding-bottom: 14px; border-bottom: 1px solid var(--border); }
+/* 页头不再为右上角浮钮让位：伴读浮钮全宽度都在右下角（app.css 的 .ai-float），
+   时效胶囊直接贴内容右缘，与正文卡片同一条线。 */
+.re-header { display: flex; justify-content: space-between; align-items: baseline; flex-wrap: wrap; gap: 8px; padding-right: 0; padding-bottom: 14px; border-bottom: 1px solid var(--border); }
 /* 页头标题：balance 防孤行（长专题名在窄屏不会落单字一行）；大字号收负字距更紧 */
 .re-header h1 { font-size: 24px; font-weight: 700; letter-spacing: -.01em; text-wrap: balance; }
 body.embedded .re-header h1 { display: none; } /* 内嵌时左卡已有标题 */
@@ -205,30 +205,21 @@ body.embedded .re-foot { display: none; } /* 内嵌 iframe 不重复页脚 */
  * ≈ 90px chrome，表格只剩 ~346px；字号内距又不随视口缩 → 6-8 列表全出横向滚动。
  * 这里整链路收一档（KPI 卡三档收缩同思路）：
  *   .re-root   两侧 32→16，max-width 的 100vw-64 同步 100vw-32（不然外留白还在）；
- *              窄屏浮钮已挪到右下角 FAB（app.css 的 .ai-float），页头不再需要为它让位
- *              （padding-right 0），时效胶囊贴内容右缘与正文卡片对齐；
+ *              页头不再需要为浮钮让位（浮钮全宽度都在右下角），时效胶囊贴内容右缘；
  *   卡面       20→14；出血/光学补偿挂 --re-cell-pad-x，自动跟着缩放不变式；
  *   表格       tier-1 见下；≤600 再收 tier-2（pad 6 + 字号 11）。
  * .re-duo / .re-scroll-y 的表内距是显式覆盖，不受影响；min-width 强制滚动的表
  * （#dashboard 640px / .re-scroll-y 860px）保持滚动，只是更紧凑。 */
 @media (max-width: 768px) {
   .re-root { max-width: min(1200px, calc(100vw - 32px)); padding: 20px 16px 40px; }
-  /* 时效胶囊与正文卡片右缘对齐（用户验收）；浮钮让位只在宽档（1025-1500）需要。
-     align-items baseline→center：窄屏胶囊常 3 行、标题 1 行，baseline 对齐会让标题
+  /* align-items baseline→center：窄屏胶囊常 3 行、标题 1 行，baseline 对齐会让标题
      黏在胶囊第一行、读作往左上吊（用户反馈「偏离中轴」）；居中后两块的视觉中心齐平，
      仍是同一行（space-between 不动，胶囊仍贴右）。单行胶囊的子页也只是微调几 px。 */
-  .re-header { padding-right: 0; align-items: center; }
+  .re-header { align-items: center; }
   :is(.re-section, .re-panel) { padding: 12px 14px; }
   :root { --re-cell-pad-x: 8px; }
   .re-table { font-size: 12px; }
   .re-table th { font-size: 11px; }
-  /* 返回顶部让位给右下角的伴读 FAB（app.css 的 .ai-float 窄屏 44px、bottom 14）：
-     抬到 FAB 上方 16px，也放大到 32px；触控目标别比 FAB 小太多。
-     body 前缀提特异性：.back-top 的基础定义在本文件更后面，同特异性会被盖回。 */
-  body .back-top { right: 14px; bottom: calc(74px + env(safe-area-inset-bottom)); width: 30px; height: 30px; font-size: 13px; }
-  /* 内嵌 iframe 里没有伴读 FAB（ai-chat.js 在 iframe 直接 return），返回顶部回原位，
-     否则它会悬在离底 74px 的空中。特异性高于上一条，顺序无关。 */
-  body.embedded .back-top { right: 6px; bottom: 6px; width: 24px; height: 24px; font-size: 11px; }
   /* 内容左缘 32 = ☰ 右缘 32：‹ 返回xx 首行贴上按钮边，缩进 8px 让出呼吸
      （仅此行让位；h1 顶 45 > 按钮 bottom 32 不需让） */
   .re-back { padding-left: 8px; }
@@ -440,14 +431,19 @@ a.re-badge:hover { color: var(--accent-ink); border-color: var(--accent-ink); }
 
 /* ── 涨跌/中性语义色已由 tokens.css 接管，亮暗双主题无需再写 body.dark 覆写 ── */
 
-/* 右上角悬浮位现在归伴读抽屉的 .ai-float（app.css 单源，SPA 与专题页共用）；
-   手动亮/暗主题开关已删，主题恒跟随系统。 */
+/* 手动亮/暗主题开关已删，主题恒跟随系统；伴读浮钮在右下角（app.css 单源），
+   右上角不再有悬浮控件。 */
 
 /* 返回顶部悬浮按钮（专题入口页右下角，滚动超过一屏才显示） */
 /* 返回顶部：交互控件 → 999px 圆钮（与伴读浮钮同一套语言）。
    视觉上只有一个箭头，语义靠 title + aria-label；静止在右下角，不跟随浮钮移动
-   （NN/g《Back-to-Top》第 8 条：Moving elements cause distraction）。 */
-.back-top { position: fixed; right: 8px; bottom: 8px; z-index: var(--z-float); width: 28px; height: 28px; padding: 0; border-radius: 999px; border: 1px solid var(--btn-border); background: var(--surface); color: var(--text-secondary); cursor: pointer; font-size: 12px; line-height: 1; white-space: nowrap; opacity: 0; pointer-events: none; transition: opacity .2s, border-color .15s, transform .1s; box-shadow: var(--shadow-float); }
+   （NN/g《Back-to-Top》第 8 条：Moving elements cause distraction）。
+   伴读浮钮现在全宽度都在右下角（40px，bottom 14 / right 14），所以返回顶部一律
+   抬到它上方 16px 并放大到 30px；触控目标别比浮钮小太多。 */
+.back-top { position: fixed; right: 14px; bottom: calc(74px + env(safe-area-inset-bottom)); z-index: var(--z-float); width: 30px; height: 30px; padding: 0; border-radius: 999px; border: 1px solid var(--btn-border); background: var(--surface); color: var(--text-secondary); cursor: pointer; font-size: 13px; line-height: 1; white-space: nowrap; opacity: 0; pointer-events: none; transition: opacity .2s, border-color .15s, transform .1s; box-shadow: var(--shadow-float); }
+/* 内嵌 iframe 里没有伴读浮钮（ai-chat.js 在 iframe 直接 return），返回顶部回原位，
+   否则它会悬在离底 74px 的空中。 */
+body.embedded .back-top { right: 6px; bottom: 6px; width: 24px; height: 24px; font-size: 11px; }
 .back-top:active { transform: scale(.94); }
 .back-top.show { opacity: 1; pointer-events: auto; }
 .back-top:hover { color: var(--accent-ink); border-color: var(--accent-ink); }

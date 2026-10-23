@@ -10,8 +10,8 @@
 //   - 本文件用 rates-common.js 的全局 R.esc，不自带一份实现（守卫见
 //     tests/test_static_single_source.py）。
 // 挂三样东西到 body 末尾（全是 position: fixed，不进 SPA 的 flex 流）：
-//   .ai-float   浮钮：桌面默认右上角（原主题切换位）、窄屏默认右下角 40px FAB；
-//               两种宽度都能拖动，松手贴最近一侧只露 24px（--fab-dx），位置记在 localStorage
+//   .ai-float   浮钮：全宽度都是右下角 40px 圆胶囊（与窄屏同一形态，不再有桌面右上角档）；
+//               可拖动，松手贴最近一侧只露 24px（--fab-dx），位置记在 localStorage
 //   .ai-sel-pop 划词气泡「问这段」（触屏补了 touchend / selectionchange）
 //   .ai-drawer  右侧抽屉：>768 是侧栏（非模态），≤768 整屏模态
 //               （锁背景滚动 / 焦点陷阱 / 接管返回键；头部只留标题 + ✕，
@@ -1670,9 +1670,8 @@ import {
 
   // 默认落点按 CSS 的 bottom 反推：专题页 14px、SPA 46px（多让 32px 状态栏）。
   // 别把钮高混进 gap —— 曾经写成 54，浮钮整体高了 40px，正好压住右下角的返回顶部。
-  // 宽屏没有「右下角 FAB」这档，默认回到 CSS 的 top: 8px（拖过之后才由 fabPlace 接管）。
+  // 全宽度都是右下角 FAB（与窄屏同一形态），不再有「宽屏回 top:8」那档。
   function fabDefaultY() {
-    if (!isNarrow()) return 8;
     const gap = document.body.classList.contains('app-shell') ? 46 : 14;
     const h = floatBtn ? floatBtn.offsetHeight || 40 : 40;
     return Math.max(8, window.innerHeight - gap - h);
@@ -1681,11 +1680,10 @@ import {
   // docked=true → 贴边只露 FAB_DOCK_VISIBLE；false → 整颗露出（点开时）
   function fabPlace(side, y, docked) {
     if (!floatBtn) return;
-    // 分栏打开时浮钮是 display:none，offsetWidth 量到 0：用 CSS 那两档的实宽兜底，
+    // 浮钮被整屏抽屉盖住时 offsetWidth 可能量到 0：用 FAB 实宽 40 兜底，
     // 否则关抽屉的一瞬间会把「整颗钮」当成 0 宽算到屏幕外去。
-    const fallback = isNarrow() ? 40 : 30;
-    const w = floatBtn.offsetWidth || fallback;
-    const h = floatBtn.offsetHeight || fallback;
+    const w = floatBtn.offsetWidth || 40;
+    const h = floatBtn.offsetHeight || 40;
     const top = Math.min(Math.max(8, y), Math.max(8, window.innerHeight - h - 8));
     // 右侧还要吃掉 CSS 那 8px 外边距，over 多算 8 才能让「露出宽度」稳定等于 24
     const over = Math.max(8, w + 8 - FAB_DOCK_VISIBLE);
@@ -1703,27 +1701,13 @@ import {
   }
 
 
-  // 回到 CSS 原位（还没拖过时用：桌面右上角 / 窄屏右下角都由 CSS 给）
-  function fabResetInline() {
-    if (!floatBtn) return;
-    ['top', 'bottom', 'left', 'right'].forEach((k) => floatBtn.style.removeProperty(k));
-    floatBtn.style.removeProperty('--fab-dx');
-    delete floatBtn.dataset.fabSide;
-    delete floatBtn.dataset.fabY;
-    delete floatBtn.dataset.fabDocked;
-  }
-
-  // 拖过之后位置跨宽度档沿用：窄屏拖到左侧中点，拉宽到桌面仍贴左缘同一高度
-  // （y 由 fabPlace 按新视口再夹一次）。没拖过就各回各的 CSS 默认位。
+  // 拖过之后位置跨宽度沿用：拖到左侧中点，窗口拉宽仍贴左缘同一高度
+  // （y 由 fabPlace 按新视口再夹一次）。没拖过就贴右下角 —— 全宽度同一档。
   function fabLayout() {
     if (!floatBtn) return;
     const saved = fabReadPos();
-    if (saved) {
-      fabPlace(saved.side, saved.y, true);
-      return;
-    }
-    if (isNarrow()) fabPlace('right', fabDefaultY(), true);
-    else fabResetInline();
+    if (saved) fabPlace(saved.side, saved.y, true);
+    else fabPlace('right', fabDefaultY(), true);
   }
 
   function fabBind() {
@@ -1822,9 +1806,9 @@ import {
       toggle();
     });
     fabBind();
-    fabLayout(); // 拖过的位置跨宽度档沿用；没拖过则各回 CSS 默认位
+    fabLayout(); // 拖过的位置跨宽度沿用；没拖过则贴右下角（全宽度同一档）
 
-    // 转屏 / 拉窗：重新贴边（宽度跨过 768 时两种形态互切）
+    // 转屏 / 拉窗：按新视口重新贴边（同 side，y 重新夹一次）
     window.addEventListener('resize', () => {
       if (!floatBtn || fabDrag) return;
       fabLayout();

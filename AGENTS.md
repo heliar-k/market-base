@@ -629,7 +629,8 @@ uv run python src/sell_put.py --symbol TSM
   导出/设置），抽屉头只留标题 + ✕ —— 宽屏分栏后抽屉有一整屏高，放头部离输入框 845px（1600×1000 实测）。
   ⋯ 菜单在底部只能 `bottom: calc(100% + 4px)` 往上弹；`.ai-float` 桌面与窄屏都可拖拽、松手贴最近一侧只露
   24px，位置 `{side,y}` 记 localStorage、跨 768 沿用，别再把拖拽门禁写回 `isNarrow()`。
-  守卫：`tests/test_ai_drawer_layout.py`
+  **浮钮只有一档**：右下角 40px 圆胶囊（手机那套 FAB），任何宽度都不改形态 —— 原先桌面另画一个
+  右上角 30px 直角钮（会跟页头「数据截至」抢位）已删；`.re-header` 也不再为它让 20px。守卫：`tests/test_ai_drawer_layout.py`
 - **已审计过的死路（勿重开）**：全站零自实现手势，不加 `touch-action`（加了反而禁掉表格纵向滑动）；
   例外只有两处拖拽控件（`.ai-float` 浮钮拖拽（全宽度）、分栏 `.ai-grip`）——它们的 `touch-action: none` 是手势前提，
   别把这个例外当成「可以给内容容器加」的先例；
