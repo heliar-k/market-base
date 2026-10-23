@@ -616,6 +616,11 @@ uv run python src/sell_put.py --symbol TSM
   三类**故意不出血**：多列网格的列（commodities 3 列 / `eq-radar-grid` / `vol-top-row` —— 各列色带本就与
   自己那列的 h3 对齐，出血会伸进 12px 列间隙相撞）、自带内缩边框的 `.pm-raw` 虚线框与 `.re-scroll-y` 滚动盒
   （相对自己那层对齐）。全站实测 73 张 = A 形 52 + 上述 21
+- **伴读抽屉在宽屏是分栏，不是浮层**：`html.ai-pane` 时 `body` 加 `padding-right: var(--ai-w)`（专题页普通块流 /
+  SPA 的 `100dvh` flex 壳都吃这一条，34 个专题页零改动），抽屉仍 `fixed` 在右缘，左缘 `.ai-grip` 可拖宽。
+  三个数**单源在 `js/ai-pane.js`**：min 320（抽屉头 6 个按钮实测 275）、max `min(640, 100vw−1004)`（正文内宽地板 700）、
+  断点 1324 = 240 导航 + 700 地板 + 64 内距 + 320。要用这套判断就 import 那个模块，别在 CSS/页面里再写一遍断点；
+  拖拽改宽会让整页图表重排，所以 50ms 节流（treasury 一页 9 张 ECharts）。守卫：`tests/test_ai_pane.py`
 - **已审计过的死路（勿重开）**：全站零自实现手势，不加 `touch-action`（加了反而禁掉表格纵向滑动）；
   触控目标门槛是 **24 CSS px**（WCAG 2.2），44 是 iOS pt / Android dp，`.range-btn` 实算 ≈24.4px 已过线
 

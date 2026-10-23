@@ -13,8 +13,11 @@
 //   .ai-float   浮钮：桌面在右上角（原主题切换位）；窄屏挪到右下角 44px FAB
 //               —— 页头右上角被「数据截至」时效块占着，26px 小钮贴上去会打架
 //   .ai-sel-pop 划词气泡「问这段」（触屏补了 touchend / selectionchange）
-//   .ai-drawer  右侧抽屉：>768 是 380px 侧栏（非模态），≤768 整屏模态
+//   .ai-drawer  右侧抽屉：>768 是侧栏（非模态），≤768 整屏模态
 //               （锁背景滚动 / 焦点陷阱 / 接管返回键；头部低频项收进「⋯」）
+//               ≥1324（PANE_BREAKPOINT）且没在设置里关掉「桌面分栏」时，抽屉不盖正文，
+//               改为让正文让出 --ai-w 宽度（html.ai-pane + body padding-right），
+//               左缘可拖拽调宽；宽度/断点数学单源在 ./ai-pane.js
 // 数据全在本机 localStorage：四个键见下方 K_*，接口直连 OpenAI 兼容端点；
 // Base URL 保持默认且没填 API Key 时走本站 /api/chat（本地 FastAPI / 线上 Pages Function）。
 
@@ -30,6 +33,15 @@ import {
   reconcileCfg,
 } from './ai-config.js';
 import { mdToHtml } from './ai-md.js';
+import {
+  PANE_BREAKPOINT,
+  PANE_DEFAULT,
+  PANE_MAX,
+  PANE_MIN,
+  PANE_MQ,
+  clampPaneWidth,
+  paneMode,
+} from './ai-pane.js';
 import {
   CHAT_HEADER_TIMEOUT_MS,
   CHAT_MAX_ATTEMPTS,
@@ -70,6 +82,9 @@ import {
   const K_THREADS = 'guanlantai-ai-threads';
   const K_ACTIVE = 'guanlantai-ai-active-thread';
   const K_MODELS = 'guanlantai-ai-model-cache';
+  // 桌面分栏：宽度记数值（px），开关记布尔（false = 用户在设置里关掉，宽屏也走浮层）
+  const K_PANE_W = 'guanlantai-ai-pane-width';
+  const K_PANE_ON = 'guanlantai-ai-pane-enabled';
   // localStorage 有 ~5MB 硬上限：对话不封顶迟早写不进（写失败整个历史静默丢）。
   const MAX_THREADS = 50;
   const MODEL_CACHE_TTL = 7 * 24 * 3600 * 1000;
@@ -254,8 +269,17 @@ import {
   let probeNote = '';
 
   let drawer, floatBtn, selPop, msgsEl, quotesEl, inputEl, sendBtn, cfgEl, histEl, histN, flashEl;
-  let menuEl, moreBtn;
+  let menuEl, moreBtn, gripEl;
   let flashTimer = 0;
+  // 桌面分栏：paneW 是用户偏好（落盘），paneShown 是按当前视口夹过的实际宽度。
+  // 分开是为了「窗口从 1920 缩到 1440 再拉回去」时偏好不被中间值吃掉。
+  let paneWanted = loadJSON(K_PANE_ON, true) !== false;
+  let paneW = PANE_DEFAULT;
+  let paneShown = PANE_DEFAULT;
+  let paneDrag = null; // {x0, w0, id}：拖拽柄的起点
+  let paneTimer = 0; // 拖拽节流（每次改宽都会让页内图表重排，见 queuePaneWidth）
+  let paneLastApply = 0;
+  const PANE_FRAME_MS = 50; // 拖拽时最快 20fps 生效（9 张 ECharts 的页逐帧 resize 会拖成幻灯）
   // 窄屏 = 全屏模态（锁滚动 / 焦点陷阱 / 接管返回键）；桌面侧栏保持非模态
   let stickBottom = true; // 消息流是否贴底（往上翻读时流式输出不再抢滚动）
   let locked = false;
@@ -473,6 +497,114 @@ import {
   }
   const menuOpen = () => !!(menuEl && !menuEl.hasAttribute('hidden'));
 
+  // ── 桌面分栏（宽度/断点数学在 ./ai-pane.js，这里只管 DOM 与手势）──────────
+  // 形态：html.ai-pane 打开时正文让出 --ai-w（body padding-right），抽屉仍 fixed 在右缘。
+  // 关闭 / 回落浮层时只撤 class，--ai-w 一并移除（抽屉回到 CSS 里的 380 浮层宽）。
+  const paneActive = () =>
+    !!(drawer && drawer.classList.contains('open') && paneMode(window.innerWidth, paneWanted) === 'pane');
+
+  function syncGripAria() {
+    if (!gripEl) return;
+    gripEl.setAttribute('aria-valuenow', String(paneShown));
+    gripEl.setAttribute('aria-valuemin', String(PANE_MIN));
+    gripEl.setAttribute('aria-valuemax', String(clampPaneWidth(PANE_MAX, window.innerWidth)));
+  }
+
+  // 把偏好按当前视口夹一遍再落到 --ai-w；窗口缩放只走这里，不改 paneW（偏好不被中间值吃掉）
+  function layoutPane() {
+    const html = document.documentElement;
+    paneShown = clampPaneWidth(paneW, window.innerWidth);
+    html.classList.toggle('ai-pane', paneActive());
+    if (html.classList.contains('ai-pane')) {
+      html.style.setProperty('--ai-w', paneShown + 'px');
+    } else {
+      html.style.removeProperty('--ai-w');
+    }
+    syncGripAria();
+  }
+
+  // 拖拽节的收尾：立即把 paneShown 写进变量（不等节流那一拍）
+  function flushPaneWidth() {
+    if (paneTimer) {
+      clearTimeout(paneTimer);
+      paneTimer = 0;
+    }
+    paneLastApply = performance.now();
+    const html = document.documentElement;
+    if (html.classList.contains('ai-pane')) html.style.setProperty('--ai-w', paneShown + 'px');
+  }
+
+  // 拖拽过程中改宽 = 让整页图表重排：treasury 一页 9 张 ECharts，逐帧 resize 会拖成幻灯。
+  // 所以节流到 20fps，松手时再精确落一次（见 endPaneDrag）。
+  function queuePaneWidth(w) {
+    paneShown = clampPaneWidth(w, window.innerWidth);
+    if (paneTimer) return;
+    const wait = Math.max(0, PANE_FRAME_MS - (performance.now() - paneLastApply));
+    paneTimer = setTimeout(() => {
+      paneTimer = 0;
+      flushPaneWidth();
+    }, wait);
+  }
+
+  function endPaneDrag() {
+    if (!paneDrag) return;
+    const id = paneDrag.id;
+    paneDrag = null;
+    document.documentElement.classList.remove('ai-resizing');
+    flushPaneWidth();
+    paneW = paneShown; // 松手才认这个宽度为偏好（拖拽中途的中间值不落盘）
+    saveJSON(K_PANE_W, paneW);
+    try {
+      gripEl.releasePointerCapture(id);
+    } catch (e) {
+      /* 指针已经不在了 */
+    }
+  }
+
+  function bindGrip() {
+    if (!gripEl) return;
+    gripEl.addEventListener('pointerdown', (e) => {
+      if (!paneActive() || e.button > 0) return;
+      e.preventDefault();
+      paneDrag = { x0: e.clientX, w0: paneShown, id: e.pointerId };
+      document.documentElement.classList.add('ai-resizing');
+      try {
+        gripEl.setPointerCapture(e.pointerId);
+      } catch (err) {
+        /* 老浏览器没有指针捕获：仍靠 pointermove，只是移出柄会断 */
+      }
+    });
+    gripEl.addEventListener('pointermove', (e) => {
+      if (!paneDrag || e.pointerId !== paneDrag.id) return;
+      // 柄在抽屉左缘：指针往左（clientX 变小）= 抽屉变宽
+      queuePaneWidth(paneDrag.w0 + (paneDrag.x0 - e.clientX));
+    });
+    gripEl.addEventListener('pointerup', endPaneDrag);
+    gripEl.addEventListener('pointercancel', endPaneDrag);
+    gripEl.addEventListener('lostpointercapture', endPaneDrag);
+    // 双击复位：拖到一个别扭的宽度后不用去设置里找
+    gripEl.addEventListener('dblclick', () => {
+      paneW = clampPaneWidth(PANE_DEFAULT, window.innerWidth);
+      layoutPane();
+      saveJSON(K_PANE_W, paneW);
+    });
+    // 键盘可达：方向键 16px、Shift 64px、Home/End 两端（分隔条是 1D 控件，只该管宽度）
+    gripEl.addEventListener('keydown', (e) => {
+      if (!paneActive()) return;
+      const step = e.shiftKey ? 64 : 16;
+      let next;
+      if (e.key === 'ArrowLeft') next = paneShown + step; // 柄左移 = 变宽
+      else if (e.key === 'ArrowRight') next = paneShown - step;
+      else if (e.key === 'Home') next = PANE_MIN;
+      else if (e.key === 'End') next = PANE_MAX;
+      else return;
+      e.preventDefault();
+      paneW = clampPaneWidth(next, window.innerWidth);
+      layoutPane();
+      saveJSON(K_PANE_W, paneW);
+    });
+  }
+
   // 键盘弹出后 visual viewport 比 layout viewport 矮：把抽屉钉在可见区，
   // 否则 fixed 底栏（输入框 + 发送）会落在键盘后面（iOS Safari 不认 interactive-widget）
   function syncDrawerToViewport() {
@@ -548,6 +680,7 @@ import {
     drawer.classList.add('open');
     drawer.inert = false;
     drawer.setAttribute('aria-hidden', 'false');
+    layoutPane(); // 宽屏分栏：先让正文让位，再让抽屉滑进来（同一个任务内，不会闪一下 380）
     if (isNarrow()) {
       drawer.setAttribute('aria-modal', 'true');
       lockScroll();
@@ -571,6 +704,7 @@ import {
     drawer.style.top = '';
     drawer.style.height = '';
     drawer.classList.remove('ai-kb');
+    layoutPane(); // 撤掉分栏：正文立刻收回让位（抽屉此时正滑出，盖不到刚展开的内容）
     hidePop();
     unlockScroll();
     if (drawerPushed) {
@@ -1289,6 +1423,14 @@ import {
       opt('', '默认（不传 reasoning_effort）', c.effort) +
       levels.map((lv) => opt(lv, lv, c.effort)).join('') +
       '</select></div>' +
+      // 分栏开关只影响「宽屏打开时怎么占位」，与对话内容无关，所以放设置的尾部
+      '<div class="ai-row"><label>桌面分栏</label>' +
+      '<label class="ai-check"><input type="checkbox" data-pane="1"' +
+      (paneWanted ? ' checked' : '') +
+      '> 宽屏时让正文让开，而不是盖在上面</label></div>' +
+      '<p class="ai-hint">视口 ≥ ' +
+      PANE_BREAKPOINT +
+      'px 才生效（更窄仍是浮层）；分栏时左缘可拖宽，双击复位。关掉后宽屏也走浮层。</p>' +
       (probeNote ? '<p class="ai-hint">' + esc(probeNote) + '</p>' : '') +
       (proxy
         ? '<p class="ai-hint"><b>本站代理</b>：未填 Key 时请求走 <code>/api/chat</code>，模型以服务端白名单为准（下方 Model 可能被覆盖）；推理强度只对直连生效。</p>'
@@ -1414,6 +1556,8 @@ import {
     '<button class="ai-sel-pop" type="button">💬 问这段</button>' +
     // tabindex=-1：打开时焦点能落在对话框上（读屏播报），又不进 Tab 序列、不弹键盘
     '<div class="ai-drawer" role="dialog" tabindex="-1" aria-labelledby="ai-title" aria-hidden="true">' +
+    // 左缘分栏拖拽柄：只在 html.ai-pane 里显示（CSS），键盘可达，aria 值由 syncGripAria 写
+    '<div class="ai-grip" role="separator" aria-orientation="vertical" aria-label="调整伴读宽度（双击复位）" tabindex="0"></div>' +
     '<div class="ai-head">' +
     '<span class="ai-title" id="ai-title">伴读问答</span>' +
     '<button class="ai-btn" type="button" data-act="new">＋ 新对话</button>' +
@@ -1603,6 +1747,11 @@ import {
     flashEl = drawer.querySelector('[data-flash]');
     menuEl = drawer.querySelector('[data-menu]');
     moreBtn = drawer.querySelector('[data-act="more"]');
+    gripEl = drawer.querySelector('.ai-grip');
+    // 上次拖到的宽度：只在分栏态用；非法/越界由 clampPaneWidth 兜（见 ai-pane.js）
+    paneW = Number(loadJSON(K_PANE_W, 0)) || PANE_DEFAULT;
+    bindGrip();
+    layoutPane();
 
     floatBtn.addEventListener('click', () => {
       if (fabSuppressClick) return; // 刚拖完，那一下不算点击
@@ -1644,6 +1793,22 @@ import {
     });
 
     window.addEventListener('resize', syncDrawerToViewport);
+
+    // 分栏：跨过 1324 断点、或窗口在分栏态里变宽变窄，都要重算让位宽度。
+    // resize 走 rAF 合帧（一轮拖窗口会连发几十次，每次都要重排整页图表）
+    let paneRaf = 0;
+    window.addEventListener('resize', () => {
+      if (paneRaf) return;
+      paneRaf = requestAnimationFrame(() => {
+        paneRaf = 0;
+        layoutPane();
+      });
+    });
+    const paneMq = window.matchMedia ? window.matchMedia(PANE_MQ) : null;
+    if (paneMq) {
+      if (paneMq.addEventListener) paneMq.addEventListener('change', layoutPane);
+      else if (paneMq.addListener) paneMq.addListener(layoutPane);
+    }
 
     // 跨过 768 断点时补一次模态状态（老 Safari 只有 addListener）
     const narrowMq = window.matchMedia ? window.matchMedia('(max-width: 768px)') : null;
@@ -1793,6 +1958,15 @@ import {
         stickBottom = true; // 换会话看的是最新几条，别沿用上一个会话的滚动位置
         renderMessages();
       }
+    });
+
+    // 分栏开关：即时生效（不用等「保存」，它跟对话配置不是一回事）
+    cfgEl.addEventListener('change', (e) => {
+      const cb = e.target.closest && e.target.closest('[data-pane]');
+      if (!cb) return;
+      paneWanted = !!cb.checked;
+      saveJSON(K_PANE_ON, paneWanted);
+      layoutPane();
     });
 
     // 下拉选择立即落盘（保存按钮只管文本输入）；换模型时推理强度档位跟着刷新

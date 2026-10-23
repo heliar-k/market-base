@@ -764,6 +764,30 @@ body [data-scroll-hide].scroll-away { opacity: 0; pointer-events: none; }
 .ai-drawer.open { transform: translateX(0); }
 .ai-drawer:focus { outline: none; } /* 程序化聚焦的容器，不该画焦点圈 */
 @media (max-width: 768px) { .ai-drawer { width: 100vw; } }
+
+/* ── 桌面分栏（宽度/断点数学单源在 js/ai-pane.js，ai-chat.js 在打开时挂 html.ai-pane）──
+   宽屏打开时正文「让开」而不是被盖住：body 加 padding-right，抽屉本身仍 fixed 在右缘。
+   不挪 DOM、不动滚动容器 —— 专题页（普通文档流 + body 的 padding-left）与 SPA（100dvh
+   flex 壳 + 内部 .center 滚动）两种 body 都吃同一条规则，34 个专题页零改动。
+   宽度只走 --ai-w 一个变量：拖拽 / 记忆 / 断点回落都改它。 */
+html.ai-pane body { padding-right: var(--ai-w, 380px); }
+html.ai-pane .ai-drawer { width: var(--ai-w, 380px); }
+html.ai-pane .ai-float { display: none; } /* 分栏时浮钮会压在抽屉头上（头里有 ✕ 和 ⌘K） */
+/* 左缘拖拽柄：11px 命中区 / 1px 视觉线（hover 才上 accent，不跟正文抢注意力）。
+   z-index 压在抽屉自己的内容之上；::after 与抽屉的 border-left 重合，看起来就是那条边在亮。 */
+.ai-grip { display: none; }
+html.ai-pane .ai-grip { display: block; position: absolute; top: 0; bottom: 0; left: -5px; width: 11px; z-index: 2; cursor: col-resize; touch-action: none; }
+html.ai-pane .ai-grip::after { content: ''; position: absolute; top: 0; bottom: 0; left: 5px; width: 1px; background: transparent; transition: background .15s; }
+html.ai-pane .ai-grip:hover::after,
+html.ai-pane .ai-grip:focus-visible::after,
+html.ai-resizing .ai-grip::after { background: var(--accent); }
+html.ai-pane .ai-grip:focus-visible { outline: 2px solid var(--accent); outline-offset: -4px; }
+/* 拖拽中：全局 col-resize + 禁选中（否则拖到正文上会顺手选中一片字） */
+html.ai-resizing, html.ai-resizing * { cursor: col-resize !important; user-select: none !important; }
+/* 设置面板里的复选框行（分栏开关）：一行读完，不另造组件语言 */
+.ai-check { display: flex; align-items: center; gap: 6px; font-size: 12px; line-height: 1.6; color: var(--text-secondary); min-height: 24px; cursor: pointer; }
+.ai-check input { flex: 0 0 auto; accent-color: var(--accent); cursor: pointer; }
+
 /* 窄屏抽屉是整屏模态：背景页不能再滚（iOS 的 overflow:hidden 拦不住，JS 侧用
    body position:fixed 兜底），见 ai-chat.js 的 lockScroll/unlockScroll */
 html.ai-lock, html.ai-lock body { overflow: hidden; }
