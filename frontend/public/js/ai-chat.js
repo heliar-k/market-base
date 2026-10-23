@@ -1378,10 +1378,12 @@ import {
     }
   }
 
-  // 默认落点按 CSS 的 bottom 反推：专题页 14px、SPA 多让 32px 状态栏
+  // 默认落点按 CSS 的 bottom 反推：专题页 14px、SPA 46px（多让 32px 状态栏）。
+  // 别把钮高混进 gap —— 曾经写成 54，浮钮整体高了 40px，正好压住右下角的返回顶部。
   function fabDefaultY() {
-    const gap = document.body.classList.contains('app-shell') ? 86 : 54;
-    return Math.max(8, window.innerHeight - gap - 40);
+    const gap = document.body.classList.contains('app-shell') ? 46 : 14;
+    const h = floatBtn ? floatBtn.offsetHeight || 40 : 40;
+    return Math.max(8, window.innerHeight - gap - h);
   }
 
   // docked=true → 贴边只露 FAB_DOCK_VISIBLE；false → 整颗露出（点开时）

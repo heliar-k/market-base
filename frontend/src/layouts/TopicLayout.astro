@@ -297,8 +297,9 @@ window.__reTheme = (function () {
     // 滚动中淡出（rates-common 的 R.watchScrollHide 统一接管，与伴读浮钮同一套）
     topBtn.setAttribute('data-scroll-hide', '');
     topBtn.title = '返回顶部';
-    // 带文字标签：裸箭头语义不明（NN/g《Back-to-Top》第 3 条）
-    topBtn.textContent = '↑ 顶部';
+    // 视觉上只留箭头（用户偏好最简），语义交给 title + aria-label
+    topBtn.textContent = '↑';
+    topBtn.setAttribute('aria-label', '返回顶部');
     topBtn.addEventListener('click', function () {
       window.scrollTo({ top: 0, behavior: 'smooth' });
     });
