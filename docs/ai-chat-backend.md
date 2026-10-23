@@ -1,7 +1,8 @@
 # 伴读抽屉后端通道（/api/chat · /api/models · /api/notes）
 
-> 2026-10-22 落地。前端单源 `frontend/public/js/ai-chat.js`（配置纯逻辑在 `ai-config.js`）；
-> 本文件讲服务端通道、部署配置，以及「模型到底看得见页面上的什么」。领域术语见 `CONTEXT.md`。
+> 2026-10-22 落地。前端单源 `frontend/public/js/ai-chat.js`（配置纯逻辑在 `ai-config.js`，
+> 断流重试在 `ai-retry.js`）；本文件讲服务端通道、部署配置、断流与自动重试，
+> 以及「模型到底看得见页面上的什么」。领域术语见 `CONTEXT.md`。
 
 ## 为什么有两套实现
 
@@ -98,6 +99,31 @@ POST /api/notes
   模型由服务端白名单决定；设置面板禁用推理强度，并显示代理提示。
 - **填了 Key，或 Base URL 改成别的** → 直连 `{Base URL}/chat/completions`（BYOK，行为不变）。
 - 代理模式下「探测模型」请求 `/api/models`；直连模式仍请求 `{Base URL}/models`。
+
+## 断流与自动重试（前端）
+
+> 2026-10-23。策略纯逻辑单源在 `frontend/public/js/ai-retry.js`（node 可直接测），
+> `ai-chat.js` 的 `postChat` 只负责执行；服务端两条通道**都不重试**（Worker 里没有等待预算，
+> 重发成本也由前端更清楚）。
+
+| 情形 | 自动重试？ | 说明 |
+|---|---|---|
+| fetch 抛网络错误（断网 / DNS / TLS，Chrome「Failed to fetch」、Safari「Load failed」） | 是 | 最多 3 次尝试，退避 800ms → 1600ms（±20% 抖动） |
+| 429 / 408 / 425 / 5xx（含 CF 520–524、529） | 是 | 429 若带 `Retry-After`，按它等；> 6s 就不自动等，错误文案里告诉用户多久后再来 |
+| 4xx（400/401/403/404/413/422）与 503「未配置 LLM_API_KEY」 | 否 | 参数或配置问题，重发结果一样；直接给原话 |
+| 60 秒没等到响应头（黑洞连接 / 网关挂住） | 是，**只一次** | 连续三次 60 秒等待 = 三分钟，用户会以为卡死 |
+| 流式响应 120 秒没有新分片 | 否（不自动重发） | 已经开始吐正文，自动重发会把答案叠成两份；保留半截 + 错误条 + 手动「重试」 |
+| 用户点「停止」 | 否 | 退避等待与请求都可打断，落成「（已停止）」而不是错误 |
+
+- **只在「还没吐出任何字符」时自动重试**：`postChat` 覆盖「发请求 → 拿到 2xx 响应头」这一段；
+  正文开始流之后归 `consume`，那里的失败只做「半截 + 可重试」。
+  工具往返每一轮各算各的（第 2 轮断网重试第 2 轮，不会重跑第 1 轮）。
+- **超时 ≠ 停止**：`openGate` 把外层 `turn.signal` 与本次尝试的计时器收敛成一个 signal 并记下
+  `cause`（`user` / `timeout`）——浏览器对两者都抛 `AbortError`，只看 `error.name` 会把断网说成「已停止」。
+- **失败条目带 `failed: true`**：仍落进 thread（用户要看原因、要能点重试），但 `buildMessages`
+  把它排除在上下文之外——否则用户直接追问时，模型会把「请求失败：…」当成自己上一句回答。
+- 用户体验：重试期间流式节点的 meta 显示「连接失败，正在重试（2/3）…」；最终失败文案形如
+  「请求失败：网络错误（Failed to fetch）；已自动重试 2 次」，最后一条答案照旧带「重试」按钮。
 
 ## 页面上下文（模型到底看得见什么）
 
@@ -240,7 +266,7 @@ npx wrangler pages dev frontend/dist --binding LLM_API_KEY=sk-test
 ## 测试
 
 ```bash
-uv run python -m pytest tests/test_chat_backend.py tests/test_pages_functions.py tests/test_ai_config.py -q
+uv run python -m pytest tests/test_chat_backend.py tests/test_pages_functions.py tests/test_ai_config.py tests/test_ai_retry.py -q
 
 # 浏览器验收（探测保留字段 / 缓存按模式隔离 / effort 清理 / 存笔记 / 模型口径）
 # 先起一个能打开 /rates/ 的站点；脚本会 mock /api/*，不连网
@@ -253,5 +279,7 @@ uv run python scripts_dev/check_ai_chat_playwright.py http://127.0.0.1:8000
 - `test_pages_functions.py`：node 直接 import Pages Functions，假 fetch / 假 KV；工具契约与
   Python 侧**同一批**畸形请求，断言状态码一一对应
 - `test_ai_config.py`：代理模式判定、推理档位、重渲染草稿、effort 清理、缓存模式隔离、payload
+- `test_ai_retry.py`：重试策略（可重试状态码 / 浏览器网络错误 / Retry-After / 指数退避与封顶 /
+  超时只再试一次）、闸门（超时 vs 用户停止 vs 整包响应）、失败文案，以及 `ai-chat.js` 的接线守卫
 - `scripts_dev/check_ai_chat_playwright.py`：浏览器侧验收（探测/换模型保留未保存字段、缓存切模式、
-  effort 跨刷新、存笔记、答案显示实际模型）
+  effort 跨刷新、存笔记、答案显示实际模型、断网自动重试 / 持续失败 / 429 收手 / 退避中停止）

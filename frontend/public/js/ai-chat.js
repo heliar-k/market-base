@@ -5,6 +5,8 @@
 //   - 提示词与引用块模板单源在 ./ai-prompt.js —— 调提示词只改那个文件；
 //   - 站内数据工具（目录 / 执行器 / SSE 分片累积）单源在 ./ai-tools.js；
 //     工具往返只活在 runTurn 的内存里，不落 thread（spec 第 3 条）；
+//   - 断流重试策略（可重试判定 / 退避 / 闸门与超时 / 错误文案）单源在 ./ai-retry.js，
+//     本文件的 postChat 只负责执行重试，runTurn 不再直接 request()；
 //   - 本文件用 rates-common.js 的全局 R.esc，不自带一份实现（守卫见
 //     tests/test_static_single_source.py）。
 // 挂三样东西到 body 末尾（全是 position: fixed，不进 SPA 的 flex 流）：
@@ -28,6 +30,15 @@ import {
   reconcileCfg,
 } from './ai-config.js';
 import { mdToHtml } from './ai-md.js';
+import {
+  CHAT_HEADER_TIMEOUT_MS,
+  CHAT_MAX_ATTEMPTS,
+  failureText,
+  openGate,
+  planRetry,
+  retryAfterMs as parseRetryAfter,
+  waitFor,
+} from './ai-retry.js';
 import {
   TOOL_TIMEOUT_MS,
   accumulateToolCalls,
@@ -676,10 +687,16 @@ import {
       .filter(Boolean)
       .join('\n');
     const messages = [{ role: 'system', content: sys }];
-    // 只带本轮之前的最近 11 条历史（slice(0, -1) 去掉末尾本轮，避免重复发送）
-    thread.messages.slice(0, -1).slice(-11).forEach((m) =>
-      messages.push({ role: m.role, content: quotePrefix(m.quotes) + (m.content || '') })
-    );
+    // 只带本轮之前的最近 11 条历史（slice(0, -1) 去掉末尾本轮，避免重复发送）。
+    // 失败条目（msg.failed）不进上下文：模型不该把「请求失败：…」当成自己上一句回答，
+    // 否则用户直接追问（没点重试）时，模型会顺着一句报错文字往下编。
+    thread.messages
+      .slice(0, -1)
+      .filter((m) => !(m.role === 'assistant' && m.failed))
+      .slice(-11)
+      .forEach((m) =>
+        messages.push({ role: m.role, content: quotePrefix(m.quotes) + (m.content || '') })
+      );
     messages.push({ role: 'user', content: quotePrefix(last.quotes) + (last.content || '') });
     return messages;
   }
@@ -726,6 +743,52 @@ import {
     });
   }
 
+  function stoppedError() {
+    const e = new Error('已停止');
+    e.name = 'AbortError';
+    return e;
+  }
+
+  // 发一轮请求（含自动重试），只在「还没吐出任何字符」时重发：
+  // 流中断的失败留给手动「重试」，自动重发会把半截答案再叠一份。
+  // → {ok:true, res, gate}，或 {ok:false, status, detail, message, attempts, waitMs}
+  // 用户点了停止 → 抛 AbortError（沿用 runTurn 的「（已停止）」分支）。
+  async function postChat(cfg, messages, turn, choice, onRetry) {
+    for (let attempt = 1; ; attempt += 1) {
+      const gate = openGate(turn.signal);
+      let res = null;
+      let failure = null;
+      gate.arm(CHAT_HEADER_TIMEOUT_MS, 'header');
+      try {
+        res = await request(cfg, messages, gate.signal, choice);
+        gate.headers(res.headers.get('content-type'));
+      } catch (e) {
+        const cause = gate.cause();
+        failure = { error: e, cause, phase: gate.phase(), timeoutMs: gate.timeoutMs() };
+        gate.dispose();
+        if (cause === 'user') throw stoppedError();
+      }
+      if (res && res.ok) return { ok: true, res, gate };
+      if (res) {
+        failure = {
+          status: res.status,
+          detail: await apiError(res, '本站 /api/chat'),
+          retryAfterMs: parseRetryAfter(res.headers.get('retry-after')),
+        };
+        gate.dispose();
+      }
+      const plan = planRetry(Object.assign({ attempt }, failure));
+      if (!plan.retry) {
+        const failed = Object.assign({ attempts: attempt, waitMs: plan.waitMs }, failure);
+        return Object.assign({ ok: false, message: failureText(failed) }, failed);
+      }
+      // 让用户看见「正在重试」，而不是一个静止的「生成中…」——瞬时失败也有反馈
+      if (onRetry) onRetry(plan, attempt);
+      await waitFor(plan.delayMs, turn.signal);
+      if (turn.signal.aborted) throw stoppedError();
+    }
+  }
+
   // 解析一条 SSE：→ {content, reasoning, toolCalls, finishReason} / '[DONE]' / null
   // 思考模式下思维链与正文同级返回（reasoning_content）；工具调用是 delta.tool_calls 分片。
   // 解析单源在 ai-tools.js 的 parseSseLine（纯函数，node 可直接测）。
@@ -753,6 +816,8 @@ import {
       for (;;) {
         const r = await reader.read();
         if (r.done) break;
+        // 分片到达 → 重置「断流」计时（不看分片内容，心跳/空行也算活着）
+        if (on.tick) on.tick();
         buf += dec.decode(r.value, { stream: true });
         const lines = buf.split('\n');
         buf = lines.pop() || '';
@@ -915,62 +980,82 @@ import {
     let degraded = false;
     let choice = 'auto';
     let forced = false;
+    let failed = false; // 本轮最终是失败结果（不是用户停止）
     // 同轮端点缓存：只活在本轮内存里，跨 turn 一律换新 Map（spec 第 3 条，结果有时效性）。
     // 模型完全可能把同一端点问两遍（尤其下钻时），每轮却只有 3 次调用预算。
     const toolCache = new Map();
     // 每批结果都留一份，收尾交给 summarizeToolRuns 分成「查到的 / 未取到」两组
     const toolRuns = [];
+    // 流式读到一半失败时闸门给的判定（'timeout' = 断流，'' = 非超时）
+    let streamCause = '';
+    let streamTimeoutMs = 0;
+    // 自动重试的状态文案：写进流式节点的 meta，别让用户盯着一动不动的「生成中…」
+    const onRetryStatus = (plan) => {
+      metaEl.textContent = '连接失败，正在重试（' + plan.attempt + '/' + CHAT_MAX_ATTEMPTS + '）…';
+    };
     try {
       // 循环直到模型不再要工具，或撞上轮数上限（超了就用已有正文收尾）
       for (;;) {
-        let res = await request(cfg, reqMessages, turn.signal, choice);
-        if (!res.ok) {
-          let detail = await apiError(res, '本站 /api/chat');
+        let reply = await postChat(cfg, reqMessages, turn, choice, onRetryStatus);
+        if (!reply.ok) {
           // 残余风险防线（spec 第 6 条）：官方若比实测更严，带 tools 的历史缺
           // reasoning_content 会 400。只降级本轮记忆（system + 最后一条 user）
           // 重发一次、保留 tools，不丢查数能力；再失败就正常报错。
-          if (!degraded && isReasoningReject(res.status, detail)) {
+          if (!degraded && isReasoningReject(reply.status, reply.detail)) {
             degraded = true;
             const slim = minimalMessages(reqMessages);
             reqMessages.length = 0;
             slim.forEach((m) => reqMessages.push(m));
-            res = await request(cfg, reqMessages, turn.signal, choice);
-            if (!res.ok) detail = await apiError(res, '本站 /api/chat');
+            reply = await postChat(cfg, reqMessages, turn, choice, onRetryStatus);
           }
-          if (!res.ok) throw new Error(detail);
+          if (!reply.ok) throw new Error(reply.message);
         }
+        const res = reply.res;
+        const gate = reply.gate;
         answeredModel = res.headers.get('x-llm-model') || answeredModel || cfg.model || '';
         let roundText = '';
-        const out = await consume(res, {
-          reasoning: (r) => {
-            if (!thinkAt) {
-              thinkAt = Date.now();
-              thinkEl.hidden = false;
-              thinkEl.open = true;
-              metaEl.textContent = '思考中…';
-            }
-            think += r;
-            thinkBody.textContent = think;
-            thinkBody.scrollTop = thinkBody.scrollHeight;
-            scrollBottom();
-          },
-          content: (c) => {
-            // 正文一到就把思考栏收成一行，标题仍可点开回看（跨往返也只算一次）
-            if (thinkAt && !thinkMs) {
-              thinkMs = Math.max(1, Date.now() - thinkAt - toolSpent);
-              thinkEl.open = false;
-              const spin = thinkEl.querySelector('.ai-spin');
-              if (spin) spin.remove();
-              const secs = Math.max(1, Math.round(thinkMs / 1000));
-              thinkSummary.textContent = '思考 ' + secs + ' 秒';
-            }
-            metaEl.textContent = '生成中…';
-            live += c;
-            roundText += c;
-            bodyEl.innerHTML = mdToHtml(live);
-            scrollBottom();
-          },
-        });
+        let out;
+        try {
+          out = await consume(res, {
+            reasoning: (r) => {
+              if (!thinkAt) {
+                thinkAt = Date.now();
+                thinkEl.hidden = false;
+                thinkEl.open = true;
+                metaEl.textContent = '思考中…';
+              }
+              think += r;
+              thinkBody.textContent = think;
+              thinkBody.scrollTop = thinkBody.scrollHeight;
+              scrollBottom();
+            },
+            content: (c) => {
+              // 正文一到就把思考栏收成一行，标题仍可点开回看（跨往返也只算一次）
+              if (thinkAt && !thinkMs) {
+                thinkMs = Math.max(1, Date.now() - thinkAt - toolSpent);
+                thinkEl.open = false;
+                const spin = thinkEl.querySelector('.ai-spin');
+                if (spin) spin.remove();
+                const secs = Math.max(1, Math.round(thinkMs / 1000));
+                thinkSummary.textContent = '思考 ' + secs + ' 秒';
+              }
+              metaEl.textContent = '生成中…';
+              live += c;
+              roundText += c;
+              bodyEl.innerHTML = mdToHtml(live);
+              scrollBottom();
+            },
+            // 每个分片重置「断流」计时（整包响应不设超时，见 openGate.headers）
+            tick: () => gate.tick(),
+          });
+        } catch (e) {
+          // 流中断要把闸门的判定带出去：abort 有可能是超时，不能一律说成「已停止」
+          streamCause = gate.cause();
+          streamTimeoutMs = gate.timeoutMs();
+          throw e;
+        } finally {
+          gate.dispose();
+        }
         finishReason = out.finishReason || finishReason;
         // reasoning_content 不回传：已实测上游不强制（spec 第 6 条 R6），
         // 每轮带上完整思维链只会挤爆 40k 字符预算。
@@ -1020,9 +1105,21 @@ import {
               : '（接口没有返回内容）';
       }
     } catch (e) {
-      const aborted = e && e.name === 'AbortError';
-      const note = aborted ? '（已停止）' : '请求失败：' + (e && e.message ? e.message : e);
+      // 断流超时也是 AbortError，得先看闸门的判定，否则会把「网断了」说成「已停止」
+      const timedOut = streamCause === 'timeout';
+      const aborted = !timedOut && (turn.signal.aborted || (e && e.name === 'AbortError'));
+      let note;
+      if (timedOut) {
+        note =
+          '请求失败：' + failureText({ cause: 'timeout', phase: 'stream', timeoutMs: streamTimeoutMs });
+      } else if (aborted) {
+        note = '（已停止）';
+      } else {
+        note = '请求失败：' + (e && e.message ? e.message : e);
+      }
       live = (live ? live + '\n\n' : '') + note;
+      // 失败条目标记出来：下一轮请求不再把「请求失败：…」当成模型的上一句回答喂回去
+      failed = !aborted;
     } finally {
       controller = null;
       setBusy(false);
@@ -1038,6 +1135,7 @@ import {
       asOf: last.asOf,
       ts: Date.now(),
     };
+    if (failed) msg.failed = true;
     // 轻量回显字段：只记「查过什么」，供 UI 显示「查数 …」/「未取到 …」；导出/落盘消费者忽略它。
     // tools 仍是字符串数组（旧 thread 兼容），T5 起 summarizeToolRuns 直接给显示名；
     // 旧 thread 里的裸路径由渲染端 toolDisplayNames() 再映射一次，数据不迁移。

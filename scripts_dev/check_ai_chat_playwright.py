@@ -1200,6 +1200,95 @@ async def check_mobile_fab(browser, base: str) -> None:
     await ctx.close()
 
 
+async def check_retry(browser, base: str) -> None:
+    """断流重试：网络抖动自动重发、持续失败留手动重试、429 按 Retry-After 收手、退避可停止。"""
+    # 1) 前两次断网、第三次成功 → 自动重试兜住，用户只看到答案
+    ctx, page = await new_page(browser, base)
+    hits = {"n": 0}
+
+    async def flaky(route):
+        hits["n"] += 1
+        if hits["n"] < 3:
+            await route.abort("failed")
+            return
+        await route.fulfill(
+            status=200,
+            headers={"content-type": "text/event-stream", "x-llm-model": "deepseek-flash"},
+            body=SSE,
+        )
+
+    await page.route("**/api/chat", flaky)
+    await page.locator(".ai-input").fill("断流重试验收")
+    await page.locator("[data-send]").click()
+    await wait_idle(page, 12000)
+    body = await page.locator(".ai-msg-assistant").last.inner_text()
+    check("验收答" in body, "断网两次后自动重试成功给出答案")
+    check(hits["n"] == 3, "断网共发 3 次请求（首次 + 2 次自动重试）")
+    await ctx.close()
+
+    # 2) 一直 502 → 错误文案带重试次数；手动「重试」还能再发一轮
+    ctx, page = await new_page(browser, base)
+    down = {"n": 0}
+
+    async def fail502(route):
+        down["n"] += 1
+        await route.fulfill(
+            status=502,
+            content_type="application/json",
+            body='{"error":"代理失败：上游 connect timeout"}',
+        )
+
+    await page.route("**/api/chat", fail502)
+    await page.locator(".ai-input").fill("持续失败验收")
+    await page.locator("[data-send]").click()
+    await wait_idle(page, 12000)
+    text = await page.locator(".ai-msg-assistant").last.inner_text()
+    check("已自动重试 2 次" in text, "持续失败时错误文案说明已自动重试几次")
+    before = down["n"]
+    await page.locator('[data-mact="retry"]').click()
+    await wait_idle(page, 12000)
+    check(down["n"] == before + 3, "手动「重试」真的重发（再走一轮 3 次尝试）")
+    await ctx.close()
+
+    # 3) 429 + Retry-After 60：不自动等（等 60 秒 = 抽屉钉死），文案说明要等多久
+    ctx, page = await new_page(browser, base)
+    limited = {"n": 0}
+
+    async def tooMany(route):
+        limited["n"] += 1
+        await route.fulfill(
+            status=429,
+            headers={"content-type": "application/json", "retry-after": "60"},
+            body='{"error":"请求过于频繁（本站代理每分钟 10 次），请稍后再试。"}',
+        )
+
+    await page.route("**/api/chat", tooMany)
+    await page.locator(".ai-input").fill("限流验收")
+    await page.locator("[data-send]").click()
+    await wait_idle(page, 12000)
+    text = await page.locator(".ai-msg-assistant").last.inner_text()
+    check(limited["n"] == 1, "Retry-After 超过退避上限时不再自动重试")
+    check("服务端要求 60 秒后再试" in text, "限流文案告诉用户多久后再来")
+    await ctx.close()
+
+    # 4) 退避期间点「停止」立即收手（不能干等退避）
+    ctx, page = await new_page(browser, base)
+
+    async def maintenance(route):
+        await route.fulfill(status=503, content_type="application/json", body='{"error":"维护中"}')
+
+    await page.route("**/api/chat", maintenance)
+    await page.locator(".ai-input").fill("退避中停止验收")
+    await page.locator("[data-send]").click()
+    await page.wait_for_timeout(300)
+    send_label = (await page.locator("[data-send]").inner_text()).strip()
+    check(send_label == "停止", "退避期间发送按钮仍是「停止」（可以打断）")
+    await page.locator("[data-send]").click()
+    await wait_idle(page, 8000)
+    check("（已停止）" in await page.locator(".ai-msgs").inner_text(), "退避期间点停止立刻收手")
+    await ctx.close()
+
+
 async def main(base: str) -> int:
     base = base.rstrip("/") + "/"
     async with async_playwright() as p:
@@ -1220,6 +1309,7 @@ async def main(base: str) -> int:
         await check_options_tool_summary(browser, base)
         await check_mobile_fab(browser, base)
         await check_save_note(browser, base)
+        await check_retry(browser, base)
         await browser.close()
     print(f"\n{len(FAILS)} failure(s)")
     return 1 if FAILS else 0
