@@ -758,44 +758,14 @@ body [data-scroll-hide].scroll-away { opacity: 0; pointer-events: none; }
 /* 触屏上要拿手指戳：把气泡抬到 34px 高（仍贴选区上沿，翻边逻辑在 JS） */
 @media (pointer: coarse) { .ai-sel-pop { min-height: 34px; padding: 6px 12px; font-size: 13px; } }
 
-/* 右侧抽屉：transform 滑入（不用 display，动画才连贯） */
-.ai-drawer { position: fixed; top: 0; right: 0; bottom: 0; width: 380px; max-width: 100vw; z-index: var(--z-float); background: var(--surface); border-left: 1px solid var(--border); box-shadow: var(--shadow-pop); display: flex; flex-direction: column; transform: translateX(100%); transition: transform .2s ease; }
+/* 伴读抽屉：所有宽度都是整屏模态（与手机同一形态），不再按视口分栏/留 380px 侧栏。
+   打开时盖住正文并锁背景滚动（.ai-lock + 焦点陷阱，见 ai-chat.js 的 open/lockScroll）。
+   transform 滑入（不用 display，动画才连贯）。 */
+.ai-drawer { position: fixed; inset: 0; width: 100vw; max-width: 100vw; z-index: var(--z-float); background: var(--surface); box-shadow: var(--shadow-pop); display: flex; flex-direction: column; transform: translateX(100%); transition: transform .2s ease; }
 .ai-drawer.open { transform: translateX(0); }
 .ai-drawer:focus { outline: none; } /* 程序化聚焦的容器，不该画焦点圈 */
-@media (max-width: 768px) { .ai-drawer { width: 100vw; } }
 
-/* ── 桌面分栏（宽度/断点数学单源在 js/ai-pane.js，ai-chat.js 在打开时挂 html.ai-pane）──
-   宽屏打开时正文「让开」而不是被盖住：body 加 padding-right，抽屉本身仍 fixed 在右缘。
-   不挪 DOM、不动滚动容器 —— 专题页（普通文档流 + body 的 padding-left）与 SPA（100dvh
-   flex 壳 + 内部 .center 滚动）两种 body 都吃同一条规则，34 个专题页零改动。
-   宽度只走 --ai-w 一个变量：拖拽 / 记忆 / 断点回落都改它。 */
-html.ai-pane body { padding-right: var(--ai-w, 380px); }
-html.ai-pane .ai-drawer { width: var(--ai-w, 380px); }
-html.ai-pane .ai-float { display: none; } /* 分栏时浮钮会压在抽屉头上（头里有 ✕ 和 ⌘K） */
-/* 左缘拖拽柄：1px 视觉线（hover 才上 accent，不跟正文抢注意力），命中区比线宽得多。
-   z-index 压在抽屉自己的内容之上；::after 与抽屉的 border-left 重合，看起来就是那条边在亮。
-   指针细（鼠标/触控板）11px 够；粗指针（iPad 横屏 1366 正好落进分栏档）按 AGENTS 的
-   24px 触控门槛加宽 —— 11px 用手指根本捏不住。 */
-.ai-grip { display: none; }
-html.ai-pane .ai-grip { display: block; position: absolute; top: 0; bottom: 0; left: -5px; width: 11px; z-index: 2; cursor: col-resize; touch-action: none; }
-html.ai-pane .ai-grip::after { content: ''; position: absolute; top: 0; bottom: 0; left: 5px; width: 1px; background: transparent; transition: background .15s; }
-html.ai-pane .ai-grip:hover::after,
-html.ai-pane .ai-grip:focus-visible::after,
-html.ai-resizing .ai-grip::after { background: var(--accent); }
-html.ai-pane .ai-grip:focus-visible { outline: 2px solid var(--accent); outline-offset: -4px; }
-@media (pointer: coarse) {
-  html.ai-pane .ai-grip { left: -12px; width: 24px; }
-  html.ai-pane .ai-grip::after { left: 12px; }
-}
-/* 拖拽中：全局 col-resize + 禁选中（否则拖到正文上会顺手选中一片字） */
-html.ai-resizing, html.ai-resizing * { cursor: col-resize !important; user-select: none !important; }
-/* 设置面板里的复选框行（分栏开关）：复用 .ai-row 的行距，样式只补「一行读完」。
-   .ai-row 的两条通用规则要排除它，否则标题规则（0,1,1）压过 .ai-check（0,1,0）——
-   实测字号/颜色根本不生效，输入框那套 padding+border 也会套到 checkbox 上。 */
-.ai-check { display: flex; align-items: center; gap: 6px; font-size: 12px; line-height: 1.6; color: var(--text-secondary); min-height: 24px; cursor: pointer; }
-.ai-check input { flex: 0 0 auto; accent-color: var(--accent); cursor: pointer; }
-
-/* 窄屏抽屉是整屏模态：背景页不能再滚（iOS 的 overflow:hidden 拦不住，JS 侧用
+/* 抽屉是整屏模态：背景页不能再滚（iOS 的 overflow:hidden 拦不住，JS 侧用
    body position:fixed 兜底），见 ai-chat.js 的 lockScroll/unlockScroll */
 html.ai-lock, html.ai-lock body { overflow: hidden; }
 
@@ -803,7 +773,7 @@ html.ai-lock, html.ai-lock body { overflow: hidden; }
 .ai-head { display: flex; align-items: center; gap: 4px; flex-wrap: nowrap; padding: 8px 10px; border-bottom: 1px solid var(--border); flex: 0 0 auto; }
 .ai-title { min-width: 0; max-width: 40%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; font-weight: 700; color: var(--text); margin-right: auto; }
 .ai-btn { padding: 3px 8px; border: 1px solid var(--btn-border); border-radius: 6px; background: var(--surface); color: var(--text-secondary); font-size: 12px; line-height: 18px; cursor: pointer; white-space: nowrap; }
-/* 操作条：贴着输入框上沿的一行。宽屏分栏时抽屉有整屏高，同样几个按钮放头部
+/* 操作条：贴着输入框上沿的一行。抽屉是一整屏高，同样几个按钮放头部
    会和输入框差出 800px 的视线跨度（用户反馈）。
    不要 overflow-x：绝对定位的「⋯」菜单要往上弹，滚动容器会把它裁掉。
    320px 宽实测 3 钮 + ⋯ 共 ~255px，放得下；真挤不下时 nowrap 让 ⋯ 留在行尾。 */
@@ -844,7 +814,7 @@ html.ai-lock, html.ai-lock body { overflow: hidden; }
 .ai-drawer.ai-kb:has(> .ai-cfg:not([hidden])) > .ai-cfg { flex: 1 1 auto; max-height: none; }
 .ai-hist { max-height: 40vh; overflow-y: auto; }
 .ai-row { display: flex; flex-direction: column; gap: 3px; margin-bottom: 8px; }
-.ai-row > label:not(.ai-check) { font-size: 11px; color: var(--text-dim); }
+.ai-row > label { font-size: 11px; color: var(--text-dim); }
 .ai-row input:not([type="checkbox"]) { padding: 5px 8px; border: 1px solid var(--btn-border); border-radius: 4px; background: var(--surface); color: var(--text); font-size: 12px; font-family: var(--font-mono); }
 /* 探测模型：下拉占满，按钮跟手在右 */
 .ai-row select { padding: 5px 8px; border: 1px solid var(--btn-border); border-radius: 4px; background: var(--surface); color: var(--text); font-size: 12px; font-family: var(--font-mono); }

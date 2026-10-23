@@ -13,12 +13,9 @@
 //   .ai-float   浮钮：桌面默认右上角（原主题切换位）、窄屏默认右下角 40px FAB；
 //               两种宽度都能拖动，松手贴最近一侧只露 24px（--fab-dx），位置记在 localStorage
 //   .ai-sel-pop 划词气泡「问这段」（触屏补了 touchend / selectionchange）
-//   .ai-drawer  右侧抽屉：>768 是侧栏（非模态），≤768 整屏模态
+//   .ai-drawer  抽屉：所有宽度都是整屏模态（与手机同一形态，不按视口分栏）
 //               （锁背景滚动 / 焦点陷阱 / 接管返回键；头部只留标题 + ✕，
 //               新对话/历史/存笔记与「⋯」在输入框上沿的操作条里）
-//               ≥1324（PANE_BREAKPOINT）且没在设置里关掉「桌面分栏」时，抽屉不盖正文，
-//               改为让正文让出 --ai-w 宽度（html.ai-pane + body padding-right），
-//               左缘可拖拽调宽；宽度/断点数学单源在 ./ai-pane.js
 // 数据全在本机 localStorage：四个键见下方 K_*，接口直连 OpenAI 兼容端点；
 // Base URL 保持默认且没填 API Key 时走本站 /api/chat（本地 FastAPI / 线上 Pages Function）。
 
@@ -34,17 +31,6 @@ import {
   reconcileCfg,
 } from './ai-config.js';
 import { mdToHtml } from './ai-md.js';
-import {
-  NARROW_MAX,
-  PANE_BREAKPOINT,
-  PANE_DEFAULT,
-  PANE_MAX,
-  PANE_MIN,
-  PANE_MQ,
-  clampPaneWidth,
-  paneMaxWidth,
-  panePushes,
-} from './ai-pane.js';
 import {
   CHAT_HEADER_TIMEOUT_MS,
   CHAT_MAX_ATTEMPTS,
@@ -85,9 +71,6 @@ import {
   const K_THREADS = 'guanlantai-ai-threads';
   const K_ACTIVE = 'guanlantai-ai-active-thread';
   const K_MODELS = 'guanlantai-ai-model-cache';
-  // 桌面分栏：宽度记数值（px），开关记布尔（false = 用户在设置里关掉，宽屏也走浮层）
-  const K_PANE_W = 'guanlantai-ai-pane-width';
-  const K_PANE_ON = 'guanlantai-ai-pane-enabled';
   // localStorage 有 ~5MB 硬上限：对话不封顶迟早写不进（写失败整个历史静默丢）。
   const MAX_THREADS = 50;
   const MODEL_CACHE_TTL = 7 * 24 * 3600 * 1000;
@@ -272,25 +255,15 @@ import {
   let probeNote = '';
 
   let drawer, floatBtn, selPop, msgsEl, quotesEl, inputEl, sendBtn, cfgEl, histEl, histN, flashEl;
-  let menuEl, moreBtn, gripEl;
+  let menuEl, moreBtn;
   let flashTimer = 0;
-  // 桌面分栏：paneW 是用户偏好（落盘），paneShown 是按当前视口夹过的实际宽度。
-  // 分开是为了「窗口从 1920 缩到 1440 再拉回去」时偏好不被中间值吃掉。
-  let paneWanted = loadJSON(K_PANE_ON, true) !== false;
-  let paneW = PANE_DEFAULT;
-  let paneShown = PANE_DEFAULT;
-  let paneDrag = null; // {x0, w0, id}：拖拽柄的起点
-  let paneTimer = 0; // 拖拽节流（每次改宽都会让页内图表重排，见 queuePaneWidth）
-  let paneLastApply = 0;
-  const PANE_FRAME_MS = 50; // 拖拽时最快 20fps 生效（9 张 ECharts 的页逐帧 resize 会拖成幻灯）
-  const PANE_CLOSE_MS = 220; // 与 app.css 的 .ai-drawer transform .2s 对齐（滑出后再收回让位）
-  let paneCloseTimer = 0;
-  // 窄屏 = 全屏模态（锁滚动 / 焦点陷阱 / 接管返回键）；桌面侧栏保持非模态
+  // 抽屉所有宽度都是整屏模态（锁滚动 / 焦点陷阱 / 接管返回键）
   let stickBottom = true; // 消息流是否贴底（往上翻读时流式输出不再抢滚动）
   let locked = false;
   let lockY = 0;
   let drawerPushed = false; // 打开时压了一个 history state，返回键/关闭时弹掉
-  const NARROW_MQ = '(max-width: ' + NARROW_MAX + 'px)'; // 与 app.css 的整屏档同值，改 ai-pane.js
+  const NARROW_MAX = 768; // 只给浮钮的窄屏落点用（与 app.css 的 FAB 档同值）
+  const NARROW_MQ = '(max-width: ' + NARROW_MAX + 'px)';
   const isNarrow = () => {
     try {
       return window.matchMedia(NARROW_MQ).matches;
@@ -503,149 +476,6 @@ import {
   }
   const menuOpen = () => !!(menuEl && !menuEl.hasAttribute('hidden'));
 
-  // ── 桌面分栏（宽度/断点数学在 ./ai-pane.js，这里只管 DOM 与手势）──────────
-  // 形态：html.ai-pane 打开时正文让出 --ai-w（body padding-right），抽屉仍 fixed 在右缘。
-  // 关闭 / 回落浮层时只撤 class，--ai-w 一并移除（抽屉回到 CSS 里的 380 浮层宽）。
-  const paneActive = () =>
-    !!(drawer && drawer.classList.contains('open') && panePushes(window.innerWidth, paneWanted));
-
-  function syncGripAria() {
-    if (!gripEl) return;
-    gripEl.setAttribute('aria-valuenow', String(paneShown));
-    gripEl.setAttribute('aria-valuemin', String(PANE_MIN));
-    // 上限随视口收缩；浮层态下可能算出 0，夹到 min，免得 aria-valuemax < valuemin
-    gripEl.setAttribute(
-      'aria-valuemax',
-      String(Math.max(PANE_MIN, paneMaxWidth(window.innerWidth)))
-    );
-  }
-
-  // 把偏好按当前视口夹一遍再落到 --ai-w；窗口缩放只走这里，不改 paneW（偏好不被中间值吃掉）
-  function layoutPane() {
-    const html = document.documentElement;
-    paneShown = clampPaneWidth(paneW, window.innerWidth);
-    html.classList.toggle('ai-pane', paneActive());
-    if (html.classList.contains('ai-pane')) {
-      html.style.setProperty('--ai-w', paneShown + 'px');
-    } else {
-      html.style.removeProperty('--ai-w');
-    }
-    syncGripAria();
-  }
-
-  // 不落盘地改宽（pointercancel 退回拖拽前用）
-  function applyPaneWidth(w) {
-    paneW = clampPaneWidth(w, window.innerWidth);
-    layoutPane();
-  }
-  // 改宽并记为偏好：拖完 / 方向键 / 双击复位三处共用一份，别再各写 clamp+layout+save
-  function commitPaneWidth(w) {
-    applyPaneWidth(w);
-    saveJSON(K_PANE_W, paneW);
-  }
-
-  // 关抽屉时别立刻撤让位：.open 的 transform 还要跑 200ms，中途撤 padding 会让抽屉
-  // 宽度从 --ai-w 硬跳回 380（436→380 的横向抽动），正文也会在抽屉还盖着时重排。
-  // 等它滑出再收；期间又被打开就作废（open() 里清定时器）。
-  function collapsePaneSoon() {
-    if (!document.documentElement.classList.contains('ai-pane')) {
-      layoutPane();
-      return;
-    }
-    if (paneCloseTimer) clearTimeout(paneCloseTimer);
-    paneCloseTimer = setTimeout(() => {
-      paneCloseTimer = 0;
-      if (drawer && drawer.classList.contains('open')) return;
-      layoutPane();
-    }, PANE_CLOSE_MS);
-  }
-
-  // 拖拽节的收尾：立即把 paneShown 写进变量（不等节流那一拍）
-  function flushPaneWidth() {
-    if (paneTimer) {
-      clearTimeout(paneTimer);
-      paneTimer = 0;
-    }
-    paneLastApply = performance.now();
-    const html = document.documentElement;
-    if (html.classList.contains('ai-pane')) html.style.setProperty('--ai-w', paneShown + 'px');
-  }
-
-  // 拖拽过程中改宽 = 让整页图表重排：treasury 一页 9 张 ECharts，逐帧 resize 会拖成幻灯。
-  // 所以节流到 20fps，松手时再精确落一次（见 endPaneDrag）。
-  function queuePaneWidth(w) {
-    paneShown = clampPaneWidth(w, window.innerWidth);
-    if (paneTimer) return;
-    const wait = Math.max(0, PANE_FRAME_MS - (performance.now() - paneLastApply));
-    paneTimer = setTimeout(() => {
-      paneTimer = 0;
-      flushPaneWidth();
-    }, wait);
-  }
-
-  function endPaneDrag(commit) {
-    if (!paneDrag) return;
-    const { id, w0 } = paneDrag;
-    const moved = Math.abs(paneShown - w0) >= 1;
-    paneDrag = null;
-    document.documentElement.classList.remove('ai-resizing');
-    if (paneTimer) {
-      clearTimeout(paneTimer);
-      paneTimer = 0;
-    }
-    if (!moved) {
-      // 只是点了一下手柄、没拖：不能把 paneShown 写成偏好 —— 它是「按当前视口夹过的值」，
-      // 存过 640 的人缩到 1440 点一下就会变成 436（实测踩过）
-      flushPaneWidth();
-    } else if (commit) {
-      commitPaneWidth(paneShown); // 真拖过才落盘
-    } else {
-      applyPaneWidth(paneW); // pointercancel：退回拖拽前，不落盘
-    }
-    try {
-      gripEl.releasePointerCapture(id);
-    } catch (e) {
-      /* 指针已经不在了 */
-    }
-  }
-
-  function bindGrip() {
-    if (!gripEl) return;
-    gripEl.addEventListener('pointerdown', (e) => {
-      if (!paneActive() || e.button > 0) return;
-      e.preventDefault();
-      paneDrag = { x0: e.clientX, w0: paneShown, id: e.pointerId };
-      document.documentElement.classList.add('ai-resizing');
-      try {
-        gripEl.setPointerCapture(e.pointerId);
-      } catch (err) {
-        /* 老浏览器没有指针捕获：仍靠 pointermove，只是移出柄会断 */
-      }
-    });
-    gripEl.addEventListener('pointermove', (e) => {
-      if (!paneDrag || e.pointerId !== paneDrag.id) return;
-      // 柄在抽屉左缘：指针往左（clientX 变小）= 抽屉变宽
-      queuePaneWidth(paneDrag.w0 + (paneDrag.x0 - e.clientX));
-    });
-    gripEl.addEventListener('pointerup', () => endPaneDrag(true));
-    gripEl.addEventListener('pointercancel', () => endPaneDrag(false));
-    gripEl.addEventListener('lostpointercapture', () => endPaneDrag(false));
-    // 双击复位：拖到一个别扭的宽度后不用去设置里找
-    gripEl.addEventListener('dblclick', () => commitPaneWidth(PANE_DEFAULT));
-    // 键盘可达：方向键 16px、Shift 64px、Home/End 两端（分隔条是 1D 控件，只该管宽度）
-    gripEl.addEventListener('keydown', (e) => {
-      if (!paneActive()) return;
-      const step = e.shiftKey ? 64 : 16;
-      let next;
-      if (e.key === 'ArrowLeft') next = paneShown + step; // 柄左移 = 变宽
-      else if (e.key === 'ArrowRight') next = paneShown - step;
-      else if (e.key === 'Home') next = PANE_MIN;
-      else if (e.key === 'End') next = PANE_MAX;
-      else return;
-      e.preventDefault();
-      commitPaneWidth(next);
-    });
-  }
 
   // 键盘弹出后 visual viewport 比 layout viewport 矮：把抽屉钉在可见区，
   // 否则 fixed 底栏（输入框 + 发送）会落在键盘后面（iOS Safari 不认 interactive-widget）
@@ -701,41 +531,19 @@ import {
     }
   }
 
-  // 模态与否只由宽度决定，但宽度会在抽屉开着时变（转屏 / 拉窗）。
-  // 不跟着改的话：≤768 开→拉宽，body 一直 fixed、页面锁死；>768 开→缩窄，
-  // 全屏抽屉却没有锁滚/焦点陷阱。mql 的 change 在 init 里挂。
-  function syncModalMode() {
-    if (!drawer || !drawer.classList.contains('open')) return;
-    if (isNarrow()) {
-      if (drawer.getAttribute('aria-modal') === 'true') return;
-      drawer.setAttribute('aria-modal', 'true');
-      lockScroll();
-      pushDrawerState();
-    } else {
-      drawer.removeAttribute('aria-modal');
-      unlockScroll();
-    }
-  }
-
+  // 所有宽度都是整屏模态：打开即锁背景滚动、焦点陷阱、接管返回键（不分宽窄档）。
   function open() {
     if (!drawer) return;
     drawer.classList.add('open');
     drawer.inert = false;
     drawer.setAttribute('aria-hidden', 'false');
-    if (paneCloseTimer) {
-      clearTimeout(paneCloseTimer); // 关上又马上打开：别让上一次的收回把新分栏撤掉
-      paneCloseTimer = 0;
-    }
-    layoutPane(); // 宽屏分栏：先让正文让位，再让抽屉滑进来（同一个任务内，不会闪一下 380）
-    if (isNarrow()) {
-      drawer.setAttribute('aria-modal', 'true');
-      lockScroll();
-      pushDrawerState();
-    }
+    drawer.setAttribute('aria-modal', 'true');
+    lockScroll();
+    pushDrawerState();
     // 触屏不自动聚焦输入框（一开就弹键盘会把说明/历史顶掉一半）；
     // 焦点落到抽屉本身（tabindex=-1，不会弹键盘），读屏才知道对话框开了
     if (!isCoarse() && inputEl) inputEl.focus();
-    else if (isNarrow()) drawer.focus({ preventScroll: true });
+    else drawer.focus({ preventScroll: true });
     requestAnimationFrame(syncDrawerToViewport);
   }
   function close(fromPop) {
@@ -750,7 +558,6 @@ import {
     drawer.style.top = '';
     drawer.style.height = '';
     drawer.classList.remove('ai-kb');
-    collapsePaneSoon(); // 撤掉分栏（等滑出动画走完，见 collapsePaneSoon）
     hidePop();
     unlockScroll();
     if (drawerPushed) {
@@ -1469,14 +1276,6 @@ import {
       opt('', '默认（不传 reasoning_effort）', c.effort) +
       levels.map((lv) => opt(lv, lv, c.effort)).join('') +
       '</select></div>' +
-      // 分栏开关只影响「宽屏打开时怎么占位」，与对话内容无关，所以放设置的尾部
-      '<div class="ai-row"><label>桌面分栏</label>' +
-      '<label class="ai-check"><input type="checkbox" data-pane="1"' +
-      (paneWanted ? ' checked' : '') +
-      '> 宽屏时让正文让开，而不是盖在上面</label></div>' +
-      '<p class="ai-hint">视口 ≥ ' +
-      PANE_BREAKPOINT +
-      'px 才生效（更窄仍是浮层）；分栏时左缘可拖宽，双击复位。关掉后宽屏也走浮层。</p>' +
       (probeNote ? '<p class="ai-hint">' + esc(probeNote) + '</p>' : '') +
       (proxy
         ? '<p class="ai-hint"><b>本站代理</b>：未填 Key 时请求走 <code>/api/chat</code>，模型以服务端白名单为准（下方 Model 可能被覆盖）；推理强度只对直连生效。</p>'
@@ -1602,8 +1401,6 @@ import {
     '<button class="ai-sel-pop" type="button">💬 问这段</button>' +
     // tabindex=-1：打开时焦点能落在对话框上（读屏播报），又不进 Tab 序列、不弹键盘
     '<div class="ai-drawer" role="dialog" tabindex="-1" aria-labelledby="ai-title" aria-hidden="true">' +
-    // 左缘分栏拖拽柄：只在 html.ai-pane 里显示（CSS），键盘可达，aria 值由 syncGripAria 写
-    '<div class="ai-grip" role="separator" aria-orientation="vertical" aria-label="调整伴读宽度（双击复位）" tabindex="0"></div>' +
     '<div class="ai-head">' +
     '<span class="ai-title" id="ai-title">伴读问答</span>' +
     '<button class="ai-btn" type="button" data-act="close" title="关闭（Esc）" aria-label="关闭">✕</button>' +
@@ -1615,8 +1412,8 @@ import {
     // 一次性反馈条贴着操作条（它已经跟着存笔记/复制这些动作挪到抽屉底部了）
     '<div class="ai-flash" data-flash role="status" hidden></div>' +
     '<div class="ai-foot">' +
-    // 操作条贴着输入框上沿：宽屏分栏时抽屉有一整屏高，放在头部会让
-    // 「新对话/历史/存笔记」离真正要用的输入框差出 800px 的视线跨度。
+    // 操作条贴着输入框上沿：抽屉是整屏高，放在头部会让「新对话/历史/存笔记」
+    // 离真正要用的输入框差出大半屏（桌面实测 845px）。
     // 「⋯」是普通 disclosure（不用 aria-haspopup 的 menu 语义），只留 aria-expanded；
     // 菜单向上弹（它已经在抽屉底部，向下会顶出屏幕）。
     '<div class="ai-tools" role="group" aria-label="对话操作">' +
@@ -1681,7 +1478,7 @@ import {
   // docked=true → 贴边只露 FAB_DOCK_VISIBLE；false → 整颗露出（点开时）
   function fabPlace(side, y, docked) {
     if (!floatBtn) return;
-    // 分栏打开时浮钮是 display:none，offsetWidth 量到 0：用 CSS 那两档的实宽兜底，
+    // 浮钮被整屏抽屉盖住时仍能量到宽度；极端情况（隐藏/未布局）用两档实宽兜底，
     // 否则关抽屉的一瞬间会把「整颗钮」当成 0 宽算到屏幕外去。
     const fallback = isNarrow() ? 40 : 30;
     const w = floatBtn.offsetWidth || fallback;
@@ -1802,16 +1599,11 @@ import {
     flashEl = drawer.querySelector('[data-flash]');
     menuEl = drawer.querySelector('[data-menu]');
     moreBtn = drawer.querySelector('[data-act="more"]');
-    gripEl = drawer.querySelector('.ai-grip');
-    // 上次拖到的宽度：只在分栏态用；非法/越界由 clampPaneWidth 兜（见 ai-pane.js）
-    paneW = Number(loadJSON(K_PANE_W, 0)) || PANE_DEFAULT;
-    bindGrip();
-    layoutPane();
 
     floatBtn.addEventListener('click', () => {
       if (fabSuppressClick) return; // 刚拖完，那一下不算点击
       if (floatBtn.dataset.fabDocked === '1') {
-        // 点一下先弹全：开抽屉后浮钮会被盖住（分栏时 display:none），关掉时再由 close() 吸回去
+        // 点一下先弹全：开抽屉后浮钮会被整屏抽屉盖住，关掉时再由 close() 吸回去
         fabPlace(
           floatBtn.dataset.fabSide || 'right',
           Number(floatBtn.dataset.fabY) || fabDefaultY(),
@@ -1848,29 +1640,6 @@ import {
     });
 
     window.addEventListener('resize', syncDrawerToViewport);
-
-    // 分栏：跨过 1324 断点、或窗口在分栏态里变宽变窄，都要重算让位宽度。
-    // resize 走 rAF 合帧（一轮拖窗口会连发几十次，每次都要重排整页图表）
-    let paneRaf = 0;
-    window.addEventListener('resize', () => {
-      if (paneRaf) return;
-      paneRaf = requestAnimationFrame(() => {
-        paneRaf = 0;
-        layoutPane();
-      });
-    });
-    const paneMq = window.matchMedia ? window.matchMedia(PANE_MQ) : null;
-    if (paneMq) {
-      if (paneMq.addEventListener) paneMq.addEventListener('change', layoutPane);
-      else if (paneMq.addListener) paneMq.addListener(layoutPane);
-    }
-
-    // 跨过 768 断点时补一次模态状态（老 Safari 只有 addListener）
-    const narrowMq = window.matchMedia ? window.matchMedia(NARROW_MQ) : null;
-    if (narrowMq) {
-      if (narrowMq.addEventListener) narrowMq.addEventListener('change', syncModalMode);
-      else if (narrowMq.addListener) narrowMq.addListener(syncModalMode);
-    }
 
     // mousedown + preventDefault：否则点击瞬间选区被浏览器清掉，「问这段」拿不到 range
     selPop.addEventListener('mousedown', (e) => {
@@ -2013,15 +1782,6 @@ import {
         stickBottom = true; // 换会话看的是最新几条，别沿用上一个会话的滚动位置
         renderMessages();
       }
-    });
-
-    // 分栏开关：即时生效（不用等「保存」，它跟对话配置不是一回事）
-    cfgEl.addEventListener('change', (e) => {
-      const cb = e.target.closest && e.target.closest('[data-pane]');
-      if (!cb) return;
-      paneWanted = !!cb.checked;
-      saveJSON(K_PANE_ON, paneWanted);
-      layoutPane();
     });
 
     // 下拉选择立即落盘（保存按钮只管文本输入）；换模型时推理强度档位跟着刷新

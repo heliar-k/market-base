@@ -616,22 +616,18 @@ uv run python src/sell_put.py --symbol TSM
   三类**故意不出血**：多列网格的列（commodities 3 列 / `eq-radar-grid` / `vol-top-row` —— 各列色带本就与
   自己那列的 h3 对齐，出血会伸进 12px 列间隙相撞）、自带内缩边框的 `.pm-raw` 虚线框与 `.re-scroll-y` 滚动盒
   （相对自己那层对齐）。全站实测 73 张 = A 形 52 + 上述 21
-- **伴读抽屉在宽屏是分栏，不是浮层**：`html.ai-pane` 时 `body` 加 `padding-right: var(--ai-w)`（专题页普通块流 /
-  SPA 的 `100dvh` flex 壳都吃这一条，34 个专题页零改动），抽屉仍 `fixed` 在右缘，左缘 `.ai-grip` 可拖宽。
-  三个数**单源在 `js/ai-pane.js`**：min 320（操作条 3 钮 + ⋯ 实测 ~230、抽屉内距后可用 295）、max `min(640, 100vw−1004)`（正文内宽地板 700）、
-  断点 1324 = 240 导航 + 700 地板 + 64 内距 + 320。要用这套判断就 import 那个模块，别在 CSS/页面里再写一遍断点；
-  拖拽改宽会让整页图表重排，所以 50ms 节流（treasury 一页 9 张 ECharts）。
-  三条容易踩回去的：① 拖拽柄命中区细指针 11px、`pointer: coarse` 24px（iPad 横屏 1366 正好落进分栏档，
-  11px 手指捏不住）；② 宽度偏好只在**真拖过**之后落盘，零位移点击不能把「按视口夹过的值」写进去；
-  ③ 关抽屉时让位要延后 220ms（等 transform 滑完），否则抽屉宽度会在动画中途从 `--ai-w` 硬跳回 380。
-  守卫：`tests/test_ai_pane.py`
+- **伴读抽屉所有宽度都是整屏模态**：`.ai-drawer` 恒为 `width: 100vw`（与手机同一形态），打开即
+  `aria-modal` + `lockScroll()` + `pushDrawerState()`（焦点陷阱 / 接管返回键），与视口宽度无关。
+  **不要再按视口分叉**：曾经有过「≥1324 分栏、正文让位 `--ai-w`、左缘 `.ai-grip` 拖宽」一档，
+  已整条删除（用户要的是窄屏那套形态，不分宽窄）；`js/ai-pane.js`、`.ai-check`（分栏开关）也跟着删了，
+  别把 380px 侧栏 / 浮层档写回来。守卫：`tests/test_ai_drawer_layout.py`
 - **操作条贴输入框上沿，浮钮全宽度可贴边**：`新对话/历史/存笔记` 在 `.ai-foot` 第一行 `.ai-tools`（⋯ 收
-  导出/设置），抽屉头只留标题 + ✕ —— 宽屏分栏后抽屉有一整屏高，放头部离输入框 845px（1600×1000 实测）。
+  导出/设置），抽屉头只留标题 + ✕ —— 抽屉是一整屏高，放头部离输入框 845px（1600×1000 实测）。
   ⋯ 菜单在底部只能 `bottom: calc(100% + 4px)` 往上弹；`.ai-float` 桌面与窄屏都可拖拽、松手贴最近一侧只露
   24px，位置 `{side,y}` 记 localStorage、跨 768 沿用，别再把拖拽门禁写回 `isNarrow()`。
-  守卫：`tests/test_ai_drawer_layout.py`
+  守卫：同文件
 - **已审计过的死路（勿重开）**：全站零自实现手势，不加 `touch-action`（加了反而禁掉表格纵向滑动）；
-  例外只有两处拖拽控件（`.ai-float` 浮钮拖拽（全宽度）、分栏 `.ai-grip`）——它们的 `touch-action: none` 是手势前提，
+  例外只剩 `.ai-float` 浮钮拖拽（全宽度）——它的 `touch-action: none` 是手势前提，
   别把这个例外当成「可以给内容容器加」的先例；
   触控目标门槛是 **24 CSS px**（WCAG 2.2），44 是 iOS pt / Android dp，`.range-btn` 实算 ≈24.4px 已过线
 
