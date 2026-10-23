@@ -9,7 +9,8 @@
 //   - CONTENT_FLOOR 700 正文内宽地板。1440 屏开 380 实测：正文 1136→756、4 卡行 275→180、
 //                      宽表开始横滚（yield-curve 788 > 738）；再压就是「1024 窗口那档」，
 //                      所以拖拽上限由它反推，而不是给个「不超过 50vw」的拍脑袋值
-//   - PANE_MIN 320      抽屉头 6 个按钮实测占 275px，宽 300 时 scrollWidth 307 溢出，320 刚好
+//   - PANE_MIN 320      操作条（新对话/历史/存笔记/⋯）实测 ~230px，抽屉内距后可用 295px，
+//                      输入框还留得下一整行；再窄正文就挤了（320 也是常见最小视口）
 export const PANE_MIN = 320;
 export const PANE_MAX = 640;
 export const PANE_DEFAULT = 380;

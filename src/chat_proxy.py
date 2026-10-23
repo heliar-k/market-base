@@ -33,7 +33,7 @@ EFFORTS = {"minimal", "low", "medium", "high"}
 
 MISSING_KEY = (
     "本站代理未配置 LLM_API_KEY：请在服务端环境变量里设置"
-    "（本地 .env / 线上 Cloudflare Pages 项目），或点右上「⚙ 设置」填自己的 Key 直连。"
+    "（本地 .env / 线上 Cloudflare Pages 项目），或点输入框上方的「⋯ → ⚙ 设置」填自己的 Key 直连。"
 )
 
 

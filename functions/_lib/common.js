@@ -14,7 +14,7 @@ export const NOTES_MAX = 1_000_000; // markdown 字节上限
 export const NOTES_BODY_MAX = 4 * 1024 * 1024; // JSON body（含 thread/转义）
 export const MISSING_KEY =
   '本站代理未配置 LLM_API_KEY：请在服务端环境变量里设置' +
-  '（本地 .env / 线上 Cloudflare Pages 项目），或点右上「⚙ 设置」填自己的 Key 直连。';
+  '（本地 .env / 线上 Cloudflare Pages 项目），或点输入框上方的「⋯ → ⚙ 设置」填自己的 Key 直连。';
 // 与 src/server.py 的 _LIMITS、docs/ai-chat-backend.md 的表同步
 export const RATE_LIMITS = {
   chat: [10, 60_000],

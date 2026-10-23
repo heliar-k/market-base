@@ -10,11 +10,12 @@
 //   - 本文件用 rates-common.js 的全局 R.esc，不自带一份实现（守卫见
 //     tests/test_static_single_source.py）。
 // 挂三样东西到 body 末尾（全是 position: fixed，不进 SPA 的 flex 流）：
-//   .ai-float   浮钮：桌面在右上角（原主题切换位）；窄屏挪到右下角 44px FAB
-//               —— 页头右上角被「数据截至」时效块占着，26px 小钮贴上去会打架
+//   .ai-float   浮钮：桌面默认右上角（原主题切换位）、窄屏默认右下角 40px FAB；
+//               两种宽度都能拖动，松手贴最近一侧只露 24px（--fab-dx），位置记在 localStorage
 //   .ai-sel-pop 划词气泡「问这段」（触屏补了 touchend / selectionchange）
 //   .ai-drawer  右侧抽屉：>768 是侧栏（非模态），≤768 整屏模态
-//               （锁背景滚动 / 焦点陷阱 / 接管返回键；头部低频项收进「⋯」）
+//               （锁背景滚动 / 焦点陷阱 / 接管返回键；头部只留标题 + ✕，
+//               新对话/历史/存笔记与「⋯」在输入框上沿的操作条里）
 //               ≥1324（PANE_BREAKPOINT）且没在设置里关掉「桌面分栏」时，抽屉不盖正文，
 //               改为让正文让出 --ai-w 宽度（html.ai-pane + body padding-right），
 //               左缘可拖拽调宽；宽度/断点数学单源在 ./ai-pane.js
@@ -412,7 +413,7 @@ import {
     return (
       '<div class="ai-empty">' +
       '<p>直接问，或选中本页任意片段（会带上小节名与表头），提问会自动附上本页结论与时效坐标。</p>' +
-      '<p>想换模型：点右上「设置」填 OpenAI 兼容接口；窄屏在「⋯」里。</p>' +
+      '<p>想换模型：点输入框上方的「⋯ → 设置」填 OpenAI 兼容接口。</p>' +
       '</div>'
     );
   }
@@ -898,7 +899,7 @@ import {
         label +
         ' 接口不可用（' +
         res.status +
-        '）。点右上「⚙ 设置」填 Base URL 与 API Key 直连 OpenAI 兼容接口。'
+        '）。点输入框上方的「⋯ → ⚙ 设置」填 Base URL 与 API Key 直连 OpenAI 兼容接口。'
       );
     }
     return label + ' 返回 ' + res.status + (res.statusText ? ' ' + res.statusText : '');
@@ -1597,7 +1598,7 @@ import {
 
   // ── DOM ─────────────────────────────────────────────────────────────────
   const SHELL =
-    '<button class="ai-float" type="button" data-scroll-hide title="伴读问答（⌘/Ctrl + K）" aria-label="伴读问答">💬</button>' +
+    '<button class="ai-float" type="button" data-scroll-hide title="伴读问答（⌘/Ctrl + K）· 可拖动贴边" aria-label="伴读问答">💬</button>' +
     '<button class="ai-sel-pop" type="button">💬 问这段</button>' +
     // tabindex=-1：打开时焦点能落在对话框上（读屏播报），又不进 Tab 序列、不弹键盘
     '<div class="ai-drawer" role="dialog" tabindex="-1" aria-labelledby="ai-title" aria-hidden="true">' +
@@ -1605,27 +1606,29 @@ import {
     '<div class="ai-grip" role="separator" aria-orientation="vertical" aria-label="调整伴读宽度（双击复位）" tabindex="0"></div>' +
     '<div class="ai-head">' +
     '<span class="ai-title" id="ai-title">伴读问答</span>' +
-    '<button class="ai-btn" type="button" data-act="new">＋ 新对话</button>' +
-    '<button class="ai-btn" type="button" data-act="hist">历史 <span data-hist-n>0</span></button>' +
-    '<button class="ai-btn" type="button" data-act="export" title="导出为 Markdown（.md）">导出</button>' +
-    '<button class="ai-btn" type="button" data-act="save" title="保存到 data/notes/（本地）或 NOTES KV（线上）">存笔记</button>' +
-    '<button class="ai-btn" type="button" data-act="cfg">⚙ 设置</button>' +
-    // 窄屏：上面三项收进这里（CSS 在 ≤768 隐藏旧钮、显示 ⋯），✕ 永远压在最右。
-    // 弹层是普通按钮组（disclosure），不用 aria-haspopup（那是 menu 语义），只留 aria-expanded
-    '<button class="ai-btn ai-more" type="button" data-act="more" aria-expanded="false" aria-label="更多操作">⋯</button>' +
     '<button class="ai-btn" type="button" data-act="close" title="关闭（Esc）" aria-label="关闭">✕</button>' +
-    '<div class="ai-menu" data-menu hidden>' +
-    '<button class="ai-btn" type="button" data-act="cfg">⚙ 设置</button>' +
-    '<button class="ai-btn" type="button" data-act="export">导出 Markdown</button>' +
-    '<button class="ai-btn" type="button" data-act="save">存笔记</button>' +
     '</div>' +
-    '</div>' +
-    '<div class="ai-flash" data-flash role="status" hidden></div>' +
     '<div class="ai-cfg" data-cfg hidden></div>' +
     '<div class="ai-hist" data-hist hidden></div>' +
     '<div class="ai-msgs" data-msgs></div>' +
     '<div class="ai-quotes" data-quotes></div>' +
+    // 一次性反馈条贴着操作条（它已经跟着存笔记/复制这些动作挪到抽屉底部了）
+    '<div class="ai-flash" data-flash role="status" hidden></div>' +
     '<div class="ai-foot">' +
+    // 操作条贴着输入框上沿：宽屏分栏时抽屉有一整屏高，放在头部会让
+    // 「新对话/历史/存笔记」离真正要用的输入框差出 800px 的视线跨度。
+    // 「⋯」是普通 disclosure（不用 aria-haspopup 的 menu 语义），只留 aria-expanded；
+    // 菜单向上弹（它已经在抽屉底部，向下会顶出屏幕）。
+    '<div class="ai-tools" role="group" aria-label="对话操作">' +
+    '<button class="ai-btn" type="button" data-act="new">＋ 新对话</button>' +
+    '<button class="ai-btn" type="button" data-act="hist">历史 <span data-hist-n>0</span></button>' +
+    '<button class="ai-btn" type="button" data-act="save" title="保存到 data/notes/（本地）或 NOTES KV（线上）">存笔记</button>' +
+    '<button class="ai-btn ai-more" type="button" data-act="more" aria-expanded="false" aria-label="更多操作">⋯</button>' +
+    '<div class="ai-menu" data-menu hidden>' +
+    '<button class="ai-btn" type="button" data-act="export">导出 Markdown</button>' +
+    '<button class="ai-btn" type="button" data-act="cfg">⚙ 设置</button>' +
+    '</div>' +
+    '</div>' +
     '<textarea class="ai-input" rows="2" placeholder="就本页数据提问…"></textarea>' +
     '<div class="ai-foot-row"><span class="ai-hint">Enter 发送 · Shift+Enter 换行</span>' +
     '<button class="ai-send" type="button" data-send>发送</button></div>' +
@@ -1638,7 +1641,7 @@ import {
     else el.setAttribute('hidden', '');
   }
 
-  // ── 浮钮：窄屏可拖动、松手贴最近一侧只露一半，点一下弹全并开抽屉 ──────────
+  // ── 浮钮：任何宽度都可拖动、松手贴最近一侧只露一半，点一下弹全并开抽屉 ──────────
   // 位置只存 {side, y}：横竖屏切换时按 side 重新贴边，而不是记住一个会过期的 left。
   // 吸附偏移走 CSS 变量 --fab-dx（transform 被拖拽/缩放共用，内联 transform 会盖掉 :active）。
   const FAB_POS_KEY = 'guanlantai-ai-fab-pos';
@@ -1667,7 +1670,9 @@ import {
 
   // 默认落点按 CSS 的 bottom 反推：专题页 14px、SPA 46px（多让 32px 状态栏）。
   // 别把钮高混进 gap —— 曾经写成 54，浮钮整体高了 40px，正好压住右下角的返回顶部。
+  // 宽屏没有「右下角 FAB」这档，默认回到 CSS 的 top: 8px（拖过之后才由 fabPlace 接管）。
   function fabDefaultY() {
+    if (!isNarrow()) return 8;
     const gap = document.body.classList.contains('app-shell') ? 46 : 14;
     const h = floatBtn ? floatBtn.offsetHeight || 40 : 40;
     return Math.max(8, window.innerHeight - gap - h);
@@ -1675,9 +1680,12 @@ import {
 
   // docked=true → 贴边只露 FAB_DOCK_VISIBLE；false → 整颗露出（点开时）
   function fabPlace(side, y, docked) {
-    if (!floatBtn || !isNarrow()) return;
-    const w = floatBtn.offsetWidth || 40;
-    const h = floatBtn.offsetHeight || 40;
+    if (!floatBtn) return;
+    // 分栏打开时浮钮是 display:none，offsetWidth 量到 0：用 CSS 那两档的实宽兜底，
+    // 否则关抽屉的一瞬间会把「整颗钮」当成 0 宽算到屏幕外去。
+    const fallback = isNarrow() ? 40 : 30;
+    const w = floatBtn.offsetWidth || fallback;
+    const h = floatBtn.offsetHeight || fallback;
     const top = Math.min(Math.max(8, y), Math.max(8, window.innerHeight - h - 8));
     // 右侧还要吃掉 CSS 那 8px 外边距，over 多算 8 才能让「露出宽度」稳定等于 24
     const over = Math.max(8, w + 8 - FAB_DOCK_VISIBLE);
@@ -1695,7 +1703,7 @@ import {
   }
 
 
-  // 回到 CSS 原位（宽度回到桌面档时用）
+  // 回到 CSS 原位（还没拖过时用：桌面右上角 / 窄屏右下角都由 CSS 给）
   function fabResetInline() {
     if (!floatBtn) return;
     ['top', 'bottom', 'left', 'right'].forEach((k) => floatBtn.style.removeProperty(k));
@@ -1705,15 +1713,17 @@ import {
     delete floatBtn.dataset.fabDocked;
   }
 
+  // 拖过之后位置跨宽度档沿用：窄屏拖到左侧中点，拉宽到桌面仍贴左缘同一高度
+  // （y 由 fabPlace 按新视口再夹一次）。没拖过就各回各的 CSS 默认位。
   function fabLayout() {
     if (!floatBtn) return;
-    if (!isNarrow()) {
-      fabResetInline();
+    const saved = fabReadPos();
+    if (saved) {
+      fabPlace(saved.side, saved.y, true);
       return;
     }
-    const saved = fabReadPos();
-    const y = saved ? saved.y : fabDefaultY();
-    fabPlace(saved ? saved.side : 'right', y, true);
+    if (isNarrow()) fabPlace('right', fabDefaultY(), true);
+    else fabResetInline();
   }
 
   function fabBind() {
@@ -1721,7 +1731,7 @@ import {
     floatBtn.dataset.fabBound = '1';
 
     floatBtn.addEventListener('pointerdown', (e) => {
-      if (!isNarrow() || (e.button !== undefined && e.button > 0)) return;
+      if (e.button !== undefined && e.button > 0) return;
       const rect = floatBtn.getBoundingClientRect();
       fabDrag = {
         startX: e.clientX,
@@ -1800,8 +1810,8 @@ import {
 
     floatBtn.addEventListener('click', () => {
       if (fabSuppressClick) return; // 刚拖完，那一下不算点击
-      if (isNarrow() && floatBtn.dataset.fabDocked === '1') {
-        // 点一下先弹全：开抽屉后全屏抽屉会盖住浮钮，关掉时再由 close() 吸回去
+      if (floatBtn.dataset.fabDocked === '1') {
+        // 点一下先弹全：开抽屉后浮钮会被盖住（分栏时 display:none），关掉时再由 close() 吸回去
         fabPlace(
           floatBtn.dataset.fabSide || 'right',
           Number(floatBtn.dataset.fabY) || fabDefaultY(),
@@ -1812,7 +1822,7 @@ import {
       toggle();
     });
     fabBind();
-    fabLayout(); // 窄屏按记住的 side/y 贴边；桌面清掉内联样式回到 CSS 位
+    fabLayout(); // 拖过的位置跨宽度档沿用；没拖过则各回 CSS 默认位
 
     // 转屏 / 拉窗：重新贴边（宽度跨过 768 时两种形态互切）
     window.addEventListener('resize', () => {
