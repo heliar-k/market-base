@@ -94,6 +94,14 @@
 > （`5Y/10Y` 退化成周频）；周末行是周五收盘的拷贝（942 根里 161 根），
 > 入库前按 weekday 过滤。
 
+> 口径交叉验证（2026-10，四国同时）：CNBC 日频的**月度均值**与官方月频吻合到 2bp 内 ——
+> 8 月 DE 3.201 vs FRED 3.186 / ES 3.642 vs BDE 3.638 / IT 4.001 vs FRED 3.986；
+> 9 月 FR 4.477 vs FRED 4.4771。所以日频序列可直接当官方月频的当日版用
+> （月频只是月均 + 发布滞后 1-2 月，不是口径不同）。
+> 同时也排除了 BDE 官方日频：`srdatosapp/listaSeries`（旧 `srdatos` 已废）能取西班牙
+> 10Y，但 `codFrecuencia=M` —— 只有月频；Eurostat `irt_lt_mcby_d` 已下线（404），
+> ECB `IRS/D.ES...` 同样只到月频。
+
 ---
 
 ## 2. 波动率 — `data/cboe/volatility.csv`
