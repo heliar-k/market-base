@@ -36,6 +36,23 @@ def snapshot() -> dict | None:
     return None
 
 
+# Polymarket 把国家队比赛（Austria vs. Israel 等）也挂了 geo 标签，单场 24h 量可达 $670k，
+# 会顶掉真实地缘主题（geo 页主题卡 / 今日头版 geo_hot）。按盘口术语识别后整条剔除——
+# 这不是归类问题，体育赛事不进宏观分析。
+_SPORTS_RX = re.compile(
+    r"(both teams to score|exact score|end in a draw|\bo/u \d|spread:|1st half"
+    r"|will .{1,40} win on \d{4}-\d{2}-\d{2})",
+    re.I,
+)
+
+
+def is_sports_event(event: dict) -> bool:
+    """事件标题/市场问题是否体育盘口（含让球、大小球、比分、胜负盘）。"""
+    parts = [event.get("title") or ""]
+    parts.extend(m.get("question") or "" for m in event.get("markets") or [])
+    return bool(_SPORTS_RX.search(" ".join(parts)))
+
+
 def events_matching(
     snap: dict | None,
     pattern: str | re.Pattern | None = None,
@@ -44,7 +61,8 @@ def events_matching(
     """快照事件过滤：分类 + 标题正则（不区分大小写）。
 
     按事件 volume 降序返回。pattern 是纯字符串时按不区分大小写包含处理
-    （调用方传已编译正则可控制词边界）。
+    （调用方传已编译正则可控制词边界）。体育盘口事件一律剔除（源分类混入，
+    见 is_sports_event）。
     """
     if not snap:
         return []
@@ -54,6 +72,8 @@ def events_matching(
         if categories and e.get("category") not in categories:
             continue
         if rx and not rx.search(e.get("title") or ""):
+            continue
+        if is_sports_event(e):
             continue
         out.append(e)
     return sorted(out, key=lambda e: e.get("volume24hr") or 0, reverse=True)
@@ -139,12 +159,14 @@ def energy_block() -> dict | None:
 
 # 主题聚类：关键词 → (key, 名称)；匹配 title 小写包含，先命中先归类。
 # 热战主题在前、选举居后（「Israel 总理选举」归以色列战线而非选举）；
-# 均未命中归「其它」（美国入侵古巴/格陵兰等孤立事件）。
+# 古巴/委内瑞拉/格陵兰这类「美军领土动作」单列主题（原归「其它」）；
+# 仍均未命中才归「其它」兜底——正常应维持空，出现即说明又有新主题需建。
 GEO_TOPICS: list[tuple[str, str, tuple[str, ...]]] = [
     ("iran", "伊朗与霍尔木兹", ("iran", "hormuz", "pahlavi", "uranium")),
-    ("israel", "以色列战线", ("israel", "lebanon", "yemen", "gaza")),
+    ("israel", "以色列战线", ("israel", "lebanon", "yemen", "gaza", "houthi")),
     ("taiwan", "台海", ("taiwan",)),
     ("russia_ukraine", "俄乌", ("russia", "ukraine", "putin", "zelenskyy", "nato")),
+    ("trade", "贸易与关税", ("tariff", "trade deal", "trade agreement", "trade war")),
     (
         "election",
         "选举",
@@ -158,8 +180,11 @@ GEO_TOPICS: list[tuple[str, str, tuple[str, ...]]] = [
             "duma",
             "seat",
             "primary",
+            "midterm",
+            "house winner",
         ),
     ),
+    ("us_territory", "美国领土动作", ("cuba", "venezuela", "mexico", "greenland")),
 ]
 
 
@@ -192,25 +217,44 @@ GEO_CLUSTERS: dict[str, list[tuple[str, str, tuple[str, ...]]]] = {
                 "invade",
                 "airspace closure",
                 "military",
-                "target ukraine",
+                "target",
+                "stabbing",
+                "blockade",
             ),
         ),
-        ("nuclear", "核问题", ("uranium", "enrich", "nuclear")),
+        ("nuclear", "核问题", ("uranium", "enrich", "nuclear", "nuke", "npt")),
         (
             "regime",
             "政权走向",
-            ("leadership", "pahlavi", "khamenei", "leader", "enter iran"),
+            ("leadership", "pahlavi", "khamenei", "leader", "enter iran", "coup"),
         ),
+        ("infra", "网络与基础设施", ("internet", "cable", "blackout", "sabotage")),
+        ("sanctions", "制裁与石油", ("sanction", "oil sales")),
         ("talks", "美伊谈判", ("peace talks", "deal", "us-iran", "agreement")),
     ],
     "israel": [
         ("lebanon", "黎巴嫩战线", ("lebanon",)),
-        ("yemen", "也门方向", ("yemen",)),
+        ("yemen", "也门方向", ("yemen", "houthi")),
+        (
+            "gaza",
+            "加沙与停火",
+            ("gaza", "hamas", "ceasefire", "ground offensive", "phase ii"),
+        ),
         ("politics", "以国内政局", ("prime minister", "election")),
-        ("strike", "空袭与外交承认", ("airspace", "strike", "recognize")),
+        ("rates", "以央行利率", ("bank of israel", "interest rate")),
+        ("strike", "空袭与军事行动", ("airspace", "strike", "military action", "military clash")),
+        (
+            "territory",
+            "领土与外交承认",
+            ("annex", "recognize", "normalize", "sovereignty"),
+        ),
     ],
-    "taiwan": [("clash", "军事冲突", ("invade", "clash", "military"))],
+    "taiwan": [
+        ("clash", "军事冲突", ("invade", "clash", "military", "blockade")),
+        ("politics", "外交与表态", ("endorse", "claim", "summit", "visit")),
+    ],
     "russia_ukraine": [
+        ("strike", "跨境打击", ("target",)),
         (
             "ceasefire",
             "停火与和平协议",
@@ -231,15 +275,20 @@ GEO_CLUSTERS: dict[str, list[tuple[str, str, tuple[str, ...]]]] = {
                 "peace talks",
                 "talk to putin",
                 "visit ukraine",
+                "security guarantee",
                 "meet",
             ),
         ),
-        ("nato", "北约与军事对抗", ("nato", "military clash")),
-        ("advance", "俄军占领推进", ("capture",)),
-        ("regime", "俄乌政局", ("putin out", "zelenskyy out")),
+        (
+            "nato",
+            "北约与军事对抗",
+            ("nato", "military clash", "military action", "invade", "eu country"),
+        ),
+        ("advance", "俄军占领推进", ("capture", "enter ")),
+        ("regime", "俄乌政局", ("putin out", "zelenskyy out", "coup")),
         (
             "election",
-            "俄议会选举",
+            "俄乌选举",
             (
                 "parliamentary",
                 "legislative",
@@ -247,18 +296,38 @@ GEO_CLUSTERS: dict[str, list[tuple[str, str, tuple[str, ...]]]] = {
                 "united russia",
                 "yabloko",
                 "seats",
+                "russia election",
+                "party list",
+                "ukraine election",
             ),
         ),
+        ("mobilization", "动员与兵力", ("mobilization", "mobilisation", "conscript")),
+        ("sanctions", "制裁与贸易", ("sanctions", "export ban", "diesel")),
+        ("health", "疫情与公共卫生", ("plague", "outbreak", "epidemic")),
+        ("culture", "文体与民间交流", ("kanye", "performs", "concert")),
+    ],
+    "trade": [
+        ("tariff", "关税与协议", ("tariff", "trade deal", "trade agreement", "trade war")),
+        ("sanctions", "出口管制与制裁", ("sanction", "export control", "embargo")),
     ],
     "election": [
-        ("us_midterm", "美国中期选举", ("midterm", "senate seats", "governor")),
+        ("rally", "竞选集会言论", ("midterm rally", "what will trump say")),
+        (
+            "us_midterm",
+            "美国中期选举",
+            ("midterm", "senate seats", "senate race", "governor", "win the house"),
+        ),
         ("france", "法国大选", ("french",)),
         ("brazil", "巴西大选", ("brazil",)),
         ("us2028", "2028 美国大选", ("2028",)),
         ("local", "地方选举", ("berlin", "mayor", "state election", "primary")),
+        ("parliamentary", "议会选举", ("parliamentary", "parliament", "most seats")),
         ("presidential", "总统大选", ("president",)),
     ],
-    "other": [("muscle", "美军领土动作", ("invade", "cuba", "greenland"))],
+    "us_territory": [
+        ("latam", "拉美方向", ("cuba", "venezuela", "mexico")),
+        ("greenland", "格陵兰", ("greenland",)),
+    ],
 }
 
 

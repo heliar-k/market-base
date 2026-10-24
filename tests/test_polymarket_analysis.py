@@ -12,12 +12,14 @@ from src.polymarket_analysis import (
     crossing_series,
     crypto_hit_overview,
     events_matching,
+    geo_cluster_of,
     geo_overview,
     geo_topic_of,
     hit_cluster_of,
     hit_label,
     hit_strike,
     hit_underlying,
+    is_sports_event,
     prob_ladder,
     series_for,
     snapshot,
@@ -180,9 +182,176 @@ def test_geo_topic_of_priority():
         "选举",
     )
     assert geo_topic_of({"title": "Will the U.S. invade Greenland in 2026?"}) == (
-        "other",
-        "其它",
+        "us_territory",
+        "美国领土动作",
     )
+
+
+def test_geo_topic_of_new_axes():
+    # 也门胡塞武装归以色列战线（原落「其它」）
+    assert geo_topic_of({"title": "Saudi-Houthi ceasefire agreement announced by...?"}) == (
+        "israel",
+        "以色列战线",
+    )
+    # 中期选举集会言论归选举（原落「其它」）
+    assert geo_topic_of({"title": "What will Trump say during his Midterm Rally in Georgia?"}) == (
+        "election",
+        "选举",
+    )
+    assert geo_topic_of({"title": "Will the U.S. invade Venezuela by...?"}) == (
+        "us_territory",
+        "美国领土动作",
+    )
+    assert geo_topic_of({"title": "US x China tariff agreement by December 31?"}) == (
+        "trade",
+        "贸易与关税",
+    )
+
+
+@pytest.mark.parametrize(
+    ("topic", "title", "question", "expected"),
+    [
+        # 伊朗：政变 / 核 / 网络基础设施 / 制裁
+        ("iran", "Iran coup attempt by...?", "Iran coup attempt by December 31, 2026?", "政权走向"),
+        (
+            "iran",
+            "Will Iran withdraw from the NPT before 2027?",
+            "Will Iran withdraw from the NPT before 2027?",
+            "核问题",
+        ),
+        (
+            "iran",
+            "Will Iran sabotage undersea internet cables by...?",
+            "Will Iran sabotage undersea internet cables by October 31?",
+            "网络与基础设施",
+        ),
+        (
+            "iran",
+            "US reissues Iran oil sales sanction relief by...?",
+            "US reissues Iran oil sanction relief by October 31?",
+            "制裁与石油",
+        ),
+        # 以色列：胡塞 / 加沙 / 央行 / 土耳其军事摩擦
+        (
+            "israel",
+            "Houthi x Saudi Arabia effective ceasefire by...?",
+            "Houthi x Saudi Arabia effective ceasefire by December 31?",
+            "也门方向",
+        ),
+        (
+            "israel",
+            "Israel x Hamas Ceasefire Phase II by...?",
+            "Israel x Hamas Ceasefire Phase II by December 31?",
+            "加沙与停火",
+        ),
+        (
+            "israel",
+            "Bank of Israel Decision in October?",
+            "Will the Bank of Israel increase the Bank of Israel Interest Rate after the "
+            "October decision?",
+            "以央行利率",
+        ),
+        (
+            "israel",
+            "Israel x Turkey military clash before 2027?",
+            "Israel x Turkey military clash before 2027?",
+            "空袭与军事行动",
+        ),
+        # 台海：外交表态与军事冲突分开
+        (
+            "taiwan",
+            "Trump endorses China's claim to Taiwan by end of Xi summit?",
+            "Trump endorses China's claim to Taiwan by end of summit?",
+            "外交与表态",
+        ),
+        # 俄乌：跨境打击 / 动员 / 制裁 / 疫情 / 政变 / 入城
+        (
+            "russia_ukraine",
+            "Will Russia target Kyiv on...?",
+            "Will Russia target Kyiv on October 28, 2026?",
+            "跨境打击",
+        ),
+        (
+            "russia_ukraine",
+            "Will Russia announce a new forced mobilization by...?",
+            "Will Russia announce a new forced mobilization by October 31?",
+            "动员与兵力",
+        ),
+        (
+            "russia_ukraine",
+            "Russia lifts diesel export ban by...?",
+            "Russia lifts diesel export ban by October 30?",
+            "制裁与贸易",
+        ),
+        (
+            "russia_ukraine",
+            "Another pneumonic plague case in Russia by...?",
+            "Will a new pneumonic plague case be confirmed in Russia by October 31?",
+            "疫情与公共卫生",
+        ),
+        (
+            "russia_ukraine",
+            "Russia coup attempt in 2026?",
+            "Russia coup attempt in 2026?",
+            "俄乌政局",
+        ),
+        (
+            "russia_ukraine",
+            "Which cities will Russia enter by December 31?",
+            "Will Russia enter Kharkiv by December 31, 2026?",
+            "俄军占领推进",
+        ),
+        # 选举：议会 / 中期选举 / 集会言论各归其位
+        (
+            "election",
+            "Serbia Parliamentary Election Winner",
+            "Will Aleksandar Vučić – United Serbia win the most seats in the 2026 Serbian "
+            "parliamentary election?",
+            "议会选举",
+        ),
+        (
+            "election",
+            "Texas Senate Election Winner",
+            "Will the Republicans win the Texas Senate race in 2026?",
+            "美国中期选举",
+        ),
+        (
+            "election",
+            "What will Trump say during his Midterm Rally in Georgia?",
+            'Will Trump say "Iran" 5+ times during his Midterm Rally in Georgia?',
+            "竞选集会言论",
+        ),
+        # 美国领土动作
+        (
+            "us_territory",
+            "Will the U.S. invade Cuba in 2026?",
+            "Will the U.S. invade Cuba in 2026?",
+            "拉美方向",
+        ),
+    ],
+)
+def test_geo_cluster_of_coverage(topic, title, question, expected):
+    assert geo_cluster_of(topic, {"title": title}, {"question": question})[1] == expected
+
+
+def test_events_matching_excludes_sports():
+    """源分类会混入国家队比赛（geo 标签），量级能顶掉真实地缘主题，必须整条剔除。"""
+    snap = _snap(
+        [
+            _event(
+                "Austria vs. Israel",
+                "geo",
+                vol=900_000.0,
+                markets=[{"question": "Will Israel win on 2026-09-24?", "prob_yes": 0.5}],
+            ),
+            _event("Strait of Hormuz traffic", "geo", vol=500.0),
+        ]
+    )
+    assert is_sports_event(snap["events"][0]) is True
+    assert is_sports_event(snap["events"][1]) is False
+    assert [e["title"] for e in events_matching(snap, categories=("geo",))] == [
+        "Strait of Hormuz traffic"
+    ]
 
 
 def test_geo_overview(fake_dir):
