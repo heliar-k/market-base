@@ -65,8 +65,12 @@ SYMBOLS: list[str] = [
     "TSLA",
     "GOOGL",
     "AVGO",
+    "TSM",
+    "UNH",
     "BRK-B",
     "JPM",
+    "V",
+    "MA",
     "AMD",
     "INTC",
     "MU",
@@ -413,6 +417,27 @@ def compute_structure(df: pd.DataFrame, spot: float) -> dict:
     return final
 
 
+def _extract_events(ticker) -> dict:
+    """从 yfinance Ticker.calendar 提取下次财报日与除息日（失败静默返回空 dict）。"""
+    try:
+        cal = ticker.calendar
+        if not isinstance(cal, dict):
+            return {}
+        ed_list = cal.get("Earnings Date") or []
+        ed = ed_list[0] if isinstance(ed_list, list) and ed_list else None
+        ex_div = cal.get("Ex-Dividend Date")
+        return {
+            "earnings_date": ed.strftime("%Y-%m-%d")
+            if hasattr(ed, "strftime")
+            else (str(ed)[:10] if ed else None),
+            "ex_dividend_date": ex_div.strftime("%Y-%m-%d")
+            if hasattr(ex_div, "strftime")
+            else (str(ex_div)[:10] if ex_div else None),
+        }
+    except Exception:
+        return {}
+
+
 def build_snapshot(symbols: list[str] | None = None, use_cache: bool = True) -> dict:
     """全标的快照 dict（写入 data/options_structure/{date}.json）。"""
     from src.fetchers.yfinance_fetcher import ensure_yf_proxy
@@ -450,6 +475,7 @@ def build_snapshot(symbols: list[str] | None = None, use_cache: bool = True) -> 
                 continue
             detail["symbol"] = sym
             detail["name"] = sym
+            detail.update(_extract_events(ticker))
             out["symbols"][sym] = detail
             logger.info(f"  {sym}: spot={detail['spot']} netGEX={detail['net_gex']}B")
         except Exception as e:

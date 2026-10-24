@@ -13,6 +13,7 @@ description: 制定股票/期权交易计划（方向性做多/做空挂单、Se
 |---|---|---|---|
 | 方向性交易（做多/做空挂单） | A | 手写流程 | 事件驱动的挂单计划，写入 trade-journal/ |
 | 盘前快照（实时价 + OI 墙） | A/C 共用 | `uv run python -m src.stock_snapshot {X} --oi` | 盘前/盘后实时价、昨收、期权 OI 墙（阶段 2 步骤 1/4） |
+| 确定性巨头池 Wheel 雷达 | B 前置 | `uv run python -m src.wheel_scanner` | 四维筛选 17 只巨头池（T0/T1/T2）、红绿灯入场信号（Sell Put/Call）与 30~45 DTE 目标合约 |
 | Sell Put 收租 | B | `uv run python src/sell_put.py --symbol {X}` | 选卖 put 点位（期权墙 + 技术面交叉） |
 | 下跌保护/对冲 | C | `uv run python src/hedge_planner.py --symbol {X}` | 持仓保护结构比价（裸 put / 价差 / 领口） |
 | GEX/期权墙验证 | D | `uv run python src/compute_gex.py --symbol {X} --port 4001 --batch-size 50` | 支撑/阻力/磁吸墙验证（A/B 共用） |

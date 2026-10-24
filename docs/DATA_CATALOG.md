@@ -258,6 +258,8 @@ FRED liquidity 分类的原始系列（由 `./bin/fetch_fred` 一并拉取）。
 | `HD.csv` | Home Depot (家得宝) |
 | `ISRG.csv` | Intuitive Surgical (直觉外科) |
 | `JNJ.csv` | Johnson & Johnson (强生) |
+| `JPM.csv` | JPMorgan Chase (摩根大通) |
+| `MA.csv` | Mastercard (万事达) |
 | `META.csv` | Meta |
 | `MSFT.csv` | Microsoft |
 | `MU.csv` | Micron |
@@ -269,6 +271,7 @@ FRED liquidity 分类的原始系列（由 `./bin/fetch_fred` 一并拉取）。
 | `SPY.csv` | SPDR S&P 500 ETF |
 | `TSLA.csv` | Tesla |
 | `TSM.csv` | TSMC (台积电) |
+| `V.csv` | Visa |
 | `WMT.csv` | Walmart (沃尔玛) |
 
 ### 列格式（OHLCV）
