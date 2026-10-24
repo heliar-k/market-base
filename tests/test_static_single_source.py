@@ -762,3 +762,23 @@ def test_drilldown_keeps_matrix_chart_alive() -> None:
     assert re.search(r"function close\(\)\s*\{.{0,400}?disposeDrillCharts\(\)", js, re.S), (
         "close() 未释放弹层图实例（每次点格子会留一份 canvas）"
     )
+
+
+def test_correlation_drilldown_rolling_series_aligned_by_date() -> None:
+    """drill-down 滚动相关必须按日期落点，不能按数组索引铺。
+
+    症状：关联面板点矩阵格子（USD/JPY × MOVE），30 日滚动相关只画到 09-23，
+    而数据已到 10-23 —— 末端整整缺一个月，价格图却是完整的。
+    根因：滚动相关从 rows[30] 起算（前 30 天没有窗口），series 却从 category 轴
+    索引 0 开始铺，整条曲线左移 30 个交易日（10-23 往前数 30 行正好 09-23）。
+    修复后：点对 [date, value] + time 轴（AGENTS.md「日期轴统一写法」），
+    两图末端与价格图一致。
+    """
+    js = (STATIC / "js" / "cross-correlation.js").read_text(encoding="utf-8")
+    body = js[js.index("function renderDrillCharts") :]
+    body = body[: body.index("\nfunction ", 1)]  # 只取本函数，别被宏观滚动的同款变量骗过
+    assert "corrSeries.push([dates[k]" in body, "滚动相关序列未按日期落点（会整体左移一个窗口）"
+    assert body.count("xAxis: { type: 'time' }") == 2, (
+        "弹层两图（滚动相关 / 归一化价格）x 轴都要 time，且写法一致"
+    )
+    assert "type: 'category'" not in body, "弹层又用 category 轴铺 ISO 日期（日期轴单源已禁）"

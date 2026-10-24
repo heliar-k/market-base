@@ -482,6 +482,9 @@ function renderDrillCharts(a, b, rows) {
   };
 
   // 滚动相关（与 cross_asset.py 同口径：pct_change + rolling 30，min 10 有效观测）
+  // 点对 [date, value] + time 轴：首个可算窗口落在 rows[ROLLING_WINDOW]，之后按日期逐点推进。
+  // 早先按 category 索引对齐（序列从索引 0 起、又跳过前 30 个日期），整条曲线左移 30 个交易日、
+  // 末端缺最近一个月（2026-10：数据到 10-23，图上只画到 09-23）。
   const ra = rows.map(r => r[a]), rb = rows.map(r => r[b]);
   const corrSeries = [];
   for (let k = ROLLING_WINDOW; k < rows.length; k++) {
@@ -491,15 +494,17 @@ function renderDrillCharts(a, b, rows) {
         sa.push(ra[m] / ra[m - 1] - 1); sb.push(rb[m] / rb[m - 1] - 1);
       }
     }
-    if (sa.length < MIN_OBS) { corrSeries.push(null); continue; }
-    corrSeries.push(pearson(sa, sb));
+    if (sa.length < MIN_OBS) { corrSeries.push([dates[k], null]); continue; }
+    corrSeries.push([dates[k], pearson(sa, sb)]);
   }
+  // 价格图共用同一 time 轴：归一化序列转 [date, value] 点对（两图 x 轴写法必须一致）
+  const toDatePairs = (vals) => vals.map((v, i) => [dates[i], v]);
 
   const cDom = document.getElementById('corr-drill-corr');
   drillChart = echarts.init(cDom, theme, { renderer: 'canvas' });
   drillChart.setOption({
     grid: { left: 8, right: 16, top: 12, bottom: 24, containLabel: true },
-    xAxis: { type: 'category', data: dates, axisLabel: { fontSize: 10 } },
+    xAxis: { type: 'time' },
     yAxis: { type: 'value', min: -1, max: 1 },
     visualMap: {
       show: false, min: -1, max: 1,
@@ -518,11 +523,11 @@ function renderDrillCharts(a, b, rows) {
   const pal = MACRO_COLORS(); // 惰性取色板：主题切换后重渲染拿到的是新主题色
   pChart.setOption(reSyncLegend({
     grid: { left: 8, right: 16, top: 12, bottom: 24, containLabel: true },
-    xAxis: { type: 'category', data: dates, axisLabel: { fontSize: 10 } },
+    xAxis: { type: 'time' },
     yAxis: { type: 'value', scale: true },
     series: [
-      { name: labelOf(a), type: 'line', data: norm(a), showSymbol: false, lineStyle: { width: 1.5 }, color: pal[0] },
-      { name: labelOf(b), type: 'line', data: norm(b), showSymbol: false, lineStyle: { width: 1.5 }, color: pal[1] },
+      { name: labelOf(a), type: 'line', data: toDatePairs(norm(a)), showSymbol: false, lineStyle: { width: 1.5 }, color: pal[0] },
+      { name: labelOf(b), type: 'line', data: toDatePairs(norm(b)), showSymbol: false, lineStyle: { width: 1.5 }, color: pal[1] },
     ],
     legend: { top: 0, right: 8 },
     tooltip: { trigger: 'axis' },
