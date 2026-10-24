@@ -153,7 +153,75 @@ async function load() {
   const row = document.createElement('div');
   row.className = 'oas-row';
   row.innerHTML = card('IG OAS（投资级）', d.ig, 'bp') + card('HY OAS（高收益）', d.hy, 'bp') + card('HY − IG', d.hy_ig, 'bp');
-  document.getElementById('oas-row').appendChild(row);
+  const oasRoot = document.getElementById('oas-row');
+  oasRoot.appendChild(row);
+
+  // ── IG / HY OAS 日频走势（.re-duo 单源：宽桌面并排、窄屏单列）──
+  // 分两张图、各带自己的 y 轴：两条线量纲差约 4 倍（89 vs 340bp），共用一根轴会把 IG
+  // 压成贴着零轴的直线（原站也是两张图）。色只是区分两条序列，不带涨跌语义。
+  const hist = d.spread_hist || {};
+  if (hist.ig && hist.hy) {
+    // 时间轴区间档位（全站 .range-btn 单类）：数据只有 FRED 给的 ~3.4 年，故 3Y 封顶
+    const RANGES = [['1M', 1], ['3M', 3], ['6M', 6], ['1Y', 12], ['2Y', 24], ['3Y', 36], ['All', 0]];
+    const t0 = new Date(hist.ig.dates[0] + 'T00:00:00').getTime();
+    const t1 = new Date(hist.ig.dates[hist.ig.dates.length - 1] + 'T00:00:00').getTime();
+    const startPct = (m) => {
+      if (!m) return 0;
+      const c = new Date(t1);
+      c.setMonth(c.getMonth() - m);
+      return Math.max(0, Math.min(100, ((c.getTime() - t0) / (t1 - t0)) * 100));
+    };
+    // 轴标签按窗口跨度选档：≤ 1 年写 M/D，更长的窗口交给 ECharts 的年级标签 ——
+    // 3 年窗口也写 M/D 会退化成「1/1 7/1 1/1 7/1」，四个 1/1 分不出年份。
+    // splitNumber 是压刻度数：time 轴默认按 7 天铺满整屏，3M 窗口会出 13 个标签（挤成一片）。
+    const axCfg = (m) => m && m <= 12
+      ? { type: 'time', boundaryGap: false, splitNumber: 5, axisLabel: { formatter: (v) => R.md(v) } }
+      : { type: 'time', boundaryGap: false };
+    let rangeMonths = 3;  // 默认 3M：上方卡片已经给了长历史分位，图上先看近期走势
+
+    const duo = document.createElement('div');
+    duo.className = 're-duo';
+    oasRoot.appendChild(duo);  // 先挂文档再建图（R.mkChart 按 id 查 DOM，detached 时查不到）
+    const histCard = (id, zh, sub, h, color) => {
+      const sec = R.secCard();
+      sec.innerHTML = `${R.secTitle(zh, sub)}<div class="chart" id="${id}"></div>`;
+      duo.appendChild(sec);
+      R.mkChart(id, colors => R.lineOption({
+        legend: { show: false },  // 单序列：卡标题已经报了序列名，图例只是重复
+        tooltip: { trigger: 'axis', valueFormatter: v => v == null ? '—' : `${R.num(v, 0)}bp` },
+        grid: { left: 8, right: 16, top: 12, bottom: 24 },
+        xAxis: axCfg(rangeMonths),
+        yAxis: { type: 'value', scale: true, axisLabel: { formatter: v => R.num(v, 0) } },
+        dataZoom: [{ type: 'inside', start: startPct(rangeMonths), end: 100 }],
+        series: [{
+          name: zh, type: 'line', showSymbol: false,
+          data: h.dates.map((dt, i) => [dt, h.values[i]]),
+          lineStyle: { width: 2, color: colors[color] },
+        }],
+      }, colors));
+    };
+    histCard('oas-ig-chart', 'IG OAS 走势', '投资级 · bp', hist.ig, 'blue');
+    histCard('oas-hy-chart', 'HY OAS 走势', '高收益 · bp', hist.hy, 'purple');
+
+    // 区间按钮：一排 .range-btn 联动两张图。走 dataZoom 百分比而不是 xAxis.min ——
+    // dataZoom 会真过滤数据，y 轴跟着窗口重新标定（1M 窗口不会继续被 3 年的全量量纲压平）。
+    const bar = document.createElement('div');
+    bar.className = 'range-controls';
+    bar.style.cssText = 'justify-content:flex-end;flex-wrap:wrap';
+    bar.innerHTML = RANGES.map(([lab, m]) => `<button type="button" class="range-btn${m === rangeMonths ? ' active' : ''}" data-m="${m}">${lab}</button>`).join('');
+    oasRoot.insertBefore(bar, duo);
+    bar.addEventListener('click', (e) => {
+      const btn = e.target.closest('.range-btn');
+      if (!btn) return;
+      bar.querySelectorAll('.range-btn').forEach(b => b.classList.toggle('active', b === btn));
+      rangeMonths = Number(btn.dataset.m);
+      ['oas-ig-chart', 'oas-hy-chart'].forEach(id => {
+        // replaceMerge xAxis：轴标签 formatter 必须能随窗口换档，普通 merge 不会清掉旧的
+        R.getChart(id)?.setOption({ xAxis: axCfg(rangeMonths), dataZoom: [{ start: startPct(rangeMonths), end: 100 }] }, { replaceMerge: ['xAxis'] });
+      });
+    });
+    oasRoot.appendChild(R.secNote(`口径：ICE BofA OAS（期权调整利差），日频 · bp；走阔 = 风险溢价上升。全量约 ${hist.ig.dates.length} 个交易日（${hist.ig.dates[0]} 起），上方按钮切换区间；IG 与 HY 量纲差约 4 倍，故各占一图、不共用 y 轴。`));
+  }
 
   // ── 研判：一张卡 · 三格横排（原三张全宽卡各一句 → 收成一行三格）──
   // 「框架：What changed / Why it matters / What to watch next」单独 note 已删：

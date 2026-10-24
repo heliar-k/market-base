@@ -431,3 +431,11 @@ class TestOverviewSpreads:
         out = overview(*self._frames())
         for k in ("ccc_bb", "bbb_ig"):
             assert out["spreads"][k]["pct_10y"] is not None
+
+    def test_spread_hist_shares_unit_with_cards(self):
+        """走势图序列与卡片同源同单位（bp）：末点必等于卡片当前值。"""
+        out = overview(*self._frames())
+        h = out["spread_hist"]
+        for k in ("ig", "hy"):
+            assert len(h[k]["dates"]) == len(h[k]["values"]) == 10
+            assert h[k]["values"][-1] == out[k]["value"]

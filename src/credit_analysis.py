@@ -133,6 +133,15 @@ def _oas_card(s: pd.Series) -> dict:
     }
 
 
+def _oas_hist(s: pd.Series) -> dict:
+    """利差日频走势 {dates, values}（bp）：IG / HY 量纲差 ~4 倍，前端分两张图不共 y 轴。"""
+    s = s.dropna()
+    return {
+        "dates": [d.strftime("%Y-%m-%d") for d in s.index],
+        "values": [round(float(v) * 100, 1) for v in s],
+    }
+
+
 # ── 总览 ─────────────────────────────────────────────────────────────────
 
 
@@ -392,6 +401,10 @@ def overview(
         "ig": ig,
         "hy": hy,
         "hy_ig": hy_ig,
+        "spread_hist": {
+            "ig": _oas_hist(df_vol["IG_OAS"]) if "IG_OAS" in df_vol else {},
+            "hy": _oas_hist(df_vol["HY_OAS"]) if "HY_OAS" in df_vol else {},
+        },
         "layers": layers,
         "spreads": {"ccc_bb": spread_ccbb, "bbb_ig": spread_bbig, "hy_ig": hy_ig},
         "funding": funding,
