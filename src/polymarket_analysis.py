@@ -37,32 +37,39 @@ def snapshot() -> dict | None:
 
 
 # Polymarket 把国家队比赛（Austria vs. Israel 等）也挂了 geo 标签，单场 24h 量可达 $670k，
-# 会顶掉真实地缘主题（geo 页主题卡 / 今日头版 geo_hot）。按盘口术语识别后整条剔除——
-# 这不是归类问题，体育赛事不进宏观分析。
-_SPORTS_RX = re.compile(
-    r"(both teams to score|exact score|end in a draw|\bo/u \d|spread:|1st half"
-    r"|will .{1,40} win on \d{4}-\d{2}-\d{2})",
+# 会顶掉真实地缘主题（geo 页主题卡 / 今日头版 geo_hot）。两类信号合判：
+# 盘口术语（大小球/让球/比分/平局）直接命中；胜负盘（win on ISO 日期）还要求标题带 "vs."，
+# 避免把「will X win on 2026-11-03」这类选举日期盘误杀。
+_SPORTS_MARKET_RX = re.compile(
+    r"(both teams to score|exact score|end in a draw|\bo/u \d|spread:|1st half)",
     re.I,
 )
+_VS_TITLE_RX = re.compile(r"\bvs\.?\b", re.I)
+_DATED_WIN_RX = re.compile(r"will .{1,40} win on \d{4}-\d{2}-\d{2}", re.I)
 
 
 def is_sports_event(event: dict) -> bool:
-    """事件标题/市场问题是否体育盘口（含让球、大小球、比分、胜负盘）。"""
-    parts = [event.get("title") or ""]
+    """事件标题/市场问题是否体育盘口（含让球、大小球、比分、平局、胜负盘）。"""
+    title = event.get("title") or ""
+    parts = [title]
     parts.extend(m.get("question") or "" for m in event.get("markets") or [])
-    return bool(_SPORTS_RX.search(" ".join(parts)))
+    text = " ".join(parts)
+    if _SPORTS_MARKET_RX.search(text):
+        return True
+    return bool(_VS_TITLE_RX.search(title) and _DATED_WIN_RX.search(text))
 
 
 def events_matching(
     snap: dict | None,
     pattern: str | re.Pattern | None = None,
     categories: tuple[str, ...] = (),
+    exclude_sports: bool = False,
 ) -> list[dict]:
     """快照事件过滤：分类 + 标题正则（不区分大小写）。
 
     按事件 volume 降序返回。pattern 是纯字符串时按不区分大小写包含处理
-    （调用方传已编译正则可控制词边界）。体育盘口事件一律剔除（源分类混入，
-    见 is_sports_event）。
+    （调用方传已编译正则可控制词边界）。exclude_sports=True 时剔除体育盘口
+    （源分类把国家队比赛挂进 geo，只有 geo 消费方需要，见 is_sports_event）。
     """
     if not snap:
         return []
@@ -73,7 +80,7 @@ def events_matching(
             continue
         if rx and not rx.search(e.get("title") or ""):
             continue
-        if is_sports_event(e):
+        if exclude_sports and is_sports_event(e):
             continue
         out.append(e)
     return sorted(out, key=lambda e: e.get("volume24hr") or 0, reverse=True)
@@ -157,16 +164,25 @@ def energy_block() -> dict | None:
 
 # ── 地缘与政治风险专题（geo 页）─────────────────────────────────────────
 
+# 关键词单源：主题门控与主题内归类共用同一组词，避免两处手抄漂移
+# （漏抄 = 事件落「其它」但归类规则永远不可达）。
+TRADE_TARIFF_KWS = ("tariff", "trade deal", "trade agreement", "trade war")
+TRADE_SANCTION_KWS = ("sanction", "export control", "embargo")
+TRADE_KWS = TRADE_TARIFF_KWS + TRADE_SANCTION_KWS
+LATAM_KWS = ("cuba", "venezuela", "mexico")
+GREENLAND_KWS = ("greenland",)
+US_TERRITORY_KWS = LATAM_KWS + GREENLAND_KWS + ("invade",)
+
 # 主题聚类：关键词 → (key, 名称)；匹配 title 小写包含，先命中先归类。
 # 热战主题在前、选举居后（「Israel 总理选举」归以色列战线而非选举）；
-# 古巴/委内瑞拉/格陵兰这类「美军领土动作」单列主题（原归「其它」）；
+# 古巴/委内瑞拉/墨西哥/格陵兰这类美国对外动作单列主题（原归「其它」）；
 # 仍均未命中才归「其它」兜底——正常应维持空，出现即说明又有新主题需建。
 GEO_TOPICS: list[tuple[str, str, tuple[str, ...]]] = [
     ("iran", "伊朗与霍尔木兹", ("iran", "hormuz", "pahlavi", "uranium")),
     ("israel", "以色列战线", ("israel", "lebanon", "yemen", "gaza", "houthi")),
     ("taiwan", "台海", ("taiwan",)),
     ("russia_ukraine", "俄乌", ("russia", "ukraine", "putin", "zelenskyy", "nato")),
-    ("trade", "贸易与关税", ("tariff", "trade deal", "trade agreement", "trade war")),
+    ("trade", "贸易与制裁", TRADE_KWS),
     (
         "election",
         "选举",
@@ -182,9 +198,10 @@ GEO_TOPICS: list[tuple[str, str, tuple[str, ...]]] = [
             "primary",
             "midterm",
             "house winner",
+            "win the house",
         ),
     ),
-    ("us_territory", "美国领土动作", ("cuba", "venezuela", "mexico", "greenland")),
+    ("us_territory", "美国扩张动向", US_TERRITORY_KWS),
 ]
 
 
@@ -241,7 +258,7 @@ GEO_CLUSTERS: dict[str, list[tuple[str, str, tuple[str, ...]]]] = {
             ("gaza", "hamas", "ceasefire", "ground offensive", "phase ii"),
         ),
         ("politics", "以国内政局", ("prime minister", "election")),
-        ("rates", "以央行利率", ("bank of israel", "interest rate")),
+        ("boi_rates", "以央行利率", ("bank of israel", "interest rate")),
         ("strike", "空袭与军事行动", ("airspace", "strike", "military action", "military clash")),
         (
             "territory",
@@ -287,7 +304,7 @@ GEO_CLUSTERS: dict[str, list[tuple[str, str, tuple[str, ...]]]] = {
         ("advance", "俄军占领推进", ("capture", "enter ")),
         ("regime", "俄乌政局", ("putin out", "zelenskyy out", "coup")),
         (
-            "election",
+            "ru_election",
             "俄乌选举",
             (
                 "parliamentary",
@@ -304,11 +321,11 @@ GEO_CLUSTERS: dict[str, list[tuple[str, str, tuple[str, ...]]]] = {
         ("mobilization", "动员与兵力", ("mobilization", "mobilisation", "conscript")),
         ("sanctions", "制裁与贸易", ("sanctions", "export ban", "diesel")),
         ("health", "疫情与公共卫生", ("plague", "outbreak", "epidemic")),
-        ("culture", "文体与民间交流", ("kanye", "performs", "concert")),
+        ("culture", "文体动向", ("kanye", "performs", "concert")),
     ],
     "trade": [
-        ("tariff", "关税与协议", ("tariff", "trade deal", "trade agreement", "trade war")),
-        ("sanctions", "出口管制与制裁", ("sanction", "export control", "embargo")),
+        ("tariff", "关税与协议", TRADE_TARIFF_KWS),
+        ("sanctions", "出口管制与制裁", TRADE_SANCTION_KWS),
     ],
     "election": [
         ("rally", "竞选集会言论", ("midterm rally", "what will trump say")),
@@ -325,8 +342,9 @@ GEO_CLUSTERS: dict[str, list[tuple[str, str, tuple[str, ...]]]] = {
         ("presidential", "总统大选", ("president",)),
     ],
     "us_territory": [
-        ("latam", "拉美方向", ("cuba", "venezuela", "mexico")),
-        ("greenland", "格陵兰", ("greenland",)),
+        ("latam", "拉美方向", LATAM_KWS),
+        ("greenland", "格陵兰", GREENLAND_KWS),
+        ("military", "军事与领土动作", ("invade", "annex", "seize")),
     ],
 }
 
@@ -412,10 +430,11 @@ def geo_overview() -> dict | None:
     （label/prob/chg7d/cluster）+ slug（外链）+ question（title 提示）。
     signals 为规则引擎叙事（LLM 预留：返回 None 时不渲染）；
     unmatched = {count, samples} 收录未命中归类关键词的合约，驱动⚠补词提醒。
+    体育盘口（源分类混入的国家队比赛）在入口剔除，不计入主题与 unmatched。
     只读不写盘。
     """
     snap = snapshot()
-    evs = events_matching(snap, categories=("geo", "policy"))
+    evs = events_matching(snap, categories=("geo", "policy"), exclude_sports=True)
     if not evs:
         return None
     ids = {str(m["id"]) for e in evs for m in e.get("markets") or []}

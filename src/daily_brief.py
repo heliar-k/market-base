@@ -423,7 +423,7 @@ def _polymarket() -> dict | None:
             "end_date": e.get("end_date"),
             "volume24hr": e.get("volume24hr"),
         }
-        for e in events_matching(snap, categories=("geo",))[:5]
+        for e in events_matching(snap, categories=("geo",), exclude_sports=True)[:5]
     ]
     return out
 

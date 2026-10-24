@@ -183,7 +183,7 @@ def test_geo_topic_of_priority():
     )
     assert geo_topic_of({"title": "Will the U.S. invade Greenland in 2026?"}) == (
         "us_territory",
-        "美国领土动作",
+        "美国扩张动向",
     )
 
 
@@ -200,11 +200,11 @@ def test_geo_topic_of_new_axes():
     )
     assert geo_topic_of({"title": "Will the U.S. invade Venezuela by...?"}) == (
         "us_territory",
-        "美国领土动作",
+        "美国扩张动向",
     )
     assert geo_topic_of({"title": "US x China tariff agreement by December 31?"}) == (
         "trade",
-        "贸易与关税",
+        "贸易与制裁",
     )
 
 
@@ -264,6 +264,13 @@ def test_geo_topic_of_new_axes():
             "Trump endorses China's claim to Taiwan by end of summit?",
             "外交与表态",
         ),
+        # 贸易与制裁：主题门控与归类共用同一组词，sanctions 不能只写在归类里
+        (
+            "trade",
+            "US sanctions on Chinese chips by 2027?",
+            "US sanctions on Chinese chips by 2027?",
+            "出口管制与制裁",
+        ),
         # 俄乌：跨境打击 / 动员 / 制裁 / 疫情 / 政变 / 入城
         (
             "russia_ukraine",
@@ -321,12 +328,25 @@ def test_geo_topic_of_new_axes():
             'Will Trump say "Iran" 5+ times during his Midterm Rally in Georgia?',
             "竞选集会言论",
         ),
-        # 美国领土动作
+        # 选举：House 胜负（只写 cluster 会因主题门控不可达）
+        (
+            "election",
+            "Will the Democrats win the House in 2026?",
+            "Will the Democrats win the House in 2026?",
+            "美国中期选举",
+        ),
+        # 美国扩张动向：具体方向优先，其余入侵/兼并动作归军事与领土
         (
             "us_territory",
             "Will the U.S. invade Cuba in 2026?",
             "Will the U.S. invade Cuba in 2026?",
             "拉美方向",
+        ),
+        (
+            "us_territory",
+            "Will the U.S. invade Panama in 2026?",
+            "Will the U.S. invade Panama in 2026?",
+            "军事与领土动作",
         ),
     ],
 )
@@ -335,7 +355,7 @@ def test_geo_cluster_of_coverage(topic, title, question, expected):
 
 
 def test_events_matching_excludes_sports():
-    """源分类会混入国家队比赛（geo 标签），量级能顶掉真实地缘主题，必须整条剔除。"""
+    """源分类会混入国家队比赛（geo 标签），geo 消费方显式开启 exclude_sports。"""
     snap = _snap(
         [
             _event(
@@ -349,9 +369,27 @@ def test_events_matching_excludes_sports():
     )
     assert is_sports_event(snap["events"][0]) is True
     assert is_sports_event(snap["events"][1]) is False
-    assert [e["title"] for e in events_matching(snap, categories=("geo",))] == [
-        "Strait of Hormuz traffic"
-    ]
+    # 默认不过滤：data/crypto 等共用调用方的行为不变
+    assert len(events_matching(snap, categories=("geo",))) == 2
+    assert [
+        e["title"] for e in events_matching(snap, categories=("geo",), exclude_sports=True)
+    ] == ["Strait of Hormuz traffic"]
+
+
+def test_sports_filter_keeps_dated_elections():
+    """胜负盘判据要求标题带 vs.，选举的「win on ISO 日期」不能被当成体育剔除。"""
+    election = _event(
+        "Georgia Senate Election Winner",
+        "policy",
+        markets=[{"question": "Will Ossoff win on 2026-11-03?", "prob_yes": 0.5}],
+    )
+    sport = _event(
+        "Austria vs. Israel",
+        "geo",
+        markets=[{"question": "Will Austria win on 2026-09-24?", "prob_yes": 0.5}],
+    )
+    assert is_sports_event(election) is False
+    assert is_sports_event(sport) is True
 
 
 def test_geo_overview(fake_dir):
@@ -417,6 +455,75 @@ def test_geo_overview(fake_dir):
     # 叙事：总览 + 每主题一句（剩 2 个有效事件）
     assert len(out["signals"]) == 3
     assert "2 个事件在监测" in out["signals"][0]
+
+
+def test_geo_overview_has_no_unclassified_topics(fake_dir):
+    """页面级守护：各主题门控样本全部归类，不出现「其它」主题与未命中合约。
+
+    覆盖 review 发现的三处门控回归（trade sanctions / House 胜负 / Panama 入侵），
+    以及源分类混入的体育盘口；逐条走 geo_topic_of + geo_cluster_of 全链路。
+    """
+    cases = [
+        ("Iran coup attempt by...?", "geo", "Iran coup attempt by December 31, 2026?"),
+        (
+            "Saudi-Houthi ceasefire agreement announced by...?",
+            "geo",
+            "Saudi-Houthi ceasefire agreement announced by December 31?",
+        ),
+        ("Will China blockade Taiwan in 2026?", "geo", "Will China blockade Taiwan in 2026?"),
+        (
+            "US sanctions on Chinese chips by 2027?",
+            "policy",
+            "US sanctions on Chinese chips by 2027?",
+        ),
+        (
+            "Will Russia target Kyiv on...?",
+            "geo",
+            "Will Russia target Kyiv on October 28, 2026?",
+        ),
+        (
+            "What will Trump say during his Midterm Rally in Georgia?",
+            "policy",
+            'Will Trump say "Iran" 5+ times during his Midterm Rally in Georgia?',
+        ),
+        (
+            "Will the Democrats win the House in 2026?",
+            "policy",
+            "Will the Democrats win the House in 2026?",
+        ),
+        (
+            "Will the U.S. invade Panama in 2026?",
+            "geo",
+            "Will the U.S. invade Panama in 2026?",
+        ),
+        # 体育盘口：必须在入口剔除，不能进主题也不能算未命中
+        ("Austria vs. Israel", "geo", "Will Israel win on 2026-09-24?"),
+    ]
+    events = [
+        _event(
+            title,
+            category,
+            vol=1000.0,
+            markets=[{"id": str(i), "question": question, "prob_yes": 0.3}],
+        )
+        for i, (title, category, question) in enumerate(cases)
+    ]
+    (fake_dir / "20260916.json").write_text(json.dumps(_snap(events)), encoding="utf-8")
+    out = geo_overview()
+    keys = {t["key"] for t in out["topics"]}
+    assert out["unmatched"]["count"] == 0
+    assert "other" not in keys
+    assert keys == {
+        "iran",
+        "israel",
+        "taiwan",
+        "trade",
+        "russia_ukraine",
+        "election",
+        "us_territory",
+    }
+    titles = {e["title"] for t in out["topics"] for e in t["events"]}
+    assert "Austria vs. Israel" not in titles
 
 
 def test_geo_overview_none(fake_dir):
