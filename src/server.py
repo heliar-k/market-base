@@ -47,6 +47,7 @@ from src.credit_analysis import (
     generate_credit_cds,
     generate_credit_overview,
     generate_credit_stress,
+    generate_euro_sovereign,
 )
 from src.fed_analysis import (
     generate_fed_analysis,
@@ -1112,6 +1113,15 @@ def get_credit_cds() -> dict:
 def get_credit_stress() -> dict:
     """信用压力仪表盘：5 分量合成指数 + 跨资产对照 + 历史曲线。"""
     out = generate_credit_stress()
+    if "error" in out:
+        raise HTTPException(404, out["error"])
+    return out
+
+
+@app.get("/api/credit/euro")
+def get_credit_euro() -> dict:
+    """欧元区 10Y 主权利差（法/意/西 vs 德国 Bund），CNBC 日频 3 年。"""
+    out = generate_euro_sovereign()
     if "error" in out:
         raise HTTPException(404, out["error"])
     return out

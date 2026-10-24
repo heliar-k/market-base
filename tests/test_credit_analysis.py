@@ -13,6 +13,7 @@ from src.credit_analysis import (
     _regime_zone,
     _rolling_pct,
     cds,
+    euro_sovereign,
     overview,
     stress,
 )
@@ -439,3 +440,42 @@ class TestOverviewSpreads:
         for k in ("ig", "hy"):
             assert len(h[k]["dates"]) == len(h[k]["values"]) == 10
             assert h[k]["values"][-1] == out[k]["value"]
+
+
+class TestEuroSovereign:
+    """欧元区主权利差（各国 − 德国 Bund，单位 bp）。
+
+    回归哨兵：日期轴必须与三条序列等长且对齐 —— 某国缺一天要落 None (前端断线)，
+    而不是被挤掉一位、把后面所有点错位到别的日期上。
+    """
+
+    @staticmethod
+    def _df() -> pd.DataFrame:
+        idx = pd.date_range("2026-10-19", periods=5, freq="B")
+        return pd.DataFrame(
+            {
+                "DE": [3.30, 3.31, 3.32, 3.33, 3.34],
+                "FR": [4.90, 4.95, 5.00, None, 5.02],  # 第 4 天缺
+                "IT": [4.55, 4.56, 4.57, 4.58, 4.59],
+                "ES": [4.00, 4.01, 4.02, 4.03, 4.04],
+            },
+            index=idx,
+        )
+
+    def test_spread_in_bp_and_series_aligned(self):
+        out = euro_sovereign(self._df())
+        assert out["dates"][-1] == "2026-10-23"
+        assert out["cards"]["FR"]["value"] == pytest.approx(168.0)  # (5.02 − 3.34) × 100
+        assert out["cards"]["IT"]["value"] == pytest.approx(125.0)
+        for code in ("FR", "IT", "ES"):
+            assert len(out["series"][code]) == len(out["dates"]) == 5
+        # 缺值日留 None，不错位
+        assert out["series"]["FR"][3] is None
+
+    def test_bund_reported_as_yield_not_spread(self):
+        out = euro_sovereign(self._df())
+        assert out["bund"]["value"] == pytest.approx(3.34)
+
+    def test_yield_kept_per_country(self):
+        out = euro_sovereign(self._df())
+        assert out["cards"]["ES"]["yield"] == pytest.approx(4.04)

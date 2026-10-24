@@ -732,6 +732,58 @@ def stress(
     }
 
 
+# ── 欧元区主权利差（CNBC 日频，非 FRED 源）──────────────────────────────
+# 数据在 data/euro_sovereign/yields.csv（src/fetchers/euro_sovereign_fetcher.py）。
+# 与 credit 其余读数的差别只在数据源：欧洲官方体系没有分国日频 10Y（Eurostat /
+# ECB 只有欧元区聚合，Bundesbank / BdI 端点冻结或上登录墙），口径差异写页面注脚。
+EURO_SPREADS = {"FR": "法国 OAT", "IT": "意大利 BTP", "ES": "西班牙 Bono"}
+
+
+def euro_sovereign(df: pd.DataFrame) -> dict:
+    """各国 10Y 减德国 Bund 的利差（bp，与收益率 % ×100 等价）+ 当前值/分位/1 月变化。"""
+    df = df.dropna(subset=["DE"]).sort_index()
+    if df.empty:
+        return {}
+    cards: dict[str, dict] = {}
+    series: dict[str, list] = {}
+    for code, name in EURO_SPREADS.items():
+        if code not in df.columns:
+            continue
+        spread = (df[code] - df["DE"]).dropna()
+        if spread.empty:
+            continue
+        # 序列与日期轴等长（某国缺值留 None → 前端断线，不 ffill 造假台阶）
+        series[code] = [
+            None if pd.isna(v) else round(float(v) * 100, 1) for v in (df[code] - df["DE"])
+        ]
+        cards[code] = {
+            "name": name,
+            "yield": None if pd.isna(df[code].iloc[-1]) else round(float(df[code].iloc[-1]), 3),
+            "value": round(float(spread.iloc[-1]) * 100, 1),
+            "chg_1m": _chg_bp(spread, 21),
+            "pct_1y": _pct(spread, W1Y),
+            "pct_3y": _pct(spread, W3Y),
+        }
+    if not cards:
+        return {}
+    bund = df["DE"]
+    return {
+        "as_of": df.index[-1].strftime("%Y-%m-%d"),
+        "start": df.index[0].strftime("%Y-%m-%d"),
+        "dates": [d.strftime("%Y-%m-%d") for d in df.index],
+        "series": series,
+        "cards": cards,
+        "bund": {"value": round(float(bund.iloc[-1]), 3), "chg_1m": _chg_bp(bund, 21)},
+    }
+
+
+def generate_euro_sovereign() -> dict:
+    df = read_csv_or_empty(ROOT / "data" / "euro_sovereign" / "yields.csv")
+    if df.empty or "DE" not in df.columns:
+        return {"error": "euro_sovereign/yields.csv 缺失，先运行 ./bin/fetch_euro_sovereign"}
+    return euro_sovereign(df)
+
+
 # ── LLM 预留 + 统一入口 ──────────────────────────────────────────────────
 
 

@@ -121,6 +121,7 @@ market-base/
 │   ├── fetch_acm                       ← NY Fed ACM 10Y 期限溢价（合并进 rates.csv）
 │   ├── fetch_refunding                 ← Treasury 季度再融资声明 + QRA 估算（增量）
 │   ├── fetch_cgb                       ← 中国国债收益率 10Y/30Y（chinamoney，FRED 无）
+│   ├── fetch_euro_sovereign            ← 欧元区 10Y 主权利率（德/法/意/西，CNBC 日频 3 年）
 │   ├── fetch_fx                        ← 外汇对日线 16 对（timsun /assets/fx 数据源）
 │   ├── fetch_etf                       ← ETF 全量清单 + 精选池 37 只日线（timsun /assets/etfs）
 │   ├── fetch_options_structure         ← 22 标的期权结构快照（GEX/DEX/Vanna/Charm，yfinance 降级源）
@@ -295,6 +296,7 @@ uv run python -m src.consensus       # 多源共识层两级状态卡（ADR-0004
 ./bin/fetch_acm                      # NY Fed ACM 10Y 期限溢价（ACMTP10，合并进 rates.csv）
 ./bin/fetch_refunding                # Treasury 季度再融资声明 + QRA 融资估算（增量）
 ./bin/fetch_cgb                      # 中国国债收益率 10Y/30Y（chinamoney 实时曲线）
+./bin/fetch_euro_sovereign            # 欧元区 10Y 主权利率（德/法/意/西，CNBC 日频）
 ./bin/fetch_news TSM -n 10          # 个股新闻（直连 Yahoo NCP 接口，绕过 yfinance t.news bug）
 ./bin/fetch_yfinance                # yfinance 资产价格
 ./bin/fetch_fx                     # 外汇对日线 16 对（timsun /assets/fx）

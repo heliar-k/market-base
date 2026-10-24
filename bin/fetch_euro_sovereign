@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+# 欧元区 10Y 主权利率（德/法/意/西，CNBC 日频，无需 key）
+cd "$(dirname "$0")/.."
+exec uv run python -m src.fetchers.euro_sovereign_fetcher "$@"

@@ -82,6 +82,7 @@ CHECKS: list[Check] = [
     _c("data/fred/liquidity/cfets_swap_points.csv", 8, "CFETS 掉期点"),
     _c("data/fred/liquidity/tsy_operations.csv", 10, "RMP/POMO 明细", column="date"),
     _c("data/fred/rates/cgb.csv", D, "中国国债收益率"),
+    _c("data/euro_sovereign/yields.csv", D, "欧元区 10Y 主权利率（CNBC）"),
     _c("data/fred/fx/fx.csv", 12, "FRED 汇率（周频抖动大）"),
     _c("data/fred/sentiment/sentiment.csv", 14, "信心指数"),
     _c("data/fred/labor/labor.csv", 14, "劳动市场（含周频初请）"),

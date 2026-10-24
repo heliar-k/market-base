@@ -31,6 +31,7 @@ from src.server import (  # noqa: PLC2701 复用路由函数
     get_assets_prices,
     get_consensus,
     get_credit_cds,
+    get_credit_euro,
     get_credit_overview,
     get_credit_stress,
     get_cross_asset,
@@ -214,6 +215,7 @@ def export_api() -> None:
     _safe("api/credit/overview", get_credit_overview)
     _safe("api/credit/cds", get_credit_cds)
     _safe("api/credit/stress", get_credit_stress)
+    _safe("api/credit/euro", get_credit_euro)
     _safe("api/inflation/overview", get_inflation_overview)
     _safe("api/cross-asset", get_cross_asset)
     _safe("api/assets/prices", get_assets_prices)

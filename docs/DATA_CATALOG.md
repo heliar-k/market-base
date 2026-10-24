@@ -76,6 +76,26 @@
 
 ---
 
+## 1b. 欧元区 10Y 主权利率 — `data/euro_sovereign/yields.csv`
+
+德 / 法 / 意 / 西 四国 10Y 国债收益率日频（单位 %，列 `DE / FR / IT / ES`），
+由 `./bin/fetch_euro_sovereign` 从 **CNBC 公开报价接口**（`ts-api.cnbc.com`）拉取，
+观测日 upsert，回看 3 年（源上限）。credit 页「欧洲主权利差」段消费：
+各国 − `DE` 的利差（bp）+ 1Y/3Y 分位。
+
+> 为什么不是官方源（都实测排除）：Eurostat `irt_euryld_d` / `_m` 与 ECB `YC` 只有
+> 欧元区聚合（`geo=EA`，`DE/FR/IT/ES` 全 404）；Bundesbank `statistic-rmi`
+> （`BBSIS.D...R10XX`）端点全站冻结在 2026-08-03（同端点取 EUR/USD 停在 07-13）；
+> Banca d'Italia Infostat 已改成 OAuth 登录墙；DBnomics 的 BUBA/BDF 无现行数据；
+> FRED 的 `IRLTLT01{DE,FR,IT,ES}M156N` 只有月频（月均值会把当月走阔平滑掉）。
+> CNBC 是实测唯一覆盖四国、免费、无 key 的日频源。
+
+> 坑：必须带 User-Agent（裸 requests → 403）；只有 `1M/3M/6M` 区间给日频
+> （`5Y/10Y` 退化成周频）；周末行是周五收盘的拷贝（942 根里 161 根），
+> 入库前按 weekday 过滤。
+
+---
+
 ## 2. 波动率 — `data/cboe/volatility.csv`
 
 来源 CBOE CDN。每次 `./bin/fetch_cboe` 拉全量历史并 upsert（漏跑自动补）；`--backfill` 全量覆盖。

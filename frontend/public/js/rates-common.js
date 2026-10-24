@@ -244,6 +244,8 @@ const R = {
     衍生品快照: 'disc', Polymarket: 'disc', 预测市场: 'disc',
     ZQ: 'disc', 期货价: 'disc', '农产品价': 'disc', '贵金属ETF': 'disc', 'ETF 行情': 'disc',
     '外汇行情': 'disc', 公开市场操作: 'disc',
+    // 财经媒体转载的市场报价（收益率本身是市场直报，来源经 CNBC）
+    CNBC: 'disc',
     // 派生 / 模型口径（估算）
     'Bill 占比': 'est', 净流动性: 'est', 流动性: 'est', 利率: 'est', 传导: 'est',
     期权快照: 'est', 基差: 'est', '相关/价格': 'est', 快照: 'est',

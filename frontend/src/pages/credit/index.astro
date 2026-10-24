@@ -34,6 +34,7 @@ import Section from '../../components/Section.astro';
   <Section id="quality" title="贷款质量" sub="逾期率 / 核销率，季度" />
   <Section id="fincond" title="金融条件" sub="与压力指数" />
   <Section id="liq-etf" title="市场流动性代理" sub="信用 ETF" />
+  <Section id="euro-sec" title="欧洲主权利差" sub="法 / 意 / 西 vs 德国 Bund · 10Y · bp" />
   <Section id="cds-sec" title="CDS 专题" sub="信用违约互换 · 公开代理指标" />
   <Section id="stress-sec" title="压力指数明细" sub="5 分量加权" />
   <div class="re-foot-page" slot="foot" id="re-foot"></div>
@@ -87,17 +88,19 @@ async function load() {
   document.getElementById('page-toc').innerHTML = [
     ['信用状态总览', 'regime'], ['研判', 're-signals'], ['利差水平', 'oas-row'], ['利差分层', 'layers'],
     ['融资成本', 'funding'], ['银行信贷', 'sloos'], ['贷款质量', 'quality'],
-    ['金融条件', 'fincond'], ['市场流动性代理', 'liq-etf'], ['CDS 专题', 'cds-sec'], ['压力指数明细', 'stress-sec'],
+    ['金融条件', 'fincond'], ['市场流动性代理', 'liq-etf'], ['欧洲主权利差', 'euro-sec'],
+    ['CDS 专题', 'cds-sec'], ['压力指数明细', 'stress-sec'],
   ].map(([t, id]) => `<a href="#${id}">${t}</a>`).join('');
 
   // 主端点 overview 保持 R.get：挂了说明整页真没数据，页级错误态是正确行为。
   // 次要端点走 getOpt：export_pages._safe() 会跳过当日缺数据的端点，404 合法，只降级对应段。
-  const [d, cds, stress] = await Promise.all([
+  const [d, cds, stress, euro] = await Promise.all([
     R.get('/api/credit/overview'),
     R.getOpt('/api/credit/cds'),
     R.getOpt('/api/credit/stress'),
+    R.getOpt('/api/credit/euro'),   // 欧元区主权利差：CNBC 源，独立时点，缺则只降级本段
   ]);
-  R.setAsOf([['FRED', d.as_of]]);
+  R.setAsOf([['FRED', d.as_of], ['CNBC', euro && euro.as_of]]);
 
   // ── Credit Regime Score 记分卡（对齐持仓页 pos-hero 骨架）──
   const rg = d.regime || { score: null, regime: '—', components: [], missing: [] };
@@ -161,24 +164,7 @@ async function load() {
   // 压成贴着零轴的直线（原站也是两张图）。色只是区分两条序列，不带涨跌语义。
   const hist = d.spread_hist || {};
   if (hist.ig && hist.hy) {
-    // 时间轴区间档位（全站 .range-btn 单类）：数据只有 FRED 给的 ~3.4 年，故 3Y 封顶
-    const RANGES = [['1M', 1], ['3M', 3], ['6M', 6], ['1Y', 12], ['2Y', 24], ['3Y', 36], ['All', 0]];
-    const t0 = new Date(hist.ig.dates[0] + 'T00:00:00').getTime();
-    const t1 = new Date(hist.ig.dates[hist.ig.dates.length - 1] + 'T00:00:00').getTime();
-    const startPct = (m) => {
-      if (!m) return 0;
-      const c = new Date(t1);
-      c.setMonth(c.getMonth() - m);
-      return Math.max(0, Math.min(100, ((c.getTime() - t0) / (t1 - t0)) * 100));
-    };
-    // 轴标签按窗口跨度选档：≤ 1 年写 M/D，更长的窗口交给 ECharts 的年级标签 ——
-    // 3 年窗口也写 M/D 会退化成「1/1 7/1 1/1 7/1」，四个 1/1 分不出年份。
-    // splitNumber 是压刻度数：time 轴默认按 7 天铺满整屏，3M 窗口会出 13 个标签（挤成一片）。
-    const axCfg = (m) => m && m <= 12
-      ? { type: 'time', boundaryGap: false, splitNumber: 5, axisLabel: { formatter: (v) => R.md(v) } }
-      : { type: 'time', boundaryGap: false };
-    let rangeMonths = 3;  // 默认 3M：上方卡片已经给了长历史分位，图上先看近期走势
-
+    const rng = rangeState(hist.ig.dates, 3);  // 默认 3M：上方卡片已给长历史分位，图上先看近期
     const duo = document.createElement('div');
     duo.className = 're-duo';
     oasRoot.appendChild(duo);  // 先挂文档再建图（R.mkChart 按 id 查 DOM，detached 时查不到）
@@ -190,9 +176,9 @@ async function load() {
         legend: { show: false },  // 单序列：卡标题已经报了序列名，图例只是重复
         tooltip: { trigger: 'axis', valueFormatter: v => v == null ? '—' : `${R.num(v, 0)}bp` },
         grid: { left: 8, right: 16, top: 12, bottom: 24 },
-        xAxis: axCfg(rangeMonths),
+        xAxis: rng.xAxis(),
         yAxis: { type: 'value', scale: true, axisLabel: { formatter: v => R.num(v, 0) } },
-        dataZoom: [{ type: 'inside', start: startPct(rangeMonths), end: 100 }],
+        dataZoom: rng.zoom(),
         series: [{
           name: zh, type: 'line', showSymbol: false,
           data: h.dates.map((dt, i) => [dt, h.values[i]]),
@@ -202,24 +188,7 @@ async function load() {
     };
     histCard('oas-ig-chart', 'IG OAS 走势', '投资级 · bp', hist.ig, 'blue');
     histCard('oas-hy-chart', 'HY OAS 走势', '高收益 · bp', hist.hy, 'purple');
-
-    // 区间按钮：一排 .range-btn 联动两张图。走 dataZoom 百分比而不是 xAxis.min ——
-    // dataZoom 会真过滤数据，y 轴跟着窗口重新标定（1M 窗口不会继续被 3 年的全量量纲压平）。
-    const bar = document.createElement('div');
-    bar.className = 'range-controls';
-    bar.style.cssText = 'justify-content:flex-end;flex-wrap:wrap';
-    bar.innerHTML = RANGES.map(([lab, m]) => `<button type="button" class="range-btn${m === rangeMonths ? ' active' : ''}" data-m="${m}">${lab}</button>`).join('');
-    oasRoot.insertBefore(bar, duo);
-    bar.addEventListener('click', (e) => {
-      const btn = e.target.closest('.range-btn');
-      if (!btn) return;
-      bar.querySelectorAll('.range-btn').forEach(b => b.classList.toggle('active', b === btn));
-      rangeMonths = Number(btn.dataset.m);
-      ['oas-ig-chart', 'oas-hy-chart'].forEach(id => {
-        // replaceMerge xAxis：轴标签 formatter 必须能随窗口换档，普通 merge 不会清掉旧的
-        R.getChart(id)?.setOption({ xAxis: axCfg(rangeMonths), dataZoom: [{ start: startPct(rangeMonths), end: 100 }] }, { replaceMerge: ['xAxis'] });
-      });
-    });
+    rng.mount(oasRoot, duo, ['oas-ig-chart', 'oas-hy-chart']);
     oasRoot.appendChild(R.secNote(`口径：ICE BofA OAS（期权调整利差），日频 · bp；走阔 = 风险溢价上升。全量约 ${hist.ig.dates.length} 个交易日（${hist.ig.dates[0]} 起），上方按钮切换区间；IG 与 HY 量纲差约 4 倍，故各占一图、不共用 y 轴。`));
   }
 
@@ -343,6 +312,13 @@ async function load() {
     R.fail(['cds-sec'], new Error('CDS 数据缺失：fred/rates（DGS10）或 yfinance 快照（KBWB/SPX）未更新，先运行 ./bin/fetch_fred / ./bin/fetch_yfinance 后重新导出'));
   }
 
+  // ── 欧洲主权利差（CNBC 日频，非 FRED 源）── 同上，只降级本段
+  if (euro) {
+    try { renderEuro(document.getElementById('euro-sec'), euro); } catch (e) { R.fail(['euro-sec'], e); }
+  } else {
+    R.fail(['euro-sec'], new Error('欧洲主权利差数据缺失：先运行 ./bin/fetch_euro_sovereign 后重新导出'));
+  }
+
   // ── 压力指数明细（原「压力仪表盘」并入）── 同上，只降级本段
   if (stress) {
     try { renderStress(document.getElementById('stress-sec'), stress); } catch (e) { R.fail(['stress-sec'], e); }
@@ -351,7 +327,7 @@ async function load() {
   }
 
   R.foot(d.generator, {
-    src: 'FRED（ICE BofA OAS / HY / IG）· OFR FSI · yfinance',
+    src: 'FRED（ICE BofA OAS / HY / IG）· OFR FSI · yfinance · CNBC（欧元区 10Y 主权利率）',
     note: 'ICE BofA 系列经 FRED API 仅提供近 ~3 年，10Y 分位按可用历史计算',
   });
 
@@ -392,6 +368,13 @@ async function load() {
     if (stress) {
       facts.push(['压力指数', `${stress.composite == null ? '—' : stress.composite}/100 · ${stress.zone || '—'}`, '5 分量加权，阈值 30/70，口径异于 Regime Score']);
     }
+    // 欧洲主权利差走 getOpt（端点可合法 404）：缺源时该条直接不给
+    if (euro) {
+      const ec = euro.cards;
+      const trio = ['FR', 'IT', 'ES'].filter((c) => ec[c])
+        .map((c) => `${EURO_SHORT[c]} ${R.num(ec[c].value, 0)}bp`).join(' · ');
+      facts.push(['欧洲主权利差', trio, `vs Bund 10Y · CNBC 日频 · 1Y 分位 ${R.num(ec.FR && ec.FR.pct_1y, 1)}%`]);
+    }
     return {
       title: '信用压力与利差读数',
       src: 'FRED（ICE BofA OAS / SLOOS / NFCI）· OFR FSI · yfinance',
@@ -401,6 +384,93 @@ async function load() {
       note: '利差与融资成本单位为 bp、有效收益率 %；分位为可用历史内百分位（ICE BofA 仅约 3 年）',
     };
   });
+}
+
+// ── 时间轴区间按钮（本页两处图表共用）─────────────────────────────
+// .range-controls / .range-btn 是全站单类，这里只管「档位 → dataZoom 百分比」。
+// 走 dataZoom 而不是 xAxis.min：dataZoom 会真过滤数据，y 轴跟着窗口重新标定
+// （1M 窗口不会继续被 3 年全量量纲压平）。
+const RANGES = [['1M', 1], ['3M', 3], ['6M', 6], ['1Y', 12], ['2Y', 24], ['3Y', 36], ['All', 0]];
+function rangeState(dates, defMonths) {
+  const t0 = new Date(dates[0] + 'T00:00:00').getTime();
+  const t1 = new Date(dates[dates.length - 1] + 'T00:00:00').getTime();
+  let months = defMonths;
+  const startPct = () => {
+    if (!months) return 0;
+    const c = new Date(t1);
+    c.setMonth(c.getMonth() - months);
+    return Math.max(0, Math.min(100, ((c.getTime() - t0) / (t1 - t0)) * 100));
+  };
+  const st = {
+    // 轴标签按窗口跨度选档：≤ 1 年写 M/D，更长的窗口交给 ECharts 的年级标签 ——
+    // 3 年窗口也写 M/D 会退化成「1/1 7/1 1/1 7/1」，四个 1/1 分不出年份。
+    // splitNumber 压刻度数：time 轴默认按 7 天铺满整屏，3M 窗口出 13 个标签（挤成一片）。
+    xAxis: () => (months && months <= 12
+      ? { type: 'time', boundaryGap: false, splitNumber: 5, axisLabel: { formatter: (v) => R.md(v) } }
+      : { type: 'time', boundaryGap: false }),
+    zoom: () => [{ type: 'inside', start: startPct(), end: 100 }],
+    // 按钮条挂在 host 里 before 之前，点击联动 chartIds
+    mount(host, before, chartIds) {
+      const bar = document.createElement('div');
+      bar.className = 'range-controls';
+      bar.style.cssText = 'justify-content:flex-end;flex-wrap:wrap';
+      bar.innerHTML = RANGES.map(([lab, m]) => `<button type="button" class="range-btn${m === months ? ' active' : ''}" data-m="${m}">${lab}</button>`).join('');
+      host.insertBefore(bar, before);
+      bar.addEventListener('click', (e) => {
+        const btn = e.target.closest('.range-btn');
+        if (!btn) return;
+        bar.querySelectorAll('.range-btn').forEach(b => b.classList.toggle('active', b === btn));
+        months = Number(btn.dataset.m);
+        // replaceMerge xAxis：轴标签 formatter 必须能随窗口换档，普通 merge 清不掉旧的
+        chartIds.forEach(id => R.getChart(id)?.setOption(
+          { xAxis: st.xAxis(), dataZoom: st.zoom() }, { replaceMerge: ['xAxis'] }));
+      });
+      return bar;
+    },
+  };
+  return st;
+}
+
+// ── 欧元区主权利差（法/意/西 vs 德国 Bund，CNBC 日频）──
+// 三条线同轴（都是 bp、量程相近，不比分图）；色只区分国家，不带涨跌语义。
+const EURO_NAME = { FR: '法国 OAT', IT: '意大利 BTP', ES: '西班牙 Bono' };
+const EURO_SHORT = { FR: '法国', IT: '意大利', ES: '西班牙' };  // 图例用短名，全称在卡片
+const EURO_COLOR = { FR: 'blue', IT: 'purple', ES: 'orange' };
+function renderEuro(root, d) {
+  const codes = ['FR', 'IT', 'ES'].filter(c => d.series && d.series[c]);
+  if (!codes.length) return;
+  root.appendChild(R.cards(codes.map(c => {
+    const v = d.cards[c];
+    return {
+      label: `${EURO_NAME[c]} − Bund`,
+      value: `${R.num(v.value, 0)} bp`,
+      sub: `10Y ${R.num(v.yield, 2)}% · 1Y 分位 ${v.pct_1y}% · 1M ${R.fmtBp(v.chg_1m)}bp`,
+    };
+  })));
+
+  const rng = rangeState(d.dates, 3);
+  const card = R.secCard();
+  card.innerHTML = `${R.secTitle('利差走势', `${d.dates.length} 个交易日 · bp`)}<div class="chart" id="euro-chart"></div>`;
+  root.appendChild(card);
+  R.mkChart('euro-chart', colors => R.lineOption({
+    tooltip: { trigger: 'axis', valueFormatter: v => v == null ? '—' : `${R.num(v, 0)}bp` },
+    grid: { left: 8, right: 16, top: 12, bottom: 24 },
+    xAxis: rng.xAxis(),
+    yAxis: { type: 'value', scale: true, axisLabel: { formatter: v => R.num(v, 0) } },
+    dataZoom: rng.zoom(),
+    series: codes.map(c => ({
+      name: EURO_SHORT[c], type: 'line', showSymbol: false,
+      // connectNulls：源里偶有单国缺失一天（2026-08-20 法/意/西全缺），断线会被读成
+      // 渲染 bug；只连线、不插值，缺口仍留在数据里
+      connectNulls: true,
+      data: d.dates.map((dt, i) => [dt, d.series[c][i]]),
+      lineStyle: { width: 2, color: colors[EURO_COLOR[c]] },
+    })),
+  }, colors));
+  rng.mount(root, card, ['euro-chart']);
+  root.appendChild(R.secNote(
+    `口径：各国 10Y 国债收益率 − 德国 Bund 10Y，日频 · bp；走阔 = 该国主权风险溢价上升。数据源 CNBC 市场报价（非 FRED）——欧洲官方体系没有分国日频 10Y，回看 ${d.start} 起（源上限 3 年）。`
+  ));
 }
 
 // ── CDS 专题：主权/银行系统风险代理 + 归一化双线 ──
