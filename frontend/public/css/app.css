@@ -513,6 +513,8 @@ body.embedded .macro-nav, body.embedded #macro-nav-toggle { display: none; }
 .tech-kline-pane {
   display: flex; flex-direction: column; gap: 8px; flex: 1; min-height: 0;
 }
+/* K 线按需加载的过渡提示：只占一行，数据到达即隐藏 */
+.tech-kline-loading { padding: 6px 12px; font-size: 12px; color: var(--text-dim); }
 .tech-ov-pane {
   display: flex; flex-direction: column; gap: 12px; flex: 1; min-height: 0; overflow-y: auto;
 }

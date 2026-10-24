@@ -12,9 +12,17 @@ let currentSubview = localStorage.getItem(SUBVIEW_KEY) === 'kline' ? 'kline' : '
 let currentSymbol = null;
 let currentDiag = null;
 let overviewList = null;    // /api/tech/overview 缓存
+let overviewState = 'loading'; // loading | ready | error（决定切换标的是否还要回源 /api/diag）
 let activeFilter = 'all';   // all | bullish | bearish | squeeze | oversold | overbought
 let klineData = null;       // full dataset from API
 let filteredData = null;    // after range filter
+let klineSymbol = null;     // klineData 属于哪个标的（防止切标的后仍拿旧 K 线画图/报报价）
+let klineRequestSeq = 0;    // 快速连点：只接受最后一次请求的响应
+const klineCache = new Map(); // symbol → records（会话内复用，切回已看过的标的零请求）
+const klinePending = new Map(); // symbol → Promise（同一标的连点只发一次请求）
+const KLINE_CACHE_MAX = 4;
+const KLINE_LOADING_TEXT = '正在加载 K 线数据…';
+const KLINE_ERROR_TEXT = 'K 线数据加载失败 · 请检查 /api/kline 或刷新页面重试';
 let currentDays = 365;
 let mainChart, rsiChart, macdChart;
 let candleSeries, volumeOverlaySeries;
@@ -110,7 +118,7 @@ function resizeAllCharts() {
         c.applyOptions({ width: el.clientWidth, height: el.clientHeight });
       }
     });
-    if (mainChart && filteredData && filteredData.length) {
+    if (mainChart && klineSymbol === currentSymbol && filteredData && filteredData.length) {
       mainChart.timeScale().fitContent();
     }
   });
@@ -130,13 +138,25 @@ function applySubview(subview, persist = true) {
   if (klPane) klPane.style.display = currentSubview === 'kline' ? 'flex' : 'none';
 
   if (currentSubview === 'kline') {
+    // K 线数据按需加载：结论总览里切换标的只读 /api/tech/overview 缓存，不再每次拖整段历史
+    ensureKline(currentSymbol);
     resizeAllCharts();
   }
 }
 
 // ── info bar & symbol selector ─────────────────────────────────────────────
+// 当前标的的 K 线（未加载 / 刚切标的时返回 null，报价回退到诊断快照）
+function activeKlineData() {
+  return klineSymbol === currentSymbol ? (filteredData || klineData) : null;
+}
+
+// 总览里的诊断快照（每项就是 analyze() 完整输出，与 /api/diag 同源同字段）
+function overviewDiag(symbol) {
+  return overviewList?.find(d => d.symbol === symbol) || null;
+}
+
 function updateInfoBar() {
-  const data = filteredData || klineData;
+  const data = activeKlineData();
   // 标的名不在此条重复：左侧下拉框已显示当前标的
   const price = document.getElementById('info-price');
   const change = document.getElementById('info-change');
@@ -201,52 +221,150 @@ export async function selectSymbol(name) {
   currentSymbol = name;
   const sel = document.getElementById('tech-sym-select');
   if (sel && sel.value !== name) sel.value = name;
-  document.querySelectorAll('.tech-ov-row').forEach(el => {
-    el.classList.toggle('active', el.dataset.symbol === name);
+  const activeRow = document.querySelector(`.tech-ov-row[data-symbol="${CSS.escape(name)}"]`);
+  document.querySelectorAll('.tech-ov-row.active').forEach(el => {
+    if (el !== activeRow) el.classList.remove('active');
   });
+  activeRow?.classList.add('active');
   document.getElementById('status-symbol').textContent = name;
 
-  // 若总览已缓存该标的，立即先渲染深度结论卡（零等待）
-  const cached = overviewList?.find(d => d.symbol === name);
+  // 若总览已缓存该标的，立即先渲染深度结论卡（零等待）；没有就先清空，
+  // 避免报价条停留在上一个标的的数字上
+  const cached = overviewDiag(name);
+  currentDiag = cached || null;
   if (cached) {
-    currentDiag = cached;
     renderCurrentConclusion(cached);
+  } else if (overviewState !== 'loading') {
+    // 总览失败/缺该标的时才回源；总览仍在加载就等它回来统一渲染，避免白跑一次 /api/diag
+    fetchDiag();
+  }
+  updateInfoBar();
+
+  if (currentSubview === 'kline') {
+    await ensureKline(name);
+    return;
   }
 
-  fetchDiag();
+  // 结论总览不预取 K 线：结论已在 overview 缓存里，没必要为切标的拉整段历史
+  // （即使收窄并压缩后，仍是一段纯网络等待）。这里清掉上一个标的的图表数据，报价走 overview 快照。
+  klineRequestSeq += 1;
+  klineData = null;
+  filteredData = null;
+  klineSymbol = null;
+  updateInfoBar();
+  updateStatus();
+}
 
-  try {
-    const res = await fetch(`/api/kline/${name}`);
-    klineData = await res.json();
+// 按需拉取 / 渲染 K 线：结论总览切换标的完全不碰这个接口；
+// 进入 K 线子视图或已在 K 线视图里切标的时才调用，并按会话缓存复用。
+async function ensureKline(name) {
+  if (!name) return;
+  // 每次进入/切换都推进序号：即使命中缓存，也要让上一只标的的在飞请求失效，
+  // 否则它返回时会从早退分支溜走，把「正在加载…」永远留在页面上。
+  const seq = ++klineRequestSeq;
+
+  if (klineSymbol === name && klineData) {
+    setKlineLoading(false);
     applyRangeFilter();
     updateInfoBar();
-    renderCharts();
-  } catch {
-    updateInfoBar();
+    if (currentSubview === 'kline') renderCharts();
+    return;
   }
+
+  // 图表/状态栏还留着上一只标的的蜡烛与区间：先清空，避免标签已换、数据未换
+  if (klineSymbol !== name) {
+    clearCharts();
+    updateStatus();
+  }
+
+  let data = klineCache.get(name);
+  if (data) {
+    // LRU：命中后移到队尾
+    klineCache.delete(name);
+    klineCache.set(name, data);
+  } else {
+    setKlineLoading(true);
+    // 同一标的的连点/总览切 K 线重复进入只复用同一个请求
+    let pending = klinePending.get(name);
+    if (!pending) {
+      pending = fetch(`/api/kline/${name}`).then(res => {
+        if (!res.ok) throw new Error(res.statusText);
+        return res.json();
+      });
+      klinePending.set(name, pending);
+      pending.then(
+        () => klinePending.delete(name),
+        () => klinePending.delete(name),
+      );
+    }
+    try {
+      data = await pending;
+    } catch {
+      if (seq === klineRequestSeq) setKlineError();
+      updateInfoBar();
+      return;
+    }
+    klineCache.set(name, data);
+    if (klineCache.size > KLINE_CACHE_MAX) {
+      klineCache.delete(klineCache.keys().next().value);
+    }
+  }
+
+  // 快速连点/已切到别的标的：丢弃过期响应（缓存已留，下次点回来仍零请求）
+  if (seq !== klineRequestSeq || currentSymbol !== name) return;
+
+  klineData = data;
+  klineSymbol = name;
+  applyRangeFilter();
+  updateInfoBar();
+  if (currentSubview === 'kline') renderCharts();
+  setKlineLoading(false);
+}
+
+function setKlineLoading(loading) {
+  const el = document.getElementById('kline-loading');
+  if (!el) return;
+  el.textContent = KLINE_LOADING_TEXT;
+  el.hidden = !loading;
+}
+
+// 加载失败不能只把提示藏起来留三个空图：按 AGENTS §8 给原因与下一步
+function setKlineError() {
+  const el = document.getElementById('kline-loading');
+  if (!el) return;
+  el.textContent = KLINE_ERROR_TEXT;
+  el.hidden = false;
 }
 
 // ── 结论总览：全标的扫描 + 当前标的深度结论卡 ──────────────────────────────
 async function loadTechOverview() {
   const scanEl = document.getElementById('tech-ov-scan');
   if (scanEl) scanEl.innerHTML = '<div class="tech-ov-card"><div class="loading">正在扫描全市场技术面信号…</div></div>';
+  overviewState = 'loading';
   try {
     const data = await R.getOpt('/api/tech/overview');
     if (!Array.isArray(data) || !data.length) throw new Error('empty overview');
     overviewList = data;
+    overviewState = 'ready';
     renderScanSection();
     if (currentSymbol && !currentDiag) {
-      const hit = overviewList.find(d => d.symbol === currentSymbol);
+      const hit = overviewDiag(currentSymbol);
       if (hit) {
         currentDiag = hit;
         renderCurrentConclusion(hit);
         updateInfoBar();
+      } else {
+        // 总览里没有该标的（数据缺行）：退回 /api/diag，避免结论卡空着
+        fetchDiag();
       }
     }
   } catch {
+    overviewState = 'error';
     if (scanEl) {
       scanEl.innerHTML = '<div class="tech-ov-card"><div class="sidebar-watch-empty">全市场技术扫描暂不可用 · 请确认服务已启动（uv run python -m src.server）或已运行 uv run python -m src.export_pages</div></div>';
     }
+    // 总览挂了也要让当前标的的结论卡有数据
+    if (currentSymbol && !currentDiag) fetchDiag();
   }
 }
 
@@ -640,14 +758,37 @@ function applySeriesColors() {
   macdSignalSeries.applyOptions({ color: cssVar('--color-warn') });
 }
 
+// 切标的时先清掉图上上一只的蜡烛（标签已换、图还没换会误导），新数据到达再重绘
+function clearCharts() {
+  if (!candleSeries) return;
+  candleSeries.setData([]);
+  volumeOverlaySeries.setData([]);
+  rsiSeries.setData([]);
+  rsiUpper.setData([]);
+  rsiLower.setData([]);
+  macdHistSeries.setData([]);
+  macdLineSeries.setData([]);
+  macdSignalSeries.setData([]);
+  Object.values(maSeries).forEach(s => { try { mainChart.removeSeries(s); } catch {} });
+  maSeries = {};
+  crosshairDate = null;
+}
+
 function renderCharts() {
+  if (klineSymbol !== currentSymbol) return;
   const data = filteredData;
   if (!data || !data.length) return;
+  // 逐点着色的颜色只取一次：cssVar 走 getComputedStyle，原先放在 map 里
+  // 每根 K 线都调用一次（365 天 × 量能 + MACD ≈ 700+ 次），白白拖慢重绘。
+  const up = cssVar('--color-up');
+  const down = cssVar('--color-down');
+  const upSoft = up + '4D';
+  const downSoft = down + '4D';
   const candles = data.map(d => ({ time: d.date, open: d.open, high: d.high, low: d.low, close: d.close }));
   const volumes = data.map(d => ({
     time: d.date,
     value: d.volume ?? 0,
-    color: (d.close >= d.open ? cssVar('--color-up') : cssVar('--color-down')) + '4D',
+    color: d.close >= d.open ? upSoft : downSoft,
   }));
   candleSeries.setData(candles);
   volumeOverlaySeries.setData(volumes);
@@ -664,7 +805,7 @@ function renderCharts() {
   // MACD
   const hist = data.filter(d => d.MACD_hist != null).map(d => ({
     time: d.date, value: d.MACD_hist,
-    color: d.MACD_hist >= 0 ? cssVar('--color-up') : cssVar('--color-down'),
+    color: d.MACD_hist >= 0 ? up : down,
   }));
   const macdLine = data.filter(d => d.MACD != null).map(d => ({ time: d.date, value: d.MACD }));
   const signalLine = data.filter(d => d.MACD_signal != null).map(d => ({ time: d.date, value: d.MACD_signal }));
@@ -685,6 +826,7 @@ function initControls() {
 }
 
 function refreshOverlays() {
+  if (klineSymbol !== currentSymbol) return;
   const data = filteredData;
   if (!data) return;
   Object.values(maSeries).forEach(s => { try { mainChart.removeSeries(s); } catch {} });
@@ -722,12 +864,25 @@ function debouncedDiag() {
 
 async function fetchDiag() {
   if (!currentSymbol) return;
+  const sym = currentSymbol;
+  // /api/tech/overview 每项就是 analyze() 的完整输出，与 /api/diag 同源同字段；
+  // 总览已加载时直接复用，免掉切换标的后第二次回源 + 第二遍重绘结论卡。
+  const cached = overviewDiag(sym);
+  if (cached) {
+    currentDiag = cached;
+    if (currentSubview === 'overview') {
+      renderCurrentConclusion(cached);
+      updateInfoBar();
+    }
+    return;
+  }
   // Pages 静态部署：as_of 光标回看无法预渲染所有日期，固定返回最新诊断
-  const url = `/api/diag/${currentSymbol}`;
+  const url = `/api/diag/${sym}`;
   try {
     const res = await fetch(url);
     if (!res.ok) throw new Error(res.statusText);
     const d = await res.json();
+    if (sym !== currentSymbol) return; // 请求期间已切走：不要用旧标的覆盖当前结论
     currentDiag = d;
     renderCurrentConclusion(d);
     updateInfoBar();
@@ -754,7 +909,7 @@ function initKeyboard() {
   document.addEventListener('keydown', e => {
     if (app.dataset.view !== 'tech' || currentSubview !== 'kline') return;
     if (isEditableTarget(e.target) || isEditableTarget(document.activeElement)) return;
-    const data = filteredData;
+    const data = activeKlineData();
     if (!data || !data.length) return;
     if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
       e.preventDefault();
@@ -776,7 +931,7 @@ function initKeyboard() {
 // ── status ─────────────────────────────────────────────────────────────────
 export function updateStatus() {
   document.getElementById('status-symbol').textContent = currentSymbol || '—';
-  const data = filteredData || klineData;
+  const data = activeKlineData();
   if (data && data.length) {
     document.getElementById('status-count').textContent = `${data.length} 条数据`;
     document.getElementById('status-range').textContent =

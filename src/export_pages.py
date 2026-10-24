@@ -66,6 +66,48 @@ SITE = ROOT / "frontend" / "public"
 KLINE_YEARS = 3
 CORRELATE_YEARS = 5  # 全指标合并文件体积大，截 5 年（10Y/30Y/All 按钮显示止于此处）
 
+# 静态站 K 线只服务 frontend/public/js/tech-view.js 的 3 张图 + 叠加线：
+# 保留 OHLCV 与图表实际读取的指标列（22 列）。完整 77 列里 SMC/ATR/OBV 等
+# 是 TUI/分析层用的，前端不读。无扩展名文件默认被 Pages 当 octet-stream，
+# 已由 frontend/public/_headers 声明 application/json 触发边缘压缩；
+# 收窄后约 0.28MB（-80%），gzip 约 76KB。
+KLINE_FIELDS = (
+    "date",
+    "open",
+    "high",
+    "low",
+    "close",
+    "volume",
+    "RSI",
+    "MA5",
+    "MA10",
+    "MA20",
+    "MA50",
+    "MA60",
+    "MA120",
+    "MA200",
+    "BB_upper",
+    "BB_mid",
+    "BB_lower",
+    "MACD",
+    "MACD_hist",
+    "MACD_signal",
+    "SUPERT",
+    "SUPERT_dir",
+)
+
+
+def _compact_kline(records: list[dict]) -> list[dict]:
+    """按图表白名单裁列，并把浮点小数收到 4 位（原始 pandas 浮点常有 15+ 位尾巴）。"""
+    out: list[dict] = []
+    for r in records:
+        item: dict = {}
+        for k in KLINE_FIELDS:
+            v = r.get(k)
+            item[k] = round(v, 4) if isinstance(v, float) else v
+        out.append(item)
+    return out
+
 
 def _dump(rel: str, obj: object) -> None:
     """写 JSON（NaN → null），建父目录，打印体积。"""
@@ -94,7 +136,7 @@ def export_api() -> None:
 
     # K 线：近 3 年（导出侧按日期过滤，cutoff 之前的老数据不进静态包）；
     # days=2/5 变体取过滤后尾部（静态托管忽略 query，前端预取价格只用尾部几行）
-    # CDL_* 62 列前端未使用，剔除控体积（约 -45%）
+    # CDL_* 62 列前端未使用，连同其余非图表列一起由 KLINE_FIELDS 收窄（1.4MB → ~0.28MB，gzip ~76KB）
     # 注意：不能用 get_kline 的 as_of 参数——那是「数据截至」语义（保留
     # cutoff 之前），传「今天-3年」会把近 3 年全部切丢（2026-09 曾因此
     # 导出成 2016→2023-09-07 的数据，静态站 SPX 停在 4451.14）
@@ -104,13 +146,11 @@ def export_api() -> None:
         # FastAPI Query(None) 默认对象不能直接当值用（先例：get_diag）
         records = get_kline(s["name"], as_of=None, interval="1d", days=0)
         records = [r for r in records if r["date"] >= cutoff]
-        records = [{k: v for k, v in r.items() if not k.startswith("CDL_")} for r in records]
+        records = _compact_kline(records)
         _dump(f"api/kline/{s['name']}", records)
         # 尾部小文件：?days=N 变体（静态托管忽略 query，前端预取价格只用尾部几行）
         for n in (2, 5):
-            tail = records[-n:]
-            tail = [{k: v for k, v in r.items() if not k.startswith("CDL_")} for r in tail]
-            _dump(f"api/kline/{s['name']}_d{n}", tail)
+            _dump(f"api/kline/{s['name']}_d{n}", records[-n:])
         _safe(f"api/diag/{s['name']}", get_diag, s["name"], as_of=None)
 
     # 宏观：presets + 全分类 + correlate 全指标合并（截 5 年控体积）

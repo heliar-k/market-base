@@ -44,6 +44,17 @@ def test_public_is_spa_shell_only() -> None:
     assert len(astro) >= 30, f"专题页 .astro 源异常偏少：{len(astro)}"
 
 
+def test_pages_headers_declares_json_for_extensionless_api() -> None:
+    """无扩展名 API 默认 octet-stream，Pages 不压缩；_headers 必须声明 JSON 才能 gzip。"""
+    lines = [
+        ln.strip()
+        for ln in (STATIC / "_headers").read_text(encoding="utf-8").splitlines()
+        if ln.strip() and not ln.lstrip().startswith("#")
+    ]
+    assert lines[0] == "/api/*"
+    assert "Content-Type: application/json" in lines
+
+
 @pytest.mark.parametrize("src", [TOPIC_LAYOUT, SPA_ENTRY], ids=["TopicLayout.astro", "index.html"])
 def test_echarts_theme_before_rates_common(src: Path) -> None:
     """echarts-theme.js 先于 rates-common.js（同步加载、顺序敏感）。

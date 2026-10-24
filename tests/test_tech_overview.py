@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 from src import export_pages, server
@@ -50,6 +51,10 @@ def test_get_tech_overview_skips_missing_and_returns_items(
     assert by_sym["AAPL"]["type"] == "stock"
     assert "regime" in by_sym["AAPL"]
     assert "trend_score" in by_sym["AAPL"]
+    # 前端结论卡复用 overview 项代替 /api/diag：字段必须与 diag 一致（overview 仅多 type），
+    # 防止以后为扫描表瘦身 overview 时悄无声息地让结论卡掉 KPI。
+    diag = server.get_diag("AAPL", as_of=None)
+    assert set(by_sym["AAPL"]) == set(diag) | {"type"}
 
 
 def test_export_pages_registers_tech_overview() -> None:
@@ -81,3 +86,35 @@ def test_analyze_short_history_fallback_ma_labels() -> None:
     labels = [s["label"] for s in res["trend_scores"]]
     assert any("MA120" in lb for lb in labels)
     assert not any("MA200" in lb for lb in labels)
+
+
+def test_export_kline_is_trimmed_to_chart_fields() -> None:
+    """静态 K 线只保留前端图表实际读取的列并收窄浮点，避免切标的拖 1.4MB 裸 JSON。"""
+    assert "date" in export_pages.KLINE_FIELDS
+    assert "SUPERT_dir" in export_pages.KLINE_FIELDS
+    # 前端不读的分析列不得回到静态包（回到 77 列体积会涨回 1.4MB）
+    assert "SMC_structure" not in export_pages.KLINE_FIELDS
+    assert "ATR" not in export_pages.KLINE_FIELDS
+
+    src = [{"date": "2026-10-24", "close": 123.456789, "ATR": 9.9, "SMC_structure": 1}]
+    out = export_pages._compact_kline(src)
+    assert set(out[0]) == set(export_pages.KLINE_FIELDS)
+    assert out[0]["close"] == 123.4568
+    assert "ATR" not in out[0]
+
+
+def test_export_kline_covers_overlay_checkboxes() -> None:
+    """K 线叠加线走 d[key] 动态取值：勾选框新增指标时，导出白名单必须同步，
+    否则线上该线会静默变 null（页面不报错，只是线没了）。"""
+    root = Path(__file__).resolve().parent.parent
+    html = (root / "frontend" / "public" / "app" / "index.html").read_text(encoding="utf-8")
+    keys = re.findall(r'data-ma="([^"]+)"', html)
+    fields = set(export_pages.KLINE_FIELDS)
+    assert keys, "K 线叠加线勾选框一个都没解析到"
+    for key in keys:
+        if key == "BB":
+            assert {"BB_upper", "BB_mid", "BB_lower"} <= fields
+        elif key == "ST":
+            assert {"SUPERT", "SUPERT_dir"} <= fields
+        else:
+            assert key in fields, f"叠加线 {key} 不在导出白名单，线上会变 null"

@@ -1,0 +1,9 @@
+# 静态 API 都是无扩展名文件，Pages 默认按 application/octet-stream 返回：
+# fetch().json() 能解析，但 Cloudflare 只对 application/json 等文本类型做
+# gzip / brotli / zstd 压缩，所以 /api/kline/* 此前一直裸传（收窄后 291KB/标的）。
+# 补上正确 MIME 后由边缘按 Accept-Encoding 自动压缩，无需应用层预压缩。
+# 部署后验证（应出现 content-encoding: gzip/br/zstd）：
+#   curl -sI -H 'Accept-Encoding: gzip' https://market-base.pages.dev/api/kline/SPX | grep -i content-encoding
+# 注意：_headers 不作用于 Pages Functions（/api/chat、/api/models、/api/notes）。
+/api/*
+  Content-Type: application/json
