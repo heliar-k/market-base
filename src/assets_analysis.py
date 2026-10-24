@@ -35,6 +35,7 @@ from __future__ import annotations
 import json
 import logging
 import re
+from dataclasses import asdict
 from datetime import datetime, timedelta
 from pathlib import Path
 
@@ -42,6 +43,7 @@ import numpy as np
 import pandas as pd
 
 from src.config import ETF_POOL, FX_PAIRS
+from src.wheel_scanner import scan_pool
 
 logger = logging.getLogger(__name__)
 
@@ -2785,13 +2787,24 @@ def etfs() -> dict:
 
 
 def options_board() -> dict | None:
-    """读取最新期权结构快照（22 标的看板），附加每标的规则引擎结构解读。"""
+    """读取最新期权结构快照，附加每标的规则引擎结构解读与巨头池 Wheel 雷达。"""
     files = sorted((ROOT / "data" / "options_structure").glob("20*.json"))
     if not files:
         return None
     board = json.loads(files[-1].read_text(encoding="utf-8"))
     for s in board.get("symbols", {}).values():
         s["narrative"] = _options_narrative(s)
+    # Wheel 雷达直接内嵌本端点（零新增 API 端点）：扫描失败不拖垮期权结构看板
+    try:
+        snap_date, rows, summary = scan_pool()
+        board["wheel"] = {
+            "snapshot_date": snap_date,
+            "summary": summary,
+            "rows": [asdict(r) for r in rows],
+        }
+    except Exception as e:
+        logger.warning("生成 wheel 雷达失败: %s", e)
+        board["wheel"] = None
     return board
 
 

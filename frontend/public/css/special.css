@@ -298,10 +298,12 @@ body.embedded .re-foot { display: none; } /* 内嵌 iframe 不重复页脚 */
 .re-badge { border: 1px solid color-mix(in srgb, var(--color-neutral) 25%, transparent); }
 .re-badge.bull { border-color: color-mix(in srgb, var(--color-up) 35%, transparent); }
 .re-badge.bear { border-color: color-mix(in srgb, var(--color-down) 35%, transparent); }
+.re-badge.warn { border-color: color-mix(in srgb, var(--color-warn) 35%, transparent); }
 .re-badge.flat { border-color: color-mix(in srgb, var(--color-neutral) 35%, transparent); }
 /* .re-badge 基础类必需显式颜色：a 元素（如 ETF 筛选 chip）不设色时落浏览器默认链接蓝，暗色下不可读 */
 .re-badge.bear { background: var(--color-down-bg); color: var(--color-down-text); }
 .re-badge.bull { background: var(--chip-up-bg); color: var(--chip-up-fg); }
+.re-badge.warn { background: var(--color-warn-bg); color: var(--color-warn-text); }
 .re-badge.flat { background: var(--chip-flat-bg); color: var(--chip-flat-fg); }
 /* 可点击筛选 chip（如 ETF 温度页）：对齐 .page-toc a 的圆胶囊样式——999px + 描边 + surface 底 + ≥24px 触控高 */
 a.re-badge { cursor: pointer; padding: 4px 10px; border-radius: 999px; font-size: 11.5px; line-height: normal; font-weight: 600; color: var(--text-secondary); text-decoration: none; border: 1px solid var(--border); background: var(--surface); }

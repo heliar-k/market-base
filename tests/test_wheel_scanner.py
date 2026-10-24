@@ -7,7 +7,15 @@ from datetime import datetime, timedelta
 import numpy as np
 import pandas as pd
 
-from src.wheel_scanner import WHEEL_POOL, PoolSpec, _iv_at_dte, _pick_contract, evaluate_symbol
+from src.wheel_scanner import (
+    WHEEL_POOL,
+    PoolSpec,
+    _directional_walls,
+    _event_fields,
+    _iv_at_dte,
+    _pick_contract,
+    evaluate_symbol,
+)
 
 
 def test_wheel_pool_has_tiers_and_unique_symbols() -> None:
@@ -66,11 +74,20 @@ def test_evaluate_symbol_sell_put_requires_stabilization_and_vrp(tmp_path, monke
     row = evaluate_symbol(spec, "20261023", opt_map)
     assert row is not None
     assert row.suitability == "黄金适格"
-    assert row.signal == "🟢 SELL PUT"
+    assert row.signal == "SELL PUT"
+    assert row.signal_tone == "bull"
     assert row.put_pick is not None
     assert row.put_pick.right == "P"
     assert row.put_pick.strike < row.close
     assert row.put_pick.executable is False  # 无 raw CSV 时显式标为理论估算
+    assert row.opt_symbol == "TEST"  # 未指定别名时 = symbol
+
+    # GOOG/BRK.B 类：池内 symbol 与期权链 ticker 不一致时走别名（前端点击联动用）
+    aliased = evaluate_symbol(
+        PoolSpec("TEST", "T0", "AI算力", "测试护城河", "TESTX"), "20261023", opt_map
+    )
+    assert aliased is not None
+    assert (aliased.symbol, aliased.opt_symbol) == ("TEST", "TESTX")
 
 
 def test_negative_vrp_blocks_sell_put(tmp_path, monkeypatch) -> None:
@@ -109,7 +126,8 @@ def test_negative_vrp_blocks_sell_put(tmp_path, monkeypatch) -> None:
     }
     row = evaluate_symbol(spec, "20261023", opt_map)
     assert row is not None
-    assert row.signal == "⚪ 权利金偏薄"
+    assert row.signal == "权利金偏薄"
+    assert row.signal_tone == "flat"
     assert row.put_pick is None
 
 
@@ -156,6 +174,38 @@ def test_earnings_danger_blocks_sell_put_and_omits_contract(tmp_path, monkeypatc
     }
     row = evaluate_symbol(spec, "20261023", opt_map)
     assert row is not None
-    assert row.signal == "⛔ 财报等落地"
-    assert "⚠️财报4d" in row.event_alert
+    assert row.signal == "财报等落地"
+    assert row.signal_tone == "bear"
+    assert row.event_tone == "bear"
+    assert row.actionable is False
+    assert "财报4d" in row.event_alert
     assert row.put_pick is None  # 否决态绝不挂推荐合约
+
+
+def test_directional_walls_fallback_when_top_wall_breached() -> None:
+    # 现价 248：全链最大 put_wall=250 已在现价上方（失效），应从 wall 分布回退取下方最强 put_gex 240
+    ov = {
+        "put_wall": {"strike": 250.0},
+        "call_wall": {"strike": 240.0},
+        "wall": [
+            {"strike": None, "put_gex_m": -99.0, "call_gex_m": 99.0},
+            {"strike": 230.0, "put_gex_m": -5.2, "call_gex_m": 0.1},
+            {"strike": 240.0, "put_gex_m": -12.8, "call_gex_m": 1.0},
+            {"strike": 250.0, "put_gex_m": -23.8, "call_gex_m": 8.4},
+            {"strike": 260.0, "put_gex_m": -1.0, "call_gex_m": 15.6},
+        ],
+    }
+    pw, cw = _directional_walls(ov, 248.0)
+    assert pw == 240.0
+    assert cw == 260.0
+
+
+def test_event_fields_single_line_and_tones() -> None:
+    soon_ed = (datetime.now().date() + timedelta(days=20)).strftime("%Y-%m-%d")
+    soon_div = (datetime.now().date() + timedelta(days=6)).strftime("%Y-%m-%d")
+    _, e_dte, _, div_dte, alert, tone = _event_fields(
+        {"earnings_date": soon_ed, "ex_dividend_date": soon_div}
+    )
+    assert e_dte == 20 and div_dte == 6
+    assert " · " in alert and "除息6d" in alert
+    assert tone == "warn"

@@ -4,9 +4,9 @@
 1. 波动率真实定价：用快照 `iv_curve` 线性插值取 **35 DTE ATM IV**（拒绝 328d LEAPS IV 冒充），
    结合 Barchart 官方 **52 周 IV Rank / IV Percentile**（本地快照降级）与 **VRP = IV35 − HV20**。
 2. 趋势与企稳过滤：用个股日波动率 σ 归一化均线回撤，识别确认空头趋势（SuperTrend 空 + ADX≥25），
-   未出现右侧企稳信号（MACD 柱拐头 / 收复昨高 / 看涨吞没或锤子线）时降级为「🟡 左侧接刀·等企稳」。
+   未出现右侧企稳信号（MACD 柱拐头 / 收复昨高 / 看涨吞没或锤子线）时降级为「左侧接刀·等企稳」。
 3. 财报与除息排雷：财报落在目标期权周期内（≤35d）时，优先搜寻财报前到期（7~e_dte 天）合约；
-   若财报 ≤10d 或无财报前合约，拦截裸卖 Put；⛔ 否决状态绝不输出可交易合约。
+   若财报 ≤10d 或无财报前合约，拦截裸卖 Put；否决状态绝不输出可交易合约。
 4. 适格硬门槛与组合风控：T2 观察池（单手过重/低波薄利）与缺期权链标的不发入场信号；
    报告头部输出同板块信号集中度与站内共识 Regime（`src/consensus.py` + VIX 期限结构）。
 
@@ -126,6 +126,7 @@ class OptionPick:
 @dataclass
 class ScanRow:
     symbol: str
+    opt_symbol: str  # options_structure 快照中的 ticker（GOOG->GOOGL, BRK.B->BRK-B）
     tier: str
     sector: str
     close: float
@@ -150,7 +151,12 @@ class ScanRow:
     trend_state: str  # 多头 / 震荡 / 空头企稳 / 空头破位(接刀)
     suitability: str  # 黄金适格 / 单手偏大 / 单手过重 / 低波薄利
     signal: str
+    signal_tone: str  # bull / bear / warn / flat（语义色调，无 emoji）
     reason: str
+    actionable: bool = False  # True=允许直接出手（SELL PUT / 跨财报·短Put / SELL CALL）
+    event_tone: str = "flat"  # bear(财报<=10d) / warn(财报<=35d或除息<=14d) / flat
+    rsi_tone: str = "flat"  # bull(<=40超卖) / bear(>=68超买) / flat
+    vrp_tone: str = "flat"  # bull(>=2%正期望) / bear(<0负期望) / flat
     put_pick: OptionPick | None = None
     call_pick: OptionPick | None = None
 
@@ -325,10 +331,11 @@ def _days_until(date_str: str | None) -> int | None:
         return None
 
 
-def _event_fields(ov: dict) -> tuple[str | None, int | None, str | None, int | None, str]:
-    """解析财报日与除息日倒计时，生成紧凑的排雷标签。"""
+def _event_fields(ov: dict) -> tuple[str | None, int | None, str | None, int | None, str, str]:
+    """解析财报日与除息日倒计时，生成紧凑的排雷标签与语义色调。"""
     ed = ov.get("earnings_date")
     e_dte = _days_until(ed)
+    recent_ed = ed if (e_dte is not None and -14 <= e_dte < 0) else None
     if e_dte is not None and e_dte < 0:
         ed, e_dte = None, None
 
@@ -338,18 +345,56 @@ def _event_fields(ov: dict) -> tuple[str | None, int | None, str | None, int | N
         exd, div_dte = None, None
 
     tags: list[str] = []
+    event_tone = "flat"
     if e_dte is not None:
         if e_dte <= THRESHOLDS["earnings_danger_dte"]:
-            tags.append(f"⚠️财报{e_dte}d({ed[5:]})")
+            tags.append(f"财报{e_dte}d({ed[5:]})")
+            event_tone = "bear"
         elif e_dte <= THRESHOLDS["earnings_window_dte"]:
-            tags.append(f"📅财报{e_dte}d({ed[5:]})")
+            tags.append(f"财报{e_dte}d({ed[5:]})")
+            event_tone = "warn"
         else:
             tags.append(f"财报{e_dte}d")
+    elif recent_ed:
+        tags.append(f"财报已发({recent_ed[5:]})")
     else:
         tags.append("财报待定")
     if div_dte is not None and div_dte <= THRESHOLDS["ex_div_warn_dte"]:
-        tags.append(f"💰除息{div_dte}d")
-    return ed, e_dte, exd, div_dte, " ".join(tags)
+        tags.append(f"除息{div_dte}d")
+        if event_tone == "flat":
+            event_tone = "warn"
+    return ed, e_dte, exd, div_dte, " · ".join(tags), event_tone
+
+
+def _directional_walls(ov: dict, close: float) -> tuple[float | None, float | None]:
+    """返回现价下方最强 Put 墙与上方最强 Call 墙。
+
+    若全链最大墙已被现价涨穿/跌穿，从 ov["wall"] 分布中回退寻找现价对应侧最强 GEX 墙。
+    """
+    raw_pw = (ov.get("put_wall") or {}).get("strike")
+    raw_cw = (ov.get("call_wall") or {}).get("strike")
+    pw = float(raw_pw) if (raw_pw is not None and float(raw_pw) < close) else None
+    cw = float(raw_cw) if (raw_cw is not None and float(raw_cw) > close) else None
+    wall_dist = ov.get("wall") or []
+    if pw is None and wall_dist:
+        puts = [
+            x
+            for x in wall_dist
+            if (x.get("strike") or 0) > 0
+            and float(x["strike"]) < close
+            and (x.get("put_gex_m") or 0) < 0
+        ]
+        if puts:
+            pw = float(min(puts, key=lambda x: x.get("put_gex_m") or 0)["strike"])
+    if cw is None and wall_dist:
+        calls = [
+            x
+            for x in wall_dist
+            if (x.get("strike") or 0) > close and (x.get("call_gex_m") or 0) > 0
+        ]
+        if calls:
+            cw = float(max(calls, key=lambda x: x.get("call_gex_m") or 0)["strike"])
+    return pw, cw
 
 
 def evaluate_symbol(
@@ -392,13 +437,18 @@ def evaluate_symbol(
     if ivr is None and ivp is None:
         ivr, ivp = _local_iv_rank_fallback(opt_key, iv35)
 
-    raw_pw = (ov.get("put_wall") or {}).get("strike")
-    raw_cw = (ov.get("call_wall") or {}).get("strike")
-    # 校验墙位必须在现价正确一侧（剔除已被涨穿/跌穿的陈旧墙，如 UNH 400 < 425）
-    pw = float(raw_pw) if (raw_pw and float(raw_pw) < close) else None
-    cw = float(raw_cw) if (raw_cw and float(raw_cw) > close) else None
-
-    ed, e_dte, exd, div_dte, event_alert = _event_fields(ov)
+    pw, cw = _directional_walls(ov, close)
+    ed, e_dte, exd, div_dte, event_alert, event_tone = _event_fields(ov)
+    rsi_tone = (
+        "bull"
+        if rsi <= THRESHOLDS["put_rsi_trigger"]
+        else ("bear" if rsi >= THRESHOLDS["call_rsi_trigger"] else "flat")
+    )
+    vrp_tone = (
+        "flat"
+        if vrp is None
+        else ("bull" if vrp >= THRESHOLDS["vrp_min"] else ("bear" if vrp < 0 else "flat"))
+    )
 
     # ── 趋势与右侧企稳判定（防半山腰接飞刀）──
     supert_dir = int(last.get("SUPERT_dir", 1))
@@ -441,14 +491,15 @@ def evaluate_symbol(
 
     # ── 2) 信号生成（严守风控门禁）──
     reasons: list[str] = []
-    signal = "⚪ 等待"
+    signal = "等待"
+    signal_tone = "flat"
 
     # 硬门槛 1：T2 受限池（单手过重/低波薄利）或无期权链数据，直接不发期权信号
     if suitability in ("低波薄利", "波动过剧") or suitability.startswith("单手过重"):
-        signal = f"⚪ 不适格({suitability[:4]})"
+        signal = f"不适格({suitability[:4]})"
         reasons.append(f"{suitability}·宜正股或作底仓")
     elif iv35 is None:
-        signal = "⚪ 缺期权数据"
+        signal = "缺期权数据"
         reasons.append("需运行 fetch_options_structure")
     else:
         is_oversold = rsi <= THRESHOLDS["put_rsi_trigger"] or bb_pos <= 15
@@ -473,27 +524,27 @@ def evaluate_symbol(
             reasons.append(f"MA50 {vs_ma50:+.1f}%({ma50_sigmas:+.1f}σ)")
 
             if e_dte is not None and e_dte <= THRESHOLDS["earnings_danger_dte"]:
-                signal = "⛔ 财报等落地"
+                signal, signal_tone = "财报等落地", "bear"
                 reasons.insert(0, f"{e_dte}d后财报·禁裸卖")
             elif not vol_rich:
-                signal = "⚪ 权利金偏薄"
+                signal, signal_tone = "权利金偏薄", "flat"
                 reasons.append(f"VRP {vrp:+.1f}% / IVR {ivr or 0:.0f}%不足")
             elif severe_downtrend and not stabilized:
-                signal = "🟡 接刀·等企稳"
+                signal, signal_tone = "接刀·等企稳", "warn"
                 reasons.append("空头未企稳(防半山腰接刀)")
             elif e_dte is not None and e_dte <= THRESHOLDS["earnings_window_dte"]:
-                signal = "🟡 跨财报·短Put"
+                signal, signal_tone = "跨财报·短Put", "warn"
                 reasons.append(f"财报{e_dte}d·仅可卖财报前到期")
             else:
-                signal = "🟢 SELL PUT"
+                signal, signal_tone = "SELL PUT", "bull"
                 reasons.append(f"VRP {vrp:+.1f}% · IVR {ivr or 0:.0f}%")
 
         elif is_pullback and rsi <= 45.0 and vol_rich:
             if e_dte is not None and e_dte <= THRESHOLDS["earnings_danger_dte"]:
-                signal = "⛔ 财报等落地"
+                signal, signal_tone = "财报等落地", "bear"
                 reasons.append(f"{e_dte}d后财报·近支撑(RSI {rsi})")
             else:
-                signal = "🟡 观察PUT"
+                signal, signal_tone = "观察 PUT", "warn"
                 reasons.append(f"回踩支撑({ma50_sigmas:+.1f}σ / RSI {rsi})")
 
         elif is_overbought:
@@ -505,34 +556,36 @@ def evaluate_symbol(
             reasons.append(f"{ov_tag} · 高于MA50 +{vs_ma50:.1f}%({ma50_sigmas:+.1f}σ)")
             has_stock = holdings is None or (spec.symbol in holdings)
             if not has_stock:
-                signal = "⚪ 超买(无底仓)"
+                signal, signal_tone = "超买(无底仓)", "flat"
             elif e_dte is not None and e_dte <= THRESHOLDS["earnings_danger_dte"]:
-                signal = "⛔ 财报勿卖Call"
+                signal, signal_tone = "财报勿卖Call", "bear"
                 reasons.insert(0, f"{e_dte}d后财报·防跳空卖飞")
             elif iv35 < 20.0:
-                signal = "⚪ 低IV勿卖Call"
+                signal, signal_tone = "低IV勿卖Call", "flat"
                 reasons.append(f"IV35 {iv35:.0f}%权利金过薄")
             else:
-                signal = "🔴 SELL CALL(持仓)"
+                signal, signal_tone = "SELL CALL(持仓)", "bear"
                 if div_dte is not None and div_dte <= THRESHOLDS["ex_div_warn_dte"]:
                     reasons.append(f"除息{div_dte}d防提前行权")
         else:
             reasons.append(f"通道中部(RSI {rsi} / {ma50_sigmas:+.1f}σ)")
 
-    # 仅对允许操作的信号生成候选合约（⛔ 否决态与 ⚪ 不适格态不挂合约，防止误导下单）
+    # 仅对允许操作的信号生成候选合约（财报否决态与不适格态不挂合约，防止误导下单）
+    actionable = signal in ("SELL PUT", "跨财报·短Put", "SELL CALL(持仓)")
     put_pick = None
     call_pick = None
-    if signal in ("🟢 SELL PUT", "🟡 跨财报·短Put", "🟡 观察PUT", "🟡 接刀·等企稳"):
+    if signal in ("SELL PUT", "跨财报·短Put", "观察 PUT", "接刀·等企稳"):
         put_pick = _pick_contract(
             opt_key, snap_date, ov, close, iv35, "P", THRESHOLDS["put_delta_target"], e_dte
         )
-    elif signal == "🔴 SELL CALL(持仓)":
+    elif signal == "SELL CALL(持仓)":
         call_pick = _pick_contract(
             opt_key, snap_date, ov, close, iv35, "C", THRESHOLDS["call_delta_target"], e_dte
         )
 
     return ScanRow(
         symbol=spec.symbol,
+        opt_symbol=opt_key,
         tier=spec.tier,
         sector=spec.sector,
         close=close,
@@ -557,7 +610,12 @@ def evaluate_symbol(
         trend_state=trend_state,
         suitability=suitability,
         signal=signal,
+        signal_tone=signal_tone,
         reason=" · ".join(reasons),
+        actionable=actionable,
+        event_tone=event_tone,
+        rsi_tone=rsi_tone,
+        vrp_tone=vrp_tone,
         put_pick=put_pick,
         call_pick=call_pick,
     )
@@ -579,7 +637,7 @@ def portfolio_summary(rows: list[ScanRow]) -> dict:
     except Exception:
         pass
 
-    put_candidates = [r for r in rows if r.signal in ("🟢 SELL PUT", "🟡 跨财报·短Put")]
+    put_candidates = [r for r in rows if r.signal in ("SELL PUT", "跨财报·短Put")]
     by_sector: dict[str, list[str]] = {}
     for r in put_candidates:
         by_sector.setdefault(r.sector, []).append(r.symbol)
@@ -619,17 +677,20 @@ def scan_pool(
         if r is not None:
             rows.append(r)
 
-    # 同板块超限自动择优：按 VRP 降序只保留前 max_green_per_sector 个为 🟢 SELL PUT
+    # 同板块超限自动择优：按 VRP 降序只保留前 max_green_per_sector 个为 SELL PUT
     sec_counts: dict[str, int] = {}
     for r in sorted(
-        [x for x in rows if x.signal == "🟢 SELL PUT"],
+        [x for x in rows if x.signal == "SELL PUT"],
         key=lambda x: (x.vrp_pct or 0.0, x.iv_rank_1y or 0.0),
         reverse=True,
     ):
         cnt = sec_counts.get(r.sector, 0) + 1
         sec_counts[r.sector] = cnt
         if cnt > THRESHOLDS["max_green_per_sector"]:
-            r.signal = "🟡 同板块限额"
+            r.signal = "同板块限额"
+            r.signal_tone = "warn"
+            r.actionable = False
+            r.put_pick = None
             r.reason = f"同属{r.sector}已满{THRESHOLDS['max_green_per_sector']}只 · " + r.reason
 
     summary = portfolio_summary(rows)
@@ -653,7 +714,7 @@ def print_report(snap_date: str | None, rows: list[ScanRow], summary: dict) -> N
     vix_s = f" · {summary['vix_note']}" if summary.get("vix_note") else ""
     print(f"大盘共识: {summary['market_regime']}{vix_s}")
     for w in summary.get("warnings", []):
-        print(f"⚠️  {w}")
+        print(f"[告警] {w}")
     print()
 
     hdr = (
@@ -684,16 +745,15 @@ def print_report(snap_date: str | None, rows: list[ScanRow], summary: dict) -> N
             f"  {r.event_alert:<17}{r.trend_state:<8}{r.signal:<15}{r.reason}"
         )
 
-    # 仅打印真正允许评估的候选合约（⛔ 财报禁区与 ⚪ 不适格绝不打印合约）
+    # 仅打印真正允许评估的候选合约（财报禁区与不适格绝不打印合约）
     actionable = [
         r
         for r in rows
-        if r.signal
-        in ("🟢 SELL PUT", "🟡 跨财报·短Put", "🟡 观察PUT", "🟡 接刀·等企稳", "🔴 SELL CALL(持仓)")
+        if r.signal in ("SELL PUT", "跨财报·短Put", "观察 PUT", "接刀·等企稳", "SELL CALL(持仓)")
         and (r.put_pick or r.call_pick)
     ]
     if actionable:
-        print("\n=== 🎯 候选期权合约（仅限非禁区标的；[理论估算] 需盘中核对券商盘口）===")
+        print("\n=== 候选期权合约（仅限非禁区标的；[理论估算] 需盘中核对券商盘口）===")
         for r in actionable:
             ev_tag = f" | {r.event_alert}" if r.event_alert != "—" else ""
             if r.put_pick:

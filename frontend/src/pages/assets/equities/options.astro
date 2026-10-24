@@ -15,6 +15,12 @@ import Section from '../../../components/Section.astro';
   <!-- 看板标题(h2.re-h2)由 JS 填,Section 静态标题会重复 —— 保持裸 div -->
   <div id="board" class="re-block"></div>
 
+  <!-- 巨头池 Wheel 雷达:后端 options_board() 内嵌 wheel 字段,零新增端点 -->
+  <Section id="sec-wheel" title="确定性巨头池 · Wheel 雷达" sub="35D IV / VRP · 52周 IVR · 趋势企稳与财报排雷" card>
+    <span slot="head" id="wheel-regime-badge"></span>
+    <div id="wheel-radar"></div>
+  </Section>
+
   <!-- Tab 控件条 + 图表面板:控件/图表容器非小节,不进 Section -->
   <div class="opt-tabs" id="opt-tabs"></div>
   <div class="opt-panel" id="opt-panel"></div>
@@ -27,7 +33,7 @@ import Section from '../../../components/Section.astro';
 // panel.innerHTML，锚点指半空的容器会在短视图（如 DEX）跳到页面底部外的留白；
 // 控件条 id 同样稳定，且落点是「先看到当前在哪张 Tab，再往下读」的顺序。
 document.getElementById('page-toc').innerHTML = [
-  ['状态', 'sec-detail'], ['标的看板', 'board'], ['分析视图', 'opt-tabs'],
+  ['状态', 'sec-detail'], ['标的看板', 'board'], ['Wheel 雷达', 'sec-wheel'], ['分析视图', 'opt-tabs'],
 ].map(([t, id]) => `<a href="#${id}">${t}</a>`).join('');
 
 let D = null;
@@ -61,11 +67,12 @@ function mk(id, option) {
 
 async function load() {
   D = await R.get('/api/assets/equities-options');
-  if (!D || !D.symbols) { R.fail(['detail', 'board'], new Error('无期权结构快照 · 运行 ./bin/fetch_options_structure 后刷新')); return; }
+  if (!D || !D.symbols) { R.fail(['detail', 'board', 'wheel-radar'], new Error('无期权结构快照 · 运行 ./bin/fetch_options_structure 后刷新')); return; }
   R.setAsOf([['期权快照', D.date && D.date.slice(0, 10)]]);
 
   renderRegime();
   renderBoard();
+  renderWheel();
   renderTabs();
   renderPanel();
   R.foot(null, {
@@ -109,6 +116,8 @@ async function load() {
         ['OI 最大集中位', oiTop
           ? `${R.num(oiTop.strike, 1)} · ${R.num(oiTop.total / 1000, 1)}K` : '—',
           oiTop ? `${oiTop.expiration} · call+put 合计` : '—'],
+        // 巨头池 Wheel 雷达（后端 options_board() 内嵌 wheel 字段）
+        ...wheelFacts(),
       ],
       note: 'GEX/DEX/Vanna/Charm 单位为十亿美元（B），IV 为 %，Skew 为 pt',
     };
@@ -170,7 +179,8 @@ function renderBoard() {
   const groups = [
     ['指数 / ETF', ['SPY', 'QQQ', 'IWM']],
     ['Mag 7', ['NVDA', 'AAPL', 'MSFT', 'AMZN', 'META', 'TSLA', 'GOOGL']],
-    ['重点个股', ['AVGO', 'TSM', 'UNH', 'BRK-B', 'JPM', 'V', 'MA', 'AMD', 'INTC', 'MU', 'MSTR', 'SNDK', 'CRCL', 'BMNR', 'AEHR', 'SPCX']],
+    // 重点个股包含 Wheel 确定性巨头池全部标的，确保下方雷达全量可点击联动
+    ['重点个股', ['AVGO', 'TSM', 'UNH', 'BRK-B', 'JPM', 'V', 'MA', 'ISRG', 'ABBV', 'COST', 'LLY', 'AMD', 'INTC', 'MU', 'MSTR', 'SNDK', 'CRCL', 'BMNR', 'AEHR', 'SPCX']],
   ];
   const board = document.getElementById('board');
   board.innerHTML = `<h2 class="re-h2" style="margin:0 0 8px">${Object.keys(syms).length} 标的看板</h2>`;
@@ -194,6 +204,177 @@ function renderBoard() {
 }
 
 function pick(s) { S = s; renderRegime(); renderPanel(); }
+
+// ── 确定性巨头池 · Wheel 雷达 ──
+// 数据来自后端 src/wheel_scanner.py 的 scan_pool()，直接内嵌在 /api/assets/equities-options
+// 的 wheel 字段里（零新增端点，静态导出自动带上）。
+// 可出手信号与各格色调（signal_tone / event_tone / rsi_tone / vrp_tone）均由后端单源产出，前端只映射 token。
+const WHEEL_TONE_COLOR = {
+  bull: 'var(--up)',
+  bear: 'var(--down)',
+  warn: 'var(--warning)',
+  flat: 'var(--text-secondary)',
+};
+let wheelFilter = 'all';
+
+function wheelActionable(rows) {
+  return rows.filter(r => r.actionable);
+}
+
+function wheelRows() {
+  const rows = (D.wheel && D.wheel.rows) || [];
+  if (wheelFilter === 'action') return wheelActionable(rows);
+  if (wheelFilter === 'T0' || wheelFilter === 'T1') return rows.filter(r => r.tier === wheelFilter);
+  return rows;
+}
+
+function wheelFacts() {
+  const W = D.wheel;
+  if (!W || !W.rows || !W.rows.length) return [];
+  const syms = fn => W.rows.filter(fn).map(r => r.symbol).join('/') || '无';
+  const putAct = syms(r => r.actionable && r.put_pick);
+  const callAct = syms(r => r.actionable && r.call_pick);
+  const watch = syms(r => r.signal_tone === 'warn' && !r.actionable);
+  const blocked = syms(r => r.signal_tone === 'bear' && !r.actionable);
+  const out = [[
+    '巨头池 Wheel 信号',
+    `卖Put ${putAct} · 卖Call ${callAct} · 观察 ${watch} · 禁区 ${blocked}`,
+    W.summary ? W.summary.market_regime : '',
+  ]];
+  const w = W.rows.find(r => r.symbol === S || r.opt_symbol === S);
+  if (w) {
+    const iv35 = w.iv35_pct == null ? '—' : `${R.num(w.iv35_pct, 1)}%`;
+    const vrp = w.vrp_pct == null ? '—' : `${R.fmtBp(w.vrp_pct)}%`;
+    out.push(['当前标的 Wheel 评估',
+      `${w.signal} · ${w.trend_state} · IV35 ${iv35} (VRP ${vrp})`, w.reason]);
+  }
+  return out;
+}
+
+// 单一列定义（消除 WHEEL_HEADERS / WHEEL_KEYS 双数组平行维护）
+// 11 列收紧到 1118px 卡片宽内（1440 桌面零横向截断，事件排雷单行不折行）
+const WHEEL_COLS = [
+  ['symbol', '标的', (v, r) => {
+    const name = R.esc(r.symbol);
+    const hit = D.symbols && D.symbols[r.opt_symbol];
+    const head = hit
+      ? `<a href="javascript:pick('${R.esc(r.opt_symbol)}')" style="color:var(--accent-ink);font-weight:600">${name}</a>`
+      : name;
+    return `${head}<div style="font-size:11px;color:var(--text-dim)">${R.esc(r.sector)}</div>`;
+  }],
+  ['tier', '梯队', (v, r) => {
+    const cls = r.tier === 'T0' ? 'bull' : r.tier === 'T1' ? 'warn' : 'flat';
+    return `<span class="re-badge ${cls}">${R.esc(r.tier)}</span>`
+      + `<div style="font-size:11px;color:var(--text-dim)">${R.esc(r.suitability)}</div>`;
+  }],
+  ['price', '现价', (v, r) => `$${R.num(r.close, 1)}<div style="color:var(--text-dim);font-size:11px">单手 $${R.num(r.lot_k, 0)}k</div>`],
+  ['rsi_ma', 'RSI / MA50', (v, r) => {
+    const c = r.rsi_tone === 'bull' ? 'var(--up)' : r.rsi_tone === 'bear' ? 'var(--down)' : 'var(--text)';
+    return `<span style="color:${c};font-weight:600">${R.num(r.rsi, 1)}</span>`
+      + `<div style="font-size:11px;color:var(--text-secondary)">${R.fmtBp(r.vs_ma50_pct)}% (${R.fmtBp(r.ma50_sigmas)}σ)</div>`;
+  }],
+  ['vol_vrp', 'HV / IV35', (v, r) => {
+    const iv = r.iv35_pct == null ? '—' : `${R.num(r.iv35_pct, 0)}%`;
+    const vrp = r.vrp_pct == null ? '—' : `${R.fmtBp(r.vrp_pct)}%`;
+    const vc = r.vrp_pct == null ? 'var(--text-dim)' : (WHEEL_TONE_COLOR[r.vrp_tone] || 'var(--text-secondary)');
+    return `${R.num(r.hv20_pct, 0)}% / ${iv}<div style="font-size:11px;color:${vc}">VRP ${vrp}</div>`;
+  }],
+  ['iv_rank', '1Y IVR', (v, r) => (r.iv_rank_1y == null && r.iv_pct_1y == null)
+    ? '—'
+    : `${r.iv_rank_1y == null ? '—' : R.num(r.iv_rank_1y, 0) + '%'}<div style="font-size:11px;color:var(--text-dim)">IVP ${r.iv_pct_1y == null ? '—' : R.num(r.iv_pct_1y, 0) + '%'}</div>`],
+  ['walls', 'P / C 墙', (v, r) => `${r.put_wall ? R.num(r.put_wall, 0) : '—'} / ${r.call_wall ? R.num(r.call_wall, 0) : '—'}`],
+  ['event', '事件排雷', (v, r) => {
+    const c = WHEEL_TONE_COLOR[r.event_tone] || 'var(--text-secondary)';
+    return `<span style="font-size:11.5px;color:${c};white-space:nowrap">${R.esc(r.event_alert || '')}</span>`;
+  }],
+  ['trend', '趋势', (v, r) => {
+    const t = r.trend_state || '';
+    const c = t === '空头破位' ? 'var(--down)' : (t === '回调企稳' || t === '多头趋势') ? 'var(--up)' : 'var(--text-secondary)';
+    return `<span style="color:${c}">${R.esc(t)}</span>`;
+  }],
+  ['sig', '当日信号', (v, r) => {
+    const cls = ['bull', 'bear', 'warn'].includes(r.signal_tone) ? r.signal_tone : 'flat';
+    return `<span class="re-badge ${cls}">${R.esc(r.signal || '')}</span>`
+      + `<div style="font-size:11px;color:var(--text-dim);white-space:normal;max-width:162px;line-height:1.35">${R.esc(r.reason)}</div>`;
+  }],
+  ['pick', '推荐合约 (21~49D)', (v, r) => {
+    const p = r.put_pick || r.call_pick;
+    if (!p) return '<span style="color:var(--text-dim)">—</span>';
+    const exp = p.expiration.startsWith('~') ? p.expiration : `${p.expiration.slice(5)}(${p.dte}d)`;
+    const roc = p.annual_roc_pct != null ? ` · 年化${R.num(p.annual_roc_pct, 0)}%` : '';
+    const est = p.executable === false ? '<em style="font-size:11px;color:var(--text-dim)"> [BSM]</em>' : '';
+    return `<div style="font-variant-numeric:tabular-nums;white-space:normal;max-width:148px;line-height:1.35">${R.esc(exp)} <b>$${R.num(p.strike, 2)}${R.esc(p.right)}</b>`
+      + `<div style="font-size:11px;color:var(--text-secondary)">Δ${R.num(p.delta, 2)} · IV ${R.num(p.iv_pct, 0)}% (${R.fmtBp(p.dist_pct)}%)${roc}${est}</div></div>`;
+  }],
+];
+const WHEEL_HEADERS = WHEEL_COLS.map(c => c[1]);
+const WHEEL_KEYS = WHEEL_COLS.map(c => c[0]);
+const WHEEL_FMTS = Object.fromEntries(WHEEL_COLS.map(c => [c[0], c[2]]));
+
+function renderWheelTable() {
+  const sec = document.getElementById('sec-wheel');
+  const el = document.getElementById('wheel-radar');
+  if (!sec || !el) return;
+  const tbl = R.table(WHEEL_HEADERS, wheelRows(), WHEEL_FMTS, WHEEL_KEYS, true);
+  // 直接挂在 .re-panel（#sec-wheel）下，命中 .re-panel > .re-table-wrap:has(> .re-table:only-child)
+  // 出血与首列光学补偿规则（不能套进 #wheel-radar 内层 div）
+  const old = sec.querySelector(':scope > .re-table-wrap');
+  if (old) old.replaceWith(tbl);
+  else el.after(tbl);
+}
+
+function renderWheel() {
+  const sec = document.getElementById('sec-wheel');
+  const el = document.getElementById('wheel-radar');
+  if (!sec || !el) return;
+  const W = D.wheel;
+  const rows = (W && W.rows) || [];
+  const badge = document.getElementById('wheel-regime-badge');
+  sec.querySelectorAll(':scope > .re-table-wrap, :scope > .re-sec-note').forEach(n => n.remove());
+  if (!rows.length) {
+    if (badge) badge.innerHTML = '';
+    el.innerHTML = '<p class="re-source">暂无 Wheel 雷达数据 · 运行 ./bin/fetch_options_structure 后刷新。</p>';
+    return;
+  }
+  const s = W.summary || {};
+  const actionCount = wheelActionable(rows).length;
+  if (badge) {
+    badge.innerHTML = `<span class="re-badge">大盘共识：${R.esc(s.market_regime || '未知')}</span>`
+      + ` <span class="re-badge ${actionCount ? 'bull' : 'flat'}">可出手 ${actionCount} / ${rows.length}</span>`
+      + (s.vix_note ? ` <span class="re-badge">${R.esc(s.vix_note)}</span>` : '');
+  }
+  el.innerHTML = '';
+  // 组合层告警（同板块信号集中度 / 大盘 risk-off）：紧凑提示条，置于表头上方
+  if (s.warnings && s.warnings.length) {
+    el.insertAdjacentHTML('beforeend', `<div style="margin:0 0 8px;padding:6px 8px;font-size:12px;line-height:1.6;`
+      + `color:var(--warning);background:color-mix(in srgb, var(--color-warn) 10%, transparent);`
+      + `border:1px solid color-mix(in srgb, var(--color-warn) 35%, transparent);border-radius:4px">`
+      + s.warnings.map(t => R.esc(t)).join('<br>') + '</div>');
+  }
+  const bar = document.createElement('div');
+  bar.className = 'range-controls';
+  bar.style.margin = '0 0 8px';
+  [
+    ['all', `全部 (${rows.length})`],
+    ['action', `可出手信号 (${actionCount})`],
+    ['T0', 'T0 核心池'],
+    ['T1', 'T1 对冲池'],
+  ].forEach(([key, label]) => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.textContent = label;
+    b.className = 'range-btn' + (key === wheelFilter ? ' active' : '');
+    b.addEventListener('click', () => {
+      wheelFilter = key;
+      [...bar.children].forEach(x => x.classList.toggle('active', x === b));
+      renderWheelTable();
+    });
+    bar.appendChild(b);
+  });
+  el.appendChild(bar);
+  renderWheelTable();
+  sec.appendChild(R.secNote('口径：IV35 为期权链 ATM IV 曲线在 35 DTE 处线性插值；VRP = IV35 − HV20（≥+2% 才满足卖方正期望）；1Y IVR/IVP 来自 Barchart 52 周官方统计；财报 ≤10d 强制禁卖近月，11~35d 自动切换财报前到期合约。'));
+}
 
 // ── 板块 Tab ──
 function renderTabs() {
@@ -439,6 +620,6 @@ function pNarrative(panel, v) {
 
 let curChartOpt = null;
 
-load().catch(e => R.fail(['detail', 'board'], e));
+load().catch(e => R.fail(['detail', 'board', 'wheel-radar'], e));
 </script>
 </TopicLayout>

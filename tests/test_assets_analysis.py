@@ -929,3 +929,82 @@ class TestCorrAlertsHysteresis:
     def test_real_data_runs(self):
         # 真数据烟囱：不抛异常即可（阈值边缘由上面单测覆盖）
         assert isinstance(assets_analysis._corr_alerts(), list)
+
+
+class TestOptionsBoardWheel:
+    """options_board() 把 Wheel 雷达内嵌成顶层 wheel 字段（零新增 API 端点）。"""
+
+    @staticmethod
+    def _row(**kw):
+        from src.wheel_scanner import ScanRow
+
+        base = dict(
+            symbol="GOOG",
+            opt_symbol="GOOGL",
+            tier="T0",
+            sector="搜索/云",
+            close=280.0,
+            lot_k=28.0,
+            rsi=38.0,
+            vs_ma50_pct=-4.0,
+            vs_ma200_pct=1.0,
+            ma50_sigmas=-1.5,
+            bb_pos_pct=12.0,
+            hv20_pct=30.0,
+            iv35_pct=38.0,
+            vrp_pct=8.0,
+            iv_rank_1y=55.0,
+            iv_pct_1y=60.0,
+            put_wall=270.0,
+            call_wall=300.0,
+            earnings_date=None,
+            earnings_dte=None,
+            ex_div_date=None,
+            ex_div_dte=None,
+            event_alert="财报待定",
+            trend_state="弱势回调",
+            suitability="黄金适格",
+            signal="SELL PUT",
+            signal_tone="bull",
+            reason="VRP +8.0% · IVR 55%",
+        )
+        base.update(kw)
+        return ScanRow(**base)
+
+    def _snapshot(self, tmp_path):
+        d = tmp_path / "data" / "options_structure"
+        d.mkdir(parents=True)
+        snap = {"date": "2026-10-24", "symbols": {"SPY": {"symbol": "SPY", "spot": 600.0}}}
+        (d / "20261024.json").write_text(json.dumps(snap), encoding="utf-8")
+
+    def test_wheel_mounted_alongside_symbols(self, monkeypatch, tmp_path):
+        self._snapshot(tmp_path)
+        monkeypatch.setattr(assets_analysis, "ROOT", tmp_path)
+        monkeypatch.setattr(
+            assets_analysis,
+            "scan_pool",
+            lambda: (
+                "20261024",
+                [self._row()],
+                {"market_regime": "分歧", "warnings": ["测试告警"]},
+            ),
+        )
+        board = assets_analysis.options_board()
+        assert board["wheel"]["snapshot_date"] == "20261024"
+        assert board["wheel"]["summary"]["market_regime"] == "分歧"
+        assert board["wheel"]["rows"][0]["opt_symbol"] == "GOOGL"
+        assert board["wheel"]["rows"][0]["put_pick"] is None
+        # 原看板不受影响：每标的结构解读照旧挂上
+        assert board["symbols"]["SPY"]["narrative"]["gamma"]
+
+    def test_wheel_failure_is_null_not_fatal(self, monkeypatch, tmp_path):
+        self._snapshot(tmp_path)
+        monkeypatch.setattr(assets_analysis, "ROOT", tmp_path)
+
+        def boom():
+            raise RuntimeError("快照损坏")
+
+        monkeypatch.setattr(assets_analysis, "scan_pool", boom)
+        board = assets_analysis.options_board()
+        assert board["wheel"] is None
+        assert board["symbols"]["SPY"]["narrative"]["gamma"]
