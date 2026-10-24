@@ -167,8 +167,11 @@ def _core_get_browser(params: dict, referer: str, auth: AuthMode, endpoint: str)
     # WAF challenge 会自动跑完并刷新页面（实测 ~5-8s）
     page.goto(referer, timeout=60000, wait_until="domcontentloaded")
     for _ in range(20):
-        if page.evaluate("() => document.cookie.includes('aws-waf-token')"):
-            break
+        try:
+            if page.evaluate("() => document.cookie.includes('aws-waf-token')"):
+                break
+        except Exception:
+            pass
         time.sleep(1.5)
     result = page.evaluate(_JS_FETCH, [api_url, referer, auth])
     if result["status"] != 200:

@@ -71,6 +71,10 @@ SYMBOLS: list[str] = [
     "JPM",
     "V",
     "MA",
+    "ISRG",
+    "ABBV",
+    "COST",
+    "LLY",
     "AMD",
     "INTC",
     "MU",
@@ -118,6 +122,8 @@ def fetch_chain(symbol: str, expirations: list[str], use_cache: bool = True) -> 
                         "strike": float(r["strike"]),
                         "right": right,
                         "expiration": yf_date,
+                        "bid": float(r["bid"]) if pd.notna(r.get("bid")) else 0.0,
+                        "ask": float(r["ask"]) if pd.notna(r.get("ask")) else 0.0,
                         "openInterest": int(oi) if pd.notna(oi) else 0,
                         "volume": int(r.get("volume", 0)) if pd.notna(r.get("volume", 0)) else 0,
                         "impliedVolatility": float(r["impliedVolatility"])
@@ -438,6 +444,47 @@ def _extract_events(ticker) -> dict:
         return {}
 
 
+def _fetch_barchart_iv_ranks(symbols: list[str]) -> dict[str, dict]:
+    """一次请求 Barchart core-api 获取全标的官方 52 周 IV Rank / IV Percentile / WIV。
+
+    新加标的无需等待本地积累 1 年期权快照即可直接获得 1Y IV Rank & IV Percentile。
+    失败（如测试环境禁用浏览器）时静默返回空 dict，不阻塞主流程。
+    """
+    try:
+        from src.fetchers.barchart_client import core_get
+
+        bc_to_orig = {s.replace("-", "."): s for s in symbols}
+        data = core_get(
+            {
+                "symbols": ",".join(bc_to_orig.keys()),
+                "fields": (
+                    "symbol,optionsImpliedVolatilityRank1y,"
+                    "optionsImpliedVolatilityPercentile1y,"
+                    "optionsWeightedImpliedVolatility"
+                ),
+                "raw": "1",
+            },
+            referer="https://www.barchart.com/stocks/quotes/NVDA/overview",
+        )
+        out: dict[str, dict] = {}
+        for row in data.get("data", []):
+            r = row.get("raw") or row
+            bc_sym = str(r.get("symbol", ""))
+            orig = bc_to_orig.get(bc_sym, bc_sym.replace(".", "-"))
+            ivr = r.get("optionsImpliedVolatilityRank1y")
+            ivp = r.get("optionsImpliedVolatilityPercentile1y")
+            wiv = r.get("optionsWeightedImpliedVolatility")
+            out[orig] = {
+                "iv_rank_1y": round(float(ivr), 1) if ivr is not None else None,
+                "iv_pct_1y": round(float(ivp) * 100, 1) if ivp is not None else None,
+                "wiv": round(float(wiv) * 100, 1) if wiv is not None else None,
+            }
+        return out
+    except Exception as e:
+        logger.warning(f"  Barchart 1Y IV Rank 批量获取跳过: {e}")
+        return {}
+
+
 def build_snapshot(symbols: list[str] | None = None, use_cache: bool = True) -> dict:
     """全标的快照 dict（写入 data/options_structure/{date}.json）。"""
     from src.fetchers.yfinance_fetcher import ensure_yf_proxy
@@ -446,6 +493,7 @@ def build_snapshot(symbols: list[str] | None = None, use_cache: bool = True) -> 
     import yfinance as yf  # noqa: E402
 
     symbols = symbols or SYMBOLS
+    bc_iv_map = _fetch_barchart_iv_ranks(symbols)
     out: dict = {"date": datetime.now().strftime("%Y-%m-%dT%H:%M:%SZ"), "symbols": {}}
     for sym in symbols:
         try:
@@ -476,6 +524,8 @@ def build_snapshot(symbols: list[str] | None = None, use_cache: bool = True) -> 
             detail["symbol"] = sym
             detail["name"] = sym
             detail.update(_extract_events(ticker))
+            if sym in bc_iv_map:
+                detail.update(bc_iv_map[sym])
             out["symbols"][sym] = detail
             logger.info(f"  {sym}: spot={detail['spot']} netGEX={detail['net_gex']}B")
         except Exception as e:
