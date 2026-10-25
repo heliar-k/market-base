@@ -269,7 +269,7 @@ function renderConclusion() {
       <span class="opt-chip ${key}">${esc(ri.label)}</span>
       ${opposite ? '<span class="re-badge warn">全链 GEX 与局部 Gamma 反向</span>' : ''}
       ${wheelTag}
-      <span class="tech-ov-date">${esc(GROUP_MAP.get(S) || '')}${v.earnings_date ? ` · 财报 ${esc(v.earnings_date)}` : ''}</span>
+      <span class="tech-ov-date">${esc(SCAN_GROUP_LABEL[scanGroup(S)] || '')}${v.earnings_date ? ` · 财报 ${esc(v.earnings_date)}` : ''}</span>
     </div>
     <button type="button" class="range-btn" id="opt-go-charts">查看 GEX / IV / OI 图表 →</button>
   `;
@@ -408,11 +408,22 @@ function renderConclusion() {
 }
 
 // ── 子视图 1（下）：全池 30 标的期权结构扫描表（合并单表 + 筛选胶囊，对齐 tech-ov-scan） ──
+// 池归属（宽基 / Wheel 池 / 其他）三档互斥，合计正好 30。
+// Wheel 池成员与梯队从 D.wheel.rows 推导（含 GOOGL→GOOG、BRK-B→BRK.B 的 opt_symbol 映射），
+// 不在前端另抄一份名单 —— 池子定义单源在 src/wheel_scanner.py 的 WHEEL_POOL。
+const WIDE_INDEX = new Set(['SPY', 'QQQ', 'IWM']);
+const SCAN_GROUP_LABEL = { index: '宽基指数', wheel: 'Wheel 池', other: '其他' };
+let WHEEL_TIER = new Map();
+function scanGroup(sym) {
+  if (WHEEL_TIER.has(sym)) return 'wheel';
+  if (WIDE_INDEX.has(sym)) return 'index';
+  return 'other';
+}
 const SCAN_FILTERS = {
   all: () => true,
-  etf: (s) => GROUP_MAP.get(s) === '指数 & ETF',
-  mag7: (s) => GROUP_MAP.get(s) === 'Mag 7',
-  stock: (s) => GROUP_MAP.get(s) === '重点个股',
+  index: (s) => scanGroup(s) === 'index',
+  wheel: (s) => scanGroup(s) === 'wheel',
+  other: (s) => scanGroup(s) === 'other',
   pos_gamma: (s, v) => isLocalPosGamma(v),
   neg_gamma: (s, v) => !isLocalPosGamma(v),
   high_ivr: (s, v) => (v.iv_rank_1y ?? 0) >= 50,
@@ -428,9 +439,9 @@ function renderScanTable() {
   );
   const filters = [
     { key: 'all', label: `全部 (${counts.all})` },
-    { key: 'etf', label: `指数 & ETF (${counts.etf})` },
-    { key: 'mag7', label: `Mag 7 (${counts.mag7})` },
-    { key: 'stock', label: `重点个股 (${counts.stock})` },
+    { key: 'index', label: `宽基指数 (${counts.index})` },
+    { key: 'wheel', label: `Wheel 池 (${counts.wheel})` },
+    { key: 'other', label: `其他 (${counts.other})` },
     { key: 'pos_gamma', label: `正 Gamma (${counts.pos_gamma})` },
     { key: 'neg_gamma', label: `负 Gamma (${counts.neg_gamma})` },
     { key: 'high_ivr', label: `IVR ≥ 50% (${counts.high_ivr})` },
@@ -482,8 +493,12 @@ function renderScanTable() {
         ${filtered.map(([sym, v]) => {
           const isAct = sym === S;
           const key = regimeKey(v);
-          const grp = GROUP_MAP.get(sym) || '';
-          const grpShort = grp === '指数 & ETF' ? 'ETF' : grp === 'Mag 7' ? 'Mag7' : '';
+          // 池归属徒章：池内给梯队 T0/T1/T2（与 Wheel 表同款方鹏囊），池外统一「池外」中性灰
+          const tier = WHEEL_TIER.get(sym);
+          const tierCls = tier === 'T0' ? 'bull' : tier === 'T1' ? 'warn' : 'flat';
+          const poolTag = tier
+            ? `<span class="re-badge ${tierCls}">${esc(tier)}</span>`
+            : '<span class="re-badge flat">池外</span>';
           const gexCls = (v.net_gex ?? 0) >= 0 ? 'up' : 'down';
           const dexCls = (v.net_dex ?? 0) >= 0 ? 'up' : 'down';
           const flipStr = v.gamma_flip == null
@@ -495,7 +510,7 @@ function renderScanTable() {
           const ivrCls = (v.iv_rank_1y ?? 0) >= 50 ? 'up' : '';
           return `
             <tr class="tech-ov-row${isAct ? ' active' : ''}" data-symbol="${esc(sym)}">
-              <td><strong>${esc(sym)}</strong>${grpShort ? `<span class="tech-ov-type">${esc(grpShort)}</span>` : ''}</td>
+              <td><strong>${esc(sym)}</strong>${poolTag}</td>
               <td class="num">${v.spot != null ? '$' + fmtNum(v.spot) : '—'}</td>
               <td><span class="opt-chip ${key}">${esc(REGIME_INFO[key].label)}</span></td>
               <td class="num ${gexCls}">${fmtSigned(v.net_gex)}</td>
@@ -901,6 +916,8 @@ async function load() {
   R.setAsOf([['期权快照', D.date && D.date.slice(0, 10)]]);
 
   populateSymbolSelect();
+  // Wheel 池梯队表：opt_symbol 是期权标的（GOOGL/BRK-B），扫描表用同一串键
+  WHEEL_TIER = new Map(((D.wheel && D.wheel.rows) || []).map(r => [r.opt_symbol || r.symbol, r.tier]));
   updateTopInfoBar();
   renderConclusion();
   renderScanTable();
