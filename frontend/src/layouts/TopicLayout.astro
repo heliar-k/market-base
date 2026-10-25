@@ -18,6 +18,20 @@ const { title, h1 = title, desc = '观澜台 — 美股与宏观研究平台：�
 
 const BRAND = '观澜台';
 
+// 构建版本（侧栏底部展示）：与 SPA 共用一份 api/build（src/export_pages.py 写，
+// 导出发生在 astro build 之前，所以构建期直接读文件即可）。文件不在（astro dev、
+// 或没跑过 export）时回退到当前时间，dev 下也能看到东西。
+import { readFileSync } from 'node:fs';
+const buildMeta = (() => {
+  try {
+    return JSON.parse(readFileSync(new URL('../../public/api/build', import.meta.url), 'utf8'));
+  } catch {
+    return { at: new Date().toISOString().slice(0, 16).replace('T', ' '), sha: '' };
+  }
+})();
+const BUILD_AT: string = buildMeta.at;
+const BUILD_SHA: string = buildMeta.sha || '';
+
 // 构建期 URL：专题树高亮与组展开靠它算（顶栏胶囊 Tab 已删，不再渲染 TABS）
 const path = Astro.url.pathname; // 构建期即本页最终 URL（如 /credit/）
 // SITE_NAV 里的子页带 `.html` 后缀（靠 _redirects 重写到目录页），而 Astro 产物是
@@ -156,7 +170,10 @@ window.__reTheme = (function () {
     );
   })}
   <div class="macro-nav-foot">
-    <div class="macro-nav-foot-note">数据每个交易日自动更新 · 不构成投资建议</div>
+    <!-- 构建版本（原「数据每个交易日自动更新 · 不构成投资建议」已删：页脚免责行已说全站口径，
+         导航区再重复一遍只是噪声；这行位置留给「线上跑的是哪一版」——手机也看得到侧栏抽屉。
+         时间 UTC，sha 只在 CI 有（本地 dev 省略） -->
+    <div class="macro-nav-foot-note">构建 {BUILD_AT} UTC{BUILD_SHA ? ` · ${BUILD_SHA}` : ''}</div>
   </div>
 </nav>
 <div class="re-root" id="re-main">

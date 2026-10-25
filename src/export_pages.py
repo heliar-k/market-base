@@ -16,8 +16,9 @@
 from __future__ import annotations
 
 import json
+import os
 import shutil
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta, timezone
 from typing import Callable
 
 import pandas as pd
@@ -131,6 +132,15 @@ def _safe(rel: str, fn: Callable[..., object], *args: object, **kwargs: object) 
 
 
 def export_api() -> None:
+    # 构建版本单源：侧栏底部展示（专题页 astro build 期读同一份文件，SPA 运行时 fetch）。
+    # 放在导出入口最前：CI 里 GITHUB_SHA 由 Actions 自带，本地无则只显示时间。
+    _dump(
+        "api/build",
+        {
+            "at": datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M"),
+            "sha": os.environ.get("GITHUB_SHA", "")[:7],
+        },
+    )
     symbols = get_symbols()
     _dump("api/symbols", symbols)
     _safe("api/tech/overview", get_tech_overview)

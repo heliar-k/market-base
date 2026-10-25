@@ -115,7 +115,9 @@ export function initGlobalNav() {
       </div>`).join('')}
     <div class="macro-nav-foot">
       <div class="macro-nav-foot-row"><span>美东时间</span><span id="macro-nav-clock"></span></div>
-      <div class="macro-nav-foot-note">数据每个交易日自动更新 · 不构成投资建议</div>
+      <!-- 构建版本（与专题页侧栏同一份 api/build，见 src/export_pages.py）。
+           免责声明不在侧栏（已移到 .status-bar，SPA 唯一常驻底栏）。 -->
+      <div class="macro-nav-foot-note" id="macro-nav-build"></div>
     </div>
   `;
 
@@ -149,6 +151,15 @@ export function initGlobalNav() {
   }
   tick();
   setInterval(tick, 60_000);
+
+  // 构建版本（与专题页侧栏同一份 api/build）：失败就不显示，不阻塞导航渲染
+  fetch('/api/build')
+    .then((r) => (r.ok ? r.json() : null))
+    .then((b) => {
+      const el = document.getElementById('macro-nav-build');
+      if (el && b && b.at) el.textContent = `构建 ${b.at} UTC${b.sha ? ` · ${b.sha}` : ''}`;
+    })
+    .catch(() => {});
 
   // 窄屏抽屉
   const toggle = document.getElementById('macro-nav-toggle');

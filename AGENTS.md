@@ -555,7 +555,14 @@ uv run python src/sell_put.py --symbol TSM
   `rates-common.js` 的 `R.foot(gen, { src, note })` 组装**（页面不写模板串、不重复 id）；
   有研判段就传 analysis 的 `generator`（出「研判生成：规则引擎（LLM 预留）」），纯数据页传 `null`；
   **时间不写页脚**——页头 `#re-as-of` 已给，同页不重复两次。空行不占位（`.re-foot-page:empty`）。
-  侧栏底部那句（「数据每个交易日自动更新 · 不构成投资建议」）为导航区弱化注记，与页脚并存。
+  **构建版本放侧栏底部**（`.macro-nav-foot-note`，渲染「构建 2026-10-25 04:57 UTC · c4b02da」）：
+  它说的是这次 build 而不是数据时点，与 `#re-as-of` 不重复；放侧栏是因为专题页/手机抽屉都看得到。
+  **单源 = `api/build`**（`src/export_pages.py` 导出时写 `{at, sha}`，导出必在 astro build 之前）：
+  专题页构建期 `readFileSync` 读它（dev 下文件不在则回退当前时间），SPA 运行时 `fetch('/api/build')` 填。
+  两边必须同一份——各自取构建时钟会得到不同值（SPA 在 `public/` 下不走模板编译，拿不到构建期变量）。
+  `sha` 取 `GITHUB_SHA` 前 7 位（Actions 自带，无需 workflow 改动；本地无则只显示时间）。
+  侧栏原来那句「数据每个交易日自动更新 · 不构成投资建议」**两边都删**（专题页与页脚免责行重复；
+  SPA 的免责已移到 `.status-bar .status-legal`——SPA 没有页脚，这是它唯一常驻底栏）。
   守卫：`test_pages_own_one_foot_slot` / `test_foot_text_only_via_r_foot` /
   `test_page_level_source_term_is_data_source`
 - **head / 导航单源（Astro，ADR-0003）**：专题页 `<head>` 样板与**左侧专题树**由
