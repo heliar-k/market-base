@@ -42,16 +42,23 @@ _LOAD_PATHS = (
     (ROOT / "data" / "rate_expectations" / "fomc_probabilities.csv", "date"),
     (ROOT / "data" / "treasury" / "auction_results.csv", "auction_date"),
     (ROOT / "data" / "fred" / "rates" / "cgb.csv", "date"),  # chinamoney，FRED 无
+    (ROOT / "data" / "euro_sovereign" / "yields.csv", "date"),  # CNBC，欧洲官方无分国日频
 )
 
 _load_cache: dict[tuple, tuple] = {}
 
 
 def _load() -> tuple[
-    pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame
+    pd.DataFrame,
+    pd.DataFrame,
+    pd.DataFrame,
+    pd.DataFrame,
+    pd.DataFrame,
+    pd.DataFrame,
+    pd.DataFrame,
 ]:
-    """rates / tips / inflation / rate_expectations / auction_results / cgb
-    六张本地表。按文件 mtime 记忆：同一请求 overview + yield_curve 只读一次盘
+    """rates / tips / inflation / rate_expectations / auction_results / cgb / euro
+    七张本地表。按文件 mtime 记忆：同一请求 overview + yield_curve 只读一次盘
     （rates.csv ~2MB，原实现每请求读两遍）。返回的 DataFrame 共享，调用方只读。"""
     key = tuple(p.stat().st_mtime_ns if p.exists() else -1 for p, _ in _LOAD_PATHS)
     hit = _load_cache.get(key)
@@ -246,11 +253,14 @@ def _invalidation(shape: str, s2s10: float | None, y10: float | None) -> list[st
 
 def yield_curve_analysis() -> dict:
     """收益率曲线解读（规则版，对应 timsun 的『曲线变动解读』）。"""
-    rates, tips, infl, _, auc, cgb = _load()
+    rates, tips, infl, _, auc, cgb, euro = _load()
     if rates.empty:
         return {"error": "data/fred/rates/rates.csv 缺失，先运行 ./bin/fetch_fred"}
 
-    as_of = rates.index.max().strftime("%Y-%m-%d")
+    # 日期轴末尾可能比国债序列更靠后：IORB / DFEDTAR* 按生效日填充（周末也有值），
+    # 直接取 index.max() 会把页头写成未来日期（2026-10-26 周日，而 DGS10 只到 10-22）。
+    # 本页所有读数都是 DGS 系列，时点一律取 DGS10 的最后有效观测
+    as_of = _last_with_date(rates, "DGS10")[1] or rates.index.max().strftime("%Y-%m-%d")
     s2s10 = _spread(rates, "DGS10", "DGS2")
     s3m10 = _spread(rates, "DGS10", "DGS3MO")
     s5s30 = _spread(rates, "DGS30", "DGS5")
@@ -343,6 +353,27 @@ def yield_curve_analysis() -> dict:
     cn30, _ = _last_with_date(cgb, "cgb_30y") if not cgb.empty else (None, None)
     # 来源标注观测日：日本是月频序列，与日频的美/中同列比利差时必须亮出时点
     jp_src = "FRED IRLTLT01JPM156N · monthly" + (f" · {jp10_d}" if jp10_d else "")
+    # 欧洲四国：CNBC 市场报价（欧洲官方体系只发布欧元区聚合曲线，无分国日频 10Y），
+    # 各自观测日可能不同（长假/采集缺口），故 source 逐条带日期而不是共用 as_of
+    eu_rows = []
+    for code, name, note in (
+        ("DE", "德国", "10Y Bund"),
+        ("FR", "法国", "10Y OAT"),
+        ("IT", "意大利", "10Y BTP"),
+        ("ES", "西班牙", "10Y Bono"),
+    ):
+        v, d = _last_with_date(euro, code)
+        eu_rows.append(
+            {
+                "market": name,
+                "note": note,
+                "rate": v,
+                "rate30": None,  # 源只有 10Y
+                "spread_vs_us": _spread_vs_us(v, us10),
+                "spread30_vs_us": None,
+                "source": f"CNBC · daily · {d}" if d else "CNBC · daily",
+            }
+        )
     cn_src = "chinamoney RtimeYldCurv · daily" + (f" · {cn10_d}" if cn10_d else "")
 
     return {
@@ -423,6 +454,7 @@ def yield_curve_analysis() -> dict:
                 "spread30_vs_us": _spread_vs_us(cn30, us30),
                 "source": cn_src,
             },
+            *eu_rows,
         ],
     }
 
@@ -517,10 +549,13 @@ def _fed_expectation_text(
 def overview_analysis() -> dict:
     """四段研判：曲线形态 / 实际利率 / 联储预期 / 展望。
     任一数据源缺失降级为占位文案（不伪造数值，不让入口页 500）。"""
-    rates, tips, infl, rex, auc, cgb = _load()
+    rates, tips, infl, rex, auc, cgb, euro = _load()
     if rates.empty:
         return {"sections": []}
-    as_of = rates.index.max().strftime("%Y-%m-%d")
+    # 日期轴末尾可能比国债序列更靠后：IORB / DFEDTAR* 按生效日填充（周末也有值），
+    # 直接取 index.max() 会把页头写成未来日期（2026-10-26 周日，而 DGS10 只到 10-22）。
+    # 本页所有读数都是 DGS 系列，时点一律取 DGS10 的最后有效观测
+    as_of = _last_with_date(rates, "DGS10")[1] or rates.index.max().strftime("%Y-%m-%d")
 
     # ── 1. 曲线形态 ──
     s2s10 = _spread(rates, "DGS10", "DGS2")

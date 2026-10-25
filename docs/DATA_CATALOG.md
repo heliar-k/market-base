@@ -80,8 +80,9 @@
 
 德 / 法 / 意 / 西 四国 10Y 国债收益率日频（单位 %，列 `DE / FR / IT / ES`），
 由 `./bin/fetch_euro_sovereign` 从 **CNBC 公开报价接口**（`ts-api.cnbc.com`）拉取，
-观测日 upsert，回看 3 年（源上限）。credit 页「欧洲主权利差」段消费：
-各国 − `DE` 的利差（bp）+ 1Y/3Y 分位。
+观测日 upsert，回看 3 年（源上限）。两个消费方：credit 页「欧洲主权利差」段
+（各国 − `DE` 的利差 bp + 1Y/3Y 分位）、`/rates/yield-curve/` 的「全球长端利率对照」表
+（10Y 收益率 + 美国 − 该市场 bp，与美/日/中 并列）。
 
 > 为什么不是官方源（都实测排除）：Eurostat `irt_euryld_d` / `_m` 与 ECB `YC` 只有
 > 欧元区聚合（`geo=EA`，`DE/FR/IT/ES` 全 404）；Bundesbank `statistic-rmi`

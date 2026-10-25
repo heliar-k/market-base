@@ -183,7 +183,7 @@ class TestSectionLineContract:
         tips = pd.DataFrame({"DFII10": [2.0] * 69 + [2.2]}, index=idx)
         infl = pd.DataFrame({"T10YIE": 2.5}, index=idx)
         empty = pd.DataFrame()
-        monkeypatch.setattr(ra, "_load", lambda: (rates, tips, infl, empty, empty, empty))
+        monkeypatch.setattr(ra, "_load", lambda: (rates, tips, infl, empty, empty, empty, empty))
         for sec in ra.overview_analysis()["sections"]:
             assert len(sec["body"].split("\n")) == 3, sec["title"]
 
@@ -280,7 +280,7 @@ class TestDriverSingleSource:
         monkeypatch.setattr(
             ra,
             "_load",
-            lambda: (rates, tips, infl, empty, empty, empty),
+            lambda: (rates, tips, infl, empty, empty, empty, empty),
         )
         driver = yield_curve_analysis()["driver"]
         assert driver == "实际利率/期限溢价主导"
@@ -293,7 +293,9 @@ class TestOverviewDegradation:
     def test_all_secondary_missing(self, monkeypatch):
         empty = pd.DataFrame()
         monkeypatch.setattr(
-            ra, "_load", lambda: (_synthetic_rates(), empty, empty, empty, empty, empty)
+            ra,
+            "_load",
+            lambda: (_synthetic_rates(), empty, empty, empty, empty, empty, empty),
         )
         out = ra.overview_analysis()
         assert len(out["sections"]) == 4
@@ -305,7 +307,7 @@ class TestOverviewDegradation:
         """EFFR 口径与 /api/rates/fed-funds 一致：DFF 优先于月频 FEDFUNDS。"""
         rates = _synthetic_rates()
         rates["FEDFUNDS"] = 3.63
-        empty6 = [pd.DataFrame()] * 5
+        empty6 = [pd.DataFrame()] * 6  # 除 rates 外的六张表（tips/infl/rex/auc/cgb/euro）
         monkeypatch.setattr(
             ra,
             "_load",
@@ -316,10 +318,24 @@ class TestOverviewDegradation:
 
 
 def test_yield_curve_analysis_has_global_long_end():
-    """yield_curve 输出含全球长端对照（美/日/中），中国行来自 cgb.csv。"""
+    """yield_curve 输出含全球长端对照（美/日/中 + 欧洲四国）。
+
+    中国行来自 cgb.csv（chinamoney），欧洲四国来自 euro_sovereign/yields.csv（CNBC）——
+    欧洲官方体系无分国日频 10Y，这条线必须是独立数源，不能落到 FRED 月频上。
+    """
     out = yield_curve_analysis()
     markets = {g["market"]: g for g in out["global_long_end"]}
-    assert set(markets) == {"美国", "日本", "中国"}
+    assert set(markets) == {"美国", "日本", "中国", "德国", "法国", "意大利", "西班牙"}
+    for name, note in (
+        ("德国", "10Y Bund"),
+        ("法国", "10Y OAT"),
+        ("意大利", "10Y BTP"),
+        ("西班牙", "10Y Bono"),
+    ):
+        row = markets[name]
+        assert row["note"] == note
+        assert row["rate30"] is None  # 源只有 10Y，不伪造 30Y
+        assert "CNBC" in row["source"]
     cn = markets["中国"]
     if cn["rate"] is None:
         assert cn["source"] == "chinamoney RtimeYldCurv · daily"  # 未拉过数据不伪造
