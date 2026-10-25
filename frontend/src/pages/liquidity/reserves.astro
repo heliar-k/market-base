@@ -1,7 +1,6 @@
 ---
 // 银行准备金页 — 工单 #14 自 public/liquidity/reserves.html 迁入。
-// 结构：准备金卡片 + SOFR−3M T-Bill / SOFR−IORB 两张 60 日利差图 + 近期表；island 脚本逐字原样。
-// fetch('/api/liquidity/reserves') 不变。
+// 结构：准备金+中介意愿+交易商摩擦卡片 + SOFR−3M T-Bill / 准备金vs交易商摩擦双线图 + 近期周三表。
 import TopicLayout from '../../layouts/TopicLayout.astro';
 import Section from '../../components/Section.astro';
 ---
@@ -10,20 +9,22 @@ import Section from '../../components/Section.astro';
 
   <Section id="re-cards" title="概览" />
   <Section id="sec-judge" title="研判" />
-  <Section id="sec-spread1" title="SOFR − 3M T-Bill" sub="60 日 · 银行中介意愿替代口径">
-    <div class="re-chart" id="chart1"></div>
-  </Section>
-  <Section id="sec-spread2" title="SOFR − IORB" sub="60 日 · 交叉确认">
-    <div class="re-chart" id="chart2"></div>
-  </Section>
-  <Section id="sec-recent" title="近期数据" sub="最近 20 条" card>
+  <div class="re-duo">
+    <Section id="sec-spread1" title="SOFR − 3M T-Bill" sub="60 日 · 银行中介意愿替代口径">
+      <div class="re-chart" id="chart1"></div>
+    </Section>
+    <Section id="sec-spread2" title="准备金定价 vs 交易商摩擦" sub="60 日 · SOFR−IORB / SOFR−TGCR / EFFR−IORB">
+      <div class="re-chart" id="chart2"></div>
+    </Section>
+  </div>
+  <Section id="sec-recent" title="近期数据" sub="最近 20 期 H.4.1 周三发布日" card>
     <div id="re-recent"></div>
   </Section>
   <div class="re-foot-page" slot="foot" id="re-foot"></div>
 
 <script is:inline>
 const base = (c) => ({
-  xAxis: { type: 'time' },
+  xAxis: { type: 'time', boundaryGap: false, axisLabel: { formatter: R.md } },
   yAxis: { type: 'value', scale: true, axisLabel: { formatter: v => v + 'bp' } },
   grid: { left: 8, right: 20, bottom: 30, top: 20, containLabel: true },
   tooltip: { trigger: 'axis' },
@@ -33,28 +34,51 @@ const base = (c) => ({
 
 async function load() {
   document.getElementById('page-toc').innerHTML = [
-    ['概览', 're-cards'], ['研判', 'sec-judge'], ['中介意愿', 'sec-spread1'], ['交叉确认', 'sec-spread2'], ['近期数据', 'sec-recent'],
+    ['概览', 're-cards'], ['研判', 'sec-judge'], ['中介意愿', 'sec-spread1'], ['摩擦分解', 'sec-spread2'], ['近期数据', 'sec-recent'],
   ].map(([t, id]) => `<a href="#${id}">${t}</a>`).join('');
 
   const d = await R.get('/api/liquidity/reserves');
   const r = d.cards?.reserves || {};
+  const df = d.cards?.dealer_friction || {};
   R.setAsOf([['FRED', r.date]]);
   R.setSection('sec-judge', d.judgement?.text
     ? R.judgeCard(d.judgement.title, d.judgement.text, R.LINES_CONCLUSION)
     : '<p style="color:var(--text-dim);font-size:13px;margin:0">研判数据不足。</p>');
+  const fmtBpSigned = v => (v == null ? '—' : (v > 0 ? '+' : '') + v.toFixed(1) + 'bp');
   document.getElementById('re-cards').appendChild(R.cards([
-    { label: '银行准备金余额', value: r.value_b == null ? '—' : (r.value_b / 1000).toFixed(2) + ' 万亿', sub: `4周 ${(r.chg_4w_pct ?? 0) >= 0 ? '+' : ''}${(r.chg_4w_pct ?? 0).toFixed(2)}%` },
-    { label: '银行中介意愿', value: d.cards?.intermediation?.state || '—', sub: 'SOFR−3M T-Bill 走扩说明担保融资变贵' },
+    { label: '银行准备金余额', value: r.value_b == null ? '—' : (r.value_b / 1000).toFixed(2) + ' 万亿', sub: r.chg_4w_pct == null ? 'H.4.1 周度' : `4周 ${(r.chg_4w_pct >= 0 ? '+' : '')}${r.chg_4w_pct.toFixed(2)}%` },
+    { label: '银行中介意愿', value: d.cards?.intermediation?.state || '—', sub: `SOFR−3M T-Bill ${fmtBpSigned(d.spreads?.sofr_tbill3m_bp)}` },
+    { label: '回购与准备金摩擦', value: df.state || '—', sub: `SOFR−TGCR ${fmtBpSigned(df.sofr_tgcr_bp)} · EFFR−IORB ${fmtBpSigned(df.effr_iorb_bp)}` },
   ], 're-cards-2col'));
 
   const s = d.series || {};
-  const fill = (id, key) => {
-    const data = (s[key] || []).map(p => [p.date, p.value]);
-    if (!data.length) { document.getElementById(id).innerHTML = '<div class="re-error">暂无数据 · 运行 ./bin/fetch_fred 更新利率走廊数据后刷新</div>'; return; }
-    R.mkChart(id, c => ({ ...base(c), series: [{ ...base(c).series[0], data }] }));
-  };
-  fill('chart1', 'sofr_tbill3m_bp');
-  fill('chart2', 'sofr_iorb_bp');
+  const d1 = (s.sofr_tbill3m_bp || []).map(p => [p.date, p.value]);
+  if (d1.length) {
+    R.mkChart('chart1', c => ({ ...base(c), series: [{ ...base(c).series[0], data: d1 }] }));
+  } else {
+    document.getElementById('chart1').innerHTML = '<div class="re-error">暂无数据 · 运行 ./bin/fetch_fred 更新利率走廊数据后刷新</div>';
+  }
+
+  const s_si = (s.sofr_iorb_bp || []).map(p => [p.date, p.value]);
+  const s_st = (s.sofr_tgcr_bp || []).map(p => [p.date, p.value]);
+  const s_ei = (s.effr_iorb_bp || []).map(p => [p.date, p.value]);
+  if (s_si.length) {
+    R.mkChart('chart2', c => R.lineOption({
+      legend: { data: ['SOFR−IORB', 'SOFR−TGCR（交易商摩擦）', 'EFFR−IORB（准备金定价）'] },
+      tooltip: { trigger: 'axis', valueFormatter: v => v == null ? '—' : `${Number(v).toFixed(1)}bp` },
+      grid: { left: 8, right: 20, bottom: 30, top: 44, containLabel: true },
+      xAxis: { type: 'time', boundaryGap: false, axisLabel: { formatter: R.md } },
+      yAxis: { type: 'value', scale: true, axisLabel: { formatter: v => v + 'bp' } },
+      series: [
+        { name: 'SOFR−IORB', type: 'line', data: s_si, symbol: 'none', lineStyle: { color: c.blue, width: 2 },
+          markLine: { data: [{ yAxis: 0 }], lineStyle: { color: c.muted, type: 'dashed' }, symbol: 'none', label: { show: false } } },
+        { name: 'SOFR−TGCR（交易商摩擦）', type: 'line', data: s_st, symbol: 'none', lineStyle: { color: c.orange, width: 1.5, type: 'dashed' } },
+        { name: 'EFFR−IORB（准备金定价）', type: 'line', data: s_ei, symbol: 'none', lineStyle: { color: c.green, width: 1.5, type: 'dotted' } },
+      ],
+    }, c));
+  } else {
+    document.getElementById('chart2').innerHTML = '<div class="re-error">暂无数据 · 运行 ./bin/fetch_fred 更新利率走廊数据后刷新</div>';
+  }
 
   document.getElementById('re-recent').appendChild(R.table(
     ['日期', '准备金（万亿 USD）'],
@@ -62,12 +86,11 @@ async function load() {
     ['date', 'reserves_b'],
   ));
   R.foot('rules', {
-    src: 'FRED H.4.1（WRESBAL，周度）· FRED 利率走廊（SOFR / IORB / DGS3MO，日度）',
-    note: '准备金充裕时短端流动性压力较小',
+    src: 'FRED H.4.1（WRESBAL，周度）· FRED 利率走廊（SOFR / TGCR / EFFR / IORB / DGS3MO，日度）',
+    note: 'SOFR−TGCR 走阔 = 美债供给挤占交易商资产负债表；EFFR−IORB 走阔 = 银行体系准备金真实变紧',
   });
 
-  // ── 页面事实集（契约见 js/ai-context.js）：本页可问的数字只有卡片两项、两条利差与近端观测，
-  //    图上点值 DOM 抓不到；研判首句是「现在充裕还是稀缺」的直接答案，一并带上。表 20 行只取近 3 条。
+  // ── 页面事实集 ──
   if (window.AICtx) AICtx.declare('liquidity-reserves', () => {
     const inter = d.cards?.intermediation || {};
     const sp = d.spreads || {};
@@ -79,24 +102,25 @@ async function load() {
       .slice(-3)
       .map(x => x.date.slice(5) + ' ' + (x.reserves_b == null ? '—' : R.num(x.reserves_b / 1000, 2)))
       .join(' · ');
-    // 研判正文首行即结论（「准备金充裕。」这类），40 字上限只截不补
     const verdict = ((d.judgement?.text || '').split('\n')[0] || '').slice(0, 40);
     return {
       title: '银行准备金读数',
-      src: 'FRED H.4.1（WRESBAL，周度）· FRED 利率走廊（SOFR / IORB / DGS3MO，日度）',
+      src: 'FRED H.4.1（WRESBAL，周度）· FRED 利率走廊（SOFR / TGCR / EFFR / IORB / DGS3MO，日度）',
       asOf: r.date,
       priority: 10,
       facts: [
         ['银行准备金余额', r.value_b == null ? '—' : R.num(r.value_b / 1000, 2) + ' 万亿 USD', 'H.4.1 周度'],
         ['4 周变化', (r.chg_4w_pct > 0 ? '+' : '') + R.fmtPct(r.chg_4w_pct), '对比 4 周前'],
         ['银行中介意愿', inter.state || '—', inter.note || ''],
-        // 空值整体回落 —，别拼出「—bp」
+        ['交易商与准备金摩擦', df.state || '—', df.note || ''],
         ['SOFR − 3M T-Bill', sp.sofr_tbill3m_bp == null ? '—' : R.fmtBp(sp.sofr_tbill3m_bp) + 'bp', until(s.sofr_tbill3m_bp)],
         ['SOFR − IORB', sp.sofr_iorb_bp == null ? '—' : R.fmtBp(sp.sofr_iorb_bp) + 'bp', until(s.sofr_iorb_bp)],
+        ['SOFR − TGCR', sp.sofr_tgcr_bp == null ? '—' : R.fmtBp(sp.sofr_tgcr_bp) + 'bp', '双边 vs 三方回购（交易商资产负债表约束）'],
+        ['EFFR − IORB', sp.effr_iorb_bp == null ? '—' : R.fmtBp(sp.effr_iorb_bp) + 'bp', '无担保联邦基金 vs 准备金利率'],
         ['研判结论', verdict || '—', '规则引擎生成'],
-        ['近 3 个观测', recent || '—', '准备金，万亿 USD'],
+        ['近 3 期周三观测', recent || '—', '准备金，万亿 USD'],
       ],
-      note: '准备金单位为万亿 USD，利差单位为 bp；利差走扩（上移）表示担保融资相对变贵',
+      note: '准备金单位为万亿 USD，利差单位为 bp；SOFR−TGCR 反映交易商资产负债表饱和度，EFFR−IORB 反映准备金稀缺度',
     };
   });
 }

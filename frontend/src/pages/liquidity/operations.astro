@@ -86,9 +86,12 @@ async function load() {
   R.setSection('sec-judge', d.judgement?.text
     ? R.judgeCard(d.judgement.title, d.judgement.text, R.LINES_CONCLUSION)
     : '<p style="color:var(--text-dim);font-size:13px;margin:0">研判数据不足（需 RMP 操作记录）。</p>');
+  const rawNote = srf.raw_days_90 != null ? `（已剔除 <$${srf.threshold_m ?? 50}M 的日常通道测试，含微额共 ${srf.raw_days_90} 天）` : '';
+  const act90Txt = srf.active_days_90 == null ? '—' : `${srf.active_days_90} 天`;
+  const latMTxt = srf.latest_m == null ? '—' : `$${srf.latest_m}M`;
   document.getElementById('re-srf').innerHTML = `<div class="re-section"><p style="margin:0">
-    <b>激活天数（90 天）：${srf.active_days_90 ?? 0}</b> · 最新使用 <b>$${srf.latest_m ?? 0}M</b>。
-    SRF 为美联储常设回购便利，市场紧张时银行可通过抵押国债换取隔夜融资；正常状态应为零，使用量持续非零或单日规模偏大，才说明回购市场紧张。</p></div>`;
+    <b>实质动用天数（90 天，≥$${srf.threshold_m ?? 50}M）：${act90Txt}</b>${rawNote} · 最新使用 <b>${latMTxt}</b>。
+    SRF 为美联储常设回购便利，市场紧张时银行可通过抵押国债换取隔夜融资；正常状态应无实质动用，仅在结算日/季末出现大额调用才说明回购市场偏紧。</p></div>`;
 
   // 伴读抽屉事实集：RMP 节奏、最近操作、SOMA 三档、SRF 使用量原本散在四张卡/表/图里，
   // 这里合成一张读数表，回答「买了多少、买的是什么、SRF 有没有用」不用跨段拼。
@@ -114,7 +117,7 @@ async function load() {
         ['SOMA 国债', fmtB(hold('国债').holdings_b), `周 ${sgnB(hold('国债').week_b)} · 月 ${sgnB(hold('国债').month_b)}`],
         ['SOMA MBS', fmtB(hold('MBS').holdings_b), `周 ${sgnB(hold('MBS').week_b)} · 月 ${sgnB(hold('MBS').month_b)}`],
         ['联储总资产', fmtB(hold('联储总资产').holdings_b), `周 ${sgnB(hold('联储总资产').week_b)} · 月 ${sgnB(hold('联储总资产').month_b)}`],
-        ['SRF 90 天激活', srf.active_days_90 == null ? '—' : srf.active_days_90 + ' 天', '常备回购便利；— = SRF 源缺失，不是零使用'],
+        ['SRF 90 天实质动用', srf.active_days_90 == null ? '—' : srf.active_days_90 + ' 天', `单日 ≥$${srf.threshold_m ?? 50}M 计入；— = SRF 源缺失`],
         ['SRF 最新使用', srf.latest_m == null ? '—' : '$' + R.num(srf.latest_m) + 'M', '百万美元'],
       ],
       note: '金额单位为十亿美元（$B），SRF 最新使用为百万美元（$M）；接受比 = 接受额 / 提交额',

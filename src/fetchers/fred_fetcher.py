@@ -69,7 +69,19 @@ def fetch_all_fred() -> dict[str, "object"]:
                 logger.warning(f"  {metric}({series_id}): 元数据拉取失败 → {e}")
         if dfs:
             combined = dfs[0] if len(dfs) == 1 else pd.concat(dfs, axis=1)
-            result[cat] = combined.sort_index()
+            combined = combined.sort_index()
+            # 行政指导利率（IORB / DFEDTARL / DFEDTARU）在 FRED 上会预填周末及未来 1~3 天的值；
+            # 若末尾行仅有这三列而无任何已实现的市场成交/报价利率（DFF/SOFR/ONRRP/DGS* 全 NaN），
+            # 会把 rates.csv 的最新行推到未来日期，污染下游 df.index.max() 时效标签。
+            if cat == "rates":
+                mkt_cols = [
+                    c for c in combined.columns if c not in {"IORB", "DFEDTARL", "DFEDTARU"}
+                ]
+                if mkt_cols:
+                    last_mkt = combined[mkt_cols].dropna(how="all").index.max()
+                    if pd.notna(last_mkt):
+                        combined = combined.loc[:last_mkt]
+            result[cat] = combined
     if releases:
         pd.DataFrame(releases).to_csv(ROOT / "data" / "fred" / "_release_dates.csv", index=False)
     return result

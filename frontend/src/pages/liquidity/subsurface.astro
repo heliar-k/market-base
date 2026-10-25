@@ -31,7 +31,7 @@ async function load() {
   ].map(([t, id]) => `<a href="#${id}">${t}</a>`).join('');
 
   const d = await R.get('/api/liquidity/subsurface');
-  R.setAsOf([['净流动性', d.as_of]]);
+  R.setAsOf([['FRED', d.as_of]]);
   const comp = d.composite || {};
   // 加权和：评分卡文案与下方事实集共用，避免两处各拼一次口径
   const compositeSum = ((comp.tail ?? 0) + (comp.volume ?? 0) + (comp.srf ?? 0) + (comp.swap ?? 0)).toFixed(1);
@@ -59,7 +59,7 @@ async function load() {
     </div>
     <div style="display:flex;gap:18px;flex-wrap:wrap;flex:1">
       ${bar('尾部宽度', comp.tail ?? 0, comp.tail_max ?? 3, 'var(--color-brand)')}
-      ${bar('成交量 z', comp.volume ?? 0, comp.volume_max ?? 2, 'var(--color-warn)')}
+      ${bar('成交量异动', comp.volume ?? 0, comp.volume_max ?? 2, 'var(--color-warn)')}
       ${bar('SRF 激活', comp.srf ?? 0, comp.srf_max ?? 3, 'var(--color-down)')}
       ${bar('央行互换变化', comp.swap ?? 0, comp.swap_max ?? 2, 'var(--chart-violet)')}
     </div></div>`;
@@ -71,13 +71,21 @@ async function load() {
   const pct = d.percentiles || {};
   const p = pct.values || {};
   const fmtPct = v => (v == null ? '—' : Number(v).toFixed(4) + '%');
-  const rows = Object.entries(p).map(([name, v]) => ({ name, v,
-    d: pct.iorb == null ? null : v - pct.iorb }));
+  const rows = Object.entries(p).map(([name, v]) => ({
+    name,
+    v,
+    d: pct.iorb == null ? null : v - pct.iorb,
+    dt: pct.tgcr == null ? null : v - pct.tgcr,
+  }));
   document.getElementById('re-pct').appendChild(R.table(
-    ['分位', '利率', 'vs IORB'],
+    ['分位', '利率', 'vs IORB', 'vs TGCR（三方回购）'],
     rows,
-    { v: fmtPct, d: v => (v == null ? '—' : (v >= 0 ? '>' : '<') + ' IORB ' + (v >= 0 ? '+' : '') + (v * 100).toFixed(1) + 'bp') },
-    ['name', 'v', 'd'],
+    {
+      v: fmtPct,
+      d: v => (v == null ? '—' : (v >= 0 ? '>' : '<') + ' IORB ' + (v >= 0 ? '+' : '') + (v * 100).toFixed(1) + 'bp'),
+      dt: v => (v == null ? '—' : (v >= 0 ? '+' : '') + (v * 100).toFixed(1) + 'bp'),
+    },
+    ['name', 'v', 'd', 'dt'],
   ));
 
   // 成交量 60 日 + z 注记
@@ -96,11 +104,16 @@ async function load() {
   } else {
     document.getElementById('vol_chart').innerHTML = '<div class="re-error">暂无成交量数据</div>';
   }
-  const zHtml = vol.z60 == null ? '' : `<span style="color:${vol.z60 > 1 ? 'var(--warning)' : 'var(--text-dim)'}">60 日 z-score <b>${vol.z60 >= 0 ? '+' : ''}${vol.z60.toFixed(2)}</b>（最新 $${(vol.latest_b ?? 0).toLocaleString()}B / 均值 $${(vol.mean_60d_b ?? 0).toLocaleString()}B）</span>`;
+  const zHtml = vol.z60 == null ? '' : `<span style="color:${vol.z60 > 1 ? 'var(--warning)' : 'var(--text-dim)'}">60 日 z-score <b>${vol.z60 >= 0 ? '+' : ''}${vol.z60.toFixed(2)}</b>（最新 ${vol.latest_b == null ? '—' : '$' + vol.latest_b.toLocaleString() + 'B'} / 均值 ${vol.mean_60d_b == null ? '—' : '$' + vol.mean_60d_b.toLocaleString() + 'B'}）</span>`;
+  const raw30 = d.srf?.raw_30d != null ? `（已剔除 <$${d.srf?.threshold_m ?? 50}M 的日常通道测试，含微额共 ${d.srf.raw_30d} 天）` : '';
+  const act30Txt = d.srf?.active_30d == null ? '—' : `${d.srf.active_30d} 天`;
+  const lat30Txt = d.srf?.latest_m == null ? '—' : `$${d.srf.latest_m}M`;
+  const swBalTxt = d.swap?.balance_m == null ? '—' : `$${Number(d.swap.balance_m).toLocaleString()}M`;
+  const swChgTxt = d.swap?.chg_30d_m == null ? '—' : `${d.swap.chg_30d_m >= 0 ? '+' : ''}${Number(d.swap.chg_30d_m).toLocaleString()}M`;
   document.getElementById('re-srf').innerHTML = `<div class="re-section">
-    <p style="margin:0">SRF 近 30 天激活天数 <b>${d.srf?.active_30d ?? 0}</b> 天 · 最新 <b>$${d.srf?.latest_m ?? 0}M</b>。
-    央行互换余额 <b>$${Number(d.swap?.balance_m ?? 0).toLocaleString()}M</b>（30日变化 ${(d.swap?.chg_30d_m ?? 0) >= 0 ? '+' : ''}${(d.swap?.chg_30d_m ?? 0).toLocaleString()}M）。</p>
-    <p style="margin:8px 0 0;font-size:12px;color:var(--text-dim)">主流指标（SOFR 中位数/RRP/总资产）是均衡后的读数；次表层看的是没被均衡吸收的摩擦——SOFR 99 分位是最紧张一批机构的边际融资价，成交量 z-score 捕捉市场结构突变，SRF 动用即说明融资端已紧张，央行互换是海外美元压力的被动读数。这些读数属于主流指标确认之前的观察窗口（领先幅度未经回测）。${zHtml}</p></div>`;
+    <p style="margin:0">SRF 近 30 天实质动用（≥$${d.srf?.threshold_m ?? 50}M）<b>${act30Txt}</b>${raw30} · 最新 <b>${lat30Txt}</b>。
+    央行互换余额 <b>${swBalTxt}</b>（30日变化 ${swChgTxt}）。</p>
+    <p style="margin:8px 0 0;font-size:12px;color:var(--text-dim)">主流指标（SOFR 中位数/RRP/总资产）是均衡后的读数；次表层看的是没被均衡吸收的摩擦——SOFR 99 分位是最紧张一批机构的边际融资价（vs TGCR 衡量双边对冲基金/交易商溢价），成交量 z-score 捕捉市场结构突变，SRF 实质动用（≥$50M）说明结算日/季末存在真实缺口，央行互换是海外美元压力的被动读数。${zHtml}</p></div>`;
 
   R.foot('rules', { src: 'FRED（SOFR 分位 / SOFRVOL 成交额）· NY Fed Markets（SRF）· FRED H.4.1（SWPT 央行互换）', note: 'SOFRVOL 单位为十亿美元' });
 
@@ -124,12 +137,12 @@ async function load() {
         // 缺源时不能折成 0：后端的 srf/swap 只在有数据时才写，折 0 等于凭空断言「没使用」
         ['四项分项', [['尾', 'tail'], ['量', 'volume'], ['SRF', 'srf'], ['互换', 'swap']].map(([zh, k]) => zh + ' ' + num(comp[k])).join(' · '), `各档上限 ${comp.tail_max ?? '—'} / ${comp.volume_max ?? '—'} / ${comp.srf_max ?? '—'} / ${comp.swap_max ?? '—'}`],
         // 与分位表同一换算（百分数 ×100 得当量 bp），数字本体仍走 R.fmtBp
-        ['SOFR 99 分位', R.fmtPct(tail), 'vs IORB ' + (tail == null || pct.iorb == null ? '—' : R.fmtBp((tail - pct.iorb) * 100) + 'bp') + ' · 尾部宽度分项满档'],
+        ['SOFR 99 分位', R.fmtPct(tail), 'vs IORB ' + (tail == null || pct.iorb == null ? '—' : R.fmtBp((tail - pct.iorb) * 100) + 'bp') + ' · vs TGCR ' + (tail == null || pct.tgcr == null ? '—' : R.fmtBp((tail - pct.tgcr) * 100) + 'bp')],
         ['SOFR 分位（1/25/中/75/99）', ['1分位', '25分位', '中位数', '75分位', '99分位'].map(k => R.fmtPct(p[k])).join(' · '), ''],
         ['SOFR 成交量 60 日 z', vol.z60 == null ? '—' : (vol.z60 >= 0 ? '+' : '') + R.num(vol.z60, 2),
           '最新 ' + num(vol.latest_b, 2, 'B') + ' / 60 日均值 ' + num(vol.mean_60d_b, 2, 'B')],
-        ['SRF 近 30 天激活', srf.active_30d == null ? '—' : srf.active_30d + ' 天',
-          '最新使用 ' + (srf.latest_m == null ? '—' : '$' + R.num(srf.latest_m) + 'M')],
+        ['SRF 近 30 天实质动用', srf.active_30d == null ? '—' : srf.active_30d + ' 天',
+          '单日 ≥$' + (srf.threshold_m ?? 50) + 'M · 最新使用 ' + (srf.latest_m == null ? '—' : '$' + R.num(srf.latest_m) + 'M')],
         ['央行互换余额', swap.balance_m == null ? '—' : '$' + R.num(swap.balance_m) + 'M',
           '30 日变化 ' + (swap.chg_30d_m == null ? '—' : (swap.chg_30d_m >= 0 ? '+' : '') + R.num(swap.chg_30d_m) + 'M')],
         ['研判结论', verdict || '—', '规则引擎生成'],

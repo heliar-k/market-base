@@ -1,13 +1,19 @@
 ---
 // liquidity 族入口页 — 工单 #14 自 public/liquidity/index.html 迁入。
-// 结构：指标卡片 + 三段评估叙事 + 子页 link-grid；island 脚本逐字原样
-// （R.cards / R.get 为 rates-common 经典全局）。fetch('/api/liquidity/snapshot') 不变。
+// 结构：LPI 压力总览 + 指标卡片 + 净流动性与三要素走势图 + 三段评估叙事 + 子页 link-grid；
+// fetch('/api/liquidity/snapshot') 一次返回卡片、LPI 摘要、近 1 年 H.4.1 序列与研判。
 import TopicLayout from '../../layouts/TopicLayout.astro';
 import Section from '../../components/Section.astro';
 ---
-<TopicLayout title="流动性" chart={false}>
+<TopicLayout title="流动性">
   <div class="page-toc" id="page-toc"></div>
+  <Section id="sec-lpi" title="美元流动性压力总览" sub="LPI · 结构 45% + 融资 35% + 传导 20%">
+    <div id="re-lpi"></div>
+  </Section>
   <Section id="re-cards" title="概览" />
+  <Section id="sec-chart" title="净流动性与负债三要素" sub="近 1 年 H.4.1 周度 · 万亿 USD">
+    <div class="re-chart" id="liq_chart"></div>
+  </Section>
   <Section id="re-eval" title="流动性评估" />
   <Section title="专题子页">
     <div class="link-grid" id="re-links">
@@ -29,11 +35,11 @@ import Section from '../../components/Section.astro';
     </a>
     <a class="link-card" href="reserves.html">
       <span class="icon">🏛️</span>
-      <span><span class="t">银行准备金</span><br><span class="d">银行体系超额准备金余额</span></span>
+      <span><span class="t">银行准备金</span><br><span class="d">准备金水位、中介意愿与交易商摩擦</span></span>
     </a>
     <a class="link-card" href="global-dollar.html">
       <span class="icon">🌐</span>
-      <span><span class="t">全球美元</span><br><span class="d">美元流动性与全球美元供应</span></span>
+      <span><span class="t">全球美元</span><br><span class="d">离岸掉期点与央行流动性互换</span></span>
     </a>
     <a class="link-card" href="subsurface.html">
       <span class="icon">🔬</span>
@@ -44,6 +50,9 @@ import Section from '../../components/Section.astro';
   <div class="re-foot-page" slot="foot" id="re-foot"></div>
 
 <script is:inline>
+const bandColors = { 宽松: 'var(--color-up)', 中性: 'var(--color-brand)', 警戒观察: 'var(--color-warn)', 压力确认: 'var(--color-down)' };
+const bandTextColors = () => ({ 宽松: 'var(--up)', 中性: 'var(--accent-ink)', 警戒观察: 'var(--warning)', 压力确认: 'var(--down)' });
+
 function fmtT(v) {
   if (v == null) return '—';
   return (v / 1e6).toFixed(2) + ' 万亿';
@@ -54,27 +63,60 @@ function fmtB(v) {
   return v.toFixed(1) + ' 十亿';
 }
 // 后端 src/liquidity_analysis.py 的 _pct_chg() 已返回百分数（4.25 = 4.25%），前端不再 *100。
-// 近零基数守卫：|p| > 300%（3 倍以上变化，实际只可能出现在 RRP 这类从 0 附近起量的序列，
-// 后端只守了基数 == 0 没守近零）时百分数无意义，改按 value 反推绝对变化
-// Δ = value - value/(1+p/100)，单位沿用该卡 value 的格式化器（万亿 / 十亿）。
-const pctHtml = (p, value, fmt) => {
+// 后端已对近零基数（≤序列峰值 0.1%，如 RRP 贴零时）返回 null → 此处直接回落 '—'。
+const pctHtml = (p) => {
   if (p == null) return '<span style="color:var(--text-dim)">—</span>';
   const cls = p > 0 ? 'up' : p < 0 ? 'down' : '';
   const sign = p > 0 ? '+' : '';
-  if (Math.abs(p) > 300 && value != null) {
-    const d = value - value / (1 + p / 100);
-    return `<span class="${cls}">${sign}${fmt(d)}</span>`;
-  }
   return `<span class="${cls}">${sign}${p.toFixed(1)}%</span>`;
 };
 
 async function load() {
   document.getElementById('page-toc').innerHTML = [
-    ['概览', 're-cards'], ['流动性评估', 're-eval'], ['专题子页', 're-links'],
+    ['压力总览', 'sec-lpi'], ['概览', 're-cards'], ['走势', 'sec-chart'], ['流动性评估', 're-eval'], ['专题子页', 're-links'],
   ].map(([t, id]) => `<a href="#${id}">${t}</a>`).join('');
 
   const d = await R.get('/api/liquidity/snapshot');
   R.setAsOf([['流动性', d.data_date]]);
+
+  // ── LPI 压力总览条（第一屏直接回答「现在紧不紧、卡在哪一层」）──
+  const lpi = d.lpi_summary || {};
+  const bandLabel = (lpi.band && lpi.band[0]) || '—';
+  const bColor = bandColors[bandLabel] || 'var(--text-dim)';
+  const bText = bandTextColors()[bandLabel] || 'var(--text)';
+  const layers = lpi.layers || {};
+  const confs = lpi.confirmations || [];
+  const metCount = confs.filter(x => x.met).length;
+  const barItem = (key, name) => {
+    const L = layers[key] || {};
+    const ls = L.score ?? 0;
+    const barColor = ls >= 7 ? 'var(--color-down)' : ls >= 5 ? 'var(--color-warn)' : ls >= 3 ? 'var(--color-brand)' : 'var(--color-up)';
+    const inkColor = ls >= 7 ? 'var(--down)' : ls >= 5 ? 'var(--warning)' : ls >= 3 ? 'var(--accent-ink)' : 'var(--up)';
+    return `<div style="flex:1;min-width:150px">
+      <div style="display:flex;justify-content:space-between;font-size:12px">
+        <span style="color:var(--text-secondary)">${name} <span style="color:var(--text-dim)">(${Math.round((L.weight || 0) * 100)}%)</span></span>
+        <b style="color:${inkColor}">${L.score ?? '—'}/10</b>
+      </div>
+      <div style="height:6px;background:var(--border);border-radius:3px;margin:6px 0">
+        <div style="height:6px;width:${Math.min(100, ls * 10)}%;background:${barColor};border-radius:3px"></div>
+      </div>
+    </div>`;
+  };
+  document.getElementById('re-lpi').innerHTML = `<div class="score-card">
+    <div>
+      <div class="label">美元流动性压力指数 LPI</div>
+      <div style="display:flex;align-items:baseline;gap:10px;margin:4px 0">
+        <span class="value" style="color:${bText}">${lpi.score ?? '—'}<span style="font-size:18px;color:var(--text-dim)">/10</span></span>
+        <span style="display:inline-block;padding:0 6px;border-radius:4px;border:1px solid color-mix(in srgb, ${bColor} 40%, transparent);background:color-mix(in srgb, ${bColor} 9%, transparent);color:${bText};font-size:11px;line-height:18px;font-weight:600">${bandLabel}</span>
+      </div>
+      <div style="font-size:12px;color:var(--text-dim)">系统性压力确认条件：<b>${metCount}/${confs.length || 6}</b> 项触发${lpi.pctile_30d != null ? ' · 30日第 ' + lpi.pctile_30d + ' 分位' : ''} · <a href="transmission-chain.html" style="color:var(--accent-ink);text-decoration:none">查看传导链明细 →</a></div>
+    </div>
+    <div style="display:flex;gap:18px;flex-wrap:wrap;flex:1">
+      ${barItem('structure', '结构性缓冲')}
+      ${barItem('funding', '融资市场确认')}
+      ${barItem('transmission', '风险资产传导')}
+    </div>
+  </div>`;
 
   // ── 指标卡片 ──
   const c = d.cards || {};
@@ -83,18 +125,35 @@ async function load() {
     return {
       label: s.label || key, accent,
       value: fmt(s.value),
-      sub: `1M ${pctHtml(s.change_1m, s.value, fmt)} · 1Y ${pctHtml(s.change_1y, s.value, fmt)}`,
+      sub: `1M ${pctHtml(s.change_1m)} · 1Y ${pctHtml(s.change_1y)}`,
     };
   };
   document.getElementById('re-cards').appendChild(R.cards([
     card('WALCL', fmtT), card('RRPONTSYD', fmtB), card('WTREGEN', fmtT), card('NET_LIQUIDITY', fmtT, true),
   ], 're-cards-2col'));
 
+  // ── 近 1 年净流动性与三要素走势图 ──
+  const s1y = d.series_1y || [];
+  if (s1y.length) {
+    R.mkChart('liq_chart', colors => R.lineOption({
+      legend: { data: ['净流动性', '银行准备金', 'TGA 余额', 'RRP 余额'] },
+      tooltip: { trigger: 'axis', valueFormatter: v => v == null ? '—' : `${Number(v).toFixed(2)} 万亿` },
+      grid: { top: 40, left: 8, right: 20, bottom: 28, containLabel: true },
+      xAxis: { type: 'time', boundaryGap: false, axisLabel: { formatter: R.md } },
+      yAxis: { type: 'value', scale: true, axisLabel: { formatter: v => v.toFixed(1) + 'T' } },
+      series: [
+        { name: '净流动性', type: 'line', data: s1y.map(p => [p.date, p.net_liq_t]), symbol: 'none', lineStyle: { color: colors.blue, width: 2.5 } },
+        { name: '银行准备金', type: 'line', data: s1y.map(p => [p.date, p.reserves_t]), symbol: 'none', lineStyle: { color: colors.green, width: 2 } },
+        { name: 'TGA 余额', type: 'line', data: s1y.map(p => [p.date, p.tga_t]), symbol: 'none', lineStyle: { color: colors.orange, width: 1.5, type: 'dashed' } },
+        { name: 'RRP 余额', type: 'line', data: s1y.map(p => [p.date, p.rrp_t]), symbol: 'none', lineStyle: { color: colors.purple, width: 1.5, type: 'dotted' } },
+      ],
+    }, colors));
+  } else {
+    document.getElementById('liq_chart').innerHTML = '<div class="re-error">暂无流动性序列数据</div>';
+  }
+
   // ── 流动性评估（三段叙事，三行契约走 R.sigBlocks）──
-  // 卡间间距不再写 inline margin：special.css 的 `.re-root :has(> .re-section + .re-section)`
-  // 已给持有 2+ 张卡的容器上 flex + gap；旧代码里的 `replace(/。/g, '。')` 是空操作（已删）。
   const ev = d.evaluation || {};
-  // 生成方式说明不在这里另挂 note：页底 #re-foot 已用 R.genText 说同一件事（同 labor/treasury）
   R.setSection('re-eval', [ev.net_liquidity, ev.outlook, ev.reserves]
     .filter(sec => sec && sec.text)
     .map(sec => R.judgeCard(sec.title, sec.text, R.LINES_CONCLUSION)).join(''));
@@ -105,13 +164,9 @@ async function load() {
   });
 
   // ── AI 伴读事实集 ──
-  // 只给四张主卡读数 + 三段研判的首句：这三段就是本页第一屏的全部结论，
-  // 正文里的阈值/WTI/VIX 是叙事的支撑细节，不从文本串里二次抠数（容易被截断、也不是本条口径）。
   if (window.AICtx) AICtx.declare('liquidity', () => {
     const s = (k) => c[k] || {};
-    // 正数补 +，格式化仍走 R.fmtPct（单源，别再造 signedPct）
     const chg = (p) => (p == null ? '—' : (p > 0 ? '+' : '') + R.fmtPct(p));
-    // 首句即结论；超 40 字按值长上限截断并留省略号（不截半句数字）
     const lead = (sec) => {
       const t = ((sec && sec.text) || '').split('\n')[0].trim();
       return t ? (t.length > 40 ? t.slice(0, 39) + '…' : t) : '—';
@@ -123,6 +178,7 @@ async function load() {
       asOf: d.data_date,
       priority: 10,
       facts: [
+        ['LPI 压力指数', (lpi.score ?? '—') + '/10 · ' + bandLabel, `结构 ${layers.structure?.score ?? '—'} · 融资 ${layers.funding?.score ?? '—'} · 传导 ${layers.transmission?.score ?? '—'} · 确认 ${metCount}/${confs.length || 6}`],
         [s('WALCL').label || '美联储总资产', ...row('WALCL', fmtT)],
         [s('RRPONTSYD').label || 'RRP 余额', ...row('RRPONTSYD', fmtB)],
         [s('WTREGEN').label || 'TGA 余额', ...row('WTREGEN', fmtT)],
@@ -135,6 +191,6 @@ async function load() {
     };
   });
 }
-load().catch(e => R.fail(['re-cards', 're-eval'], e));
+load().catch(e => R.fail(['re-lpi', 're-cards', 'liq_chart', 're-eval'], e));
 </script>
 </TopicLayout>

@@ -17,10 +17,10 @@ import Section from '../../components/Section.astro';
     <div id="re-heat"></div>
   </Section>
   <Section id="sec-judge" title="研判" />
-  <Section id="sec-spread" title="SOFR − IORB 走势" sub="60 日">
-    <div class="re-chart" id="spread_chart"></div>
+  <Section id="sec-tga" title="TGA 账户余额走势" sub="近 60 日 · 十亿美元">
+    <div class="re-chart" id="tga_chart"></div>
   </Section>
-  <Section id="sec-cash" title="TGA 日度现金流" sub="DTS">
+  <Section id="sec-cash" title="TGA 日度现金流" sub="DTS · 存款与支出">
     <div class="re-chart" id="cash_chart"></div>
   </Section>
   <div class="re-foot-page" slot="foot" id="re-foot"></div>
@@ -44,31 +44,37 @@ const bucketTextColors = {
 
 async function load() {
   document.getElementById('page-toc').innerHTML = [
-    ['预警', 're-alert'], ['当前余额', 're-cur'], ['未来热力', 'sec-heat'], ['研判', 'sec-judge'], ['60日利差', 'sec-spread'], ['日度现金流', 'sec-cash'],
+    ['预警', 're-alert'], ['当前余额', 're-cur'], ['未来热力', 'sec-heat'], ['研判', 'sec-judge'], ['TGA 余额', 'sec-tga'], ['日度现金流', 'sec-cash'],
   ].map(([t, id]) => `<a href="#${id}">${t}</a>`).join('');
 
   const d = await R.get('/api/liquidity/rrp-tga');
   const a = d.alert || {};
   R.setAsOf([['FRED', d.data_date]]);
 
-  const pos = (a.sofr_iorb_bp ?? 0) >= 0;
-  const posColor = pos ? 'var(--color-down)' : 'var(--color-up)'; // 图形档：喂下面 border-color
-  const posTextColor = pos ? 'var(--down)' : 'var(--up)'; // 文字档：同一判定的 color: 用法（亮色下图形档不达 AA）
+  const bp = a.sofr_iorb_bp ?? 0;
+  const posColor = bp > 3 ? 'var(--color-down)' : bp >= 0 ? 'var(--color-warn)' : 'var(--color-up)'; // 图形档：喂下面 border-color
+  const posTextColor = bp > 3 ? 'var(--down)' : bp >= 0 ? 'var(--warning)' : 'var(--up)'; // 文字档：同一判定的 color: 用法（亮色下图形档不达 AA）
   document.getElementById('re-alert').innerHTML = `<div class="re-section" style="border-color:${posColor};border-width:1.5px">
     ${R.secTitle('流动性压力预警', 'PRESSURE ALERT')}
     <div style="display:flex;gap:24px;align-items:baseline;flex-wrap:wrap">
       <span style="font-size:30px;font-weight:700;color:${posTextColor}">${a.sofr_iorb_bp == null ? '—' : a.sofr_iorb_bp.toFixed(1)}bp</span>
       <span style="font-size:14px">SOFR ${a.sofr ?? '—'}% · IORB ${a.iorb ?? '—'}% · FFR 上限 ${a.ffr_upper ?? '—'}%</span>
-      <span style="font-size:12px;color:${posTextColor}">${a.state || ''}</span>
+      <span style="font-size:12px;color:${posTextColor}">${a.state || ''} · <a href="reserves.html" style="color:var(--accent-ink);text-decoration:none">查看准备金与回购利差走势 →</a></span>
     </div></div>`;
 
   const cur = d.current || {};
   const fmtCur = (v, unit) => (v == null ? '—' : (typeof v === 'number' ? v.toLocaleString() : v) + unit);
+  const tgaSub = cur.tga_wtregen_b == null
+    ? '财政部一般账户（DTS 日度）'
+    : `DTS 日度（${cur.tga_date || '—'}）· H.4.1 周均 ${cur.tga_wtregen_b.toFixed(1)}B`;
+  const srfSub = cur.srf_active_30d
+    ? `当日（近 30 天实质动用 ${cur.srf_active_30d} 天，≥$50M）`
+    : '单日 ≥$50M 为实质动用信号';
   document.getElementById('re-cur').appendChild(R.cards([
     { label: 'RRP 余额', value: fmtCur(cur.rrp_b, ' 十亿'), sub: '美联储隔夜逆回购' },
-    { label: 'TGA 余额', value: fmtCur(cur.tga_b, ' 十亿'), sub: '财政部一般账户（DTS 日度）' },
-    { label: '净流动性', value: fmtCur(cur.net_liq_b, ' 十亿'), sub: '总资产 − RRP − TGA' },
-    { label: 'SRF 使用', value: fmtCur(cur.srf_m, ' 百万'), sub: '银行正使用 SRF 即为紧张信号' },
+    { label: 'TGA 余额', value: fmtCur(cur.tga_b, ' 十亿'), sub: tgaSub },
+    { label: '净流动性', value: fmtCur(cur.net_liq_b, ' 十亿'), sub: '总资产 − RRP − TGA（H.4.1 口径）' },
+    { label: 'SRF 使用', value: fmtCur(cur.srf_m, ' 百万'), sub: srfSub },
   ], 're-cards-2col'));
 
   // ── 未来 14 天热力：按打开页面时间重切窗口（构建期给 21 天），净冲击由前端重算。
@@ -97,19 +103,22 @@ async function load() {
       <p style="margin:8px 0 0;font-size:12px;color:var(--text-dim)">${cal.source_note || ''} 图例：极端抽水 ≤-200B · 强 ≤-80B · 温和 ≤-30B · 平稳 · 注入</p>
     </div>`;
 
-  // ── SOFR−IORB 60 日 ──
+  // ── 研判 + TGA 60 日余额走势（替代与 reserves 页重复的 SOFR−IORB 图）──
   R.setSection('sec-judge', d.judgement?.text
     ? R.judgeCard(d.judgement.title, d.judgement.text, R.LINES_CONCLUSION)
     : '<p style="color:var(--text-dim);font-size:13px;margin:0">研判数据不足（需 RRP 余额与未来日历）。</p>');
-  const s60 = d.series?.sofr_iorb_bp || [];
-  R.mkChart('spread_chart', c => ({
-    xAxis: { type: 'time' },
-    yAxis: { type: 'value', scale: true, axisLabel: { formatter: v => v + 'bp' } },
-    grid: { left: 8, right: 20, bottom: 30, top: 20, containLabel: true },
-    tooltip: { trigger: 'axis' },
-    series: [{ type: 'line', data: s60.map(p => [p.date, p.value]), lineStyle: { color: c.blue, width: 2 }, showSymbol: false,
-      markLine: { data: [{ yAxis: 0 }], lineStyle: { color: c.muted, type: 'dashed' }, symbol: 'none', label: { show: false } } }],
-  }));
+  const tga60 = d.series?.tga_b || [];
+  if (tga60.length) {
+    R.mkChart('tga_chart', c => ({
+      xAxis: { type: 'time', boundaryGap: false, axisLabel: { formatter: R.md } },
+      yAxis: { type: 'value', scale: true, axisLabel: { formatter: v => '$' + v + 'B' } },
+      grid: { left: 8, right: 20, bottom: 30, top: 20, containLabel: true },
+      tooltip: { trigger: 'axis', valueFormatter: v => `$${Number(v).toFixed(1)}B` },
+      series: [{ type: 'line', data: tga60.map(p => [p.date, p.value]), lineStyle: { color: c.orange, width: 2 }, areaStyle: { color: c.orange + '14' }, showSymbol: false }],
+    }));
+  } else {
+    document.getElementById('tga_chart').innerHTML = '<div class="re-error">暂无 TGA 余额序列</div>';
+  }
 
   // ── TGA 日度现金流 ──
   const cf = d.cashflows || [];
@@ -145,9 +154,9 @@ async function load() {
         ['SOFR − IORB', a.sofr_iorb_bp == null ? '—' : R.fmtBp(a.sofr_iorb_bp) + 'bp', '状态：' + (a.state || '—')],
         ['政策利率走廊', R.fmtPct(a.sofr) + ' / ' + R.fmtPct(a.iorb) + ' / ' + R.fmtPct(a.ffr_upper), 'SOFR / IORB / FFR 上限'],
         ['RRP 余额', unit(cur.rrp_b, 'B'), '隔夜逆回购'],
-        ['TGA 余额', unit(cur.tga_b, 'B'), 'DTS ' + (cur.tga_date || '—')],
-        ['净流动性', unit(cur.net_liq_b, 'B'), '总资产 − RRP − TGA'],
-        ['SRF 使用', unit(cur.srf_m, ' 百万', 1), '0 表示未动用'],
+        ['TGA 余额', unit(cur.tga_b, 'B'), `DTS 日度 ${cur.tga_date || '—'}（H.4.1 周均 ${unit(cur.tga_wtregen_b, 'B', 1)}）`],
+        ['净流动性', unit(cur.net_liq_b, 'B'), '总资产 − RRP − TGA（H.4.1 口径）'],
+        ['SRF 使用', unit(cur.srf_m, ' 百万', 1), `当日（近30天实质动用 ${cur.srf_active_30d ?? 0} 天，≥$50M）`],
         ['未来 7 日净冲击', net7 == null ? '—' : f1(net7), '逐日资金流之和（估算）'],
         ['未来 14 日净冲击', net14 == null ? '—' : f1(net14), '含国债结算与 SOMA 到期'],
         ['未来资金流日', dayList(flowDays.slice(0, 3)) || '—', 'MM-DD 净冲击，整数十亿美元'],
@@ -158,6 +167,6 @@ async function load() {
     };
   });
 }
-load().catch(e => R.fail(['re-alert', 're-cur', 're-heat', 'sec-judge', 'spread_chart', 'cash_chart'], e));
+load().catch(e => R.fail(['re-alert', 're-cur', 're-heat', 'sec-judge', 'tga_chart', 'cash_chart'], e));
 </script>
 </TopicLayout>

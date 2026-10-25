@@ -1192,8 +1192,15 @@ def get_rates_fed_funds() -> dict:
         if not lo_s.empty and not hi_s.empty:
             latest[key] = round(float(hi_s.iloc[-1] - lo_s.iloc[-1]) * 100, 1)
 
+    # 时效取已实现的市场利率（EFFR/SOFR/ONRRP）最新日期，不被 IORB/DFEDTAR 预填的未来行带偏
+    mkt_dates = [
+        df[c].dropna().index[-1]
+        for c in (effr_col, "SOFR", "ONRRP")
+        if c in df.columns and not df[c].dropna().empty
+    ]
+    as_of_dt = max(mkt_dates) if mkt_dates else df.index.max()
     return {
-        "as_of": df.index.max().strftime("%Y-%m-%d"),
+        "as_of": as_of_dt.strftime("%Y-%m-%d"),
         "latest": latest,
         # 利率走廊（近 90 天）：EFFR/SOFR/TGCR/BGCR/ONRRP 五利率 + 目标区间
         "corridor": {

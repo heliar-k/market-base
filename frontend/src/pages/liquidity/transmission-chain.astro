@@ -69,6 +69,16 @@ async function load() {
 
   // ── 三层评分 ──
   const layers = d.layers || {};
+  const fmtPartVal = (p) => {
+    if (p.value == null) return '—';
+    const v = Number(p.value);
+    const u = p.unit || '';
+    if (u === '%') return (v > 0 && p.name.includes('变化') ? '+' : '') + v.toFixed(2) + '%';
+    if (u === 'B') return (v > 0 && p.name.includes('脉冲') ? '+' : '') + v.toFixed(1) + 'B';
+    if (u === 'bp') return (v > 0 ? '+' : '') + v.toFixed(1) + 'bp';
+    if (u === '分') return '五货币对1M均分 ' + v.toFixed(1);
+    return v.toFixed(2);
+  };
   const layerCard = (key, title, desc) => {
     const L = layers[key] || {};
     const pct = (L.weight * 100).toFixed(0);
@@ -76,7 +86,7 @@ async function load() {
       `<div class="oas-card" style="flex:1;min-width:150px">
         <div class="label">${p.name}</div>
         <div class="value">${scoreCell(p.score)}<span class="unit">/10</span></div>
-        <div class="pcts">${p.value == null ? '—' : (typeof p.value === 'number' ? p.value.toFixed(2) : p.value)}</div>
+        <div class="pcts">${fmtPartVal(p)}</div>
       </div>`).join('');
     // c 喂进度条填充（图形档），cText 喂同一分数的文字位（亮色下图形档做文字不达 AA）
     const c = L.score >= 7 ? 'var(--color-down)' : L.score >= 5 ? 'var(--color-warn)' : L.score >= 3 ? 'var(--color-brand)' : 'var(--color-up)';
@@ -118,13 +128,14 @@ async function load() {
 
   // ── 确认条件 ──
   const conf = d.confirmations || [];
-  // 确认条件尾部注随 met 实况变化，不写死「全部未确认」（有条件满足时旧文案就成了假话）
+  // 确认条件尾部注随 met 实况与 d.band[0] 同步，不硬编码「警戒观察」（当 1 条满足但加权总分 <5 时 band 仍为中性）
   const metCount = conf.filter(x => x.met).length;
+  const bandLabel = d.band?.[0] || '中性';
   const confTail = metCount === 0
-    ? '以上任一条件满足即说明压力从结构性偏紧升级为系统性；当前全部未确认，本指数不下系统性压力结论，等待确认信号。'
+    ? '以上任一条件满足即说明局部摩擦向系统性压力传导；当前全部未确认，本指数不下系统性压力结论，等待确认信号。'
     : metCount === conf.length
       ? `以上 ${conf.length} 条确认条件全部满足——系统性压力已确认，指数结论升级。`
-      : `已确认 ${metCount}/${conf.length} 条：系统性压力的门槛部分达成，本指数结论为「警戒观察」而非系统性确认；未满足条件见上方 ○ 标注项。`;
+      : `已确认 ${metCount}/${conf.length} 条：部分门槛已触发，综合三层加权后当前指数处于「${bandLabel}」区间（${d.score ?? '—'}/10），未满足条件见上方 ○ 标注项。`;
   document.getElementById('re-confirm').innerHTML =
     `<div class="re-section">` + conf.map(x =>
       `<div style="display:flex;gap:8px;align-items:baseline;padding:4px 0;font-size:13px">
@@ -134,26 +145,20 @@ async function load() {
       </div>`).join('') +
       `<p style="margin:8px 0 0;font-size:12px;color:var(--text-dim)">${confTail}</p></div>`;
 
-  // ── 离岸 + 外部 ──
+  // ── 离岸 + 外部（摘要 + 跳链，避免与 global-dollar 子页重复渲染整张 5×5 掉期点表）──
   const off = d.offshore || {};
   const PAIR_DISPLAY = { USDJPY: 'USD/JPY', USDCNH: 'USD/CNH', EURUSD: 'EUR/USD', GBPUSD: 'GBP/USD', USDCHF: 'USD/CHF' };
-  const offRows = Object.entries(off).map(([pair, v]) => ({ pair: PAIR_DISPLAY[pair] || pair, ...v }));
-  const fmtPips = v => (v == null ? '—' : v.toFixed(1));
+  const off1m = Object.entries(off)
+    .map(([k, v]) => `${PAIR_DISPLAY[k] || k} ${v?.['1M'] == null ? '—' : (v['1M'] > 0 ? '+' : '') + v['1M'].toFixed(1)}`)
+    .join(' · ');
+  const offPart = (layers.funding?.parts || []).find(p => p.name === '离岸美元压力') || {};
+  const wtiTxt = d.external?.wti == null ? '—' : d.external.wti.toFixed(2) + ' 美元';
   const offWrap = document.createElement('div');
-  const t = R.table(
-    ['货币对', '1W', '1M', '3M', '6M', '1Y'],
-    offRows,
-    { '1W': fmtPips, '1M': fmtPips, '3M': fmtPips, '6M': fmtPips, '1Y': fmtPips },
-    ['pair', '1W', '1M', '3M', '6M', '1Y'],
-  );
-  const note = document.createElement('div');
-  note.className = 're-section';
+  const ws = R.secCard();
+  ws.innerHTML = `<h2>离岸美元压力基底</h2><p style="margin:0">当前离岸评分 <b>${offPart.score ?? '—'}</b>/10 · 1M 掉期点（pips）：<b>${off1m || '—'}</b>。USD/JPY、USD/CNH、USD/CHF 越负（或 EUR/USD、GBP/USD 越正）代表美元利率高于外币、离岸借美元更贵 · <a href="global-dollar.html" style="color:var(--accent-ink);text-decoration:none">查看五货币对全期限掉期表与央行互换 →</a></p>`;
+  const note = R.secCard();
   note.style.marginTop = '12px';
-  note.innerHTML = `<h2>外部冲击输入</h2><p style="margin:0">WTI ${(d.external?.wti ?? 0).toFixed(2)} 美元 · 能源与地缘为外生冲击层：通过通胀预期、保证金和离岸美元需求给系统加压，但不是美元融资压力本身，调整系数 +${d.external?.adjust ?? 0.0}（不参与加权）。${d.external?.note || ''}</p>`;
-  const ws = document.createElement('div');
-  ws.className = 're-section';
-  ws.innerHTML = `<h2>离岸美元压力基底</h2><p style="margin:0">负值 = 美元融资成本高于本币（美元稀缺）｜正值 = 美元相对充裕。当前离岸评分 <b>${d.layers?.funding?.parts?.[3]?.score ?? '—'}</b>/10；多货币对同时转弱才说明美元稀缺在扩散。</p>`;
-  ws.appendChild(t);
+  note.innerHTML = `<h2>外部冲击输入</h2><p style="margin:0">WTI ${wtiTxt} · 能源与地缘为外生冲击层：通过通胀预期、保证金和离岸美元需求给系统加压，但不是美元融资压力本身，调整系数 +${d.external?.adjust ?? 0.0}（不参与加权）。${d.external?.note || ''}</p>`;
   offWrap.append(ws, note);
   document.getElementById('re-offshore').appendChild(offWrap);
 
@@ -163,19 +168,23 @@ async function load() {
     `<div class="re-section" style="margin-bottom:12px"><h2>${title}</h2>${html}</div>`;
   let ev = '';
   if (e.balancesheet) {
-    ev += evSection('银行资产负债表', `<p style="margin:0">银行准备金 <b>${e.balancesheet.reserves_b ?? '—'}</b> 十亿（4周 ${(e.balancesheet.reserves_4w_pct ?? 0) >= 0 ? '+' : ''}${(e.balancesheet.reserves_4w_pct ?? 0).toFixed(2)}%）；净流动性 <b>${e.balancesheet.net_liquidity_b ?? '—'}</b> 十亿；10Y 国债 ${(e.balancesheet.dgs10 ?? 0).toFixed(2)}%。缓冲垫在变薄 ≠ 银行体系缺钱。</p>`);
+    ev += evSection('银行资产负债表', `<p style="margin:0">银行准备金 <b>${e.balancesheet.reserves_b ?? '—'}</b> 十亿（4周 ${e.balancesheet.reserves_4w_pct == null ? '—' : (e.balancesheet.reserves_4w_pct >= 0 ? '+' : '') + e.balancesheet.reserves_4w_pct.toFixed(2) + '%'}）；净流动性 <b>${e.balancesheet.net_liquidity_b ?? '—'}</b> 十亿；10Y 国债 ${e.balancesheet.dgs10 == null ? '—' : e.balancesheet.dgs10.toFixed(2) + '%'}。缓冲垫在变薄 ≠ 银行体系缺钱。</p>`);
   }
   if (e.repo) {
-    ev += evSection('在岸 Repo 市场', `<p style="margin:0">SOFR <b>${(e.repo.sofr ?? 0).toFixed(2)}%</b>；SOFR−IORB <b>${e.repo.sofr_iorb_bp ?? '—'}bp</b>（${(e.repo.sofr_iorb_bp ?? 0) < 0 ? '充裕' : '偏紧'}）；RRP 余额 ${e.repo.rrp_b ?? '—'} 十亿；SRF 使用 ${e.repo.srf_m ?? 0} 百万。Repo 是最直接的确认层：只有 SOFR−IORB 转正、SRF 使用或尾部 SOFR 抬升才代表真实融资压力。</p>`);
+    const tgcrTxt = e.repo.sofr_tgcr_bp == null ? '' : `；SOFR−TGCR <b>${e.repo.sofr_tgcr_bp >= 0 ? '+' : ''}${e.repo.sofr_tgcr_bp.toFixed(1)}bp</b>`;
+    const effrTxt = e.repo.effr_iorb_bp == null ? '' : `；EFFR−IORB <b>${e.repo.effr_iorb_bp >= 0 ? '+' : ''}${e.repo.effr_iorb_bp.toFixed(1)}bp</b>`;
+    const srf30 = e.repo.srf_active_30d ? `（近 30 天实质动用 ${e.repo.srf_active_30d} 天）` : '';
+    const srfM = e.repo.srf_m == null ? '—' : `${e.repo.srf_m} 百万`;
+    ev += evSection('在岸 Repo 市场', `<p style="margin:0">SOFR <b>${e.repo.sofr == null ? '—' : e.repo.sofr.toFixed(2) + '%'}</b>；SOFR−IORB <b>${e.repo.sofr_iorb_bp == null ? '—' : (e.repo.sofr_iorb_bp >= 0 ? '+' : '') + e.repo.sofr_iorb_bp.toFixed(1) + 'bp'}</b>（${e.repo.sofr_iorb_state || '—'}）${tgcrTxt}${effrTxt}；RRP 余额 ${e.repo.rrp_b ?? '—'} 十亿；SRF 当日使用 ${srfM}${srf30}。Repo 是最直接的确认层：只有 SOFR−IORB 突破 +3bp、SRF 实质动用（≥$50M）或尾部 SOFR 显著抬升才代表真实融资压力。</p>`);
   }
   if (e.energy) {
-    ev += evSection('能源（外生）', `<p style="margin:0">WTI <b>${(e.energy.wti ?? 0).toFixed(2)}</b>（5日 ${(e.energy.wti_5d_pct ?? 0) >= 0 ? '+' : ''}${(e.energy.wti_5d_pct ?? 0).toFixed(1)}%）；天然气 ${e.energy.ng ?? '—'}。先看油价是否站上关键位、波动是否维持，再看冲击是否传到 CNH/JPY basis。</p>`);
+    ev += evSection('能源（外生）', `<p style="margin:0">WTI <b>${e.energy.wti == null ? '—' : e.energy.wti.toFixed(2)}</b>（5日 ${e.energy.wti_5d_pct == null ? '—' : (e.energy.wti_5d_pct >= 0 ? '+' : '') + e.energy.wti_5d_pct.toFixed(1) + '%'}）；天然气 ${e.energy.ng ?? '—'}。先看油价是否站上关键位、波动是否维持，再看冲击是否传到 CNH/JPY basis。</p>`);
   }
   if (e.intermediary) {
-    ev += evSection('中介能力', `<p style="margin:0">VIX <b>${(e.intermediary.vix ?? 0).toFixed(2)}</b>；MOVE <b>${(e.intermediary.move ?? 0).toFixed(0)}</b>；HY OAS(BB) <b>${(e.intermediary.bb_oas ?? 0).toFixed(0)}bp</b>；IG OAS <b>${(e.intermediary.ig_oas ?? 0).toFixed(0)}bp</b>；NFCI <b>${e.intermediary.nfci ?? '—'}</b>（${(e.intermediary.nfci ?? 1) < 0 ? '宽松' : '收紧'}）。该层分数低说明风险资产还没把上游压力计入价格。</p>`);
+    ev += evSection('中介能力', `<p style="margin:0">VIX <b>${e.intermediary.vix == null ? '—' : e.intermediary.vix.toFixed(2)}</b>；MOVE <b>${e.intermediary.move == null ? '—' : e.intermediary.move.toFixed(0)}</b>；HY OAS(BB) <b>${e.intermediary.bb_oas == null ? '—' : e.intermediary.bb_oas.toFixed(0) + 'bp'}</b>；BBB OAS <b>${e.intermediary.ig_oas == null ? '—' : e.intermediary.ig_oas.toFixed(0) + 'bp'}</b>；NFCI <b>${e.intermediary.nfci ?? '—'}</b>（${e.intermediary.nfci == null ? '—' : e.intermediary.nfci < 0 ? '宽松' : '收紧'}）。该层分数低说明风险资产还没把上游压力计入价格。</p>`);
   }
   if (e.prices) {
-    ev += evSection('资产价格反应', `<p style="margin:0">SPX <b>${(e.prices.spx ?? 0).toLocaleString()}</b>；10Y <b>${(e.prices.dgs10 ?? 0).toFixed(2)}%</b>；DXY <b>${(e.prices.dxy ?? 0).toFixed(2)}</b>；黄金 <b>${(e.prices.gold ?? 0).toLocaleString()}</b>；BTC <b>${(e.prices.btc ?? 0).toLocaleString()}</b>。资产价格是结果层，不参与加权，用于验证压力是否已传导。</p>`);
+    ev += evSection('资产价格反应', `<p style="margin:0">SPX <b>${e.prices.spx == null ? '—' : e.prices.spx.toLocaleString()}</b>；10Y <b>${e.prices.dgs10 == null ? '—' : e.prices.dgs10.toFixed(2) + '%'}</b>；DXY <b>${e.prices.dxy == null ? '—' : e.prices.dxy.toFixed(2)}</b>；黄金 <b>${e.prices.gold == null ? '—' : e.prices.gold.toLocaleString()}</b>；BTC <b>${e.prices.btc == null ? '—' : e.prices.btc.toLocaleString()}</b>。资产价格是结果层，不参与加权，用于验证压力是否已传导。</p>`);
   }
   document.getElementById('re-evidence').innerHTML = ev;
 
@@ -206,15 +215,15 @@ async function load() {
         ['三层评分', '结构 ' + ls('structure') + ' · 融资 ' + ls('funding') + ' · 传导 ' + ls('transmission'), '权重 45% / 35% / 20%'],
         ['确认条件', metCount + '/' + conf.length + ' 条满足', metList.length ? '已满足：' + metList.join('；') : '全部未确认，不上升到系统性压力结论'],
         ['准备金', (e.balancesheet?.reserves_b ?? '—') + ' 十亿', '4 周 ' + sgnPct(part('structure', '准备金4周变化').value) + ' · 分项 ' + (part('structure', '准备金4周变化').score ?? '—') + '/10'],
-        ['净流动性', (e.balancesheet?.net_liquidity_b ?? '—') + ' 十亿', '20 日脉冲 ' + sgnNum(part('structure', '净流动性20日脉冲').value, 0) + ' 百万 · 分项 ' + (part('structure', '净流动性20日脉冲').score ?? '—') + '/10'],
+        ['净流动性', (e.balancesheet?.net_liquidity_b ?? '—') + ' 十亿', '20 日脉冲 ' + sgnNum(part('structure', '净流动性20日脉冲').value, 1) + ' 十亿 · 分项 ' + (part('structure', '净流动性20日脉冲').score ?? '—') + '/10'],
         // 状态语必须跟着数值走：后端口径是 rrp < 25 十亿记「缓冲耗尽」，写死会和数字自相矛盾
         ['RRP 缓冲', rrpVal == null ? '—' : R.num(rrpVal, 2) + ' 十亿',
           (rrpVal == null ? '—' : rrpVal < 25 ? '贴零，缓冲耗尽档' : '仍有余量') + ' · 分项 ' + (part('structure', 'RRP缓冲').score ?? '—') + '/10'],
         ['SOFR', R.fmtPct(e.repo?.sofr), 'SOFR−IORB ' + bpText(part('funding', 'SOFR−IORB').value) + ' · SOFR99−IORB ' + bpText(part('funding', 'SOFR99−IORB').value)],
         ['SRF 使用', e.repo?.srf_m == null ? '—' : R.num(e.repo.srf_m, 0) + ' 百万美元',
-          (e.repo?.srf_m == null ? '—' : e.repo.srf_m > 0 ? '有使用' : '无使用') + ' · 分项 ' + (part('funding', 'SRF使用').score ?? '—') + '/10'],
-        ['离岸 1M 掉期点', 'JPY ' + sgnNum(off.USDJPY?.['1M']) + ' · CNH ' + sgnNum(off.USDCNH?.['1M']) + ' · EUR ' + sgnNum(off.EURUSD?.['1M']), '负值 = 美元融资成本高于本币（美元稀缺）· pips'],
-        ['风险资产读数', 'VIX ' + R.num(e.intermediary?.vix) + ' · MOVE ' + R.num(e.intermediary?.move, 1) + ' · BB OAS ' + R.fmtPct(e.intermediary?.bb_oas), 'NFCI ' + R.num(e.intermediary?.nfci, 3) + '（正 = 收紧）· IG OAS ' + R.fmtPct(e.intermediary?.ig_oas) + ' · 层分 ' + ls('transmission') + '/10'],
+          (e.repo?.srf_m == null ? '—' : e.repo.srf_m >= 50 ? '当日实质动用' : `当日未实质动用（近30天动用 ${e.repo?.srf_active_30d ?? 0} 天）`) + ' · 分项 ' + (part('funding', 'SRF使用').score ?? '—') + '/10'],
+        ['离岸 1M 掉期点', 'JPY ' + sgnNum(off.USDJPY?.['1M']) + ' · CNH ' + sgnNum(off.USDCNH?.['1M']) + ' · EUR ' + sgnNum(off.EURUSD?.['1M']), '分项 ' + (part('funding', '离岸美元压力').score ?? '—') + '/10 · USD/XXX 负值或 XXX/USD 正值 = 美元利率高于外币 · pips'],
+        ['风险资产读数', 'VIX ' + R.num(e.intermediary?.vix) + ' · MOVE ' + R.num(e.intermediary?.move, 1) + ' · BB OAS ' + bpText(e.intermediary?.bb_oas), 'NFCI ' + R.num(e.intermediary?.nfci, 3) + '（正 = 收紧）· BBB OAS ' + bpText(e.intermediary?.ig_oas) + ' · 层分 ' + ls('transmission') + '/10'],
         ['WTI', R.num(e.energy?.wti) + ' 美元', '5 日 ' + sgnPct(e.energy?.wti_5d_pct) + ' · 能源地缘为外生冲击层，不参与加权'],
         ['资产价格', 'SPX ' + R.num(e.prices?.spx, 0) + ' · DXY ' + R.num(e.prices?.dxy) + ' · 黄金 ' + R.num(e.prices?.gold, 0), '10Y ' + R.fmtPct(e.prices?.dgs10) + ' · BTC ' + R.num(e.prices?.btc, 0) + ' · 结果层，不参与加权'],
       ],

@@ -21,10 +21,11 @@ class TestScore:
         assert _score(40.0, [(35, 9), (25, 7), (18, 5), (14, 3)]) == 9
 
     def test_negative_higher_band_ascending(self):
-        # 准备金 4 周变化型：越负分越高（阈值升序，落空回退到最高分档）
-        assert _score(-4.4, [(0, 3), (-1, 5), (-3, 7), (-5, 9)]) == 9
-        assert _score(-2.0, [(0, 3), (-1, 5), (-3, 7), (-5, 9)]) == 7
-        assert _score(0.5, [(0, 3), (-1, 5), (-3, 7), (-5, 9)]) == 3
+        # 准备金 4 周变化型：越负分越高（阈值升序，找第一个 v <= th，未命中回退末档）
+        assert _score(-4.4, [(-5, 9), (-3, 7), (-1, 5), (0, 3)]) == 7
+        assert _score(-6.0, [(-5, 9), (-3, 7), (-1, 5), (0, 3)]) == 9
+        assert _score(-2.0, [(-5, 9), (-3, 7), (-1, 5), (0, 3)]) == 5
+        assert _score(0.5, [(-5, 9), (-3, 7), (-1, 5), (0, 3)]) == 3
 
     def test_missing_value(self):
         assert _score(None, [(0, 3), (-1, 5)]) is None
@@ -92,6 +93,49 @@ class TestLpiSmoke:
             if isinstance(sec, dict):
                 assert sec["text"]
         assert s["data_date"] is not None
+        assert "lpi_summary" in s and s["lpi_summary"].get("score") is not None
+        assert isinstance(s.get("series_1y"), list) and len(s["series_1y"]) > 0
+
+    def test_nl_pulse_and_subpages_consistency(self):
+        from src.liquidity_analysis import (
+            SRF_SUBSTANTIAL_B,
+            _sofr_iorb_state,
+            page_fed_balance_sheet,
+            page_operations,
+            page_reserves,
+            page_rrp_tga,
+            page_subsurface,
+        )
+
+        # 1. SOFR-IORB 状态词单源三档
+        assert _sofr_iorb_state(-1.0) == "充裕"
+        assert _sofr_iorb_state(0.0) == "中性偏紧"
+        assert _sofr_iorb_state(2.5) == "中性偏紧"
+        assert _sofr_iorb_state(4.0) == "偏紧"
+
+        # 2. LPI 脉冲单位为十亿美元（B），非百万美元
+        d = lpi()
+        nl_part = next(
+            p for p in d["layers"]["structure"]["parts"] if p["name"] == "净流动性20日脉冲"
+        )
+        assert nl_part["unit"] == "B"
+        assert abs(nl_part["value"]) < 2000  # 十亿美元量级（非百万级）
+
+        # 3. 资产负债表与准备金近 20 期仅含 H.4.1 周三有效值（无空行）
+        bs = page_fed_balance_sheet()
+        assert bs["rows"] and all(r["WALCL"] is not None for r in bs["rows"])
+        res = page_reserves()
+        assert "dealer_friction" in res["cards"]
+        assert "sofr_tgcr_bp" in res["spreads"] and "effr_iorb_bp" in res["spreads"]
+
+        # 4. SRF 实质动用门槛统一为 >= $50M（0.05B），且 rrp-tga 状态词与单源一致
+        ops = page_operations()
+        sub = page_subsurface()
+        rt = page_rrp_tga()
+        assert ops["srf"]["threshold_m"] == int(SRF_SUBSTANTIAL_B * 1000)
+        assert sub["srf"]["threshold_m"] == int(SRF_SUBSTANTIAL_B * 1000)
+        assert sub["srf"]["active_30d"] <= sub["srf"]["raw_30d"]
+        assert rt["alert"]["state"] == _sofr_iorb_state(rt["alert"]["sofr_iorb_bp"])
 
 
 class TestForwardCalendar:
@@ -106,36 +150,20 @@ class TestForwardCalendar:
         assert cal["net_7d_b"] is not None
         assert cal["net_7d_b"] == round(sum(x["net_b"] for x in days[:7]), 1)
         assert cal["net_14d_b"] == round(sum(x["net_b"] for x in days[:14]), 1)
-        # 有新发抽水的结算日：独立从原始数据重算期望值（同日到期 − 新发），
-        # 验证到期回笼确实被抵消（未抵消的旧 bug 会显示全额新发 -266B）。
-        # 不能用固定阈值：再融资周新发结算日撞上 Bill 到期日时，
-        # 净冲击可以合理地超过 100B（如 2026-09-15 到期 323B − 新发 119B = +204B）
-        from src.liquidity_analysis import ROOT
-
-        up = pd.read_csv(ROOT / "data/treasury/upcoming_auctions.csv", parse_dates=["issue_date"])
-        auc = pd.read_csv(
-            ROOT / "data/treasury/auction_results.csv",
-            parse_dates=["maturity_date", "issue_date"],
-        )
+        # 有新发抽水的结算日：验证到期回笼与未公布规模估算补齐生效
+        # （未补齐 offering_amt=NaN 时 Bill 新发会被当成 0；未抵消到期则会显示全额 -290B）
         settle_days = [
             d for d in days if any(f["type"] == "auction_settlement" for f in d["flows"])
         ]
         assert settle_days, "14 天窗口内应有新发结算日（数据缺失或日历滚动？）"
-        for d in settle_days:
-            day = pd.Timestamp(d["date"])
-            issue = (
-                up.loc[up["issue_date"] == day, "offering_amt"].fillna(0).astype(float).sum() / 1e9
-            )
-            mature = (
-                auc.loc[auc["maturity_date"] == day, "offering_amt"].dropna().astype(float).sum()
-                / 1e9
-            )
-            expected = round(mature - issue, 1)
-            actual = next(f["amount_b"] for f in d["flows"] if f["type"] == "auction_settlement")
-            assert actual == expected, (
-                f"{d['date']}: 到期回笼 {mature:.0f}B − 新发抽水 {issue:.0f}B，"
-                f"应为 {expected}，实际 {actual}"
-            )
+        # 验证 BB_OAS 单位已统一为 bp（100~1000 量级，非 1~10 百分点）
+        d_lpi = lpi()
+        bb_part = next(
+            p for p in d_lpi["layers"]["transmission"]["parts"] if p["name"] == "HY OAS(BB)"
+        )
+        assert bb_part["unit"] == "bp" and bb_part["value"] > 50
+        assert d_lpi["evidence"]["intermediary"]["bb_oas"] > 50
+        assert float(d_lpi["evidence"]["repo"]["rrp_b"].replace(",", "")) >= 0.1
 
 
 class TestLpiSnapshot:

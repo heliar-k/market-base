@@ -1,15 +1,17 @@
 ---
 // 美联储资产负债表页 — 工单 #14 自 public/liquidity/fed-balance-sheet.html 迁入。
-// 结构：H.4.1 指标卡片 + 近 20 条对照表；island 脚本逐字原样。
-// fetch('/api/liquidity/fed-balance-sheet') 不变。
+// 结构：H.4.1 指标卡片 + 资产端走势图 + 近 20 期周三对照表。
 import TopicLayout from '../../layouts/TopicLayout.astro';
 import Section from '../../components/Section.astro';
 ---
-<TopicLayout title="美联储资产负债表" chart={false}>
+<TopicLayout title="美联储资产负债表">
   <div class="page-toc" id="page-toc"></div>
   <Section id="re-cards" title="概览" />
   <Section id="sec-judge" title="研判" />
-  <Section id="sec-table" title="近期对照表" sub="最近 20 条" card>
+  <Section id="sec-chart" title="资产结构与净流动性走势" sub="近 2 年 H.4.1 周三发布日 · 万亿 USD">
+    <div class="re-chart" id="bs_chart"></div>
+  </Section>
+  <Section id="sec-table" title="近期对照表" sub="最近 20 期 H.4.1 周三发布日" card>
     <div id="re-table"></div>
   </Section>
   <div class="re-foot-page" slot="foot" id="re-foot"></div>
@@ -17,7 +19,7 @@ import Section from '../../components/Section.astro';
 <script is:inline>
 async function load() {
   document.getElementById('page-toc').innerHTML =
-    [['概览', 're-cards'], ['研判', 'sec-judge'], ['近期对照', 'sec-table']].map(([t, id]) => `<a href="#${id}">${t}</a>`).join('');
+    [['概览', 're-cards'], ['研判', 'sec-judge'], ['走势', 'sec-chart'], ['近期对照', 'sec-table']].map(([t, id]) => `<a href="#${id}">${t}</a>`).join('');
   const d = await R.get('/api/liquidity/fed-balance-sheet');
   R.setAsOf([['FRED', d.rows?.[d.rows.length - 1]?.date]]);
   R.setSection('sec-judge', d.judgement?.text
@@ -28,11 +30,31 @@ async function load() {
   const tr = v => (v == null ? '—' : (Number(v) / 1000).toFixed(2) + ' 万亿');
   const card = (key, accent) => {
     const s = (d.cards || {})[key] || {};
-    return { label: s.label || key, accent, value: tr(s.value_b), sub: 'H.4.1 周度' };
+    const chg = s.chg_4w_pct == null ? 'H.4.1 周度' : `4周 ${R.chgSpan(s.chg_4w_pct)}`;
+    return { label: s.label || key, accent, value: tr(s.value_b), sub: chg };
   };
   document.getElementById('re-cards').appendChild(R.cards([
     card('WALCL'), card('TREAST'), card('WSHOMCB'), card('NET_LIQUIDITY', true),
   ], 're-cards-2col'));
+
+  const ser = d.series || d.rows || [];
+  if (ser.length) {
+    R.mkChart('bs_chart', colors => R.lineOption({
+      legend: { data: ['美联储总资产', '净流动性', '国债持有', 'MBS持有'] },
+      tooltip: { trigger: 'axis', valueFormatter: v => v == null ? '—' : `${Number(v).toFixed(2)} 万亿` },
+      grid: { top: 40, left: 8, right: 20, bottom: 28, containLabel: true },
+      xAxis: { type: 'time', boundaryGap: false },
+      yAxis: { type: 'value', scale: true, axisLabel: { formatter: v => v.toFixed(1) + 'T' } },
+      series: [
+        { name: '美联储总资产', type: 'line', data: ser.map(r => [r.date, r.WALCL == null ? null : +(r.WALCL / 1000).toFixed(3)]), symbol: 'none', lineStyle: { color: colors.blue, width: 2.5 } },
+        { name: '净流动性', type: 'line', data: ser.map(r => [r.date, r.NET_LIQUIDITY == null ? null : +(r.NET_LIQUIDITY / 1000).toFixed(3)]), symbol: 'none', lineStyle: { color: colors.green, width: 2 } },
+        { name: '国债持有', type: 'line', data: ser.map(r => [r.date, r.TREAST == null ? null : +(r.TREAST / 1000).toFixed(3)]), symbol: 'none', lineStyle: { color: colors.orange, width: 1.5, type: 'dashed' } },
+        { name: 'MBS持有', type: 'line', data: ser.map(r => [r.date, r.WSHOMCB == null ? null : +(r.WSHOMCB / 1000).toFixed(3)]), symbol: 'none', lineStyle: { color: colors.purple, width: 1.5, type: 'dotted' } },
+      ],
+    }, colors));
+  } else {
+    document.getElementById('bs_chart').innerHTML = '<div class="re-error">暂无资产负债表序列</div>';
+  }
 
   const rows = (d.rows || []).map(r => ({ ...r }));
   const f = v => (v == null ? '—' : (Number(v) / 1000).toFixed(2));
@@ -47,15 +69,12 @@ async function load() {
     note: `${d.note || ''} 净流动性 = 总资产 − RRP − TGA（近似口径）· 单位 万亿 USD`.trim(),
   });
 
-  // ── 页面事实集（契约见 js/ai-context.js）：卡片四读数 + 4 周变化 + 同日股指。
-  // 为什么是这几条：DOM 摘要只抓 .re-cards 的扁平文本，周变化藏在研判句子里、对照表里的
-  // SPX/NDX 根本抓不到，而「QT 停了吗 / 净流动性多少」恰好落在这两个缺口上。
+  // ── 页面事实集 ──
   if (window.AICtx) AICtx.declare('liquidity-fed-balance-sheet', () => {
     const c = d.cards || {};
     const all = d.rows || [];
-    const bs = all.filter(r => r.WALCL != null); // 非发布日整行为空，取最后一个有账目的日子
+    const bs = all.filter(r => r.WALCL != null);
     const last = bs[bs.length - 1] || all[all.length - 1] || {};
-    // 4 周变化只由后端写进研判正文（_pct_chg 28 天），这里原样摘出，不另算
     const m4 = (d.judgement?.text || '').match(/4 周 ([+-][\d.]+)%(?:）)?(?:，其中 ([^。]+))?/);
     const facts = [
       ['美联储总资产', tr(c.WALCL?.value_b), 'WALCL · H.4.1 周度'],
@@ -68,14 +87,13 @@ async function load() {
     return {
       title: '美联储资产负债表',
       src: 'FRED H.4.1：WALCL / TREAST / WSHOMCB / RRP / TGA',
-      // 该端点没有 as_of（只有 cards/rows/judgement/note），回落取最后一条有账目的日期
       asOf: last.date || '',
       priority: 10,
       facts,
-      note: '单位 万亿 USD；H.4.1 为周度，非发布日为空',
+      note: '单位 万亿 USD；仅列 H.4.1 周三发布日',
     };
   });
 }
-load().catch(e => R.fail(['re-cards', 'sec-judge', 're-table'], e));
+load().catch(e => R.fail(['re-cards', 'sec-judge', 'bs_chart', 're-table'], e));
 </script>
 </TopicLayout>

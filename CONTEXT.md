@@ -14,6 +14,7 @@
 - **期限结构（term structure）**：某一时点、按期限（1mo→30y）排列的收益率曲线。仅对 rates/tips 分类有意义。
 - **时序折线**：以时间为 x 轴的单/多系列折线图。派生指标作为可选系列并入此类，不单独成图。
 - **欧元区主权利差（euro sovereign spread）**：各国 10Y 国债收益率 − 德国 Bund 10Y，日频 bp，按国家各成一条线（法 / 意 / 西）。信用域唯一一条数源不在 FRED 的读数——欧洲官方体系没有分国日频 10Y（Eurostat / ECB 只发布欧元区聚合曲线，各国央行只给月频），故走 CNBC 市场报价，存 `data/euro_sovereign/yields.csv`；其月度均值与 FRED/BDE 官方月频经交叉校验一致（≤2bp），区别只在发布滞后。定义在 `src/credit_analysis.py::euro_sovereign()`，呈现于 credit 页「欧洲主权利差」段。
+- **回购与准备金摩擦分解（repo & reserve friction decomposition）**：对标 NY Fed 准备金充裕度框架，用 `SOFR − TGCR`（双边 vs 三方回购，衡量美债结算供给对一级交易商资产负债表的挤占）与 `EFFR − IORB`（无担保联邦基金 vs 准备金利率，衡量银行体系真实准备金稀缺度）拆分 `SOFR − IORB` 走阔的成因；配合 SRF 实质动用门槛（单日 `≥ $50M`，剔除交易商每日 `$1M–$3M` 连通性测试），定义于 `src/liquidity_analysis.py`，呈现于 liquidity 主页及准备金/次表层子页。
 
 ## 共识层
 

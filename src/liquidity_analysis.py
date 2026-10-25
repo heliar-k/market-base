@@ -99,13 +99,48 @@ def _bp(s: str, t: str, rates: pd.DataFrame) -> float | None:
 
 
 def _score(v: float | None, bands: list[tuple[float, int]]) -> float | None:
-    """分段打分：从上到下找第一个 v >= 阈值 的档位（v 越大分越高）。"""
+    """分段打分：
+    - 阈值降序（VIX 等「越大越紧」）：找第一个 v >= th 的档位；
+    - 阈值升序（准备金/掉期点等「越负越紧」）：找第一个 v <= th 的档位；
+    未命中时回退末档分数。
+    """
     if v is None:
         return None
+    if len(bands) >= 2 and bands[0][0] < bands[-1][0]:
+        for th, sc in bands:
+            if v <= th:
+                return float(sc)
+        return float(bands[-1][1])
     for th, sc in bands:
         if v >= th:
             return float(sc)
     return float(bands[-1][1])
+
+
+# ── 单源阈值与口径常量（消除跨页矛盾与微额测试误报）──
+SRF_SUBSTANTIAL_B = 0.05  # SRF 实质动用门槛：$50M（0.05B），剔除日常 $1M-$3M 连通性测试
+
+
+def _srf_window_counts(srf: pd.DataFrame, days: int) -> tuple[int, int]:
+    """按日历天窗口 [最新日 − days, 最新日] 统计 SRF (实质动用天数, 含微额总天数)。"""
+    if srf.empty or "SRF_USAGE" not in srf:
+        return 0, 0
+    s = srf["SRF_USAGE"].dropna()
+    if s.empty:
+        return 0, 0
+    w = s.loc[s.index >= s.index[-1] - pd.Timedelta(days=days)]
+    return int(w.ge(SRF_SUBSTANTIAL_B).sum()), int(w.gt(0).sum())
+
+
+def _sofr_iorb_state(bp: float | None) -> str:
+    """全站唯一 SOFR−IORB 状态词（<0 充裕 / 0~3 中性偏紧 / >3 偏紧）。"""
+    if bp is None:
+        return "未知"
+    if bp < 0:
+        return "充裕"
+    if bp <= 3:
+        return "中性偏紧"
+    return "偏紧"
 
 
 def _weighted(parts: list[tuple[float | None, float]]) -> float | None:
@@ -150,9 +185,45 @@ def liquidity_snapshot() -> dict:
         }
 
     nav = _narrative(liq, rates)
+    lpi_d = lpi()
+    # 近 52 个 H.4.1 周三观测点（~1 年），供入口页净流动性 + 三要素走势图（无需额外拉取 85KB JSON）
+    raw_liq = _csv(ROOT / "data" / "fred/liquidity/liquidity.csv")
+    h41_idx = (
+        raw_liq["WALCL"].dropna().index[-52:]
+        if not raw_liq.empty and "WALCL" in raw_liq
+        else liq.index[-52:]
+    )
+    series_1y = [
+        {
+            "date": dt.date().isoformat(),
+            "net_liq_t": round(float(liq["NET_LIQUIDITY"].get(dt)) / 1e6, 3)
+            if "NET_LIQUIDITY" in liq and pd.notna(liq["NET_LIQUIDITY"].get(dt))
+            else None,
+            "reserves_t": round(float(liq["WRESBAL"].get(dt)) / 1e6, 3)
+            if "WRESBAL" in liq and pd.notna(liq["WRESBAL"].get(dt))
+            else None,
+            "tga_t": round(float(liq["WTREGEN"].get(dt)) / 1e6, 3)
+            if "WTREGEN" in liq and pd.notna(liq["WTREGEN"].get(dt))
+            else None,
+            "rrp_t": round(float(liq["RRPONTSYD"].get(dt)) / 1e3, 3)
+            if "RRPONTSYD" in liq and pd.notna(liq["RRPONTSYD"].get(dt))
+            else None,
+        }
+        for dt in h41_idx
+    ]
     return {
         "cards": cards,
         "evaluation": nav,
+        "lpi_summary": {
+            "score": lpi_d.get("score"),
+            "band": lpi_d.get("band"),
+            "pctile_30d": lpi_d.get("pctile_30d"),
+            "layers": lpi_d.get("layers"),
+            "confirmations": lpi_d.get("confirmations"),
+        }
+        if lpi_d
+        else {},
+        "series_1y": series_1y,
         "data_date": _data_date(liq),
     }
 
@@ -256,10 +327,21 @@ def _narrative(liq: pd.DataFrame, rates: pd.DataFrame) -> dict:
     # 1M 国债 vs IORB 利差（旧文案拿 RRP 与 IORB 比利率，RRP 是量不是价）
     d1mo, iorb_latest = _last(dgs1mo_s), _last(iorb_s)
     funding_gap = None if d1mo is None or iorb_latest is None else d1mo - iorb_latest
-    vix_verify = "风险事件看 WTI 站上 90 或 VIX 升破 20，则风险偏好正式逆转。"
+    wti_trig = (
+        f"WTI 较现值再涨 10 美元（站上 {wti_latest + 10:.0f}）"
+        if wti_latest is not None and wti_latest >= 88
+        else "WTI 站上 90"
+    )
+    vix_trig = (
+        "VIX 升破 25（进入高波动区）"
+        if vix_latest is not None and vix_latest >= 20
+        else "VIX 升破 20"
+    )
+    vix_verify = f"风险事件看 {wti_trig} 或 {vix_trig}，则风险偏好进一步恶化。"
     if funding_gap is not None:
         vix_verify += (
-            f"1M 国债与 IORB 利差（现 {funding_gap * 100:+.0f}bp）走扩则融资压力开始显现。"
+            f"1M 国债与 IORB 利差（现 {funding_gap * 100:+.0f}bp）"
+            "继续走扩则短端融资溢价向风险资产传导。"
         )
     outlook_text = (
         f"{risk}。\n" + " · ".join(outlook) + f"。\n{vix_verify}"
@@ -267,36 +349,53 @@ def _narrative(liq: pd.DataFrame, rates: pd.DataFrame) -> dict:
         else "数据不足，展望待更新。"
     )
 
-    # 准备金：结论（充裕/偏紧）/ 依据（水平 + 4 周变化 + 各子项）/ 触发
+    # 准备金：结论（充裕/中性偏紧/偏紧）/ 依据（水平 + 4 周变化 + 各子项）/ 触发
     res_latest, res_4w = _last(res), _pct_chg(res, 28)
     sofr_iorb = _bp("SOFR", "IORB", rates)
+    sofr_tgcr = _bp("SOFR", "TGCR", rates)
+    effr_iorb = _bp("DFF", "IORB", rates)
     nfci_latest = _last(nfci)
     srf_latest = _last(srf_usage)
+    srf_30d, _ = _srf_window_counts(srf, 30)
     if sofr_iorb is not None:
-        res_head = "融资面充裕" if sofr_iorb < 0 else "融资面偏紧"
+        si_state = _sofr_iorb_state(sofr_iorb)
+        res_head = f"融资面{si_state}"
     elif nfci_latest is not None:
         res_head = "金融条件宽松" if nfci_latest < 0 else "金融条件收紧"
     else:
         res_head = "准备金数据不足"
     msg = []
     if res_latest is not None:
-        msg.append(f"准备金 {res_latest / 1e6:.2f} 万亿（4 周 {res_4w:+.1f}%）")
+        res_4w_txt = f"（4 周 {res_4w:+.1f}%）" if res_4w is not None else ""
+        msg.append(f"准备金 {res_latest / 1e6:.2f} 万亿{res_4w_txt}")
     if rrp_latest is not None:
         # 水平值不重复（RRP 卡片就在上方），只留判断
         msg.append("RRP 缓冲耗尽" if rrp_latest < 25 else "RRP 仍有余量")
     if nfci_latest is not None:
         msg.append(f"NFCI {nfci_latest:.2f}" + ("（宽松）" if nfci_latest < 0 else "（收紧）"))
     if sofr_iorb is not None:
-        msg.append(f"SOFR−IORB {sofr_iorb:+.1f}bp" + ("（充裕）" if sofr_iorb < 0 else "（偏紧）"))
+        msg.append(f"SOFR−IORB {sofr_iorb:+.1f}bp（{_sofr_iorb_state(sofr_iorb)}）")
+    if sofr_tgcr is not None:
+        msg.append(f"SOFR−TGCR {sofr_tgcr:+.1f}bp")
     if srf_latest is not None:
-        msg.append(f"SRF 使用 {srf_latest * 1000:.0f} 百万" if srf_latest > 0 else "SRF 未使用")
-    # 精度与依据行一致（旧文案同一数字两处不同精度：-0.55 vs -0.548）
-    res_verify = ""
-    if nfci_latest is not None:
-        res_verify = f"NFCI 由 {nfci_latest:.2f} 升穿 0（距阈值 {abs(nfci_latest):.2f}），"
-    if d1mo is not None and iorb_latest is not None:
-        res_verify += f"或 1M 国债升破 IORB+20bp（现 {d1mo:.2f}% vs {iorb_latest:.2f}%），"
-    res_verify += "则确认准备金进入稀缺状态。" if res_verify else ""
+        msg.append(
+            f"SRF 当日 {srf_latest * 1000:.0f} 百万（30日实质动用 {srf_30d} 天）"
+            if srf_latest >= SRF_SUBSTANTIAL_B or srf_30d > 0
+            else "SRF 无实质动用"
+        )
+    # 触发条件：1M T-Bill 已高于 IORB+20bp 时改看 SOFR−IORB > +3bp 与 EFFR−IORB 转正
+    res_trigs = []
+    if sofr_iorb is not None and sofr_iorb <= 3:
+        res_trigs.append(f"SOFR−IORB 突破 +3bp（现 {sofr_iorb:+.1f}bp）")
+    if effr_iorb is not None and effr_iorb < 0:
+        res_trigs.append(f"EFFR−IORB 由负转正（现 {effr_iorb:+.1f}bp）")
+    if nfci_latest is not None and nfci_latest < 0:
+        res_trigs.append(f"NFCI 升穿 0（现 {nfci_latest:.2f}）")
+    res_verify = (
+        ("、".join(res_trigs) + "，则确认准备金进入稀缺状态。")
+        if res_trigs
+        else "多项准备金稀缺指标已触发，密切跟踪 SRF 单日规模与 RMP 购买节奏。"
+    )
     res_text = (
         f"{res_head}。\n" + " · ".join(msg) + f"。\n{res_verify}" if msg else "准备金数据不足。"
     )
@@ -333,22 +432,26 @@ def lpi() -> dict:
 
     # ── 结构性缓冲（45%）：准备金4周变化 / 净流动性20日脉冲 / RRP 缓冲 ──
     res_4w = _pct_chg(res_s, 28)
-    # 分档：≥0 正常 / -1~0 略降 / -6~-1 缓冲变薄 / ≤-6% 显著收缩
-    # （-4.14% 落在“变薄”档 7，与参考页同口径；-6% 以下才计 9）
-    s_res = _score(res_4w, [(0, 3), (-1, 5), (-6, 7)])
-    nl_20d = _chg(nl_s, 20)  # 百万美元
-    s_nl = _score(nl_20d, [(0, 4), (-150e6, 6), (-300e6, 8), (-500e6, 9)])
+    # 分档（升序阈值）：≤-6% 显著收缩(9) / ≤-3%(7) / ≤-1%(5) / ≤0%(3) / >0% 扩张(2)
+    s_res = _score(res_4w, [(-6, 9), (-3, 7), (-1, 5), (0, 3), (999, 2)])
+    nl_20d_m = _chg(nl_s, 20)  # 原始序列为百万美元
+    nl_20d_b = (
+        round(nl_20d_m / 1000, 1) if nl_20d_m is not None else None
+    )  # 统一折算为十亿美元（B）
+    # 分档（十亿美元）：≤-500B(9) / ≤-300B(8) / ≤-150B(6) / <0(5) / ≤+50B(4) / >+50B(2)
+    s_nl = _score(nl_20d_b, [(-500, 9), (-300, 8), (-150, 6), (-0.001, 5), (50, 4), (99999, 2)])
     rrp_latest = _last(rrp_s)
-    s_rrp = _score(rrp_latest, [(500, 1), (200, 3), (100, 5), (20, 7), (0, 9)])
+    # RRP 缓冲（十亿美元，越低缓冲越薄）：≤20B 耗尽(9) / ≤100B(7) / ≤200B(5) / ≤500B(3) / >500B(1)
+    s_rrp = _score(rrp_latest, [(20, 9), (100, 7), (200, 5), (500, 3), (99999, 1)])
 
     # ── 融资市场确认（35%）：SOFR−IORB / SRF / SOFR99−IORB / 离岸 1M ──
     sofr_iorb = _bp("SOFR", "IORB", rates)
-    s_sofr = _score(sofr_iorb, [(10, 10), (3, 8), (0, 6), (-2, 4), (-10, 2)])
+    s_sofr = _score(sofr_iorb, [(10, 10), (3, 8), (0, 6), (-2, 4), (-10, 2), (-99, 1)])
     srf_usage = srf["SRF_USAGE"].dropna() if not srf.empty else pd.Series(dtype=float)
     srf_latest = _last(srf_usage)
-    s_srf = _score(srf_latest, [(10, 8), (1, 5), (0.05, 2)])
+    s_srf = _score(srf_latest, [(10, 8), (1, 5), (SRF_SUBSTANTIAL_B, 2), (0, 1)])
     sofr99_iorb = _bp("SOFR99", "IORB", rates)
-    s_tail = _score(sofr99_iorb, [(5, 8), (0, 5)])
+    s_tail = _score(sofr99_iorb, [(15, 10), (5, 8), (0, 5), (-10, 2), (-99, 1)])
     offshore = _offshore_score(cfets)
     s_off = _weighted([(offshore, 1.0)])
     s_fund = _weighted([(s_sofr, 0.4), (s_srf, 0.2), (s_tail, 0.25), (s_off, 0.15)])
@@ -356,22 +459,24 @@ def lpi() -> dict:
     # ── 风险资产传导（20%）：VIX / MOVE / HY 利差 / NFCI ──
     vix_s = vix["VIX"].dropna() if not vix.empty and "VIX" in vix else pd.Series(dtype=float)
     vix_latest = _last(vix_s)
-    s_vix = _score(vix_latest, [(35, 9), (25, 7), (18, 5), (14, 3)])
+    s_vix = _score(vix_latest, [(35, 9), (25, 7), (18, 5), (14, 3), (0, 1)])
     move_s = (
         asset["MOVE"].dropna() if not asset.empty and "MOVE" in asset else pd.Series(dtype=float)
     )
     move_latest = _last(move_s)
-    s_move = _score(move_latest, [(140, 8), (110, 6), (80, 4)])
+    s_move = _score(move_latest, [(140, 8), (110, 6), (80, 4), (0, 2)])
     bb_oas = credit.get("BB_OAS") if not credit.empty else None
-    bb_s = (
+    bb_s_pct = (
         pd.to_numeric(bb_oas, errors="coerce").dropna()
         if bb_oas is not None
         else pd.Series(dtype=float)
     )
-    bb_latest = _last(bb_s)
-    s_credit = _score(bb_latest, [(500, 8), (300, 6), (150, 4)])
+    # FRED BAMLC0A4CBBB / BAMLH0A1HYBB 原始单位为百分点（2.10 = 2.10% = 210bp），统一乘 100 转为 bp
+    bb_s_bp = bb_s_pct * 100
+    bb_latest_bp = round(float(bb_s_bp.iloc[-1]), 0) if not bb_s_bp.empty else None
+    s_credit = _score(bb_latest_bp, [(500, 8), (300, 6), (200, 4), (0, 2)])
     nfci_latest = _last(nfci_s)
-    s_nfci = _score(nfci_latest, [(0.7, 9), (0.3, 7), (0, 5), (-0.3, 3)])
+    s_nfci = _score(nfci_latest, [(0.7, 9), (0.3, 7), (0, 5), (-0.3, 3), (-99, 1)])
     s_risk = _weighted([(s_vix, 0.3), (s_move, 0.2), (s_credit, 0.3), (s_nfci, 0.2)])
 
     s_struc = (
@@ -385,7 +490,9 @@ def lpi() -> dict:
         else None
     )
 
-    conf = _confirmations(sofr_iorb, srf_latest, bb_s, nfci_latest, vix_latest, rrp_latest, rates)
+    conf = _confirmations(
+        sofr_iorb, srf_latest, bb_s_bp, nfci_latest, vix_latest, rrp_latest, rates
+    )
     offshore_info = _offshore_detail(cfets)
 
     return {
@@ -399,29 +506,29 @@ def lpi() -> dict:
                 "score": s_struc,
                 "weight": 0.45,
                 "parts": [
-                    {"name": "准备金4周变化", "value": res_4w, "score": s_res},
-                    {"name": "净流动性20日脉冲", "value": nl_20d, "score": s_nl},
-                    {"name": "RRP缓冲", "value": rrp_latest, "score": s_rrp},
+                    {"name": "准备金4周变化", "value": res_4w, "unit": "%", "score": s_res},
+                    {"name": "净流动性20日脉冲", "value": nl_20d_b, "unit": "B", "score": s_nl},
+                    {"name": "RRP缓冲", "value": rrp_latest, "unit": "B", "score": s_rrp},
                 ],
             },
             "funding": {
                 "score": s_fund,
                 "weight": 0.35,
                 "parts": [
-                    {"name": "SOFR−IORB", "value": sofr_iorb, "score": s_sofr},
-                    {"name": "SRF使用", "value": srf_latest, "score": s_srf},
-                    {"name": "SOFR99−IORB", "value": sofr99_iorb, "score": s_tail},
-                    {"name": "离岸1M basis", "value": offshore, "score": s_off},
+                    {"name": "SOFR−IORB", "value": sofr_iorb, "unit": "bp", "score": s_sofr},
+                    {"name": "SRF使用", "value": srf_latest, "unit": "B", "score": s_srf},
+                    {"name": "SOFR99−IORB", "value": sofr99_iorb, "unit": "bp", "score": s_tail},
+                    {"name": "离岸美元压力", "value": offshore, "unit": "分", "score": s_off},
                 ],
             },
             "transmission": {
                 "score": s_risk,
                 "weight": 0.20,
                 "parts": [
-                    {"name": "VIX", "value": vix_latest, "score": s_vix},
-                    {"name": "MOVE", "value": move_latest, "score": s_move},
-                    {"name": "HY OAS(BB)", "value": bb_latest, "score": s_credit},
-                    {"name": "NFCI", "value": nfci_latest, "score": s_nfci},
+                    {"name": "VIX", "value": vix_latest, "unit": "", "score": s_vix},
+                    {"name": "MOVE", "value": move_latest, "unit": "", "score": s_move},
+                    {"name": "HY OAS(BB)", "value": bb_latest_bp, "unit": "bp", "score": s_credit},
+                    {"name": "NFCI", "value": nfci_latest, "unit": "", "score": s_nfci},
                 ],
             },
         },
@@ -459,12 +566,12 @@ def save_lpi_snapshot() -> Path | None:
         "FUNDING": d["layers"]["funding"]["score"],
         "TRANSMISSION": d["layers"]["transmission"]["score"],
         "RESERVES_4W_PCT": parts.get("准备金4周变化", {}).get("value"),
-        "NL_20D_B": (parts.get("净流动性20日脉冲", {}).get("value") or 0) / 1000,
+        "NL_20D_B": parts.get("净流动性20日脉冲", {}).get("value"),
         "RRP_B": parts.get("RRP缓冲", {}).get("value"),
         "SOFR_IORB_BP": parts.get("SOFR−IORB", {}).get("value"),
         "SRF_B": parts.get("SRF使用", {}).get("value"),
         "SOFR99_IORB_BP": parts.get("SOFR99−IORB", {}).get("value"),
-        "OFFSHORE_SCORE": parts.get("离岸1M basis", {}).get("score"),
+        "OFFSHORE_SCORE": parts.get("离岸美元压力", {}).get("score"),
         "VIX": parts.get("VIX", {}).get("value"),
         "MOVE": parts.get("MOVE", {}).get("value"),
         "BB_OAS_BP": parts.get("HY OAS(BB)", {}).get("value"),
@@ -479,7 +586,7 @@ def save_lpi_snapshot() -> Path | None:
 
 
 def lpi_percentile_30d(score: float | None) -> float | None:
-    """当前 LPI 在近 30 个快照中的分位（0-100）。历史不足 10 条返回 None。
+    """当前 LPI 在近 30 个快照中的分位（0-100，中位秩口径）。历史不足 10 条返回 None。
 
     只读历史，不重算 lpi()（历史曾因内部重算造成互递归嵌套，审计后修复）。
     """
@@ -489,7 +596,9 @@ def lpi_percentile_30d(score: float | None) -> float | None:
     s = pd.to_numeric(hist.get("SCORE"), errors="coerce").dropna().tail(30)
     if len(s) < 10 or score is None:
         return None
-    return round((s <= score).mean() * 100)
+    less = (s < score).sum()
+    eq = (s == score).sum()
+    return round((less + 0.5 * eq) / len(s) * 100)
 
 
 def _lpi_history(n: int = 30) -> list[dict]:
@@ -516,7 +625,7 @@ def _band(score: float | None) -> tuple[str, str]:
 def _confirmations(
     sofr_iorb: float | None,
     srf_latest: float | None,
-    bb_s: pd.Series,
+    bb_s_bp: pd.Series,
     nfci_latest: float | None,
     vix_latest: float | None,
     rrp_latest: float | None,
@@ -532,24 +641,24 @@ def _confirmations(
         if rates.get("IORB") is not None
         else pd.Series(dtype=float)
     )
-    bb_1m = _chg(bb_s, 30) if not bb_s.empty else None
+    bb_1m_bp = _chg(bb_s_bp, 30) if not bb_s_bp.empty else None
     return [
         {
-            "title": "SOFR−IORB 连续转正",
-            "met": (sofr_iorb or 0) > 0,
+            "title": "SOFR−IORB 突破 +3bp 偏紧线",
+            "met": (sofr_iorb or 0) > 3,
             "detail": f"当前 {sofr_iorb:+.1f}bp" if sofr_iorb is not None else "数据缺失",
         },
         {
-            "title": "SRF 出现数十亿美元级使用",
+            "title": "SRF 当日出现十亿美元级使用（≥$1B）",
             "met": (srf_latest or 0) >= 1,
-            "detail": f"当前 {srf_latest * 1000:.0f} 百万"
+            "detail": f"当日 {srf_latest * 1000:.0f} 百万"
             if srf_latest is not None
             else "数据缺失",
         },
         {
-            "title": "HY 利差明显走阔",
-            "met": (bb_1m or 0) > 25,
-            "detail": f"BB OAS 30日变化 {bb_1m:+.0f}bp" if bb_1m is not None else "数据缺失",
+            "title": "HY 利差明显走阔（30日 > +25bp）",
+            "met": (bb_1m_bp or 0) > 25,
+            "detail": f"BB OAS 30日变化 {bb_1m_bp:+.0f}bp" if bb_1m_bp is not None else "数据缺失",
         },
         {
             "title": "NFCI 转正",
@@ -567,8 +676,11 @@ def _confirmations(
             and not dgs1mo.empty
             and not iorb.empty
             and float(dgs1mo.iloc[-1]) > float(iorb.iloc[-1]) + 0.20,
-            "detail": f"RRP {rrp_latest:.2f}B, 1M T-Bill {_last(dgs1mo):.2f}% "
-            f"/ IORB {_last(iorb):.2f}%",
+            "detail": (
+                f"RRP {rrp_latest:.2f}B, 1M T-Bill {_last(dgs1mo):.2f}% / IORB {_last(iorb):.2f}%"
+                if rrp_latest is not None and not dgs1mo.empty and not iorb.empty
+                else "数据缺失"
+            ),
         },
     ]
 
@@ -581,17 +693,30 @@ _PAIR_DISPLAY = {
     "GBPUSD": "GBP/USD",
     "USDCHF": "USD/CHF",
 }
+# 掉期点方向归一化系数：
+# - USD/JPY、USD/CNH、USD/CHF 以 USD 为基准货币，F−S < 0 表示美元利率高于外币；
+# - EUR/USD、GBP/USD 以 USD 为计价货币，F−S > 0 表示美元利率高于欧元/英镑。
+# 统一乘以符号后，各货币对按各自 pip 量纲定制阈值（CNH 常态 -150，JPY -38，EUR +14）。
+_PAIR_STRESS_BANDS: dict[str, tuple[float, list[tuple[float, int]]]] = {
+    "USDJPY": (1.0, [(-60, 9), (-45, 7), (-30, 5), (0, 3)]),
+    "USDCNH": (1.0, [(-220, 9), (-160, 7), (-100, 5), (0, 3)]),
+    "USDCHF": (1.0, [(-45, 9), (-32, 7), (-20, 5), (0, 3)]),
+    "EURUSD": (-1.0, [(-25, 9), (-16, 7), (-8, 5), (0, 3)]),
+    "GBPUSD": (-1.0, [(-15, 9), (-8, 7), (-2, 5), (0, 3)]),
+}
 
 
 def _offshore_score(cfets: pd.DataFrame) -> float | None:
-    """各货币对 1M 掉期点平均压力分：越负 → 美元利率溢价越高（偏紧）。"""
+    """各货币对 1M 掉期点平均压力分（按报价方向与各自 pip 量纲分档）。"""
     scores: list[float] = []
-    for pair in _PAIR_DISPLAY:
+    for pair, (sign, bands) in _PAIR_STRESS_BANDS.items():
         col = f"{pair}_1M"
-        if col not in cfets:
+        if col not in cfets or cfets[col].dropna().empty:
             continue
-        v = float(cfets[col].dropna().iloc[-1])
-        scores.append(_score(v, [(0, 3), (-30, 5), (-80, 7), (-150, 9)]))
+        v = float(cfets[col].dropna().iloc[-1]) * sign
+        s = _score(v, bands)
+        if s is not None:
+            scores.append(s)
     return round(sum(scores) / len(scores), 1) if scores else None
 
 
@@ -622,8 +747,15 @@ def _evidence(liq, rates, credit, vix, asset, srf) -> dict:
             if rates.get("SOFR") is not None
             else None,
             "sofr_iorb_bp": _bp("SOFR", "IORB", rates),
-            "rrp_b": _fmt_b(_last(liq["RRPONTSYD"])),
+            "sofr_iorb_state": _sofr_iorb_state(_bp("SOFR", "IORB", rates)),
+            "sofr_tgcr_bp": _bp("SOFR", "TGCR", rates),
+            "effr_iorb_bp": _bp("DFF", "IORB", rates),
+            # RRPONTSYD 原始单位已是十亿美元（B），不可调 _fmt_b（会再除 1000 变万亿）
+            "rrp_b": f"{_last(liq['RRPONTSYD']):,.2f}"
+            if "RRPONTSYD" in liq and _last(liq["RRPONTSYD"]) is not None
+            else None,
             "srf_m": _last(srf["SRF_USAGE"]) * 1000 if not srf.empty else None,
+            "srf_active_30d": _srf_window_counts(srf, 30)[0],
         },
         "energy": {
             "wti": _last(asset["WTI"]) if not asset.empty and "WTI" in asset.columns else None,
@@ -635,11 +767,19 @@ def _evidence(liq, rates, credit, vix, asset, srf) -> dict:
         "intermediary": {
             "vix": _last(vix["VIX"]) if not vix.empty else None,
             "move": _last(asset["MOVE"]) if not asset.empty else None,
-            "bb_oas": _last(pd.to_numeric(credit.get("BB_OAS"), errors="coerce"))
-            if not credit.empty
+            # BB_OAS / BBB_OAS 原始单位为 %（2.10 = 2.10% = 210bp），统一乘 100 输出 bp
+            "bb_oas": round(
+                float(pd.to_numeric(credit.get("BB_OAS"), errors="coerce").dropna().iloc[-1]) * 100,
+                0,
+            )
+            if not credit.empty and credit.get("BB_OAS") is not None
             else None,
-            "ig_oas": _last(pd.to_numeric(credit.get("BBB_OAS"), errors="coerce"))
-            if not credit.empty
+            "ig_oas": round(
+                float(pd.to_numeric(credit.get("BBB_OAS"), errors="coerce").dropna().iloc[-1])
+                * 100,
+                0,
+            )
+            if not credit.empty and credit.get("BBB_OAS") is not None
             else None,
             "nfci": _last(liq["NFCI"]),
         },
@@ -675,10 +815,20 @@ def _soma_week_net_b() -> float | None:
     return round(float(wk.mean()) / 1000, 1)
 
 
+def _settle_bus_day(d: pd.Timestamp) -> pd.Timestamp:
+    """国债到期/结算日遇周末顺延至下一交易日（周六+2d，周日+1d）。"""
+    if d.weekday() == 5:
+        return d + pd.Timedelta(days=2)
+    if d.weekday() == 6:
+        return d + pd.Timedelta(days=1)
+    return d
+
+
 def forward_calendar(days: int = 14) -> dict:
     """未来 days 天 TGA 净冲击估算：
-    - 拍卖结算（确知）：upcoming_auctions 按 issue_date 归集 offering_amt（抽水 −）
-    - SOMA 购买（估算）：TREAST 4 周周均变化，落在周四（结算日惯例，注入 +）
+    - 拍卖结算：upcoming_auctions 按 issue_date 归集 offering_amt（已排期但尚未公布金额的
+      场次按同品种/同期限最近一期拍卖规模补齐估算，抽水 −），抵消同结算日到期本金回笼（+）
+    - SOMA 净变动（估算）：WALCL 最近 4 周周三观测周均，落在周四（结算日惯例）
     返回 {days: [...], net_7d_b, net_14d_b, source_note}（net_7/14 = 未来窗口估算）。
     """
     up = pd.read_csv(ROOT / "data" / "treasury/upcoming_auctions.csv", parse_dates=["issue_date"])
@@ -689,27 +839,60 @@ def forward_calendar(days: int = 14) -> dict:
     today = pd.Timestamp(date.today())
     window = [today + pd.Timedelta(days=i) for i in range(1, days + 1)]
 
-    # 净发行 = 当日新发结算（issue_date） − 当日到期（maturity_date，
-    # 过去已发行证券的本金回笼）
-    # 国库券每周四同日滚续，直接加总发行额会虚高（同窗口 08-27 新发 266B）；
-    # 匹配当日到期后才是资金净流入/流出财政的真实幅度（参考口径）。
+    # 最近一期同品种/同期限拍卖规模（供已列入 upcoming_auctions 但 offering_amt=NaN 的场次估算）
+    latest_amt: dict[tuple[str, str], float] = {}
+    if not auc.empty and {"security_type", "security_term", "offering_amt"}.issubset(auc.columns):
+        valid_auc = auc.dropna(subset=["offering_amt"]).copy()
+        for _, r in valid_auc.iterrows():
+            st = str(r.get("security_type", ""))
+            if r.get("inflation_index_security") == "Yes":
+                st = f"TIPS {st}"
+            elif r.get("floating_rate") == "Yes":
+                st = f"FRN {st}"
+            term = str(r.get("security_term", ""))
+            amt_v = pd.to_numeric(r.get("offering_amt"), errors="coerce")
+            if pd.notna(amt_v) and amt_v > 0:
+                latest_amt[(st, term)] = float(amt_v)
+
+    # 净发行 = 当日新发结算（issue_date） − 当日到期（maturity_date，周末到期顺延周一）
+    # 国库券每周二/四同日滚续，匹配当日到期后才是资金净流入/流出财政的真实幅度。
     settle: dict[pd.Timestamp, float] = {}
+    settle_has_est: set[pd.Timestamp] = set()
+    seen_2y_fixed: set[pd.Timestamp] = set()
     if not up.empty and "issue_date" in up.columns:
         mask = (up["issue_date"] >= window[0]) & (up["issue_date"] <= window[-1])
         for _, row in up[mask].iterrows():
-            d = pd.Timestamp(row["issue_date"])
-            amt = float(row.get("offering_amt") or 0) / 1e9
+            d = _settle_bus_day(pd.Timestamp(row["issue_date"]))
+            st, term = str(row.get("security_type", "")), str(row.get("security_term", ""))
+            raw_amt = pd.to_numeric(row.get("offering_amt"), errors="coerce")
+            is_est = False
+            if pd.isna(raw_amt) or raw_amt <= 0:
+                # 同一结算日出现两只 2-Year Note 时，第二只为 FRN 2-Year Note
+                if st == "Note" and term == "2-Year" and d in seen_2y_fixed:
+                    raw_amt = latest_amt.get(("FRN Note", "2-Year"), 0.0)
+                else:
+                    raw_amt = latest_amt.get((st, term), 0.0)
+                    if st == "Note" and term == "2-Year":
+                        seen_2y_fixed.add(d)
+                is_est = True
+            else:
+                if st == "Note" and term == "2-Year":
+                    seen_2y_fixed.add(d)
+            amt = float(raw_amt or 0.0) / 1e9
             if amt > 0:
                 settle[d] = settle.get(d, 0.0) - amt  # 十亿美元，抽水为负
+                if is_est:
+                    settle_has_est.add(d)
     if not auc.empty and "maturity_date" in auc.columns:
-        mat = (
-            auc.dropna(subset=["maturity_date"])
-            .groupby("maturity_date")["offering_amt"]
-            .apply(lambda s: float(pd.to_numeric(s, errors="coerce").sum() or 0) / 1e9)
-        )
-        for d, amt in mat.items():
-            d = pd.Timestamp(d)
-            if window[0] <= d <= window[-1] and d in settle:
+        mat_by_day: dict[pd.Timestamp, float] = {}
+        for _, r in auc.dropna(subset=["maturity_date"]).iterrows():
+            md = _settle_bus_day(pd.Timestamp(r["maturity_date"]))
+            if window[0] <= md <= window[-1]:
+                amt_v = pd.to_numeric(r.get("offering_amt"), errors="coerce")
+                if pd.notna(amt_v) and amt_v > 0:
+                    mat_by_day[md] = mat_by_day.get(md, 0.0) + float(amt_v) / 1e9
+        for d, amt in mat_by_day.items():
+            if d in settle:
                 settle[d] += amt  # 到期回笼（注入）抵消同日新发
 
     rmp_week = _soma_week_net_b()
@@ -717,17 +900,19 @@ def forward_calendar(days: int = 14) -> dict:
     for d in window:
         flows: list[dict] = []
         net = 0.0
-        if d in settle and settle[d] != 0:
+        if d in settle and round(settle[d], 1) != 0:
+            lbl = "拍卖净结算(含未公布期估算)" if d in settle_has_est else "拍卖结算"
             flows.append(
                 {
                     "type": "auction_settlement",
-                    "label": "拍卖结算",
-                    "amount_b": settle[d],
+                    "label": lbl,
+                    "amount_b": round(settle[d], 1),
                 }
             )
             net += settle[d]
         if d.weekday() == 3 and rmp_week is not None and rmp_week != 0:  # 周四 = SOMA 周结算日
-            flows.append({"type": "soma_net", "label": "SOMA 净到期(估算)", "amount_b": rmp_week})
+            soma_lbl = "SOMA 净变动(估算)" if rmp_week > 0 else "SOMA 净到期(估算)"
+            flows.append({"type": "soma_net", "label": soma_lbl, "amount_b": rmp_week})
             net += rmp_week
         bucket = (
             "injection"
@@ -759,8 +944,10 @@ def forward_calendar(days: int = 14) -> dict:
         "days": rows,
         "net_7d_b": net_7,
         "net_14d_b": net_14,
-        "source_note": "抽水 = 新债结算（财政部吸收现金）；SOMA 净到期 = WALCL"
-        "最近 4 周周三观测周均（MBS 自然到期 − RMP 购买净值，周四结算惯例，估算）。",
+        "source_note": "净冲击 = 当日到期回笼 − 新发抽水（已入日历但未公布金额的场次"
+        "按同期限近一期规模估算，周末到期顺延至周一）；"
+        "SOMA 净变动 = WALCL 最近 4 周周三观测周均（周四结算惯例，估算）。"
+        "尚未列入 Treasury 未来拍卖日历的远期周度账单按净滚续为 0 处理。",
     }
 
 
@@ -796,10 +983,11 @@ def _spread_series(
 
 
 def page_fed_balance_sheet() -> dict:
-    """子页：资产负债表 — 卡片 + 近 20 日对照表
+    """子页：资产负债表 — 卡片 + 近 20 期 H.4.1 周三对照表 + 近 2 年周三序列
     （Fed 总数/净流动性/SPX/NDX/国债/MBS）。"""
-    # 金额为十亿美元（B）；SPX/NDX 取同日收盘
+    # 金额为十亿美元（B）；SPX/NDX 取同日（或最近交易日）收盘
     liq = _liq_daily()
+    raw_liq = _csv(ROOT / "data" / "fred/liquidity/liquidity.csv")
     asset = _csv(ROOT / "data" / "yfinance/asset_prices.csv")
     if liq.empty:
         return {}
@@ -815,19 +1003,37 @@ def page_fed_balance_sheet() -> dict:
             cards[key] = {
                 "label": label,
                 "value_b": round(float(s.dropna().iloc[-1]) / 1000, 3),
+                "chg_4w_pct": _pct_chg(s, 28),
             }
-    rows = []
-    spx = asset["SPX"].dropna() if not asset.empty and "SPX" in asset else pd.Series(dtype=float)
-    ndx = asset["NDX"].dropna() if not asset.empty and "NDX" in asset else pd.Series(dtype=float)
-    for dt in spx.index[-20:]:
-        r = {"date": dt.date().isoformat()}
+    spx = (
+        asset["SPX"].dropna().ffill()
+        if not asset.empty and "SPX" in asset
+        else pd.Series(dtype=float)
+    )
+    ndx = (
+        asset["NDX"].dropna().ffill()
+        if not asset.empty and "NDX" in asset
+        else pd.Series(dtype=float)
+    )
+    # 只取真实 H.4.1 周三发布日（消除旧表 20 行里 16 行是 null 空行的缺陷）
+    h41_dates = (
+        raw_liq["WALCL"].dropna().index if not raw_liq.empty and "WALCL" in raw_liq else liq.index
+    )
+
+    def _row_at(dt: pd.Timestamp) -> dict:
+        r: dict = {"date": dt.date().isoformat()}
         for col in ("NET_LIQUIDITY", "WALCL", "TREAST", "WSHOMCB"):
             if col in liq.columns:
                 v = liq[col].get(dt)
                 r[col] = round(float(v) / 1000, 3) if pd.notna(v) else None
-        r["SPX"] = float(spx.get(dt)) if pd.notna(spx.get(dt)) else None
-        r["NDX"] = float(ndx.get(dt)) if pd.notna(ndx.get(dt)) else None
-        rows.append(r)
+        spx_v = spx.asof(dt) if not spx.empty else None
+        ndx_v = ndx.asof(dt) if not ndx.empty else None
+        r["SPX"] = float(spx_v) if pd.notna(spx_v) else None
+        r["NDX"] = float(ndx_v) if pd.notna(ndx_v) else None
+        return r
+
+    rows = [_row_at(dt) for dt in h41_dates[-20:]]
+    series = [_row_at(dt) for dt in h41_dates[-104:]]
     # 研判：QT 缩表节奏与净流动性去向（hub 三段讲净流动性方向，这里讲资产端怎么缩）
     walcl = liq["WALCL"].dropna() if "WALCL" in liq else pd.Series(dtype=float)
     treast = liq["TREAST"].dropna() if "TREAST" in liq else pd.Series(dtype=float)
@@ -857,8 +1063,9 @@ def page_fed_balance_sheet() -> dict:
     return {
         "cards": cards,
         "rows": rows,
+        "series": series,
         "judgement": judgement,
-        "note": "Fed 账目为周度（H.4.1），非发布日为空；SPX/NDX 取该日收盘。",
+        "note": "仅列 H.4.1 周三发布日（消除非发布日空行）；SPX/NDX 取同日收盘。",
     }
 
 
@@ -927,9 +1134,12 @@ def page_operations() -> dict:
             }
     out["soma"] = soma
     if not srf.empty:
-        s = srf["SRF_USAGE"].dropna().tail(90)
+        act90, raw90 = _srf_window_counts(srf, 90)
+        s = srf["SRF_USAGE"].dropna()
         out["srf"] = {
-            "active_days_90": int(s.gt(0).sum()),
+            "active_days_90": act90,
+            "raw_days_90": raw90,
+            "threshold_m": int(SRF_SUBSTANTIAL_B * 1000),
             "latest_m": round(float(s.iloc[-1]) * 1000, 0),
         }
     # 研判：RMP 执行评估（页面只展示进度数字，不判断「是否达标 / 市场紧不紧」）
@@ -946,9 +1156,9 @@ def page_operations() -> dict:
             pace_txt = f"月均 {r['monthly_b']:.1f}B，明显落后于 {r['target_b']:.0f}B 目标"
         srf_d = out["srf"].get("active_days_90", 0)
         srf_txt = (
-            "SRF 零使用，准备金管理操作属于预防性投放而非救急"
+            "SRF 无实质动用（≥$50M），准备金管理操作属于预防性投放而非救急"
             if srf_d == 0
-            else f"SRF 90 天激活 {srf_d} 天，回购市场存在间歇性紧张"
+            else f"SRF 90 天实质动用（≥$50M）{srf_d} 天，回购市场在结算/季末日存在阶段性摩擦"
         )
         out["judgement"] = {
             "title": "操作研判",
@@ -967,6 +1177,7 @@ def page_operations() -> dict:
 def page_rrp_tga() -> dict:
     """子页：RRP & TGA — 压力预警 / 未来 14 天热力 / 当前余额 / 日度现金流。"""
     liq = _liq_daily()
+    raw_liq = _csv(ROOT / "data" / "fred/liquidity/liquidity.csv")
     rates = _csv(ROOT / "data" / "fred/rates/rates.csv")
     dts = _csv(ROOT / "data" / "treasury/dts_cashflows.csv")
     dts_tga = _csv(ROOT / "data" / "treasury/dts_operating_cash.csv")
@@ -991,25 +1202,29 @@ def page_rrp_tga() -> dict:
     )
     out["alert"] = {
         "sofr_iorb_bp": sofr_iorb,
-        "state": "充裕" if (sofr_iorb or 0) < 0 else "收紧启动" if (sofr_iorb or 0) < 3 else "偏紧",
+        "state": _sofr_iorb_state(sofr_iorb),
         "sofr": sofr,
         "iorb": iorb,
         "ffr_upper": dff,
     }
     # 给 21 天（展示口径 14 天）：静态站构建期固化，前端按打开时间重切 14 天
     out["calendar"] = forward_calendar(21)
-    out["data_date"] = _data_date(dts_tga) if not dts_tga.empty else None
+    out["data_date"] = _data_date(dts_tga) if not dts_tga.empty else _data_date(liq)
     srf = _csv(ROOT / "data" / "fred/liquidity/srf.csv")
-    # TGA 优先 DTS 日度余额（更实时）；净流动性口径用 WTREGEN（与定义一致）
+    # TGA 优先 DTS 日度余额（更实时），同时附带 H.4.1 周度值供与首页净流动性口径对照
     tga_latest = None
+    tga_wtregen_b = (
+        round(float(raw_liq["WTREGEN"].dropna().iloc[-1]) / 1000, 1)
+        if not raw_liq.empty and "WTREGEN" in raw_liq and not raw_liq["WTREGEN"].dropna().empty
+        else None
+    )
     if not dts_tga.empty and not dts_tga["TGA_CLOSE"].dropna().empty:
         s = dts_tga["TGA_CLOSE"].dropna()
         tga_latest = round(float(s.iloc[-1]) / 1000, 1)
         tga_date = s.index[-1].date().isoformat()
-    elif "WTREGEN" in liq.columns and not liq["WTREGEN"].dropna().empty:
-        s = liq["WTREGEN"].dropna()
-        tga_latest = round(float(s.iloc[-1]) / 1000, 1)
-        tga_date = s.index[-1].date().isoformat()
+    elif tga_wtregen_b is not None:
+        tga_latest = tga_wtregen_b
+        tga_date = raw_liq["WTREGEN"].dropna().index[-1].date().isoformat()
     else:
         tga_date = None
     out["current"] = {
@@ -1017,6 +1232,7 @@ def page_rrp_tga() -> dict:
         if "RRPONTSYD" in liq and not liq["RRPONTSYD"].dropna().empty
         else None,
         "tga_b": tga_latest,
+        "tga_wtregen_b": tga_wtregen_b,
         "tga_date": tga_date,
         "net_liq_b": round(float(liq["NET_LIQUIDITY"].dropna().iloc[-1]) / 1000, 1)
         if "NET_LIQUIDITY" in liq and not liq["NET_LIQUIDITY"].dropna().empty
@@ -1024,6 +1240,7 @@ def page_rrp_tga() -> dict:
         "srf_m": round(float(srf["SRF_USAGE"].dropna().iloc[-1]) * 1000, 0)
         if not srf.empty and not srf["SRF_USAGE"].dropna().empty
         else None,
+        "srf_active_30d": _srf_window_counts(srf, 30)[0],
     }
     if not dts.empty:
         tail = dts.tail(60)
@@ -1036,12 +1253,17 @@ def page_rrp_tga() -> dict:
             }
             for d, r in tail.iterrows()
         ]
-    # 60 日序列（SOFR−IORB 走势 + TGA 日度余额）
+    # 60 日序列（SOFR−IORB 走势 + TGA 日度余额：优先 DTS 日度 TGA_CLOSE，消除周频 ffill 阶梯）
     series = {}
     s_i = _spread_series(rates, "SOFR", "IORB")
     if s_i:
         series["sofr_iorb_bp"] = s_i
-    if "WTREGEN" in liq.columns and not liq["WTREGEN"].dropna().empty:
+    if not dts_tga.empty and "TGA_CLOSE" in dts_tga and not dts_tga["TGA_CLOSE"].dropna().empty:
+        t = dts_tga["TGA_CLOSE"].dropna().tail(60)
+        series["tga_b"] = [
+            {"date": d.date().isoformat(), "value": round(float(v) / 1000, 1)} for d, v in t.items()
+        ]
+    elif "WTREGEN" in liq.columns and not liq["WTREGEN"].dropna().empty:
         t = liq["WTREGEN"].dropna().tail(60)
         series["tga_b"] = [
             {"date": d.date().isoformat(), "value": round(float(v) / 1000, 1)} for d, v in t.items()
@@ -1074,7 +1296,7 @@ def page_rrp_tga() -> dict:
                 verdict = "缓冲层足够厚，除非发债节奏显著上量，窗口内压力可控"
             out["judgement"] = {
                 "title": "前瞻研判",
-                "text": f"{state_txt}。\n未来 14 天净抽水 {-net14:,.0f}B vs RRP 缓冲 {rrp_b:,.0f}B"
+                "text": f"{state_txt}。\n未来 14 天净抽水 {-net14:,.0f}B vs RRP 缓冲 {rrp_b:,.1f}B"
                 + (f"（覆盖 {cover:.1f} 倍）" if cover is not None else "")
                 + f"。\n{verdict}。",
             }
@@ -1082,93 +1304,140 @@ def page_rrp_tga() -> dict:
 
 
 def page_reserves() -> dict:
-    """子页：准备金 — 卡片 + 银行中介意愿（SOFR−3M T-Bill / SOFR−IORB 60 日）。"""
+    """子页：准备金 — 卡片 + 银行中介意愿（SOFR−3M T-Bill / SOFR−IORB / SOFR−TGCR / EFFR−IORB）。"""
     liq = _liq_daily()
     rates = _csv(ROOT / "data" / "fred/rates/rates.csv")
     out: dict = {"cards": {}, "spreads": {}, "rows": []}
     if liq.empty:
         return out
     res = liq["WRESBAL"].dropna() if "WRESBAL" in liq else pd.Series(dtype=float)
-    if not res.empty:
-        out["cards"] = {
-            "reserves": {
-                "value_b": round(float(res.iloc[-1]) / 1000, 2),
-                "date": res.index[-1].date().isoformat(),
-                "chg_4w_pct": _pct_chg(res, 28),
-            },
-            "intermediation": {
-                "state": "正常"
-                if (sofr := _bp("SOFR", "DGS3MO", rates)) is not None and sofr < 15
-                else "偏紧",
-                "note": "SOFR−3M T-Bill 走扩表明担保融资相对无风险资产变贵",
-            },
-        }
     s1 = _bp("SOFR", "DGS3MO", rates)
     s2 = _bp("SOFR", "IORB", rates)
-    out["spreads"] = {"sofr_tbill3m_bp": s1, "sofr_iorb_bp": s2}
-    # 60 日序列（双确认走势图）
+    s_tgcr = _bp("SOFR", "TGCR", rates)
+    s_effr = _bp("DFF", "IORB", rates)
+    raw_liq = _csv(ROOT / "data" / "fred/liquidity/liquidity.csv")
+    raw_res = raw_liq["WRESBAL"].dropna() if not raw_liq.empty and "WRESBAL" in raw_liq else res
+    if not res.empty:
+        # 区分「交易商资产负债表摩擦（SOFR−TGCR ≥ 3bp）」与「银行准备金稀缺（EFFR−IORB ≥ 0bp）」
+        dealer_friction = s_tgcr is not None and s_tgcr >= 3
+        bank_scarce = s_effr is not None and s_effr >= 0
+        if bank_scarce and dealer_friction:
+            friction_state = "双重收紧（准备金+交易商）"
+        elif bank_scarce:
+            friction_state = "银行准备金偏紧"
+        elif dealer_friction:
+            friction_state = "交易商资产负债表摩擦"
+        else:
+            friction_state = "双层畅通"
+        out["cards"] = {
+            "reserves": {
+                "value_b": round(float(raw_res.iloc[-1]) / 1000, 2),
+                "date": raw_res.index[-1].date().isoformat(),
+                "chg_4w_pct": _pct_chg(raw_res, 28),
+            },
+            "intermediation": {
+                "state": "正常" if s1 is not None and s1 < 15 else "偏紧",
+                "note": "SOFR−3M T-Bill 走扩表明担保融资相对无风险资产变贵",
+            },
+            "dealer_friction": {
+                "sofr_tgcr_bp": s_tgcr,
+                "effr_iorb_bp": s_effr,
+                "state": friction_state,
+                "note": "SOFR−TGCR 看美债供给挤占交易商，EFFR−IORB 看银行准备金真实水位",
+            },
+        }
+    out["spreads"] = {
+        "sofr_tbill3m_bp": s1,
+        "sofr_iorb_bp": s2,
+        "sofr_tgcr_bp": s_tgcr,
+        "effr_iorb_bp": s_effr,
+    }
+    # 60 日序列（四条核心利差走势图）
     series = {}
     for name, a, b in [
         ("sofr_tbill3m", "SOFR", "DGS3MO"),
         ("sofr_iorb", "SOFR", "IORB"),
+        ("sofr_tgcr", "SOFR", "TGCR"),
+        ("effr_iorb", "DFF", "IORB"),
     ]:
         series[name + "_bp"] = _spread_series(rates, a, b)
     out["series"] = series
-    out["rows"] = (
-        [
-            {
-                "date": d.date().isoformat(),
-                "reserves_b": round(float(v) / 1000, 2) if pd.notna(v) else None,
-            }
-            for d, v in liq["WRESBAL"].tail(20).items()
-        ]
-        if "WRESBAL" in liq
-        else []
-    )
-    # 研判：双确认合成（页面两张图只给走势，不下「是否稀缺」的结论）
-    # 口径沿用本引擎既有分档：SOFR−IORB < 0 充裕 / ≥0 起步收紧（hub 同款）；
-    # SOFR−3M T-Bill < 15bp 中介意愿正常（intermediation 卡同款）
+    # 仅取 H.4.1 周三原始观测点（消除 ffill 重复值）
+    out["rows"] = [
+        {
+            "date": d.date().isoformat(),
+            "reserves_b": round(float(v) / 1000, 2) if pd.notna(v) else None,
+        }
+        for d, v in raw_res.tail(20).items()
+    ]
+    # 研判：四维交叉确认（SOFR−IORB + SOFR−3M T-Bill + SOFR−TGCR + EFFR−IORB）
     if s2 is not None and s1 is not None:
-        tight = s2 >= 0
+        tight = s2 > 3
+        watch = 0 <= s2 <= 3
         mid_tight = s1 >= 15
         if tight and mid_tight:
             head, verdict = "双确认：准备金进入稀缺区间", "两个口径同时走扩，稀缺是确认状态而非噪声"
         elif tight or mid_tight:
             head = "单口径走扩，观察窗口"
             which = "SOFR−IORB" if tight else "SOFR−3M T-Bill"
-            verdict = f"仅 {which} 越线，等另一口径确认再升级判断"
+            verdict = f"仅 {which} 越过偏紧线，等另一口径确认再升级判断"
+        elif watch:
+            head = f"融资面{_sofr_iorb_state(s2)}"
+            if s_tgcr is not None and s_effr is not None and s_tgcr > 0 and s_effr < 0:
+                verdict = (
+                    f"SOFR 贴平 IORB 主因双边回购摩擦（SOFR−TGCR {s_tgcr:+.1f}bp），"
+                    f"无担保 EFFR−IORB（{s_effr:+.1f}bp）仍在走廊下方，"
+                    "属交易商资产负债表约束而非银行缺准备金"
+                )
+            else:
+                verdict = "SOFR 贴近 IORB 但尚未突破 +3bp 偏紧线，处于观察窗口"
         else:
             head, verdict = "准备金充裕", "两个利差口径均未走扩"
         res_4w_n = _pct_chg(res, 28)
         basis = [
-            f"SOFR−IORB {s2:+.1f}bp",
+            f"SOFR−IORB {s2:+.1f}bp（{_sofr_iorb_state(s2)}）",
             f"SOFR−3M T-Bill {s1:+.1f}bp",
         ]
+        if s_tgcr is not None:
+            basis.append(f"SOFR−TGCR {s_tgcr:+.1f}bp")
+        if s_effr is not None:
+            basis.append(f"EFFR−IORB {s_effr:+.1f}bp")
         if res_4w_n is not None:
             basis.append(f"准备金 4 周 {res_4w_n:+.1f}%")
         out["judgement"] = {
             "title": "准备金研判",
             "text": f"{head}。\n" + " · ".join(basis) + f"。\n{verdict}。"
-            "稀缺确认后关注 SRF 使用量与 LPI 融资确认层是否同步抬升。",
+            "若 EFFR−IORB 同步转正且 SRF 出现实质动用（≥$50M），则确认准备金稀缺。",
         }
     return out
 
 
 def page_global_dollar() -> dict:
     """子页：全球美元 — DXY / 央行互换 / 掉期点一览 + 压力读数。"""
-    liq = _liq_daily()
+    raw_liq = _csv(ROOT / "data" / "fred/liquidity/liquidity.csv")
     cfets = _csv(ROOT / "data" / "fred/liquidity/cfets_swap_points.csv")
     asset = _csv(ROOT / "data" / "yfinance/asset_prices.csv")
     out: dict = {"dxy": {}, "swap": {}, "pairs": {}}
     dxy = asset["DXY"].dropna() if not asset.empty and "DXY" in asset else pd.Series(dtype=float)
     if not dxy.empty:
-        out["dxy"] = {"value": float(dxy.iloc[-1]), "chg_1d_pct": _pct_chg(dxy, 1)}
-    swpt = liq["SWPT"].dropna() if "SWPT" in liq else pd.Series(dtype=float)
+        # 剔除周末/盘前相邻重复占位行，取最近两个真实交易日计算 1 日涨跌
+        dxy_dedup = dxy.loc[dxy.diff().fillna(1.0) != 0]
+        chg_1d = (
+            float((dxy_dedup.iloc[-1] - dxy_dedup.iloc[-2]) / abs(dxy_dedup.iloc[-2]) * 100)
+            if len(dxy_dedup) >= 2
+            else _pct_chg(dxy, 1)
+        )
+        out["dxy"] = {"value": float(dxy.iloc[-1]), "chg_1d_pct": chg_1d}
+    swpt = (
+        raw_liq["SWPT"].dropna()
+        if not raw_liq.empty and "SWPT" in raw_liq
+        else pd.Series(dtype=float)
+    )
     if not swpt.empty:
         out["swap"] = {
             "balance_m": round(float(swpt.iloc[-1]), 0),
             "date": swpt.index[-1].date().isoformat(),
-            "chg_30d_m": round(_chg(swpt, 30) or 0, 0),
+            "chg_30d_m": round(_chg(swpt, 28) or 0, 0),
         }
     out["pairs"] = {_PAIR_DISPLAY.get(p, p): v for p, v in _offshore_detail(cfets).items()}
     out["score"] = _offshore_score(cfets)
@@ -1179,7 +1448,7 @@ def page_subsurface() -> dict:
     """子页：次表层 — SOFR 分位 / 成交量 z / SRF 激活 / 央行互换变化。"""
     rates = _csv(ROOT / "data" / "fred/rates/rates.csv")
     srf = _csv(ROOT / "data" / "fred/liquidity/srf.csv")
-    liq = _liq_daily()
+    raw_liq = _csv(ROOT / "data" / "fred/liquidity/liquidity.csv")
     out: dict = {
         "percentiles": {},
         "volume": {},
@@ -1190,7 +1459,14 @@ def page_subsurface() -> dict:
     }
     if rates.empty:
         return out
-    out["as_of"] = str(rates.index[-1])[:10]
+    sofr_s = (
+        pd.to_numeric(rates.get("SOFR"), errors="coerce").dropna()
+        if rates.get("SOFR") is not None
+        else pd.Series(dtype=float)
+    )
+    out["as_of"] = (
+        sofr_s.index[-1].date().isoformat() if not sofr_s.empty else str(rates.index[-1])[:10]
+    )
     pct = {}
     for col, name in [
         ("SOFR1", "1分位"),
@@ -1206,7 +1482,25 @@ def page_subsurface() -> dict:
         if rates.get("IORB") is not None
         else None
     )
-    out["percentiles"] = {"values": pct, "iorb": iorb}
+    tgcr = (
+        _last(pd.to_numeric(rates.get("TGCR"), errors="coerce"))
+        if rates.get("TGCR") is not None
+        else None
+    )
+    effr = (
+        _last(pd.to_numeric(rates.get("DFF"), errors="coerce"))
+        if rates.get("DFF") is not None
+        else None
+    )
+    out["percentiles"] = {
+        "values": pct,
+        "iorb": iorb,
+        "tgcr": tgcr,
+        "effr": effr,
+        "sofr_tgcr_bp": _bp("SOFR", "TGCR", rates),
+        "tgcr_iorb_bp": _bp("TGCR", "IORB", rates),
+        "effr_iorb_bp": _bp("DFF", "IORB", rates),
+    }
     vol = (
         pd.to_numeric(rates.get("SOFRVOL"), errors="coerce").dropna()
         if rates.get("SOFRVOL") is not None
@@ -1231,26 +1525,35 @@ def page_subsurface() -> dict:
             for d, v in vol.tail(60).items()
         ]
     if not srf.empty:
+        act30, raw30 = _srf_window_counts(srf, 30)
         s = srf["SRF_USAGE"].dropna()
         out["srf"] = {
-            "active_30d": int(s.tail(30).gt(0).sum()),
+            "active_30d": act30,
+            "raw_30d": raw30,
+            "threshold_m": int(SRF_SUBSTANTIAL_B * 1000),
             "latest_m": round(float(s.iloc[-1]) * 1000, 0),
         }
-    swpt = liq["SWPT"].dropna() if "SWPT" in liq else pd.Series(dtype=float)
+    swpt = (
+        raw_liq["SWPT"].dropna()
+        if not raw_liq.empty and "SWPT" in raw_liq
+        else pd.Series(dtype=float)
+    )
     if not swpt.empty:
         out["swap"] = {
             "balance_m": round(float(swpt.iloc[-1]), 0),
-            "chg_30d_m": round(_chg(swpt, 30) or 0, 0),
+            "chg_30d_m": round(_chg(swpt, 28) or 0, 0),
         }
     # 综合次表层压力：分项 raw 值 + 各自 max（展示 x/max），状态按加权和
+    # SOFR 99 分位常态高出 IORB 5~8bp（季末/结算日可达 15~30bp），≥15bp 计满分 3，≥8bp 计 1.5
     tail_w = (
-        _score((pct.get("99分位", 0) - (iorb or 0)) * 100, [(5, 3), (0, 1.5)])
+        _score((pct.get("99分位", 0) - (iorb or 0)) * 100, [(15, 3), (8, 1.5), (0, 0)])
         if iorb is not None and "99分位" in pct
         else 0
     )
     vol_z = _score(z, [(2, 2), (1, 1), (0, 0)]) if z is not None else 0
+    # SRF 实质动用（≥$50M）：30 天内 ≥5 天计满分 3，≥2 天计 1.5
     srf_act = (
-        _score((out["srf"].get("active_30d") or 0), [(15, 3), (5, 1.5), (0, 0)])
+        _score((out["srf"].get("active_30d") or 0), [(5, 3), (2, 1.5), (0, 0)])
         if out.get("srf")
         else 0
     )
