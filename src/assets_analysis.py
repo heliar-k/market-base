@@ -43,7 +43,7 @@ import numpy as np
 import pandas as pd
 
 from src.config import ETF_POOL, FX_PAIRS
-from src.wheel_scanner import scan_pool
+from src.wheel_scanner import normalize_directional_walls, scan_pool
 
 logger = logging.getLogger(__name__)
 
@@ -2793,6 +2793,7 @@ def options_board() -> dict | None:
         return None
     board = json.loads(files[-1].read_text(encoding="utf-8"))
     for s in board.get("symbols", {}).values():
+        normalize_directional_walls(s)
         s["narrative"] = _options_narrative(s)
     # Wheel 雷达直接内嵌本端点（零新增 API 端点）：扫描失败不拖垮期权结构看板
     try:

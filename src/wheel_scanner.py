@@ -83,10 +83,12 @@ THRESHOLDS = {
     "lot_hard_max_k": 70.0,  # 单手硬上限（超此值标记「单手过重」，不发期权信号）
     "hv20_min": 14.0,  # 20日历史波动率下限（低于此值且IV<22%判为低波薄利）
     "hv20_max": 55.0,  # 20日历史波动率上限（高于此值属高Beta剧烈波动）
-    # 波动率定价门槛（Sell Put / Call 共用）
-    "put_iv_min": 24.0,  # 35d ATM IV 绝对下限（%）
-    "vrp_min": 2.0,  # 波动率风险溢价下限：VRP = IV35 − HV20 >= 2.0%（拒绝负期望贱卖）
-    "ivr_min": 25.0,  # 52周 IV Rank 或 IV Percentile 至少一项 >= 25%
+    # 波动率定价门槛
+    "put_iv_min": 24.0,  # Sell Put 35d ATM IV 绝对下限（%）
+    "call_iv_min": 20.0,  # Covered Call 35d ATM IV 绝对下限（%）
+    "vrp_min": 2.0,  # Sell Put 波动率风险溢价下限：VRP = IV35 − HV20 >= 2.0%（拒绝负期望贱卖）
+    "call_vrp_min": 0.0,  # Covered Call VRP 下限：IV35 >= HV20（持仓增厚不贱卖负期望）
+    "ivr_min": 25.0,  # Sell Put 52周 IV Rank 或 IV Percentile 至少一项 >= 25%
     # Sell Put 技术击球区
     "put_rsi_trigger": 40.0,  # RSI(14) <= 40 超卖/偏弱
     "put_ma50_sigma_max": -1.2,  # 距 MA50 偏离 <= -1.2 倍日标准差（波动率归一化）
@@ -98,6 +100,9 @@ THRESHOLDS = {
     "dte_max": 49,
     "put_delta_target": -0.22,  # Sell Put 目标 Delta（-0.18 ~ -0.28）
     "call_delta_target": 0.18,  # Sell Call 目标 Delta（0.14 ~ 0.25）
+    "max_spread_pct": 35.0,  # 盘口最大允许买卖点差 (ask-bid)/mid <= 35%，拦截僵尸滑点盘口
+    "call_roc_min": 6.0,  # Covered Call 最低年化收益率门槛（%）
+    "put_roc_min": 10.0,  # Sell Put 最低年化收益率门槛（%）
     # 事件排雷阈值
     "earnings_danger_dte": 10,  # 财报 <= 10 天：禁止裸卖近月期权
     "earnings_window_dte": 35,  # 财报 <= 35 天：落入月度期权窗口，优先切财报前到期合约
@@ -148,12 +153,13 @@ class ScanRow:
     ex_div_date: str | None
     ex_div_dte: int | None
     event_alert: str
-    trend_state: str  # 多头 / 震荡 / 空头企稳 / 空头破位(接刀)
-    suitability: str  # 黄金适格 / 单手偏大 / 单手过重 / 低波薄利
-    signal: str
-    signal_tone: str  # bull / bear / warn / flat（语义色调，无 emoji）
+    trend_state: str  # 多头趋势 / 震荡修复 / 回调企稳 / 弱势回调 / 空头破位
+    suitability: str  # 适格 / 单手偏大 / 单手过重 / 权利金过薄 / 波动过大
+    signal: str  # 仅三态：SELL PUT / SELL CALL / 暂不操作
+    signal_tone: str  # bull(SELL PUT) / bear(SELL CALL) / flat(暂不操作)，与信号一一对应
     reason: str
-    actionable: bool = False  # True=允许直接出手（SELL PUT / 跨财报·短Put / SELL CALL）
+    actionable: bool = False  # True=允许直接出手（SELL PUT / SELL CALL）
+    near_setup: bool = False  # True=已进入/接近卖Put击球区但暂缓出手（空头待企稳 / 接近支撑区）
     event_tone: str = "flat"  # bear(财报<=10d) / warn(财报<=35d或除息<=14d) / flat
     rsi_tone: str = "flat"  # bull(<=40超卖) / bear(>=68超买) / flat
     vrp_tone: str = "flat"  # bull(>=2%正期望) / bear(<0负期望) / flat
@@ -171,7 +177,7 @@ def _latest_options_snapshot() -> tuple[str | None, dict]:
 
 
 def _iv_at_dte(ov: dict, target_dte: int = 35) -> float | None:
-    """从快照 iv_curve 线性插值到目标 DTE（避免拿 328d LEAPS IV 冒充 35d 月选 IV）。"""
+    """从快照 iv_curve 线性插值到目标 DTE（避免拿 328d LEAPS IV 或 1DTE IV 冒充 35d 月选 IV）。"""
     pts = sorted(
         (int(c["dte"]), float(c["iv"]))
         for c in (ov.get("iv_curve") or [])
@@ -180,9 +186,18 @@ def _iv_at_dte(ov: dict, target_dte: int = 35) -> float | None:
     if len(pts) >= 2:
         xs, ys = zip(*pts)
         return round(float(np.interp(target_dte, xs, ys)), 1)
+    if len(pts) == 1 and abs(pts[0][0] - target_dte) <= 20:
+        return round(pts[0][1], 1)
     if ov.get("wiv"):
         return round(float(ov["wiv"]), 1)
-    return (ov.get("iv_front") or {}).get("iv")
+    front = ov.get("iv_front") or {}
+    if (
+        front.get("iv")
+        and front.get("dte") is not None
+        and abs(int(front["dte"]) - target_dte) <= 20
+    ):
+        return round(float(front["iv"]), 1)
+    return None
 
 
 def _local_iv_rank_fallback(
@@ -209,6 +224,22 @@ def _local_iv_rank_fallback(
     return rank, pct
 
 
+def _ref_date(snap_date: str | None) -> datetime.date:
+    """统一以期权快照日为 DTE 与事件倒计时锚点，避免周末/盘前重跑时 DTE 漂移。"""
+    if snap_date:
+        try:
+            s = str(snap_date).replace("-", "")[:8]
+            return datetime.strptime(s, "%Y%m%d").date()
+        except Exception:
+            pass
+    return datetime.now().date()
+
+
+def _is_monthly_opex(dt: datetime.date) -> bool:
+    """判断是否为美股标准月度期权到期日（每月第 3 个周五，或遇节假日顺延至 15~21 日的周四）。"""
+    return 15 <= dt.day <= 21 and dt.weekday() in (3, 4)
+
+
 def _pick_contract(
     opt_sym: str,
     snap_date: str | None,
@@ -218,62 +249,114 @@ def _pick_contract(
     right: str,
     target_delta: float,
     earnings_dte: int | None = None,
+    wall_strike: float | None = None,
 ) -> OptionPick | None:
-    """选点器：严格校验 raw 链时效；跨财报自动切财报前到期；BSM 回退做 Skew 修正。"""
-    # 1) 仅使用与最新快照同日（或今日）的 raw 链，绝不静默使用过期陈旧 CSV
-    today_str = datetime.now().strftime("%Y%m%d")
-    valid_dates = {d for d in (snap_date, today_str) if d}
-    raw_path = None
-    for d_str in sorted(valid_dates, reverse=True):
-        cand = ROOT / "data" / "options_structure" / f"raw_{opt_sym}_{d_str}.csv"
-        if cand.exists():
-            raw_path = cand
-            break
+    """选点器：锚定快照日 DTE；优选 OpEx/高 OI 到期日；结合期权墙外侧与点差过滤。"""
+    ref_dt = _ref_date(snap_date)
+    ref_str = ref_dt.strftime("%Y%m%d")
+    raw_path = ROOT / "data" / "options_structure" / f"raw_{opt_sym}_{ref_str}.csv"
+    if not raw_path.exists():
+        raw_path = None
 
     dte_min, dte_max = THRESHOLDS["dte_min"], THRESHOLDS["dte_max"]
-    # 若财报落在 11~35 天内，卖 Put 优先收敛到「财报前到期 (7 <= dte < earnings_dte)」避开跳空
+    pre_earnings = False
+    # 若财报落在 11~35 天内，卖 Put 收敛到「财报前到期 (7 <= dte < earnings_dte)」避开跳空
     if right == "P" and earnings_dte is not None and 10 < earnings_dte <= dte_max:
         dte_min, dte_max = 7, earnings_dte - 1
+        pre_earnings = True
 
-    if raw_path and raw_path.exists():
-        df = pd.read_csv(raw_path, dtype={"expiration": str})
-        df = df[
-            (df["right"] == right) & (df["openInterest"] >= 100) & (df["impliedVolatility"] > 0.01)
-        ]
-        df = df[df["strike"] < spot * 0.99] if right == "P" else df[df["strike"] > spot * 1.01]
+    if raw_path is not None:
+        try:
+            df = pd.read_csv(raw_path, dtype={"expiration": str})
+        except Exception:
+            df = pd.DataFrame()
         if not df.empty:
-            today = datetime.now().date()
+            df = df[
+                (df["right"] == right)
+                & (df["openInterest"] >= 100)
+                & (df["impliedVolatility"] > 0.01)
+            ]
+            df = df[df["strike"] < spot * 0.99] if right == "P" else df[df["strike"] > spot * 1.01]
+        if not df.empty:
             df["exp_dt"] = pd.to_datetime(df["expiration"], format="%Y%m%d").dt.date
-            df["dte"] = df["exp_dt"].apply(lambda d: (d - today).days)
+            df["dte"] = df["exp_dt"].apply(lambda d: (d - ref_dt).days)
             win = df[(df["dte"] >= dte_min) & (df["dte"] <= dte_max)].copy()
             if not win.empty:
-                target_d = min(35, (dte_min + dte_max) // 2)
-                best_exp = win.iloc[(win["dte"] - target_d).abs().argsort()[:1]]["expiration"].iloc[
-                    0
-                ]
-                sub = win[win["expiration"] == best_exp].copy()
-                deltas = []
-                for _, r in sub.iterrows():
-                    t = max(int(r["dte"]), 1) / 365.0
-                    _, dc = bs_greeks(spot, float(r["strike"]), t, float(r["impliedVolatility"]))
-                    deltas.append(dc if right == "C" else dc - 1.0)
-                sub["delta"] = deltas
-                sub["delta_diff"] = (sub["delta"] - target_delta).abs()
-                sub = sub[sub["delta_diff"] <= 0.10]
-                if not sub.empty:
-                    best = sub.sort_values("delta_diff").iloc[0]
-                    exp_s = str(best["expiration"])
+                # 1) 到期日排序：财报前短 Put 选最远到期日；常规选标准月度 OpEx 与高总 OI 到期日
+                exp_groups = []
+                for exp_s, grp in win.groupby("expiration"):
+                    exp_dt = grp["exp_dt"].iloc[0]
+                    dte_v = int(grp["dte"].iloc[0])
+                    tot_oi = int(grp["openInterest"].sum())
+                    opex = _is_monthly_opex(exp_dt)
+                    if pre_earnings:
+                        sort_key = (dte_v, tot_oi)
+                    else:
+                        sort_key = (1 if opex else 0, tot_oi, -abs(dte_v - 32))
+                    exp_groups.append((sort_key, exp_s, grp))
+                exp_groups.sort(key=lambda x: x[0], reverse=True)
+
+                # 逐个候选到期日寻找合规行权价（若首选到期日无合规合约，自动回退次优到期日）
+                for _, exp_s, sub in exp_groups:
+                    sub = sub.copy()
+                    deltas = []
+                    for _, r in sub.iterrows():
+                        t = max(int(r["dte"]), 1) / 365.0
+                        _, dc = bs_greeks(
+                            spot, float(r["strike"]), t, float(r["impliedVolatility"])
+                        )
+                        deltas.append(dc if right == "C" else dc - 1.0)
+                    sub["delta"] = deltas
+                    sub["delta_diff"] = (sub["delta"] - target_delta).abs()
+                    sub = sub[sub["delta_diff"] <= 0.08].copy()
+                    if sub.empty:
+                        continue
+
+                    # 盘口质量过滤：剔除 bid<=0.05 或点差 > max_spread_pct 的滑点僵尸盘口
+                    if "bid" in sub.columns and "ask" in sub.columns:
+                        bid_s = sub["bid"].fillna(0.0).astype(float)
+                        ask_s = sub["ask"].fillna(0.0).astype(float)
+                        mid_s = (bid_s + ask_s) / 2.0
+                        spr_pct = (ask_s - bid_s) / mid_s.replace(0, np.nan) * 100.0
+                        liquid = sub[
+                            (bid_s > 0.05) & (spr_pct <= THRESHOLDS["max_spread_pct"])
+                        ].copy()
+                        if liquid.empty:
+                            continue
+                        sub = liquid
+
+                    # 2) 行权价综合打分：Delta 贴合度 + 期权墙外侧保护 + 单档 OI 深度
+                    def _strike_score(row: pd.Series) -> float:
+                        k = float(row["strike"])
+                        d_err = float(row["delta_diff"])
+                        oi_v = max(int(row["openInterest"]), 1)
+                        # 期权墙协同：Put <= Put Wall（支撑墙外），Call >= Call Wall（阻力墙外）
+                        wall_bonus = 0.0
+                        if wall_strike is not None:
+                            if right == "P":
+                                wall_bonus = 0.025 if k <= wall_strike else -0.025
+                            else:
+                                wall_bonus = 0.025 if k >= wall_strike else -0.025
+                        # log10(OI) 每差 10 倍约抵消 0.012 Delta 偏差，避免选出冷门非整数档
+                        oi_bonus = min(np.log10(oi_v), 5.0) * 0.012
+                        return -d_err + wall_bonus + oi_bonus
+
+                    sub["score"] = sub.apply(_strike_score, axis=1)
+                    best = sub.sort_values("score", ascending=False).iloc[0]
+                    dte_best = max(int(best["dte"]), 1)
                     roc = None
                     if "bid" in best and "ask" in best and float(best.get("bid") or 0) > 0:
-                        mid = (float(best["bid"]) + float(best["ask"])) / 2
-                        roc = round(
-                            mid / float(best["strike"]) * (365.0 / max(int(best["dte"]), 1)) * 100,
-                            1,
-                        )
+                        bid_v = float(best["bid"])
+                        ask_v = float(best["ask"])
+                        # 保守计入半点差滑点（向 bid 倾斜 70%），防止宽点差盘口虚增 mid 年化收益
+                        eff_prem = 0.7 * bid_v + 0.3 * ask_v if ask_v >= bid_v else bid_v
+                        # Sell Put 以行权价（现金担保额）为分母；Covered Call 以正股现价为分母
+                        denom = float(best["strike"]) if right == "P" else spot
+                        roc = round(eff_prem / denom * (365.0 / dte_best) * 100.0, 1)
                     return OptionPick(
                         right=right,
                         expiration=f"{exp_s[:4]}-{exp_s[4:6]}-{exp_s[6:8]}",
-                        dte=int(best["dte"]),
+                        dte=dte_best,
                         strike=float(best["strike"]),
                         delta=round(float(best["delta"]), 2),
                         iv_pct=round(float(best["impliedVolatility"]) * 100, 1),
@@ -282,13 +365,22 @@ def _pick_contract(
                         executable=True,
                         annual_roc_pct=roc,
                     )
+        # 若存在当日真实期权链但窗口内全部因点差过大/流动性枯竭被拒，绝不回退 BSM 伪造合约
+        return None
 
-    # 2) Fallback：无当日 raw 链时，用真实 35d IV + Skew 修正估算理论行权价（标记 executable=False）
+    # 2) Fallback：仅当本地无 raw 链文件时，优先用快照同期限 ATM IV 与 25Δ Skew 比例估算理论行权价
     if not iv35:
         return None
-    # 22Δ OTM Put 隐含波动率通常较 ATM 高约 8%~10%（Volatility Skew），Call 端略低约 3%
-    skew_mult = 1.09 if right == "P" else 0.97
-    sigma = (float(iv35) * skew_mult) / 100.0
+    real_skew_iv = ov.get("skew_put_iv") if right == "P" else ov.get("skew_call_iv")
+    skew_dte = int(ov.get("skew_dte") or 30)
+    if real_skew_iv and float(real_skew_iv) > 1.0:
+        # 分母必须取与 skew_dte 同期限的 ATM IV，避免拿 1DTE iv_front 作分母导致比值失真
+        atm_at_skew = _iv_at_dte(ov, max(skew_dte, 5)) or float(iv35)
+        ratio = np.clip(float(real_skew_iv) / max(float(atm_at_skew), 5.0), 0.85, 1.25)
+        sigma = (float(iv35) * float(ratio)) / 100.0
+    else:
+        skew_mult = 1.08 if right == "P" else 0.98
+        sigma = (float(iv35) * skew_mult) / 100.0
     dte = min(35, dte_max) if dte_max >= 7 else 35
     t = dte / 365.0
     step = 5.0 if spot >= 150 else 2.5
@@ -321,26 +413,28 @@ def _pick_contract(
     )
 
 
-def _days_until(date_str: str | None) -> int | None:
+def _days_until(date_str: str | None, snap_date: str | None = None) -> int | None:
     if not date_str:
         return None
     try:
         dt = datetime.strptime(str(date_str)[:10], "%Y-%m-%d").date()
-        return (dt - datetime.now().date()).days
+        return (dt - _ref_date(snap_date)).days
     except Exception:
         return None
 
 
-def _event_fields(ov: dict) -> tuple[str | None, int | None, str | None, int | None, str, str]:
-    """解析财报日与除息日倒计时，生成紧凑的排雷标签与语义色调。"""
+def _event_fields(
+    ov: dict, snap_date: str | None = None
+) -> tuple[str | None, int | None, str | None, int | None, str, str]:
+    """解析财报日与除息日倒计时（锚定快照日），生成紧凑的排雷标签与语义色调。"""
     ed = ov.get("earnings_date")
-    e_dte = _days_until(ed)
+    e_dte = _days_until(ed, snap_date)
     recent_ed = ed if (e_dte is not None and -14 <= e_dte < 0) else None
     if e_dte is not None and e_dte < 0:
         ed, e_dte = None, None
 
     exd = ov.get("ex_dividend_date")
-    div_dte = _days_until(exd)
+    div_dte = _days_until(exd, snap_date)
     if div_dte is not None and div_dte < 0:
         exd, div_dte = None, None
 
@@ -366,35 +460,65 @@ def _event_fields(ov: dict) -> tuple[str | None, int | None, str | None, int | N
     return ed, e_dte, exd, div_dte, " · ".join(tags), event_tone
 
 
-def _directional_walls(ov: dict, close: float) -> tuple[float | None, float | None]:
-    """返回现价下方最强 Put 墙与上方最强 Call 墙。
+def normalize_directional_walls(s: dict) -> None:
+    """原地校准期权结构字典中的 put_wall (< spot) 与 call_wall (> spot)（全站唯一实现）。
 
-    若全链最大墙已被现价涨穿/跌穿，从 ov["wall"] 分布中回退寻找现价对应侧最强 GEX 墙。
+    若全链最大墙已被现价涨穿/跌穿，从 s["wall"] 分布中回退寻找现价对应侧最强 GEX 墙；
+    若该侧无有效墙位则置为 None，保证期权结构页与 Wheel 雷达 100% 同源。
     """
-    raw_pw = (ov.get("put_wall") or {}).get("strike")
-    raw_cw = (ov.get("call_wall") or {}).get("strike")
-    pw = float(raw_pw) if (raw_pw is not None and float(raw_pw) < close) else None
-    cw = float(raw_cw) if (raw_cw is not None and float(raw_cw) > close) else None
-    wall_dist = ov.get("wall") or []
-    if pw is None and wall_dist:
+    spot = s.get("spot")
+    if not spot:
+        return
+    spot_f = float(spot)
+    wall_dist = s.get("wall") or []
+
+    pw_strike = (s.get("put_wall") or {}).get("strike")
+    if pw_strike is None or float(pw_strike) >= spot_f:
         puts = [
             x
             for x in wall_dist
             if (x.get("strike") or 0) > 0
-            and float(x["strike"]) < close
+            and float(x["strike"]) < spot_f
             and (x.get("put_gex_m") or 0) < 0
         ]
         if puts:
-            pw = float(min(puts, key=lambda x: x.get("put_gex_m") or 0)["strike"])
-    if cw is None and wall_dist:
+            best_p = min(puts, key=lambda x: float(x.get("put_gex_m") or 0))
+            s["put_wall"] = {
+                "strike": float(best_p["strike"]),
+                "per_point_m": round(float(best_p["put_gex_m"]), 1),
+            }
+        else:
+            s["put_wall"] = None
+
+    cw_strike = (s.get("call_wall") or {}).get("strike")
+    if cw_strike is None or float(cw_strike) <= spot_f:
         calls = [
             x
             for x in wall_dist
-            if (x.get("strike") or 0) > close and (x.get("call_gex_m") or 0) > 0
+            if (x.get("strike") or 0) > spot_f and (x.get("call_gex_m") or 0) > 0
         ]
         if calls:
-            cw = float(max(calls, key=lambda x: x.get("call_gex_m") or 0)["strike"])
-    return pw, cw
+            best_c = max(calls, key=lambda x: float(x.get("call_gex_m") or 0))
+            s["call_wall"] = {
+                "strike": float(best_c["strike"]),
+                "per_point_m": round(float(best_c["call_gex_m"]), 1),
+            }
+        else:
+            s["call_wall"] = None
+
+
+def _directional_walls(ov: dict, close: float) -> tuple[float | None, float | None]:
+    """返回现价下方最强 Put 墙与上方最强 Call 墙（委托 normalize_directional_walls 单源）。"""
+    tmp = {
+        "spot": close,
+        "put_wall": ov.get("put_wall"),
+        "call_wall": ov.get("call_wall"),
+        "wall": ov.get("wall"),
+    }
+    normalize_directional_walls(tmp)
+    pw = (tmp.get("put_wall") or {}).get("strike")
+    cw = (tmp.get("call_wall") or {}).get("strike")
+    return (float(pw) if pw is not None else None, float(cw) if cw is not None else None)
 
 
 def evaluate_symbol(
@@ -429,6 +553,8 @@ def evaluate_symbol(
     # ── 期权面数据（35d 插值 IV + 1Y IV Rank + 有效墙位校验）──
     opt_key = spec.opt_symbol or spec.symbol
     ov = opt_map.get(opt_key) or {}
+    # 期权选点与墙位基准优先对齐期权链快照自身的 spot，避免股票日线与期权快照跨日错位
+    opt_spot = float(ov.get("spot") or close)
     iv35 = _iv_at_dte(ov, 35)
     vrp = round(iv35 - hv20, 1) if iv35 is not None else None
 
@@ -437,8 +563,8 @@ def evaluate_symbol(
     if ivr is None and ivp is None:
         ivr, ivp = _local_iv_rank_fallback(opt_key, iv35)
 
-    pw, cw = _directional_walls(ov, close)
-    ed, e_dte, exd, div_dte, event_alert, event_tone = _event_fields(ov)
+    pw, cw = _directional_walls(ov, opt_spot)
+    ed, e_dte, exd, div_dte, event_alert, event_tone = _event_fields(ov, snap_date)
     rsi_tone = (
         "bull"
         if rsi <= THRESHOLDS["put_rsi_trigger"]
@@ -450,12 +576,17 @@ def evaluate_symbol(
         else ("bull" if vrp >= THRESHOLDS["vrp_min"] else ("bear" if vrp < 0 else "flat"))
     )
 
-    # ── 趋势与右侧企稳判定（防半山腰接飞刀）──
-    supert_dir = int(last.get("SUPERT_dir", 1))
-    adx = float(last.get("ADX", 20.0))
-    vol_ratio = float(last.get("vol_ratio", 1.0))
-    macd_h0 = float(last.get("MACD_hist", 0.0))
-    macd_h1 = float(df["MACD_hist"].iloc[-2]) if len(df) >= 2 else macd_h0
+    # ── 趋势与右侧企稳判定（防半山腰接飞刀，NaN 安全转型）──
+    raw_st = last.get("SUPERT_dir", 1)
+    supert_dir = int(raw_st) if pd.notna(raw_st) else 1
+    raw_adx = last.get("ADX", 20.0)
+    adx = float(raw_adx) if pd.notna(raw_adx) else 20.0
+    raw_vr = last.get("vol_ratio", 1.0)
+    vol_ratio = float(raw_vr) if pd.notna(raw_vr) else 1.0
+    raw_mh0 = last.get("MACD_hist", 0.0)
+    macd_h0 = float(raw_mh0) if pd.notna(raw_mh0) else 0.0
+    raw_mh1 = df["MACD_hist"].iloc[-2] if len(df) >= 2 else macd_h0
+    macd_h1 = float(raw_mh1) if pd.notna(raw_mh1) else macd_h0
 
     # 强空头趋势：SuperTrend 空头 且 (ADX>=25 或 MA50<MA200 死叉 或 放量破布林下轨)
     severe_downtrend = supert_dir < 0 and (
@@ -481,26 +612,25 @@ def evaluate_symbol(
     if lot_k > THRESHOLDS["lot_hard_max_k"]:
         suitability = f"单手过重(${lot_k:.0f}k)"
     elif hv20 < THRESHOLDS["hv20_min"] and (iv35 or 0) < 22.0:
-        suitability = "低波薄利"
+        suitability = "权利金过薄"
     elif hv20 > THRESHOLDS["hv20_max"]:
-        suitability = "波动过剧"
+        suitability = "波动过大"
     elif lot_k > THRESHOLDS["lot_ideal_max_k"]:
         suitability = f"单手偏大(${lot_k:.0f}k)"
     else:
-        suitability = "黄金适格"
+        suitability = "适格"
 
-    # ── 2) 信号生成（严守风控门禁）──
+    # ── 2) 信号生成（Wheel 严格三态：SELL PUT=bull / SELL CALL=bear / 暂不操作=flat）──
     reasons: list[str] = []
-    signal = "等待"
+    signal = "暂不操作"
     signal_tone = "flat"
+    near_setup = False
 
-    # 硬门槛 1：T2 受限池（单手过重/低波薄利）或无期权链数据，直接不发期权信号
-    if suitability in ("低波薄利", "波动过剧") or suitability.startswith("单手过重"):
-        signal = f"不适格({suitability[:4]})"
+    # 硬门槛 1：T2 受限池（单手过重/权利金过薄/波动过大）或无期权链数据，直接不发期权信号
+    if suitability in ("权利金过薄", "波动过大") or suitability.startswith("单手过重"):
         reasons.append(f"{suitability}·宜正股或作底仓")
     elif iv35 is None:
-        signal = "缺期权数据"
-        reasons.append("需运行 fetch_options_structure")
+        reasons.append("缺期权数据·需运行 fetch_options_structure")
     else:
         is_oversold = rsi <= THRESHOLDS["put_rsi_trigger"] or bb_pos <= 15
         is_pullback = ma50_sigmas <= THRESHOLDS["put_ma50_sigma_max"] or vs_ma200 <= 3.0
@@ -524,28 +654,26 @@ def evaluate_symbol(
             reasons.append(f"MA50 {vs_ma50:+.1f}%({ma50_sigmas:+.1f}σ)")
 
             if e_dte is not None and e_dte <= THRESHOLDS["earnings_danger_dte"]:
-                signal, signal_tone = "财报等落地", "bear"
-                reasons.insert(0, f"{e_dte}d后财报·禁裸卖")
+                reasons.insert(0, f"财报禁卖({e_dte}d后财报)")
             elif not vol_rich:
-                signal, signal_tone = "权利金偏薄", "flat"
+                reasons.insert(0, "权利金偏薄")
                 reasons.append(f"VRP {vrp:+.1f}% / IVR {ivr or 0:.0f}%不足")
             elif severe_downtrend and not stabilized:
-                signal, signal_tone = "接刀·等企稳", "warn"
-                reasons.append("空头未企稳(防半山腰接刀)")
+                near_setup = True
+                reasons.insert(0, "空头未企稳(等止跌)")
             elif e_dte is not None and e_dte <= THRESHOLDS["earnings_window_dte"]:
-                signal, signal_tone = "跨财报·短Put", "warn"
-                reasons.append(f"财报{e_dte}d·仅可卖财报前到期")
+                signal, signal_tone = "SELL PUT", "bull"
+                reasons.append(f"财报{e_dte}d·切财报前到期合约")
             else:
                 signal, signal_tone = "SELL PUT", "bull"
                 reasons.append(f"VRP {vrp:+.1f}% · IVR {ivr or 0:.0f}%")
 
         elif is_pullback and rsi <= 45.0 and vol_rich:
             if e_dte is not None and e_dte <= THRESHOLDS["earnings_danger_dte"]:
-                signal, signal_tone = "财报等落地", "bear"
-                reasons.append(f"{e_dte}d后财报·近支撑(RSI {rsi})")
+                reasons.append(f"财报禁卖({e_dte}d后财报) · 近支撑(RSI {rsi})")
             else:
-                signal, signal_tone = "观察 PUT", "warn"
-                reasons.append(f"回踩支撑({ma50_sigmas:+.1f}σ / RSI {rsi})")
+                near_setup = True
+                reasons.append(f"接近卖Put区 · 回踩支撑({ma50_sigmas:+.1f}σ / RSI {rsi})")
 
         elif is_overbought:
             ov_tag = (
@@ -556,32 +684,59 @@ def evaluate_symbol(
             reasons.append(f"{ov_tag} · 高于MA50 +{vs_ma50:.1f}%({ma50_sigmas:+.1f}σ)")
             has_stock = holdings is None or (spec.symbol in holdings)
             if not has_stock:
-                signal, signal_tone = "超买(无底仓)", "flat"
+                reasons.insert(0, "超买但无底仓")
             elif e_dte is not None and e_dte <= THRESHOLDS["earnings_danger_dte"]:
-                signal, signal_tone = "财报勿卖Call", "bear"
-                reasons.insert(0, f"{e_dte}d后财报·防跳空卖飞")
-            elif iv35 < 20.0:
-                signal, signal_tone = "低IV勿卖Call", "flat"
-                reasons.append(f"IV35 {iv35:.0f}%权利金过薄")
+                reasons.insert(0, f"财报禁卖({e_dte}d后财报·防卖飞)")
+            elif iv35 < THRESHOLDS["call_iv_min"] or (
+                vrp is not None and vrp < THRESHOLDS["call_vrp_min"]
+            ):
+                reasons.insert(0, f"IV35 {iv35:.0f}%/VRP {vrp:+.1f}%偏薄")
             else:
-                signal, signal_tone = "SELL CALL(持仓)", "bear"
+                signal, signal_tone = "SELL CALL", "bear"
+                reasons.insert(0, "仅限备兑(禁裸卖)")
                 if div_dte is not None and div_dte <= THRESHOLDS["ex_div_warn_dte"]:
                     reasons.append(f"除息{div_dte}d防提前行权")
         else:
             reasons.append(f"通道中部(RSI {rsi} / {ma50_sigmas:+.1f}σ)")
 
-    # 仅对允许操作的信号生成候选合约（财报否决态与不适格态不挂合约，防止误导下单）
-    actionable = signal in ("SELL PUT", "跨财报·短Put", "SELL CALL(持仓)")
+    # 仅对 SELL PUT / SELL CALL 生成推荐合约（若盘口流动性枯竭或年化低于门槛，自动降级为暂不操作）
     put_pick = None
     call_pick = None
-    if signal in ("SELL PUT", "跨财报·短Put", "观察 PUT", "接刀·等企稳"):
+    if signal == "SELL PUT":
         put_pick = _pick_contract(
-            opt_key, snap_date, ov, close, iv35, "P", THRESHOLDS["put_delta_target"], e_dte
+            opt_key, snap_date, ov, opt_spot, iv35, "P", THRESHOLDS["put_delta_target"], e_dte, pw
         )
-    elif signal == "SELL CALL(持仓)":
+        if put_pick is None:
+            signal, signal_tone = "暂不操作", "flat"
+            msg = (
+                f"财报前({e_dte}d)无合规短Put"
+                if (e_dte is not None and 10 < e_dte <= THRESHOLDS["dte_max"])
+                else "期权盘口点差过宽或无合适档位"
+            )
+            reasons.insert(0, msg)
+        elif (
+            put_pick.annual_roc_pct is not None
+            and put_pick.annual_roc_pct < THRESHOLDS["put_roc_min"]
+        ):
+            signal, signal_tone = "暂不操作", "flat"
+            reasons.insert(0, f"候选年化仅{put_pick.annual_roc_pct:.0f}%偏薄")
+            put_pick = None
+    elif signal == "SELL CALL":
         call_pick = _pick_contract(
-            opt_key, snap_date, ov, close, iv35, "C", THRESHOLDS["call_delta_target"], e_dte
+            opt_key, snap_date, ov, opt_spot, iv35, "C", THRESHOLDS["call_delta_target"], e_dte, cw
         )
+        if call_pick is None:
+            signal, signal_tone = "暂不操作", "flat"
+            reasons.insert(0, "期权盘口点差过宽(防滑点)")
+        elif (
+            call_pick.annual_roc_pct is not None
+            and call_pick.annual_roc_pct < THRESHOLDS["call_roc_min"]
+        ):
+            signal, signal_tone = "暂不操作", "flat"
+            reasons.insert(0, f"候选年化仅{call_pick.annual_roc_pct:.0f}%偏薄")
+            call_pick = None
+
+    actionable = signal in ("SELL PUT", "SELL CALL")
 
     return ScanRow(
         symbol=spec.symbol,
@@ -613,6 +768,7 @@ def evaluate_symbol(
         signal_tone=signal_tone,
         reason=" · ".join(reasons),
         actionable=actionable,
+        near_setup=near_setup,
         event_tone=event_tone,
         rsi_tone=rsi_tone,
         vrp_tone=vrp_tone,
@@ -621,7 +777,9 @@ def evaluate_symbol(
     )
 
 
-def portfolio_summary(rows: list[ScanRow]) -> dict:
+def portfolio_summary(
+    rows: list[ScanRow], capped_by_sector: dict[str, list[str]] | None = None
+) -> dict:
     """组合层风控汇总：站内市场共识 Regime + 同板块信号集中度检查。"""
     mkt_state = "未知"
     vix_note = ""
@@ -637,14 +795,21 @@ def portfolio_summary(rows: list[ScanRow]) -> dict:
     except Exception:
         pass
 
-    put_candidates = [r for r in rows if r.signal in ("SELL PUT", "跨财报·短Put")]
+    put_candidates = [r for r in rows if r.signal == "SELL PUT"]
     by_sector: dict[str, list[str]] = {}
     for r in put_candidates:
         by_sector.setdefault(r.sector, []).append(r.symbol)
 
     warnings: list[str] = []
+    for sec, dropped in (capped_by_sector or {}).items():
+        kept = by_sector.get(sec, [])
+        all_syms = kept + dropped
+        warnings.append(
+            f"板块集中度限额：{sec} 共 {len(all_syms)} 只触发({','.join(all_syms)})，"
+            f"按 VRP 择优保留 {','.join(kept)}，其余({','.join(dropped)})已降为暂不操作"
+        )
     for sec, syms in by_sector.items():
-        if len(syms) > THRESHOLDS["max_green_per_sector"]:
+        if sec not in (capped_by_sector or {}) and len(syms) > THRESHOLDS["max_green_per_sector"]:
             warnings.append(
                 f"板块集中度告警：{sec} 同时触发 {len(syms)} 只({','.join(syms)})，"
                 f"同因子上限 {THRESHOLDS['max_green_per_sector']} 只"
@@ -679,6 +844,7 @@ def scan_pool(
 
     # 同板块超限自动择优：按 VRP 降序只保留前 max_green_per_sector 个为 SELL PUT
     sec_counts: dict[str, int] = {}
+    capped_by_sector: dict[str, list[str]] = {}
     for r in sorted(
         [x for x in rows if x.signal == "SELL PUT"],
         key=lambda x: (x.vrp_pct or 0.0, x.iv_rank_1y or 0.0),
@@ -687,13 +853,14 @@ def scan_pool(
         cnt = sec_counts.get(r.sector, 0) + 1
         sec_counts[r.sector] = cnt
         if cnt > THRESHOLDS["max_green_per_sector"]:
-            r.signal = "同板块限额"
-            r.signal_tone = "warn"
+            r.signal = "暂不操作"
+            r.signal_tone = "flat"
             r.actionable = False
             r.put_pick = None
-            r.reason = f"同属{r.sector}已满{THRESHOLDS['max_green_per_sector']}只 · " + r.reason
+            r.reason = f"同属{r.sector}已满{THRESHOLDS['max_green_per_sector']}只限额 · " + r.reason
+            capped_by_sector.setdefault(r.sector, []).append(r.symbol)
 
-    summary = portfolio_summary(rows)
+    summary = portfolio_summary(rows, capped_by_sector=capped_by_sector)
     return snap_date, rows, summary
 
 
@@ -745,13 +912,8 @@ def print_report(snap_date: str | None, rows: list[ScanRow], summary: dict) -> N
             f"  {r.event_alert:<17}{r.trend_state:<8}{r.signal:<15}{r.reason}"
         )
 
-    # 仅打印真正允许评估的候选合约（财报禁区与不适格绝不打印合约）
-    actionable = [
-        r
-        for r in rows
-        if r.signal in ("SELL PUT", "跨财报·短Put", "观察 PUT", "接刀·等企稳", "SELL CALL(持仓)")
-        and (r.put_pick or r.call_pick)
-    ]
+    # 仅打印真正允许操作的候选合约（SELL PUT / SELL CALL）
+    actionable = [r for r in rows if r.actionable and (r.put_pick or r.call_pick)]
     if actionable:
         print("\n=== 候选期权合约（仅限非禁区标的；[理论估算] 需盘中核对券商盘口）===")
         for r in actionable:

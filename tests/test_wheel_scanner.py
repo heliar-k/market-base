@@ -73,7 +73,7 @@ def test_evaluate_symbol_sell_put_requires_stabilization_and_vrp(tmp_path, monke
     }
     row = evaluate_symbol(spec, "20261023", opt_map)
     assert row is not None
-    assert row.suitability == "黄金适格"
+    assert row.suitability == "适格"
     assert row.signal == "SELL PUT"
     assert row.signal_tone == "bull"
     assert row.put_pick is not None
@@ -126,7 +126,8 @@ def test_negative_vrp_blocks_sell_put(tmp_path, monkeypatch) -> None:
     }
     row = evaluate_symbol(spec, "20261023", opt_map)
     assert row is not None
-    assert row.signal == "权利金偏薄"
+    assert row.signal == "暂不操作"
+    assert "权利金偏薄" in row.reason
     assert row.signal_tone == "flat"
     assert row.put_pick is None
 
@@ -162,7 +163,7 @@ def test_earnings_danger_blocks_sell_put_and_omits_contract(tmp_path, monkeypatc
     df.index.name = "date"
     df.to_csv(stocks_dir / "TEST.csv")
 
-    soon = (datetime.now().date() + timedelta(days=4)).strftime("%Y-%m-%d")
+    soon = "2026-10-27"  # 距快照日 20261023 为 4 天
     spec = PoolSpec("TEST", "T0", "测试", "测试护城河")
     opt_map = {
         "TEST": {
@@ -174,8 +175,9 @@ def test_earnings_danger_blocks_sell_put_and_omits_contract(tmp_path, monkeypatc
     }
     row = evaluate_symbol(spec, "20261023", opt_map)
     assert row is not None
-    assert row.signal == "财报等落地"
-    assert row.signal_tone == "bear"
+    assert row.signal == "暂不操作"
+    assert "财报禁卖" in row.reason
+    assert row.signal_tone == "flat"
     assert row.event_tone == "bear"
     assert row.actionable is False
     assert "财报4d" in row.event_alert
@@ -209,3 +211,66 @@ def test_event_fields_single_line_and_tones() -> None:
     assert e_dte == 20 and div_dte == 6
     assert " · " in alert and "除息6d" in alert
     assert tone == "warn"
+
+
+def test_pick_contract_prefers_monthly_opex_and_filters_wide_spread(tmp_path, monkeypatch) -> None:
+    import src.wheel_scanner as ws
+
+    monkeypatch.setattr(ws, "ROOT", tmp_path)
+    opt_dir = tmp_path / "data" / "options_structure"
+    opt_dir.mkdir(parents=True)
+
+    # 2026-10-24 快照：
+    # - 20261120 (27d, 第 3 个周五 OpEx): 高 OI(10000)，点差窄 (4.00/4.20)
+    # - 20261127 (34d, 离 35d 更近但属周度期权): 低 OI(150)，或点差极宽 (0.50/3.50)
+    raw_df = pd.DataFrame(
+        [
+            {
+                "strike": 195.0,
+                "right": "P",
+                "expiration": "20261120",
+                "bid": 4.00,
+                "ask": 4.20,
+                "openInterest": 15000,
+                "volume": 500,
+                "impliedVolatility": 0.42,
+            },
+            {
+                "strike": 195.0,
+                "right": "P",
+                "expiration": "20261127",
+                "bid": 4.50,
+                "ask": 4.80,
+                "openInterest": 180,
+                "volume": 10,
+                "impliedVolatility": 0.42,
+            },
+        ]
+    )
+    raw_df.to_csv(opt_dir / "raw_NVDA_20261024.csv", index=False)
+
+    pick = _pick_contract("NVDA", "20261024", {}, 211.0, 42.0, "P", -0.22, wall_strike=200.0)
+    assert pick is not None
+    assert pick.expiration == "2026-11-20"  # 优选第 3 个周五标准月度 OpEx，而非 34d 周度
+    assert pick.dte == 27
+    assert pick.executable is True
+    assert pick.annual_roc_pct is not None and pick.annual_roc_pct > 20.0
+
+    # 若盘口点差过宽 (>35%)，应拒绝该档且不回退伪造 BSM 合约
+    bad_df = pd.DataFrame(
+        [
+            {
+                "strike": 500.0,
+                "right": "C",
+                "expiration": "20261120",
+                "bid": 1.00,
+                "ask": 3.80,
+                "openInterest": 400,
+                "volume": 5,
+                "impliedVolatility": 0.35,
+            }
+        ]
+    )
+    bad_df.to_csv(opt_dir / "raw_ISRG_20261024.csv", index=False)
+    bad_pick = _pick_contract("ISRG", "20261024", {}, 452.3, 35.0, "C", 0.18, wall_strike=480.0)
+    assert bad_pick is None

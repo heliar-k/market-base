@@ -495,57 +495,38 @@ body.embedded .back-top { right: 6px; bottom: 6px; width: 24px; height: 24px; fo
   padding-left: calc(var(--re-cell-pad-x) + 1px);
 }
 
-/* ── 期权市场结构（timsun 复刻样式）── */
-.opt-regime { border: 1px solid var(--border); border-radius: 12px; background: var(--surface); padding: 20px 24px; display: flex; flex-direction: column; gap: 8px; }
-/* regime 结论块与下方 KPI 卡行之间留 12px（卡行自己不带外边距） */
-.opt-regime + .re-cards { margin-top: 12px; }
-.opt-regime .rg-label { font-size: 11px; font-weight: 600; letter-spacing: .08em; color: var(--text-dim); }
-.opt-regime .rg-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; flex-wrap: wrap; }
-.opt-regime .rg-title { font-size: 28px; font-weight: 800; letter-spacing: .01em; line-height: 1.15; }
-.opt-regime .rg-title.pp { color: var(--color-up-text); }
-.opt-regime .rg-title.nn { color: var(--color-down-text); }
-.opt-regime .rg-title.pn, .opt-regime .rg-title.np { color: var(--color-warn-text); }
-.opt-regime .rg-sub { font-size: 13px; color: var(--text-secondary); }
-.opt-regime .rg-gex { display: flex; gap: 28px; text-align: right; }
-.opt-regime .rg-gex .k { font-size: 11px; letter-spacing: .06em; color: var(--text-dim); font-weight: 600; }
-.opt-regime .rg-gex .v { font-size: 18px; font-weight: 700; font-variant-numeric: tabular-nums; }
-.opt-regime .rg-desc { font-size: 13px; line-height: 1.8; color: var(--text-secondary); }
-/* regime 胶囊（13 标的看板） */
+/* ── 期权市场结构（三子视图：结论与扫描 / 结构图表 / Wheel 雷达）── */
+.opt-top-bar {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  padding: 6px 12px; background: var(--surface); border: 1px solid var(--border);
+  border-radius: 8px; flex-wrap: wrap;
+}
+.opt-info-bar {
+  display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+  font-size: 13px;
+}
+.opt-quote-meta {
+  display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap;
+  font-family: var(--font-mono); font-size: 12px; color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+.opt-pane {
+  display: flex; flex-direction: column; gap: var(--re-inner-gap);
+}
+/* regime 胶囊（30 标的扫描表 + 顶栏状态） */
 .opt-chip { display: inline-block; padding: 0 6px; border-radius: 4px; font-size: 11px; line-height: 16px; font-weight: 600; border: 1px solid; white-space: nowrap; }
 .opt-chip.pp { color: var(--color-up-text); border-color: color-mix(in srgb, var(--color-up) 33%, transparent); background: var(--color-up-bg); }
 .opt-chip.nn { color: var(--color-down-text); border-color: color-mix(in srgb, var(--color-down) 33%, transparent); background: var(--color-down-bg); }
 .opt-chip.pn, .opt-chip.np { color: var(--color-warn-text); border-color: color-mix(in srgb, var(--color-warn) 33%, transparent); background: var(--color-warn-bg); }
-/* 板块 Tab */
-.opt-tabs { display: flex; gap: 2px; border-bottom: 1px solid var(--border); margin: 14px 0 0; flex-wrap: wrap; }
-.opt-tabs button { padding: 8px 14px; border: 1px solid transparent; border-bottom: none; background: none; cursor: pointer; font-size: 13px; color: var(--text-secondary); border-radius: 6px 6px 0 0; }
-.opt-tabs button:hover { color: var(--accent-ink); background: var(--surface-hover); }
-.opt-tabs button.active { color: var(--accent-ink); font-weight: 600; border-color: var(--border); background: var(--surface); }
-.opt-panel { border: 1px solid var(--border); border-top: none; border-radius: 0 0 8px 8px; background: var(--surface); padding: 16px 20px; min-height: 200px; }
-.opt-panel h3 { font-size: 15px; font-weight: 700; margin-bottom: 8px; }
-/* DEX/希腊值大数字块 */
-.opt-big { display: flex; flex-direction: column; gap: 4px; }
-.opt-big .k { font-size: 11px; letter-spacing: .06em; color: var(--text-dim); font-weight: 600; }
-.opt-big .v { font-size: 34px; font-weight: 800; font-variant-numeric: tabular-nums; line-height: 1.1; }
-.opt-big .s { font-size: 12px; color: var(--text-secondary); }
-/* 到期 Gamma 集中度 100% 堆叠条 + 图例行；四段取 ECharts 分类色板前四位（brand/warn/purple/down 同源） */
-.gex-stack { display: flex; gap: 1px; height: 28px; border-radius: 6px; overflow: hidden; background: var(--border); }
-.gex-stack > div { display: flex; align-items: center; justify-content: center; min-width: 0; overflow: hidden; }
-.gex-stack > div span { font-size: 11px; font-weight: 600; color: #fff; white-space: nowrap; }
-.gex-stack-legend { display: flex; flex-wrap: wrap; gap: 4px 16px; margin-top: 6px; font-size: 12px; color: var(--text-secondary); }
-.gex-stack-legend i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 5px; vertical-align: -1px; }
-.range-row { display: grid; grid-template-columns: auto minmax(120px, 1fr) max-content max-content max-content; gap: 10px; align-items: center; padding: 5px 0; border-bottom: 1px solid var(--border-light); font-size: 13px; }
-/* ≤768：标签 / 占比 / M 值 / 合约数同一节奏，进度条换整行（五列 max-content 在 375 下撑出 421px） */
-@media (max-width: 768px) {
-  .range-row { grid-template-columns: auto 1fr 1fr 1fr; row-gap: 2px; }
-  .range-row > .range-track { grid-column: 1 / -1; order: 9; }
+/* 到期 Gamma 集中度分段进度行 */
+.opt-bucket-grid {
+  display: grid; grid-template-columns: auto auto 1fr 56px 68px;
+  gap: 5px 10px; align-items: center; font-size: 12px;
 }
-.range-row:last-child { border-bottom: none; }
-.range-track { height: 10px; border-radius: 5px; background: var(--border); overflow: hidden; }
-.range-fill { height: 100%; border-radius: 5px; background: var(--accent); }
-.range-val { text-align: right; font-variant-numeric: tabular-nums; color: var(--text-secondary); }
-/* 结构解读键值行 */
-.kv-row { display: grid; grid-template-columns: 72px 1fr; gap: 8px; padding: 4px 0; font-size: 13px; line-height: 1.7; }
-.kv-row .kv-k { color: var(--text-dim); font-weight: 600; }
+.opt-bucket-track {
+  height: 9px; border-radius: 4px; background: var(--border-light); overflow: hidden;
+}
+.opt-bucket-fill { height: 100%; border-radius: 4px; }
 
 /* ── 持仓追踪（CFTC COT，timsun 复刻）── */
 .pos-hero { border: 1px solid var(--border); border-radius: 12px; background: var(--surface); padding: 20px 24px 16px; display: grid; grid-template-columns: 1fr 260px; gap: 16px; border-left: 3px solid var(--color-warn); }
@@ -701,7 +682,7 @@ body.embedded .back-top { right: 6px; bottom: 6px; width: 24px; height: 24px; fo
 /* ── timsun 数字排版纪律：统计值/大数字/表格数字列统一等宽字体（字号与 tabular-nums 已在各元素声明）── */
 .re-corridor-value, .oas-card .value, .score-card .value, .proxy-card .value,
 .vol-hero-card .vh-value, .vol-stat .st-value, .vol-signal-card .vs-metric,
-.opt-big .v, .pos-cols .v, .range-val, .rk-v,
+.pos-cols .v, .rk-v,
 .rh-score .num, .rh-bars .val, .radar-num b, .ph-rules-text, .term-slope,
 .vol-heat-cell .ht-value, .vol-heat-cell .ht-chg,
 .re-table td.num, .re-table td.mono {

@@ -43,5 +43,5 @@
 
 ## 交易策略工具
 
-- **确定性巨头池（Wheel pool）**：用于期权车轮策略（Sell Put 抄底收租 + Covered Call 波段止盈）的 17 只宽护城河/强现金流美股标的池，单源在 `src/wheel_scanner.py`，按单手占压资金与波动率甜点分为 T0（核心主力）、T1（跨行业寡头对冲）、T2（单手过重或低波薄利的观察池）三档；扫描结果内嵌于 `src/assets_analysis.py::options_board()` 的 `wheel` 字段，挂载在网页端期权结构页 `/assets/equities/options/`。
-- **事件排雷（event alert）**：期权快照顺手采集的下次财报日（`earnings_date`）与除息日（`ex_dividend_date`）倒计时。财报 ≤ 7 天强制拦截裸卖近月信号（防跳空穿仓或卖飞底仓），8~35 天标注跨财报预警，除息 ≤ 14 天标注 Sell Call 提前行权风险。
+- **确定性巨头池（Wheel pool）**：用于期权车轮策略（Sell Put 抄底收租 + Covered Call 备兑止盈）的 17 只宽护城河/强现金流美股标的池，单源在 `src/wheel_scanner.py`，按单手占压资金与波动率甜点分为 T0（核心主力）、T1（跨行业寡头对冲）、T2（单手过重或权利金过薄的观察池）三档；信号严格收敛为三态（`SELL PUT` 绿 / `SELL CALL` 红·仅限备兑 / `暂不操作` 灰），选点器锚定快照日 DTE，优选标准月度 OpEx 与期权墙外侧高 OI 档位，并硬拦截买卖点差 > 35% 的滑点盘口；内嵌于 `src/assets_analysis.py::options_board()` 的 `wheel` 字段，挂载在期权市场结构页 `/assets/equities/options/` 的三子视图（结构结论与扫描 / 期权图表 / Wheel 雷达）中。
+- **事件排雷（event alert）**：期权快照顺手采集的下次财报日（`earnings_date`）与除息日（`ex_dividend_date`）倒计时（锚定快照日）。财报 ≤ 10 天强制拦截卖出信号（防跳空穿仓或卖飞底仓），11~35 天自动切换财报前到期合约，除息 ≤ 14 天标注 Sell Call 提前行权风险。

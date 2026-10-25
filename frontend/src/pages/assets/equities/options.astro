@@ -1,214 +1,674 @@
 ---
-// 期权市场结构页（全站最大页）— 工单 #17 自 public/assets/equities/options.html 迁入。
-// Regime 大卡 + 22 标的看板 + 7 Tab（GEX/DEX/IV 期限/Skew/Vanna/OI 热力/结构解读）；island 脚本逐字原样。
-// fetch('/api/assets/equities-options') 不变。
+// 期权市场结构页（三子视图重构：结构结论与扫描 / 期权图表 / Wheel 雷达，对齐技术分析页交互体验）。
+// fetch('/api/assets/equities-options') 单端点驱动，切换标的与子视图零额外请求。
 import TopicLayout from '../../../layouts/TopicLayout.astro';
 import Section from '../../../components/Section.astro';
 ---
 <TopicLayout title="期权市场结构">
-  <div class="page-toc" id="page-toc"></div>
-  <!-- Regime 大卡:脚本 innerHTML 清容器,Section 只包壳、id 落内层 div -->
-  <Section id="sec-detail" title="期权结构状态">
-    <div id="detail"></div>
-  </Section>
+  <!-- 顶栏：三子视图切换 + 标的选择器 + 实时状态条（对齐 tech-top-bar） -->
+  <div class="opt-top-bar" id="opt-top-bar">
+    <div class="range-controls" id="opt-subview-switch" style="margin-left:0">
+      <button type="button" class="range-btn active" data-subview="overview">结构结论与扫描</button>
+      <button type="button" class="range-btn" data-subview="charts">期权图表</button>
+      <button type="button" class="range-btn" data-subview="wheel" id="opt-subview-wheel">Wheel 雷达</button>
+    </div>
+    <div class="opt-info-bar" id="opt-info-bar">
+      <span class="tech-quote">
+        <select class="tech-sym-select" id="opt-sym-select" aria-label="选择期权标的"></select>
+        <span class="tech-price" id="opt-info-price">--</span>
+        <span id="opt-info-regime"></span>
+      </span>
+      <span class="opt-quote-meta" id="opt-info-meta">--</span>
+    </div>
+  </div>
 
-  <!-- 看板标题(h2.re-h2)由 JS 填,Section 静态标题会重复 —— 保持裸 div -->
-  <div id="board" class="re-block"></div>
+  <!-- 子视图 1：结构结论与扫描（默认：4 KPI 卡 + 深度结构结论卡 + 30 标的合并扫描表） -->
+  <div id="opt-pane-overview" class="opt-pane">
+    <div id="detail" class="opt-pane"></div>
+    <div id="board"></div>
+  </div>
 
-  <!-- 巨头池 Wheel 雷达:后端 options_board() 内嵌 wheel 字段,零新增端点 -->
-  <Section id="sec-wheel" title="确定性巨头池 · Wheel 雷达" sub="35D IV / VRP · 52周 IVR · 趋势企稳与财报排雷" card>
-    <span slot="head" id="wheel-regime-badge"></span>
-    <div id="wheel-radar"></div>
-  </Section>
+  <!-- 子视图 2：期权图表（GEX 分布+到期集中度 / ATM IV 期限结构 / OI 集中度 Top 20） -->
+  <div id="opt-pane-charts" class="opt-pane" style="display:none">
+    <Section id="sec-gex" title="GEX 按行权价分布与到期集中度" sub="绿 = Call GEX（压制波动） · 红 = Put GEX（放大波动） · 曲线 = 累计 GEX（右轴，穿 0 线即 Flip）" card>
+      <span slot="head" id="gex-head-badge"></span>
+      <div class="chart chart-md" id="gex-chart"></div>
+      <div id="buckets" style="margin-top:12px"></div>
+    </Section>
 
-  <!-- Tab 控件条 + 图表面板:控件/图表容器非小节,不进 Section -->
-  <div class="opt-tabs" id="opt-tabs"></div>
-  <div class="opt-panel" id="opt-panel"></div>
+    <Section id="sec-iv" title="ATM IV 期限结构" sub="各到期日平值隐含波动率曲线与远近月斜率" card>
+      <span slot="head" id="iv-head-badge"></span>
+      <div class="chart chart-sm" id="iv-chart"></div>
+    </Section>
+
+    <Section id="sec-oi" title="OI 集中度 Top 20 · (Strike × 到期)" sub="按总 OI (Call + Put) 排序，观察 dealer 关键 pin 位" card>
+      <div id="oi-top-host"></div>
+    </Section>
+  </div>
+
+  <!-- 子视图 3：确定性巨头池 · Wheel 雷达 -->
+  <div id="opt-pane-wheel" class="opt-pane" style="display:none">
+    <div id="wheel-kpis"></div>
+    <Section id="sec-wheel" title="确定性巨头池 · Wheel 雷达" sub="35D IV / VRP · 52周 IVR · 趋势企稳与财报排雷" card>
+      <span slot="head" id="wheel-regime-badge"></span>
+      <div id="wheel-radar"></div>
+    </Section>
+  </div>
 
   <div class="re-foot-page" slot="foot" id="re-foot"></div>
-</div>
 
 <script is:inline>
-// 小节锚点导航（全站统一 JS 填）。第三项指 opt-tabs 而非 opt-panel：Tab 切换只重写
-// panel.innerHTML，锚点指半空的容器会在短视图（如 DEX）跳到页面底部外的留白；
-// 控件条 id 同样稳定，且落点是「先看到当前在哪张 Tab，再往下读」的顺序。
-document.getElementById('page-toc').innerHTML = [
-  ['状态', 'sec-detail'], ['标的看板', 'board'], ['Wheel 雷达', 'sec-wheel'], ['分析视图', 'opt-tabs'],
-].map(([t, id]) => `<a href="#${id}">${t}</a>`).join('');
-
+const esc = R.esc;
 let D = null;
 let S = 'SPY';
+let currentSubview = 'overview'; // overview | charts | wheel
+let activeScanFilter = 'all';
 let charts = [];
 
-const TABS = ['GEX 分布', 'DEX', 'IV 期限结构', 'Skew', 'Vanna / Charm', 'OI 热力', '结构解读'];
-let curTab = TABS[0];
+const SUBVIEWS = ['overview', 'charts', 'wheel'];
+
+const GROUPS = [
+  ['指数 & ETF', ['SPY', 'QQQ', 'IWM']],
+  ['Mag 7', ['NVDA', 'AAPL', 'MSFT', 'AMZN', 'META', 'TSLA', 'GOOGL']],
+  ['重点个股', ['AVGO', 'TSM', 'UNH', 'BRK-B', 'JPM', 'V', 'MA', 'ISRG', 'ABBV', 'COST', 'LLY', 'AMD', 'INTC', 'MU', 'MSTR', 'SNDK', 'CRCL', 'BMNR', 'AEHR', 'SPCX']],
+];
+const GROUP_MAP = new Map();
+GROUPS.forEach(([gLabel, list]) => list.forEach(sym => GROUP_MAP.set(sym, gLabel)));
 
 const REGIME_INFO = {
-  pp: { label: '正 Gamma + 正 Delta', desc: '现价在 Gamma Flip 上方，波动偏被压制，多头 delta 占优。' },
-  pn: { label: '正 Gamma + 负 Delta', desc: '现价在 Gamma Flip 上方，但 delta 偏空。' },
-  np: { label: '负 Gamma + 正 Delta', desc: '现价在 Gamma Flip 下方，波动易放大，多头 delta 占优。' },
-  nn: { label: '负 Gamma + 负 Delta', desc: '现价在 Gamma Flip 下方，delta 偏空，双重压力。' },
+  pp: { label: '正 Gamma + 正 Delta', short: '正γ + 正Δ', desc: '现价在 Gamma Flip 上方，波动偏被压制，多头 delta 占优。' },
+  pn: { label: '正 Gamma + 负 Delta', short: '正γ + 负Δ', desc: '现价在 Gamma Flip 上方，但 delta 偏空。' },
+  np: { label: '负 Gamma + 正 Delta', short: '负γ + 正Δ', desc: '现价在 Gamma Flip 下方，波动易放大，多头 delta 占优。' },
+  nn: { label: '负 Gamma + 负 Delta', short: '负γ + 负Δ', desc: '现价在 Gamma Flip 下方，delta 偏空，双重压力。' },
 };
 const BUCKET_NAMES = { '0DTE': '0DTE · 当日', '本周': '本周 · 1-7d', '月度': '月度 · 8-35d', '季度+': '季度+ · >35d' };
 
 function fmtNum(v, d = 2) {
   return v === null || v === undefined ? '—' : Number(v).toLocaleString(undefined, { maximumFractionDigits: d });
 }
-function chgSpan(v) {
-  return Number(v).toLocaleString(undefined, { maximumFractionDigits: 2 });
+function fmtSigned(v, d = 2, suffix = '') {
+  if (v === null || v === undefined || !Number.isFinite(Number(v))) return '—';
+  const n = Number(v);
+  return `${n > 0 ? '+' : ''}${R.num(n, d)}${suffix}`;
 }
-function disposeCharts() { charts.forEach(id => { const c = R.getChart(id); if (c) c.dispose(); }); charts = []; }
-function mk(id, option) {
+function disposeCharts() {
+  charts.forEach(id => { const c = R.getChart(id); if (c) c.dispose(); });
+  charts = [];
+}
+function mk(id, optionFn) {
   const el = document.getElementById(id);
   if (!el) return;
-  const c = R.mkChart(id, option);
-  if (c) charts.push(id); // 存 id 而非实例：主题重建后 R.getChart 才能取到当前实例
+  const c = R.mkChart(id, optionFn);
+  if (c) charts.push(id);
 }
 
-async function load() {
-  D = await R.get('/api/assets/equities-options');
-  if (!D || !D.symbols) { R.fail(['detail', 'board', 'wheel-radar'], new Error('无期权结构快照 · 运行 ./bin/fetch_options_structure 后刷新')); return; }
-  R.setAsOf([['期权快照', D.date && D.date.slice(0, 10)]]);
-
-  renderRegime();
-  renderBoard();
-  renderWheel();
-  renderTabs();
-  renderPanel();
-  R.foot(null, {
-    src: 'yfinance 期权链（真实 OI + IV）',
-    note: 'GEX/DEX/Vanna/Charm 为 BSM 模型估算，非交易所官方持仓方向',
-  });
-
-  // ── 页面事实集（契约见 js/ai-context.js）──
-  // 为什么给这几条：Regime 卡与 7 个 Tab 讲的都是「当前选中标的」的结构读数，
-  // 看板只列标的与 Net GEX，被追问的恰是墙位 / Flip / Skew / 期限结构 / 到期 Gamma 分布，
-  // 全部来自同一个 D.symbols[S]，provider 在提问时求值，零额外请求。
-  if (window.AICtx) AICtx.declare('assets-equities-options', () => {
-    const v = D.symbols[S];
-    if (!v) return null;
-    const n = v.narrative;
-    const wall = (w, label) => [label, w ? R.num(w.strike, 1) : '—', w ? R.num(w.per_point_m, 1) + ' M/点' : '—'];
-    const oiTop = (v.oi_top || []).reduce((a, b) => ((b.total ?? 0) > (a?.total ?? -1) ? b : a), null);
-    return {
-      title: '期权结构读数',
-      src: 'yfinance 期权链（真实 OI + IV）· BSM 估算 GEX/DEX',
-      asOf: D.date ? D.date.slice(0, 10) : '',
-      priority: 10,
-      facts: [
-        ['当前选中标的', S + ' · ' + REGIME_INFO[regimeKey(v)].label, '现价 ' + R.num(v.spot)],
-        ['结构解读', n && n.gamma ? n.gamma.title : '—', n && n.range && n.vol ? `置信度：区间 ${n.range.confidence} · 波动 ${n.vol.confidence}` : ''],
-        ['Net GEX', `${v.net_gex >= 0 ? '+' : ''}${R.num(v.net_gex)} B`, '全合约合计，仅作强度参考'],
-        ['Net DEX', `${v.net_dex >= 0 ? '+' : ''}${R.num(v.net_dex)} B`, 'dealer 净 delta 敞口'],
-        ['Gamma Flip', v.gamma_flip == null ? '—' : R.num(v.gamma_flip, 1),
-          v.flip_dist == null ? '全链累计无翻转点' : `现价较 Flip ${v.flip_dist >= 0 ? '高' : '低'} ${R.num(Math.abs(v.flip_dist))}%`],
-        wall(v.call_wall, 'Call Wall · 阻力'),
-        wall(v.put_wall, 'Put Wall · 支撑'),
-        ['25Δ Skew', R.num(v.skew), `${v.skew_dte || '—'}D · P ${R.fmtPct(v.skew_put_iv)} / C ${R.fmtPct(v.skew_call_iv)}`],
-        ['ATM IV 期限', v.iv_front && v.iv_back
-          ? `Front ${v.iv_front.dte}D ${R.fmtPct(v.iv_front.iv)} / Back ${v.iv_back.dte}D ${R.fmtPct(v.iv_back.iv)}`
-          : '—', '斜率 ' + R.num(v.iv_slope) + ' pt'],
-        ['Net Vanna', `${v.net_vanna >= 0 ? '+' : ''}${R.num(v.net_vanna)} B`, (v.net_vanna ?? 0) >= 0 ? '正 = IV 下行助推上涨' : '负 = IV 下行削弱上涨'],
-        ['Net Charm', `${v.net_charm >= 0 ? '+' : ''}${R.num(v.net_charm)} B`, v.charm_near7 == null ? '近 7 天到期占比 —' : `近 7 天到期占 ${R.num(v.charm_near7, 1)}%`],
-        ['P/C OI 比', `ATM ${R.num(v.pcr_oi_atm ?? v.pcr_oi)} · 全链 ${R.num(v.pcr_oi)} · 量 ${R.num(v.pcr_vol)}`, 'ATM 区 ±10%'],
-        ['到期 Gamma 占比', Object.entries(v.buckets || {}).map(([k, x]) => k + ' ' + R.num(x.gex_pct, 0) + '%').join(' · ') || '—', '各段 Σ|GEX| / 全链'],
-        // oi_top 不是按 total 排序的（实测 22 个标的里 15 个首条并非最大），必须自己取 max
-        ['OI 最大集中位', oiTop
-          ? `${R.num(oiTop.strike, 1)} · ${R.num(oiTop.total / 1000, 1)}K` : '—',
-          oiTop ? `${oiTop.expiration} · call+put 合计` : '—'],
-        // 巨头池 Wheel 雷达（后端 options_board() 内嵌 wheel 字段）
-        ...wheelFacts(),
-      ],
-      note: 'GEX/DEX/Vanna/Charm 单位为十亿美元（B），IV 为 %，Skew 为 pt',
-    };
-  });
-}
-
-// ── Regime 大卡 + 4 指标卡（timsun 复刻） ──
 // Regime 的 Gamma 正负 = 局部（现价 vs Gamma Flip），不是 Net GEX 符号；
-// Net GEX 仅是全部合约强度参考——timsun 同款判定（SPY：Flip 下方 34.7% 但 GEX 为负 → 正 Gamma）。
+// Net GEX 仅是全部合约强度参考——timsun 同款判定。
+function isLocalPosGamma(v) {
+  return v.flip_dist == null ? (v.net_gex ?? 0) >= 0 : v.flip_dist >= 0;
+}
 function regimeKey(v) {
-  const localPos = v.flip_dist == null ? v.net_gex >= 0 : v.flip_dist >= 0;
-  return (localPos ? 'p' : 'n') + (v.net_dex >= 0 ? 'p' : 'n');
+  return (isLocalPosGamma(v) ? 'p' : 'n') + ((v.net_dex ?? 0) >= 0 ? 'p' : 'n');
 }
 
-function renderRegime() {
-  const v = D.symbols[S];
-  if (!v) return;
+// ── 顶栏：子视图切换与标的选择器 ──
+function initTopBar() {
+  document.querySelectorAll('#opt-subview-switch [data-subview]').forEach(btn => {
+    btn.addEventListener('click', () => applySubview(btn.dataset.subview));
+  });
+}
+
+function populateSymbolSelect() {
+  const sel = document.getElementById('opt-sym-select');
+  if (!sel || !D || !D.symbols) return;
+  const syms = D.symbols;
+  const inGroups = new Set();
+  const html = GROUPS.map(([gLabel, list]) => {
+    const valid = list.filter(s => syms[s]);
+    valid.forEach(s => inGroups.add(s));
+    if (!valid.length) return '';
+    return `<optgroup label="${esc(gLabel)}">${valid.map(s => `<option value="${esc(s)}">${esc(s)}</option>`).join('')}</optgroup>`;
+  }).join('');
+  const rest = Object.keys(syms).filter(s => !inGroups.has(s));
+  const restHtml = rest.length
+    ? `<optgroup label="其他">${rest.map(s => `<option value="${esc(s)}">${esc(s)}</option>`).join('')}</optgroup>`
+    : '';
+  sel.innerHTML = html + restHtml;
+  if (!syms[S]) S = Object.keys(syms)[0] || 'SPY';
+  sel.value = S;
+  sel.addEventListener('change', () => {
+    if (sel.value) pick(sel.value);
+  });
+}
+
+function updateTopInfoBar() {
+  const v = D && D.symbols && D.symbols[S];
+  const priceEl = document.getElementById('opt-info-price');
+  const regimeEl = document.getElementById('opt-info-regime');
+  const metaEl = document.getElementById('opt-info-meta');
+  const sel = document.getElementById('opt-sym-select');
+  if (sel && sel.value !== S) sel.value = S;
+  if (!v || !priceEl) return;
+
   const key = regimeKey(v);
   const ri = REGIME_INFO[key];
-  // 全部期权净 GEX 与现价附近 Gamma 状态相反 → 短线提示（timsun 同款）
-  // localPos 与 regimeKey 同口径：flip_dist 缺失（全链无翻转点）时回退
-  // net_gex 符号，避免标题与副标题各判一边
-  const localPos = v.flip_dist == null ? v.net_gex >= 0 : v.flip_dist >= 0;
+  priceEl.textContent = v.spot != null ? `$${fmtNum(v.spot)}` : '--';
+  regimeEl.innerHTML = `<span class="opt-chip ${key}">${esc(ri.label)}</span>`;
+
+  const gexColor = (v.net_gex ?? 0) >= 0 ? 'var(--up)' : 'var(--down)';
+  const dexColor = (v.net_dex ?? 0) >= 0 ? 'var(--up)' : 'var(--down)';
+  const pw = v.put_wall?.strike != null ? fmtNum(v.put_wall.strike, 1) : '—';
+  const cw = v.call_wall?.strike != null ? fmtNum(v.call_wall.strike, 1) : '—';
+  metaEl.innerHTML =
+    `<span>GEX <b style="color:${gexColor}">${fmtSigned(v.net_gex)}B</b></span>` +
+    `<span>DEX <b style="color:${dexColor}">${fmtSigned(v.net_dex)}B</b></span>` +
+    `<span>Wall <b>P ${pw} / C ${cw}</b></span>` +
+    `<span>1Y IVR <b>${v.iv_rank_1y != null ? fmtNum(v.iv_rank_1y, 0) + '%' : '—'}</b></span>`;
+}
+
+function applySubview(subview) {
+  currentSubview = SUBVIEWS.includes(subview) ? subview : 'overview';
+  document.querySelectorAll('#opt-subview-switch [data-subview]').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.subview === currentSubview);
+  });
+  SUBVIEWS.forEach(k => {
+    const pane = document.getElementById(`opt-pane-${k}`);
+    if (pane) pane.style.display = k === currentSubview ? 'flex' : 'none';
+  });
+  if (currentSubview === 'charts') {
+    renderChartsPane();
+  }
+}
+
+function pick(s, targetSubview = null) {
+  if (!D || !D.symbols || !D.symbols[s]) return;
+  S = s;
+  updateTopInfoBar();
+  renderConclusion();
+  // 更新扫描表高亮行，免整表重绘闪烁
+  document.querySelectorAll('#board .tech-ov-row').forEach(tr => {
+    tr.classList.toggle('active', tr.dataset.symbol === S);
+  });
+  if (targetSubview && targetSubview !== currentSubview) {
+    applySubview(targetSubview);
+  } else if (currentSubview === 'charts') {
+    renderChartsPane();
+  }
+}
+
+// ── 子视图 1（上）：当前标的 4 KPI 卡 + 深度结构结论卡（对齐 tech-ov-current） ──
+function renderConclusion() {
+  const host = document.getElementById('detail');
+  const v = D && D.symbols && D.symbols[S];
+  if (!host || !v) return;
+
+  const key = regimeKey(v);
+  const ri = REGIME_INFO[key];
+  const localPos = isLocalPosGamma(v);
   const flipText = v.flip_dist == null ? null : Math.abs(v.flip_dist).toFixed(1);
   const flipSign = v.flip_dist == null || v.flip_dist >= 0 ? '高' : '低';
-  const opposite = localPos !== (v.net_gex >= 0);
-  const d = document.getElementById('detail');
-  d.innerHTML = `
-  <div class="opt-regime">
-    <div class="rg-label">${S} · 期权结构 REGIME</div>
-    <div class="rg-top">
-      <div>
-        <div class="rg-title ${key}">${ri.label}</div>
-        <div class="rg-sub">现价 ${fmtNum(v.spot)} · ${localPos ? '局部正 Gamma' : '局部负 Gamma'} · ${v.net_dex >= 0 ? '正 Delta' : '负 Delta'}</div>
-      </div>
-      <div class="rg-gex">
-        <div><div class="k">NET GEX</div><div class="v" style="color:${v.net_gex >= 0 ? 'var(--up)' : 'var(--down)'}">${v.net_gex >= 0 ? '+' : ''}${fmtNum(v.net_gex)} B</div></div>
-        <div><div class="k">NET DEX</div><div class="v" style="color:${v.net_dex >= 0 ? 'var(--up)' : 'var(--down)'}">${v.net_dex >= 0 ? '+' : ''}${fmtNum(v.net_dex)} B</div></div>
-      </div>
+  const opposite = localPos !== ((v.net_gex ?? 0) >= 0);
+
+  host.innerHTML = '';
+
+  // 1) 4 张核心 KPI 卡（独立卡行，不套进大卡，与技术分析页同构）
+  const gexSign = (v.net_gex ?? 0) >= 0 ? '+' : '';
+  const dexSign = (v.net_dex ?? 0) >= 0 ? '+' : '';
+  const regimeTone = key === 'pp' ? 'var(--up)' : key === 'nn' ? 'var(--down)' : 'var(--warning)';
+  const pw = v.put_wall ? `$${fmtNum(v.put_wall.strike, 1)} (${fmtNum(v.put_wall.per_point_m, 0)}M/点)` : '—';
+  const cw = v.call_wall ? `$${fmtNum(v.call_wall.strike, 1)} (+${fmtNum(v.call_wall.per_point_m, 0)}M/点)` : '—';
+  const contango = (v.iv_slope ?? 0) > 0;
+  const kpis = R.cards([
+    {
+      label: '结构状态 / GEX · DEX',
+      value: ri.label,
+      sub: `Net GEX ${gexSign}${fmtNum(v.net_gex)}B · Net DEX ${dexSign}${fmtNum(v.net_dex)}B`,
+      vcolor: regimeTone,
+      cls: 're-card-dense re-card-wrap',
+    },
+    {
+      label: 'Gamma Flip / 期权墙 (P — C)',
+      value: `${v.put_wall ? '$' + fmtNum(v.put_wall.strike, 1) : '—'} — ${v.call_wall ? '$' + fmtNum(v.call_wall.strike, 1) : '—'}`,
+      sub: `Flip ${v.gamma_flip == null ? '无翻转点' : '$' + fmtNum(v.gamma_flip, 1) + ' (' + (v.flip_dist >= 0 ? '+' : '') + v.flip_dist.toFixed(1) + '%)'} · P ${pw} / C ${cw}`,
+      cls: 're-card-dense re-card-wrap',
+    },
+    {
+      label: 'IV 期限结构 / 1Y IVR',
+      value: v.iv_front && v.iv_back ? `${v.iv_front.iv}% → ${v.iv_back.iv}%` : '—',
+      sub: `${contango ? 'Contango' : 'Backwardation'} (斜率 ${fmtSigned(v.iv_slope, 1)}pt) · 1Y IVR ${v.iv_rank_1y != null ? fmtNum(v.iv_rank_1y, 0) + '%' : '—'} (IVP ${v.iv_pct_1y != null ? fmtNum(v.iv_pct_1y, 0) + '%' : '—'})`,
+      vcolor: contango ? 'var(--up)' : 'var(--down)',
+      cls: 're-card-dense re-card-wrap',
+    },
+    {
+      label: '25Δ Skew / Vanna · Charm',
+      value: `Skew ${v.skew == null ? '—' : fmtNum(v.skew)} (${v.skew_dte || '—'}D)`,
+      sub: `Vanna ${fmtSigned(v.net_vanna)}B · Charm ${fmtSigned(v.net_charm)}B (近7D占 ${v.charm_near7 != null ? fmtNum(v.charm_near7, 0) + '%' : '—'})`,
+      cls: 're-card-dense re-card-wrap',
+    },
+  ]);
+  host.appendChild(kpis);
+
+  // 2) 深度结构结论卡（收拢原「结构解读 + DEX + Skew + Vanna/Charm」4 个零散 Tab）
+  const card = document.createElement('div');
+  card.className = 'tech-ov-card';
+
+  const wRow = (D.wheel && D.wheel.rows || []).find(r => r.symbol === S || r.opt_symbol === S);
+  const wheelTag = wRow
+    ? `<span class="re-badge ${['bull', 'bear', 'warn'].includes(wRow.signal_tone) ? wRow.signal_tone : 'flat'}" title="${esc(wRow.reason || '')}">Wheel · ${esc(wRow.signal)}</span>`
+    : '';
+
+  const head = document.createElement('div');
+  head.className = 'tech-ov-head';
+  head.innerHTML = `
+    <div class="tech-ov-title-wrap">
+      <span class="tech-ov-sym">${esc(S)}</span>
+      <span class="tech-ov-price">${v.spot != null ? '$' + fmtNum(v.spot) : '—'}</span>
+      <span class="opt-chip ${key}">${esc(ri.label)}</span>
+      ${opposite ? '<span class="re-badge warn">全链 GEX 与局部 Gamma 反向</span>' : ''}
+      ${wheelTag}
+      <span class="tech-ov-date">${esc(GROUP_MAP.get(S) || '')}${v.earnings_date ? ` · 财报 ${esc(v.earnings_date)}` : ''}</span>
     </div>
-    <div class="rg-desc">${ri.desc}${flipText ? ` 距 Gamma Flip ${flipDistText(v)}。` : ''}${opposite ? '全部期权合约合计的 Net GEX 与现价附近的 Gamma 状态相反，短线判断优先看现价附近的 Gamma 状态。' : ''}</div>
-  </div>
-  </div>`;
-  d.appendChild(R.cards([
-    { label: 'Gamma Flip', value: v.gamma_flip == null ? '—' : fmtNum(v.gamma_flip, 1), sub: v.flip_dist == null ? '全链累计无翻转点' : `较 Gamma Flip ${flipSign} ${flipText}%` },
-    { label: 'Call Wall · 阻力', value: fmtNum(v.call_wall?.strike, 1), sub: v.call_wall ? '+' + fmtNum(v.call_wall.per_point_m, 1) + ' M / 点' : '—' },
-    { label: 'Put Wall · 支撑', value: fmtNum(v.put_wall?.strike, 1), sub: v.put_wall ? fmtNum(v.put_wall.per_point_m, 1) + ' M / 点' : '—' },
-    { label: '25Δ Skew', value: v.skew == null ? '—' : fmtNum(v.skew), sub: `${v.skew_dte || '—'}D · P ${v.skew_put_iv ?? '—'}% / C ${v.skew_call_iv ?? '—'}%` },
-  ], 're-cards-2col'));
-}
+    <button type="button" class="range-btn" id="opt-go-charts">查看 GEX / IV / OI 图表 →</button>
+  `;
+  head.querySelector('#opt-go-charts')?.addEventListener('click', () => applySubview('charts'));
+  card.appendChild(head);
 
-function flipDistText(v) {
-  return `${Math.abs(v.flip_dist).toFixed(2)}%`;
-}
+  // 三格结论（Gamma 环境 / 区间结构 / 波动率结构）
+  const n = v.narrative;
+  const summaryBox = document.createElement('div');
+  summaryBox.className = 'tech-ov-summary';
+  if (n && n.gamma && n.range && n.vol) {
+    const items = [
+      {
+        label: n.gamma.title || 'Gamma 环境',
+        text: n.gamma.text || ri.desc,
+      },
+      {
+        label: `${n.range.title || '区间结构'} · 确信度${n.range.confidence || '—'}`,
+        text: `${n.range.meaning || ''} ${n.range.direction ? '｜' + n.range.direction : ''}`.trim(),
+      },
+      {
+        label: `${n.vol.title || '波动率结构'} · 确信度${n.vol.confidence || '—'}`,
+        text: `${n.vol.meaning || ''} ${n.vol.risk ? '｜风险：' + n.vol.risk : ''}`.trim(),
+      },
+    ];
+    summaryBox.innerHTML = items.map(it => `
+      <div class="tech-ov-summary-item">
+        <div class="tech-ov-summary-label">${esc(it.label)}</div>
+        <p class="tech-ov-summary-text">${esc(it.text)}</p>
+      </div>
+    `).join('');
+  } else {
+    summaryBox.innerHTML = `
+      <div class="tech-ov-summary-item">
+        <div class="tech-ov-summary-label">期权结构判读</div>
+        <p class="tech-ov-summary-text">${esc(ri.desc)}${flipText ? ` 现价较 Gamma Flip ${flipSign} ${flipText}%。` : ''}${opposite ? ' 全部期权合约合计的 Net GEX 与现价附近的 Gamma 状态相反，短线判断优先看现价附近的 Gamma 状态。' : ''}</p>
+      </div>
+    `;
+  }
+  card.appendChild(summaryBox);
 
-// ── 期权结构看板 ──
-function renderBoard() {
-  const syms = D.symbols;
-  const groups = [
-    ['指数 / ETF', ['SPY', 'QQQ', 'IWM']],
-    ['Mag 7', ['NVDA', 'AAPL', 'MSFT', 'AMZN', 'META', 'TSLA', 'GOOGL']],
-    // 重点个股包含 Wheel 确定性巨头池全部标的，确保下方雷达全量可点击联动
-    ['重点个股', ['AVGO', 'TSM', 'UNH', 'BRK-B', 'JPM', 'V', 'MA', 'ISRG', 'ABBV', 'COST', 'LLY', 'AMD', 'INTC', 'MU', 'MSTR', 'SNDK', 'CRCL', 'BMNR', 'AEHR', 'SPCX']],
+  // 三栏结构明细（关键监控价位 / 当前环境禁忌与跨资产联动 / 到期 Gamma 分布）
+  const dimGrid = document.createElement('div');
+  dimGrid.className = 'tech-ov-dim-grid';
+
+  const levelsHtml = (n && n.levels && n.levels.length)
+    ? n.levels.map(l => `
+        <div class="diag-row">
+          <span class="diag-label"><b>${esc(l.label)}</b></span>
+          <span class="diag-value">${esc(l.value)}</span>
+        </div>
+        <div style="font-size:11.5px;color:var(--text-dim);line-height:1.45;margin:-2px 0 6px">${esc(l.desc)}</div>
+      `).join('')
+    : '<div class="sidebar-watch-empty">暂无关键价位</div>';
+
+  const avoidHtml = (n && n.avoid && n.avoid.length)
+    ? n.avoid.map(t => `<div class="re-check" style="font-size:12px;margin-bottom:4px"><span class="no">✕</span><span>${esc(t)}</span></div>`).join('')
+    : '';
+  const crossHtml = (n && n.cross)
+    ? `<div style="font-size:12px;color:var(--text-secondary);margin-top:6px;padding-top:6px;border-top:1px dashed var(--border-light)"><b>仓位联动：</b>${esc(n.cross)}</div>`
+    : '';
+
+  const buckets = v.buckets || {};
+  const bucketRows = Object.entries(buckets).map(([k, b]) => {
+    const pct = b.gex_pct ?? 0;
+    const m = b.gex_m;
+    const mTxt = m == null ? '—' : `${m >= 0 ? '+' : ''}${Math.abs(m) >= 1000 ? (m / 1e3).toFixed(1) + 'B' : m.toFixed(0) + 'M'}`;
+    const cls = m == null ? 'neutral' : m >= 0 ? 'up' : 'down';
+    return `
+      <div class="diag-row">
+        <span class="diag-label">${esc(BUCKET_NAMES[k] || k)}</span>
+        <span class="diag-value ${cls}">${pct.toFixed(1)}% (${mTxt})</span>
+      </div>
+    `;
+  }).join('') || '<div class="sidebar-watch-empty">无到期分布数据</div>';
+
+  dimGrid.innerHTML = `
+    <div class="tech-ov-dim-col">
+      <div class="tech-ov-dim-head"><span>关键监控水平</span><span class="diag-value neutral">Spot $${fmtNum(v.spot)}</span></div>
+      ${levelsHtml}
+    </div>
+    <div class="tech-ov-dim-col">
+      <div class="tech-ov-dim-head"><span>当前环境下不宜 & 仓位联动</span></div>
+      ${avoidHtml}${crossHtml}
+    </div>
+    <div class="tech-ov-dim-col">
+      <div class="tech-ov-dim-head"><span>到期 Gamma 集中度</span><span class="diag-value neutral">Σ|GEX| 占比</span></div>
+      ${bucketRows}
+    </div>
+  `;
+  card.appendChild(dimGrid);
+
+  // 衍生品分项键值网格（收拢原 DEX / Skew / Vanna·Charm 三个小卡 Tab 的全量读数）
+  const skewDiff = v.skew_put_iv != null && v.skew_call_iv != null
+    ? `${(v.skew_put_iv - v.skew_call_iv).toFixed(1)} pt`
+    : '—';
+  const vpos = (v.net_vanna ?? 0) >= 0;
+  const kvItems = [
+    {
+      label: 'Call / Put DEX',
+      note: 'dealer 敞口',
+      value: `${fmtSigned(v.call_dex)}B / ${fmtSigned(v.put_dex)}B`,
+    },
+    {
+      label: 'P/C OI 比（ATM / 全链 / 量）',
+      note: 'ATM ±10%',
+      value: `${fmtNum(v.pcr_oi_atm ?? v.pcr_oi)} / ${fmtNum(v.pcr_oi)} / ${fmtNum(v.pcr_vol)}`,
+    },
+    {
+      label: '25Δ Put / Call IV',
+      note: `${v.skew_dte || '—'}D 差 ${skewDiff}`,
+      value: `${v.skew_put_iv ?? '—'}% / ${v.skew_call_iv ?? '—'}%`,
+    },
+    {
+      label: 'Net Vanna (dealer)',
+      note: vpos ? 'IV回落助涨' : 'IV回落助跌',
+      value: `${fmtSigned(v.net_vanna)}B`,
+      color: vpos ? 'var(--up)' : 'var(--down)',
+    },
+    {
+      label: 'Total Charm',
+      note: v.charm_near7 != null ? `近7D占 ${fmtNum(v.charm_near7, 0)}%` : '',
+      value: `${fmtSigned(v.net_charm)}B`,
+    },
+    {
+      label: '加权隐含波动率 (WIV)',
+      note: v.iv_rank_1y != null ? `1Y IVR ${fmtNum(v.iv_rank_1y, 0)}%` : '',
+      value: v.wiv != null ? `${fmtNum(v.wiv, 1)}%` : '—',
+    },
   ];
-  const board = document.getElementById('board');
-  board.innerHTML = `<h2 class="re-h2" style="margin:0 0 8px">${Object.keys(syms).length} 标的看板</h2>`;
-  groups.forEach(([title, list]) => {
-    const sec = document.createElement('div');
-    sec.className = 're-section';
-    sec.style.marginBottom = '12px';
-    sec.innerHTML = `<h2 style="white-space:nowrap">${title}</h2>`;
-    const rows = list.filter(s => syms[s]).map(s => {
-      const v = syms[s];
-      return { symbol: s, spot: v.spot, gex: v.net_gex, key: regimeKey(v), _sym: s };
-    });
-    sec.appendChild(R.table(['标的', '现价', 'Net GEX (B)', 'Regime'], rows, {
-      symbol: (v2, row) => `<a href="javascript:pick('${row._sym}')" style="color:var(--accent-ink)">${v2}</a>`,
-      gex: v2 => `<span style="color:${v2 >= 0 ? 'var(--up)' : 'var(--down)'}">${v2 >= 0 ? '+' : ''}${fmtNum(v2)}</span>`,
-      key: v2 => `<span class="opt-chip ${v2}">${REGIME_INFO[v2].label}</span>`,
-    }, ['symbol', 'spot', 'gex', 'key'], true));
-    board.appendChild(sec);
-  });
-  board.insertAdjacentHTML('beforeend', '<p class="re-source">列：标的 · 现价 · Net GEX (B) · Regime。点击任意标的切换主视图。</p>');
+  card.appendChild(R.kvRows(kvItems));
+
+  card.appendChild(R.secNote('口径：局部 Gamma 由现价相对 Gamma Flip 位置决定（全链无翻转点时回退 Net GEX 符号）；DEX = Σ(Δ×OI×100×S)；25Δ Skew = 25Δ Put IV − 25Δ Call IV（正值代表 Put IV 高于 Call IV，下行保护溢价偏贵；负值代表 Call IV 偏高）。点击下方扫描表任意行切换标的，双击或点行末「图表」直达 GEX/IV/OI 视图。'));
+
+  host.appendChild(card);
 }
 
-function pick(s) { S = s; renderRegime(); renderPanel(); }
+// ── 子视图 1（下）：全池 30 标的期权结构扫描表（合并单表 + 筛选胶囊，对齐 tech-ov-scan） ──
+const SCAN_FILTERS = {
+  all: () => true,
+  etf: (s) => GROUP_MAP.get(s) === '指数 & ETF',
+  mag7: (s) => GROUP_MAP.get(s) === 'Mag 7',
+  stock: (s) => GROUP_MAP.get(s) === '重点个股',
+  pos_gamma: (s, v) => isLocalPosGamma(v),
+  neg_gamma: (s, v) => !isLocalPosGamma(v),
+  high_ivr: (s, v) => (v.iv_rank_1y ?? 0) >= 50,
+};
 
-// ── 确定性巨头池 · Wheel 雷达 ──
-// 数据来自后端 src/wheel_scanner.py 的 scan_pool()，直接内嵌在 /api/assets/equities-options
-// 的 wheel 字段里（零新增端点，静态导出自动带上）。
-// 可出手信号与各格色调（signal_tone / event_tone / rsi_tone / vrp_tone）均由后端单源产出，前端只映射 token。
+function renderScanTable() {
+  const host = document.getElementById('board');
+  if (!host || !D || !D.symbols) return;
+  const entries = Object.entries(D.symbols);
+
+  const counts = Object.fromEntries(
+    Object.entries(SCAN_FILTERS).map(([k, fn]) => [k, entries.filter(([s, v]) => fn(s, v)).length])
+  );
+  const filters = [
+    { key: 'all', label: `全部 (${counts.all})` },
+    { key: 'etf', label: `指数 & ETF (${counts.etf})` },
+    { key: 'mag7', label: `Mag 7 (${counts.mag7})` },
+    { key: 'stock', label: `重点个股 (${counts.stock})` },
+    { key: 'pos_gamma', label: `正 Gamma (${counts.pos_gamma})` },
+    { key: 'neg_gamma', label: `负 Gamma (${counts.neg_gamma})` },
+    { key: 'high_ivr', label: `IVR ≥ 50% (${counts.high_ivr})` },
+  ];
+
+  const pred = SCAN_FILTERS[activeScanFilter] || SCAN_FILTERS.all;
+  const filtered = entries.filter(([s, v]) => pred(s, v));
+
+  host.innerHTML = '';
+  const card = document.createElement('div');
+  card.className = 'tech-ov-card';
+
+  const toolbar = document.createElement('div');
+  toolbar.className = 'tech-ov-scan-bar';
+  toolbar.innerHTML = `
+    <div class="tech-ov-scan-title">全池期权结构扫描 <span class="tech-ov-date">共 ${entries.length} 标的 · 点击行切换结论，双击或点「图表」看 GEX/IV/OI</span></div>
+    <div class="tech-ov-filters">
+      ${filters.map(f => `<button type="button" class="range-btn${activeScanFilter === f.key ? ' active' : ''}" data-filter="${f.key}">${esc(f.label)}</button>`).join('')}
+    </div>
+  `;
+  toolbar.querySelectorAll('[data-filter]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      activeScanFilter = btn.dataset.filter;
+      renderScanTable();
+    });
+  });
+  card.appendChild(toolbar);
+
+  const wrap = document.createElement('div');
+  wrap.className = 'tech-ov-table-wrap';
+  wrap.innerHTML = `
+    <table class="tech-ov-table">
+      <thead>
+        <tr>
+          <th scope="col">标的</th>
+          <th scope="col" class="num">现价</th>
+          <th scope="col">结构 Regime</th>
+          <th scope="col" class="num">Net GEX (B)</th>
+          <th scope="col" class="num">Net DEX (B)</th>
+          <th scope="col" class="num">Gamma Flip (距现价)</th>
+          <th scope="col" class="num">Put / Call Wall</th>
+          <th scope="col" class="num">25Δ Skew</th>
+          <th scope="col" class="num">IV 期限斜率</th>
+          <th scope="col" class="num">1Y IVR</th>
+          <th scope="col" class="num">操作</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${filtered.map(([sym, v]) => {
+          const isAct = sym === S;
+          const key = regimeKey(v);
+          const grp = GROUP_MAP.get(sym) || '';
+          const grpShort = grp === '指数 & ETF' ? 'ETF' : grp === 'Mag 7' ? 'Mag7' : '';
+          const gexCls = (v.net_gex ?? 0) >= 0 ? 'up' : 'down';
+          const dexCls = (v.net_dex ?? 0) >= 0 ? 'up' : 'down';
+          const flipStr = v.gamma_flip == null
+            ? '<span style="color:var(--text-dim)">—</span>'
+            : `${fmtNum(v.gamma_flip, 1)} <span style="color:${v.flip_dist >= 0 ? 'var(--up)' : 'var(--down)'}">(${fmtSigned(v.flip_dist, 1, '%')})</span>`;
+          const pw = v.put_wall?.strike != null ? fmtNum(v.put_wall.strike, 0) : '—';
+          const cw = v.call_wall?.strike != null ? fmtNum(v.call_wall.strike, 0) : '—';
+          const slopeCls = (v.iv_slope ?? 0) > 0 ? 'up' : (v.iv_slope ?? 0) < 0 ? 'down' : '';
+          const ivrCls = (v.iv_rank_1y ?? 0) >= 50 ? 'up' : '';
+          return `
+            <tr class="tech-ov-row${isAct ? ' active' : ''}" data-symbol="${esc(sym)}">
+              <td><strong>${esc(sym)}</strong>${grpShort ? `<span class="tech-ov-type">${esc(grpShort)}</span>` : ''}</td>
+              <td class="num">${v.spot != null ? '$' + fmtNum(v.spot) : '—'}</td>
+              <td><span class="opt-chip ${key}">${esc(REGIME_INFO[key].label)}</span></td>
+              <td class="num ${gexCls}">${fmtSigned(v.net_gex)}</td>
+              <td class="num ${dexCls}">${fmtSigned(v.net_dex, 1)}</td>
+              <td class="num">${flipStr}</td>
+              <td class="num">${pw} / ${cw}</td>
+              <td class="num">${v.skew != null ? fmtNum(v.skew, 2) : '—'}</td>
+              <td class="num ${slopeCls}">${v.iv_slope != null ? fmtSigned(v.iv_slope, 1, 'pt') : '—'}</td>
+              <td class="num ${ivrCls}">${v.iv_rank_1y != null ? fmtNum(v.iv_rank_1y, 0) + '%' : '—'}</td>
+              <td class="num"><button type="button" class="range-btn tech-ov-kbtn" data-go-charts="${esc(sym)}">图表</button></td>
+            </tr>
+          `;
+        }).join('') || '<tr><td colspan="11" class="sidebar-watch-empty">当前筛选条件下无匹配标的</td></tr>'}
+      </tbody>
+    </table>
+  `;
+
+  wrap.querySelectorAll('.tech-ov-row').forEach(tr => {
+    tr.addEventListener('click', e => {
+      if (e.target.closest('[data-go-charts]')) return;
+      const sym = tr.dataset.symbol;
+      if (sym) pick(sym);
+    });
+    tr.addEventListener('dblclick', () => {
+      const sym = tr.dataset.symbol;
+      if (sym) pick(sym, 'charts');
+    });
+  });
+
+  wrap.querySelectorAll('[data-go-charts]').forEach(btn => {
+    btn.addEventListener('click', e => {
+      e.stopPropagation();
+      const sym = btn.dataset.goCharts;
+      if (sym) pick(sym, 'charts');
+    });
+  });
+
+  card.appendChild(wrap);
+  host.appendChild(card);
+}
+
+// ── 子视图 2：期权图表（GEX 分布 + IV 期限结构 + OI 集中度 Top 20 平铺展示） ──
+function renderChartsPane() {
+  disposeCharts();
+  const v = D && D.symbols && D.symbols[S];
+  if (!v) return;
+
+  // 1) GEX 分布 + 到期集中度
+  const gexBadge = document.getElementById('gex-head-badge');
+  if (gexBadge) {
+    const pw = v.put_wall ? `Put Wall $${fmtNum(v.put_wall.strike, 1)}` : '';
+    const cw = v.call_wall ? `Call Wall $${fmtNum(v.call_wall.strike, 1)}` : '';
+    gexBadge.innerHTML = `<span class="re-badge">${esc(S)} · 现价 $${fmtNum(v.spot)}</span>`
+      + (pw || cw ? ` <span class="re-badge">${esc([pw, cw].filter(Boolean).join(' · '))}</span>` : '');
+  }
+
+  mk('gex-chart', colors => {
+    const g0 = (v.wall && v.wall.length ? v.wall : (v.gex_dist || [])).slice().sort((a, b) => a.strike - b.strike);
+    const significant = g0.filter(x => Math.abs(x.gex_m || 0) >= 0.5);
+    const g = (significant.length ? significant : g0).slice();
+    const ss = g.map(x => x.strike);
+    const axisIdx = x => {
+      if (!ss.length) return 0;
+      if (x <= ss[0]) return 0;
+      if (x >= ss[ss.length - 1]) return ss.length - 1;
+      let lo = 0, hi = ss.length - 1;
+      while (hi - lo > 1) { const mid = (lo + hi) >> 1; if (ss[mid] < x) lo = mid; else hi = mid; }
+      return lo + (x - ss[lo]) / (ss[hi] - ss[lo]);
+    };
+    const vmax = Math.max(...g.map(x => Math.abs(x.call_gex_m || 0)), ...g.map(x => Math.abs(x.put_gex_m || 0)), 10);
+    let acc = 0;
+    const cum = g.map(x => { acc += (x.call_gex_m || 0) + (x.put_gex_m || 0); return Math.round(acc * 10) / 10; });
+    const cumMax = Math.max(...cum.map(Math.abs), 10);
+    return R.lineOption({
+      tooltip: { trigger: 'axis' },
+      grid: { left: 8, right: 8, top: 44, bottom: 52 },
+      xAxis: { type: 'category', data: ss, axisLine: { lineStyle: { color: colors.border } }, axisLabel: { color: colors.muted, fontSize: 10, rotate: 0 }, name: '行权价', nameLocation: 'middle', nameGap: 32, nameTextStyle: { color: colors.muted, fontSize: 10 } },
+      yAxis: [
+        { type: 'value', min: -vmax, max: vmax, splitNumber: 5 },
+        { type: 'value', min: -cumMax, max: cumMax, splitNumber: 5, position: 'right', splitLine: { show: false } },
+      ],
+      series: [
+        {
+          name: 'Call GEX', type: 'bar', data: g.map(x => x.call_gex_m),
+          itemStyle: { color: colors.green },
+          markLine: {
+            silent: true, symbol: 'none',
+            data: [
+              { xAxis: axisIdx(v.spot), lineStyle: { color: colors.blue, width: 2 }, label: { show: true, formatter: '现价', color: colors.muted, fontSize: 10 } },
+              ...(v.gamma_flip ? [{ xAxis: axisIdx(v.gamma_flip), lineStyle: { color: colors.gray, type: 'dashed', width: 1.5 }, label: { show: true, formatter: 'Flip', color: colors.muted, fontSize: 10 } }] : []),
+            ],
+          },
+        },
+        { name: 'Put GEX', type: 'bar', data: g.map(x => x.put_gex_m), itemStyle: { color: colors.red } },
+        { name: '累计 GEX', type: 'line', yAxisIndex: 1, data: cum,
+          showSymbol: false, smooth: true, lineStyle: { width: 2, color: colors.text },
+          areaStyle: { opacity: 0.08 } },
+      ],
+    }, colors);
+  });
+
+  const buckets = v.buckets || {};
+  const entries = Object.entries(buckets);
+  const dom = document.getElementById('buckets');
+  if (dom) {
+    const segs = entries.map(([k, b]) => {
+      const pct = b.gex_pct ?? 0;
+      const m = b.gex_m ?? null;
+      const pos = m != null && m >= 0;
+      const gexTxt = m == null ? '—' : `${m >= 0 ? '+' : ''}${Math.abs(m) >= 1000 ? (m / 1e3).toFixed(1) + 'B' : m.toFixed(0)}M`;
+      return { k, pct, m, pos, gexTxt };
+    });
+    const maxPct = Math.max(...segs.map(s => s.pct), 0);
+    dom.innerHTML = `<div class="opt-bucket-grid">`
+      + segs.map(s => {
+        const main = s.pct > 0 && s.pct === maxPct;
+        const barColor = main ? 'var(--color-brand)' : 'color-mix(in srgb, var(--text-dim) 45%, var(--surface-alt))';
+        const name = BUCKET_NAMES[s.k] || s.k;
+        const dot = name.indexOf(' · ');
+        const label = dot > 0 ? name.slice(0, dot) : name;
+        const range = dot > 0 ? name.slice(dot + 3) : '';
+        return `
+          <span style="color:${main ? 'var(--text)' : 'var(--text-secondary)'};font-weight:${main ? 600 : 400}">${esc(label)}</span>
+          <span style="color:var(--text-dim);white-space:nowrap" title="${esc(name)}">${esc(range)}</span>
+          <div class="opt-bucket-track">
+            <div class="opt-bucket-fill" style="width:${s.pct.toFixed(1)}%;background:${barColor}"></div>
+          </div>
+          <span style="text-align:right;font-variant-numeric:tabular-nums;color:${main ? 'var(--text)' : 'var(--text-secondary)'};font-weight:${main ? 600 : 400}">${s.pct.toFixed(1)}%</span>
+          <span style="text-align:right;font-variant-numeric:tabular-nums;color:${s.m != null ? (s.pos ? 'var(--up)' : 'var(--down)') : 'var(--flat)'}">${esc(s.gexTxt)}</span>`;
+      }).join('') + `</div>`;
+  }
+  const secGex = document.getElementById('sec-gex');
+  secGex?.querySelector(':scope > .re-sec-note')?.remove();
+  secGex?.appendChild(R.secNote('到期日 Gamma 集中度：条长 = 各段 Σ|GEX| / 全链 Σ|GEX|（加总 100%），蓝色为主段；占比越集中，该到期段的期权墙约束力越强。'));
+
+  // 2) ATM IV 期限结构
+  const contango = (v.iv_slope ?? 0) > 0;
+  const ivBadge = document.getElementById('iv-head-badge');
+  if (ivBadge) {
+    ivBadge.innerHTML = `<span class="re-badge ${contango ? 'bull' : 'bear'}">${contango ? 'Contango · 远月升水' : 'Backwardation · 近月升水'}</span>`
+      + ` <span class="re-badge">斜率 ${v.iv_slope == null ? '—' : fmtSigned(v.iv_slope, 2, ' pt')}</span>`
+      + (v.iv_front && v.iv_back ? ` <span class="re-badge">Front ${v.iv_front.dte}D ${v.iv_front.iv}% / Back ${v.iv_back.dte}D ${v.iv_back.iv}%</span>` : '');
+  }
+
+  mk('iv-chart', colors => ({
+    tooltip: { trigger: 'axis', valueFormatter: val => `${Number(val).toFixed(2)}%` },
+    grid: { left: 8, right: 16, top: 20, bottom: 28 },
+    xAxis: { type: 'category', data: (v.iv_curve || []).map(x => (x.dte || '') + 'D'), axisLine: { lineStyle: { color: colors.border } }, axisLabel: { color: colors.muted, fontSize: 10 } },
+    yAxis: { type: 'value', scale: true, axisLabel: { formatter: '{value}%' } },
+    series: [{ name: 'ATM IV', type: 'line', data: (v.iv_curve || []).map(x => x.iv), showSymbol: true, lineStyle: { width: 2, color: colors.blue }, itemStyle: { color: colors.blue } }],
+  }));
+
+  const secIv = document.getElementById('sec-iv');
+  secIv?.querySelector(':scope > .re-sec-note')?.remove();
+  const skewVerdict = v.skew == null ? '暂无 Skew 数据' : Math.abs(v.skew) < 0.5 ? 'Skew 平坦 — 上下行风险定价相对均衡' : v.skew > 0 ? 'Skew 为正（Put IV > Call IV）— 下行保护溢价偏高' : 'Skew 为负（Call IV > Put IV）— 上行看涨溢价偏高';
+  secIv?.appendChild(R.secNote(`25Δ Skew (${v.skew_dte || '—'}D)：${v.skew == null ? '—' : fmtNum(v.skew)}（Put IV ${v.skew_put_iv ?? '—'}% − Call IV ${v.skew_call_iv ?? '—'}%）· ${skewVerdict}。`));
+
+  // 3) OI 集中度 Top 20（直接挂在 #sec-oi .re-panel 下以命中表格出血规则）
+  const secOi = document.getElementById('sec-oi');
+  const oiHost = document.getElementById('oi-top-host');
+  if (secOi && oiHost) {
+    const rows = (v.oi_top || []).slice().sort((a, b) => (b.total ?? 0) - (a.total ?? 0));
+    const tbl = R.table(['Strike', '到期', 'Call OI', 'Put OI', '总 OI', 'Call Vol', 'Put Vol'], rows, {
+      call_oi: v2 => (Number(v2) / 1000).toFixed(1) + 'K',
+      put_oi: v2 => (Number(v2) / 1000).toFixed(1) + 'K',
+      total: v2 => (Number(v2) / 1000).toFixed(1) + 'K',
+      call_vol: v2 => (Number(v2) / 1000).toFixed(1) + 'K',
+      put_vol: v2 => (Number(v2) / 1000).toFixed(1) + 'K',
+    }, ['strike', 'expiration', 'call_oi', 'put_oi', 'total', 'call_vol', 'put_vol']);
+    const old = secOi.querySelector(':scope > .re-table-wrap');
+    if (old) old.replaceWith(tbl);
+    else oiHost.after(tbl);
+  }
+}
+
+// ── 子视图 3：确定性巨头池 · Wheel 雷达 ──
 const WHEEL_TONE_COLOR = {
   bull: 'var(--up)',
   bear: 'var(--down)',
@@ -234,11 +694,11 @@ function wheelFacts() {
   const syms = fn => W.rows.filter(fn).map(r => r.symbol).join('/') || '无';
   const putAct = syms(r => r.actionable && r.put_pick);
   const callAct = syms(r => r.actionable && r.call_pick);
-  const watch = syms(r => r.signal_tone === 'warn' && !r.actionable);
-  const blocked = syms(r => r.signal_tone === 'bear' && !r.actionable);
+  const watch = syms(r => !r.actionable && r.near_setup);
+  const blocked = syms(r => r.event_tone === 'bear');
   const out = [[
     '巨头池 Wheel 信号',
-    `卖Put ${putAct} · 卖Call ${callAct} · 观察 ${watch} · 禁区 ${blocked}`,
+    `卖Put ${putAct} · 卖Call ${callAct} · 待企稳 ${watch} · 财报禁区 ${blocked}`,
     W.summary ? W.summary.market_regime : '',
   ]];
   const w = W.rows.find(r => r.symbol === S || r.opt_symbol === S);
@@ -251,14 +711,12 @@ function wheelFacts() {
   return out;
 }
 
-// 单一列定义（消除 WHEEL_HEADERS / WHEEL_KEYS 双数组平行维护）
-// 11 列收紧到 1118px 卡片宽内（1440 桌面零横向截断，事件排雷单行不折行）
 const WHEEL_COLS = [
   ['symbol', '标的', (v, r) => {
     const name = R.esc(r.symbol);
     const hit = D.symbols && D.symbols[r.opt_symbol];
     const head = hit
-      ? `<a href="javascript:pick('${R.esc(r.opt_symbol)}')" style="color:var(--accent-ink);font-weight:600">${name}</a>`
+      ? `<a href="#opt-top-bar" data-wheel-pick="${R.esc(r.opt_symbol)}" style="color:var(--accent-ink);font-weight:600">${name}</a>`
       : name;
     return `${head}<div style="font-size:11px;color:var(--text-dim)">${R.esc(r.sector)}</div>`;
   }],
@@ -297,14 +755,15 @@ const WHEEL_COLS = [
     return `<span class="re-badge ${cls}">${R.esc(r.signal || '')}</span>`
       + `<div style="font-size:11px;color:var(--text-dim);white-space:normal;max-width:162px;line-height:1.35">${R.esc(r.reason)}</div>`;
   }],
-  ['pick', '推荐合约 (21~49D)', (v, r) => {
+  ['pick', '推荐合约 (7~49D)', (v, r) => {
     const p = r.put_pick || r.call_pick;
     if (!p) return '<span style="color:var(--text-dim)">—</span>';
     const exp = p.expiration.startsWith('~') ? p.expiration : `${p.expiration.slice(5)}(${p.dte}d)`;
     const roc = p.annual_roc_pct != null ? ` · 年化${R.num(p.annual_roc_pct, 0)}%` : '';
     const est = p.executable === false ? '<em style="font-size:11px;color:var(--text-dim)"> [BSM]</em>' : '';
-    return `<div style="font-variant-numeric:tabular-nums;white-space:normal;max-width:148px;line-height:1.35">${R.esc(exp)} <b>$${R.num(p.strike, 2)}${R.esc(p.right)}</b>`
-      + `<div style="font-size:11px;color:var(--text-secondary)">Δ${R.num(p.delta, 2)} · IV ${R.num(p.iv_pct, 0)}% (${R.fmtBp(p.dist_pct)}%)${roc}${est}</div></div>`;
+    const cov = r.call_pick ? '<div style="font-size:10.5px;color:var(--warning)">仅限备兑(持100股底仓)</div>' : '';
+    return `<div style="font-variant-numeric:tabular-nums;white-space:normal;max-width:154px;line-height:1.35">${R.esc(exp)} <b>$${R.num(p.strike, 2)}${R.esc(p.right)}</b>`
+      + `<div style="font-size:11px;color:var(--text-secondary)">Δ${R.num(p.delta, 2)} · IV ${R.num(p.iv_pct, 0)}% (${R.fmtBp(p.dist_pct)}%)${roc}${est}</div>${cov}</div>`;
   }],
 ];
 const WHEEL_HEADERS = WHEEL_COLS.map(c => c[1]);
@@ -316,8 +775,12 @@ function renderWheelTable() {
   const el = document.getElementById('wheel-radar');
   if (!sec || !el) return;
   const tbl = R.table(WHEEL_HEADERS, wheelRows(), WHEEL_FMTS, WHEEL_KEYS, true);
-  // 直接挂在 .re-panel（#sec-wheel）下，命中 .re-panel > .re-table-wrap:has(> .re-table:only-child)
-  // 出血与首列光学补偿规则（不能套进 #wheel-radar 内层 div）
+  tbl.querySelectorAll('[data-wheel-pick]').forEach(a => {
+    a.addEventListener('click', e => {
+      e.preventDefault();
+      pick(a.dataset.wheelPick, 'overview');
+    });
+  });
   const old = sec.querySelector(':scope > .re-table-wrap');
   if (old) old.replaceWith(tbl);
   else el.after(tbl);
@@ -326,11 +789,14 @@ function renderWheelTable() {
 function renderWheel() {
   const sec = document.getElementById('sec-wheel');
   const el = document.getElementById('wheel-radar');
+  const kpiHost = document.getElementById('wheel-kpis');
+  const tabBtn = document.getElementById('opt-subview-wheel');
   if (!sec || !el) return;
   const W = D.wheel;
   const rows = (W && W.rows) || [];
   const badge = document.getElementById('wheel-regime-badge');
   sec.querySelectorAll(':scope > .re-table-wrap, :scope > .re-sec-note').forEach(n => n.remove());
+  if (kpiHost) kpiHost.innerHTML = '';
   if (!rows.length) {
     if (badge) badge.innerHTML = '';
     el.innerHTML = '<p class="re-source">暂无 Wheel 雷达数据 · 运行 ./bin/fetch_options_structure 后刷新。</p>';
@@ -338,13 +804,59 @@ function renderWheel() {
   }
   const s = W.summary || {};
   const actionCount = wheelActionable(rows).length;
+  if (tabBtn) {
+    tabBtn.textContent = `Wheel 雷达 (${actionCount}/${rows.length})`;
+  }
   if (badge) {
     badge.innerHTML = `<span class="re-badge">大盘共识：${R.esc(s.market_regime || '未知')}</span>`
       + ` <span class="re-badge ${actionCount ? 'bull' : 'flat'}">可出手 ${actionCount} / ${rows.length}</span>`
       + (s.vix_note ? ` <span class="re-badge">${R.esc(s.vix_note)}</span>` : '');
   }
+
+  // 顶部 4 张汇总小卡（与「结构结论与扫描」顶部 4 KPI 卡同构）
+  if (kpiHost) {
+    const putRows = rows.filter(r => r.actionable && r.put_pick);
+    const callRows = rows.filter(r => r.actionable && r.call_pick);
+    const watchRows = rows.filter(r => !r.actionable && r.near_setup);
+    const earnRows = rows.filter(r => r.event_tone === 'bear');
+    const fmtPickShort = (r, p) => {
+      if (!p) return r.symbol;
+      const exp = p.expiration.startsWith('~') ? p.expiration : `${p.expiration.slice(5)}(${p.dte}d)`;
+      return `${r.symbol} ${exp} $${R.num(p.strike, 0)}${p.right}`;
+    };
+    kpiHost.appendChild(R.cards([
+      {
+        label: `今日 SELL PUT (${putRows.length})`,
+        value: putRows.length ? putRows.map(r => esc(r.symbol)).join(' · ') : '暂无触发',
+        sub: putRows.length ? putRows.map(r => esc(fmtPickShort(r, r.put_pick))).join(' ｜ ') : '需回调企稳 + VRP ≥ +2% + 避开财报',
+        vcolor: putRows.length ? 'var(--up)' : 'var(--text-dim)',
+        cls: 're-card-dense re-card-wrap',
+      },
+      {
+        label: `今日备兑 SELL CALL (${callRows.length})`,
+        value: callRows.length ? callRows.map(r => esc(r.symbol)).join(' · ') : '暂无触发',
+        sub: callRows.length ? callRows.map(r => esc(fmtPickShort(r, r.call_pick))).join(' ｜ ') + '（仅限持100股底仓，禁裸卖）' : '需超买过热 + VRP ≥ 0% + 持100股正股底仓',
+        vcolor: callRows.length ? 'var(--down)' : 'var(--text-dim)',
+        cls: 're-card-dense re-card-wrap',
+      },
+      {
+        label: `接近击球区 · 待企稳 (${watchRows.length})`,
+        value: watchRows.length ? watchRows.map(r => esc(r.symbol)).join(' · ') : '无',
+        sub: watchRows.length ? watchRows.map(r => `${esc(r.symbol)}(${esc(r.trend_state)})`).join(' · ') : '回踩支撑或待右侧止跌企稳',
+        vcolor: watchRows.length ? 'var(--warning)' : 'var(--text-dim)',
+        cls: 're-card-dense re-card-wrap',
+      },
+      {
+        label: `财报禁卖窗口 ≤10d (${earnRows.length})`,
+        value: earnRows.length ? earnRows.map(r => esc(r.symbol)).join(' · ') : '无',
+        sub: earnRows.length ? earnRows.map(r => `${esc(r.symbol)}(${esc((r.event_alert || '').split(' · ')[0])})`).join(' · ') : '近 10 天内无财报跳空风险',
+        vcolor: earnRows.length ? 'var(--down)' : 'var(--text-dim)',
+        cls: 're-card-dense re-card-wrap',
+      },
+    ]));
+  }
+
   el.innerHTML = '';
-  // 组合层告警（同板块信号集中度 / 大盘 risk-off）：紧凑提示条，置于表头上方
   if (s.warnings && s.warnings.length) {
     el.insertAdjacentHTML('beforeend', `<div style="margin:0 0 8px;padding:6px 8px;font-size:12px;line-height:1.6;`
       + `color:var(--warning);background:color-mix(in srgb, var(--color-warn) 10%, transparent);`
@@ -373,252 +885,67 @@ function renderWheel() {
   });
   el.appendChild(bar);
   renderWheelTable();
-  sec.appendChild(R.secNote('口径：IV35 为期权链 ATM IV 曲线在 35 DTE 处线性插值；VRP = IV35 − HV20（≥+2% 才满足卖方正期望）；1Y IVR/IVP 来自 Barchart 52 周官方统计；财报 ≤10d 强制禁卖近月，11~35d 自动切换财报前到期合约。'));
+  sec.appendChild(R.secNote('口径：IV35 为期权链 ATM IV 曲线在 35 DTE 处线性插值；VRP = IV35 − HV20（Put 要求 ≥+2%，Call 要求 ≥0%）；1Y IVR/IVP 来自 Barchart 52 周统计（缺失时回退本地历史快照分位）；财报 ≤10d 强制禁卖，11~35d 自动切换财报前到期合约；SELL CALL 仅限持有 100 股正股底仓做备兑（Covered Call），严禁无底仓裸卖。点击标的名可切回「结构结论与扫描」查看该股期权深度结构。'));
 }
 
-// ── 板块 Tab ──
-function renderTabs() {
-  const el = document.getElementById('opt-tabs');
-  el.innerHTML = '';
-  TABS.forEach(t => {
-    const b = document.createElement('button');
-    b.textContent = t;
-    b.className = t === curTab ? 'active' : '';
-    b.addEventListener('click', () => { curTab = t; renderTabs(); renderPanel(); });
-    el.appendChild(b);
-  });
-}
-
-function renderPanel() {
-  disposeCharts();
-  const panel = document.getElementById('opt-panel');
-  panel.innerHTML = '';
-  const v = D.symbols[S];
-  if (!v) return;
-  ({ 'GEX 分布': pGex, 'DEX': pDex, 'IV 期限结构': pIv, 'Skew': pSkew, 'Vanna / Charm': pVanna, 'OI 热力': pOi, '结构解读': pNarrative })[curTab](panel, v);
-  if (curChartOpt) {
-    panel.querySelectorAll('.chart').forEach(el => mk(el.id, curChartOpt));
-    curChartOpt = null;
+async function load() {
+  initTopBar();
+  D = await R.get('/api/assets/equities-options');
+  if (!D || !D.symbols) {
+    R.fail(['detail', 'board', 'wheel-radar'], new Error('无期权结构快照 · 运行 ./bin/fetch_options_structure 后刷新'));
+    return;
   }
-}
+  R.setAsOf([['期权快照', D.date && D.date.slice(0, 10)]]);
 
-// ── GEX 分布 tab ──
-function pGex(panel, v) {
-  panel.innerHTML = `
-    <h3>${S} · GEX 按行权价分布</h3>
-    <p style="margin:0 0 8px;font-size:12px;color:var(--text-secondary)">绿色 = Call GEX × OI（dealer 净多，压制波动）；红色 = Put GEX × OI（dealer 净空，放大波动）；黑色曲线 = 累计 GEX（右轴，穿越 0 线即 Gamma Flip）。蓝线 = 现价。</p>
-    <div class="chart" id="gex-chart"></div>
-    <h3 style="margin-top:16px">到期日 Gamma 集中度</h3>
-    <div id="buckets"></div>
-    <p class="re-source" style="margin:8px 0 0">占比越集中在单一到期段，该段的 wall 约束力越强；分布越分散，各时间尺度上的墙越弱。</p>`;
-  // 图例走 R.lineOption + reSyncLegend 单源（柱取 itemStyle 色、线取线色），不再手写 HTML 图例
-  curChartOpt = colors => {
-    const g0 = (v.wall && v.wall.length ? v.wall : (v.gex_dist || [])).slice().sort((a, b) => a.strike - b.strike);
-    // timsun 同款：只画有效区间（|gex| 显著的行权价，两端 0 值远端不挤占 x 轴）
-    const significant = g0.filter(x => Math.abs(x.gex_m || 0) >= 0.5);
-    const g = (significant.length ? significant : g0).slice();
-    const ss = g.map(x => x.strike);
-    const axisIdx = x => {
-      if (!ss.length) return 0;
-      if (x <= ss[0]) return 0;
-      if (x >= ss[ss.length - 1]) return ss.length - 1;
-      let lo = 0, hi = ss.length - 1;
-      while (hi - lo > 1) { const mid = (lo + hi) >> 1; if (ss[mid] < x) lo = mid; else hi = mid; }
-      return lo + (x - ss[lo]) / (ss[hi] - ss[lo]);
+  populateSymbolSelect();
+  updateTopInfoBar();
+  renderConclusion();
+  renderScanTable();
+  renderWheel();
+  if (currentSubview === 'charts') renderChartsPane();
+  R.foot('rules', {
+    src: 'yfinance 期权链（真实 OI + IV）',
+    note: 'GEX/DEX/Vanna/Charm 为 BSM 模型估算，非交易所官方持仓方向',
+  });
+
+  if (window.AICtx) AICtx.declare('assets-equities-options', () => {
+    const v = D.symbols[S];
+    if (!v) return null;
+    const n = v.narrative;
+    const wall = (w, label) => [label, w ? R.num(w.strike, 1) : '—', w ? R.num(w.per_point_m, 1) + ' M/点' : '—'];
+    const oiTop = (v.oi_top || []).reduce((a, b) => ((b.total ?? 0) > (a?.total ?? -1) ? b : a), null);
+    const fmtSignB = val => val == null ? '—' : `${val >= 0 ? '+' : ''}${R.num(val)} B`;
+    return {
+      title: '期权结构读数',
+      src: 'yfinance 期权链（真实 OI + IV）· BSM 估算 GEX/DEX',
+      asOf: D.date ? D.date.slice(0, 10) : '',
+      priority: 10,
+      facts: [
+        ['当前选中标的', S + ' · ' + REGIME_INFO[regimeKey(v)].label, '现价 ' + R.num(v.spot)],
+        ['结构解读', n && n.gamma ? n.gamma.title : '—', n && n.range && n.vol ? `置信度：区间 ${n.range.confidence} · 波动 ${n.vol.confidence}` : ''],
+        ['Net GEX', fmtSignB(v.net_gex), '全合约合计，仅作强度参考'],
+        ['Net DEX', fmtSignB(v.net_dex), 'dealer 净 delta 敞口'],
+        ['Gamma Flip', v.gamma_flip == null ? '—' : R.num(v.gamma_flip, 1),
+          v.flip_dist == null ? '全链累计无翻转点' : `现价较 Flip ${v.flip_dist >= 0 ? '高' : '低'} ${R.num(Math.abs(v.flip_dist))}%`],
+        wall(v.call_wall, 'Call Wall · 阻力'),
+        wall(v.put_wall, 'Put Wall · 支撑'),
+        ['25Δ Skew', R.num(v.skew), `${v.skew_dte || '—'}D · P ${R.fmtPct(v.skew_put_iv)} / C ${R.fmtPct(v.skew_call_iv)}`],
+        ['ATM IV 期限', v.iv_front && v.iv_back
+          ? `Front ${v.iv_front.dte}D ${R.fmtPct(v.iv_front.iv)} / Back ${v.iv_back.dte}D ${R.fmtPct(v.iv_back.iv)}`
+          : '—', '斜率 ' + R.num(v.iv_slope) + ' pt'],
+        ['Net Vanna', fmtSignB(v.net_vanna), (v.net_vanna ?? 0) >= 0 ? '正 = IV 下行助推上涨' : '负 = IV 下行削弱上涨'],
+        ['Net Charm', fmtSignB(v.net_charm), v.charm_near7 == null ? '近 7 天到期占比 —' : `近 7 天到期占 ${R.num(v.charm_near7, 1)}%`],
+        ['P/C OI 比', `ATM ${R.num(v.pcr_oi_atm ?? v.pcr_oi)} · 全链 ${R.num(v.pcr_oi)} · 量 ${R.num(v.pcr_vol)}`, 'ATM 区 ±10%'],
+        ['到期 Gamma 占比', Object.entries(v.buckets || {}).map(([k, x]) => k + ' ' + R.num(x.gex_pct, 0) + '%').join(' · ') || '—', '各段 Σ|GEX| / 全链'],
+        ['OI 最大集中位', oiTop
+          ? `${R.num(oiTop.strike, 1)} · ${R.num(oiTop.total / 1000, 1)}K` : '—',
+          oiTop ? `${oiTop.expiration} · call+put 合计` : '—'],
+        ...wheelFacts(),
+      ],
+      note: 'GEX/DEX/Vanna/Charm 单位为十亿美元（B），IV 为 %，Skew 为 pt',
     };
-    const vmax = Math.max(...g.map(x => Math.abs(x.call_gex_m || 0)), ...g.map(x => Math.abs(x.put_gex_m || 0)), 10);
-    // 累计 GEX（按行权价升序，穿越 0 点即 Gamma Flip 所在区间）
-    let acc = 0;
-    const cum = g.map(x => { acc += (x.call_gex_m || 0) + (x.put_gex_m || 0); return Math.round(acc * 10) / 10; });
-    const cumMax = Math.max(...cum.map(Math.abs), 10);
-    return R.lineOption({
-      tooltip: { trigger: 'axis' },
-      // containLabel 已替双轴标签留位，right/left 只给纯边距（56 会叠出 ~86px 空白）；
-      // top 下移给图例让位（图例底缘 ~28px，原来正好压在绘区顶线上）
-      grid: { left: 8, right: 8, top: 44, bottom: 52 },
-      xAxis: { type: 'category', data: ss, axisLine: { lineStyle: { color: colors.border } }, axisLabel: { color: colors.muted, fontSize: 10, rotate: 0 }, name: '行权价', nameLocation: 'middle', nameGap: 32, nameTextStyle: { color: colors.muted, fontSize: 10 } },
-      yAxis: [
-        // splitNumber 限 5 段，避免极值标签（±236.3）与整数刻度（±200）上下挤压重叠
-        { type: 'value', min: -vmax, max: vmax, splitNumber: 5 },
-        { type: 'value', min: -cumMax, max: cumMax, splitNumber: 5, position: 'right', splitLine: { show: false } },
-      ],
-      series: [
-        {
-          name: 'Call GEX', type: 'bar', data: g.map(x => x.call_gex_m),
-          itemStyle: { color: colors.green },
-          markLine: {
-            silent: true, symbol: 'none',
-            data: [
-              { xAxis: axisIdx(v.spot), lineStyle: { color: colors.blue, width: 2 }, label: { show: true, formatter: '现价', color: colors.muted, fontSize: 10 } },
-              ...(v.gamma_flip ? [{ xAxis: axisIdx(v.gamma_flip), lineStyle: { color: colors.gray, type: 'dashed', width: 1.5 }, label: { show: true, formatter: 'Flip', color: colors.muted, fontSize: 10 } }] : []),
-            ],
-          },
-        },
-        { name: 'Put GEX', type: 'bar', data: g.map(x => x.put_gex_m), itemStyle: { color: colors.red } },
-        // 累计 GEX 曲线（右轴）：穿越 0 线 = 累计翻正，即 Gamma Flip 所在区间
-        { name: '累计 GEX', type: 'line', yAxisIndex: 1, data: cum,
-          showSymbol: false, smooth: true, lineStyle: { width: 2, color: colors.text },
-          areaStyle: { opacity: 0.08 } },
-      ],
-    }, colors);
-  };
-  // 到期 Gamma 集中度：分段进度行（每段一行：标签 + 细条 + 占比 + 净 GEX）
-  const buckets = v.buckets || {};
-  const entries = Object.entries(buckets);
-  const dom = document.getElementById('buckets');
-  const segs = entries.map(([k, b]) => {
-    const pct = b.gex_pct ?? 0;
-    const m = b.gex_m ?? null; // 带符号：正 = call 侧净 gamma（市场压制波动），负 = put 侧
-    const pos = m != null && m >= 0;
-    const gexTxt = m == null ? '—' : `${m >= 0 ? '+' : ''}${Math.abs(m) >= 1000 ? (m / 1e3).toFixed(1) + 'B' : m.toFixed(0)}M`;
-    return { k, pct, m, pos, gexTxt };
-  });
-  const maxPct = Math.max(...segs.map(s => s.pct), 0);
-  // 主段（占比最大）用 brand 蓝强调「谁占最多」，其余段中性灰 —— 颜色只承载这一个信息；
-  // 净 gamma 方向（绿/红）只留在右侧数字上，与全站涨跌语义一致
-  // 单一外层网格，四行同类单元格直接落同一组轨道：标签两列 auto 取最宽内容，
-  // 条 1fr 起点终点全对齐，占比/净 GEX 右对齐各占一条纵线
-  dom.innerHTML = `<div style="display:grid;grid-template-columns:auto auto 1fr 64px 76px;gap:4px 10px;align-items:center;font-size:12px">`
-    + segs.map(s => {
-    const main = s.pct > 0 && s.pct === maxPct;
-    const barColor = main ? 'var(--color-brand)' : 'color-mix(in srgb, var(--text-dim) 45%, var(--surface-alt))';
-    const name = BUCKET_NAMES[s.k] || s.k;
-    const dot = name.indexOf(' · ');
-    const label = dot > 0 ? name.slice(0, dot) : name;
-    const range = dot > 0 ? name.slice(dot + 3) : '';
-    return `
-      <span style="color:${main ? 'var(--text)' : 'var(--text-secondary)'};font-weight:${main ? 600 : 400}">${label}</span>
-      <span style="color:var(--text-dim);white-space:nowrap" title="${name}">${range}</span>
-      <div style="height:10px;border-radius:5px;background:var(--border-light);overflow:hidden">
-        <div style="width:${s.pct.toFixed(1)}%;height:100%;background:${barColor}"></div>
-      </div>
-      <span style="text-align:right;font-variant-numeric:tabular-nums;color:${main ? 'var(--text)' : 'var(--text-secondary)'};font-weight:${main ? 600 : 400}">${s.pct.toFixed(1)}%</span>
-      <span style="text-align:right;font-variant-numeric:tabular-nums;color:${s.m != null ? (s.pos ? 'var(--up-text)' : 'var(--down-text)') : 'var(--flat)'}">${s.gexTxt}</span>`;
-  }).join('') + `</div>`;
-  dom.insertAdjacentHTML('beforeend', `<p class="re-source" style="margin:8px 0 0">条长 = 占比（各到期段 Σ|GEX| / 全链 Σ|GEX|，加总 100%），蓝色 = 占比最大的主段；绿/红 = 净 gamma 方向（正压制波动 / 负放大波动）。${maxPct > 0 ? `主段：${BUCKET_NAMES[segs.find(s => s.pct === maxPct).k] || ''}（${maxPct.toFixed(1)}%）` : ''}</p>`);
-}
-
-// ── DEX tab ──
-function pDex(panel, v) {
-  const pos = v.net_dex >= 0;
-  panel.innerHTML = `
-    <h3>${S} · Net DEX</h3>`;
-  panel.appendChild(R.cards([
-    { label: 'Net DEX', value: `${pos ? '+' : ''}${fmtNum(v.net_dex)} <span style="font-size:13px">B</span>`, vcolor: pos ? 'var(--up)' : 'var(--down)', sub: `市场 dealer book 净${pos ? '做多' : '做空'}，delta 敞口${pos ? '偏向上行' : '偏向下行'}。` },
-    { label: 'Call 端 DEX', value: `${v.net_dex >= 0 ? '+' : ''}${fmtNum(v.call_dex)} <span style="font-size:13px">B</span>`, sub: 'call 端按正向 delta 敞口折算' },
-    { label: 'Put 端 DEX', value: `${v.net_dex >= 0 ? '+' : ''}${fmtNum(v.put_dex)} <span style="font-size:13px">B</span>`, sub: 'put 端按卖保护口径翻号折算' },
-  ], 're-cards-2col'));
-  panel.insertAdjacentHTML('beforeend', `
-    <p class="re-source" style="margin:10px 0 0">DEX = Σ(delta × OI × 100 × S)。模型口径：call 端按正向 delta 计入，put 端翻号后合并。P/C OI 比（ATM ±10%）: ${fmtNum(v.pcr_oi_atm ?? v.pcr_oi)} · 全链: ${fmtNum(v.pcr_oi)} · 成交量比: ${fmtNum(v.pcr_vol)}</p>`)
-}
-
-// ── IV 期限结构 tab ──
-function pIv(panel, v) {
-  const contango = (v.iv_slope ?? 0) > 0;
-  panel.innerHTML = `
-    <h3>${S} · ATM IV 期限结构</h3>
-    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:8px">
-      <div class="re-badges">
-        <span class="re-badge ${contango ? 'bull' : 'bear'}">${contango ? 'Contango（远月升水 · 正常风险定价）' : 'Backwardation（近月升水）'}</span>
-        <span class="re-spread">斜率 ${v.iv_slope == null ? '—' : fmtNum(v.iv_slope)} pt</span>
-      </div>
-      <div style="display:flex;gap:18px;font-size:13px">
-        <span>Front (${v.iv_front?.dte || '—'}D) <b>${v.iv_front?.iv ?? '—'}%</b></span>
-        <span>Back (${v.iv_back?.dte || '—'}D) <b>${v.iv_back?.iv ?? '—'}%</b></span>
-      </div>
-    </div>
-    <div class="chart chart-sm" id="iv-chart"></div>
-    <p class="re-source" style="margin:8px 0 0">Skew ${v.skew == null ? '—' : fmtNum(v.skew)} — ${Math.abs(v.skew ?? 0) < 0.5 ? 'Skew 平坦 — 市场对上下行风险定价相对均衡' : (v.skew < 0 ? 'Skew 偏负 — 市场为下行风险支付溢价' : 'Skew 偏正 — 市场为上行风险支付溢价')}</p>`;
-  curChartOpt = colors => ({
-    tooltip: { trigger: 'axis' },
-    grid: { left: 8, right: 16, top: 20, bottom: 28 },
-    xAxis: { type: 'category', data: v.iv_curve.map(x => (x.dte || '') + 'D'), axisLine: { lineStyle: { color: colors.border } }, axisLabel: { color: colors.muted, fontSize: 10 } },
-    yAxis: { type: 'value' },
-    series: [{ type: 'line', data: v.iv_curve.map(x => x.iv), showSymbol: true, lineStyle: { width: 2, color: colors.blue } }],
   });
 }
-
-// ── Skew tab ──
-function pSkew(panel, v) {
-  const skew = v.skew;
-  const flat = skew == null || Math.abs(skew) < 0.5;
-  const verdict = skew == null ? '暂无数据' : flat ? 'Skew 平坦 — 市场对上下行风险定价相对均衡' : skew < 0 ? 'Skew 偏负 — 市场为下行风险支付溢价，保护需求偏强' : 'Skew 偏正 — 市场为上行风险支付溢价';
-  panel.innerHTML = `
-    <h3>${S} · 25Δ Skew</h3>`;
-  panel.appendChild(R.cards([
-    { label: '25Δ Skew', value: fmtNum(skew), sub: `${v.skew_dte || '—'}D 期限` },
-    { label: 'Put IV (25Δ)', value: `${v.skew_put_iv ?? '—'}%`, sub: `${v.skew_dte || '—'}D` },
-    { label: 'Call IV (25Δ)', value: `${v.skew_call_iv ?? '—'}%`, sub: `${v.skew_dte || '—'}D` },
-    { label: 'P/C IV 差', value: `${v.skew_put_iv != null && v.skew_call_iv != null ? (v.skew_put_iv - v.skew_call_iv).toFixed(1) : '—'} pt`, sub: '正 = put 偏贵' },
-  ], 're-cards-2col'));
-  panel.insertAdjacentHTML('beforeend', `
-    <p class="re-source" style="margin:10px 0 0">${verdict}。25Δ skew = 25Δ put IV − 25Δ call IV（vol skew），负值代表市场为下行风险支付更高溢价。</p>`)
-}
-
-// ── Vanna / Charm tab ──
-function pVanna(panel, v) {
-  const vpos = (v.net_vanna ?? 0) >= 0;
-  const near7 = v.charm_near7;
-  panel.innerHTML = `
-    <h3>${S} · Vanna / Charm</h3>`;
-  panel.appendChild(R.cards([
-    { label: 'Net Vanna (dealer)', value: `${vpos ? '+' : ''}${fmtNum(v.net_vanna)} <span style="font-size:13px">B</span>`, vcolor: vpos ? 'var(--up)' : 'var(--down)', sub: vpos ? '正 Vanna（IV 下降助推上涨）' : '负 Vanna（IV 下降削弱上涨）' },
-    { label: 'Total Charm', value: `${fmtNum(v.net_charm)} <span style="font-size:13px">B</span>`, sub: `近 ${v.charm_near7_dte || 7} 天到期贡献 ${near7 ?? '—'}%` },
-  ], 're-cards-2col'));
-  panel.insertAdjacentHTML('beforeend', `
-    <p class="re-source" style="margin:10px 0 0" id="vanna-desc"></p>
-    <p class="re-source" style="margin:8px 0 0" id="charm-desc"></p>
-    <p class="re-source" style="margin:8px 0 0">${vpos ? 'IV 回落时做市商将被迫买入现货，支撑价格。反之 IV 飙升时做市商减多。' : 'IV 回落时做市商被迫卖出，价格承压；IV 飙升时减仓平抑波动。'}</p>
-    <p class="re-source" style="margin:8px 0 0">${near7 != null && near7 >= 40 ? `近 7 天到期合约贡献 ${near7.toFixed(0)}% 的 Charm — 盘中磁吸效应强，周到期前 delta 衰减快。` : ''}</p>
-    <p class="re-source" style="margin:8px 0 0">Vanna ≈ −γ·S·√T·d2 × OI × 100（标准 BSM）；Charm = φ(d1)·[(r+σ²/2)/(σ√T) − d1/(2T)] × OI × 100。符号采用 call 正向、put 翻号的统一估算口径。</p>`)
-}
-
-// ── OI 热力 tab ──
-function pOi(panel, v) {
-  panel.innerHTML = `<h3>OI 集中度 Top 20 · (Strike × 到期)</h3><p style="margin:0 0 8px;font-size:12px;color:var(--text-secondary)">按总 OI (call + put) 排序，观察 dealer 关键 pin 位。</p>`;
-  const rows = v.oi_top || [];
-  const tbl = R.table(['Strike', '到期', 'Call OI', 'Put OI', '总 OI', 'Call Vol', 'Put Vol'], rows, {
-    call_oi: v2 => (Number(v2) / 1000).toFixed(1) + 'K',
-    put_oi: v2 => (Number(v2) / 1000).toFixed(1) + 'K',
-    total: v2 => (Number(v2) / 1000).toFixed(1) + 'K',
-    call_vol: v2 => (Number(v2) / 1000).toFixed(1) + 'K',
-    put_vol: v2 => (Number(v2) / 1000).toFixed(1) + 'K',
-  });
-  panel.appendChild(tbl);
-}
-
-// ── 结构解读 tab（后端规则引擎 narrative）──
-function pNarrative(panel, v) {
-  const n = v.narrative;
-  if (!n) { panel.innerHTML = '<p class="re-source">暂无结构解读。</p>'; return; }
-  const h = [];
-  h.push(`<h3>${n.gamma.title}</h3><p style="font-size:13px;line-height:1.8;color:var(--text-secondary)">${n.gamma.text}</p>`);
-  [n.range, n.vol].forEach(b => {
-    h.push(`<div class="re-section" style="margin-bottom:12px">
-      <h2 style="display:flex;align-items:center;justify-content:space-between;gap:8px">${b.title}<span class="vol-score" style="font-size:11px">确信度 · ${b.confidence}</span></h2>
-      <div class="kv-row"><span class="kv-k">含义</span><span>${b.meaning}</span></div>
-      <div class="kv-row"><span class="kv-k">观察</span><span>${b.watch}</span></div>
-      ${b.direction ? `<div class="kv-row"><span class="kv-k">方向</span><span>${b.direction}</span></div>` : ''}
-      ${b.invalid ? `<div class="kv-row"><span class="kv-k">失效</span><span>${b.invalid}</span></div>` : ''}
-      <div class="kv-row"><span class="kv-k">风险</span><span>${b.risk}</span></div>
-    </div>`);
-  });
-  h.push(`<div class="re-section" style="margin-bottom:12px">
-    <h2>关键监控水平</h2>
-    ${(n.levels || []).map(l => `<div class="kv-row"><span class="kv-k" style="font-weight:800">${l.value}</span><span><b>${l.label}</b> — ${l.desc}</span></div>`).join('')}
-  </div>`);
-  h.push(`<div class="re-section" style="margin-bottom:12px">
-    <h2>当前环境下不宜</h2>
-    ${(n.avoid || []).map(t => `<div class="re-check"><span class="no">✕</span><span>${t}</span></div>`).join('')}
-  </div>`);
-  h.push(`<div class="re-section" style="margin-bottom:12px">
-    <h2>跨资产联动</h2>
-    <p style="margin:0">${n.cross}</p>
-  </div>`);
-  panel.innerHTML = h.join('');
-}
-
-let curChartOpt = null;
 
 load().catch(e => R.fail(['detail', 'board', 'wheel-radar'], e));
 </script>
