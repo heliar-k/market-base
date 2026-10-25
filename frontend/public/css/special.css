@@ -523,6 +523,19 @@ body.embedded .back-top { right: 6px; bottom: 6px; width: 24px; height: 24px; fo
  * 不用 -webkit-line-clamp / max-height 截：两者都会把单元格 min-content 顶宽，
  * 表格横向溢出（实测 1118 → 1160，末列被推出可视区）。 */
 .opt-sig-reason { font-size: 11px; color: var(--text-dim); line-height: 1.4; max-width: 162px; margin-top: 2px; white-space: normal; }
+/* Wheel 筛选标准（卡底小字）：与 .re-sec-note 同档字号，但分条列而非一整句 ——
+ * 六条规则各管一件事（池准入 / 卖 Put / 备兑 / 选点 / 事件 / 组合），糊成一段读不下去。
+ * 方框内缩半档：外面 .re-section 已有卡面，不再套内框（同 .sig-row 纪律）。 */
+.opt-criteria {
+  margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--border-light);
+  font-size: 12px; line-height: 1.7; color: var(--text-dim);
+}
+.opt-criteria-title {
+  font-size: 11px; font-weight: 600; letter-spacing: .06em;
+  color: var(--text-secondary); margin-bottom: 4px;
+}
+.opt-criteria p { margin: 0; }
+.opt-criteria p + p { margin-top: 2px; }
 /* 到期 Gamma 集中度分段进度行 */
 .opt-bucket-grid {
   display: grid; grid-template-columns: auto auto 1fr 56px 68px;

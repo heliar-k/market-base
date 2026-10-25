@@ -91,9 +91,12 @@ THRESHOLDS = {
     "ivr_min": 25.0,  # Sell Put 52周 IV Rank 或 IV Percentile 至少一项 >= 25%
     # Sell Put 技术击球区
     "put_rsi_trigger": 40.0,  # RSI(14) <= 40 超卖/偏弱
+    "put_bb_pos_max": 15.0,  # 布林带位置 <= 15%（贴下轨，与 RSI 满足其一即可）
     "put_ma50_sigma_max": -1.2,  # 距 MA50 偏离 <= -1.2 倍日标准差（波动率归一化）
+    "put_vs_ma200_max": 3.0,  # 或距 MA200 <= +3%（长期趋势未破的回调）
     # Sell Call（Covered Call）技术击球区
     "call_rsi_trigger": 68.0,  # RSI(14) >= 68 动量过热
+    "call_bb_pos_min": 85.0,  # 布林带位置 >= 85%（贴上轨，与 RSI 满足其一即可）
     "call_ma50_sigma_min": 2.0,  # 高于 MA50 >= +2.0 倍日标准差
     # 期权选点参数（DTE 与 |Delta|）
     "dte_min": 21,
@@ -632,8 +635,11 @@ def evaluate_symbol(
     elif iv35 is None:
         reasons.append("缺期权数据·需运行 fetch_options_structure")
     else:
-        is_oversold = rsi <= THRESHOLDS["put_rsi_trigger"] or bb_pos <= 15
-        is_pullback = ma50_sigmas <= THRESHOLDS["put_ma50_sigma_max"] or vs_ma200 <= 3.0
+        is_oversold = rsi <= THRESHOLDS["put_rsi_trigger"] or bb_pos <= THRESHOLDS["put_bb_pos_max"]
+        is_pullback = (
+            ma50_sigmas <= THRESHOLDS["put_ma50_sigma_max"]
+            or vs_ma200 <= THRESHOLDS["put_vs_ma200_max"]
+        )
         vol_rich = (
             iv35 >= THRESHOLDS["put_iv_min"]
             and (vrp is not None and vrp >= THRESHOLDS["vrp_min"])
@@ -641,7 +647,7 @@ def evaluate_symbol(
         )
 
         is_overbought = (
-            rsi >= THRESHOLDS["call_rsi_trigger"] or bb_pos >= 85
+            rsi >= THRESHOLDS["call_rsi_trigger"] or bb_pos >= THRESHOLDS["call_bb_pos_min"]
         ) and ma50_sigmas >= THRESHOLDS["call_ma50_sigma_min"]
 
         if is_oversold and is_pullback:
@@ -777,6 +783,38 @@ def evaluate_symbol(
     )
 
 
+def criteria_lines() -> list[str]:
+    """Wheel 筛选标准的人话说明（卡底小字 / 页脚口径用）。
+
+    阈值一律从 THRESHOLDS 取，不在前端或文档另抄一份 —— 改阈值时说明文字自动跟着变。
+    返回按主题分组的句子，前端一段一行渲染。
+    """
+    t = THRESHOLDS
+    k = lambda v: f"{v:.0f}k"  # noqa: E731
+    return [
+        f"池准入：单手占资 ≤ ${k(t['lot_ideal_max_k'])} 为理想"
+        f"（超 ${k(t['lot_hard_max_k'])} 判单手过重、直接不发信号）；"
+        f"HV20 < {t['hv20_min']:.0f}% 且 IV35 < 22% 判权利金过薄，"
+        f"HV20 > {t['hv20_max']:.0f}% 判波动过大 —— 三者都只发正股建议",
+        f"卖 Put：RSI ≤ {t['put_rsi_trigger']:.0f} 或贴布林下轨"
+        f"（≤ {t['put_bb_pos_max']:.0f}%），且距 MA50 ≤ {t['put_ma50_sigma_max']:+.1f}σ"
+        f" 或距 MA200 ≤ {t['put_vs_ma200_max']:+.0f}%；"
+        f"权利金须 IV35 ≥ {t['put_iv_min']:.0f}% 且 VRP ≥ {t['vrp_min']:+.0f}%"
+        f" 且 1Y IVR/IVP ≥ {t['ivr_min']:.0f}%；年化 ≥ {t['put_roc_min']:.0f}%",
+        f"备兑卖 Call：RSI ≥ {t['call_rsi_trigger']:.0f} 或贴布林上轨"
+        f"（≥ {t['call_bb_pos_min']:.0f}%），且高于 MA50 ≥ {t['call_ma50_sigma_min']:+.1f}σ；"
+        f"IV35 ≥ {t['call_iv_min']:.0f}% 且 VRP ≥ {t['call_vrp_min']:+.0f}%；"
+        f"年化 ≥ {t['call_roc_min']:.0f}%，仅限持 100 股底仓（禁裸卖）",
+        f"选点：DTE {t['dte_min']}~{t['dte_max']} 天，卖 Put 取 Δ {t['put_delta_target']:+.2f}"
+        f" 附近、卖 Call 取 Δ {t['call_delta_target']:+.2f} 附近；"
+        f"盘口点差 > {t['max_spread_pct']:.0f}% 直接放弃（防滑点）",
+        f"事件排雷：财报 ≤ {t['earnings_danger_dte']} 天强制禁卖；"
+        f"财报 ≤ {t['earnings_window_dte']} 天改选财报前到期合约；"
+        f"除息 ≤ {t['ex_div_warn_dte']} 天卖 Call 警惕提前行权",
+        f"组合限额：同板块最多 {t['max_green_per_sector']} 只同时出手，超限按 VRP 择优保留",
+    ]
+
+
 def portfolio_summary(
     rows: list[ScanRow], capped_by_sector: dict[str, list[str]] | None = None
 ) -> dict:
@@ -823,6 +861,7 @@ def portfolio_summary(
         "active_put_count": len(put_candidates),
         "sector_groups": by_sector,
         "warnings": warnings,
+        "criteria": criteria_lines(),
     }
 
 

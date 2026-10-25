@@ -814,7 +814,7 @@ function renderWheel() {
   const W = D.wheel;
   const rows = (W && W.rows) || [];
   const badge = document.getElementById('wheel-regime-badge');
-  sec.querySelectorAll(':scope > .re-table-wrap, :scope > .re-sec-note').forEach(n => n.remove());
+  sec.querySelectorAll(':scope > .re-table-wrap, :scope > .re-sec-note, :scope > .opt-criteria').forEach(n => n.remove());
   if (kpiHost) kpiHost.innerHTML = '';
   if (!rows.length) {
     if (badge) badge.innerHTML = '';
@@ -899,7 +899,14 @@ function renderWheel() {
   });
   el.appendChild(bar);
   renderWheelTable();
-  sec.appendChild(R.secNote('口径：IV35 为期权链 ATM IV 曲线在 35 DTE 处线性插值；VRP = IV35 − HV20（Put 要求 ≥+2%，Call 要求 ≥0%）；1Y IVR/IVP 来自 Barchart 52 周统计（缺失时回退本地历史快照分位）；财报 ≤10d 强制禁卖，11~35d 自动切换财报前到期合约；SELL CALL 仅限持有 100 股正股底仓做备兑（Covered Call），严禁无底仓裸卖。点击标的名可切回「结构结论与扫描」查看该股期权深度结构。'));
+  // 筛选标准（卡底小字）：阈值文案由后端 criteria_lines() 从 THRESHOLDS 生成，
+  // 页面不抄数字 —— 改阈值时说明自动跟着变。口径（数据源/插值方式）下沉到页脚。
+  const crit = document.createElement('div');
+  crit.className = 'opt-criteria';
+  const critBody = (s.criteria || []).map(t => `<p>${R.esc(t)}</p>`).join('')
+    || '<p>筛选标准未生成，运行 ./bin/fetch_options_structure 后刷新。</p>';
+  crit.innerHTML = `<div class="opt-criteria-title">筛选标准</div>${critBody}`;
+  sec.appendChild(crit);
 }
 
 async function load() {
@@ -921,7 +928,10 @@ async function load() {
   if (currentSubview === 'charts') renderChartsPane();
   R.foot('rules', {
     src: 'yfinance 期权链（真实 OI + IV）',
-    note: 'GEX/DEX/Vanna/Charm 为 BSM 模型估算，非交易所官方持仓方向',
+    note: 'GEX/DEX/Vanna/Charm 为 BSM 模型估算，非交易所官方持仓方向；'
+      + 'IV35 = ATM IV 曲线在 35 DTE 处线性插值，VRP = IV35 − HV20；'
+      + '1Y IVR/IVP 取自 Barchart 52 周统计（缺失时回退本地历史快照分位）；'
+      + '排雷用的财报日/除息日来自期权链 overview 真实字段',
   });
 
   if (window.AICtx) AICtx.declare('assets-equities-options', () => {
