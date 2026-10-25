@@ -21,9 +21,10 @@ npx wrangler deploy
 
 触发时间在 `wrangler.jsonc` 的 `triggers.crons` 里，**必须与各 workflow yml 的 cron 保持一致**
 （`src/worker.js` 靠 `event.cron` 精确匹配分发到对应 workflow）。
-⚠️ deploy 必须在本目录内执行：wrangler 会向上级目录搜配置且 jsonc 优先，仓库根目录的
-`wrangler.jsonc` 是另一个 Worker（`market-base`，国内入口代理）——从别处 deploy 会误覆盖它
-（2026-10-14 实际发生过，当时 workers.dev 入口短暂打不开，从根目录重跑 deploy 已恢复）。
+⚠️ deploy 必须在本目录内执行（`npx wrangler deploy` 需要读到本目录的 `wrangler.jsonc`）。
+原先仓库根目录还有个 `wrangler.jsonc`（`market-base` 国内入口代理 Worker），从别处 deploy
+会误覆盖它（2026-10-14 实际发生过）；该代理 Worker 已于 2026-10-25 删除（Workers Builds
+build-minutes 超免费额度），根目录不再有第二份配置。
 
 ## 验证
 

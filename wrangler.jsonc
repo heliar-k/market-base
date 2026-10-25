@@ -1,9 +1,0 @@
-{
-  // Cloudflare 面板「连 GitHub 仓库」的 Worker（market-base）读这份配置。
-  // 只做代理，不带 assets：静态文件与 /api/* 全部来自 Pages 部署。
-  "name": "market-base",
-  "main": "worker.js",
-  "compatibility_date": "2026-09-01",
-  // CF Workers Builds 的 PR preview 走 `wrangler preview`，要求配置里有此块（可为空）
-  "previews": {}
-}
