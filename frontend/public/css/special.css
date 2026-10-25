@@ -519,10 +519,25 @@ body.embedded .back-top { right: 6px; bottom: 6px; width: 24px; height: 24px; fo
 .opt-chip.pp { color: var(--color-up-text); border-color: color-mix(in srgb, var(--color-up) 33%, transparent); background: var(--color-up-bg); }
 .opt-chip.nn { color: var(--color-down-text); border-color: color-mix(in srgb, var(--color-down) 33%, transparent); background: var(--color-down-bg); }
 .opt-chip.pn, .opt-chip.np { color: var(--color-warn-text); border-color: color-mix(in srgb, var(--color-warn) 33%, transparent); background: var(--color-warn-bg); }
-/* Wheel 表「当日信号」列的原因行（截到两段由 JS 做，全文走 title）。
- * 不用 -webkit-line-clamp / max-height 截：两者都会把单元格 min-content 顶宽，
- * 表格横向溢出（实测 1118 → 1160，末列被推出可视区）。 */
-.opt-sig-reason { font-size: 11px; color: var(--text-dim); line-height: 1.4; max-width: 162px; margin-top: 2px; white-space: normal; }
+/* Wheel 表「当日信号」列的原因行：默认只显示前两段，被截断的行是个按钮，
+ * 点一下原位展开全文（鼠标与触屏同一套交互；不做浮层：外层 .tech-ov-table-wrap
+ * 是 overflow-x:auto，浮层会被裁掉，而且触屏没有 hover）。
+ * 截断靠 JS 切原文，不用 line-clamp / max-height —— 两者会把单元格 min-content
+ * 顶宽，表格横向溢出（实测 1118 → 1160，末列被推出可视区）。 */
+.opt-sig-reason {
+  font-size: 11px; color: var(--text-dim); line-height: 1.4; max-width: 162px;
+  margin-top: 2px; white-space: normal;
+}
+/* button 形态：清掉浏览器默认的边框/底色/内距与字号继承，长得和上面那段纯文字一样，
+ * 只在展开态才把全文露出来（.osr-full 由 hidden 属性控制）。 */
+button.opt-sig-reason {
+  display: block; width: 100%; padding: 0; border: 0; background: none;
+  font: inherit; font-size: 11px; color: var(--text-dim); text-align: left;
+  font-family: inherit; cursor: pointer;
+}
+button.opt-sig-reason:hover .osr-brief { color: var(--text-secondary); }
+/* 展开态故意不加 width/max-width 规则：一放宽整列就变宽，右侧「操作」列会横向位移几像素。
+ * 展开只让这一行变高（多行显示），列位置稳定。 */
 /* Wheel 筛选标准（卡底小字）：与 .re-sec-note 同档字号，但分条列而非一整句 ——
  * 六条规则各管一件事（池准入 / 卖 Put / 备兑 / 选点 / 事件 / 组合），糊成一段读不下去。
  * 方框内缩半档：外面 .re-section 已有卡面，不再套内框（同 .sig-row 纪律）。 */

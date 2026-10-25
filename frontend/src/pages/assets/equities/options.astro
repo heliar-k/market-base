@@ -763,12 +763,19 @@ const WHEEL_COLS = [
   }],
   ['sig', '当日信号', (v, r) => {
     const cls = ['bull', 'bear', 'warn'].includes(r.signal_tone) ? r.signal_tone : 'flat';
-    // 原因只留前两段（hover 看全文）：原先 3~4 段把行高撑到 60~108px，整表没有基线。
-    // 截断在原文而不是 CSS（line-clamp / max-height 都会把单元格 min-content 顶宽导致表格横向溢出）
+    // 原因默认只留前两段（否则 3~4 段把行高撑到 60~108px，整表没有基线）。
+    // 截断在原文而不是 CSS：line-clamp / max-height 都会把单元格 min-content 顶宽导致表格横向溢出。
+    // 被截断的行包成按钮，点一下展开全文 —— 不用 title/浮层：① 触屏没有 hover；
+    // ② .tech-ov-table-wrap 是 overflow-x:auto，浮层会被裁掉；③ 内联展开的全文能直接选中复制。
     const segs = String(r.reason || '').split(' · ');
-    const brief = segs.slice(0, 2).join(' · ') + (segs.length > 2 ? ' …' : '');
-    return `<span class="re-badge ${cls}">${R.esc(r.signal || '')}</span>`
-      + `<div class="opt-sig-reason" title="${R.esc(r.reason)}">${R.esc(brief)}</div>`;
+    const brief = segs.slice(0, 2).join(' · ');
+    const truncated = segs.length > 2;
+    const reasonEl = truncated
+      ? `<button type="button" class="opt-sig-reason" aria-expanded="false">`
+        + `<span class="osr-brief">${R.esc(brief)} …</span>`
+        + `<span class="osr-full" hidden>${R.esc(r.reason)}</span></button>`
+      : `<div class="opt-sig-reason">${R.esc(brief)}</div>`;
+    return `<span class="re-badge ${cls}">${R.esc(r.signal || '')}</span>` + reasonEl;
   }],
   ['pick', '推荐合约 (7~49D)', (v, r) => {
     const p = r.put_pick || r.call_pick;
@@ -794,6 +801,15 @@ function renderWheelTable() {
     a.addEventListener('click', e => {
       e.preventDefault();
       pick(a.dataset.wheelPick, 'overview');
+    });
+  });
+  // 「当日信号」原因展开：点一下从两段切到全文，再点收起（触屏与鼠标同一套交互）
+  tbl.querySelectorAll('button.opt-sig-reason').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const open = btn.getAttribute('aria-expanded') === 'true';
+      btn.setAttribute('aria-expanded', String(!open));
+      btn.querySelector('.osr-brief').hidden = !open;
+      btn.querySelector('.osr-full').hidden = open;
     });
   });
   const old = sec.querySelector(':scope > .re-table-wrap');
