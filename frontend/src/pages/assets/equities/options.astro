@@ -72,8 +72,6 @@ const GROUPS = [
   ['Mag 7', ['NVDA', 'AAPL', 'MSFT', 'AMZN', 'META', 'TSLA', 'GOOGL']],
   ['重点个股', ['AVGO', 'TSM', 'UNH', 'BRK-B', 'JPM', 'V', 'MA', 'ISRG', 'ABBV', 'COST', 'LLY', 'AMD', 'INTC', 'MU', 'MSTR', 'SNDK', 'CRCL', 'BMNR', 'AEHR', 'SPCX']],
 ];
-const GROUP_MAP = new Map();
-GROUPS.forEach(([gLabel, list]) => list.forEach(sym => GROUP_MAP.set(sym, gLabel)));
 
 const REGIME_INFO = {
   pp: { label: '正 Gamma + 正 Delta', short: '正γ + 正Δ', desc: '现价在 Gamma Flip 上方，波动偏被压制，多头 delta 占优。' },
@@ -493,12 +491,7 @@ function renderScanTable() {
         ${filtered.map(([sym, v]) => {
           const isAct = sym === S;
           const key = regimeKey(v);
-          // 池归属徒章：池内给梯队 T0/T1/T2（与 Wheel 表同款方鹏囊），池外统一「池外」中性灰
-          const tier = WHEEL_TIER.get(sym);
-          const tierCls = tier === 'T0' ? 'bull' : tier === 'T1' ? 'warn' : 'flat';
-          const poolTag = tier
-            ? `<span class="re-badge ${tierCls}">${esc(tier)}</span>`
-            : '<span class="re-badge flat">池外</span>';
+          // 池归属不再行内标：筛选器已给三分（宽基/wheel 池/其他），表里再标一遍是重复的
           const gexCls = (v.net_gex ?? 0) >= 0 ? 'up' : 'down';
           const dexCls = (v.net_dex ?? 0) >= 0 ? 'up' : 'down';
           const flipStr = v.gamma_flip == null
@@ -510,7 +503,7 @@ function renderScanTable() {
           const ivrCls = (v.iv_rank_1y ?? 0) >= 50 ? 'up' : '';
           return `
             <tr class="tech-ov-row${isAct ? ' active' : ''}" data-symbol="${esc(sym)}">
-              <td><strong>${esc(sym)}</strong>${poolTag}</td>
+              <td><strong>${esc(sym)}</strong></td>
               <td class="num">${v.spot != null ? '$' + fmtNum(v.spot) : '—'}</td>
               <td><span class="opt-chip ${key}">${esc(REGIME_INFO[key].label)}</span></td>
               <td class="num ${gexCls}">${fmtSigned(v.net_gex)}</td>
