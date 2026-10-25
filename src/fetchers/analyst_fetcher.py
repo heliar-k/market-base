@@ -59,7 +59,6 @@ def _ticker_targets(ticker: str) -> dict | None:
         "target_low": info.get("targetLowPrice"),
         "analysts": info.get("numberOfAnalystOpinions"),
         "rating": info.get("recommendationKey"),
-        "sector": info.get("sector"),
         # 隐含空间（现价 → 平均目标），Web 榜单直接消费
         "upside": round((mean / price - 1) * 100, 2) if price else None,
     }
@@ -130,7 +129,6 @@ if __name__ == "__main__":
         "ticker",
         "company",
         "industry",
-        "sector",
         "price",
         "target_mean",
         "target_high",

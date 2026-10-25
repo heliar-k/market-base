@@ -103,6 +103,30 @@ def test_components_fallback_to_cache(monkeypatch, tmp_path):
     assert list(df["ticker"]) == ["AAPL"]  # 网络失败回退缓存
 
 
+def test_targets_columns_single_industry_taxonomy(tmp_path):
+    """落盘列只有一套行业口径（industry=wiki ICB），不再带 yfinance 的 sector。"""
+    cols = [
+        "date",
+        "ticker",
+        "company",
+        "industry",
+        "price",
+        "target_mean",
+        "target_high",
+        "target_low",
+        "upside",
+        "analysts",
+        "rating",
+    ]
+    df = pd.DataFrame({c: [None] for c in cols})
+    from src.fetchers._io import upsert_rows
+
+    p = tmp_path / "ndx_targets.csv"
+    upsert_rows(p, df, subset=["date", "ticker"])
+    got = pd.read_csv(p).columns.tolist()
+    assert got == cols and "sector" not in got
+
+
 def test_ticker_targets(monkeypatch, tmp_path):
     monkeypatch.setattr(af, "COMPONENTS_PATH", tmp_path / "c.csv")
 
@@ -135,6 +159,7 @@ def test_ticker_targets(monkeypatch, tmp_path):
     monkeypatch.setitem(sys.modules, "yfinance", MagicMock(Ticker=fake_ticker))
     r = af._ticker_targets("WITH_TARGET")
     assert r["target_mean"] == 200.0 and r["analysts"] == 30
+    assert "sector" not in r  # 行业只认 wiki 的 industry，不收 yfinance 的第二套口径
     assert af._ticker_targets("NO_COVERAGE") is None  # 无覆盖 → 跳过
     with pytest.raises(RuntimeError):  # 限流异常向上抛，由 fetch_ndx_targets 循环捕获
         af._ticker_targets("LIMIT")
