@@ -234,8 +234,11 @@ market-base/
 >
 > 重叠是故意的：三个加速班次覆盖的源在 daily-full 里都有同源兜底（upsert 幂等，同日重复拉零风险）。
 >
-> 触发精度：GitHub schedule 实测延迟/丢班严重（daily-full 曾延迟 3-12h、intraday 32 班只落 2 班），
+> 触发精度：GitHub schedule 实测延迟/丢班严重（daily-full 曾延迟 3-12h；2026-10-18~25 七天实测：
+> intraday 应跑 ~160 班只 schedule 到 14 班、crypto-hourly 应跑 ~168 只到 40），
+> **数据时效性实际靠 Cloudflare Worker cron，不靠 GitHub。**
 > 已由 Cloudflare Worker cron（免费版）走 workflow_dispatch 精准触发（见 `cf-cron-dispatch/`），
+> 同一周实测 dispatch 补上了 180（intraday）/ 178（crypto）班 —— 这条通道才是命脉，别动它。
 > YAML schedule 保留兜底（双触发幂等，data-fetch 并发组会合并撞车班次）。
 > dispatch PAT 过期 Worker 报 401、当天班次失效，兜底仍在；续期见该目录 README。
 > 不在 Actions 跑的：依赖 IBKR 的 ibkr/options/commodities/index/stock（本地 cron）。
@@ -252,10 +255,20 @@ market-base/
 > 部署已切到 Cloudflare Pages 单目标（https://market-base.pages.dev ，根路径）。
 > 部署链（ADR-0003，工单 #11/#12）：`export_pages`（JSON 落
 > frontend/public/api/）→ `astro build`（public/ 拷贝 + .astro 编译 → frontend/dist）
-> → wrangler 部署 frontend/dist，内容哈希增量上传；secrets：`CLOUDFLARE_API_TOKEN` /
-> `CLOUDFLARE_ACCOUNT_ID`，token 需 Pages Edit + User→Memberships Read，
-> wrangler-action v3 参数名是驼峰 `apiToken`）。GitHub Pages 已下线，
-> 原站 heliar-k.github.io/market-base 停在最后一次部署作冻结备份。
+> → `wrangler pages deploy frontend/dist`（**直传，不是 `wrangler deploy`**），内容哈希增量
+> 上传；secrets：`CLOUDFLARE_API_TOKEN` / `CLOUDFLARE_ACCOUNT_ID`，token 需 Pages Edit
+> + User→Memberships Read，cloudflare/wrangler-action v3 参数名是驼峰 `apiToken`。
+> GitHub Pages 已下线，原站 heliar-k.github.io/market-base 停在最后一次部署作冻结备份。
+>
+> **两套 CF 计量别搞混**（2026-10 踩过）：① Pages `builds/月` 500 —— **只计 Git-connected
+> 构建，`wrangler pages deploy` 直传不计入**，本站每天几十次部署也撞不到；② **Workers
+> Builds `build-minutes` 3,000/月** —— 计的是「Worker 连了 GitHub 仓库后每次 push 触发的
+> build」，**失败也照计分钟**。当时根目录 `wrangler.jsonc` 把 `market-base` 代理 Worker
+> 连了仓库，1,187 个 commit 每天打卡，10-21 烧穿额度后 247 个 commit 全挂红 check。
+> 处置：删 Worker + 在 GitHub 卸载「Cloudflare Workers and Pages」App（**删 Worker 不解绑，
+> 必须卸 App**）。现账号下只剩 `gh-cron-dispatch`（cron 触发器，与本仓部署无关）。
+> 部署链不依赖任何 Worker —— 删完后 `deploy-pages` 实测仍 `completed/success`。
+> 以后要 workers.dev 入口走「Pages 自定义域名」，别再建一个连仓库的代理 Worker。
 
 > **时效断言 ≠ 退出码**：`uv run python -m src.data_freshness`（44 个数据集，预算表在文件内）
 > 两个 workflow 收尾都会跑，超预算则记入 FAILED_LIST 标红。加新 fetcher 时在那张表补一行。
@@ -325,7 +338,8 @@ uv run python -m src.tui.app                        # 启动 TUI（技术分析 
 uv run python -m src.server                        # 启动 Web，浏览器打开 localhost:8000
 # 静态部署（Cloudflare Pages，公开仓库）：deploy-pages workflow 部署链 =
 #   uv run python -m src.export_pages（API JSON → frontend/public/api/，工单 #12 起唯一模式）
-#   → npm run build（astro，frontend/dist）→ wrangler deploy → https://market-base.pages.dev/
+#   → npm run build（astro，frontend/dist）→ wrangler pages deploy（直传）
+#   → https://market-base.pages.dev/
 #   触发：前端/后端 push 自动触发；数据更新由数据 workflow commit 后显式 dispatch
 #   （Actions 里的 push 不产生 workflow run，见「四个 cron」段说明）；
 #   手动：gh workflow run deploy-pages.yml --ref <分支>
