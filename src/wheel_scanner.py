@@ -24,6 +24,7 @@ import argparse
 import json
 from dataclasses import asdict, dataclass
 from datetime import datetime
+from pathlib import Path
 
 import numpy as np
 import pandas as pd
@@ -903,6 +904,33 @@ def scan_pool(
     return snap_date, rows, summary
 
 
+def dump_board() -> Path | None:
+    """把当日 Wheel 看板落盘到 data/wheel/{期权快照日}.json，供 Pages 导出只读。
+
+    为什么必须落盘：真实期权链 raw_*.csv 不入库（~1MB/天，.gitignore），而 Pages 部署
+    在 GitHub runner 上跑 export_pages —— 那里没有 raw 链，_pick_contract 会静默退化成
+    BSM 兜底，点差 / OI 深度 / 月度 OpEx / 期权墙四道闸门全部失效（线上曾因此推荐过
+    点差过宽的合约）。改在数据班次算（raw 链还在）、提交一份 ~15KB 的看板，导出端零计算。
+    """
+    snap_date, rows, summary = scan_pool()
+    if not snap_date:
+        return None
+    out = ROOT / "data" / "wheel" / f"{snap_date}.json"
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(
+        json.dumps(
+            {
+                "snapshot_date": snap_date,
+                "summary": summary,
+                "rows": [asdict(r) for r in rows],
+            },
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+    return out
+
+
 def _fmt_pick(p: OptionPick | None) -> str:
     if not p:
         return "—"
@@ -981,6 +1009,9 @@ def main() -> None:
         help="声明已持有正股底仓的标的（逗号分隔）；未指定时默认展示全部潜在持仓 Call 机会",
     )
     ap.add_argument("--json", action="store_true", help="输出 JSON 格式")
+    ap.add_argument(
+        "--dump", action="store_true", help="落盘 data/wheel/{快照日}.json（供 Pages 导出只读）"
+    )
     args = ap.parse_args()
 
     tiers = {t.strip().upper() for t in args.tier.split(",") if t.strip()} or None
@@ -990,6 +1021,11 @@ def main() -> None:
         if args.holdings
         else None
     )
+    if args.dump:
+        path = dump_board()
+        print(f"Wheel 看板已落盘: {path}" if path else "无期权快照，跳过落盘")
+        return
+
     snap_date, rows, summary = scan_pool(tiers=tiers, symbols=syms, holdings=holdings)
     if args.json:
         print(

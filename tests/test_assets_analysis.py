@@ -997,6 +997,50 @@ class TestOptionsBoardWheel:
         # 原看板不受影响：每标的结构解读照旧挂上
         assert board["symbols"]["SPY"]["narrative"]["gamma"]
 
+    def test_wheel_prefers_dumped_board_over_live_scan(self, monkeypatch, tmp_path):
+        """有 data/wheel/{快照日}.json 时读它，不现场扫描。
+
+        真实期权链 raw_*.csv 不入库，部署线（GitHub runner）现场扫描会退化成 BSM 兜底；
+        落盘看板是数据班次用 raw 链算的，四道闸门（点差/OI/月度 OpEx/期权墙）都生效。
+        """
+        self._snapshot(tmp_path)
+        (tmp_path / "data" / "wheel").mkdir(parents=True)
+        dumped = {
+            "snapshot_date": "20261024",
+            "summary": {"market_regime": "落盘版", "criteria": ["池准入：测试"]},
+            "rows": [{"symbol": "NVDA", "put_pick": {"executable": True}}],
+        }
+        (tmp_path / "data" / "wheel" / "20261024.json").write_text(
+            json.dumps(dumped), encoding="utf-8"
+        )
+        monkeypatch.setattr(assets_analysis, "ROOT", tmp_path)
+
+        def boom():
+            raise AssertionError("有落盘看板时不应现场扫描")
+
+        monkeypatch.setattr(assets_analysis, "scan_pool", boom)
+        board = assets_analysis.options_board()
+        assert board["wheel"]["summary"]["market_regime"] == "落盘版"
+        assert board["wheel"]["rows"][0]["put_pick"]["executable"] is True
+
+    def test_wheel_falls_back_when_dump_date_mismatch(self, monkeypatch, tmp_path):
+        """落盘看板与当前期权快照不是同一天时不能复用（否则 DTE/事件锚点错位）。"""
+        self._snapshot(tmp_path)  # 期权快照 = 20261024
+        (tmp_path / "data" / "wheel").mkdir(parents=True)
+        (tmp_path / "data" / "wheel" / "20261020.json").write_text(
+            json.dumps({"snapshot_date": "20261020", "summary": {}, "rows": []}),
+            encoding="utf-8",
+        )
+        monkeypatch.setattr(assets_analysis, "ROOT", tmp_path)
+        monkeypatch.setattr(
+            assets_analysis,
+            "scan_pool",
+            lambda: ("20261024", [self._row()], {"market_regime": "现场扫描"}),
+        )
+        board = assets_analysis.options_board()
+        assert board["wheel"]["snapshot_date"] == "20261024"
+        assert board["wheel"]["summary"]["market_regime"] == "现场扫描"
+
     def test_wheel_failure_is_null_not_fatal(self, monkeypatch, tmp_path):
         self._snapshot(tmp_path)
         monkeypatch.setattr(assets_analysis, "ROOT", tmp_path)

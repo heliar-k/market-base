@@ -139,6 +139,9 @@ CHECKS: list[Check] = [
     _c("data/fed/speeches.csv", 30, "官员演讲", column="date"),
     _c("data/fed/statements.csv", 90, "声明/纪要", column="date"),
     _c("data/options_structure", D, "期权结构快照", kind="json_dir"),
+    # Wheel 看板由 daily-full 在 options_structure + 日线之后落盘（导出端只读它，
+    # 因为真实期权链 raw_*.csv 不入库）；缺它 = 线上选点会退化成 BSM 估算
+    _c("data/wheel", D, "Wheel 看板快照", kind="json_dir"),
     _c("data/crypto_derivatives", D, "加密衍生品快照（7×24）", kind="json_dir"),
     _c("data/coinglass", D, "Coinglass 聚合快照", kind="json_dir"),
     _c("data/polymarket", D, "Polymarket 预测市场快照", kind="json_dir"),

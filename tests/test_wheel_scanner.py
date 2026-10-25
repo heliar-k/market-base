@@ -274,3 +274,73 @@ def test_pick_contract_prefers_monthly_opex_and_filters_wide_spread(tmp_path, mo
     bad_df.to_csv(opt_dir / "raw_ISRG_20261024.csv", index=False)
     bad_pick = _pick_contract("ISRG", "20261024", {}, 452.3, 35.0, "C", 0.18, wall_strike=480.0)
     assert bad_pick is None
+
+
+def test_dump_board_writes_dated_json(tmp_path, monkeypatch):
+    """dump_board 落盘 data/wheel/{快照日}.json（导出端唯一数据源）。
+
+    部署线没有真实期权链 raw_*.csv，现场扫描会退化成 BSM 兜底；
+    数据班次落盘后导出端只读，四道选点闸门才不会失效。
+    """
+    import json as _json
+
+    from src import wheel_scanner as ws
+
+    monkeypatch.setattr(ws, "ROOT", tmp_path)
+    monkeypatch.setattr(
+        ws,
+        "scan_pool",
+        lambda **kw: (
+            "20261024",
+            [
+                ws.ScanRow(
+                    symbol="NVDA",
+                    opt_symbol="NVDA",
+                    tier="T0",
+                    sector="AI算力",
+                    close=200.0,
+                    lot_k=20.0,
+                    rsi=38.0,
+                    vs_ma50_pct=-5.0,
+                    vs_ma200_pct=2.0,
+                    ma50_sigmas=-2.0,
+                    bb_pos_pct=10.0,
+                    hv20_pct=30.0,
+                    iv35_pct=45.0,
+                    vrp_pct=15.0,
+                    iv_rank_1y=54.0,
+                    iv_pct_1y=70.0,
+                    put_wall=190.0,
+                    call_wall=220.0,
+                    earnings_date=None,
+                    earnings_dte=None,
+                    ex_div_date=None,
+                    ex_div_dte=None,
+                    event_alert="财报待定",
+                    trend_state="弱势回调",
+                    suitability="适合",
+                    signal="SELL PUT",
+                    signal_tone="bull",
+                    reason="RSI 38 · VRP +15%",
+                    actionable=True,
+                )
+            ],
+            {"market_regime": "分歧", "criteria": ["池准入：测试"]},
+        ),
+    )
+    path = ws.dump_board()
+    assert path is not None and path.name == "20261024.json"
+    data = _json.loads(path.read_text(encoding="utf-8"))
+    assert data["snapshot_date"] == "20261024"
+    assert data["rows"][0]["symbol"] == "NVDA"
+    assert data["summary"]["criteria"] == ["池准入：测试"]
+
+
+def test_dump_board_no_snapshot_returns_none(tmp_path, monkeypatch):
+    """无期权快照时不写空文件（避免入库一个没有内容的看板）。"""
+    from src import wheel_scanner as ws
+
+    monkeypatch.setattr(ws, "ROOT", tmp_path)
+    monkeypatch.setattr(ws, "scan_pool", lambda **kw: (None, [], {}))
+    assert ws.dump_board() is None
+    assert not (tmp_path / "data" / "wheel").exists()

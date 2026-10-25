@@ -2791,22 +2791,40 @@ def options_board() -> dict | None:
     files = sorted((ROOT / "data" / "options_structure").glob("20*.json"))
     if not files:
         return None
+    snap_key = files[-1].stem  # 快照日 = Wheel 看板落盘文件的键（也是 DTE/事件倒计时锚点）
     board = json.loads(files[-1].read_text(encoding="utf-8"))
     for s in board.get("symbols", {}).values():
         normalize_directional_walls(s)
         s["narrative"] = _options_narrative(s)
     # Wheel 雷达直接内嵌本端点（零新增 API 端点）：扫描失败不拖垮期权结构看板
+    board["wheel"] = _wheel_board(snap_key)
+    return board
+
+
+def _wheel_board(snap_key: str) -> dict | None:
+    """Wheel 看板：优先读数据班次落盘的 data/wheel/{快照日}.json。
+
+    落盘版是按当日真实期权链算的（点差 / OI 深度 / 月度 OpEx / 期权墙四道闸门生效）；
+    没有对应落盘文件时才现场扫描 —— 本机跑（raw 链在）结果同落盘版，但部署线
+    （GitHub runner 没有 gitignore 掉的 raw 链）现场扫描会退化成 BSM 理论估算，
+    那时契约里的 executable=False 会显式标出来，不静默当真实合约用。
+    """
+    board_file = ROOT / "data" / "wheel" / f"{snap_key}.json"
+    if board_file.exists():
+        try:
+            return json.loads(board_file.read_text(encoding="utf-8"))
+        except Exception as e:
+            logger.warning("读 Wheel 看板失败（回退现场扫描）: %s", e)
     try:
         snap_date, rows, summary = scan_pool()
-        board["wheel"] = {
+        return {
             "snapshot_date": snap_date,
             "summary": summary,
             "rows": [asdict(r) for r in rows],
         }
     except Exception as e:
         logger.warning("生成 wheel 雷达失败: %s", e)
-        board["wheel"] = None
-    return board
+        return None
 
 
 def _options_narrative(s: dict) -> dict:

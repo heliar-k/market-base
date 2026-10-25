@@ -107,6 +107,14 @@ jobs:
           [ -n "$FAILED" ] && echo "失败:$FAILED" && echo "FAILED_LIST=${FAILED_LIST} $FAILED" >> "$GITHUB_ENV"
           exit 0
 
+      - name: Wheel 看板（派生，必须排在 options_structure 与日线之后）
+        # 为什么单独落盘：真实期权链 raw_*.csv 不入库（~1MB/天），Pages 部署在 runner 上
+        # 跑 export_pages 时没有它，选点会静默退化成 BSM 兜底、四道闸门（点差/OI/月度
+        # OpEx/期权墙）全部失效。此处 raw 链与日线都在（上面两步刚跑），算好提交
+        # data/wheel/{快照日}.json（~15KB），导出端只读。
+        run: |
+          uv run python -m src.wheel_scanner --dump || { echo "失败: wheel_board"; echo "FAILED_LIST=${FAILED_LIST} wheel_board" >> "$GITHUB_ENV"; }
+
       - name: LPI 快照（流动性压力指数日历历史，30 天+ 后用于分位校准）
         run: |
           uv run python -m src.liquidity_analysis --snapshot || { echo "失败: lpi_snapshot"; echo "FAILED_LIST=${FAILED_LIST} lpi_snapshot" >> "$GITHUB_ENV"; }
