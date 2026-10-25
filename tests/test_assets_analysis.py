@@ -1,6 +1,7 @@
 """assets_analysis 规则引擎单元测试（不依赖网络，纯函数验证）。"""
 
 import json
+from dataclasses import asdict
 
 import numpy as np
 import pandas as pd
@@ -979,16 +980,18 @@ class TestOptionsBoardWheel:
 
     def test_wheel_mounted_alongside_symbols(self, monkeypatch, tmp_path):
         self._snapshot(tmp_path)
-        monkeypatch.setattr(assets_analysis, "ROOT", tmp_path)
-        monkeypatch.setattr(
-            assets_analysis,
-            "scan_pool",
-            lambda: (
-                "20261024",
-                [self._row()],
-                {"market_regime": "分歧", "warnings": ["测试告警"]},
+        (tmp_path / "data" / "wheel").mkdir(parents=True)
+        (tmp_path / "data" / "wheel" / "20261024.json").write_text(
+            json.dumps(
+                {
+                    "snapshot_date": "20261024",
+                    "summary": {"market_regime": "分歧", "warnings": ["测试告警"]},
+                    "rows": [asdict(self._row())],
+                }
             ),
+            encoding="utf-8",
         )
+        monkeypatch.setattr(assets_analysis, "ROOT", tmp_path)
         board = assets_analysis.options_board()
         assert board["wheel"]["snapshot_date"] == "20261024"
         assert board["wheel"]["summary"]["market_regime"] == "分歧"
@@ -998,10 +1001,11 @@ class TestOptionsBoardWheel:
         assert board["symbols"]["SPY"]["narrative"]["gamma"]
 
     def test_wheel_prefers_dumped_board_over_live_scan(self, monkeypatch, tmp_path):
-        """有 data/wheel/{快照日}.json 时读它，不现场扫描。
+        """有 data/wheel/{快照日}.json 时读它，且绝不触达现场扫描。
 
         真实期权链 raw_*.csv 不入库，部署线（GitHub runner）现场扫描会退化成 BSM 兜底；
         落盘看板是数据班次用 raw 链算的，四道闸门（点差/OI/月度 OpEx/期权墙）都生效。
+        守的是「不触达」：把 scanner 的扫描入口打成 boom，任何回退都会炸。
         """
         self._snapshot(tmp_path)
         (tmp_path / "data" / "wheel").mkdir(parents=True)
@@ -1015,40 +1019,40 @@ class TestOptionsBoardWheel:
         )
         monkeypatch.setattr(assets_analysis, "ROOT", tmp_path)
 
-        def boom():
-            raise AssertionError("有落盘看板时不应现场扫描")
+        def boom(*a, **kw):
+            raise AssertionError("有落盘看板时不应触达现场扫描")
 
-        monkeypatch.setattr(assets_analysis, "scan_pool", boom)
+        monkeypatch.setattr("src.wheel_scanner._latest_options_snapshot", boom)
+        monkeypatch.setattr("src.wheel_scanner.evaluate_symbol", boom)
         board = assets_analysis.options_board()
         assert board["wheel"]["summary"]["market_regime"] == "落盘版"
         assert board["wheel"]["rows"][0]["put_pick"]["executable"] is True
 
-    def test_wheel_falls_back_when_dump_date_mismatch(self, monkeypatch, tmp_path):
-        """落盘看板与当前期权快照不是同一天时不能复用（否则 DTE/事件锚点错位）。"""
+    def test_wheel_board_missing_returns_none(self, monkeypatch, tmp_path):
+        """当日无落盘看板 → wheel 为 None，绝不现场扫描、也绝不复用旧日看板。
+
+        复用会错位 DTE/财报倒计时锚点；现场扫描在 runner 上没有 raw 期权链会退化成
+        BSM 理论估算（闸门全失效）。宁可空着也不给一张挂不进去的报价。
+        """
         self._snapshot(tmp_path)  # 期权快照 = 20261024
         (tmp_path / "data" / "wheel").mkdir(parents=True)
+        # 只有 20261020 的看板 —— 键对不上 20261024，等同当日缺失
         (tmp_path / "data" / "wheel" / "20261020.json").write_text(
             json.dumps({"snapshot_date": "20261020", "summary": {}, "rows": []}),
             encoding="utf-8",
         )
         monkeypatch.setattr(assets_analysis, "ROOT", tmp_path)
-        monkeypatch.setattr(
-            assets_analysis,
-            "scan_pool",
-            lambda: ("20261024", [self._row()], {"market_regime": "现场扫描"}),
-        )
         board = assets_analysis.options_board()
-        assert board["wheel"]["snapshot_date"] == "20261024"
-        assert board["wheel"]["summary"]["market_regime"] == "现场扫描"
+        assert board["wheel"] is None
+        # 池成员仍要下发（不跟看板绑定），否则前端「Wheel 池」分档会塌成 0
+        assert len(board["wheel_pool"]) > 0
+        # 原看板不受影响
+        assert board["symbols"]["SPY"]["narrative"]["gamma"]
 
-    def test_wheel_failure_is_null_not_fatal(self, monkeypatch, tmp_path):
+    def test_wheel_missing_board_is_null_not_fatal(self, monkeypatch, tmp_path):
+        """没有落盘看板 → wheel 为 None，不崩、不影响 estructura 看板其余部分。"""
         self._snapshot(tmp_path)
         monkeypatch.setattr(assets_analysis, "ROOT", tmp_path)
-
-        def boom():
-            raise RuntimeError("快照损坏")
-
-        monkeypatch.setattr(assets_analysis, "scan_pool", boom)
         board = assets_analysis.options_board()
         assert board["wheel"] is None
         assert board["symbols"]["SPY"]["narrative"]["gamma"]

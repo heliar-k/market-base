@@ -641,10 +641,21 @@ def evaluate_symbol(
             ma50_sigmas <= THRESHOLDS["put_ma50_sigma_max"]
             or vs_ma200 <= THRESHOLDS["put_vs_ma200_max"]
         )
+        # IVR 两项可能都为 None（Barchart 拉取失败且本地快照不足 15 天）。
+        # 缺失时按「未达标」处理（保守不发信号是刻意的），但**理由文案必须说数据不足**，
+        # 不能印成 "IVR 0%" —— 那是把「不知道」伪装成一个具体读数。
+        ivr_known = ivr is not None or ivp is not None
+        ivr_best = max(ivr or 0.0, ivp or 0.0)
+        # 文案按**实际取到最大值那个字段**命名，不是按 ivr 是否有值判：
+        # IVR (IV Rank) 与 IVP (IV Percentile) 口径不同但共用 25% 门槛，取 max 是
+        # 「任一达标即可」。若一律标 IVR，NVDA 的 53.8/77.7 会被印成「IVR 78%」——
+        # 把一个 IV Percentile 读数冒充成 IV Rank（此前修复犯过这个错）。
+        ivr_nm = "IVR" if (ivr is not None and ivr >= (ivp or 0.0)) else "IVP"
         vol_rich = (
             iv35 >= THRESHOLDS["put_iv_min"]
             and (vrp is not None and vrp >= THRESHOLDS["vrp_min"])
-            and (max(ivr or 0.0, ivp or 0.0) >= THRESHOLDS["ivr_min"])
+            and ivr_known
+            and ivr_best >= THRESHOLDS["ivr_min"]
         )
 
         is_overbought = (
@@ -664,7 +675,13 @@ def evaluate_symbol(
                 reasons.insert(0, f"财报禁卖({e_dte}d后财报)")
             elif not vol_rich:
                 reasons.insert(0, "权利金偏薄")
-                reasons.append(f"VRP {vrp:+.1f}% / IVR {ivr or 0:.0f}%不足")
+                # not vol_rich 由 IV35/VRP/IVR 三者任一不达标触发；只有 IVR 真的是
+                # 那一项时才点它的名，否则会印出「IVR 90%不足」这种自相矛盾的句子。
+                if ivr_known and ivr_best < THRESHOLDS["ivr_min"]:
+                    ivr_s = f"{ivr_nm} {ivr_best:.0f}%不足"
+                    reasons.append(f"VRP {vrp:+.1f}% / {ivr_s}")
+                else:
+                    reasons.append(f"权利金不足（VRP {vrp:+.1f}% / IV35 {iv35:.0f}%）")
             elif severe_downtrend and not stabilized:
                 near_setup = True
                 reasons.insert(0, "空头未企稳(等止跌)")
@@ -673,7 +690,8 @@ def evaluate_symbol(
                 reasons.append(f"财报{e_dte}d·切财报前到期合约")
             else:
                 signal, signal_tone = "SELL PUT", "bull"
-                reasons.append(f"VRP {vrp:+.1f}% · IVR {ivr or 0:.0f}%")
+                ivr_s = f"{ivr_nm} {ivr_best:.0f}%" if ivr_known else "IVR —"
+                reasons.append(f"VRP {vrp:+.1f}% · {ivr_s}")
 
         elif is_pullback and rsi <= 45.0 and vol_rich:
             if e_dte is not None and e_dte <= THRESHOLDS["earnings_danger_dte"]:

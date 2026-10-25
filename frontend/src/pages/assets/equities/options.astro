@@ -716,8 +716,11 @@ function wheelFacts() {
   if (w) {
     const iv35 = w.iv35_pct == null ? '—' : `${R.num(w.iv35_pct, 1)}%`;
     const vrp = w.vrp_pct == null ? '—' : `${R.fmtBp(w.vrp_pct)}%`;
+    // 推荐合约若是 BSM 理论档，事实集必须一并带标记 —— 否则伴读抽屉会把它当可挂报价讲
+    const pk = w.put_pick || w.call_pick;
+    const pkTag = pk && pk.executable === false ? ' · 推荐合约为 BSM 理论估算（非可挂报价）' : '';
     out.push(['当前标的 Wheel 评估',
-      `${w.signal} · ${w.trend_state} · IV35 ${iv35} (VRP ${vrp})`, w.reason]);
+      `${w.signal} · ${w.trend_state} · IV35 ${iv35} (VRP ${vrp})${pkTag}`, w.reason]);
   }
   return out;
 }
@@ -830,7 +833,7 @@ function renderWheel() {
   if (kpiHost) kpiHost.innerHTML = '';
   if (!rows.length) {
     if (badge) badge.innerHTML = '';
-    el.innerHTML = '<p class="re-source">暂无 Wheel 雷达数据 · 运行 ./bin/fetch_options_structure 后刷新。</p>';
+    el.innerHTML = '<p class="re-source">暂无 Wheel 雷达数据 · 运行 uv run python -m src.wheel_scanner --dump 后刷新（daily-full 每日自动跑）。</p>';
     return;
   }
   const s = W.summary || {};
@@ -851,21 +854,34 @@ function renderWheel() {
     const watchRows = rows.filter(r => !r.actionable && r.near_setup);
     // 财报禁卖不再占一张卡（8 个标的 × 8 段括号套括号会把整行拉高到 164px），
     // 下沉成表格筛选器「财报禁区」——名单在表里本来就点得到
+    // executable === false = BSM 理论估算（数据班次没落盘看板 / 当日无真实链），
+    // 四道选点闸门（点差/OI/月度 OpEx/墙位）都没跑过。KPI 卡是第一屏，必须带标记 ——
+    // 不能只有表格第 9 列那个 11px 的 [BSM]，大部分人不会点进子视图。
     const fmtPickShort = p => {
       if (!p) return '—';
       const exp = p.expiration.startsWith('~') ? p.expiration : `${p.expiration.slice(5)}(${p.dte}d)`;
-      return `${exp} $${R.num(p.strike, 0)}${p.right}`;
+      // expiration 本身可能就是 "~35d(BSM估算)"（_pick_contract 的兜底），
+      // 再追加就是同一句话印两遍 —— 只在到期日是真实日期时才补标记
+      const est = p.executable === false && !String(p.expiration).startsWith('~') ? ' [BSM估算]' : '';
+      return `${exp} $${R.num(p.strike, 0)}${p.right}${est}`;
+    };
+    // 估算档单独计数：可出手数里混进理论档，读者会以为今天真有这么多能挂的单。
+    // 写明「估算 N 条」而不是「含估算」——后者在 3 条里有 1 条时要读成 3 条都估算。
+    const isEst = p => p && p.executable === false;
+    const estTag = picks => {
+      const n = picks.filter(isEst).length;
+      return n ? ` · 估算 ${n} 条` : '';
     };
     kpiHost.appendChild(R.cards([
       {
-        label: `今日 SELL PUT (${putRows.length})`,
+        label: `今日 SELL PUT (${putRows.length}${estTag(putRows.map(r => r.put_pick))})`,
         value: putRows.length ? putRows.map(r => esc(r.symbol)).join(' · ') : '暂无触发',
         sub: putRows.length ? putRows.map(r => esc(fmtPickShort(r.put_pick))).join(' ｜ ') : '需回调企稳 + VRP ≥ +2% + 避开财报',
         vcolor: putRows.length ? 'var(--up)' : 'var(--text-dim)',
         cls: 're-card-dense re-card-wrap',
       },
       {
-        label: `今日备兑 SELL CALL (${callRows.length})`,
+        label: `今日备兑 SELL CALL (${callRows.length}${estTag(callRows.map(r => r.call_pick))})`,
         value: callRows.length ? callRows.map(r => esc(r.symbol)).join(' · ') : '暂无触发',
         sub: callRows.length ? callRows.map(r => esc(fmtPickShort(r.call_pick))).join(' ｜ ') + '（仅限持100股底仓，禁裸卖）' : '需超买过热 + VRP ≥ 0% + 持100股正股底仓',
         vcolor: callRows.length ? 'var(--down)' : 'var(--text-dim)',
@@ -930,9 +946,13 @@ async function load() {
   }
   R.setAsOf([['期权快照', D.date && D.date.slice(0, 10)]]);
 
-  // Wheel 池梯队表必须先填：下拉分组与扫描表的 scanGroup() 都靠它判断池内池外
-  // opt_symbol 是期权标的（GOOGL/BRK-B），与 D.symbols 的键同一串
-  WHEEL_TIER = new Map(((D.wheel && D.wheel.rows) || []).map(r => [r.opt_symbol || r.symbol, r.tier]));
+  // Wheel 池梯队表：来自后端 wheel_pool（= WHEEL_POOL 静态配置），不从 wheel 看板派生。
+  // 看板可能因 `wheel_scanner --dump` 失败而缺失（那步不阻断流程），从它派生会让
+  // 「Wheel 池」这一档在看板缺失时静默变成 0，17 个池内标的全落进「其他」。
+  // 兜底：后端旧版本没有 wheel_pool 时才退回看板（保持向后兼容）。
+  const poolSrc = D.wheel_pool
+    || ((D.wheel && D.wheel.rows) || []).map(r => ({ symbol: r.opt_symbol || r.symbol, tier: r.tier }));
+  WHEEL_TIER = new Map(poolSrc.map(p => [p.symbol, p.tier]));
   populateSymbolSelect();
   updateTopInfoBar();
   renderConclusion();

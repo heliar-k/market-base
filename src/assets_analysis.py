@@ -35,7 +35,6 @@ from __future__ import annotations
 import json
 import logging
 import re
-from dataclasses import asdict
 from datetime import datetime, timedelta
 from pathlib import Path
 
@@ -43,7 +42,7 @@ import numpy as np
 import pandas as pd
 
 from src.config import ETF_POOL, FX_PAIRS
-from src.wheel_scanner import normalize_directional_walls, scan_pool
+from src.wheel_scanner import WHEEL_POOL, normalize_directional_walls
 
 logger = logging.getLogger(__name__)
 
@@ -2798,32 +2797,40 @@ def options_board() -> dict | None:
         s["narrative"] = _options_narrative(s)
     # Wheel 雷达直接内嵌本端点（零新增 API 端点）：扫描失败不拖垮期权结构看板
     board["wheel"] = _wheel_board(snap_key)
+    # 池成员单独下发，不依赖看板是否生成：前端的分组筛选/下拉要按池内池外分档，
+    # 而看板可能因 `wheel_scanner --dump` 失败而缺失（那步不阻断流程）。若让前端从
+    # board["wheel"] 派生，看板一缺，「Wheel 池」这一档就静默变成 0 —— 池子定义是
+    # 静态配置（WHEEL_POOL），根本不该跟当日看板绑定。
+    board["wheel_pool"] = [
+        {"symbol": spec.opt_symbol or spec.symbol, "tier": spec.tier} for spec in WHEEL_POOL
+    ]
     return board
 
 
 def _wheel_board(snap_key: str) -> dict | None:
-    """Wheel 看板：优先读数据班次落盘的 data/wheel/{快照日}.json。
+    """Wheel 看板：只读数据班次落盘的 data/wheel/{快照日}.json。
 
-    落盘版是按当日真实期权链算的（点差 / OI 深度 / 月度 OpEx / 期权墙四道闸门生效）；
-    没有对应落盘文件时才现场扫描 —— 本机跑（raw 链在）结果同落盘版，但部署线
-    （GitHub runner 没有 gitignore 掉的 raw 链）现场扫描会退化成 BSM 理论估算，
-    那时契约里的 executable=False 会显式标出来，不静默当真实合约用。
+    为什么不在这里现场扫描：选点要读 data/options_structure/raw_{sym}_{date}.csv
+    （真实期权链，含 bid/ask/OI），而那个文件被 .gitignore 挡掉（~1MB/天）。GitHub
+    runner 上不存在它，现场扫描会静默退化成 BSM 理论估算，四道闸门（点差 ≤35% /
+    OI 深度 / 月度 OpEx / 期权墙）全部失效 —— 线上曾因此推荐过点差过宽的合约。
+
+    所以缺文件时返回 None（前端显示"暂无数据"），而不是拿理论估算充数：宁可空着，
+    也不给人一张挂不进去的报价。看板由 daily-full 的 `wheel_scanner --dump` 产出。
     """
     board_file = ROOT / "data" / "wheel" / f"{snap_key}.json"
-    if board_file.exists():
-        try:
-            return json.loads(board_file.read_text(encoding="utf-8"))
-        except Exception as e:
-            logger.warning("读 Wheel 看板失败（回退现场扫描）: %s", e)
+    if not board_file.exists():
+        logger.warning(
+            "Wheel 看板缺失: %s —— 需先跑 `python -m src.wheel_scanner --dump`"
+            "（daily-full 会自动跑）。不现场扫描：runner 上没有 raw 期权链，"
+            "扫描结果会退化成 BSM 理论估算且闸门失效。",
+            board_file,
+        )
+        return None
     try:
-        snap_date, rows, summary = scan_pool()
-        return {
-            "snapshot_date": snap_date,
-            "summary": summary,
-            "rows": [asdict(r) for r in rows],
-        }
+        return json.loads(board_file.read_text(encoding="utf-8"))
     except Exception as e:
-        logger.warning("生成 wheel 雷达失败: %s", e)
+        logger.warning("读 Wheel 看板失败: %s（不现场扫描，理由同上）", e)
         return None
 
 
@@ -2852,6 +2859,21 @@ def _options_narrative(s: dict) -> dict:
     def fv(x: float | None, unit: str = "") -> str:
         return "—" if x is None else f"{x:,.0f}{unit}"
 
+    # 置信度按「关键字段是否都有值」计分，不再写死字面量（原先 30 个标的恒定
+    # 显示"区间 高 / 波动 中"，哪怕 gamma_flip 为 None、IV 曲线只有 2 个点）。
+    # 区间结构依赖：翻转点 + 双侧墙位 + PCR；波动结构依赖：IV 斜率 + IV 曲线点数 + 到期集中度。
+    iv_pts = len(s.get("iv_curve") or [])
+    range_score = sum([flip is not None, pw is not None, cw is not None, pcr is not None])
+    vol_score = sum([iv_slope is not None, iv_pts >= 3, bool(s.get("buckets")), near7 is not None])
+
+    def _conf(score: int, total: int) -> str:
+        ratio = score / total
+        if ratio >= 0.95:
+            return "高"
+        if ratio >= 0.6:
+            return "中"
+        return "低"
+
     # 1) Gamma 定调
     gamma_title = "正 Gamma：波动更容易被压制" if local_pos else "负 Gamma：波动更容易放大"
     range_a, range_b = (pw, cw) if pw is not None and cw is not None else (flip, cw)
@@ -2861,7 +2883,22 @@ def _options_narrative(s: dict) -> dict:
         else "墙位区间"
     )
     gex_text = "—" if net_gex is None else f"{net_gex:+.2f}B"
-    if local_pos:
+    if flip is None:
+        # 没有可用翻转点。三种来源都会走到这里：①全链累计 GEX 恒同号（真无穿越）；
+        # ②取位落空（穿越点全在现价另一侧）；③距现价 >30% 被距离护栏忽略。
+        # 不能说「现价位于 Flip 下方」——那是把不存在的价位当判据；
+        # 也不能断言「恒同号」——②③ 其实有穿越点，只是不在现价附近。
+        # range_text 在墙位也缺时会退化成「墙位区间」这个词本身，直接接「区间内」
+        # 会读出「墙位区间 区间内」——按是否有具体价位分两种句式。
+        has_bounds = range_a is not None and range_b is not None
+        anchor = f"{range_text} 区间内以墙位为界观察" if has_bounds else "以现有墙位为界观察"
+        gamma_text = (
+            f"{name} 无可用 Gamma Flip（全链恒同号，或穿越点距现价 >30% 已忽略），{anchor}："
+            f"Net GEX（全合约合计）{gex_text}"
+            + ("，价格更易围绕墙位震荡" if local_pos else "，价格更易放大波动")
+            + "。局部 Gamma 方向由 Net GEX 符号回退推断，仅供参考"
+        )
+    elif local_pos:
         gamma_text = (
             f"{name} 现价位于 Gamma Flip 上方，局部处于正 Gamma 环境。"
             f"Net GEX（全合约合计）{gex_text} 只作强度参考，价格更容易"
@@ -2875,13 +2912,19 @@ def _options_narrative(s: dict) -> dict:
         )
 
     # 2) 区间结构
+    # flip 取不到时（无穿越 / 取位落空 / 30% 距离护栏）不能让 8 处 `Gamma Flip —`
+    # 句式把「—」当价位用（实测 3 个字段上屏、12~37 个标的命中）。统一换成一个
+    # 指向墙位的短语：flip 缺失时结构边界只能靠 Put/Call Wall 来给。
+    # 无 flip 时的替身短语：句子骨架是「跌破/站上 {X}」，X 要能读成一条位置线，
+    # 所以用「最近墙位」而不是「墙位边界」（后者接「站上」读不通）。
+    flip_ph = f"Gamma Flip {flip_txt}" if flip is not None else "最近墙位"
     if local_pos:
         meaning = (
             f"Put Wall {fv(pw)} 与 Call Wall {fv(cw)} "
             "更适合被当作结构边界观察，突破前的贴边波动不算趋势。"
         )
-        invalid = f"跌破 Gamma Flip {flip_txt} 后切换为负 Gamma 框架"
-        risk = f"若跌破 Gamma Flip {flip_txt}，原有区间压制逻辑失效"
+        invalid = f"跌破{flip_ph}后切换为负 Gamma 框架"
+        risk = f"若跌破{flip_ph}，原有区间压制逻辑失效"
         direction = (
             f"接近 Call Wall {fv(cw)} 时上行动能容易放缓；"
             f"接近 Put Wall {fv(pw)} 时下方支撑需要重新验证"
@@ -2895,28 +2938,25 @@ def _options_narrative(s: dict) -> dict:
             "正 Gamma 且远离 Flip 时，隐含波动率通常更容易被压制；"
             "若价格重新靠近 Flip 或 VIX 抬升，低波动假设需要降权。"
         )
-        vol_risk = "VIX 突然抬升或跌破 Gamma Flip " + flip_txt + " 时，正 Gamma 解释力下降"
+        vol_risk = "VIX 突然抬升或跌破" + flip_ph + "时，正 Gamma 解释力下降"
     else:
-        meaning = (
-            f"现价位于 Gamma Flip {flip_txt} 下方，负 Gamma 环境下波动易被放大；"
-            "突破前的贴边波动不算趋势。"
-        )
-        invalid = f"站上 Gamma Flip {flip_txt} 后切换为正 Gamma 框架"
-        risk = f"若站上 Gamma Flip {flip_txt}，原有波动放大逻辑失效"
+        meaning = f"现价位于{flip_ph}下方，负 Gamma 环境下波动易被放大；突破前的贴边波动不算趋势。"
+        invalid = f"站上{flip_ph}后切换为正 Gamma 框架"
+        risk = f"若站上{flip_ph}，原有波动放大逻辑失效"
         direction = (
             f"跌破 Put Wall {fv(pw)} 后波动扩散风险上升；"
             f"接近 Call Wall {fv(cw)} 时关注负 Gamma 带来的快速反弹"
         )
         avoid = [
             "负 Gamma 贴近墙位处追空风险大，反弹可以很快",
-            f"跌破 Gamma Flip {flip_txt} 后的加速下跌不算趋势确认",
+            f"跌破{flip_ph}后的加速下跌不算趋势确认",
             "别忽略正 Delta 敞口的支撑；负 Gamma 放大的是双向波动",
         ]
         vol_meaning = (
             "负 Gamma 环境中隐含波动率通常被放大；"
             "若价格站上 Flip 或 IV 开始回落，高波动假设需要降权。"
         )
-        vol_risk = "价格站上 Gamma Flip " + flip_txt + " 或 IV 快速回落时，负 Gamma 解释力下降"
+        vol_risk = "价格站上" + flip_ph + "或 IV 快速回落时，负 Gamma 解释力下降"
 
     # 3) 波动率结构
     vol_direction = (
@@ -2940,7 +2980,7 @@ def _options_narrative(s: dict) -> dict:
         "gamma": {"title": gamma_title, "text": gamma_text},
         "range": {
             "title": "区间结构（Range Regime）",
-            "confidence": "高",
+            "confidence": _conf(range_score, 4),
             "meaning": meaning,
             "watch": "观察：现价、Gamma Flip、Call Wall、Put Wall、VIX",
             "direction": direction,
@@ -2949,7 +2989,7 @@ def _options_narrative(s: dict) -> dict:
         },
         "vol": {
             "title": "波动率结构",
-            "confidence": "中",
+            "confidence": _conf(vol_score, 4),
             "meaning": vol_meaning,
             "watch": "观察：IV 期限结构、VIX、Gamma Flip 距离、到期日 Gamma 集中度",
             "direction": vol_direction,
