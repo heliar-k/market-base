@@ -42,6 +42,56 @@ def test_components_parse(monkeypatch, tmp_path):
     assert (tmp_path / "ndx_components.csv").exists()  # 缓存已写
 
 
+WIKI_HTML_WITH_ISIN = """
+<table class="wikitable sortable">
+<tr><th>Ticker</th><th>Company</th><th>ISIN</th><th>ICB Industry</th>
+<th>ICB Subsector</th></tr>
+<tr><td>ADBE</td><td>Adobe Inc.</td><td>US00724F1012</td><td>Technology</td>
+<td>Software</td></tr>
+<tr><td>AMD</td><td>Advanced Micro Devices</td><td>US0079031078</td><td>Technology</td>
+<td>Semiconductors</td></tr>
+</table>
+"""
+
+
+def test_components_parse_skips_isin_column(monkeypatch, tmp_path):
+    """行业列按表头定位，不把 ISIN 当行业（2026-10 Wikipedia 插了 ISIN 列）。"""
+    monkeypatch.setattr(af, "COMPONENTS_PATH", tmp_path / "ndx_components.csv")
+    _mock_get(monkeypatch, WIKI_HTML_WITH_ISIN)
+    df = af.fetch_ndx_components()
+    assert list(df["industry"]) == ["Technology", "Technology"]
+
+
+def test_category_col_direct(monkeypatch):
+    """表头定位的直接测试：合并标题行 / 无行业表头 fallback。"""
+    from src.fetchers._wiki import _category_col
+
+    # 合并标题行抢在表头前（wikitable 常见）仍能找到 industry 列
+    titled = (
+        '<tr><th colspan="5">Components</th></tr>'
+        "<tr><th>Ticker</th><th>Company</th><th>ISIN</th><th>ICB Industry</th></tr>"
+    )
+    assert _category_col(titled) == 3
+    # 无 industry/sector 表头 → 发出警告并回退旧假设
+    warned = []
+    monkeypatch.setattr("src.fetchers._wiki.logger.warning", warned.append)
+    assert _category_col("<tr><th>A</th><th>B</th><th>C</th></tr>") == 2
+    assert warned
+
+
+def test_isin_in_category_dropped(monkeypatch, tmp_path):
+    """fallback 取到 ISIN 时不把该行写进成分（宁可缺行也不污染行业）。"""
+    broken = """
+<table class="wikitable"><tr><th>Ticker</th><th>Company</th><th>Other</th></tr>
+<tr><td>ADBE</td><td>Adobe</td><td>US00724F1012</td></tr>
+<tr><td>AMD</td><td>AMD</td><td>Technology</td></tr></table>
+"""
+    monkeypatch.setattr(af, "COMPONENTS_PATH", tmp_path / "c.csv")
+    _mock_get(monkeypatch, broken)
+    df = af.fetch_ndx_components()
+    assert list(df["ticker"]) == ["AMD"]  # ISIN 行被剔除
+
+
 def test_components_fallback_to_cache(monkeypatch, tmp_path):
     cache = tmp_path / "ndx_components.csv"
     pd.DataFrame(
