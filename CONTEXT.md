@@ -13,6 +13,7 @@
 - **派生指标（derived metric）**：由两个或多个原始系列运算而成，非 CSV 现成列。如 2s10s 利差（DGS10−DGS2）、净流动性（WALCL−RRP−TGA）、BEI（DGS5−DFII5）。定义集中于 `src/macro.py`，不进 fetchers 也不进 `indicators.py`。
 - **期限结构（term structure）**：某一时点、按期限（1mo→30y）排列的收益率曲线。仅对 rates/tips 分类有意义。
 - **时序折线**：以时间为 x 轴的单/多系列折线图。派生指标作为可选系列并入此类，不单独成图。
+- **欧元区主权利差（euro sovereign spread）**：各国 10Y 国债收益率 − 德国 Bund 10Y，日频 bp，按国家各成一条线（法 / 意 / 西）。信用域唯一一条数源不在 FRED 的读数——欧洲官方体系没有分国日频 10Y（Eurostat / ECB 只发布欧元区聚合曲线，各国央行只给月频），故走 CNBC 市场报价，存 `data/euro_sovereign/yields.csv`；其月度均值与 FRED/BDE 官方月频经交叉校验一致（≤2bp），区别只在发布滞后。定义在 `src/credit_analysis.py::euro_sovereign()`，呈现于 credit 页「欧洲主权利差」段。
 
 ## 共识层
 
