@@ -142,17 +142,18 @@ body.embedded .re-foot { display: none; } /* 内嵌 iframe 不重复页脚 */
 /* head 自身也参与父级 gap，用负 margin 回收成 --re-head-gap（不是魔法数，两个变量相减） */
 .re-sec > .re-sec-head { margin-bottom: calc(var(--re-head-gap) - var(--re-inner-gap)); }
 /* 小节标题:左侧 accent 短线做「节起点」视觉锚（Stripe/Grafana 面板标题模式） */
-.re-sec-head { display: flex; align-items: baseline; gap: 10px; }
-.re-sec-title { font-size: 15px; font-weight: 700; color: var(--text); display: flex; align-items: center; gap: 8px; }
+.re-sec-head { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; row-gap: 2px; }
+/* 标题原子化：CJK 的 min-content 是单字宽，不锁 nowrap 时 flex 会先把标题拆断
+ * （实测 1200px 视口「GEX 按行权价分布与到期集中度」被 sub 压成「与到 / 期集中度」），
+ * 而断标题比让 sub 换行更难读。宽度不够时降级顺序：先 sub 掉行，再徽章掉行。 */
+.re-sec-title { font-size: 15px; font-weight: 700; color: var(--text); display: flex; align-items: center; gap: 8px; white-space: nowrap; }
 .re-sec-title::before { content: ''; width: 3px; height: 14px; border-radius: 2px; background: var(--accent); flex: 0 0 auto; }
 .re-sec-sub { font-size: 12px; color: var(--text-dim); }
-/* 窄屏小节标题行：head 可换行 + 标题原子化 —— sub/slot 放得下就同行，放不下整体掉到
- * 标题下一行（同「同一组事实」板块的正文段观感，用户验收）。否则 CJK min-content=单字宽，
- * flex 会先把标题压缩断字（今日头条 → 今日头/条）。最长实测标题 ~270px < 320px
- * 视口内容宽 288px，nowrap 不溢出；今后写超长标题需自查。 */
+/* 窄屏小节标题行：head 可换行（已提到全局）+ 标题原子化（已提到全局）——
+ * 这两条已全宽度生效，这里只留窄屏的 2px 行距微调（wrap 后 sub 紧跟标题的那一行）。
+ * 最长实测标题 ~270px < 320px 视口内容宽 288px，nowrap 不溢出；今后写超长标题需自查。 */
 @media (max-width: 768px) {
-  .re-sec-head { flex-wrap: wrap; row-gap: 2px; }
-  .re-sec-title { white-space: nowrap; }
+  .re-sec-head { row-gap: 2px; }
 }
 /* 图表面板高度档位(ChartPanel):数字对齐 special.css 既有高度,逐步归一 */
 .re-chart-sm { height: clamp(200px, 36vh, 260px); } .re-chart-md { height: clamp(220px, 40vh, 300px); } .re-chart-lg { height: clamp(260px, 52vh, 380px); } .re-chart-xl { height: clamp(300px, 62vh, 460px); }

@@ -73,7 +73,7 @@ def test_evaluate_symbol_sell_put_requires_stabilization_and_vrp(tmp_path, monke
     }
     row = evaluate_symbol(spec, "20261023", opt_map)
     assert row is not None
-    assert row.suitability == "适格"
+    assert row.suitability == "适合"
     assert row.signal == "SELL PUT"
     assert row.signal_tone == "bull"
     assert row.put_pick is not None

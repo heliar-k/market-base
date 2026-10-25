@@ -963,7 +963,7 @@ class TestOptionsBoardWheel:
             ex_div_dte=None,
             event_alert="财报待定",
             trend_state="弱势回调",
-            suitability="黄金适格",
+            suitability="黄金适合",
             signal="SELL PUT",
             signal_tone="bull",
             reason="VRP +8.0% · IVR 55%",

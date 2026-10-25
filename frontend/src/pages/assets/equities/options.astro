@@ -30,7 +30,10 @@ import Section from '../../../components/Section.astro';
 
   <!-- 子视图 2：期权图表（GEX 分布+到期集中度 / ATM IV 期限结构 / OI 集中度 Top 20） -->
   <div id="opt-pane-charts" class="opt-pane" style="display:none">
-    <Section id="sec-gex" title="GEX 按行权价分布与到期集中度" sub="绿 = Call GEX（压制波动） · 红 = Put GEX（放大波动） · 曲线 = 累计 GEX（右轴，穿 0 线即 Flip）" card>
+    <!-- sub 只留「怎么看这张图」的语义（绿/红/累计线等于什么）；图例本身（Call GEX /
+         Put GEX / 累计 GEX）ECharts 右上角已经画了，不在这里重写一遍 —— 原先 68 字全站最长，
+         1200px 下把标题压成两行断字。条长口径写在卡底 secNote。 -->
+    <Section id="sec-gex" title="GEX 按行权价分布与到期集中度" sub="绿 = 压制波动 · 红 = 放大波动 · 累计线穿 0 = Flip" card>
       <span slot="head" id="gex-head-badge"></span>
       <div class="chart chart-md" id="gex-chart"></div>
       <div id="buckets" style="margin-top:12px"></div>

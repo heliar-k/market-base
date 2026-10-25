@@ -80,7 +80,7 @@
        - 只读状态徽章（信号胶囊、梯队标签）一律走 `border-radius: 4px` 方胶囊类（如 `.opt-chip` 或 `.re-badge`），**禁止**在只读徽章上写 `999px` 圆角。
      - **推荐合约列**：
        - 仅当 `row.put_pick` 或 `row.call_pick` 存在时展示：`11-27(34d) $380P Δ-0.21 IV:37% (-7.8%)`；若 `executable === false` 追加弱化标记 `<em>[BSM估算]</em>`。
-       - `⛔` 财报禁区与 `⚪` 不适格行后端已置 `put_pick = None`，前端显示 `—` 并附上 `row.reason`。
+       - `⛔` 财报禁区与 `⚪` 不适合行后端已置 `put_pick = None`，前端显示 `—` 并附上 `row.reason`。
    - **卡片底部口径注脚**：
      - 调用 `R.secNote('口径：IV35 为期权链 ATM IV 曲线在 35 DTE 处线性插值；VRP = IV35 − HV20（≥+2% 才满足卖方正期望）；1Y IVR/IVP 来自 Barchart 52 周官方统计；财报 ≤10d 强制禁卖近月，11~35d 自动切换财报前到期合约。')` 挂在卡片底部。
 

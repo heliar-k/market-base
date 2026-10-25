@@ -7,7 +7,7 @@
    未出现右侧企稳信号（MACD 柱拐头 / 收复昨高 / 看涨吞没或锤子线）时降级为「左侧接刀·等企稳」。
 3. 财报与除息排雷：财报落在目标期权周期内（≤35d）时，优先搜寻财报前到期（7~e_dte 天）合约；
    若财报 ≤10d 或无财报前合约，拦截裸卖 Put；否决状态绝不输出可交易合约。
-4. 适格硬门槛与组合风控：T2 观察池（单手过重/低波薄利）与缺期权链标的不发入场信号；
+4. 适合性硬门槛与组合风控：T2 观察池（单手过重/低波薄利）与缺期权链标的不发入场信号；
    报告头部输出同板块信号集中度与站内共识 Regime（`src/consensus.py` + VIX 期限结构）。
 
 用法:
@@ -78,7 +78,7 @@ WHEEL_POOL: list[PoolSpec] = [
 # ═══════════════════════════════════════════════════════════════════════════════
 
 THRESHOLDS = {
-    # 四维适格门槛
+    # 四维适合性门槛
     "lot_ideal_max_k": 55.0,  # 单手理想占资上限（$55k，即股价 $550）
     "lot_hard_max_k": 70.0,  # 单手硬上限（超此值标记「单手过重」，不发期权信号）
     "hv20_min": 14.0,  # 20日历史波动率下限（低于此值且IV<22%判为低波薄利）
@@ -154,7 +154,7 @@ class ScanRow:
     ex_div_dte: int | None
     event_alert: str
     trend_state: str  # 多头趋势 / 震荡修复 / 回调企稳 / 弱势回调 / 空头破位
-    suitability: str  # 适格 / 单手偏大 / 单手过重 / 权利金过薄 / 波动过大
+    suitability: str  # 适合 / 单手偏大 / 单手过重 / 权利金过薄 / 波动过大
     signal: str  # 仅三态：SELL PUT / SELL CALL / 暂不操作
     signal_tone: str  # bull(SELL PUT) / bear(SELL CALL) / flat(暂不操作)，与信号一一对应
     reason: str
@@ -608,7 +608,7 @@ def evaluate_symbol(
     else:
         trend_state = "震荡修复"
 
-    # ── 1) 四维适格硬门槛 ──
+    # ── 1) 四维适合性硬门槛 ──
     if lot_k > THRESHOLDS["lot_hard_max_k"]:
         suitability = f"单手过重(${lot_k:.0f}k)"
     elif hv20 < THRESHOLDS["hv20_min"] and (iv35 or 0) < 22.0:
@@ -618,7 +618,7 @@ def evaluate_symbol(
     elif lot_k > THRESHOLDS["lot_ideal_max_k"]:
         suitability = f"单手偏大(${lot_k:.0f}k)"
     else:
-        suitability = "适格"
+        suitability = "适合"
 
     # ── 2) 信号生成（Wheel 严格三态：SELL PUT=bull / SELL CALL=bear / 暂不操作=flat）──
     reasons: list[str] = []
