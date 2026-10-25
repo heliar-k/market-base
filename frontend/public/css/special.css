@@ -518,6 +518,10 @@ body.embedded .back-top { right: 6px; bottom: 6px; width: 24px; height: 24px; fo
 .opt-chip.pp { color: var(--color-up-text); border-color: color-mix(in srgb, var(--color-up) 33%, transparent); background: var(--color-up-bg); }
 .opt-chip.nn { color: var(--color-down-text); border-color: color-mix(in srgb, var(--color-down) 33%, transparent); background: var(--color-down-bg); }
 .opt-chip.pn, .opt-chip.np { color: var(--color-warn-text); border-color: color-mix(in srgb, var(--color-warn) 33%, transparent); background: var(--color-warn-bg); }
+/* Wheel 表「当日信号」列的原因行（截到两段由 JS 做，全文走 title）。
+ * 不用 -webkit-line-clamp / max-height 截：两者都会把单元格 min-content 顶宽，
+ * 表格横向溢出（实测 1118 → 1160，末列被推出可视区）。 */
+.opt-sig-reason { font-size: 11px; color: var(--text-dim); line-height: 1.4; max-width: 162px; margin-top: 2px; white-space: normal; }
 /* 到期 Gamma 集中度分段进度行 */
 .opt-bucket-grid {
   display: grid; grid-template-columns: auto auto 1fr 56px 68px;

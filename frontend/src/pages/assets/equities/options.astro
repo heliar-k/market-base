@@ -175,6 +175,9 @@ function applySubview(subview) {
     const pane = document.getElementById(`opt-pane-${k}`);
     if (pane) pane.style.display = k === currentSubview ? 'flex' : 'none';
   });
+  // Wheel 视图看整池，「标的下拉 / 现价 / regime / GEX-DEX-Wall」都是单标的读数，切过去时整条收起
+  const infoBar = document.getElementById('opt-info-bar');
+  if (infoBar) infoBar.style.display = currentSubview === 'wheel' ? 'none' : '';
   if (currentSubview === 'charts') {
     renderChartsPane();
   }
@@ -685,6 +688,7 @@ function wheelRows() {
   const rows = (D.wheel && D.wheel.rows) || [];
   if (wheelFilter === 'action') return wheelActionable(rows);
   if (wheelFilter === 'T0' || wheelFilter === 'T1') return rows.filter(r => r.tier === wheelFilter);
+  if (wheelFilter === 'earn') return rows.filter(r => r.event_tone === 'bear');
   return rows;
 }
 
@@ -752,8 +756,12 @@ const WHEEL_COLS = [
   }],
   ['sig', '当日信号', (v, r) => {
     const cls = ['bull', 'bear', 'warn'].includes(r.signal_tone) ? r.signal_tone : 'flat';
+    // 原因只留前两段（hover 看全文）：原先 3~4 段把行高撑到 60~108px，整表没有基线。
+    // 截断在原文而不是 CSS（line-clamp / max-height 都会把单元格 min-content 顶宽导致表格横向溢出）
+    const segs = String(r.reason || '').split(' · ');
+    const brief = segs.slice(0, 2).join(' · ') + (segs.length > 2 ? ' …' : '');
     return `<span class="re-badge ${cls}">${R.esc(r.signal || '')}</span>`
-      + `<div style="font-size:11px;color:var(--text-dim);white-space:normal;max-width:162px;line-height:1.35">${R.esc(r.reason)}</div>`;
+      + `<div class="opt-sig-reason" title="${R.esc(r.reason)}">${R.esc(brief)}</div>`;
   }],
   ['pick', '推荐合约 (7~49D)', (v, r) => {
     const p = r.put_pick || r.call_pick;
@@ -818,24 +826,25 @@ function renderWheel() {
     const putRows = rows.filter(r => r.actionable && r.put_pick);
     const callRows = rows.filter(r => r.actionable && r.call_pick);
     const watchRows = rows.filter(r => !r.actionable && r.near_setup);
-    const earnRows = rows.filter(r => r.event_tone === 'bear');
-    const fmtPickShort = (r, p) => {
-      if (!p) return r.symbol;
+    // 财报禁卖不再占一张卡（8 个标的 × 8 段括号套括号会把整行拉高到 164px），
+    // 下沉成表格筛选器「财报禁区」——名单在表里本来就点得到
+    const fmtPickShort = p => {
+      if (!p) return '—';
       const exp = p.expiration.startsWith('~') ? p.expiration : `${p.expiration.slice(5)}(${p.dte}d)`;
-      return `${r.symbol} ${exp} $${R.num(p.strike, 0)}${p.right}`;
+      return `${exp} $${R.num(p.strike, 0)}${p.right}`;
     };
     kpiHost.appendChild(R.cards([
       {
         label: `今日 SELL PUT (${putRows.length})`,
         value: putRows.length ? putRows.map(r => esc(r.symbol)).join(' · ') : '暂无触发',
-        sub: putRows.length ? putRows.map(r => esc(fmtPickShort(r, r.put_pick))).join(' ｜ ') : '需回调企稳 + VRP ≥ +2% + 避开财报',
+        sub: putRows.length ? putRows.map(r => esc(fmtPickShort(r.put_pick))).join(' ｜ ') : '需回调企稳 + VRP ≥ +2% + 避开财报',
         vcolor: putRows.length ? 'var(--up)' : 'var(--text-dim)',
         cls: 're-card-dense re-card-wrap',
       },
       {
         label: `今日备兑 SELL CALL (${callRows.length})`,
         value: callRows.length ? callRows.map(r => esc(r.symbol)).join(' · ') : '暂无触发',
-        sub: callRows.length ? callRows.map(r => esc(fmtPickShort(r, r.call_pick))).join(' ｜ ') + '（仅限持100股底仓，禁裸卖）' : '需超买过热 + VRP ≥ 0% + 持100股正股底仓',
+        sub: callRows.length ? callRows.map(r => esc(fmtPickShort(r.call_pick))).join(' ｜ ') + '（仅限持100股底仓，禁裸卖）' : '需超买过热 + VRP ≥ 0% + 持100股正股底仓',
         vcolor: callRows.length ? 'var(--down)' : 'var(--text-dim)',
         cls: 're-card-dense re-card-wrap',
       },
@@ -844,13 +853,6 @@ function renderWheel() {
         value: watchRows.length ? watchRows.map(r => esc(r.symbol)).join(' · ') : '无',
         sub: watchRows.length ? watchRows.map(r => `${esc(r.symbol)}(${esc(r.trend_state)})`).join(' · ') : '回踩支撑或待右侧止跌企稳',
         vcolor: watchRows.length ? 'var(--warning)' : 'var(--text-dim)',
-        cls: 're-card-dense re-card-wrap',
-      },
-      {
-        label: `财报禁卖窗口 ≤10d (${earnRows.length})`,
-        value: earnRows.length ? earnRows.map(r => esc(r.symbol)).join(' · ') : '无',
-        sub: earnRows.length ? earnRows.map(r => `${esc(r.symbol)}(${esc((r.event_alert || '').split(' · ')[0])})`).join(' · ') : '近 10 天内无财报跳空风险',
-        vcolor: earnRows.length ? 'var(--down)' : 'var(--text-dim)',
         cls: 're-card-dense re-card-wrap',
       },
     ]));
@@ -871,6 +873,7 @@ function renderWheel() {
     ['action', `可出手信号 (${actionCount})`],
     ['T0', 'T0 核心池'],
     ['T1', 'T1 对冲池'],
+    ['earn', `财报禁区 (${rows.filter(r => r.event_tone === 'bear').length})`],
   ].forEach(([key, label]) => {
     const b = document.createElement('button');
     b.type = 'button';
