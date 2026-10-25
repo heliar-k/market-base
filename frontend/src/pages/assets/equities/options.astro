@@ -70,11 +70,17 @@ let charts = [];
 
 const SUBVIEWS = ['overview', 'charts', 'wheel'];
 
-const GROUPS = [
-  ['指数 & ETF', ['SPY', 'QQQ', 'IWM']],
-  ['Mag 7', ['NVDA', 'AAPL', 'MSFT', 'AMZN', 'META', 'TSLA', 'GOOGL']],
-  ['重点个股', ['AVGO', 'TSM', 'UNH', 'BRK-B', 'JPM', 'V', 'MA', 'ISRG', 'ABBV', 'COST', 'LLY', 'AMD', 'INTC', 'MU', 'MSTR', 'SNDK', 'CRCL', 'BMNR', 'AEHR', 'SPCX']],
-];
+// 池归属三分法（宽基指数 / Wheel 池 / 其他）：全池扫描的筛选胶囊与标的下拉的 optgroup
+// 共用这一处定义，改分组只改这里。Wheel 池成员从 D.wheel.rows 推导（见 load()）。
+const WIDE_INDEX = new Set(['SPY', 'QQQ', 'IWM']);
+const SCAN_GROUP_LABEL = { index: '宽基指数', wheel: 'Wheel 池', other: '其他' };
+const SCAN_GROUP_ORDER = ['index', 'wheel', 'other'];
+let WHEEL_TIER = new Map();
+function scanGroup(sym) {
+  if (WHEEL_TIER.has(sym)) return 'wheel';
+  if (WIDE_INDEX.has(sym)) return 'index';
+  return 'other';
+}
 
 const REGIME_INFO = {
   pp: { label: '正 Gamma + 正 Delta', short: '正γ + 正Δ', desc: '现价在 Gamma Flip 上方，波动偏被压制，多头 delta 占优。' },
@@ -119,22 +125,20 @@ function initTopBar() {
   });
 }
 
+// 下拉分组与全池扫描表同一套三分法：分组名取 SCAN_GROUP_LABEL 单源、
+// 归属判定走 scanGroup()，不再另维护一份 GROUPS 名单。
 function populateSymbolSelect() {
   const sel = document.getElementById('opt-sym-select');
   if (!sel || !D || !D.symbols) return;
   const syms = D.symbols;
-  const inGroups = new Set();
-  const html = GROUPS.map(([gLabel, list]) => {
-    const valid = list.filter(s => syms[s]);
-    valid.forEach(s => inGroups.add(s));
-    if (!valid.length) return '';
-    return `<optgroup label="${esc(gLabel)}">${valid.map(s => `<option value="${esc(s)}">${esc(s)}</option>`).join('')}</optgroup>`;
-  }).join('');
-  const rest = Object.keys(syms).filter(s => !inGroups.has(s));
-  const restHtml = rest.length
-    ? `<optgroup label="其他">${rest.map(s => `<option value="${esc(s)}">${esc(s)}</option>`).join('')}</optgroup>`
-    : '';
-  sel.innerHTML = html + restHtml;
+  const buckets = { index: [], wheel: [], other: [] };
+  Object.keys(syms).forEach(s => buckets[scanGroup(s)].push(s));
+  sel.innerHTML = SCAN_GROUP_ORDER
+    .filter(k => buckets[k].length)
+    .map(k => `<optgroup label="${esc(SCAN_GROUP_LABEL[k])}">`
+      + buckets[k].map(s => `<option value="${esc(s)}">${esc(s)}</option>`).join('')
+      + '</optgroup>')
+    .join('');
   if (!syms[S]) S = Object.keys(syms)[0] || 'SPY';
   sel.value = S;
   sel.addEventListener('change', () => {
@@ -412,14 +416,6 @@ function renderConclusion() {
 // 池归属（宽基 / Wheel 池 / 其他）三档互斥，合计正好 30。
 // Wheel 池成员与梯队从 D.wheel.rows 推导（含 GOOGL→GOOG、BRK-B→BRK.B 的 opt_symbol 映射），
 // 不在前端另抄一份名单 —— 池子定义单源在 src/wheel_scanner.py 的 WHEEL_POOL。
-const WIDE_INDEX = new Set(['SPY', 'QQQ', 'IWM']);
-const SCAN_GROUP_LABEL = { index: '宽基指数', wheel: 'Wheel 池', other: '其他' };
-let WHEEL_TIER = new Map();
-function scanGroup(sym) {
-  if (WHEEL_TIER.has(sym)) return 'wheel';
-  if (WIDE_INDEX.has(sym)) return 'index';
-  return 'other';
-}
 const SCAN_FILTERS = {
   all: () => true,
   index: (s) => scanGroup(s) === 'index',
@@ -918,9 +914,10 @@ async function load() {
   }
   R.setAsOf([['期权快照', D.date && D.date.slice(0, 10)]]);
 
-  populateSymbolSelect();
-  // Wheel 池梯队表：opt_symbol 是期权标的（GOOGL/BRK-B），扫描表用同一串键
+  // Wheel 池梯队表必须先填：下拉分组与扫描表的 scanGroup() 都靠它判断池内池外
+  // opt_symbol 是期权标的（GOOGL/BRK-B），与 D.symbols 的键同一串
   WHEEL_TIER = new Map(((D.wheel && D.wheel.rows) || []).map(r => [r.opt_symbol || r.symbol, r.tier]));
+  populateSymbolSelect();
   updateTopInfoBar();
   renderConclusion();
   renderScanTable();
