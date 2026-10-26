@@ -3480,10 +3480,15 @@ def _layer1_kpis() -> dict:
         buy = sum(r["buy"] for r in taker_snap[:3])
         sell = sum(r["sell"] for r in taker_snap[:3])
         cur_ls = buy / sell if sell else None
-    taker_hist = _okx_taker_history()  # 降序（最新在前）
-    if not taker_hist and len(taker_snap) >= 2:
-        # 网络失败 → 快照自带日序列兜底（同降序）
-        taker_hist = [r["buy"] / r["sell"] for r in taker_snap if r.get("sell")]
+    # 优先用快照自带日序列（降序），**不要先联网**：导出端每次部署都会跑这个函数，
+    # 现场拉 OKX 的成败取决于导出机器的网络（本地可通、CI 不一定），两条路径的百分位
+    # 与 chg 口径完全不同，而页面上长得一模一样。实测联网失败时要白等 20 秒。
+    # 快照缺 taker 序列（老快照 / 抓取降级）才回落到现场拉。
+    taker_hist = (
+        [r["buy"] / r["sell"] for r in taker_snap if r.get("sell")] if len(taker_snap) >= 2 else []
+    )
+    if not taker_hist:
+        taker_hist = _okx_taker_history()  # 降序（最新在前）
     th = pd.Series(taker_hist, dtype=float)
     rank, note = _rank_pct(th, cur_ls, min_n=7)  # OKX taker 仅近 10 日，>30 永不可达
     chg = None

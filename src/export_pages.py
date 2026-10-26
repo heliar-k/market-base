@@ -121,13 +121,25 @@ def _dump(rel: str, obj: object) -> None:
     print(f"  {size:9.0f} KB  {rel}")
 
 
+# 跳过清单：出口统一汇总，缺源不能只留在 stdout 里（部署照常 success，没人会翻日志）。
+# 分两档，因为两者的处置不同：
+#   _SKIPPED    HTTPException = 数据缺失（该页进空态）。预期内，告警但不阻断 ——
+#               一个可选源没数据不该拦下整站更新。
+#   _FAILED     其它异常 = 分析层崩了（代码 bug / 数据形状变了）。这不是「等数据」，
+#               是坏了，必须让部署失败，否则线上静默换成空态或旧值。
+_SKIPPED: list[str] = []
+_FAILED: list[str] = []
+
+
 def _safe(rel: str, fn: Callable[..., object], *args: object, **kwargs: object) -> None:
-    """调用路由函数；404（数据缺失）跳过并警告。"""
+    """调用路由函数；数据缺失跳过并告警，其它异常记录待出口处判失败。"""
     try:
         _dump(rel, fn(*args, **kwargs))
     except HTTPException as e:
+        _SKIPPED.append(f"{rel}: {e.detail}")
         print(f"  SKIP {rel}: {e.detail}")
-    except Exception as e:  # 其他异常不阻断整体导出
+    except Exception as e:  # 记下但不在此中断：让其余端点照常导出，出口处统一判
+        _FAILED.append(f"{rel}: {type(e).__name__}: {e}")
         print(f"  SKIP {rel}: {type(e).__name__}: {e}")
 
 
@@ -270,6 +282,20 @@ def main() -> None:
     export_api()
     total = sum(f.stat().st_size for f in (SITE / "api").rglob("*") if f.is_file()) / 1024 / 1024
     print(f"完成：frontend/public/api/ 共 {total:.1f} MB（含未压缩 JSON）")
+
+    # 出口汇总。`::warning::` / `::error::` 是 GitHub Actions 的注解语法，会挂到
+    # run 页面上（本地跑只是多两行文字），比埋在几百行日志里靠谱。
+    if _SKIPPED:
+        print(f"\n缺源 {len(_SKIPPED)} 个（对应页面进空态）:")
+        for x in _SKIPPED:
+            print(f"  - {x}")
+            print(f"::warning::导出缺源 {x}")
+    if _FAILED:
+        print(f"\n导出失败 {len(_FAILED)} 个（分析层异常，非数据缺失）:")
+        for x in _FAILED:
+            print(f"  - {x}")
+            print(f"::error::导出失败 {x}")
+        raise SystemExit(1)
 
 
 if __name__ == "__main__":

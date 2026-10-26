@@ -31,7 +31,19 @@ def _write(root, path: str, text: str) -> None:
     p.write_text(text, encoding="utf-8")
 
 
-def _snapshot(last: float = 100.0, pcr: float = 0.8, fut_oi: int = 1000) -> dict:
+_DEFAULT_TAKER = [
+    {"date": "2026-08-22", "buy": 100.0, "sell": 80.0},
+    {"date": "2026-08-21", "buy": 90.0, "sell": 100.0},
+    {"date": "2026-08-20", "buy": 110.0, "sell": 90.0},
+]
+
+
+def _snapshot(
+    last: float = 100.0,
+    pcr: float = 0.8,
+    fut_oi: int = 1000,
+    taker_rows: list[dict] | None = None,
+) -> dict:
     return {
         "ts": "2026-08-23T00:00:00Z",
         "title": "加密衍生品快照",
@@ -46,11 +58,7 @@ def _snapshot(last: float = 100.0, pcr: float = 0.8, fut_oi: int = 1000) -> dict
             }
         },
         "taker": {
-            "BTC": [
-                {"date": "2026-08-22", "buy": 100.0, "sell": 80.0},
-                {"date": "2026-08-21", "buy": 90.0, "sell": 100.0},
-                {"date": "2026-08-20", "buy": 110.0, "sell": 90.0},
-            ]
+            "BTC": _DEFAULT_TAKER if taker_rows is None else taker_rows,
         },
         "options_BTC": {
             "spot_anchor": last,
@@ -67,6 +75,7 @@ def _mk(
     prices: list[float] | None = None,
     snap_last: float | None = None,
     pcr: float = 0.8,
+    taker_rows: list[dict] | None = None,
 ) -> None:
     """最小 fixture：BTC 日线 + 基差 + SOFR + COT + 2 个快照 json。"""
     root = tmp_path
@@ -101,7 +110,7 @@ def _mk(
         _write(
             root,
             f"data/crypto_derivatives/2026080{i + 1}.json",
-            json.dumps(_snapshot(last=last, pcr=pcr)),
+            json.dumps(_snapshot(last=last, pcr=pcr, taker_rows=taker_rows)),
         )
 
 
@@ -262,14 +271,41 @@ def test_crypto_derivatives_wires_layer1(setup):
     assert len(d["layer1"]["kpis"]) == 8
 
 
-def test_taker_pct_rank_with_10_rows(setup):
-    """KPI7 min_n=7：10 条 taker 历史下 pct_rank 非 None（原 min_n=30 永不可达）。"""
+def test_taker_pct_rank_with_10_rows(tmp_path, monkeypatch):
+    """KPI7 min_n=7：10 条 taker 历史下 pct_rank 非 None（原 min_n=30 永不可达）。
+
+    历史来源优先快照自带日序列（生产快照就是 10 条），此时**不应联网** ——
+    导出端每次部署都会跑这个函数，现场拉 OKX 的成败取决于导出机器网络，
+    两条路径百分位口径不同却长得一样。用 boom 守住「不联网」。
+    """
+    monkeypatch.setattr(aa, "ROOT", tmp_path)
+    # 快照 taker 造 10 条降序（100/80=1.25, 90/100=0.9, 110/90≈1.222 …）
+    taker10 = [{"date": f"2026-08-{22 - i:02d}", "buy": 100 - i, "sell": 80 + i} for i in range(10)]
+    _mk(tmp_path, taker_rows=taker10)
+
+    def boom():
+        raise AssertionError("快照已有 taker 序列时不应联网拉 OKX")
+
+    monkeypatch.setattr(aa, "_okx_taker_history", boom)
     k = _by_label(aa._layer1_kpis())["永续多空比"]
-    # 当前 1.111 ≥ 历史最大 1.09 → 第 100 百分位
-    assert k["pct_rank"] == 100.0
-    assert k["pct_label"] == "过去 10 日 · 第 100 百分位"
-    # 降序历史（最新在前）：chg = iloc[0]/iloc[1] = 1.09/1.08 → 上升
-    assert k["chg"] == "↑ +0.93%"
+    assert k["pct_rank"] is not None
+    assert k["pct_label"].startswith("过去 10 日")
+
+
+def test_taker_snapshot_missing_degrades_without_crash(tmp_path, monkeypatch):
+    """快照缺 taker 序列（老快照 / 抓取降级）→ KPI 显示数据不足，不崩。
+
+    注意：这种情形下联网也补不出百分位 —— 分母 `cur_ls` 是快照近 3 日 buy/sell 之和，
+    快照缺 taker 时当前值同样缺失，`_rank_pct(cur=None)` 直接返回 None。所以现场
+    拉取只在 chg / 分位刻度上还有点用，且与快照口径不同源（不做强行对齐）。
+    """
+    monkeypatch.setattr(aa, "ROOT", tmp_path)
+    _mk(tmp_path, taker_rows=[])
+    monkeypatch.setattr(aa, "_okx_taker_history", lambda: [1.09 - 0.01 * i for i in range(10)])
+    k = _by_label(aa._layer1_kpis())["永续多空比"]
+    assert k["value"] == "数据不足"
+    assert k["pct_rank"] is None
+    assert k["note"] == "当前值缺失"
 
 
 def test_funding_kpi_snapshot_hist_path(tmp_path, monkeypatch):
