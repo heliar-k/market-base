@@ -39,7 +39,9 @@ async function load() {
   // 数据源时效不同：TIC 月频滞后 ~6.5 周，Bill 占比与拍卖各自为政，页头逐段如实标注
   R.setAsOf([
     ['TIC', d.cards.hold_total.as_of],
-    ['Bill 占比', d.cards.bill_share.as_of],
+    // 页头跟卡片一致给「锚」：派生序列每天都推进到当天，只看 as_of 会掩盖
+    // MSPD 月度锚停更（分母冻结、占比静默漂移）——这正是本页想消除的假象。
+    ['Bill 占比', d.cards.bill_share.as_of + (d.cards.bill_share.anchor_date ? ` · 锚 ${d.cards.bill_share.anchor_date}` : '')],
     ['拍卖', auc ? auc.as_of : null],
   ]);
 
@@ -61,7 +63,9 @@ async function load() {
     // 分位标签走后端 pct_label（与研判段同一句话，前端不重算）；无分位时退回阈值口径
     { label: '海外官方占比', value: c.official_share.value == null ? '—' : c.official_share.value + '%', sub: (c.official_share.as_of || '') + ' · ' + (c.official_share.pct_label || '&lt;23% 偏空') },
     { label: '月度' + netLabel + '（TIC）', value: '$' + Math.abs(c.net_total.value) + 'B', sub: c.net_total.as_of + ` · 12M 累计 $${Math.abs(c.net_total.net_12m_b)}B` },
-    { label: 'Bill 占比', value: c.bill_share.value == null ? '—' : c.bill_share.value + '%', sub: (c.bill_share.as_of || '') + (c.bill_share.chg_1y !== null ? ` · 1Y ${c.bill_share.chg_1y > 0 ? '+' : ''}${c.bill_share.chg_1y}pp` : '') + (c.bill_share.pct_label ? ` · ${c.bill_share.pct_label}` : '') },
+    // 日频序列每天都推进到当天，所以必须标出「锚」：分母是 MSPD 月末未偿，
+    // 上游停更时日频占比会静默漂移而不自知（末行日期永远新鲜）。
+    { label: 'Bill 占比', value: c.bill_share.value == null ? '—' : c.bill_share.value + '%', sub: (c.bill_share.as_of || '') + (c.bill_share.anchor_date ? ` · 锚 ${c.bill_share.anchor_date.slice(5)}` : '') + (c.bill_share.chg_1y !== null ? ` · 1Y ${c.bill_share.chg_1y > 0 ? '+' : ''}${c.bill_share.chg_1y}pp` : '') + (c.bill_share.pct_label ? ` · ${c.bill_share.pct_label}` : '') },
   ], 're-cards-2col'));
 
   // ── 研判（每段一张卡：段标题在左上，段内 \n 分行 = 判断 / 读数）──

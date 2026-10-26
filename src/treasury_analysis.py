@@ -396,6 +396,15 @@ def generate_treasury_overview() -> dict:
             "value": round(bs_pair[0], 1) if bs_pair else None,
             "chg_1y": round(bs_yoy[0] - bs_yoy[1], 1) if bs_yoy else None,
             "as_of": bs_pair[1].strftime("%Y-%m-%d") if bs_pair else None,
+            # 日频序列每天都推进到"今天"，末行日期看不出上游停更；真正的口径锚是
+            # MSPD 月末（分母冻结会让占比静默漂移）。把锚日一起下发，前端标「锚 YYYY-MM-DD」。
+            "anchor_date": (
+                str(bs_daily["anchor_date"].dropna().iloc[-1])
+                if not bs_daily.empty
+                and "anchor_date" in bs_daily.columns
+                and bs_daily["anchor_date"].notna().any()
+                else None
+            ),
             "pct_rank": bs_rank,
             "pct_label": rank_label(bs_rank),
         },

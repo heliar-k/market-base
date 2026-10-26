@@ -7,6 +7,8 @@
 
 from __future__ import annotations
 
+from datetime import date
+
 import pandas as pd
 
 from src.config import FomcMeeting
@@ -68,7 +70,11 @@ class TestReadZqClose:
             [("2026-09-14", 96.14), ("2026-09-15", 96.125)],
             ibkr_format=False,
         )
-        assert _read_zq_close(2026, 10, root=tmp_path) == (96.125, "2026-09-15")
+        # today 显式注入：这两个用例测「源选择」，不该随真实日期流逝被时效闸门拦掉
+        assert _read_zq_close(2026, 10, root=tmp_path, today=date(2026, 9, 15)) == (
+            96.125,
+            "2026-09-15",
+        )
 
     def test_ibkr_newer_than_barchart(self, tmp_path) -> None:
         _write_zq_csv(
@@ -81,10 +87,38 @@ class TestReadZqClose:
             [("2026-09-15", 96.26)],
             ibkr_format=False,
         )
-        assert _read_zq_close(2026, 9, root=tmp_path) == (96.28, "2026-09-16")
+        assert _read_zq_close(2026, 9, root=tmp_path, today=date(2026, 9, 16)) == (
+            96.28,
+            "2026-09-16",
+        )
 
     def test_both_missing_returns_none(self, tmp_path) -> None:
         assert _read_zq_close(2099, 1, root=tmp_path) is None
+
+    def test_stale_sources_refused(self, tmp_path) -> None:
+        """两源都停更超过上限 → 返回 None，不用旧价编概率。
+
+        事故形态：IBKR 只剩 2026-07-31 的残留，Barchart 也挂了；旧实现会静默
+        用三个月前的结算价算概率（实测 12 月会议 prob_hike 从 88% 变 51%）。
+        """
+        _write_zq_csv(
+            tmp_path / "data" / "commodities" / "ZQ" / "ZQ_202612.csv",
+            [("2026-07-30", 96.05), ("2026-07-31", 96.03)],
+            ibkr_format=True,
+        )
+        # 数据是 7/31，今天按 10/25 算 → 过期 86 天 > 上限
+        assert _read_zq_close(2026, 12, root=tmp_path, today=date(2026, 10, 25)) is None
+        # 边界内仍可读（8/5 → 5 天内不拦）
+        assert _read_zq_close(2026, 12, root=tmp_path, today=date(2026, 8, 5)) == (
+            96.03,
+            "2026-07-31",
+        )
+        # 阈值边界锁死：恰好 10 天放行，11 天就拒（把 > 改成 >= 会红）
+        assert _read_zq_close(2026, 12, root=tmp_path, today=date(2026, 8, 10)) == (
+            96.03,
+            "2026-07-31",
+        )
+        assert _read_zq_close(2026, 12, root=tmp_path, today=date(2026, 8, 11)) is None
 
 
 class TestUseNextMonthContract:

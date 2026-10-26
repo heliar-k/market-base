@@ -217,3 +217,47 @@ def test_aggregate_emits_cls() -> None:
     assert _agg(["off", "off", "off", "off", "on", "on"])["cls"] == "off"
     assert _agg(["on", "on", "on", "off", "off", "off"])["cls"] == "div"
     assert _agg([None] * 6)["cls"] == "na"
+
+
+def test_consensus_finalized_badge_not_backing_computed_value(tmp_path, monkeypatch):
+    """定稿后底层数据又被刷新 → 徽章退回「盘中临时值」，不背书现算结果。
+
+    事故形态：compute() 是导出时点现算，finalized 只读 history 里当日有无 final 行。
+    intraday-refresh 尾班（21:52）晚于 daily-full 定稿（21:15），裁剪过的数据会让
+    state 翻转而徽章仍宣称已定稿 —— 徽章给一个从未被记录的现算状态背书。
+
+    选「摘徽章」而不是「覆盖 state」：history 只存 state 字符串，覆盖后 cls / n_on /
+    n_off / members 仍来自现算 members，会拼出「绿色的卡写着分歧、旁边 5 个 ✓」。
+    """
+    import pandas as pd
+
+    from src import server
+
+    hist = pd.DataFrame(
+        [
+            {
+                "date": "2026-10-24",
+                "market_state": "分歧",
+                "macro_state": "确认紧缩",
+                "market_votes": "",
+                "macro_votes": "",
+                "source": "final",
+            }
+        ]
+    )
+    (tmp_path / "data" / "consensus").mkdir(parents=True)
+    hist.to_csv(tmp_path / "data" / "consensus" / "history.csv", index=False)
+
+    fake = {
+        "ref_date": "2026-10-24",
+        "market": {"state": "确认 risk-off", "cls": "off", "n_on": 1, "n_off": 3},
+        "macro": {"state": "确认紧缩", "cls": "off", "n_on": 0, "n_off": 3},
+    }
+    monkeypatch.setattr("src.consensus.ROOT", tmp_path)
+    monkeypatch.setattr("src.consensus.compute", lambda: fake.copy())
+    out = server.get_consensus()
+    # 状态保持现算值（与 cls/members 同源，自洽），但徽章不再宣称已定稿
+    assert out["market"]["state"] == "确认 risk-off"
+    assert out["market"]["cls"] == "off"
+    assert out["finalized"] is False
+    assert out["state_source"] == "diverged_from_final"

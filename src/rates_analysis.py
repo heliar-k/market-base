@@ -14,6 +14,7 @@ LLM 预留：`generate_analysis()` 是唯一入口，内部先尝试 `_llm_gener
 
 from __future__ import annotations
 
+from datetime import date as date_mod
 from datetime import timedelta
 
 import pandas as pd
@@ -540,7 +541,19 @@ def _fed_expectation_text(
                     f"加息 {m['prob_hike']:.0%}"
                     f"（ZQ 期货隐含，截至 {snap:%Y-%m-%d}）"
                 )
-                verdict = f"市场定价 {date} FOMC 以「{exp}」为主。"
+                # 最近未开会议在快照里缺席（ZQ 两源都过期被时效闸门拒掉）时，
+                # 正文取的是「剩下里最近的一场」，不说明会让读者以为那就是下一场。
+                from src.config import FOMC_MEETINGS as _MTG
+
+                _today_s = str(date_mod.today())
+                _fut = sorted(
+                    f"{x.year}-{x.month:02d}-{x.end_day:02d}"
+                    for x in _MTG
+                    if f"{x.year}-{x.month:02d}-{x.end_day:02d}" >= _today_s
+                )
+                _missing = _fut and _fut[0] != date
+                _miss = f"（最近一场 {_fut[0][5:]} 定价缺失，可能 ZQ 期货数据过期）"
+                verdict = f"市场定价 {date} FOMC 以「{exp}」为主。" + (_miss if _missing else "")
                 trigger = f"该场「{exp}」概率跌破 50% → 市场定价反转，本判断失效。"
                 return f"{verdict}\n{mkt_txt} · {effr_txt}。\n{trigger}"
     return f"{mkt_txt}。\n{effr_txt}。\n{trigger}"

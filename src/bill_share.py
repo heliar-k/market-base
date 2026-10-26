@@ -77,6 +77,10 @@ def compute_daily_bill_share(
     out["BILLS"] = anchor["BILLS"] + net_bill.reindex(days).fillna(0).cumsum()
     out["MARKETABLE"] = anchor["MARKETABLE_TOTAL"] + net.reindex(days).fillna(0).cumsum()
     out["BILL_SHARE"] = (out["BILLS"] / out["MARKETABLE"] * 100).round(2)
+    # 锚日随行下发：这个序列每天都推进到"今天"，只看末行日期判断新鲜度会永远绿 ——
+    # 停更的其实是上游 MSPD 月度锚（分母冻结，占比静默漂移）。下游要靠 anchor_date
+    # 判断「这份派生值锚在什么时候」，而不是看它推到哪天。
+    out["anchor_date"] = anchor_date.strftime("%Y-%m-%d")
     out.index.name = "date"
     return out
 
@@ -87,9 +91,16 @@ def main() -> None:
     df = compute_daily_bill_share(mspd, auctions)
     df.to_csv(OUT_CSV)
     latest = df.iloc[-1]
+    anchor = pd.to_datetime(latest["anchor_date"])
+    anchor_age = (pd.Timestamp.today().normalize() - anchor).days
+    if anchor_age > 45:  # MSPD 月频，正常滞后 30~40 天
+        print(
+            f"[告警] bill_share: MSPD 锚已滞后 {anchor_age} 天（{latest['anchor_date']}）——"
+            f"分母冻结，日频占比在静默漂移。请运行 ./bin/fetch_treasury"
+        )
     print(
         f"bill_share_daily: → {OUT_CSV}（{len(df)} 天, "
-        f"{df.index[0].date()} → {df.index[-1].date()}）"
+        f"{df.index[0].date()} → {df.index[-1].date()}, 锚 {latest['anchor_date']}）"
     )
     print(
         f"  最新 {latest.name.date()}: BILLS ${latest['BILLS'] / 1e6:.2f}T / "

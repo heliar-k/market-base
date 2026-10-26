@@ -119,6 +119,12 @@ CHECKS: list[Check] = [
     ),
     _c("data/crypto_basis/basis.csv", 10, "CME BTC 基差（丢末根未完成 bar）"),
     _c("data/short_selling/finra_daily.csv", 8, "FINRA 卖空量（源约 T+1）"),
+    # mspd 是 bill_share_daily 的口径锚（月末未偿）：它停更时日频派生序列仍推进到当天，
+    # 只查派生文件的末行日期会永远绿 → 分母冻结、占比静默漂移而无人发现。
+    _c("data/treasury/mspd.csv", 45, "MSPD 月末未偿（Bill 占比锚）", column="record_date"),
+    # 查 auction_date 而不是 issue_date：后者领先前者最多 8 天（52-Week Bill 4 周、
+    # Note 8 天），用它当末观测日会让「8 天预算」实际变成 16 天，且靠未来日期撑绿。
+    _c("data/treasury/auction_results.csv", 8, "国债拍卖结果", column="auction_date"),
     _c("data/rate_expectations/fomc_probabilities.csv", D, "FOMC 概率"),
     _c("data/rate_expectations/zq_futures.csv", D, "ZQ 期货快照"),
     _c("data/breadth/abv.csv", D, "市场广度 ABV"),

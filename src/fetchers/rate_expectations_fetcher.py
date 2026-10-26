@@ -14,7 +14,7 @@ Fetch Fed Funds futures-implied FOMC rate expectations.
 
 import calendar
 import logging
-from datetime import datetime
+from datetime import date, datetime
 from pathlib import Path
 
 import pandas as pd
@@ -24,6 +24,10 @@ from ..config import FED_TARGET_RANGE_FALLBACK, FOMC_MEETINGS, ROOT
 logger = logging.getLogger(__name__)
 
 _STEP = 0.25  # Fed 利率步长
+# ZQ 期货价过期上限（日历天）。工作日历下 3 个交易日的缺口是正常抖动；10 天以上
+# 说明两源都停了 —— 此时算出来的概率是「几个月前的市场预期」，必须拒绝产出而不是
+# 静默沿用（实测 IBKR 残留 2026-07-31 的价会让 12 月会议 prob_hike 从 88% 变 51%）。
+_ZQ_MAX_STALE_DAYS = 10
 
 
 def _zq_label(meeting_year: int, meeting_month: int) -> str:
@@ -55,16 +59,23 @@ def _pick_fresher(
 
 
 def _read_zq_close(
-    meeting_year: int, meeting_month: int, root: Path | None = None
+    meeting_year: int,
+    meeting_month: int,
+    root: Path | None = None,
+    today: date | None = None,
 ) -> tuple[float, str] | None:
     """读取 ZQ 合约最新结算价，两源（IBKR / Barchart）取日期更新者。
 
     IBKR 本地文件可能停更（TWS 未启动），日期落后于 Barchart 降级源时
-    必须用新数据，否则概率基于过期期货价。
+    必须用新数据，否则概率基于过期期货价。两源都过期（>_ZQ_MAX_STALE_DAYS）
+    时拒绝产出并用真实过期天数拒绝产出，不用旧价编概率。
 
-    Returns (settlement, as_of_date) 或 None（两源均无数据）。
+    today: 供测试注入的「今天」，缺省取系统日期。
+
+    Returns (settlement, as_of_date) 或 None（无可用数据 / 数据过期）。
     """
     root = root or ROOT
+    today = today or date.today()
     label = _zq_label(meeting_year, meeting_month)
     result = _pick_fresher(
         _read_zq_last(root / "data" / "commodities" / "ZQ" / f"{label}.csv"),
@@ -76,6 +87,21 @@ def _read_zq_close(
             "  请先运行: ./bin/fetch_commodities --symbols ZQ 或 "
             "./bin/fetch_barchart_futures --symbols ZQ"
         )
+        return None
+    # 时效闸门：两个源都停更时，旧价算出的概率是错的「当前预期」。
+    # 拒绝产出 → 该会议在概率表里缺席，比印一个三个月的旧数字诚实。
+    try:
+        as_of_dt = datetime.strptime(result[1][:10], "%Y-%m-%d").date()
+        stale_days = (today - as_of_dt).days
+    except Exception:
+        stale_days = 0  # 日期格式异常不在此拦截（上面 _read_zq_last 已保证 ISO）
+    if stale_days > _ZQ_MAX_STALE_DAYS:
+        logger.warning(
+            f"ZQ {meeting_year}-{meeting_month:02d}: 数据过期 {stale_days} 天"
+            f"（as of {result[1]}，上限 {_ZQ_MAX_STALE_DAYS} 天）→ 跳过该会议，"
+            f"不用旧价编概率。请运行 ./bin/fetch_barchart_futures --symbols ZQ"
+        )
+        return None
     return result
 
 

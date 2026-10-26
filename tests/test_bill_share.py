@@ -76,3 +76,17 @@ def test_missing_marketable_column_raises():
     mspd = _mspd().rename(columns={"MARKETABLE_TOTAL": "MARKETABLE"})
     with pytest.raises(KeyError):
         compute_daily_bill_share(mspd, _auctions(), end=pd.Timestamp("2026-07-20"))
+
+
+def test_anchor_date_column_emitted():
+    """派生序列必须带 anchor_date：它每天都推进到「今天」，末行日期看不出上游停更。
+
+    停更的其实是 MSPD 月度锚（分母冻结、占比静默漂移）。下游靠 anchor_date 判断
+    「这份派生值锚在什么时候」，data_freshness 也另查 mspd.csv 的末观测日。
+    """
+    df = compute_daily_bill_share(
+        _mspd(), _auctions_with_preanchor_maturity(), end=pd.Timestamp("2026-07-20")
+    )
+    assert "anchor_date" in df.columns
+    # _mspd() 的锚是 2026-06-30（月末），每一行都记同一个锚
+    assert set(df["anchor_date"].unique()) == {"2026-06-30"}

@@ -744,7 +744,11 @@ def get_rate_expectations() -> dict:
     range_cols = [c for c in df.columns if c.startswith("range_")]
 
     latest_date = df.index.max()
-    latest = df.loc[latest_date]
+    # 用 [latest_date]（双层）而不是 latest_date：当日快照只有 1 行时 df.loc[date]
+    # 返回 Series，Series 没有 drop_duplicates(subset=…) → TypeError → 整个端点 500。
+    # 这不是假设：FOMC_MEETINGS 只到 2026-12-09，2026-10-29 起未来只剩一场会议，
+    # 快照恒为单行；ZQ 时效闸门把最近一场拒掉时也会立刻命中。
+    latest = df.loc[[latest_date]]
     # 同日多次写入会产生重复行（upsert 幂等性缺陷），按会议去重
     latest = latest.drop_duplicates(subset=["meeting_date"])
     # 会议按日期升序：最近的一场排在最上
@@ -981,14 +985,46 @@ def get_consensus() -> dict:
 
     out = compute()
     finalized = False
+    finalized_state: tuple[str, str] | None = None
     hist_path = ROOT / "data/consensus/history.csv"
     if out.get("ref_date") and hist_path.exists():
         try:
             hist = pd.read_csv(hist_path)
             rows = hist[hist["date"] == out["ref_date"]]
-            finalized = (not rows.empty) and str(rows.iloc[0]["source"]) == "final"
+            if not rows.empty and str(rows.iloc[0]["source"]) == "final":
+                # 缺列/空值不能算「已定稿」：str(NaN) 会变成字面量 'nan' 当状态词下发，
+                # 缺列则 KeyError 被上面 except 吞掉后 finalized 仍为 True —— 徽章照样
+                # 给现算值背书，正是这一段要治的病。
+                ms, xs = rows.iloc[0].get("market_state"), rows.iloc[0].get("macro_state")
+                if pd.notna(ms) and str(ms).strip() and pd.notna(xs) and str(xs).strip():
+                    finalized = True
+                    finalized_state = (str(ms), str(xs))
         except Exception as e:  # 历史缺失/损坏不阻断状态卡，但不静默（§8 反静默精神）
             print(f"consensus finalized 标注失败: {e}")
+
+    # finalized 徽章不能给「这一次算出来的数字」背书。
+    # compute() 是导出时点现算的，而 history 里的 final 行是收盘时落盘的 —— 两者读的是
+    # 不同时刻的底层表。intraday-refresh 尾班（21:52）晚于 daily-full 定稿（21:15），
+    # 且 crypto-hourly 每小时都会 dispatch 部署，于是「已定稿」徽章每天都在给一个
+    # 从未被记录的现算状态背书（实测只改 VIX 一行就能让 state 从 risk-on 翻 risk-off，
+    # 徽章仍是已定稿）。
+    #
+    # 做法：只摘徽章、不改状态。覆盖 state 会漏掉 cls / n_on / n_off / members 等
+    # 派生字段（它们各自从 members 现算），结果是「绿色的卡写着分歧、旁边 5 个 ✓ 0 个 ✗」
+    # 的自相矛盾。history 只存了 state 字符串，无法据此重建成员明细，所以回退成
+    # 「盘中临时值」是唯一自洽的口径：数据确实在定稿后被刷新了，状态未重新定稿。
+    state_source = "computed"
+    if finalized and finalized_state is not None:
+        cur = (str(out["market"].get("state")), str(out["macro"].get("state")))
+        if cur != finalized_state:
+            print(
+                f"consensus: 现算状态 {cur} 与当日 final 留痕 {finalized_state} 不一致"
+                f"（定稿后底层数据又被刷新）→ 徽章退回盘中临时值，不背书现算结果"
+            )
+            finalized = False
+            state_source = "diverged_from_final"
+
+    out["state_source"] = state_source
     out["finalized"] = finalized
     return out
 

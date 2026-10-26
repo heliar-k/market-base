@@ -302,10 +302,13 @@ def _x_policy() -> dict:
     sub = _sub("最近会期 prob_cut", None, None, None)
     if not df.empty and {"meeting_date", "prob_cut", "prob_hike"} <= set(df.columns):
         latest = str(df.index.max().date())
-        rows = df.copy()
+        # 只在**最新一个快照日**的行里挑最近会期。原先在全部历史快照上筛
+        # meeting_date >= latest，同日多行 sort_values 是稳定排序 → 拿到的其实是
+        # 三个月前那条（2026-07-29 快照里的 10-28 行，prob_hike=1.0），却标成今天的
+        # as_of。实测该行让「政策路径」印出 ✗ 紧缩，而今天真实值是 0.12（弃权）。
+        rows = df[df.index == df.index.max()].copy()
         rows["meeting_date"] = rows["meeting_date"].astype(str)
-        upcoming = rows[rows["meeting_date"] >= latest]
-        row = (upcoming if not upcoming.empty else rows).sort_values("meeting_date").iloc[0]
+        row = rows.sort_values("meeting_date").iloc[0]
         pc, ph = row["prob_cut"], row["prob_hike"]
         if pd.notna(pc) and pd.notna(ph):
             vote = True if pc >= PROB_CUT_ON else (False if ph >= PROB_HIKE_OFF else None)
