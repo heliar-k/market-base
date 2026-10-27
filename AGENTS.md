@@ -36,6 +36,7 @@ market-base/
 │   ├── options_structure.py      ← 期权结构快照分析（GEX/DEX/Vanna/Charm 22 标的面板）
 │   ├── cross_asset.py            ← 跨资产相关性面板数据（22 标的 30 日矩阵 + 4 结构报警对，派生，依赖资产快照）
 │   ├── sell_put.py               ← Sell Put 选点位（期权墙 + 技术面交叉）
+│   ├── live_wheel.py             ← 盘前/盘中实时 Wheel（实时现价 + 现场重算期权结构，规则同一套）
 │   ├── hedge_planner.py          ← 下跌保护结构报价器（put / 价差 / 领口）
 │   ├── server.py                 ← FastAPI Web 后端（组合根：import 全部分析层）
 │   ├── export_pages.py           ← 静态站点导出（API JSON 预渲染 → frontend/public/api/）
@@ -140,6 +141,7 @@ market-base/
 │   ├── fetch_stock                     ← 股票日线（_symbol_fetch 统一编排）
 │   ├── fetch_rate_expectations         ← FOMC 概率 + ZQ 快照（每日）
 │   └── fetch_news                      ← Yahoo Finance 个股新闻（curl_cffi 直连 NCP，不走 yfinance）
+│   └── live_wheel                      ← 盘前/盘中实时 Wheel 扫描（实时价 + 现场期权结构，~45s）
 │
 ├── data/                         ← 数据存储（增量 CSV / JSON）
 │   ├── fred/{category}/{category}.csv  ← 13 分类 FRED 数据（观测日 upsert；tic= TIC 美债持仓/净买入）
@@ -318,6 +320,12 @@ uv run python -m src.consensus       # 多源共识层两级状态卡（ADR-0004
 ./bin/fetch_etf                    # ETF 全量清单 + 精选池（timsun /assets/etfs）
 ./bin/fetch_etf --pool-only         # 只拉精选池日线（intraday 尾班用，跳过 Nasdaq 清单）
 ./bin/fetch_options_structure      # 22 标的期权结构快照（GEX/DEX/Vanna/Charm，~3min）
+
+# Wheel 策略：盘后定稿 vs 盘前/盘中实时（同一套规则引擎，只换入参）
+uv run python -m src.wheel_scanner           # 盘后定稿：读数据班次落盘的快照 + raw 链
+./bin/live_wheel                             # 盘前/盘中实时：实时现价 + 现场重算期权结构（~45s）
+./bin/live_wheel --symbols NVDA,TSM           # 只扫指定标的
+./bin/live_wheel --greeks ibkr                # 交易所真实 gamma（需本地 TWS，~10min）
 ./bin/fetch_crypto_derivatives     # 加密衍生品快照（OKX + Deribit + CME）
 ./bin/fetch_crypto_basis             # CME BTC 基差日序列（Yahoo BTC=F proxy）
 ./bin/fetch_coinglass                 # Coinglass 全市场聚合（Jina Reader，OI/清算/交易所分布）
@@ -425,6 +433,11 @@ uv run python src/sell_put.py --symbol TSM
 - `ibkr_fetcher.py` 连接时依次尝试 4002 → 4001（4001 按只读连接）
 - Greeks 当日快照：`data/gex/{SYMBOL}_greeks_YYYYMMDD.csv`，`--reuse-greeks` 复用后只拉 yfinance OI；gamma 贴近墙位对 spot 敏感，spot 动 1%+ 要重拉
 - gamma 符号惯例：call 正 / put 负（IBKR modelGreeks 恒非负，`fetch_options_greeks` 里统一翻转，与 `greeks_from_yf` 一致）
+- **IBKR 能拿 OI**：`reqMktData(opt, "101", ...)` 的 genericTick 101 会填 `putOpenInterest` /
+  `callOpenInterest`（`compute_gex._oi_from_ticker` 取值）。不传这个 tick 时这两字段恒为
+  nan，只能靠外部源（yfinance/Barchart）的 OI 补齐 —— 而盘前外部源的 bid/OI 整片失效
+  （实测 bid>0 仅 3~4%、OI 全 0、impliedVolatility 报 0.00%~3%），所以盘中/盘前做期权结构
+  时 IBKR 的 OI 才是可靠来源。未取到时返回 None 而非 0，避免生成零权重的伪墙位
 - 每次请求后 `sleep(15s)` 避免限流（配置在 `config.ibkr.request_delay_seconds`）
 
 ### 7. 反爬抓取工具箱（新 fetcher 优先复用）

@@ -85,12 +85,26 @@ def filter_options(chain, spot, max_expirations=4, strike_pct=0.12):
     return selected_exps, selected_strikes
 
 
+def _oi_from_ticker(t, right: str) -> int | None:
+    """取单合约的 openInterest（genericTick 101）。
+
+    单合约订阅时 IBKR 只回该合约方向的 OI：call 合约落在 callOpenInterest，
+    put 合约落在 putOpenInterest。两者都为 nan 时返回 None（不是 0）——
+    「未请求到」与「OI 真的为 0」必须能区分，否则会生成虚假的零权重墙位。
+    """
+    raw = t.callOpenInterest if right == "C" else t.putOpenInterest
+    if raw is None or raw != raw or raw < 0:
+        return None
+    return int(raw)
+
+
 def fetch_options_greeks(ib, symbol, expirations, strikes, batch_size=3):
     """
     从 IBKR 小批量获取期权 Greeks（串行流式订阅，跳过 qualify）。
     纸交易账户同时订阅数有限（~3-5），必须小批量串行。
 
-    返回 DataFrame: [expiration, strike, right, bid, ask, delta, gamma, theta, vega, iv]
+    返回 DataFrame: [expiration, strike, right, bid, ask, delta, gamma, theta, vega,
+    iv, openInterest]（openInterest 为 None 表示未取到，不是 0）
     """
     from ib_insync import Option
 
@@ -119,8 +133,11 @@ def fetch_options_greeks(ib, symbol, expirations, strikes, batch_size=3):
         tickers = []
 
         # 批量订阅（无合约的不报错，只是返回 nan）
+        # genericTickList="101" → putOpenInterest / callOpenInterest（见 ib.reqMktData 文档）。
+        # 不传这个 tick 时 Ticker 的 OI 字段恒为 nan，get_option_chain_params 也不带 OI，
+        # 于是下游只能用外部源（yfinance）的 OI 拟合 —— 盘前正是外部源失效的时段。
         for opt, exp, strike, right in batch:
-            t = ib.reqMktData(opt, "", False, False)
+            t = ib.reqMktData(opt, "101", False, False)
             tickers.append((t, exp, strike, right))
 
         ib.sleep(3)
@@ -141,6 +158,7 @@ def fetch_options_greeks(ib, symbol, expirations, strikes, batch_size=3):
                 "theta": g.theta if g else None,
                 "vega": g.vega if g else None,
                 "iv": g.impliedVol if g else None,
+                "openInterest": _oi_from_ticker(t, right),
             }
             results.append(row)
             ib.cancelMktData(opt)
@@ -229,11 +247,26 @@ def compute_gex(greeks_df, oi_df, spot):
     # 合并
     if not oi_df.empty:
         merged = greeks_df.merge(oi_df, on=["expiration", "strike", "right"], how="left")
+        # greeks_df 自带 OI（IBKR genericTick 101）时，merge 会出 openInterest_x/y：
+        # 优先用外部 oi_df 的值（历史行为），缺失则回落到 IBKR 自己的读数。
+        if "openInterest_x" in merged.columns:
+            merged["openInterest"] = merged["openInterest_y"].fillna(merged["openInterest_x"])
+            merged = merged.drop(columns=["openInterest_x", "openInterest_y"])
         merged["openInterest"] = merged["openInterest"].fillna(0).astype(int)
     else:
         merged = greeks_df.copy()
-        merged["openInterest"] = 0
-        log.warning("无 OI 数据，用 0 代替")
+        if "openInterest" not in merged.columns:
+            merged["openInterest"] = 0
+            log.warning("无 OI 数据，用 0 代替")
+        else:
+            # IBKR 自带 OI；未取到的合约为 None → 0（保留「没取到」与「真为0」的差异已在源头，
+            # 这里加权计算必须拿一个数，但会打一行可观测的日志）
+            nan_n = int(pd.to_numeric(merged["openInterest"], errors="coerce").isna().sum())
+            if nan_n:
+                log.warning(f"{nan_n} 个合约 IBKR OI 未返回，按 0 计（墙位可能偏低）")
+            merged["openInterest"] = (
+                pd.to_numeric(merged["openInterest"], errors="coerce").fillna(0).astype(int)
+            )
 
     # 过滤无效 gamma
     merged = merged.dropna(subset=["gamma"])

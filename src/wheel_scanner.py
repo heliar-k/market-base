@@ -128,8 +128,11 @@ class OptionPick:
     iv_pct: float
     oi: int
     dist_pct: float  # (strike - spot) / spot * 100
-    executable: bool = True  # True=来自当日真实期权链, False=BSM+Skew理论估算
+    executable: bool = True  # True=来自真实期权链, False=BSM+Skew理论估算
     annual_roc_pct: float | None = None  # 若有 bid/ask 则算年化收益率
+    chain_date: str | None = None  # 该合约实际来自哪天的 raw 链（YYYY-MM-DD）
+    stale_days: int = 0  # 链比快照日旧几天：0=当日，>0=回溯到的旧链
+    quote_ts: str | None = None  # 链文件写盘时刻（报价新鲜度，ISO）
 
 
 @dataclass
@@ -244,6 +247,33 @@ def _is_monthly_opex(dt: datetime.date) -> bool:
     return 15 <= dt.day <= 21 and dt.weekday() in (3, 4)
 
 
+def _find_chain_file(opt_sym: str, ref_dt: datetime.date) -> tuple[Path | None, int]:
+    """找 <= ref_dt 的最近一份 raw 期权链，返回 (路径, 距 ref_dt 的天数)。
+
+    为什么必须回溯：直接拼 raw_{sym}_{ref_str}.csv 找不到就落到 BSM 兜底分支，会产出
+    oi=0 / expiration='~35d(BSM估算)' 的伪合约——而 opex / 点差 / OI 深度 / 期权墙四道
+    闸门全部失效。数据班次里 options_structure 对单个标的失败（yfinance 抽风/限流）时
+    当天就没有该标的的链，此时应当用前一个交易日的真实链并**标明陈旧天数**，
+    而不是静默变成理论估算。
+    """
+    d = ROOT / "data" / "options_structure"
+    exact = d / f"raw_{opt_sym}_{ref_dt:%Y%m%d}.csv"
+    if exact.exists():
+        return exact, 0
+    best: Path | None = None
+    best_dt: datetime.date | None = None
+    for f in d.glob(f"raw_{opt_sym}_*.csv"):
+        try:
+            fdt = datetime.strptime(f.stem.rsplit("_", 1)[-1], "%Y%m%d").date()
+        except ValueError:
+            continue
+        if fdt > ref_dt:
+            continue
+        if best_dt is None or fdt > best_dt:
+            best, best_dt = f, fdt
+    return (best, (ref_dt - best_dt).days) if best and best_dt else (None, 0)
+
+
 def _pick_contract(
     opt_sym: str,
     snap_date: str | None,
@@ -257,10 +287,12 @@ def _pick_contract(
 ) -> OptionPick | None:
     """选点器：锚定快照日 DTE；优选 OpEx/高 OI 到期日；结合期权墙外侧与点差过滤。"""
     ref_dt = _ref_date(snap_date)
-    ref_str = ref_dt.strftime("%Y%m%d")
-    raw_path = ROOT / "data" / "options_structure" / f"raw_{opt_sym}_{ref_str}.csv"
-    if not raw_path.exists():
-        raw_path = None
+    raw_path, chain_stale = _find_chain_file(opt_sym, ref_dt)
+    chain_date = (
+        datetime.strptime(raw_path.stem.rsplit("_", 1)[-1], "%Y%m%d").strftime("%Y-%m-%d")
+        if raw_path
+        else None
+    )
 
     dte_min, dte_max = THRESHOLDS["dte_min"], THRESHOLDS["dte_max"]
     pre_earnings = False
@@ -368,6 +400,13 @@ def _pick_contract(
                         dist_pct=round((float(best["strike"]) - spot) / spot * 100, 1),
                         executable=True,
                         annual_roc_pct=roc,
+                        chain_date=chain_date,
+                        stale_days=chain_stale,
+                        quote_ts=datetime.fromtimestamp(raw_path.stat().st_mtime).strftime(
+                            "%Y-%m-%d %H:%M:%S"
+                        )
+                        if raw_path
+                        else None,
                     )
         # 若存在当日真实期权链但窗口内全部因点差过大/流动性枯竭被拒，绝不回退 BSM 伪造合约
         return None
@@ -530,11 +569,33 @@ def evaluate_symbol(
     snap_date: str | None,
     opt_map: dict,
     holdings: set[str] | None = None,
+    live_spot: float | None = None,
 ) -> ScanRow | None:
     csv_path = ROOT / "data" / "stocks" / f"{spec.symbol}.csv"
     if not csv_path.exists():
         return None
-    df = compute_all_indicators(load_data(str(csv_path)))
+    df = load_data(str(csv_path))
+    if df.empty or len(df) < 200:
+        return None
+
+    # 盘中/盘前实时价 → 先拼成当日残缺 bar，再统一算一次指标（RSI/BB/MA/SuperTrend 均跟着变）。
+    # 必须先拼后算：compute_all_indicators 不幂等（重复调用会出重名列，add_smc_mtf
+    # 的 resample 会因此报 `'first' is not a valid function`）。因为实时行没有成交量，
+    # volume 留 NaN 并在下面把 vol_ratio 回退中性值 1.0，不当作缩量。
+    if live_spot is not None and live_spot > 0:
+        live_row = pd.DataFrame(
+            {
+                "open": [live_spot],
+                "high": [live_spot],
+                "low": [live_spot],
+                "close": [live_spot],
+                "volume": [np.nan],
+            },
+            index=pd.DatetimeIndex([pd.Timestamp.now().normalize()], name=df.index.name),
+        )
+        # 同一交易日重跑时不重复追加（日线已含当日收盘则整行替换）
+        df = pd.concat([df[df.index < live_row.index[0]], live_row])
+    df = compute_all_indicators(df)
     if df.empty or len(df) < 200:
         return None
 
@@ -558,7 +619,7 @@ def evaluate_symbol(
     opt_key = spec.opt_symbol or spec.symbol
     ov = opt_map.get(opt_key) or {}
     # 期权选点与墙位基准优先对齐期权链快照自身的 spot，避免股票日线与期权快照跨日错位
-    opt_spot = float(ov.get("spot") or close)
+    opt_spot = live_spot or float(ov.get("spot") or close)
     iv35 = _iv_at_dte(ov, 35)
     vrp = round(iv35 - hv20, 1) if iv35 is not None else None
 
@@ -587,6 +648,9 @@ def evaluate_symbol(
     adx = float(raw_adx) if pd.notna(raw_adx) else 20.0
     raw_vr = last.get("vol_ratio", 1.0)
     vol_ratio = float(raw_vr) if pd.notna(raw_vr) else 1.0
+    # 实时行没有成交量 → vol_ratio 无法定义，按中性 1.0 处理（不当作缩量）
+    if live_spot is not None:
+        vol_ratio = 1.0
     raw_mh0 = last.get("MACD_hist", 0.0)
     macd_h0 = float(raw_mh0) if pd.notna(raw_mh0) else 0.0
     raw_mh1 = df["MACD_hist"].iloc[-2] if len(df) >= 2 else macd_h0
@@ -762,6 +826,12 @@ def evaluate_symbol(
             call_pick = None
 
     actionable = signal in ("SELL PUT", "SELL CALL")
+    # 推荐合约来自旧链时如实标注（不得让 T-1 报价静默充作当日报价）
+    stale_pick = next(
+        (p for p in (put_pick, call_pick) if p is not None and p.stale_days > 0), None
+    )
+    if stale_pick is not None and stale_pick.chain_date:
+        reasons.append(f"链陈旧{stale_pick.stale_days}d({stale_pick.chain_date})")
 
     return ScanRow(
         symbol=spec.symbol,
@@ -888,15 +958,33 @@ def scan_pool(
     tiers: set[str] | None = None,
     symbols: set[str] | None = None,
     holdings: set[str] | None = None,
+    live_spot: dict[str, float] | None = None,
+    opt_map_override: dict | None = None,
+    snap_date_override: str | None = None,
 ) -> tuple[str | None, list[ScanRow], dict]:
-    snap_date, opt_map = _latest_options_snapshot()
+    """扫全池。
+
+    live_spot / opt_map_override / snap_date_override 三个参数仅供盘中实时模式注入：
+    报表链与快照都走数据班次落盘的静态文件，实时模式由 src.live_wheel 传入
+    实时价与现场重算的期权结构，其余规则（阈值/闸门）完全不变。
+    """
+    if opt_map_override is not None:
+        snap_date, opt_map = snap_date_override, opt_map_override
+    else:
+        snap_date, opt_map = _latest_options_snapshot()
     rows: list[ScanRow] = []
     for spec in WHEEL_POOL:
         if tiers and spec.tier not in tiers:
             continue
         if symbols and spec.symbol not in symbols:
             continue
-        r = evaluate_symbol(spec, snap_date, opt_map, holdings=holdings)
+        r = evaluate_symbol(
+            spec,
+            snap_date,
+            opt_map,
+            holdings=holdings,
+            live_spot=(live_spot or {}).get(spec.symbol),
+        )
         if r is not None:
             rows.append(r)
 

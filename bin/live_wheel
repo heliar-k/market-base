@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+# 盘前/盘中实时 Wheel 扫描（实时现价 + 现场重算期权结构，规则引擎与 wheel_scanner 同一套）
+set -euo pipefail
+cd "$(dirname "$0")/.."
+uv run python -m src.live_wheel "$@"
