@@ -1054,10 +1054,10 @@ def print_report(snap_date: str | None, rows: list[ScanRow], summary: dict) -> N
     from rich.console import Console
     from rich.table import Table
 
-    # 表格固有宽度约 150 列（13 列数字 + 中文标签）。用固定 width 而不是依赖
-    # console.width：非 TTY（管道/日志）下 rich 取不到真实宽度，会退回 80 列
-    # 把每列截成三个字（"MA5…"），而且截断后列太多还会把首列整个吞掉。
-    console = Console(width=170)
+    # 宽度取全表所需：13 列单行，实测最长一行（带「权利金不足」那几个标的）
+    # 需要 229 显示宽。给不够时 rich 会压缩最宽列，整表变「标的 梯…」。
+    # 不依赖 console.width：非 TTY（管道/日志）下 rich 取不到真实宽度会退回 80 列。
+    console = Console(width=240)
     vix_s = f" · {summary['vix_note']}" if summary.get("vix_note") else ""
     console.print(
         f"\n[bold]=== 确定性巨头池 · Wheel 策略雷达（期权快照: {snap_date or '无'}）===[/bold]"
@@ -1067,8 +1067,8 @@ def print_report(snap_date: str | None, rows: list[ScanRow], summary: dict) -> N
         console.print(f"[yellow][告警] {w}[/yellow]")
 
     # 列宽不手写：rich 自己量 CJK 双宽字形，比手算 east_asian_width 可靠。
-    # expand=False + 不设 width：表格按内容自然宽度铺开，不被 80 列墨端折成 "MA5…"。
-    # 总宽 140+ 是这张表的固有尺寸，折行会把每列都截成三个字。
+    # min_width 是列宽下限：不给时 rich 按内容紧贴排版，数字列表头与数字会
+    # 挤在一起；给一个下限后各列间距均匀，不同标的行之间也稳定。
     table = Table(
         box=box.SIMPLE_HEAD,
         header_style="bold",
@@ -1076,22 +1076,22 @@ def print_report(snap_date: str | None, rows: list[ScanRow], summary: dict) -> N
         expand=False,
         show_edge=False,
     )
-    for col, justify in (
-        ("标的", "left"),
-        ("梯队", "left"),
-        ("现价", "right"),
-        ("单手$k", "right"),
-        ("RSI", "right"),
-        ("MA50(σ)", "right"),
-        ("HV/IV35/VRP", "right"),
-        ("1Y_IVR/IVP", "right"),
-        ("Put/Call墙", "right"),
-        ("事件排雷", "left"),
-        ("趋势状态", "left"),
-        ("当日信号", "left"),
-        ("触发与风控依据", "left"),
+    for col, justify, min_w in (
+        ("标的", "left", 6),
+        ("梯队", "left", 4),
+        ("现价", "right", 7),
+        ("单手$k", "right", 7),
+        ("RSI", "right", 5),
+        ("MA50(σ)", "right", 12),
+        ("HV/IV35/VRP", "right", 13),
+        ("1Y_IVR/IVP", "right", 11),
+        ("Put/Call墙", "right", 11),
+        ("事件排雷", "left", 15),
+        ("趋势状态", "left", 10),
+        ("当日信号", "left", 10),
+        ("触发与风控依据", "left", 20),
     ):
-        table.add_column(col, justify=justify, no_wrap=True)
+        table.add_column(col, justify=justify, no_wrap=True, min_width=min_w)
 
     for r in rows:
         vol_s = (

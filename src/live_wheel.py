@@ -31,6 +31,7 @@ from __future__ import annotations
 import argparse
 import json
 import logging
+import sys
 from dataclasses import asdict
 from datetime import datetime, timezone
 from pathlib import Path
@@ -53,6 +54,7 @@ from src.wheel_scanner import (
 ET = ZoneInfo("America/New_York")
 NOW = datetime.now(timezone.utc).astimezone(ET)
 log = logging.getLogger("live_wheel")
+_CONSOLE = None
 
 
 def _derived_snapshot() -> tuple[str | None, dict]:
@@ -68,16 +70,24 @@ def _derived_snapshot() -> tuple[str | None, dict]:
 
 
 def _live_spots(symbols: list[str]) -> tuple[dict[str, float], str]:
-    """批量取实时/盘前价。返回 ({symbol: price}, 取数时刻)。"""
+    """批量取实时/盘前价。返回 ({symbol: price}, 取数时刻)。
+
+    `symbols` 可以是池里的展示名（`BRK.B`），但 yahoo 的 ticker 是 `BRK-B`——
+    直接用展示名下载会报 possibly delisted 并整个标的丢掉现价。所以这里逐名做
+    映射：池里的 `opt_symbol` 就是 yahoo 代码（`GOOG->GOOGL`、`BRK.B->BRK-B`）。
+    """
     from src.fetchers.yfinance_fetcher import ensure_yf_proxy
+    from src.wheel_scanner import WHEEL_POOL
 
     ensure_yf_proxy()
     import yfinance as yf  # noqa: E402
 
+    yf_code = {p.symbol: (p.opt_symbol or p.symbol) for p in WHEEL_POOL}
+    codes = [yf_code.get(s, s) for s in symbols]
     spots: dict[str, float] = {}
     # prepost=True 才能拿到盘前/盘后价；group_by="ticker" 逐标的取末根 non-NaN close
     raw = yf.download(
-        tickers=" ".join(symbols),
+        tickers=" ".join(codes),
         period="1d",
         interval="5m",
         prepost=True,
@@ -85,9 +95,9 @@ def _live_spots(symbols: list[str]) -> tuple[dict[str, float], str]:
         group_by="ticker",
         threads=True,
     )
-    for s in symbols:
+    for s, code in zip(symbols, codes, strict=True):
         try:
-            col = raw[s]["Close"] if len(symbols) > 1 else raw["Close"]
+            col = raw[code]["Close"] if len(codes) > 1 else raw["Close"]
             last = col.dropna()
             if not last.empty:
                 spots[s] = float(last.iloc[-1])
@@ -95,9 +105,11 @@ def _live_spots(symbols: list[str]) -> tuple[dict[str, float], str]:
             continue
     ts = NOW.strftime("%Y-%m-%d %H:%M:%S ET")
     # 批量下载偶发丢个别标的（yfinance 报 possibly delisted）：逐个补
-    for s in set(symbols) - set(spots):
+    for s, code in zip(symbols, codes, strict=True):
+        if s in spots:
+            continue
         try:
-            p = float(yf.Ticker(s).fast_info.last_price)
+            p = float(yf.Ticker(code).fast_info.last_price)
             if p > 0:
                 spots[s] = p
         except Exception:
@@ -157,6 +169,41 @@ def _prev_trading_chain(sym: str, _static: dict) -> tuple[pd.DataFrame, str] | N
     return None
 
 
+def _rich_console():
+    """进度条与日志共用的 Console。
+
+    写入 stderr（不是 stdout）：`--json` / `--dump` 的结果走 stdout，日志与进度条
+    混进去会把 JSON 弄坏（实测 `2026... INFO ...` 直接拼在 JSON 前面）。
+    同一个实例给进度条与 RichHandler，rich 才能在打日志时把进度条括起来再重绘。
+    """
+    global _CONSOLE
+    if _CONSOLE is None:
+        from rich.console import Console
+
+        _CONSOLE = Console(stderr=True, width=None if sys.stderr.isatty() else 200)
+    return _CONSOLE
+
+
+def _setup_rich_logging() -> None:
+    """把 root logger 接到 rich Console（与进度条同一个实例才能协调重绘）。"""
+    from rich.logging import RichHandler
+
+    root = logging.getLogger()
+    for h in list(root.handlers):
+        root.removeHandler(h)
+    console = _rich_console()
+    root.addHandler(
+        RichHandler(
+            console=console,
+            show_path=False,
+            rich_tracebacks=True,
+            markup=False,
+            log_time_format="%H:%M:%S",
+        )
+    )
+    root.setLevel(logging.INFO)
+
+
 def _build_opt_map(
     symbols: list[str], static: dict, greeks: str, ibkr_batch: int = DEFAULT_BATCH_SIZE
 ) -> tuple[dict, dict[str, str]]:
@@ -179,19 +226,22 @@ def _build_opt_map(
 
     from rich.progress import BarColumn, MofNCompleteColumn, Progress, TextColumn, TimeElapsedColumn
 
+    # 只显示「当前标的」，不写「行情/链…」「yfinance 链…」这类阶段词：那些文字
+    # 在一个标的内部会抖 2~3 次，看到的全是跳动而不是进展。
     progress = Progress(
         TextColumn("[bold]{task.description}"),
         BarColumn(),
         MofNCompleteColumn(),
-        TextColumn("· {task.fields[detail]}"),
+        TextColumn(" [cyan]{task.fields[detail]}"),
         TimeElapsedColumn(),
-        console=None,
-        transient=False,
+        console=_rich_console(),
+        transient=True,
+        refresh_per_second=4,
     )
     with progress:
-        task = progress.add_task("拉取期权链", total=len(symbols), detail="准备中")
+        task = progress.add_task("拉取期权链", total=len(symbols), detail="")
         for sym in symbols:
-            progress.update(task, detail=f"{sym} 行情/链…")
+            progress.update(task, detail=sym)
             inherited = static.get(sym) or {}
             try:
                 tk = yf.Ticker(sym)
@@ -203,7 +253,6 @@ def _build_opt_map(
                 spot = float(tk.fast_info.last_price)
 
                 if greeks == "ibkr":
-                    progress.update(task, detail=f"{sym} IBKR 订阅中…")
                     chain = _chain_from_ibkr(sym, exps, spot, batch_size=ibkr_batch)
                     if chain is None or chain.empty:
                         notes[sym] = "IBKR 无行情 → BSM 估算"
@@ -220,7 +269,6 @@ def _build_opt_map(
                         if cached is not None:
                             notes[sym] = f"IBKR 缓存已过期({entry.get('chain_date')}) → yfinance"
                 else:
-                    progress.update(task, detail=f"{sym} yfinance 链…")
                     chain = fetch_yf_chain(sym, exps)
                 chain = chain.dropna(subset=["impliedVolatility"])
                 chain = chain[chain["impliedVolatility"] > 0.01]
@@ -447,7 +495,6 @@ def run(
     bg_proc = None
     if ibkr_bg:
         import subprocess
-        import sys
 
         bg_proc = subprocess.Popen(
             [
@@ -526,6 +573,7 @@ def main() -> None:
     ap.add_argument("--json", action="store_true", help="输出 JSON")
     ap.add_argument("--dump", default="", help="落盘到指定路径（如 /tmp/wheel_live.json）")
     args = ap.parse_args()
+    _setup_rich_logging()
 
     syms = [s.strip().upper() for s in args.symbols.split(",") if s.strip()] or None
     tiers = {t.strip().upper() for t in args.tier.split(",") if t.strip()} or None
@@ -540,8 +588,6 @@ def main() -> None:
 
     # TWS 未启动/未登录时，全池都会静默落 yfinance —— 显式提醒怎么修，不让人以为拿到了真 Greeks
     if args.greeks == "ibkr" and any("IBKR 无行情" in str(v) for v in result["notes"].values()):
-        import sys
-
         print(
             "⚠ --greeks ibkr 未取到任何真实 Greeks（TWS/IB Gateway 未启动或未登录）。\n"
             "   已降级 yfinance BSM 估算。修：启动 TWS → 确认端口 4001(实盘只读)/4002(模拟)；\n"
