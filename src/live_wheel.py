@@ -7,19 +7,22 @@
   从当日 `data/options_structure/{date}.json` 继承，不重复请求 Barchart。
 
 两个 Greeks 来源（`--greeks`）：
-- `yfinance`（默认，~45s/16 标的）：实时 IV + BSM 反推 gamma。IV 与 delta 真实，
-  gamma 为模型值。Actions / 无 TWS 环境可用。
-- `ibkr`（~10min）：复用 `compute_gex.fetch_options_greeks` 拉交易所真实 gamma，
-  需本地 TWS / IB Gateway。盘前 IBKR 常无期权行情（Error 10091），会退回 BSM。
+- `yfinance`（默认，~3s/标的）：实时 IV + BSM 反推 gamma。IV 与 delta 真实，
+  gamma 为模型值。盘中的点差判定与 IBKR 实测一致（相关系数 0.984、闸门判定 100% 一致）。
+- `ibkr`（~20s/标的有 conId 缓存）：交易所真实盘口。需本地 TWS / IB Gateway。
+- `auto`（默认走 yfinance；`--ibkr-bg` 时同时后台补真实盘口，结果写入当日快照文件，
+  下次运行自动带上）。IBKR 比 yfinance 多出的增量只在年化收益率精度（bid 中位差
+  $0.30），不影响选哪个合约。
 
 报价新鲜度：盘前与盘后的 yfinance 期权链是**上一交易日收盘快照**（实测同到期日
 bid 仅 13% 与盘中一致、IV 中位差 3.3pp），不是隔夜不变的实时价。所以每份推荐合约
 都携带 `chain_date` / `quote_ts`，输出末尾汇总数据时点，不把昨收当实时挂单价。
 
 用法:
-    uv run python -m src.live_wheel                       # 全池实时扫描
+    uv run python -m src.live_wheel                       # 全池实时扫描（yfinance）
     uv run python -m src.live_wheel --symbols NVDA,TSM    # 只扫指定标的
-    uv run python -m src.live_wheel --greeks ibkr         # 交易所真实 Greeks
+    uv run python -m src.live_wheel --greeks ibkr         # 交易所真实盘口（同步等）
+    uv run python -m src.live_wheel --ibkr-bg             # 先出结果，IBKR 后台补真实盘口
     uv run python -m src.live_wheel --json                # JSON 输出
 """
 
@@ -27,12 +30,15 @@ from __future__ import annotations
 
 import argparse
 import json
+import logging
 from dataclasses import asdict
 from datetime import datetime, timezone
+from pathlib import Path
 from zoneinfo import ZoneInfo
 
 import pandas as pd
 
+from src.compute_gex import DEFAULT_BATCH_SIZE
 from src.config import ROOT
 from src.options_structure import _extract_events, compute_structure
 from src.pricing import fetch_yf_chain
@@ -46,6 +52,7 @@ from src.wheel_scanner import (
 
 ET = ZoneInfo("America/New_York")
 NOW = datetime.now(timezone.utc).astimezone(ET)
+log = logging.getLogger("live_wheel")
 
 
 def _derived_snapshot() -> tuple[str | None, dict]:
@@ -151,9 +158,15 @@ def _prev_trading_chain(sym: str, _static: dict) -> tuple[pd.DataFrame, str] | N
 
 
 def _build_opt_map(
-    symbols: list[str], static: dict, greeks: str, ibkr_batch: int = 50
+    symbols: list[str], static: dict, greeks: str, ibkr_batch: int = DEFAULT_BATCH_SIZE
 ) -> tuple[dict, dict[str, str]]:
-    """现场重算各标的期权结构，返回 (opt_map, {symbol: 状态说明})。"""
+    """现场重算各标的期权结构，返回 (opt_map, {symbol: 状态说明})。
+
+    `greeks` 取 yfinance / ibkr / auto：
+    - yfinance：只用盘口快照（~3s/标的）
+    - ibkr：同步等交易所真实盘口
+    - auto：首选后台已落的真实盘口（当日且不过期），缺的走 yfinance
+    """
     from src.fetchers.yfinance_fetcher import ensure_yf_proxy
 
     ensure_yf_proxy()
@@ -161,62 +174,98 @@ def _build_opt_map(
 
     opt_map: dict = {}
     notes: dict[str, str] = {}
-    for sym in symbols:
-        inherited = static.get(sym) or {}
-        try:
-            tk = yf.Ticker(sym)
-            exps = _window_expiries(sym, tk.options)
-            if not exps:
-                notes[sym] = "窗口内无到期日"
-                continue
-            spot = float(tk.fast_info.last_price)
+    ibkr_cache = _load_ibkr_chains() if greeks == "auto" else {}
+    today = NOW.strftime("%Y-%m-%d")
 
-            if greeks == "ibkr":
-                chain = _chain_from_ibkr(sym, exps, spot, batch_size=ibkr_batch)
-                if chain is None or chain.empty:
-                    notes[sym] = "IBKR 无行情 → BSM 估算"
-                    chain = fetch_yf_chain(sym, exps)
-            else:
-                chain = fetch_yf_chain(sym, exps)
-            chain = chain.dropna(subset=["impliedVolatility"])
-            chain = chain[chain["impliedVolatility"] > 0.01]
-            ok, why = _chain_health(chain)
-            if not ok:
-                # 盘前 yfinance 链整片失效（bid/OI 全 0）→ 回退到上一交易日收盘链。
-                # 这样盘前仍能算 IV35/VRP/结构墙（结论基于昨收期权面 + 实时现价），
-                # 并且陈旧程度会写进 notes 与 pick.stale_days，不当实时报价用。
-                prev = _prev_trading_chain(sym, static.get(sym) or {})
-                if prev is not None:
-                    chain, cdate = prev
-                    ok2, why2 = _chain_health(chain)
-                    if ok2:
-                        notes[sym] = f"回退昨收链 {cdate}（{why}）"
-                    else:
-                        notes[sym] = f"{why}；昨收链也不可用"
-                        continue
-                else:
-                    notes[sym] = why
+    from rich.progress import BarColumn, MofNCompleteColumn, Progress, TextColumn, TimeElapsedColumn
+
+    progress = Progress(
+        TextColumn("[bold]{task.description}"),
+        BarColumn(),
+        MofNCompleteColumn(),
+        TextColumn("· {task.fields[detail]}"),
+        TimeElapsedColumn(),
+        console=None,
+        transient=False,
+    )
+    with progress:
+        task = progress.add_task("拉取期权链", total=len(symbols), detail="准备中")
+        for sym in symbols:
+            progress.update(task, detail=f"{sym} 行情/链…")
+            inherited = static.get(sym) or {}
+            try:
+                tk = yf.Ticker(sym)
+                exps = _window_expiries(sym, tk.options)
+                if not exps:
+                    notes[sym] = "窗口内无到期日"
+                    progress.advance(task)
                     continue
-            detail = compute_structure(chain, spot)
-            if detail.get("spot") is None:
-                notes[sym] = "结构计算为空"
+                spot = float(tk.fast_info.last_price)
+
+                if greeks == "ibkr":
+                    progress.update(task, detail=f"{sym} IBKR 订阅中…")
+                    chain = _chain_from_ibkr(sym, exps, spot, batch_size=ibkr_batch)
+                    if chain is None or chain.empty:
+                        notes[sym] = "IBKR 无行情 → BSM 估算"
+                        chain = fetch_yf_chain(sym, exps)
+                elif greeks == "auto" and sym in ibkr_cache:
+                    entry = ibkr_cache[sym]
+                    cached = _cached_chain_to_df(entry)
+                    if cached is not None and entry.get("chain_date") == today:
+                        chain = cached
+                        ts = str(entry.get("quoted_at", "")).split(" ")[-2:]
+                        notes[sym] = f"IBKR 真实盘口 {' '.join(ts)}" if ts else "IBKR 真实盘口"
+                    else:
+                        chain = fetch_yf_chain(sym, exps)
+                        if cached is not None:
+                            notes[sym] = f"IBKR 缓存已过期({entry.get('chain_date')}) → yfinance"
+                else:
+                    progress.update(task, detail=f"{sym} yfinance 链…")
+                    chain = fetch_yf_chain(sym, exps)
+                chain = chain.dropna(subset=["impliedVolatility"])
+                chain = chain[chain["impliedVolatility"] > 0.01]
+                ok, why = _chain_health(chain)
+                if not ok:
+                    # 盘前 yfinance 链整片失效（bid/OI 全 0）→ 回退到上一交易日收盘链。
+                    # 这样盘前仍能算 IV35/VRP/结构墙（结论基于昨收期权面 + 实时现价），
+                    # 并且陈旧程度会写进 notes 与 pick.stale_days，不当实时报价用。
+                    prev = _prev_trading_chain(sym, static.get(sym) or {})
+                    if prev is not None:
+                        chain, cdate = prev
+                        ok2, _why2 = _chain_health(chain)
+                        if ok2:
+                            notes[sym] = f"回退昨收链 {cdate}（{why}）"
+                        else:
+                            notes[sym] = f"{why}；昨收链也不可用"
+                            progress.advance(task)
+                            continue
+                    else:
+                        notes[sym] = why
+                        progress.advance(task)
+                        continue
+                detail = compute_structure(chain, spot)
+                if detail.get("spot") is None:
+                    notes[sym] = "结构计算为空"
+                    progress.advance(task)
+                    continue
+                # 静态字段（IVR / 财报 / 除息）继承当日快照；实时字段（spot/gex/iv_curve）用现场值
+                for k in ("iv_rank_1y", "iv_pct_1y", "wiv", "name"):
+                    if inherited.get(k) is not None:
+                        detail[k] = inherited[k]
+                for k, v in _extract_events(tk).items():
+                    if v:
+                        detail[k] = v
+                opt_map[sym] = detail
+                # iv35 是常规结果标记（用作「本标的可用」的判别），但不能盖掉前面的告警：
+                # IBKR 无行情 / 回退昨收链 这些就是靠 notes 往下传递的
+                tag = f"iv35={_iv_at_dte(detail, 35)}"
+                prev = notes.get(sym)
+                notes[sym] = f"{prev}；{tag}" if prev else tag
+            except Exception as e:
+                notes[sym] = f"失败: {type(e).__name__}"
+                progress.advance(task)
                 continue
-            # 静态字段（IVR / 财报 / 除息）继承当日快照；实时字段（spot/gex/iv_curve）用现场值
-            for k in ("iv_rank_1y", "iv_pct_1y", "wiv", "name"):
-                if inherited.get(k) is not None:
-                    detail[k] = inherited[k]
-            for k, v in _extract_events(tk).items():
-                if v:
-                    detail[k] = v
-            opt_map[sym] = detail
-            # iv35 是常规结果标记（用作「本标的可用」的判别），但不能盖掉前面的告警：
-            # IBKR 无行情 / 回退昨收链 这些就是靠 notes 往下传递的
-            tag = f"iv35={_iv_at_dte(detail, 35)}"
-            prev = notes.get(sym)
-            notes[sym] = f"{prev}；{tag}" if prev else tag
-        except Exception as e:
-            notes[sym] = f"失败: {type(e).__name__}"
-            continue
+            progress.advance(task)
     return opt_map, notes
 
 
@@ -280,12 +329,108 @@ def _chain_from_ibkr(
             pass
 
 
+def _ibkr_cache_path() -> Path:
+    return ROOT / "data" / "cache" / "wheel_ibkr_quotes.json"
+
+
+def _load_ibkr_chains() -> dict:
+    """读后台补的真实盘口：{symbol: {chain_date, quoted_at, rows}}。"""
+    p = _ibkr_cache_path()
+    if not p.exists():
+        return {}
+    try:
+        return json.loads(p.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        log.warning(f"IBKR 真实盘口缓存无法读取，本次忽略: {p}")
+        return {}
+
+
+def _save_ibkr_chains(data: dict) -> None:
+    p = _ibkr_cache_path()
+    p.parent.mkdir(parents=True, exist_ok=True)
+    p.write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
+
+
+def _cached_chain_to_df(entry: dict) -> pd.DataFrame | None:
+    rows = entry.get("rows") or []
+    if not rows:
+        return None
+    df = pd.DataFrame(rows)
+    need = {
+        "expiration",
+        "strike",
+        "right",
+        "bid",
+        "ask",
+        "volume",
+        "impliedVolatility",
+        "openInterest",
+    }
+    return df if need <= set(df.columns) else None
+
+
+def _ibkr_fetch_bg(symbols: list[str], check_every: int = 20) -> dict:
+    """后台拉每标的真实盘口并写缓存；碰到 TWS 未开就退避，不阻塞主进程出结果。"""
+    chains: dict = {}
+    for i, sym in enumerate(symbols, 1):
+        if i % check_every == 1:
+            import socket
+
+            up = False
+            for port in (4001, 4002):
+                try:
+                    with socket.create_connection(("127.0.0.1", port), timeout=1):
+                        up = True
+                        break
+                except OSError:
+                    continue
+            if not up:
+                log.warning(f"IBKR 后台刷新：端口未开（已试 4001/4002），停在第 {i - 1} 个标的")
+                break
+        try:
+            import yfinance as yf
+
+            tk = yf.Ticker(sym)
+            exps = _window_expiries(sym, tk.options)
+            if not exps:
+                continue
+            spot = float(tk.fast_info.last_price)
+            chain = _chain_from_ibkr(sym, exps, spot)
+            if chain is None or chain.empty:
+                continue
+            keep = [
+                "expiration",
+                "strike",
+                "right",
+                "bid",
+                "ask",
+                "volume",
+                "impliedVolatility",
+                "openInterest",
+            ]
+            got = chain[[c for c in keep if c in chain.columns]].copy()
+            for col in keep:
+                if col not in got.columns:
+                    got[col] = None
+            chains[sym] = {
+                "chain_date": NOW.strftime("%Y-%m-%d"),
+                "quoted_at": NOW.strftime("%Y-%m-%d %H:%M:%S ET"),
+                "rows": got[keep].to_dict("records"),
+            }
+            _save_ibkr_chains(chains)
+        except Exception as e:
+            log.warning(f"IBKR 后台刷新 {sym} 失败: {type(e).__name__}")
+            continue
+    return chains
+
+
 def run(
     symbols: list[str] | None,
     tiers: set[str] | None,
     holdings: set[str] | None,
     greeks: str,
-    ibkr_batch: int = 50,
+    ibkr_batch: int = DEFAULT_BATCH_SIZE,
+    ibkr_bg: bool = False,
 ) -> dict:
     pool = [p for p in WHEEL_POOL if not symbols or p.symbol in symbols]
     if tiers:
@@ -295,6 +440,29 @@ def run(
     static_date, static = _derived_snapshot()
     spots, spot_ts = _live_spots([p.symbol for p in pool])
     opt_map, notes = _build_opt_map(opt_syms, static, greeks, ibkr_batch)
+
+    # 后台补真实盘口：不阻塞出结果，算完写 data/cache/wheel_ibkr_quotes.json，
+    # 下一次运行（greeks=auto）直接吃这份缓存。
+    # 用子进程而非线程：ib_insync 依赖 asyncio 事件循环，新线程里没有 loop 无法连接。
+    bg_proc = None
+    if ibkr_bg:
+        import subprocess
+        import sys
+
+        bg_proc = subprocess.Popen(
+            [
+                sys.executable,
+                "-m",
+                "src.live_wheel",
+                "--symbols",
+                ",".join(opt_syms),
+                "--greeks",
+                "ibkr",
+                "--bg-worker",
+            ],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
 
     snap_key = NOW.strftime("%Y%m%d")
     _, rows, summary = scan_pool(
@@ -310,6 +478,7 @@ def run(
         "live": True,
         "quoted_at": spot_ts,
         "greeks": greeks,
+        "ibkr_bg": bg_proc is not None,
         "static_snapshot": static_date,
         "spot_count": len(spots),
         "pool_size": len(pool),
@@ -317,6 +486,7 @@ def run(
         "notes": notes,
         "summary": summary,
         "rows": [asdict(r) for r in rows],
+        "_bg_proc": bg_proc,
     }
 
 
@@ -327,15 +497,31 @@ def main() -> None:
     ap.add_argument("--holdings", default="", help="已持有正股底仓的标的（激活 SELL CALL）")
     ap.add_argument(
         "--greeks",
-        choices=("yfinance", "ibkr"),
-        default="yfinance",
-        help="Greeks 来源：yfinance=实时 IV+BSM gamma（默认）；ibkr=交易所真实 gamma（需 TWS）",
+        choices=("yfinance", "ibkr", "auto"),
+        default="auto",
+        help=(
+            "盘口来源：auto（默认）= 有当日 IBKR 真实盘口就用、缺失走 yfinance；"
+            "yfinance=只用盘口快照；ibkr=同步等交易所真实盘口（需 TWS）"
+        ),
+    )
+    ap.add_argument(
+        "--ibkr-bg",
+        action="store_true",
+        help="先出结果，同时后台拉 IBKR 真实盘口写入缓存（下次 --greeks auto 自动使用）",
     )
     ap.add_argument(
         "--ibkr-batch",
         type=int,
-        default=50,
-        help="IBKR 行情并发订阅数（受行情订阅配额约束，默认 50；撞限流时调小）",
+        default=DEFAULT_BATCH_SIZE,
+        help=(
+            f"IBKR 行情并发订阅数（每个订阅占一条 market data line，默认 {DEFAULT_BATCH_SIZE}；"
+            "额度 100 条含 TWS 窗口占用，撞限流时调小）"
+        ),
+    )
+    ap.add_argument(
+        "--bg-worker",
+        action="store_true",
+        help="内部用：作为后台子进程只拉 IBKR 真实盘口并写缓存，不打印报告",
     )
     ap.add_argument("--json", action="store_true", help="输出 JSON")
     ap.add_argument("--dump", default="", help="落盘到指定路径（如 /tmp/wheel_live.json）")
@@ -345,7 +531,12 @@ def main() -> None:
     tiers = {t.strip().upper() for t in args.tier.split(",") if t.strip()} or None
     holdings = {h.strip().upper() for h in args.holdings.split(",") if h.strip()} or None
 
-    result = run(syms, tiers, holdings, args.greeks, args.ibkr_batch)
+    if args.bg_worker:
+        _ibkr_fetch_bg(syms or [])
+        return
+
+    result = run(syms, tiers, holdings, args.greeks, args.ibkr_batch, args.ibkr_bg)
+    bg_proc = result.pop("_bg_proc", None)
 
     # TWS 未启动/未登录时，全池都会静默落 yfinance —— 显式提醒怎么修，不让人以为拿到了真 Greeks
     if args.greeks == "ibkr" and any("IBKR 无行情" in str(v) for v in result["notes"].values()):
@@ -358,6 +549,16 @@ def main() -> None:
             file=sys.stderr,
         )
 
+    def _finish_bg() -> None:
+        """后台 IBKR 刷新是独立子进程，主进程不等（数据到了写缓存，下次运行自动用）。"""
+        if bg_proc is None:
+            return
+        n = len(_load_ibkr_chains())
+        print(
+            "\nIBKR 真实盘口在后台拉取中（每标 20~30s），写完缓存后下次自动使用。"
+            f"\n进度：tail -f data/cache/wheel_ibkr_quotes.json（当前 {n} 个标的）"
+        )
+
     if args.dump:
         from pathlib import Path
 
@@ -365,9 +566,11 @@ def main() -> None:
         out.parent.mkdir(parents=True, exist_ok=True)
         out.write_text(json.dumps(result, ensure_ascii=False, indent=2), encoding="utf-8")
         print(f"已落盘: {out}")
+        _finish_bg()
         return
     if args.json:
         print(json.dumps(result, ensure_ascii=False, indent=2))
+        _finish_bg()
         return
 
     print(
@@ -400,6 +603,7 @@ def main() -> None:
         f"\n现价时点 {result['quoted_at']} · 静态字段继承 {result['static_snapshot']} · "
         "盘前/盘后期权链为上一交易日收盘快照，年化收益勿直接当挂单价"
     )
+    _finish_bg()
 
 
 if __name__ == "__main__":

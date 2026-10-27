@@ -141,7 +141,7 @@ market-base/
 │   ├── fetch_stock                     ← 股票日线（_symbol_fetch 统一编排）
 │   ├── fetch_rate_expectations         ← FOMC 概率 + ZQ 快照（每日）
 │   └── fetch_news                      ← Yahoo Finance 个股新闻（curl_cffi 直连 NCP，不走 yfinance）
-│   └── live_wheel                      ← 盘前/盘中实时 Wheel 扫描（实时价 + 现场期权结构，~45s）
+│   └── live_wheel                      ← 盘前/盘中实时 Wheel（yfinance 优先 ~7s/标的，IBKR 真实盘口可后台补）
 │
 ├── data/                         ← 数据存储（增量 CSV / JSON）
 │   ├── fred/{category}/{category}.csv  ← 13 分类 FRED 数据（观测日 upsert；tic= TIC 美债持仓/净买入）
@@ -188,6 +188,8 @@ market-base/
 │   ├── etf_flows/etf_flows.csv         ← BTC 现货 ETF 资金流（Farside，12 ETF + Total，M USD）
 │   ├── notes/{filename}.md             ← 伴读抽屉「存笔记」（个人内容，已在 .gitignore）
 │   └── cache/{SYMBOL}_indicators.parquet ← 指标缓存（派生产物，mtime 失效）
+│   └── cache/option_conid.json          ← 期权合约 conId 缓存（免 qualify）
+│   └── cache/wheel_ibkr_quotes.json     ← live_wheel 后台拉的 IBKR 真实盘口（当日有效）
 │
 ├── functions/                    ← Cloudflare Pages Functions（伴读抽屉 /api/chat · /api/models · /api/notes）
 ├── frontend/                     ← Web 前端（Astro，ADR-0003：34 专题页已全迁 .astro，迁移完成）
@@ -323,9 +325,10 @@ uv run python -m src.consensus       # 多源共识层两级状态卡（ADR-0004
 
 # Wheel 策略：盘后定稿 vs 盘前/盘中实时（同一套规则引擎，只换入参）
 uv run python -m src.wheel_scanner           # 盘后定稿：读数据班次落盘的快照 + raw 链
-./bin/live_wheel                             # 盘前/盘中实时：实时现价 + 现场重算期权结构（~45s）
-./bin/live_wheel --symbols NVDA,TSM           # 只扫指定标的
-./bin/live_wheel --greeks ibkr                # 交易所真实 gamma（需本地 TWS，~10min）
+./bin/live_wheel                             # 盘前/盘中实时：yfinance 优先，~2min/17 标的
+./bin/live_wheel --symbols NVDA,TSM           # 只扫指定标的（~7s）
+./bin/live_wheel --ibkr-bg                    # 同上先出结果，IBKR 真实盘口后台补（下次自动用）
+./bin/live_wheel --greeks ibkr                # 同步等交易所真实盘口（需本地 TWS，~20s/标的有缓存）
 ./bin/fetch_crypto_derivatives     # 加密衍生品快照（OKX + Deribit + CME）
 ./bin/fetch_crypto_basis             # CME BTC 基差日序列（Yahoo BTC=F proxy）
 ./bin/fetch_coinglass                 # Coinglass 全市场聚合（Jina Reader，OI/清算/交易所分布）
@@ -437,6 +440,21 @@ uv run python src/sell_put.py --symbol TSM
 - `ibkr_fetcher.py` 连接时依次尝试 4002 → 4001（4001 按只读连接）
 - Greeks 当日快照：`data/gex/{SYMBOL}_greeks_YYYYMMDD.csv`，`--reuse-greeks` 复用后只拉 yfinance OI；gamma 贴近墙位对 spot 敏感，spot 动 1%+ 要重拉
 - gamma 符号惯例：call 正 / put 负（IBKR modelGreeks 恒非负，`fetch_options_greeks` 里统一翻转，与 `greeks_from_yf` 一致）
+- **每批订阅必须逐条取消**：`ib.cancelMktData` 只接受「订阅时那一份」合约对象，传错会打
+  `No reqId found` 并且**订阅不释放**。100 条线被占满后新订阅全部静默无数据（不报错、只回 nan），
+  看起来就像「IBKR 没行情」。`fetch_options_greeks` 用 `t.contract` 逐条取消
+- **conId 跨天不变，可缓存**：`data/cache/option_conid.json` 存 `symbol|expiry|strike|right → conId`
+  （不存在存 0）。命中就直接拿 conId 构造合约免掉 qualify（单标 47s → 23s）；
+  缓存键**必须带 symbol**，否则不同标的同到期/行权价会串
+- **`reqTickers()` 不能用于期权 Greeks**：它内部 `snapshot=True` + `genericTickList=''`，
+  官方明确 snapshot 不支持 generic ticks（Error 414），而 modelGreeks 与 OI 都是 generic tick
+  产物 —— 全新连接下 90 个合约只回 4 个 bid、0 个 greeks。看起来「快 3.6 倍」必然是复用了
+  前序流式订阅的缓存
+- **`reqContractDetails` 按到期日取全链更慢**：8 个到期月实测 84s，qualify 只要 21s；
+  官方 pacing 是每月约 5s，连续第二个请求会被压一分钟
+- 盘口来源的实测差异：同一批合约 IBKR 与 yfinance 的 bid 中位差 $0.30、点差百分比相关
+  0.984、**35% 点差闸门判定 100% 一致**。所以 `live_wheel` 默认 yfinance，IBKR 只用来
+  补年化收益精度（`--ibkr-bg` 后台写缓存，`--greeks auto` 有当日缓存就用）
 - **IBKR 能拿 OI**：`reqMktData(opt, "101", ...)` 的 genericTick 101 会填 `putOpenInterest` /
   `callOpenInterest`（`compute_gex._oi_from_ticker` 取值）。不传这个 tick 时这两字段恒为
   nan，只能靠外部源（yfinance/Barchart）的 OI 补齐 —— 而盘前外部源的 bid/OI 整片失效

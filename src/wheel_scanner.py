@@ -1050,20 +1050,49 @@ def _fmt_pick(p: OptionPick | None) -> str:
 
 
 def print_report(snap_date: str | None, rows: list[ScanRow], summary: dict) -> None:
-    print(f"\n=== 确定性巨头池 · Wheel 策略雷达（期权快照: {snap_date or '无'}）===")
-    vix_s = f" · {summary['vix_note']}" if summary.get("vix_note") else ""
-    print(f"大盘共识: {summary['market_regime']}{vix_s}")
-    for w in summary.get("warnings", []):
-        print(f"[告警] {w}")
-    print()
+    from rich import box
+    from rich.console import Console
+    from rich.table import Table
 
-    hdr = (
-        f"{'标的':<6}{'梯队':<4}{'现价':>7}{'单手$k':>7}{'RSI':>5}"
-        f"{'MA50(σ)':>10}{'HV/IV35/VRP':>14}{'1Y_IVR/IVP':>11}{'Put/Call墙':>11}"
-        f"  {'事件排雷':<17}{'趋势状态':<8}{'当日信号':<15}{'触发与风控依据'}"
+    # 表格固有宽度约 150 列（13 列数字 + 中文标签）。用固定 width 而不是依赖
+    # console.width：非 TTY（管道/日志）下 rich 取不到真实宽度，会退回 80 列
+    # 把每列截成三个字（"MA5…"），而且截断后列太多还会把首列整个吞掉。
+    console = Console(width=170)
+    vix_s = f" · {summary['vix_note']}" if summary.get("vix_note") else ""
+    console.print(
+        f"\n[bold]=== 确定性巨头池 · Wheel 策略雷达（期权快照: {snap_date or '无'}）===[/bold]"
     )
-    print(hdr)
-    print("-" * 148)
+    console.print(f"大盘共识: {summary['market_regime']}{vix_s}")
+    for w in summary.get("warnings", []):
+        console.print(f"[yellow][告警] {w}[/yellow]")
+
+    # 列宽不手写：rich 自己量 CJK 双宽字形，比手算 east_asian_width 可靠。
+    # expand=False + 不设 width：表格按内容自然宽度铺开，不被 80 列墨端折成 "MA5…"。
+    # 总宽 140+ 是这张表的固有尺寸，折行会把每列都截成三个字。
+    table = Table(
+        box=box.SIMPLE_HEAD,
+        header_style="bold",
+        padding=(0, 1),
+        expand=False,
+        show_edge=False,
+    )
+    for col, justify in (
+        ("标的", "left"),
+        ("梯队", "left"),
+        ("现价", "right"),
+        ("单手$k", "right"),
+        ("RSI", "right"),
+        ("MA50(σ)", "right"),
+        ("HV/IV35/VRP", "right"),
+        ("1Y_IVR/IVP", "right"),
+        ("Put/Call墙", "right"),
+        ("事件排雷", "left"),
+        ("趋势状态", "left"),
+        ("当日信号", "left"),
+        ("触发与风控依据", "left"),
+    ):
+        table.add_column(col, justify=justify, no_wrap=True)
+
     for r in rows:
         vol_s = (
             f"{r.hv20_pct:.0f}/{r.iv35_pct:.0f}/{r.vrp_pct:+.0f}%"
@@ -1078,31 +1107,43 @@ def print_report(snap_date: str | None, rows: list[ScanRow], summary: dict) -> N
         wall_s = (
             f"{int(r.put_wall) if r.put_wall else '—'}/{int(r.call_wall) if r.call_wall else '—'}"
         )
-        ma_s = f"{r.vs_ma50_pct:+.1f}%({r.ma50_sigmas:+.1f})"
-        print(
-            f"{r.symbol:<6}{r.tier:<4}{r.close:>7.1f}{r.lot_k:>6.1f}k{r.rsi:>5.1f}"
-            f"{ma_s:>10}{vol_s:>14}{ivr_s:>11}{wall_s:>11}"
-            f"  {r.event_alert:<17}{r.trend_state:<8}{r.signal:<15}{r.reason}"
+        table.add_row(
+            r.symbol,
+            r.tier,
+            f"{r.close:.1f}",
+            f"{r.lot_k:.1f}k",
+            f"{r.rsi:.1f}",
+            f"{r.vs_ma50_pct:+.1f}%({r.ma50_sigmas:+.1f})",
+            vol_s,
+            ivr_s,
+            wall_s,
+            r.event_alert,
+            r.trend_state,
+            r.signal,
+            r.reason,
         )
+    console.print(table)
 
     # 仅打印真正允许操作的候选合约（SELL PUT / SELL CALL）
     actionable = [r for r in rows if r.actionable and (r.put_pick or r.call_pick)]
     if actionable:
-        print("\n=== 候选期权合约（仅限非禁区标的；[理论估算] 需盘中核对券商盘口）===")
+        console.print(
+            "\n[bold]=== 候选期权合约（仅限非禁区标的；[理论估算] 需盘中核对券商盘口）===[/bold]"
+        )
+        picks = Table(box=box.SIMPLE_HEAD, header_style="bold", padding=(0, 1), expand=False)
+        for col in ("标的", "操作", "合约", "期权墙", "事件排雷"):
+            picks.add_column(col, no_wrap=True)
         for r in actionable:
-            ev_tag = f" | {r.event_alert}" if r.event_alert != "—" else ""
-            if r.put_pick:
-                pick_s = _fmt_pick(r.put_pick)
-                print(
-                    f"  {r.signal:<15} {r.symbol:<5} 卖 Put : {pick_s}"
-                    f" | 下方有效 Put 墙: ${r.put_wall or '—'}{ev_tag}"
-                )
-            elif r.call_pick:
-                pick_s = _fmt_pick(r.call_pick)
-                print(
-                    f"  {r.signal:<15} {r.symbol:<5} 卖 Call: {pick_s}"
-                    f" | 上方有效 Call 墙: ${r.call_wall or '—'}{ev_tag}"
-                )
+            wall = r.put_wall if r.put_pick else r.call_wall
+            wall_lbl = "下方 Put 墙" if r.put_pick else "上方 Call 墙"
+            picks.add_row(
+                r.symbol,
+                f"卖 {'Put' if r.put_pick else 'Call'}",
+                _fmt_pick(r.put_pick or r.call_pick),
+                f"{wall_lbl} ${int(wall) if wall else '—'}",
+                r.event_alert if r.event_alert != "—" else "",
+            )
+        console.print(picks)
 
 
 def main() -> None:

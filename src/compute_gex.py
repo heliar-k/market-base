@@ -20,6 +20,7 @@ GEX = Σ gamma_i × OI_i × spot × 100   (所有期权合约)
 """
 
 import argparse
+import json
 import logging
 import sys
 from datetime import datetime
@@ -27,6 +28,7 @@ from pathlib import Path
 
 import pandas as pd
 
+from src.config import ROOT
 from src.fetchers.ibkr_fetcher import (
     IBKRConnectionError,
     connect_ib,
@@ -39,7 +41,23 @@ logging.basicConfig(
     format="%(asctime)s [%(levelname)s] %(message)s",
     datefmt="%H:%M:%S",
 )
+
 log = logging.getLogger("gex")
+
+# 合约 conId 缓存：conId 对同一合约永远不变（实测同一批 310 个合约隔一次连接重查
+# 完全一致），而 ib.qualifyContracts() 验 600+ 个候选要 15~25 秒。缓存命中后
+# 直接拿 conId 构造合约，跳过 qualify 那一段（订阅时不需要预先 qualify）。
+CONID_CACHE_PATH = ROOT / "data" / "cache" / "option_conid.json"
+
+# 每批期权订阅的最大等待秒数（按秒轮询，bid + gamma 到齐即提前结束）。
+# IBKR 的盘口与 generic tick 101（OI）不是同一时刻到达：同一批 50 个合约，
+# 3 秒时只有 11 个有 bid，10 秒才全部到齐。
+GREEKS_WAIT_SECONDS = 15
+# 至少等这么久才允许提前结束（低于这个秒数时还没到齐的只是还没推过来）
+GREEKS_MIN_WAIT = 8
+# 默认批大小：每个 reqMktData 流式订阅同时占一条 market data line，
+# 默认额度 100 条（含 TWS 窗口里的订阅），留 10 条余量。
+DEFAULT_BATCH_SIZE = 90
 
 
 # ============================================================================
@@ -98,6 +116,33 @@ def _oi_from_ticker(t, right: str) -> int | None:
     return int(raw)
 
 
+def _ticker_ready(t) -> bool:
+    """该合约的必填字段已到（盘口 bid + Greeks）。OI 另算：零持仓与新挂牌本来就没有。"""
+    return t.bid is not None and t.bid == t.bid and t.modelGreeks is not None
+
+
+def _conid_key(symbol: str, exp: str, strike: float, right: str) -> str:
+    # 必须带 symbol：conId 只在自己的标的内部唯一，不同标的同一个行权价/到期日
+    # 会落到同一个 key 上互相覆盖（缓存串标的）。
+    return f"{symbol}|{exp}|{strike:g}|{right}"
+
+
+def _load_conid_cache() -> dict[str, int]:
+    if not CONID_CACHE_PATH.exists():
+        return {}
+    try:
+        return json.loads(CONID_CACHE_PATH.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        # 缓存损坏就当空，但打一行日志：静默吞掉会让每次都退回去 qualify 而查不出原因
+        log.warning(f"conId 缓存无法读取，本次按空处理: {CONID_CACHE_PATH}")
+        return {}
+
+
+def _save_conid_cache(cache: dict[str, int]) -> None:
+    CONID_CACHE_PATH.parent.mkdir(parents=True, exist_ok=True)
+    CONID_CACHE_PATH.write_text(json.dumps(cache), encoding="utf-8")
+
+
 def fetch_options_greeks(ib, symbol, expirations, strikes, batch_size=3):
     """从 IBKR 小批量获取期权 Greeks（串行流式订阅，跳过 qualify）。
 
@@ -105,6 +150,9 @@ def fetch_options_greeks(ib, symbol, expirations, strikes, batch_size=3):
     模拟账号镜像实盘权限（IBKR 官方文档）。没订阅期权行情时拿到的是延误数据或 nan，
     与用实盘还是模拟无关。batch_size 在 4001/4002 上可相同，但实际可并发数取决于
     当前已占用的 line 数（含 TWS 窗口里的订阅）。
+
+    每批订阅后必须逐条取消：IBKR 只给 100 条 market data lines，残留下一条就少一条，
+    累计满了之后所有新订阅静默无数据（不报错，只回 nan）。
 
     返回 DataFrame: [expiration, strike, right, bid, ask, delta, gamma, theta, vega,
     iv, openInterest]（openInterest 为 None 表示未取到，不是 0）
@@ -116,26 +164,66 @@ def fetch_options_greeks(ib, symbol, expirations, strikes, batch_size=3):
     # 注：readonly 只关下单通道，不改变行情订阅权限与配额。
     ib.reqMarketDataType(1)
 
-    # 构建合约列表（不 qualify，直接试）
+    # 构建合约列表。conId 缓存命中的直接用 conId 构造，免掉 qualify；
+    # 未命中的才走 qualify（不存在的合约在这里被剔除，也一并记入缓存的不存在集合）。
+    cache = _load_conid_cache()
     contracts = []
+    need_qualify = []
     for exp in expirations:
         for strike in strikes:
             for right in ["C", "P"]:
-                opt = Option(
-                    symbol=symbol,
-                    lastTradeDateOrContractMonth=exp,
-                    strike=strike,
-                    right=right,
-                    exchange="SMART",
-                    currency="USD",
-                )
-                contracts.append((opt, exp, strike, right))
+                key = _conid_key(symbol, exp, strike, right)
+                if key in cache:
+                    cid = cache[key]
+                    if not cid:
+                        continue  # 缓存里明确记着「该合约不存在」，直接跳过
+                    opt = Option(
+                        symbol=symbol,
+                        lastTradeDateOrContractMonth=exp,
+                        strike=strike,
+                        right=right,
+                        exchange="SMART",
+                        currency="USD",
+                        conId=cid,
+                    )
+                    contracts.append((opt, exp, strike, right))
+                else:
+                    opt = Option(
+                        symbol=symbol,
+                        lastTradeDateOrContractMonth=exp,
+                        strike=strike,
+                        right=right,
+                        exchange="SMART",
+                        currency="USD",
+                    )
+                    need_qualify.append((opt, exp, strike, right))
+
+    if need_qualify:
+        qualified_n = 0
+        for i in range(0, len(need_qualify), 200):
+            chunk = need_qualify[i : i + 200]
+            ib.qualifyContracts(*(c[0] for c in chunk))
+            for c in chunk:
+                key = _conid_key(symbol, c[1], c[2], c[3])
+                if c[0].conId:
+                    cache[key] = c[0].conId
+                    contracts.append(c)
+                    qualified_n += 1
+                else:
+                    cache[key] = 0  # 标记不存在，下次直接跳过
+        _save_conid_cache(cache)
+    else:
+        qualified_n = 0
 
     total = len(contracts)
-    log.info(f"共 {total} 个候选合约，批量={batch_size}/次（跳过 qualify 直发行情）")
+    log.info(
+        f"共 {total} 个有效合约"
+        f"（缓存直取 {total - qualified_n} 个，本次 qualify 候选 {len(need_qualify)} 个）"
+    )
 
     results = []
     empty_streak = 0
+    replied = 0  # 有响应（哪怕只回 bid）的合约数，判空批次用
     for i in range(0, total, batch_size):
         batch = contracts[i : i + batch_size]
         tickers = []
@@ -148,15 +236,30 @@ def fetch_options_greeks(ib, symbol, expirations, strikes, batch_size=3):
             t = ib.reqMktData(opt, "101", False, False)
             tickers.append((t, exp, strike, right))
 
-        ib.sleep(3)
+        # 等到位为止，不用固定 sleep：三个字段不是同时到达的（实测同一批 50 个合约，
+        # 第 4 秒 gamma 全到、第 6 秒 bid 全到、第 7 秒 OI 才全到）。
+        # 停的判据：bid + gamma 全部到齐，或已等过 GREEKS_MIN_WAIT 秒后 3 秒无增长
+        # （本来就没 OI 的新挂牌合约永远等不到，按全到齐会把每批拖满）。
+        ready_prev, stall = -1, 0
+        for second in range(1, GREEKS_WAIT_SECONDS + 1):
+            ib.sleep(1)
+            ready = sum(1 for t, _e, _k, _r in tickers if _ticker_ready(t))
+            if ready == len(tickers):
+                break
+            stall = stall + 1 if ready == ready_prev else 0
+            if stall >= 2 and second > GREEKS_MIN_WAIT:
+                break
+            ready_prev = ready
 
+        batch_replied = 0
         for t, exp, strike, right in tickers:
             g = t.modelGreeks
+            has_bid = t.bid is not None and t.bid == t.bid
             row = {
                 "expiration": exp,
                 "strike": strike,
                 "right": right,
-                "bid": t.bid if not (t.bid != t.bid) else None,
+                "bid": t.bid if has_bid else None,
                 "ask": t.ask if not (t.ask != t.ask) else None,
                 "last": t.last if not (t.last != t.last) else None,
                 "volume": t.volume if not (t.volume != t.volume) else None,
@@ -168,8 +271,13 @@ def fetch_options_greeks(ib, symbol, expirations, strikes, batch_size=3):
                 "iv": g.impliedVol if g else None,
                 "openInterest": _oi_from_ticker(t, right),
             }
+            if has_bid or g:
+                batch_replied += 1
             results.append(row)
-            ib.cancelMktData(opt)
+            # 必须用该 ticker 自己的合约取消。传入别的合约（或循环里残留的变量）会打
+            # 「No reqId found」并让这条订阅线一直占着，累计到 100 条后新订阅全部无数据。
+            ib.cancelMktData(t.contract)
+        replied += batch_replied
 
         if results:
             last = results[-1]
@@ -182,13 +290,15 @@ def fetch_options_greeks(ib, symbol, expirations, strikes, batch_size=3):
                 f"gamma={'✓' if has_g else '✗'} ({pct:.0f}%)"
             )
 
-        # 连续 3 批无任何 gamma → IBKR 行情不可用，不必等完全部合约
-        if any(r["gamma"] is not None for r in results[-batch_size:]):
+        # 连续 3 批一个合约都没响应 → IBKR 行情不可用，不必等完全部合约。
+        # 用「有任何 tick 回来」而不是「有 gamma」判空：候选里混着不存在的合约（Error 200），
+        # 它们永远没有 gamma，按 gamma 判空会把正常批次误判成行情不可用。
+        if batch_replied:
             empty_streak = 0
         else:
             empty_streak += 1
             if empty_streak >= 3:
-                log.warning("连续 3 批无 Greeks 返回，IBKR 行情不可用，提前中止")
+                log.warning("连续 3 批无任何行情返回，IBKR 行情不可用，提前中止")
                 break
 
     df = pd.DataFrame(results)
@@ -384,8 +494,11 @@ def main():
     parser.add_argument(
         "--batch-size",
         type=int,
-        default=3,
-        help="行情批量订阅数（模拟账户 3-5，实盘可 50）",
+        default=DEFAULT_BATCH_SIZE,
+        help=(
+            f"行情批量订阅数（每个订阅占一条 market data line，默认 {DEFAULT_BATCH_SIZE}；"
+            "额度 100 条含 TWS 窗口占用，撞限流时调小）"
+        ),
     )
     parser.add_argument(
         "--reuse-greeks",

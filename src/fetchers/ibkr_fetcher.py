@@ -24,6 +24,7 @@ IBKR 日线 K 线数据拉取脚本
 import argparse
 import logging
 import random
+import re
 import sys
 import time
 from datetime import datetime, timezone
@@ -90,6 +91,7 @@ def connect_ib(
     返回 (ib, connected_port)；全部失败 raise IBKRConnectionError。
     readonly 约定：port == 4001 自动只读连接。
     """
+    _install_noisy_code_filter()
     ibkr_cfg = config.ibkr
     if client_id is None:
         client_id = random.randint(100, 9999)
@@ -111,6 +113,52 @@ def connect_ib(
     log.error("  TWS 纸交易端口: 7497，实盘端口: 7496")
     log.error("  IB Gateway 纸交易端口: 4002，实盘端口: 4001")
     raise IBKRConnectionError("无法连接到 TWS/IB Gateway（已尝试端口 %s）" % (ports,))
+
+
+# IBKR 按「每个订阅」重复报同一个错误码：拉 324 个期权合约会得到 324 条一模一样的
+# Error 10091。它不在 ib_insync 的 warningCodes 里，于是每条都走 _logger.error，
+# 真正的问题被淹没在几百行重复里。这里挂一个日志过滤器，按错误码只放行首条。
+_NOISY_CODES = {
+    10091: "部分行情需额外订阅（延迟数据可用）",
+    10090: "部分行情未订阅",
+    200: "合约不存在",
+    10197: "与另一个实时会话冲突，无行情",
+}
+_noisy_counts: dict[int, int] = {}
+_noisy_filter_installed = False
+
+
+class _DedupIBCodes(logging.Filter):
+    """ib_insync 的 Error 行里，同一错误码只留首条，后续静默计数。"""
+
+    _pat = re.compile(r"Error (\d+), reqId")
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        m = self._pat.search(record.getMessage())
+        if not m:
+            return True
+        code = int(m.group(1))
+        n = _noisy_counts.get(code, 0) + 1
+        _noisy_counts[code] = n
+        if n > 1:
+            return False
+        hint = _NOISY_CODES.get(code)
+        if hint:
+            record.msg = f"{record.msg}（{hint}；同一错误码后续只计数）"
+        return True
+
+
+def _install_noisy_code_filter() -> None:
+    global _noisy_filter_installed
+    if _noisy_filter_installed:
+        return
+    logging.getLogger("ib_insync.wrapper").addFilter(_DedupIBCodes())
+    _noisy_filter_installed = True
+
+
+def noisy_code_summary() -> dict[int, int]:
+    """本次进程里各错误码的累计次数（供调用方写入报告）。"""
+    return dict(_noisy_counts)
 
 
 def get_option_chain_params(ib: IB, symbol: str) -> list:
