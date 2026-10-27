@@ -429,7 +429,11 @@ uv run python src/sell_put.py --symbol TSM
   env 是 **step 级不继承**，漏配即静默 ConnectionError（2026-09 options_structure 因此停更 12 天）
 
 ### 6. IBKR 端口与限制
-- 端口：`4002` = 模拟账户（默认，行情订阅数有限 ~3-5，GEX 用 `--batch-size 3` 小批量串行）；`4001` = 实盘只读（`connect_ib` 自动带 `readonly=True`，可 `--batch-size 50`）
+- 端口：`4002` = 模拟账户（默认）；`4001` = 实盘只读（`connect_ib` 自动带 `readonly=True`，只关下单通道）
+- **并发订阅上限看行情订阅配额，不看账户类型**：IBKR 默认 100 market data lines/用户，且模拟账户
+  镜像实盘权限（官方文档）。没买期权行情时拿到的是延迟 15 分钟的数据或 `nan`，换实盘也一样。
+  `fetch_options_greeks` 已 `reqMarketDataType(1)` 强制实时，避免静默吃延迟数据；
+  `live_wheel --ibkr-batch` 可调并发数（撞 Error 100/101 限流时调小）
 - `ibkr_fetcher.py` 连接时依次尝试 4002 → 4001（4001 按只读连接）
 - Greeks 当日快照：`data/gex/{SYMBOL}_greeks_YYYYMMDD.csv`，`--reuse-greeks` 复用后只拉 yfinance OI；gamma 贴近墙位对 spot 敏感，spot 动 1%+ 要重拉
 - gamma 符号惯例：call 正 / put 负（IBKR modelGreeks 恒非负，`fetch_options_greeks` 里统一翻转，与 `greeks_from_yf` 一致）

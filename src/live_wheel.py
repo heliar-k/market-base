@@ -150,7 +150,9 @@ def _prev_trading_chain(sym: str, _static: dict) -> tuple[pd.DataFrame, str] | N
     return None
 
 
-def _build_opt_map(symbols: list[str], static: dict, greeks: str) -> tuple[dict, dict[str, str]]:
+def _build_opt_map(
+    symbols: list[str], static: dict, greeks: str, ibkr_batch: int = 50
+) -> tuple[dict, dict[str, str]]:
     """现场重算各标的期权结构，返回 (opt_map, {symbol: 状态说明})。"""
     from src.fetchers.yfinance_fetcher import ensure_yf_proxy
 
@@ -170,7 +172,7 @@ def _build_opt_map(symbols: list[str], static: dict, greeks: str) -> tuple[dict,
             spot = float(tk.fast_info.last_price)
 
             if greeks == "ibkr":
-                chain = _chain_from_ibkr(sym, exps, spot)
+                chain = _chain_from_ibkr(sym, exps, spot, batch_size=ibkr_batch)
                 if chain is None or chain.empty:
                     notes[sym] = "IBKR 无行情 → BSM 估算"
                     chain = fetch_yf_chain(sym, exps)
@@ -218,7 +220,9 @@ def _build_opt_map(symbols: list[str], static: dict, greeks: str) -> tuple[dict,
     return opt_map, notes
 
 
-def _chain_from_ibkr(sym: str, exps: list[str], spot: float) -> pd.DataFrame | None:
+def _chain_from_ibkr(
+    sym: str, exps: list[str], spot: float, batch_size: int = 50
+) -> pd.DataFrame | None:
     """IBKR 真实 Greeks + OI → 与 yfinance 链同构的 DataFrame。
 
     OI 来源：IBKR genericTick 101（compute_gex._oi_from_ticker）优先。盘前外部源
@@ -245,7 +249,7 @@ def _chain_from_ibkr(sym: str, exps: list[str], spot: float) -> pd.DataFrame | N
         _exps, strikes = filter_options(chain, spot, max(len(exps), 2), 0.15)
         if not strikes:
             return None
-        g = fetch_options_greeks(ib, sym, _exps or exps, strikes, batch_size=50)
+        g = fetch_options_greeks(ib, sym, _exps or exps, strikes, batch_size=batch_size)
         if g.empty or g["gamma"].isna().all():
             return None
         g["expiration"] = g["expiration"].astype(str).str.replace("-", "", regex=False)
@@ -281,6 +285,7 @@ def run(
     tiers: set[str] | None,
     holdings: set[str] | None,
     greeks: str,
+    ibkr_batch: int = 50,
 ) -> dict:
     pool = [p for p in WHEEL_POOL if not symbols or p.symbol in symbols]
     if tiers:
@@ -289,7 +294,7 @@ def run(
 
     static_date, static = _derived_snapshot()
     spots, spot_ts = _live_spots([p.symbol for p in pool])
-    opt_map, notes = _build_opt_map(opt_syms, static, greeks)
+    opt_map, notes = _build_opt_map(opt_syms, static, greeks, ibkr_batch)
 
     snap_key = NOW.strftime("%Y%m%d")
     _, rows, summary = scan_pool(
@@ -326,6 +331,12 @@ def main() -> None:
         default="yfinance",
         help="Greeks 来源：yfinance=实时 IV+BSM gamma（默认）；ibkr=交易所真实 gamma（需 TWS）",
     )
+    ap.add_argument(
+        "--ibkr-batch",
+        type=int,
+        default=50,
+        help="IBKR 行情并发订阅数（受行情订阅配额约束，默认 50；撞限流时调小）",
+    )
     ap.add_argument("--json", action="store_true", help="输出 JSON")
     ap.add_argument("--dump", default="", help="落盘到指定路径（如 /tmp/wheel_live.json）")
     args = ap.parse_args()
@@ -334,7 +345,7 @@ def main() -> None:
     tiers = {t.strip().upper() for t in args.tier.split(",") if t.strip()} or None
     holdings = {h.strip().upper() for h in args.holdings.split(",") if h.strip()} or None
 
-    result = run(syms, tiers, holdings, args.greeks)
+    result = run(syms, tiers, holdings, args.greeks, args.ibkr_batch)
 
     # TWS 未启动/未登录时，全池都会静默落 yfinance —— 显式提醒怎么修，不让人以为拿到了真 Greeks
     if args.greeks == "ibkr" and any("IBKR 无行情" in str(v) for v in result["notes"].values()):

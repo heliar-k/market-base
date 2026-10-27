@@ -99,14 +99,22 @@ def _oi_from_ticker(t, right: str) -> int | None:
 
 
 def fetch_options_greeks(ib, symbol, expirations, strikes, batch_size=3):
-    """
-    从 IBKR 小批量获取期权 Greeks（串行流式订阅，跳过 qualify）。
-    纸交易账户同时订阅数有限（~3-5），必须小批量串行。
+    """从 IBKR 小批量获取期权 Greeks（串行流式订阅，跳过 qualify）。
+
+    并发上限由行情订阅配额决定，而非账户类型：默认 100 market data lines/用户，
+    模拟账号镜像实盘权限（IBKR 官方文档）。没订阅期权行情时拿到的是延误数据或 nan，
+    与用实盘还是模拟无关。batch_size 在 4001/4002 上可相同，但实际可并发数取决于
+    当前已占用的 line 数（含 TWS 窗口里的订阅）。
 
     返回 DataFrame: [expiration, strike, right, bid, ask, delta, gamma, theta, vega,
     iv, openInterest]（openInterest 为 None 表示未取到，不是 0）
     """
     from ib_insync import Option
+
+    # 强制实时行情（会话级设置，整连接有效）。不设时 IBKR 可给 Frozen/Delayed 数据，
+    # 返回值看着有 gamma 却可能陈旧 15 分钟 —— 比拿不到更危险。
+    # 注：readonly 只关下单通道，不改变行情订阅权限与配额。
+    ib.reqMarketDataType(1)
 
     # 构建合约列表（不 qualify，直接试）
     contracts = []
