@@ -696,7 +696,8 @@ def evaluate_symbol(
 
     # 硬门槛 1：T2 受限池（单手过重/权利金过薄/波动过大）或无期权链数据，直接不发期权信号
     if suitability in ("权利金过薄", "波动过大") or suitability.startswith("单手过重"):
-        reasons.append(f"{suitability}·宜正股或作底仓")
+        # 不带金额：左栏「单手$k」已经写明具体数值，这里只给结论
+        reasons.append(f"{suitability.split('(')[0]}·宜正股或作底仓")
     elif iv35 is None:
         reasons.append("缺期权数据·需运行 fetch_options_structure")
     else:
@@ -727,66 +728,63 @@ def evaluate_symbol(
         ) and ma50_sigmas >= THRESHOLDS["call_ma50_sigma_min"]
 
         if is_oversold and is_pullback:
-            # 触发原因如实记录（区分 RSI 超卖 vs 布林下轨）
+            # 只写「为什么」，不重复相邻列已有的读数：RSI 与 MA50(σ) 就在左边两列，
+            # 事件排雷列也已写明「财报Nd」。重复会把行撑到 220 显示宽、在普通终端
+            # 下折行。BB 位置没有独立列，保留。
             reasons.append(
-                f"RSI {rsi}"
-                if rsi <= THRESHOLDS["put_rsi_trigger"]
-                else f"触布林下轨(BB {bb_pos:.0f}%)"
+                "超卖" if rsi <= THRESHOLDS["put_rsi_trigger"] else f"触布林下轨(BB {bb_pos:.0f}%)"
             )
-            reasons.append(f"MA50 {vs_ma50:+.1f}%({ma50_sigmas:+.1f}σ)")
 
             if e_dte is not None and e_dte <= THRESHOLDS["earnings_danger_dte"]:
-                reasons.insert(0, f"财报禁卖({e_dte}d后财报)")
+                reasons.insert(0, "财报禁卖")
             elif not vol_rich:
                 reasons.insert(0, "权利金偏薄")
                 # not vol_rich 由 IV35/VRP/IVR 三者任一不达标触发；只有 IVR 真的是
                 # 那一项时才点它的名，否则会印出「IVR 90%不足」这种自相矛盾的句子。
                 if ivr_known and ivr_best < THRESHOLDS["ivr_min"]:
-                    ivr_s = f"{ivr_nm} {ivr_best:.0f}%不足"
-                    reasons.append(f"VRP {vrp:+.1f}% / {ivr_s}")
+                    reasons.append(f"{ivr_nm} 未达 {THRESHOLDS['ivr_min']:.0f}%")
                 else:
-                    reasons.append(f"权利金不足（VRP {vrp:+.1f}% / IV35 {iv35:.0f}%）")
+                    reasons.append("VRP/IV35 不足")
             elif severe_downtrend and not stabilized:
                 near_setup = True
                 reasons.insert(0, "空头未企稳(等止跌)")
             elif e_dte is not None and e_dte <= THRESHOLDS["earnings_window_dte"]:
                 signal, signal_tone = "SELL PUT", "bull"
-                reasons.append(f"财报{e_dte}d·切财报前到期合约")
+                reasons.append("切财报前到期合约")
             else:
                 signal, signal_tone = "SELL PUT", "bull"
-                ivr_s = f"{ivr_nm} {ivr_best:.0f}%" if ivr_known else "IVR —"
-                reasons.append(f"VRP {vrp:+.1f}% · {ivr_s}")
+                reasons.append("波动率够肥")
 
         elif is_pullback and rsi <= 45.0 and vol_rich:
             if e_dte is not None and e_dte <= THRESHOLDS["earnings_danger_dte"]:
-                reasons.append(f"财报禁卖({e_dte}d后财报) · 近支撑(RSI {rsi})")
+                reasons.append("财报禁卖 · 近支撑")
             else:
                 near_setup = True
-                reasons.append(f"接近卖Put区 · 回踩支撑({ma50_sigmas:+.1f}σ / RSI {rsi})")
+                reasons.append("接近卖 Put 区 · 回踩支撑")
 
         elif is_overbought:
             ov_tag = (
-                f"RSI {rsi}过热"
+                "RSI 过热"
                 if rsi >= THRESHOLDS["call_rsi_trigger"]
                 else f"触布林上轨(BB {bb_pos:.0f}%)"
             )
-            reasons.append(f"{ov_tag} · 高于MA50 +{vs_ma50:.1f}%({ma50_sigmas:+.1f}σ)")
+            reasons.append(ov_tag)
             has_stock = holdings is None or (spec.symbol in holdings)
             if not has_stock:
                 reasons.insert(0, "超买但无底仓")
             elif e_dte is not None and e_dte <= THRESHOLDS["earnings_danger_dte"]:
-                reasons.insert(0, f"财报禁卖({e_dte}d后财报·防卖飞)")
+                reasons.insert(0, "财报禁卖·防卖飞")
             elif iv35 < THRESHOLDS["call_iv_min"] or (
                 vrp is not None and vrp < THRESHOLDS["call_vrp_min"]
             ):
-                reasons.insert(0, f"IV35 {iv35:.0f}%/VRP {vrp:+.1f}%偏薄")
+                reasons.insert(0, "IV35/VRP 偏薄")
             else:
                 signal, signal_tone = "SELL CALL", "bear"
                 reasons.insert(0, "仅限备兑(禁裸卖)")
                 if div_dte is not None and div_dte <= THRESHOLDS["ex_div_warn_dte"]:
                     reasons.append(f"除息{div_dte}d防提前行权")
         else:
-            reasons.append(f"通道中部(RSI {rsi} / {ma50_sigmas:+.1f}σ)")
+            reasons.append("通道中部")
 
     # 仅对 SELL PUT / SELL CALL 生成推荐合约（若盘口流动性枯竭或年化低于门槛，自动降级为暂不操作）
     put_pick = None
@@ -1054,9 +1052,10 @@ def print_report(snap_date: str | None, rows: list[ScanRow], summary: dict) -> N
     from rich.console import Console
     from rich.table import Table
 
-    # 宽度取全表所需：13 列单行，实测最长一行（带「权利金不足」那几个标的）
-    # 需要 229 显示宽。给不够时 rich 会压缩最宽列，整表变「标的 梯…」。
-    # 不依赖 console.width：非 TTY（管道/日志）下 rich 取不到真实宽度会退回 80 列。
+    # 宽度取全表所需，不再手写列宽：rich 自己量 CJK 双宽字形。
+    # 240 是上界，实际表宽由内容决定（~170）；给不够时 rich 会压缩最宽列，
+    # 整表变成「标的 梯…」的截断。不依赖 console.width：非 TTY（管道/日志）
+    # 下 rich 取不到真实宽度会退回 80 列。
     console = Console(width=240)
     vix_s = f" · {summary['vix_note']}" if summary.get("vix_note") else ""
     console.print(
@@ -1067,8 +1066,8 @@ def print_report(snap_date: str | None, rows: list[ScanRow], summary: dict) -> N
         console.print(f"[yellow][告警] {w}[/yellow]")
 
     # 列宽不手写：rich 自己量 CJK 双宽字形，比手算 east_asian_width 可靠。
-    # min_width 是列宽下限：不给时 rich 按内容紧贴排版，数字列表头与数字会
-    # 挤在一起；给一个下限后各列间距均匀，不同标的行之间也稳定。
+    # min_width 只给数字列（数字列没下限时表头与数字会贴在一起）；
+    # 文本列不给，让内容自己定宽度——给了反而把整表白撑宽。
     table = Table(
         box=box.SIMPLE_HEAD,
         header_style="bold",
@@ -1077,21 +1076,22 @@ def print_report(snap_date: str | None, rows: list[ScanRow], summary: dict) -> N
         show_edge=False,
     )
     for col, justify, min_w in (
-        ("标的", "left", 6),
-        ("梯队", "left", 4),
-        ("现价", "right", 7),
-        ("单手$k", "right", 7),
-        ("RSI", "right", 5),
-        ("MA50(σ)", "right", 12),
-        ("HV/IV35/VRP", "right", 13),
-        ("1Y_IVR/IVP", "right", 11),
-        ("Put/Call墙", "right", 11),
-        ("事件排雷", "left", 15),
-        ("趋势状态", "left", 10),
-        ("当日信号", "left", 10),
-        ("触发与风控依据", "left", 20),
+        ("标的", "left", 4),
+        ("梯队", "left", 2),
+        ("现价", "right", 5),
+        ("单手$k", "right", 5),
+        ("RSI", "right", 3),
+        ("MA50(σ)", "right", 10),
+        ("HV/IV35/VRP", "right", 11),
+        ("1Y_IVR/IVP", "right", 9),
+        ("Put/Call墙", "right", 9),
+        ("事件排雷", "left", 0),
+        ("趋势状态", "left", 0),
+        ("当日信号", "left", 0),
+        ("触发与风控依据", "left", 0),
     ):
-        table.add_column(col, justify=justify, no_wrap=True, min_width=min_w)
+        extra = {"min_width": min_w} if min_w else {}
+        table.add_column(col, justify=justify, no_wrap=True, **extra)
 
     for r in rows:
         vol_s = (
