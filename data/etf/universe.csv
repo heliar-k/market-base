@@ -623,20 +623,15 @@ JSMD,Janus Henderson Small/Mid Cap Growth Alpha ETF,high_beta
 JSML,Janus Henderson Small Cap Growth Alpha ETF,high_beta
 JTEK,JPMorgan U.S. Tech Leaders ETF,broad
 KAT,Scharf ETF,broad
-KBAB,KraneShares 2x Long BABA Daily ETF,leveraged_inverse
-KBDU,KraneShares 2x Long BIDU Daily ETF,leveraged_inverse
 KBWB,Invesco KBW Bank ETF,broad
 KBWD,Invesco KBW High Dividend Yield Financial ETF,factor_income
 KBWP,Invesco KBW Property & Casualty Insurance ETF,broad
 KBWY,Invesco KBW Premium Yield Equity REIT ETF,broad
 KEAT,Keating Active ETF,broad
 KIQQ,KraneShares InspereX Nasdaq Dynamic Buffered High Income Index ETF,factor_income
-KJD,KraneShares 2x Long JD Daily ETF,leveraged_inverse
 KLAG,Leverage Shares 2x Long KLAC Daily ETF,leveraged_inverse
-KMLI,KraneShares 2x Long MELI Daily ETF,leveraged_inverse
 KNGZ,First Trust S&P 500 Diversified Dividend Aristocrats ETF,factor_income
 KOID,KraneShares Global Humanoid Robotics and Physical AI Index ETF,theme
-KPDD,KraneShares 2x Long PDD Daily ETF,leveraged_inverse
 KQQQ,Kurv Technology Titans Select ETF,broad
 KROP,Global X AgTech & Food Innovation ETF,high_beta
 KSMH,xETFs Korea AI Semiconductor,theme
@@ -1280,6 +1275,7 @@ YQQQ,YieldMax Short N100 Option Income Strategy ETF,factor_income
 YRAM,YieldMax Memory and Storage Portfolio Option Income ETF,factor_income
 YSAG,Y'all Street Physical Silver ETF,commodity
 YSAU,Y'all Street Physical Gold ETF,commodity
+YSKH,YieldMax SKHY Option Income Strategy ETF,factor_income
 YSPY,GraniteShares YieldBOOST SPY ETF,broad
 ZAP,Global X U.S. Electrification ETF,broad
 ZHOG,F/m Opportunistic Income ETF,factor_income
@@ -3544,7 +3540,6 @@ KBA,KraneShares Bosera MSCI China A 50 Connect Index ETF,global
 KBE,State Street SPDR S&P Bank ETF,broad
 KBFR,Innovator U.S. Small Cap Managed 10 Buffer ETF,broad
 KBUF,KraneShares 90% KWEB Defined Outcome January 2027 ETF,broad
-KCAI,KraneShares China Alpha Index ETF,global
 KCCA,KraneShares California Carbon Allowance Strategy ETF,broad
 KCE,State Street SPDR S&P Capital Markets ETF,broad
 KCHP,KICK Korea Semiconductor Index ETF,theme
@@ -3564,7 +3559,6 @@ KFEB,Innovator U.S. Small Cap Power Buffer ETF - February,broad
 KGLD,Kurv Gold Enhanced Income ETF,commodity
 KGRN,KraneShares MSCI China Clean Technology Index ETF,global
 KHPI,Kensington Hedged Premium Income ETF,factor_income
-KHYB,KraneShares Asia Pacific High Income USD Bond ETF,bond
 KIE,State Street SPDR S&P Insurance ETF,broad
 KJAN,Innovator U.S. Small Cap Power Buffer ETF - January,broad
 KJUL,Innovator U.S. Small Cap Power Buffer ETF - July,broad
@@ -5171,7 +5165,6 @@ TOPC,iShares S&P 500 3% Capped ETF,broad
 TOPT,iShares Top 20 U.S. Stocks ETF,broad
 TOPW,Roundhill Top WeeklyPay ETF,broad
 TOS,Twin Oak Strategic Solutions ETF,broad
-TOT,LionShares U.S. Equity Total Return ETF,broad
 TOTL,State Street DoubleLine Total Return Tactical ETF,broad
 TOTR,T. Rowe Price Total Return ETF,broad
 TOUS,T. Rowe Price International Equity ETF,global
@@ -5488,6 +5481,7 @@ WBIF,WBI BullBear Value 3000 ETF,factor_income
 WBIG,WBI BullBear Yield 3000 ETF,broad
 WBIL,WBI BullBear Quality 3000 ETF,factor_income
 WBIY,WBI Power Factor High Dividend ETF,factor_income
+WBMO,VanEck Wealth Builder ETF,broad
 WCAP,WarCap Unconstrained Equity ETF,theme
 WCEO,Hypatia Women CEO ETF,broad
 WCME,First Trust WCM Developing World Equity ETF,global
