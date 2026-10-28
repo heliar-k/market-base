@@ -373,6 +373,7 @@ def test_dump_board_writes_dated_json(tmp_path, monkeypatch):
     )
     path = ws.dump_board()
     assert path is not None and path.name == "20261024.json"
+    assert path.read_bytes().endswith(b"\n")  # 写盘自补换行（end-of-file-fixer 的契约）
     data = _json.loads(path.read_text(encoding="utf-8"))
     assert data["snapshot_date"] == "20261024"
     assert data["rows"][0]["symbol"] == "NVDA"

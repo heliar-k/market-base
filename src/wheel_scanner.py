@@ -1069,7 +1069,8 @@ def dump_board() -> Path | None:
                 "rows": [asdict(r) for r in rows],
             },
             ensure_ascii=False,
-        ),
+        )
+        + "\n",
         encoding="utf-8",
     )
     return out

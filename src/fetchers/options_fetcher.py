@@ -69,6 +69,7 @@ def save_chain_json(sym_name: str, chains: list[dict], output_dir: Path):
     filepath = output_dir / f"{sym_name}_chain.json"
     with open(filepath, "w", encoding="utf-8") as f:
         json.dump(payload, f, ensure_ascii=False, indent=2)
+        f.write("\n")
     log.info(f"  📄 已保存 {filepath}")
 
 

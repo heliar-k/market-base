@@ -378,7 +378,7 @@ def run() -> pd.DataFrame:
     hold.to_csv(hold_csv, index_label="date")
     snap = parse_fund_snapshot(xlsx)
     (OUT_DIR / "fund_flows_latest.json").write_text(
-        json.dumps(snap, ensure_ascii=False), encoding="utf-8"
+        json.dumps(snap, ensure_ascii=False) + "\n", encoding="utf-8"
     )
     logger.info(
         "etf_flows.csv：%d 月 × %d 区域；wgc_holdings.csv：%d 月；"
