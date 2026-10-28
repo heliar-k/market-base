@@ -902,6 +902,7 @@ function optionsWallResult(data, rawSymbol) {
       net_charm: o.net_charm,
       charm_near7: o.charm_near7,
       buckets: o.buckets,
+      oi_top_scope: 'ATM ±10%（近现价）',
       // 两个数组端点都没保证有序：oi_top 按 total 取最大的 5 个，iv_curve 取最近到期的 3 个
       oi_top: headByNumber(o.oi_top, 'total', 'desc', OPTIONS_OI_TOP_MAX),
       iv_curve: headByNumber(o.iv_curve, 'dte', 'asc', OPTIONS_IV_CURVE_MAX),

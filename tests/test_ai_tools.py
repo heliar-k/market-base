@@ -1091,6 +1091,7 @@ const options = {
   pcr: opt.pcr_oi,
   missing: requiredFields.filter((k) => !(k in opt)),
   oiTop: opt.oi_top.length,
+  oiTopScope: opt.oi_top_scope,
   ivCurve: opt.iv_curve.length,
   hasWallKey: Object.prototype.hasOwnProperty.call(opt, 'wall'),
   hasGexDist: optRun.content.indexOf('gex_dist') >= 0,
@@ -1899,6 +1900,7 @@ def test_options_summary_is_compressed() -> None:
     assert out["pcr"] == 2.65
     assert out["missing"] == []
     assert out["oiTop"] == 5
+    assert out["oiTopScope"] == "ATM ±10%（近现价）"
     assert out["ivCurve"] == 3
     # 三个大字段必须丢：wall 逐行权、gex_dist 分布、narrative 散文
     assert out["hasWallKey"] is False
