@@ -43,9 +43,7 @@ export const TOOL_RESULT_LABELS = {
  */
 export function toolDisplayName(endpoint) {
   if (typeof endpoint !== 'string' || !endpoint) return '';
-  return Object.prototype.hasOwnProperty.call(TOOL_RESULT_LABELS, endpoint)
-    ? TOOL_RESULT_LABELS[endpoint]
-    : endpoint;
+  return Object.prototype.hasOwnProperty.call(TOOL_RESULT_LABELS, endpoint) ? TOOL_RESULT_LABELS[endpoint] : endpoint;
 }
 
 /**
@@ -397,9 +395,7 @@ export function describeValue(v) {
       .slice(0, SUMMARY_KEYS_SHOWN)
       .map((k) => keyLabel(k, v[k]))
       .join(', ');
-    return (
-      'object[' + keys.length + ']{' + shown + (keys.length > SUMMARY_KEYS_SHOWN ? ', …' : '') + '}'
-    );
+    return 'object[' + keys.length + ']{' + shown + (keys.length > SUMMARY_KEYS_SHOWN ? ', …' : '') + '}';
   }
   return String(v);
 }
@@ -505,9 +501,7 @@ const TOOL_HANDLERS = {
         return {
           ok: false,
           endpoint: CROSS_ASSET_ENDPOINT,
-          content: safeStringify(
-            toolError(CROSS_ASSET_ENDPOINT, 0, 'symbol 必须是字符串（如 SPX）')
-          ),
+          content: safeStringify(toolError(CROSS_ASSET_ENDPOINT, 0, 'symbol 必须是字符串（如 SPX）')),
         };
       }
       // 大小写不敏感：缓存键统一小写，规范名在 build 里按端点目录回填
@@ -530,9 +524,7 @@ const TOOL_HANDLERS = {
         return {
           ok: false,
           endpoint: OPTIONS_ENDPOINT,
-          content: safeStringify(
-            toolError(OPTIONS_ENDPOINT, 0, 'symbol 必须是字符串（如 SPY）')
-          ),
+          content: safeStringify(toolError(OPTIONS_ENDPOINT, 0, 'symbol 必须是字符串（如 SPY）')),
         };
       }
       const symbol = raw.trim();
@@ -584,9 +576,7 @@ export async function runToolCall(call, opts = {}) {
     const fn = (call && call.function) || {};
     const name = String(fn.name || '');
     // hasOwnProperty 守卫：'constructor' / 'toString' 命中的是 Object 原型，不是工具
-    const handler = Object.prototype.hasOwnProperty.call(TOOL_HANDLERS, name)
-      ? TOOL_HANDLERS[name]
-      : null;
+    const handler = Object.prototype.hasOwnProperty.call(TOOL_HANDLERS, name) ? TOOL_HANDLERS[name] : null;
     if (!handler) {
       return fail('', safeStringify(toolError('', 0, '未知工具：' + (name || '(空)'))));
     }
@@ -651,10 +641,7 @@ async function executeToolCall(handler, prep, opts) {
           ? globalThis.fetch
           : null;
     if (!fetchImpl) {
-      return toolEntry(
-        endpoint,
-        safeStringify(toolError(endpoint, 0, '当前环境没有 fetch，无法查询站内数据'))
-      );
+      return toolEntry(endpoint, safeStringify(toolError(endpoint, 0, '当前环境没有 fetch，无法查询站内数据')));
     }
     const root = typeof opts.root === 'string' && opts.root ? opts.root : DEFAULT_ROOT;
     const url = root.replace(/\/+$/, '/') + endpoint;
@@ -669,8 +656,7 @@ async function executeToolCall(handler, prep, opts) {
       const res = a.res;
       const status = res && Number.isInteger(res.status) ? res.status : 0;
       const userAborted = !!(a.why && a.why.user) || isUserAborted(opts);
-      const batchAborted =
-        !userAborted && (!!(a.why && a.why.batch) || !!(opts.signal && opts.signal.aborted));
+      const batchAborted = !userAborted && (!!(a.why && a.why.batch) || !!(opts.signal && opts.signal.aborted));
       const timedOut = !userAborted && !batchAborted && !!(a.why && a.why.timedOut);
       if (res && res.ok && !a.jsonError && !userAborted && !batchAborted && !timedOut) {
         data = a.data;
@@ -705,24 +691,15 @@ async function executeToolCall(handler, prep, opts) {
         msg = '端点返回 ' + status;
       }
       if (retryAllowed(opts, attempt, failStatus)) continue;
-      return toolEntry(
-        endpoint,
-        safeStringify(toolError(endpoint, failStatus, msg + retryNote(attempt)))
-      );
+      return toolEntry(endpoint, safeStringify(toolError(endpoint, failStatus, msg + retryNote(attempt))));
     }
     const built = handler.build(data, prep);
     if (!built.ok) {
       const status = built.status === undefined ? finalStatus : built.status;
-      return toolEntry(
-        endpoint,
-        safeStringify(toolError(endpoint, status, built.error, built.extra))
-      );
+      return toolEntry(endpoint, safeStringify(toolError(endpoint, status, built.error, built.extra)));
     }
     const maxChars = Number(opts.maxChars) || TOOL_MAX_CHARS;
-    return toolEntry(
-      endpoint,
-      renderToolResult(built.value, { maxChars, jsonPath: prep.path || '' })
-    );
+    return toolEntry(endpoint, renderToolResult(built.value, { maxChars, jsonPath: prep.path || '' }));
   } catch (e) {
     return toolEntry(
       endpoint,
@@ -935,9 +912,7 @@ function attemptLimitMs(opts) {
 }
 
 function hasBudget(opts) {
-  return (
-    Number.isFinite(Number(opts && opts.deadline)) || Number.isFinite(Number(opts && opts.budgetMs))
-  );
+  return Number.isFinite(Number(opts && opts.deadline)) || Number.isFinite(Number(opts && opts.budgetMs));
 }
 
 /** 超时文案里的秒数：3500 → 3.5s，80 → 0.1s。 */
@@ -1128,9 +1103,7 @@ export function summarizeToolRuns(results) {
   });
   return {
     tools: tools.map(toolDisplayName),
-    toolsFailed: failed
-      .filter((endpoint) => tools.indexOf(endpoint) < 0)
-      .map(toolDisplayName),
+    toolsFailed: failed.filter((endpoint) => tools.indexOf(endpoint) < 0).map(toolDisplayName),
   };
 }
 

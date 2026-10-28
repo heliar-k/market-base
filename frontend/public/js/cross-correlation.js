@@ -14,17 +14,26 @@ import { MACRO_COLORS, MACRO_LABELS } from './macro-common.js';
 // ── constants ──────────────────────────────────────────────────────────────
 const GROUP_ORDER = ['equity', 'bond', 'credit', 'commodity', 'crypto', 'fx', 'vol'];
 const GROUP_LABELS = {
-  equity: '美股', bond: '国债', credit: '信用', commodity: '商品',
-  crypto: '加密', fx: '美元/FX', vol: '波动率',
+  equity: '美股',
+  bond: '国债',
+  credit: '信用',
+  commodity: '商品',
+  crypto: '加密',
+  fx: '美元/FX',
+  vol: '波动率',
 };
 // 分组分类色单源：存 token 名。DOM 图例直接 var() 引用（样式计算期解析，切主题即时跟随）；
 // canvas 侧（ECharts rich 标签）不认 var()/color-mix，由 GROUP_COLORS() 在渲染期解析成实际色值
 const GROUP_TOKENS = {
-  equity: '--color-brand', bond: '--chart-purple', credit: '--chart-violet',
-  commodity: '--color-warn', crypto: '--color-up', fx: '--chart-cyan', vol: '--color-down',
+  equity: '--color-brand',
+  bond: '--chart-purple',
+  credit: '--chart-violet',
+  commodity: '--color-warn',
+  crypto: '--color-up',
+  fx: '--chart-cyan',
+  vol: '--color-down',
 };
-const GROUP_COLORS = () =>
-  Object.fromEntries(Object.entries(GROUP_TOKENS).map(([k, t]) => [k, reCssVar(t)]));
+const GROUP_COLORS = () => Object.fromEntries(Object.entries(GROUP_TOKENS).map(([k, t]) => [k, reCssVar(t)]));
 // drill-down 滚动相关参数（与 cross_asset.py 同口径；前端重算避免每对导一个静态文件）
 const ROLLING_WINDOW = 30;
 const MIN_OBS = 10;
@@ -32,20 +41,32 @@ const MIN_OBS = 10;
 // 「好坏」是结构判断不是涨跌判断：结构恶化 = 风险偏好瓦解 / 对冲失效
 const STATUS_CARDS = [
   {
-    key: 'risk_appetite', label: '风险偏好', desc: '股-加密 / 股-信用 同向性',
-    pairs: ['SPX_BTC_30d', 'SPX_HYG_30d'], dir: 'risk_on',
+    key: 'risk_appetite',
+    label: '风险偏好',
+    desc: '股-加密 / 股-信用 同向性',
+    pairs: ['SPX_BTC_30d', 'SPX_HYG_30d'],
+    dir: 'risk_on',
   },
   {
-    key: 'equity_dispersion', label: '股票 dispersion', desc: '美股内部相关性（低 = 个股行情）',
-    pairs: ['SPX_NDX_30d', 'SPX_RUT_30d'], dir: 'avg',
+    key: 'equity_dispersion',
+    label: '股票 dispersion',
+    desc: '美股内部相关性（低 = 个股行情）',
+    pairs: ['SPX_NDX_30d', 'SPX_RUT_30d'],
+    dir: 'avg',
   },
   {
-    key: 'defensive_assets', label: '防御资产', desc: '股债 / 股金对冲有效性（越负越有效）',
-    pairs: ['SPX_TLT_30d', 'SPX_Gold_30d'], dir: 'negative_good',
+    key: 'defensive_assets',
+    label: '防御资产',
+    desc: '股债 / 股金对冲有效性（越负越有效）',
+    pairs: ['SPX_TLT_30d', 'SPX_Gold_30d'],
+    dir: 'negative_good',
   },
   {
-    key: 'rate_vol', label: '利率波动', desc: 'MOVE×股 / MOVE×债 传染度',
-    pairs: ['MOVE_SPX_30d', 'MOVE_TLT_30d'], dir: 'stress',
+    key: 'rate_vol',
+    label: '利率波动',
+    desc: 'MOVE×股 / MOVE×债 传染度',
+    pairs: ['MOVE_SPX_30d', 'MOVE_TLT_30d'],
+    dir: 'stress',
   },
 ];
 
@@ -54,10 +75,22 @@ const ALERT_RULES = {
   SPX_TLT_30d: {
     label: '股票(SPX)-长债(TLT)',
     zones: [
-      { min: 0.3, title: '同涨同跌 — 60/40 分散化失效', text: '通胀/利率是当前主导驱动，债券失去对冲属性，股票回撤时久期不再保护组合。' },
-      { min: 0, title: '正相关 — 对冲属性减弱', text: '长债与股票同向，传统 60/40 的分散化效果打折扣，核对组合的长久期暴露。' },
+      {
+        min: 0.3,
+        title: '同涨同跌 — 60/40 分散化失效',
+        text: '通胀/利率是当前主导驱动，债券失去对冲属性，股票回撤时久期不再保护组合。',
+      },
+      {
+        min: 0,
+        title: '正相关 — 对冲属性减弱',
+        text: '长债与股票同向，传统 60/40 的分散化效果打折扣，核对组合的长久期暴露。',
+      },
       { min: -0.3, title: '弱负相关 — 对冲属性中性', text: '股债关系处于过渡区，分散化效果一般。' },
-      { min: -1.01, title: '负相关 — 对冲属性回归', text: '增长担忧主导定价，长债在股票下跌时提供保护，经典股债跷跷板。' },
+      {
+        min: -1.01,
+        title: '负相关 — 对冲属性回归',
+        text: '增长担忧主导定价，长债在股票下跌时提供保护，经典股债跷跷板。',
+      },
     ],
   },
   WTI_SPX_30d: {
@@ -65,23 +98,43 @@ const ALERT_RULES = {
     zones: [
       { min: 0.3, title: '同涨 — 需求驱动', text: '油价与股市同步走强，扩张期需求叙事主导。' },
       { min: -0.3, title: '脱钩', text: '油价与股市相关性弱，能源波动暂未传导至风险偏好。' },
-      { min: -1.01, title: '深负相关 — 滞胀/供给冲击', text: '油价上行而股票承压，供给冲击或滞胀叙事主导时防御资产更占优。' },
+      {
+        min: -1.01,
+        title: '深负相关 — 滞胀/供给冲击',
+        text: '油价上行而股票承压，供给冲击或滞胀叙事主导时防御资产更占优。',
+      },
     ],
   },
   DXY_HYG_30d: {
     label: '美元(DXY)-信用(HYG)',
     zones: [
-      { min: 0.3, title: '同步走强 — 利差收紧主导', text: '美元走强伴随高收益债走强，信用利差收紧主导，金融条件未恶化。' },
+      {
+        min: 0.3,
+        title: '同步走强 — 利差收紧主导',
+        text: '美元走强伴随高收益债走强，信用利差收紧主导，金融条件未恶化。',
+      },
       { min: -0.3, title: '中性', text: '美元与信用资产相关性弱。' },
-      { min: -1.01, title: '美元强 & 信用走弱 — 金融条件收紧', text: '美元升、高收益债跌的组合是经典收紧信号，跟踪 HY 利差走阔是否向股市传导。' },
+      {
+        min: -1.01,
+        title: '美元强 & 信用走弱 — 金融条件收紧',
+        text: '美元升、高收益债跌的组合是经典收紧信号，跟踪 HY 利差走阔是否向股市传导。',
+      },
     ],
   },
   MOVE_SPX_30d: {
     label: '债市波动(MOVE)-股票(SPX)',
     zones: [
-      { min: 0.3, title: '同向 — 久期对冲失效', text: '债市波动上升伴随股票上涨（或同跌），久期不再是对冲工具，跨资产波动传染。' },
+      {
+        min: 0.3,
+        title: '同向 — 久期对冲失效',
+        text: '债市波动上升伴随股票上涨（或同跌），久期不再是对冲工具，跨资产波动传染。',
+      },
       { min: -0.3, title: '弱相关', text: '债市波动未显著影响股票定价。' },
-      { min: -1.01, title: '负相关 — 波动正常传导', text: '债市波动上升伴随股票下跌，久期资产波动率主导风险偏好，属常态传导。' },
+      {
+        min: -1.01,
+        title: '负相关 — 波动正常传导',
+        text: '债市波动上升伴随股票下跌，久期资产波动率主导风险偏好，属常态传导。',
+      },
     ],
   },
 };
@@ -93,9 +146,9 @@ let activePreset = null;
 let crossData = null; // /api/cross-asset payload
 let matrixChart = null;
 let matrixObserver = null;
-let drillChart = null;      // 弹层上图：滚动相关
+let drillChart = null; // 弹层上图：滚动相关
 let drillPriceChart = null; // 弹层下图：归一化价格
-let drillPair = null;       // 当前弹层的标的对（主题切换时原对重绘）
+let drillPair = null; // 当前弹层的标的对（主题切换时原对重绘）
 let corrChart = null;
 let corrObserver = null;
 let sparkObservers = []; // 结构洞察卡里的迷你趋势图（每卡一个，随 innerHTML 重建整体换新）
@@ -120,7 +173,10 @@ export async function initCorrelationView() {
 
 function onThemeChanged() {
   // 直接按当前模式重渲染（比逐图 re-init 简单，insight spark 一并重建）
-  if (mode !== 'asset') { if (corrChart) loadAndRender(); return; }
+  if (mode !== 'asset') {
+    if (corrChart) loadAndRender();
+    return;
+  }
   if (!crossData) return;
   renderStatusRow(crossData);
   renderMatrix();
@@ -145,7 +201,7 @@ function renderUI() {
       <button class="range-btn${mode === 'macro' ? ' active' : ''}" data-mode="macro">宏观联动</button>
     </div>
     <div class="correlation-presets" id="corr-presets" style="padding:0;border:none;flex:1;min-width:0"></div>`;
-  toolbar.querySelectorAll('[data-mode]').forEach(btn => {
+  toolbar.querySelectorAll('[data-mode]').forEach((btn) => {
     btn.addEventListener('click', () => switchMode(btn.dataset.mode));
   });
   card.appendChild(toolbar);
@@ -172,8 +228,14 @@ function switchMode(next) {
   if (mode === next) return;
   mode = next;
   // 释放不活跃模式的图实例
-  if (mode === 'asset') { if (corrChart) { corrChart.dispose(); corrChart = null; } }
-  else { disposeMatrixCharts(); }
+  if (mode === 'asset') {
+    if (corrChart) {
+      corrChart.dispose();
+      corrChart = null;
+    }
+  } else {
+    disposeMatrixCharts();
+  }
   renderUI();
   if (mode === 'asset') loadCrossAsset();
   else if (presets.length) loadPreset(presets[0]);
@@ -238,7 +300,10 @@ function declareCrossAssetContext(d) {
         ['标的与中文名', d.assets.map((a) => a.name + '=' + a.label).join(' · '), ''],
       ],
       // 方阵 → 下三角的转换单源在 AICtx.matrix（越界/错位只在那里出一处错）
-      matrix: window.AICtx.matrix(d.assets.map((a) => a.name), d.matrix),
+      matrix: window.AICtx.matrix(
+        d.assets.map((a) => a.name),
+        d.matrix
+      ),
       note: '|r|≥0.3 视为有意义的联动，<0.2 基本无关；正负号决定同向还是反向',
     };
   });
@@ -252,18 +317,19 @@ function renderStatusRow(d) {
   const lookup = {};
   for (const a of d.alerts) lookup[a.key] = a;
   // 矩阵里取任意对的快捷函数
-  const names = d.assets.map(a => a.name);
+  const names = d.assets.map((a) => a.name);
   const pair = (i, j) => {
-    const r = names.indexOf(i), c = names.indexOf(j);
+    const r = names.indexOf(i),
+      c = names.indexOf(j);
     return r >= 0 && c >= 0 ? d.matrix[r][c] : null;
   };
   for (const spec of STATUS_CARDS) {
     const vals = spec.pairs
-      .map(p => {
+      .map((p) => {
         const [i, j, win] = p.split('_');
-        return win ? lookup[p]?.latest ?? pair(i, j) : pair(i, j);
+        return win ? (lookup[p]?.latest ?? pair(i, j)) : pair(i, j);
       })
-      .filter(v => v != null);
+      .filter((v) => v != null);
     const avg = vals.length ? vals.reduce((s, v) => s + v, 0) / vals.length : null;
     const card = document.createElement('div');
     card.className = 'dash-stat corr-status-card';
@@ -280,15 +346,18 @@ function renderStatusRow(d) {
     // 「点结论→定位数据」联动不能只给鼠标：卡片是 div，补 tabindex + Enter/Space
     card.tabIndex = 0;
     card.setAttribute('role', 'button');
-    card.addEventListener('keydown', e => {
-      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); card.click(); }
+    card.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        card.click();
+      }
     });
     row.appendChild(card);
   }
 }
 
 function levelClass(dir, v) {
-  if (dir === 'negative_good') return v < 0 ? 'up' : 'down';      // up=绿（健康）
+  if (dir === 'negative_good') return v < 0 ? 'up' : 'down'; // up=绿（健康）
   if (dir === 'stress') return v > 0.5 ? 'down' : v > 0 ? 'neutral' : 'up';
   if (dir === 'risk_on') return v > 0.3 ? 'up' : v < -0.3 ? 'down' : 'neutral';
   return 'neutral';
@@ -305,18 +374,23 @@ function renderMatrix() {
   const d = crossData;
   const sub = document.getElementById('corr-matrix-sub');
   if (sub) sub.textContent = `${R.asOf(d.as_of)} · ${d.window} 日滚动 · 点格子看滚动相关`;
-  const assets = d.assets.map(a => a.name);
-  const labels = d.assets.map(a => a.label);
+  const assets = d.assets.map((a) => a.name);
+  const labels = d.assets.map((a) => a.label);
 
   const dom = document.getElementById('corr-heatmap');
-  if (matrixChart) { matrixChart.dispose(); matrixChart = null; }
-  matrixChart = echarts.init(dom, document.body.classList.contains('dark') ? 'macroDark' : 'macro', { renderer: 'canvas' });
+  if (matrixChart) {
+    matrixChart.dispose();
+    matrixChart = null;
+  }
+  matrixChart = echarts.init(dom, document.body.classList.contains('dark') ? 'macroDark' : 'macro', {
+    renderer: 'canvas',
+  });
 
   const data = [];
   d.matrix.forEach((row, i) => row.forEach((v, j) => data.push([j, i, v])));
 
   // 分组：资产已按 group 连续排列，算出每组起止索引，用于轴标签分色 + 对角块分隔框
-  const assetGroup = d.assets.map(a => a.group);
+  const assetGroup = d.assets.map((a) => a.group);
   const groups = [];
   assetGroup.forEach((g, i) => {
     const last = groups[groups.length - 1];
@@ -325,53 +399,70 @@ function renderMatrix() {
   });
   const rich = {};
   const GC = GROUP_COLORS();
-  groups.forEach(g => { rich[g.group] = { color: GC[g.group], fontSize: 10 }; });
+  groups.forEach((g) => {
+    rich[g.group] = { color: GC[g.group], fontSize: 10 };
+  });
   const labelFmt = (v, i) => `{${assetGroup[i]}|${v}}`;
 
   matrixChart.setOption({
     tooltip: {
       position: 'top',
-      formatter: p => {
+      formatter: (p) => {
         const v = p.value && p.value[2];
         return `${labels[p.value[1]]} × ${labels[p.value[0]]}<br>${v == null ? '—' : Number(v).toFixed(2)}`;
       },
     },
     grid: { left: 16, right: 16, top: 8, bottom: 44, containLabel: true },
     xAxis: {
-      type: 'category', data: assets, position: 'top',
+      type: 'category',
+      data: assets,
+      position: 'top',
       axisLabel: { fontSize: 10, rotate: 50, interval: 0, rich, formatter: labelFmt },
-      axisLine: { show: false }, axisTick: { show: false },
+      axisLine: { show: false },
+      axisTick: { show: false },
     },
     yAxis: {
-      type: 'category', data: assets,
+      type: 'category',
+      data: assets,
       axisLabel: { fontSize: 10, rich, formatter: labelFmt },
-      axisLine: { show: false }, axisTick: { show: false },
+      axisLine: { show: false },
+      axisTick: { show: false },
     },
     visualMap: {
-      min: -1, max: 1, calculable: true, orient: 'horizontal', left: 'center', bottom: 4, itemWidth: 14,
+      min: -1,
+      max: 1,
+      calculable: true,
+      orient: 'horizontal',
+      left: 'center',
+      bottom: 4,
+      itemWidth: 14,
       inRange: { color: reCorrRamp() },
       text: ['强正相关', '强负相关'],
       formatter: () => '',
       textStyle: { color: reCssVar('--text-dim'), fontSize: 11 },
     },
-    series: [{
-      type: 'heatmap', data,
-      itemStyle: { borderColor: 'transparent', borderWidth: 1 },
-      emphasis: { itemStyle: { borderColor: reCssVar('--color-brand'), borderWidth: 2 } },
-      label: {
-        show: true, fontSize: 9,
-        // s/n = 饱和格/中性格上的文字对比色：s 走 token（亮白暗深灰），n 走主题弱文字色
-        rich: {
-          s: { color: reCssVar('--text-on-saturated'), fontSize: 9 },
-          n: { color: reCssVar('--text-dim'), fontSize: 9 },
-        },
-        formatter: p => {
-          const v = p.value && p.value[2];
-          if (v == null) return '';
-          return `{${Math.abs(v) >= 0.75 ? 's' : 'n'}|${v.toFixed(2)}}`;
+    series: [
+      {
+        type: 'heatmap',
+        data,
+        itemStyle: { borderColor: 'transparent', borderWidth: 1 },
+        emphasis: { itemStyle: { borderColor: reCssVar('--color-brand'), borderWidth: 2 } },
+        label: {
+          show: true,
+          fontSize: 9,
+          // s/n = 饱和格/中性格上的文字对比色：s 走 token（亮白暗深灰），n 走主题弱文字色
+          rich: {
+            s: { color: reCssVar('--text-on-saturated'), fontSize: 9 },
+            n: { color: reCssVar('--text-dim'), fontSize: 9 },
+          },
+          formatter: (p) => {
+            const v = p.value && p.value[2];
+            if (v == null) return '';
+            return `{${Math.abs(v) >= 0.75 ? 's' : 'n'}|${v.toFixed(2)}}`;
+          },
         },
       },
-    }],
+    ],
   });
   hookMatrixEvents(matrixChart);
 
@@ -388,7 +479,9 @@ function renderMatrix() {
       const a = matrixChart.convertToPixel({ gridIndex: 0 }, [0, 0]);
       const b = matrixChart.convertToPixel({ gridIndex: 0 }, [1, 0]);
       matrixChart.setOption({ series: [{ label: { show: b[0] - a[0] >= 26 } }] });
-    } catch { /* init 未完成时 convertToPixel 抛错，下轮 observer 回调再同步 */ }
+    } catch {
+      /* init 未完成时 convertToPixel 抛错，下轮 observer 回调再同步 */
+    }
   };
   matrixObserver = new ResizeObserver(syncMatrixLabels);
   matrixObserver.observe(dom);
@@ -396,16 +489,18 @@ function renderMatrix() {
   // 图例行
   const legend = document.getElementById('corr-group-legend');
   if (legend) {
-    legend.innerHTML = GROUP_ORDER
-      .filter(g => d.assets.some(a => a.group === g))
-      .map(g => `<span class="corr-group-item"><i style="background:var(${GROUP_TOKENS[g]})"></i>${GROUP_LABELS[g]}</span>`)
+    legend.innerHTML = GROUP_ORDER.filter((g) => d.assets.some((a) => a.group === g))
+      .map(
+        (g) =>
+          `<span class="corr-group-item"><i style="background:var(${GROUP_TOKENS[g]})"></i>${GROUP_LABELS[g]}</span>`
+      )
       .join('');
   }
 }
 
 function hookMatrixEvents(chart) {
   chart.off('click');
-  chart.on('click', p => {
+  chart.on('click', (p) => {
     if (!p.value) return;
     const a = crossData.assets[p.value[0]].name;
     const b = crossData.assets[p.value[1]].name;
@@ -440,8 +535,12 @@ async function openDrilldown(a, b) {
     disposeDrillCharts(); // 图随弹层 DOM 一起消失，实例要显式释放，否则每次点击留一份 canvas
     document.removeEventListener('keydown', onKey);
   }
-  function onKey(e) { if (e.key === 'Escape') close(); }
-  overlay.addEventListener('click', e => { if (e.target === overlay) close(); });
+  function onKey(e) {
+    if (e.key === 'Escape') close();
+  }
+  overlay.addEventListener('click', (e) => {
+    if (e.target === overlay) close();
+  });
   overlay.querySelector('.corr-drill-close').addEventListener('click', close);
   document.addEventListener('keydown', onKey);
   document.getElementById('corr-asset-wrap').appendChild(overlay);
@@ -462,7 +561,7 @@ async function openDrilldown(a, b) {
 }
 
 function labelOf(name) {
-  const a = crossData.assets.find(x => x.name === name);
+  const a = crossData.assets.find((x) => x.name === name);
   return a ? a.label : name;
 }
 
@@ -471,14 +570,14 @@ function renderDrillCharts(a, b, rows) {
   drillPair = { a, b };
   const dark = document.body.classList.contains('dark');
   const theme = dark ? 'macroDark' : 'macro';
-  const dates = rows.map(r => r.date);
+  const dates = rows.map((r) => r.date);
   const norm = (name) => {
     let base = null;
-    return rows.map(r => {
+    return rows.map((r) => {
       const v = r[name];
       if (v == null) return null;
       if (base == null) base = v;
-      return +(v / base * 100).toFixed(2);
+      return +((v / base) * 100).toFixed(2);
     });
   };
 
@@ -486,16 +585,22 @@ function renderDrillCharts(a, b, rows) {
   // 点对 [date, value] + time 轴：首个可算窗口落在 rows[ROLLING_WINDOW]，之后按日期逐点推进。
   // 早先按 category 索引对齐（序列从索引 0 起、又跳过前 30 个日期），整条曲线左移 30 个交易日、
   // 末端缺最近一个月（2026-10：数据到 10-23，图上只画到 09-23）。
-  const ra = rows.map(r => r[a]), rb = rows.map(r => r[b]);
+  const ra = rows.map((r) => r[a]),
+    rb = rows.map((r) => r[b]);
   const corrSeries = [];
   for (let k = ROLLING_WINDOW; k < rows.length; k++) {
-    const sa = [], sb = [];
+    const sa = [],
+      sb = [];
     for (let m = k - ROLLING_WINDOW + 1; m <= k; m++) {
       if (ra[m] != null && ra[m - 1] != null && rb[m] != null && rb[m - 1] != null) {
-        sa.push(ra[m] / ra[m - 1] - 1); sb.push(rb[m] / rb[m - 1] - 1);
+        sa.push(ra[m] / ra[m - 1] - 1);
+        sb.push(rb[m] / rb[m - 1] - 1);
       }
     }
-    if (sa.length < MIN_OBS) { corrSeries.push([dates[k], null]); continue; }
+    if (sa.length < MIN_OBS) {
+      corrSeries.push([dates[k], null]);
+      continue;
+    }
     corrSeries.push([dates[k], pearson(sa, sb)]);
   }
   // 价格图共用同一 time 轴：归一化序列转 [date, value] 点对（两图 x 轴写法必须一致）
@@ -508,13 +613,21 @@ function renderDrillCharts(a, b, rows) {
     xAxis: { type: 'time' },
     yAxis: { type: 'value', min: -1, max: 1 },
     visualMap: {
-      show: false, min: -1, max: 1,
+      show: false,
+      min: -1,
+      max: 1,
       inRange: { color: [reCssVar('--color-brand'), reCssVar('--color-down')] },
     },
-    series: [{
-      type: 'line', data: corrSeries, showSymbol: false, connectNulls: true,
-      lineStyle: { width: 1.5 }, areaStyle: { opacity: 0.08 },
-    }],
+    series: [
+      {
+        type: 'line',
+        data: corrSeries,
+        showSymbol: false,
+        connectNulls: true,
+        lineStyle: { width: 1.5 },
+        areaStyle: { opacity: 0.08 },
+      },
+    ],
     tooltip: { trigger: 'axis' },
   });
 
@@ -522,27 +635,48 @@ function renderDrillCharts(a, b, rows) {
   const pChart = echarts.init(pDom, theme, { renderer: 'canvas' });
   drillPriceChart = pChart;
   const pal = MACRO_COLORS(); // 惰性取色板：主题切换后重渲染拿到的是新主题色
-  pChart.setOption(reSyncLegend({
-    grid: { left: 8, right: 16, top: 12, bottom: 24, containLabel: true },
-    xAxis: { type: 'time' },
-    yAxis: { type: 'value', scale: true },
-    series: [
-      { name: labelOf(a), type: 'line', data: toDatePairs(norm(a)), showSymbol: false, lineStyle: { width: 1.5 }, color: pal[0] },
-      { name: labelOf(b), type: 'line', data: toDatePairs(norm(b)), showSymbol: false, lineStyle: { width: 1.5 }, color: pal[1] },
-    ],
-    legend: { top: 0, right: 8 },
-    tooltip: { trigger: 'axis' },
-  }));
+  pChart.setOption(
+    reSyncLegend({
+      grid: { left: 8, right: 16, top: 12, bottom: 24, containLabel: true },
+      xAxis: { type: 'time' },
+      yAxis: { type: 'value', scale: true },
+      series: [
+        {
+          name: labelOf(a),
+          type: 'line',
+          data: toDatePairs(norm(a)),
+          showSymbol: false,
+          lineStyle: { width: 1.5 },
+          color: pal[0],
+        },
+        {
+          name: labelOf(b),
+          type: 'line',
+          data: toDatePairs(norm(b)),
+          showSymbol: false,
+          lineStyle: { width: 1.5 },
+          color: pal[1],
+        },
+      ],
+      legend: { top: 0, right: 8 },
+      tooltip: { trigger: 'axis' },
+    })
+  );
 }
 
 function pearson(xs, ys) {
   const n = xs.length;
   const mx = xs.reduce((s, v) => s + v, 0) / n;
   const my = ys.reduce((s, v) => s + v, 0) / n;
-  let cov = 0, vx = 0, vy = 0;
+  let cov = 0,
+    vx = 0,
+    vy = 0;
   for (let k = 0; k < n; k++) {
-    const dx = xs[k] - mx, dy = ys[k] - my;
-    cov += dx * dy; vx += dx * dx; vy += dy * dy;
+    const dx = xs[k] - mx,
+      dy = ys[k] - my;
+    cov += dx * dy;
+    vx += dx * dx;
+    vy += dy * dy;
   }
   if (vx === 0 || vy === 0) return null;
   return +(cov / Math.sqrt(vx * vy)).toFixed(4);
@@ -557,7 +691,7 @@ function renderInsights(d) {
   for (const a of d.alerts) {
     const rule = ALERT_RULES[a.key];
     if (!rule) continue;
-    const zone = rule.zones.find(z => a.latest >= z.min);
+    const zone = rule.zones.find((z) => a.latest >= z.min);
     if (!zone) continue;
     const arrow = a.latest > a.prev ? '▲' : a.latest < a.prev ? '▼' : '—';
     const dirCls = a.latest > a.prev ? 'up' : a.latest < a.prev ? 'down' : 'neutral';
@@ -569,11 +703,13 @@ function renderInsights(d) {
       </div>`);
   }
   disposeSparkCharts();
-  box.innerHTML = cards.join('') || '<div class="corr-insight-text">暂无报警数据 · 待下一交易日 cross_asset 生成（uv run python -m src.cross_asset）</div>';
+  box.innerHTML =
+    cards.join('') ||
+    '<div class="corr-insight-text">暂无报警数据 · 待下一交易日 cross_asset 生成（uv run python -m src.cross_asset）</div>';
 
   // 报警对迷你趋势（每张洞察卡下方 spark）：自适应趋势线 + 分位/区间文字
   box.querySelectorAll('.corr-insight-card').forEach((el, idx) => {
-    const a = d.alerts.filter(x => ALERT_RULES[x.key])[idx];
+    const a = d.alerts.filter((x) => ALERT_RULES[x.key])[idx];
     if (!a || a.series.length < 3) return;
     const spark = document.createElement('div');
     spark.className = 'corr-spark';
@@ -585,10 +721,11 @@ function renderInsights(d) {
     const ro = new ResizeObserver(() => chart.resize());
     ro.observe(spark);
     sparkObservers.push(ro);
-    const vals = a.series.map(s => s.value);
-    const dates = a.series.map(s => s.date);
+    const vals = a.series.map((s) => s.value);
+    const dates = a.series.map((s) => s.date);
     const lastIdx = vals.length - 1;
-    const lo = Math.min(...vals), hi = Math.max(...vals);
+    const lo = Math.min(...vals),
+      hi = Math.max(...vals);
     const pad = Math.max((hi - lo) * 0.25, 0.05);
     const showZero = lo < 0 && hi > 0; // 0 轴仅在落入数据区间时才有意义
     const accent = reCssVar('--color-brand');
@@ -597,41 +734,61 @@ function renderInsights(d) {
       grid: { left: 30, right: 38, top: 6, bottom: 16 },
       tooltip: {
         trigger: 'axis',
-        formatter: p => `${p[0].axisValue}<br>30日相关 ${p[0].value == null ? '—' : Number(p[0].value).toFixed(2)}`,
+        formatter: (p) => `${p[0].axisValue}<br>30日相关 ${p[0].value == null ? '—' : Number(p[0].value).toFixed(2)}`,
       },
       xAxis: {
-        type: 'category', data: dates,
-        axisLine: { show: false }, axisTick: { show: false },
+        type: 'category',
+        data: dates,
+        axisLine: { show: false },
+        axisTick: { show: false },
         // 只显首尾日期（MM-DD，年份在页头 as-of 里）
-        axisLabel: { fontSize: 9, color: dim, interval: i => i === 0 || i === lastIdx, formatter: v => v.slice(5) },
+        axisLabel: { fontSize: 9, color: dim, interval: (i) => i === 0 || i === lastIdx, formatter: (v) => v.slice(5) },
       },
       // y 轴按数据缩放（不再固定 -1~1 把窄区间压成直线），留刻度供读数
       yAxis: {
-        type: 'value', min: +(lo - pad).toFixed(2), max: +(hi + pad).toFixed(2), splitNumber: 2,
+        type: 'value',
+        min: +(lo - pad).toFixed(2),
+        max: +(hi + pad).toFixed(2),
+        splitNumber: 2,
         splitLine: { lineStyle: { color: reCssVar('--border-light') } },
-        axisLabel: { fontSize: 9, color: dim, formatter: v => v.toFixed(1) },
+        axisLabel: { fontSize: 9, color: dim, formatter: (v) => v.toFixed(1) },
       },
-      series: [{
-        type: 'line', data: vals, showSymbol: false,
-        lineStyle: { width: 1.6, color: accent },
-        areaStyle: { opacity: 0.10, color: accent },
-        markLine: showZero ? {
-          silent: true, symbol: 'none',
-          lineStyle: { type: 'dashed', width: 1, color: dim },
-          label: { show: false },
-          data: [{ yAxis: 0 }],
-        } : undefined,
-        // 当前值端点 + 右侧标值
-        markPoint: {
-          symbol: 'circle', symbolSize: 7,
-          itemStyle: { color: accent },
-          label: { show: true, position: 'right', formatter: () => a.latest.toFixed(2), fontSize: 10, color: accent, fontWeight: 600 },
-          data: [{ coord: [lastIdx, vals[lastIdx]] }],
+      series: [
+        {
+          type: 'line',
+          data: vals,
+          showSymbol: false,
+          lineStyle: { width: 1.6, color: accent },
+          areaStyle: { opacity: 0.1, color: accent },
+          markLine: showZero
+            ? {
+                silent: true,
+                symbol: 'none',
+                lineStyle: { type: 'dashed', width: 1, color: dim },
+                label: { show: false },
+                data: [{ yAxis: 0 }],
+              }
+            : undefined,
+          // 当前值端点 + 右侧标值
+          markPoint: {
+            symbol: 'circle',
+            symbolSize: 7,
+            itemStyle: { color: accent },
+            label: {
+              show: true,
+              position: 'right',
+              formatter: () => a.latest.toFixed(2),
+              fontSize: 10,
+              color: accent,
+              fontWeight: 600,
+            },
+            data: [{ coord: [lastIdx, vals[lastIdx]] }],
+          },
         },
-      }],
+      ],
     });
     // 分位 + 区间文字：补上自适应缩放丢掉的“绝对位置”信息
-    const rank = Math.round(vals.filter(v => v <= a.latest).length / vals.length * 100);
+    const rank = Math.round((vals.filter((v) => v <= a.latest).length / vals.length) * 100);
     const cap = document.createElement('div');
     cap.className = 'corr-spark-cap';
     cap.textContent = `近${vals.length}期 ${rank}% 分位 · 区间 ${lo.toFixed(2)}~${hi.toFixed(2)}`;
@@ -663,12 +820,10 @@ function renderMacroSkeleton(wrap) {
     </div>`;
   // 预设按钮组挂工具栏（renderUI 已建容器）
   const presetsBar = document.getElementById('corr-presets');
-  presetsBar.innerHTML = presets.map(p =>
-    `<button class="range-btn" data-id="${p.id}">${p.name}</button>`
-  ).join('');
-  presetsBar.querySelectorAll('.range-btn').forEach(btn => {
+  presetsBar.innerHTML = presets.map((p) => `<button class="range-btn" data-id="${p.id}">${p.name}</button>`).join('');
+  presetsBar.querySelectorAll('.range-btn').forEach((btn) => {
     btn.addEventListener('click', () => {
-      const preset = presets.find(p => p.id === btn.dataset.id);
+      const preset = presets.find((p) => p.id === btn.dataset.id);
       if (preset) loadPreset(preset);
     });
   });
@@ -676,27 +831,77 @@ function renderMacroSkeleton(wrap) {
 
 const ALL_INDICATORS = {
   volatility: ['VIX', 'HY_OAS', 'IG_OAS'],
-  inflation: ['CPI', 'PCE', 'CORE_CPI', 'T5YIE', 'T10YIE', 'T5YIFR', 'MICH', 'EXPINF_1Y', 'EXPINF_2Y', 'EXPINF_5Y', 'EXPINF_10Y'],
+  inflation: [
+    'CPI',
+    'PCE',
+    'CORE_CPI',
+    'T5YIE',
+    'T10YIE',
+    'T5YIFR',
+    'MICH',
+    'EXPINF_1Y',
+    'EXPINF_2Y',
+    'EXPINF_5Y',
+    'EXPINF_10Y',
+  ],
   labor: ['UNRATE', 'PAYEMS', 'ICSA'],
   growth: ['GDP', 'INDPRO'],
-  rates: ['FEDFUNDS', 'SOFR', 'IORB', 'DGS1MO', 'DGS3MO', 'DGS6MO', 'DGS1', 'DGS2', 'DGS3', 'DGS5', 'DGS7', 'DGS10', 'DGS20', 'DGS30'],
+  rates: [
+    'FEDFUNDS',
+    'SOFR',
+    'IORB',
+    'DGS1MO',
+    'DGS3MO',
+    'DGS6MO',
+    'DGS1',
+    'DGS2',
+    'DGS3',
+    'DGS5',
+    'DGS7',
+    'DGS10',
+    'DGS20',
+    'DGS30',
+  ],
   tips: ['DFII5', 'DFII7', 'DFII10', 'DFII20', 'DFII30'],
   liquidity: ['NFCI', 'RRPONTSYD', 'WTREGEN', 'WRESBAL', 'WALCL'],
   sentiment: ['UMCSENT', 'STLFSI4'],
   fx: ['DXY'],
-  derived: ['SPREAD_2S10S', 'SPREAD_3M10S', 'SPREAD_5S30S', 'NET_LIQUIDITY', 'BEI_5Y', 'BEI_7Y', 'BEI_10Y', 'BEI_20Y', 'BEI_30Y', 'SOFR_IORB_SPREAD_BP'],
+  derived: [
+    'SPREAD_2S10S',
+    'SPREAD_3M10S',
+    'SPREAD_5S30S',
+    'NET_LIQUIDITY',
+    'BEI_5Y',
+    'BEI_7Y',
+    'BEI_10Y',
+    'BEI_20Y',
+    'BEI_30Y',
+    'SOFR_IORB_SPREAD_BP',
+  ],
   // 资产序列（与 FRED 指标同图 overlay；数据源 /api/assets/prices）
   assets: ['SPX', 'NDX', 'TLT', 'HYG', 'LQD', 'Gold', 'WTI', 'BTC', 'DXY', 'MOVE'],
 };
-const ASSET_LABELS = { SPX: '标普500', NDX: '纳斯达克100', TLT: '长期国债 ETF', HYG: '高收益债 ETF', LQD: '投资级债 ETF', Gold: '黄金', WTI: 'WTI 原油', BTC: '比特币', DXY: '美元指数', MOVE: 'MOVE 债市波动' };
+const ASSET_LABELS = {
+  SPX: '标普500',
+  NDX: '纳斯达克100',
+  TLT: '长期国债 ETF',
+  HYG: '高收益债 ETF',
+  LQD: '投资级债 ETF',
+  Gold: '黄金',
+  WTI: 'WTI 原油',
+  BTC: '比特币',
+  DXY: '美元指数',
+  MOVE: 'MOVE 债市波动',
+};
 const indicatorLabel = (name) => ASSET_LABELS[name] || MACRO_LABELS[name] || name;
 const isAsset = (name) => !!ASSET_LABELS[name];
 
 function loadPreset(preset) {
   activePreset = { ...preset };
   narrPairIdx = 0;
-  document.querySelectorAll('#corr-presets .range-btn').forEach(btn =>
-    btn.classList.toggle('active', btn.dataset.id === preset.id));
+  document
+    .querySelectorAll('#corr-presets .range-btn')
+    .forEach((btn) => btn.classList.toggle('active', btn.dataset.id === preset.id));
   renderCustomControls();
   loadAndRender();
 }
@@ -745,7 +950,7 @@ function showAddIndicator(btn) {
   for (const [cat, metrics] of Object.entries(ALL_INDICATORS)) {
     const optgroup = document.createElement('optgroup');
     optgroup.label = cat === 'fx' ? 'FX' : cat === 'assets' ? '资产' : cat.charAt(0).toUpperCase() + cat.slice(1);
-    metrics.forEach(m => {
+    metrics.forEach((m) => {
       if (!existing.has(m)) {
         const opt = document.createElement('option');
         opt.value = m;
@@ -767,7 +972,7 @@ async function loadAndRender() {
   if (!activePreset) return;
   try {
     // 双源拆分：FRED 指标走 correlate，资产序列走 prices（预设 asset 字段或 ALL_INDICATORS.assets）
-    const fredNames = activePreset.indicators.filter(n => !isAsset(n));
+    const fredNames = activePreset.indicators.filter((n) => !isAsset(n));
     const assetNames = activePreset.indicators.filter(isAsset);
 
     const seriesMap = {};
@@ -780,7 +985,7 @@ async function loadAndRender() {
         const info = all.indicators[name];
         if (!info) continue;
         seriesMap[name] = {
-          data: info.data.filter(d => d.value != null).map(d => [d.date, d.value]),
+          data: info.data.filter((d) => d.value != null).map((d) => [d.date, d.value]),
           label: info.label,
         };
       }
@@ -792,10 +997,8 @@ async function loadAndRender() {
         pricesCache = await res.json();
       }
       for (const name of assetNames) {
-        const rows = pricesCache.prices
-          .filter(r => r[name] != null)
-          .map(r => ({ date: r.date, value: r[name] }));
-        seriesMap[name] = { data: rows.map(d => [d.date, d.value]), label: indicatorLabel(name) };
+        const rows = pricesCache.prices.filter((r) => r[name] != null).map((r) => ({ date: r.date, value: r[name] }));
+        seriesMap[name] = { data: rows.map((d) => [d.date, d.value]), label: indicatorLabel(name) };
       }
     }
     renderNarrative(seriesMap);
@@ -819,26 +1022,35 @@ function corrNarrative(c) {
 
 function corrClass(c) {
   if (c == null) return 'neutral';
-  if (c >= 0.7) return 'down';   // 高度同向 = 分散化失效，结构恶化
+  if (c >= 0.7) return 'down'; // 高度同向 = 分散化失效，结构恶化
   if (c > -0.3) return 'neutral'; // 同向联动/弱相关 = 无强信号（与 corrNarrative 分界一致）
-  return 'up';                   // 反向 = 有对冲价值（-0.3~-0.7 部分、≤-0.7 强）
+  return 'up'; // 反向 = 有对冲价值（-0.3~-0.7 部分、≤-0.7 强）
 }
 
 function rollingSeries(a, b) {
   // 混频对齐（月频 CPI × 日频 SPX）：按 asof 语义前向填充——每个日期取各自「最新可用值」，
   // 否则月频与日频的日期几乎不相交，精确 join 下有效对永远不足
-  const fa = ffillMap(a), fb = ffillMap(b);
+  const fa = ffillMap(a),
+    fb = ffillMap(b);
   const dates = [...new Set([...fa.dates, ...fb.dates])].sort();
   // 窗口自适应：5Y 月频只有 60 点，固定 90 点窗口会永远凑不够 —— 取总点的 1/3，下限 12
   const win = Math.max(12, Math.min(MACRO_ROLL, Math.floor(dates.length / 3)));
   const out = [];
   for (let k = win - 1; k < dates.length; k++) {
-    const xs = [], ys = [];
+    const xs = [],
+      ys = [];
     for (let m = k - win + 1; m <= k; m++) {
-      const va = asof(fa, dates[m]), vb = asof(fb, dates[m]);
-      if (va != null && vb != null) { xs.push(va); ys.push(vb); }
+      const va = asof(fa, dates[m]),
+        vb = asof(fb, dates[m]);
+      if (va != null && vb != null) {
+        xs.push(va);
+        ys.push(vb);
+      }
     }
-    if (xs.length < Math.max(6, Math.floor(win / 2))) { out.push([dates[k], null]); continue; }
+    if (xs.length < Math.max(6, Math.floor(win / 2))) {
+      out.push([dates[k], null]);
+      continue;
+    }
     out.push([dates[k], pearson(xs, ys)]); // 水平相关：直接对原始值（非收益率）——宏观指标看同向性
   }
   return out;
@@ -846,17 +1058,24 @@ function rollingSeries(a, b) {
 
 // [date,value] 对 → {dates: 有观测日期有序数组, values: 对应非空值}（供 asof 前向查询）
 function ffillMap(pairs) {
-  const clean = pairs.filter(p => p[1] != null).sort((x, y) => x[0] < y[0] ? -1 : 1);
-  return { dates: clean.map(p => p[0]), values: clean.map(p => p[1]) };
+  const clean = pairs.filter((p) => p[1] != null).sort((x, y) => (x[0] < y[0] ? -1 : 1));
+  return { dates: clean.map((p) => p[0]), values: clean.map((p) => p[1]) };
 }
 
 // asof 查询：日期 d 之前（含）最近一次观测值；早于首个观测返回 undefined
 function asof(series, d) {
   // 二分找最后一个 <= d 的观测
-  let lo = 0, hi = series.dates.length - 1, ans = -1;
+  let lo = 0,
+    hi = series.dates.length - 1,
+    ans = -1;
   while (lo <= hi) {
     const mid = (lo + hi) >> 1;
-    if (series.dates[mid] <= d) { ans = mid; lo = mid + 1; } else { hi = mid - 1; }
+    if (series.dates[mid] <= d) {
+      ans = mid;
+      lo = mid + 1;
+    } else {
+      hi = mid - 1;
+    }
   }
   return ans < 0 ? undefined : series.values[ans];
 }
@@ -876,16 +1095,21 @@ function corrZoneMeaning(c) {
 function renderNarrative(seriesMap) {
   const box = document.getElementById('corr-macro-narr');
   if (!box) return;
-  const names = activePreset.indicators.filter(n => seriesMap[n]);
-  const left = names.filter(n => activePreset.left_axis.includes(n) || (activePreset.left_axis.length === 0 && n === names[0]));
-  const right = names.filter(n => !left.includes(n));
+  const names = activePreset.indicators.filter((n) => seriesMap[n]);
+  const left = names.filter(
+    (n) => activePreset.left_axis.includes(n) || (activePreset.left_axis.length === 0 && n === names[0])
+  );
+  const right = names.filter((n) => !left.includes(n));
   const pairs = [];
   for (const l of left) for (const r of right) pairs.push([l, r]);
-  if (!pairs.length) { box.innerHTML = '<div class="corr-insight-text">至少需要两个序列才能解读联动</div>'; return; }
+  if (!pairs.length) {
+    box.innerHTML = '<div class="corr-insight-text">至少需要两个序列才能解读联动</div>';
+    return;
+  }
   if (narrPairIdx >= pairs.length) narrPairIdx = 0;
   const [l, r] = pairs[narrPairIdx];
   const series = rollingSeries(seriesMap[l].data, seriesMap[r].data);
-  const valid = series.filter(s => s[1] != null);
+  const valid = series.filter((s) => s[1] != null);
   const cur = valid.length ? valid[valid.length - 1][1] : null;
   const prev = valid.length > 1 ? valid[valid.length - 2][1] : null;
   const arrow = cur != null && prev != null ? (cur > prev ? '▲' : cur < prev ? '▼' : '—') : '';
@@ -894,11 +1118,15 @@ function renderNarrative(seriesMap) {
   // 历史分布：全序列区间占比 + 上一次出现当前水平（±0.05）的日期
   let hist = '有效观测不足，历史分布暂缺。';
   if (valid.length >= 10 && cur != null) {
-    const pctPos = Math.round(valid.filter(s => s[1] >= 0.3).length / valid.length * 100);
-    const pctNeg = Math.round(valid.filter(s => s[1] <= -0.3).length / valid.length * 100);
+    const pctPos = Math.round((valid.filter((s) => s[1] >= 0.3).length / valid.length) * 100);
+    const pctNeg = Math.round((valid.filter((s) => s[1] <= -0.3).length / valid.length) * 100);
     const span = `${valid[0][0].slice(0, 7)} – ${valid[valid.length - 1][0].slice(0, 7)}`;
-    const last = valid.slice(0, -1).reverse().find(s => Math.abs(s[1] - cur) <= 0.05);
-    hist = `${span} 期间：${pctPos}% 的时间高度同向、${pctNeg}% 的时间高度反向` +
+    const last = valid
+      .slice(0, -1)
+      .reverse()
+      .find((s) => Math.abs(s[1] - cur) <= 0.05);
+    hist =
+      `${span} 期间：${pctPos}% 的时间高度同向、${pctNeg}% 的时间高度反向` +
       (last ? `；上一次出现当前水平是 ${last[0].slice(0, 7)}。` : '；当前水平在此前未曾出现过。');
   }
 
@@ -907,20 +1135,36 @@ function renderNarrative(seriesMap) {
       <div class="narr-big ${tagCls}">${cur == null ? '—' : (cur >= 0 ? '+' : '') + cur.toFixed(2)} <i class="narr-arrow">${arrow}</i><span class="narr-tag ${tagCls}">${corrNarrative(cur)}</span></div>
       <div class="narr-sub">${indicatorLabel(l)} × ${indicatorLabel(r)} · 当前滚动相关（窗口最长 30 期，低频指标自动缩短）· ▲▼ = 较上一窗口回升/回落 · 颜色=对冲语义：绿=可对冲、红=同向集中、灰=中性</div>
     </div>
-    ${pairs.length > 1 ? `<div class="narr-pairs">${pairs.map((p, i) =>
-      `<button class="range-btn${i === narrPairIdx ? ' active' : ''}" data-pair="${i}">${indicatorLabel(p[0])} × ${indicatorLabel(p[1])}</button>`).join('')}</div>` : ''}
+    ${
+      pairs.length > 1
+        ? `<div class="narr-pairs">${pairs
+            .map(
+              (p, i) =>
+                `<button class="range-btn${i === narrPairIdx ? ' active' : ''}" data-pair="${i}">${indicatorLabel(p[0])} × ${indicatorLabel(p[1])}</button>`
+            )
+            .join('')}</div>`
+        : ''
+    }
     <div class="narr-block"><b>这个数怎么读</b><p>${corrZoneMeaning(cur)}</p></div>
     <div class="narr-block"><b>怎么读这幅图</b><p>上带是两序列各自轨迹（左右双轴，右轴多序列时已归一化）；中带滚动相关 &gt;0 即同向、&lt;0 反向；下带 5 年分位表示当前联动强度在历史中的位置。三带共享十字线与缩放。</p></div>
     <div class="narr-block"><b>历史上何时出现过</b><p>${hist}</p></div>`;
-  box.querySelectorAll('[data-pair]').forEach(btn => btn.addEventListener('click', () => {
-    narrPairIdx = +btn.dataset.pair;
-    renderNarrative(seriesMapCache);
-  }));
+  box.querySelectorAll('[data-pair]').forEach((btn) =>
+    btn.addEventListener('click', () => {
+      narrPairIdx = +btn.dataset.pair;
+      renderNarrative(seriesMapCache);
+    })
+  );
 }
 
 function renderChart(seriesMap) {
-  if (corrChart) { corrChart.dispose(); corrChart = null; }
-  if (corrObserver) { corrObserver.disconnect(); corrObserver = null; }
+  if (corrChart) {
+    corrChart.dispose();
+    corrChart = null;
+  }
+  if (corrObserver) {
+    corrObserver.disconnect();
+    corrObserver = null;
+  }
 
   const chartEl = document.getElementById('correlation-chart');
   chartEl.innerHTML = '';
@@ -928,67 +1172,100 @@ function renderChart(seriesMap) {
 
   // 右轴多序列时量级混叠（如 HYG ~80 与 NDX ~30000 共轴）：右轴序列归一化（期初=100）
   const needDual = activePreset.left_axis.length > 0 && activePreset.right_axis.length > 0;
-  const rightNames = activePreset.indicators.filter(n => activePreset.right_axis.includes(n));
+  const rightNames = activePreset.indicators.filter((n) => activePreset.right_axis.includes(n));
   const normRight = needDual && rightNames.length > 1;
 
   // 卡头：预设名 + 数据截至 + 预设描述（叙事）
   const sub = document.getElementById('corr-macro-sub');
   if (sub) {
-    const lastDates = Object.values(seriesMap).map(s => s.data.length ? s.data[s.data.length - 1][0] : null).filter(Boolean);
+    const lastDates = Object.values(seriesMap)
+      .map((s) => (s.data.length ? s.data[s.data.length - 1][0] : null))
+      .filter(Boolean);
     sub.textContent = lastDates.length ? R.asOf(lastDates.sort().slice(-1)[0]) : '';
   }
   const desc = document.getElementById('corr-macro-foot');
-  if (desc) desc.textContent = (activePreset.description || '数据源：FRED · 资产序列 yfinance asset_prices · 混频按日期对齐') + (normRight ? ' · 右轴多序列已归一化（期初=100）' : '');
+  if (desc)
+    desc.textContent =
+      (activePreset.description || '数据源：FRED · 资产序列 yfinance asset_prices · 混频按日期对齐') +
+      (normRight ? ' · 右轴多序列已归一化（期初=100）' : '');
 
   // 序列整理（undefined 归 null —— echarts sampling processor 对 undefined 值崩溃）
   const pal = MACRO_COLORS(); // 惰性取色板（主题切换后重渲染自动跟随）
   const items = activePreset.indicators
-    .map(name => {
+    .map((name) => {
       let info = seriesMap[name];
       if (!info || !info.data.length) return null;
       if (normRight && rightNames.includes(name)) {
-        const base = info.data.find(d => d[1] != null)?.[1];
-        if (base) info = { ...info, data: info.data.map(d => [d[0], d[1] == null ? null : +(d[1] / base * 100).toFixed(2)]) };
+        const base = info.data.find((d) => d[1] != null)?.[1];
+        if (base)
+          info = {
+            ...info,
+            data: info.data.map((d) => [d[0], d[1] == null ? null : +((d[1] / base) * 100).toFixed(2)]),
+          };
       }
-      return { name, info, color: pal[activePreset.indicators.indexOf(name) % pal.length], isLeft: activePreset.left_axis.includes(name) };
+      return {
+        name,
+        info,
+        color: pal[activePreset.indicators.indexOf(name) % pal.length],
+        isLeft: activePreset.left_axis.includes(name),
+      };
     })
     .filter(Boolean);
-  const series = items.map(x => ({
+  const series = items.map((x) => ({
     name: x.info.label || x.name,
     type: 'line',
     data: x.info.data,
     lineStyle: { color: x.color, width: 2 },
     itemStyle: { color: x.color },
     showSymbol: false,
-    yAxisIndex: (needDual && !x.isLeft) ? 1 : 0,
+    yAxisIndex: needDual && !x.isLeft ? 1 : 0,
     emphasis: { focus: 'series' },
   }));
 
   // ── 三带（联动全景）：上=overlay｜中=滚动相关｜下=5年分位；dataZoom/十字线三带联动 ──
   // 中/下带只画第一对（自由添加多序列时避免轴爆炸）；单序列时退化为普通 overlay
-  const left0 = items.find(x => x.isLeft) || items[0];
-  const right0 = items.find(x => !x.isLeft && x !== left0);
+  const left0 = items.find((x) => x.isLeft) || items[0];
+  const right0 = items.find((x) => !x.isLeft && x !== left0);
   const corr = left0 && right0 ? rollingSeries(seriesMap[left0.name].data, seriesMap[right0.name].data) : [];
-  const corrValid = corr.filter(x => x[1] != null);
+  const corrValid = corr.filter((x) => x[1] != null);
   const curCorr = corrValid.length ? corrValid[corrValid.length - 1][1] : null;
   const title2 = document.getElementById('corr-macro-title');
-  if (title2) title2.textContent = curCorr != null
-    ? `${activePreset.name} · ${indicatorLabel(left0.name)}×${indicatorLabel(right0.name)} 滚动相关 ${curCorr >= 0 ? '+' : ''}${curCorr.toFixed(2)}`
-    : activePreset.name;
+  if (title2)
+    title2.textContent =
+      curCorr != null
+        ? `${activePreset.name} · ${indicatorLabel(left0.name)}×${indicatorLabel(right0.name)} 滚动相关 ${curCorr >= 0 ? '+' : ''}${curCorr.toFixed(2)}`
+        : activePreset.name;
 
   if (corrValid.length) {
     series.push({
-      name: '滚动相关', type: 'line', xAxisIndex: 1, yAxisIndex: 2,
-      data: corr, showSymbol: false, connectNulls: true,
-      lineStyle: { width: 1.4, color: reCssVar('--chart-purple') }, itemStyle: { color: reCssVar('--chart-purple') },
-      areaStyle: { opacity: .12, color: reCssVar('--chart-purple') },
-      markLine: { silent: true, symbol: 'none', lineStyle: { opacity: .4, type: 'dashed' }, label: { show: false }, data: [{ yAxis: 0 }] },
+      name: '滚动相关',
+      type: 'line',
+      xAxisIndex: 1,
+      yAxisIndex: 2,
+      data: corr,
+      showSymbol: false,
+      connectNulls: true,
+      lineStyle: { width: 1.4, color: reCssVar('--chart-purple') },
+      itemStyle: { color: reCssVar('--chart-purple') },
+      areaStyle: { opacity: 0.12, color: reCssVar('--chart-purple') },
+      markLine: {
+        silent: true,
+        symbol: 'none',
+        lineStyle: { opacity: 0.4, type: 'dashed' },
+        label: { show: false },
+        data: [{ yAxis: 0 }],
+      },
     });
     for (const x of [left0, right0].filter(Boolean)) {
       series.push({
-        name: `${x.info.label || x.name} 分位`, type: 'line', xAxisIndex: 2, yAxisIndex: 3,
-        data: pctRank(x.info.data), showSymbol: false,
-        lineStyle: { width: 1.2, color: x.color }, itemStyle: { color: x.color },
+        name: `${x.info.label || x.name} 分位`,
+        type: 'line',
+        xAxisIndex: 2,
+        yAxisIndex: 3,
+        data: pctRank(x.info.data),
+        showSymbol: false,
+        lineStyle: { width: 1.2, color: x.color },
+        itemStyle: { color: x.color },
       });
     }
   }
@@ -996,10 +1273,18 @@ function renderChart(seriesMap) {
   const hasBands = corrValid.length > 0;
   // 滑块已删（缩放留 inside）：三带版省出 bottom 带给第三带，单图版 bottom 回单源默认
   const grid = hasBands
-    ? [{ left: 56, right: needDual ? 56 : 24, top: 34, height: '46%' }, { left: 56, right: needDual ? 56 : 24, top: '62%', height: '18%' }, { left: 56, right: needDual ? 56 : 24, top: '84%', height: '14%' }]
+    ? [
+        { left: 56, right: needDual ? 56 : 24, top: 34, height: '46%' },
+        { left: 56, right: needDual ? 56 : 24, top: '62%', height: '18%' },
+        { left: 56, right: needDual ? 56 : 24, top: '84%', height: '14%' },
+      ]
     : { left: '3%', right: needDual ? '6%' : '4%', bottom: 24, top: 32, containLabel: true };
   const xAxis = hasBands
-    ? [{ type: 'time', gridIndex: 0, axisLabel: { show: false } }, { type: 'time', gridIndex: 1, axisLabel: { show: false } }, { type: 'time', gridIndex: 2 }]
+    ? [
+        { type: 'time', gridIndex: 0, axisLabel: { show: false } },
+        { type: 'time', gridIndex: 1, axisLabel: { show: false } },
+        { type: 'time', gridIndex: 2 },
+      ]
     : [{ type: 'time', boundaryGap: false }];
   const yAxis = hasBands
     ? [
@@ -1010,21 +1295,23 @@ function renderChart(seriesMap) {
       ]
     : [{ type: 'value', scale: true, splitNumber: 4 }];
   if (!hasBands && needDual) yAxis.push({ type: 'value', scale: true, splitNumber: 4, position: 'right' });
-  const dataZoom = hasBands
-    ? [{ type: 'inside', xAxisIndex: [0, 1, 2] }]
-    : [{ type: 'inside' }];
+  const dataZoom = hasBands ? [{ type: 'inside', xAxisIndex: [0, 1, 2] }] : [{ type: 'inside' }];
 
-  const chart = echarts.init(chartEl, document.body.classList.contains('dark') ? 'macroDark' : 'macro', { renderer: 'canvas' });
+  const chart = echarts.init(chartEl, document.body.classList.contains('dark') ? 'macroDark' : 'macro', {
+    renderer: 'canvas',
+  });
   corrChart = chart;
-  chart.setOption(reSyncLegend({
-    legend: { show: series.length > 1, top: 4, left: 8, type: 'scroll', textStyle: { fontSize: 11 } },
-    grid,
-    xAxis,
-    yAxis,
-    tooltip: { trigger: 'axis', axisPointer: { type: 'cross', link: hasBands ? [{ xAxisIndex: 'all' }] : [] } },
-    dataZoom,
-    series,
-  }));
+  chart.setOption(
+    reSyncLegend({
+      legend: { show: series.length > 1, top: 4, left: 8, type: 'scroll', textStyle: { fontSize: 11 } },
+      grid,
+      xAxis,
+      yAxis,
+      tooltip: { trigger: 'axis', axisPointer: { type: 'cross', link: hasBands ? [{ xAxisIndex: 'all' }] : [] } },
+      dataZoom,
+      series,
+    })
+  );
   corrObserver = new ResizeObserver(() => chart.resize());
   corrObserver.observe(chartEl);
 }
@@ -1033,9 +1320,15 @@ function renderChart(seriesMap) {
 function pctRank(pairs, lookback = 1260) {
   const out = [];
   for (let k = 0; k < pairs.length; k++) {
-    const hist = pairs.slice(Math.max(0, k - lookback + 1), k + 1).map(p => p[1]).filter(v => v != null);
-    if (hist.length < 30) { out.push([pairs[k][0], null]); continue; }
-    out.push([pairs[k][0], +(hist.filter(h => h <= pairs[k][1]).length / hist.length * 100).toFixed(1)]);
+    const hist = pairs
+      .slice(Math.max(0, k - lookback + 1), k + 1)
+      .map((p) => p[1])
+      .filter((v) => v != null);
+    if (hist.length < 30) {
+      out.push([pairs[k][0], null]);
+      continue;
+    }
+    out.push([pairs[k][0], +((hist.filter((h) => h <= pairs[k][1]).length / hist.length) * 100).toFixed(1)]);
   }
   return out;
 }
@@ -1045,38 +1338,50 @@ function addIndicator(name) {
   activePreset.indicators = [...activePreset.indicators, name];
   activePreset.right_axis = [...activePreset.right_axis, name];
   activePreset.id = 'custom';
-  document.querySelectorAll('#corr-presets .range-btn').forEach(btn => btn.classList.remove('active'));
+  document.querySelectorAll('#corr-presets .range-btn').forEach((btn) => btn.classList.remove('active'));
   renderCustomControls();
   loadAndRender();
 }
 
 function removeIndicator(name) {
   if (!activePreset) return;
-  activePreset.indicators = activePreset.indicators.filter(i => i !== name);
-  activePreset.left_axis = activePreset.left_axis.filter(i => i !== name);
-  activePreset.right_axis = activePreset.right_axis.filter(i => i !== name);
+  activePreset.indicators = activePreset.indicators.filter((i) => i !== name);
+  activePreset.left_axis = activePreset.left_axis.filter((i) => i !== name);
+  activePreset.right_axis = activePreset.right_axis.filter((i) => i !== name);
   activePreset.id = 'custom';
-  document.querySelectorAll('#corr-presets .range-btn').forEach(btn => btn.classList.remove('active'));
+  document.querySelectorAll('#corr-presets .range-btn').forEach((btn) => btn.classList.remove('active'));
   renderCustomControls();
   loadAndRender();
 }
 
 function disposeDrillCharts() {
-  if (drillChart) { drillChart.dispose(); drillChart = null; }
-  if (drillPriceChart) { drillPriceChart.dispose(); drillPriceChart = null; }
+  if (drillChart) {
+    drillChart.dispose();
+    drillChart = null;
+  }
+  if (drillPriceChart) {
+    drillPriceChart.dispose();
+    drillPriceChart = null;
+  }
   drillPair = null;
 }
 
 function disposeMatrixCharts() {
-  if (matrixObserver) { matrixObserver.disconnect(); matrixObserver = null; }
-  if (matrixChart) { matrixChart.dispose(); matrixChart = null; }
+  if (matrixObserver) {
+    matrixObserver.disconnect();
+    matrixObserver = null;
+  }
+  if (matrixChart) {
+    matrixChart.dispose();
+    matrixChart = null;
+  }
   disposeSparkCharts();
   disposeDrillCharts();
 }
 
 // 洞察卡的 chart 实例随 innerHTML 重建一并丢弃，只需断开 observer（否则它继续持有已脱离的节点）
 function disposeSparkCharts() {
-  sparkObservers.forEach(o => o.disconnect());
+  sparkObservers.forEach((o) => o.disconnect());
   sparkObservers = [];
 }
 
@@ -1085,13 +1390,19 @@ export function updateStatus() {
   document.getElementById('status-symbol').textContent = '关联';
   if (mode === 'asset') {
     document.getElementById('status-count').textContent = crossData
-      ? `${crossData.assets.length} 资产 · ${crossData.window}d 相关` : '';
+      ? `${crossData.assets.length} 资产 · ${crossData.window}d 相关`
+      : '';
     document.getElementById('status-range').textContent = crossData ? R.asOf(crossData.as_of) : '';
   } else {
     document.getElementById('status-count').textContent = activePreset
-      ? `${activePreset.indicators.length} 序列 · ${activePreset.name}` : '';
-    const lastDates = activePreset && Object.values(seriesMapCache || {}).map(s => s.data.length ? s.data[s.data.length - 1][0] : null).filter(Boolean);
-    document.getElementById('status-range').textContent = lastDates && lastDates.length
-      ? R.asOf(lastDates.sort().slice(-1)[0]) : '';
+      ? `${activePreset.indicators.length} 序列 · ${activePreset.name}`
+      : '';
+    const lastDates =
+      activePreset &&
+      Object.values(seriesMapCache || {})
+        .map((s) => (s.data.length ? s.data[s.data.length - 1][0] : null))
+        .filter(Boolean);
+    document.getElementById('status-range').textContent =
+      lastDates && lastDates.length ? R.asOf(lastDates.sort().slice(-1)[0]) : '';
   }
 }

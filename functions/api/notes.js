@@ -17,11 +17,9 @@ import {
 export async function onRequestPost({ request, env }) {
   try {
     if (!rateLimit('notes:' + clientIp(request), ...RATE_LIMITS.notes)) {
-      return json(
-        { error: `保存过于频繁（每小时 ${RATE_LIMITS.notes[0]} 次），请稍后再试。` },
-        429,
-        { 'retry-after': '600' }
-      );
+      return json({ error: `保存过于频繁（每小时 ${RATE_LIMITS.notes[0]} 次），请稍后再试。` }, 429, {
+        'retry-after': '600',
+      });
     }
 
     const body = await readJson(request, NOTES_BODY_MAX);

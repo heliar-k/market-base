@@ -36,7 +36,8 @@
   const providers = new Map(); // id → provider（Map 保声明顺序，同 id 重复声明即覆盖）
 
   // 数值格式化：相关矩阵要定宽（+0.91 / -0.12 / NA），别的块用原样字符串
-  const coef = (v) => (v === null || v === undefined || Number.isNaN(v) ? 'NA' : (v >= 0 ? '+' : '') + Number(v).toFixed(2));
+  const coef = (v) =>
+    v === null || v === undefined || Number.isNaN(v) ? 'NA' : (v >= 0 ? '+' : '') + Number(v).toFixed(2);
 
   function normBlock(b) {
     if (!b || typeof b !== 'object') return null;
@@ -128,13 +129,7 @@
       len += line.length + 1;
     }
     const cut = b.facts.length - keep.length;
-    return [
-      head,
-      keep.join('\n'),
-      cut > 0 ? '（另有 ' + cut + ' 条读数超出预算，已省略）' : '',
-      dropped,
-      note,
-    ]
+    return [head, keep.join('\n'), cut > 0 ? '（另有 ' + cut + ' 条读数超出预算，已省略）' : '', dropped, note]
       .filter(Boolean)
       .join('\n');
   }

@@ -9,7 +9,12 @@ export const CHART_OPTS = {
   layout: { background: { type: 'solid', color: cssVar('--surface') }, textColor: cssVar('--text'), fontSize: 12 },
   grid: { vertLines: { color: cssVar('--border-light') }, horzLines: { color: cssVar('--border-light') } },
   crosshair: { mode: 1 },
-  rightPriceScale: { borderColor: cssVar('--border'), visible: true, autoScale: true, scaleMargins: { top: 0.1, bottom: 0.1 } },
+  rightPriceScale: {
+    borderColor: cssVar('--border'),
+    visible: true,
+    autoScale: true,
+    scaleMargins: { top: 0.1, bottom: 0.1 },
+  },
   leftPriceScale: { visible: false },
   timeScale: { borderColor: cssVar('--border'), timeVisible: false },
   handleScroll: { vertTouchDrag: true, mouseWheel: false },
@@ -28,7 +33,9 @@ export function darkChartOpts() {
 
 export function addLine(chart, data, color, width, style, showLabels) {
   const s = chart.addLineSeries({
-    color, lineWidth: width, lineStyle: style,
+    color,
+    lineWidth: width,
+    lineStyle: style,
     priceLineVisible: !!showLabels,
     lastValueVisible: !!showLabels,
     crosshairMarkerVisible: !!showLabels,

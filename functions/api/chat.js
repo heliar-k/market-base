@@ -25,11 +25,9 @@ export async function onRequestPost({ request, env }) {
   try {
     if (!apiKey(env)) return json({ error: MISSING_KEY }, 503);
     if (!rateLimit('chat:' + clientIp(request), ...RATE_LIMITS.chat)) {
-      return json(
-        { error: `请求过于频繁（本站代理每分钟 ${RATE_LIMITS.chat[0]} 次），请稍后再试。` },
-        429,
-        { 'retry-after': '60' }
-      );
+      return json({ error: `请求过于频繁（本站代理每分钟 ${RATE_LIMITS.chat[0]} 次），请稍后再试。` }, 429, {
+        'retry-after': '60',
+      });
     }
 
     const body = await readJson(request);
@@ -70,10 +68,7 @@ export async function onRequestPost({ request, env }) {
     }
 
     const headers = new Headers();
-    headers.set(
-      'content-type',
-      upstream.headers.get('content-type') || 'text/event-stream; charset=utf-8'
-    );
+    headers.set('content-type', upstream.headers.get('content-type') || 'text/event-stream; charset=utf-8');
     headers.set('cache-control', 'no-cache');
     headers.set('x-accel-buffering', 'no');
     headers.set('x-llm-model', String(payload.model));

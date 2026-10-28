@@ -48,9 +48,7 @@ export function isRetryableError(err) {
   const name = String(err.name || '');
   if (name === 'AbortError') return false;
   if (name === 'TypeError' || name === 'NetworkError' || name === 'TimeoutError') return true;
-  return /failed to fetch|load failed|networkerror|network error|timeout/i.test(
-    String(err.message || err)
-  );
+  return /failed to fetch|load failed|networkerror|network error|timeout/i.test(String(err.message || err));
 }
 
 /** Retry-After：整数秒或 HTTP 日期，认不出来当 0（不退避，按指数退避走）。 */

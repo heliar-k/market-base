@@ -17,26 +17,28 @@ const CORE = [{ label: SITE.home.label, page: DEFAULT_PAGE }].concat(SITE.spaVie
 
 // key ↔ page 双向映射（只用于旧深链重定向）
 const PAGES = new Map(); // key → page
-const KEYS = new Map();  // page → key
-NAV.forEach(g => {
+const KEYS = new Map(); // page → key
+NAV.forEach((g) => {
   PAGES.set(g.key, g.page);
   KEYS.set(g.page, g.key);
-  (g.items || []).forEach(it => { PAGES.set(it.key, it.page); KEYS.set(it.page, it.key); });
+  (g.items || []).forEach((it) => {
+    PAGES.set(it.key, it.page);
+    KEYS.set(it.page, it.key);
+  });
 });
 PAGES.set(SITE.home.key, DEFAULT_PAGE);
 KEYS.set(DEFAULT_PAGE, SITE.home.key);
 
 // SPA 自有视图键（#tech / #correlation，ADR-0005 后仪表盘已删）
-const VIEW_KEYS = new Set(SITE.spaViews.map(v => v.view));
+const VIEW_KEYS = new Set(SITE.spaViews.map((v) => v.view));
 
 // 已删视图的旧深链 → 整页跳头版（ADR-0005）：spaViews 删除后 pageOf 不再命中，需显式映射
 const RETIRED_VIEWS = { dashboard: SITE.home.page };
 
 // hash 键名容错：分组前缀猜错时按最后一段回退（导航 key 末段无重名）
 // 例：#macro/fed → fed；#equities/crypto → assets/crypto
-const pageOf = key =>
-  PAGES.get(key) ??
-  PAGES.get([...PAGES.keys()].find(k => k.split('/').pop() === key?.split('/').pop()));
+const pageOf = (key) =>
+  PAGES.get(key) ?? PAGES.get([...PAGES.keys()].find((k) => k.split('/').pop() === key?.split('/').pop()));
 
 // 转义单源 R.esc（rates-common.js 已在 app/index.html 先于本模块加载，同款用法）
 const esc = R.esc;
@@ -46,7 +48,7 @@ let navEl = null;
 let activeView = null; // 'tech' | 'correlation'
 
 function highlight() {
-  navEl.querySelectorAll('a.macro-nav-item[data-view]').forEach(a => {
+  navEl.querySelectorAll('a.macro-nav-item[data-view]').forEach((a) => {
     const on = a.dataset.view === activeView;
     a.classList.toggle('active', on);
     // 读屏器标注当前视图（与 .active 同步）
@@ -68,7 +70,10 @@ function toggleGroup(grp) {
 function viewFromHash() {
   const key = location.hash.slice(1);
   if (key && VIEW_KEYS.has(key)) return key;
-  if (key && RETIRED_VIEWS[key]) { location.replace(RETIRED_VIEWS[key]); return null; }
+  if (key && RETIRED_VIEWS[key]) {
+    location.replace(RETIRED_VIEWS[key]);
+    return null;
+  }
   if (key && !VIEW_KEYS.has(key) && pageOf(key)) location.replace(pageOf(key));
   return null;
 }
@@ -76,8 +81,14 @@ function viewFromHash() {
 function routeHash() {
   const key = location.hash.slice(1);
   if (!key) return;
-  if (VIEW_KEYS.has(key)) { goView(key); return; }
-  if (RETIRED_VIEWS[key]) { location.replace(RETIRED_VIEWS[key]); return; }
+  if (VIEW_KEYS.has(key)) {
+    goView(key);
+    return;
+  }
+  if (RETIRED_VIEWS[key]) {
+    location.replace(RETIRED_VIEWS[key]);
+    return;
+  }
   const page = pageOf(key);
   if (page) location.replace(page); // 专题页已不是 SPA 内嵌，只能整页跳
 }
@@ -99,20 +110,32 @@ export function initGlobalNav() {
       </div>
     </div>
     <div class="macro-nav-caption">核心入口</div>
-    ${CORE.map(c => c.view
-      ? `<a class="macro-nav-item core" data-view="${c.view}" href="#${c.view}">${esc(c.label)}</a>`
-      : `<a class="macro-nav-item core" href="${c.page}">${esc(c.label)}</a>`).join('')}
+    ${CORE.map((c) =>
+      c.view
+        ? `<a class="macro-nav-item core" data-view="${c.view}" href="#${c.view}">${esc(c.label)}</a>`
+        : `<a class="macro-nav-item core" href="${c.page}">${esc(c.label)}</a>`
+    ).join('')}
     <div class="macro-nav-sep"></div>
     <div class="macro-nav-caption">全部专题</div>
-    ${NAV.map(g => `
+    ${NAV.map(
+      (g) => `
       <div class="macro-nav-group" data-key="${g.key}">
         <div class="macro-nav-group-head">
           <a class="macro-nav-item" href="${g.page}">${esc(g.label)}</a>
           ${g.items ? '<button class="macro-nav-toggle" title="展开 / 收起">›</button>' : ''}
         </div>
-        ${g.items ? `<div class="macro-nav-sub">${g.items.map(it =>
-          `<a class="macro-nav-item child${it.sub ? ' sub' : ''}" href="${it.page}">${esc(it.label)}</a>`).join('')}</div>` : ''}
-      </div>`).join('')}
+        ${
+          g.items
+            ? `<div class="macro-nav-sub">${g.items
+                .map(
+                  (it) =>
+                    `<a class="macro-nav-item child${it.sub ? ' sub' : ''}" href="${it.page}">${esc(it.label)}</a>`
+                )
+                .join('')}</div>`
+            : ''
+        }
+      </div>`
+    ).join('')}
     <div class="macro-nav-foot">
       <div class="macro-nav-foot-row"><span>美东时间</span><span id="macro-nav-clock"></span></div>
       <!-- 构建版本（与专题页侧栏同一份 api/build，见 src/export_pages.py）。
@@ -121,7 +144,7 @@ export function initGlobalNav() {
     </div>
   `;
 
-  navEl.addEventListener('click', e => {
+  navEl.addEventListener('click', (e) => {
     const a = e.target.closest('a.macro-nav-item');
     if (a) {
       // 专题页是真实链接：交给浏览器整页跳转（#24），只有 SPA 自有视图拦下来切 tab
@@ -146,7 +169,10 @@ export function initGlobalNav() {
     const el2 = document.getElementById('macro-nav-clock');
     if (!el2) return;
     el2.textContent = new Intl.DateTimeFormat('en-US', {
-      timeZone: 'America/New_York', hour: '2-digit', minute: '2-digit', hour12: false,
+      timeZone: 'America/New_York',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false,
     }).format(new Date());
   }
   tick();
@@ -164,11 +190,10 @@ export function initGlobalNav() {
   // 窄屏抽屉
   const toggle = document.getElementById('macro-nav-toggle');
   const backdrop = document.getElementById('macro-nav-backdrop');
-  toggle?.addEventListener('click', () =>
-    document.body.classList.toggle('side-open'));
+  toggle?.addEventListener('click', () => document.body.classList.toggle('side-open'));
   backdrop?.addEventListener('click', closeDrawer);
   // Esc 关闭抽屉（与 drill 弹层的 Esc 约定一致）
-  document.addEventListener('keydown', e => {
+  document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape' && document.body.classList.contains('side-open')) closeDrawer();
   });
 

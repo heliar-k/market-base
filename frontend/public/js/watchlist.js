@@ -24,14 +24,14 @@ export function saveWatch(list) {
 }
 
 export function removeWatch(sym) {
-  saveWatch(loadWatch().filter(s => s !== sym));
+  saveWatch(loadWatch().filter((s) => s !== sym));
 }
 
 // 全部可选标的名（/api/symbols 的 name 字段，兼容纯字符串数组）
 export async function fetchSymbolNames() {
   const res = await fetch('/api/symbols');
   const arr = await res.json();
-  return arr.map(s => s.name ?? s);
+  return arr.map((s) => s.name ?? s);
 }
 
 // 自选清单校验：只留 /api/symbols 里存在的标的（数据集变更时自动清理失效项）
@@ -39,7 +39,7 @@ export async function validWatch() {
   const list = loadWatch();
   try {
     const all = new Set(await fetchSymbolNames());
-    return list.filter(s => all.has(s));
+    return list.filter((s) => all.has(s));
   } catch {
     return list;
   }

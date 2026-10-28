@@ -46,8 +46,8 @@ export const state = {
 const inited = {};
 
 const views = {
-  tech:         { label: '技术', init: initTechView,       status: techStatus },
-  correlation:  { label: '关联', init: initCorrelationView, status: correlationStatus },
+  tech: { label: '技术', init: initTechView, status: techStatus },
+  correlation: { label: '关联', init: initCorrelationView, status: correlationStatus },
 };
 
 function switchTab(tab) {
@@ -70,12 +70,12 @@ function switchTab(tab) {
 }
 
 // Cross-module tab switching (watchlist clicks, 左侧导航)
-window.addEventListener('switch-tab', e => switchTab(e.detail));
+window.addEventListener('switch-tab', (e) => switchTab(e.detail));
 
 // ponytail: go-stock now redirects to tech view with symbol pre-selected
-window.addEventListener('go-stock', e => {
+window.addEventListener('go-stock', (e) => {
   switchTab('tech');
   if (e.detail) techSelectSymbol(e.detail);
 });
 
-switchTab(initialView || 'tech');  // 默认落地 = 技术分析（ADR-0005：仪表盘已删，首页是 /daily/ 整页）
+switchTab(initialView || 'tech'); // 默认落地 = 技术分析（ADR-0005：仪表盘已删，首页是 /daily/ 整页）

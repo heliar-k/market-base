@@ -1,13 +1,5 @@
 // GET /api/models — 本站代理可用的模型白名单（抽屉「探测模型」在代理模式下走这里）。
-import {
-  MISSING_KEY,
-  RATE_LIMITS,
-  apiKey,
-  clientIp,
-  json,
-  models,
-  rateLimit,
-} from '../_lib/common.js';
+import { MISSING_KEY, RATE_LIMITS, apiKey, clientIp, json, models, rateLimit } from '../_lib/common.js';
 
 export async function onRequestGet({ request, env }) {
   if (!apiKey(env)) return json({ error: MISSING_KEY }, 503);

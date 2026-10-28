@@ -10,24 +10,36 @@ const R = {
   fmtB: (v) => (v === null || v === undefined ? '—' : `$${Number(v).toFixed(0)}B`),
   // 千分位数值：取代各页自写的 fmt（bonds/etfs/crypto 默认 2 位、commodities/fx 要 4 位、
   // crypto-derivatives 透传 d）。v === 0 ? 0 : v 是 -0 守卫，保留原行为。
-  num: (v, d = 2) => (v == null ? '—' : Number(v === 0 ? 0 : v).toLocaleString(undefined, { maximumFractionDigits: d })),
+  num: (v, d = 2) =>
+    v == null ? '—' : Number(v === 0 ? 0 : v).toLocaleString(undefined, { maximumFractionDigits: d }),
   // 涨跌文本 span：▲ +x.xx% / ▼ x.xx%，颜色走文字档（亮色过 AA，图形档会跌到 3.6:1）。
   // 以前在 bonds/commodities/crypto 各拄一份，改语义色得同改三处。
-  chgSpan: (v) => (v == null ? '—' : `<span style="color:${v >= 0 ? 'var(--up)' : 'var(--down)'}">${v >= 0 ? '▲ +' : '▼ '}${Number(v).toFixed(2)}%</span>`),
+  chgSpan: (v) =>
+    v == null
+      ? '—'
+      : `<span style="color:${v >= 0 ? 'var(--up)' : 'var(--down)'}">${v >= 0 ? '▲ +' : '▼ '}${Number(v).toFixed(2)}%</span>`,
   // 生成器类型 → 界面文案（避免内部枚举 rules/llm 泄漏到页面，见审计 D2）。
   // rules-fallback = LLM 已启用但回落（徽章橙色提醒）；未知值落默认（未接入的页零改动）。
-  genText: (g) => (g === 'llm' ? 'LLM' : g === 'rules-fallback' ? '规则引擎（LLM 暂不可用，已回落）' : '规则引擎（LLM 预留）'),
+  genText: (g) =>
+    g === 'llm' ? 'LLM' : g === 'rules-fallback' ? '规则引擎（LLM 暂不可用，已回落）' : '规则引擎（LLM 预留）',
   // 研判生成徽章三态单源（docs/llm-narrative-design.md §5）：样式复用页头 .re-tier 胶囊，
   // 挂点两处 —— 静态研判小节 slot="head"；JS 动态卡组上方一行 R.genNote() 注记。无研判段的页不调即不渲染。
   genBadge: (g) => {
-    const def = {
-      llm: { name: 'LLM', cls: 're-tier--gen-llm', tip: 'LLM 基于规则引擎事实改写叙事；数字经一致性校验，超限自动回落' },
-      rules: { name: '规则引擎', cls: 're-tier--gen-rules', tip: '规则引擎确定性生成（该专题尚未接入 LLM）' },
-      'rules-fallback': { name: '已回落规则引擎', cls: 're-tier--gen-fallback', tip: 'LLM 调用失败或校验未过，已自动回落；详见部署日志 LLM_FALLBACK' },
-    }[g] || null;
-    return def
-      ? ` <span class="re-tier ${def.cls}" title="${def.tip}">${def.name}</span>`
-      : '';
+    const def =
+      {
+        llm: {
+          name: 'LLM',
+          cls: 're-tier--gen-llm',
+          tip: 'LLM 基于规则引擎事实改写叙事；数字经一致性校验，超限自动回落',
+        },
+        rules: { name: '规则引擎', cls: 're-tier--gen-rules', tip: '规则引擎确定性生成（该专题尚未接入 LLM）' },
+        'rules-fallback': {
+          name: '已回落规则引擎',
+          cls: 're-tier--gen-fallback',
+          tip: 'LLM 调用失败或校验未过，已自动回落；详见部署日志 LLM_FALLBACK',
+        },
+      }[g] || null;
+    return def ? ` <span class="re-tier ${def.cls}" title="${def.tip}">${def.name}</span>` : '';
   },
   // 研判生成注记行（研判区上方一行，卡片无标题时的挂点）：自有类 re-gen-note（special.css），
   // 视觉对齐 .re-sec-note 的弱化字色但不借用其类名（单源守卫：产物类名不可手写）
@@ -40,10 +52,14 @@ const R = {
   // bn 的单位是「百万」：≥1e6 M → T，≥1e3 M → B，否则 M。
   fmtLast(unit, v) {
     if (v == null) return '—';
-    if (unit === 'bn') return v === 0 ? '$0'
-      : v >= 1e6 ? '$' + (v / 1e6).toFixed(2) + 'T'
-      : v >= 1e3 ? '$' + Math.round(v / 1e3 * 10) / 10 + 'B'
-      : '$' + Math.round(v).toLocaleString('en-US') + 'M';
+    if (unit === 'bn')
+      return v === 0
+        ? '$0'
+        : v >= 1e6
+          ? '$' + (v / 1e6).toFixed(2) + 'T'
+          : v >= 1e3
+            ? '$' + Math.round((v / 1e3) * 10) / 10 + 'B'
+            : '$' + Math.round(v).toLocaleString('en-US') + 'M';
     if (unit === 'pct_bp') return Number(v).toFixed(2) + '%';
     if (unit === 'bp') return Number(v).toFixed(1) + 'bp';
     if (unit === 'pt') return Number(v).toFixed(2);
@@ -54,11 +70,18 @@ const R = {
   fmtChg(unit, v) {
     if (v == null) return '<span style="color:var(--text-dim)">—</span>';
     const a = Math.abs(v);
-    const body = unit === 'bp' || unit === 'pct_bp' ? a.toFixed(1) + 'bp'
-      : unit === 'pt' ? a.toFixed(2) + 'pt'
-      : unit === 'bn' ? (a >= 1e6 ? '$' + (a / 1e6).toFixed(2) + 'T'
-        : a >= 1e3 ? '$' + Math.round(a / 1e3) + 'B' : '$' + Math.round(a) + 'M')
-      : a.toFixed(2) + '%';
+    const body =
+      unit === 'bp' || unit === 'pct_bp'
+        ? a.toFixed(1) + 'bp'
+        : unit === 'pt'
+          ? a.toFixed(2) + 'pt'
+          : unit === 'bn'
+            ? a >= 1e6
+              ? '$' + (a / 1e6).toFixed(2) + 'T'
+              : a >= 1e3
+                ? '$' + Math.round(a / 1e3) + 'B'
+                : '$' + Math.round(a) + 'M'
+            : a.toFixed(2) + '%';
     if (!/[1-9]/.test(body)) return `<span style="color:var(--text-dim)">${body}</span>`;
     return `<span class="${v > 0 ? 'up' : 'down'}">${v > 0 ? '+' : '-'}${body}</span>`;
   },
@@ -72,18 +95,27 @@ const R = {
   // （判断/依据/触发）才弱化末行。单行 = 降级文案（不挂标签）。
   // 文本一律 R.esc 转义（页面不造平行 helper）。
   sigBlocks: (title, body, labels = null) => {
-    const lines = String(body ?? '').split('\n').filter(s => s.trim());
+    const lines = String(body ?? '')
+      .split('\n')
+      .filter((s) => s.trim());
     if (!lines.length) return '';
     const dimTail = labels ? lines.length > 1 : lines.length >= 3;
     const note = (j) => (dimTail && j === lines.length - 1 ? ' class="note"' : '');
     if (labels) {
       if (lines.length === 1) return `<div class="sig-block"><p>${R.esc(lines[0])}</p></div>`;
-      return lines.map((t, j) =>
-        `<div class="sig-block"><div class="sig-title">${R.esc(labels[j] || labels[labels.length - 1])}</div>`
-        + `<p${note(j)}>${R.esc(t)}</p></div>`).join('');
+      return lines
+        .map(
+          (t, j) =>
+            `<div class="sig-block"><div class="sig-title">${R.esc(labels[j] || labels[labels.length - 1])}</div>` +
+            `<p${note(j)}>${R.esc(t)}</p></div>`
+        )
+        .join('');
     }
-    return `<div class="sig-block"><div class="sig-title">${R.esc(title)}</div>`
-      + lines.map((t, j) => `<p${note(j)}>${R.esc(t)}</p>`).join('') + '</div>';
+    return (
+      `<div class="sig-block"><div class="sig-title">${R.esc(title)}</div>` +
+      lines.map((t, j) => `<p${note(j)}>${R.esc(t)}</p>`).join('') +
+      '</div>'
+    );
   },
 
   // ── 研判行契约标签（全站单源，页面不再各写一份 LINE_TITLES）──
@@ -103,13 +135,15 @@ const R = {
   //   labels 按行取的格标题；不给 = 整段一格、标题用 title
   judgeCard(title, body, labels = null) {
     // 单行段没有「行」可拆：不套格（sig-title 会与外卡 h2 重复），直接一张外卡一段文
-    const lines = String(body ?? '').split('\n').filter(s => s.trim());
+    const lines = String(body ?? '')
+      .split('\n')
+      .filter((s) => s.trim());
     if (lines.length <= 1) {
       const one = lines[0] ?? '';
       return one ? `<div class="re-section"><h2>${R.esc(title)}</h2><p>${R.esc(one)}</p></div>` : '';
     }
     const blocks = R.sigBlocks(title, body, labels);
-    if (!blocks) return '';      // 空文本不渲染空卡
+    if (!blocks) return ''; // 空文本不渲染空卡
     return `<div class="re-section"><h2>${R.esc(title)}</h2><div class="sig-row">${blocks}</div></div>`;
   },
 
@@ -144,11 +178,14 @@ const R = {
   kvRows(items) {
     const box = document.createElement('div');
     box.className = 're-kv-grid';
-    box.innerHTML = (items || []).map(i =>
-      `<div class="diag-row"><span class="diag-label">${R.esc(i.label)}`
-      + `${i.note ? ` <em>${R.esc(i.note)}</em>` : ''}</span>`
-      + `<span class="kv-v"${i.color ? ` style="color:${i.color}"` : ''}>${i.value}</span></div>`
-    ).join('');
+    box.innerHTML = (items || [])
+      .map(
+        (i) =>
+          `<div class="diag-row"><span class="diag-label">${R.esc(i.label)}` +
+          `${i.note ? ` <em>${R.esc(i.note)}</em>` : ''}</span>` +
+          `<span class="kv-v"${i.color ? ` style="color:${i.color}"` : ''}>${i.value}</span></div>`
+      )
+      .join('');
     // 列间分隔线：grid 列数由 auto-fit 运行时决定，CSS 选不出「每列首行」，
     // 所以读一次计算出的轨道数，给非首列的行上类（窄屏 1 列 → 不上类，无线）。
     // 线用绝对定位伪元素画在 gap 正中，不占布局 → 不会改宽度反过来改变列数。
@@ -170,9 +207,7 @@ const R = {
   // 同形状的 volatility 页 parts 段仍是手拼 re-section + sig-row，但形状本身在 special.css，
   // 改 CSS 一处两边同变（2026-10 那一轮就是这么改的）；只有 DOM 结构要改时才需同改那处。
   judgeRow(items) {
-    const blocks = (items || [])
-      .map(([title, body]) => R.sigBlocks(title, body))
-      .join('');
+    const blocks = (items || []).map(([title, body]) => R.sigBlocks(title, body)).join('');
     return blocks ? `<div class="re-section"><div class="sig-row">${blocks}</div></div>` : '';
   },
 
@@ -192,11 +227,7 @@ const R = {
   // 时间不写这里 —— 页头 #re-as-of 已由 R.asOf 给过，同页不重复。
   // gen 传 analysis 的 generator 字段（rules/llm）；无研判段就置空（不假称规则引擎）。
   footText: ({ gen = null, src = '', note = '' } = {}) =>
-    [
-      gen ? `研判生成：${R.genText(gen)}` : '',
-      src ? `数据源：${src}` : '',
-      note ? `口径：${note}` : '',
-    ]
+    [gen ? `研判生成：${R.genText(gen)}` : '', src ? `数据源：${src}` : '', note ? `口径：${note}` : '']
       .filter(Boolean)
       .join(' · '),
 
@@ -217,9 +248,7 @@ const R = {
   // 段值为空（null / '' / false / [label, null]）自动丢弃，全空返回 ''（页面不显示前缀）。
   asOf(src) {
     const list = typeof src === 'string' ? [src] : src || [];
-    const segs = list
-      .map((s) => (Array.isArray(s) ? (s[1] ? `${s[0]} ${s[1]}` : '') : s || ''))
-      .filter(Boolean);
+    const segs = list.map((s) => (Array.isArray(s) ? (s[1] ? `${s[0]} ${s[1]}` : '') : s || '')).filter(Boolean);
     return segs.length ? `数据截至 ${segs.join(' · ')}` : '';
   },
 
@@ -236,19 +265,45 @@ const R = {
   // 源标签 → 层级单源表：setAsOf 按此渲染徽章；页面新增标签必须在此登记（守卫测试查漏标）。
   TIERS: {
     // FRED / 官方宏观（披露）
-    声明: 'disc', 演讲: 'disc', 初请: 'disc', 盈亏平衡: 'disc', 央行互换: 'disc',
-    TIC: 'disc', 拍卖: 'disc', COT: 'disc', 'COT 报告': 'disc',
-    '利率/利差': 'disc', 资产: 'disc', FRED: 'disc', ENSO: 'disc',
+    声明: 'disc',
+    演讲: 'disc',
+    初请: 'disc',
+    盈亏平衡: 'disc',
+    央行互换: 'disc',
+    TIC: 'disc',
+    拍卖: 'disc',
+    COT: 'disc',
+    'COT 报告': 'disc',
+    '利率/利差': 'disc',
+    资产: 'disc',
+    FRED: 'disc',
+    ENSO: 'disc',
     // 交易所 / 平台官方（披露）
-    CBOE: 'disc', 'CME 期货 OI': 'disc', 'CME 期货仓位': 'disc',
-    衍生品快照: 'disc', Polymarket: 'disc', 预测市场: 'disc',
-    ZQ: 'disc', 期货价: 'disc', '农产品价': 'disc', '贵金属ETF': 'disc', 'ETF 行情': 'disc',
-    '外汇行情': 'disc', 公开市场操作: 'disc',
+    CBOE: 'disc',
+    'CME 期货 OI': 'disc',
+    'CME 期货仓位': 'disc',
+    衍生品快照: 'disc',
+    Polymarket: 'disc',
+    预测市场: 'disc',
+    ZQ: 'disc',
+    期货价: 'disc',
+    农产品价: 'disc',
+    贵金属ETF: 'disc',
+    'ETF 行情': 'disc',
+    外汇行情: 'disc',
+    公开市场操作: 'disc',
     // 财经媒体转载的市场报价（收益率本身是市场直报，来源经 CNBC）
     CNBC: 'disc',
     // 派生 / 模型口径（估算）
-    'Bill 占比': 'est', 净流动性: 'est', 流动性: 'est', 利率: 'est', 传导: 'est',
-    期权快照: 'est', 基差: 'est', '相关/价格': 'est', 快照: 'est',
+    'Bill 占比': 'est',
+    净流动性: 'est',
+    流动性: 'est',
+    利率: 'est',
+    传导: 'est',
+    期权快照: 'est',
+    基差: 'est',
+    '相关/价格': 'est',
+    快照: 'est',
   },
 
   // 页头时效标签唯一写入处（组装走 asOf，徽章按 TIERS 表挂）。
@@ -270,7 +325,10 @@ const R = {
         return `${R.esc(String(s[0]))} ${R.esc(String(s[1]))}${chip}`;
       })
       .filter(Boolean);
-    if (!segs.length) { el.innerHTML = ''; return; }
+    if (!segs.length) {
+      el.innerHTML = '';
+      return;
+    }
     segs[0] = `数据截至 ${segs[0]}`;
     el.innerHTML = segs.map((seg) => `<span class="re-as-of-seg">${seg}</span>`).join('');
   },
@@ -279,23 +337,68 @@ const R = {
     const d = (dates || []).filter(Boolean).sort();
     return d.length ? `月频 ${d[0]}–${d[d.length - 1]}` : '';
   },
-  ts: (arr) => (arr || []).map(p => p.date),
-  vs: (arr) => (arr || []).map(p => p.value),
+  ts: (arr) => (arr || []).map((p) => p.date),
+  vs: (arr) => (arr || []).map((p) => p.value),
 
   // 四线曲线快照（当前 / 1周前 / 1月前 / 3月前，rates 入口页 + 收益率曲线页共用）
   curveCompare(id, tenors) {
-    return R.mkChart(id, (colors) => R.lineOption({
-      legend: { data: ['当前', '1周前', '1月前', '3月前'] },
-      tooltip: { trigger: 'axis', valueFormatter: v => `${Number(v).toFixed(2)}%` },
-      xAxis: { type: 'category', data: tenors.map(t => t.tenor), axisLabel: { color: colors.muted, fontSize: 10 }, axisLine: { lineStyle: { color: colors.border } } },
-      yAxis: { type: 'value', scale: true, axisLabel: { color: colors.muted, formatter: '{value}%' }, splitLine: { lineStyle: { color: colors.grid } } },
-      series: [
-        { name: '当前', type: 'line', data: tenors.map(t => t.current), symbol: 'circle', symbolSize: 6, lineStyle: { color: colors.blue, width: 2 }, itemStyle: { color: colors.blue }, connectNulls: true },
-        { name: '1周前', type: 'line', data: tenors.map(t => t.prev_1w), symbol: 'none', lineStyle: { color: colors.gray, type: 'dashed', width: 1.5 }, connectNulls: true },
-        { name: '1月前', type: 'line', data: tenors.map(t => t.prev_1m), symbol: 'none', lineStyle: { color: colors.orange, type: 'dashed', width: 1.5 }, connectNulls: true },
-        { name: '3月前', type: 'line', data: tenors.map(t => t.prev_3m), symbol: 'none', lineStyle: { color: colors.red, type: 'dashed', width: 1.5 }, connectNulls: true },
-      ],
-    }, colors));
+    return R.mkChart(id, (colors) =>
+      R.lineOption(
+        {
+          legend: { data: ['当前', '1周前', '1月前', '3月前'] },
+          tooltip: { trigger: 'axis', valueFormatter: (v) => `${Number(v).toFixed(2)}%` },
+          xAxis: {
+            type: 'category',
+            data: tenors.map((t) => t.tenor),
+            axisLabel: { color: colors.muted, fontSize: 10 },
+            axisLine: { lineStyle: { color: colors.border } },
+          },
+          yAxis: {
+            type: 'value',
+            scale: true,
+            axisLabel: { color: colors.muted, formatter: '{value}%' },
+            splitLine: { lineStyle: { color: colors.grid } },
+          },
+          series: [
+            {
+              name: '当前',
+              type: 'line',
+              data: tenors.map((t) => t.current),
+              symbol: 'circle',
+              symbolSize: 6,
+              lineStyle: { color: colors.blue, width: 2 },
+              itemStyle: { color: colors.blue },
+              connectNulls: true,
+            },
+            {
+              name: '1周前',
+              type: 'line',
+              data: tenors.map((t) => t.prev_1w),
+              symbol: 'none',
+              lineStyle: { color: colors.gray, type: 'dashed', width: 1.5 },
+              connectNulls: true,
+            },
+            {
+              name: '1月前',
+              type: 'line',
+              data: tenors.map((t) => t.prev_1m),
+              symbol: 'none',
+              lineStyle: { color: colors.orange, type: 'dashed', width: 1.5 },
+              connectNulls: true,
+            },
+            {
+              name: '3月前',
+              type: 'line',
+              data: tenors.map((t) => t.prev_3m),
+              symbol: 'none',
+              lineStyle: { color: colors.red, type: 'dashed', width: 1.5 },
+              connectNulls: true,
+            },
+          ],
+        },
+        colors
+      )
+    );
   },
 
   // ── 历史坐标图：把当前读数放回历史分布（BW Research 周报 THE CONTEXT 样式）──
@@ -314,42 +417,72 @@ const R = {
     if (chg.length < 20) return null;
     const sorted = [...chg].sort((a, b) => a - b);
     const q = (t) => sorted[Math.floor(t * (sorted.length - 1))];
-    const q25 = q(0.25), q75 = q(0.75);
-    const cur = chg[chg.length - 1], prev = chg[chg.length - 2];
+    const q25 = q(0.25),
+      q75 = q(0.75);
+    const cur = chg[chg.length - 1],
+      prev = chg[chg.length - 2];
     const pct = Math.round((chg.filter((v) => v <= cur).length / chg.length) * 100);
     const NB = opts.bins || 26;
-    const lo = sorted[0], hi = sorted[sorted.length - 1];
+    const lo = sorted[0],
+      hi = sorted[sorted.length - 1];
     const w = (hi - lo) / NB || 1;
     const bins = new Array(NB).fill(0);
-    chg.forEach((v) => { bins[Math.min(NB - 1, Math.max(0, Math.floor((v - lo) / w)))]++; });
+    chg.forEach((v) => {
+      bins[Math.min(NB - 1, Math.max(0, Math.floor((v - lo) / w)))]++;
+    });
     const centers = bins.map((_, i) => lo + w * (i + 0.5));
     const fmt = (v) => (v > 0 ? '+' : '') + Number(v).toFixed(1) + (opts.unit || '');
     const option = {
       tooltip: {
         trigger: 'item',
-        formatter: (p) => (p.seriesName === '分布'
-          ? `${fmt(p.value[0] - w / 2)} ~ ${fmt(p.value[0] + w / 2)} · ${p.value[1]} 个窗口`
-          : `${p.seriesName}：${fmt(p.value[0])}`),
+        formatter: (p) =>
+          p.seriesName === '分布'
+            ? `${fmt(p.value[0] - w / 2)} ~ ${fmt(p.value[0] + w / 2)} · ${p.value[1]} 个窗口`
+            : `${p.seriesName}：${fmt(p.value[0])}`,
       },
       grid: { left: 12, right: 16, top: 14, bottom: 4, containLabel: true },
       xAxis: {
-        type: 'value', axisLabel: { formatter: (v) => fmt(v) },
-        axisLine: { show: false }, axisTick: { show: false }, splitLine: { show: false },
+        type: 'value',
+        axisLabel: { formatter: (v) => fmt(v) },
+        axisLine: { show: false },
+        axisTick: { show: false },
+        splitLine: { show: false },
       },
       // 密度无单位：y 轴全隐（语义选择，非主题覆盖）；min:0 保证散点落在基线上
-      yAxis: { type: 'value', min: 0, axisLabel: { show: false }, axisLine: { show: false }, splitLine: { show: false } },
+      yAxis: {
+        type: 'value',
+        min: 0,
+        axisLabel: { show: false },
+        axisLine: { show: false },
+        splitLine: { show: false },
+      },
       series: [
         {
-          name: '分布', type: 'line', data: centers.map((x, i) => [x, bins[i]]), smooth: 0.6,
-          symbol: 'none', lineStyle: { color: c.gray, width: 1 }, areaStyle: { color: c.gray + '33' }, z: 1,
+          name: '分布',
+          type: 'line',
+          data: centers.map((x, i) => [x, bins[i]]),
+          smooth: 0.6,
+          symbol: 'none',
+          lineStyle: { color: c.gray, width: 1 },
+          areaStyle: { color: c.gray + '33' },
+          z: 1,
           markArea: { silent: true, itemStyle: { color: c.gray + '4d' }, data: [[{ xAxis: q25 }, { xAxis: q75 }]] },
           markLine: {
-            silent: true, symbol: 'none', label: { show: false },
+            silent: true,
+            symbol: 'none',
+            label: { show: false },
             lineStyle: { color: c.orange, type: 'dashed', width: 1.2 },
             data: [{ xAxis: 0 }],
           },
         },
-        { name: '上一窗口', type: 'scatter', data: [[prev, 0]], symbolSize: 7, z: 3, itemStyle: { color: 'transparent', borderColor: c.gray, borderWidth: 1.5 } },
+        {
+          name: '上一窗口',
+          type: 'scatter',
+          data: [[prev, 0]],
+          symbolSize: 7,
+          z: 3,
+          itemStyle: { color: 'transparent', borderColor: c.gray, borderWidth: 1.5 },
+        },
         { name: '本窗口', type: 'scatter', data: [[cur, 0]], symbolSize: 9, z: 4, itemStyle: { color: c.blue } },
       ],
     };
@@ -359,13 +492,16 @@ const R = {
   // 请求失败时向多个容器注入错误提示（线上为静态导出，本地为 server）
   // 段级失败占位。hint 缺省时只给「不指名命令」的通用建议 —— 写死 ./bin/fetch_fred
   // 对非 FRED 页是错的（美债页会被告知去跑一个与本页无关的脚本）。
-  fail(ids, e, hint = "线上请确认对应数据源已更新后重新部署") {
-    ids.forEach(id => {
+  fail(ids, e, hint = '线上请确认对应数据源已更新后重新部署') {
+    ids.forEach((id) => {
       const el = document.getElementById(id);
       // 与 setSection 同法：报错占位也不该把小节标题一并清掉
       if (el) {
         el.querySelectorAll(':scope > :not(header)').forEach((n) => n.remove());
-        el.insertAdjacentHTML('beforeend', `<div class="re-error">加载失败：${e.message}<br>本地请确认 uv run python -m src.server 已启动；${hint}</div>`);
+        el.insertAdjacentHTML(
+          'beforeend',
+          `<div class="re-error">加载失败：${e.message}<br>本地请确认 uv run python -m src.server 已启动；${hint}</div>`
+        );
       }
     });
   },
@@ -380,13 +516,18 @@ const R = {
       border: v('--border'),
       grid: v('--border-light'),
       bg: v('--surface'),
-      blue: v('--color-brand'), orange: v('--color-warn'), green: v('--color-up'),
-      red: v('--color-down'), gray: v('--color-neutral'), purple: v('--chart-purple'),
+      blue: v('--color-brand'),
+      orange: v('--color-warn'),
+      green: v('--color-up'),
+      red: v('--color-down'),
+      gray: v('--color-neutral'),
+      purple: v('--chart-purple'),
       cyan: v('--chart-cyan'),
       // 文字档（ECharts label / axisLabel / markLine 标注等**图上写字**用这三个）：
       // green/red/orange 是图形档，亮色主题下做文字只有 3.6:1 不达 AA（tokens.css 已注明
       // 「-text 档只给 color: 用」）；对比度回归测试扫不到 JS 对象键，故单源在这里给齐。
-      greenText: v('--color-up-text'), redText: v('--color-down-text'),
+      greenText: v('--color-up-text'),
+      redText: v('--color-down-text'),
       orangeText: v('--color-warn-text'),
       // brand 的文字档是 --accent-ink（AGENTS §8：亮 #155ecb 5.69:1、暗 #a5d3ff），
       // 蓝色标注字一律用它，不要拿图形档 blue 写字
@@ -413,19 +554,29 @@ const R = {
 
   // 时间轴标签简写 M/D（各页 time 轴 axisLabel.formatter 共用，免逐页重写）
   // 纯日期串按本地午夜解析（new Date("YYYY-MM-DD") 是 UTC 午夜，西区时区会错位一天）
-  md: (v) => { const t = new Date(typeof v === 'string' && v.length === 10 ? v + 'T00:00:00' : v); return `${t.getMonth() + 1}/${t.getDate()}`; },
+  md: (v) => {
+    const t = new Date(typeof v === 'string' && v.length === 10 ? v + 'T00:00:00' : v);
+    return `${t.getMonth() + 1}/${t.getDate()}`;
+  },
 
   // HTML 转义（Polymarket / SEC 等外部原文入 innerHTML 前必过）
-  esc: (s) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;').replace(/"/g, '&quot;'),
+  esc: (s) =>
+    String(s ?? '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;'),
 
   // 迷你走势缩略图（状态卡里的均值线缩略，SVG polyline，不建 ECharts 实例）
   // pts: [{date, value}, …]；少于 2 点返回 ''（无走势可言）
   spark(pts, w = 96, h = 30) {
     if (!pts || pts.length < 2) return '';
     const vs = pts.map((p) => p.value);
-    const min = Math.min(...vs), max = Math.max(...vs), span = (max - min) || 1e-9;
-    const xy = (i, v) => `${(i / (pts.length - 1) * w).toFixed(1)},${(h - 3 - (v - min) / span * (h - 6)).toFixed(1)}`;
+    const min = Math.min(...vs),
+      max = Math.max(...vs),
+      span = max - min || 1e-9;
+    const xy = (i, v) =>
+      `${((i / (pts.length - 1)) * w).toFixed(1)},${(h - 3 - ((v - min) / span) * (h - 6)).toFixed(1)}`;
     const [lx, ly] = xy(vs.length - 1, vs[vs.length - 1]).split(',');
     return `<svg class="pm-spark" viewBox="0 0 ${w} ${h}" preserveAspectRatio="none">
       <polyline points="${vs.map((v, i) => xy(i, v)).join(' ')}" fill="none" stroke="var(--accent)" stroke-width="1.5" opacity=".85"/>
@@ -433,10 +584,17 @@ const R = {
   },
 
   // 价位格式化：$80K / $2.6K / $2.89（价位阶梯用，避免 5 位数挤爆窄列）
-  usd: (v) => (v == null ? '' : v >= 1e6 ? `$${(v / 1e6).toFixed(2)}M`
-    : v >= 1e3 ? `$${(v / 1e3).toFixed(v >= 1e5 ? 0 : 1)}K` : `$${v.toFixed(2)}`),
+  usd: (v) =>
+    v == null
+      ? ''
+      : v >= 1e6
+        ? `$${(v / 1e6).toFixed(2)}M`
+        : v >= 1e3
+          ? `$${(v / 1e3).toFixed(v >= 1e5 ? 0 : 1)}K`
+          : `$${v.toFixed(2)}`,
   // 距锚点（现价）偏离：+13.5% / -8.2%；无锚点或无价位返回 ''
-  dist: (v, anchor) => (v == null || !anchor ? '' : `${(v / anchor - 1) >= 0 ? '+' : ''}${((v / anchor - 1) * 100).toFixed(1)}%`),
+  dist: (v, anchor) =>
+    v == null || !anchor ? '' : `${v / anchor - 1 >= 0 ? '+' : ''}${((v / anchor - 1) * 100).toFixed(1)}%`,
 
   // 归类 chips（预测市场面板共用：中文名 + 均概率 + 7 日变动 + 合约数 + 中位触及档）
   pmChip(c) {
@@ -445,37 +603,51 @@ const R = {
     const pv = c.pivot
       ? `<span class="pv" title="归类内概率最接近 50% 的档位（市场对赌的价位）${c.pivot.dist ? ` · 距现价 ${c.pivot.dist}` : ''}">${R.usd(c.pivot.strike)}</span>`
       : '';
-    return `<span class="pm-chip${c.miss ? ' miss' : ''}"${c.miss ? ' title="未命中归类规则，请补归类关键词"' : ''}>${R.esc(c.name)} <b>${pct(c.prob)}</b>` +
-      `<span class="chg ${c.chg7d > 0 ? 'up' : c.chg7d < 0 ? 'down' : ''}">${chg}</span>` + pv +
-      `<span class="n">${c.count} 档</span></span>`;
+    return (
+      `<span class="pm-chip${c.miss ? ' miss' : ''}"${c.miss ? ' title="未命中归类规则，请补归类关键词"' : ''}>${R.esc(c.name)} <b>${pct(c.prob)}</b>` +
+      `<span class="chg ${c.chg7d > 0 ? 'up' : c.chg7d < 0 ? 'down' : ''}">${chg}</span>` +
+      pv +
+      `<span class="n">${c.count} 档</span></span>`
+    );
   },
 
   // 归类均值概率多线图（预测市场面板共用）：日期轴取并集，每归类一条线，y 轴 0–100%。
   // 用法：R.mkChart(id, c => R.probLines(clusters, c))（clusters 需带 series）
   probLines(clusters, colors) {
     const c = colors || R.colors();
-    const dates = [...new Set(clusters.flatMap(x => x.series.map(p => p.date)))].sort();
-    return R.lineOption({
-      legend: { data: clusters.map(x => x.name), type: 'scroll', textStyle: { color: c.text, fontSize: 11 } },
-      tooltip: { trigger: 'axis', valueFormatter: v => (v == null ? '—' : `${(v * 100).toFixed(1)}%`) },
-      grid: { left: 8, right: 12, top: 36, bottom: 24 },
-      xAxis: {
-        type: 'category', data: dates,
-        axisLabel: { color: c.muted, fontSize: 10, formatter: v => R.md(v) },
-        axisLine: { lineStyle: { color: c.border } },
+    const dates = [...new Set(clusters.flatMap((x) => x.series.map((p) => p.date)))].sort();
+    return R.lineOption(
+      {
+        legend: { data: clusters.map((x) => x.name), type: 'scroll', textStyle: { color: c.text, fontSize: 11 } },
+        tooltip: { trigger: 'axis', valueFormatter: (v) => (v == null ? '—' : `${(v * 100).toFixed(1)}%`) },
+        grid: { left: 8, right: 12, top: 36, bottom: 24 },
+        xAxis: {
+          type: 'category',
+          data: dates,
+          axisLabel: { color: c.muted, fontSize: 10, formatter: (v) => R.md(v) },
+          axisLine: { lineStyle: { color: c.border } },
+        },
+        yAxis: {
+          type: 'value',
+          max: 1,
+          axisLabel: { color: c.muted, fontSize: 10, formatter: (v) => `${(v * 100).toFixed(0)}%` },
+          splitLine: { lineStyle: { color: c.grid } },
+        },
+        series: clusters.map((x) => {
+          const m = Object.fromEntries(x.series.map((p) => [p.date, p.value]));
+          return {
+            name: x.name,
+            type: 'line',
+            showSymbol: false,
+            smooth: true,
+            lineStyle: { width: 2 },
+            data: dates.map((dt) => m[dt] ?? null),
+          };
+        }),
       },
-      yAxis: {
-        type: 'value', max: 1,
-        axisLabel: { color: c.muted, fontSize: 10, formatter: v => `${(v * 100).toFixed(0)}%` },
-        splitLine: { lineStyle: { color: c.grid } },
-      },
-      series: clusters.map(x => {
-        const m = Object.fromEntries(x.series.map(p => [p.date, p.value]));
-        return { name: x.name, type: 'line', showSymbol: false, smooth: true, lineStyle: { width: 2 }, data: dates.map(dt => m[dt] ?? null) };
-      }),
-    }, c);
+      c
+    );
   },
-
 
   // 图表默认项骨架（顶层浅合并；legend/grid 深一层）：统一 legend 样板与 grid 边距，
   // 页面只传差异部分：R.mkChart(id, (colors) => R.lineOption({ legend: { data: [...] }, series: [...] }, colors))
@@ -508,13 +680,14 @@ const R = {
   // 口径：无 dataset/非数组 series/纯 graphic 图（已 grep 确认），故只看 series[].data；
   // 数组点（candlestick/OHLC）算有值，对象点看 value。
   _hasPoint(s) {
-    return Array.isArray(s?.data) && s.data.some(
-      v => v != null && v !== '' && (Array.isArray(v) || typeof v !== 'object' || v.value != null),
+    return (
+      Array.isArray(s?.data) &&
+      s.data.some((v) => v != null && v !== '' && (Array.isArray(v) || typeof v !== 'object' || v.value != null))
     );
   },
   isEmptyOption(opt) {
     const ser = opt && opt.series ? [].concat(opt.series) : [];
-    return !ser.some(s => R._hasPoint(s));
+    return !ser.some((s) => R._hasPoint(s));
   },
   // 窄屏压缩「左侧栅格外边距」（全站图表唯一出口）。
   // 背景：echarts-theme.js 的主题 grid 带 containLabel: true，轴标签宽度由 ECharts
@@ -556,8 +729,9 @@ const R = {
         // 空态：不 init、不注册主题/resize（无实例可重绘）；只铺一次文案，避免主题循环重复写
         dom.classList.remove('skeleton');
         if (!dom.querySelector('.re-empty')) {
-          dom.innerHTML = '<div class="re-empty">该指标暂无可用数据（未发布、超出回溯窗口或拉取失败）<br>'
-            + '确认数据源后重新部署：对应 ./bin/fetch_* → gh workflow run deploy-pages.yml</div>';
+          dom.innerHTML =
+            '<div class="re-empty">该指标暂无可用数据（未发布、超出回溯窗口或拉取失败）<br>' +
+            '确认数据源后重新部署：对应 ./bin/fetch_* → gh workflow run deploy-pages.yml</div>';
         }
         return null;
       }
@@ -571,7 +745,11 @@ const R = {
     let chart = render();
     if (!chart) return null;
     window.addEventListener('theme-changed', () => {
-      try { chart.dispose(); } catch (e) { /* 已被外部 dispose */ }
+      try {
+        chart.dispose();
+      } catch (e) {
+        /* 已被外部 dispose */
+      }
       chart = render();
     });
     // 栅格边距在 render 时按当时宽度算（_clampGrid），所以跨过窄屏/宽屏分界得重建；
@@ -579,9 +757,16 @@ const R = {
     let narrow = dom.clientWidth < 480;
     new ResizeObserver(() => {
       const n = host.clientWidth < 480;
-      if (n === narrow) { chart.resize(); return; }
+      if (n === narrow) {
+        chart.resize();
+        return;
+      }
       narrow = n;
-      try { chart.dispose(); } catch (e) { /* 已被外部 dispose */ }
+      try {
+        chart.dispose();
+      } catch (e) {
+        /* 已被外部 dispose */
+      }
       chart = render();
     }).observe(dom);
     return chart;
@@ -638,13 +823,18 @@ const R = {
     const thead = document.createElement('thead');
     const tr = document.createElement('tr');
     // scope="col"：屏幕阅读器才能把单元格读成「列头 + 值」（全站 re-table 单源，改这一处即覆盖各页大表）
-    headers.forEach(h => { const th = document.createElement('th'); th.scope = 'col'; th.textContent = h; tr.appendChild(th); });
+    headers.forEach((h) => {
+      const th = document.createElement('th');
+      th.scope = 'col';
+      th.textContent = h;
+      tr.appendChild(th);
+    });
     thead.appendChild(tr);
     table.appendChild(thead);
     const tbody = document.createElement('tbody');
-    const numCol = new Array(headers.length).fill(false);  // 含真实数值的列，整列右对齐（含 — 占位）
-    const pending = [];  // [td, col, isNum] 先收集后统一应用，避免 — 与数值混排时锯齿
-    rows.forEach(row => {
+    const numCol = new Array(headers.length).fill(false); // 含真实数值的列，整列右对齐（含 — 占位）
+    const pending = []; // [td, col, isNum] 先收集后统一应用，避免 — 与数值混排时锯齿
+    rows.forEach((row) => {
       const r = document.createElement('tr');
       headers.forEach((h, j) => {
         const td = document.createElement('td');
@@ -656,10 +846,15 @@ const R = {
         const asText = (v) => (html ? R.esc(String(v)) : String(v));
         const fmt = formatters[key] || ((v) => (v === null || v === undefined || v === '' ? '—' : asText(v)));
         const cell = fmt(row[key], row);
-        if (html) td.innerHTML = cell; else td.textContent = cell;
+        if (html) td.innerHTML = cell;
+        else td.textContent = cell;
         // 数值列右对齐（纯数字/百分号/负号/单位符号开头），小数位纵向对齐；首列名称保持左对齐。
         // html 模式下先剥标签再测（如 <span>-0.15</span>）；单位前允许空格（如 "+0.5 pct"）
-        const plain = html ? String(cell).replace(/<[^>]+>/g, '').trim() : String(cell).trim();
+        const plain = html
+          ? String(cell)
+              .replace(/<[^>]+>/g, '')
+              .trim()
+          : String(cell).trim();
         const isNum = j > 0 && /^[-+—]?[$€¥]?[\d.,]+\s?(%|x|bp|pct|pp|k|m|b|t)?$/i.test(plain) && plain !== '—';
         pending.push([td, j, isNum]);
         if (isNum) numCol[j] = true;
@@ -670,8 +865,15 @@ const R = {
     table.appendChild(tbody);
     // 统一应用：数值列的所有单元格（含 — 占位）与表头都右对齐，保证列内成线；
     // num 类另挂等宽字体（special.css .re-table td.num，timsun 数字排版纪律）
-    pending.forEach(([td, j, isNum]) => { if (isNum || numCol[j]) { td.style.textAlign = 'right'; td.classList.add('num'); } });
-    numCol.forEach((isNum, j) => { if (isNum) thead.rows[0].cells[j].style.textAlign = 'right'; });
+    pending.forEach(([td, j, isNum]) => {
+      if (isNum || numCol[j]) {
+        td.style.textAlign = 'right';
+        td.classList.add('num');
+      }
+    });
+    numCol.forEach((isNum, j) => {
+      if (isNum) thead.rows[0].cells[j].style.textAlign = 'right';
+    });
     wrap.appendChild(table);
     return wrap;
   },
@@ -686,8 +888,11 @@ const R = {
     const wrapAll = rowCls === 're-cards-2col';
     items.forEach(({ label, value, sub, accent, cls, vcolor }) => {
       const d = document.createElement('div');
-      d.className = 're-card' + (accent ? ' re-card-accent' : '')
-        + (cls ? ' ' + cls : '') + (wrapAll && !(cls || '').includes('re-card-wrap') ? ' re-card-wrap' : '');
+      d.className =
+        're-card' +
+        (accent ? ' re-card-accent' : '') +
+        (cls ? ' ' + cls : '') +
+        (wrapAll && !(cls || '').includes('re-card-wrap') ? ' re-card-wrap' : '');
       d.innerHTML = `<div class="re-corridor-label">${label}</div>
         <div class="re-corridor-value"${vcolor ? ` style="color:${vcolor}"` : ''}>${value}</div>
         <div class="re-card-sub">${sub || ''}</div>`;

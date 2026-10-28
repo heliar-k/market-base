@@ -181,8 +181,7 @@ import {
   const THINK_MAX = 6000;
 
   // 可见性判定单源在 ai-context.js（与 pageSummary 共用一份）；脚本没到位时退回「全算可见」
-  const isVisible = (el) =>
-    window.AICtx && typeof AICtx.isVisible === 'function' ? AICtx.isVisible(el) : true;
+  const isVisible = (el) => (window.AICtx && typeof AICtx.isVisible === 'function' ? AICtx.isVisible(el) : true);
 
   function pageSummary(budget = SUMMARY_BUDGET) {
     const out = [];
@@ -314,8 +313,7 @@ import {
   }
   const fmtFull = (ts) => new Date(ts || Date.now()).toLocaleString('zh-CN', { hour12: false });
   // 贴底才滚：用户往上翻读历史/答案时，流式 chunk 不再把人拽回底部
-  const atBottom = () =>
-    !msgsEl || msgsEl.scrollHeight - msgsEl.scrollTop - msgsEl.clientHeight < 48;
+  const atBottom = () => !msgsEl || msgsEl.scrollHeight - msgsEl.scrollTop - msgsEl.clientHeight < 48;
   const scrollBottom = (force) => {
     if (!msgsEl || (!force && !stickBottom)) return;
     msgsEl.scrollTop = msgsEl.scrollHeight;
@@ -449,9 +447,7 @@ import {
           .join(' · ');
         const quotes = (m.quotes || []).map(quoteHtml).join('');
         const thought = isUser ? '' : thinkHtml(m);
-        const body = isUser
-          ? '<p>' + esc(m.content || '').replace(/\n/g, '<br>') + '</p>'
-          : mdToHtml(m.content || '');
+        const body = isUser ? '<p>' + esc(m.content || '').replace(/\n/g, '<br>') + '</p>' : mdToHtml(m.content || '');
         // 提问可回填重发；答案给「复制」（手机上手动选 Markdown 太费劲），
         // 只有最后一条给「重试」（中途的答案后面还有问答，重发没有意义）
         let acts = '';
@@ -464,7 +460,9 @@ import {
           }
         }
         return (
-          '<div class="ai-msg ' + (isUser ? 'ai-msg-user' : 'ai-msg-assistant') + '">' +
+          '<div class="ai-msg ' +
+          (isUser ? 'ai-msg-user' : 'ai-msg-assistant') +
+          '">' +
           (meta ? '<div class="ai-msg-meta">' + esc(meta) + '</div>' : '') +
           thought +
           body +
@@ -483,9 +481,15 @@ import {
       .map(
         (q) =>
           '<span class="ai-chip">' +
-          '<span class="ai-chip-label">' + esc(trunc(q.section || q.pageTitle || '引用', 18)) + '</span>' +
-          '<span class="ai-chip-text">' + esc(trunc(q.text, 42)) + '</span>' +
-          '<button class="ai-chip-rm" type="button" data-rm="' + esc(q.id) + '" title="移除该引用">×</button>' +
+          '<span class="ai-chip-label">' +
+          esc(trunc(q.section || q.pageTitle || '引用', 18)) +
+          '</span>' +
+          '<span class="ai-chip-text">' +
+          esc(trunc(q.text, 42)) +
+          '</span>' +
+          '<button class="ai-chip-rm" type="button" data-rm="' +
+          esc(q.id) +
+          '" title="移除该引用">×</button>' +
           '</span>'
       )
       .join('');
@@ -506,18 +510,14 @@ import {
   // ── 桌面分栏（宽度/断点数学在 ./ai-pane.js，这里只管 DOM 与手势）──────────
   // 形态：html.ai-pane 打开时正文让出 --ai-w（body padding-right），抽屉仍 fixed 在右缘。
   // 关闭 / 回落浮层时只撤 class，--ai-w 一并移除（抽屉回到 CSS 里的 380 浮层宽）。
-  const paneActive = () =>
-    !!(drawer && drawer.classList.contains('open') && panePushes(window.innerWidth, paneWanted));
+  const paneActive = () => !!(drawer && drawer.classList.contains('open') && panePushes(window.innerWidth, paneWanted));
 
   function syncGripAria() {
     if (!gripEl) return;
     gripEl.setAttribute('aria-valuenow', String(paneShown));
     gripEl.setAttribute('aria-valuemin', String(PANE_MIN));
     // 上限随视口收缩；浮层态下可能算出 0，夹到 min，免得 aria-valuemax < valuemin
-    gripEl.setAttribute(
-      'aria-valuemax',
-      String(Math.max(PANE_MIN, paneMaxWidth(window.innerWidth)))
-    );
+    gripEl.setAttribute('aria-valuemax', String(Math.max(PANE_MIN, paneMaxWidth(window.innerWidth))));
   }
 
   // 把偏好按当前视口夹一遍再落到 --ai-w；窗口缩放只走这里，不改 paneW（偏好不被中间值吃掉）
@@ -637,7 +637,8 @@ import {
       if (!paneActive()) return;
       const step = e.shiftKey ? 64 : 16;
       let next;
-      if (e.key === 'ArrowLeft') next = paneShown + step; // 柄左移 = 变宽
+      if (e.key === 'ArrowLeft')
+        next = paneShown + step; // 柄左移 = 变宽
       else if (e.key === 'ArrowRight') next = paneShown - step;
       else if (e.key === 'Home') next = PANE_MIN;
       else if (e.key === 'End') next = PANE_MAX;
@@ -766,11 +767,7 @@ import {
     if (hadFocus && floatBtn) floatBtn.focus({ preventScroll: true });
     // 点一下弹全的浮钮，关抽屉后吸回边缘（拖拽过的新位置已在 fabPlace 里存过）
     if (fabExpandedByTap && floatBtn) {
-      fabPlace(
-        floatBtn.dataset.fabSide || 'right',
-        Number(floatBtn.dataset.fabY) || fabDefaultY(),
-        true
-      );
+      fabPlace(floatBtn.dataset.fabSide || 'right', Number(floatBtn.dataset.fabY) || fabDefaultY(), true);
       fabExpandedByTap = false;
     }
   }
@@ -874,9 +871,7 @@ import {
       .slice(0, -1)
       .filter((m) => !(m.role === 'assistant' && m.failed))
       .slice(-11)
-      .forEach((m) =>
-        messages.push({ role: m.role, content: quotePrefix(m.quotes) + (m.content || '') })
-      );
+      .forEach((m) => messages.push({ role: m.role, content: quotePrefix(m.quotes) + (m.content || '') }));
     messages.push({ role: 'user', content: quotePrefix(last.quotes) + (last.content || '') });
     return messages;
   }
@@ -1074,8 +1069,12 @@ import {
     const secs = m.thinkMs ? Math.max(1, Math.round(m.thinkMs / 1000)) : 0;
     return (
       '<details class="ai-think">' +
-      '<summary>' + esc(secs ? '思考 ' + secs + ' 秒' : '思考过程') + '</summary>' +
-      '<div class="ai-think-body">' + esc(m.think) + '</div>' +
+      '<summary>' +
+      esc(secs ? '思考 ' + secs + ' 秒' : '思考过程') +
+      '</summary>' +
+      '<div class="ai-think-body">' +
+      esc(m.think) +
+      '</div>' +
       '</details>'
     );
   }
@@ -1114,9 +1113,7 @@ import {
           runToolCall(c, { signal: ctl.signal, deadline, outerSignal, cache }).catch((e) => ({
             callId: c.id || '',
             endpoint: '',
-            content: safeStringify(
-              toolError('', 0, '工具执行异常：' + ((e && e.message) || e))
-            ),
+            content: safeStringify(toolError('', 0, '工具执行异常：' + ((e && e.message) || e))),
             ok: false,
           }))
         )
@@ -1262,12 +1259,7 @@ import {
           tool_calls: plan.calls,
         });
         const started = Date.now();
-        const results = await runToolBatch(
-          plan.calls,
-          TOOL_TIMEOUT_MS - toolSpent,
-          turn.signal,
-          toolCache
-        );
+        const results = await runToolBatch(plan.calls, TOOL_TIMEOUT_MS - toolSpent, turn.signal, toolCache);
         toolSpent += Date.now() - started;
         toolRuns.push(...results);
         results.forEach((r) => {
@@ -1290,8 +1282,7 @@ import {
       const aborted = !timedOut && (turn.signal.aborted || (e && e.name === 'AbortError'));
       let note;
       if (timedOut) {
-        note =
-          '请求失败：' + failureText({ cause: 'timeout', phase: 'stream', timeoutMs: streamTimeoutMs });
+        note = '请求失败：' + failureText({ cause: 'timeout', phase: 'stream', timeoutMs: streamTimeoutMs });
       } else if (aborted) {
         note = '（已停止）';
       } else {
@@ -1415,10 +1406,22 @@ import {
         ? list
             .map(
               (t) =>
-                '<div class="ai-hist-item' + (t.id === cur ? ' on' : '') + '" data-tid="' + esc(t.id) + '">' +
-                '<span class="ai-hist-title">' + esc(t.title || '新对话') + '</span>' +
-                '<span class="ai-hist-meta">' + esc(fmtDay(t.updatedAt)) + ' · ' + ((t.messages || []).length) + '</span>' +
-                '<button class="ai-hist-rm" type="button" data-rmtid="' + esc(t.id) + '" title="删除该对话">×</button>' +
+                '<div class="ai-hist-item' +
+                (t.id === cur ? ' on' : '') +
+                '" data-tid="' +
+                esc(t.id) +
+                '">' +
+                '<span class="ai-hist-title">' +
+                esc(t.title || '新对话') +
+                '</span>' +
+                '<span class="ai-hist-meta">' +
+                esc(fmtDay(t.updatedAt)) +
+                ' · ' +
+                (t.messages || []).length +
+                '</span>' +
+                '<button class="ai-hist-rm" type="button" data-rmtid="' +
+                esc(t.id) +
+                '" title="删除该对话">×</button>' +
                 '</div>'
             )
             .join('')
@@ -1451,21 +1454,27 @@ import {
           .join('')
       : opt(c.model, c.model, c.model);
     const levels = effortLevels(modelCache, c.model);
-    const effortHint = proxy
-      ? '（本站代理固定）'
-      : levels.length
-        ? ''
-        : '（网关没报这个模型的档位）';
+    const effortHint = proxy ? '（本站代理固定）' : levels.length ? '' : '（网关没报这个模型的档位）';
     cfgEl.innerHTML =
       '<div class="ai-row"><label>Base URL</label>' +
-      '<input type="text" spellcheck="false" data-k="baseUrl" value="' + esc(c.baseUrl) + '"></div>' +
+      '<input type="text" spellcheck="false" data-k="baseUrl" value="' +
+      esc(c.baseUrl) +
+      '"></div>' +
       '<div class="ai-row"><label>API Key</label>' +
-      '<input type="password" spellcheck="false" autocomplete="off" placeholder="sk-…" data-k="apiKey" value="' + esc(c.apiKey) + '"></div>' +
+      '<input type="password" spellcheck="false" autocomplete="off" placeholder="sk-…" data-k="apiKey" value="' +
+      esc(c.apiKey) +
+      '"></div>' +
       '<div class="ai-row"><label>Model</label>' +
-      '<div class="ai-cfg-pick"><select data-k="model">' + modelOpts + '</select>' +
+      '<div class="ai-cfg-pick"><select data-k="model">' +
+      modelOpts +
+      '</select>' +
       '<button class="ai-btn" type="button" data-probe="1">探测模型</button></div></div>' +
-      '<div class="ai-row"><label>推理强度' + effortHint + '</label>' +
-      '<select data-k="effort"' + (proxy || !levels.length ? ' disabled' : '') + '>' +
+      '<div class="ai-row"><label>推理强度' +
+      effortHint +
+      '</label>' +
+      '<select data-k="effort"' +
+      (proxy || !levels.length ? ' disabled' : '') +
+      '>' +
       opt('', '默认（不传 reasoning_effort）', c.effort) +
       levels.map((lv) => opt(lv, lv, c.effort)).join('') +
       '</select></div>' +
@@ -1522,16 +1531,16 @@ import {
     out.push('');
     (t.messages || []).forEach((m) => {
       out.push('## ' + (m.role === 'user' ? '我' : '伴读'));
-      const meta = [m.model ? '模型 ' + m.model : '', m.pageTitle, m.asOf]
-        .filter(Boolean)
-        .join(' · ');
+      const meta = [m.model ? '模型 ' + m.model : '', m.pageTitle, m.asOf].filter(Boolean).join(' · ');
       if (meta) out.push('> ' + meta);
       (m.quotes || []).forEach((q) => {
         out.push('', '> 引用 · ' + (q.section || q.pageTitle || '') + (q.asOf ? ' · ' + q.asOf : ''));
         if (q.tableHeaders && q.tableHeaders.length) out.push('> 表头：' + q.tableHeaders.join(' | '));
         if (q.rowText) out.push('> 本行：' + q.rowText);
         out.push('>');
-        String(q.text || '').split('\n').forEach((l) => out.push('> ' + l));
+        String(q.text || '')
+          .split('\n')
+          .forEach((l) => out.push('> ' + l));
       });
       out.push('', m.content || '', '');
     });
@@ -1541,7 +1550,9 @@ import {
   const fileName = (t) =>
     fmtDay(t.updatedAt || Date.now()) +
     '_' +
-    String(t.title || '伴读对话').replace(/[\\/:*?"<>|\s]+/g, '-').slice(0, 40) +
+    String(t.title || '伴读对话')
+      .replace(/[\\/:*?"<>|\s]+/g, '-')
+      .slice(0, 40) +
     '.md';
 
   function download(name, text) {
@@ -1691,15 +1702,11 @@ import {
     floatBtn.style.bottom = 'auto';
     floatBtn.style.right = 'auto';
     floatBtn.style.left = (side === 'left' ? 8 : window.innerWidth - w - 8) + 'px';
-    floatBtn.style.setProperty(
-      '--fab-dx',
-      docked ? (side === 'left' ? -over : over) + 'px' : '0px'
-    );
+    floatBtn.style.setProperty('--fab-dx', docked ? (side === 'left' ? -over : over) + 'px' : '0px');
     floatBtn.dataset.fabSide = side;
     floatBtn.dataset.fabY = String(top);
     floatBtn.dataset.fabDocked = docked ? '1' : '0';
   }
-
 
   // 拖过之后位置跨宽度沿用：拖到左侧中点，窗口拉宽仍贴左缘同一高度
   // （y 由 fabPlace 按新视口再夹一次）。没拖过就贴右下角 —— 全宽度同一档。
@@ -1796,11 +1803,7 @@ import {
       if (fabSuppressClick) return; // 刚拖完，那一下不算点击
       if (floatBtn.dataset.fabDocked === '1') {
         // 点一下先弹全：开抽屉后浮钮会被盖住（分栏时 display:none），关掉时再由 close() 吸回去
-        fabPlace(
-          floatBtn.dataset.fabSide || 'right',
-          Number(floatBtn.dataset.fabY) || fabDefaultY(),
-          false
-        );
+        fabPlace(floatBtn.dataset.fabSide || 'right', Number(floatBtn.dataset.fabY) || fabDefaultY(), false);
         fabExpandedByTap = true;
       }
       toggle();
@@ -1815,7 +1818,13 @@ import {
     });
 
     // 贴底判定：只有本来就贴着底（或内容还没撑满）才跟着新 chunk 滚
-    msgsEl.addEventListener('scroll', () => { stickBottom = atBottom(); }, { passive: true });
+    msgsEl.addEventListener(
+      'scroll',
+      () => {
+        stickBottom = atBottom();
+      },
+      { passive: true }
+    );
 
     // 键盘弹出/收起时把抽屉钉在可见区（iOS Safari）
     if (window.visualViewport) {
@@ -2054,9 +2063,7 @@ import {
       // 窄屏整屏模态：Tab 在抽屉内循环，别跑到底下的页面和 Astro 开发工具条
       if (e.key === 'Tab' && drawer.getAttribute('aria-modal') === 'true') {
         const items = Array.from(
-          drawer.querySelectorAll(
-            'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
-          )
+          drawer.querySelectorAll('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])')
         ).filter((el) => !el.disabled && el.getClientRects().length);
         if (!items.length) return;
         const first = items[0];

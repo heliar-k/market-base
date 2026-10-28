@@ -97,9 +97,7 @@ export function maxTokens(env) {
 }
 
 export function allowEffort(env) {
-  return ['1', 'true', 'yes'].includes(
-    String((env && env.LLM_CHAT_ALLOW_EFFORT) || '').toLowerCase()
-  );
+  return ['1', 'true', 'yes'].includes(String((env && env.LLM_CHAT_ALLOW_EFFORT) || '').toLowerCase());
 }
 
 /** 只有 DeepSeek 官方地址认 `thinking` 字段；别的 OpenAI 兼容网关会 400。 */
@@ -114,9 +112,7 @@ function isDeepSeek(base) {
  */
 export function thinkingMode(env) {
   if (!isDeepSeek(baseUrl(env))) return null;
-  return ['0', 'false', 'no', 'off'].includes(
-    String((env && env.LLM_THINKING) || '').toLowerCase()
-  )
+  return ['0', 'false', 'no', 'off'].includes(String((env && env.LLM_THINKING) || '').toLowerCase())
     ? 'disabled'
     : 'enabled';
 }
@@ -168,10 +164,7 @@ export function validateTools(input) {
 export function validateToolChoice(input) {
   if (input === undefined || input === null) return null;
   if (!TOOL_CHOICES.has(input)) {
-    throw new HttpError(
-      422,
-      'tool_choice 只支持 "auto" / "none"（思考模式下上游不支持 required / 具名函数）'
-    );
+    throw new HttpError(422, 'tool_choice 只支持 "auto" / "none"（思考模式下上游不支持 required / 具名函数）');
   }
   return input;
 }
@@ -266,9 +259,7 @@ export function safeNoteName(raw, fallback = 'note') {
     .split(/[\\/]/)
     .pop()
     .trim();
-  name = name
-    .replace(/[\\/:*?"<>|\x00-\x1f]/g, '-')
-    .replace(/^[ .-]+|[ .-]+$/g, '');
+  name = name.replace(/[\\/:*?"<>|\x00-\x1f]/g, '-').replace(/^[ .-]+|[ .-]+$/g, '');
   if (!name) name = fallback || 'note';
   if (!/\.md$/i.test(name)) name += '.md';
   if (name.length > 120) name = name.slice(0, 117) + '.md';

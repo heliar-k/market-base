@@ -34,7 +34,9 @@ function inline(s) {
 }
 
 export function mdToHtml(src) {
-  const lines = String(src ?? '').replace(/\r\n?/g, '\n').split('\n');
+  const lines = String(src ?? '')
+    .replace(/\r\n?/g, '\n')
+    .split('\n');
   const out = [];
   let list = '';
   const closeList = () => {

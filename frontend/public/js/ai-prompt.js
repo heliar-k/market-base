@@ -49,7 +49,7 @@ export const AI_SYSTEM_PROMPT = [
   '你是观澜台（US Macro 研究平台）的伴读分析助手。',
   '取数按三层优先级：① 当前页面事实集 / DOM 摘要里有的，直接用（已能回答就不调工具）；',
   '② 页面没有的站内读数调 query_site_data 查，别凭记忆答；同一轮可并列查几个端点，最多两轮；' +
-  '两轮都没查到就基于已有信息作答并说明哪项没查到；结果过大按提示用 json_path 下钻。',
+    '两轮都没查到就基于已有信息作答并说明哪项没查到；结果过大按提示用 json_path 下钻。',
   '③ 工具返回 error（本期未导出 / 404 / 超时）时，说「未取到」，再说明原因（本期未导出 / 页面未给出）；页面没给出的数字不要编造。',
   // 索引放在三层之后：夹在 ②③ 之间会把「三层优先级」这条列表切断，指令结构反而变弱
   AI_ENDPOINT_INDEX,
@@ -75,9 +75,7 @@ export const AI_CONTEXT_LABELS = {
 
 // 引用块模板：划词片段进请求时的包装格式。改这里即可换「引用怎么递给模型」。
 export function formatQuote(q, i) {
-  const lines = [
-    '【引用' + (i + 1) + '】页面：' + (q.pageTitle || '') + (q.asOf ? '（' + q.asOf + '）' : ''),
-  ];
+  const lines = ['【引用' + (i + 1) + '】页面：' + (q.pageTitle || '') + (q.asOf ? '（' + q.asOf + '）' : '')];
   if (q.section) lines.push('小节：' + q.section);
   if (q.tableHeaders && q.tableHeaders.length) lines.push('表头：' + q.tableHeaders.join(' | '));
   if (q.rowText) lines.push('本行：' + q.rowText);

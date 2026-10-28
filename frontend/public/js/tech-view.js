@@ -11,13 +11,13 @@ const SUBVIEW_KEY = 'tech-subview';
 let currentSubview = localStorage.getItem(SUBVIEW_KEY) === 'kline' ? 'kline' : 'overview';
 let currentSymbol = null;
 let currentDiag = null;
-let overviewList = null;    // /api/tech/overview 缓存
+let overviewList = null; // /api/tech/overview 缓存
 let overviewState = 'loading'; // loading | ready | error（决定切换标的是否还要回源 /api/diag）
-let activeFilter = 'all';   // all | bullish | bearish | squeeze | oversold | overbought
-let klineData = null;       // full dataset from API
-let filteredData = null;    // after range filter
-let klineSymbol = null;     // klineData 属于哪个标的（防止切标的后仍拿旧 K 线画图/报报价）
-let klineRequestSeq = 0;    // 快速连点：只接受最后一次请求的响应
+let activeFilter = 'all'; // all | bullish | bearish | squeeze | oversold | overbought
+let klineData = null; // full dataset from API
+let filteredData = null; // after range filter
+let klineSymbol = null; // klineData 属于哪个标的（防止切标的后仍拿旧 K 线画图/报报价）
+let klineRequestSeq = 0; // 快速连点：只接受最后一次请求的响应
 const klineCache = new Map(); // symbol → records（会话内复用，切回已看过的标的零请求）
 const klinePending = new Map(); // symbol → Promise（同一标的连点只发一次请求）
 const KLINE_CACHE_MAX = 4;
@@ -45,9 +45,22 @@ const BB_COLOR = () => cssVar('--chart-slate');
 
 // type=stock 但语义是工具型 ETF：下拉框归到「指数 & ETF」组，扫描表标 ETF 而非 指数
 const ETF_LIKE = new Set([
-  'SPY', 'QQQ',
-  'TLT', 'LQD', 'HYG', 'GLD', 'SLV', 'USO', 'DBA', 'IBIT',
-  'SMH', 'IWM', 'XLK', 'XLE', 'XLF', 'XLV',
+  'SPY',
+  'QQQ',
+  'TLT',
+  'LQD',
+  'HYG',
+  'GLD',
+  'SLV',
+  'USO',
+  'DBA',
+  'IBIT',
+  'SMH',
+  'IWM',
+  'XLK',
+  'XLE',
+  'XLF',
+  'XLV',
 ]);
 
 // ── helpers ────────────────────────────────────────────────────────────────
@@ -105,7 +118,7 @@ export function initTechView() {
 
 // ── subview switch (overview / kline) ──────────────────────────────────────
 function initSubviewSwitch() {
-  document.querySelectorAll('#tech-subview-switch [data-subview]').forEach(btn => {
+  document.querySelectorAll('#tech-subview-switch [data-subview]').forEach((btn) => {
     btn.addEventListener('click', () => applySubview(btn.dataset.subview, true));
   });
 }
@@ -128,7 +141,7 @@ function applySubview(subview, persist = true) {
   currentSubview = subview === 'kline' ? 'kline' : 'overview';
   if (persist) localStorage.setItem(SUBVIEW_KEY, currentSubview);
 
-  document.querySelectorAll('#tech-subview-switch [data-subview]').forEach(btn => {
+  document.querySelectorAll('#tech-subview-switch [data-subview]').forEach((btn) => {
     btn.classList.toggle('active', btn.dataset.subview === currentSubview);
   });
 
@@ -147,12 +160,12 @@ function applySubview(subview, persist = true) {
 // ── info bar & symbol selector ─────────────────────────────────────────────
 // 当前标的的 K 线（未加载 / 刚切标的时返回 null，报价回退到诊断快照）
 function activeKlineData() {
-  return klineSymbol === currentSymbol ? (filteredData || klineData) : null;
+  return klineSymbol === currentSymbol ? filteredData || klineData : null;
 }
 
 // 总览里的诊断快照（每项就是 analyze() 完整输出，与 /api/diag 同源同字段）
 function overviewDiag(symbol) {
-  return overviewList?.find(d => d.symbol === symbol) || null;
+  return overviewList?.find((d) => d.symbol === symbol) || null;
 }
 
 function updateInfoBar() {
@@ -173,12 +186,14 @@ function updateInfoBar() {
       change.textContent = '--';
       change.className = 'tech-change';
     }
-    ohlc.textContent = currentDiag?.regime_label ? `${currentDiag.regime_label} · ${currentDiag.setup_tag || ''}` : '--';
+    ohlc.textContent = currentDiag?.regime_label
+      ? `${currentDiag.regime_label} · ${currentDiag.setup_tag || ''}`
+      : '--';
     return;
   }
   const last = data[data.length - 1];
   const prev = data.length >= 2 ? data[data.length - 2] : last;
-  const chg = prev.close ? ((last.close - prev.close) / prev.close * 100) : 0;
+  const chg = prev.close ? ((last.close - prev.close) / prev.close) * 100 : 0;
   const up = chg >= 0;
   price.textContent = last.close.toFixed(2);
   change.textContent = `${up ? '▲' : '▼'} ${up ? '+' : ''}${chg.toFixed(2)}%`;
@@ -198,12 +213,12 @@ async function loadSymbols() {
     return;
   }
 
-  const indices = symbols.filter(s => s.type === 'index' || ETF_LIKE.has(s.name));
-  const stocks   = symbols.filter(s => s.type === 'stock' && !ETF_LIKE.has(s.name));
+  const indices = symbols.filter((s) => s.type === 'index' || ETF_LIKE.has(s.name));
+  const stocks = symbols.filter((s) => s.type === 'stock' && !ETF_LIKE.has(s.name));
 
   if (sel) {
     const mkGroup = (label, list) =>
-      `<optgroup label="${esc(label)}">${list.map(s => `<option value="${esc(s.name)}">${esc(s.name)}</option>`).join('')}</optgroup>`;
+      `<optgroup label="${esc(label)}">${list.map((s) => `<option value="${esc(s.name)}">${esc(s.name)}</option>`).join('')}</optgroup>`;
     sel.innerHTML = mkGroup('指数 & ETF', indices) + mkGroup('个股', stocks);
     sel.addEventListener('change', () => {
       if (sel.value) selectSymbol(sel.value);
@@ -212,7 +227,7 @@ async function loadSymbols() {
 
   // 默认选中第一个标的（优先 SPX / AAPL / 首项）
   if (!currentSymbol && symbols.length) {
-    const def = symbols.find(s => s.name === 'SPX') || symbols.find(s => s.name === 'AAPL') || symbols[0];
+    const def = symbols.find((s) => s.name === 'SPX') || symbols.find((s) => s.name === 'AAPL') || symbols[0];
     selectSymbol(def.name);
   }
 }
@@ -222,7 +237,7 @@ export async function selectSymbol(name) {
   const sel = document.getElementById('tech-sym-select');
   if (sel && sel.value !== name) sel.value = name;
   const activeRow = document.querySelector(`.tech-ov-row[data-symbol="${CSS.escape(name)}"]`);
-  document.querySelectorAll('.tech-ov-row.active').forEach(el => {
+  document.querySelectorAll('.tech-ov-row.active').forEach((el) => {
     if (el !== activeRow) el.classList.remove('active');
   });
   activeRow?.classList.add('active');
@@ -287,14 +302,14 @@ async function ensureKline(name) {
     // 同一标的的连点/总览切 K 线重复进入只复用同一个请求
     let pending = klinePending.get(name);
     if (!pending) {
-      pending = fetch(`/api/kline/${name}`).then(res => {
+      pending = fetch(`/api/kline/${name}`).then((res) => {
         if (!res.ok) throw new Error(res.statusText);
         return res.json();
       });
       klinePending.set(name, pending);
       pending.then(
         () => klinePending.delete(name),
-        () => klinePending.delete(name),
+        () => klinePending.delete(name)
       );
     }
     try {
@@ -361,7 +376,8 @@ async function loadTechOverview() {
   } catch {
     overviewState = 'error';
     if (scanEl) {
-      scanEl.innerHTML = '<div class="tech-ov-card"><div class="sidebar-watch-empty">全市场技术扫描暂不可用 · 请确认服务已启动（uv run python -m src.server）或已运行 uv run python -m src.export_pages</div></div>';
+      scanEl.innerHTML =
+        '<div class="tech-ov-card"><div class="sidebar-watch-empty">全市场技术扫描暂不可用 · 请确认服务已启动（uv run python -m src.server）或已运行 uv run python -m src.export_pages</div></div>';
     }
     // 总览挂了也要让当前标的的结论卡有数据
     if (currentSymbol && !currentDiag) fetchDiag();
@@ -376,9 +392,8 @@ function renderCurrentConclusion(d) {
   const chgHtml = chg1d != null ? R.chgSpan(chg1d) : '';
   const asOfText = R.asOf(d.last_date || '');
 
-  const lines = Array.isArray(d.summary_lines) && d.summary_lines.length
-    ? d.summary_lines
-    : [d.summary_text || '暂无研判结论'];
+  const lines =
+    Array.isArray(d.summary_lines) && d.summary_lines.length ? d.summary_lines : [d.summary_text || '暂无研判结论'];
   const lineLabels = R.LINES_CONCLUSION;
 
   const scoreBreak = (title, total, items) => `
@@ -387,12 +402,18 @@ function renderCurrentConclusion(d) {
         <span>${esc(title)}</span>
         <span class="diag-value ${total > 0 ? 'up' : total < 0 ? 'down' : 'neutral'}">${fmtSigned(total)}</span>
       </div>
-      ${(items || []).map(s => `
+      ${
+        (items || [])
+          .map(
+            (s) => `
         <div class="diag-row">
           <span class="diag-label">${esc(s.label)}</span>
           <span class="diag-value ${s.value > 0 ? 'up' : s.value < 0 ? 'down' : 'neutral'}">${fmtSigned(s.value)}</span>
         </div>
-      `).join('') || '<div class="sidebar-watch-empty">无触发项</div>'}
+      `
+          )
+          .join('') || '<div class="sidebar-watch-empty">无触发项</div>'
+      }
     </div>
   `;
 
@@ -452,12 +473,16 @@ function renderCurrentConclusion(d) {
   // 三行结论（结论 / 依据 / 触发）
   const summaryBox = document.createElement('div');
   summaryBox.className = 'tech-ov-summary';
-  summaryBox.innerHTML = lines.map((ln, idx) => `
+  summaryBox.innerHTML = lines
+    .map(
+      (ln, idx) => `
     <div class="tech-ov-summary-item">
       <div class="tech-ov-summary-label">${esc(lineLabels[idx] || '要点')}</div>
       <p class="tech-ov-summary-text">${esc(ln)}</p>
     </div>
-  `).join('');
+  `
+    )
+    .join('');
   card.appendChild(summaryBox);
 
   // 三维评分依据明细（趋势 / 动量 / 位置与反转）
@@ -472,20 +497,30 @@ function renderCurrentConclusion(d) {
   // 辅助震荡与阶段涨跌快照（原右侧栏指标合入此处，CCI 仅展示不计分）
   if (R.kvRows) {
     const auxItems = [
-      { label: 'Stoch K / D', note: d.STOCH_detail || '', value: `${d.STOCH_k?.toFixed(1) ?? '—'} / ${d.STOCH_d?.toFixed(1) ?? '—'}` },
+      {
+        label: 'Stoch K / D',
+        note: d.STOCH_detail || '',
+        value: `${d.STOCH_k?.toFixed(1) ?? '—'} / ${d.STOCH_d?.toFixed(1) ?? '—'}`,
+      },
       { label: 'CCI（仅展示不计分）', note: d.CCI_detail || '', value: d.CCI != null ? d.CCI.toFixed(1) : '—' },
       { label: 'MFI 资金流', value: d.MFI != null ? d.MFI.toFixed(1) : '—' },
       { label: 'OBV 量价背离', value: esc(d.OBV_divergence || '无') },
       { label: '量比 (vs MA20)', value: d.vol_ratio != null ? `${d.vol_ratio.toFixed(2)}x` : '—' },
       {
         label: '阶段涨跌 (5D / 1M / 3M)',
-        value: ['5d', '1m', '3m'].map(k => d.changes?.[k] != null ? fmtSigned(d.changes[k], 1, '%') : '—').join(' / '),
+        value: ['5d', '1m', '3m']
+          .map((k) => (d.changes?.[k] != null ? fmtSigned(d.changes[k], 1, '%') : '—'))
+          .join(' / '),
       },
     ];
     card.appendChild(R.kvRows(auxItems));
   }
 
-  card.appendChild(R.secNote('评分口径：趋势（MA20/50/200 排列、MA200 牛熊线、ADX、SuperTrend、周/日 SMC 结构）+ 动量（MACD 金死叉与柱体、RSI 动量带、OBV 背离）+ 位置反转（RSI/Stoch 去重超买超卖、MFI 背离、50 日折溢价区、流动性扫荡、关键 K 线形态）。点击下方任意标的切换结论，双击或点行末「K线」直达图表。'));
+  card.appendChild(
+    R.secNote(
+      '评分口径：趋势（MA20/50/200 排列、MA200 牛熊线、ADX、SuperTrend、周/日 SMC 结构）+ 动量（MACD 金死叉与柱体、RSI 动量带、OBV 背离）+ 位置反转（RSI/Stoch 去重超买超卖、MFI 背离、50 日折溢价区、流动性扫荡、关键 K 线形态）。点击下方任意标的切换结论，双击或点行末「K线」直达图表。'
+    )
+  );
 
   host.appendChild(card);
 }
@@ -525,10 +560,10 @@ function renderScanSection() {
   toolbar.innerHTML = `
     <div class="tech-ov-scan-title">全标的信号扫描 <span class="tech-ov-date">共 ${overviewList.length} 标的 · 点击行查看结论，点「K线」切图表</span></div>
     <div class="tech-ov-filters">
-      ${filters.map(f => `<button type="button" class="range-btn${activeFilter === f.key ? ' active' : ''}" data-filter="${f.key}">${esc(f.label)}</button>`).join('')}
+      ${filters.map((f) => `<button type="button" class="range-btn${activeFilter === f.key ? ' active' : ''}" data-filter="${f.key}">${esc(f.label)}</button>`).join('')}
     </div>
   `;
-  toolbar.querySelectorAll('[data-filter]').forEach(btn => {
+  toolbar.querySelectorAll('[data-filter]').forEach((btn) => {
     btn.addEventListener('click', () => {
       activeFilter = btn.dataset.filter;
       renderScanSection();
@@ -556,11 +591,13 @@ function renderScanSection() {
         </tr>
       </thead>
       <tbody>
-        ${rows.map(d => {
-          const chg1d = d.changes?.['1d'];
-          const dist200 = d.ma_dists?.MA200;
-          const isAct = d.symbol === currentSymbol;
-          return `
+        ${
+          rows
+            .map((d) => {
+              const chg1d = d.changes?.['1d'];
+              const dist200 = d.ma_dists?.MA200;
+              const isAct = d.symbol === currentSymbol;
+              return `
             <tr class="tech-ov-row${isAct ? ' active' : ''}" data-symbol="${esc(d.symbol)}">
               <td><strong>${esc(d.symbol)}</strong> <span class="tech-ov-type">${d.type === 'index' ? '指数' : ETF_LIKE.has(d.symbol) ? 'ETF' : ''}</span></td>
               <td class="num">${d.last_price != null ? '$' + d.last_price.toFixed(2) : '—'}</td>
@@ -578,12 +615,14 @@ function renderScanSection() {
               <td class="num"><button type="button" class="range-btn tech-ov-kbtn" data-go-kline="${esc(d.symbol)}">K线</button></td>
             </tr>
           `;
-        }).join('') || '<tr><td colspan="11" class="sidebar-watch-empty">当前筛选条件下无匹配标的</td></tr>'}
+            })
+            .join('') || '<tr><td colspan="11" class="sidebar-watch-empty">当前筛选条件下无匹配标的</td></tr>'
+        }
       </tbody>
     </table>
   `;
 
-  wrap.querySelectorAll('.tech-ov-row').forEach(tr => {
+  wrap.querySelectorAll('.tech-ov-row').forEach((tr) => {
     tr.addEventListener('click', (e) => {
       if (e.target.closest('[data-go-kline]')) return;
       const sym = tr.dataset.symbol;
@@ -598,7 +637,7 @@ function renderScanSection() {
     });
   });
 
-  wrap.querySelectorAll('[data-go-kline]').forEach(btn => {
+  wrap.querySelectorAll('[data-go-kline]').forEach((btn) => {
     btn.addEventListener('click', (e) => {
       e.stopPropagation();
       const sym = btn.dataset.goKline;
@@ -615,7 +654,10 @@ function renderScanSection() {
 
 // ── range filter ───────────────────────────────────────────────────────────
 function applyRangeFilter() {
-  if (!klineData || !klineData.length) { filteredData = klineData; return; }
+  if (!klineData || !klineData.length) {
+    filteredData = klineData;
+    return;
+  }
   if (currentDays === 0) {
     filteredData = klineData;
   } else {
@@ -629,9 +671,9 @@ function applyRangeFilter() {
 }
 
 function initRangeControls() {
-  document.querySelectorAll('#kline-range-controls .range-btn').forEach(btn => {
+  document.querySelectorAll('#kline-range-controls .range-btn').forEach((btn) => {
     btn.addEventListener('click', () => {
-      document.querySelectorAll('#kline-range-controls .range-btn').forEach(b => b.classList.remove('active'));
+      document.querySelectorAll('#kline-range-controls .range-btn').forEach((b) => b.classList.remove('active'));
       btn.classList.add('active');
       currentDays = Number(btn.dataset.range);
       applyRangeFilter();
@@ -645,33 +687,58 @@ function initRangeControls() {
 let _chartContainers = []; // ResizeObserver targets
 
 function initCharts() {
-  const mainEl   = document.getElementById('main-chart');
-  const rsiEl    = document.getElementById('rsi-chart');
-  const macdEl   = document.getElementById('macd-chart');
+  const mainEl = document.getElementById('main-chart');
+  const rsiEl = document.getElementById('rsi-chart');
+  const macdEl = document.getElementById('macd-chart');
 
-  mainChart = LightweightCharts.createChart(mainEl, { ...CHART_OPTS, width: mainEl.clientWidth || 600, height: mainEl.clientHeight || 260 });
+  mainChart = LightweightCharts.createChart(mainEl, {
+    ...CHART_OPTS,
+    width: mainEl.clientWidth || 600,
+    height: mainEl.clientHeight || 260,
+  });
   mainChart.priceScale('right').applyOptions({ autoScale: true, scaleMargins: { top: 0.1, bottom: 0.15 } });
   candleSeries = mainChart.addCandlestickSeries(candleColors());
   // ponytail: thin volume overlay on main chart for quick visual reference
   volumeOverlaySeries = mainChart.addHistogramSeries({
-    priceFormat: { type: 'volume' }, priceScaleId: 'vol',
+    priceFormat: { type: 'volume' },
+    priceScaleId: 'vol',
     color: volumeColor(),
   });
   mainChart.priceScale('vol').applyOptions({ scaleMargins: { top: 0.85, bottom: 0 }, visible: true });
 
-  rsiChart = LightweightCharts.createChart(rsiEl, { ...CHART_OPTS, width: rsiEl.clientWidth || 600, height: rsiEl.clientHeight || 120 });
+  rsiChart = LightweightCharts.createChart(rsiEl, {
+    ...CHART_OPTS,
+    width: rsiEl.clientWidth || 600,
+    height: rsiEl.clientHeight || 120,
+  });
   rsiChart.priceScale('right').applyOptions({ minimum: 0, maximum: 100 });
   rsiSeries = rsiChart.addLineSeries({ color: cssVar('--chart-violet'), lineWidth: 1.5 });
-  rsiUpper = rsiChart.addLineSeries({ color: cssVar('--color-down'), lineWidth: 1, lineStyle: 2, priceLineVisible: false, lastValueVisible: false });
-  rsiLower = rsiChart.addLineSeries({ color: cssVar('--color-up'), lineWidth: 1, lineStyle: 2, priceLineVisible: false, lastValueVisible: false });
+  rsiUpper = rsiChart.addLineSeries({
+    color: cssVar('--color-down'),
+    lineWidth: 1,
+    lineStyle: 2,
+    priceLineVisible: false,
+    lastValueVisible: false,
+  });
+  rsiLower = rsiChart.addLineSeries({
+    color: cssVar('--color-up'),
+    lineWidth: 1,
+    lineStyle: 2,
+    priceLineVisible: false,
+    lastValueVisible: false,
+  });
 
-  macdChart = LightweightCharts.createChart(macdEl, { ...CHART_OPTS, width: macdEl.clientWidth || 600, height: macdEl.clientHeight || 120 });
+  macdChart = LightweightCharts.createChart(macdEl, {
+    ...CHART_OPTS,
+    width: macdEl.clientWidth || 600,
+    height: macdEl.clientHeight || 120,
+  });
   macdHistSeries = macdChart.addHistogramSeries({ priceFormat: { type: 'price', precision: 2 } });
   macdLineSeries = macdChart.addLineSeries({ color: cssVar('--color-brand'), lineWidth: 1.5 });
   macdSignalSeries = macdChart.addLineSeries({ color: cssVar('--color-warn'), lineWidth: 1.5 });
 
   // resize observer — auto-adapt when container size changes (window resize / subview switch)
-  _chartContainers.forEach(ro => ro?.disconnect());
+  _chartContainers.forEach((ro) => ro?.disconnect());
   _chartContainers = [];
   const charts = [
     { el: mainEl, chart: mainChart },
@@ -679,7 +746,7 @@ function initCharts() {
     { el: macdEl, chart: macdChart },
   ];
   charts.forEach(({ el, chart }) => {
-    const ro = new ResizeObserver(entries => {
+    const ro = new ResizeObserver((entries) => {
       for (const e of entries) {
         const w = e.contentRect.width;
         const h = e.contentRect.height;
@@ -692,40 +759,48 @@ function initCharts() {
 
   // 主题热切换：布局 + 各 series 颜色都重新从当前主题 token 取，再重绘（renderCharts 内含 overlay/逐点色重算）
   window.addEventListener('theme-changed', () => {
-    [mainChart, rsiChart, macdChart].forEach(c => c.applyOptions(darkChartOpts()));
+    [mainChart, rsiChart, macdChart].forEach((c) => c.applyOptions(darkChartOpts()));
     applySeriesColors();
     renderCharts();
   });
   // 应用初始主题
   if (document.body.classList.contains('dark')) {
     const darkOpts = darkChartOpts();
-    [mainChart, rsiChart, macdChart].forEach(c => c.applyOptions(darkOpts));
+    [mainChart, rsiChart, macdChart].forEach((c) => c.applyOptions(darkOpts));
   }
 
   // sync time scales across all 3 charts
   const allCharts = [mainChart, rsiChart, macdChart];
   const syncFrom = (src, targets) => {
-    src.timeScale().subscribeVisibleLogicalRangeChange(range => {
+    src.timeScale().subscribeVisibleLogicalRangeChange((range) => {
       if (!range) return;
-      targets.forEach(t => t.timeScale().setVisibleLogicalRange(range));
+      targets.forEach((t) => t.timeScale().setVisibleLogicalRange(range));
     });
   };
-  allCharts.forEach(src => syncFrom(src, allCharts.filter(t => t !== src)));
+  allCharts.forEach((src) =>
+    syncFrom(
+      src,
+      allCharts.filter((t) => t !== src)
+    )
+  );
 
   // crosshair sync
   // 副图十字光标同步：lightweight-charts v4.2.2 的签名是
   // setCrosshairPosition(price, horizontalPosition: time, seriesApi)，第三参数必须是
   // seriesApi 句柄（内部 xw.get(seriesApi) 查不到就静默 return）。
   // 原实现传 (NaN, NaN, param.time) 从未生效，这里改为 [图, 该图的 seriesApi, 数据列名]。
-  const subCharts = [[rsiChart, rsiSeries, 'RSI'], [macdChart, macdHistSeries, 'MACD_hist']];
-  mainChart.subscribeCrosshairMove(param => {
+  const subCharts = [
+    [rsiChart, rsiSeries, 'RSI'],
+    [macdChart, macdHistSeries, 'MACD_hist'],
+  ];
+  mainChart.subscribeCrosshairMove((param) => {
     if (!param || !param.time) {
       crosshairDate = null;
       subCharts.forEach(([c]) => c.clearCrosshairPosition());
       return;
     }
     crosshairDate = param.time;
-    const row = filteredData ? filteredData.find(d => d.date === param.time) : null;
+    const row = filteredData ? filteredData.find((d) => d.date === param.time) : null;
     subCharts.forEach(([c, s, key]) => {
       const v = row ? row[key] : null;
       if (v == null) c.clearCrosshairPosition();
@@ -737,15 +812,22 @@ function initCharts() {
 
 // ── 图表颜色：单源 tokens.css ───────────────────────────────────────────────
 function candleColors() {
-  const up = cssVar('--color-up'), down = cssVar('--color-down');
+  const up = cssVar('--color-up'),
+    down = cssVar('--color-down');
   return {
-    upColor: up, downColor: down, borderUpColor: up, borderDownColor: down,
-    wickUpColor: up, wickDownColor: down,
+    upColor: up,
+    downColor: down,
+    borderUpColor: up,
+    borderDownColor: down,
+    wickUpColor: up,
+    wickDownColor: down,
     priceFormat: { type: 'price', precision: 2, minMove: 0.01 },
   };
 }
 // 量能柱：品牌蓝半透明（8 位十六进制后缀，承接原浅蓝量能色的语义位）
-function volumeColor() { return cssVar('--color-brand') + '99'; }
+function volumeColor() {
+  return cssVar('--color-brand') + '99';
+}
 
 // 主题切换后把新色应用到非逐点着色的 series（逐点色由 renderCharts/refreshOverlays 重算）
 function applySeriesColors() {
@@ -769,7 +851,11 @@ function clearCharts() {
   macdHistSeries.setData([]);
   macdLineSeries.setData([]);
   macdSignalSeries.setData([]);
-  Object.values(maSeries).forEach(s => { try { mainChart.removeSeries(s); } catch {} });
+  Object.values(maSeries).forEach((s) => {
+    try {
+      mainChart.removeSeries(s);
+    } catch {}
+  });
   maSeries = {};
   crosshairDate = null;
 }
@@ -784,8 +870,8 @@ function renderCharts() {
   const down = cssVar('--color-down');
   const upSoft = up + '4D';
   const downSoft = down + '4D';
-  const candles = data.map(d => ({ time: d.date, open: d.open, high: d.high, low: d.low, close: d.close }));
-  const volumes = data.map(d => ({
+  const candles = data.map((d) => ({ time: d.date, open: d.open, high: d.high, low: d.low, close: d.close }));
+  const volumes = data.map((d) => ({
     time: d.date,
     value: d.volume ?? 0,
     color: d.close >= d.open ? upSoft : downSoft,
@@ -794,21 +880,24 @@ function renderCharts() {
   volumeOverlaySeries.setData(volumes);
 
   // RSI
-  const rsi = data.filter(d => d.RSI != null).map(d => ({ time: d.date, value: d.RSI }));
+  const rsi = data.filter((d) => d.RSI != null).map((d) => ({ time: d.date, value: d.RSI }));
   rsiSeries.setData(rsi);
   if (rsi.length) {
-    const times = rsi.map(d => d.time);
-    rsiUpper.setData(times.map(t => ({ time: t, value: 70 })));
-    rsiLower.setData(times.map(t => ({ time: t, value: 30 })));
+    const times = rsi.map((d) => d.time);
+    rsiUpper.setData(times.map((t) => ({ time: t, value: 70 })));
+    rsiLower.setData(times.map((t) => ({ time: t, value: 30 })));
   }
 
   // MACD
-  const hist = data.filter(d => d.MACD_hist != null).map(d => ({
-    time: d.date, value: d.MACD_hist,
-    color: d.MACD_hist >= 0 ? up : down,
-  }));
-  const macdLine = data.filter(d => d.MACD != null).map(d => ({ time: d.date, value: d.MACD }));
-  const signalLine = data.filter(d => d.MACD_signal != null).map(d => ({ time: d.date, value: d.MACD_signal }));
+  const hist = data
+    .filter((d) => d.MACD_hist != null)
+    .map((d) => ({
+      time: d.date,
+      value: d.MACD_hist,
+      color: d.MACD_hist >= 0 ? up : down,
+    }));
+  const macdLine = data.filter((d) => d.MACD != null).map((d) => ({ time: d.date, value: d.MACD }));
+  const signalLine = data.filter((d) => d.MACD_signal != null).map((d) => ({ time: d.date, value: d.MACD_signal }));
   macdHistSeries.setData(hist);
   macdLineSeries.setData(macdLine);
   macdSignalSeries.setData(signalLine);
@@ -819,7 +908,7 @@ function renderCharts() {
 
 // ── overlays ───────────────────────────────────────────────────────────────
 function initControls() {
-  document.querySelectorAll('#controls input[type="checkbox"]').forEach(cb => {
+  document.querySelectorAll('#controls input[type="checkbox"]').forEach((cb) => {
     cb.addEventListener('change', refreshOverlays);
   });
   initRangeControls();
@@ -829,27 +918,35 @@ function refreshOverlays() {
   if (klineSymbol !== currentSymbol) return;
   const data = filteredData;
   if (!data) return;
-  Object.values(maSeries).forEach(s => { try { mainChart.removeSeries(s); } catch {} });
+  Object.values(maSeries).forEach((s) => {
+    try {
+      mainChart.removeSeries(s);
+    } catch {}
+  });
   maSeries = {};
 
-  const active = [...document.querySelectorAll('#controls input[type="checkbox"]:checked')].map(c => c.dataset.ma);
+  const active = [...document.querySelectorAll('#controls input[type="checkbox"]:checked')].map((c) => c.dataset.ma);
 
-  active.forEach(key => {
+  active.forEach((key) => {
     if (key === 'BB') {
       const bb = BB_COLOR();
-      const upper = data.filter(d => d.BB_upper != null).map(d => ({ time: d.date, value: d.BB_upper }));
-      const lower = data.filter(d => d.BB_lower != null).map(d => ({ time: d.date, value: d.BB_lower }));
-      const mid = data.filter(d => d.BB_mid != null).map(d => ({ time: d.date, value: d.BB_mid }));
+      const upper = data.filter((d) => d.BB_upper != null).map((d) => ({ time: d.date, value: d.BB_upper }));
+      const lower = data.filter((d) => d.BB_lower != null).map((d) => ({ time: d.date, value: d.BB_lower }));
+      const mid = data.filter((d) => d.BB_mid != null).map((d) => ({ time: d.date, value: d.BB_mid }));
       maSeries['BB_upper'] = addLine(mainChart, upper, bb, 1, 2);
       maSeries['BB_lower'] = addLine(mainChart, lower, bb, 1, 2);
       maSeries['BB_mid'] = addLine(mainChart, mid, bb, 1, 0);
     } else if (key === 'ST') {
-      const stUp = data.filter(d => d.SUPERT_dir === 1 && d.SUPERT != null).map(d => ({ time: d.date, value: d.SUPERT }));
-      const stDn = data.filter(d => d.SUPERT_dir === -1 && d.SUPERT != null).map(d => ({ time: d.date, value: d.SUPERT }));
+      const stUp = data
+        .filter((d) => d.SUPERT_dir === 1 && d.SUPERT != null)
+        .map((d) => ({ time: d.date, value: d.SUPERT }));
+      const stDn = data
+        .filter((d) => d.SUPERT_dir === -1 && d.SUPERT != null)
+        .map((d) => ({ time: d.date, value: d.SUPERT }));
       maSeries['ST_up'] = addLine(mainChart, stUp, cssVar('--color-up'), 2, 0);
       maSeries['ST_dn'] = addLine(mainChart, stDn, cssVar('--color-down'), 2, 0);
     } else {
-      const d2 = data.filter(d => d[key] != null).map(d => ({ time: d.date, value: d[key] }));
+      const d2 = data.filter((d) => d[key] != null).map((d) => ({ time: d.date, value: d[key] }));
       const width = key === 'MA200' ? 2 : 1.5;
       maSeries[key] = addLine(mainChart, d2, MA_COLORS()[key] || cssVar('--text-secondary'), width, 0);
     }
@@ -906,7 +1003,7 @@ function isEditableTarget(el) {
 }
 
 function initKeyboard() {
-  document.addEventListener('keydown', e => {
+  document.addEventListener('keydown', (e) => {
     if (app.dataset.view !== 'tech' || currentSubview !== 'kline') return;
     if (isEditableTarget(e.target) || isEditableTarget(document.activeElement)) return;
     const data = activeKlineData();
@@ -917,7 +1014,7 @@ function initKeyboard() {
       const range = ts.getVisibleLogicalRange();
       if (!range) return;
       const totalBars = data.length;
-      let idx = crosshairDate ? data.findIndex(d => d.date === crosshairDate) : Math.floor(totalBars / 2);
+      let idx = crosshairDate ? data.findIndex((d) => d.date === crosshairDate) : Math.floor(totalBars / 2);
       idx += e.key === 'ArrowRight' ? 1 : -1;
       idx = Math.max(0, Math.min(totalBars - 1, idx));
       crosshairDate = data[idx].date;
@@ -934,8 +1031,7 @@ export function updateStatus() {
   const data = activeKlineData();
   if (data && data.length) {
     document.getElementById('status-count').textContent = `${data.length} 条数据`;
-    document.getElementById('status-range').textContent =
-      `${data[0].date} → ${data[data.length - 1].date}`;
+    document.getElementById('status-range').textContent = `${data[0].date} → ${data[data.length - 1].date}`;
   } else {
     document.getElementById('status-count').textContent = '';
     document.getElementById('status-range').textContent = '';

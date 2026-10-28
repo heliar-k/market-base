@@ -11,10 +11,14 @@ function reCssVar(name) {
 // 序列色板（8 色）：前 4 位为语义色 token，后 4 位为分类色 token
 function RE_CHART_COLORS() {
   return [
-    reCssVar('--color-brand'), reCssVar('--color-warn'),
-    reCssVar('--color-up'), reCssVar('--color-down'),
-    reCssVar('--chart-purple'), reCssVar('--chart-cyan'),
-    reCssVar('--chart-violet'), reCssVar('--chart-slate'),
+    reCssVar('--color-brand'),
+    reCssVar('--color-warn'),
+    reCssVar('--color-up'),
+    reCssVar('--color-down'),
+    reCssVar('--chart-purple'),
+    reCssVar('--chart-cyan'),
+    reCssVar('--chart-violet'),
+    reCssVar('--chart-slate'),
   ];
 }
 
@@ -31,30 +35,40 @@ function buildTheme() {
   const splitLine = { lineStyle: { color: borderSubtle } };
   return {
     backgroundColor: 'transparent',
-    textStyle: { color: textSecondary, fontFamily: "system-ui, -apple-system, sans-serif", fontSize: 12 },
-    title: { textStyle: { color: text, fontSize: 14, fontWeight: 600 }, subtextStyle: { color: textMuted, fontSize: 11 } },
+    textStyle: { color: textSecondary, fontFamily: 'system-ui, -apple-system, sans-serif', fontSize: 12 },
+    title: {
+      textStyle: { color: text, fontSize: 14, fontWeight: 600 },
+      subtextStyle: { color: textMuted, fontSize: 11 },
+    },
     legend: { textStyle: { color: textSecondary, fontSize: 11 }, itemWidth: 18, itemHeight: 6 },
     tooltip: {
-      backgroundColor: bg, borderColor: borderColor, borderWidth: 1,
+      backgroundColor: bg,
+      borderColor: borderColor,
+      borderWidth: 1,
       textStyle: { color: text, fontSize: 12, fontFamily: mono },
       // 阴影走 CSS 变量（tokens/app.css 单源）：tooltip DOM 挂在 body 内，var() 可继承解析
       extraCssText: 'border-radius: 8px; box-shadow: var(--shadow-pop); backdrop-filter: blur(8px);',
     },
     categoryAxis: {
-      axisLine: { lineStyle: { color: borderColor } }, axisTick: { lineStyle: { color: borderColor } },
-      axisLabel: axisLabel, splitLine: splitLine,
+      axisLine: { lineStyle: { color: borderColor } },
+      axisTick: { lineStyle: { color: borderColor } },
+      axisLabel: axisLabel,
+      splitLine: splitLine,
     },
     valueAxis: {
-      axisLine: { show: false }, axisTick: { show: false },
-      axisLabel: axisLabel, splitLine: splitLine,
+      axisLine: { show: false },
+      axisTick: { show: false },
+      axisLabel: axisLabel,
+      splitLine: splitLine,
     },
     timeAxis: {
-      axisLine: { lineStyle: { color: borderColor } }, axisTick: { lineStyle: { color: borderColor } },
+      axisLine: { lineStyle: { color: borderColor } },
+      axisTick: { lineStyle: { color: borderColor } },
       // 5.5+ time 轴内置两级标签（primary 年份默认 bold + 12px sans-serif）；除深色外全打平到
       // 次级标签样式——rich 不继承外层 axisLabel，字号/字体须显式写
       axisLabel: {
         ...axisLabel,
-        hideOverlap: true,  // time 轴窄屏必重叠(周标签撞月标签，768 起)、月标签优先保留，按墨迹实扫定
+        hideOverlap: true, // time 轴窄屏必重叠(周标签撞月标签，768 起)、月标签优先保留，按墨迹实扫定
         rich: { primary: { fontWeight: 'normal', fontSize: 10, fontFamily: mono, color: textSecondary } },
       },
       splitLine: splitLine,
@@ -77,7 +91,8 @@ function buildTheme() {
 const RE_LEGEND = {
   solid: 'path://M0,2 L20,2 L20,4 L0,4 Z',
   dashed: 'path://M0,2 L8,2 L8,4 L0,4 Z M12,2 L20,2 L20,4 L12,4 Z',
-  dotted: 'path://M0,2 L2.5,2 L2.5,4 L0,4 Z M6,2 L8.5,2 L8.5,4 L6,4 Z M12,2 L14.5,2 L14.5,4 L12,4 Z M17.5,2 L20,2 L20,4 L17.5,4 Z',
+  dotted:
+    'path://M0,2 L2.5,2 L2.5,4 L0,4 Z M6,2 L8.5,2 L8.5,4 L6,4 Z M12,2 L14.5,2 L14.5,4 L12,4 Z M17.5,2 L20,2 L20,4 L17.5,4 Z',
   dashdot: 'path://M0,2 L7,2 L7,4 L0,4 Z M9.5,2 L11.5,2 L11.5,4 L9.5,4 Z M14,2 L20,2 L20,4 L14,4 Z',
   band: 'path://M0,0 L20,0 L20,6 L0,6 Z',
   // 带圆点的实线（图上画 symbol: 'circle' 的那类，如曲线对比的「当前」）
@@ -133,14 +148,25 @@ function registerMacroTheme() {
  *  中段 = --surface-alt，过渡色由端点插值生成；本文件仍无色值字面量。
  *  消费方：js/cross-correlation.js 与 assets/index.html 相关矩阵。 */
 function reCorrRamp() {
-  const neg = reCssVar('--color-brand'), pos = reCssVar('--color-down'), mid = reCssVar('--surface-alt');
+  const neg = reCssVar('--color-brand'),
+    pos = reCssVar('--color-down'),
+    mid = reCssVar('--surface-alt');
   return [neg, mixHex(neg, mid, 0.72), mid, mixHex(pos, mid, 0.72), pos];
 }
 // 6 位十六进制颜色线性插值（仅供 reCorrRamp 生成过渡带）
 function mixHex(a, b, t) {
   const p = (h) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16));
   const [pa, pb] = [p(a), p(b)];
-  return '#' + pa.map((x, i) => Math.round(x + (pb[i] - x) * t).toString(16).padStart(2, '0')).join('');
+  return (
+    '#' +
+    pa
+      .map((x, i) =>
+        Math.round(x + (pb[i] - x) * t)
+          .toString(16)
+          .padStart(2, '0')
+      )
+      .join('')
+  );
 }
 
 /** Re-render an existing ECharts instance with the current dark/light theme.
