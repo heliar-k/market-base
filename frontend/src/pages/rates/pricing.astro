@@ -94,12 +94,6 @@ const expCls = (label) => (label === '降息' ? 'cut' : label === '加息' ? 'hi
 const CLS_COLOR = { cut: 'up', hold: 'neutral', hike: 'down' };
 // 三档聚合标签（renderCards 桶位行用；与表格 numCell 同口径：ZQ 三档 / PM 聚合）
 const BUCKETS3 = [['cut', '降息', 'cut'], ['hold', '维持', 'hold'], ['hike', '加息', 'hike']];
-// 分歧角标（五档行 / hero 对垒）：|Δ|<5pp 不出现
-const dchip = (zq, pm) => {
-  const x = delta(zq, pm);
-  if (!x.hot) return '';
-  return `<span class="dchip ${x.big ? 'big' : 'mid'}">${x.arrow}${x.pp.toFixed(0)}pp</span>`;
-};
 // PM 五档 → 三档聚合（与 ZQ prob_cut/hold/hike 同口径）
 const pmAgg = (m) => {
   const b = m.polymarket?.buckets;
@@ -304,8 +298,7 @@ function renderHero(m) {
     return `<div class="row"><span class="lab ${cls}">${label}</span>
       <div class="track"><div class="f-zq" style="width:${z * 100}%;background:${color}"></div>
         <div class="f-pm" style="width:${p * 100}%;background:${color}"></div></div>
-      <span class="val"><i>${pct1(p)}</i><s>/</s><u>${pct1(z)}</u></span>
-      <span class="chip">${agg ? dchip(z, p) : ''}</span></div>`;
+      <span class="val"><i>${pct1(p)}</i><s>/</s><u>${pct1(z)}</u></span></div>`;
   }).join('');
   const exp = expCls(m.expectation);
   el.innerHTML = `

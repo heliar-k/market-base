@@ -938,16 +938,7 @@ body.dark .pm-topic-card { box-shadow: inset 0 0 0 1px rgba(255,255,255,.04); }
 .hc-verdict .side .sub { font-size: 11px; color: var(--text-dim); line-height: 1.5; }
 .hc-verdict .vs { font-size: 11px; color: var(--text-dim); text-align: center; }
 .hc-bk { display: flex; flex-direction: column; gap: 5px; }
-.hc-bk .row { display: grid; grid-template-columns: 56px 1fr 104px 62px; gap: 8px; align-items: center; font-size: 12px; }
-/* 空胶囊不占位：PM 聚合数据缺失时（agg=null）五枚 chip 全空，但 62px 列 + gap 依旧
- * 占位，把数字列从内容右缘挤开 70px —— 而上方对垒栏是贴满内容宽的，整个概率区
- * 看起来「太偏左」（320px 因胶囊独占一行反而贴右，两档宽度不一致即此）。
- * display:none 的 grid item 不产生隐式行，不会多出行高/行距；
- * 列收窄只限桌面（≤420 的两列布局由媒体查询接管，那边胶囊本来就独占一行）。 */
-.hc-bk .row:not(:has(.chip:not(:empty))) .chip { display: none; }
-@media (min-width: 421px) {
-  .hc-bk .row:not(:has(.chip:not(:empty))) { grid-template-columns: 56px 1fr 104px; }
-}
+.hc-bk .row { display: grid; grid-template-columns: 56px 1fr 104px; gap: 8px; align-items: center; font-size: 12px; }
 .hc-bk .lab { text-align: right; font-family: var(--font-mono); }
 .hc-bk .lab.cut { color: var(--color-up-text); } .hc-bk .lab.hold { color: var(--color-neutral-text); } .hc-bk .lab.hike { color: var(--color-down-text); }
 .hc-bk .track { height: 9px; background: var(--surface-alt); border-radius: 3px; position: relative; overflow: hidden; }
@@ -958,11 +949,9 @@ body.dark .pm-topic-card { box-shadow: inset 0 0 0 1px rgba(255,255,255,.04); }
 .hc-bk .val i { text-align: right; font-style: normal; }
 .hc-bk .val s { text-align: center; color: var(--text-dim); text-decoration: none; }
 .hc-bk .val u { text-align: left; font-style: normal; text-decoration: none; color: var(--text-secondary); }
-.hc-bk .chip { text-align: left; white-space: nowrap; }
-.hc-bk .chip .dchip { margin-left: 0; }
-/* ≤420px 窄屏：卡内容列不够放「标签 + 进度条 + 双源数字 + 角标」（.row min-content 246px，
+/* ≤420px 窄屏：卡内容列不够放「标签 + 进度条 + 双源数字」（.row min-content 246px，
  * 而 320px 视口只剩 158px）。三列定宽写死，缩字号无效（实测 12/11/10.5px 三档 min-content 纹丝不动），
- * 只能砍列：进度条隐藏（数字 0.0% / 0.4% 已把双源摆平，窄屏不靠条读大小），角标换第二行左对。
+ * 只能砍列：进度条隐藏（数字 0.0% / 0.4% 已把双源摆平，窄屏不靠条读大小）。
  * 行字号 12→11px 与砍列配套。
  * 位置必须在上面全部 base 规则之后：.hc-verdict .side .num 与 media 里同特异性（0,3,0），
  * 写在前面会被 base 的 26px 按顺序覆盖（实测字号纹丝不动）。 */
@@ -977,7 +966,6 @@ body.dark .pm-topic-card { box-shadow: inset 0 0 0 1px rgba(255,255,255,.04); }
      375px→57px / 390px→72px / 420px→104px，均可读；真正放不下的只有 ≤366px（下方收窄）。 */
   .hc-bk .row { grid-template-columns: 36px 1fr 104px; gap: 6px; font-size: 11px; }
   .hc-bk .val { justify-self: stretch; }
-  .hc-bk .chip { grid-column: 1 / -1; justify-self: start; }
   /* 头部：flex 换行按 DOM 顺序装箱，中间的 .hc-tag（108px）会隔开日期与胶囊，
      导致胶囊永远轮不到与日期同排 → 孤零零飘在第三行右边。用 order 把胶囊提到标签前，
      保住桌面语义（日期 + 胶囊两端对齐，标签次行） */
@@ -1015,7 +1003,6 @@ body.dark .pm-topic-card { box-shadow: inset 0 0 0 1px rgba(255,255,255,.04); }
 .pb .s-cut { background: var(--color-up); } .pb .s-hold { background: var(--color-neutral); } .pb .s-hike { background: var(--color-down); }
 .dchip { display: inline-block; font-size: 11px; line-height: 15px; font-weight: 600; padding: 0 5px; border-radius: 4px; margin-left: 6px; }
 .dchip.big { background: var(--color-warn-bg, var(--surface-alt)); color: var(--color-warn-text); border: 1px solid currentColor; }
-.dchip.mid { color: var(--text-dim); border: 1px solid var(--border); }
 /* 概率分布明细表：每会议一行，ZQ/PM 同格双条 */
 .re-table .dual { min-width: 220px; }
 .dual-row { display: flex; align-items: center; gap: 6px; margin: 2px 0; }
