@@ -13,11 +13,7 @@
 <meta name="theme-color" content="#f6f9fc" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#111217" media="(prefers-color-scheme: dark)">
 <title>观澜台</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<!-- 异步加载字体：同步 stylesheet 在 fonts.googleapis.com 不可达时会阻塞首屏到 TCP 超时
-     （同 TopicLayout，理由与回退链说明见那边） -->
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap" media="print" onload="this.media='all'">
+<!-- 等宽字体自托管（@font-face 在 tokens.css），理由与实测数据见 TopicLayout -->
 <link rel="stylesheet" href="/css/app.css">
 <script src="/vendor/lightweight-charts.standalone.production.js"></script>
 <script src="/vendor/echarts.min.js"></script>
