@@ -13,8 +13,8 @@ name: intraday-refresh
 #   （每小时全天候，不再绑工作日盘中）
 #
 # 不跑：分钟线（yfinance 盘中拉 5m 全量太重）、IBKR 依赖源（本地 cron）、
-# 派生指标（cross_asset/options_structure/bill_share，跟 daily-full 日频即可）、
-# 财报/SEC/拍卖等日更源。
+# cross_asset/bill_share 与财报/SEC/拍卖等日更源。options_structure 只在 OI 发布窗后
+# 回补上一收盘快照，不生成盘中快照。
 #
 # upsert 幂等：无新数据 → diff 为空 → 不 commit → 不触发部署，空跑零成本。
 # 部署：数据 commit 后显式 gh workflow run deploy-pages.yml——PAT push 认证为
@@ -90,6 +90,26 @@ jobs:
           fi
           [ -n "$FAILED" ] && echo "失败:$FAILED" && echo "FAILED_LIST=$FAILED" >> "$GITHUB_ENV"
           exit 0
+
+      - name: 回补上一收盘快照 OI 并重建 Wheel
+        env:
+          YF_NO_PROXY: "1"
+        run: |
+          # 14:52 UTC 起覆盖冬夏令时 OI 发布窗；若班次延迟，后续班次会重试。
+          if [ "$(date -u +%H%M)" -ge 1452 ]; then
+            set +e
+            OUT=$(uv run python -m src.options_structure --finalize-oi 2>&1)
+            RC=$?
+            set -e
+            echo "$OUT"
+            if [ "$RC" -ne 0 ]; then
+              echo "FAILED_LIST=${FAILED_LIST} options_oi_finalize" >> "$GITHUB_ENV"
+            fi
+            # OI 已完成但上一班 Wheel 重建失败时，这里也会继续重试。
+            uv run python -m src.wheel_scanner --dump || {
+              echo "FAILED_LIST=${FAILED_LIST} wheel_board_oi_finalize" >> "$GITHUB_ENV";
+            }
+          fi
 
       - name: 数据时效断言（尾班收尾，占位行检测在此重试闭环）
         # 全量断言由 daily-full/evening-late 收尾把关，这里防的是占位行固化：

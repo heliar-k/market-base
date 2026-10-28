@@ -24,6 +24,7 @@
 
 from __future__ import annotations
 
+import json
 import os
 import sys
 from datetime import date, datetime, time, timezone
@@ -385,6 +386,28 @@ def us_indices_placeholder_msg(root: Path, now_utc: datetime) -> str | None:
     )
 
 
+def options_oi_pending_msg(root: Path, now_utc: datetime) -> str | None:
+    """工作日 OI 发布窗后，上一收盘快照仍未回补则报警。"""
+    if now_utc.weekday() >= 5 or now_utc.time() < time(14, 52):
+        return None
+    from .options_structure import _is_session
+
+    if not _is_session(now_utc.astimezone(_ET_ZONE).date()):
+        return None
+    pending = []
+    for path in sorted((root / "data/options_structure").glob("20*.json")):
+        snapshot = json.loads(path.read_text(encoding="utf-8"))
+        snapshot_date = snapshot.get("snapshot_date")
+        if not snapshot_date:
+            continue
+        day = datetime.strptime(snapshot_date, "%Y-%m-%d").date()
+        if day < now_utc.astimezone(_ET_ZONE).date() and snapshot.get("oi_final") is False:
+            pending.append(snapshot_date)
+    if pending:
+        return f"{', '.join(pending)} 收盘快照尚未完成次日 OI 回补"
+    return None
+
+
 def main() -> int:
     now_utc = datetime.now(timezone.utc)
     rows = audit(Path(ROOT), now_utc.date())
@@ -394,6 +417,9 @@ def main() -> int:
     rmsg = roster_year_msg(Path(ROOT), now_utc.date())
     if rmsg:  # 值维断言：roster 只有 year 列，日期预算套不上
         rows.append(("STALE", "data/fed/roster.csv", None, rmsg, 0))
+    oi_msg = options_oi_pending_msg(Path(ROOT), now_utc)
+    if oi_msg:
+        rows.append(("STALE", "data/options_structure", None, oi_msg, 0))
     bad = [r for r in rows if r[0] != "ok"]
     print(f"数据时效（UTC {now_utc.date()}，{len(rows)} 项）")
     for status, path, age, note, budget in rows:

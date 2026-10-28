@@ -82,7 +82,13 @@ jobs:
         run: |
           uv run python -m src.cross_asset || { echo "失败: cross_asset"; echo "FAILED_LIST=${FAILED_LIST} cross_asset" >> "$GITHUB_ENV"; }
 
-      - name: 期权结构快照（13 标的 GEX/DEX/Vanna/Charm，yfinance 降级源；耗时 ~3min）
+      - name: 回补待定的收盘期权 OI（daily 兜底）
+        env:
+          YF_NO_PROXY: "1"
+        run: |
+          uv run python -m src.options_structure --finalize-oi || { echo "失败: options_oi_finalize"; echo "FAILED_LIST=${FAILED_LIST} options_oi_finalize" >> "$GITHUB_ENV"; }
+
+      - name: 期权结构收盘快照（30 标的，OI 待次日回补）
         env:
           YF_NO_PROXY: "1"      # options_structure 走 ensure_yf_proxy()，Actions 无代理需直连
         run: |

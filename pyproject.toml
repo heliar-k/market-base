@@ -28,6 +28,7 @@ dependencies = [
     "pysocks>=1.7.1",
     "xlrd>=2.0.2",
     "playwright>=1.62.0",
+    "exchange-calendars>=4.13.2",
 ]
 
 [dependency-groups]

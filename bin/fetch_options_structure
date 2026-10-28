@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# 期权结构快照（22 标的 GEX/DEX/Vanna/Charm，yfinance 降级源）
+# 30 标的收盘期权结构；--finalize-oi 在次日只回补 OI
 set -euo pipefail
 cd "$(dirname "$0")/.."
 uv run python -m src.options_structure "$@"

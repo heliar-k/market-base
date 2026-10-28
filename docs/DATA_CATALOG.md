@@ -807,8 +807,8 @@ API 响应 `generator` 字段标记 `rules` / `llm`，前端无感。
 | `data/fx/fx_pairs.csv` | 16 个外汇对日线收盘宽表（2y） | yfinance · `./bin/fetch_fx` |
 | `data/etf/universe.csv` | Nasdaq Trader 全量 ETF 清单（ETF=Y，~5600 只）+ 名称关键词分类 | Nasdaq Trader · `./bin/fetch_etf` |
 | `data/etf/pool_prices.csv` | 精选池 48 只 ETF 日线收盘宽表（1y） | yfinance · `./bin/fetch_etf` |
-| `data/options_structure/{date}.json` | 22 标的期权结构快照（Net GEX/DEX、Gamma Flip、Call/Put Wall、25Δ Skew、IV 期限结构、Vanna/Charm、OI Top20） | yfinance 期权链 + BS · `./bin/fetch_options_structure` |
-| `data/options_structure/raw_{symbol}_{date}.csv` | 逐合约期权链（含 bid/ask/OI/IV 与实际 UTC 取价时刻 `quote_ts`，日期按美东） | yfinance · `./bin/fetch_options_structure`，保留最近 3 天 |
+| `data/options_structure/{date}.json` | 30 标的期权结构收盘快照（Net GEX/DEX、Gamma Flip、Call/Put Wall、25Δ Skew、IV 期限结构、Vanna/Charm、OI Top20，含 `oi_date/oi_final/oi_coverage`） | yfinance 期权链 + BS · `./bin/fetch_options_structure`；次日 `--finalize-oi` 回补 OI |
+| `data/options_structure/raw_{symbol}_{date}.csv` | 逐合约期权链（含 bid/ask/OI/IV、`quote_ts`、`oi_date/oi_final/oi_quote_ts`，日期按美东） | yfinance · `./bin/fetch_options_structure`，保留最近 3 天 |
 | `data/crypto_derivatives/{date}.json` | OKX 永续（资金费率/OI/现价）+ Deribit 期权（墙/PCR/Max Pain）+ CME 基差 + taker 多空比 | OKX/Deribit 公开 API · `./bin/fetch_crypto_derivatives` |
 
 其余复用既有数据：`data/yfinance/asset_prices.csv`（指数/债券/商品/加密价格）、
@@ -842,7 +842,9 @@ API 响应 `generator` 字段标记 `rules` / `llm`，前端无感。
 - **期权结构**（`src/options_structure.py`）：BSM 模型反推 Greeks（gamma/delta/vanna/
   charm），GEX = Σγ·OI·100·S；gamma 符号 call 正/put 负，delta/vanna/charm 采用
   timsun 的「call 正向、put 翻号」口径；OI+IV 来自 yfinance 期权链（降级源，
-  精度低于 IBKR 但可每日无人值守跑）。模型估算非交易所官方数据。
+  精度低于 IBKR 但可每日无人值守跑）。D 日收盘后保存现货与 IV，次日 OI 发布窗后
+  只回补 D 日 OI 并重算，原报价与 `quote_ts` 不变；无法回补的已到期合约明确排除并
+  记录覆盖率。模型估算非交易所官方持仓方向。
 - **COT**：新增 `BTC`（CME 比特币期货，TFF 报告）用于加密衍生品页 CME 机构头寸信号。
 - **FX 美元压力**：20D 变化统一换算为「美元强弱」——间接报价（EURUSD/GBPUSD/
   AUDUSD/NZDUSD）翻转符号。

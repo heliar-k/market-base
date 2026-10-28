@@ -18,20 +18,31 @@ from __future__ import annotations
 
 import json
 import logging
-from datetime import datetime, timezone
+from datetime import date, datetime, time, timedelta, timezone
 from math import sqrt
+from pathlib import Path
 from zoneinfo import ZoneInfo
 
+import exchange_calendars as xcals
 import numpy as np
 import pandas as pd
 
 from src.config import ROOT
-from src.pricing import R, _norm_pdf, bs_greeks, d1_from
+from src.pricing import (
+    R,
+    _norm_pdf,
+    bs_greeks,
+    cumulative_gamma_flip,
+    d1_from,
+    fetch_yf_chain,
+    years_to_expiration,
+)
 
 logger = logging.getLogger(__name__)
 
 DATA = ROOT / "data" / "options_structure"
 ET = ZoneInfo("America/New_York")
+XNYS = xcals.get_calendar("XNYS")
 
 
 def _now_et() -> datetime:
@@ -48,14 +59,41 @@ def _utc_now_iso() -> str:
 RAW_KEEP_DAYS = 3
 
 
-def chain_health(chain: pd.DataFrame) -> tuple[bool, str]:
-    """盘口健康检查：bid 与 OI 的正值覆盖率都需达到一半。"""
+def chain_health(
+    chain: pd.DataFrame,
+    expected_expirations: list[str] | None = None,
+    require_iv: bool = True,
+) -> tuple[bool, str]:
+    """结构计算健康检查：到期日完整，OI 与有效 IV 覆盖率均至少一半。"""
     if chain.empty:
         return False, "链为空"
-    bid_ok = float((pd.to_numeric(chain["bid"], errors="coerce").fillna(0) > 0).mean())
+    required = {"expiration", "openInterest"}
+    if require_iv:
+        required.add("impliedVolatility")
+    missing_columns = sorted(required - set(chain.columns))
+    if missing_columns:
+        return False, f"缺列 {','.join(missing_columns)}"
+    if expected_expirations is not None:
+        actual = set(chain["expiration"].dropna().astype(str))
+        missing = sorted(set(expected_expirations) - actual)
+        if missing:
+            return False, f"缺到期日 {','.join(missing)}"
     oi_ok = float((pd.to_numeric(chain["openInterest"], errors="coerce").fillna(0) > 0).mean())
-    if bid_ok < 0.5 or oi_ok < 0.5:
-        return False, f"盘口未就绪(bid>0 {bid_ok:.0%}/OI>0 {oi_ok:.0%})"
+    iv_ok = (
+        float((pd.to_numeric(chain["impliedVolatility"], errors="coerce").fillna(0) > 0.01).mean())
+        if require_iv
+        else 1.0
+    )
+    if oi_ok < 0.5 or (require_iv and iv_ok < 0.5):
+        return False, f"结构数据未就绪(OI>0 {oi_ok:.0%}/IV>1% {iv_ok:.0%})"
+    for expiration, group in chain.groupby("expiration"):
+        group_oi = pd.to_numeric(group["openInterest"], errors="coerce").fillna(0)
+        if not bool((group_oi > 0).any()):
+            return False, f"{expiration} 无正 OI"
+        if require_iv:
+            group_iv = pd.to_numeric(group["impliedVolatility"], errors="coerce").fillna(0)
+            if not bool((group_iv > 0.01).any()):
+                return False, f"{expiration} 无有效 IV"
     return True, ""
 
 
@@ -114,17 +152,50 @@ SYMBOLS: list[str] = [
 ]
 
 
-def fetch_chain(symbol: str, expirations: list[str], use_cache: bool = True) -> pd.DataFrame:
-    """拉取期权链（strike/right/expiration/OI/volume/IV），当日 raw 缓存复用。
-
-    raw 列：strike, right, expiration(YYYYMMDD str), openInterest, volume,
-    impliedVolatility, quote_ts（实际取数完成的 UTC 时刻）。raw 当日复用即可。
-    """
-    raw = DATA / f"raw_{symbol}_{_now_et():%Y%m%d}.csv"
+def fetch_chain(
+    symbol: str,
+    expirations: list[str],
+    use_cache: bool = True,
+    oi_date: str | None = None,
+    chain_date: date | None = None,
+) -> pd.DataFrame:
+    """拉取完整期权链；任何预期到期日缺失都拒绝写入 raw。"""
+    day = chain_date or _now_et().date()
+    raw = DATA / f"raw_{symbol}_{day:%Y%m%d}.csv"
     if use_cache and raw.exists():
         df = pd.read_csv(raw, dtype={"expiration": str})
-        healthy, why = chain_health(df)
+        final_cache = (
+            "oi_final" in df.columns
+            and bool(df["oi_final"].astype(str).str.lower().eq("true").all())
+            and "oi_date" in df.columns
+            and bool(df["oi_date"].eq(day.isoformat()).all())
+        )
+        if final_cache:
+            logger.info(f"  {symbol}: 复用已回补 raw 缓存 {len(df)} 行")
+            return df
+        if day < _now_et().date():
+            final_mask = (
+                df["oi_final"].astype(str).str.lower().eq("true")
+                if "oi_final" in df.columns
+                else pd.Series(False, index=df.index)
+            )
+            if final_mask.any() and (
+                "oi_date" not in df.columns or df["oi_date"].ne(day.isoformat()).any()
+            ):
+                raise RuntimeError("raw 的 OI 日期与快照日期不一致")
+            healthy, why = chain_health(df)
+            if healthy:
+                logger.info(f"  {symbol}: 复用历史收盘 raw 缓存 {len(df)} 行")
+                return df
+            raise RuntimeError(f"历史 raw 不健康（{why}），拒绝用当前链重建")
+        healthy, why = chain_health(df, expected_expirations=expirations)
         if healthy:
+            if oi_date is not None and (
+                "oi_date" not in df.columns or df["oi_date"].dropna().empty
+            ):
+                df["oi_date"] = oi_date
+                df["oi_final"] = False
+                _write_raw(raw, df)
             logger.info(f"  {symbol}: 复用 raw 缓存 {len(df)} 行")
             return df
         logger.warning(f"  {symbol}: 删除异常 raw 缓存（{why}）")
@@ -165,13 +236,15 @@ def fetch_chain(symbol: str, expirations: list[str], use_cache: bool = True) -> 
     df = pd.DataFrame(rows)
     if df.empty:
         return df
-    healthy, why = chain_health(df)
+    healthy, why = chain_health(df, expected_expirations=expirations)
     if not healthy:
         logger.warning(f"  {symbol}: 期权链异常，拒绝写入缓存（{why}）")
         return pd.DataFrame()
     df["quote_ts"] = _utc_now_iso()
+    df["oi_date"] = oi_date
+    df["oi_final"] = False
     DATA.mkdir(parents=True, exist_ok=True)
-    df.to_csv(raw, index=False)
+    _write_raw(raw, df)
     logger.info(f"  {symbol}: {len(df)} 条 → raw 缓存")
     return df
 
@@ -179,13 +252,14 @@ def fetch_chain(symbol: str, expirations: list[str], use_cache: bool = True) -> 
 # ── 聚合计算 ────────────────────────────────────────────────────────────────
 
 
-def compute_structure(df: pd.DataFrame, spot: float) -> dict:
-    """单标的聚合（timsun /assets/equities/options 全套指标）。"""
+def compute_structure(df: pd.DataFrame, spot: float, as_of: datetime | None = None) -> dict:
+    """单标的聚合；as_of 用于收盘定稿，实时模式默认取当前美东时间。"""
     if df.empty or spot <= 0:
         return {"symbol": None}
-    today = _now_et().date()
+    now = as_of or _now_et()
+    today = now.date()
     d = df.dropna(subset=["impliedVolatility"])
-    d = d[d["impliedVolatility"] > 0]
+    d = d[d["impliedVolatility"] > 0.01]
     if d.empty:
         return {"symbol": None}
 
@@ -193,10 +267,9 @@ def compute_structure(df: pd.DataFrame, spot: float) -> dict:
     for _, r in d.iterrows():
         exp = datetime.strptime(r["expiration"], "%Y%m%d").date()
         days = (exp - today).days
-        if days < 0:
-            continue  # 已过期的合约剔除；当日到期（0DTE）保留
-        # 0DTE 期权的 T→0 会炸 gamma/char，用 1 天作最小 T（timsun 同口径保留当日桶）
-        t = max(days, 1) / 365.0
+        t = years_to_expiration(r["expiration"], now)
+        if days < 0 or t <= 0:
+            continue
         iv = float(r["impliedVolatility"])
         sig = r["right"] == "C"
         gamma_p, delta = bs_greeks(spot, r["strike"], t, iv)
@@ -257,37 +330,8 @@ def compute_structure(df: pd.DataFrame, spot: float) -> dict:
     # 否则带底第一个大 OI 深 ITM call 直接把累计抬正，穿越结构全部消失）。
     cb = c[c["strike"].between(spot * 0.5, spot * 2.0)]
 
-    # Gamma Flip：累计 GEX 由负转正的穿越点中，按现价处累计符号取位——
-    # 现价处累计 ≥0 → 取现价下方最后一个翻转点；<0 → 取现价上方第一个。
-    # 只找现价下方第一个穿越有两个坑：①现价处累计已转负、翻转点在现价上方时
-    # 漏检（SPY 20260904：现价处累计 -694M、穿越点在上方 800 → 返回 None，
-    # REGIME 卡回退 net_gex 符号后与分布图直接矛盾）；②深 ITM 噪声穿越被误当
-    # 翻转点（NVDA 取 103，真实翻转在 225）。取位规则保证
-    # sign(flip_dist) == sign(现价处累计 GEX)，与前端分布图黑线一致；
-    # 全链无负→正穿越时返回 None，此时 sign(net_gex) 即现价处符号，
-    # 前端与 narrative 引擎同款回退（勿兜底最低行权价，0DTE 链远端价权会失真）。
-    # 带内重置累计基线：flip 的穿越判定只看带内曲线，不被带外深 ITM 存量污染。
     wall["cum"] = wall["gex"].cumsum()
-    spot_rows = wall.loc[wall["strike"] <= spot, "cum"]
-    spot_cum = float(spot_rows.iloc[-1]) if not spot_rows.empty else 0.0
-    flips: list[float] = []
-    prev_cum = 0.0
-    for _, w in wall.iterrows():
-        cum = float(w["cum"])
-        if prev_cum < 0 <= cum:  # 仅负→正为翻转；正→负是反转向，不构成 Flip
-            flips.append(float(w["strike"]))
-        prev_cum = cum
-    if spot_cum >= 0:
-        below = [k for k in flips if k <= spot]
-        flip = below[-1] if below else None
-    else:
-        above = [k for k in flips if k > spot]
-        flip = above[0] if above else None
-    # 距离护栏：取到的 flip 离现价过远 = 陈旧/噪声穿越而非市场关键位（MU flip=105
-    # @ spot=977；SPY 现价穿过真 flip 后取到下方 415 的旧穿越），按无 flip 处理，
-    # 前端/narrative 回退 sign(net_gex)。
-    if flip is not None and abs(spot - flip) / spot > 0.30:
-        flip = None
+    flip = cumulative_gamma_flip(wall.set_index("strike")["gex"], spot)
 
     # Walls：每点 $M（Σ γ·OI·100 / 1e6）按 call/put 两端（同带内取位）
     call_wall = cb[cb["right"] == "C"].groupby("strike")["gex"].sum()
@@ -521,56 +565,356 @@ def _fetch_barchart_iv_ranks(symbols: list[str]) -> dict[str, dict]:
         return {}
 
 
+def _is_session(day: date) -> bool:
+    return bool(XNYS.is_session(day.isoformat()))
+
+
+def _next_session(day: date) -> date:
+    return XNYS.next_session(day.isoformat()).date()
+
+
+def _previous_session_date(day: date) -> date:
+    return XNYS.previous_session(day.isoformat()).date()
+
+
+def _snapshot_session(now: datetime) -> date:
+    """取已经收盘的最近交易日，跨午夜延迟仍归属上一交易日。"""
+    if now.time() < time(16, 0) or not _is_session(now.date()):
+        return _previous_session_date(now.date())
+    return now.date()
+
+
+def _eod_anchor(day: date) -> datetime:
+    return datetime.combine(day, time(16, 0), tzinfo=ET)
+
+
+def _write_raw(path: Path, df: pd.DataFrame) -> None:
+    tmp = path.with_name(f".{path.name}.tmp")
+    df.to_csv(tmp, index=False)
+    tmp.replace(path)
+
+
+def _write_snapshot(path: Path, snapshot: dict) -> None:
+    tmp = path.with_name(f".{path.name}.tmp")
+    tmp.write_text(
+        json.dumps(
+            snapshot,
+            ensure_ascii=False,
+            allow_nan=False,
+            default=str,
+            separators=(",", ":"),
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    tmp.replace(path)
+
+
 def build_snapshot(symbols: list[str] | None = None, use_cache: bool = True) -> dict:
-    """全标的快照 dict（写入 data/options_structure/{date}.json）。"""
+    """生成收盘快照；OI 在次日回补前明确标为未定稿。"""
     from src.fetchers.yfinance_fetcher import ensure_yf_proxy
 
     ensure_yf_proxy()
     import yfinance as yf  # noqa: E402
 
     symbols = symbols or SYMBOLS
+    now = _now_et()
+    today = _snapshot_session(now)
+    snapshot_date = today.isoformat()
+    oi_date = _previous_session_date(today).isoformat()
+    as_of = _eod_anchor(today)
+    if today < now.date() and not use_cache:
+        raise RuntimeError("历史收盘快照不能用 --no-cache 重建")
+    existing_path = DATA / f"{today:%Y%m%d}.json"
+    existing_symbols = (
+        json.loads(existing_path.read_text(encoding="utf-8")).get("symbols", {})
+        if existing_path.exists()
+        else {}
+    )
     bc_iv_map = _fetch_barchart_iv_ranks(symbols)
     out: dict = {
         "date": _utc_now_iso(),
-        "snapshot_date": _now_et().strftime("%Y-%m-%d"),
+        "snapshot_date": snapshot_date,
+        "oi_date": oi_date,
+        "oi_final": False,
+        "run_symbols": symbols,
         "symbols": {},
+        "errors": {},
+        "failed_symbols": [],
     }
     for sym in symbols:
         try:
             ticker = yf.Ticker(sym)
-            # 覆盖四个到期桶（timsun 口径 0DTE/本周/月度/季度+）：
-            # 近 35D 全收（月度桶含月选，SPY 9/18 月选 27D 曾被 ≥30D 采样跳过，
-            # 月度桶 GEX 占比 20%→47.9%）+ 后续每 45D 一个代表（月度/季月尾部）
-            today = _now_et().date()
+            raw_path = DATA / f"raw_{sym}_{today:%Y%m%d}.csv"
+            if today < now.date():
+                if not raw_path.exists():
+                    raise RuntimeError("历史收盘快照缺 raw，拒绝用盘中链重建")
+                exps = sorted(
+                    pd.read_csv(raw_path, usecols=["expiration"], dtype={"expiration": str})[
+                        "expiration"
+                    ]
+                    .unique()
+                    .tolist()
+                )
+            else:
 
-            def _dte(e: str) -> int:
-                return (datetime.strptime(e, "%Y-%m-%d").date() - today).days
+                def _dte(e: str) -> int:
+                    return (datetime.strptime(e, "%Y-%m-%d").date() - today).days
 
-            exps = [e for e in ticker.options if _dte(e) <= 35]
-            for dte_min in (36, 90, 180, 270):
-                pick = next((e for e in ticker.options if _dte(e) >= dte_min), None)
-                if pick and pick not in exps:
-                    exps.append(pick)
-            exps = [e.replace("-", "") for e in exps]
-            spot = float(ticker.fast_info.last_price)
-            if not exps or not spot:
-                logger.warning(f"  {sym}: 无期权/无现价，跳过")
-                continue
-            chain = fetch_chain(sym, exps, use_cache=use_cache)
-            detail = compute_structure(chain, spot)
+                # 近 35D 全收，后续每 45D 取一个代表，覆盖四个到期桶。
+                exps = [e for e in ticker.options if _dte(e) <= 35]
+                for dte_min in (36, 90, 180, 270):
+                    pick = next((e for e in ticker.options if _dte(e) >= dte_min), None)
+                    if pick and pick not in exps:
+                        exps.append(pick)
+                exps = [e.replace("-", "") for e in exps]
+            existing_spot = existing_symbols.get(sym, {}).get("spot")
+            if existing_spot is not None:
+                spot = float(existing_spot)
+            else:
+                history = ticker.history(
+                    start=today.isoformat(),
+                    end=(today + timedelta(days=1)).isoformat(),
+                    interval="1d",
+                    auto_adjust=False,
+                )
+                closes = history["Close"].dropna()
+                if closes.empty:
+                    raise RuntimeError(f"缺少 {snapshot_date} 日线收盘价")
+                spot = float(closes.iloc[-1])
+            if not exps or spot <= 0:
+                raise RuntimeError("无期权到期日或现货价")
+            chain = fetch_chain(sym, exps, use_cache=use_cache, oi_date=oi_date, chain_date=today)
+            detail = compute_structure(chain, spot, as_of=as_of)
             if detail.get("spot") is None:
-                logger.warning(f"  {sym}: 计算为空，跳过")
-                continue
+                raise RuntimeError("结构计算为空")
             detail["symbol"] = sym
             detail["name"] = sym
+            detail["snapshot_date"] = snapshot_date
+            detail["quote_ts"] = (
+                str(chain["quote_ts"].dropna().max())
+                if "quote_ts" in chain.columns and not chain["quote_ts"].dropna().empty
+                else None
+            )
+            chain_final = (
+                "oi_final" in chain.columns
+                and bool(chain["oi_final"].astype(str).str.lower().eq("true").all())
+                and "oi_date" in chain.columns
+                and bool(chain["oi_date"].eq(snapshot_date).all())
+            )
+            detail["oi_date"] = snapshot_date if chain_final else oi_date
+            detail["oi_final"] = chain_final
+            if chain_final and "oi_quote_ts" in chain.columns:
+                detail["oi_quote_ts"] = str(chain["oi_quote_ts"].dropna().max())
+            if chain_final and "oi_coverage" in chain.columns:
+                detail["oi_coverage"] = float(chain["oi_coverage"].iloc[0])
+                detail["oi_excluded_expired"] = int(chain["oi_excluded_expired"].iloc[0])
             detail.update(_extract_events(ticker))
             if sym in bc_iv_map:
                 detail.update(bc_iv_map[sym])
             out["symbols"][sym] = detail
             logger.info(f"  {sym}: spot={detail['spot']} netGEX={detail['net_gex']}B")
         except Exception as e:
+            out["errors"][sym] = f"{type(e).__name__}: {e}"
             logger.warning(f"  {sym}: {e}")
+    out["failed_symbols"] = sorted(out["errors"])
+    if out["symbols"] and all(d.get("oi_final") is True for d in out["symbols"].values()):
+        out["oi_final"] = True
+        out["oi_date"] = snapshot_date
+        out["oi_quote_ts"] = max(
+            (d["oi_quote_ts"] for d in out["symbols"].values() if d.get("oi_quote_ts")),
+            default=None,
+        )
     return out
+
+
+def finalize_oi_snapshot(snapshot_key: str | None = None) -> dict | None:
+    """次日只回补收盘快照的 OI；默认选择最早一份待回补快照。"""
+    now = _now_et()
+    if snapshot_key is not None:
+        path = DATA / f"{snapshot_key}.json"
+    else:
+        path = None
+        for candidate in sorted(DATA.glob("20*.json")):
+            data = json.loads(candidate.read_text(encoding="utf-8"))
+            candidate_date = (
+                data.get("snapshot_date")
+                or datetime.strptime(candidate.stem, "%Y%m%d").date().isoformat()
+            )
+            if (
+                data.get("oi_final") is False
+                and datetime.strptime(candidate_date, "%Y-%m-%d").date() < now.date()
+            ):
+                path = candidate
+                break
+        if path is None:
+            return None
+    snapshot = json.loads(path.read_text(encoding="utf-8"))
+    if snapshot.get("oi_final") is None:
+        return None
+    snapshot_date = (
+        snapshot.get("snapshot_date") or datetime.strptime(path.stem, "%Y%m%d").date().isoformat()
+    )
+    day = datetime.strptime(snapshot_date, "%Y-%m-%d").date()
+    if now.date() <= day:
+        return None
+    if not _is_session(now.date()):
+        return None
+    next_session = _next_session(day)
+    if now.date() < next_session or now.astimezone(timezone.utc).time() < time(14, 52):
+        return None
+    if snapshot.get("oi_final") is True:
+        raw_ready = True
+        for sym in snapshot.get("symbols", {}):
+            raw_path = DATA / f"raw_{sym}_{day:%Y%m%d}.csv"
+            if not raw_path.exists():
+                # final 历史快照的 raw 按保留窗口清理后无需回补。
+                return None
+            meta = pd.read_csv(raw_path, nrows=1)
+            if (
+                "oi_final" not in meta.columns
+                or "oi_date" not in meta.columns
+                or str(meta["oi_final"].iloc[0]).lower() != "true"
+                or str(meta["oi_date"].iloc[0]) != snapshot_date
+            ):
+                raw_ready = False
+                break
+        if raw_ready:
+            return None
+        if now.date() > next_session:
+            raise RuntimeError(f"{path.stem} 的 final raw 与快照不一致，且已错过回补窗口")
+    elif now.date() > next_session:
+        raise RuntimeError(
+            f"{path.stem} 已错过 {next_session} 的 OI 回补窗口；当前源只提供后续交易日 OI"
+        )
+
+    finalized_at = _utc_now_iso()
+    as_of = _eod_anchor(day)
+    updated = json.loads(json.dumps(snapshot))
+    raw_updates: dict[Path, pd.DataFrame] = {}
+    for sym, old_detail in snapshot.get("symbols", {}).items():
+        raw_path = DATA / f"raw_{sym}_{day:%Y%m%d}.csv"
+        if not raw_path.exists():
+            raise RuntimeError(f"OI 回补不完整：{sym} 缺 raw 链 {raw_path.name}")
+        raw = pd.read_csv(raw_path, dtype={"expiration": str})
+        if raw.empty:
+            raise RuntimeError(f"OI 回补不完整：{sym} raw 链为空")
+        already_final = (
+            "oi_final" in raw.columns
+            and bool(raw["oi_final"].astype(str).str.lower().eq("true").all())
+            and "oi_date" in raw.columns
+            and bool(raw["oi_date"].eq(snapshot_date).all())
+        )
+        previous_excluded = int(old_detail.get("oi_excluded_expired") or 0)
+        if already_final:
+            final_raw = raw.copy()
+            excluded = previous_excluded or (
+                int(final_raw["oi_excluded_expired"].iloc[0])
+                if "oi_excluded_expired" in final_raw.columns
+                else 0
+            )
+        else:
+            # 只有快照锚点时已到期的合约可以排除；之后到期的合约仍需回补，
+            # 源端已移除时任务失败并保留旧快照。
+            eligible_mask = raw["expiration"] > f"{day:%Y%m%d}"
+            excluded = int((~eligible_mask).sum()) + previous_excluded
+            eligible = raw.loc[eligible_mask].copy()
+            expirations = sorted(eligible["expiration"].unique().tolist())
+            if not expirations:
+                raise RuntimeError(f"OI 回补不完整：{sym} 没有可回补的未到期合约")
+            current = fetch_yf_chain(sym, expirations)
+            oi_coverage = (
+                float(
+                    (
+                        pd.to_numeric(current.get("openInterest"), errors="coerce").fillna(0) > 0
+                    ).mean()
+                )
+                if not current.empty
+                else 0.0
+            )
+            if oi_coverage < 0.5:
+                raise RuntimeError(f"OI 回补不完整：{sym} OI 正值覆盖率仅 {oi_coverage:.0%}")
+            actual_exps = set(current.get("expiration", pd.Series(dtype=str)).astype(str))
+            missing_exps = sorted(set(expirations) - actual_exps)
+            if missing_exps:
+                raise RuntimeError(f"OI 回补不完整：{sym} 缺到期日 {','.join(missing_exps)}")
+            keys = ["expiration", "strike", "right"]
+            current_oi = current[keys + ["openInterest"]]
+            merged = eligible.merge(
+                current_oi,
+                on=keys,
+                how="left",
+                suffixes=("", "_new"),
+                validate="one_to_one",
+                indicator=True,
+            )
+            matched = int((merged["_merge"] == "both").sum())
+            if matched != len(eligible):
+                raise RuntimeError(f"OI 回补不完整：{sym} 合约匹配 {matched}/{len(eligible)}")
+            merged["openInterest"] = merged["openInterest_new"]
+            final_raw = merged.drop(columns=["openInterest_new", "_merge"])
+        if final_raw.empty:
+            raise RuntimeError(f"OI 回补不完整：{sym} 回补后为空")
+        final_exps = sorted(final_raw["expiration"].unique().tolist())
+        healthy, why = chain_health(final_raw, expected_expirations=final_exps)
+        if not healthy:
+            raise RuntimeError(f"OI 回补不完整：{sym} {why}")
+        total = len(final_raw) + excluded
+        coverage = round(len(final_raw) / total * 100, 2) if total else 0.0
+        symbol_oi_quote_ts = (
+            str(final_raw["oi_quote_ts"].dropna().max())
+            if already_final and "oi_quote_ts" in final_raw.columns
+            else finalized_at
+        )
+        final_raw["oi_date"] = snapshot_date
+        final_raw["oi_final"] = True
+        final_raw["oi_quote_ts"] = symbol_oi_quote_ts
+        final_raw["oi_excluded_expired"] = excluded
+        final_raw["oi_coverage"] = coverage
+        detail = compute_structure(final_raw, float(old_detail["spot"]), as_of=as_of)
+        if detail.get("spot") is None:
+            raise RuntimeError(f"OI 回补不完整：{sym} 结构重算为空")
+        updated["symbols"][sym] = {
+            **old_detail,
+            **detail,
+            "symbol": sym,
+            "snapshot_date": snapshot_date,
+            "oi_date": snapshot_date,
+            "oi_final": True,
+            "oi_quote_ts": symbol_oi_quote_ts,
+            "oi_coverage": coverage,
+            "oi_excluded_expired": excluded,
+        }
+        raw_updates[raw_path] = final_raw
+
+    if not updated.get("symbols"):
+        raise RuntimeError("OI 回补不完整：快照没有标的")
+    updated["oi_date"] = snapshot_date
+    updated["oi_final"] = True
+    updated["oi_quote_ts"] = max(detail["oi_quote_ts"] for detail in updated["symbols"].values())
+    updated["finalized_at"] = finalized_at
+    updated["errors"] = {}
+    updated["failed_symbols"] = []
+    for raw_path, final_raw in raw_updates.items():
+        _write_raw(raw_path, final_raw)
+    _write_snapshot(path, updated)
+    logger.info(f"OI 回补完成 → {path}（{len(updated['symbols'])} 标的）")
+    return updated
+
+
+def finalize_pending_oi() -> tuple[int, dict[str, str]]:
+    """处理全部历史待回补快照；单份失败不阻断其他日期。"""
+    processed = 0
+    errors: dict[str, str] = {}
+    for path in sorted(DATA.glob("20*.json")):
+        try:
+            result = finalize_oi_snapshot(path.stem)
+        except Exception as e:
+            errors[path.stem] = f"{type(e).__name__}: {e}"
+            logger.error(f"{path.stem} OI 回补失败：{e}")
+            continue
+        processed += int(result is not None)
+    return processed, errors
 
 
 def main() -> None:
@@ -583,58 +927,74 @@ def main() -> None:
         help=f"逗号分隔标的列表（默认全部 {len(SYMBOLS)} 标的）",
     )
     parser.add_argument("--no-cache", action="store_true", help="不复用当日 raw 链缓存")
+    parser.add_argument("--finalize-oi", action="store_true", help="次日回补上一收盘快照 OI")
     args = parser.parse_args()
+    if args.finalize_oi:
+        processed, errors = finalize_pending_oi()
+        print(f"OI_FINALIZED={processed}")
+        if errors:
+            logger.error(f"OI 回补失败快照：{errors}")
+            raise SystemExit(1)
+        return
     symbols = [s.strip() for s in args.symbols.split(",") if s.strip()] or None
+    now = _now_et()
+    if now.weekday() >= 5 or (now.time() >= time(16, 0) and not _is_session(now.date())):
+        logger.info("非美股交易日，不生成收盘期权快照")
+        return
 
-    today = _now_et().strftime("%Y%m%d")
+    today = now.strftime("%Y%m%d")
     for f in DATA.glob("20*.json"):
         if len(f.stem) == 8 and f.stem.isdigit() and f.stem > today:
             f.unlink()
 
     snapshot = build_snapshot(symbols, use_cache=not args.no_cache)
-    if snapshot["symbols"]:
-        DATA.mkdir(parents=True, exist_ok=True)
-        path = DATA / f"{_now_et():%Y%m%d}.json"
-        # 子集或部分失败时合并当天健康快照；完整全量成功时覆盖
-        if path.exists() and (symbols or len(snapshot["symbols"]) < len(SYMBOLS)):
-            existing = json.loads(path.read_text(encoding="utf-8"))
-            existing["symbols"].update(snapshot["symbols"])
-            existing["date"] = snapshot["date"]
-            existing["snapshot_date"] = snapshot["snapshot_date"]
-            snapshot = existing
-        # compact 单行（程序消费的快照，hook 不插手 data/——多行展开会让
-        # git 差异不可读且体积翻倍）；尾部换行由 end-of-file-fixer 要求，写盘时自补
-        path.write_text(
-            json.dumps(
-                snapshot,
-                ensure_ascii=False,
-                allow_nan=False,
-                default=str,
-                separators=(",", ":"),
-            )
-            + "\n",
-            encoding="utf-8",
+    requested = set(symbols or SYMBOLS)
+    missing = requested - set(snapshot["symbols"]) - set(snapshot.get("errors", {}))
+    for sym in sorted(missing):
+        snapshot.setdefault("errors", {})[sym] = "无计算结果"
+    errors = snapshot.get("errors", {})
+    snapshot["failed_symbols"] = sorted(errors)
+    if not snapshot["symbols"] or (errors and symbols is None):
+        logger.error(f"期权快照未写入：{errors or '全部标的无结果'}")
+        raise SystemExit(1)
+
+    DATA.mkdir(parents=True, exist_ok=True)
+    path = DATA / f"{snapshot['snapshot_date'].replace('-', '')}.json"
+    if path.exists() and symbols:
+        existing = json.loads(path.read_text(encoding="utf-8"))
+        existing["symbols"].update(snapshot["symbols"])
+        for key, value in snapshot.items():
+            if key != "symbols":
+                existing[key] = value
+        snapshot = existing
+        snapshot["oi_final"] = bool(snapshot["symbols"]) and all(
+            detail.get("oi_final") is True for detail in snapshot["symbols"].values()
         )
-        logger.info(f"快照 → {path}（{len(snapshot['symbols'])} 标的）")
-        # 只保留最近 RAW_KEEP_DAYS 个文件日期的 raw 链（它们入库供选点读逐合约明细，
-        # 留全量会让仓库每天涨 ~1MB）。按文件名日期算，不按 mtime——git checkout
-        # 会把 mtime 全刷成检出时间。
-        now_et = _now_et()
-        today = now_et.strftime("%Y%m%d")
-        files = list(DATA.glob("raw_*.csv"))
-        stamps = sorted(
-            {
-                stamp
-                for f in files
-                for stamp in [f.stem.rsplit("_", 1)[-1]]
-                if len(stamp) == 8 and stamp.isdigit() and stamp <= today
-            }
-        )
-        keep = set(stamps[-RAW_KEEP_DAYS:])
-        for f in files:
-            stamp = f.stem.rsplit("_", 1)[-1]
-            if len(stamp) == 8 and stamp.isdigit() and (stamp not in keep or stamp > today):
-                f.unlink()
+        if snapshot["oi_final"]:
+            snapshot["oi_date"] = snapshot["snapshot_date"]
+    _write_snapshot(path, snapshot)
+    logger.info(f"快照 → {path}（{len(snapshot['symbols'])} 标的）")
+
+    files = list(DATA.glob("raw_*.csv"))
+    stamps = sorted(
+        {
+            stamp
+            for f in files
+            for stamp in [f.stem.rsplit("_", 1)[-1]]
+            if len(stamp) == 8 and stamp.isdigit() and stamp <= today
+        }
+    )
+    keep = set(stamps[-RAW_KEEP_DAYS:])
+    for snapshot_path in DATA.glob("20*.json"):
+        data = json.loads(snapshot_path.read_text(encoding="utf-8"))
+        if data.get("oi_final") is False:
+            keep.add(snapshot_path.stem)
+    for f in files:
+        stamp = f.stem.rsplit("_", 1)[-1]
+        if len(stamp) == 8 and stamp.isdigit() and (stamp not in keep or stamp > today):
+            f.unlink()
+    if errors:
+        raise SystemExit(1)
 
 
 if __name__ == "__main__":

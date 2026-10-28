@@ -151,6 +151,30 @@ def test_csv_dir_globs_reads_raw_chain_filename_date(tmp_path, monkeypatch):
     assert rows[0][0] == "MISSING"
 
 
+def test_options_oi_pending_flagged_only_after_finalization_window(tmp_path):
+    d = tmp_path / "data/options_structure"
+    d.mkdir(parents=True)
+    path = d / "20261027.json"
+    path.write_text('{"snapshot_date":"2026-10-27","oi_final":false}')
+    before = datetime(2026, 10, 28, 14, 0, tzinfo=timezone.utc)
+    after = datetime(2026, 10, 28, 15, 0, tzinfo=timezone.utc)
+    assert fr.options_oi_pending_msg(tmp_path, before) is None
+    assert fr.options_oi_pending_msg(tmp_path, after) is not None
+    path.write_text('{"snapshot_date":"2026-10-27","oi_final":true}')
+    assert fr.options_oi_pending_msg(tmp_path, after) is None
+    (d / "20261026.json").write_text('{"snapshot_date":"2026-10-26","oi_final":false}')
+    assert "2026-10-26" in fr.options_oi_pending_msg(tmp_path, after)
+
+
+def test_options_oi_pending_skips_weekday_holiday(tmp_path, monkeypatch):
+    monkeypatch.setattr("src.options_structure._is_session", lambda day: False)
+    d = tmp_path / "data/options_structure"
+    d.mkdir(parents=True)
+    (d / "20261027.json").write_text('{"snapshot_date":"2026-10-27","oi_final":false}')
+    after = datetime(2026, 10, 28, 15, 0, tzinfo=timezone.utc)
+    assert fr.options_oi_pending_msg(tmp_path, after) is None
+
+
 # ── 占位行检测（2026-10-13 事故）───────────────────────────────────
 
 

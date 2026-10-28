@@ -132,7 +132,7 @@ def test_chain_health_rejects_premarket_garbage() -> None:
     """
     bad = _raw_chain(bid=[0.0, 0.0], openInterest=[0, 0])
     ok, why = _chain_health(bad)
-    assert ok is False and "盘口未就绪" in why
+    assert ok is False and "结构数据未就绪" in why
 
     good = _raw_chain()
     ok, _ = _chain_health(good)
@@ -214,6 +214,65 @@ def test_build_opt_map_preserves_previous_chain_quote_and_static_events(monkeypa
     assert opt_map["NVDA"]["ex_dividend_date"] == "2026-12-01"
 
 
+def test_build_opt_map_low_bid_does_not_stale_structure(monkeypatch) -> None:
+    from datetime import datetime
+    from zoneinfo import ZoneInfo
+
+    import yfinance as yf
+
+    import src.live_wheel as lw
+
+    monkeypatch.setattr(yf, "Ticker", lambda sym: type("T", (), {"options": ()})())
+    monkeypatch.setattr(lw, "_window_expiries", lambda sym, options: ["20261120"])
+    monkeypatch.setattr(
+        lw,
+        "_now_et",
+        lambda: datetime(2026, 10, 28, 10, 0, tzinfo=ZoneInfo("America/New_York")),
+    )
+    live = _raw_chain(bid=[0.0, 0.0])
+    monkeypatch.setattr(lw, "fetch_yf_chain", lambda sym, exps: live)
+
+    def _no_fallback(sym, static):
+        raise AssertionError("OI 与 IV 健康时不应因 bid 覆盖率回退")
+
+    monkeypatch.setattr(lw, "_prev_trading_chain", _no_fallback)
+    monkeypatch.setattr(lw, "_extract_events", lambda tk: {})
+    opt_map, notes, chain_map = lw._build_opt_map(
+        ["NVDA"], {}, "yfinance", spot_overrides={"NVDA": 211.0}
+    )
+    assert opt_map["NVDA"]["spot"] == 211.0
+    assert chain_map["NVDA"][1] == "2026-10-28"
+    assert "回退昨收链" not in notes["NVDA"]
+
+
+def test_build_opt_map_accepts_ibkr_selected_expiration_set(monkeypatch) -> None:
+    from datetime import datetime
+    from zoneinfo import ZoneInfo
+
+    import yfinance as yf
+
+    import src.live_wheel as lw
+
+    monkeypatch.setattr(yf, "Ticker", lambda sym: type("T", (), {"options": ()})())
+    monkeypatch.setattr(lw, "_window_expiries", lambda sym, options: ["20261030"])
+    monkeypatch.setattr(
+        lw,
+        "_now_et",
+        lambda: datetime(2026, 10, 28, 10, 0, tzinfo=ZoneInfo("America/New_York")),
+    )
+    ibkr_chain = _raw_chain()  # IBKR filter_options 实际选择 20261120
+    monkeypatch.setattr(lw, "_chain_from_ibkr", lambda *args, **kwargs: ibkr_chain)
+
+    def _no_yfinance(sym, exps):
+        raise AssertionError("健康 IBKR 链不应回退 yfinance")
+
+    monkeypatch.setattr(lw, "fetch_yf_chain", _no_yfinance)
+    monkeypatch.setattr(lw, "_extract_events", lambda tk: {})
+    opt_map, _, chain_map = lw._build_opt_map(["NVDA"], {}, "ibkr", spot_overrides={"NVDA": 211.0})
+    assert opt_map["NVDA"]["spot"] == 211.0
+    assert chain_map["NVDA"][1] == "2026-10-28"
+
+
 def test_chain_from_ibkr_needs_oi_merged(monkeypatch) -> None:
     """IBKR 只回 Greeks/bid/ask，没有 openInterest —— 必须合 yfinance OI 再用。
 
@@ -283,6 +342,36 @@ def test_chain_from_ibkr_needs_oi_merged(monkeypatch) -> None:
 
     detail = compute_structure(out, 211.0)
     assert detail.get("spot") is not None
+
+    # 部分 IBKR OI 缺失时也要补齐，不能把缺失合约直接置零。
+    greeks["openInterest"] = 15000
+    second = greeks.iloc[0].copy()
+    second["strike"] = 201.0
+    second["openInterest"] = None
+    greeks = pd.concat([greeks, second.to_frame().T], ignore_index=True)
+    yf_second = _yf_chain_with_oi()
+    yf_second["strike"] = 201.0
+    yf_second["openInterest"] = 12000
+    monkeypatch.setattr(
+        lw,
+        "fetch_yf_chain",
+        lambda sym, exps: pd.concat([_yf_chain_with_oi(), yf_second], ignore_index=True),
+    )
+    out = lw._chain_from_ibkr("NVDA", ["20261120"], 211.0)
+    assert out is not None
+    assert dict(zip(out["strike"], out["openInterest"], strict=True)) == {
+        200.0: 15000,
+        201.0: 12000,
+    }
+
+    import sys
+
+    monkeypatch.setattr(
+        sys.modules["src.compute_gex"],
+        "filter_options",
+        staticmethod(lambda chain, spot, n, pct: (["20261120", "20261127"], [200.0, 201.0])),
+    )
+    assert lw._chain_from_ibkr("NVDA", ["20261120", "20261127"], 211.0) is None
 
 
 def _yf_chain_with_oi() -> pd.DataFrame:

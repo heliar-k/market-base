@@ -125,7 +125,7 @@ market-base/
 │   ├── fetch_euro_sovereign            ← 欧元区 10Y 主权利率（德/法/意/西，CNBC 日频 3 年）
 │   ├── fetch_fx                        ← 外汇对日线 16 对（timsun /assets/fx 数据源）
 │   ├── fetch_etf                       ← ETF 全量清单 + 精选池 37 只日线（timsun /assets/etfs）
-│   ├── fetch_options_structure         ← 22 标的期权结构快照（GEX/DEX/Vanna/Charm，yfinance 降级源）
+│   ├── fetch_options_structure         ← 30 标的期权结构快照（GEX/DEX/Vanna/Charm，次日回补 OI）
 │   ├── fetch_crypto_derivatives        ← 加密衍生品快照（OKX + Deribit + CME 基差）
 │   ├── fetch_crypto_basis               ← CME BTC 基差日序列（Yahoo BTC=F，timsun V1 治理）
 │   ├── fetch_coinglass                  ← Coinglass 全市场聚合快照（经 Jina Reader）
@@ -178,7 +178,7 @@ market-base/
 │   ├── fx/fx_pairs.csv                  ← 外汇对日线宽表 16 对（timsun /assets/fx）
 │   ├── etf/universe.csv                 ← Nasdaq Trader 全量 ETF 清单（~5600 只）+ 分类
 │   ├── etf/pool_prices.csv              ← 精选池 37 只 ETF 日线（timsun /assets/etfs）
-│   ├── options_structure/{date}.json    ← 22 标的期权结构快照（GEX/DEX/Vanna/Charm）
+│   ├── options_structure/{date}.json    ← 30 标的期权结构收盘快照（含 OI 回补状态）
 │   ├── options_structure/raw_{sym}_{date}.csv ← 期权链逐合约明细（选点必需，入库最近 3 天）
 │   ├── wheel/{date}.json               ← Wheel 看板快照（daily-full 落盘，导出端只读）
 │   ├── crypto_derivatives/{date}.json   ← 加密衍生品快照（OKX/Deribit/CME）
@@ -235,7 +235,7 @@ market-base/
 > |---|---|---|---|
 > | `daily-full` | 北京 05:00，周末也跑 | **其余全部 37 个 fetcher** + TSM 6-K + 分钟线（yfinance 1d/5m/15m/1h/4h）+ 派生指标（cross_asset / options_structure / bill_share / consensus / **wheel 看板** / LPI 快照）+ 时效断言 | **兜底主跑**：含三个加速班次的所有源，加速班次挂了/漏了，次日 05:00 必补齐 |
 > | `evening-late` | 北京 23:15 | 仅 3 个「下午才发布昨日观测」的源：`fetch_fred` / `fetch_cboe` / `fetch_fsi`（~3min） | 让宏观/信用/通胀/波动率页当晚就看到 T-1，不等次日主跑 |
-> | `intraday-refresh` | 工作日 UTC 13-21 每 15 分钟 | 盘中价量 5 源：`fetch_yfinance` / `fetch_cboe` / `fetch_barchart_vol` / `fetch_rate_expectations` / `fetch_polymarket`；FRED 仅 UTC 13-14 班次（发布高峰在美东上午） | 盘中新鲜度；尾班（21:52 UTC）在收盘后 1h 确认指数收盘价入库（2026-10-13 占位行事故后延长）；不拉分钟线、派生指标、日更源 |
+> | `intraday-refresh` | 工作日 UTC 13-21 每 15 分钟 | 盘中价量 5 源：`fetch_yfinance` / `fetch_cboe` / `fetch_barchart_vol` / `fetch_rate_expectations` / `fetch_polymarket`；FRED 仅 UTC 13-14 班次；UTC 14:52 后回补上一收盘快照 OI 并重建 Wheel | 盘中新鲜度；尾班（21:52 UTC）确认指数收盘价入库；不拉分钟线与其他派生指标 |
 > | `crypto-hourly` | 每小时 7×24 | 加密三源：`fetch_crypto_derivatives` / `fetch_coinglass` / `fetch_etf_flows` | 加密市场全天候；daily-full 仍兜底跑同三源 |
 >
 > 重叠是故意的：三个加速班次覆盖的源在 daily-full 里都有同源兜底（upsert 幂等，同日重复拉零风险）。
@@ -321,7 +321,8 @@ uv run python -m src.consensus       # 多源共识层两级状态卡（ADR-0004
 ./bin/fetch_fx                     # 外汇对日线 16 对（timsun /assets/fx）
 ./bin/fetch_etf                    # ETF 全量清单 + 精选池（timsun /assets/etfs）
 ./bin/fetch_etf --pool-only         # 只拉精选池日线（intraday 尾班用，跳过 Nasdaq 清单）
-./bin/fetch_options_structure      # 22 标的期权结构快照（GEX/DEX/Vanna/Charm，~3min）
+./bin/fetch_options_structure      # 30 标的收盘期权结构快照（OI 待次日回补）
+./bin/fetch_options_structure --finalize-oi  # 次日只回补上一收盘快照 OI 并重算
 
 # Wheel 策略：盘后定稿 vs 盘前/盘中实时（同一套规则引擎，只换入参）
 uv run python -m src.wheel_scanner           # 盘后定稿：读数据班次落盘的快照 + raw 链
@@ -466,12 +467,16 @@ uv run python src/sell_put.py --symbol TSM
 - `data/options_structure/raw_{sym}_{date}.csv` **入库**（最近 3 天，`RAW_KEEP_DAYS`），
   单日 ~1MB。它不是个人数据，是 yfinance 公开期权链的当日快照；而 JSON 快照里没有逐合约
   明细，选点必须用它。不入库时本机 `live_wheel` 只能回溯旧链、标出 `stale_days`。
-- 快照与 raw 文件日期、DTE、`ref_dt` 统一按美东日历日计算；`quote_ts` 记录实际取数完成的
-  UTC 时刻并写入 raw CSV。快照写入与 `live_wheel` 共用 bid/OI 健康检查，异常链不入库；
-  `_find_chain_file` 只使用 `ref_dt` 当日或更早的链，`live_wheel` 的现场链直接用于选点，
-  旧链回退保留 `chain_date / stale_days / quote_ts`。
-- `data_freshness` 里有两道各自的断言：`json_dir`（快照每天更新）与 `csv_dir_globs`
-  （raw 链，预算 2 天），未来日期文件会被排除，不能掩盖真实最新观测日。
+- D 日收盘快照保留 D 日现货与 IV，下一 XNYS 交易日 UTC 14:52 后只回补 D 日 OI 并重算；
+  错过该交易日时保留待回补状态并标红，不把后续交易日 OI 写成 D 日 OI。
+  `oi_date / oi_final / oi_quote_ts / oi_coverage` 记录回补口径，已到期无法回补的合约
+  明确排除。全量生成或回补有任何标的失败都保留旧 JSON 并让任务标红。
+- 快照与 raw 文件日期、DTE、`ref_dt` 统一按美东时间计算，交易日历使用 XNYS；`quote_ts` 记录实际取数完成的
+  UTC 时刻并写入 raw CSV。结构健康检查要求到期日完整且 OI/IV 覆盖率达标，bid/ask 只用于
+  选点的可执行性判断；`_find_chain_file` 只使用 `ref_dt` 当日或更早的链，旧链回退保留
+  `chain_date / stale_days / quote_ts`。
+- `data_freshness` 检查 JSON/raw 日期，并在工作日 UTC 14:52 后检查上一收盘快照是否已完成
+  OI 回补；未来日期文件会被排除，不能掩盖真实最新观测日。
 
 ### 7. 反爬抓取工具箱（新 fetcher 优先复用）
 

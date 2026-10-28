@@ -23,8 +23,9 @@ import argparse
 import json
 import logging
 import sys
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
 import pandas as pd
 
@@ -34,7 +35,13 @@ from src.fetchers.ibkr_fetcher import (
     connect_ib,
     get_option_chain_params,
 )
-from src.pricing import aggregate_wall, fetch_yf_chain
+from src.options_structure import chain_health
+from src.pricing import (
+    aggregate_wall,
+    cumulative_gamma_flip,
+    fetch_yf_chain,
+    years_to_expiration,
+)
 
 logging.basicConfig(
     level=logging.INFO,
@@ -43,6 +50,12 @@ logging.basicConfig(
 )
 
 log = logging.getLogger("gex")
+ET = ZoneInfo("America/New_York")
+
+
+def _now_et() -> datetime:
+    return datetime.now(timezone.utc).astimezone(ET)
+
 
 # 合约 conId 缓存：conId 对同一合约永远不变（实测同一批 310 个合约隔一次连接重查
 # 完全一致），而 ib.qualifyContracts() 验 600+ 个候选要 15~25 秒。缓存命中后
@@ -80,19 +93,26 @@ def filter_options(chain, spot, max_expirations=4, strike_pct=0.12):
     """
     import datetime as _dt
 
-    today = _dt.datetime.now()
-
-    # 只保留周五（跳过本周一到期的）
-    fri_exps = []
+    now = _now_et()
+    today = now.date()
+    dated = []
     for exp in chain.expirations:
-        d = _dt.datetime.strptime(exp, "%Y%m%d")
-        if d.weekday() == 4:  # Friday
-            days_to_exp = (d - today).days
-            if days_to_exp >= 3:  # 至少 3 天后到期
-                fri_exps.append((exp, days_to_exp))
-
-    fri_exps.sort(key=lambda x: x[1])
-    selected_exps = [e[0] for e in fri_exps[:max_expirations]]
+        day = _dt.datetime.strptime(exp, "%Y%m%d").date()
+        days = (day - today).days
+        if years_to_expiration(exp, now) > 0:
+            dated.append((exp, days, day.weekday()))
+    dated.sort(key=lambda item: item[1])
+    selected_exps = []
+    if dated and max_expirations > 0:
+        # 最近到期单独保留，0DTE 与周度合约不再被周五筛选排除。
+        selected_exps.append(dated[0][0])
+        fridays = [item for item in dated if item[2] == 4 and item[1] >= 3]
+        for exp, _days, _weekday in fridays:
+            if exp not in selected_exps:
+                selected_exps.append(exp)
+            if len(selected_exps) >= max_expirations:
+                break
+        selected_exps = selected_exps[:max_expirations]
 
     # 行权价过滤
     lo = spot * (1 - strike_pct)
@@ -117,8 +137,15 @@ def _oi_from_ticker(t, right: str) -> int | None:
 
 
 def _ticker_ready(t) -> bool:
-    """该合约的必填字段已到（盘口 bid + Greeks）。OI 另算：零持仓与新挂牌本来就没有。"""
-    return t.bid is not None and t.bid == t.bid and t.modelGreeks is not None
+    """该合约的 bid 与数值 Gamma 已到；OI 另算，真实零值也有效。"""
+    g = t.modelGreeks
+    return (
+        t.bid is not None
+        and t.bid == t.bid
+        and g is not None
+        and g.gamma is not None
+        and g.gamma == g.gamma
+    )
 
 
 def _conid_key(symbol: str, exp: str, strike: float, right: str) -> str:
@@ -238,23 +265,30 @@ def fetch_options_greeks(ib, symbol, expirations, strikes, batch_size=3):
 
         # 等到位为止，不用固定 sleep：三个字段不是同时到达的（实测同一批 50 个合约，
         # 第 4 秒 gamma 全到、第 6 秒 bid 全到、第 7 秒 OI 才全到）。
-        # 停的判据：bid + gamma 全部到齐，或已等过 GREEKS_MIN_WAIT 秒后 3 秒无增长
-        # （本来就没 OI 的新挂牌合约永远等不到，按全到齐会把每批拖满）。
-        ready_prev, stall = -1, 0
+        # 提前结束要求 bid、gamma、OI 全部到齐且已过最短等待；OI 未齐时
+        # 允许等满上限，只有 bid/gamma 自身停滞才提前结束。
+        progress_prev, stall = None, 0
         for second in range(1, GREEKS_WAIT_SECONDS + 1):
             ib.sleep(1)
             ready = sum(1 for t, _e, _k, _r in tickers if _ticker_ready(t))
-            if ready == len(tickers):
+            oi_ready = sum(
+                1
+                for t, _e, _k, right in tickers
+                if _ticker_ready(t) and _oi_from_ticker(t, right) is not None
+            )
+            if ready == len(tickers) and oi_ready == len(tickers) and second >= GREEKS_MIN_WAIT:
                 break
-            stall = stall + 1 if ready == ready_prev else 0
-            if stall >= 2 and second > GREEKS_MIN_WAIT:
+            progress = (ready, oi_ready)
+            stall = stall + 1 if progress == progress_prev else 0
+            if ready < len(tickers) and stall >= 2 and second > GREEKS_MIN_WAIT:
                 break
-            ready_prev = ready
+            progress_prev = progress
 
         batch_replied = 0
         for t, exp, strike, right in tickers:
             g = t.modelGreeks
             has_bid = t.bid is not None and t.bid == t.bid
+            gamma = g.gamma if g and g.gamma is not None and g.gamma == g.gamma else None
             row = {
                 "expiration": exp,
                 "strike": strike,
@@ -265,7 +299,7 @@ def fetch_options_greeks(ib, symbol, expirations, strikes, batch_size=3):
                 "volume": t.volume if not (t.volume != t.volume) else None,
                 "delta": g.delta if g else None,
                 # TWS gamma 恒非负；统一为项目惯例 call + / put -（同 greeks_from_yf）
-                "gamma": (-g.gamma if right == "P" else g.gamma) if g else None,
+                "gamma": (-gamma if right == "P" and gamma is not None else gamma),
                 "theta": g.theta if g else None,
                 "vega": g.vega if g else None,
                 "iv": g.impliedVol if g else None,
@@ -313,7 +347,7 @@ def fetch_options_greeks(ib, symbol, expirations, strikes, batch_size=3):
 # ============================================================================
 # 2. yfinance 降级（BS gamma 反推）
 # ============================================================================
-def greeks_from_yf(oi_df, spot, r=0.04):
+def greeks_from_yf(oi_df, spot, r=0.04, as_of=None):
     """IBKR Greeks 不可用时的降级路径：用 yfinance IV 反推 BS gamma。
 
     gamma = φ(d1) / (S·σ·√T)；惯例 call > 0、put < 0（与 compute_gex 一致）。
@@ -321,13 +355,13 @@ def greeks_from_yf(oi_df, spot, r=0.04):
     """
     from src.pricing import bs_greeks
 
-    today = datetime.now().date()
+    now = as_of or _now_et()
     rows = []
     for _, row in oi_df.iterrows():
         iv = row["impliedVolatility"]
-        if not iv or iv <= 0:
+        if not iv or iv <= 0.01:
             continue
-        t = (datetime.strptime(row["expiration"], "%Y%m%d").date() - today).days / 365
+        t = years_to_expiration(row["expiration"], now)
         if t <= 0:
             continue
         gamma_p, _delta = bs_greeks(spot, row["strike"], t, iv, r=r)
@@ -340,7 +374,7 @@ def greeks_from_yf(oi_df, spot, r=0.04):
                 "iv": iv,
             }
         )
-    df = pd.DataFrame(rows)
+    df = pd.DataFrame(rows, columns=["expiration", "strike", "right", "gamma", "iv"])
     log.info(f"BS gamma 计算完成: {len(df)} 条")
     return df
 
@@ -361,15 +395,24 @@ def compute_gex(greeks_df, oi_df, spot):
     if greeks_df.empty:
         log.error("Greeks 数据为空，无法计算 GEX")
         return None, None
+    now = _now_et()
+    greeks_df = greeks_df[
+        greeks_df["expiration"].apply(lambda exp: years_to_expiration(str(exp), now) > 0)
+    ].copy()
+    if greeks_df.empty:
+        log.error("全部 Greeks 合约均已到期，无法计算 GEX")
+        return None, None
 
     # 合并
     if not oi_df.empty:
         merged = greeks_df.merge(oi_df, on=["expiration", "strike", "right"], how="left")
-        # greeks_df 自带 OI（IBKR genericTick 101）时，merge 会出 openInterest_x/y：
-        # 优先用外部 oi_df 的值（历史行为），缺失则回落到 IBKR 自己的读数。
+        # IBKR 的 OI 包含真实零值；只在 IBKR 未返回时才使用外部源。
         if "openInterest_x" in merged.columns:
-            merged["openInterest"] = merged["openInterest_y"].fillna(merged["openInterest_x"])
+            merged["openInterest"] = merged["openInterest_x"].fillna(merged["openInterest_y"])
             merged = merged.drop(columns=["openInterest_x", "openInterest_y"])
+        missing_oi = int(merged["openInterest"].isna().sum())
+        if missing_oi:
+            log.warning(f"{missing_oi} 个合约缺少两源 OI，按零权重处理")
         merged["openInterest"] = merged["openInterest"].fillna(0).astype(int)
     else:
         merged = greeks_df.copy()
@@ -458,24 +501,11 @@ def print_wall(wall, spot, top_n=10):
     else:
         print(f"  净 GEX < 0 (${net_gex:,.0f}): dealer 做空 gamma → 市场波动可能放大，注意风险")
 
-    # Gamma Flip（GEX 由正转负的行权价）
-    wall_sorted = wall.sort_values("strike")
-    flip_points = []
-    for i in range(1, len(wall_sorted)):
-        prev = wall_sorted.iloc[i - 1]["total_gex"]
-        curr = wall_sorted.iloc[i]["total_gex"]
-        if (prev > 0 and curr < 0) or (prev < 0 and curr > 0):
-            flip_points.append(
-                (
-                    wall_sorted.iloc[i - 1]["strike"],
-                    wall_sorted.iloc[i]["strike"],
-                )
-            )
-
-    if flip_points:
-        print("\n  Gamma Flip 区域:")
-        for lo, hi in flip_points:
-            print(f"    ${lo:.0f} → ${hi:.0f}")
+    flip = cumulative_gamma_flip(wall.set_index("strike")["total_gex"], spot)
+    if flip is not None:
+        print(f"\n  Gamma Flip: ${flip:.0f}")
+    else:
+        print("\n  Gamma Flip: 无累计 GEX 负到正穿越点")
 
 
 # ============================================================================
@@ -522,7 +552,7 @@ def main():
     greeks_df = pd.DataFrame()
 
     if args.reuse_greeks:
-        cache = Path(f"data/gex/{symbol}_greeks_{datetime.now():%Y%m%d}.csv")
+        cache = Path(f"data/gex/{symbol}_greeks_{_now_et():%Y%m%d}.csv")
         if cache.exists():
             greeks_df = pd.read_csv(cache, dtype={"expiration": str})
             expirations = sorted(greeks_df["expiration"].unique())
@@ -555,7 +585,8 @@ def main():
                         ib, symbol, expirations, strikes, batch_size=args.batch_size
                     )
                     if not greeks_df.empty:
-                        snap = Path(f"data/gex/{symbol}_greeks_{datetime.now():%Y%m%d}.csv")
+                        snap = Path(f"data/gex/{symbol}_greeks_{_now_et():%Y%m%d}.csv")
+                        snap.parent.mkdir(parents=True, exist_ok=True)
                         greeks_df.to_csv(snap, index=False)
                         log.info(f"已保存 Greeks 快照: {snap}")
         else:
@@ -571,7 +602,13 @@ def main():
 
         ticker = yf.Ticker(symbol)
         if not expirations:
-            expirations = [e.replace("-", "") for e in ticker.options[: args.expirations]]
+            now = _now_et()
+            valid_exps = [
+                e.replace("-", "")
+                for e in ticker.options
+                if years_to_expiration(e.replace("-", ""), now) > 0
+            ]
+            expirations = valid_exps[: args.expirations]
         if spot is None:
             spot = float(ticker.fast_info.last_price)
 
@@ -583,6 +620,7 @@ def main():
 
     # === Step 2: OI（Barchart 优先——真实 gamma + OI 同源；yfinance 兜底） ===
     oi_df = pd.DataFrame()
+    bs_from_yf = False
     if greeks_df.empty or greeks_df["gamma"].isna().all():
         # Barchart 降级源（非 yfinance，不受 --no-yfinance 限制）
         from src.fetchers.barchart_options_fetcher import fetch_barchart_chain
@@ -600,18 +638,22 @@ def main():
                 n_before = len(bc)
                 bc = bc[(bc["strike"] >= lo) & (bc["strike"] <= hi)]
                 log.info(f"Barchart 行权价过滤 ±{args.strike_pct:.0%}: {n_before} → {len(bc)} 条")
-            log.info(f"Barchart 期权链: {len(bc)} 条（真实市场 gamma + OI）")
-            greeks_df = bc[["expiration", "strike", "right", "gamma", "iv"]]
-            oi_df = bc.rename(columns={"iv": "impliedVolatility"})[
-                [
-                    "expiration",
-                    "strike",
-                    "right",
-                    "openInterest",
-                    "volume",
-                    "impliedVolatility",
+            healthy, why = chain_health(bc, expected_expirations=expirations, require_iv=False)
+            if healthy:
+                log.info(f"Barchart 期权链: {len(bc)} 条（真实市场 gamma + OI）")
+                greeks_df = bc[["expiration", "strike", "right", "gamma", "iv"]]
+                oi_df = bc.rename(columns={"iv": "impliedVolatility"})[
+                    [
+                        "expiration",
+                        "strike",
+                        "right",
+                        "openInterest",
+                        "volume",
+                        "impliedVolatility",
+                    ]
                 ]
-            ]
+            else:
+                log.warning(f"Barchart 期权链不完整（{why}），回退 yfinance")
 
     if not args.no_yfinance and oi_df.empty:
         oi_df = fetch_yf_chain(symbol, expirations)[
@@ -636,9 +678,31 @@ def main():
             log.error("未获取到任何 Greeks 数据")
             sys.exit(1)
         log.warning("IBKR Greeks 为空，用 yfinance IV 计算 BS gamma")
+        bs_from_yf = True
         greeks_df = greeks_from_yf(oi_df, spot)
 
+    if greeks_df.empty or greeks_df["gamma"].notna().sum() == 0:
+        log.error("没有有效 Gamma：请检查 IV 是否全部低于 1% 或期权行情是否不可用")
+        sys.exit(1)
+
     # === Step 3: 计算 GEX ===
+    valid_greeks = greeks_df[greeks_df["gamma"].notna()]
+    missing_greek_exps = sorted(
+        set(expirations) - set(valid_greeks.get("expiration", pd.Series(dtype=str)).astype(str))
+    )
+    if missing_greek_exps:
+        log.error(f"Greeks 缺到期日：{','.join(missing_greek_exps)}")
+        sys.exit(1)
+    if not oi_df.empty:
+        healthy, why = chain_health(oi_df, expected_expirations=expirations, require_iv=bs_from_yf)
+        if not healthy:
+            has_ibkr_oi = (
+                "openInterest" in greeks_df.columns and greeks_df["openInterest"].notna().any()
+            )
+            if not has_ibkr_oi:
+                log.error(f"期权链不完整：{why}")
+                sys.exit(1)
+            log.warning(f"外部期权链整体不健康（{why}），仍用于补齐 IBKR 缺失 OI")
     contract_df, wall_df = compute_gex(greeks_df, oi_df, spot)
 
     if wall_df is not None and not wall_df.empty:
@@ -650,7 +714,7 @@ def main():
         log.info(f"已保存期权墙: {args.output}")
 
     if contract_df is not None:
-        out = Path(f"data/gex/{symbol}_gex_{datetime.now().strftime('%Y%m%d_%H%M')}.csv")
+        out = Path(f"data/gex/{symbol}_gex_{_now_et().strftime('%Y%m%d_%H%M')}.csv")
         out.parent.mkdir(parents=True, exist_ok=True)
         contract_df.to_csv(out, index=False)
         log.info(f"已保存 GEX 明细: {out}")

@@ -950,7 +950,11 @@ async function load() {
     R.fail(['detail', 'board', 'wheel-radar'], new Error('无期权结构快照 · 运行 ./bin/fetch_options_structure 后刷新'));
     return;
   }
-  R.setAsOf([['期权快照', D.snapshot_date || (D.date && D.date.slice(0, 10))]]);
+  const optionAsOf = [['期权快照', D.snapshot_date || (D.date && D.date.slice(0, 10))]];
+  if (D.oi_date) {
+    optionAsOf.push(['期权 OI', D.oi_date + (D.oi_final === false ? ' 待回补' : '')]);
+  }
+  R.setAsOf(optionAsOf);
 
   // Wheel 池梯队表：来自后端 wheel_pool（= WHEEL_POOL 静态配置），不从 wheel 看板派生。
   // 看板可能因 `wheel_scanner --dump` 失败而缺失（那步不阻断流程），从它派生会让

@@ -140,8 +140,10 @@ def _window_expiries(sym: str, options: tuple[str, ...]) -> list[str]:
     return out
 
 
-def _chain_health(chain: pd.DataFrame) -> tuple[bool, str]:
-    return chain_health(chain)
+def _chain_health(
+    chain: pd.DataFrame, expected_expirations: list[str] | None = None
+) -> tuple[bool, str]:
+    return chain_health(chain, expected_expirations=expected_expirations)
 
 
 def _prev_trading_chain(sym: str, _static: dict) -> tuple[pd.DataFrame, str] | None:
@@ -253,10 +255,12 @@ def _build_opt_map(
                 chain_date = today
                 quote_ts = None
                 reused_chain = False
+                ibkr_source = False
 
                 if greeks == "ibkr":
                     chain = _chain_from_ibkr(sym, exps, spot, batch_size=ibkr_batch)
-                    if chain is None or chain.empty:
+                    ibkr_source = chain is not None and not chain.empty
+                    if not ibkr_source:
                         notes[sym] = "IBKR 无行情 → BSM 估算"
                         chain = fetch_yf_chain(sym, exps)
                 elif greeks == "auto" and sym in ibkr_cache:
@@ -266,6 +270,7 @@ def _build_opt_map(
                         chain = cached
                         quote_ts = entry.get("quoted_at")
                         reused_chain = True
+                        ibkr_source = True
                         notes[sym] = f"IBKR 真实盘口 {quote_ts or '时点未知'}"
                     else:
                         chain = fetch_yf_chain(sym, exps)
@@ -273,9 +278,7 @@ def _build_opt_map(
                             notes[sym] = f"IBKR 缓存已过期({entry.get('chain_date')}) → yfinance"
                 else:
                     chain = fetch_yf_chain(sym, exps)
-                chain = chain.dropna(subset=["impliedVolatility"])
-                chain = chain[chain["impliedVolatility"] > 0.01]
-                ok, why = _chain_health(chain)
+                ok, why = _chain_health(chain, expected_expirations=None if ibkr_source else exps)
                 if not ok:
                     # 盘前 yfinance 链整片失效（bid/OI 全 0）→ 回退到上一交易日收盘链。
                     # 这样盘前仍能算 IV35/VRP/结构墙（结论基于昨收期权面 + 实时现价），
@@ -363,9 +366,15 @@ def _chain_from_ibkr(
         if g.empty or g["gamma"].isna().all():
             return None
         g["expiration"] = g["expiration"].astype(str).str.replace("-", "", regex=False)
+        selected_exps = set(_exps or exps)
+        valid_exps = set(g.loc[g["gamma"].notna(), "expiration"])
+        missing_exps = sorted(selected_exps - valid_exps)
+        if missing_exps:
+            log.warning(f"{sym} IBKR 缺到期日 {','.join(missing_exps)}，回退 yfinance")
+            return None
         g = g.rename(columns={"iv": "impliedVolatility"})
-        # 1) IBKR 自带 OI 可用就直接用；2) 全缺才回退 yfinance 左连接
-        if "openInterest" not in g.columns or g["openInterest"].isna().all():
+        # IBKR OI 优先；任何缺失都用 yfinance 补齐，真实零值保持不变。
+        if "openInterest" not in g.columns or g["openInterest"].isna().any():
             oi = fetch_yf_chain(sym, sorted(g["expiration"].unique()))
             if not oi.empty:
                 g = g.merge(
@@ -379,6 +388,9 @@ def _chain_from_ibkr(
                     g = g.drop(columns=["openInterest_yf"])
         if "openInterest" not in g.columns:
             return None
+        missing_oi = int(g["openInterest"].isna().sum())
+        if missing_oi:
+            log.warning(f"{sym} 有 {missing_oi} 个合约缺少两源 OI，按零权重处理")
         g["openInterest"] = pd.to_numeric(g["openInterest"], errors="coerce").fillna(0).astype(int)
         return g
     except Exception:

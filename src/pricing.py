@@ -8,8 +8,10 @@ compute_gex / sell_put / hedge_planner 三处重复的收敛点：
 """
 
 import logging
+from datetime import datetime
 from math import erf, exp, pi, sqrt
 from math import log as _ln
+from zoneinfo import ZoneInfo
 
 import pandas as pd
 
@@ -17,6 +19,7 @@ log = logging.getLogger("pricing")
 
 # BS 无风险利率（与 compute_gex.greeks_from_yf / options_structure 一致）
 R = 0.04
+ET = ZoneInfo("America/New_York")
 
 
 def _norm_cdf(x: float) -> float:
@@ -42,6 +45,43 @@ def bs_greeks(S: float, K: float, T: float, sigma: float, r: float = R) -> tuple
     d1 = (_ln(S / K) + (r + sigma * sigma / 2) * T) / sig_t
     gamma = _norm_pdf(d1) / (S * sig_t)
     return gamma, _norm_cdf(d1)
+
+
+def years_to_expiration(expiration: str, now: datetime) -> float:
+    """股票/ETF 期权到美东到期日 16:00 的剩余年数；已到期返回 0。"""
+    if now.tzinfo is None:
+        raise ValueError("now 必须带时区")
+    expiry = datetime.strptime(expiration, "%Y%m%d").replace(
+        hour=16, minute=0, second=0, microsecond=0, tzinfo=ET
+    )
+    seconds = (expiry - now.astimezone(ET)).total_seconds()
+    return max(seconds, 0.0) / (365 * 24 * 3600)
+
+
+def cumulative_gamma_flip(gex_by_strike: pd.Series, spot: float) -> float | None:
+    """累计 GEX 负到正穿越点；按现价处累计符号选位，并排除过远噪声。"""
+    values = gex_by_strike.sort_index().astype(float)
+    if values.empty:
+        return None
+    cum = values.cumsum()
+    spot_values = cum.loc[cum.index <= spot]
+    spot_cum = float(spot_values.iloc[-1]) if not spot_values.empty else 0.0
+    flips: list[float] = []
+    prev_cum = 0.0
+    for strike, value in cum.items():
+        current = float(value)
+        if prev_cum < 0 <= current:
+            flips.append(float(strike))
+        prev_cum = current
+    if spot_cum >= 0:
+        below = [strike for strike in flips if strike <= spot]
+        flip = below[-1] if below else None
+    else:
+        above = [strike for strike in flips if strike > spot]
+        flip = above[0] if above else None
+    if flip is not None and abs(spot - flip) / spot > 0.30:
+        return None
+    return flip
 
 
 # 统一列（三调用方各自消费子集）
