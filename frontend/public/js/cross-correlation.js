@@ -98,6 +98,7 @@ let drillPriceChart = null; // 弹层下图：归一化价格
 let drillPair = null;       // 当前弹层的标的对（主题切换时原对重绘）
 let corrChart = null;
 let corrObserver = null;
+let sparkObservers = []; // 结构洞察卡里的迷你趋势图（每卡一个，随 innerHTML 重建整体换新）
 let seriesMapCache = null; // 宏观模式最近一次渲染的 seriesMap（状态栏数据截至用）
 
 // ── init ───────────────────────────────────────────────────────────────────
@@ -567,6 +568,7 @@ function renderInsights(d) {
         <div class="corr-insight-text">${zone.text}</div>
       </div>`);
   }
+  disposeSparkCharts();
   box.innerHTML = cards.join('') || '<div class="corr-insight-text">暂无报警数据 · 待下一交易日 cross_asset 生成（uv run python -m src.cross_asset）</div>';
 
   // 报警对迷你趋势（每张洞察卡下方 spark）：自适应趋势线 + 分位/区间文字
@@ -579,6 +581,10 @@ function renderInsights(d) {
     el.appendChild(spark);
     const dark = document.body.classList.contains('dark');
     const chart = echarts.init(spark, dark ? 'macroDark' : 'macro', { renderer: 'canvas' });
+    // canvas 不吃媒体查询：只按 init 时的宽度绘制，卡片变窄后不 resize 就向右溢出卡片
+    const ro = new ResizeObserver(() => chart.resize());
+    ro.observe(spark);
+    sparkObservers.push(ro);
     const vals = a.series.map(s => s.value);
     const dates = a.series.map(s => s.date);
     const lastIdx = vals.length - 1;
@@ -1064,7 +1070,14 @@ function disposeDrillCharts() {
 function disposeMatrixCharts() {
   if (matrixObserver) { matrixObserver.disconnect(); matrixObserver = null; }
   if (matrixChart) { matrixChart.dispose(); matrixChart = null; }
+  disposeSparkCharts();
   disposeDrillCharts();
+}
+
+// 洞察卡的 chart 实例随 innerHTML 重建一并丢弃，只需断开 observer（否则它继续持有已脱离的节点）
+function disposeSparkCharts() {
+  sparkObservers.forEach(o => o.disconnect());
+  sparkObservers = [];
 }
 
 // ── status ─────────────────────────────────────────────────────────────────
