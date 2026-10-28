@@ -175,8 +175,10 @@ def _from_filename(names: list[str], not_after: date | None = None) -> date | No
     return max(found) if found else None
 
 
-def _oldest_symbol_date(names: list[str], not_after: date | None = None) -> date | None:
-    """取每个标的最新有效日期中的最早值，防止单个新鲜文件掩盖其他标的停更。"""
+def _oldest_symbol_date(
+    names: list[str], not_after: date | None = None, expected: list[str] | None = None
+) -> date | None:
+    """取每个标的最新有效日期中的最早值；任一预期标的缺失即返回 None。"""
     by_symbol: dict[str, date | None] = {}
     for n in names:
         stem = Path(n).stem
@@ -190,6 +192,11 @@ def _oldest_symbol_date(names: list[str], not_after: date | None = None) -> date
             continue
         if by_symbol[symbol] is None or d > by_symbol[symbol]:
             by_symbol[symbol] = d
+    if expected is not None:
+        dates = [by_symbol.get(f"raw_{s}") for s in expected]
+        if any(d is None for d in dates):
+            return None
+        return min(d for d in dates if d is not None)
     if not by_symbol or any(d is None for d in by_symbol.values()):
         return None
     return min(d for d in by_symbol.values() if d is not None)
@@ -221,7 +228,9 @@ def latest(path: Path, chk: Check, today: date | None = None) -> date | None:
         return _from_filename([p.name for p in path.glob("*.json")], today)
     if chk["kind"] == "csv_dir_globs":
         # 目录下多个文件，日期在文件名末尾（raw_NVDA_20261027.csv）
-        return _oldest_symbol_date([p.name for p in path.glob("*.csv")], today)
+        from .options_structure import SYMBOLS
+
+        return _oldest_symbol_date([p.name for p in path.glob("*.csv")], today, SYMBOLS)
     if not path.exists():
         return None
     return _last_csv_date(path, chk.get("column"))

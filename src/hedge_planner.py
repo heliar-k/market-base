@@ -16,8 +16,9 @@
 import argparse
 import logging
 from dataclasses import dataclass
-from datetime import date
+from datetime import date, datetime
 from math import isfinite
+from zoneinfo import ZoneInfo
 
 from src.fetchers.yfinance_fetcher import ensure_yf_proxy
 from src.pricing import fetch_yf_chain
@@ -27,6 +28,10 @@ import yfinance as yf  # noqa: E402
 
 logging.basicConfig(level=logging.INFO, format="%(message)s")
 log = logging.getLogger("hedge")
+
+
+def _today_et() -> date:
+    return datetime.now(ZoneInfo("America/New_York")).date()
 
 
 # ============================================================================
@@ -97,7 +102,7 @@ def fetch_quotes(symbol: str, exp: str) -> dict[tuple[float, str], Quote]:
 
 def pick_expirations(options: list[str], targets=(30, 60, 90)) -> list[str]:
     """从可用到期日中挑出最接近 30/60/90 天的（自动跳过周内短期合约）"""
-    today = date.today()
+    today = _today_et()
     options = [e for e in options if date.fromisoformat(e) >= today]
     if not options:
         return []  # 全链已过期 → 无合约可选（调用方自行降级）
@@ -122,7 +127,7 @@ def fmt_money(per_share: float) -> str:
 
 
 def print_structures(exp: str, quotes: dict, puts: list[float], calls: list[float], spot: float):
-    days = (date.fromisoformat(exp) - date.today()).days
+    days = (date.fromisoformat(exp) - _today_et()).days
     print(f"\n{'=' * 66}\n=== {exp}（{days} 天后到期）===\n{'=' * 66}")
 
     # 报价明细

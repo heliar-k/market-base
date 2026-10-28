@@ -1,10 +1,18 @@
 """hedge_planner 结构盈亏计算的最小校验"""
 
-from datetime import date, timedelta
+from datetime import timedelta
 
 import pandas as pd
 
-from src.hedge_planner import collar, fetch_quotes, naked_put, pick_expirations, put_spread, snap
+from src.hedge_planner import (
+    _today_et,
+    collar,
+    fetch_quotes,
+    naked_put,
+    pick_expirations,
+    put_spread,
+    snap,
+)
 
 
 def test_put_spread_math():
@@ -59,7 +67,7 @@ def test_fetch_quotes_handles_nan_prices(monkeypatch):
 def test_snap_and_pick():
     assert snap([360, 370, 380, 390], 383) == 380
     # 用相对 today 的到期日，避免硬编码日期随时间漂移
-    today = date.today()
+    today = _today_et()
     # 日期间隔取 targets 的一半，确保每个目标都有唯一最近月
     exps = [
         (today + timedelta(days=15)).isoformat(),

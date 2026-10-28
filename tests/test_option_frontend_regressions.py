@@ -8,6 +8,12 @@ def test_gex_chart_uses_full_cumulative_series_and_keeps_flip():
     assert "const cum = g.map(x => cumByStrike.get(x.strike))" in text
 
 
+def test_oi_panel_uses_near_spot_band():
+    text = Path("frontend/src/pages/assets/equities/options.astro").read_text()
+    assert "近现价 OI 集中度 Top 20" in text
+    assert "ATM ±10%" in text
+
+
 def test_options_page_header_uses_et_snapshot_date():
     text = Path("frontend/src/pages/assets/equities/options.astro").read_text()
     assert "D.snapshot_date || (D.date && D.date.slice(0, 10))" in text

@@ -425,9 +425,10 @@ def compute_structure(df: pd.DataFrame, spot: float) -> dict:
         {"expiration": e, "dte": int(dte_map[e]), "iv": round(float(tm[e]) * 100, 2)}
         for e in order.index
     ]
-    # OI Top 20（strike × 到期）— 按 Call + Put 总 OI 排序
+    # 近现价 OI Top 20（strike × 到期）— ATM ±10% 内按 Call + Put 总 OI 排序
+    near = c[c["strike"].between(spot * 0.9, spot * 1.1)]
     top = (
-        c.groupby(["strike", "expiration"])
+        near.groupby(["strike", "expiration"])
         .agg(
             call_oi=("oi", lambda s: s[c.loc[s.index, "right"] == "C"].sum()),
             put_oi=("oi", lambda s: s[c.loc[s.index, "right"] == "P"].sum()),

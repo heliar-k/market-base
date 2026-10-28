@@ -280,12 +280,23 @@ def test_oi_top_uses_total_open_interest():
             "volume": 0,
             "impliedVolatility": 0.2,
         }
-        for i, strike in enumerate(range(80, 101))
+        for i, strike in enumerate(range(90, 111))
     ]
+    rows.append(
+        {
+            "strike": 500.0,
+            "right": "P",
+            "expiration": EXP,
+            "openInterest": 999999,
+            "volume": 0,
+            "impliedVolatility": 0.2,
+        }
+    )
     out = compute_structure(pd.DataFrame(rows), 100.0)
     assert len(out["oi_top"]) == 20
-    assert out["oi_top"][0]["strike"] == 80.0
-    assert 100.0 not in {row["strike"] for row in out["oi_top"]}
+    assert out["oi_top"][0]["strike"] == 90.0
+    assert 110.0 not in {row["strike"] for row in out["oi_top"]}
+    assert 500.0 not in {row["strike"] for row in out["oi_top"]}
 
 
 def test_raw_retention_keeps_latest_three_actual_dates(monkeypatch, tmp_path):

@@ -44,7 +44,7 @@ import Section from '../../../components/Section.astro';
       <div class="chart chart-sm" id="iv-chart"></div>
     </Section>
 
-    <Section id="sec-oi" title="OI 集中度 Top 20 · (Strike × 到期)" sub="按总 OI (Call + Put) 排序，观察 dealer 关键 pin 位" card>
+    <Section id="sec-oi" title="近现价 OI 集中度 Top 20 · (Strike × 到期)" sub="ATM ±10% 内按总 OI (Call + Put) 排序，观察 dealer 关键 pin 位" card>
       <div id="oi-top-host"></div>
     </Section>
   </div>
@@ -1001,9 +1001,9 @@ async function load() {
         ['Net Charm', fmtSignB(v.net_charm), v.charm_near7 == null ? '近 7 天到期占比 —' : `近 7 天到期占 ${R.num(v.charm_near7, 1)}%`],
         ['P/C OI 比', `ATM ${R.num(v.pcr_oi_atm ?? v.pcr_oi)} · 全链 ${R.num(v.pcr_oi)} · 量 ${R.num(v.pcr_vol)}`, 'ATM 区 ±10%'],
         ['到期 Gamma 占比', Object.entries(v.buckets || {}).map(([k, x]) => k + ' ' + R.num(x.gex_pct, 0) + '%').join(' · ') || '—', '各段 Σ|GEX| / 全链'],
-        ['OI 最大集中位', oiTop
+        ['近现价 OI 最大集中位', oiTop
           ? `${R.num(oiTop.strike, 1)} · ${R.num(oiTop.total / 1000, 1)}K` : '—',
-          oiTop ? `${oiTop.expiration} · call+put 合计` : '—'],
+          oiTop ? `${oiTop.expiration} · call+put 合计 · ATM ±10%` : '—'],
         ...wheelFacts(),
       ],
       note: 'GEX/DEX/Vanna/Charm 单位为十亿美元（B），IV 为 %，Skew 为 pt',
