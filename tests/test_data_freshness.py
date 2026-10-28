@@ -84,6 +84,7 @@ def test_json_dir_uses_filename_date(tmp_path):
     (tmp_path / "snap").mkdir()
     (tmp_path / "snap" / "20260901.json").write_text("{}")
     (tmp_path / "snap" / "20260904.json").write_text("{}")
+    (tmp_path / "snap" / "20260906.json").write_text("{}")
     chk = {"path": "snap", "kind": "json_dir", "budget": 6, "note": "x"}
     rows = audit(tmp_path, date(2026, 9, 5), [chk])
     assert rows[0][0] == "ok" and rows[0][2] == 1
@@ -100,6 +101,7 @@ def test_csv_dir_globs_reads_raw_chain_filename_date(tmp_path):
     (d / "20261027.json").write_text("{}")
     (d / "raw_NVDA_20261024.csv").write_text("strike,right\n200,P\n")
     (d / "raw_BRK-B_20261023.csv").write_text("strike,right\n540,P\n")
+    (d / "raw_NVDA_20261028.csv").write_text("strike,right\n200,P\n")
 
     json_chk = {"path": "data/options_structure", "kind": "json_dir", "budget": 2, "note": "x"}
     raw_chk = {

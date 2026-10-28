@@ -80,7 +80,29 @@ def test_evaluate_symbol_sell_put_requires_stabilization_and_vrp(tmp_path, monke
     assert row.put_pick.right == "P"
     assert row.put_pick.strike < row.close
     assert row.put_pick.executable is False  # 无 raw CSV 时显式标为理论估算
+    assert row.actionable is False  # 理论估算不能进入可执行候选
+    assert ws.portfolio_summary([row])["active_put_count"] == 0
     assert row.opt_symbol == "TEST"  # 未指定别名时 = symbol
+
+    no_earnings = {"TEST": {**opt_map["TEST"], "earnings_date": None}}
+    blocked = evaluate_symbol(spec, "20261023", no_earnings)
+    assert blocked is not None
+    assert blocked.signal == "暂不操作"
+    assert blocked.actionable is False
+    assert blocked.put_pick is None
+    assert "财报日缺失" in blocked.reason
+
+    captured = {}
+    real_compute = ws.compute_all_indicators
+
+    def _capture(df):
+        captured["index"] = df.index.copy()
+        return real_compute(df)
+
+    monkeypatch.setattr(ws, "compute_all_indicators", _capture)
+    evaluate_symbol(spec, "20261023", opt_map, live_spot=274.0)
+    assert captured["index"][-1] == pd.Timestamp("2026-10-23")
+    assert not captured["index"].has_duplicates
 
     # GOOG/BRK.B 类：池内 symbol 与期权链 ticker 不一致时走别名（前端点击联动用）
     aliased = evaluate_symbol(
@@ -88,6 +110,26 @@ def test_evaluate_symbol_sell_put_requires_stabilization_and_vrp(tmp_path, monke
     )
     assert aliased is not None
     assert (aliased.symbol, aliased.opt_symbol) == ("TEST", "TESTX")
+
+
+def test_live_scan_skips_symbols_without_live_spot(monkeypatch) -> None:
+    import src.wheel_scanner as ws
+
+    spec = PoolSpec("TEST", "T0", "测试", "测试")
+    monkeypatch.setattr(ws, "WHEEL_POOL", [spec])
+    monkeypatch.setattr(ws, "portfolio_summary", lambda rows, **kwargs: {})
+
+    def _must_not_evaluate(*args, **kwargs):
+        raise AssertionError("缺实时价的标的不能进入指标与信号计算")
+
+    monkeypatch.setattr(ws, "evaluate_symbol", _must_not_evaluate)
+    _, rows, _ = ws.scan_pool(
+        symbols={"TEST"},
+        live_spot={},
+        opt_map_override={"TEST": {}},
+        snap_date_override="20261027",
+    )
+    assert rows == []
 
 
 def test_negative_vrp_blocks_sell_put(tmp_path, monkeypatch) -> None:
@@ -206,7 +248,8 @@ def test_event_fields_single_line_and_tones() -> None:
     soon_ed = (datetime.now().date() + timedelta(days=20)).strftime("%Y-%m-%d")
     soon_div = (datetime.now().date() + timedelta(days=6)).strftime("%Y-%m-%d")
     _, e_dte, _, div_dte, alert, tone = _event_fields(
-        {"earnings_date": soon_ed, "ex_dividend_date": soon_div}
+        {"earnings_date": soon_ed, "ex_dividend_date": soon_div},
+        datetime.now().date().strftime("%Y%m%d"),
     )
     assert e_dte == 20 and div_dte == 6
     assert " · " in alert and "除息6d" in alert

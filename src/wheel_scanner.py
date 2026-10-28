@@ -23,8 +23,9 @@ from __future__ import annotations
 import argparse
 import json
 from dataclasses import asdict, dataclass
-from datetime import datetime, timedelta
+from datetime import datetime
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
 import numpy as np
 import pandas as pd
@@ -32,6 +33,8 @@ import pandas as pd
 from src.config import ROOT
 from src.indicators import compute_all_indicators, load_data
 from src.pricing import bs_greeks
+
+ET = ZoneInfo("America/New_York")
 
 
 @dataclass(frozen=True)
@@ -132,7 +135,7 @@ class OptionPick:
     annual_roc_pct: float | None = None  # 若有 bid/ask 则算年化收益率
     chain_date: str | None = None  # 该合约实际来自哪天的 raw 链（YYYY-MM-DD）
     stale_days: int = 0  # 链比快照日旧几天：0=当日，>0=回溯到的旧链
-    quote_ts: str | None = None  # 链文件写盘时刻（报价新鲜度，ISO）
+    quote_ts: str | None = None  # 实际取数完成的 UTC 时刻（ISO）
 
 
 @dataclass
@@ -239,7 +242,7 @@ def _ref_date(snap_date: str | None) -> datetime.date:
             return datetime.strptime(s, "%Y%m%d").date()
         except Exception:
             pass
-    return datetime.now().date()
+    return datetime.now(ET).date()
 
 
 def _is_monthly_opex(dt: datetime.date) -> bool:
@@ -256,9 +259,7 @@ def _find_chain_file(opt_sym: str, ref_dt: datetime.date) -> tuple[Path | None, 
     当天就没有该标的的链，此时应当用前一个交易日的真实链并**标明陈旧天数**，
     而不是静默变成理论估算。
 
-    也允许取比 ref_dt **新一天**的链：options_structure 用本机时区（北京 UTC+8）给文件
-    命名，而本模块按美东算 ref_dt。北京早上 8 点跑时美东还是前一天 20 点，文件日期
-    就比 ref_dt 大一天；不允许取会让整池退化成 BSM 估算。新鲜一天不算陈旧（返回 0）。
+    文件日期已经统一为美东日期，未来日期文件不参与选点。
     """
     d = ROOT / "data" / "options_structure"
     exact = d / f"raw_{opt_sym}_{ref_dt:%Y%m%d}.csv"
@@ -271,9 +272,9 @@ def _find_chain_file(opt_sym: str, ref_dt: datetime.date) -> tuple[Path | None, 
             fdt = datetime.strptime(f.stem.rsplit("_", 1)[-1], "%Y%m%d").date()
         except ValueError:
             continue
-        if fdt > ref_dt + timedelta(days=1):
-            continue  # 超出时区容差的新文件：可能真的是未来数据，不用
-        if best_dt is None or abs((fdt - ref_dt).days) < abs((best_dt - ref_dt).days):
+        if fdt > ref_dt:
+            continue
+        if best_dt is None or fdt > best_dt:
             best, best_dt = f, fdt
     if best is None or best_dt is None:
         return None, 0
@@ -290,15 +291,28 @@ def _pick_contract(
     target_delta: float,
     earnings_dte: int | None = None,
     wall_strike: float | None = None,
+    chain_info: tuple[pd.DataFrame, str] | None = None,
 ) -> OptionPick | None:
     """选点器：锚定快照日 DTE；优选 OpEx/高 OI 到期日；结合期权墙外侧与点差过滤。"""
     ref_dt = _ref_date(snap_date)
-    raw_path, chain_stale = _find_chain_file(opt_sym, ref_dt)
-    chain_date = (
-        datetime.strptime(raw_path.stem.rsplit("_", 1)[-1], "%Y%m%d").strftime("%Y-%m-%d")
-        if raw_path
-        else None
-    )
+    raw_path = None
+    if chain_info is not None:
+        df, chain_date = chain_info
+        df = df.copy()
+        chain_stale = max((ref_dt - datetime.strptime(chain_date, "%Y-%m-%d").date()).days, 0)
+    else:
+        raw_path, chain_stale = _find_chain_file(opt_sym, ref_dt)
+        chain_date = (
+            datetime.strptime(raw_path.stem.rsplit("_", 1)[-1], "%Y%m%d").strftime("%Y-%m-%d")
+            if raw_path
+            else None
+        )
+        df = pd.DataFrame()
+        if raw_path is not None:
+            try:
+                df = pd.read_csv(raw_path, dtype={"expiration": str})
+            except Exception:
+                pass
 
     dte_min, dte_max = THRESHOLDS["dte_min"], THRESHOLDS["dte_max"]
     pre_earnings = False
@@ -307,11 +321,7 @@ def _pick_contract(
         dte_min, dte_max = 7, earnings_dte - 1
         pre_earnings = True
 
-    if raw_path is not None:
-        try:
-            df = pd.read_csv(raw_path, dtype={"expiration": str})
-        except Exception:
-            df = pd.DataFrame()
+    if chain_info is not None or raw_path is not None:
         if not df.empty:
             df = df[
                 (df["right"] == right)
@@ -408,10 +418,8 @@ def _pick_contract(
                         annual_roc_pct=roc,
                         chain_date=chain_date,
                         stale_days=chain_stale,
-                        quote_ts=datetime.fromtimestamp(raw_path.stat().st_mtime).strftime(
-                            "%Y-%m-%d %H:%M:%S"
-                        )
-                        if raw_path
+                        quote_ts=str(best["quote_ts"])
+                        if "quote_ts" in best and pd.notna(best["quote_ts"])
                         else None,
                     )
         # 若存在当日真实期权链但窗口内全部因点差过大/流动性枯竭被拒，绝不回退 BSM 伪造合约
@@ -576,6 +584,7 @@ def evaluate_symbol(
     opt_map: dict,
     holdings: set[str] | None = None,
     live_spot: float | None = None,
+    chain_info: tuple[pd.DataFrame, str] | None = None,
 ) -> ScanRow | None:
     csv_path = ROOT / "data" / "stocks" / f"{spec.symbol}.csv"
     if not csv_path.exists():
@@ -597,7 +606,7 @@ def evaluate_symbol(
                 "close": [live_spot],
                 "volume": [np.nan],
             },
-            index=pd.DatetimeIndex([pd.Timestamp.now().normalize()], name=df.index.name),
+            index=pd.DatetimeIndex([pd.Timestamp(_ref_date(snap_date))], name=df.index.name),
         )
         # 同一交易日重跑时不重复追加（日线已含当日收盘则整行替换）
         df = pd.concat([df[df.index < live_row.index[0]], live_row])
@@ -706,6 +715,8 @@ def evaluate_symbol(
         reasons.append(f"{suitability.split('(')[0]}·宜正股或作底仓")
     elif iv35 is None:
         reasons.append("缺期权数据·需运行 fetch_options_structure")
+    elif not ov.get("earnings_date"):
+        reasons.append("财报日缺失·暂不出手")
     else:
         is_oversold = rsi <= THRESHOLDS["put_rsi_trigger"] or bb_pos <= THRESHOLDS["put_bb_pos_max"]
         is_pullback = (
@@ -797,7 +808,16 @@ def evaluate_symbol(
     call_pick = None
     if signal == "SELL PUT":
         put_pick = _pick_contract(
-            opt_key, snap_date, ov, opt_spot, iv35, "P", THRESHOLDS["put_delta_target"], e_dte, pw
+            opt_key,
+            snap_date,
+            ov,
+            opt_spot,
+            iv35,
+            "P",
+            THRESHOLDS["put_delta_target"],
+            e_dte,
+            pw,
+            chain_info=chain_info,
         )
         if put_pick is None:
             signal, signal_tone = "暂不操作", "flat"
@@ -816,7 +836,16 @@ def evaluate_symbol(
             put_pick = None
     elif signal == "SELL CALL":
         call_pick = _pick_contract(
-            opt_key, snap_date, ov, opt_spot, iv35, "C", THRESHOLDS["call_delta_target"], e_dte, cw
+            opt_key,
+            snap_date,
+            ov,
+            opt_spot,
+            iv35,
+            "C",
+            THRESHOLDS["call_delta_target"],
+            e_dte,
+            cw,
+            chain_info=chain_info,
         )
         if call_pick is None:
             signal, signal_tone = "暂不操作", "flat"
@@ -829,7 +858,8 @@ def evaluate_symbol(
             reasons.insert(0, f"候选年化仅{call_pick.annual_roc_pct:.0f}%偏薄")
             call_pick = None
 
-    actionable = signal in ("SELL PUT", "SELL CALL")
+    pick = put_pick or call_pick
+    actionable = signal in ("SELL PUT", "SELL CALL") and bool(pick and pick.executable)
     # 推荐合约来自旧链时如实标注（不得让 T-1 报价静默充作当日报价）
     stale_pick = next(
         (p for p in (put_pick, call_pick) if p is not None and p.stale_days > 0), None
@@ -926,7 +956,7 @@ def portfolio_summary(
     except Exception:
         pass
 
-    put_candidates = [r for r in rows if r.signal == "SELL PUT"]
+    put_candidates = [r for r in rows if r.signal == "SELL PUT" and r.actionable]
     by_sector: dict[str, list[str]] = {}
     for r in put_candidates:
         by_sector.setdefault(r.sector, []).append(r.symbol)
@@ -965,10 +995,11 @@ def scan_pool(
     live_spot: dict[str, float] | None = None,
     opt_map_override: dict | None = None,
     snap_date_override: str | None = None,
+    chain_map_override: dict[str, tuple[pd.DataFrame, str]] | None = None,
 ) -> tuple[str | None, list[ScanRow], dict]:
     """扫全池。
 
-    live_spot / opt_map_override / snap_date_override 三个参数仅供盘中实时模式注入：
+    live_spot / opt_map_override / snap_date_override / chain_map_override 仅供盘中实时模式注入：
     报表链与快照都走数据班次落盘的静态文件，实时模式由 src.live_wheel 传入
     实时价与现场重算的期权结构，其余规则（阈值/闸门）完全不变。
     """
@@ -982,12 +1013,15 @@ def scan_pool(
             continue
         if symbols and spec.symbol not in symbols:
             continue
+        if opt_map_override is not None and spec.symbol not in (live_spot or {}):
+            continue
         r = evaluate_symbol(
             spec,
             snap_date,
             opt_map,
             holdings=holdings,
             live_spot=(live_spot or {}).get(spec.symbol),
+            chain_info=(chain_map_override or {}).get(spec.opt_symbol or spec.symbol),
         )
         if r is not None:
             rows.append(r)
@@ -996,7 +1030,7 @@ def scan_pool(
     sec_counts: dict[str, int] = {}
     capped_by_sector: dict[str, list[str]] = {}
     for r in sorted(
-        [x for x in rows if x.signal == "SELL PUT"],
+        [x for x in rows if x.signal == "SELL PUT" and x.actionable],
         key=lambda x: (x.vrp_pct or 0.0, x.iv_rank_1y or 0.0),
         reverse=True,
     ):

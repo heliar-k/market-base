@@ -30,9 +30,7 @@ def test_find_chain_file_falls_back_to_previous_day(tmp_path, monkeypatch) -> No
     这是「静默退化成 BSM 估算」的根因：直接拼当日文件名找不到就落兜底分支，
     四条选点闸门全失效。回溯后必须如实给出 stale_days。
 
-    也覆盖时区容差：options_structure 按本机时区（北京 UTC+8）命名文件，本模块按
-    美东算 ref_dt。北京早上 8 点跑时美东还是前一天 20 点，文件日期比 ref_dt 大一天 ——
-    不允许取就会让整池退化成 BSM 估算（2026-10-27 实测现象）。
+    文件日期统一使用美东日历日，未来日期文件不参与选点。
     """
     import src.wheel_scanner as ws
 
@@ -55,13 +53,13 @@ def test_find_chain_file_falls_back_to_previous_day(tmp_path, monkeypatch) -> No
     assert path is not None and path.name == "raw_NVDA_20261026.csv"
     assert stale == 0
 
-    # 只有比 ref_dt 新 1 天的链（时区容差内）→ 允许取，不算陈旧
-    (d / "raw_AAPL_20261027.csv").write_text("strike\n1\n")
-    path, stale = _find_chain_file("AAPL", date(2026, 10, 26))
-    assert path is not None and path.name == "raw_AAPL_20261027.csv"
-    assert stale == 0
+    # 未来日期文件不能参与选点；存在旧链时取最近的旧链
+    (d / "raw_AAPL_20261026.csv").write_text("strike\n1\n")
+    (d / "raw_AAPL_20261028.csv").write_text("strike\n1\n")
+    path, stale = _find_chain_file("AAPL", date(2026, 10, 27))
+    assert path is not None and path.name == "raw_AAPL_20261026.csv"
+    assert stale == 1
 
-    # 新 2 天以上（超出时区容差）→ 不当成当日链
     (d / "raw_GOOG_20261029.csv").write_text("strike\n1\n")
     path, stale = _find_chain_file("GOOG", date(2026, 10, 26))
     assert path is None and stale == 0
@@ -74,7 +72,9 @@ def test_pick_contract_marks_stale_chain(tmp_path, monkeypatch) -> None:
     monkeypatch.setattr(ws, "ROOT", tmp_path)
     d = tmp_path / "data" / "options_structure"
     d.mkdir(parents=True)
-    _raw_chain().to_csv(d / "raw_NVDA_20261024.csv", index=False)
+    _raw_chain(quote_ts=["2026-10-24T20:00:00Z"] * 2).to_csv(
+        d / "raw_NVDA_20261024.csv", index=False
+    )
 
     # 快照日 10-26，链是 10-24 的
     pick = _pick_contract("NVDA", "20261026", {}, 211.0, 42.0, "P", -0.22)
@@ -82,7 +82,7 @@ def test_pick_contract_marks_stale_chain(tmp_path, monkeypatch) -> None:
     assert pick.executable is True
     assert pick.chain_date == "2026-10-24"
     assert pick.stale_days == 2
-    assert pick.quote_ts is not None
+    assert pick.quote_ts == "2026-10-24T20:00:00Z"
 
 
 def test_pick_contract_fresh_chain_has_zero_stale(tmp_path, monkeypatch) -> None:
@@ -97,6 +97,30 @@ def test_pick_contract_fresh_chain_has_zero_stale(tmp_path, monkeypatch) -> None
     assert pick is not None
     assert pick.chain_date == "2026-10-26"
     assert pick.stale_days == 0
+
+
+def test_pick_contract_uses_live_chain_override(monkeypatch) -> None:
+    import src.wheel_scanner as ws
+
+    def _no_disk(*args):
+        raise AssertionError("现场链模式不应读取磁盘 raw 文件")
+
+    monkeypatch.setattr(ws, "_find_chain_file", _no_disk)
+    chain = _raw_chain(quote_ts=["2026-10-27T20:05:00Z"] * 2)
+    pick = _pick_contract(
+        "NVDA",
+        "20261027",
+        {},
+        211.0,
+        42.0,
+        "P",
+        -0.22,
+        chain_info=(chain, "2026-10-27"),
+    )
+    assert pick is not None and pick.executable is True
+    assert pick.chain_date == "2026-10-27"
+    assert pick.stale_days == 0
+    assert pick.quote_ts == "2026-10-27T20:05:00Z"
 
 
 def test_chain_health_rejects_premarket_garbage() -> None:
@@ -139,16 +163,55 @@ def test_window_expiries_bounds() -> None:
     """到期日窗口：5 ~ dte_max+14 天，且过滤无效格式。"""
     from datetime import timedelta
 
-    from src.live_wheel import NOW
+    from src.live_wheel import _now_et
 
-    near = (NOW.date() + timedelta(days=3)).strftime("%Y-%m-%d")
-    inside = (NOW.date() + timedelta(days=30)).strftime("%Y-%m-%d")
-    far = (NOW.date() + timedelta(days=400)).strftime("%Y-%m-%d")
+    today = _now_et().date()
+    near = (today + timedelta(days=3)).strftime("%Y-%m-%d")
+    inside = (today + timedelta(days=30)).strftime("%Y-%m-%d")
+    far = (today + timedelta(days=400)).strftime("%Y-%m-%d")
     out = _window_expiries("X", (near, inside, far, "bad-date"))
     assert inside.replace("-", "") in out
     assert near.replace("-", "") not in out
     assert far.replace("-", "") not in out
     assert len(out) == 1
+
+
+def test_build_opt_map_preserves_previous_chain_quote_and_static_events(monkeypatch) -> None:
+    from datetime import datetime
+    from zoneinfo import ZoneInfo
+
+    import yfinance as yf
+
+    import src.live_wheel as lw
+
+    monkeypatch.setattr(yf, "Ticker", lambda sym: type("T", (), {"options": ()})())
+    monkeypatch.setattr(lw, "_window_expiries", lambda sym, options: ["20261120"])
+    monkeypatch.setattr(
+        lw,
+        "_now_et",
+        lambda: datetime(2026, 10, 27, 20, 30, tzinfo=ZoneInfo("America/New_York")),
+    )
+    bad = _raw_chain(bid=[0.0, 0.0], openInterest=[0, 0])
+    monkeypatch.setattr(lw, "fetch_yf_chain", lambda sym, exps: bad)
+    previous = _raw_chain(quote_ts=["2026-10-26T20:00:00Z"] * 2)
+    monkeypatch.setattr(lw, "_prev_trading_chain", lambda sym, static: (previous, "2026-10-26"))
+    monkeypatch.setattr(lw, "_extract_events", lambda tk: {})
+    static = {
+        "NVDA": {
+            "earnings_date": "2026-11-18",
+            "ex_dividend_date": "2026-12-01",
+        }
+    }
+
+    opt_map, _, chain_map = lw._build_opt_map(
+        ["NVDA"], static, "yfinance", spot_overrides={"NVDA": 211.0}
+    )
+    chain, chain_date = chain_map["NVDA"]
+    assert chain_date == "2026-10-26"
+    assert chain["quote_ts"].iloc[0] == "2026-10-26T20:00:00Z"
+    assert opt_map["NVDA"]["spot"] == 211.0
+    assert opt_map["NVDA"]["earnings_date"] == "2026-11-18"
+    assert opt_map["NVDA"]["ex_dividend_date"] == "2026-12-01"
 
 
 def test_chain_from_ibkr_needs_oi_merged(monkeypatch) -> None:

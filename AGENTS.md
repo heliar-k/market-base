@@ -466,12 +466,12 @@ uv run python src/sell_put.py --symbol TSM
 - `data/options_structure/raw_{sym}_{date}.csv` **入库**（最近 3 天，`RAW_KEEP_DAYS`），
   单日 ~1MB。它不是个人数据，是 yfinance 公开期权链的当日快照；而 JSON 快照里没有逐合约
   明细，选点必须用它。不入库时本机 `live_wheel` 只能回溯旧链、标出 `stale_days`。
-- **时区不一致是故意的容差**：`options_structure` 按本机时区（北京 UTC+8）命名文件，
-  `wheel_scanner` 按美东算 `ref_dt`。北京早上 8 点时美东还是前一天 20 点，文件日期
-  比 `ref_dt` 大一天；`_find_chain_file` 允许取 `ref_dt+1` 分钟的链（返回 `stale_days=0`），
-  超过 1 天则不用。不放宽容差会让整池退化成 `~35d(BSM估算)` 伪合约。
+- 快照与 raw 文件日期、DTE、`ref_dt` 统一按美东日历日计算；`quote_ts` 记录实际取数完成的
+  UTC 时刻并写入 raw CSV。快照写入与 `live_wheel` 共用 bid/OI 健康检查，异常链不入库；
+  `_find_chain_file` 只使用 `ref_dt` 当日或更早的链，`live_wheel` 的现场链直接用于选点，
+  旧链回退保留 `chain_date / stale_days / quote_ts`。
 - `data_freshness` 里有两道各自的断言：`json_dir`（快照每天更新）与 `csv_dir_globs`
-  （raw 链，预算 2 天）。只看前者会永远绿——2026-10 实际出现过「JSON 每日更新、raw 停在 3 天前」。
+  （raw 链，预算 2 天），未来日期文件会被排除，不能掩盖真实最新观测日。
 
 ### 7. 反爬抓取工具箱（新 fetcher 优先复用）
 

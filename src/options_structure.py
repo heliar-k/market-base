@@ -18,8 +18,9 @@ from __future__ import annotations
 
 import json
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from math import sqrt
+from zoneinfo import ZoneInfo
 
 import numpy as np
 import pandas as pd
@@ -30,11 +31,32 @@ from src.pricing import R, _norm_pdf, bs_greeks, d1_from
 logger = logging.getLogger(__name__)
 
 DATA = ROOT / "data" / "options_structure"
+ET = ZoneInfo("America/New_York")
+
+
+def _now_et() -> datetime:
+    return datetime.now(ET)
+
+
+def _utc_now_iso() -> str:
+    return datetime.now(timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z")
+
 
 # raw 链保留的自然日数（含今天）。入库的只有这个窗口内的快照：
 # `wheel_scanner` 选点要逐合约明细（JSON 快照里没有），而它跨日回退最多用
 # 最近一份，留太久只会让库里多存已废弃的到期日。
 RAW_KEEP_DAYS = 3
+
+
+def chain_health(chain: pd.DataFrame) -> tuple[bool, str]:
+    """盘口健康检查：bid 与 OI 的正值覆盖率都需达到一半。"""
+    if chain.empty:
+        return False, "链为空"
+    bid_ok = float((pd.to_numeric(chain["bid"], errors="coerce").fillna(0) > 0).mean())
+    oi_ok = float((pd.to_numeric(chain["openInterest"], errors="coerce").fillna(0) > 0).mean())
+    if bid_ok < 0.5 or oi_ok < 0.5:
+        return False, f"盘口未就绪(bid>0 {bid_ok:.0%}/OI>0 {oi_ok:.0%})"
+    return True, ""
 
 
 def bucket_dte(days: int) -> str:
@@ -96,13 +118,17 @@ def fetch_chain(symbol: str, expirations: list[str], use_cache: bool = True) -> 
     """拉取期权链（strike/right/expiration/OI/volume/IV），当日 raw 缓存复用。
 
     raw 列：strike, right, expiration(YYYYMMDD str), openInterest, volume,
-    impliedVolatility。timsun 口径按"最近可得 OI"——raw 当日复用即可。
+    impliedVolatility, quote_ts（实际取数完成的 UTC 时刻）。raw 当日复用即可。
     """
-    raw = DATA / f"raw_{symbol}_{datetime.now():%Y%m%d}.csv"
+    raw = DATA / f"raw_{symbol}_{_now_et():%Y%m%d}.csv"
     if use_cache and raw.exists():
         df = pd.read_csv(raw, dtype={"expiration": str})
-        logger.info(f"  {symbol}: 复用 raw 缓存 {len(df)} 行")
-        return df
+        healthy, why = chain_health(df)
+        if healthy:
+            logger.info(f"  {symbol}: 复用 raw 缓存 {len(df)} 行")
+            return df
+        logger.warning(f"  {symbol}: 删除异常 raw 缓存（{why}）")
+        raw.unlink()
 
     from src.fetchers.yfinance_fetcher import ensure_yf_proxy
 
@@ -139,6 +165,11 @@ def fetch_chain(symbol: str, expirations: list[str], use_cache: bool = True) -> 
     df = pd.DataFrame(rows)
     if df.empty:
         return df
+    healthy, why = chain_health(df)
+    if not healthy:
+        logger.warning(f"  {symbol}: 期权链异常，拒绝写入缓存（{why}）")
+        return pd.DataFrame()
+    df["quote_ts"] = _utc_now_iso()
     DATA.mkdir(parents=True, exist_ok=True)
     df.to_csv(raw, index=False)
     logger.info(f"  {symbol}: {len(df)} 条 → raw 缓存")
@@ -152,7 +183,7 @@ def compute_structure(df: pd.DataFrame, spot: float) -> dict:
     """单标的聚合（timsun /assets/equities/options 全套指标）。"""
     if df.empty or spot <= 0:
         return {"symbol": None}
-    now = datetime.now()
+    today = _now_et().date()
     d = df.dropna(subset=["impliedVolatility"])
     d = d[d["impliedVolatility"] > 0]
     if d.empty:
@@ -160,8 +191,8 @@ def compute_structure(df: pd.DataFrame, spot: float) -> dict:
 
     rows = []
     for _, r in d.iterrows():
-        exp = datetime.strptime(r["expiration"], "%Y%m%d")
-        days = (exp - now).days
+        exp = datetime.strptime(r["expiration"], "%Y%m%d").date()
+        days = (exp - today).days
         if days < 0:
             continue  # 已过期的合约剔除；当日到期（0DTE）保留
         # 0DTE 期权的 T→0 会炸 gamma/char，用 1 天作最小 T（timsun 同口径保留当日桶）
@@ -264,15 +295,13 @@ def compute_structure(df: pd.DataFrame, spot: float) -> dict:
     cw = call_wall.idxmax() if not call_wall.empty else None
     pw = put_wall.idxmin() if not put_wall.empty else None
 
-    # IV 期限结构（各到期 ATM = 距 spot 最近行权价的平均 IV）
-    tm = (
-        c.groupby("expiration")
-        .apply(
-            lambda g: float(g.loc[(g["strike"] - spot).abs().idxmin(), "iv"]),
-            include_groups=False,
-        )
-        .sort_index()
-    )
+    # IV 期限结构（各到期 ATM = 距 spot 最近行权价的 Call/Put 平均 IV）
+    def _atm_iv(g: pd.DataFrame) -> float:
+        by_strike = g.groupby("strike")["iv"].mean()
+        nearest = int(np.argmin(np.abs(by_strike.index.to_numpy() - spot)))
+        return float(by_strike.iloc[nearest])
+
+    tm = c.groupby("expiration").apply(_atm_iv, include_groups=False).sort_index()
     # IV 需按到期日 DTE 排序（月末/季月长到期日期可能早于短期周选）
     dte_map = c.groupby("expiration")["days"].first()
     order = dte_map.sort_values()
@@ -292,10 +321,12 @@ def compute_structure(df: pd.DataFrame, spot: float) -> dict:
             continue
         g = c[c["expiration"] == exp]
         put_strike = g[(g["right"] == "P") & (g["delta"].between(0.20, 0.30))]
-        call_strike = g[(g["right"] == "C") & (g["delta"].between(0.70, 0.80))]
+        call_strike = g[(g["right"] == "C") & (g["delta"].between(0.20, 0.30))]
         if not put_strike.empty and not call_strike.empty:
-            skew_put_iv = float(put_strike.sort_values("iv", ascending=False).iloc[0]["iv"])
-            skew_call_iv = float(call_strike.sort_values("iv", ascending=False).iloc[0]["iv"])
+            put = put_strike.loc[(put_strike["delta"] - 0.25).abs().idxmin()]
+            call = call_strike.loc[(call_strike["delta"] - 0.25).abs().idxmin()]
+            skew_put_iv = float(put["iv"])
+            skew_call_iv = float(call["iv"])
             skew = round((skew_put_iv - skew_call_iv) * 100, 2)
             skew_dte = dt
             break
@@ -499,14 +530,14 @@ def build_snapshot(symbols: list[str] | None = None, use_cache: bool = True) -> 
 
     symbols = symbols or SYMBOLS
     bc_iv_map = _fetch_barchart_iv_ranks(symbols)
-    out: dict = {"date": datetime.now().strftime("%Y-%m-%dT%H:%M:%SZ"), "symbols": {}}
+    out: dict = {"date": _utc_now_iso(), "symbols": {}}
     for sym in symbols:
         try:
             ticker = yf.Ticker(sym)
             # 覆盖四个到期桶（timsun 口径 0DTE/本周/月度/季度+）：
             # 近 35D 全收（月度桶含月选，SPY 9/18 月选 27D 曾被 ≥30D 采样跳过，
             # 月度桶 GEX 占比 20%→47.9%）+ 后续每 45D 一个代表（月度/季月尾部）
-            today = datetime.now().date()
+            today = _now_et().date()
 
             def _dte(e: str) -> int:
                 return (datetime.strptime(e, "%Y-%m-%d").date() - today).days
@@ -551,14 +582,20 @@ def main() -> None:
     args = parser.parse_args()
     symbols = [s.strip() for s in args.symbols.split(",") if s.strip()] or None
 
+    today = _now_et().strftime("%Y%m%d")
+    for f in DATA.glob("20*.json"):
+        if len(f.stem) == 8 and f.stem.isdigit() and f.stem > today:
+            f.unlink()
+
     snapshot = build_snapshot(symbols, use_cache=not args.no_cache)
     if snapshot["symbols"]:
         DATA.mkdir(parents=True, exist_ok=True)
-        path = DATA / f"{datetime.now():%Y%m%d}.json"
-        # 子集运行（--symbols）合并当天既有快照，避免丢失其余标的（全量运行则覆盖）
-        if symbols and path.exists():
+        path = DATA / f"{_now_et():%Y%m%d}.json"
+        # 子集或部分失败时合并当天健康快照；完整全量成功时覆盖
+        if path.exists() and (symbols or len(snapshot["symbols"]) < len(SYMBOLS)):
             existing = json.loads(path.read_text(encoding="utf-8"))
             existing["symbols"].update(snapshot["symbols"])
+            existing["date"] = snapshot["date"]
             snapshot = existing
         # compact 单行（程序消费的快照，hook 不插手 data/——多行展开会让
         # git 差异不可读且体积翻倍）；尾部换行由 end-of-file-fixer 要求，写盘时自补
@@ -577,10 +614,12 @@ def main() -> None:
         # 只保留最近 RAW_KEEP_DAYS 天的 raw 链（它们入库供选点读逐合约明细，
         # 留全量会让仓库每天涨 ~1MB）。按文件名日期算，不按 mtime——git checkout
         # 会把 mtime 全刷成检出时间。
-        cutoff = (datetime.now() - timedelta(days=RAW_KEEP_DAYS - 1)).strftime("%Y%m%d")
+        now_et = _now_et()
+        today = now_et.strftime("%Y%m%d")
+        cutoff = (now_et - timedelta(days=RAW_KEEP_DAYS - 1)).strftime("%Y%m%d")
         for f in DATA.glob("raw_*.csv"):
             stamp = f.stem.rsplit("_", 1)[-1]
-            if len(stamp) == 8 and stamp.isdigit() and stamp < cutoff:
+            if len(stamp) == 8 and stamp.isdigit() and (stamp < cutoff or stamp > today):
                 f.unlink()
 
 

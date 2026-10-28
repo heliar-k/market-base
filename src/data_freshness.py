@@ -162,14 +162,16 @@ CHECKS: list[Check] = [
 ]
 
 
-def _from_filename(names: list[str]) -> date | None:
-    """从 {YYYYMMDD}.json 文件名里取最新日期。"""
-    found = [
-        datetime.strptime(m, "%Y%m%d").date()
-        for n in names
-        for m in [Path(n).stem[-8:]]
-        if len(m) == 8 and m.isdigit()
-    ]
+def _from_filename(names: list[str], not_after: date | None = None) -> date | None:
+    """从文件名取最新有效日期；快照日期不能超过本次审计日。"""
+    found = []
+    for n in names:
+        m = Path(n).stem[-8:]
+        if len(m) != 8 or not m.isdigit():
+            continue
+        d = datetime.strptime(m, "%Y%m%d").date()
+        if not_after is None or d <= not_after:
+            found.append(d)
     return max(found) if found else None
 
 
@@ -193,13 +195,13 @@ def _last_csv_date(path: Path, column: str | None) -> date | None:
     return None if dts.empty else dts.max().date()
 
 
-def latest(path: Path, chk: Check) -> date | None:
+def latest(path: Path, chk: Check, today: date | None = None) -> date | None:
     """该数据集当前可用的最新观测日；文件缺失/为空/解析失败 → None。"""
     if chk["kind"] == "json_dir":
-        return _from_filename([p.name for p in path.glob("*.json")])
+        return _from_filename([p.name for p in path.glob("*.json")], today)
     if chk["kind"] == "csv_dir_globs":
         # 目录下多个文件，日期在文件名末尾（raw_NVDA_20261027.csv）
-        return _from_filename([p.name for p in path.glob("*.csv")])
+        return _from_filename([p.name for p in path.glob("*.csv")], today)
     if not path.exists():
         return None
     return _last_csv_date(path, chk.get("column"))
@@ -212,11 +214,11 @@ def audit(
 ) -> list[tuple[str, str, int | None, str, int]]:
     """返回 (状态, 数据集, 落后天数, 说明, 预算)；状态 ok / STALE / MISSING。
 
-    落后为负 = 末观测在未来（已排期的拍卖），非 ahead 类型永远算 ok。
+    文件名快照只采用审计日当日或更早的文件，避免未来文件掩盖停更。
     """
     rows = []
     for chk in CHECKS if checks is None else checks:
-        last = latest(root / chk["path"], chk)
+        last = latest(root / chk["path"], chk, today)
         if last is None:
             rows.append(("MISSING", chk["path"], None, chk["note"], chk["budget"]))
             continue

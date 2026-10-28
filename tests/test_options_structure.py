@@ -7,6 +7,7 @@ sign(flip_dist) == sign(现价处累计 GEX)。
 """
 
 from datetime import datetime, timedelta
+from zoneinfo import ZoneInfo
 
 import pandas as pd
 
@@ -98,3 +99,145 @@ def test_flip_ignores_deep_itm_junk_outside_band():
         100.0,
     )
     assert out["gamma_flip"] is None
+
+
+def test_dte_uses_et_calendar_date(monkeypatch):
+    import src.options_structure as os
+
+    monkeypatch.setattr(
+        os,
+        "_now_et",
+        lambda: datetime(2026, 10, 27, 20, 29, tzinfo=ZoneInfo("America/New_York")),
+    )
+    rows = [
+        {
+            "strike": 100.0,
+            "right": "C",
+            "expiration": exp,
+            "openInterest": 10,
+            "impliedVolatility": 0.2,
+            "volume": 0,
+        }
+        for exp in ("20261027", "20261028", "20261029")
+    ]
+    out = compute_structure(pd.DataFrame(rows), 100.0)
+    assert [p["dte"] for p in out["iv_curve"]] == [0, 1, 2]
+    assert out["buckets"]["0DTE"]["contracts"] == 10
+
+
+def test_atm_iv_averages_call_and_put_at_same_strike():
+    rows = [
+        {
+            "strike": 100.0,
+            "right": right,
+            "expiration": EXP,
+            "openInterest": 100,
+            "impliedVolatility": iv,
+            "volume": 0,
+        }
+        for right, iv in (("C", 0.2), ("P", 0.4))
+    ]
+    out = compute_structure(pd.DataFrame(rows), 100.0)
+    assert out["iv_front"]["iv"] == 30.0
+
+
+def test_skew_uses_closest_25_delta_call_and_put():
+    rows = [
+        {
+            "strike": 94.0,
+            "right": "P",
+            "expiration": EXP,
+            "openInterest": 100,
+            "impliedVolatility": 0.4,
+            "volume": 0,
+        },
+        {
+            "strike": 93.0,
+            "right": "C",
+            "expiration": EXP,
+            "openInterest": 100,
+            "impliedVolatility": 0.6,
+            "volume": 0,
+        },
+        {
+            "strike": 105.0,
+            "right": "C",
+            "expiration": EXP,
+            "openInterest": 100,
+            "impliedVolatility": 0.25,
+            "volume": 0,
+        },
+        {
+            "strike": 105.0,
+            "right": "C",
+            "expiration": EXP,
+            "openInterest": 100,
+            "impliedVolatility": 0.27,
+            "volume": 0,
+        },
+    ]
+    out = compute_structure(pd.DataFrame(rows), 100.0)
+    assert out["skew_put_iv"] == 40.0
+    assert out["skew_call_iv"] == 25.0
+    assert out["skew"] == 15.0
+
+
+def test_fetch_chain_rejects_premarket_garbage_without_caching(monkeypatch, tmp_path):
+    import yfinance as yf
+
+    import src.options_structure as os
+
+    monkeypatch.setattr(os, "DATA", tmp_path)
+    expiration = "20261120"
+    raw = tmp_path / f"raw_NVDA_{os._now_et():%Y%m%d}.csv"
+    bad = pd.DataFrame(
+        {
+            "strike": [200.0],
+            "bid": [0.0],
+            "ask": [0.01],
+            "openInterest": [0],
+            "volume": [0],
+            "impliedVolatility": [0.001],
+        }
+    )
+    cached = bad.copy()
+    cached["right"] = "P"
+    cached["expiration"] = expiration
+    cached.to_csv(raw, index=False)
+    chain = type("Chain", (), {"calls": bad, "puts": bad.copy()})()
+    ticker = type("Ticker", (), {"option_chain": lambda self, exp: chain})()
+    monkeypatch.setattr(yf, "Ticker", lambda symbol: ticker)
+
+    out = os.fetch_chain("NVDA", [expiration])
+    assert out.empty
+    assert not raw.exists()
+
+
+def test_main_merges_partial_full_run_with_existing_snapshot(monkeypatch, tmp_path):
+    import json
+    import sys
+
+    import src.options_structure as os
+
+    monkeypatch.setattr(os, "DATA", tmp_path)
+    monkeypatch.setattr(
+        os,
+        "_now_et",
+        lambda: datetime(2026, 10, 27, 20, 29, tzinfo=ZoneInfo("America/New_York")),
+    )
+    path = tmp_path / "20261027.json"
+    path.write_text(
+        json.dumps({"date": "old", "symbols": {"MSFT": {"symbol": "MSFT"}}}),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(
+        os,
+        "build_snapshot",
+        lambda symbols, use_cache: {"date": "new", "symbols": {"NVDA": {"symbol": "NVDA"}}},
+    )
+    monkeypatch.setattr(sys, "argv", ["options_structure"])
+
+    os.main()
+    out = json.loads(path.read_text(encoding="utf-8"))
+    assert set(out["symbols"]) == {"MSFT", "NVDA"}
+    assert out["date"] == "new"

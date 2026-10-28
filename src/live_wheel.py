@@ -41,7 +41,7 @@ import pandas as pd
 
 from src.compute_gex import DEFAULT_BATCH_SIZE
 from src.config import ROOT
-from src.options_structure import _extract_events, compute_structure
+from src.options_structure import _extract_events, _utc_now_iso, chain_health, compute_structure
 from src.pricing import fetch_yf_chain
 from src.wheel_scanner import (
     THRESHOLDS,
@@ -52,7 +52,12 @@ from src.wheel_scanner import (
 )
 
 ET = ZoneInfo("America/New_York")
-NOW = datetime.now(timezone.utc).astimezone(ET)
+
+
+def _now_et() -> datetime:
+    return datetime.now(timezone.utc).astimezone(ET)
+
+
 log = logging.getLogger("live_wheel")
 _CONSOLE = None
 
@@ -103,7 +108,6 @@ def _live_spots(symbols: list[str]) -> tuple[dict[str, float], str]:
                 spots[s] = float(last.iloc[-1])
         except Exception:
             continue
-    ts = NOW.strftime("%Y-%m-%d %H:%M:%S ET")
     # 批量下载偶发丢个别标的（yfinance 报 possibly delisted）：逐个补
     for s, code in zip(symbols, codes, strict=True):
         if s in spots:
@@ -114,6 +118,7 @@ def _live_spots(symbols: list[str]) -> tuple[dict[str, float], str]:
                 spots[s] = p
         except Exception:
             continue
+    ts = _now_et().strftime("%Y-%m-%d %H:%M:%S ET")
     return spots, ts
 
 
@@ -123,7 +128,7 @@ def _window_expiries(sym: str, options: tuple[str, ...]) -> list[str]:
     窗口比 THRESHOLDS 的 dte_min..dte_max 略宽：选点器自己要按财报日收窄到
     7~e_dte-1 或挑 OpEx，这里给足候选再让它筛。
     """
-    today = NOW.date()
+    today = _now_et().date()
     out = []
     for e in options:
         try:
@@ -136,21 +141,7 @@ def _window_expiries(sym: str, options: tuple[str, ...]) -> list[str]:
 
 
 def _chain_health(chain: pd.DataFrame) -> tuple[bool, str]:
-    """期权链健康度闸门：盘前 yfinance 链会整片失效，不能拿去算结构。
-
-    实测（盘前 05:57 ET）：bid>0 仅 3%、openInterest 全 0、impliedVolatility 字段
-    报 0.00%~3%（ATM 真实值应用 lastPrice 反解为 44.8%）。用它算出的 iv_curve
-    只剩 1.56%、net_gex 恒 0、gamma_flip=None——比没有数据更危险，因为读数看着像个数。
-
-    健康阈值取收盘链的实测下限留余量：bid>0 占一半以上，OI>0 覆盖八成以上。
-    """
-    if chain.empty:
-        return False, "链为空"
-    bid_ok = float((pd.to_numeric(chain["bid"], errors="coerce").fillna(0) > 0).mean())
-    oi_ok = float((pd.to_numeric(chain["openInterest"], errors="coerce").fillna(0) > 0).mean())
-    if bid_ok < 0.5 or oi_ok < 0.5:
-        return False, f"盘口未就绪(bid>0 {bid_ok:.0%}/OI>0 {oi_ok:.0%}，多为盘前未开市)"
-    return True, ""
+    return chain_health(chain)
 
 
 def _prev_trading_chain(sym: str, _static: dict) -> tuple[pd.DataFrame, str] | None:
@@ -158,13 +149,16 @@ def _prev_trading_chain(sym: str, _static: dict) -> tuple[pd.DataFrame, str] | N
     from src.config import ROOT as _ROOT
 
     files = sorted((_ROOT / "data" / "options_structure").glob(f"raw_{sym}_*.csv"))
+    today = _now_et().date()
     for f in reversed(files):
+        stamp = f.stem.rsplit("_", 1)[-1]
         try:
+            if datetime.strptime(stamp, "%Y%m%d").date() > today:
+                continue
             d = pd.read_csv(f, dtype={"expiration": str})
         except Exception:
             continue
-        if not d.empty:
-            stamp = f.stem.rsplit("_", 1)[-1]
+        if not d.empty and _chain_health(d)[0]:
             return d, f"{stamp[:4]}-{stamp[4:6]}-{stamp[6:8]}"
     return None
 
@@ -205,9 +199,13 @@ def _setup_rich_logging() -> None:
 
 
 def _build_opt_map(
-    symbols: list[str], static: dict, greeks: str, ibkr_batch: int = DEFAULT_BATCH_SIZE
-) -> tuple[dict, dict[str, str]]:
-    """现场重算各标的期权结构，返回 (opt_map, {symbol: 状态说明})。
+    symbols: list[str],
+    static: dict,
+    greeks: str,
+    ibkr_batch: int = DEFAULT_BATCH_SIZE,
+    spot_overrides: dict[str, float] | None = None,
+) -> tuple[dict, dict[str, str], dict[str, tuple[pd.DataFrame, str]]]:
+    """现场重算期权结构，返回 (opt_map, 状态说明, 现场链)。
 
     `greeks` 取 yfinance / ibkr / auto：
     - yfinance：只用盘口快照（~3s/标的）
@@ -221,8 +219,9 @@ def _build_opt_map(
 
     opt_map: dict = {}
     notes: dict[str, str] = {}
+    chain_map: dict[str, tuple[pd.DataFrame, str]] = {}
     ibkr_cache = _load_ibkr_chains() if greeks == "auto" else {}
-    today = NOW.strftime("%Y-%m-%d")
+    today = _now_et().strftime("%Y-%m-%d")
 
     from rich.progress import BarColumn, MofNCompleteColumn, Progress, TextColumn, TimeElapsedColumn
 
@@ -250,7 +249,10 @@ def _build_opt_map(
                     notes[sym] = "窗口内无到期日"
                     progress.advance(task)
                     continue
-                spot = float(tk.fast_info.last_price)
+                spot = (spot_overrides or {}).get(sym) or float(tk.fast_info.last_price)
+                chain_date = today
+                quote_ts = None
+                reused_chain = False
 
                 if greeks == "ibkr":
                     chain = _chain_from_ibkr(sym, exps, spot, batch_size=ibkr_batch)
@@ -262,8 +264,9 @@ def _build_opt_map(
                     cached = _cached_chain_to_df(entry)
                     if cached is not None and entry.get("chain_date") == today:
                         chain = cached
-                        ts = str(entry.get("quoted_at", "")).split(" ")[-2:]
-                        notes[sym] = f"IBKR 真实盘口 {' '.join(ts)}" if ts else "IBKR 真实盘口"
+                        quote_ts = entry.get("quoted_at")
+                        reused_chain = True
+                        notes[sym] = f"IBKR 真实盘口 {quote_ts or '时点未知'}"
                     else:
                         chain = fetch_yf_chain(sym, exps)
                         if cached is not None:
@@ -282,6 +285,8 @@ def _build_opt_map(
                         chain, cdate = prev
                         ok2, _why2 = _chain_health(chain)
                         if ok2:
+                            chain_date = cdate
+                            reused_chain = True
                             notes[sym] = f"回退昨收链 {cdate}（{why}）"
                         else:
                             notes[sym] = f"{why}；昨收链也不可用"
@@ -291,6 +296,11 @@ def _build_opt_map(
                         notes[sym] = why
                         progress.advance(task)
                         continue
+                chain = chain.copy()
+                if not reused_chain:
+                    chain["quote_ts"] = _utc_now_iso()
+                elif quote_ts:
+                    chain["quote_ts"] = quote_ts
                 detail = compute_structure(chain, spot)
                 if detail.get("spot") is None:
                     notes[sym] = "结构计算为空"
@@ -300,10 +310,13 @@ def _build_opt_map(
                 for k in ("iv_rank_1y", "iv_pct_1y", "wiv", "name"):
                     if inherited.get(k) is not None:
                         detail[k] = inherited[k]
-                for k, v in _extract_events(tk).items():
-                    if v:
-                        detail[k] = v
+                events = _extract_events(tk)
+                for k in ("earnings_date", "ex_dividend_date"):
+                    value = events.get(k) or inherited.get(k)
+                    if value:
+                        detail[k] = value
                 opt_map[sym] = detail
+                chain_map[sym] = (chain, chain_date)
                 # iv35 是常规结果标记（用作「本标的可用」的判别），但不能盖掉前面的告警：
                 # IBKR 无行情 / 回退昨收链 这些就是靠 notes 往下传递的
                 tag = f"iv35={_iv_at_dte(detail, 35)}"
@@ -314,7 +327,7 @@ def _build_opt_map(
                 progress.advance(task)
                 continue
             progress.advance(task)
-    return opt_map, notes
+    return opt_map, notes, chain_map
 
 
 def _chain_from_ibkr(
@@ -460,9 +473,10 @@ def _ibkr_fetch_bg(symbols: list[str], check_every: int = 20) -> dict:
             for col in keep:
                 if col not in got.columns:
                     got[col] = None
+            fetched_at = _now_et()
             chains[sym] = {
-                "chain_date": NOW.strftime("%Y-%m-%d"),
-                "quoted_at": NOW.strftime("%Y-%m-%d %H:%M:%S ET"),
+                "chain_date": fetched_at.strftime("%Y-%m-%d"),
+                "quoted_at": _utc_now_iso(),
                 "rows": got[keep].to_dict("records"),
             }
             _save_ibkr_chains(chains)
@@ -487,7 +501,13 @@ def run(
 
     static_date, static = _derived_snapshot()
     spots, spot_ts = _live_spots([p.symbol for p in pool])
-    opt_map, notes = _build_opt_map(opt_syms, static, greeks, ibkr_batch)
+    spot_by_opt = {(p.opt_symbol or p.symbol): spots[p.symbol] for p in pool if p.symbol in spots}
+    opt_map, notes, chain_map = _build_opt_map(opt_syms, static, greeks, ibkr_batch, spot_by_opt)
+    for p in pool:
+        if p.symbol not in spots:
+            key = p.opt_symbol or p.symbol
+            prev = notes.get(key)
+            notes[key] = f"{prev}；缺实时价·已跳过" if prev else "缺实时价·已跳过"
 
     # 后台补真实盘口：不阻塞出结果，算完写 data/cache/wheel_ibkr_quotes.json，
     # 下一次运行（greeks=auto）直接吃这份缓存。
@@ -511,7 +531,7 @@ def run(
             stderr=subprocess.DEVNULL,
         )
 
-    snap_key = NOW.strftime("%Y%m%d")
+    snap_key = _now_et().strftime("%Y%m%d")
     _, rows, summary = scan_pool(
         symbols=symbols,
         tiers=tiers,
@@ -519,6 +539,7 @@ def run(
         live_spot=spots,
         opt_map_override=opt_map,
         snap_date_override=snap_key,
+        chain_map_override=chain_map,
     )
     return {
         "snapshot_date": snap_key,
@@ -645,7 +666,7 @@ def main() -> None:
         return
 
     print(
-        f"\n== Wheel 实时扫描 {NOW:%Y-%m-%d %H:%M ET} ==  "
+        f"\n== Wheel 实时扫描 {_now_et():%Y-%m-%d %H:%M ET} ==  "
         f"greeks={result['greeks']} · 现价 {result['spot_count']}/{result['pool_size']} 只有效 · "
         f"链 {result['symbols_ok']}/{result['pool_size']} 只"
     )
