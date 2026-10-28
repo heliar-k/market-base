@@ -691,22 +691,30 @@ const R = {
       d.innerHTML = `<div class="re-corridor-label">${label}</div>
         <div class="re-corridor-value"${vcolor ? ` style="color:${vcolor}"` : ''}>${value}</div>
         <div class="re-card-sub">${sub || ''}</div>`;
-      // 长值（如“3.50% – 3.75%”、“2026-09-16”）按卡片宽度自动缩字号，防溢出；
+      // 长值（如“3.50% – 3.75%”、“2026-09-16”）按卡片宽度自动缩字号，压成单行；
       // 仅当卡片宽度真正变化时重算（守卫 lastW，避免改字号→高度变→循环触发）
       const v = d.querySelector('.re-corridor-value');
+      const wrapCard = d.classList.contains('re-card-wrap');
       let lastW = 0;
       const fit = () => {
         const w = d.clientWidth;
         if (w === lastW) return;
         lastW = w;
         v.style.fontSize = '';
-        // 溢出判定用 value 元素自身：scrollWidth(内容宽) > clientWidth(可用宽)，
-        // 不依赖卡片 padding 硬编码（曾写死 -40 = padding 20×2，padding 一改就误缩全站卡）；
-        // 基准字号读当前计算值（CSS clamp 下是 18-22px 浮动，写死 22 会越缩越大）
-        if (v.scrollWidth > v.clientWidth + 1) {
-          const cur = parseFloat(getComputedStyle(v).fontSize);
-          v.style.fontSize = Math.max(12, Math.floor((cur * 10 * v.clientWidth) / v.scrollWidth) / 10) + 'px';
-        }
+        // 单行宽度必须按 nowrap + Range 量文本自身：.re-card-wrap 的值默认换行（换过行后
+        // Range 宽度就是盒子宽，永远判不出溢出），区块盒的 scrollWidth 也恒等于盒子宽
+        v.style.whiteSpace = 'nowrap';
+        const cur = parseFloat(getComputedStyle(v).fontSize);
+        const range = document.createRange();
+        range.selectNodeContents(v);
+        const textW = range.getBoundingClientRect().width;
+        v.style.whiteSpace = '';
+        // 留 1px 余量：只差 0.3px 也会折行，缩到刚好相等仍会换行
+        if (!textW || textW < v.clientWidth - 0.5) return;
+        const need = (cur * (v.clientWidth - 1)) / textW;
+        // 低于下限：长文本卡回到换行（不丢字），纯数字卡保持 ellipsis
+        if (need < 11 && wrapCard) return;
+        v.style.fontSize = Math.max(11, Math.floor(need * 10) / 10) + 'px';
       };
       row.appendChild(d);
       new ResizeObserver(fit).observe(d);
