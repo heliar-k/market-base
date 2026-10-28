@@ -55,3 +55,6 @@ cf-cron-dispatch/.wrangler/
 
 # wrangler 本地状态（pages dev / functions build）
 .wrangler/
+
+# 临时中间产物
+.scratch/
