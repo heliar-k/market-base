@@ -105,8 +105,9 @@ function disposeCharts() {
 function mk(id, optionFn) {
   const el = document.getElementById(id);
   if (!el) return;
-  const c = R.mkChart(id, optionFn);
-  if (c) charts.push(id);
+  // 无条件登记：mkChart 返回 null 也可能是「已入队、稍后补画」，判空会让那个 id 漏出 dispose 名单
+  R.mkChart(id, optionFn);
+  charts.push(id);
 }
 
 // Regime 的 Gamma 正负 = 局部（现价 vs Gamma Flip），不是 Net GEX 符号；

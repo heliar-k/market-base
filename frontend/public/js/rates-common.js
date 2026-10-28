@@ -710,10 +710,16 @@ const R = {
     const dom = document.getElementById(id);
     if (!dom) return null;
     dom.classList.add('skeleton'); // 骨架屏占位（app.css .skeleton）：首次 setOption 后摘除，主题重建不重复挂
-    // echarts 是 defer 脚本（不阻 HTML 解析），页面在数据 fetch 回来后可能早于它执行完。
-    // 先登记，DOMContentLoaded 掦 _flushCharts 补画（见文件末尾）；option 是闭包，
-    // 数据已在手里，重放不取新值。同一 id 重复调用时后传的 option 覆盖前者。
+    // echarts 是 defer 脚本（不阻塞 HTML 解析），页面在数据 fetch 回来后可能早于它执行完。
+    // 先登记，DOMContentLoaded 时由 _flushCharts 补画（见文件末尾）。option 是页面传入的
+    // 渲染回调，数据已被它捕获，重放时按当时的宽度与主题重算。
     if (!window.echarts) {
+      // DCL 已触发还缺 echarts = defer 脚本加载失败，不会再有第二次补画机会，就地报错。
+      // 不能用 readyState 判：它解析完就变 interactive，而 defer 脚本在那之后才执行。
+      if (R._dclFired) {
+        R._failChart(id);
+        throw new Error('echarts 未就绪：/vendor/echarts.min.js 未能加载');
+      }
       R._pendingCharts.set(id, option);
       return null;
     }
@@ -787,14 +793,27 @@ const R = {
   },
 
   // 等 echarts 就绪的图（见 mkChart）。defer 的 echarts 在 DOMContentLoaded 之前执行完，
-  // 所以那个时机掦 flush 一定能拿到实例；拿不到说明 /vendor/echarts.min.js 没加载成，
-  // 直接报错 —— 静默略过会让图区永远停在骨架屏，且控制台无声。
+  // 所以那个时机 flush 一定能拿到实例；拿不到说明 /vendor/echarts.min.js 没加载成。
+  // 这时图区不会自己好起来：先把骨架屏换成错误说明（骨架屏的语义是「正在加载」），
+  // 再抛给控制台。
   _pendingCharts: new Map(),
+  _dclFired: false,
+  _CHART_LOAD_FAIL:
+    '图表加载失败：/vendor/echarts.min.js 未能取到<br>刷新页面重试；本地请确认 npm run build 产出的 vendor/ 完整',
+  _failChart(id) {
+    const dom = document.getElementById(id);
+    if (!dom) return;
+    dom.classList.remove('skeleton');
+    dom.innerHTML = `<div class="re-error">${R._CHART_LOAD_FAIL}</div>`;
+  },
   _flushCharts() {
     if (!R._pendingCharts.size) return; // 无图页（chart={false}）从不加载 echarts，也就从不入队
     const pending = [...R._pendingCharts];
     R._pendingCharts.clear();
-    if (!window.echarts) throw new Error('echarts 未就绪：/vendor/echarts.min.js 未能加载');
+    if (!window.echarts) {
+      pending.forEach(([id]) => R._failChart(id));
+      throw new Error('echarts 未就绪：/vendor/echarts.min.js 未能加载');
+    }
     pending.forEach(([id, option]) => R.mkChart(id, option));
   },
 
@@ -1003,9 +1022,12 @@ try {
 }
 
 // echarts 是 defer 脚本（见 TopicLayout）：本文件执行时它还不在，DCL 之前才执行完。
-// 页面在那一刻前就要图时已由 mkChart 登记，这里补画。echarts 已存在的页面（SPA 同步加载）
-// 不注册 —— 那类页面 mkChart 从不入队。
+// 页面在那一刻前就要图时已由 mkChart 登记，这里补画。
+// _dclFired 是判「补画机会是否已经用尽」的唯一依据，mkChart 靠它决定入队还是直接报错。
 // typeof window：守卫测试把本文件拼成脚本交给 node 跑，那里没有 window。
-if (typeof window !== 'undefined' && !window.echarts) {
-  window.addEventListener('DOMContentLoaded', () => R._flushCharts());
+if (typeof window !== 'undefined') {
+  window.addEventListener('DOMContentLoaded', () => {
+    R._dclFired = true;
+    R._flushCharts();
+  });
 }

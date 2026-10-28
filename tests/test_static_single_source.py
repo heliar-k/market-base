@@ -9,6 +9,8 @@
 - 「数据截至」文案只能由 R.asOf 组装 → test_as_of_*
 - 页头时效标签段数上限（只放 Section 级数据源）→ test_as_of_segments_capped
 - echarts-theme.js 先于 rates-common.js 加载 → test_echarts_theme_before_rates_common
+- echarts 改 defer 后必须有登记与 DCL 补画，DCL 后缺 echarts 要在就地报错
+  → test_echarts_loaded_defer_with_queue / test_mkchart_queue_and_fail_paths
 - 脚本语法（is:inline 不打包）→ test_all_js_files_parse / test_inline_scripts_parse
 - 静态小节一律 Section 组件 → test_static_sections_use_section_component
 - 页脚「本页」行只走 slot + R.foot，来源术语只用「数据源」
@@ -69,17 +71,57 @@ def test_echarts_theme_before_rates_common(src: Path) -> None:
 
 
 def test_echarts_loaded_defer_with_queue() -> None:
-    """echarts（1 MB 解压）在 head 同步加载会阻 HTML 解析：实测 150ms RTT 下
+    """echarts（1 MB 解压）在 head 同步加载会阻塞 HTML 解析：实测 150ms RTT 下
     FCP 924ms → 628ms。改 defer 后页面可能在它执行前就调 mkChart，
-    rates-common 必须有登记与 DCL 补画，否则图静默不画（canvas 数为 0）。"""
+    rates-common 必须入队、并在 DOMContentLoaded 补画，否则图静默不画。"""
     layout = TOPIC_LAYOUT.read_text(encoding="utf-8")
     assert '<script is:inline defer src="/vendor/echarts.min.js">' in layout, (
         "TopicLayout 的 echarts 退回同步加载"
     )
     rc = (STATIC / "js" / "rates-common.js").read_text(encoding="utf-8")
-    assert "_pendingCharts" in rc, "rates-common 缺待画登记"
-    assert "_flushCharts" in rc, "rates-common 缺 DCL 补画"
+    assert "R._pendingCharts.set(id, option)" in rc, "mkChart 不再登记待画的图"
+    assert "window.addEventListener('DOMContentLoaded'" in rc, "补画没有挂在 DOMContentLoaded 上"
+    assert "R._dclFired = true;" in rc, "DCL 标志未置位，mkChart 分不出「等补画」与「加载失败」"
     assert "R._flushCharts()" in rc, "_flushCharts 从未被调用"
+
+
+MKCHART_PROBE = """
+globalThis.window = { addEventListener() {} };
+globalThis.document = {
+  getElementById: () => ({ classList: { add() {}, remove() {} }, innerHTML: '' }),
+};
+__COMMON__
+const draw = () => R.mkChart('chart-x', () => ({ series: [] }));
+if (process.argv[2] === 'before-dcl') {
+  if (draw() !== null) throw new Error('DCL 之前调 mkChart 应返回 null');
+  if (R._pendingCharts.size !== 1) throw new Error('未登记到 _pendingCharts');
+} else {
+  R._dclFired = true;
+  let threw = false;
+  try { draw(); } catch (e) { threw = true; }
+  if (!threw) throw new Error('DCL 之后缺 echarts 必须就地报错');
+  if (R._pendingCharts.size !== 0) throw new Error('加载失败不该当成待画的图入队');
+}
+"""
+
+
+@pytest.mark.parametrize("state", ["before-dcl", "after-dcl"], ids=["DCL 之前入队", "DCL 之后报错"])
+def test_mkchart_queue_and_fail_paths(state: str, tmp_path: Path) -> None:
+    """mkChart 在 echarts 未就绪时的两条路：DCL 之前登记、由 _flushCharts 补画；
+    DCL 之后仍缺 echarts 说明 defer 脚本加载失败，不会再有第二次补画机会，
+    必须就地抛错 —— 否则骨架屏永久停在「正在加载」、控制台无声。
+    不能用 document.readyState 判：它解析完就变 interactive，defer 脚本在其后才执行。"""
+    if shutil.which("node") is None:
+        pytest.skip("无 node，跳过 mkChart 行为检查")
+    src = MKCHART_PROBE.replace(
+        "__COMMON__", (STATIC / "js" / "rates-common.js").read_text(encoding="utf-8")
+    )
+    script = tmp_path / "probe.js"
+    script.write_text(src, encoding="utf-8")
+    r = subprocess.run(
+        ["node", str(script), state], capture_output=True, text=True, encoding="utf-8"
+    )
+    assert r.returncode == 0, r.stderr[:400]
 
 
 @pytest.mark.parametrize("src", [TOPIC_LAYOUT, SPA_ENTRY], ids=["TopicLayout.astro", "index.html"])
