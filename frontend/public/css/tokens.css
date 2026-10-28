@@ -15,30 +15,30 @@
  * 图表容器高度不用固定 px，走 clamp(下限, Nvh, 原固定值)：上限即旧值，
  * 视口高 ≥ ~750px 时与旧版逐像素一致，只有矮屏/手机变矮（vol-cross-chart 为样板）。 */
 
-/* 等宽字体内嵌（latin 子集，400/500/700 共 44KB），字体文件在 /vendor/fonts/。
+/* 等宽字体内嵌（latin 子集，400/500/700 共 65KB），字体文件在 /vendor/fonts/。
  * 不引 CDN：fonts.googleapis.com 在大陆不可达，那条外链会一直拖到 load 事件
  * （实测同一页 5616ms vs 自托管 67ms）。@font-face 的下载不计入 load ——
  * 它由首次渲染惰性触发，所以这里不要加 preload，加了反而进关键路径。 */
 @font-face {
-  font-family: 'IBM Plex Mono';
+  font-family: 'JetBrains Mono';
   font-style: normal;
   font-weight: 400;
   font-display: swap;
-  src: url('/vendor/fonts/ibm-plex-mono-latin-400.woff2') format('woff2');
+  src: url('/vendor/fonts/jetbrains-mono-latin-400.woff2') format('woff2');
 }
 @font-face {
-  font-family: 'IBM Plex Mono';
+  font-family: 'JetBrains Mono';
   font-style: normal;
   font-weight: 500;
   font-display: swap;
-  src: url('/vendor/fonts/ibm-plex-mono-latin-500.woff2') format('woff2');
+  src: url('/vendor/fonts/jetbrains-mono-latin-500.woff2') format('woff2');
 }
 @font-face {
-  font-family: 'IBM Plex Mono';
+  font-family: 'JetBrains Mono';
   font-style: normal;
   font-weight: 700;
   font-display: swap;
-  src: url('/vendor/fonts/ibm-plex-mono-latin-700.woff2') format('woff2');
+  src: url('/vendor/fonts/jetbrains-mono-latin-700.woff2') format('woff2');
 }
 
 :root {
@@ -97,9 +97,9 @@
   --chart-violet: #7c4dff;
   --chart-slate: #607d8b;
   --chart-pink: #e91e63;
-  /* 等宽数字字体（timsun 数字排版纪律）：IBM Plex Mono 自托管（见文件顶部 @font-face），
-     比 Menlo 细约 10%，实测 load 事件不受字体影响；系统有对应字重时直接命中 */
-  --font-mono: 'IBM Plex Mono', Menlo, Consolas, monospace;
+  /* 等宽数字字体（timsun 数字排版纪律）：JetBrains Mono 自托管（见文件顶部 @font-face），
+     比 Menlo 细 5.5%，实测 load 事件不受字体影响；系统有对应字重时直接命中 */
+  --font-mono: 'JetBrains Mono', Menlo, Consolas, monospace;
 }
 body.dark {
   --color-up: #34d399;
