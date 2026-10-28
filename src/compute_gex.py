@@ -540,17 +540,24 @@ def main():
         spot = spot or get_spot(ib, symbol)
         if spot:
             chains = get_option_chain_params(ib, symbol)
-            chain = max(chains, key=lambda c: len(c.expirations) + len(c.strikes))
-            expirations, strikes = filter_options(chain, spot, args.expirations, args.strike_pct)
-            if expirations:
-                log.info(f"行权价范围: ${strikes[0]:.0f} ~ ${strikes[-1]:.0f} ({len(strikes)} 个)")
-                greeks_df = fetch_options_greeks(
-                    ib, symbol, expirations, strikes, batch_size=args.batch_size
+            if not chains:
+                log.warning("IBKR 未返回期权链参数，降级 yfinance")
+            else:
+                chain = max(chains, key=lambda c: len(c.expirations) + len(c.strikes))
+                expirations, strikes = filter_options(
+                    chain, spot, args.expirations, args.strike_pct
                 )
-                if not greeks_df.empty:
-                    snap = Path(f"data/gex/{symbol}_greeks_{datetime.now():%Y%m%d}.csv")
-                    greeks_df.to_csv(snap, index=False)
-                    log.info(f"已保存 Greeks 快照: {snap}")
+                if expirations:
+                    log.info(
+                        f"行权价范围: ${strikes[0]:.0f} ~ ${strikes[-1]:.0f} ({len(strikes)} 个)"
+                    )
+                    greeks_df = fetch_options_greeks(
+                        ib, symbol, expirations, strikes, batch_size=args.batch_size
+                    )
+                    if not greeks_df.empty:
+                        snap = Path(f"data/gex/{symbol}_greeks_{datetime.now():%Y%m%d}.csv")
+                        greeks_df.to_csv(snap, index=False)
+                        log.info(f"已保存 Greeks 快照: {snap}")
         else:
             log.warning("IBKR 无法获取标的价格")
         ib.disconnect()

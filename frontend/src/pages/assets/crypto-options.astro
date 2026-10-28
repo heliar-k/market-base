@@ -189,12 +189,12 @@ async function load() {
   wsec.className = 're-section';
   wsec.id = 'sec-walls';
   const usd0 = v => (v == null ? '—' : '$' + fmt(v, 0));
-  // 行权价升序合并 Call / Put 两侧 Top 5（同价位不重复出现，Deribit 上 call/put 墙总在不同档）
+  // 行权价升序展示 Call / Put 两侧 Top 5；同一价位有两个方向时分别保留
   const ladderRows = (o, spot) => {
-    const byStrike = new Map();
-    (o.top_calls || []).forEach(r => byStrike.set(r.strike, { side: 'call', ...r }));
-    (o.top_puts || []).forEach(r => byStrike.set(r.strike, { side: 'put', ...r }));
-    const rows = [...byStrike.values()].sort((a, b) => a.strike - b.strike);
+    const rows = [
+      ...(o.top_calls || []).map(r => ({ side: 'call', ...r })),
+      ...(o.top_puts || []).map(r => ({ side: 'put', ...r })),
+    ].sort((a, b) => a.strike - b.strike || a.side.localeCompare(b.side));
     if (!rows.length) return '';
     const max = Math.max(...rows.map(r => r.oi));
     const callWall = o.near_call_wall ?? o.call_wall;
@@ -205,7 +205,9 @@ async function load() {
       if (spot && i && rows[i - 1].strike < spot && r.strike >= spot) {
         out.push(`<div class="sw-spot"><span>现价 ${usd0(spot)}</span><span>↑上方压制 / ↓下方支撑</span></div>`);
       }
-      const wall = r.strike === callWall ? 'call' : r.strike === putWall ? 'put' : '';
+      const wall = r.side === 'call' && r.strike === callWall
+        ? 'call'
+        : r.side === 'put' && r.strike === putWall ? 'put' : '';
       out.push(`<div class="sw-row" title="${wall ? (wall === 'call' ? 'Call 墙' : 'Put 墙') : 'Top 5 墙位'} ${usd0(r.strike)} · OI ${fmt(r.oi, 0)} 张${spot ? ` · 距现价 ${R.dist(r.strike, spot)}` : ''}">
         <span class="sw-k">${usd0(r.strike)}</span>
         <div class="sw-track"><div class="sw-fill ${r.side}" style="width:${((r.oi / max) * 100).toFixed(1)}%"></div></div>
@@ -228,7 +230,7 @@ async function load() {
     if (flip != null) bits.push(`Gamma Flip <b>${usd0(flip)}</b>${spot ? ` ${R.dist(flip, spot)}` : ''}`);
     if ((o.gex || {}).net_gex_musd != null) bits.push(`净 GEX <b>${o.gex.net_gex_musd >= 0 ? '+' : ''}${fmt(o.gex.net_gex_musd, 1)} M</b>/1%`);
     if (o.pcr != null) bits.push(`PCR <b>${o.pcr}</b>`);
-    if (o.max_pain != null) bits.push(`Max Pain <b>${usd0(o.max_pain)}</b>`);
+    if (o.near_max_pain != null) bits.push(`Max Pain <b>${usd0(o.near_max_pain)}</b>`);
     const all = (o.call_wall != null && (o.near_call_wall ?? o.call_wall) !== o.call_wall) || (o.put_wall != null && (o.near_put_wall ?? o.put_wall) !== o.put_wall);
     if (all) bits.push(`全到期墙 ${usd0(o.put_wall)} – ${usd0(o.call_wall)}`);
     // 每段不跨行（原裸拼接会让「/ $95,000」整段掉到第二行成孤儿）
@@ -321,12 +323,12 @@ async function load() {
         ['BTC Call 墙', `${usd0(bCW)} · OI ${fmt(optB.near_call_wall_oi, 0)} 张`, bCW != null && bSpot ? `距现价 ${R.dist(bCW, bSpot)}` : ''],
         ['BTC Put 墙', `${usd0(bPW)} · OI ${fmt(optB.near_put_wall_oi, 0)} 张`, bPW != null && bSpot ? `距现价 ${R.dist(bPW, bSpot)}` : ''],
         ['BTC Gamma Flip / 净 GEX', gexText(optB), optB.gex && optB.gex.gamma_flip != null && bSpot ? `Flip 距现价 ${R.dist(optB.gex.gamma_flip, bSpot)}` : ''],
-        ['BTC PCR / Max Pain', `${optB.pcr == null ? '—' : optB.pcr} · ${usd0(optB.max_pain)}`, 'PCR = 全到期 Put OI / Call OI'],
+        ['BTC PCR / Max Pain', `${optB.pcr == null ? '—' : optB.pcr} · ${usd0(optB.near_max_pain)}`, 'PCR = 全到期 Put OI / Call OI · Max Pain = 最近到期'],
         ['BTC 全到期墙', wall(optB.put_wall, optB.call_wall, ' – '), `${optB.d_exp || '—'} 个到期月 · 总 OI ${fmt(optB.total_oi, 0)} 张`],
         ['ETH 现价锚 / 近月墙', `${usd0(eSpot)} · ${wall(ePW, eCW)}`, `Deribit · 近月到期 ${optE.nearest_exp || '—'}`],
         ['ETH Call / Put 墙', wall(eCW, ePW, ' / '), `近月 OI ${fmt(optE.near_call_wall_oi, 0)} / ${fmt(optE.near_put_wall_oi, 0)} 张`],
         ['ETH Gamma Flip / 净 GEX', gexText(optE), optE.gex && optE.gex.gamma_flip != null && eSpot ? `Flip 距现价 ${R.dist(optE.gex.gamma_flip, eSpot)}` : ''],
-        ['ETH PCR / Max Pain', `${optE.pcr == null ? '—' : optE.pcr} · ${usd0(optE.max_pain)}`, `全到期口径 · ${optE.d_exp || '—'} 个到期月`],
+        ['ETH PCR / Max Pain', `${optE.pcr == null ? '—' : optE.pcr} · ${usd0(optE.near_max_pain)}`, `PCR = 全到期 · Max Pain = 最近到期`],
         ['CME BTC 期货总 OI', `${fmt(cf.total_oi, 0)} 张 ≈ ${fmt(cf.total_oi_btc, 0)} BTC`, `1 张 = 5 BTC · 截至 ${cf.as_of || '—'}`],
         ['CME 主力 / 年化基差', `${cf.front ? cf.front.month + ' ' + usd0(cf.front.settle) : '—'} · ${R.fmtPct(cf.basis_ann_pct)}`, `${({ contango: '升水', backwardation: '贴水', flat: '平水' }[cf.term]) || '—'}`],
         ...[pmOf('BTC'), pmOf('ETH')].filter(Boolean),

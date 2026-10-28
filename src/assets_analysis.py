@@ -2792,6 +2792,7 @@ def options_board() -> dict | None:
         return None
     snap_key = files[-1].stem  # 快照日 = Wheel 看板落盘文件的键（也是 DTE/事件倒计时锚点）
     board = json.loads(files[-1].read_text(encoding="utf-8"))
+    board["snapshot_date"] = datetime.strptime(snap_key, "%Y%m%d").strftime("%Y-%m-%d")
     for s in board.get("symbols", {}).values():
         normalize_directional_walls(s)
         s["narrative"] = _options_narrative(s)

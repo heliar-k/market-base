@@ -193,14 +193,16 @@ def fetch_options(currency: str = "BTC") -> dict:
                 "right": right,
                 "oi": float(r.get("open_interest", 0) or 0),
                 "volume": float(r.get("volume", 0) or 0),
-                "underlying": float(r.get("underlying_price", 0) or 0),
                 "iv": float(r.get("mark_iv", 0) or 0) or None,
             }
         )
     if not parsed:
         return {}
     df = pd.DataFrame(parsed)
-    spot = float(df["underlying"].iloc[-1]) or 0
+    index = _deribit("get_index_price", index_name=f"{currency.lower()}_usd")
+    spot = float(index.get("index_price", 0) or 0)
+    if spot <= 0:
+        return {}
 
     # 期权墙：call/put 分别按行权价聚 OI
     by_strike = df.groupby(["strike", "right"]).agg(oi=("oi", "sum"))
@@ -221,8 +223,6 @@ def fetch_options(currency: str = "BTC") -> dict:
     call_oi = float(df[df["right"] == "C"]["oi"].sum())
     put_oi = float(df[df["right"] == "P"]["oi"].sum())
     pcr = put_oi / call_oi if call_oi else None
-
-    pain = _max_pain(df)
 
     gex = _gex_summary(df, spot)
 
@@ -251,7 +251,7 @@ def fetch_options(currency: str = "BTC") -> dict:
         "call_wall": call_wall,
         "put_wall": put_wall,
         "pcr": round(pcr, 2) if pcr else None,
-        "max_pain": pain,
+        "max_pain": near_max_pain,
         "gex": gex,
         "total_oi": round(call_oi + put_oi, 0),
         "d_exp": int(df["expiration"].nunique()),
@@ -387,11 +387,18 @@ def main() -> None:
         snap["taker"] = fetch_taker_ratio()
     except Exception as e:
         logger.warning("taker: %s", e)
+    options_failed = []
     for ccy in ("BTC", "ETH"):
         try:
-            snap[f"options_{ccy}"] = fetch_options(ccy)
+            result = fetch_options(ccy)
+            if not result:
+                raise RuntimeError("空期权快照")
+            snap[f"options_{ccy}"] = result
         except Exception as e:
             logger.warning(f"options {ccy}: %s", e)
+            options_failed.append(ccy)
+    if options_failed:
+        raise RuntimeError(f"Deribit 期权拉取失败: {','.join(options_failed)}；保留既有快照")
     try:
         snap["cme"] = fetch_cme_basis()
     except Exception as e:

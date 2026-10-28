@@ -18,7 +18,7 @@ from __future__ import annotations
 
 import json
 import logging
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 from math import sqrt
 from zoneinfo import ZoneInfo
 
@@ -42,7 +42,7 @@ def _utc_now_iso() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z")
 
 
-# raw 链保留的自然日数（含今天）。入库的只有这个窗口内的快照：
+# raw 链保留的文件日期数。入库的只有这个窗口内的快照：
 # `wheel_scanner` 选点要逐合约明细（JSON 快照里没有），而它跨日回退最多用
 # 最近一份，留太久只会让库里多存已废弃的到期日。
 RAW_KEEP_DAYS = 3
@@ -413,6 +413,7 @@ def compute_structure(df: pd.DataFrame, spot: float) -> dict:
         {
             "strike": float(w["strike"]),
             "gex_m": round(float(w["gex"]) / 1e6, 1),
+            "cum_gex_m": round(float(w["cum"]) / 1e6, 1),
             "call_gex_m": round(float(w["call_gex"]) / 1e6, 1),
             "put_gex_m": round(float(w["put_gex"]) / 1e6, 1),
             "oi": int(w["oi"]),
@@ -424,8 +425,7 @@ def compute_structure(df: pd.DataFrame, spot: float) -> dict:
         {"expiration": e, "dte": int(dte_map[e]), "iv": round(float(tm[e]) * 100, 2)}
         for e in order.index
     ]
-    # OI Top 20（strike × 到期）— 按 |gamma 加权 GEX| 排序（pin 位参考，
-    # 深 OTM 存量大单按总 OI 会占满榜，对 dealer 关键位无参考价值）
+    # OI Top 20（strike × 到期）— 按 Call + Put 总 OI 排序
     top = (
         c.groupby(["strike", "expiration"])
         .agg(
@@ -433,12 +433,11 @@ def compute_structure(df: pd.DataFrame, spot: float) -> dict:
             put_oi=("oi", lambda s: s[c.loc[s.index, "right"] == "P"].sum()),
             call_vol=("volume", lambda s: s[c.loc[s.index, "right"] == "C"].sum()),
             put_vol=("volume", lambda s: s[c.loc[s.index, "right"] == "P"].sum()),
-            abs_gex=("gex", lambda s: abs(float(s.sum()))),
         )
         .reset_index()
     )
     top["total"] = top["call_oi"] + top["put_oi"]
-    top = top.nlargest(20, "abs_gex")
+    top = top.nlargest(20, "total")
     final["oi_top"] = [
         {
             "strike": float(r["strike"]),
@@ -530,7 +529,11 @@ def build_snapshot(symbols: list[str] | None = None, use_cache: bool = True) -> 
 
     symbols = symbols or SYMBOLS
     bc_iv_map = _fetch_barchart_iv_ranks(symbols)
-    out: dict = {"date": _utc_now_iso(), "symbols": {}}
+    out: dict = {
+        "date": _utc_now_iso(),
+        "snapshot_date": _now_et().strftime("%Y-%m-%d"),
+        "symbols": {},
+    }
     for sym in symbols:
         try:
             ticker = yf.Ticker(sym)
@@ -596,6 +599,7 @@ def main() -> None:
             existing = json.loads(path.read_text(encoding="utf-8"))
             existing["symbols"].update(snapshot["symbols"])
             existing["date"] = snapshot["date"]
+            existing["snapshot_date"] = snapshot["snapshot_date"]
             snapshot = existing
         # compact 单行（程序消费的快照，hook 不插手 data/——多行展开会让
         # git 差异不可读且体积翻倍）；尾部换行由 end-of-file-fixer 要求，写盘时自补
@@ -611,15 +615,24 @@ def main() -> None:
             encoding="utf-8",
         )
         logger.info(f"快照 → {path}（{len(snapshot['symbols'])} 标的）")
-        # 只保留最近 RAW_KEEP_DAYS 天的 raw 链（它们入库供选点读逐合约明细，
+        # 只保留最近 RAW_KEEP_DAYS 个文件日期的 raw 链（它们入库供选点读逐合约明细，
         # 留全量会让仓库每天涨 ~1MB）。按文件名日期算，不按 mtime——git checkout
         # 会把 mtime 全刷成检出时间。
         now_et = _now_et()
         today = now_et.strftime("%Y%m%d")
-        cutoff = (now_et - timedelta(days=RAW_KEEP_DAYS - 1)).strftime("%Y%m%d")
-        for f in DATA.glob("raw_*.csv"):
+        files = list(DATA.glob("raw_*.csv"))
+        stamps = sorted(
+            {
+                stamp
+                for f in files
+                for stamp in [f.stem.rsplit("_", 1)[-1]]
+                if len(stamp) == 8 and stamp.isdigit() and stamp <= today
+            }
+        )
+        keep = set(stamps[-RAW_KEEP_DAYS:])
+        for f in files:
             stamp = f.stem.rsplit("_", 1)[-1]
-            if len(stamp) == 8 and stamp.isdigit() and (stamp < cutoff or stamp > today):
+            if len(stamp) == 8 and stamp.isdigit() and (stamp not in keep or stamp > today):
                 f.unlink()
 
 

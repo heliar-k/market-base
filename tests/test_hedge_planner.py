@@ -2,7 +2,9 @@
 
 from datetime import date, timedelta
 
-from src.hedge_planner import collar, naked_put, pick_expirations, put_spread, snap
+import pandas as pd
+
+from src.hedge_planner import collar, fetch_quotes, naked_put, pick_expirations, put_spread, snap
 
 
 def test_put_spread_math():
@@ -25,6 +27,33 @@ def test_collar_net_credit():
     assert c["floor"] == 380
     assert c["cap"] == 450
     assert c["max_loss"] == -1.40
+
+
+def test_fetch_quotes_handles_nan_prices(monkeypatch):
+    chain = pd.DataFrame(
+        [
+            {
+                "strike": 100.0,
+                "right": "P",
+                "bid": float("nan"),
+                "ask": float("nan"),
+                "last": 4.2,
+                "openInterest": 10,
+            },
+            {
+                "strike": 90.0,
+                "right": "P",
+                "bid": 0.0,
+                "ask": 0.0,
+                "last": float("nan"),
+                "openInterest": 5,
+            },
+        ]
+    )
+    monkeypatch.setattr("src.hedge_planner.fetch_yf_chain", lambda symbol, exps: chain)
+    quotes = fetch_quotes("TEST", "2026-11-20")
+    assert set(quotes) == {(100.0, "P")}
+    assert quotes[(100.0, "P")].mid == 4.2
 
 
 def test_snap_and_pick():

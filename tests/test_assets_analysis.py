@@ -994,6 +994,7 @@ class TestOptionsBoardWheel:
         monkeypatch.setattr(assets_analysis, "ROOT", tmp_path)
         board = assets_analysis.options_board()
         assert board["wheel"]["snapshot_date"] == "20261024"
+        assert board["snapshot_date"] == "2026-10-24"
         assert board["wheel"]["summary"]["market_regime"] == "分歧"
         assert board["wheel"]["rows"][0]["opt_symbol"] == "GOOGL"
         assert board["wheel"]["rows"][0]["put_pick"] is None

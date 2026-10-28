@@ -38,8 +38,13 @@ def _sample_rows() -> list[dict]:
     ]
 
 
-def _patch_deribit(monkeypatch, rows):
-    monkeypatch.setattr(cdf, "_deribit", lambda *a, **k: rows)
+def _patch_deribit(monkeypatch, rows, index_price=60000.0):
+    def fake(method, **params):
+        if method == "get_index_price":
+            return {"index_price": index_price}
+        return rows
+
+    monkeypatch.setattr(cdf, "_deribit", fake)
 
 
 def test_deribit_called_with_currency_kind(monkeypatch):
@@ -48,12 +53,17 @@ def test_deribit_called_with_currency_kind(monkeypatch):
 
     def fake(method, **params):
         calls.append((method, params))
+        if method == "get_index_price":
+            return {"index_price": 60000.0}
         return _sample_rows()
 
     monkeypatch.setattr(cdf, "_deribit", fake)
     cdf.fetch_options("ETH")
     # fetch_options 原样透传 currency / kind（ETH 同口径）。
-    assert calls == [("get_book_summary_by_currency", {"currency": "ETH", "kind": "option"})]
+    assert calls == [
+        ("get_book_summary_by_currency", {"currency": "ETH", "kind": "option"}),
+        ("get_index_price", {"index_name": "eth_usd"}),
+    ]
 
 
 def test_nearest_exp_walls_and_tops(monkeypatch):
@@ -90,6 +100,7 @@ def test_nearest_exp_walls_and_tops(monkeypatch):
 
     # near max pain：K=95000 时 call 全 OTM、put 买方价外，支付 0 为全局最小
     assert out["near_max_pain"] == 95000.0
+    assert out["max_pain"] == 95000.0
 
 
 def test_nearest_exp_fallback_without_friday(monkeypatch):
@@ -104,6 +115,12 @@ def test_nearest_exp_fallback_without_friday(monkeypatch):
     out = cdf.fetch_options("BTC")
     assert out["nearest_exp"] == "2026-08-25"  # 周二/周三都不是周五 → 取最早
     assert out["near_call_wall"] == 110000.0
+
+
+def test_spot_anchor_uses_index_not_last_contract_underlying(monkeypatch):
+    _patch_deribit(monkeypatch, _sample_rows(), index_price=61234.5)
+    out = cdf.fetch_options("BTC")
+    assert out["spot_anchor"] == 61234.5
 
 
 def test_legacy_fields_present_for_backward_compat(monkeypatch):
@@ -130,6 +147,23 @@ def test_empty_response_returns_empty_dict(monkeypatch):
     """非列表响应（如 Deribit 错误返回 {}）保持原行为返回 {}。"""
     _patch_deribit(monkeypatch, "error")
     assert cdf.fetch_options("BTC") == {}
+
+
+def test_main_options_failure_preserves_existing_snapshot(monkeypatch, tmp_path):
+    monkeypatch.setattr(cdf, "DATA", tmp_path)
+    path = tmp_path / f"{cdf.datetime.now():%Y%m%d}.json"
+    original = '{"ts":"old","options_BTC":{"spot_anchor":80000}}'
+    path.write_text(original)
+    monkeypatch.setattr(cdf, "fetch_btc_perp", lambda: {})
+    monkeypatch.setattr(cdf, "fetch_taker_ratio", lambda: {})
+
+    def fail(_currency):
+        raise RuntimeError("network down")
+
+    monkeypatch.setattr(cdf, "fetch_options", fail)
+    with pytest.raises(RuntimeError, match="保留既有快照"):
+        cdf.main()
+    assert path.read_text() == original
 
 
 @pytest.mark.parametrize("currency", ["BTC", "ETH"])

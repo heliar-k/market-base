@@ -121,7 +121,7 @@ async function load() {
     kpi('ETH 期货 OI', ETH.oi_ccy == null ? '—' : fmt(ETH.oi_ccy, 0) + ' ETH', `$${ETH.oi_usd == null ? '—' : (ETH.oi_usd / 1e9).toFixed(2)}B · OKX 永续`),
     kpi('BTC 期权 P/C (OI)', optB.pcr ?? '—', `${pcrStance(optB.pcr)}区间`),
     kpi('BTC 期权总 OI', fmt(optB.total_oi, 0) + ' 张', 'Deribit 全到期合约汇总'),
-    kpi('BTC Max Pain（最近到期）', (optB.near_max_pain ?? optB.max_pain) == null ? '—' : '$' + fmt(optB.near_max_pain ?? optB.max_pain, 0), `${optB.nearest_exp || optB.d_exp + ' 个到期月'} · 最近到期口径`),
+    kpi('BTC Max Pain（最近到期）', optB.near_max_pain == null ? '—' : '$' + fmt(optB.near_max_pain, 0), `${optB.nearest_exp || optB.d_exp + ' 个到期月'} · 最近到期口径`),
     kpi('BTC 指数价格', optB.spot_anchor == null ? '—' : '$' + fmt(optB.spot_anchor, 0), 'Deribit btc_usd 合成指数'),
   ].filter(Boolean), 're-cards-wide'));
   document.getElementById('kpi').appendChild(ksec);
@@ -247,7 +247,7 @@ async function load() {
     const oiPair = BTC.oi_usd == null && ETH.oi_usd == null ? '—'
       : (BTC.oi_usd == null ? '—' : '$' + R.num(BTC.oi_usd / 1e9) + ' B')
         + ' / ' + (ETH.oi_usd == null ? '—' : '$' + R.num(ETH.oi_usd / 1e9) + ' B');
-    const maxPain = (optB.near_max_pain ?? optB.max_pain);
+    const maxPain = optB.near_max_pain;
     const wallPair = optB.near_call_wall == null && optB.near_put_wall == null ? '—'
       : 'Call ' + (optB.near_call_wall == null ? '—' : '$' + fmt(optB.near_call_wall, 0))
         + ' / Put ' + (optB.near_put_wall == null ? '—' : '$' + fmt(optB.near_put_wall, 0));

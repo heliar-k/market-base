@@ -18,6 +18,7 @@ import subprocess
 import sys
 from datetime import datetime
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
 import pandas as pd
 import yfinance as yf
@@ -119,8 +120,9 @@ def analyze_puts(gex: pd.DataFrame, spot: float, atr: float, symbol: str) -> pd.
     if p.empty:
         sys.exit("无可用的期权报价")
 
-    # dte 统一后置计算（yf / IBKR 两来源同口径）
-    p["dte"] = (pd.to_datetime(p.expiration, format="%Y%m%d") - pd.Timestamp.now()).dt.days
+    # dte 统一按美东日历日计算，避免时分把整数天数减掉一天
+    today = pd.Timestamp(datetime.now(ZoneInfo("America/New_York")).date())
+    p["dte"] = (pd.to_datetime(p.expiration, format="%Y%m%d") - today).dt.days
     p = p[p["dte"] > 0]
 
     dist = (spot - p.strike) / spot

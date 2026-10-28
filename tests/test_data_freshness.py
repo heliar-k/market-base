@@ -101,6 +101,7 @@ def test_csv_dir_globs_reads_raw_chain_filename_date(tmp_path):
     (d / "20261027.json").write_text("{}")
     (d / "raw_NVDA_20261024.csv").write_text("strike,right\n200,P\n")
     (d / "raw_BRK-B_20261023.csv").write_text("strike,right\n540,P\n")
+    (d / "raw_NVDA_20261027.csv").write_text("strike,right\n200,P\n")
     (d / "raw_NVDA_20261028.csv").write_text("strike,right\n200,P\n")
 
     json_chk = {"path": "data/options_structure", "kind": "json_dir", "budget": 2, "note": "x"}
@@ -112,7 +113,8 @@ def test_csv_dir_globs_reads_raw_chain_filename_date(tmp_path):
     }
     rows = audit(tmp_path, date(2026, 10, 27), [json_chk, raw_chk])
     assert rows[0][0] == "ok"  # JSON 快照是当日的
-    assert rows[1][0] == "STALE" and rows[1][2] == 3  # raw 链停在前 3 天，被抓出来
+    # NVDA 当日新鲜不能掩盖 BRK-B 停在前 4 天；未来文件不参与判定
+    assert rows[1][0] == "STALE" and rows[1][2] == 4
 
 
 # ── 占位行检测（2026-10-13 事故）───────────────────────────────────

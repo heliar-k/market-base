@@ -17,6 +17,7 @@ import argparse
 import logging
 from dataclasses import dataclass
 from datetime import date
+from math import isfinite
 
 from src.fetchers.yfinance_fetcher import ensure_yf_proxy
 from src.pricing import fetch_yf_chain
@@ -76,11 +77,11 @@ def fetch_quotes(symbol: str, exp: str) -> dict[tuple[float, str], Quote]:
     """
     quotes = {}
     for _, row in fetch_yf_chain(symbol, [exp]).iterrows():
-        bid, ask = float(row["bid"]), float(row["ask"])
-        if bid <= 0:
+        bid, ask = float(row["bid"] or 0), float(row["ask"] or 0)
+        if not isfinite(bid) or not isfinite(ask) or bid <= 0 or ask <= 0:
             # ponytail: Yahoo 多数合约无盘口，用 lastPrice（昨收）近似成本
             last = float(row["last"] or 0)
-            if last <= 0:
+            if not isfinite(last) or last <= 0:
                 continue
             bid = ask = last
         q = Quote(

@@ -175,6 +175,26 @@ def _from_filename(names: list[str], not_after: date | None = None) -> date | No
     return max(found) if found else None
 
 
+def _oldest_symbol_date(names: list[str], not_after: date | None = None) -> date | None:
+    """取每个标的最新有效日期中的最早值，防止单个新鲜文件掩盖其他标的停更。"""
+    by_symbol: dict[str, date | None] = {}
+    for n in names:
+        stem = Path(n).stem
+        stamp = stem[-8:]
+        if len(stamp) != 8 or not stamp.isdigit():
+            continue
+        symbol = stem[:-9]
+        by_symbol.setdefault(symbol, None)
+        d = datetime.strptime(stamp, "%Y%m%d").date()
+        if not_after is not None and d > not_after:
+            continue
+        if by_symbol[symbol] is None or d > by_symbol[symbol]:
+            by_symbol[symbol] = d
+    if not by_symbol or any(d is None for d in by_symbol.values()):
+        return None
+    return min(d for d in by_symbol.values() if d is not None)
+
+
 def _last_csv_date(path: Path, column: str | None) -> date | None:
     """CSV 末观测日（首列或指定列；非日期列返回 None）。
 
@@ -201,7 +221,7 @@ def latest(path: Path, chk: Check, today: date | None = None) -> date | None:
         return _from_filename([p.name for p in path.glob("*.json")], today)
     if chk["kind"] == "csv_dir_globs":
         # 目录下多个文件，日期在文件名末尾（raw_NVDA_20261027.csv）
-        return _from_filename([p.name for p in path.glob("*.csv")], today)
+        return _oldest_symbol_date([p.name for p in path.glob("*.csv")], today)
     if not path.exists():
         return None
     return _last_csv_date(path, chk.get("column"))

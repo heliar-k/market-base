@@ -233,7 +233,11 @@ def test_main_merges_partial_full_run_with_existing_snapshot(monkeypatch, tmp_pa
     monkeypatch.setattr(
         os,
         "build_snapshot",
-        lambda symbols, use_cache: {"date": "new", "symbols": {"NVDA": {"symbol": "NVDA"}}},
+        lambda symbols, use_cache: {
+            "date": "new",
+            "snapshot_date": "2026-10-27",
+            "symbols": {"NVDA": {"symbol": "NVDA"}},
+        },
     )
     monkeypatch.setattr(sys, "argv", ["options_structure"])
 
@@ -241,3 +245,77 @@ def test_main_merges_partial_full_run_with_existing_snapshot(monkeypatch, tmp_pa
     out = json.loads(path.read_text(encoding="utf-8"))
     assert set(out["symbols"]) == {"MSFT", "NVDA"}
     assert out["date"] == "new"
+    assert out["snapshot_date"] == "2026-10-27"
+
+
+def test_wall_exports_full_cumulative_gex():
+    out = compute_structure(
+        _chain(
+            [
+                (80.0, "P", 80000),
+                (84.0, "C", 60000),
+                (92.0, "P", 50000),
+                (96.0, "C", 50000),
+            ]
+        ),
+        100.0,
+    )
+    prev = 0.0
+    crossings = []
+    for row in out["wall"]:
+        cum = row["cum_gex_m"]
+        if prev < 0 <= cum:
+            crossings.append(row["strike"])
+        prev = cum
+    assert 96.0 in crossings
+
+
+def test_oi_top_uses_total_open_interest():
+    rows = [
+        {
+            "strike": float(strike),
+            "right": "C",
+            "expiration": EXP,
+            "openInterest": 2000 - i,
+            "volume": 0,
+            "impliedVolatility": 0.2,
+        }
+        for i, strike in enumerate(range(80, 101))
+    ]
+    out = compute_structure(pd.DataFrame(rows), 100.0)
+    assert len(out["oi_top"]) == 20
+    assert out["oi_top"][0]["strike"] == 80.0
+    assert 100.0 not in {row["strike"] for row in out["oi_top"]}
+
+
+def test_raw_retention_keeps_latest_three_actual_dates(monkeypatch, tmp_path):
+    import sys
+
+    import src.options_structure as os
+
+    monkeypatch.setattr(os, "DATA", tmp_path)
+    monkeypatch.setattr(
+        os,
+        "_now_et",
+        lambda: datetime(2026, 10, 26, 8, 0, tzinfo=ZoneInfo("America/New_York")),
+    )
+    monkeypatch.setattr(
+        os,
+        "build_snapshot",
+        lambda symbols, use_cache: {
+            "date": "new",
+            "snapshot_date": "2026-10-26",
+            "symbols": {"NVDA": {"symbol": "NVDA"}},
+        },
+    )
+    for stamp in ("20261021", "20261022", "20261023", "20261026", "20261027"):
+        (tmp_path / f"raw_NVDA_{stamp}.csv").write_text("strike\n100\n")
+    monkeypatch.setattr(sys, "argv", ["options_structure"])
+
+    os.main()
+
+    assert (tmp_path / "raw_NVDA_20261022.csv").exists()
+    assert (tmp_path / "raw_NVDA_20261023.csv").exists()
+    assert (tmp_path / "raw_NVDA_20261026.csv").exists()
+    assert not (tmp_path / "raw_NVDA_20261021.csv").exists()
+    assert not (tmp_path / "raw_NVDA_20261027.csv").exists()
