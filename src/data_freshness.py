@@ -50,6 +50,7 @@ class Check(TypedDict):
     budget: int
     note: str
     column: str | None
+    require: str | None
 
 
 def _c(
@@ -58,13 +59,16 @@ def _c(
     note: str,
     kind: str = "csv",
     column: str | None = None,
+    require: str | None = None,
 ) -> Check:
+    """require=只统计该列非空的行（文件里混着未完成行时用）。"""
     return {
         "path": path,
         "kind": kind,
         "budget": budget,
         "note": note,
         "column": column,
+        "require": require,
     }
 
 
@@ -125,7 +129,15 @@ CHECKS: list[Check] = [
     _c("data/treasury/mspd.csv", 45, "MSPD 月末未偿（Bill 占比锚）", column="record_date"),
     # 查 auction_date 而不是 issue_date：后者领先前者最多 8 天（52-Week Bill 4 周、
     # Note 8 天），用它当末观测日会让「8 天预算」实际变成 16 天，且靠未来日期撑绿。
-    _c("data/treasury/auction_results.csv", 8, "国债拍卖结果", column="auction_date"),
+    # require 同理：文件里混着「已公告未拍卖」的结果空行，按日期最大值判定会被
+    # 公告行顶到未来场次（2026-10 就这样把结果停更 13 天报成「落后 5 天 ok」）。
+    _c(
+        "data/treasury/auction_results.csv",
+        8,
+        "国债拍卖结果",
+        column="auction_date",
+        require="bid_to_cover_ratio",
+    ),
     _c("data/rate_expectations/fomc_probabilities.csv", D, "FOMC 概率"),
     _c("data/rate_expectations/zq_futures.csv", D, "ZQ 期货快照"),
     _c("data/breadth/abv.csv", D, "市场广度 ABV"),
@@ -202,17 +214,25 @@ def _oldest_symbol_date(
     return min(d for d in by_symbol.values() if d is not None)
 
 
-def _last_csv_date(path: Path, column: str | None) -> date | None:
+def _last_csv_date(path: Path, column: str | None, require: str | None = None) -> date | None:
     """CSV 末观测日（首列或指定列；非日期列返回 None）。
 
     先转字符串再取前 10 字符，避开两个具体坑：
     - `20260903` 是 int，pandas 当 epoch 纳秒 → 解成 1970（fed 文件）
     - `2026-08-17 15:15:50-05` 混时区 → to_datetime 直接抛错（_release_dates）
     取 ISO 前缀（天）后两者统一能解。
+
+    require=只统计该列非空的行；该列不存在→None（宁可报 MISSING，不静默放行）。
     """
     df = pd.read_csv(path, low_memory=False)
     if df.empty:
         return None
+    if require:
+        if require not in df.columns:
+            return None
+        df = df[df[require].notna()]
+        if df.empty:
+            return None
     col = column if column and column in df.columns else df.columns[0]
     s = df[col].dropna().astype(str).str.slice(0, 10)
     try:
@@ -233,7 +253,7 @@ def latest(path: Path, chk: Check, today: date | None = None) -> date | None:
         return _oldest_symbol_date([p.name for p in path.glob("*.csv")], today, SYMBOLS)
     if not path.exists():
         return None
-    return _last_csv_date(path, chk.get("column"))
+    return _last_csv_date(path, chk.get("column"), chk.get("require"))
 
 
 def audit(

@@ -71,6 +71,34 @@ def test_mixed_tz_offsets_parse(tmp_path):
     assert audit(tmp_path, date(2026, 9, 5), [chk])[0][0] == "ok"
 
 
+def test_require_column_ignores_unfinished_rows(tmp_path):
+    """国债拍卖文件混着「已公告未拍卖」的空结果行：按日期最大值判定会被公告行
+    顶到未来场次（2026-10 实测：成交结果停在 10-15，审计报「落后 5 天 ok」）。
+    require 把判定基准改回「末场有结果的拍卖日」。"""
+    p = tmp_path / "a.csv"
+    pd.DataFrame(
+        {
+            "auction_date": ["2026-10-15", "2026-10-22", "2026-10-28"],
+            "bid_to_cover_ratio": [2.56, None, None],
+        }
+    ).to_csv(p, index=False)
+    loose = {
+        "path": "a.csv",
+        "kind": "csv",
+        "budget": 8,
+        "note": "x",
+        "column": "auction_date",
+    }
+    strict = {**loose, "require": "bid_to_cover_ratio"}
+    rows = audit(tmp_path, date(2026, 10, 28), [loose, strict])
+    assert rows[0][0] == "ok" and rows[0][2] == 0  # 公告行把日期顶到当天
+    assert rows[1][0] == "STALE" and rows[1][2] == 13  # 真实停更
+
+    # 列不存在不静默放行：报 MISSING 而不是退回「首列最大值」
+    bad = {**strict, "require": "no_such_column"}
+    assert audit(tmp_path, date(2026, 10, 28), [bad])[0][0] == "MISSING"
+
+
 def test_ahead_calendar_needs_lead(tmp_path):
     """拍卖日历末行必须领先今天 ≥ budget；过期的日历=源停更，判 STALE。"""
     chk = {"path": "u.csv", "kind": "ahead", "budget": 1, "note": "x"}

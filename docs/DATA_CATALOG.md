@@ -438,7 +438,9 @@ SLV（iShares varnish 文档接口，逐日份额 × 每份额盎司换算吨位
 
 ## 10. 国债拍卖 — `data/treasury/`
 
-来源 US Treasury Fiscal Data API（免费，无需认证）。`./bin/fetch_treasury` 拉取拍卖结果和未来日历，每次全量覆盖。
+来源 US Treasury Fiscal Data API（免费，无需认证）+ TreasuryDirect TA_WS（同一批数据的上游）。`./bin/fetch_treasury` 拉取拍卖结果和未来日历，每次全量覆盖。
+
+Fiscal Data 的两个数据集会一起停更（2026-10-15 起 13 天没有新记录，成交结果与日历都停在停更前），所以末段改由 TA_WS 的 `securities/auctioned` / `securities/announced`（近 60 天）补齐：按 (拍卖日, CUSIP) 合并，Fiscal Data 已发布的值优先，只补空单元格与整行缺失的场次。拍卖结果另并入上一次写入的 CSV 作为最后一层，两个源都覆盖不到停更起点时不会删掉已入库的历史。
 
 ### auction_results.csv（拍卖结果，~11,000 条历史，全量覆盖）
 
@@ -462,7 +464,7 @@ SLV（iShares varnish 文档接口，逐日份额 × 每份额盎司换算吨位
 | `issue_date` | 发行日 |
 | `maturity_date` | 到期日 |
 
-### upcoming_auctions.csv（未来拍卖日历，~93 条，全量覆盖）
+### upcoming_auctions.csv（未来拍卖日历，~150 条，全量覆盖）
 
 ### mspd.csv（月度未偿债务结构，307 个月，全量覆盖）
 
