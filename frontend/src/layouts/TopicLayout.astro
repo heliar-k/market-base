@@ -12,7 +12,7 @@ interface Props {
   title: string; // 页名，渲染为 <title>{title} — 观澜台</title> 与页头 h1
   h1?: string; // 页头 h1 覆写（默认同 title；vix 页原 h1 带「标普500隐含波动率指数」副标，工单 #16）
   desc?: string; // meta description（搜索/分享摘要）；默认给站点级描述
-  chart?: boolean; // 本页是否画图（调 R.mkChart）；false 则不加载 echarts.min.js（1 MB，同步阻塞）
+  chart?: boolean; // 本页是否画图（调 R.mkChart）；false 则不加载 echarts.min.js（1 MB，defer）
 }
 const { title, h1 = title, desc = '观澜台 — 美股与宏观研究平台：每日更新的美股/指数/期权/期货技术面与利率、流动性、信用、通胀专题研判。', chart = true } = Astro.props;
 
@@ -78,10 +78,13 @@ const parentGroup = SITE_NAV.groups.find(
 <link rel="stylesheet" href="/css/app.css">
 <link rel="stylesheet" href="/css/special.css">
 <!-- 共享 JS 留在 public/js（与未迁移页同一份），is:inline = 原样输出不走打包管线（ADR-0003） -->
-<!-- echarts 只在画图页加载：无图页（卡片/表格页）不必为 1 MB 同步脚本付首屏代价。
-     echarts-theme.js 与 rates-common.js 保留——reSyncLegend 是纯 JS，且 rates-common 只在
-     mkChart 运行时才碰 echarts（已 grep 确认，echarts-theme.js:119 也有 typeof 守卫）。 -->
-{chart && <script is:inline src="/vendor/echarts.min.js"></script>}
+<!-- echarts 只在画图页加载：无图页（卡片/表格页）不必为 1 MB 脚本付代价。
+     defer 而非同步：1 MB 解压的脚本卡在 head 会阻 HTML 解析，body 里所有可绘制内容
+     都等它跑完（实测 FCP 936→632ms，150ms RTT）。defer 仍与 CSS/fetch 并发下载，
+     只把执行推到解析完成之后；那之前调 mkChart 的图由 rates-common 登记、DCL 时补画。
+     echarts-theme.js 保持同步：它只定义函数（registerMacroTheme 有 typeof 守卫），
+     不碰 echarts，且必须早于 mkChart 就先位。 -->
+{chart && <script is:inline defer src="/vendor/echarts.min.js"></script>}
 <script is:inline src="/js/echarts-theme.js"></script>
 <script is:inline src="/js/rates-common.js"></script>
 <!-- 页面事实集：页面 island 脚本用它 declare 结构化数据（相关性矩阵这类只在 canvas 上的东西），

@@ -68,6 +68,20 @@ def test_echarts_theme_before_rates_common(src: Path) -> None:
         assert theme < common, f"{src.relative_to(ROOT)} 加载顺序颠倒"
 
 
+def test_echarts_loaded_defer_with_queue() -> None:
+    """echarts（1 MB 解压）在 head 同步加载会阻 HTML 解析：实测 150ms RTT 下
+    FCP 924ms → 628ms。改 defer 后页面可能在它执行前就调 mkChart，
+    rates-common 必须有登记与 DCL 补画，否则图静默不画（canvas 数为 0）。"""
+    layout = TOPIC_LAYOUT.read_text(encoding="utf-8")
+    assert '<script is:inline defer src="/vendor/echarts.min.js">' in layout, (
+        "TopicLayout 的 echarts 退回同步加载"
+    )
+    rc = (STATIC / "js" / "rates-common.js").read_text(encoding="utf-8")
+    assert "_pendingCharts" in rc, "rates-common 缺待画登记"
+    assert "_flushCharts" in rc, "rates-common 缺 DCL 补画"
+    assert "R._flushCharts()" in rc, "_flushCharts 从未被调用"
+
+
 @pytest.mark.parametrize("src", [TOPIC_LAYOUT, SPA_ENTRY], ids=["TopicLayout.astro", "index.html"])
 def test_ai_context_before_ai_chat(src: Path) -> None:
     """ai-context.js 是经典同步脚本，页面 inline 脚本与 ai-chat.js 的 module 都依赖它：

@@ -710,6 +710,13 @@ const R = {
     const dom = document.getElementById(id);
     if (!dom) return null;
     dom.classList.add('skeleton'); // 骨架屏占位（app.css .skeleton）：首次 setOption 后摘除，主题重建不重复挂
+    // echarts 是 defer 脚本（不阻 HTML 解析），页面在数据 fetch 回来后可能早于它执行完。
+    // 先登记，DOMContentLoaded 掦 _flushCharts 补画（见文件末尾）；option 是闭包，
+    // 数据已在手里，重放不取新值。同一 id 重复调用时后传的 option 覆盖前者。
+    if (!window.echarts) {
+      R._pendingCharts.set(id, option);
+      return null;
+    }
     // 独立当卡面的 .re-chart（11 个 Section 页）：自身有边框但 padding 为 0，画布直接贴边，
     // y 轴标签离卡边只剩 grid.left；垫一层卡面同款内距（special.css .re-section 的 16px 20px），
     // 与 .re-section 卡里的图（equities 等）对齐。嵌在卡内的 .re-chart（fx/treasury）不垫（避免卡中卡）。
@@ -777,6 +784,18 @@ const R = {
   getChart(id) {
     const c = R._charts.get(id);
     return c && !c.isDisposed() ? c : null;
+  },
+
+  // 等 echarts 就绪的图（见 mkChart）。defer 的 echarts 在 DOMContentLoaded 之前执行完，
+  // 所以那个时机掦 flush 一定能拿到实例；拿不到说明 /vendor/echarts.min.js 没加载成，
+  // 直接报错 —— 静默略过会让图区永远停在骨架屏，且控制台无声。
+  _pendingCharts: new Map(),
+  _flushCharts() {
+    if (!R._pendingCharts.size) return; // 无图页（chart={false}）从不加载 echarts，也就从不入队
+    const pending = [...R._pendingCharts];
+    R._pendingCharts.clear();
+    if (!window.echarts) throw new Error('echarts 未就绪：/vendor/echarts.min.js 未能加载');
+    pending.forEach(([id, option]) => R.mkChart(id, option));
   },
 
   // 覆盖小节内容但保留构建期渲染的小节标题。
@@ -981,4 +1000,12 @@ try {
   R.watchScrollHide('[data-scroll-hide]', 220);
 } catch (e) {
   /* 老浏览器没有 classList.toggle 双参时静默跳过：按钮照常常显 */
+}
+
+// echarts 是 defer 脚本（见 TopicLayout）：本文件执行时它还不在，DCL 之前才执行完。
+// 页面在那一刻前就要图时已由 mkChart 登记，这里补画。echarts 已存在的页面（SPA 同步加载）
+// 不注册 —— 那类页面 mkChart 从不入队。
+// typeof window：守卫测试把本文件拼成脚本交给 node 跑，那里没有 window。
+if (typeof window !== 'undefined' && !window.echarts) {
+  window.addEventListener('DOMContentLoaded', () => R._flushCharts());
 }
