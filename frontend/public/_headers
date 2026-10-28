@@ -7,3 +7,20 @@
 # 注意：_headers 不作用于 Pages Functions（/api/chat、/api/models、/api/notes）。
 /api/*
   Content-Type: application/json
+  Cache-Control: public, max-age=0, stale-while-revalidate=86400
+
+# Pages 默认给静态资源 `max-age=0, must-revalidate`：must-revalidate 要求验证成功
+# 之后才允许用副本，于是每次导航逐个资源阻塞一轮 RTT（跨太平洋实测 14 个条件请求、
+# 首屏 2.47s→0.84s 的差就在这）。换成 stale-while-revalidate：先拿副本渲染、后台验证。
+# 不给长 max-age —— 这些路径不带内容哈希，窗口内改了内容用户拿不到；max-age=0 配
+# stale-while-revalidate 时内容一变，当次访问即取新版（多付一轮验证，仍快于现状）。
+# 页面 HTML 不在此列（/、/assets/*、/app/*），仍每次回源：专题页逻辑内联在 HTML 里，
+# 且页头的「数据截至」要跟部署走。
+/js/*
+  Cache-Control: public, max-age=0, stale-while-revalidate=86400
+
+/css/*
+  Cache-Control: public, max-age=0, stale-while-revalidate=86400
+
+/vendor/*
+  Cache-Control: public, max-age=0, stale-while-revalidate=86400
