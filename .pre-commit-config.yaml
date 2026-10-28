@@ -24,3 +24,15 @@ repos:
         files: \.py$   # ruff 只扫 Python；html/js/css 由各自工具负责
       - id: ruff-format
         files: \.py$
+
+  # 手写 JS 的格式。只用仓库里已装好的那份（frontend/package.json 的 devDependency），
+  # 不走 language: node 的钩子仓库——那会给每个钩子建一份 nodeenv 再装一遍 node。
+  # 范围限定两个手写目录：public/api/ 是 export_pages 产物、.astro/CSS 不在 prettier 管辖内
+  # （astro 插件会重排 is:inline 脚本与相邻标签，静态节奏靠它们维持）。
+  - repo: local
+    hooks:
+      - id: prettier
+        name: prettier (js)
+        language: system
+        entry: frontend/node_modules/.bin/prettier --write
+        files: ^(frontend/public/js/.*\.js|functions/.*\.js)$

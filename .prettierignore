@@ -1,0 +1,9 @@
+# 格式化只覆盖手写源码（frontend/public/js、functions）；以下全是产物或第三方代码
+data/
+frontend/public/api/
+frontend/dist/
+frontend/.astro/
+frontend/node_modules/
+node_modules/
+.venv/
+.scratch/

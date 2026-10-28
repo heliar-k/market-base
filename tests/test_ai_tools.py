@@ -1807,8 +1807,8 @@ def test_chat_wires_turn_cache_and_failed_meta() -> None:
     cache_decl = src.index("const toolCache = new Map();")
     assert cache_decl > run_turn, "toolCache 必须在 runTurn 内新建，不能是模块级变量"
     assert src.count("const toolCache = new Map();") == 1
-    # 透传给 runToolBatch → runToolCall，而不是在执行器里另建
-    assert "turn.signal,\n          toolCache" in src
+    # 透传给 runToolBatch → runToolCall，而不是在执行器里另建（换行/缩进由 prettier 决定，不写死）
+    assert re.search(r"runToolBatch\([^)]*turn\.signal,\s*toolCache\)", src)
     assert "summarizeToolRuns(toolRuns)" in src
     # msg.tools 形状不变（字符串数组），失败端点进新字段；渲染为灰字「未取到」
     assert "msg.tools = runSummary.tools;" in src
