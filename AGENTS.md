@@ -179,8 +179,8 @@ market-base/
 │   ├── etf/universe.csv                 ← Nasdaq Trader 全量 ETF 清单（~5600 只）+ 分类
 │   ├── etf/pool_prices.csv              ← 精选池 37 只 ETF 日线（timsun /assets/etfs）
 │   ├── options_structure/{date}.json    ← 22 标的期权结构快照（GEX/DEX/Vanna/Charm）
-│   ├── wheel/{date}.json               ← Wheel 看板快照（daily-full 落盘，导出端只读；
-│   │                                      真实期权链 raw_*.csv 不入库，故选点必须在此算好）
+│   ├── options_structure/raw_{sym}_{date}.csv ← 期权链逐合约明细（选点必需，入库最近 3 天）
+│   ├── wheel/{date}.json               ← Wheel 看板快照（daily-full 落盘，导出端只读）
 │   ├── crypto_derivatives/{date}.json   ← 加密衍生品快照（OKX/Deribit/CME）
 │   ├── crypto_basis/basis.csv          ← CME BTC 基差日序列（观测日 upsert，治理后 ~35% 完整）
 │   ├── coinglass/{date}.json           ← Coinglass 全市场聚合快照（OI/清算/交易所分布）
@@ -461,6 +461,17 @@ uv run python src/sell_put.py --symbol TSM
   （实测 bid>0 仅 3~4%、OI 全 0、impliedVolatility 报 0.00%~3%），所以盘中/盘前做期权结构
   时 IBKR 的 OI 才是可靠来源。未取到时返回 None 而非 0，避免生成零权重的伪墙位
 - 每次请求后 `sleep(15s)` 避免限流（配置在 `config.ibkr.request_delay_seconds`）
+
+### 6b. 期权链 raw 文件的保留与时区
+- `data/options_structure/raw_{sym}_{date}.csv` **入库**（最近 3 天，`RAW_KEEP_DAYS`），
+  单日 ~1MB。它不是个人数据，是 yfinance 公开期权链的当日快照；而 JSON 快照里没有逐合约
+  明细，选点必须用它。不入库时本机 `live_wheel` 只能回溯旧链、标出 `stale_days`。
+- **时区不一致是故意的容差**：`options_structure` 按本机时区（北京 UTC+8）命名文件，
+  `wheel_scanner` 按美东算 `ref_dt`。北京早上 8 点时美东还是前一天 20 点，文件日期
+  比 `ref_dt` 大一天；`_find_chain_file` 允许取 `ref_dt+1` 分钟的链（返回 `stale_days=0`），
+  超过 1 天则不用。不放宽容差会让整池退化成 `~35d(BSM估算)` 伪合约。
+- `data_freshness` 里有两道各自的断言：`json_dir`（快照每天更新）与 `csv_dir_globs`
+  （raw 链，预算 2 天）。只看前者会永远绿——2026-10 实际出现过「JSON 每日更新、raw 停在 3 天前」。
 
 ### 7. 反爬抓取工具箱（新 fetcher 优先复用）
 

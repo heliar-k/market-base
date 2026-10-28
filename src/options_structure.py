@@ -18,7 +18,7 @@ from __future__ import annotations
 
 import json
 import logging
-from datetime import datetime
+from datetime import datetime, timedelta
 from math import sqrt
 
 import numpy as np
@@ -30,6 +30,11 @@ from src.pricing import R, _norm_pdf, bs_greeks, d1_from
 logger = logging.getLogger(__name__)
 
 DATA = ROOT / "data" / "options_structure"
+
+# raw 链保留的自然日数（含今天）。入库的只有这个窗口内的快照：
+# `wheel_scanner` 选点要逐合约明细（JSON 快照里没有），而它跨日回退最多用
+# 最近一份，留太久只会让库里多存已废弃的到期日。
+RAW_KEEP_DAYS = 3
 
 
 def bucket_dte(days: int) -> str:
@@ -569,10 +574,13 @@ def main() -> None:
             encoding="utf-8",
         )
         logger.info(f"快照 → {path}（{len(snapshot['symbols'])} 标的）")
-        # 清理过期 raw 链缓存（仅当日复用，隔天即废；避免 git 体积膨胀）
-        cutoff = datetime.now().strftime("%Y%m%d")
+        # 只保留最近 RAW_KEEP_DAYS 天的 raw 链（它们入库供选点读逐合约明细，
+        # 留全量会让仓库每天涨 ~1MB）。按文件名日期算，不按 mtime——git checkout
+        # 会把 mtime 全刷成检出时间。
+        cutoff = (datetime.now() - timedelta(days=RAW_KEEP_DAYS - 1)).strftime("%Y%m%d")
         for f in DATA.glob("raw_*.csv"):
-            if cutoff not in f.stem:
+            stamp = f.stem.rsplit("_", 1)[-1]
+            if len(stamp) == 8 and stamp.isdigit() and stamp < cutoff:
                 f.unlink()
 
 

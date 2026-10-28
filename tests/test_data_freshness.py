@@ -89,6 +89,30 @@ def test_json_dir_uses_filename_date(tmp_path):
     assert rows[0][0] == "ok" and rows[0][2] == 1
 
 
+def test_csv_dir_globs_reads_raw_chain_filename_date(tmp_path):
+    """raw_{sym}_{YYYYMMDD}.csv 的日期在文件名末尾，不能按 CSV 首列解。
+
+    回归：JSON 快照每天更新、raw 链却停在 3 天前（raw 被 .gitignore 排除，
+    Actions 产出没入库）。只看 data/options_structure 的 json_dir 永远是绿的。
+    """
+    d = tmp_path / "data/options_structure"
+    d.mkdir(parents=True)
+    (d / "20261027.json").write_text("{}")
+    (d / "raw_NVDA_20261024.csv").write_text("strike,right\n200,P\n")
+    (d / "raw_BRK-B_20261023.csv").write_text("strike,right\n540,P\n")
+
+    json_chk = {"path": "data/options_structure", "kind": "json_dir", "budget": 2, "note": "x"}
+    raw_chk = {
+        "path": "data/options_structure",
+        "kind": "csv_dir_globs",
+        "budget": 2,
+        "note": "x",
+    }
+    rows = audit(tmp_path, date(2026, 10, 27), [json_chk, raw_chk])
+    assert rows[0][0] == "ok"  # JSON 快照是当日的
+    assert rows[1][0] == "STALE" and rows[1][2] == 3  # raw 链停在前 3 天，被抓出来
+
+
 # ── 占位行检测（2026-10-13 事故）───────────────────────────────────
 
 

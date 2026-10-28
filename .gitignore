@@ -32,7 +32,11 @@ frontend/public/api/
 
 # 个人交易记录（本地保留，不公开）
 trade-journal/
-data/options_structure/raw_*.csv
+
+# 期权链 raw_*.csv 入库（保留最近 RAW_KEEP_DAYS 天，由 options_structure 自动清理）：
+# 它不是个人数据，而是 yfinance 公开期权链的当日快照。live_wheel 选点必须用逐
+# 合约明细（JSON 快照里没有），不入库时本机只能回溯到旧链、标出 stale_days。
+# 单日约 17 个标的 × 61KB ≈ 1MB，保留 3 天 ≈ 3MB。
 
 # 伴读抽屉「存笔记」写入的个人对话（本地保留，不公开）
 data/notes/

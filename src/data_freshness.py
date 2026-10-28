@@ -41,6 +41,7 @@ class Check(TypedDict):
 
     kind="csv"      取单个 CSV 的末观测日（column 缺省用首列）
     kind="json_dir" 取目录下文件名里的最新日期（{YYYYMMDD}.json 快照）
+    kind="csv_dir_globs" 同 json_dir，但扫目录下 *.csv（raw_{sym}_{YYYYMMDD}.csv）
     kind="ahead"    日历型：末行日期必须领先今天至少 budget 天
     """
 
@@ -145,6 +146,12 @@ CHECKS: list[Check] = [
     _c("data/fed/speeches.csv", 30, "官员演讲", column="date"),
     _c("data/fed/statements.csv", 90, "声明/纪要", column="date"),
     _c("data/options_structure", D, "期权结构快照", kind="json_dir"),
+    # raw 链是选点的逐合约明细（JSON 快照里没有），单独查：
+    # 两者节奏可以不一致——2026-10 就出现过「JSON 每天更新、raw 却停在 3 天前」，
+    # 因为 raw 当时被 .gitignore 排除，Actions 产出的 raw 从没入库。
+    # 预算只给 2 天（不是日频那 6）：stale_days 一旦超 2，选出的到期日/行权价
+    # 已不是市场当前的盘口，拿它算年化收益会偏。
+    _c("data/options_structure", 2, "期权链 raw（选点明细）", kind="csv_dir_globs"),
     # Wheel 看板由 daily-full 在 options_structure + 日线之后落盘（导出端只读它，
     # 因为真实期权链 raw_*.csv 不入库）；缺它 = 线上选点会退化成 BSM 估算
     _c("data/wheel", D, "Wheel 看板快照", kind="json_dir"),
@@ -190,6 +197,9 @@ def latest(path: Path, chk: Check) -> date | None:
     """该数据集当前可用的最新观测日；文件缺失/为空/解析失败 → None。"""
     if chk["kind"] == "json_dir":
         return _from_filename([p.name for p in path.glob("*.json")])
+    if chk["kind"] == "csv_dir_globs":
+        # 目录下多个文件，日期在文件名末尾（raw_NVDA_20261027.csv）
+        return _from_filename([p.name for p in path.glob("*.csv")])
     if not path.exists():
         return None
     return _last_csv_date(path, chk.get("column"))

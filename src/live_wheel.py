@@ -537,6 +537,31 @@ def run(
     }
 
 
+def _rebuild_rows(raw_rows: list[dict]) -> list:
+    """把 `run()` 返回的 dict 行还原成 ScanRow，嵌套的 OptionPick 也一并还原。
+
+    `asdict()` 是递归的：`put_pick` / `call_pick` 会被变成 dict，而
+    `print_report` → `_fmt_pick` 按对象属性取值（`p.expiration`）。不还原就会
+    报 `'dict' object has no attribute 'expiration'`——全池长期都是「暂不操作」
+    （pick 为 None），走不到这个分支，一出现真推荐合约就炸。
+    """
+    from dataclasses import fields
+
+    from src.wheel_scanner import OptionPick, ScanRow
+
+    pick_fields = {f.name for f in fields(OptionPick)}
+    row_fields = {f.name for f in fields(ScanRow)}
+    rows = []
+    for r in raw_rows:
+        kw = {k: v for k, v in r.items() if k in row_fields}
+        for pk in ("put_pick", "call_pick"):
+            v = kw.get(pk)
+            if isinstance(v, dict):
+                kw[pk] = OptionPick(**{k: val for k, val in v.items() if k in pick_fields})
+        rows.append(ScanRow(**kw))
+    return rows
+
+
 def main() -> None:
     ap = argparse.ArgumentParser(description="盘前/盘中实时 Wheel 扫描")
     ap.add_argument("--symbols", default="", help="逗号分隔标的，如 NVDA,TSM")
@@ -624,15 +649,7 @@ def main() -> None:
         f"greeks={result['greeks']} · 现价 {result['spot_count']}/{result['pool_size']} 只有效 · "
         f"链 {result['symbols_ok']}/{result['pool_size']} 只"
     )
-    from dataclasses import fields
-
-    from src.wheel_scanner import ScanRow
-
-    rows = [
-        ScanRow(**{k: v for k, v in r.items() if k in {f.name for f in fields(ScanRow)}})
-        for r in result["rows"]
-    ]
-    print_report(result["snapshot_date"], rows, result["summary"])
+    print_report(result["snapshot_date"], _rebuild_rows(result["rows"]), result["summary"])
     # 陈旧链与新缺数据必须显式暴露：盘前盘后拿到的是上一交易日收盘快照，不是实时挂单价
     stale = [
         f"{r['symbol']}:{p['chain_date']}"
@@ -641,7 +658,10 @@ def main() -> None:
         if p and p.get("stale_days", 0) > 0
     ]
     if stale:
-        print(f"\n⚠ 推荐合约来自旧链（非当日）：{', '.join(stale)}")
+        print(
+            f"\n⚠ 推荐合约来自旧链（非当日）：{', '.join(stale)}\n"
+            "   raw 链是选点的逐合约明细，JSON 快照里没有。补：./bin/fetch_options_structure"
+        )
     missing = [f"{k}({v})" for k, v in result["notes"].items() if not str(v).startswith("iv35=")]
     if missing:
         print(f"⚠ 期权面附注：{', '.join(missing)}")

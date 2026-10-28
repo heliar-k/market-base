@@ -23,7 +23,7 @@ from __future__ import annotations
 import argparse
 import json
 from dataclasses import asdict, dataclass
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 
 import numpy as np
@@ -248,13 +248,17 @@ def _is_monthly_opex(dt: datetime.date) -> bool:
 
 
 def _find_chain_file(opt_sym: str, ref_dt: datetime.date) -> tuple[Path | None, int]:
-    """找 <= ref_dt 的最近一份 raw 期权链，返回 (路径, 距 ref_dt 的天数)。
+    """找最贴近 ref_dt 的 raw 期权链，返回 (路径, 陈旧天数)。
 
     为什么必须回溯：直接拼 raw_{sym}_{ref_str}.csv 找不到就落到 BSM 兜底分支，会产出
     oi=0 / expiration='~35d(BSM估算)' 的伪合约——而 opex / 点差 / OI 深度 / 期权墙四道
     闸门全部失效。数据班次里 options_structure 对单个标的失败（yfinance 抽风/限流）时
     当天就没有该标的的链，此时应当用前一个交易日的真实链并**标明陈旧天数**，
     而不是静默变成理论估算。
+
+    也允许取比 ref_dt **新一天**的链：options_structure 用本机时区（北京 UTC+8）给文件
+    命名，而本模块按美东算 ref_dt。北京早上 8 点跑时美东还是前一天 20 点，文件日期
+    就比 ref_dt 大一天；不允许取会让整池退化成 BSM 估算。新鲜一天不算陈旧（返回 0）。
     """
     d = ROOT / "data" / "options_structure"
     exact = d / f"raw_{opt_sym}_{ref_dt:%Y%m%d}.csv"
@@ -267,11 +271,13 @@ def _find_chain_file(opt_sym: str, ref_dt: datetime.date) -> tuple[Path | None, 
             fdt = datetime.strptime(f.stem.rsplit("_", 1)[-1], "%Y%m%d").date()
         except ValueError:
             continue
-        if fdt > ref_dt:
-            continue
-        if best_dt is None or fdt > best_dt:
+        if fdt > ref_dt + timedelta(days=1):
+            continue  # 超出时区容差的新文件：可能真的是未来数据，不用
+        if best_dt is None or abs((fdt - ref_dt).days) < abs((best_dt - ref_dt).days):
             best, best_dt = f, fdt
-    return (best, (ref_dt - best_dt).days) if best and best_dt else (None, 0)
+    if best is None or best_dt is None:
+        return None, 0
+    return best, max((ref_dt - best_dt).days, 0)
 
 
 def _pick_contract(

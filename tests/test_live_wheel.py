@@ -29,6 +29,10 @@ def test_find_chain_file_falls_back_to_previous_day(tmp_path, monkeypatch) -> No
 
     这是「静默退化成 BSM 估算」的根因：直接拼当日文件名找不到就落兜底分支，
     四条选点闸门全失效。回溯后必须如实给出 stale_days。
+
+    也覆盖时区容差：options_structure 按本机时区（北京 UTC+8）命名文件，本模块按
+    美东算 ref_dt。北京早上 8 点跑时美东还是前一天 20 点，文件日期比 ref_dt 大一天 ——
+    不允许取就会让整池退化成 BSM 估算（2026-10-27 实测现象）。
     """
     import src.wheel_scanner as ws
 
@@ -51,8 +55,15 @@ def test_find_chain_file_falls_back_to_previous_day(tmp_path, monkeypatch) -> No
     assert path is not None and path.name == "raw_NVDA_20261026.csv"
     assert stale == 0
 
-    # 只有未来日期的链（不应被采用）→ 无可用链
+    # 只有比 ref_dt 新 1 天的链（时区容差内）→ 允许取，不算陈旧
+    (d / "raw_AAPL_20261027.csv").write_text("strike\n1\n")
     path, stale = _find_chain_file("AAPL", date(2026, 10, 26))
+    assert path is not None and path.name == "raw_AAPL_20261027.csv"
+    assert stale == 0
+
+    # 新 2 天以上（超出时区容差）→ 不当成当日链
+    (d / "raw_GOOG_20261029.csv").write_text("strike\n1\n")
+    path, stale = _find_chain_file("GOOG", date(2026, 10, 26))
     assert path is None and stale == 0
 
 
@@ -314,3 +325,50 @@ def test_chain_from_ibkr_prefers_ibkr_oi_over_yfinance(monkeypatch) -> None:
     assert out is not None
     assert called["yf"] is False  # 完全没碰 yfinance
     assert int(out["openInterest"].iloc[0]) == 15000
+
+
+def test_rebuild_rows_restores_nested_pick_objects() -> None:
+    """asdict 后重建 ScanRow 必须把嵌套的 OptionPick 还原成对象。
+
+    回归：`ScanRow(**asdict_dict)` 会把 put_pick 留成 dict，而 print_report 的
+    _fmt_pick 按属性取值（p.expiration），一有 SELL PUT/CALL 就报
+    `'dict' object has no attribute 'expiration'`。全池长期都是「暂不操作」
+    （put_pick=None），这个分支直到第一次真出现推荐合约才暴露。
+    """
+    from dataclasses import asdict, fields
+
+    from src.live_wheel import _rebuild_rows
+    from src.wheel_scanner import OptionPick, ScanRow, _fmt_pick
+
+    pick = OptionPick(
+        right="P",
+        expiration="2026-11-20",
+        dte=24,
+        strike=575.0,
+        delta=-0.21,
+        iv_pct=40.0,
+        oi=1200,
+        dist_pct=-7.2,
+        annual_roc_pct=14.0,
+        chain_date="2026-10-24",
+        stale_days=3,
+    )
+    row = ScanRow(
+        **{
+            **{f.name: None for f in fields(ScanRow)},
+            "symbol": "META",
+            "tier": "T1",
+            "signal": "SELL PUT",
+            "reason": "超卖",
+            "actionable": True,
+            "put_pick": pick,
+        }
+    )
+
+    raw = asdict(row)
+    assert isinstance(raw["put_pick"], dict)  # asdict 确实把它变成了 dict
+
+    (rebuilt,) = _rebuild_rows([raw])
+    assert isinstance(rebuilt.put_pick, OptionPick)
+    # 这一步就是 _fmt_pick 内部会炸的地方
+    assert "$575P" in _fmt_pick(rebuilt.put_pick)
