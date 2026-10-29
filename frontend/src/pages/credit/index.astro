@@ -534,10 +534,18 @@ function renderCds(root, d) {
       + '橙色实线（银行）跌到蓝色虚线（大盘）下方就是跑输。分歧度固定取近 14 个交易日，本图窗口更长'
       + '（起点见标题），所以上下两处数值不相等、方向一致。价格为 Yahoo 日频收盘快照，非实时。'));
 
+    // time 轴下 ECharts 交给 formatter 的 value 是「点对」[日期, 数值]，直接参与算数会得 NaN
+    const num = (v) => (Array.isArray(v) ? v[1] : v);
     // tooltip：归一化指数本身不是信息，「相对起点涨/跌多少」才是
-    const val = (v) => (v == null ? '—' : `${v.toFixed(2)}（${v >= 100 ? '+' : ''}${(v - 100).toFixed(2)}%）`);
+    const val = (v) => {
+      const x = num(v);
+      return x == null ? '—' : `${x.toFixed(2)}（${x >= 100 ? '+' : ''}${(x - 100).toFixed(2)}%）`;
+    };
     // 线尾直接标注 = 不靠颜色也能认出哪条线是哪个系列（末端位置由数据自己定）
-    const end = (p) => (p.value == null ? '' : `${END_SHORT[p.seriesName]} ${p.value >= 100 ? '+' : ''}${(p.value - 100).toFixed(1)}%`);
+    const end = (p) => {
+      const x = num(p.value);
+      return x == null ? '' : `${END_SHORT[p.seriesName]} ${x >= 100 ? '+' : ''}${(x - 100).toFixed(1)}%`;
+    };
     // 窄屏（画布 <480px）收下线尾直接标注：它们全名已在图例里，
     // 而 220px 的画布再扣 64px 右边距，曲线只剩 80px 可画。
     // 取宽度写成函数：主题切换会重建 option（R.mkChart 重跑），那时重新量
