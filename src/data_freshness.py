@@ -146,7 +146,7 @@ CHECKS: list[Check] = [
     _c("data/treasury/bill_share_daily.csv", 8, "日频 Bill 占比（派生）"),
     _c("data/consensus/history.csv", 6, "共识状态留痕（派生；工作日票龄 2 + 周末余量）"),
     _c("data/treasury/dts_cashflows.csv", 10, "DTS 现金流"),
-    # 日历型：末行必须领先今天 ≥1 天，日历过期即说明源再没更新
+    # 日历型：末行必须领先**美东**今天 ≥1 天，日历过期即说明源再没更新
     _c(
         "data/treasury/upcoming_auctions.csv",
         1,
@@ -261,10 +261,13 @@ def audit(
     root: Path,
     today: date,
     checks: list[Check] | None = None,
+    et_today: date | None = None,
 ) -> list[tuple[str, str, int | None, str, int]]:
     """返回 (状态, 数据集, 落后天数, 说明, 预算)；状态 ok / STALE / MISSING。
 
     文件名快照只采用审计日当日或更早的文件，避免未来文件掩盖停更。
+    et_today=日历类（ahead）的基准日：CSV 里的日期是美东场次日，拿 UTC 日期比会在
+    daily-full 被延迟跨过 UTC 零点时整差一天（2026-10-29 就这样误报过）。
     """
     rows = []
     for chk in CHECKS if checks is None else checks:
@@ -272,7 +275,8 @@ def audit(
         if last is None:
             rows.append(("MISSING", chk["path"], None, chk["note"], chk["budget"]))
             continue
-        age = (today - last).days
+        base = (et_today or today) if chk["kind"] == "ahead" else today
+        age = (base - last).days
         budget = chk["budget"]
         ok = age <= -budget if chk["kind"] == "ahead" else age <= budget
         status = "ok" if ok else "STALE"
@@ -410,7 +414,8 @@ def options_oi_pending_msg(root: Path, now_utc: datetime) -> str | None:
 
 def main() -> int:
     now_utc = datetime.now(timezone.utc)
-    rows = audit(Path(ROOT), now_utc.date())
+    et_today = now_utc.astimezone(_ET_ZONE).date()
+    rows = audit(Path(ROOT), now_utc.date(), et_today=et_today)
     msg = us_indices_placeholder_msg(Path(ROOT), now_utc)
     if msg:  # 值维断言：日期新鲜但值是复制（占位行固化）
         rows.append(("STALE", "data/yfinance/asset_prices.csv", None, msg, 0))
@@ -421,7 +426,7 @@ def main() -> int:
     if oi_msg:
         rows.append(("STALE", "data/options_structure", None, oi_msg, 0))
     bad = [r for r in rows if r[0] != "ok"]
-    print(f"数据时效（UTC {now_utc.date()}，{len(rows)} 项）")
+    print(f"数据时效（UTC {now_utc.date()} · 美东 {et_today}，{len(rows)} 项）")
     for status, path, age, note, budget in rows:
         a = "  n/a" if age is None else f"{age:>5}"
         print(f"  {status:8} {path:48} 落后{a} 天 / 预算{budget:>4} 天  {note}")

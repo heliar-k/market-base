@@ -108,6 +108,21 @@ def test_ahead_calendar_needs_lead(tmp_path):
     assert audit(tmp_path, date(2026, 9, 12), [chk])[0][0] == "STALE"
 
 
+def test_ahead_calendar_uses_et_baseline(tmp_path):
+    """日历场次日是美东日期：run 延迟跨过 UTC 零点时不能少算一天。
+
+    回归：2026-10-29 daily-full 延迟到 UTC 00:37（美东仍是 10-28），日历末行 10-29，
+    拿 UTC 日期比得 0 天判 STALE，实际领先美东今天 1 天。
+    """
+    chk = {"path": "u.csv", "kind": "ahead", "budget": 1, "note": "x"}
+    _csv(tmp_path, "u.csv", ["2026-10-29"])
+    assert audit(tmp_path, date(2026, 10, 29), [chk], et_today=date(2026, 10, 28))[0][0] == "ok"
+    assert audit(tmp_path, date(2026, 10, 29), [chk], et_today=date(2026, 10, 29))[0][0] == "STALE"
+    # 其他 kind 不受 et_today 影响：仍按 UTC 日期算
+    daily = {"path": "u.csv", "kind": "csv", "budget": 1, "note": "x"}
+    assert audit(tmp_path, date(2026, 10, 30), [daily], et_today=date(2026, 10, 28))[0][2] == 1
+
+
 def test_json_dir_uses_filename_date(tmp_path):
     (tmp_path / "snap").mkdir()
     (tmp_path / "snap" / "20260901.json").write_text("{}")
