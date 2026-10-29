@@ -187,7 +187,8 @@ def export_api() -> None:
     for info in correlate["indicators"].values():
         info["data"] = [d for d in info["data"] if d["date"] >= cutoff]
     correlate["date_range"]["from"] = cutoff
-    _dump("api/macro/correlate.json", correlate)
+    # 无后缀：前端请求 /api/macro/correlate?indicators=…，静态托管忽略 query 直接命中此文件
+    _dump("api/macro/correlate", correlate)
 
     # 流动性：全部 range 变体（前端 toolbar 可点）
     for range_ in ["all", *_RANGE_MONTHS]:
