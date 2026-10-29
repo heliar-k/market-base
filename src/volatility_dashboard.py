@@ -4,7 +4,7 @@
 （Hero 卡 / 风险矩阵 / Vol Trade Map / 统计 / 7 段叙事），VIX 深挖留在详情页。
 
 数据源（三合一）：
-  - data/cboe/volatility.csv     28 个指数全量历史（CBOE CDN）
+  - data/cboe/volatility.csv     26 个指数全量历史（CBOE CDN）
   - data/yfinance/asset_prices.csv  MOVE / TDEX / VOLI（yfinance 快照+种子）
   - data/barchart/volatility_snapshot.csv  30 指数快照（VXMO/VXEF 唯一源，
     另存 1D/5D/1M/1Y 官方变化字段，作本地历史不足时的兜底）
@@ -46,7 +46,7 @@ INDICES: list[tuple[str, str, str, str, str]] = [
         "equity",
         "VIX3M",
         "cboe",
-    ),  # VXV≡VIX3M（CBOE VXV 列 2017 年停更）
+    ),  # VXV≡VIX3M（CBOE 已删除 VXV 源文件，本库不再有 VXV 列）
     ("VXMT", "VIX 6个月", "equity", "VIX6M", "cboe"),
     ("VIXY", "VIX 1年", "equity", "VIX1Y", "cboe"),
     ("VXMO", "标准月度VIX", "equity", "VXMO", "barchart"),

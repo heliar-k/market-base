@@ -51,7 +51,8 @@ CBOE_URLS = {
     "VXN": _CSV + "VXN_History.csv",  # 纳指 100
     "VXD": _CSV + "VXD_History.csv",  # 道琼斯
     "VVIX": _CSV + "VVIX_History.csv",  # 波动率的波动率
-    "VXV": _CSV + "VXV_History.csv",  # 3 个月 VIX
+    # VXV 不拉：CDN 上 VXV_History.csv 已被删除（S3 AccessDenied），残档只到 2017-10 且
+    # 与 VIX3M 重叠 23 行 diff=0（2018 更名）。dashboard 的 VXV 行直接读 VIX3M 列。
     "VIN": _CSV + "VIN_History.csv",  # Near Term
     "VIF": _CSV + "VIF_History.csv",  # Far Term
     "VXTH": _CSV + "VXTH_History.csv",  # Tail Hedge

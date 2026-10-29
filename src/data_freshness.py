@@ -101,7 +101,7 @@ CHECKS: list[Check] = [
     _c("data/fred/growth/growth.csv", 90, "月频增长，两个发布周期"),
     _c("data/fred/consumption/consumption.csv", 90, "月频消费"),
     _c("data/fred/tic/tic.csv", 150, "TIC 海外持仓，源滞约 3 个月"),
-    _c("data/cboe/volatility.csv", D, "CBOE 28 波动率指数"),
+    _c("data/cboe/volatility.csv", D, "CBOE 26 波动率指数"),
     _c("data/ofr/fsi.csv", 10, "OFR 金融压力指数（源约 T+2）"),
     _c("data/shapiro/shapiro.csv", 90, "FRBSF 供需分解（源约 T+2 月）"),
     _c("data/sce/sce.csv", 72, "NY Fed SCE 月频（发布 T+38，波峰 67+余量）"),

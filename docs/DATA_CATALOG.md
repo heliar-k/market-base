@@ -109,9 +109,10 @@
 
 来源 CBOE CDN。每次 `./bin/fetch_cboe` 拉全量历史并 upsert（漏跑自动补）；`--backfill` 全量覆盖。
 VIX1D/VIX9D/VIX/VIX3M/VIX6M/VIX1Y/SKEW 全量序列一并落盘，可复算期限结构斜率。
-2026-08 扩展至 24 列（timsun 波动率面板对齐）：新增商品/股指/期限/尾部/个股波动率指数。
+2026-08 扩展至 26 个指数列（timsun 波动率面板对齐）：商品/股指/期限/尾部/个股波动率指数，
+另加派生列 `VIX_TERM_SLOPE`（VIX − VIX9D）。
 列名用 timsun 面板显示名，部分与 CBOE 官方代码不同（VXSL→VXSLV、VTLT→VXTLT、VXGO→VXGOG、VXAP→VXAPL、VXAZ→VXAZN、VXIB→VXIBM）。
-2026-08-15 再扩展至 26 列：新增 VXHY（官方 VXHYG，HYG 版）、VEWZ（官方 VXEWZ）。
+VXHY 取官方 VXHYG（HYG 版），VEWZ 取官方 VXEWZ。
 
 | 列名 | 说明 |
 |------|------|
@@ -129,7 +130,6 @@ VIX1D/VIX9D/VIX/VIX3M/VIX6M/VIX1Y/SKEW 全量序列一并落盘，可复算期�
 | `VXN` | 纳指 100 波动率（2001-01 起） |
 | `VXD` | 道琼斯波动率（1997-07 起） |
 | `VVIX` | 波动率的波动率（2007-01 起） |
-| `VXV` | 3 个月 VIX（与 VIX3M 同义；CDN 上 VXV 历史仅 23 行（2017-09~10，源数据异常），实质用 VIX3M 列） |
 | `VIN` / `VIF` | Near / Far Term VIX（2008-08 起，4000+ 行） |
 | `VXTH` | Tail Hedge 指数（2007-01 起） |
 | `VTLT` | 20Y 国债波动率（官方 VXTLT，2004-01 起） |
@@ -144,7 +144,7 @@ VIX1D/VIX9D/VIX/VIX3M/VIX6M/VIX1Y/SKEW 全量序列一并落盘，可复算期�
 | timsun 面板名 | 本库实际列 | 说明 |
 |---|---|---|
 | VXMT（中期 VIX） | `VIX6M` | 同一指数（官方定义 6 个月 SPX 波动率），数值已验证一致 |
-| VXV（3 个月 VIX） | `VIX3M` | 同一指数（2018 更名），重叠期数值 diff=0 |
+| VXV（3 个月 VIX） | `VIX3M` | 同一指数（2018 更名），重叠期数值 diff=0；CBOE 已从 CDN 删除 `VXV_History.csv`，本库不写 VXV 列 |
 | VXNG（天然气） | `VXNG`（官方 VXUNG） | timsun 显示名 vs 官方代码，数值已验证一致 |
 | VEEM（新兴市场） | `VXEEM` | timsun 显示名 vs 官方代码，数值已验证一致 |
 
