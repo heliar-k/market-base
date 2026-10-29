@@ -146,11 +146,14 @@ CHECKS: list[Check] = [
     _c("data/treasury/bill_share_daily.csv", 8, "日频 Bill 占比（派生）"),
     _c("data/consensus/history.csv", 6, "共识状态留痕（派生；工作日票龄 2 + 周末余量）"),
     _c("data/treasury/dts_cashflows.csv", 10, "DTS 现金流"),
-    # 日历型：末行必须领先**美东**今天 ≥1 天，日历过期即说明源再没更新
+    # 日历型：末行不得早于**美东**今天（预算 0）。预算给 1（要求领先今天）每个周期都会
+    # 误报一次：fiscaldata 与 TA_WS 只在周四公布下一周场次，末行正好是当天时日历还没被
+    # 下一周顶开，当天美东上午的班次就整片标红（2026-10-29 连挂三班）。末行落到昨天才能
+    # 说明源停更——那时任何一班都会红，检出延迟只多半天的日界。
     _c(
         "data/treasury/upcoming_auctions.csv",
-        1,
-        "拍卖日历需领先今天",
+        0,
+        "拍卖日历不得早于今天",
         kind="ahead",
         column="auction_date",
     ),

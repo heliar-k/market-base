@@ -99,25 +99,28 @@ def test_require_column_ignores_unfinished_rows(tmp_path):
     assert audit(tmp_path, date(2026, 10, 28), [bad])[0][0] == "MISSING"
 
 
-def test_ahead_calendar_needs_lead(tmp_path):
-    """拍卖日历末行必须领先今天 ≥ budget；过期的日历=源停更，判 STALE。"""
-    chk = {"path": "u.csv", "kind": "ahead", "budget": 1, "note": "x"}
+def test_ahead_calendar_must_not_lag_today(tmp_path):
+    """拍卖日历末行不得早于今天：源只在周四公布下一周场次，末行停在当天属正常。"""
+    chk = {"path": "u.csv", "kind": "ahead", "budget": 0, "note": "x"}
     _csv(tmp_path, "u.csv", ["2026-09-14", "2026-09-17"])
     assert audit(tmp_path, date(2026, 9, 12), [chk])[0][0] == "ok"
     _csv(tmp_path, "u.csv", ["2026-09-10", "2026-09-12"])
-    assert audit(tmp_path, date(2026, 9, 12), [chk])[0][0] == "STALE"
+    assert audit(tmp_path, date(2026, 9, 12), [chk])[0][0] == "ok"  # 末行=今天
+    _csv(tmp_path, "u.csv", ["2026-09-09", "2026-09-11"])
+    assert audit(tmp_path, date(2026, 9, 12), [chk])[0][0] == "STALE"  # 末行已过去一天
 
 
 def test_ahead_calendar_uses_et_baseline(tmp_path):
     """日历场次日是美东日期：run 延迟跨过 UTC 零点时不能少算一天。
 
     回归：2026-10-29 daily-full 延迟到 UTC 00:37（美东仍是 10-28），日历末行 10-29，
-    拿 UTC 日期比得 0 天判 STALE，实际领先美东今天 1 天。
+    拿 UTC 日期比得 0 天判 STALE，实际就是美东今天。
     """
-    chk = {"path": "u.csv", "kind": "ahead", "budget": 1, "note": "x"}
+    chk = {"path": "u.csv", "kind": "ahead", "budget": 0, "note": "x"}
     _csv(tmp_path, "u.csv", ["2026-10-29"])
     assert audit(tmp_path, date(2026, 10, 29), [chk], et_today=date(2026, 10, 28))[0][0] == "ok"
-    assert audit(tmp_path, date(2026, 10, 29), [chk], et_today=date(2026, 10, 29))[0][0] == "STALE"
+    assert audit(tmp_path, date(2026, 10, 30), [chk], et_today=date(2026, 10, 29))[0][0] == "ok"
+    assert audit(tmp_path, date(2026, 10, 30), [chk], et_today=date(2026, 10, 30))[0][0] == "STALE"
     # 其他 kind 不受 et_today 影响：仍按 UTC 日期算
     daily = {"path": "u.csv", "kind": "csv", "budget": 1, "note": "x"}
     assert audit(tmp_path, date(2026, 10, 30), [daily], et_today=date(2026, 10, 28))[0][2] == 1
