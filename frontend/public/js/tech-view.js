@@ -111,6 +111,12 @@ export function initTechView() {
   initCharts();
   initControls();
   initKeyboard();
+  // 亮暗切换：结论变化卡按当前主题 token 重画（ECharts 主题只在 init 生效）
+  window.addEventListener('theme-changed', () => {
+    if (!histBox || !histWindow.length) return;
+    disposeHistChart();
+    drawHistChart(histBox, histWindow);
+  });
   applySubview(currentSubview, false);
   loadSymbols();
   loadTechOverview();
@@ -418,6 +424,7 @@ function renderCurrentConclusion(d) {
   `;
 
   host.innerHTML = '';
+  disposeHistChart(); // 上一张卡的图实例与 ResizeObserver 先释放，再重建
 
   // 1) 四张核心 KPI 卡作为顶层独立卡行（不塞进 .tech-ov-card，避免卡中卡双层框）
   const kpis = R.cards([
@@ -449,7 +456,10 @@ function renderCurrentConclusion(d) {
   ]);
   host.appendChild(kpis);
 
-  // 2) 深度结论与三维依据明细卡
+  // 2) 近 N 个交易日结论变化（评分轨迹 + 状态变化带）
+  appendHistCard(host, d);
+
+  // 3) 深度结论与三维依据明细卡
   const card = document.createElement('div');
   card.className = 'tech-ov-card';
 
@@ -523,6 +533,272 @@ function renderCurrentConclusion(d) {
   );
 
   host.appendChild(card);
+}
+
+// ── 结论变化：近 N 个交易日评分轨迹 ────────────────────────────────────────
+// 数据全部来自 /api/tech/overview 每项的 score_history（后端逐日 as_of 回看同一条
+// analyze 路径），窗口切换只在客户端切片，不回源、不另存历史。
+const HIST_RANGES = [7, 14];
+const HIST_SERIES = [
+  { name: '综合评分', key: 'total_score', color: 'blue' },
+  { name: '趋势', key: 'trend_score', color: 'green' },
+  { name: '动量', key: 'momentum_score', color: 'orange' },
+  { name: '位置与反转', key: 'loc_score', color: 'purple' },
+];
+const HIST_NOTE =
+  '综合/趋势/动量/位置评分由后端逐日回看生成，最后一点即当前诊断；色带 = 当日结论状态（绿 多头 / 红 空头 / 灰 震荡整理），图例勾选可叠加三维评分。';
+let histRange = 14; // 默认 14 交易日
+let histPicked = null; // 图例勾选：重绘（切窗口 / 切标的 / 切主题）时保留用户的叠加选择
+let histPoints = []; // 当前标的的完整历史
+let histWindow = []; // 当前窗口切片
+let histBox = null; // 图表容器（随卡片重建而换）
+let histChart = null;
+let histObserver = null;
+
+function histInk(v) {
+  return v > 0 ? 'var(--color-up-text)' : v < 0 ? 'var(--color-down-text)' : 'var(--text-secondary)';
+}
+
+// 状态 → 变化带填充（图形档，只进 canvas）
+function histRegimeFill(regime, c) {
+  if (regime === 'bullish' || regime === 'mild_bullish') return c.green;
+  if (regime === 'bearish' || regime === 'mild_bearish') return c.red;
+  return c.gray;
+}
+
+function disposeHistChart() {
+  if (histObserver) {
+    histObserver.disconnect();
+    histObserver = null;
+  }
+  if (histChart) {
+    histChart.dispose();
+    histChart = null;
+  }
+}
+
+// 扫描表综合分下的小字：14 交易日窗口变化 = 最新 - 窗口首日（不加列）
+function scoreDeltaSub(d) {
+  const hist = Array.isArray(d.score_history) ? d.score_history.slice(-14) : [];
+  if (hist.length < 2) return '';
+  const delta = hist[hist.length - 1].total_score - hist[0].total_score;
+  return `<span class="tech-ov-delta">14 交易日 ${fmtSigned(delta)}</span>`;
+}
+
+function histStats(rows) {
+  const first = rows[0];
+  const last = rows[rows.length - 1];
+  let switches = 0;
+  for (let i = 1; i < rows.length; i += 1) {
+    if (rows[i].regime !== rows[i - 1].regime) switches += 1;
+  }
+  const dim = (label, key) => ({
+    label,
+    value: `${fmtSigned(first[key])} → ${fmtSigned(last[key])}`,
+    color: histInk(last[key] - first[key]),
+  });
+  return R.kvRows([
+    {
+      label: '综合评分',
+      note: `窗口 ${fmtSigned(last.total_score - first.total_score)}`,
+      value: `${fmtSigned(first.total_score)} → ${fmtSigned(last.total_score)}`,
+      color: histInk(last.total_score - first.total_score),
+    },
+    {
+      label: '趋势状态',
+      note: `切换 ${switches} 次`,
+      value:
+        first.regime === last.regime
+          ? esc(last.regime_label)
+          : `${esc(first.regime_label)} → ${esc(last.regime_label)}`,
+    },
+    dim('趋势维度', 'trend_score'),
+    dim('动量维度', 'momentum_score'),
+    dim('位置与反转', 'loc_score'),
+  ]);
+}
+
+function histOption(rows, c, width) {
+  const ts = (d) => new Date(`${d}T00:00:00`).getTime();
+  const xs = rows.map((r) => ts(r.date));
+  const fills = rows.map((r) => histRegimeFill(r.regime, c));
+  const byX = new Map(xs.map((x, i) => [x, rows[i]]));
+  // 变化带按日铺到相邻中点（首末各补半格），右缘 +0.5px 与下一格叠住：
+  // 不叠的话相邻矩形分界处各画一半透明度，会出现淡白竖线，看起来像 13 次状态切换
+  const edges = xs.map((x, i) => (i === 0 ? x - (xs[1] - x) / 2 : (x + xs[i - 1]) / 2));
+  edges.push(xs[xs.length - 1] + (xs[xs.length - 1] - xs[xs.length - 2]) / 2);
+
+  const tipRow = (label, value) => `<div class="tech-ov-hist-tip-row"><span>${esc(label)}</span><b>${value}</b></div>`;
+  const tip = (ps) => {
+    const r = ps && ps.length ? byX.get(Number(new Date(ps[0].axisValue))) : null;
+    if (!r) return '';
+    return [
+      `<div class="tech-ov-hist-tip-hd">${R.md(r.date)}</div>`,
+      ...HIST_SERIES.map((s) => tipRow(s.name, fmtSigned(r[s.key]))),
+      tipRow('状态', esc(r.regime_label)),
+      tipRow('形态', esc(r.setup_tag)),
+    ].join('');
+  };
+
+  return {
+    legend: {
+      top: 0,
+      right: 0,
+      data: HIST_SERIES.map((s) => s.name),
+      // 默认只画综合评分，其余三维由用户点图例叠加
+      selected: histPicked || Object.fromEntries(HIST_SERIES.slice(1).map((s) => [s.name, false])),
+    },
+    // confine：卡片只有 210px 高，不锁在画布内的话靠近顶部的点会把 tooltip 顶到卡外/被滚动容器裁掉
+    tooltip: { trigger: 'axis', confine: true, axisPointer: { type: 'line' }, formatter: tip },
+    axisPointer: { link: [{ xAxisIndex: 'all' }] },
+    // 两个 grid 共用一个 time 轴：left 相同且都不吃 containLabel，上下两图纵向对齐
+    grid: [
+      { left: 30, right: 12, top: 30, height: 118, containLabel: false },
+      { left: 30, right: 12, top: 168, height: 12, containLabel: false },
+    ],
+    xAxis: [
+      {
+        type: 'time',
+        gridIndex: 0,
+        min: xs[0],
+        max: xs[xs.length - 1],
+        axisLabel: { show: false },
+        axisTick: { show: false },
+        axisLine: { show: false },
+      },
+      // time 轴不支持 hideOverlap（主题那条只对 category 轴生效），窄屏靠减少刻度密度免重叠
+      {
+        type: 'time',
+        gridIndex: 1,
+        min: xs[0],
+        max: xs[xs.length - 1],
+        ...(width < 480 ? { splitNumber: 3 } : {}),
+        axisLabel: { formatter: R.md },
+      },
+    ],
+    yAxis: [
+      { type: 'value', gridIndex: 0, splitNumber: 3, axisLabel: { formatter: (v) => (v > 0 ? `+${v}` : `${v}`) } },
+      // 变化带不需要刻度和标签：show:false 也一并去掉轴标签，否则 0~1 的刻度会盖在色带上
+      { type: 'value', gridIndex: 1, min: 0, max: 1, show: false },
+    ],
+    series: [
+      ...HIST_SERIES.map((s) => ({
+        name: s.name,
+        type: 'line',
+        symbol: 'circle',
+        symbolSize: 4,
+        lineStyle: { width: 2, color: c[s.color] },
+        itemStyle: { color: c[s.color] },
+        data: rows.map((r, i) => [xs[i], r[s.key]]),
+      })),
+      {
+        type: 'custom',
+        xAxisIndex: 1,
+        yAxisIndex: 1,
+        data: rows.map((r, i) => [xs[i], 1]),
+        renderItem: (params, api) => {
+          const i = params.dataIndex;
+          const x0 = api.coord([edges[i], 0])[0];
+          const x1 = api.coord([edges[i + 1], 0])[0];
+          const { y, height } = params.coordSys;
+          return {
+            type: 'rect',
+            shape: { x: x0, y, width: Math.max(x1 - x0, 1) + 0.5, height },
+            style: { fill: fills[i], opacity: 0.7 },
+          };
+        },
+      },
+    ],
+  };
+}
+
+function drawHistChart(box, rows) {
+  if (!window.echarts || !box || rows.length < 2) return;
+  const render = () => {
+    if (window.registerMacroTheme) registerMacroTheme();
+    histChart = echarts.init(box, R.isDark() ? 'macroDark' : 'macro');
+    histChart.setOption(reSyncLegend(histOption(rows, R.colors(), box.clientWidth)));
+    histChart.on('legendselectchanged', (e) => {
+      histPicked = e.selected;
+    });
+    return histChart;
+  };
+  let chart = render();
+  // 日期标签密度按画布宽算，跟 R.mkChart 一样只在跨 480 分界时重画，中间帧只 resize
+  const isNarrow = () => box.clientWidth < 480;
+  let narrow = isNarrow();
+  histObserver = new ResizeObserver(() => {
+    if (isNarrow() === narrow) {
+      if (!chart.isDisposed()) chart.resize();
+      return;
+    }
+    narrow = isNarrow();
+    chart.dispose();
+    chart = render();
+  });
+  histObserver.observe(box);
+}
+
+function appendHistCard(host, d) {
+  histPoints = Array.isArray(d.score_history) ? d.score_history : [];
+
+  const card = document.createElement('div');
+  card.className = 'tech-ov-card';
+  const head = document.createElement('div');
+  head.className = 'tech-ov-head';
+  head.innerHTML = `
+    <div class="tech-ov-title-wrap">
+      <span class="tech-ov-hist-title"></span>
+      <span class="tech-ov-date"></span>
+    </div>
+    <div class="tech-ov-filters">
+      ${HIST_RANGES.map((n) => `<button type="button" class="range-btn" data-hist-range="${n}">${n} 交易日</button>`).join('')}
+    </div>
+  `;
+  const body = document.createElement('div');
+  const box = document.createElement('div');
+  box.className = 'tech-ov-hist-chart';
+  card.appendChild(head);
+  card.appendChild(body);
+
+  const paint = () => {
+    disposeHistChart(); // 重绘前先断开旧 RO 并释放实例（同一 DOM 不能叠第二个实例）
+    body.innerHTML = '';
+    histBox = box;
+    histWindow = histPoints.slice(-histRange);
+    head.querySelector('.tech-ov-hist-title').textContent = `近 ${histRange} 个交易日结论变化`;
+    head.querySelector('.tech-ov-date').textContent = histWindow.length
+      ? `窗口 ${histWindow[0].date} → ${histWindow[histWindow.length - 1].date}`
+      : '';
+    head.querySelectorAll('[data-hist-range]').forEach((b) => {
+      b.classList.toggle('active', Number(b.dataset.histRange) === histRange);
+    });
+    if (histWindow.length < 2) {
+      histWindow = [];
+      const empty = document.createElement('div');
+      empty.className = 'sidebar-watch-empty';
+      empty.textContent =
+        '该标的暂无结论历史（/api/tech/overview 的 score_history 为空）· 本地请确认 uv run python -m src.server 已启动，静态部署请重新导出';
+      body.appendChild(empty);
+      return;
+    }
+    body.appendChild(histStats(histWindow));
+    body.appendChild(box);
+    body.appendChild(R.secNote(HIST_NOTE));
+    drawHistChart(box, histWindow);
+  };
+
+  head.querySelectorAll('[data-hist-range]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const n = Number(btn.dataset.histRange);
+      if (n === histRange) return;
+      histRange = n;
+      paint();
+    });
+  });
+
+  host.appendChild(card); // 先入文档再画：ECharts init 要读真实宽高
+  paint();
 }
 
 function filterOverviewItems(items) {
@@ -607,7 +883,7 @@ function renderScanSection() {
                 <span class="tag tech-ov-tag-setup">${esc(d.setup_tag || '—')}</span>
                 ${d.BB_squeeze && d.setup_tag !== '波动率压缩(Squeeze)' ? '<span class="tag tech-ov-tag-warn">Squeeze</span>' : ''}
               </td>
-              <td class="num"><strong class="${d.total_score > 0 ? 'up' : d.total_score < 0 ? 'down' : 'neutral'}">${fmtSigned(d.total_score)}</strong></td>
+              <td class="num"><strong class="${d.total_score > 0 ? 'up' : d.total_score < 0 ? 'down' : 'neutral'}">${fmtSigned(d.total_score)}</strong>${scoreDeltaSub(d)}</td>
               <td class="num tech-ov-tri">${fmtSigned(d.trend_score)} / ${fmtSigned(d.momentum_score)} / ${fmtSigned(d.loc_score)}</td>
               <td class="num ${rsiToneCls(d.RSI)}">${d.RSI != null ? d.RSI.toFixed(1) : '—'}</td>
               <td class="num ${dist200 != null ? (dist200 > 0 ? 'up' : dist200 < 0 ? 'down' : '') : ''}">${dist200 != null ? fmtSigned(dist200, 1, '%') : '—'}</td>

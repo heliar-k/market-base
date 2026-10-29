@@ -490,6 +490,33 @@ def analyze(df: pd.DataFrame, symbol: str, as_of=None) -> dict:
     }
 
 
+SCORE_HISTORY_DAYS = 14
+
+
+def score_history(df: pd.DataFrame, symbol: str, days: int = SCORE_HISTORY_DAYS) -> list[dict]:
+    """最近 days 个实际交易日的结论轨迹。
+
+    逐日 as_of 回看，与最新诊断走同一条 analyze() 路径：最后一点必然等于现网诊断，
+    评分规则只有一处，不另存历史快照。
+    """
+    rows = []
+    for ts in df.index[-days:]:
+        r = analyze(df, symbol, as_of=ts)
+        rows.append(
+            {
+                "date": str(pd.Timestamp(ts).date()),
+                "total_score": r["total_score"],
+                "trend_score": r["trend_score"],
+                "momentum_score": r["momentum_score"],
+                "loc_score": r["loc_score"],
+                "regime": r["regime"],
+                "regime_label": r["regime_label"],
+                "setup_tag": r["setup_tag"],
+            }
+        )
+    return rows
+
+
 def main():
     parser = argparse.ArgumentParser(description="K线技术分析（输出 JSON）")
     parser.add_argument("csv", nargs="?", default="data/MSFT.csv", help="CSV 文件路径")

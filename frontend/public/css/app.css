@@ -576,6 +576,15 @@ body.dark .tech-ov-card { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--b
   display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap;
 }
 .tech-ov-scan-title { font-size: 14px; font-weight: 700; color: var(--text); }
+/* 结论变化卡：评分轨迹 + 状态变化带。两个 grid 共用一个 time 轴（tech-view.js 的 histOption），
+   高度按 grid 布局实测定：30+118 评分 + 168~180 变化带 + 底部日期标签。 */
+.tech-ov-hist-title { font-size: 16px; font-weight: 700; color: var(--text); }
+.tech-ov-hist-chart { height: 210px; }
+.tech-ov-hist-tip-hd { font-weight: 600; margin-bottom: 4px; }
+.tech-ov-hist-tip-row { display: flex; justify-content: space-between; gap: 18px; }
+.tech-ov-hist-tip-row b { font-weight: 600; }
+/* 扫描表综合分下的窗口变化小字（不加列） */
+.tech-ov-delta { display: block; font-size: 11px; line-height: 14px; color: var(--text-dim); }
 .tech-ov-filters { display: flex; gap: 4px; flex-wrap: wrap; }
 .tech-ov-table-wrap { overflow-x: auto; border-top: 1px solid var(--border); }
 .tech-ov-table {

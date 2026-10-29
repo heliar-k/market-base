@@ -51,10 +51,45 @@ def test_get_tech_overview_skips_missing_and_returns_items(
     assert by_sym["AAPL"]["type"] == "stock"
     assert "regime" in by_sym["AAPL"]
     assert "trend_score" in by_sym["AAPL"]
-    # 前端结论卡复用 overview 项代替 /api/diag：字段必须与 diag 一致（overview 仅多 type），
+    # 前端结论卡复用 overview 项代替 /api/diag：字段必须与 diag 一致，
     # 防止以后为扫描表瘦身 overview 时悄无声息地让结论卡掉 KPI。
+    # 比 diag 多两项字段：type 与 score_history。
     diag = server.get_diag("AAPL", as_of=None)
-    assert set(by_sym["AAPL"]) == set(diag) | {"type"}
+    assert set(by_sym["AAPL"]) == set(diag) | {"type", "score_history"}
+
+
+def test_tech_overview_score_history_matches_latest_diag(
+    monkeypatch, tmp_path: Path, sample_ohlcv_df
+) -> None:
+    """score_history 是最近 14 个实际交易日的结论轨迹：最后一点与最新诊断一致、
+    字段集固定、日期取 df 尾部 14 天（不是全量、也不是日历日）。
+    """
+    stocks_dir = tmp_path / "data" / "stocks"
+    stocks_dir.mkdir(parents=True)
+    sample_ohlcv_df.to_csv(stocks_dir / "AAPL.csv")
+    monkeypatch.setattr(server, "IBKR_SYMBOLS", [{"name": "AAPL", "type": "stock"}])
+    monkeypatch.setattr(server, "ROOT", tmp_path)
+
+    item = server.get_tech_overview()[0]
+    hist = item["score_history"]
+    assert len(hist) == 14
+    assert [h["date"] for h in hist] == [str(d.date()) for d in sample_ohlcv_df.index[-14:]]
+    assert set(hist[0]) == {
+        "date",
+        "total_score",
+        "trend_score",
+        "momentum_score",
+        "loc_score",
+        "regime",
+        "regime_label",
+        "setup_tag",
+    }
+    last = hist[-1]
+    assert last["date"] == str(sample_ohlcv_df.index[-1].date())
+    for key in ("total_score", "trend_score", "momentum_score", "loc_score"):
+        assert last[key] == item[key], key
+    for key in ("regime", "regime_label", "setup_tag"):
+        assert last[key] == item[key], key
 
 
 def test_export_pages_registers_tech_overview() -> None:

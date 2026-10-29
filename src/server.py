@@ -21,7 +21,7 @@ from fastapi.responses import JSONResponse, RedirectResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
-from src.analyze import analyze
+from src.analyze import analyze, score_history
 from src.cache import load_or_compute
 from src.chat_proxy import (
     BODY_MAX as CHAT_BODY_MAX,
@@ -267,6 +267,7 @@ def get_tech_overview():
                 continue
             d = analyze(df, sym)
             d["type"] = s["type"]
+            d["score_history"] = score_history(df, sym)
             items.append(d)
         except Exception:
             continue
