@@ -7,6 +7,7 @@
    未出现右侧企稳信号（MACD 柱拐头 / 收复昨高 / 看涨吞没或锤子线）时降级为「左侧接刀·等企稳」。
 3. 财报与除息排雷：财报落在目标期权周期内（≤35d）时，优先搜寻财报前到期（7~e_dte 天）合约；
    若财报 ≤10d 或无财报前合约，拦截裸卖 Put；否决状态绝不输出可交易合约。
+   财报日当天看参考时刻：美东收盘半小时后（AMC 已发布）归「已发」解除禁卖，盘中仍按待发保守处理。
 4. 适合性硬门槛与组合风控：T2 观察池（单手过重/低波薄利）与缺期权链标的不发入场信号；
    报告头部输出同板块信号集中度与站内共识 Regime（`src/consensus.py` + VIX 期限结构）。
 
@@ -23,7 +24,7 @@ from __future__ import annotations
 import argparse
 import json
 from dataclasses import asdict, dataclass
-from datetime import datetime
+from datetime import datetime, time
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
@@ -480,15 +481,33 @@ def _days_until(date_str: str | None, snap_date: str | None = None) -> int | Non
         return None
 
 
+# AMC 财报发布时刻（美东）：收盘后半小时，过此后当天的财报视为已经发布
+AMC_RELEASE = time(16, 30)
+
+
+def _after_close(snap_date: str | None = None) -> bool:
+    """参考时刻是否已过当日 AMC 财报发布：今天的快照看当前时刻，更早的快照都是收盘后产物。"""
+    now = datetime.now(ET)
+    return _ref_date(snap_date) < now.date() or now.time() >= AMC_RELEASE
+
+
 def _event_fields(
     ov: dict, snap_date: str | None = None
 ) -> tuple[str | None, int | None, str | None, int | None, str, str]:
     """解析财报日与除息日倒计时（锚定快照日），生成紧凑的排雷标签与语义色调。"""
     ed = ov.get("earnings_date")
     e_dte = _days_until(ed, snap_date)
-    recent_ed = ed if (e_dte is not None and -14 <= e_dte < 0) else None
-    if e_dte is not None and e_dte < 0:
+    # 财报日当天：Yahoo 在发布后还会把这一天的日期报一段时间，按日期算永远是「0d」→
+    # 一直禁卖。参考时刻过了收盘半小时（AMC 已发布）就归「已发」；盘中仍按「今晚才发」保守处理。
+    reported = e_dte is not None and (e_dte < 0 or (e_dte == 0 and _after_close(snap_date)))
+    recent_ed = ed if (e_dte is not None and -14 <= e_dte <= 0 and reported) else None
+    if reported:
         ed, e_dte = None, None
+    # Yahoo 有时已经把日期推到下个季度，只报「财报90d」会看着像还没发；
+    # 最近一次发布仍在 14 天内就一并标出来（不参与禁卖闸门，只作排除已发布用）。
+    last_ed = ov.get("last_earnings_date")
+    last_dte = _days_until(last_ed, snap_date)
+    fresh_ed = last_ed if (last_dte is not None and -14 <= last_dte <= 0) else None
 
     exd = ov.get("ex_dividend_date")
     div_dte = _days_until(exd, snap_date)
@@ -506,10 +525,12 @@ def _event_fields(
             event_tone = "warn"
         else:
             tags.append(f"财报{e_dte}d")
-    elif recent_ed:
-        tags.append(f"财报已发({recent_ed[5:]})")
+    elif recent_ed or fresh_ed:
+        tags.append(f"财报已发({(recent_ed or fresh_ed)[5:]})")
     else:
         tags.append("财报待定")
+    if e_dte is not None and fresh_ed:
+        tags.append(f"已发({fresh_ed[5:]})")
     if div_dte is not None and div_dte <= THRESHOLDS["ex_div_warn_dte"]:
         tags.append(f"除息{div_dte}d")
         if event_tone == "flat":

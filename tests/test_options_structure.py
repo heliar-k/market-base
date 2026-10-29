@@ -102,6 +102,53 @@ def test_flip_ignores_deep_itm_junk_outside_band():
     assert out["gamma_flip"] is None
 
 
+def test_extract_events_uses_et_and_utc_date_basis():
+    """财报日按美东日期取（16:00 ET 时间戳在本机 UTC+8 下会变成次日），除息日按 UTC。"""
+    import src.options_structure as os
+
+    et = ZoneInfo("America/New_York")
+    ed_ts = int(datetime(2026, 10, 28, 16, 0, tzinfo=et).timestamp())
+    ex_ts = int(datetime(2026, 9, 4, tzinfo=os.timezone.utc).timestamp())
+    next_ts = int(datetime(2027, 1, 27, 16, 0, tzinfo=et).timestamp())
+
+    def _payload(earnings_date, earnings_call_date=None):
+        earnings = {"earningsDate": [earnings_date]}
+        if earnings_call_date is not None:
+            earnings["earningsCallDate"] = [earnings_call_date]
+        return {
+            "quoteSummary": {
+                "result": [{"calendarEvents": {"earnings": earnings, "exDividendDate": ex_ts}}]
+            }
+        }
+
+    class _FakeData:
+        payload: dict = {}
+
+        def get_raw_json(self, url, params=None, timeout=30):
+            return self.payload
+
+    class _FakeTicker:
+        ticker = "MSFT"
+        _data = _FakeData()
+
+    _FakeData.payload = _payload(ed_ts)
+    assert os._extract_events(_FakeTicker()) == {
+        "earnings_date": "2026-10-28",
+        "last_earnings_date": None,
+        "ex_dividend_date": "2026-09-04",
+    }
+
+    # Yahoo 把下季日期推到 2027-01-27 后就不再保留刚发的 10-28，只能靠 earningsCallDate 补
+    _FakeData.payload = _payload(next_ts, ed_ts)
+    ev = os._extract_events(_FakeTicker())
+    assert ev["earnings_date"] == "2027-01-27"
+    assert ev["last_earnings_date"] == "2026-10-28"
+
+    # 两个字段指向同一场（下季已确认且call日期相同）→ 不是「刚发过」
+    _FakeData.payload = _payload(next_ts, next_ts)
+    assert os._extract_events(_FakeTicker())["last_earnings_date"] is None
+
+
 def test_xnys_calendar_excludes_weekend_and_market_holiday():
     import src.options_structure as os
 

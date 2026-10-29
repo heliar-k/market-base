@@ -503,22 +503,49 @@ def compute_structure(df: pd.DataFrame, spot: float, as_of: datetime | None = No
     return final
 
 
+_QUOTE_SUMMARY_URL = "https://query2.finance.yahoo.com/v10/finance/quoteSummary"
+
+
+def _epoch(v) -> int | None:
+    """quoteSummary 的时间戳：`formatted=false` 时是裸数字，否则包成 {raw, fmt}。"""
+    return (v.get("raw") if isinstance(v, dict) else v) or None
+
+
 def _extract_events(ticker) -> dict:
-    """从 yfinance Ticker.calendar 提取下次财报日与除息日（失败静默返回空 dict）。"""
+    """从 Yahoo quoteSummary 取下次财报日（美东日期）、最近已发布日与除息日（失败静默返回空 dict）。
+
+    不用 `ticker.calendar`：它拿时间戳走 `datetime.fromtimestamp()`，按本机时区折算。
+    财报时间戳固定是美东 16:00（= 21:00 UTC），在 UTC+8 机器上整批后移一天，本地跑
+    `live_wheel` 时 GOOG 这类刚发完财报的标的会停在「财报0d·禁卖」。
+    除息日的时间戳是 UTC 零点（不是美东 16:00），所以按 UTC 取日期。
+    """
     try:
-        cal = ticker.calendar
-        if not isinstance(cal, dict):
-            return {}
-        ed_list = cal.get("Earnings Date") or []
-        ed = ed_list[0] if isinstance(ed_list, list) and ed_list else None
-        ex_div = cal.get("Ex-Dividend Date")
+        raw = ticker._data.get_raw_json(
+            f"{_QUOTE_SUMMARY_URL}/{ticker.ticker}",
+            params={"modules": "calendarEvents", "formatted": "false"},
+        )
+        ev = raw["quoteSummary"]["result"][0]["calendarEvents"]
+        earn = ev.get("earnings") or {}
+
+        def _dates(key: str) -> list[date]:
+            # 未确认的财报日可能给一个区间（两枚时间戳），取最早的一天：宁可提前禁卖
+            stamps = earn.get(key) or []
+            return sorted(datetime.fromtimestamp(ts, ET).date() for ts in map(_epoch, stamps) if ts)
+
+        days, calls = _dates("earningsDate"), _dates("earningsCallDate")
+        next_ed = days[0] if days else None
+        # Yahoo 把下一季日期确认后就丢掉最近一次发布日（MSFT 在发布当晚 earningsDate
+        # 已是 2027-01-27）；earningsCallDate 早于它就说明那是刚开过的电话会 = 刚发的那份财报。
+        last_ed = calls[0] if calls and (next_ed is None or calls[0] < next_ed) else None
+        ex_div = _epoch(ev.get("exDividendDate"))
         return {
-            "earnings_date": ed.strftime("%Y-%m-%d")
-            if hasattr(ed, "strftime")
-            else (str(ed)[:10] if ed else None),
-            "ex_dividend_date": ex_div.strftime("%Y-%m-%d")
-            if hasattr(ex_div, "strftime")
-            else (str(ex_div)[:10] if ex_div else None),
+            "earnings_date": next_ed.strftime("%Y-%m-%d") if next_ed else None,
+            "last_earnings_date": last_ed.strftime("%Y-%m-%d") if last_ed else None,
+            "ex_dividend_date": (
+                datetime.fromtimestamp(ex_div, timezone.utc).date().strftime("%Y-%m-%d")
+                if ex_div
+                else None
+            ),
         }
     except Exception:
         return {}

@@ -256,6 +256,58 @@ def test_event_fields_single_line_and_tones() -> None:
     assert tone == "warn"
 
 
+def test_earnings_today_pending_until_amc_release(monkeypatch) -> None:
+    """财报日当天盘中仍算「今晚才发」→ 禁卖；过了 AMC 发布时刻改判「已发」。"""
+    import src.wheel_scanner as ws
+
+    def fixed_clock(hour: int):
+        class _Clock(datetime):
+            @classmethod
+            def now(cls, tz=None):
+                return datetime(2026, 10, 28, hour, 0, tzinfo=tz)
+
+        return _Clock
+
+    monkeypatch.setattr(ws, "datetime", fixed_clock(10))
+    ed, e_dte, _, _, alert, tone = _event_fields({"earnings_date": "2026-10-28"}, "20261028")
+    assert (ed, e_dte) == ("2026-10-28", 0)
+    assert alert == "财报0d(10-28)" and tone == "bear"
+
+    monkeypatch.setattr(ws, "datetime", fixed_clock(17))
+    ed, e_dte, _, _, alert, tone = _event_fields({"earnings_date": "2026-10-28"}, "20261028")
+    assert (ed, e_dte) == (None, None) and alert == "财报已发(10-28)" and tone == "flat"
+
+    # 更早的快照只可能是收盘后产物：盘中重算旧快照也不再挂禁卖
+    ed, e_dte, _, _, alert, _tone = _event_fields({"earnings_date": "2026-10-27"}, "20261027")
+    assert (ed, e_dte) == (None, None) and alert == "财报已发(10-27)"
+
+
+def test_event_fields_marks_just_reported_even_if_next_date_rolled(monkeypatch) -> None:
+    """Yahoo 把下季日期提前滚好时（MSFT 发布当晚就是 2027-01-27），仍要标出刚发的那份。"""
+    import src.wheel_scanner as ws
+
+    class _Clock(datetime):
+        @classmethod
+        def now(cls, tz=None):
+            return datetime(2026, 10, 29, 10, 0, tzinfo=tz)
+
+    monkeypatch.setattr(ws, "datetime", _Clock)
+    ov = {"earnings_date": "2027-01-27", "last_earnings_date": "2026-10-28"}
+    ed, e_dte, _, _, alert, tone = _event_fields(ov, "20261029")
+    assert (ed, e_dte) == ("2027-01-27", 90)
+    assert alert == "财报90d · 已发(10-28)" and tone == "flat"
+
+    # 只靠 last_earnings_date 也能给「已发」：下次日期缺失时不留「待定」
+    _ed, _dte, _, _, alert2, _t = _event_fields({"last_earnings_date": "2026-10-26"}, "20261029")
+    assert alert2 == "财报已发(10-26)"
+
+    # 超出 14 天窗口就不再提刚发那份
+    _ed, _dte, _, _, alert3, _t = _event_fields(
+        {"earnings_date": "2027-01-27", "last_earnings_date": "2026-10-01"}, "20261029"
+    )
+    assert alert3 == "财报90d"
+
+
 def test_pick_contract_prefers_monthly_opex_and_filters_wide_spread(tmp_path, monkeypatch) -> None:
     import src.wheel_scanner as ws
 

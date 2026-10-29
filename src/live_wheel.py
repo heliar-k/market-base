@@ -314,7 +314,7 @@ def _build_opt_map(
                     if inherited.get(k) is not None:
                         detail[k] = inherited[k]
                 events = _extract_events(tk)
-                for k in ("earnings_date", "ex_dividend_date"):
+                for k in ("earnings_date", "last_earnings_date", "ex_dividend_date"):
                     value = events.get(k) or inherited.get(k)
                     if value:
                         detail[k] = value

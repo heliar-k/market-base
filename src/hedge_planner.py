@@ -21,6 +21,7 @@ from math import isfinite
 from zoneinfo import ZoneInfo
 
 from src.fetchers.yfinance_fetcher import ensure_yf_proxy
+from src.options_structure import _extract_events
 from src.pricing import fetch_yf_chain
 
 ensure_yf_proxy()
@@ -200,12 +201,9 @@ def main():
     print(f"{symbol} 现价: ${spot:.2f}")
 
     # 财报日历（拿不到不阻塞）
-    try:
-        cal = ticker.calendar
-        if isinstance(cal, dict) and cal.get("Earnings Date"):
-            print(f"财报日期: {cal['Earnings Date']}")
-    except Exception:
-        pass
+    ed = _extract_events(ticker).get("earnings_date")
+    if ed:
+        print(f"财报日期: {ed}")
 
     exps = args.exps.split(",") if args.exps else pick_expirations(list(ticker.options))
     log.info(f"到期日: {exps}")
