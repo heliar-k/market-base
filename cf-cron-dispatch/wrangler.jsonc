@@ -1,7 +1,8 @@
 {
-  // Cloudflare Worker Cron → GitHub Actions workflow_dispatch（独立于根目录 market-base 代理 Worker）。
-  // 注意：wrangler 会向上级目录搜配置且 jsonc 优先，根目录另有 wrangler.jsonc（代理 Worker）——
-  // 本目录必须用 jsonc 且从本目录内执行 deploy，否则会误覆盖根 Worker（2026-10-14 实际发生过）。
+  // Cloudflare Worker Cron → GitHub Actions workflow_dispatch。
+  // 注意：wrangler 会向上级目录搜配置，本目录必须用 jsonc 且从本目录内执行 deploy，
+  // 否则会读到别处的配置（2026-10-14 曾误覆盖当时根目录的代理 Worker；该 Worker 已于
+  // 2026-10-25 删除，根目录现在没有第二份 wrangler 配置）。
   "name": "gh-cron-dispatch",
   "main": "src/worker.js",
   "compatibility_date": "2025-10-01",
@@ -9,12 +10,15 @@
   "observability": {
     "enabled": true
   },
-  // 触发时间必须与 .github/workflows/*.yml 里的 cron 完全一致（worker.js 靠 event.cron 分发）。
+  // 触发时间在 triggers.crons 里配置，worker.js 靠 event.cron 原样匹配分发。
+  // 注意：Cloudflare 的 weekday 字段是 1-7 且 1 = 周日（官方文档：`* * mon-fri` ≡ `* * 2-6`），
+  // 与 GitHub 的 1-5（周一到周五）不是同一套编号 —— 同一件事两边要写不同字符串。
+  // 这里写 1-5 会变成周一到周四 + 周日派发、周五整天没有班次（2026-10-16 / 10-23 实测各 0 班）。
   // 免费版每 Worker 上限 5 条 cron，这里 4 条。GitHub YAML schedule 保留为兜底：
   // 双触发幂等，data-fetch 并发组会把撞车的班次合并。
   "triggers": {
     "crons": [
-      "7,22,37,52 13-21 * * 1-5", // intraday-refresh（工作日盘中 15 分钟）
+      "7,22,37,52 13-21 * * mon-fri", // intraday-refresh（工作日盘中 15 分钟）
       "0 21 * * *", // daily-full（北京 05:00 主跑）
       "15 15 * * *", // evening-late（北京 23:15）
       "12 * * * *" // crypto-hourly

@@ -19,12 +19,19 @@ npx wrangler secret put GH_DISPATCH_TOKEN   # 粘贴 PAT
 npx wrangler deploy
 ```
 
-触发时间在 `wrangler.jsonc` 的 `triggers.crons` 里，**必须与各 workflow yml 的 cron 保持一致**
-（`src/worker.js` 靠 `event.cron` 精确匹配分发到对应 workflow）。
-⚠️ deploy 必须在本目录内执行（`npx wrangler deploy` 需要读到本目录的 `wrangler.jsonc`）。
-原先仓库根目录还有个 `wrangler.jsonc`（`market-base` 国内入口代理 Worker），从别处 deploy
-会误覆盖它（2026-10-14 实际发生过）；该代理 Worker 已于 2026-10-25 删除（Workers Builds
-build-minutes 超免费额度），根目录不再有第二份配置。
+触发时间在 `wrangler.jsonc` 的 `triggers.crons` 里（`src/worker.js` 靠 `event.cron` 原样匹配分发到
+对应 workflow）。**两边 weekday 编号不同，同一件事要写不同字符串**：
+
+| 含义 | Cloudflare（`wrangler.jsonc`） | GitHub（`*.yml`） |
+|---|---|---|
+| 工作日（周一到周五） | `mon-fri`（≡ `2-6`） | `1-5` |
+
+Cloudflare 的 weekday 字段是 1-7 且 **1 = 周日**，照抄 yml 的 `1-5` 会变成周一到周四 + 周日派发、
+周五整天没有班次（2026-10-16、10-23 两次实测各 0 班；`tests/test_cf_cron_dispatch.py` 守卫）。
+`event.cron` 的字母大小写可能不同，`worker.js` 归一化后再查表。
+deploy 必须在本目录内执行（`npx wrangler deploy` 需要读到本目录的 `wrangler.jsonc`）；
+原先根目录的代理 Worker 已于 2026-10-25 删除（Workers Builds build-minutes 超免费额度），
+根目录不再有第二份配置。
 
 ## 验证
 
@@ -43,5 +50,6 @@ gh run list --workflow=intraday-refresh.yml --limit 5
 - **PAT 到期**：Worker 日志报 `HTTP 401`，当天班次失效，GitHub schedule 兜底仍在 →
   续 PAT 后 `npx wrangler secret put GH_DISPATCH_TOKEN` 重贴即可（与 `DATA_PUSH_TOKEN` 同一个续期习惯）。
 - **改触发时间**：改 `wrangler.jsonc` triggers.crons + 对应 workflow yml cron，两处一起，然后 `npx wrangler deploy`。
+  两边 weekday 编号不同（CF 的 `mon-fri` ≡ `2-6`，GH 的 `1-5`），改完跑 `uv run python -m pytest tests/test_cf_cron_dispatch.py`。
 - **加新 workflow**：`triggers.crons` 加一条 + `src/worker.js` 的 `CRON_WORKFLOWS` 加映射（免费版每 Worker 上限 5 条）。
 - 日志排查：Cloudflare Dashboard → Workers → gh-cron-dispatch → Logs（或 `npx wrangler tail`）。
