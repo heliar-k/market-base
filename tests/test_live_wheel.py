@@ -193,6 +193,8 @@ def test_build_opt_map_preserves_previous_chain_quote_and_static_events(monkeypa
     )
     bad = _raw_chain(bid=[0.0, 0.0], openInterest=[0, 0])
     monkeypatch.setattr(lw, "fetch_yf_chain", lambda sym, exps: bad)
+    # 本用例验证的是本地 raw 链那一档，先把 CBOE 档关掉
+    monkeypatch.setattr(lw, "_cboe_fallback_chain", lambda sym, exps: None)
     previous = _raw_chain(quote_ts=["2026-10-26T20:00:00Z"] * 2)
     monkeypatch.setattr(lw, "_prev_trading_chain", lambda sym, static: (previous, "2026-10-26"))
     monkeypatch.setattr(lw, "_extract_events", lambda tk: {})
@@ -524,3 +526,114 @@ def test_rebuild_rows_restores_nested_pick_objects() -> None:
     assert isinstance(rebuilt.put_pick, OptionPick)
     # 这一步就是 _fmt_pick 内部会炸的地方
     assert "$575P" in _fmt_pick(rebuilt.put_pick)
+
+
+def test_build_opt_map_uses_cboe_when_local_raw_missing(monkeypatch) -> None:
+    """本地 raw 链缺失时用 CBOE 延迟快照兜底，chain_date 与 quote_ts 如实带入。"""
+    from datetime import datetime
+    from zoneinfo import ZoneInfo
+
+    import yfinance as yf
+
+    import src.live_wheel as lw
+
+    monkeypatch.setattr(yf, "Ticker", lambda sym: type("T", (), {"options": ()})())
+    monkeypatch.setattr(lw, "_window_expiries", lambda sym, options: ["20261120"])
+    monkeypatch.setattr(
+        lw,
+        "_now_et",
+        lambda: datetime(2026, 10, 30, 3, 47, tzinfo=ZoneInfo("America/New_York")),
+    )
+    dead = _raw_chain(bid=[0.0, 0.0], openInterest=[0, 0])
+    monkeypatch.setattr(lw, "fetch_yf_chain", lambda sym, exps: dead)
+    cboe = _raw_chain(quote_ts=["2026-10-29T19:59:59Z"] * 2)
+    monkeypatch.setattr(lw, "_cboe_fallback_chain", lambda sym, exps: (cboe, "2026-10-29"))
+    monkeypatch.setattr(lw, "_prev_trading_chain", lambda sym, static: None)
+    monkeypatch.setattr(lw, "_extract_events", lambda tk: {})
+
+    opt_map, notes, chain_map = lw._build_opt_map(
+        ["NVDA"], {}, "yfinance", spot_overrides={"NVDA": 211.0}
+    )
+    chain, chain_date = chain_map["NVDA"]
+    assert chain_date == "2026-10-29"
+    assert chain["quote_ts"].iloc[0] == "2026-10-29T19:59:59Z"
+    assert "CBOE 延迟快照 2026-10-29" in notes["NVDA"]
+    assert opt_map["NVDA"]["spot"] == 211.0
+
+
+def test_build_opt_map_keeps_local_raw_ahead_of_cboe(monkeypatch) -> None:
+    """本地 raw 链健康时不请求 CBOE：口径与盘后定稿保持一致。"""
+    from datetime import datetime
+    from zoneinfo import ZoneInfo
+
+    import yfinance as yf
+
+    import src.live_wheel as lw
+
+    monkeypatch.setattr(yf, "Ticker", lambda sym: type("T", (), {"options": ()})())
+    monkeypatch.setattr(lw, "_window_expiries", lambda sym, options: ["20261120"])
+    monkeypatch.setattr(
+        lw,
+        "_now_et",
+        lambda: datetime(2026, 10, 30, 3, 47, tzinfo=ZoneInfo("America/New_York")),
+    )
+    dead = _raw_chain(bid=[0.0, 0.0], openInterest=[0, 0])
+    monkeypatch.setattr(lw, "fetch_yf_chain", lambda sym, exps: dead)
+    local = _raw_chain(quote_ts=["2026-10-29T19:59:59Z"] * 2)
+    monkeypatch.setattr(lw, "_prev_trading_chain", lambda sym, static: (local, "2026-10-29"))
+
+    def _no_cboe(sym, exps):
+        raise AssertionError("本地 raw 链健康时不应请求 CBOE")
+
+    monkeypatch.setattr(lw, "_cboe_fallback_chain", _no_cboe)
+    monkeypatch.setattr(lw, "_extract_events", lambda tk: {})
+
+    _, notes, chain_map = lw._build_opt_map(
+        ["NVDA"], {}, "yfinance", spot_overrides={"NVDA": 211.0}
+    )
+    assert chain_map["NVDA"][1] == "2026-10-29"
+    assert "回退昨收链" in notes["NVDA"]
+
+
+def test_fallback_chain_returns_none_when_both_tiers_fail(monkeypatch) -> None:
+    """CBOE 与本地 raw 链都不可用时返回 None，由调用方标注未就绪。"""
+    import src.live_wheel as lw
+
+    monkeypatch.setattr(lw, "_cboe_fallback_chain", lambda sym, exps: None)
+    monkeypatch.setattr(lw, "_prev_trading_chain", lambda sym, static: None)
+    assert lw._fallback_chain("NVDA", ["20261120"], "链为空", {}) is None
+
+
+def test_cboe_fallback_rejects_zero_oi_chain(monkeypatch) -> None:
+    """CBOE 链整片零 OI 时必须判不可用，不能拿它产出伪墙位。"""
+    import src.fetchers.cboe_options_fetcher as cf
+    import src.live_wheel as lw
+
+    dead = _raw_chain(openInterest=[0, 0])
+    monkeypatch.setattr(cf, "fetch_cboe_chain", lambda sym, exps: (dead, "2026-10-29"))
+    monkeypatch.setattr(lw, "_prev_trading_chain", lambda sym, static: None)
+    assert lw._cboe_fallback_chain("NVDA", ["20261120"]) is None
+    assert lw._fallback_chain("NVDA", ["20261120"], "结构数据未就绪", {}) is None
+
+
+def test_prev_trading_chain_resolves_dotted_symbol(tmp_path, monkeypatch) -> None:
+    """池里的 opt_symbol 是 BRK.B，raw 文件名用连字符 BRK-B。"""
+    from datetime import datetime
+    from zoneinfo import ZoneInfo
+
+    import src.config as cfg
+    import src.live_wheel as lw
+
+    monkeypatch.setattr(cfg, "ROOT", tmp_path)
+    d = tmp_path / "data" / "options_structure"
+    d.mkdir(parents=True)
+    _raw_chain().to_csv(d / "raw_BRK-B_20261029.csv", index=False)
+    monkeypatch.setattr(
+        lw,
+        "_now_et",
+        lambda: datetime(2026, 10, 30, 3, 47, tzinfo=ZoneInfo("America/New_York")),
+    )
+
+    got = lw._prev_trading_chain("BRK.B", {})
+    assert got is not None
+    assert got[1] == "2026-10-29"

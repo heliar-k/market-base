@@ -56,6 +56,7 @@ market-base/
 │   │   ├── fred_fetcher.py       ← FRED API 宏观指标（91 个系列，13 分类）
 │   │   ├── yfinance_fetcher.py   ← yfinance 资产价格（需 SOCKS5 代理）
 │   │   ├── cboe_fetcher.py       ← CBOE 波动率（OVX、VIX 期限结构）
+│   │   ├── cboe_options_fetcher.py ← CBOE delayed quotes 期权链（live_wheel 的保底源，含 OI/IV/bid-ask）
 │   │   ├── fsi_fetcher.py        ← OFR 金融压力指数（官方 CSV 全量）
 │   │   ├── srf_fetcher.py        ← SRF 使用量（NY Fed Markets API）
 │   │   ├── tsy_fetcher.py        ← Treasury 公开市场操作明细（RMP/POMO）

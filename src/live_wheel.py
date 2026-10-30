@@ -18,6 +18,11 @@
 bid 仅 13% 与盘中一致、IV 中位差 3.3pp），不是隔夜不变的实时价。所以每份推荐合约
 都携带 `chain_date` / `quote_ts`，输出末尾汇总数据时点，不把昨收当实时挂单价。
 
+替补链顺序（yfinance 现场链不健康时）：本地昨日 raw 链 → CBOE 延迟快照。
+本地链与数据班次的收盘快照同源；CBOE 是最后一档，只在本地链缺失（超出 raw
+保留窗口、班次漏拉）或本身不健康时接管，不依赖本地文件。两档的链都带
+`chain_date`，陈旧天数照常写进 `stale_days`。
+
 用法:
     uv run python -m src.live_wheel                       # 全池实时扫描（yfinance）
     uv run python -m src.live_wheel --symbols NVDA,TSM    # 只扫指定标的
@@ -146,10 +151,17 @@ def _chain_health(
 
 
 def _prev_trading_chain(sym: str, _static: dict) -> tuple[pd.DataFrame, str] | None:
-    """读上一交易日落盘的 raw 链（盘前小时级刷新时，昨收链才是可用的期权面）。"""
+    """读上一交易日落盘的 raw 链（盘前小时级刷新时，昨收链才是可用的期权面）。
+
+    `sym` 是池里的 opt_symbol（如 `BRK.B`），而 raw 文件名用连字符（`BRK-B`），
+    两种写法都试一次。
+    """
     from src.config import ROOT as _ROOT
 
-    files = sorted((_ROOT / "data" / "options_structure").glob(f"raw_{sym}_*.csv"))
+    d = _ROOT / "data" / "options_structure"
+    files: list[Path] = []
+    for code in (sym, sym.replace(".", "-")):
+        files.extend(sorted(d.glob(f"raw_{code}_*.csv")))
     today = _now_et().date()
     for f in reversed(files):
         stamp = f.stem.rsplit("_", 1)[-1]
@@ -161,6 +173,50 @@ def _prev_trading_chain(sym: str, _static: dict) -> tuple[pd.DataFrame, str] | N
             continue
         if not d.empty and _chain_health(d)[0]:
             return d, f"{stamp[:4]}-{stamp[4:6]}-{stamp[6:8]}"
+    return None
+
+
+def _cboe_fallback_chain(sym: str, exps: list[str]) -> tuple[pd.DataFrame, str] | None:
+    """CBOE 延迟快照（替补末档）：全链按 DTE 窗口裁剪，剔除无正 OI 的到期日。
+
+    与 `_prev_trading_chain` 一致，返回的一定是过了健康检查的链（否则返回 None）。
+    """
+    from src.fetchers.cboe_options_fetcher import fetch_cboe_chain
+
+    got = fetch_cboe_chain(sym, exps)
+    if got is None:
+        return None
+    chain, chain_date = got
+    chain, _kept, dropped = drop_placeholder_expirations(chain, exps)
+    if dropped:
+        log.warning(f"{sym}: CBOE 链剔除无正 OI 的到期日 {','.join(dropped)}")
+    ok, _why = _chain_health(chain)
+    return (chain, chain_date) if ok else None
+
+
+def _fallback_chain(
+    sym: str, exps: list[str], why: str, _static: dict
+) -> tuple[pd.DataFrame, str, str] | None:
+    """现场链不可用时的替补池：本地昨日 raw 链 → CBOE 延迟快照。
+
+    本地 raw 链与数据班次的收盘快照同源（yfinance），口径与盘后定稿可比，排第一档；
+    CBOE 只在本地链缺失（超出 raw 保留窗口 / 班次漏拉）时接管，它的 IV 与 yfinance
+    有偏差（实测 IV35 中位 -0.9pp、ISRG -8.6pp），不抢常规路径。
+    返回 (链, chain_date, 附注)；两档都不可用返回 None。
+    """
+    prev = _prev_trading_chain(sym, _static)
+    if prev is not None:
+        chain, cdate = prev
+        if _chain_health(chain)[0]:
+            return chain, cdate, f"回退昨收链 {cdate}（{why}）"
+
+    # shortcut: CBOE 延迟报价在盘中时段（9:30-16:00 ET）尚未实测，目前只验证过
+    #   凌晨与收盘后（bid>0 74.8%~95.3%、正 OI 57.3%~89.6%）。盘中若实测整片失效，
+    #   这一档应当改走 --greeks ibkr。
+    cb = _cboe_fallback_chain(sym, exps)
+    if cb is not None:
+        chain, chain_date = cb
+        return chain, chain_date, f"CBOE 延迟快照 {chain_date}（{why}）"
     return None
 
 
@@ -277,6 +333,8 @@ def _build_opt_map(
                             notes[sym] = f"IBKR 缓存已过期({entry.get('chain_date')}) → yfinance"
                 else:
                     chain = fetch_yf_chain(sym, exps)
+                # 占位到期日剔完后 exps 可能变空（源 OI 整片为 0 时），替补链要的是完整窗口
+                window_exps = list(exps)
                 if not ibkr_source:
                     chain, exps, dropped = drop_placeholder_expirations(chain, exps)
                     if dropped:
@@ -286,22 +344,16 @@ def _build_opt_map(
                     # 盘前 yfinance 链整片失效（bid/OI 全 0）→ 回退到上一交易日收盘链。
                     # 这样盘前仍能算 IV35/VRP/结构墙（结论基于昨收期权面 + 实时现价），
                     # 并且陈旧程度会写进 notes 与 pick.stale_days，不当实时报价用。
-                    prev = _prev_trading_chain(sym, static.get(sym) or {})
-                    if prev is not None:
-                        chain, cdate = prev
-                        ok2, _why2 = _chain_health(chain)
-                        if ok2:
-                            chain_date = cdate
-                            reused_chain = True
-                            notes[sym] = f"回退昨收链 {cdate}（{why}）"
-                        else:
-                            notes[sym] = f"{why}；昨收链也不可用"
-                            progress.advance(task)
-                            continue
-                    else:
-                        notes[sym] = why
+                    got = _fallback_chain(sym, window_exps, why, static.get(sym) or {})
+                    if got is None:
+                        notes[sym] = f"{why}；无可用替补链"
                         progress.advance(task)
                         continue
+                    chain, chain_date, note = got
+                    reused_chain = True
+                    # 不覆盖前面的告警（IBKR 无行情 / 缓存过期），main() 靠 notes 往下传
+                    earlier = notes.get(sym)
+                    notes[sym] = f"{earlier}；{note}" if earlier else note
                 chain = chain.copy()
                 if not reused_chain:
                     chain["quote_ts"] = _utc_now_iso()
