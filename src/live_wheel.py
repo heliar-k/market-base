@@ -41,7 +41,13 @@ import pandas as pd
 
 from src.compute_gex import DEFAULT_BATCH_SIZE
 from src.config import ROOT
-from src.options_structure import _extract_events, _utc_now_iso, chain_health, compute_structure
+from src.options_structure import (
+    _extract_events,
+    _utc_now_iso,
+    chain_health,
+    compute_structure,
+    drop_placeholder_expirations,
+)
 from src.pricing import fetch_yf_chain
 from src.wheel_scanner import (
     THRESHOLDS,
@@ -278,6 +284,10 @@ def _build_opt_map(
                             notes[sym] = f"IBKR 缓存已过期({entry.get('chain_date')}) → yfinance"
                 else:
                     chain = fetch_yf_chain(sym, exps)
+                if not ibkr_source:
+                    chain, exps, dropped = drop_placeholder_expirations(chain, exps)
+                    if dropped:
+                        log.warning(f"{sym}: 剔除无 OI 的占位到期日 {','.join(dropped)}")
                 ok, why = _chain_health(chain, expected_expirations=None if ibkr_source else exps)
                 if not ok:
                     # 盘前 yfinance 链整片失效（bid/OI 全 0）→ 回退到上一交易日收盘链。

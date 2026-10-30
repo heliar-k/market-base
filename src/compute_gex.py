@@ -35,7 +35,7 @@ from src.fetchers.ibkr_fetcher import (
     connect_ib,
     get_option_chain_params,
 )
-from src.options_structure import chain_health
+from src.options_structure import chain_health, drop_placeholder_expirations
 from src.pricing import (
     aggregate_wall,
     cumulative_gamma_flip,
@@ -669,6 +669,9 @@ def main():
         # 消费侧规整：volume/IV NaN → 0（greeks_from_yf 跳过 iv<=0 的行）
         oi_df["volume"] = oi_df["volume"].fillna(0).astype(int)
         oi_df["impliedVolatility"] = oi_df["impliedVolatility"].fillna(0)
+        oi_df, expirations, dropped = drop_placeholder_expirations(oi_df, expirations)
+        if dropped:
+            log.warning(f"剔除无 OI 的占位到期日：{','.join(dropped)}")
 
     # IBKR Greeks 不可用 → 降级：Barchart 真实 gamma（已在上方填 greeks_df）
     # → yfinance IV 反推 BS gamma（Barchart 也失败时）

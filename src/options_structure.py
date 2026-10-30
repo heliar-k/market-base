@@ -97,6 +97,28 @@ def chain_health(
     return True, ""
 
 
+def drop_placeholder_expirations(
+    chain: pd.DataFrame, expected: list[str]
+) -> tuple[pd.DataFrame, list[str], list[str]]:
+    """剔掉整条链没有任何正 OI 的到期日，返回（链, 预期到期日, 被剔列表）。
+
+    Yahoo 会给标的列出刚上市的周一/周三周权，链里只有几张稀疏行权价、OI 与成交量全空。
+    这类到期日对 OI 加权的统计贡献恒为 0，留在链里只污染非加权口径（ATM IV 等），
+    并让 chain_health 把整个标的判成「无正 OI」。
+    """
+    if chain.empty:
+        return chain, expected, []
+    exp = chain["expiration"].astype(str)
+    positive = (
+        (pd.to_numeric(chain["openInterest"], errors="coerce").fillna(0) > 0).groupby(exp).any()
+    )
+    dropped = sorted(positive.index[~positive].tolist())
+    if not dropped:
+        return chain, expected, []
+    kept = chain[~exp.isin(dropped)].reset_index(drop=True)
+    return kept, [e for e in expected if e not in dropped], dropped
+
+
 def bucket_dte(days: int) -> str:
     """DTE → 到期 Gamma 集中度桶（timsun 口径：0DTE/本周/月度/季度+）。"""
     if days == 0:
@@ -236,6 +258,9 @@ def fetch_chain(
     df = pd.DataFrame(rows)
     if df.empty:
         return df
+    df, expirations, dropped = drop_placeholder_expirations(df, expirations)
+    if dropped:
+        logger.warning(f"  {symbol}: 剔除无 OI 的占位到期日 {','.join(dropped)}")
     healthy, why = chain_health(df, expected_expirations=expirations)
     if not healthy:
         logger.warning(f"  {symbol}: 期权链异常，拒绝写入缓存（{why}）")

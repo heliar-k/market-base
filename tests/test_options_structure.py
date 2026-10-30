@@ -753,6 +753,37 @@ def test_chain_health_requires_every_requested_expiration():
     assert "20261127" in why
 
 
+def test_drop_placeholder_expirations_drops_expiration_without_oi():
+    import src.options_structure as os
+
+    # 20261109 是 Yahoo 刚列出的周一占位到期日：稀疏行权价、OI 全空
+    chain = pd.DataFrame(
+        {
+            "expiration": ["20261109", "20261109"] + ["20261120"] * 6,
+            "openInterest": [None, None] + [100] * 6,
+            "impliedVolatility": [0.45, 0.44] + [0.3] * 6,
+        }
+    )
+    kept, expected, dropped = os.drop_placeholder_expirations(chain, ["20261109", "20261120"])
+    assert dropped == ["20261109"]
+    assert expected == ["20261120"]
+    assert "20261109" not in set(kept["expiration"])
+    assert os.chain_health(kept, expected_expirations=expected)[0] is True
+    # 剔除后如果整条链空，chain_health 仍然拒绝，不生成零权重快照
+    empty, _, _ = os.drop_placeholder_expirations(chain.iloc[:2], ["20261109"])
+    assert os.chain_health(empty, expected_expirations=[])[0] is False
+
+
+def test_drop_placeholder_expirations_keeps_healthy_chain_untouched():
+    import src.options_structure as os
+
+    chain = pd.DataFrame({"expiration": ["20261120", "20261120"], "openInterest": [100, 0]})
+    kept, expected, dropped = os.drop_placeholder_expirations(chain, ["20261120"])
+    assert dropped == []
+    assert expected == ["20261120"]
+    assert len(kept) == 2
+
+
 def test_chain_health_rejects_expiration_without_valid_iv():
     import src.options_structure as os
 
