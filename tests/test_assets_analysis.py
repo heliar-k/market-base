@@ -956,6 +956,7 @@ class TestOptionsBoardWheel:
             vrp_pct=8.0,
             iv_rank_1y=55.0,
             iv_pct_1y=60.0,
+            ivr_source="barchart",
             put_wall=270.0,
             call_wall=300.0,
             earnings_date=None,

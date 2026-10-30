@@ -5,7 +5,7 @@
    结合 Barchart 官方 **52 周 IV Rank / IV Percentile**（本地快照降级）与 **VRP = IV35 − HV20**。
 2. 趋势与企稳过滤：用个股日波动率 σ 归一化均线回撤，识别确认空头趋势（SuperTrend 空 + ADX≥25），
    未出现右侧企稳信号（MACD 柱拐头 / 收复昨高 / 看涨吞没或锤子线）时降级为「左侧接刀·等企稳」。
-3. 财报与除息排雷：财报落在目标期权周期内（≤35d）时，优先搜寻财报前到期（7~e_dte 天）合约；
+3. 财报与除息排雷：财报落在选点窗口内（≤49d）时，优先搜寻财报前到期（7~e_dte 天）合约；
    若财报 ≤10d 或无财报前合约，拦截裸卖 Put；否决状态绝不输出可交易合约。
    财报日当天看参考时刻：美东收盘半小时后（AMC 已发布）归「已发」解除禁卖，盘中仍按待发保守处理。
 4. 适合性硬门槛与组合风控：T2 观察池（单手过重/低波薄利）与缺期权链标的不发入场信号；
@@ -24,7 +24,7 @@ from __future__ import annotations
 import argparse
 import json
 from dataclasses import asdict, dataclass
-from datetime import datetime, time
+from datetime import datetime, time, timedelta
 from pathlib import Path
 
 import numpy as np
@@ -33,6 +33,7 @@ import pandas as pd
 from src.clock import et_today, now_et
 from src.config import ROOT
 from src.indicators import compute_all_indicators, load_data
+from src.options_structure import XNYS
 from src.pricing import bs_greeks
 
 
@@ -96,7 +97,8 @@ THRESHOLDS = {
     "put_rsi_trigger": 40.0,  # RSI(14) <= 40 超卖/偏弱
     "put_bb_pos_max": 15.0,  # 布林带位置 <= 15%（贴下轨，与 RSI 满足其一即可）
     "put_ma50_sigma_max": -1.2,  # 距 MA50 偏离 <= -1.2 倍日标准差（波动率归一化）
-    "put_vs_ma200_max": 3.0,  # 或距 MA200 <= +3%（长期趋势未破的回调）
+    "put_vs_ma200_min": -3.0,  # 回踩 MA200 区间下限（低于 -3% 已有效跌破牛熊线）
+    "put_vs_ma200_max": 3.0,  # 回踩 MA200 区间上限（高于 +3% 尚未贴近支撑）
     # Sell Call（Covered Call）技术击球区
     "call_rsi_trigger": 68.0,  # RSI(14) >= 68 动量过热
     "call_bb_pos_min": 85.0,  # 布林带位置 >= 85%（贴上轨，与 RSI 满足其一即可）
@@ -111,7 +113,7 @@ THRESHOLDS = {
     "put_roc_min": 10.0,  # Sell Put 最低年化收益率门槛（%）
     # 事件排雷阈值
     "earnings_danger_dte": 10,  # 财报 <= 10 天：禁止裸卖近月期权
-    "earnings_window_dte": 35,  # 财报 <= 35 天：落入月度期权窗口，优先切财报前到期合约
+    "earnings_window_dte": 49,  # 与 dte_max 一致：财报落在整个选点窗口内就切财报前合约
     "ex_div_warn_dte": 14,  # 除息 <= 14 天：Sell Call 警惕提前被行权
     # 组合风控阈值
     "max_green_per_sector": 2,  # 同板块最多同时激活 N 个绿灯
@@ -155,6 +157,7 @@ class ScanRow:
     vrp_pct: float | None  # 真实 VRP = IV35 - HV20
     iv_rank_1y: float | None  # 52周 IV Rank (Barchart 官方或本地快照降级)
     iv_pct_1y: float | None  # 52周 IV Percentile
+    ivr_source: str | None  # barchart / local_iv35_1y；无可用历史时为 None
     put_wall: float | None  # 仅保留 < close 的有效下方支撑墙
     call_wall: float | None  # 仅保留 > close 的有效上方阻力墙
     earnings_date: str | None
@@ -169,7 +172,7 @@ class ScanRow:
     reason: str
     actionable: bool = False  # True=允许直接出手（SELL PUT / SELL CALL）
     near_setup: bool = False  # True=已进入/接近卖Put击球区但暂缓出手（空头待企稳 / 接近支撑区）
-    event_tone: str = "flat"  # bear(财报<=10d) / warn(财报<=35d或除息<=14d) / flat
+    event_tone: str = "flat"  # bear(财报<=10d) / warn(财报<=49d或除息<=14d) / flat
     rsi_tone: str = "flat"  # bull(<=40超卖) / bear(>=68超买) / flat
     vrp_tone: str = "flat"  # bull(>=2%正期望) / bear(<0负期望) / flat
     put_pick: OptionPick | None = None
@@ -210,25 +213,43 @@ def _iv_at_dte(ov: dict, target_dte: int = 35) -> float | None:
 
 
 def _local_iv_rank_fallback(
-    opt_key: str, cur_iv: float | None
+    opt_key: str, cur_iv: float | None, snap_date: str | None
 ) -> tuple[float | None, float | None]:
-    """当快照无 Barchart 1Y IVR 时，从本地历史快照计算滚动 IV Rank 与 Percentile。"""
+    """以快照日为截止，用本地近一年 IV35 计算 IV Rank 与 Percentile。
+
+    需要有一年前的历史覆盖且窗口内至少 200 个有效观测；样本不足或 IV 无变化时
+    返回未知，让 vol_rich 门槛保持关闭。
+    """
     if cur_iv is None:
         return None, None
-    files = sorted((ROOT / "data" / "options_structure").glob("20*.json"))[-60:]
-    hist: list[float] = []
-    for f in files:
+    ref_dt = _ref_date(snap_date)
+    year_start = ref_dt - timedelta(days=365)
+    dated_files: list[tuple[datetime.date, Path]] = []
+    for f in sorted((ROOT / "data" / "options_structure").glob("20*.json")):
         try:
-            v = (json.loads(f.read_text(encoding="utf-8")).get("symbols") or {}).get(opt_key) or {}
-            iv = _iv_at_dte(v, 35)
-            if iv:
-                hist.append(float(iv))
-        except Exception:
+            file_date = datetime.strptime(f.stem, "%Y%m%d").date()
+        except ValueError:
             continue
-    if len(hist) < 15:
+        if file_date <= ref_dt:
+            dated_files.append((file_date, f))
+    if not dated_files:
+        return None, None
+
+    observations: list[tuple[datetime.date, float]] = []
+    for file_date, f in dated_files:
+        v = (json.loads(f.read_text(encoding="utf-8")).get("symbols") or {}).get(opt_key) or {}
+        iv = _iv_at_dte(v, 35)
+        if iv:
+            observations.append((file_date, float(iv)))
+    if not observations or observations[0][0] > year_start:
+        return None, None
+    hist = [iv for file_date, iv in observations if file_date >= year_start]
+    if len(hist) < 200:
         return None, None
     lo, hi = min(hist), max(hist)
-    rank = round((cur_iv - lo) / (hi - lo) * 100, 1) if hi > lo else 50.0
+    if hi <= lo:
+        return None, None
+    rank = round(float(np.clip((cur_iv - lo) / (hi - lo) * 100, 0.0, 100.0)), 1)
     pct = round(sum(h <= cur_iv for h in hist) / len(hist) * 100, 1)
     return rank, pct
 
@@ -315,8 +336,8 @@ def _pick_contract(
 
     dte_min, dte_max = THRESHOLDS["dte_min"], THRESHOLDS["dte_max"]
     pre_earnings = False
-    # 若财报落在 11~35 天内，卖 Put 收敛到「财报前到期 (7 <= dte < earnings_dte)」避开跳空
-    if right == "P" and earnings_dte is not None and 10 < earnings_dte <= dte_max:
+    # 若财报落在 11~49 天内，收敛到「财报前到期 (7 <= dte < earnings_dte)」避开财报跳空
+    if earnings_dte is not None and 10 < earnings_dte <= THRESHOLDS["earnings_window_dte"]:
         dte_min, dte_max = 7, earnings_dte - 1
         pre_earnings = True
 
@@ -491,8 +512,8 @@ def _after_close(snap_date: str | None = None) -> bool:
 
 def _event_fields(
     ov: dict, snap_date: str | None = None
-) -> tuple[str | None, int | None, str | None, int | None, str, str]:
-    """解析财报日与除息日倒计时（锚定快照日），生成紧凑的排雷标签与语义色调。"""
+) -> tuple[str | None, int | None, str | None, int | None, str, str, bool]:
+    """解析财报日与除息日倒计时（锚定快照日），生成排雷标签、语义色调与财报日期可用性。"""
     ed = ov.get("earnings_date")
     e_dte = _days_until(ed, snap_date)
     # 财报日当天：Yahoo 在发布后还会把这一天的日期报一段时间，按日期算永远是「0d」→
@@ -505,7 +526,13 @@ def _event_fields(
     # 最近一次发布仍在 14 天内就一并标出来（不参与禁卖闸门，只作排除已发布用）。
     last_ed = ov.get("last_earnings_date")
     last_dte = _days_until(last_ed, snap_date)
-    fresh_ed = last_ed if (last_dte is not None and -14 <= last_dte <= 0) else None
+    last_reported = last_dte is not None and (
+        last_dte < 0 or (last_dte == 0 and _after_close(snap_date))
+    )
+    fresh_ed = last_ed if last_dte is not None and -14 <= last_dte <= 0 and last_reported else None
+    # 下季日期已滚出、当晚财报尚未发布时，当天事件优先于下季日期参与禁卖
+    if last_dte == 0 and not last_reported:
+        ed, e_dte = last_ed, last_dte
 
     exd = ov.get("ex_dividend_date")
     div_dte = _days_until(exd, snap_date)
@@ -533,7 +560,15 @@ def _event_fields(
         tags.append(f"除息{div_dte}d")
         if event_tone == "flat":
             event_tone = "warn"
-    return ed, e_dte, exd, div_dte, " · ".join(tags), event_tone
+    return (
+        ed,
+        e_dte,
+        exd,
+        div_dte,
+        " · ".join(tags),
+        event_tone,
+        bool(e_dte is not None or recent_ed or fresh_ed),
+    )
 
 
 def normalize_directional_walls(s: dict) -> None:
@@ -612,20 +647,48 @@ def evaluate_symbol(
     if df.empty or len(df) < 200:
         return None
 
-    # 盘中/盘前实时价 → 先拼成当日残缺 bar，再统一算一次指标（RSI/BB/MA/SuperTrend 均跟着变）。
+    opt_key = spec.opt_symbol or spec.symbol
+    ov = opt_map.get(opt_key) or {}
+    snap_dt = pd.Timestamp(_ref_date(snap_date))
+    # 静态扫描与实时模式都锚定期权快照日，丢弃快照之后的日线，避免新股价配旧期权面
+    df = df[df.index <= snap_dt]
+    if df.empty or len(df) < 200:
+        return None
+
+    last_daily_dt = df.index[-1]
+    missing_sessions = 0
+    if last_daily_dt < snap_dt:
+        sessions = XNYS.sessions_in_range(
+            last_daily_dt.strftime("%Y-%m-%d"), snap_dt.strftime("%Y-%m-%d")
+        )
+        missing_sessions = max(len(sessions) - 1, 0)
+
+    snap_spot = float(ov["spot"]) if ov.get("spot") is not None else None
+    eff_spot = live_spot if (live_spot is not None and live_spot > 0) else None
+    if eff_spot is None and snap_spot is not None and snap_spot > 0 and last_daily_dt < snap_dt:
+        eff_spot = snap_spot
+    # 只有一个交易日缺口时才能用现价补当日 bar；非交易日、多日缺口或缺现价时禁止生成信号
+    session_day = bool(XNYS.is_session(snap_dt.strftime("%Y-%m-%d")))
+    daily_stale = not session_day or (
+        last_daily_dt < snap_dt and (missing_sessions > 1 or eff_spot is None)
+    )
+    if daily_stale:
+        eff_spot = None
+
+    # 实时价或新于日线的快照价先拼成当日 bar，再统一计算技术指标。
     # 必须先拼后算：compute_all_indicators 不幂等（重复调用会出重名列，add_smc_mtf
     # 的 resample 会因此报 `'first' is not a valid function`）。因为实时行没有成交量，
     # volume 留 NaN 并在下面把 vol_ratio 回退中性值 1.0，不当作缩量。
-    if live_spot is not None and live_spot > 0:
+    if eff_spot is not None:
         live_row = pd.DataFrame(
             {
-                "open": [live_spot],
-                "high": [live_spot],
-                "low": [live_spot],
-                "close": [live_spot],
+                "open": [eff_spot],
+                "high": [eff_spot],
+                "low": [eff_spot],
+                "close": [eff_spot],
                 "volume": [np.nan],
             },
-            index=pd.DatetimeIndex([pd.Timestamp(_ref_date(snap_date))], name=df.index.name),
+            index=pd.DatetimeIndex([snap_dt], name=df.index.name),
         )
         # 同一交易日重跑时不重复追加（日线已含当日收盘则整行替换）
         df = pd.concat([df[df.index < live_row.index[0]], live_row])
@@ -650,20 +713,21 @@ def evaluate_symbol(
     ma50_sigmas = round(vs_ma50 / day_sigma, 2)
 
     # ── 期权面数据（35d 插值 IV + 1Y IV Rank + 有效墙位校验）──
-    opt_key = spec.opt_symbol or spec.symbol
-    ov = opt_map.get(opt_key) or {}
-    # 期权选点与墙位基准优先对齐期权链快照自身的 spot，避免股票日线与期权快照跨日错位
-    opt_spot = live_spot or float(ov.get("spot") or close)
+    # 技术指标、期权选点与墙位基准统一使用同一现价 close
+    opt_spot = close
     iv35 = _iv_at_dte(ov, 35)
     vrp = round(iv35 - hv20, 1) if iv35 is not None else None
 
     ivr = ov.get("iv_rank_1y")
     ivp = ov.get("iv_pct_1y")
+    ivr_source = "barchart" if ivr is not None or ivp is not None else None
     if ivr is None and ivp is None:
-        ivr, ivp = _local_iv_rank_fallback(opt_key, iv35)
+        ivr, ivp = _local_iv_rank_fallback(opt_key, iv35, snap_date)
+        if ivr is not None or ivp is not None:
+            ivr_source = "local_iv35_1y"
 
     pw, cw = _directional_walls(ov, opt_spot)
-    ed, e_dte, exd, div_dte, event_alert, event_tone = _event_fields(ov, snap_date)
+    ed, e_dte, exd, div_dte, event_alert, event_tone, earnings_known = _event_fields(ov, snap_date)
     rsi_tone = (
         "bull"
         if rsi <= THRESHOLDS["put_rsi_trigger"]
@@ -682,24 +746,27 @@ def evaluate_symbol(
     adx = float(raw_adx) if pd.notna(raw_adx) else 20.0
     raw_vr = last.get("vol_ratio", 1.0)
     vol_ratio = float(raw_vr) if pd.notna(raw_vr) else 1.0
-    # 实时行没有成交量 → vol_ratio 无法定义，按中性 1.0 处理（不当作缩量）
-    if live_spot is not None:
+    # 实时/快照补行没有成交量 → vol_ratio 无法定义，按中性 1.0 处理（不当作缩量）
+    if eff_spot is not None:
         vol_ratio = 1.0
     raw_mh0 = last.get("MACD_hist", 0.0)
     macd_h0 = float(raw_mh0) if pd.notna(raw_mh0) else 0.0
     raw_mh1 = df["MACD_hist"].iloc[-2] if len(df) >= 2 else macd_h0
     macd_h1 = float(raw_mh1) if pd.notna(raw_mh1) else macd_h0
+    prev_close = float(df["close"].iloc[-2]) if len(df) >= 2 else close
 
     # 强空头趋势：SuperTrend 空头 且 (ADX>=25 或 MA50<MA200 死叉 或 放量破布林下轨)
     severe_downtrend = supert_dir < 0 and (
         adx >= 25.0 or ma50 < ma200 or (bb_pos < 0 and vol_ratio >= 1.5)
     )
-    # 右侧企稳信号：MACD 柱拐头向上 / 收盘站上前一日高点 / 锤子线或看涨吞没
-    stabilized = (
-        macd_h0 > macd_h1
-        or close > float(df["high"].iloc[-2])
+    # 右侧企稳信号：收盘站上前一日高点 / 锤子线或看涨吞没 / 止跌收红且 MACD 柱拐头向上
+    price_action_ok = (
+        close > float(df["high"].iloc[-2])
         or bool(last.get("CDL_HAMMER", 0))
         or bool(last.get("CDL_ENGULFING", 0) > 0)
+    )
+    stabilized = price_action_ok or (
+        macd_h0 > macd_h1 and (not severe_downtrend or close >= prev_close)
     )
     if severe_downtrend and not stabilized:
         trend_state = "空头破位"
@@ -728,21 +795,33 @@ def evaluate_symbol(
     signal_tone = "flat"
     near_setup = False
 
-    # 硬门槛 1：T2 受限池（单手过重/权利金过薄/波动过大）或无期权链数据，直接不发期权信号
-    if suitability in ("权利金过薄", "波动过大") or suitability.startswith("单手过重"):
+    # 硬门槛：非交易日、日线缺口、T2 受限池、期权链或财报日期缺失时不发期权信号
+    if not session_day:
+        reasons.append("非交易日·不发出入场信号")
+    elif daily_stale:
+        reasons.append(
+            f"股票日线落后{missing_sessions}个交易日·需更新"
+            if missing_sessions > 1
+            else "股票日线与快照日期不一致·需更新"
+        )
+    elif (
+        spec.tier == "T2"
+        or suitability in ("权利金过薄", "波动过大")
+        or suitability.startswith("单手过重")
+    ):
         # 不带金额：左栏「单手$k」已经写明具体数值，这里只给结论
         reasons.append(f"{suitability.split('(')[0]}·宜正股或作底仓")
     elif iv35 is None:
         reasons.append("缺期权数据·需运行 fetch_options_structure")
-    elif not ov.get("earnings_date"):
+    elif not earnings_known:
         reasons.append("财报日缺失·暂不出手")
     else:
         is_oversold = rsi <= THRESHOLDS["put_rsi_trigger"] or bb_pos <= THRESHOLDS["put_bb_pos_max"]
-        is_pullback = (
-            ma50_sigmas <= THRESHOLDS["put_ma50_sigma_max"]
-            or vs_ma200 <= THRESHOLDS["put_vs_ma200_max"]
+        is_pullback = ma50_sigmas <= THRESHOLDS["put_ma50_sigma_max"] or (
+            ma50 >= ma200
+            and THRESHOLDS["put_vs_ma200_min"] <= vs_ma200 <= THRESHOLDS["put_vs_ma200_max"]
         )
-        # IVR 两项可能都为 None（Barchart 拉取失败且本地快照不足 15 天）。
+        # IVR 两项可能都为 None（Barchart 拉取失败且本地近一年历史不足）。
         # 缺失时按「未达标」处理（保守不发信号是刻意的），但**理由文案必须说数据不足**，
         # 不能印成 "IVR 0%" —— 那是把「不知道」伪装成一个具体读数。
         ivr_known = ivr is not None or ivp is not None
@@ -775,12 +854,14 @@ def evaluate_symbol(
                 reasons.insert(0, "财报禁卖")
             elif not vol_rich:
                 reasons.insert(0, "权利金偏薄")
-                # not vol_rich 由 IV35/VRP/IVR 三者任一不达标触发；只有 IVR 真的是
-                # 那一项时才点它的名，否则会印出「IVR 90%不足」这种自相矛盾的句子。
-                if ivr_known and ivr_best < THRESHOLDS["ivr_min"]:
-                    reasons.append(f"{ivr_nm} 未达 {THRESHOLDS['ivr_min']:.0f}%")
-                else:
+                if iv35 < THRESHOLDS["put_iv_min"] or (
+                    vrp is not None and vrp < THRESHOLDS["vrp_min"]
+                ):
                     reasons.append("VRP/IV35 不足")
+                elif not ivr_known:
+                    reasons.append("IVR 数据不足")
+                else:
+                    reasons.append(f"{ivr_nm} 未达 {THRESHOLDS['ivr_min']:.0f}%")
             elif severe_downtrend and not stabilized:
                 near_setup = True
                 reasons.insert(0, "空头未企稳(等止跌)")
@@ -817,6 +898,8 @@ def evaluate_symbol(
             else:
                 signal, signal_tone = "SELL CALL", "bear"
                 reasons.insert(0, "仅限备兑(禁裸卖)")
+                if e_dte is not None and e_dte <= THRESHOLDS["earnings_window_dte"]:
+                    reasons.append("切财报前到期合约")
                 if div_dte is not None and div_dte <= THRESHOLDS["ex_div_warn_dte"]:
                     reasons.append(f"除息{div_dte}d防提前行权")
         else:
@@ -842,7 +925,7 @@ def evaluate_symbol(
             signal, signal_tone = "暂不操作", "flat"
             msg = (
                 f"财报前({e_dte}d)无合规短Put"
-                if (e_dte is not None and 10 < e_dte <= THRESHOLDS["dte_max"])
+                if (e_dte is not None and 10 < e_dte <= THRESHOLDS["earnings_window_dte"])
                 else "期权盘口点差过宽或无合适档位"
             )
             reasons.insert(0, msg)
@@ -868,7 +951,12 @@ def evaluate_symbol(
         )
         if call_pick is None:
             signal, signal_tone = "暂不操作", "flat"
-            reasons.insert(0, "期权盘口点差过宽(防滑点)")
+            msg = (
+                f"财报前({e_dte}d)无合规短Call"
+                if (e_dte is not None and 10 < e_dte <= THRESHOLDS["earnings_window_dte"])
+                else "期权盘口点差过宽(防滑点)"
+            )
+            reasons.insert(0, msg)
         elif (
             call_pick.annual_roc_pct is not None
             and call_pick.annual_roc_pct < THRESHOLDS["call_roc_min"]
@@ -903,6 +991,7 @@ def evaluate_symbol(
         vrp_pct=vrp,
         iv_rank_1y=ivr,
         iv_pct_1y=ivp,
+        ivr_source=ivr_source,
         put_wall=pw,
         call_wall=cw,
         earnings_date=ed,
@@ -935,12 +1024,12 @@ def criteria_lines() -> list[str]:
     k = lambda v: f"{v:.0f}k"  # noqa: E731
     return [
         f"池准入：单手占资 ≤ ${k(t['lot_ideal_max_k'])} 为理想"
-        f"（超 ${k(t['lot_hard_max_k'])} 判单手过重、直接不发信号）；"
+        f"（T2 观察池或超 ${k(t['lot_hard_max_k'])} 判单手过重、直接不发信号）；"
         f"HV20 < {t['hv20_min']:.0f}% 且 IV35 < 22% 判权利金过薄，"
         f"HV20 > {t['hv20_max']:.0f}% 判波动过大 —— 三者都只发正股建议",
         f"卖 Put：RSI ≤ {t['put_rsi_trigger']:.0f} 或贴布林下轨"
         f"（≤ {t['put_bb_pos_max']:.0f}%），且距 MA50 ≤ {t['put_ma50_sigma_max']:+.1f}σ"
-        f" 或距 MA200 ≤ {t['put_vs_ma200_max']:+.0f}%；"
+        f" 或牛市回踩 MA200（{t['put_vs_ma200_min']:+.0f}%~{t['put_vs_ma200_max']:+.0f}%）；"
         f"权利金须 IV35 ≥ {t['put_iv_min']:.0f}% 且 VRP ≥ {t['vrp_min']:+.0f}%"
         f" 且 1Y IVR/IVP ≥ {t['ivr_min']:.0f}%；年化 ≥ {t['put_roc_min']:.0f}%",
         f"备兑卖 Call：RSI ≥ {t['call_rsi_trigger']:.0f} 或贴布林上轨"

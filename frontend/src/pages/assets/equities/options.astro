@@ -757,9 +757,14 @@ const WHEEL_COLS = [
     const vc = r.vrp_pct == null ? 'var(--text-dim)' : (WHEEL_TONE_COLOR[r.vrp_tone] || 'var(--text-secondary)');
     return `${R.num(r.hv20_pct, 0)}% / ${iv}<div style="font-size:11px;color:${vc}">VRP ${vrp}</div>`;
   }],
-  ['iv_rank', '1Y IVR', (v, r) => (r.iv_rank_1y == null && r.iv_pct_1y == null)
-    ? '—'
-    : `${r.iv_rank_1y == null ? '—' : R.num(r.iv_rank_1y, 0) + '%'}<div style="font-size:11px;color:var(--text-dim)">IVP ${r.iv_pct_1y == null ? '—' : R.num(r.iv_pct_1y, 0) + '%'}</div>`],
+  ['iv_rank', '1Y IVR', (v, r) => {
+    if (r.iv_rank_1y == null && r.iv_pct_1y == null) return '—';
+    const source = r.ivr_source === 'local_iv35_1y'
+      ? '本地IV35'
+      : (r.ivr_source === 'barchart' ? 'Barchart' : '来源未知');
+    return `${r.iv_rank_1y == null ? '—' : R.num(r.iv_rank_1y, 0) + '%'}`
+      + `<div style="font-size:11px;color:var(--text-dim)">IVP ${r.iv_pct_1y == null ? '—' : R.num(r.iv_pct_1y, 0) + '%'} · ${R.esc(source)}</div>`;
+  }],
   ['walls', 'P / C 墙', (v, r) => `${r.put_wall ? R.num(r.put_wall, 0) : '—'} / ${r.call_wall ? R.num(r.call_wall, 0) : '—'}`],
   ['event', '事件排雷', (v, r) => {
     const c = WHEEL_TONE_COLOR[r.event_tone] || 'var(--text-secondary)';
@@ -973,7 +978,7 @@ async function load() {
     src: 'yfinance 期权链（真实 OI + IV）',
     note: 'GEX/DEX/Vanna/Charm 为 BSM 模型估算，非交易所官方持仓方向；'
       + 'IV35 = ATM IV 曲线在 35 DTE 处线性插值，VRP = IV35 − HV20；'
-      + '1Y IVR/IVP 取自 Barchart 52 周统计（缺失时回退本地历史快照分位）；'
+      + '1Y IVR/IVP 取自 Barchart 52 周统计（缺失时回退本地近一年 IV35 分位）；'
       + '排雷用的财报日/除息日来自期权链 overview 真实字段',
   });
 
