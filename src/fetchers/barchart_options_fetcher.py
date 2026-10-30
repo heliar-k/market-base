@@ -29,15 +29,10 @@ def _exp_to_yyyymmdd(exp: str) -> str:
 
 
 def _chain_get(symbol: str, params: dict) -> dict:
-    """调 options/chain：GET 页面取 meta csrf-token → X-CSRF-TOKEN header。
-
-    options/chain 与外汇/期货的 quotes/get 认证不同（meta csrf-token 而非
-    cookie XSRF-TOKEN），经 core_get(auth="csrf") 复用同一会话流程。
-    """
+    """调 options/chain：与 quotes/get 同一套 cookies（XSRF-TOKEN → 请求头）。"""
     return core_get(
         params,
         referer=f"https://www.barchart.com/stocks/quotes/{symbol}/options",
-        auth="csrf",
         endpoint="options/chain",
     )
 
