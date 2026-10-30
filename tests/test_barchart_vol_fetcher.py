@@ -49,6 +49,20 @@ def test_fetch_volatility_snapshot(monkeypatch):
     assert df.loc[df.index[0], "MOVE_chg1d"] == 0.51  # 价格缺失但 chg 仍在
 
 
+def test_vol_row_dated_by_et_not_local_clock(monkeypatch):
+    """行日期取美东（与期权快照同口径），不直接用本机时钟。"""
+    from datetime import date
+
+    recs = [{"symbol": "$VIX", "lastPrice": "14.25"}]
+    monkeypatch.setattr(
+        "src.fetchers.barchart_vol_fetcher.core_get",
+        lambda params, referer: {"data": recs},
+    )
+    monkeypatch.setattr("src.fetchers.barchart_vol_fetcher.et_today", lambda: date(2026, 10, 29))
+    df = fetch_volatility_snapshot()
+    assert str(df.index[0]) == "2026-10-29"
+
+
 def test_fetch_empty_returns_empty(monkeypatch):
     def fake_core_get(params, referer):
         return {"data": []}

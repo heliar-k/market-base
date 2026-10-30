@@ -7,6 +7,7 @@ from datetime import datetime, timedelta
 import numpy as np
 import pandas as pd
 
+from src.clock import ET
 from src.wheel_scanner import (
     WHEEL_POOL,
     PoolSpec,
@@ -261,19 +262,14 @@ def test_earnings_today_pending_until_amc_release(monkeypatch) -> None:
     import src.wheel_scanner as ws
 
     def fixed_clock(hour: int):
-        class _Clock(datetime):
-            @classmethod
-            def now(cls, tz=None):
-                return datetime(2026, 10, 28, hour, 0, tzinfo=tz)
+        return lambda: datetime(2026, 10, 28, hour, 0, tzinfo=ET)
 
-        return _Clock
-
-    monkeypatch.setattr(ws, "datetime", fixed_clock(10))
+    monkeypatch.setattr(ws, "now_et", fixed_clock(10))
     ed, e_dte, _, _, alert, tone = _event_fields({"earnings_date": "2026-10-28"}, "20261028")
     assert (ed, e_dte) == ("2026-10-28", 0)
     assert alert == "财报0d(10-28)" and tone == "bear"
 
-    monkeypatch.setattr(ws, "datetime", fixed_clock(17))
+    monkeypatch.setattr(ws, "now_et", fixed_clock(17))
     ed, e_dte, _, _, alert, tone = _event_fields({"earnings_date": "2026-10-28"}, "20261028")
     assert (ed, e_dte) == (None, None) and alert == "财报已发(10-28)" and tone == "flat"
 
@@ -286,12 +282,7 @@ def test_event_fields_marks_just_reported_even_if_next_date_rolled(monkeypatch) 
     """Yahoo 把下季日期提前滚好时（MSFT 发布当晚就是 2027-01-27），仍要标出刚发的那份。"""
     import src.wheel_scanner as ws
 
-    class _Clock(datetime):
-        @classmethod
-        def now(cls, tz=None):
-            return datetime(2026, 10, 29, 10, 0, tzinfo=tz)
-
-    monkeypatch.setattr(ws, "datetime", _Clock)
+    monkeypatch.setattr(ws, "now_et", lambda: datetime(2026, 10, 29, 10, 0, tzinfo=ET))
     ov = {"earnings_date": "2027-01-27", "last_earnings_date": "2026-10-28"}
     ed, e_dte, _, _, alert, tone = _event_fields(ov, "20261029")
     assert (ed, e_dte) == ("2027-01-27", 90)

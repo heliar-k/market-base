@@ -30,10 +30,10 @@ import sys
 from datetime import date, datetime, time, timezone
 from pathlib import Path
 from typing import TypedDict
-from zoneinfo import ZoneInfo
 
 import pandas as pd
 
+from .clock import ET
 from .config import ROOT
 
 
@@ -294,12 +294,11 @@ def audit(
 # upsert（观测日 key，同日覆盖可自愈）或 {date}.json 快照，无此固化路径。
 US_SNAPSHOT_COLS = ("SPX", "NDX", "RUT", "DJI")
 CROSS_ETFS = ("SPY", "QQQ", "IWM", "DIA")  # 同源 ETF 与指数同动，互为证人
-_ET_ZONE = ZoneInfo("America/New_York")
 
 
 def _confirm_from_utc(now: datetime) -> time:
     """收盘确认窗起点 = ET 16:15（收盘 16:00 后留 15 分钟结算），按日期算 DST。"""
-    et = now.astimezone(_ET_ZONE)
+    et = now.astimezone(ET)
     start = et.replace(hour=16, minute=15, second=0, microsecond=0)
     return start.astimezone(timezone.utc).timetz()
 
@@ -399,7 +398,7 @@ def options_oi_pending_msg(root: Path, now_utc: datetime) -> str | None:
         return None
     from .options_structure import _is_session
 
-    if not _is_session(now_utc.astimezone(_ET_ZONE).date()):
+    if not _is_session(now_utc.astimezone(ET).date()):
         return None
     pending = []
     for path in sorted((root / "data/options_structure").glob("20*.json")):
@@ -408,7 +407,7 @@ def options_oi_pending_msg(root: Path, now_utc: datetime) -> str | None:
         if not snapshot_date:
             continue
         day = datetime.strptime(snapshot_date, "%Y-%m-%d").date()
-        if day < now_utc.astimezone(_ET_ZONE).date() and snapshot.get("oi_final") is False:
+        if day < now_utc.astimezone(ET).date() and snapshot.get("oi_final") is False:
             pending.append(snapshot_date)
     if pending:
         return f"{', '.join(pending)} 收盘快照尚未完成次日 OI 回补"
@@ -417,7 +416,7 @@ def options_oi_pending_msg(root: Path, now_utc: datetime) -> str | None:
 
 def main() -> int:
     now_utc = datetime.now(timezone.utc)
-    et_today = now_utc.astimezone(_ET_ZONE).date()
+    et_today = now_utc.astimezone(ET).date()
     rows = audit(Path(ROOT), now_utc.date(), et_today=et_today)
     msg = us_indices_placeholder_msg(Path(ROOT), now_utc)
     if msg:  # 值维断言：日期新鲜但值是复制（占位行固化）

@@ -26,16 +26,14 @@ import json
 from dataclasses import asdict, dataclass
 from datetime import datetime, time
 from pathlib import Path
-from zoneinfo import ZoneInfo
 
 import numpy as np
 import pandas as pd
 
+from src.clock import et_today, now_et
 from src.config import ROOT
 from src.indicators import compute_all_indicators, load_data
 from src.pricing import bs_greeks
-
-ET = ZoneInfo("America/New_York")
 
 
 @dataclass(frozen=True)
@@ -243,7 +241,7 @@ def _ref_date(snap_date: str | None) -> datetime.date:
             return datetime.strptime(s, "%Y%m%d").date()
         except Exception:
             pass
-    return datetime.now(ET).date()
+    return et_today()
 
 
 def _is_monthly_opex(dt: datetime.date) -> bool:
@@ -487,7 +485,7 @@ AMC_RELEASE = time(16, 30)
 
 def _after_close(snap_date: str | None = None) -> bool:
     """参考时刻是否已过当日 AMC 财报发布：今天的快照看当前时刻，更早的快照都是收盘后产物。"""
-    now = datetime.now(ET)
+    now = now_et()
     return _ref_date(snap_date) < now.date() or now.time() >= AMC_RELEASE
 
 

@@ -15,8 +15,8 @@ from __future__ import annotations
 
 import argparse
 from datetime import datetime, timezone
-from zoneinfo import ZoneInfo
 
+from src.clock import et_today
 from src.fetchers.yfinance_fetcher import ensure_yf_proxy
 
 ensure_yf_proxy()
@@ -43,7 +43,7 @@ def price_snapshot(symbols: list[str]) -> None:
                 continue
             # 盘中日线最后一根 bar 是当日 partial bar → 昨收/昨日区间取前一根
             prev_idx = -1
-            if d.index[-1].date() == datetime.now(ZoneInfo("America/New_York")).date():
+            if d.index[-1].date() == et_today():
                 prev_idx = -2
             r = d.iloc[prev_idx]
             prev = float(r["Close"])

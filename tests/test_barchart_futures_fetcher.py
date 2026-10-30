@@ -36,3 +36,19 @@ def test_fetch_futures_curves(monkeypatch):
     assert df.iloc[0]["ESU31"] == 9108.25  # N/A 合约被跳过
 
     assert fetch_futures_curves(["GC"]).empty  # 全部失败 → 空
+
+
+def test_futures_row_dated_by_et_not_local_clock(monkeypatch):
+    """行日期取美东（与期权快照同口径），不直接用本机时钟。"""
+    from datetime import date
+
+    recs = [{"symbol": "ESU31", "lastPrice": "9,108.25s"}]
+    monkeypatch.setattr(
+        "src.fetchers.barchart_futures_fetcher.core_get",
+        lambda params, referer: {"data": recs},
+    )
+    monkeypatch.setattr(
+        "src.fetchers.barchart_futures_fetcher.et_today", lambda: date(2026, 10, 29)
+    )
+    df = fetch_futures_curves(["ES"])
+    assert str(df.index[0]) == "2026-10-29"

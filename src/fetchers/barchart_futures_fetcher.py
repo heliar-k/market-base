@@ -18,10 +18,10 @@ IBKR commodities 依赖本地 TWS（Actions 拉不了），Barchart 提供全合
 
 import argparse
 import logging
-from datetime import datetime
 
 import pandas as pd
 
+from ..clock import et_today
 from ..config import COMMODITY_FUTURES, ROOT
 from ._io import upsert_timeseries
 from .barchart_client import core_get, to_float
@@ -65,7 +65,7 @@ def fetch_futures_curves(symbols: list[str] | None = None) -> pd.DataFrame:
         logger.info("%s(%s): %d 个合约", root, root2, sum(1 for s in row if s.startswith(root2)))
     if not row:
         return pd.DataFrame()
-    return pd.DataFrame([row], index=[datetime.now().strftime("%Y-%m-%d")])
+    return pd.DataFrame([row], index=[et_today().isoformat()])
 
 
 def _write_zq_files(df: pd.DataFrame, backfill: bool) -> None:

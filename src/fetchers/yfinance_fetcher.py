@@ -13,10 +13,10 @@ import logging
 import os
 from datetime import date, datetime, time, timedelta, timezone
 from pathlib import Path
-from zoneinfo import ZoneInfo
 
 import pandas as pd
 
+from ..clock import ET
 from ..config import ROOT, config
 from .quality import DataPoint, QAStatus
 
@@ -273,7 +273,6 @@ def seed_history_if_short(filepath: Path) -> None:
 _REPAIR_ROWS = 3
 
 # 美股常规交易时段（ET）：对账窗内日线 bar 未发布时用 1m 会话末根当临时收盘
-_ET = ZoneInfo("America/New_York")
 _SESSION_START = time(9, 30)
 _SESSION_END = time(16, 0)
 
@@ -282,7 +281,7 @@ def _et_session_dates(now: datetime) -> list:
     """返回今天与上一工作日中属美股可能交易日的 date（now 须为 aware UTC），供临时收盘注入。"""
     out = []
     for offset in (0, 1):
-        d = (now.astimezone(_ET) - timedelta(days=offset)).date()
+        d = (now.astimezone(ET) - timedelta(days=offset)).date()
         if d.weekday() < 5:
             out.append(d)
     return out
@@ -291,7 +290,7 @@ def _et_session_dates(now: datetime) -> list:
 def _in_reconcile_window(now: datetime) -> bool:
     """对账窗：ET 收盘（16:00）后。盘中快照本就是实时价，无需兑底；
     收盘后日线未发布的临时收盘对齐在此窗内进行。"""
-    return now.astimezone(_ET).time() >= _SESSION_END
+    return now.astimezone(ET).time() >= _SESSION_END
 
 
 def _session_close(ticker: str, day: date) -> tuple[float, float] | None:
@@ -306,7 +305,7 @@ def _session_close(ticker: str, day: date) -> tuple[float, float] | None:
     if m.empty:
         return None
     idx = m.index
-    et = idx.tz_convert(_ET) if idx.tz is not None else idx  # 部分版本返回 naive ET 墙钟
+    et = idx.tz_convert(ET) if idx.tz is not None else idx  # 部分版本返回 naive ET 墙钟
     mask = (et.date == day) & (et.time >= _SESSION_START) & (et.time <= _SESSION_END)
     sess = m[mask]
     if sess.empty:

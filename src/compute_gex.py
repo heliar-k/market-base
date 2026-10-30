@@ -23,12 +23,11 @@ import argparse
 import json
 import logging
 import sys
-from datetime import datetime, timezone
 from pathlib import Path
-from zoneinfo import ZoneInfo
 
 import pandas as pd
 
+from src.clock import now_et as _now_et
 from src.config import ROOT
 from src.fetchers.ibkr_fetcher import (
     IBKRConnectionError,
@@ -50,11 +49,6 @@ logging.basicConfig(
 )
 
 log = logging.getLogger("gex")
-ET = ZoneInfo("America/New_York")
-
-
-def _now_et() -> datetime:
-    return datetime.now(timezone.utc).astimezone(ET)
 
 
 # 合约 conId 缓存：conId 对同一合约永远不变（实测同一批 310 个合约隔一次连接重查

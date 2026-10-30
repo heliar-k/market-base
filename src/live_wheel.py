@@ -33,12 +33,12 @@ import json
 import logging
 import sys
 from dataclasses import asdict
-from datetime import datetime, timezone
+from datetime import datetime
 from pathlib import Path
-from zoneinfo import ZoneInfo
 
 import pandas as pd
 
+from src.clock import now_et as _now_et
 from src.compute_gex import DEFAULT_BATCH_SIZE
 from src.config import ROOT
 from src.options_structure import (
@@ -56,13 +56,6 @@ from src.wheel_scanner import (
     print_report,
     scan_pool,
 )
-
-ET = ZoneInfo("America/New_York")
-
-
-def _now_et() -> datetime:
-    return datetime.now(timezone.utc).astimezone(ET)
-
 
 log = logging.getLogger("live_wheel")
 _CONSOLE = None

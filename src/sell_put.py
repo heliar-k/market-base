@@ -18,11 +18,11 @@ import subprocess
 import sys
 from datetime import datetime
 from pathlib import Path
-from zoneinfo import ZoneInfo
 
 import pandas as pd
 import yfinance as yf
 
+from src.clock import et_today
 from src.fetchers.yfinance_fetcher import ensure_yf_proxy
 from src.indicators import compute_all_indicators, load_data
 from src.pricing import aggregate_wall, fetch_yf_chain
@@ -121,7 +121,7 @@ def analyze_puts(gex: pd.DataFrame, spot: float, atr: float, symbol: str) -> pd.
         sys.exit("无可用的期权报价")
 
     # dte 统一按美东日历日计算，避免时分把整数天数减掉一天
-    today = pd.Timestamp(datetime.now(ZoneInfo("America/New_York")).date())
+    today = pd.Timestamp(et_today())
     p["dte"] = (pd.to_datetime(p.expiration, format="%Y%m%d") - today).dt.days
     p = p[p["dte"] > 0]
 

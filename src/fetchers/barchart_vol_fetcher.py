@@ -15,10 +15,10 @@ VXMO（CBOE Standard Monthly VIX）、VXEF（EFA VIX，CBOE 已停发）
 """
 
 import logging
-from datetime import datetime
 
 import pandas as pd
 
+from ..clock import et_today
 from .barchart_client import core_get, to_float
 
 logger = logging.getLogger(__name__)
@@ -62,7 +62,7 @@ def fetch_volatility_snapshot() -> pd.DataFrame:
     if not row:
         return pd.DataFrame()
     logger.info("Barchart 波动率: %d 个指数", sum(1 for c in row if "_" not in c))
-    return pd.DataFrame([row], index=[datetime.now().strftime("%Y-%m-%d")])
+    return pd.DataFrame([row], index=[et_today().isoformat()])
 
 
 if __name__ == "__main__":

@@ -21,12 +21,13 @@ import logging
 from datetime import date, datetime, time, timedelta, timezone
 from math import sqrt
 from pathlib import Path
-from zoneinfo import ZoneInfo
 
 import exchange_calendars as xcals
 import numpy as np
 import pandas as pd
 
+from src.clock import ET
+from src.clock import now_et as _now_et
 from src.config import ROOT
 from src.pricing import (
     R,
@@ -41,12 +42,7 @@ from src.pricing import (
 logger = logging.getLogger(__name__)
 
 DATA = ROOT / "data" / "options_structure"
-ET = ZoneInfo("America/New_York")
 XNYS = xcals.get_calendar("XNYS")
-
-
-def _now_et() -> datetime:
-    return datetime.now(ET)
 
 
 def _utc_now_iso() -> str:

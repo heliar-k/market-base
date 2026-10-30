@@ -11,15 +11,15 @@ import logging
 from datetime import datetime
 from math import erf, exp, pi, sqrt
 from math import log as _ln
-from zoneinfo import ZoneInfo
 
 import pandas as pd
+
+from src.clock import ET
 
 log = logging.getLogger("pricing")
 
 # BS 无风险利率（与 compute_gex.greeks_from_yf / options_structure 一致）
 R = 0.04
-ET = ZoneInfo("America/New_York")
 
 
 def _norm_cdf(x: float) -> float:

@@ -16,10 +16,10 @@
 import argparse
 import logging
 from dataclasses import dataclass
-from datetime import date, datetime
+from datetime import date
 from math import isfinite
-from zoneinfo import ZoneInfo
 
+from src.clock import et_today
 from src.fetchers.yfinance_fetcher import ensure_yf_proxy
 from src.options_structure import _extract_events
 from src.pricing import fetch_yf_chain
@@ -32,7 +32,7 @@ log = logging.getLogger("hedge")
 
 
 def _today_et() -> date:
-    return datetime.now(ZoneInfo("America/New_York")).date()
+    return et_today()
 
 
 # ============================================================================
