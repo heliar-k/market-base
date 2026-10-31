@@ -375,6 +375,14 @@ FOMC_MEETINGS: list[FomcMeeting] = [
     FomcMeeting(2026, 9, 15, 16),
     FomcMeeting(2026, 10, 27, 28),
     FomcMeeting(2026, 12, 8, 9),
+    FomcMeeting(2027, 1, 26, 27),
+    FomcMeeting(2027, 3, 16, 17),
+    FomcMeeting(2027, 4, 27, 28),
+    FomcMeeting(2027, 6, 8, 9),
+    FomcMeeting(2027, 7, 27, 28),
+    FomcMeeting(2027, 9, 14, 15),
+    FomcMeeting(2027, 10, 26, 27),
+    FomcMeeting(2027, 12, 7, 8),
 ]
 
 # ── 商品期货（IBKR 拉取）──

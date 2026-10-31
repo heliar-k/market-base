@@ -1,7 +1,7 @@
 ---
 // 利率定价页 — 工单 #15 自 public/rates/pricing.html 迁入。
-// 结构：概览卡 + 政策路径 hero（PM/ZQ 对垒）+ 累计与路径口径 + 概率分布明细表 + PM 收敛路径 +
-// 长端分解三图；口径/读法注脚沉到所属小节底部（.re-sec-note），不再堆页尾大段。
+// 结构：概览卡 + 政策路径 hero（PM/ZQ 对垒）+ ZQ 概率收敛路径 + 累计与路径口径 + 概率分布明细表 +
+// PM 收敛路径 + 长端分解三图；口径/读法注脚沉到所属小节底部（.re-sec-note），不再堆页尾大段。
 // fetch('/api/rate-expectations' 等) 不变。
 import TopicLayout from '../../layouts/TopicLayout.astro';
 import Section from '../../components/Section.astro';
@@ -19,10 +19,21 @@ import Section from '../../components/Section.astro';
   <div class="hero">
     <div class="hero-card" id="rp-hero"></div>
     <div class="chart-box">
-      <h3>Polymarket 概率收敛路径 <small>日频快照 · 会议前市场如何定价（ZQ 无此历史源）</small></h3>
+      <h3>Polymarket 概率收敛路径 <small>日频快照 · 会议前市场如何定价</small></h3>
       <div id="conv-chart"></div>
     </div>
   </div>
+
+  <!-- ZQ 概率收敛路径：会议下拉 + 绝对目标区间概率堆叠面积（每天合计 100%）。
+       上方 hero 与明细表是「这一场现在怎么定价」，本段是同一场会议的定价过程。
+       历史里已结束的会议也留在下拉里（回看用），默认下一场未结束会议。
+       /api/rate-expectations-history 是次要端点（缺快照即 404），走 R.getOpt，缺失只空本图。 -->
+  <Section id="sec-zq-path" title="ZQ 概率收敛路径" sub="绝对目标区间 · 每日合计 100%">
+    <div class="re-filter">
+      <select id="zq-path-meeting" aria-label="选择 FOMC 会议"></select>
+    </div>
+    <div class="re-chart" id="zq-path-chart"></div>
+  </Section>
 
   <!-- 累计/序列口径（全年次数 · 路径序列 · 首次降息时点）：上方 hero 与明细表是单场会议
        边际口径，两类事件的概率不可相加或直接比较，故独立成段并各自标明来源。
@@ -109,7 +120,7 @@ const dLabelGlobal = (dd) => {
 async function load() {
   // 小节锚点导航（长页快速跳转；sticky 见 special.css .page-toc）
   document.getElementById('page-toc').innerHTML = [
-    ['概览', 're-cards'], ['政策路径', 'sec-policy'], ['累计与路径', 'sec-cumulative'], ['概率分布明细', 'sec-dist'], ['名义/实际/BEI', 'sec-triple'], ['2Y/10Y 与利差', 'sec-2y10y'],
+    ['概览', 're-cards'], ['政策路径', 'sec-policy'], ['ZQ 收敛路径', 'sec-zq-path'], ['累计与路径', 'sec-cumulative'], ['概率分布明细', 'sec-dist'], ['名义/实际/BEI', 'sec-triple'], ['2Y/10Y 与利差', 'sec-2y10y'],
   ].map(([t, id]) => `<a href="#${id}">${t}</a>`).join('');
 
   const el = document.getElementById('re-tbody');
@@ -133,11 +144,20 @@ async function load() {
     + '期限溢价 = NY Fed ACM 估计（右轴虚线）：BEI 不动而期限溢价上行 → 供给/风险溢价交易；'
     + '溢价上行 + 名义利率上行 → 供给驱动的熊陡。10Y 名义 − 期限溢价 ≈ 市场预期的平均短端路径。',
     { fold: true, title: '读法' }));
+  document.getElementById('sec-zq-path').appendChild(R.secNote(
+    '口径：纵轴是该场会议在当日被定价到各个绝对目标区间的概率（30 天联邦基金期货结算价反推，'
+    + '同一天合计 100%），颜色按区间从低到高走绿→红（与本页降息绿 / 加息红同向）。'
+    + '横轴是快照日；同一场会议随着时间从一侧区间移向另一侧，'
+    + '这段移动就是预期的收敛过程。上方明细表的三档口径（降息/维持/加息）以各快照当时的目标区间为基准，'
+    + '目标区间调整后同一档的含义随之改变，所以本图按绝对区间画。tooltip 的会后隐含利率 = 结算价隐含的'
+    + '会议后利率水平，与明细表「会后」同源；已结束的会议也留在下拉里，用于回看当时的定价过程。',
+    { fold: true }));
 
-  const [reRes, fomc, histRes, fedRes, d] = await Promise.all([
+  const [reRes, fomc, histRes, zqHistRes, fedRes, d] = await Promise.all([
     fetch('/api/rate-expectations'),
     R.getOpt('/api/fomc/calendar'),      // 次要端点：缺失时概览卡两格已有 '—' 兜底
     R.getOpt('/api/polymarket/history'), // 次要端点：静态导出缺 JSON 合法 404，getOpt 降级为 null（原手搓 then/catch 等价物）
+    R.getOpt('/api/rate-expectations-history'), // 次要端点：ZQ 收敛路径图的数据源，缺失只空本图
     R.getOpt('/api/fed/overview'),       // 次要端点：只取 market_odds 的累计/路径口径，缺失时三张卡给 '—'
     R.get('/api/rates/real-rates'),
   ]);
@@ -181,6 +201,7 @@ async function load() {
   renderTable(upcoming);
   renderCards(upcoming);
   renderConvChart(re.meetings, hist);
+  renderZqPath(zqHistRes);
   renderCumulative(fedRes && fedRes.market_odds);
 
   // ── 名义/实际/BEI + 期限溢价 ──
@@ -413,6 +434,102 @@ function renderConvChart(meetings, hist) {
   });
 }
 
+// ── ZQ 概率收敛路径：一场会议的概率堆叠面积（每天合计 100%）────────────────
+// 画 range_*（绝对目标区间）：三档（降息/维持/加息）以各快照当时的目标区间为基准，
+// 目标区间调整后同一档的含义就变了，跨调整连成一条线会把方向读错。
+function renderZqPath(h) {
+  const sel = document.getElementById('zq-path-meeting');
+  const meetings = (h && h.meetings) || {};
+  const keys = Object.keys(meetings).sort();
+  if (!keys.length) {
+    document.getElementById('zq-path-chart').innerHTML =
+      '<div class="re-loading" style="height:100%">暂无 ZQ 概率历史（运行 ./bin/fetch_rate_expectations 后逐日累积）</div>';
+    return;
+  }
+  // 默认下一场未结束会议（会议当天仍算未结束）；全部已结束时退回最后一场，不留空白图
+  const pick = keys.find((k) => k >= AS_OF) || keys[keys.length - 1];
+  sel.innerHTML = keys
+    .map((k) => `<option value="${k}">${k}${k < AS_OF ? ' · 已结束' : ''}</option>`)
+    .join('');
+  sel.value = pick;
+  sel.onchange = () => drawZqPath(meetings, sel.value);
+  drawZqPath(meetings, pick);
+}
+
+// 横轴 = 快照日，纵轴 = 当日各绝对目标区间的概率；纯构造器供主题与宽窄重建复用
+function zqPathOption(meetings, key) {
+  const rows = meetings[key] || [];
+  // 区间全集（该会议历史上出现过正概率的），按利率升序堆叠：低利率在下、高利率在上
+  const ranges = [...new Map(rows.flatMap((r) => r.probs).map((p) => [p.lo, p])).values()]
+    .sort((a, b) => a.lo - b.lo);
+  const dates = rows.map((r) => r.date);
+  const rate = Object.fromEntries(rows.map((r) => [r.date, r.post_meeting_rate]));
+  // 每个区间一条与 dates 等长的序列（当日无该区间填 0）：堆叠带缺一天就断口
+  const series = ranges.map((r) => ({
+    name: `${r.lo.toFixed(2)}–${r.hi.toFixed(2)}%`,
+    values: rows.map((row) => (row.probs.find((p) => p.lo === r.lo)?.prob ?? 0) * 100),
+  }));
+  const byName = new Map(series.map((s) => [s.name, s.values]));
+  // 单日会议用堆叠柱，段高直接对应概率；time 轴拓开 ±2 天，避免零宽轴域与重复日期
+  const single = dates.length === 1;
+  const t0 = single ? new Date(dates[0] + 'T00:00:00').getTime() : 0;
+
+  const opt = (colors) => {
+    // 低利率 → 高利率走绿→红：与本页 hero / 明细表的降息绿、加息红同向。
+    // 直接用主题调色板原序会把最高区间落成绿色，与全页语义相反
+    const ramp = [colors.green, colors.cyan, colors.blue, colors.purple, colors.orange, colors.red];
+    const ink = (i) => ramp[series.length < 2 ? 0 : Math.round((i * (ramp.length - 1)) / (series.length - 1))];
+    return R.lineOption({
+      legend: { data: series.map((s) => s.name) },
+      tooltip: {
+        trigger: 'axis',
+        // 按 dataIndex 回原始数组取各区间的当日概率，并追加会后隐含利率
+        formatter: (ps) => {
+          const i = ps[0]?.dataIndex;
+          if (i == null) return '';
+          return [
+            dates[i],
+            ...ps.map((p) => `${p.marker}${p.seriesName} ${(byName.get(p.seriesName)?.[i] ?? 0).toFixed(1)}%`),
+            `会后隐含利率 ${rate[dates[i]].toFixed(3)}%`,
+          ].join('<br/>');
+        },
+      },
+      xAxis: {
+        type: 'time',
+        boundaryGap: false,
+        // 快照只有几天时 time 轴会拆到半天以下，R.md 只显示日期 → 一排重复的「7/29」
+        minInterval: 864e5,
+        ...(single ? { min: t0 - 2 * 864e5, max: t0 + 2 * 864e5 } : {}),
+        axisLabel: { formatter: (v) => R.md(v) },  // 历史跨度 ~3 月
+      },
+      yAxis: { type: 'value', max: 100, axisLabel: { formatter: '{value}%' } },
+      series: series.map((s, i) => ({
+        name: s.name, type: single ? 'bar' : 'line', stack: 'prob', color: ink(i),
+        data: dates.map((dt, k) => [dt, s.values[k]]),
+        ...(single
+          ? { barWidth: 28 }
+          : { symbol: 'none', lineStyle: { color: ink(i), width: 1 }, areaStyle: { opacity: 0.75 } }),
+      })),
+    }, colors);
+  };
+
+  return opt;
+}
+
+// 已有实例用 notMerge 清掉上一场系列；首次注册的回调读取当前下拉值，
+// 主题切换与跨宽窄重建才能留在当前会议
+function drawZqPath(meetings, key) {
+  const option = (colors) => zqPathOption(
+    meetings,
+    document.getElementById('zq-path-meeting').value || key,
+  )(colors);
+  const existing = R.getChart('zq-path-chart');
+  if (existing) {
+    existing.setOption(option(R.colors()), true);
+    R._fitLater(existing, existing.getDom(), 0);
+  } else R.mkChart('zq-path-chart', option);
+}
+
 // ── 累计与路径口径：全年加息次数 / 路径序列 / 首次降息时点 ──
 // 数据源 = /api/fed/overview 的 market_odds（Polymarket fed 分类事件快照）。
 // 这三个事件问的是「跨会议累计 / 多场排列」，与上段 hero 和明细表的「单场会议边际概率」
@@ -511,7 +628,7 @@ load().catch(e => {
   // polymarket 历史 / fomc 日历已走 R.getOpt 段级降级（收敛图空态 / 卡片 '—'），不再卷入
   document.getElementById('re-tbody').innerHTML = '<tr><td colspan="7" class="re-error">' + e.message + '</td></tr>';
   document.getElementById('rp-cards').innerHTML = '<div class="re-error">' + e.message + '</div>';
-  R.fail(['re-cards', 'rp-hero', 'conv-chart', 'triple_chart', 'spread_2_10_chart'], e);
+  R.fail(['re-cards', 'rp-hero', 'conv-chart', 'zq-path-chart', 'triple_chart', 'spread_2_10_chart'], e);
 });
 </script>
 </TopicLayout>

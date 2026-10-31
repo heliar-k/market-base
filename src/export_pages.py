@@ -51,6 +51,7 @@ from src.server import (  # noqa: PLC2701 复用路由函数
     get_macro_presets,
     get_polymarket_history,
     get_rate_expectations,
+    get_rate_expectations_history,
     get_rates_analysis,
     get_rates_auctions,
     get_rates_fed_funds,
@@ -200,6 +201,7 @@ def export_api() -> None:
     _safe("api/consensus", get_consensus)
     _safe("api/home-lines", get_home_lines)
     _safe("api/rate-expectations", get_rate_expectations)
+    _safe("api/rate-expectations-history", get_rate_expectations_history)
     _safe("api/polymarket/history", get_polymarket_history)
     # 流动性专题（复刻 timsun.net/liquidity 主页面 + 7 子页）
     from src.liquidity_analysis import (

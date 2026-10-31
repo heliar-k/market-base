@@ -747,8 +747,8 @@ def get_rate_expectations() -> dict:
     latest_date = df.index.max()
     # 用 [latest_date]（双层）而不是 latest_date：当日快照只有 1 行时 df.loc[date]
     # 返回 Series，Series 没有 drop_duplicates(subset=…) → TypeError → 整个端点 500。
-    # 这不是假设：FOMC_MEETINGS 只到 2026-12-09，2026-10-29 起未来只剩一场会议，
-    # 快照恒为单行；ZQ 时效闸门把最近一场拒掉时也会立刻命中。
+    # 这不是假设：快照写的是「采样日当时尚未结束的会议」，越接近最后一场行数越少，
+    # 最后只剩一场；ZQ 时效闸门把会议逐个拒掉时也会立刻命中。
     latest = df.loc[[latest_date]]
     # 同日多次写入会产生重复行（upsert 幂等性缺陷），按会议去重
     latest = latest.drop_duplicates(subset=["meeting_date"])
@@ -810,6 +810,52 @@ def get_rate_expectations() -> dict:
         "polymarket_as_of": pm["as_of"] if pm else None,
         "meetings": meetings,
     }
+
+
+@app.get("/api/rate-expectations-history")
+def get_rate_expectations_history() -> dict:
+    """ZQ 各场会议的概率历史（收敛路径图数据源）。
+
+    range_* 是绝对目标区间概率，跨目标区间调整仍可直接纵向比较；prob_cut/hold/hike
+    相对各快照当时的目标区间，跨调整拼接会把方向读反。已结束的会议照旧保留
+    （历史回看要看全）；meetings 以完整 meeting_date 为键，每场按快照日升序。
+    """
+    csv_path = ROOT / "data" / "rate_expectations" / "fomc_probabilities.csv"
+    if not csv_path.exists():
+        raise HTTPException(404, "No rate expectations data yet. Run ./bin/fetch_rate_expectations")
+    df = pd.read_csv(csv_path, index_col="date", parse_dates=True)
+    if df.empty:
+        # 只有表头的空文件：没有快照就没 as_of（NaT 不支持 strftime，不能先取 max）
+        return {"as_of": None, "meetings": {}}
+    as_of = df.index.max().strftime("%Y-%m-%d")
+    range_cols = [c for c in df.columns if c.startswith("range_")]
+
+    # 同日同会议的重复行：快照写入对「一日多行」不幂等，同日重跑会留下重复行，
+    # 按文件内最后一行为准（与同日覆盖的语义一致）
+    df = df.reset_index().drop_duplicates(subset=["date", "meeting_date"], keep="last")
+
+    meetings: dict[str, list[dict]] = {}
+    for _, row in df.sort_values(["meeting_date", "date"]).iterrows():
+        probs = []
+        for c in range_cols:
+            p = row[c]
+            if pd.notna(p) and float(p) > 0:
+                lo, hi = c.replace("range_", "").split("-")
+                probs.append({"lo": float(lo), "hi": float(hi), "prob": round(float(p), 4)})
+        meeting_date = pd.to_datetime(row["meeting_date"]).strftime("%Y-%m-%d")
+        # 按利率升序输出：range_* 列的书写顺序不一定升序（新目标区间总是被 pandas
+        # 追到列尾），堆叠面积图靠这个顺序排层
+        probs.sort(key=lambda p: p["lo"])
+        meetings.setdefault(meeting_date, []).append(
+            {
+                "date": pd.to_datetime(row["date"]).strftime("%Y-%m-%d"),
+                # 会后隐含利率：与概率同一竖线读，回答「这条概率对应什么利率水平」
+                "post_meeting_rate": float(row["post_meeting_rate"]),
+                "probs": probs,
+            }
+        )
+
+    return {"as_of": as_of, "meetings": meetings}
 
 
 @app.get("/api/polymarket/history")

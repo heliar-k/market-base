@@ -11,7 +11,7 @@ from datetime import date
 
 import pandas as pd
 
-from src.config import FomcMeeting
+from src.config import FOMC_MEETINGS, FomcMeeting
 from src.fetchers import rate_expectations_fetcher as rex
 from src.fetchers.rate_expectations_fetcher import (
     _pick_fresher,
@@ -166,3 +166,22 @@ class TestUseNextMonthContract:
         assert _use_next_month_contract(3, 2026, 10, next_readable=True)
         assert not _use_next_month_contract(14, 2026, 9, next_readable=True)
         assert not _use_next_month_contract(22, 2026, 12, next_readable=True)
+
+    def test_real_config_2027_calendar(self) -> None:
+        """真实日历：2027 八场（Fed 公布），月末换约在下月无会议时生效。"""
+        got = [(m.month, m.start_day, m.end_day) for m in FOMC_MEETINGS if m.year == 2027]
+        assert got == [
+            (1, 26, 27),
+            (3, 16, 17),
+            (4, 27, 28),
+            (6, 8, 9),
+            (7, 27, 28),
+            (9, 14, 15),
+            (10, 26, 27),
+            (12, 7, 8),
+        ]
+        # 会后采样 <10 天的四场（1/4/7/10 月），下月（2/5/8/11 月）无会议 → 用下月合约
+        for month, days_after in [(1, 4), (4, 2), (7, 3), (10, 4)]:
+            assert _use_next_month_contract(days_after, 2027, month, next_readable=True)
+        # 12-08 会议后还有 23 天采样，不换约（也不跨到尚未公布的 2028 年 1 月）
+        assert not _use_next_month_contract(23, 2027, 12, next_readable=True)
