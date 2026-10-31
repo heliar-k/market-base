@@ -719,6 +719,143 @@ const R = {
     });
     return opt;
   },
+  // 渲染后校准：图例换行后压进绘图区、横轴日期标签相贴 —— 两件事都只有布局完才知道，
+  // 只能渲染后量一次再改。单源在这里，页面不各写一套边距。
+  // 图例：R.lineOption 的基础 grid.top 36 只挡住单行图例（盒底 24.9）；画布窄到图例换行
+  // 时盒底变 ~45.9，第二行就落进绘图区，曲线摸到顶边即穿字（实测 390 宽下 metals /
+  // liquidity / treasury / yield-curve 各图，页子里填的 top 12/20/40/44 都挡不住）。
+  // 轴标签：hideOverlap 只挡真正重叠，间距 0.3–1.6px 的相邻标签照画，渲染出来连成
+  // 「9/2910/1」；降一档 splitNumber 即拉开到 20px 以上（实测 9 个标签 → 5 个）。
+  // 只做几轮：pass 封顶 3；改完必须等下一帧再量 —— setOption 会同步换模型，但标签/图例
+  // 的几何要等到 flush 之后，同一 tick 里量到的是旧位子（纵轴降档那一步就永远不触发）。
+  // 顶边记在 chart.__fitTop0，图例收回单行时会退回去；放不下（320px 画布上三四排图例）
+  // 不硬挤绘图区，改成单行分页图例。两者在下次主题重建 / 跨 480px 重建时都从页面 option 重算。
+  _fitAfterRender(chart, host, pass = 0) {
+    try {
+      if (!chart || !host || (chart.isDisposed && chart.isDisposed()) || host.clientWidth < 80 || pass > 3) return;
+      const zr = chart.getZr();
+      if (!zr || !zr.storage) return;
+      // 多 grid 小倍图（treasury 的 2×2）：grid 与图例不是一对一，跳过。getComponent 只回
+      // 第一个 grid，得看 option 里的个数才算得准。
+      const gopt = chart.getOption().grid;
+      if (gopt && gopt.length > 1) return;
+      const gs = chart.getModel().getComponent('grid');
+      const grid = Array.isArray(gs) ? (gs.length === 1 ? gs[0] : null) : gs;
+      const rect = grid && grid.coordinateSystem ? grid.coordinateSystem.getRect() : null;
+      if (!rect) return;
+
+      // ① 顶部图例画进了绘图区 → 把绘图区顶边顶到图例下方 6px；图例收回单行后
+      //    （canvas 变宽）再放回原位，避免顶上去就回不来。__fitTop0 记首帧的顶边，
+      //    render() 重建会换新实例，自然重置。底部图例（盒心在绘图区下半）、左侧竖排
+      //    图例（与绘图区无横向重叠）由下面两个条件排除。
+      if (chart.__fitTop0 == null) chart.__fitTop0 = rect.y;
+      const lm = chart.getModel().getComponent('legend');
+      if (lm && lm.get('show') !== false && lm.get('type') !== 'scroll') {
+        const view = chart.getViewOfComponentModel(lm);
+        if (view && view.group) {
+          const bb = view.group.getBoundingRect();
+          const lx = view.group.x + bb.x;
+          const ly = view.group.y + bb.y;
+          const hOverlap = Math.min(lx + bb.width, rect.x + rect.width) - Math.max(lx, rect.x);
+          if (hOverlap > 0 && ly < rect.y + rect.height * 0.5) {
+            const need = Math.ceil(ly + bb.height + 6);
+            // 绘图区留够 ~70px：320px 视口上 6–8 条序列的图例能排三四排，顶下去只会把
+            // 绘图区压成一条缝。底部轴区（轴标签 + dataZoom 滑块）实测 42–70px，从当前矩形反推。
+            const bottomReserve = host.clientHeight - (rect.y + rect.height);
+            const room = Math.max(chart.__fitTop0, host.clientHeight - bottomReserve - 70);
+            if (need > room) {
+              chart.setOption({ legend: { type: 'scroll' } });
+              R._fitLater(chart, host, pass + 1);
+              return;
+            }
+            const target = Math.max(chart.__fitTop0, Math.min(need, room));
+            if (Math.abs(target - rect.y) > 0.5) {
+              chart.setOption({ grid: { top: target } });
+              R._fitLater(chart, host, pass + 1);
+              return;
+            }
+          }
+        }
+      }
+
+      // ② 轴标签同排相贴 → 降一档 splitNumber 重排
+      //   hideOverlap 只挡真正重叠，间距 0.3–1.6px 照画，渲染出来连成「9/2910/1」；
+      //   纵轴也会：图例换行后绘图区变矮，原本宽裕的刻度挤成 1.3px（yield-curve 第四张）。
+      //   category 轴不认 splitNumber，写了 interval 的轴也不听，都跳过。
+      const opt = chart.getOption();
+      const pick = (list) => (list && list.length === 1 ? list[0] : null);
+      const splittable = (a) =>
+        a &&
+        (a.type === 'time' || a.type === 'value' || a.type === 'log') &&
+        a.interval == null &&
+        !(a.axisLabel && a.axisLabel.rotate);
+      const lower = (axisKey, a) => {
+        const sp = a.splitNumber || 5;
+        if (sp <= 2) return false;
+        chart.setOption({ [axisKey]: { splitNumber: Math.max(2, sp - 1) } });
+        R._fitLater(chart, host, pass + 1);
+        return true;
+      };
+      const xa = pick(opt.xAxis);
+      const ya = pick(opt.yAxis);
+      if (!splittable(xa) && !splittable(ya)) return;
+      // 轴标签盒子：按 band 把 tspan 分到横轴/纵轴两组（旋转/斜切标签的轴对齐包围盒不代表墨迹，跳过）
+      const xBoxes = [];
+      const yBoxes = [];
+      zr.storage.getDisplayList().forEach((el) => {
+        if (!el || el.type !== 'tspan' || !el.style || !el.style.text) return;
+        const m = el.getComputedTransform ? el.getComputedTransform() : null;
+        if (m && (Math.abs(m[1]) > 0.01 || Math.abs(m[2]) > 0.01)) return;
+        if (Math.abs(el.rotation || 0) > 0.01) return;
+        const r = el.getBoundingRect().clone();
+        if (m) r.applyTransform(m);
+        const cx = r.x + r.width / 2;
+        if (
+          r.y >= rect.y + rect.height - 1 &&
+          r.y <= rect.y + rect.height + 30 &&
+          cx > rect.x - 6 &&
+          cx < rect.x + rect.width + 6
+        )
+          xBoxes.push({ x: r.x, y: r.y, w: r.width, h: r.height });
+        if (r.x + r.width <= rect.x + 2 && r.y >= rect.y - 2 && r.y + r.height <= rect.y + rect.height + 2)
+          yBoxes.push({ x: r.x, y: r.y, w: r.width, h: r.height });
+      });
+      // 横轴：time 轴双层标签（年/月 与 日）各占一行，跨行比间距全是假阳性，先按 y 分行；
+      // 纵轴单列，直接按 y 排。两边都只看同一条轴线上的相邻标签。
+      const xGap = (() => {
+        if (xBoxes.length < 2) return Infinity;
+        const rows = [];
+        xBoxes
+          .sort((a, b) => a.y - b.y)
+          .forEach((b) => {
+            const row = rows.find((g) => Math.abs(g[0].y - b.y) <= 3);
+            if (row) row.push(b);
+            else rows.push([b]);
+          });
+        let min = Infinity;
+        rows.forEach((row) => {
+          row.sort((a, b) => a.x - b.x);
+          for (let i = 1; i < row.length; i++) min = Math.min(min, row[i].x - (row[i - 1].x + row[i - 1].w));
+        });
+        return min;
+      })();
+      const yGap = (() => {
+        if (yBoxes.length < 2) return Infinity;
+        const col = yBoxes.slice().sort((a, b) => a.y - b.y);
+        let min = Infinity;
+        for (let i = 1; i < col.length; i++) min = Math.min(min, col[i].y - (col[i - 1].y + col[i - 1].h));
+        return min;
+      })();
+      if (xa && splittable(xa) && xGap < 2 && lower('xAxis', xa)) return;
+      if (ya && splittable(ya) && yGap < 2) lower('yAxis', ya);
+    } catch (e) {
+      /* 显示微调：算不出来就保持原样，不能让图渲染不出来 */
+    }
+  },
+  // 下一帧再量（setOption 后的几何要等 flush）
+  _fitLater(chart, host, pass) {
+    if (window.requestAnimationFrame) requestAnimationFrame(() => R._fitAfterRender(chart, host, pass));
+  },
   mkChart(id, option) {
     const dom = document.getElementById(id);
     if (!dom) return null;
@@ -764,6 +901,7 @@ const R = {
       dom.querySelector('.re-empty')?.remove(); // 空态文案先让位再 init（ECharts 要求容器为空，否则告警）
       const chart = echarts.init(host, R.isDark() ? 'macroDark' : 'macro');
       chart.setOption(opt);
+      R._fitLater(chart, host, 0);
       dom.classList.remove('skeleton');
       R._charts.set(id, chart);
       return chart;
@@ -785,6 +923,7 @@ const R = {
       const n = host.clientWidth < 480;
       if (n === narrow) {
         chart.resize();
+        R._fitLater(chart, host, 0);
         return;
       }
       narrow = n;
