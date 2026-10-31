@@ -450,7 +450,6 @@ function renderEuro(root, d) {
   root.appendChild(card);
   R.mkChart('euro-chart', colors => R.lineOption({
     tooltip: { trigger: 'axis', valueFormatter: v => v == null ? '—' : `${R.num(v, 0)}bp` },
-    grid: { left: 8, right: 16, top: 12, bottom: 24 },
     xAxis: rng.xAxis(),
     yAxis: { type: 'value', scale: true, axisLabel: { formatter: v => R.num(v, 0) } },
     dataZoom: rng.zoom(),
