@@ -157,10 +157,22 @@ const R = {
   // 段内注脚（口径 / 读法说明）：一律沉到卡片底部，不作卡片首段正文。
   // 首段 <p> 与下面的数据只差 8px 间距、1px 字号，读起来像列表的第一项。
   // 返回节点（同 table / cards / kvRows）：它是往卡里追加的块，用 appendChild 而不是拼串。
-  secNote(text) {
-    const el = document.createElement('div');
+  // opts.fold：口径定义 / 术语 / 方法是读者看一次就够的背景，收进折叠只留一行标签，
+  //   首屏密度交给数据（同 crypto 页手写的 .re-fold）。
+  //   **数据状态不折叠**：停更、缺数据、覆盖范围、当前读数（「本窗口 5 日变化 +1.2 点」）
+  //   是每次读图都要看的，藏起来会被读成「没有这个问题」。
+  secNote(text, { fold = false, title = '口径 · 读法' } = {}) {
+    const el = document.createElement(fold ? 'details' : 'div');
     el.className = 're-sec-note';
-    el.textContent = text;
+    if (!fold) {
+      el.textContent = text;
+      return el;
+    }
+    const sm = document.createElement('summary');
+    sm.textContent = title;
+    const body = document.createElement('div');
+    body.textContent = text;
+    el.append(sm, body);
     return el;
   },
 

@@ -104,7 +104,7 @@ function renderEnso(e) {
           lineStyle: { width: 2, color: c.blue } },
       ],
     }, c));
-    const note = R.secNote('ONI 口径：NOAA CPC Niño-3.4 区 3 个月滑动海温距平（°C），连续 5 期 ≥ +0.5°C 确立厄尔尼诺、≤ −0.5°C 确立拉尼娜；DBA 为 Invesco 农业期货一篮子 ETF 月末收盘价。');
+    const note = R.secNote('ONI 口径：NOAA CPC Niño-3.4 区 3 个月滑动海温距平（°C），连续 5 期 ≥ +0.5°C 确立厄尔尼诺、≤ −0.5°C 确立拉尼娜；DBA 为 Invesco 农业期货一篮子 ETF 月末收盘价。', { fold: true });
     sec.appendChild(note);
   }
 
@@ -120,7 +120,7 @@ function renderEnso(e) {
       `<p><strong>${R.esc(disc.headline)}</strong></p>` +
       `<p style="font-size:13px;line-height:1.7">${R.esc(disc.excerpt || '')}${disc.excerpt && disc.excerpt.length >= 900 ? '…' : ''}</p>` +
       (disc.url ? `<p style="margin:0"><a href="${R.esc(disc.url)}" target="_blank" rel="noopener">官方原文 ↗</a>（NOAA CPC ENSO Diagnostic Discussion，月度）</p>` : '');
-    sec.appendChild(R.secNote('状态徽章读法：Advisory = 事件已确立（El Niño / La Niña）；Watch = 条件接近、预计近期形成；Not Active = 无事件。研报为英文官方原文，本站只转载不翻译。'));
+    sec.appendChild(R.secNote('状态徽章读法：Advisory = 事件已确立（El Niño / La Niña）；Watch = 条件接近、预计近期形成；Not Active = 无事件。研报为英文官方原文，本站只转载不翻译。', { fold: true, title: '读法' }));
     body.appendChild(sec);
   }
 

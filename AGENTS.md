@@ -548,6 +548,11 @@ uv run python src/sell_put.py --symbol TSM
   **不作卡片首段正文**：首段 `<p style="margin:0">` 与下面的数据只差 8px 间距、1px 字号，
   读起来像列表的第一项（credit 五段先犯的即此）。返回**节点**（同 `table`/`cards`/`kvRows`），
   用 `appendChild` 不是拼串。图注/表注这类「只解释某一张图/表」的仍走 `.note` 贴着数据（同 1742b292）
+  **口径定义 / 术语 / 方法这类背景收进折叠**：`R.secNote(text, { fold: true, title })` 出
+  `<details>`（summary 默认「口径 · 读法」），一行灰标签换回 24-60px 首屏高度。
+  **数据状态不折叠**：停更、缺数据、覆盖范围、当前读数（「本窗口 5 日变化 +1.2 点」）每次读图都要看，
+  折起来会被读成「没有这个问题」（fed 地区联储主席缺数据那条、vix 的历史分位注都属此类）。
+  守卫：`tests/test_secnote_fold.py`
 - **研判「一段一句」的页走 `R.judgeRow(items)`**（一张外卡 + `.sig-row` N 格）：
   `judgeCard` 是「一段一卡」，语义标题各占一段、每段只有一句时三张全宽卡叠起来 358px，
   收成一行三格只要 179px。例外：volatility 的 parts 段（卡数由数据决定、同卡还混 `<h2>` 与图）

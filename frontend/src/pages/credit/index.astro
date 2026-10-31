@@ -189,7 +189,7 @@ async function load() {
     histCard('oas-ig-chart', 'IG OAS 走势', '投资级 · bp', hist.ig, 'blue');
     histCard('oas-hy-chart', 'HY OAS 走势', '高收益 · bp', hist.hy, 'purple');
     rng.mount(oasRoot, duo, ['oas-ig-chart', 'oas-hy-chart']);
-    oasRoot.appendChild(R.secNote(`口径：ICE BofA OAS（期权调整利差），日频 · bp；走阔 = 风险溢价上升。全量约 ${hist.ig.dates.length} 个交易日（${hist.ig.dates[0]} 起），上方按钮切换区间；IG 与 HY 量纲差约 4 倍，故各占一图、不共用 y 轴。`));
+    oasRoot.appendChild(R.secNote(`口径：ICE BofA OAS（期权调整利差），日频 · bp；走阔 = 风险溢价上升。全量约 ${hist.ig.dates.length} 个交易日（${hist.ig.dates[0]} 起），上方按钮切换区间；IG 与 HY 量纲差约 4 倍，故各占一图、不共用 y 轴。`, { fold: true }));
   }
 
   // ── 研判：一张卡 · 三格横排（原三张全宽卡各一句 → 收成一行三格）──
@@ -469,7 +469,8 @@ function renderEuro(root, d) {
   }, colors));
   rng.mount(root, card, ['euro-chart']);
   root.appendChild(R.secNote(
-    `口径：各国 10Y 国债收益率 − 德国 Bund 10Y，日频 · bp；走阔 = 该国主权风险溢价上升。数据源 CNBC 市场报价（非 FRED）——欧洲官方体系没有分国日频 10Y，回看 ${d.start} 起（源上限 3 年）。`
+    `口径：各国 10Y 国债收益率 − 德国 Bund 10Y，日频 · bp；走阔 = 该国主权风险溢价上升。数据源 CNBC 市场报价（非 FRED）——欧洲官方体系没有分国日频 10Y，回看 ${d.start} 起（源上限 3 年）。`,
+    { fold: true }
   ));
 }
 
@@ -532,7 +533,8 @@ function renderCds(root, d) {
     csec.appendChild(R.secNote(
       '两线均按起点归一为 100（灰色水平虚线），高于 100 = 相对起点上涨；'
       + '橙色实线（银行）跌到蓝色虚线（大盘）下方就是跑输。分歧度固定取近 14 个交易日，本图窗口更长'
-      + '（起点见标题），所以上下两处数值不相等、方向一致。价格为 Yahoo 日频收盘快照，非实时。'));
+      + '（起点见标题），所以上下两处数值不相等、方向一致。价格为 Yahoo 日频收盘快照，非实时。',
+      { fold: true }));
 
     // time 轴下 ECharts 交给 formatter 的 value 是「点对」[日期, 数值]，直接参与算数会得 NaN
     const num = (v) => (Array.isArray(v) ? v[1] : v);
@@ -592,7 +594,7 @@ function renderCds(root, d) {
     + 'CDX IG / CDX HY 与主权 CDS 报价为付费数据源（Bloomberg / Refinitiv 授权），'
     + '本页只用公开代理：主权信用用 10Y 美债收益率，银行系统风险用 KBWB（KBW 银行指数 ETF，'
     + '追踪美国大型银行）相对 SPX（标普 500，Yahoo ticker ^GSPC）的收益差。'
-    + 'pp = 百分点（两个百分比之差）。'));
+    + 'pp = 百分点（两个百分比之差）。', { fold: true }));
 }
 
 // ── 压力指数明细：5 分量 + 历史曲线 + 跨资产对照 ──

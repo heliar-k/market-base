@@ -538,17 +538,16 @@ button.opt-sig-reason {
 button.opt-sig-reason:hover .osr-brief { color: var(--text-secondary); }
 /* 展开态故意不加 width/max-width 规则：一放宽整列就变宽，右侧「操作」列会横向位移几像素。
  * 展开只让这一行变高（多行显示），列位置稳定。 */
-/* Wheel 筛选标准（卡底小字）：与 .re-sec-note 同档字号，但分条列而非一整句 ——
- * 六条规则各管一件事（池准入 / 卖 Put / 备兑 / 选点 / 事件 / 组合），糊成一段读不下去。
- * 方框内缩半档：外面 .re-section 已有卡面，不再套内框（同 .sig-row 纪律）。 */
+/* Wheel 筛选标准（卡底折叠）：六条规则各管一件事（池准入 / 卖 Put / 备兑 / 选点 / 事件 / 组合），
+ * 糊成一段读不下去，但分条列出来就是 6 行占满卡底 → 标题就是 summary，展开后分条。
+ * 间距与字号跟 .re-sec-note 的 fold 一致（同一个卡底位，两套写法看不出区别）。
+ * 不套内框：外面 .re-section 已有卡面（同 .sig-row 纪律）。 */
 .opt-criteria {
-  margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--border-light);
+  margin-top: 10px; padding-top: 8px; border-top: 1px solid var(--border-light);
   font-size: 12px; line-height: 1.7; color: var(--text-dim);
 }
-.opt-criteria-title {
-  font-size: 11px; font-weight: 600; letter-spacing: .06em;
-  color: var(--text-secondary); margin-bottom: 4px;
-}
+.opt-criteria > summary { cursor: pointer; user-select: none; padding: 2px 0; }
+.opt-criteria[open] > summary { color: var(--text-secondary); margin-bottom: 4px; }
 .opt-criteria p { margin: 0; }
 .opt-criteria p + p { margin-top: 2px; }
 /* 到期 Gamma 集中度分段进度行 */

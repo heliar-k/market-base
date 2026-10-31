@@ -30,7 +30,7 @@ import Section from '../../components/Section.astro';
        走 R.getOpt；取不到时三张卡给「—」并给修复说明，不拖垮整页。 -->
   <Section id="sec-cumulative" title="累计与路径口径" sub="全年次数 / 路径序列 / 首次降息时点">
     <div id="rp-cum-cards"></div>
-    <p class="re-source" id="rp-cum-note"></p>
+    <div id="rp-cum-note"></div>
   </Section>
 
   <!-- 卡面只包内容不含标题（与其他小节「标题在页面、内容自卡面」同构）；
@@ -125,12 +125,14 @@ async function load() {
     + 'PM 为该场会议「Fed Decision in {Month}?」事件的真实下注概率，与 ZQ 两源平权。'
     + 'ZQ 隐含的是会议后利率水平（累计口径，含此前会议的加减息），PM 是本场决定（边际口径）——'
     + '直接对比时 ZQ 加息概率天然偏高。分歧 ≥5pp 时 PM 数值高亮、带 ▲/▼ 角标（▲ = PM 相对 ZQ 高）；'
-    + '月末会议改用下月合约整月采样定价（FedWatch 官方方法，见合约列「下月合约」标注）。'));
+    + '月末会议改用下月合约整月采样定价（FedWatch 官方方法，见合约列「下月合约」标注）。',
+    { fold: true }));
   document.getElementById('sec-triple').appendChild(R.secNote(
     '读法：名义 = 实际 + 盈亏平衡。收益率上行主要由实际利率推动 → 金融条件收紧（紧缩交易）；'
     + '主要由盈亏平衡推动 → 通胀交易。盈亏平衡通胀 = DGS10 − DFII10（本地计算）。'
     + '期限溢价 = NY Fed ACM 估计（右轴虚线）：BEI 不动而期限溢价上行 → 供给/风险溢价交易；'
-    + '溢价上行 + 名义利率上行 → 供给驱动的熊陡。10Y 名义 − 期限溢价 ≈ 市场预期的平均短端路径。'));
+    + '溢价上行 + 名义利率上行 → 供给驱动的熊陡。10Y 名义 − 期限溢价 ≈ 市场预期的平均短端路径。',
+    { fold: true, title: '读法' }));
 
   const [reRes, fomc, histRes, fedRes, d] = await Promise.all([
     fetch('/api/rate-expectations'),
@@ -491,12 +493,17 @@ function renderCumulative(odds) {
     sub: got[i] ? got[i].sub : s.miss,
   })), 're-cards-2col'));
   // 非空态注脚只留口径辨析 + 取法；「数据截至」页头 R.asOf 已给（同一份 market_odds().as_of），
-  // 「更新：fetch_polymarket」空态分支已给，此处重复即噪声。
-  note.innerHTML = empty
-    ? '暂无 Polymarket fed 分类快照——运行 <code>./bin/fetch_polymarket</code> 拉取后刷新（数据在 data/polymarket/，每日 cron 自动更新）。'
-    : `口径：这三张卡问的是<b>跨会议的累计 / 序列事件</b>，与上方 hero / 明细表的「这一场加不加」（边际口径）
-       不是同一事件——概率不可相加、不可逐月对齐、也不能互相校验（全年次数高不代表下一场概率高）。
-       取法：各事件取概率最高的一档；首次降息取 prob_yes 首次 ≥50% 的月份，全部未过半则取最高档并标注「未过半」。`;
+  // 「更新：fetch_polymarket」空态分支已给，此处重复即噪声。空态是修复指引，不折叠。
+  note.replaceChildren(
+    R.secNote(
+      empty
+        ? '暂无 Polymarket fed 分类快照——运行 ./bin/fetch_polymarket 拉取后刷新（数据在 data/polymarket/，每日 cron 自动更新）。'
+        : '口径：这三张卡问的是跨会议的累计 / 序列事件，与上方 hero / 明细表的「这一场加不加」（边际口径）'
+          + '不是同一事件——概率不可相加、不可逐月对齐、也不能互相校验（全年次数高不代表下一场概率高）。'
+          + '取法：各事件取概率最高的一档；首次降息取 prob_yes 首次 ≥50% 的月份，全部未过半则取最高档并标注「未过半」。',
+      { fold: !empty, title: '口径 · 取法' }
+    )
+  );
 }
 
 load().catch(e => {

@@ -184,6 +184,11 @@ body { font-family: system-ui, -apple-system, sans-serif; background: var(--bg);
 /* 段内注脚（R.secNote）：口径/读法说明一律沉到卡片底部，不作卡片首段正文 ——
  * 首段 <p> 与下面的数据只差 8px 间距、1px 字号，读起来像列表的第一项。 */
 .re-sec-note { margin-top: 10px; padding-top: 8px; border-top: 1px solid var(--border-light); font-size: 12px; line-height: 1.65; color: var(--text-dim); }
+/* 长口径折叠（R.secNote 的 fold）：summary 就是原来那行注脚，三角提示可展开；
+ * 展开后正文同字号同字色，位置仍在本卡底部（不弹层）。
+ * padding 2px 把点击行拉到 24px（WCAG 2.5.8），不动正文节奏。 */
+.re-sec-note > summary { cursor: pointer; user-select: none; padding: 2px 0; }
+.re-sec-note[open] > summary { color: var(--text-secondary); margin-bottom: 4px; }
 
 /* ── dashboard ────────────────────────────────────────────── */
 .dashboard-view {

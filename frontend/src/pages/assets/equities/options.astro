@@ -408,7 +408,8 @@ function renderConclusion() {
   ];
   card.appendChild(R.kvRows(kvItems));
 
-  card.appendChild(R.secNote('口径：局部 Gamma 由现价相对 Gamma Flip 位置决定（全链无翻转点时回退 Net GEX 符号）；DEX = Σ(Δ×OI×100×S)；25Δ Skew = 25Δ Put IV − 25Δ Call IV（正值代表 Put IV 高于 Call IV，下行保护溢价偏贵；负值代表 Call IV 偏高）。点击下方扫描表任意行切换标的，双击或点行末「图表」直达 GEX/IV/OI 视图。'));
+  card.appendChild(R.secNote('口径：局部 Gamma 由现价相对 Gamma Flip 位置决定（全链无翻转点时回退 Net GEX 符号）；DEX = Σ(Δ×OI×100×S)；25Δ Skew = 25Δ Put IV − 25Δ Call IV（正值代表 Put IV 高于 Call IV，下行保护溢价偏贵；负值代表 Call IV 偏高）。', { fold: true }));
+  card.appendChild(R.secNote('点击下方扫描表任意行切换标的，双击或点行末「图表」直达 GEX/IV/OI 视图。'));
 
   host.appendChild(card);
 }
@@ -642,7 +643,7 @@ function renderChartsPane() {
   }
   const secGex = document.getElementById('sec-gex');
   secGex?.querySelector(':scope > .re-sec-note')?.remove();
-  secGex?.appendChild(R.secNote('到期日 Gamma 集中度：条长 = 各段 Σ|GEX| / 全链 Σ|GEX|（加总 100%），蓝色为主段；占比越集中，该到期段的期权墙约束力越强。'));
+  secGex?.appendChild(R.secNote('到期日 Gamma 集中度：条长 = 各段 Σ|GEX| / 全链 Σ|GEX|（加总 100%），蓝色为主段；占比越集中，该到期段的期权墙约束力越强。', { fold: true, title: '读法' }));
 
   // 2) ATM IV 期限结构
   const contango = (v.iv_slope ?? 0) > 0;
@@ -692,6 +693,8 @@ const WHEEL_TONE_COLOR = {
   flat: 'var(--text-secondary)',
 };
 let wheelFilter = 'all';
+// 筛选标准是 details，切筛选按钮会整块重建 —— 记住展开态，看完标准点按钮不会收回去
+let wheelCritOpen = false;
 
 function wheelActionable(rows) {
   return rows.filter(r => r.actionable);
@@ -938,13 +941,19 @@ function renderWheel() {
   });
   el.appendChild(bar);
   renderWheelTable();
-  // 筛选标准（卡底小字）：阈值文案由后端 criteria_lines() 从 THRESHOLDS 生成，
+  // 筛选标准（卡底）：阈值文案由后端 criteria_lines() 从 THRESHOLDS 生成，
   // 页面不抄数字 —— 改阈值时说明自动跟着变。口径（数据源/插值方式）下沉到页脚。
-  const crit = document.createElement('div');
+  // 六条规则跨「池准入 / 卖 Put / 备兑 / 选点 / 事件 / 组合」，糊成一段读不下去，
+  // 但每次看板都要扫一遍 → 分条列、默认收起（同 R.secNote 的 fold）。
+  const crit = document.createElement('details');
   crit.className = 'opt-criteria';
-  const critBody = (s.criteria || []).map(t => `<p>${R.esc(t)}</p>`).join('')
-    || '<p>筛选标准未生成，运行 ./bin/fetch_options_structure 后刷新。</p>';
-  crit.innerHTML = `<div class="opt-criteria-title">筛选标准</div>${critBody}`;
+  crit.open = wheelCritOpen;
+  crit.addEventListener('toggle', () => {
+    wheelCritOpen = crit.open;
+  });
+  const lines = s.criteria || [];
+  crit.innerHTML = `<summary>${lines.length ? '筛选标准' : '筛选标准未生成 · 运行 ./bin/fetch_options_structure 后刷新'}</summary>`
+    + lines.map(t => `<p>${R.esc(t)}</p>`).join('');
   sec.appendChild(crit);
 }
 
