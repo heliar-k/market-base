@@ -119,12 +119,10 @@ async function load() {
   }).join('');
   const missingNote = rg.missing.length ? `子分数据不足（${rg.missing.join('、')}），综合分只用有数据的子分重算。` : '';
   const rc = document.createElement('div');
-  rc.className = 'pos-hero regime-hero';
-  rc.style.setProperty('--rc-color', zoneGraphic(rg.regime));  // 图形档：左边框（special.css border-left-color 在样式计算期二次解析 var()）
+  rc.className = 're-section pos-hero regime-hero';
   rc.style.setProperty('--rc-ink', zoneInk(rg.regime));  // 文字档：44px 大数字（special.css .rh-score .num）
   rc.innerHTML = `
     <div class="rh-main">
-      <div class="ph-label">CREDIT REGIME SCORE</div>
       <div class="rh-score">
         <span class="num">${rg.score === null ? '—' : rg.score}</span>
         <span class="of">/ 100</span>
@@ -135,27 +133,25 @@ async function load() {
         <span class="legend"><b>读法：</b>Spread Level 与 Cross-Asset Confirmation 同步走高时，压力信号更可信。</span>
       </div>
     </div>
-    <div class="rh-bars">${bars}</div>
-    <div class="ph-rules">
-      <span class="ph-rules-label">口径 · 子分构成</span>
-      <span class="ph-rules-text">Spread 10Y 分位 · Momentum 22 日变化 · Funding 3Y 分位 · Supply SLOOS 收紧净百分比 · Quality 逾期/核销 10Y 分位 · Liquidity ETF 动量 · Cross-Asset VIX/HY 均值${missingNote ? ' · ⚠ ' + missingNote : ''}</span>
-    </div>`;
+    <div class="rh-bars">${bars}</div>`;
+  rc.appendChild(R.secNote(`口径 · 子分构成：Spread 10Y 分位 · Momentum 22 日变化 · Funding 3Y 分位 · Supply SLOOS 收紧净百分比 · Quality 逾期/核销 10Y 分位 · Liquidity ETF 动量 · Cross-Asset VIX/HY 均值${missingNote ? ' · ⚠ ' + missingNote : ''}`));
   document.getElementById('regime').appendChild(rc);
 
   // ── 利差卡片行 ──
   const pctStr = c => c.pct_10y === null || c.pct_10y === undefined
     ? '10Y 分位 —'
     : `10Y 分位 ${c.pct_10y}%` + (c.full_10y || c.obs == null ? '' : `（仅 ${c.obs} 条）`);
-  const card = (label, c, unit) => `
-    <div class="oas-card">
-      <div class="label">${label}</div>
-      <div class="value">${c.value}<span class="unit">${unit}</span></div>
-      <div class="pcts">1Y ${c.pct_1y ?? '—'}% · 3Y ${c.pct_3y ?? '—'}% · ${pctStr(c)}</div>
-      <div class="date">${c.as_of}</div>
-    </div>`;
-  const row = document.createElement('div');
-  row.className = 'oas-row';
-  row.innerHTML = card('IG OAS（投资级）', d.ig, 'bp') + card('HY OAS（高收益）', d.hy, 'bp') + card('HY − IG', d.hy_ig, 'bp');
+  const card = (label, c) => ({
+    label,
+    value: `${c.value} bp`,
+    sub: `1Y ${c.pct_1y ?? '—'}% · 3Y ${c.pct_3y ?? '—'}% · ${pctStr(c)}<br>${c.as_of}`,
+    cls: 're-card-wrap',
+  });
+  const row = R.cards([
+    card('IG OAS（投资级）', d.ig),
+    card('HY OAS（高收益）', d.hy),
+    card('HY − IG', d.hy_ig),
+  ], 're-cards-wide');
   const oasRoot = document.getElementById('oas-row');
   oasRoot.appendChild(row);
 
@@ -483,47 +479,48 @@ const IDX_LAB = 'SPX 标普 500';
 const END_SHORT = { [BANK_LAB]: '银行', [IDX_LAB]: '大盘' };
 
 function renderCds(root, d) {
-  // 两张卡，不是一张卡里两个 <h2>：代理读数卡与走势图的标题行会直接贴在一块
-  // （.re-section 只给卡与卡之间的 16px，卡内 h2 不吃这个节奏）。
-  // root = .re-sec，本身就是 flex column + gap，两张卡直接挂它就是全站卡间节奏。
-  const sec = R.secCard();
-  root.appendChild(sec);  // 先挂文档再建图（R.mkChart 按 id 查 DOM，detached 时查不到）
-  let sov = '<div class="proxy-card"><div class="label">主权信用代理 · 10Y 美债收益率</div>';
-  if (d.sovereign) {
-    // 后端 cds() 存 round(DGS10 * 100, 2)，单位由 d.sovereign.unit 说（bp，524.0 = 5.24%）。
-    // 卡标题写的是「10Y 美债收益率」，读者预期 %，故除回 100 显示，bp 等价值放进 .sub。
-    sov += `<div class="value">${(d.sovereign.value / 100).toFixed(2)}<span class="unit">%</span></div>
-      <div class="sub">${d.sovereign.value} ${d.sovereign.unit || 'bp'} · 10Y 收益率明显上行时，本页把它作为美元信用 / 财政可持续性定价变化的代理读数</div>
-      <div class="date">${d.sovereign.as_of}</div>`;
-  } else {
-    sov += '<div class="sub">数据缺失</div>';
-  }
-  sov += '</div>';
-  let bank = '<div class="proxy-card"><div class="label">银行系统风险代理 · 银行股相对大盘</div>';
+  // 代理读数使用全站 KPI 卡行，口径注脚跟随卡行；走势图独立成卡。
+  const sov = {
+    label: '主权信用代理 · 10Y 美债收益率',
+    value: d.sovereign ? `${(d.sovereign.value / 100).toFixed(2)}%` : '—',
+    sub: d.sovereign
+      // 后端 cds() 存 round(DGS10 * 100, 2)，卡面按读者预期的 % 展示，bp 等价值放进 sub。
+      ? `${d.sovereign.value} ${d.sovereign.unit || 'bp'} · 10Y 收益率明显上行时，本页把它作为美元信用 / 财政可持续性定价变化的代理读数<br>${d.sovereign.as_of}`
+      : '数据缺失',
+    cls: 're-card-wrap',
+  };
+  let bank = {
+    label: '银行系统风险代理 · 银行股相对大盘',
+    value: '—',
+    sub: 'KBWB / SPX 快照不足（需 ≥2 个交易日）',
+    cls: 're-card-wrap',
+  };
   if (d.bank) {
     const dv = d.bank.divergence;
     // 方向色跟全页语义走：负 = 银行相对承压 = 风险（红），正 = 相对强势（绿）。
-    // 原先用 --accent-ink（蓝）当“异常色”，同页其它读数全按上/下着色，蓝在这里不表示任何方向。
     const dir = dv < 0 ? '银行板块相对承压' : (dv > 0 ? '银行板块相对强势' : '持平');
     const color = dv < 0 ? 'var(--down)' : dv > 0 ? 'var(--up)' : 'var(--text)';
     const chg = (v) => `${v > 0 ? '+' : ''}${v.toFixed(2)}%`;
-    bank += `<div class="value" style="color:${color}">${dv > 0 ? '+' : ''}${dv.toFixed(2)}<span class="unit">${d.bank.unit || 'pp'}</span></div>
-      <div class="sub">${d.bank.days} 个交易日：${BANK_LAB} ${chg(d.bank.kbwb_chg)} − ${IDX_LAB} ${chg(d.bank.spx_chg)} = ${dir}</div>
-      <div class="date">截至 ${d.bank.as_of || '—'}${d.bank.days < 14 ? `（快照不足，窗口只回溯 ${d.bank.days} 天）` : ''}</div>`;
-  } else {
-    bank += '<div class="sub">KBWB / SPX 快照不足（需 ≥2 个交易日）</div>';
+    bank = {
+      ...bank,
+      value: `${dv > 0 ? '+' : ''}${dv.toFixed(2)} ${d.bank.unit || 'pp'}`,
+      sub: `${d.bank.days} 个交易日：${BANK_LAB} ${chg(d.bank.kbwb_chg)} − ${IDX_LAB} ${chg(d.bank.spx_chg)} = ${dir}<br>截至 ${d.bank.as_of || '—'}${d.bank.days < 14 ? `（快照不足，窗口只回溯 ${d.bank.days} 天）` : ''}`,
+      vcolor: color,
+    };
   }
-  bank += '</div>';
-  const row = document.createElement('div');
-  row.className = 'proxy-row';
-  row.innerHTML = sov + bank;
-  sec.appendChild(row);
+  root.appendChild(R.cards([sov, bank], 're-cards-wide'));
+  root.appendChild(R.secNote(
+    'CDS（Credit Default Swap，信用违约互换）= 为债务人违约买保险的价格。真实 Markit '
+    + 'CDX IG / CDX HY 与主权 CDS 报价为付费数据源（Bloomberg / Refinitiv 授权），'
+    + '本页只用公开代理：主权信用用 10Y 美债收益率，银行系统风险用 KBWB（KBW 银行指数 ETF，'
+    + '追踪美国大型银行）相对 SPX（标普 500，Yahoo ticker ^GSPC）的收益差。'
+    + 'pp = 百分点（两个百分比之差）。', { fold: true }));
 
   if (d.bank && d.bank.chart) {
     const c = d.bank.chart;
     // 标题走 R.secTitle 单源（不写内联样式 h3）；窗口写死「30 日」会错：
     // 剥掉快照周末行后 c.trading_days 才是真交易日数，起点日期由后端下发。
-    // 另：不能用 sec.innerHTML +=（会重建子节点，把已 init 的图表 div 换成空白新节点）。
+    // 另：不能用 csec.innerHTML +=（会重建子节点，把已 init 的图表 div 换成空白新节点）。
     const csec = R.secCard();  // 无图时不建卡（空 .re-section = 一个 32px 的空框）
     csec.innerHTML = R.secTitle('银行板块相对大盘走势',
       `${c.trading_days} 个交易日 · 起点 ${c.base_date} = 100`)
@@ -588,13 +585,6 @@ function renderCds(root, d) {
       ],
     }, colors));
   }
-  // 两段注脚各贴各的数据：术语/代理口径归上方读数卡，图读法归图卡
-  sec.appendChild(R.secNote(
-    'CDS（Credit Default Swap，信用违约互换）= 为债务人违约买保险的价格。真实 Markit '
-    + 'CDX IG / CDX HY 与主权 CDS 报价为付费数据源（Bloomberg / Refinitiv 授权），'
-    + '本页只用公开代理：主权信用用 10Y 美债收益率，银行系统风险用 KBWB（KBW 银行指数 ETF，'
-    + '追踪美国大型银行）相对 SPX（标普 500，Yahoo ticker ^GSPC）的收益差。'
-    + 'pp = 百分点（两个百分比之差）。', { fold: true }));
 }
 
 // ── 压力指数明细：5 分量 + 历史曲线 + 跨资产对照 ──

@@ -100,10 +100,10 @@ function renderOverview(d) {
   const desc = c == null ? ''
     : `当前 CFTC 投机仓位整体为「${crowdLabel}」，方向上${o.bias || '中性'}。最极端的合约是 ${extremes}。仓位已包含一部分市场共识，接下来看价格是否继续确认，不只看净多净空绝对值。`;
   const el = document.getElementById('overview');
-  el.innerHTML = `
-  <div class="pos-hero">
+  const hero = document.createElement('div');
+  hero.className = 're-section pos-hero';
+  hero.innerHTML = `
     <div>
-      <div class="ph-label">POSITIONING READTHROUGH</div>
       <div class="ph-title">${crowdLabel}<span class="ph-sub">拥挤度 ${c == null ? '—' : c.toFixed(1)}/100</span></div>
       <div class="ph-desc">${desc}</div>
     </div>
@@ -111,21 +111,16 @@ function renderOverview(d) {
       <div>偏多 ${o.counts?.bull ?? '—'} · 偏空 ${o.counts?.bear ?? '—'} · 极端 ${o.counts?.extreme ?? '—'} 个</div>
       <div>百分位越靠近 0 或 100，仓位越拥挤；拥挤不是反转信号，但会放大反向时的波动。</div>
       <div><b>读法：</b>价格涨且净仓增是趋势确认；价格涨但净仓降是早期背离。</div>
-    </div>
-    <div class="ph-rules">
-      <span class="ph-rules-label">判读规则 · 净多头百分位（2 年）</span>
-      <span class="ph-rules-text">≥90 极度看多 · ≥75 偏多 · ≤25 偏空 · ≤10 极度看空 · 其余中性</span>
-    </div>
-  </div>`;
+    </div>`;
+  hero.appendChild(R.secNote('判读规则 · 净多头百分位（2 年）：≥90 极度看多 · ≥75 偏多 · ≤25 偏空 · ≤10 极度看空 · 其余中性'));
+  el.replaceChildren(hero);
 }
 
 // ── 分组合约卡 ──
 function renderGroup(g) {
   const wrap = document.getElementById('groups');
-  const sec = document.createElement('div');
-  sec.className = 're-section';
-  sec.style.marginBottom = '16px';
-  sec.innerHTML = `<h2 style="display:flex;justify-content:space-between;align-items:center;gap:8px;white-space:nowrap;font-size:13px">${GNAMES[g.name] || g.name}<span class="re-badge neutral" style="flex-shrink:0">${g.contracts.length} 合约</span></h2>`;
+  const sec = R.secCard();
+  sec.innerHTML = R.secTitle(GNAMES[g.name] || g.name, '', `${g.contracts.length} 合约`);
   const note = document.createElement('div');
   note.className = 'pos-group-note';
   note.innerHTML = `${TIPS[g.name] || ''}<br>${g.verdict || ''}<br><b>本组最需要关注：</b>${g.focus?.name || g.focus?.symbol || '—'}，2 年百分位 ${g.focus?.pct_2y ?? '—'}。`;
@@ -150,7 +145,7 @@ const TIPS = {
 
 function contractCard(c) {
   const card = document.createElement('div');
-  card.className = 'pos-contract';
+  card.className = 're-card pos-contract';
   // 两个取色变量只进 color:（卡片无填充用法），故直接取文字档
   const netColor = c.net >= 0 ? 'var(--up)' : 'var(--down)';
   const wkColor = c.week_dir == '增仓' ? 'var(--up)' : (c.week_dir == '减仓' ? 'var(--down)' : 'var(--text-secondary)');

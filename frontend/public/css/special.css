@@ -394,8 +394,8 @@ a.re-badge:hover { color: var(--accent-ink); border-color: var(--accent-ink); }
 .oas-card { border: 1px solid var(--border); border-radius: 8px; background: var(--surface); padding: 16px 20px; }
 .oas-card .label { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--text-dim); }
 /* 手写复合卡大字号 clamp(oas/score/vol-hero 共用推导口径)：上限 = 原固定值，390px 屏缩至 ~74-78%，~1825-2000px 视口触顶回原值 */
-.oas-card .value, .proxy-card .value { font-size: clamp(20px, 18.7px + 0.4vw, 26px); font-weight: 700; font-variant-numeric: tabular-nums; margin: 4px 0 6px; }
-.oas-card .value .unit, .proxy-card .value .unit { font-size: 13px; color: var(--text-dim); font-weight: 500; }
+.oas-card .value { font-size: clamp(20px, 18.7px + 0.4vw, 26px); font-weight: 700; font-variant-numeric: tabular-nums; margin: 4px 0 6px; }
+.oas-card .value .unit { font-size: 13px; color: var(--text-dim); font-weight: 500; }
 .oas-card .pcts { font-size: 12px; color: var(--text-secondary); }
 .oas-card .date { font-size: 11px; color: var(--text-dim); margin-top: 4px; }
 .note { font-size: 12px; color: var(--text-dim); margin-top: 6px; }
@@ -404,16 +404,11 @@ a.re-badge:hover { color: var(--accent-ink); border-color: var(--accent-ink); }
 .score-card .label { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--text-dim); }
 .score-card .badge { display: inline-block; font-size: 12px; line-height: 18px; font-weight: 600; padding: 1px 8px; border-radius: 4px; border: 1px solid; background: var(--color-neutral-bg); }
 .score-card .scale { font-size: 12px; color: var(--text-secondary); margin-top: 8px; }
-.proxy-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-.proxy-card { border: 1px solid var(--border); border-radius: 8px; background: var(--surface); padding: 16px 20px; }
-.proxy-card .label { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--text-dim); }
-.proxy-card .sub { font-size: 12px; color: var(--text-secondary); }
-.proxy-card .date { font-size: 11px; color: var(--text-dim); margin-top: 4px; }
 /* Credit Regime Score 记分卡（hero 骨架三分区：左总分块 | 右子分拆解 | 底部口径行） */
-.pos-hero.regime-hero { grid-template-columns: 250px 1fr; gap: 26px; border-left-color: var(--rc-color, var(--color-warn)); align-items: start; padding: 24px 28px 20px; }
+.pos-hero.regime-hero { grid-template-columns: 250px 1fr; gap: 26px; align-items: start; }
 .rh-main { display: flex; flex-direction: column; gap: 10px; }
 .rh-score { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 2px; }
-.rh-score .num { font-size: 44px; font-weight: 800; font-variant-numeric: tabular-nums; line-height: 1; color: var(--rc-ink, var(--color-warn-text)); }
+.rh-score .num { font-size: 44px; font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1; color: var(--rc-ink, var(--color-warn-text)); }
 .rh-score .of { font-size: 13px; color: var(--text-secondary); font-weight: 500; }
 .rh-badge { display: inline-block; padding: 1px 8px; border-radius: 4px; font-size: 12px; line-height: 18px; font-weight: 600; }
 .rh-read { font-size: 12px; line-height: 1.75; color: var(--text-secondary); }
@@ -430,7 +425,6 @@ a.re-badge:hover { color: var(--accent-ink); border-color: var(--accent-ink); }
 
 @media (max-width: 768px) { .vix-row, .link-grid { grid-template-columns: 1fr; } }
 @media (max-width: 768px) { .oas-row { grid-template-columns: 1fr; } }
-@media (max-width: 768px) { .proxy-row { grid-template-columns: 1fr; } }
 
 /* ── 涨跌/中性语义色已由 tokens.css 接管，亮暗双主题无需再写 body.dark 覆写 ── */
 
@@ -561,16 +555,13 @@ button.opt-sig-reason:hover .osr-brief { color: var(--text-secondary); }
 .opt-bucket-fill { height: 100%; border-radius: 4px; }
 
 /* ── 持仓追踪（CFTC COT，timsun 复刻）── */
-.pos-hero { border: 1px solid var(--border); border-radius: 12px; background: var(--surface); padding: 20px 24px 16px; display: grid; grid-template-columns: 1fr 260px; gap: 16px; border-left: 3px solid var(--color-warn); }
-.pos-hero .ph-label { font-size: 11px; font-weight: 600; letter-spacing: .08em; color: var(--text-dim); }
-.pos-hero .ph-title { font-size: 24px; font-weight: 800; color: var(--color-warn-text); margin-top: 4px; display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.pos-hero { display: grid; grid-template-columns: 1fr 260px; gap: 16px; }
+.pos-hero .ph-title { font-size: 22px; font-weight: 700; color: var(--color-warn-text); display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
 .pos-hero .ph-sub { font-size: 12px; color: var(--text-secondary); font-weight: 400; }
 .pos-hero .ph-desc { font-size: 13px; line-height: 1.8; color: var(--text-secondary); margin-top: 14px; }
 .pos-hero .ph-side { font-size: 12px; line-height: 1.75; color: var(--text-secondary); border-left: 1px solid var(--border); padding-left: 16px; display: flex; flex-direction: column; gap: 8px; justify-content: center; }
-.pos-hero .ph-rules { grid-column: 1 / -1; display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 16px; border-top: 1px solid var(--border); margin-top: 12px; padding-top: 12px; }
-.pos-hero .ph-rules-label { font-size: 11px; font-weight: 600; color: var(--text-secondary); letter-spacing: .04em; flex-shrink: 0; }
-.ph-rules-text { font-size: 12px; color: var(--text-secondary); font-variant-numeric: tabular-nums; }
-.pos-group-note { background: var(--surface-alt); border: 1px solid var(--border); border-radius: 8px; padding: 12px 16px; font-size: 12px; line-height: 1.75; color: var(--text-secondary); margin-bottom: 12px; }
+.pos-hero > .re-sec-note { grid-column: 1 / -1; margin-top: 0; }
+.pos-group-note { font-size: 12px; line-height: 1.75; color: var(--text-secondary); margin-bottom: 12px; }
 .pos-contract-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
 /* 奇数张时末卡通栏，避免右侧留一格空白（股指/利率/外汇组各 3 张）；
    通栏卡内部改为图表左 / 解读右两栏，避免统计列被拉散、曲线压扁 */
@@ -580,7 +571,7 @@ button.opt-sig-reason:hover .osr-brief { color: var(--text-secondary); }
 .pos-contract:last-child:nth-child(odd) .pos-chart { grid-area: chart; }
 .pos-contract:last-child:nth-child(odd) .pos-reading { grid-area: reading; }
 .pos-contract:last-child:nth-child(odd) .pos-foot { grid-area: foot; }
-.pos-contract { border: 1px solid var(--border); border-radius: 10px; background: var(--surface); padding: 16px 20px; display: flex; flex-direction: column; gap: 8px; }
+.pos-contract { display: flex; flex-direction: column; gap: 8px; }
 .pos-contract .pc-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; }
 .pos-contract .pc-title { font-size: 15px; font-weight: 700; }
 .pos-contract .pc-code { font-size: 11px; color: var(--text-secondary); margin-top: 2px; }
@@ -712,10 +703,10 @@ button.opt-sig-reason:hover .osr-brief { color: var(--text-secondary); }
 .re-table thead th { position: sticky; top: 0; }
 
 /* ── timsun 数字排版纪律：统计值/大数字/表格数字列统一等宽字体（字号与 tabular-nums 已在各元素声明）── */
-.re-corridor-value, .oas-card .value, .score-card .value, .proxy-card .value,
+.re-corridor-value, .oas-card .value, .score-card .value,
 .vol-hero-card .vh-value, .vol-stat .st-value, .vol-signal-card .vs-metric,
 .pos-cols .v, .rk-v,
-.rh-score .num, .rh-bars .val, .radar-num b, .ph-rules-text, .term-slope,
+.rh-score .num, .rh-bars .val, .radar-num b, .term-slope,
 .vol-heat-cell .ht-value, .vol-heat-cell .ht-chg,
 .re-table td.num, .re-table td.mono {
   font-family: var(--font-mono);
