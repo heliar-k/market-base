@@ -146,8 +146,8 @@ async function load() {
     { fold: true, title: '读法' }));
   document.getElementById('sec-zq-path').appendChild(R.secNote(
     '口径：纵轴是该场会议在当日被定价到各个绝对目标区间的概率（30 天联邦基金期货结算价反推，'
-    + '同一天合计 100%），颜色按区间从低到高走绿→红（与本页降息绿 / 加息红同向）。'
-    + '横轴是快照日；同一场会议随着时间从一侧区间移向另一侧，'
+    + '同一天合计 100%），颜色按区间从低到高走绿 → 蓝 → 红（绿 = 最鸽的区间、红 = 最鹰的区间，'
+    + '与本页降息绿 / 加息红同向）。横轴是快照日；同一场会议随时间从一侧区间移向另一侧，'
     + '这段移动就是预期的收敛过程。上方明细表的三档口径（降息/维持/加息）以各快照当时的目标区间为基准，'
     + '目标区间调整后同一档的含义随之改变，所以本图按绝对区间画。tooltip 的会后隐含利率 = 结算价隐含的'
     + '会议后利率水平，与明细表「会后」同源；已结束的会议也留在下拉里，用于回看当时的定价过程。',
@@ -401,7 +401,8 @@ function renderCards(meetings) {
   }).join('');
 }
 
-// ── PM 概率收敛路径：有日频历史的会议各画 cut/hike/hold 三条，首场实线、次场虚线 ──
+// ── PM 概率收敛路径：有日频历史的会议各画 cut/hold/hike 三条，首场实线、次场虚线 ──
+// 配色与下方 ZQ 堆叠图同一套语义三色（绿 = 降息 / 蓝 = 维持 / 红 = 加息）
 function renderConvChart(meetings, hist) {
   const withHist = meetings
     .map((m) => ({ ym: m.meeting_date.slice(0, 7), label: (+m.meeting_date.slice(5, 7)) + '月', series: hist[m.meeting_date.slice(0, 7)] }))
@@ -416,7 +417,7 @@ function renderConvChart(meetings, hist) {
     const series = [];
     withHist.slice(0, 2).forEach((x, i) => {
       const dash = i > 0;
-      for (const [key, name, color] of [['cut', '降息', colors.green], ['hike', '加息', colors.red], ['hold', '维持', colors.gray]]) {
+      for (const [key, name, color] of [['cut', '降息', colors.green], ['hold', '维持', colors.blue], ['hike', '加息', colors.red]]) {
         const sname = `${x.label}·${name}`;
         series.push({ name: sname, type: 'line', data: dates.map((dt) => [dt, byDate(x, key)[dt] ?? null]),
           symbol: 'none', connectNulls: true, lineStyle: { color, width: 2, type: dash ? 'dashed' : 'solid' }, itemStyle: { color } });
@@ -465,31 +466,35 @@ function zqPathOption(meetings, key) {
   const dates = rows.map((r) => r.date);
   const rate = Object.fromEntries(rows.map((r) => [r.date, r.post_meeting_rate]));
   // 每个区间一条与 dates 等长的序列（当日无该区间填 0）：堆叠带缺一天就断口
-  const series = ranges.map((r) => ({
-    name: `${r.lo.toFixed(2)}–${r.hi.toFixed(2)}%`,
-    values: rows.map((row) => (row.probs.find((p) => p.lo === r.lo)?.prob ?? 0) * 100),
-  }));
-  const byName = new Map(series.map((s) => [s.name, s.values]));
+  const values = ranges.map((r) => rows.map((row) => (row.probs.find((p) => p.lo === r.lo)?.prob ?? 0) * 100));
+  const names = ranges.map((r) => `${r.lo.toFixed(2)}–${r.hi.toFixed(2)}%`);
   // 单日会议用堆叠柱，段高直接对应概率；time 轴拓开 ±2 天，避免零宽轴域与重复日期
   const single = dates.length === 1;
   const t0 = single ? new Date(dates[0] + 'T00:00:00').getTime() : 0;
 
   const opt = (colors) => {
-    // 低利率 → 高利率走绿→红：与本页 hero / 明细表的降息绿、加息红同向。
-    // 直接用主题调色板原序会把最高区间落成绿色，与全页语义相反
-    const ramp = [colors.green, colors.cyan, colors.blue, colors.purple, colors.orange, colors.red];
-    const ink = (i) => ramp[series.length < 2 ? 0 : Math.round((i * (ramp.length - 1)) / (series.length - 1))];
+    // 语义三色阶：最低区间 = 绿（鸽）、最高 = 红（鹰）、中间各档走品牌蓝的深浅。
+    // 直接用主题分类色板原序会夹进紫/青，整片堆叠面积上很难看；中间档往卡面底色
+    // 淡出的是「离两端远」的那一档，暗色主题下往浅中性色提亮（暗底上「淡」= 更浅）
+    const pale = document.body.classList.contains('dark') ? colors.text : colors.bg;
+    const mids = ranges.length - 2;
+    const ink = (i) => {
+      if (mids < 0) return colors.blue;
+      if (i === 0) return colors.green;
+      if (i === ranges.length - 1) return colors.red;
+      return mixHex(mixHex(colors.blue, pale, 0.55), colors.blue, mids === 1 ? 0.55 : (i - 1) / (mids - 1));
+    };
     return R.lineOption({
-      legend: { data: series.map((s) => s.name) },
+      legend: { data: names },
       tooltip: {
         trigger: 'axis',
-        // 按 dataIndex 回原始数组取各区间的当日概率，并追加会后隐含利率
+        // value 是 time 轴的点对 [日期, 概率]；按 dataIndex 追加会后隐含利率
         formatter: (ps) => {
           const i = ps[0]?.dataIndex;
           if (i == null) return '';
           return [
             dates[i],
-            ...ps.map((p) => `${p.marker}${p.seriesName} ${(byName.get(p.seriesName)?.[i] ?? 0).toFixed(1)}%`),
+            ...ps.map((p) => `${p.marker}${p.seriesName} ${Number(p.value[1]).toFixed(1)}%`),
             `会后隐含利率 ${rate[dates[i]].toFixed(3)}%`,
           ].join('<br/>');
         },
@@ -503,12 +508,12 @@ function zqPathOption(meetings, key) {
         axisLabel: { formatter: (v) => R.md(v) },  // 历史跨度 ~3 月
       },
       yAxis: { type: 'value', max: 100, axisLabel: { formatter: '{value}%' } },
-      series: series.map((s, i) => ({
-        name: s.name, type: single ? 'bar' : 'line', stack: 'prob', color: ink(i),
-        data: dates.map((dt, k) => [dt, s.values[k]]),
+      series: ranges.map((r, i) => ({
+        name: names[i], type: single ? 'bar' : 'line', stack: 'prob', color: ink(i),
+        data: dates.map((dt, k) => [dt, values[i][k]]),
         ...(single
           ? { barWidth: 28 }
-          : { symbol: 'none', lineStyle: { color: ink(i), width: 1 }, areaStyle: { opacity: 0.75 } }),
+          : { symbol: 'none', lineStyle: { color: ink(i), width: 1 }, areaStyle: { color: ink(i) + '8C' } }),
       })),
     }, colors);
   };

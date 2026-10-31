@@ -153,9 +153,12 @@ function reCorrRamp() {
     mid = reCssVar('--surface-alt');
   return [neg, mixHex(neg, mid, 0.72), mid, mixHex(pos, mid, 0.72), pos];
 }
-// 6 位十六进制颜色线性插值（仅供 reCorrRamp 生成过渡带）
+// 6 位十六进制颜色线性插值（reCorrRamp 的过渡带、页面派生色阶共用；兼容 #abc 缩写）
 function mixHex(a, b, t) {
-  const p = (h) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16));
+  const p = (h) => {
+    const s = h.length === 4 ? '#' + h[1] + h[1] + h[2] + h[2] + h[3] + h[3] : h;
+    return [1, 3, 5].map((i) => parseInt(s.slice(i, i + 2), 16));
+  };
   const [pa, pb] = [p(a), p(b)];
   return (
     '#' +
