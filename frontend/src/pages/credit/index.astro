@@ -568,6 +568,7 @@ function renderCds(root, d) {
           name: BANK_LAB, type: 'line', data: c.dates.map((dt, i) => [dt, c.kbwb[i]]), smooth: true, showSymbol: false, connectNulls: true,
           color: colors.orange, lineStyle: { width: 2, color: colors.orange },
           endLabel: { show: endOn(), formatter: end, color: colors.orangeText, fontSize: 11 },
+          labelLayout: { moveOverlap: 'shiftY' },
           // 起点基准线（= 100 的虚线）：y 轴 scale:true 会从 89 起画，没这条线读者算不出
           // 「相对起点跌了多少」。不另配线上文字 —— 标题已写「起点 {base_date} = 100」，
           // 而左端正好是两线起点，标上去必被曲线压住（上一轮实测即此）
@@ -581,6 +582,7 @@ function renderCds(root, d) {
           // 基准系列用虚线：线型与颜色两道区分（只靠色相 = 色弱/黑白打印读不出）
           color: colors.blue, lineStyle: { width: 1.5, color: colors.blue, type: 'dashed' },
           endLabel: { show: endOn(), formatter: end, color: colors.text, fontSize: 11 },
+          labelLayout: { moveOverlap: 'shiftY' },
         },
       ],
     }, colors));
