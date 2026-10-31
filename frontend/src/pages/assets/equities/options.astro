@@ -762,16 +762,17 @@ const WHEEL_COLS = [
   }],
   ['iv_rank', '1Y IVR', (v, r) => {
     if (r.iv_rank_1y == null && r.iv_pct_1y == null) return '—';
-    const source = r.ivr_source === 'local_iv35_1y'
-      ? '本地IV35'
-      : (r.ivr_source === 'barchart' ? 'Barchart' : '来源未知');
+    // 来源默认 Barchart（页脚已写明），行内只标本降级这一例外
+    const srcTag = r.ivr_source === 'local_iv35_1y' ? ' · 本地' : '';
     return `${r.iv_rank_1y == null ? '—' : R.num(r.iv_rank_1y, 0) + '%'}`
-      + `<div style="font-size:11px;color:var(--text-dim)">IVP ${r.iv_pct_1y == null ? '—' : R.num(r.iv_pct_1y, 0) + '%'} · ${R.esc(source)}</div>`;
+      + `<div style="font-size:11px;color:var(--text-dim)">IVP ${r.iv_pct_1y == null ? '—' : R.num(r.iv_pct_1y, 0) + '%'}${srcTag}</div>`;
   }],
-  ['walls', 'P / C 墙', (v, r) => `${r.put_wall ? R.num(r.put_wall, 0) : '—'} / ${r.call_wall ? R.num(r.call_wall, 0) : '—'}`],
+  ['walls', 'P / C 墙', (v, r) => `${r.put_wall ? R.num(r.put_wall, 0) : '—'}/${r.call_wall ? R.num(r.call_wall, 0) : '—'}`],
   ['event', '事件排雷', (v, r) => {
     const c = WHEEL_TONE_COLOR[r.event_tone] || 'var(--text-secondary)';
-    return `<span style="font-size:11.5px;color:${c};white-space:nowrap">${R.esc(r.event_alert || '')}</span>`;
+    // 多个标签各占一行：挤成一行时「财报41d(12-10) · 除息0d」把整列撑到 168px
+    return String(r.event_alert || '').split(' · ')
+      .map(t => `<div style="font-size:11.5px;color:${c};white-space:nowrap">${R.esc(t)}</div>`).join('');
   }],
   ['trend', '趋势', (v, r) => {
     const t = r.trend_state || '';
@@ -794,14 +795,15 @@ const WHEEL_COLS = [
       : `<div class="opt-sig-reason">${R.esc(brief)}</div>`;
     return `<span class="re-badge ${cls}">${R.esc(r.signal || '')}</span>` + reasonEl;
   }],
-  ['pick', '推荐合约 (7~49D)', (v, r) => {
+  ['pick', '推荐合约', (v, r) => {
     const p = r.put_pick || r.call_pick;
     if (!p) return '<span style="color:var(--text-dim)">—</span>';
     const exp = p.expiration.startsWith('~') ? p.expiration : `${p.expiration.slice(5)}(${p.dte}d)`;
     const roc = p.annual_roc_pct != null ? ` · 年化${R.num(p.annual_roc_pct, 0)}%` : '';
     const est = p.executable === false ? '<em style="font-size:11px;color:var(--text-dim)"> [BSM]</em>' : '';
     const cov = r.call_pick ? '<div style="font-size:10.5px;color:var(--warning)">仅限备兑(持100股底仓)</div>' : '';
-    return `<div style="font-variant-numeric:tabular-nums;white-space:normal;max-width:154px;line-height:1.35">${R.esc(exp)} <b>$${R.num(p.strike, 2)}${R.esc(p.right)}</b>`
+    // min-width 是列宽地板：没有它时窄屏这张表只剩这一列可压，合约被挤到 5 行把行高撑到 200px
+    return `<div style="font-variant-numeric:tabular-nums;white-space:normal;min-width:120px;max-width:154px;line-height:1.35">${R.esc(exp)} <b>$${R.num(p.strike, 2)}${R.esc(p.right)}</b>`
       + `<div style="font-size:11px;color:var(--text-secondary)">Δ${R.num(p.delta, 2)} · IV ${R.num(p.iv_pct, 0)}% (${R.fmtBp(p.dist_pct)}%)${roc}${est}</div>${cov}</div>`;
   }],
 ];

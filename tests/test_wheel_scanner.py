@@ -498,7 +498,7 @@ def test_t2_tier_always_blocked_even_when_lot_below_hard_cap(tmp_path, monkeypat
     }
     row = evaluate_symbol(spec, "20261029", opt_map)
     assert row is not None
-    assert row.suitability.startswith("单手偏大")
+    assert row.suitability == "单手偏大"
     assert row.signal == "暂不操作"
     assert "宜正股或作底仓" in row.reason
     assert row.put_pick is None

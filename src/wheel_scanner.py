@@ -778,14 +778,15 @@ def evaluate_symbol(
         trend_state = "震荡修复"
 
     # ── 1) 四维适合性硬门槛 ──
+    # 金额只进 lot_k 字段（前端「现价」列已标单手占资），这里与信号原因都只留结论
     if lot_k > THRESHOLDS["lot_hard_max_k"]:
-        suitability = f"单手过重(${lot_k:.0f}k)"
+        suitability = "单手过重"
     elif hv20 < THRESHOLDS["hv20_min"] and (iv35 or 0) < 22.0:
         suitability = "权利金过薄"
     elif hv20 > THRESHOLDS["hv20_max"]:
         suitability = "波动过大"
     elif lot_k > THRESHOLDS["lot_ideal_max_k"]:
-        suitability = f"单手偏大(${lot_k:.0f}k)"
+        suitability = "单手偏大"
     else:
         suitability = "适合"
 
@@ -805,12 +806,10 @@ def evaluate_symbol(
             else "股票日线与快照日期不一致·需更新"
         )
     elif (
-        spec.tier == "T2"
-        or suitability in ("权利金过薄", "波动过大")
-        or suitability.startswith("单手过重")
+        spec.tier == "T2" or suitability in ("权利金过薄", "波动过大") or suitability == "单手过重"
     ):
         # 不带金额：左栏「单手$k」已经写明具体数值，这里只给结论
-        reasons.append(f"{suitability.split('(')[0]}·宜正股或作底仓")
+        reasons.append(f"{suitability}·宜正股或作底仓")
     elif iv35 is None:
         reasons.append("缺期权数据·需运行 fetch_options_structure")
     elif not earnings_known:
