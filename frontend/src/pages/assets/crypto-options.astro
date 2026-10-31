@@ -58,13 +58,15 @@ function renderPolymarket(pm, spot) {
   const chg = v => (v == null ? '<span style="color:var(--text-dim)">—</span>'
     : `<span class="${v > 0 ? 'up' : v < 0 ? 'down' : ''}">${v > 0 ? '+' : ''}${v.toFixed(1)}pp</span>`);
   const total = pm.topics.reduce((s, t) => s + (t.volume24hr || 0), 0) || 1;
-  // 阶梯行按价位升序，跨过现价处插一条分隔线；无现价的标的（SOL/XRP）不显示距离
+  // 阶梯行按价位降序（价位高的在上，↑ 才对得上「现价之上」），跨过现价处插一条分隔线；无现价的标的（SOL/XRP）不显示距离
   const anchor = k => spot && spot[k];
   const rowsOf = (ev, px) => {
     const out = [];
-    ev.markets.forEach((m, i) => {
-      const prev = ev.markets[i - 1];
-      if (px && prev && prev.strike != null && m.strike != null && prev.strike < px && m.strike >= px) {
+    const ms = [...ev.markets].sort((a, b) => (a.strike == null ? 1 : 0) - (b.strike == null ? 1 : 0)
+      || b.strike - a.strike);
+    ms.forEach((m, i) => {
+      const prev = ms[i - 1];
+      if (px && prev && prev.strike != null && m.strike != null && prev.strike > px && m.strike <= px) {
         out.push(`<div class="pm-spot"><span>现价 ${R.usd(px)}</span><span>↑上方档 / ↓下方档</span></div>`);
       }
       out.push(`<div class="pm-odds-row" title="${R.esc(m.question)}">
@@ -189,12 +191,12 @@ async function load() {
   wsec.className = 're-section';
   wsec.id = 'sec-walls';
   const usd0 = v => (v == null ? '—' : '$' + fmt(v, 0));
-  // 行权价升序展示 Call / Put 两侧 Top 5；同一价位有两个方向时分别保留
+  // 行权价降序（价位高的在上，↑ 才是上方压制）；同一价位有两个方向时分别保留
   const ladderRows = (o, spot) => {
     const rows = [
       ...(o.top_calls || []).map(r => ({ side: 'call', ...r })),
       ...(o.top_puts || []).map(r => ({ side: 'put', ...r })),
-    ].sort((a, b) => a.strike - b.strike || a.side.localeCompare(b.side));
+    ].sort((a, b) => b.strike - a.strike || a.side.localeCompare(b.side));
     if (!rows.length) return '';
     const max = Math.max(...rows.map(r => r.oi));
     const callWall = o.near_call_wall ?? o.call_wall;
@@ -202,7 +204,7 @@ async function load() {
     const out = [];
     rows.forEach((r, i) => {
       // 跨过现价处插一条分隔线（同 Polymarket 阶梯的 .pm-spot 做法）
-      if (spot && i && rows[i - 1].strike < spot && r.strike >= spot) {
+      if (spot && i && rows[i - 1].strike > spot && r.strike <= spot) {
         out.push(`<div class="sw-spot"><span>现价 ${usd0(spot)}</span><span>↑上方压制 / ↓下方支撑</span></div>`);
       }
       const wall = r.side === 'call' && r.strike === callWall
