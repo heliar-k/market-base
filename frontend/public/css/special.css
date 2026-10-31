@@ -580,7 +580,9 @@ button.opt-sig-reason:hover .osr-brief { color: var(--text-secondary); }
 .pc-badge.extreme { background: var(--color-down-bg); color: var(--color-down-text); }
 .pc-badge.bullish { background: var(--color-up-bg); color: var(--color-up-text); }
 .pc-badge.neutral { background: var(--color-neutral-bg); color: var(--color-neutral-text); }
-.pos-cols { display: flex; justify-content: space-between; gap: 14px; }
+/* 三列数值都带 nowrap：卡窄到装不下时（1025–1150 两列卡仅 300–350px）第三列会顶出卡内距，
+   交给 flex 换行，比压字号或省略号安全 */
+.pos-cols { display: flex; justify-content: space-between; gap: 8px 14px; flex-wrap: wrap; }
 .pos-cols > div { min-width: 0; }
 .pos-cols .k { font-size: 10px; letter-spacing: .06em; color: var(--text-secondary); font-weight: 600; }
 .pos-cols .v { font-size: 14px; font-weight: 700; font-variant-numeric: tabular-nums; margin-top: 2px; white-space: nowrap; }
@@ -589,10 +591,9 @@ button.opt-sig-reason:hover .osr-brief { color: var(--text-secondary); }
 .pos-foot { font-size: 11px; color: var(--text-secondary); border-top: 1px solid var(--border-light); padding-top: 6px; display: flex; justify-content: space-between; }
 .pos-subtitle { font-size: 12px; color: var(--text-secondary); margin-bottom: 10px; }
 @media (max-width: 1024px) { .pos-hero { grid-template-columns: 1fr; } .pos-hero .ph-side { border-left: none; padding-left: 0; } .pos-contract-grid { grid-template-columns: 1fr; } .pos-contract:last-child:nth-child(odd) { grid-template-columns: 1fr; grid-template-areas: "head" "cols" "chart" "reading" "foot"; } }
-/* ≤768：标题行与数据行都是 nowrap 撑出来的宽度（375 下单卡 336px）→ 允许换行，不再把文档顶宽 */
+/* ≤768：标题行是 nowrap 撑出来的宽度（375 下单卡 336px）→ 允许换行，不再把文档顶宽 */
 @media (max-width: 768px) {
   .pos-contract .pc-head { flex-wrap: wrap; }
-  .pos-cols { flex-wrap: wrap; gap: 8px 14px; }
 }
 
 /* ── 波动率全景仪表盘（timsun 复刻）── */

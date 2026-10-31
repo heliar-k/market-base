@@ -171,17 +171,25 @@ function contractCard(c) {
   return { el: card, spark: c.spark || { dates: [], spec: [], asset: [] } };
 }
 
+// 纵轴刻度缩写（K/M）：完整千分位数（-2,077,860）单个标签就占 56px，窄屏画布只 196px，
+// 扣掉后绘图区不到六成；精确值留给 tooltip 与卡内「净持仓」读数。
+function axisNum(v) {
+  const a = Math.abs(v);
+  if (a >= 1e6) return (v / 1e6).toFixed(1).replace(/\.0$/, '') + 'M';
+  if (a >= 1e4) return Math.round(v / 1e3) + 'K';
+  return Number(v).toLocaleString('en-US');
+}
+
 function sparkChart(dom, s) {
   const hasAsset = (s.asset || []).some(v => v != null);
-  // 纵轴标签宽度：大数值（如 3,836,283）会超出固定 left:50 被裁切，按最大绝对值动态扩左边距
-  const maxAbs = Math.max(1, ...[...(s.spec || []), ...(s.asset || [])].filter(v => v != null).map(Math.abs));
-  const yLeft = Math.max(50, maxAbs.toLocaleString('en-US').length * 6.5 + 12);
-  R.mkChart(dom.id || (dom.id = 'spark-' + Math.random().toString(36).slice(2)), colors => R.lineOption({
-    tooltip: { trigger: 'axis' },
+  R.mkChart(dom.id || (dom.id = 'spark-' + Math.random().toString(36).slice(2)), (colors, w) => R.lineOption({
+    tooltip: { trigger: 'axis', valueFormatter: v => Number(v).toLocaleString('en-US') },
     legend: { data: hasAsset ? ['投机方净持仓', '资管净持仓'] : ['投机方净持仓'], top: 0, itemGap: 14, textStyle: { fontSize: 10 } },
-    grid: { left: yLeft, right: 12, top: 28, bottom: 24 },
-    xAxis: { type: 'time', boundaryGap: false },
-    yAxis: { type: 'value', scale: true, axisLabel: { formatter: v => Number(v).toLocaleString('en-US') } },
+    // 左边距交给主题的 containLabel（轴标签宽度自算）；主题默认 top/bottom 给的是整幅图留白，
+    // 这张 180px 的倍图收紧到顶部图例 + 底部月份标签的实际占位
+    grid: { top: 24, right: 12, bottom: 6 },
+    xAxis: { type: 'time', boundaryGap: false, splitNumber: w < 240 ? 4 : 5 }, // 320 视口画布只 196px：6 个日期标签只剩 3px 间隙
+    yAxis: { type: 'value', scale: true, axisLabel: { formatter: axisNum } },
     series: [
       {
         name: '投机方净持仓', type: 'line', data: s.dates.map((dt, i) => [dt, s.spec[i]]), showSymbol: false,
