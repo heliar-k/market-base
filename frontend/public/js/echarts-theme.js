@@ -40,7 +40,17 @@ function buildTheme() {
       textStyle: { color: text, fontSize: 14, fontWeight: 600 },
       subtextStyle: { color: textMuted, fontSize: 11 },
     },
-    legend: { textStyle: { color: textSecondary, fontSize: 11 }, itemWidth: 18, itemHeight: 6 },
+    legend: {
+      textStyle: { color: textSecondary, fontSize: 11 },
+      itemWidth: 18,
+      itemHeight: 6,
+      // `type: 'scroll'` 的翻页箭头与页码：不指定就走 ECharts 默认 #2f4554，
+      // 暗色卡底上对比度 1.73:1（比不可点的灰箭头还难看见）。不可点那支用
+      // border-strong 而非 border：后者在白底上只有 1.20:1，等于消失
+      pageIconColor: textSecondary,
+      pageIconInactiveColor: reCssVar('--border-strong'),
+      pageTextStyle: { color: textSecondary },
+    },
     tooltip: {
       backgroundColor: bg,
       borderColor: borderColor,

@@ -24,13 +24,19 @@ import Section from '../../components/Section.astro';
     </div>
   </div>
 
-  <!-- ZQ 概率收敛路径：会议下拉 + 绝对目标区间概率堆叠面积（每天合计 100%）。
+  <!-- ZQ 概率收敛路径：会议下拉 + 每个绝对目标区间一条折线，颜色按当日目标区间定向
+       （维持灰 / 降息绿 / 加息红，越远越重）。区间调整过的那天同一条线会换色。
        上方 hero 与明细表是「这一场现在怎么定价」，本段是同一场会议的定价过程。
        历史里已结束的会议也留在下拉里（回看用），默认下一场未结束会议。
        /api/rate-expectations-history 是次要端点（缺快照即 404），走 R.getOpt，缺失只空本图。 -->
-  <Section id="sec-zq-path" title="ZQ 概率收敛路径" sub="绝对目标区间 · 每日合计 100%">
+  <Section id="sec-zq-path" title="ZQ 概率收敛路径" sub="绝对目标区间 · 颜色 = 相对当日目标区间的方向">
     <div class="re-filter">
       <select id="zq-path-meeting" aria-label="选择 FOMC 会议"></select>
+      <div class="range-controls" id="zq-path-range" role="group" aria-label="时间范围">
+        <button class="range-btn active" data-months="3">3M</button>
+        <button class="range-btn" data-months="6">6M</button>
+        <button class="range-btn" data-months="0">全部</button>
+      </div>
     </div>
     <div class="re-chart" id="zq-path-chart"></div>
   </Section>
@@ -145,12 +151,11 @@ async function load() {
     + '溢价上行 + 名义利率上行 → 供给驱动的熊陡。10Y 名义 − 期限溢价 ≈ 市场预期的平均短端路径。',
     { fold: true, title: '读法' }));
   document.getElementById('sec-zq-path').appendChild(R.secNote(
-    '口径：纵轴是该场会议在当日被定价到各个绝对目标区间的概率（30 天联邦基金期货结算价反推，'
-    + '同一天合计 100%），颜色按区间从低到高走绿 → 蓝 → 红（绿 = 最鸽的区间、红 = 最鹰的区间，'
-    + '与本页降息绿 / 加息红同向）。横轴是快照日；同一场会议随时间从一侧区间移向另一侧，'
-    + '这段移动就是预期的收敛过程。上方明细表的三档口径（降息/维持/加息）以各快照当时的目标区间为基准，'
-    + '目标区间调整后同一档的含义随之改变，所以本图按绝对区间画。tooltip 的会后隐含利率 = 结算价隐含的'
-    + '会议后利率水平，与明细表「会后」同源；已结束的会议也留在下拉里，用于回看当时的定价过程。',
+    '口径：每个绝对目标区间一条折线，纵轴是该场会议当日被定价到该区间的概率（30 天联邦基金期货结算价反推，'
+    + '同一天各档合计 100%）。颜色按**各快照当日**的联邦基金目标区间定向：落在区间内为中性灰（维持）、'
+    + '低于为绿（降息）、高于为红（加息），离得越远颜色越重。目标区间调整过的那天同一条线会换色'
+    + '（同一档相对基准的方向变了），用今天的区间给历史回填会把调整前的方向读反，故不采用。'
+    + 'tooltip 的会后隐含利率与明细表「会后」同源；已结束的会议也留在下拉里，用于回看当时的定价过程。',
     { fold: true }));
 
   const [reRes, fomc, histRes, zqHistRes, fedRes, d] = await Promise.all([
@@ -202,6 +207,16 @@ async function load() {
   renderCards(upcoming);
   renderConvChart(re.meetings, hist);
   renderZqPath(zqHistRes);
+  // 时间范围按钮只改窗口（重画，不重拉数据）
+  document.getElementById('zq-path-range').addEventListener('click', (e) => {
+    const btn = e.target.closest('.range-btn');
+    if (!btn) return;
+    ZQ_MONTHS = Number(btn.dataset.months);
+    for (const b of document.querySelectorAll('#zq-path-range .range-btn')) {
+      b.classList.toggle('active', b === btn);
+    }
+    if (Object.keys(ZQ_MEETINGS).length) drawZqPath(ZQ_MEETINGS);
+  });
   renderCumulative(fedRes && fedRes.market_odds);
 
   // ── 名义/实际/BEI + 期限溢价 ──
@@ -441,8 +456,11 @@ function renderConvChart(meetings, hist) {
 function renderZqPath(h) {
   const sel = document.getElementById('zq-path-meeting');
   const meetings = (h && h.meetings) || {};
+  ZQ_MEETINGS = meetings;
   const keys = Object.keys(meetings).sort();
   if (!keys.length) {
+    // 空态下没有窗口可切，按钮一并藏掉
+    document.getElementById('zq-path-range').style.display = 'none';
     document.getElementById('zq-path-chart').innerHTML =
       '<div class="re-loading" style="height:100%">暂无 ZQ 概率历史（运行 ./bin/fetch_rate_expectations 后逐日累积）</div>';
     return;
@@ -457,6 +475,18 @@ function renderZqPath(h) {
   drawZqPath(meetings, pick);
 }
 
+// ZQ 收敛图的时间窗口（月; 0 = 全部快照）与当前会议集：切范围只重画，不重拉数据
+let ZQ_MONTHS = 3;
+let ZQ_MEETINGS = {};
+// ISO 日期往前推 n 个月（本地构造，不用 toISOString 避免 UTC 偏移差一天）；
+// 目标月没有这一天时夹到月末，否则 10-31 减 6 月会进位成 05-01，把 04-30 整日切出窗口
+function monthsBefore(iso, n) {
+  const [y, m, d] = iso.split('-').map(Number);
+  const lastDay = new Date(y, m - n, 0).getDate();
+  const dt = new Date(y, m - 1 - n, Math.min(d, lastDay));
+  return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`;
+}
+
 // 横轴 = 快照日，纵轴 = 当日各绝对目标区间的概率；纯构造器供主题与宽窄重建复用
 function zqPathOption(meetings, key) {
   const rows = meetings[key] || [];
@@ -465,36 +495,62 @@ function zqPathOption(meetings, key) {
     .sort((a, b) => a.lo - b.lo);
   const dates = rows.map((r) => r.date);
   const rate = Object.fromEntries(rows.map((r) => [r.date, r.post_meeting_rate]));
-  // 每个区间一条与 dates 等长的序列（当日无该区间填 0）：堆叠带缺一天就断口
   const values = ranges.map((r) => rows.map((row) => (row.probs.find((p) => p.lo === r.lo)?.prob ?? 0) * 100));
   const names = ranges.map((r) => `${r.lo.toFixed(2)}–${r.hi.toFixed(2)}%`);
+  const loOf = new Map(names.map((n, i) => [n, ranges[i].lo]));
+  // 相对「当日」目标区间的 25bp 步数：0 = 维持、+1 = 加息 25bp、-1 = 降息 25bp。
+  // 逐快照取当日基准：区间调整过后同一档的方向会变，用今天的基准回填会读反
+  const stepsAt = (lo, row) =>
+    (row.target_lower == null ? null : Math.round((lo - row.target_lower) / 0.25));
+  // 方向变了就换色：同一档按步数切段，段两端各多吃邻点一个，线不断开
+  const segs = [];
+  for (const r of ranges) {
+    let cur = null;
+    rows.forEach((row, i) => {
+      const st = stepsAt(r.lo, row);
+      if (!cur || cur.st !== st) segs.push((cur = { r, st, from: i, to: i }));
+      else cur.to = i;
+    });
+  }
+  // 图例色块取每档「当前段」的颜色（ECharts 只读第一条同名 series 的颜色）→ 段倒序排
+  segs.sort((a, b) => b.from - a.from || a.r.lo - b.r.lo);
   // 单日会议用堆叠柱，段高直接对应概率；time 轴拓开 ±2 天，避免零宽轴域与重复日期
   const single = dates.length === 1;
   const t0 = single ? new Date(dates[0] + 'T00:00:00').getTime() : 0;
+  const minDate = ZQ_MONTHS && !single ? monthsBefore(dates[dates.length - 1], ZQ_MONTHS) : null;
+  // 窗口外的档不画也不进图例（回补到一年后，历史档在当前窗口里恒为 0）
+  // shown 为空时（窗口内全零）会画出一个空坐标系，没有空态文案；按当前载荷每行合计
+  // 恒为 100，窗口只要盖住最后一个快照就不可能全零
+  const shown = ranges.map((_, i) => i).filter((i) =>
+    rows.some((row, k) => (!minDate || dates[k] >= minDate) && values[i][k] > 0));
 
   const opt = (colors) => {
-    // 语义三色阶：最低区间 = 绿（鸽）、最高 = 红（鹰）、中间各档走品牌蓝的深浅。
-    // 直接用主题分类色板原序会夹进紫/青，整片堆叠面积上很难看；中间档往卡面底色
-    // 淡出的是「离两端远」的那一档，暗色主题下往浅中性色提亮（暗底上「淡」= 更浅）
-    const pale = document.body.classList.contains('dark') ? colors.text : colors.bg;
-    const mids = ranges.length - 2;
-    const ink = (i) => {
-      if (mids < 0) return colors.blue;
-      if (i === 0) return colors.green;
-      if (i === ranges.length - 1) return colors.red;
-      return mixHex(mixHex(colors.blue, pale, 0.55), colors.blue, mids === 1 ? 0.55 : (i - 1) / (mids - 1));
+    // 颜色 = 相对当日目标区间的方向与力度：维持中性灰、降息绿、加息红，离得越远越重。
+    // 往卡面底色淡出的是「近端一档」，往文字色走的是「远端」（暗色主题下两个方向自动对调）
+    const tone = (st) => {
+      if (st == null || st === 0) return colors.gray;
+      const base = st < 0 ? colors.green : colors.red;
+      const far = Math.abs(st);
+      if (far >= 3) return mixHex(base, colors.text, 0.3);
+      return far === 2 ? base : mixHex(base, colors.bg, 0.35);
     };
+    const dirLabel = (st) => (st == null ? '' : st === 0 ? '维持' : st > 0 ? `+${st * 25}bp` : `${st * 25}bp`);
     return R.lineOption({
-      legend: { data: names },
+      // 回补后全窗口最多 7 档，窄屏换行会把图例顶进绘图区 → 滚动分页保单行
+      legend: { data: shown.map((i) => names[i]), type: 'scroll' },
       tooltip: {
         trigger: 'axis',
-        // value 是 time 轴的点对 [日期, 概率]；按 dataIndex 追加会后隐含利率
+        // value 是 time 轴的点对 [日期, 概率]；按 dataIndex 回原始行取方向与会后利率
         formatter: (ps) => {
           const i = ps[0]?.dataIndex;
           if (i == null) return '';
           return [
             dates[i],
-            ...ps.map((p) => `${p.marker}${p.seriesName} ${Number(p.value[1]).toFixed(1)}%`),
+            ...ps.map((p) => {
+              const v = Number(p.value[1]).toFixed(1);
+              const st = stepsAt(loOf.get(p.seriesName), rows[i]);
+              return `${p.marker}${p.seriesName} ${v}% · ${dirLabel(st)}`;
+            }),
             `会后隐含利率 ${rate[dates[i]].toFixed(3)}%`,
           ].join('<br/>');
         },
@@ -504,17 +560,24 @@ function zqPathOption(meetings, key) {
         boundaryGap: false,
         // 快照只有几天时 time 轴会拆到半天以下，R.md 只显示日期 → 一排重复的「7/29」
         minInterval: 864e5,
-        ...(single ? { min: t0 - 2 * 864e5, max: t0 + 2 * 864e5 } : {}),
-        axisLabel: { formatter: (v) => R.md(v) },  // 历史跨度 ~3 月
+        ...(single
+          ? { min: t0 - 2 * 864e5, max: t0 + 2 * 864e5 }
+          : minDate ? { min: minDate } : {}),
+        axisLabel: { formatter: (v) => R.md(v) },
       },
       yAxis: { type: 'value', max: 100, axisLabel: { formatter: '{value}%' } },
-      series: ranges.map((r, i) => ({
-        name: names[i], type: single ? 'bar' : 'line', stack: 'prob', color: ink(i),
-        data: dates.map((dt, k) => [dt, values[i][k]]),
-        ...(single
-          ? { barWidth: 28 }
-          : { symbol: 'none', lineStyle: { color: ink(i), width: 1 }, areaStyle: { color: ink(i) + '8C' } }),
-      })),
+      series: segs.filter((s) => shown.includes(ranges.indexOf(s.r))).map((s) => {
+        const i = ranges.indexOf(s.r);
+        const color = tone(s.st);
+        return {
+          name: names[i], type: single ? 'bar' : 'line', stack: single ? 'prob' : null,
+          color, data: dates.map((dt, k) =>
+            [dt, k >= s.from - 1 && k <= s.to + 1 ? values[i][k] : null]),
+          ...(single
+            ? { barWidth: 28 }
+            : { symbol: 'none', lineStyle: { color, width: 1.8 }, itemStyle: { color } }),
+        };
+      }),
     }, colors);
   };
 
@@ -524,13 +587,19 @@ function zqPathOption(meetings, key) {
 // 已有实例用 notMerge 清掉上一场系列；首次注册的回调读取当前下拉值，
 // 主题切换与跨宽窄重建才能留在当前会议
 function drawZqPath(meetings, key) {
+  const sel = document.getElementById('zq-path-meeting');
+  // 单快照日会议没有窗口可切，按钮藏起来，免得点了没任何反应
+  document.getElementById('zq-path-range').style.display =
+    ((meetings[sel.value || key] || []).length < 2) ? 'none' : '';
   const option = (colors) => zqPathOption(
     meetings,
     document.getElementById('zq-path-meeting').value || key,
   )(colors);
   const existing = R.getChart('zq-path-chart');
   if (existing) {
-    existing.setOption(option(R.colors()), true);
+    // 重画走 setOption 也要过一遍窄屏线宽，否则会把 mkChart 里刚缩过的线粗改回 1.8
+    const w = existing.getDom().clientWidth;
+    existing.setOption(R._clampStroke(option(R.colors(), w), w), true);
     R._fitLater(existing, existing.getDom(), 0);
   } else R.mkChart('zq-path-chart', option);
 }

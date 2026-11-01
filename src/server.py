@@ -834,6 +834,10 @@ def get_rate_expectations_history() -> dict:
     # 按文件内最后一行为准（与同日覆盖的语义一致）
     df = df.reset_index().drop_duplicates(subset=["date", "meeting_date"], keep="last")
 
+    # 每个快照日「当时」的目标区间（DFEDTARL/U 按日 asof）：前端据它把绝对区间
+    # 归一成「维持 / ±25bp」的方向。不能用今天的区间回填历史行
+    target_of = _target_range_by_date(pd.Index(sorted(df["date"].unique())), ROOT)
+
     meetings: dict[str, list[dict]] = {}
     for _, row in df.sort_values(["meeting_date", "date"]).iterrows():
         probs = []
@@ -846,16 +850,49 @@ def get_rate_expectations_history() -> dict:
         # 按利率升序输出：range_* 列的书写顺序不一定升序（新目标区间总是被 pandas
         # 追到列尾），堆叠面积图靠这个顺序排层
         probs.sort(key=lambda p: p["lo"])
+        tgt_lo, tgt_hi = target_of.get(row["date"], (None, None))
         meetings.setdefault(meeting_date, []).append(
             {
                 "date": pd.to_datetime(row["date"]).strftime("%Y-%m-%d"),
                 # 会后隐含利率：与概率同一竖线读，回答「这条概率对应什么利率水平」
                 "post_meeting_rate": float(row["post_meeting_rate"]),
+                # 该快照当日有效的目标区间上下界（缺失为 None，前端按无定向处理）
+                "target_lower": tgt_lo,
+                "target_upper": tgt_hi,
                 "probs": probs,
             }
         )
 
     return {"as_of": as_of, "meetings": meetings}
+
+
+def _target_range_by_date(
+    dates: pd.Index,
+    root: Path,
+) -> dict[Any, tuple[float | None, float | None]]:
+    """快照日 → 当日有效的目标区间 (lower, upper)。
+
+    取 DFEDTARL/U 当日或之前最后一个观测（FRED 在决议次日切换区间，与
+    /api/rates/fed-funds 同口径）；区间序列缺失时全部返回 (None, None)。
+    """
+    path = root / "data" / "fred" / "rates" / "rates.csv"
+    if not path.exists():
+        return dict.fromkeys(dates, (None, None))
+    rates = pd.read_csv(path, index_col="date", parse_dates=True)
+    cols = [c for c in ("DFEDTARL", "DFEDTARU") if c in rates]
+    if len(cols) < 2:
+        return dict.fromkeys(dates, (None, None))
+    target = rates[cols].dropna().sort_index()
+    if target.empty:
+        return dict.fromkeys(dates, (None, None))
+    asof = target.reindex(target.index.union(dates)).ffill().reindex(dates)
+    return {
+        d: (
+            None if pd.isna(row.DFEDTARL) else float(row.DFEDTARL),
+            None if pd.isna(row.DFEDTARU) else float(row.DFEDTARU),
+        )
+        for d, row in zip(dates, asof.itertuples(index=False), strict=True)
+    }
 
 
 @app.get("/api/polymarket/history")

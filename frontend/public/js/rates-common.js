@@ -719,6 +719,18 @@ const R = {
     });
     return opt;
   },
+  // 窄屏线宽：画布 < 480 时统一乘 0.7（下限 1）。按比例缩而不是压到一个定值，
+  // 主次线宽关系（如价格 2.2 / 对比 1.4）才保得住；多序列图上 2px 线会互相盖掉
+  _clampStroke(opt, w) {
+    if (!opt || !opt.series || !w || w >= 480) return opt;
+    (Array.isArray(opt.series) ? opt.series : [opt.series]).forEach((s) => {
+      const width = s && s.lineStyle && s.lineStyle.width;
+      if (typeof width === 'number') {
+        s.lineStyle.width = Math.max(1, Math.round(width * 0.7 * 10) / 10);
+      }
+    });
+    return opt;
+  },
   // 渲染后校准：图例换行后压进绘图区、横轴日期标签相贴 —— 两件事都只有布局完才知道，
   // 只能渲染后量一次再改。单源在这里，页面不各写一套边距。
   // 图例：R.lineOption 的基础 grid.top 36 只挡住单行图例（盒底 24.9）；画布窄到图例换行
@@ -887,7 +899,10 @@ const R = {
       if (window.registerMacroTheme) registerMacroTheme();
       // optionFn 第二参传画布宽：需要按宽度换布局的图用（如 treasury 2x2 小倍图宽屏 2×2 / 窄屏 1×4）。
       // 重建时机与 _clampGrid 同步（ResizeObserver 跨 480px 分界才重建），宽度换挡时布局跟着换。
-      const opt = R._clampGrid(option(R.colors(), host.clientWidth), host.clientWidth);
+      const opt = R._clampStroke(
+        R._clampGrid(option(R.colors(), host.clientWidth), host.clientWidth),
+        host.clientWidth
+      );
       if (R.isEmptyOption(opt)) {
         // 空态：不 init、不注册主题/resize（无实例可重绘）；只铺一次文案，避免主题循环重复写
         dom.classList.remove('skeleton');

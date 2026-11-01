@@ -97,6 +97,8 @@ def test_closed_meeting_kept(hist) -> None:
         {
             "date": "2026-10-30",
             "post_meeting_rate": 2.5,
+            "target_lower": None,
+            "target_upper": None,
             "probs": [{"lo": 2.25, "hi": 2.5, "prob": 1.0}],
         }
     ]
@@ -177,3 +179,29 @@ def test_missing_csv_404_with_run_command(tmp_path, monkeypatch) -> None:
         server.get_rate_expectations_history()
     assert e.value.status_code == 404
     assert "fetch_rate_expectations" in e.value.detail
+
+
+def test_target_range_taken_from_snapshot_date(tmp_path, monkeypatch) -> None:
+    """目标区间按快照当日取：区间调整后同一档的方向会变，历史行不能共用今天的区间。"""
+    _write(
+        [
+            _row("2026-09-10", "2026-12-09", 4.0, {"3.75-4.00": 1.0}),
+            _row("2026-09-20", "2026-12-09", 4.0, {"3.75-4.00": 1.0}),
+        ],
+        tmp_path,
+    )
+    d = tmp_path / "data" / "fred" / "rates"
+    d.mkdir(parents=True)
+    pd.DataFrame(
+        [
+            {"date": "2026-01-02", "DFEDTARL": 3.50, "DFEDTARU": 3.75},
+            {"date": "2026-09-17", "DFEDTARL": 3.75, "DFEDTARU": 4.00},
+        ]
+    ).to_csv(d / "rates.csv", index=False)
+    monkeypatch.setattr(server, "ROOT", tmp_path)
+
+    hist = server.get_rate_expectations_history()
+    assert [(r["date"], r["target_lower"]) for r in hist["meetings"]["2026-12-09"]] == [
+        ("2026-09-10", 3.5),
+        ("2026-09-20", 3.75),
+    ]
