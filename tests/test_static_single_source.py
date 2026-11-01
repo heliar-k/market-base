@@ -849,3 +849,32 @@ def test_correlation_drilldown_rolling_series_aligned_by_date() -> None:
         "弹层两图（滚动相关 / 归一化价格）x 轴都要 time，且写法一致"
     )
     assert "type: 'category'" not in body, "弹层又用 category 轴铺 ISO 日期（日期轴单源已禁）"
+
+
+def test_line_widths_use_three_tier_scale() -> None:
+    """折线线宽只允许 2 / 1.5 / 1 三档（AGENTS §8「折线线宽三档制」）。
+
+    2026-11 普查：同一角色在不同页散着 1.2 / 1.4 / 1.6 / 2.2 / 2.5 / 3 六个值，
+    两张图并排就能看出一个粗一个细。这里只校验字面量，表达式形式
+    （如 `k === 'DXY' ? 2 : 1.5`）由最近的档位人工选值。
+    """
+    allowed = {1.0, 1.5, 2.0}
+    lit = re.compile(r"width:\s*(?:\[([^\]]*)\]|([0-9.]+))")
+    # 页面内共享常量（如 CONV_LINE_W）不写在 lineStyle 块里，单独收一遍
+    const_lit = re.compile(r"const\s+\w*LINE_W\w*\s*=\s*([0-9.]+)")
+    bad = []
+    sources = [*sorted(ASTRO_PAGES.rglob("*.astro")), *sorted((STATIC / "js").glob("*.js"))]
+    for path in sources:
+        text = path.read_text(encoding="utf-8")
+        for block in re.finditer(r"lineStyle:\s*\{([^{}]*(?:\{[^{}]*\}[^{}]*)*)\}", text):
+            line_no = text[: block.start()].count("\n") + 1
+            for m in lit.finditer(block.group(1)):
+                nums = m.group(1) or m.group(2)
+                for num in re.findall(r"[0-9.]+", nums):
+                    if float(num) not in allowed:
+                        bad.append(f"{path.relative_to(ROOT)}:{line_no} width={num}")
+        for m in const_lit.finditer(text):
+            if float(m.group(1)) not in allowed:
+                line_no = text[: m.start()].count("\n") + 1
+                bad.append(f"{path.relative_to(ROOT)}:{line_no} 常量 width={m.group(1)}")
+    assert not bad, "线宽不在 2 / 1.5 / 1 三档内：\n" + "\n".join(bad)
