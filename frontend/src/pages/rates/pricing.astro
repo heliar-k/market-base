@@ -91,6 +91,9 @@ const BUCKETS = [
   ['cut50', '-50bp', 'cut'], ['cut25', '-25bp', 'cut'], ['hold', '维持', 'hold'],
   ['hike25', '+25bp', 'hike'], ['hike50', '+50bp', 'hike'],
 ];
+// 两张收敛图（PM / ZQ）共用同一线宽：同一双图放在一起，粗细不一致会显出色块错位；
+// 窄屏统一乘 0.7 由 R._clampStroke 处理，这里只定宽态值
+const CONV_LINE_W = 1.8;
 // 折线图图例色标统一由 echarts-theme.js 的 RE_LEGEND + reSyncLegend 按 series 线型自动推导，
 // 页面不再手写 icon / formatter。
 
@@ -257,7 +260,7 @@ async function load() {
     yAxis: { type: 'value', scale: true, axisLabel: { formatter: '{value}%' } },
     series: [
       { name: '2Y', type: 'line', stack: 'spread', data: d.y2.map(p => [p.date, p.value]), symbol: 'none', lineStyle: { color: colors.orange, width: 2 }, areaStyle: { opacity: 0 } },
-      { name: '2s10s 利差', type: 'line', stack: 'spread', color: colors.blue + '80', data: d.spread_2s10.map(p => [p.date, p.value]), symbol: 'none', lineStyle: { opacity: 0 },
+      { name: '2s10s 利差', type: 'line', stack: 'spread', color: colors.blue + '80', data: d.spread_2s10.map(p => [p.date, p.value]), symbol: 'none', lineStyle: { opacity: 0, width: 1 },
         areaStyle: { color: { type: 'linear', x: 0, y: 0, x2: 0, y2: 1, colorStops: [{ offset: 0, color: colors.blue + '40' }, { offset: 1, color: colors.blue + '0D' }] } } },
       { name: '10Y', type: 'line', data: d.nominal_10y.map(p => [p.date, p.value]), symbol: 'none', lineStyle: { color: colors.blue, width: 2 } },
     ],
@@ -435,7 +438,7 @@ function renderConvChart(meetings, hist) {
       for (const [key, name, color] of [['cut', '降息', colors.green], ['hold', '维持', colors.gray], ['hike', '加息', colors.red]]) {
         const sname = `${x.label}·${name}`;
         series.push({ name: sname, type: 'line', data: dates.map((dt) => [dt, byDate(x, key)[dt] ?? null]),
-          symbol: 'none', connectNulls: true, lineStyle: { color, width: 2, type: dash ? 'dashed' : 'solid' }, itemStyle: { color } });
+          symbol: 'none', connectNulls: true, lineStyle: { color, width: CONV_LINE_W, type: dash ? 'dashed' : 'solid' }, itemStyle: { color } });
       }
     });
     // 图例在底部不走 lineOption；icon 交给 reSyncLegend 按 series 线型推导（全站单源）
@@ -582,7 +585,7 @@ function zqPathOption(meetings, key) {
             [dt, k >= s.from - 1 && k <= s.to + 1 ? values[i][k] : null]),
           ...(single
             ? { barWidth: 28 }
-            : { symbol: 'none', lineStyle: { color, width: 1.8 }, itemStyle: { color } }),
+            : { symbol: 'none', lineStyle: { color, width: CONV_LINE_W }, itemStyle: { color } }),
         };
       }),
     }, colors);

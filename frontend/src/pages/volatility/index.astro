@@ -215,7 +215,7 @@ async function load() {
     yAxis: { ...axis('VIX'), scale: true },
     series: [{
       type: 'line', data: term.values, smooth: true, symbol: 'circle', symbolSize: 8,
-      lineStyle: { width: 3, color: c.blue }, itemStyle: { color: c.blue },
+      lineStyle: { width: 2, color: c.blue }, itemStyle: { color: c.blue },
       areaStyle: { color: c.blue, opacity: .08 },
       label: { show: true, position: 'top', color: c.muted, fontSize: 11 },
     }],

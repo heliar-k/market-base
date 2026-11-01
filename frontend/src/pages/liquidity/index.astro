@@ -142,7 +142,7 @@ async function load() {
       xAxis: { type: 'time', boundaryGap: false, axisLabel: { formatter: R.md } },
       yAxis: { type: 'value', scale: true, axisLabel: { formatter: v => v.toFixed(1) + 'T' } },
       series: [
-        { name: '净流动性', type: 'line', data: s1y.map(p => [p.date, p.net_liq_t]), symbol: 'none', lineStyle: { color: colors.blue, width: 2.5 } },
+        { name: '净流动性', type: 'line', data: s1y.map(p => [p.date, p.net_liq_t]), symbol: 'none', lineStyle: { color: colors.blue, width: 2 } },
         { name: '银行准备金', type: 'line', data: s1y.map(p => [p.date, p.reserves_t]), symbol: 'none', lineStyle: { color: colors.green, width: 2 } },
         { name: 'TGA 余额', type: 'line', data: s1y.map(p => [p.date, p.tga_t]), symbol: 'none', lineStyle: { color: colors.orange, width: 1.5, type: 'dashed' } },
         { name: 'RRP 余额', type: 'line', data: s1y.map(p => [p.date, p.rrp_t]), symbol: 'none', lineStyle: { color: colors.purple, width: 1.5, type: 'dotted' } },

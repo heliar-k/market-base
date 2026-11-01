@@ -484,7 +484,7 @@ const R = {
             silent: true,
             symbol: 'none',
             label: { show: false },
-            lineStyle: { color: c.orange, type: 'dashed', width: 1.2 },
+            lineStyle: { color: c.orange, type: 'dashed', width: 1 },
             data: [{ xAxis: 0 }],
           },
         },
@@ -726,7 +726,8 @@ const R = {
     (Array.isArray(opt.series) ? opt.series : [opt.series]).forEach((s) => {
       const width = s && s.lineStyle && s.lineStyle.width;
       if (typeof width === 'number') {
-        s.lineStyle.width = Math.max(1, Math.round(width * 0.7 * 10) / 10);
+        // 乘 7 再除 10：写 0.7*10 会因浮点误差把 1.5 算成 1.0（实测 10.4999…），次线与参考线就并成一档
+        s.lineStyle.width = Math.max(1, Math.round(width * 7) / 10);
       }
     });
     return opt;

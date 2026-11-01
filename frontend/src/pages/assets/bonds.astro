@@ -69,7 +69,7 @@ async function load() {
       // 顶层 color 同步给图例 icon（icon 不读 lineStyle.color，只读 series.color）
       color: [colors.blue, colors.orange, colors.green, colors.red][i % 4],
       // 线型差异（实线/虚线/点线/点划线）+ 粗细分层，不依赖颜色也能区分（色盲友好）
-      lineStyle: { width: [2.5, 2, 2, 2][i], type: ['solid', 'dashed', 'dotted', [6, 3, 2, 3]][i], color: [colors.blue, colors.orange, colors.green, colors.red][i % 4] },
+      lineStyle: { width: [2, 1.5, 1.5, 1.5][i], type: ['solid', 'dashed', 'dotted', [6, 3, 2, 3]][i], color: [colors.blue, colors.orange, colors.green, colors.red][i % 4] },
       // 0% 基准线（只挂第一个 series，避免图例重复）
       ...(i === 0 ? { markLine: { silent: true, symbol: 'none', label: { show: false }, data: [{ yAxis: 0 }], lineStyle: { color: colors.border, type: 'dashed' } } } : {}),
     })),

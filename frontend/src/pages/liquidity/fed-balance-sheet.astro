@@ -46,7 +46,7 @@ async function load() {
       xAxis: { type: 'time', boundaryGap: false },
       yAxis: { type: 'value', scale: true, axisLabel: { formatter: v => v.toFixed(1) + 'T' } },
       series: [
-        { name: '美联储总资产', type: 'line', data: ser.map(r => [r.date, r.WALCL == null ? null : +(r.WALCL / 1000).toFixed(3)]), symbol: 'none', lineStyle: { color: colors.blue, width: 2.5 } },
+        { name: '美联储总资产', type: 'line', data: ser.map(r => [r.date, r.WALCL == null ? null : +(r.WALCL / 1000).toFixed(3)]), symbol: 'none', lineStyle: { color: colors.blue, width: 2 } },
         { name: '净流动性', type: 'line', data: ser.map(r => [r.date, r.NET_LIQUIDITY == null ? null : +(r.NET_LIQUIDITY / 1000).toFixed(3)]), symbol: 'none', lineStyle: { color: colors.green, width: 2 } },
         { name: '国债持有', type: 'line', data: ser.map(r => [r.date, r.TREAST == null ? null : +(r.TREAST / 1000).toFixed(3)]), symbol: 'none', lineStyle: { color: colors.orange, width: 1.5, type: 'dashed' } },
         { name: 'MBS持有', type: 'line', data: ser.map(r => [r.date, r.WSHOMCB == null ? null : +(r.WSHOMCB / 1000).toFixed(3)]), symbol: 'none', lineStyle: { color: colors.purple, width: 1.5, type: 'dotted' } },

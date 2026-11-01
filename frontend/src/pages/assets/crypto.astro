@@ -198,9 +198,9 @@ async function load() {
         { name: 'ETH/BTC', type: 'line', data: ra.dates.map((dt, i) => [dt, inv(ra.series)[i]]), showSymbol: false, smooth: true, connectNulls: true,
           lineStyle: { width: 2, color: colors.green }, itemStyle: { color: colors.green } },
         { name: 'MA20', type: 'line', data: ra.dates.map((dt, i) => [dt, inv(ra.ma20_series)[i]]), showSymbol: false, smooth: true, connectNulls: true,
-          lineStyle: { width: 1.2, type: 'dashed', color: colors.orange }, itemStyle: { color: colors.orange } },
+          lineStyle: { width: 1.5, type: 'dashed', color: colors.orange }, itemStyle: { color: colors.orange } },
         { name: 'MA50', type: 'line', data: ra.dates.map((dt, i) => [dt, inv(ra.ma50_series)[i]]), showSymbol: false, smooth: true, connectNulls: true,
-          lineStyle: { width: 1.2, type: 'dashed', color: colors.purple }, itemStyle: { color: colors.purple } },
+          lineStyle: { width: 1.5, type: 'dashed', color: colors.purple }, itemStyle: { color: colors.purple } },
       ],
     }, colors));
   }

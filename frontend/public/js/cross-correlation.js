@@ -758,7 +758,7 @@ function renderInsights(d) {
           type: 'line',
           data: vals,
           showSymbol: false,
-          lineStyle: { width: 1.6, color: accent },
+          lineStyle: { width: 2, color: accent },
           areaStyle: { opacity: 0.1, color: accent },
           markLine: showZero
             ? {
@@ -1245,7 +1245,7 @@ function renderChart(seriesMap) {
       data: corr,
       showSymbol: false,
       connectNulls: true,
-      lineStyle: { width: 1.4, color: reCssVar('--chart-purple') },
+      lineStyle: { width: 1.5, color: reCssVar('--chart-purple') },
       itemStyle: { color: reCssVar('--chart-purple') },
       areaStyle: { opacity: 0.12, color: reCssVar('--chart-purple') },
       markLine: {
@@ -1264,7 +1264,7 @@ function renderChart(seriesMap) {
         yAxisIndex: 3,
         data: pctRank(x.info.data),
         showSymbol: false,
-        lineStyle: { width: 1.2, color: x.color },
+        lineStyle: { width: 1.5, color: x.color },
         itemStyle: { color: x.color },
       });
     }

@@ -195,7 +195,7 @@ function renderIndexChart() {
     }],
     series: Object.keys(ch.series).map(k => ({
       name: T[k] || k, type: 'line', data: ch.dates.map((dt, i) => [dt, ch.series[k][i]]), showSymbol: false, smooth: true,
-      lineStyle: { width: 1.6 }, emphasis: { focus: 'series' },
+      lineStyle: { width: 1.5 }, emphasis: { focus: 'series' },
     })),
   }, colors));
 }
