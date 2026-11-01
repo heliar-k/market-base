@@ -417,7 +417,7 @@ function renderCards(meetings) {
 }
 
 // ── PM 概率收敛路径：有日频历史的会议各画 cut/hold/hike 三条，首场实线、次场虚线 ──
-// 配色与下方 ZQ 堆叠图同一套语义三色（绿 = 降息 / 蓝 = 维持 / 红 = 加息）
+// 配色与下方 ZQ 折线同一套：降息绿 / 维持中性灰 / 加息红（两图颜色语义一致）
 function renderConvChart(meetings, hist) {
   const withHist = meetings
     .map((m) => ({ ym: m.meeting_date.slice(0, 7), label: (+m.meeting_date.slice(5, 7)) + '月', series: hist[m.meeting_date.slice(0, 7)] }))
@@ -432,7 +432,7 @@ function renderConvChart(meetings, hist) {
     const series = [];
     withHist.slice(0, 2).forEach((x, i) => {
       const dash = i > 0;
-      for (const [key, name, color] of [['cut', '降息', colors.green], ['hold', '维持', colors.blue], ['hike', '加息', colors.red]]) {
+      for (const [key, name, color] of [['cut', '降息', colors.green], ['hold', '维持', colors.gray], ['hike', '加息', colors.red]]) {
         const sname = `${x.label}·${name}`;
         series.push({ name: sname, type: 'line', data: dates.map((dt) => [dt, byDate(x, key)[dt] ?? null]),
           symbol: 'none', connectNulls: true, lineStyle: { color, width: 2, type: dash ? 'dashed' : 'solid' }, itemStyle: { color } });
@@ -544,12 +544,19 @@ function zqPathOption(meetings, key) {
         formatter: (ps) => {
           const i = ps[0]?.dataIndex;
           if (i == null) return '';
+          // 同一档按基准期切成了几段同名 series，tooltip 只留当日有值的那一段，
+          // 否则一档会出现两三行
+          const seen = new Set();
+          const live = ps.filter((p) => {
+            if (p.value == null || p.value[1] == null || seen.has(p.seriesName)) return false;
+            seen.add(p.seriesName);
+            return true;
+          });
           return [
             dates[i],
-            ...ps.map((p) => {
-              const v = Number(p.value[1]).toFixed(1);
+            ...live.map((p) => {
               const st = stepsAt(loOf.get(p.seriesName), rows[i]);
-              return `${p.marker}${p.seriesName} ${v}% · ${dirLabel(st)}`;
+              return `${p.marker}${p.seriesName} ${Number(p.value[1]).toFixed(1)}% · ${dirLabel(st)}`;
             }),
             `会后隐含利率 ${rate[dates[i]].toFixed(3)}%`,
           ].join('<br/>');
