@@ -352,6 +352,13 @@ FRED liquidity 分类的原始系列（由 `./bin/fetch_fred` 一并拉取）。
 > 覆盖全部 10 品种的整条合约曲线（含 RTY→TF 代码映射），延迟报价（lastPrice 带 s 后缀）。
 > ZQ 额外写 `data/barchart/commodities/ZQ/ZQ_{YYYYMM}.csv`（date/close），
 > `rate_expectations` 读取优先级：IBKR 本地 → Barchart，因此 FOMC 概率在 Actions 也可每日自动产出。
+> 日更只写今天这个日期（每个未来会议各一行，取两源最新的收盘价）；
+> `./bin/fetch_rate_expectations --backfill-history [--from YYYY-MM-DD]` 按**当日**结算价
+> 重算区间内每个交易日，用于补 cron 缺班与延长收敛路径图的历史。只产工作日的快照；
+> 可回溯的长度由本地合约集决定（现存合约从 2026-07 起，更早的近期会议整行缺失，
+> 但远期会议因合约日线从 2024-07 起而能回溯到 ~1 年前）。
+> 会后利率距当日目标区间超 62.5bp 的行不产出（网格首末两档中点之外，
+> 只能给「最近一档 100%」的截断读数）。
 
 ### 商品期货
 

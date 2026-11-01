@@ -185,3 +185,96 @@ class TestUseNextMonthContract:
             assert _use_next_month_contract(days_after, 2027, month, next_readable=True)
         # 12-08 会议后还有 23 天采样，不换约（也不跨到尚未公布的 2028 年 1 月）
         assert not _use_next_month_contract(23, 2027, 12, next_readable=True)
+
+
+def _write_rates_csv(root, rows: list[tuple[str, float, float]]) -> None:
+    path = root / "data" / "fred" / "rates" / "rates.csv"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    pd.DataFrame(rows, columns=["date", "DFEDTARL", "DFEDTARU"]).to_csv(path, index=False)
+
+
+class TestBackfillHistory:
+    """按历史结算价回补：价格取当日、目标区间取当日、网格外的行不产出。"""
+
+    def _setup(self, tmp_path, monkeypatch, closes: list[tuple[str, float]]) -> None:
+        _write_rates_csv(tmp_path, [("2026-01-02", 4.00, 4.25)])
+        _write_zq_csv(
+            tmp_path / "data" / "commodities" / "ZQ" / "ZQ_202606.csv",
+            closes,
+            ibkr_format=True,
+        )
+        monkeypatch.setattr(rex, "FOMC_MEETINGS", [FomcMeeting(2026, 6, 17, 18)])
+
+    def test_rows_stamped_with_price_date(self, tmp_path, monkeypatch) -> None:
+        """行日期等于结算价那天（写成运行当天就退化成一个重复的当日快照）。"""
+        self._setup(tmp_path, monkeypatch, [("2026-06-01", 96.00), ("2026-06-02", 95.75)])
+        rows, skipped_post, skipped_range = rex.backfill_history(
+            date(2026, 6, 1), date(2026, 6, 2), root=tmp_path
+        )
+        assert [r["date"] for r in rows] == ["2026-06-01", "2026-06-02"]
+        assert (skipped_post, skipped_range) == (0, 0)
+        # 本月合约法：post = (implied*30 - 18*目标区间中点4.125) / 12
+        assert [r["post_meeting_rate"] for r in rows] == [3.8125, 4.4375]
+        assert {r["contract_used"] for r in rows} == {"ZQ_202606"}
+
+    def test_barchart_source_fills_gap(self, tmp_path, monkeypatch) -> None:
+        """IBKR 日线停更后，Barchart 单独有的日期也要回补。"""
+        self._setup(tmp_path, monkeypatch, [("2026-06-01", 96.00)])
+        _write_zq_csv(
+            tmp_path / "data" / "barchart" / "commodities" / "ZQ" / "ZQ_202606.csv",
+            [("2026-06-03", 95.80)],
+            ibkr_format=False,
+        )
+        rows, _, _ = rex.backfill_history(date(2026, 6, 1), date(2026, 6, 3), root=tmp_path)
+        assert [r["date"] for r in rows] == ["2026-06-01", "2026-06-03"]
+
+    def test_out_of_grid_row_skipped(self, tmp_path, monkeypatch) -> None:
+        """会后利率远超目标区间 ±75bp 时只能给「最近一档 100%」的截断读数 → 不产出。"""
+        self._setup(tmp_path, monkeypatch, [("2026-06-01", 96.00), ("2026-06-02", 94.00)])
+        rows, skipped_post, _ = rex.backfill_history(
+            date(2026, 6, 1), date(2026, 6, 2), root=tmp_path
+        )
+        assert [r["date"] for r in rows] == ["2026-06-01"]
+        assert skipped_post == 1
+
+    def test_missing_target_range_skips_day(self, tmp_path, monkeypatch) -> None:
+        """当日还没有目标区间观测（FRED 晚于价格日）→ 整天跳过，不拿后来区间顶上。"""
+        _write_rates_csv(tmp_path, [("2026-07-01", 4.00, 4.25)])
+        _write_zq_csv(
+            tmp_path / "data" / "commodities" / "ZQ" / "ZQ_202606.csv",
+            [("2026-06-01", 96.00)],
+            ibkr_format=True,
+        )
+        monkeypatch.setattr(rex, "FOMC_MEETINGS", [FomcMeeting(2026, 6, 17, 18)])
+        rows, _, skipped_range = rex.backfill_history(
+            date(2026, 6, 1), date(2026, 6, 1), root=tmp_path
+        )
+        assert rows == []
+        assert skipped_range == 1
+
+    def test_month_end_uses_next_month_contract(self, tmp_path, monkeypatch) -> None:
+        """月末会议（会后采样 <10 天）改用下月合约，会后利率直接取下月隐含。"""
+        _write_rates_csv(tmp_path, [("2026-01-02", 4.00, 4.25)])
+        for label, close in (("ZQ_202606", 96.00), ("ZQ_202607", 96.25)):
+            _write_zq_csv(
+                tmp_path / "data" / "commodities" / "ZQ" / f"{label}.csv",
+                [("2026-06-01", close)],
+                ibkr_format=True,
+            )
+        # 6/26 会议：6 月 30 天 → 会后 4 天采样 <10，下月（7 月）无会议 → 换 ZQ_202607
+        monkeypatch.setattr(rex, "FOMC_MEETINGS", [FomcMeeting(2026, 6, 25, 26)])
+        rows, _, _ = rex.backfill_history(date(2026, 6, 1), date(2026, 6, 1), root=tmp_path)
+        assert len(rows) == 1
+        assert rows[0]["contract_used"] == "ZQ_202607"
+        assert rows[0]["post_meeting_rate"] == 3.75  # 下月合约隐含 100-96.25，整月在会后
+
+    def test_ibkr_wins_on_same_date(self, tmp_path, monkeypatch) -> None:
+        """同日两源都有价时取 IBKR（Barchart 是延迟报价）。"""
+        self._setup(tmp_path, monkeypatch, [("2026-06-01", 96.00)])
+        _write_zq_csv(
+            tmp_path / "data" / "barchart" / "commodities" / "ZQ" / "ZQ_202606.csv",
+            [("2026-06-01", 95.00)],
+            ibkr_format=False,
+        )
+        rows, _, _ = rex.backfill_history(date(2026, 6, 1), date(2026, 6, 1), root=tmp_path)
+        assert rows[0]["settlement"] == 96.00

@@ -140,7 +140,7 @@ market-base/
 │   ├── fetch_analyst                    ← Nasdaq 100 分析师目标价（Wikipedia 成分 + yfinance）
 │   ├── fetch_index                     ← 指数日线（_symbol_fetch 统一编排）
 │   ├── fetch_stock                     ← 股票日线（_symbol_fetch 统一编排）
-│   ├── fetch_rate_expectations         ← FOMC 概率 + ZQ 快照（每日）
+│   ├── fetch_rate_expectations         ← FOMC 概率 + ZQ 快照（每日；`--backfill-history` 按历史结算价回补）
 │   └── fetch_news                      ← Yahoo Finance 个股新闻（curl_cffi 直连 NCP，不走 yfinance）
 │   └── live_wheel                      ← 盘前/盘中实时 Wheel（yfinance 优先 ~7s/标的，IBKR 真实盘口可后台补）
 │
