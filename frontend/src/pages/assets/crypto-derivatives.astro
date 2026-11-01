@@ -70,7 +70,7 @@ async function load() {
           <div style="margin-top:4px;font-size:11px;opacity:.65;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${k.pct_label || ''}</div>
         </div>`).join('')}
       </div>
-      <details class="re-fold"><summary>口径说明</summary>
+      <details class="re-fold"><summary>口径 · 读法</summary>
       <p class="re-source" style="margin:8px 0 0">口径：百分位 = 当前值在近 1 年序列中的位置（&lt;30 个点标历史不足）；历史源：OKX（funding/taker）/ CFTC COT / 日线快照 / 期权快照。部分 KPI 因源上限窗口不足 1 年（funding 92 天 / taker 10 日 / PCR 快照积累中）。</p></details>`;
     document.getElementById('now').appendChild(lsec);
   }
@@ -93,7 +93,7 @@ async function load() {
       { label: '累计 AUM', value: (etf.cum_aum_busd ?? '—') + ' B', sub: '净流入逐日累加近似（自 2024-01-11）' },
       { label: 'Top 3', value: (etf.top || []).map(x => x === 'BTC' ? 'BTC(灰度迷你)' : x).join(' · '), sub: '累计净流入最高', cls: 're-card-wrap' },
     ], 're-cards-2col'));
-    esec.insertAdjacentHTML('beforeend', `<details class="re-fold"><summary>解读 · 口径</summary>
+    esec.insertAdjacentHTML('beforeend', `<details class="re-fold"><summary>口径 · 读法</summary>
       <div class="re-explain" style="margin-top:8px">
         <b>如何解读</b> — ETF 是最干净的现货资金通道：价格上涨 + ETF 流入 = 现货确认；
         价格上涨但 ETF 流出 = 更可能是杠杆或短线挤压。
@@ -134,7 +134,7 @@ async function load() {
     fsec.id = 'sec-funding';
     fsec.innerHTML = R.secTitle('资金费率走势', 'OKX BTC 永续 8h 费率 %', `>0 做多付费 / <0 空头付费 · 近 ${Math.round(fh.length / 3)} 天`) +
       `<div class="chart chart-sm" id="funding-hist"></div>
-      <details class="re-fold"><summary>口径说明</summary>
+      <details class="re-fold"><summary>口径 · 读法</summary>
       <p class="re-source" style="margin:8px 0 0">口径：OKX funding-rate-history（8h 结算）；时间轴按 8h 网格从快照时间回推。持续抬升 + OI 扩张 = 杠杆堆积；年化超 ±15%（8h ≈ ±0.0137%）为拥挤反转区。</p></details>`;
     document.getElementById('funding').appendChild(fsec);
     R.mkChart('funding-hist', c => R.lineOption({
@@ -200,7 +200,7 @@ async function load() {
       { label: 'Spread（基差−SOFR）', value: bz.spread == null ? '—' : bz.spread + '%', sub: `SOFR ${bz.sofr}%`,
         vcolor: bz.spread != null && bz.spread > 5 ? 'var(--up)' : (bz.spread != null && bz.spread < 0 ? 'var(--down)' : '') },
     ], 're-cards-2col'));
-    bsec.insertAdjacentHTML('beforeend', `<details class="re-fold"><summary>解读 · 口径</summary>
+    bsec.insertAdjacentHTML('beforeend', `<details class="re-fold"><summary>口径 · 读法</summary>
       <div class="re-explain" style="margin-top:8px">
         <b>如何解读</b> — 基差代表机构愿意为远期 BTC 支付的溢价。基差高不等于立刻上涨，但说明 carry/套利资金愿意留在场内。
         <span style="opacity:.7">Spread = 基差 60d EMA − SOFR（套利价差）；&gt;5% 套利空间充足，&lt;0 为负。</span></div>
@@ -232,7 +232,7 @@ async function load() {
     ].filter(Boolean), 're-cards-2col'));
     gsec.insertAdjacentHTML('beforeend', `
       ${exchRows ? `<div style="margin-top:10px;font-size:12px;opacity:.9"><div style="opacity:.7;margin-bottom:4px">交易所 OI 分布 · Top ${(cg.exchanges || []).length}（24h 变化）</div>${exchRows}</div>` : ''}
-      <details class="re-fold"><summary>解读 · 口径</summary>
+      <details class="re-fold"><summary>口径 · 读法</summary>
       <div class="re-explain" style="margin-top:8px">
         <b>如何解读</b> — 回答的是：风险是否来自交易所杠杆而非现货资金。OI 快速上升 + 清算低 = 杠杆堆积；清算放大后 OI 下降 = 去杠杆完成。</div>
       <p class="re-source" style="margin:8px 0 0">数据源：Coinglass 全市场聚合快照 · 快照 ${cg.ts || ''} · 单项取不到时留空，不影响其他指标。</p></details>`);

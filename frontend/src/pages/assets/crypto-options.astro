@@ -97,14 +97,7 @@ function renderPolymarket(pm, spot) {
       </div>
       <div class="pm-sharebar"><div class="pm-sharebar-fill" style="width:${share}%"></div></div>
     </div>`;
-  }).join('')}</div>
-    <details class="re-fold"><summary>解读 · 口径</summary>
-    <div class="re-explain" style="margin-top:8px">
-      <b>如何解读</b> — 图上每条线是那个归类里「概率过 50% 的价位」逐日记到哪（档间线性插值），
-      灰虚线是现价日线收盘：线在现价上方 = 市场觉得这个方向还得往上走才能摸到，线与现价的缺口就是预期差。
-      折叠明细里每档是市场对「触及该价位」的隐含概率（≥60% 接近共识，&lt;20% 淡显为长尾），价位后括注距现价偏离。
-      <span style="opacity:.7">月度/年度阶梯跨月切换时档位重置，曲线会有结构性跳档。</span></div>
-    <p class="re-source" style="margin:8px 0 0">口径：category=crypto · series 含 hit-price / multi-strikes（日/周/月/年度价位阶梯）；prob 为 0-1 隐含概率。过 50% 档按相邻两档线性插值，整条阶梯都在 0.5 同侧时该日留空（没有对赌档，不外推端点）；现价线取 yfinance 日线收盘，与 Deribit 现货锚可差几十美元。history.csv 只收录达量门槛的合约，新市场无历史则留空。</p></details>`;
+  }).join('')}</div>`;
   host.appendChild(head);
 
   // 规则引擎叙事（LLM 预留）
@@ -156,6 +149,16 @@ function renderPolymarket(pm, spot) {
         </div>`).join('')}</div>`;
     sec.appendChild(det);
   }
+
+  // 口径/读法归图组层：说明上方各标的走势图与折叠明细。
+  // 与卡组同吃 .re-block 的 16px 间距（.re-fold 的 margin-top 已由 CSS 归零）
+  host.insertAdjacentHTML('beforeend', `<details class="re-fold"><summary>口径 · 读法</summary>
+    <div class="re-explain" style="margin-top:8px">
+      <b>如何解读</b> — 图上每条线是那个归类里「概率过 50% 的价位」逐日记到哪（档间线性插值），
+      灰虚线是现价日线收盘：线在现价上方 = 市场觉得这个方向还得往上走才能摸到，线与现价的缺口就是预期差。
+      折叠明细里每档是市场对「触及该价位」的隐含概率（≥60% 接近共识，&lt;20% 淡显为长尾），价位后括注距现价偏离。
+      <span style="opacity:.7">月度/年度阶梯跨月切换时档位重置，曲线会有结构性跳档。</span></div>
+    <p class="re-source" style="margin:8px 0 0">口径：category=crypto · series 含 hit-price / multi-strikes（日/周/月/年度价位阶梯）；prob 为 0-1 隐含概率。过 50% 档按相邻两档线性插值，整条阶梯都在 0.5 同侧时该日留空（没有对赌档，不外推端点）；现价线取 yfinance 日线收盘，与 Deribit 现货锚可差几十美元。history.csv 只收录达量门槛的合约，新市场无历史则留空。</p></details>`);
 
   // 归类规则未命中告警（新 series/问题命名击穿规则时的 actionable 清单）
   if (pm.unmatched && pm.unmatched.count) {
@@ -277,7 +280,7 @@ async function load() {
       ${wallCol('Deribit 全市场期权 · ETH', optE, optE.spot_anchor)}
     </div>
     ${cmeBlock()}
-    <details class="re-fold"><summary>解读 · 口径</summary>
+    <details class="re-fold"><summary>口径 · 读法</summary>
     <div class="re-explain" style="margin-top:8px">
       <b>如何解读</b> — Strike Wall 是短期价格磁吸/压制区，尤其在临近到期时更有用。它不是趋势信号，更像短线地图。
       条长按本标的最厚一档归一（BTC 与 ETH 量级不同，不能跨卡比长度）；右侧胶囊是距现价偏离，标「墙」的那两档

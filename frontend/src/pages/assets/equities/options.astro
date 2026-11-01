@@ -643,7 +643,7 @@ function renderChartsPane() {
   }
   const secGex = document.getElementById('sec-gex');
   secGex?.querySelector(':scope > .re-sec-note')?.remove();
-  secGex?.appendChild(R.secNote('到期日 Gamma 集中度：条长 = 各段 Σ|GEX| / 全链 Σ|GEX|（加总 100%），蓝色为主段；占比越集中，该到期段的期权墙约束力越强。', { fold: true, title: '读法' }));
+  secGex?.appendChild(R.secNote('到期日 Gamma 集中度：条长 = 各段 Σ|GEX| / 全链 Σ|GEX|（加总 100%），蓝色为主段；占比越集中，该到期段的期权墙约束力越强。', { fold: true }));
 
   // 2) ATM IV 期限结构
   const contango = (v.iv_slope ?? 0) > 0;
