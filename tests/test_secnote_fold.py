@@ -5,7 +5,7 @@
   · 默认形态不变（div + 原文），页面里 20 多处短注脚不该被动到；
   · fold 后仍是 .re-sec-note（守卫 test_static_single_source 按这个类名判单源）；
   · summary 文案可覆盖（能力保留），但全站折叠备注统一用默认标题「口径 · 读法」；
-  · 位置归属：卡内的备注留在卡里当 footer，小节级的（credit 三处、pricing 累计与路径、
+  · 位置归属：卡内的备注留在卡里当 footer，小节级的（credit 三处、pricing 政策基准与累计、
     metals 交叉验证、crypto-options 的图组口径）不套卡底分隔线。
 """
 
