@@ -281,7 +281,6 @@ DGLO,First Trust RBA Deglobalization ETF,broad
 DGRE,WisdomTree Emerging Markets Quality Dividend Growth Fund,factor_income
 DGRS,WisdomTree U.S. SmallCap Quality Dividend Growth Fund,factor_income
 DGRW,WisdomTree U.S. Quality Dividend Growth Fund,factor_income
-DINE,Simplify Tax Aware Diversified Income Strategy ETF,factor_income
 DIVD,Altrius Global Dividend ETF,factor_income
 DLCU,U.S. Large Company Portfolio: ETF Class Shares,broad
 DLLL,GraniteShares 2x Long DELL Daily ETF,leveraged_inverse
@@ -651,7 +650,6 @@ LMBS,First Trust Low Duration Opportunities ETF,broad
 LMTL,Direxion Daily LMT Bull 2X ETF,leveraged_inverse
 LOGO,Alpha Brands Consumption Leaders ETF,broad
 LOTI,Liberty One Tactical Income ETF,factor_income
-LQ,Simplify Tax Aware Alternatives ETF,broad
 LRGE,ClearBridge Large Cap Growth Select ETF,high_beta
 LRND,NYLIM U.S. Large Cap R&D Leaders ETF,broad
 LTCC,Canary Litecoin ETF,broad
@@ -913,7 +911,7 @@ QQXT,First Trust NASDAQ-100 Ex-Technology Sector Index Fund,broad
 QRMI,Global X NASDAQ 100 Risk Managed Income ETF,factor_income
 QSIX,Pacer Metaurus Nasdaq 100 Dividend Multiplier 600 ETF,factor_income
 QSML,WisdomTree U.S. SmallCap Quality Growth Fund,factor_income
-QTEC,First Trust NASDAQ-100-Technology Sector Index Fund,broad
+QTEC,First Trust NASDAQ-100- Technology Index Fund,broad
 QTOP,iShares Nasdaq Top 30 Stocks ETF,broad
 QTR,Global X NASDAQ 100 Tail Risk ETF,theme
 QTUM,Defiance Quantum ETF,broad
@@ -1316,6 +1314,7 @@ ACII,Innovator Index Autocallable Income Strategy ETF,factor_income
 ACIN,Hartford Alpha Capture International Equity ETF,global
 ACIO,Aptus Collared Investment Opportunity ETF,broad
 ACIV,Hartford Alpha Capture International Value ETF,factor_income
+ACJL,"Buffered Bulldog ETF by C.J. Lawrence, a division of Apollon",broad
 ACKY,VistaShares Target 15 ACKtivist Distribution ETF,broad
 ACLC,American Century Large Cap Equity ETF,broad
 ACLO,TCW AAA CLO ETF,broad
@@ -1374,6 +1373,7 @@ AHBM,Amplify Top 10 Asia Memory ETF,global
 AHLT,AHL Trend ETF,broad
 AHYB,American Century Select High Yield ETF,bond
 AIBD,Direxion Daily AI and Big Data Bear 2X ETF,leveraged_inverse
+AIBE,FINQ CORE U.S. Large Cap AI-Managed Equity ETF,theme
 AIBF,iShares Future AI Beneficiaries ETF,theme
 AIBN,Defiance AI Infrastructure Bond ETF,bond
 AIBU,Direxion Daily AI and Big Data Bull 2X ETF,leveraged_inverse
@@ -1945,7 +1945,7 @@ CMF,iShares California Muni Bond ETF,bond
 CNAV,Mohr Company Nav ETF,broad
 CNBS,Amplify Seymour Cannabis ETF,broad
 CNEQ,Alger Concentrated Equity ETF,broad
-CNRG,State Street SPDR S&P Kensho Clean Power ETF,theme
+CNRG,State Street SPDR S&P Kensho Grid Innovation ETF,high_beta
 CNXT,VanEck ChiNext Innovators ETF,broad
 CNYA,iShares MSCI China A ETF,global
 COAL,Range Global Coal Index ETF,broad
@@ -2358,7 +2358,7 @@ EFAX,State Street SPDR MSCI EAFE Fossil Fuel Reserves Free ETF,broad
 EFFE,Harbor Osmosis Emerging Markets Resource Efficient ETF,global
 EFFI,Harbor Osmosis International Resource Efficient ETF,global
 EFG,iShares MSCI EAFE Growth ETF,high_beta
-EFIV,State Street SPDR S&P 500 ESG ETF,broad
+EFIV,State Street SPDR S&P 500 Scored and Screened ETF,broad
 EFNL,iShares MSCI Finland ETF,broad
 EFO,ProShares Ultra MSCI EAFE,broad
 EFU,ProShares UltraShort MSCI EAFE,leveraged_inverse
@@ -2768,7 +2768,7 @@ FTBI,First Trust Balanced Income ETF,factor_income
 FTCA,Franklin California Municipal Income ETF,bond
 FTCB,First Trust Core Investment Grade ETF,bond
 FTCE,First Trust New Constructs Core Earnings Leaders ETF,broad
-FTEC,Fidelity MSCI Information Technology Index ETF,broad
+FTEC,ETF,broad
 FTHB,FIS Faith Income ETF,factor_income
 FTHF,First Trust Emerging Markets Human Flourishing ETF,global
 FTIF,First Trust Bloomberg Inflation Sensitive Equity ETF,broad
@@ -3361,7 +3361,7 @@ IVVW,iShares IVV Premium Income+ ETF,factor_income
 IVW,iShares S&P 500 Growth ETF,high_beta
 IWB,iShares Russell 1000 ETF,broad
 IWC,iShares Microcap ETF,broad
-IWD,iShares Russell 1000 Value ETF,factor_income
+IWD,iShares Russell 1000 Value Index Fund,factor_income
 IWF,iShares Russell 1000 Growth Fund,high_beta
 IWFG,NYLIM Winslow Focused Large Cap Growth ETF,high_beta
 IWL,iShares Russell Top 200 ETF,broad
@@ -3395,7 +3395,7 @@ IYM,iShares U.S. Basic Materials ETF,broad
 IYR,iShares U.S. Real Estate ETF,broad
 IYRI,NEOS Real Estate High Income ETF,factor_income
 IYT,iShares U.S. Transportation ETF,broad
-IYW,iShares U.S. Technology ETF,broad
+IYW,iShares Dow Jones U.S. Technology Sector Index Fund,broad
 IYY,iShares Dow Jones U.S. ETF,broad
 IYZ,iShares U.S. Telecommunications ETF,broad
 IZRL,ARK Israel Innovative Technology ETF,broad
@@ -3649,7 +3649,6 @@ LFEQ,VanEck Long/Flat Trend ETF,broad
 LFGY,YieldMax Crypto Industry & Tech Portfolio Option Income ETF,crypto
 LGDX,Intech S&P Large Cap Diversified Alpha ETF,broad
 LGH,HCM Defender 500 Index ETF,broad
-LGHT,Langar Global HealthTech ETF,broad
 LGLV,State Street SPDR US Large Cap Low Volatility Index ETF,factor_income
 LGOV,First Trust Long Duration Opportunities ETF,broad
 LIAE,LifeX 2050 Inflation-Protected Longevity Income ETF,factor_income
@@ -4070,7 +4069,6 @@ NVTC,Corgi NVTS 2x Daily ETF,leveraged_inverse
 NVTX,Tradr 2X Long NVTS Daily ETF,leveraged_inverse
 NXPG,Leverage Shares 2X Long NXPI Daily ETF,leveraged_inverse
 NXTE,AXS Green Alpha ETF,broad
-NXTI,Simplify Next Intangible Core Index ETF,broad
 NXUS,Nuveen International Aggregate Bond ETF,bond
 NYF,iShares New York Muni Bond ETF,bond
 NYM,AB New York Intermediate Municipal ETF,bond
@@ -4211,7 +4209,6 @@ PCLO,VIRTUS SEIX AAA Private Credit CLO ETF,bond
 PCOV,Principal Equity Premium Income ETF,factor_income
 PCPC,Porter & Company Property & Casualty Index ETF,broad
 PCPP,Porter & Company Porter Portfolio Index ETF,broad
-PCR,Simplify VettaFi Private Credit Strategy ETF,bond
 PCS,PGIM Corporate Bond 0-5 Year ETF,bond
 PCSG,Polen 5Perspectives Small-Mid Growth ETF,high_beta
 PCY,Invesco Emerging Markets Sovereign Debt ETF,global
@@ -4871,10 +4868,10 @@ SOXL,Direxion Daily Semiconductor Bull 3X ETF,leveraged_inverse
 SOXS,Direxion Daily Semiconductor Bear 3X ETF,leveraged_inverse
 SOXY,YieldMax Target 12 Semiconductor Option Income ETF,factor_income
 SOYB,Teucrium Soybean Fund ETV,broad
-SPAB,State Street SPDR Portfolio Aggregate Bond ETF,bond
+SPAB,State Street SPDR Portfolio Aggregate Bond Index ETF,bond
 SPAL,GraniteShares 2x Long SpaceX Daily ETF,leveraged_inverse
 SPAX,T-REX 2X Long SPCX Daily Target ETF,leveraged_inverse
-SPBO,State Street SPDR Portfolio Corporate Bond ETF,bond
+SPBO,State Street SPDR Portfolio Corporate Bond Index ETF,bond
 SPBU,AllianzIM Buffer15 Uncapped Allocation ETF,broad
 SPBW,AllianzIM Buffer20 Allocation ETF,broad
 SPBX,AllianzIM 6 Month Buffer10 Allocation ETF,broad
@@ -4900,28 +4897,28 @@ SPGP,Invesco S&P 500 GARP ETF,broad
 SPHB,Invesco S&P 500 High Beta ETF,broad
 SPHD,Invesco S&P 500 High Dividend Low Volatility ETF,factor_income
 SPHQ,Invesco S&P 500 Quality ETF,factor_income
-SPHY,State Street SPDR Portfolio High Yield Bond ETF,bond
-SPIB,State Street SPDR Portfolio Intermediate Term Corporate Bond ETF,bond
+SPHY,State Street SPDR Portfolio High Yield Bond Index ETF,bond
+SPIB,State Street SPDR Portfolio Intermediate Term Corporate Bond Index ETF,bond
 SPIN,State Street US Equity Premium Income ETF,factor_income
-SPIP,State Street SPDR Portfolio TIPS ETF,broad
-SPLB,State Street SPDR Portfolio Long Term Corporate Bond ETF,bond
+SPIP,State Street SPDR Portfolio TIPS Index ETF,broad
+SPLB,State Street SPDR Portfolio Long Term Corporate Bond Index ETF,bond
 SPLS,PIMCO US Stocks PLUS Active Bond Exchange-Traded Fund,bond
 SPLV,Invesco S&P 500 Low Volatility ETF,factor_income
-SPMB,State Street SPDR Portfolio Mortgage Backed Bond ETF,bond
+SPMB,State Street SPDR Portfolio Mortgage Backed Bond Index ETF,bond
 SPMD,State Street SPDR Portfolio S&P 400 Mid Cap ETF,broad
 SPMO,Invesco S&P 500 Momentum ETF,factor_income
 SPPP,Sprott Physical Platinum and Palladium Trust,broad
 SPRE,SP Funds S&P Global REIT Sharia ETF,broad
-SPSB,State Street SPDR Portfolio Short Term Corporate Bond ETF,bond
+SPSB,State Street SPDR Portfolio Short Term Corporate Bond Index ETF,bond
 SPSK,SP Funds Dow Jones Global Sukuk ETF,broad
 SPSM,State Street SPDR Portfolio S&P 600 Small Cap ETF,broad
-SPTB,State Street SPDR Portfolio Treasury ETF,bond
+SPTB,State Street SPDR Portfolio Treasury Index ETF,bond
 SPTE,SP Funds S&P Global Technology ETF,broad
-SPTI,State Street SPDR Portfolio Intermediate Term Treasury ETF,bond
-SPTL,State Street SPDR Portfolio Long Term Treasury ETF,bond
+SPTI,State Street SPDR Portfolio Intermediate Term Treasury Index ETF,bond
+SPTL,State Street SPDR Portfolio Long Term Treasury Index ETF,bond
 SPTM,State Street SPDR Portfolio S&P 1500 Composite Stock Market ETF,broad
-SPTS,State Street SPDR Portfolio Short Term Treasury ETF,bond
-SPTU,State Street SPDR Portfolio Ultra Short T-Bill ETF,broad
+SPTS,State Street SPDR Portfolio Short Term Treasury Index ETF,bond
+SPTU,State Street SPDR Portfolio Ultra Short T-Bill Index ETF,broad
 SPUC,Simplify US Equity Income ETF,factor_income
 SPUS,SP Funds S&P 500 Sharia Industry Exclusions ETF,broad
 SPUT,Innovator Equity Premium Income - Daily PutWrite ETF,factor_income
@@ -5072,7 +5069,6 @@ TENM,iShares Large Cap 10% Target Buffer Mar ETF,broad
 TEQI,T. Rowe Price Equity Income ETF,factor_income
 TERC,Corgi TER 2x Daily ETF,leveraged_inverse
 TESC,Corgi TSLA 2x Daily ETF,leveraged_inverse
-TESL,Simplify Volt TSLA Revolution ETF,broad
 TEST,YieldMax TSLA Performance & Distribution Target 25 ETF,broad
 TETH,21Shares Ethereum ETF,crypto
 TEUP,T-REX 2X Long TE Daily Target ETF,leveraged_inverse
@@ -5477,9 +5473,9 @@ WAR,U.S. Global Technology and Aerospace & Defense ETF,theme
 WATS,Corgi Battery Energy Storage Systems ETF,commodity
 WBEM,William Blair Emerging Markets Equity ETF,global
 WBIE,William Blair International Equity ETF,global
-WBIF,WBI BullBear Value 3000 ETF,factor_income
-WBIG,WBI BullBear Yield 3000 ETF,broad
-WBIL,WBI BullBear Quality 3000 ETF,factor_income
+WBIF,WBI Fundamental Factors Hedged ETF,broad
+WBIG,WBI Income Generators Hedged ETF,factor_income
+WBIL,WBI Trend Leaders Hedged ETF,broad
 WBIY,WBI Power Factor High Dividend ETF,factor_income
 WBMO,VanEck Wealth Builder ETF,broad
 WCAP,WarCap Unconstrained Equity ETF,theme
