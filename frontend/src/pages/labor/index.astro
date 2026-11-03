@@ -12,6 +12,7 @@ import Section from '../../components/Section.astro';
   <Section id="cards" title="概览" />
   <Section id="re-signals" title="研判" />
   <Section id="history" title="走势" />
+  <Section id="structure" title="就业结构" sub="行业 · 工时 · 工资与生产率" />
   <Section id="indicators" title="明细" sub="就业指标" />
   <div class="re-foot-page" slot="foot" id="re-foot"></div>
 
@@ -19,7 +20,7 @@ import Section from '../../components/Section.astro';
 async function load() {
   // 小节锚点导航（长页快速跳转；sticky 见 special.css .page-toc）
   document.getElementById('page-toc').innerHTML = [
-    ['概览', 'cards'], ['研判', 're-signals'], ['走势', 'history'], ['明细', 'indicators'],
+    ['概览', 'cards'], ['研判', 're-signals'], ['走势', 'history'], ['结构', 'structure'], ['明细', 'indicators'],
   ].map(([t, id]) => `<a href="#${id}">${t}</a>`).join('');
 
   const d = await R.get('/api/labor/overview');
@@ -80,6 +81,45 @@ async function load() {
     ],
   }));
 
+  // ── 行业就业 / 工时 / 工资与生产率 / NBER 背景 ──
+  const st = d.structure || {};
+  const ssec = R.secCard();
+  const structureRows = [...(st.employment || []), ...(st.hours || [])];
+  if (structureRows.length) {
+    ssec.appendChild(R.kvRows(structureRows.map(x => ({
+      label: x.name,
+      value: x.value == null ? '—' : `${R.num(x.value)}${x.unit || ''}`,
+      note: `${x.down_periods ? `连续 ${x.down_periods} 期下降 · ` : ''}${x.as_of || ''}`,
+    }))));
+  }
+  const wp = st.wage_productivity || {};
+  if (wp.as_of) {
+    ssec.appendChild(R.kvRows([
+      { label: '实际时薪补偿同比', value: R.fmtPct(wp.real_comp_yoy), note: `季度 · ${wp.as_of}` },
+      { label: '劳动生产率同比', value: R.fmtPct(wp.productivity_yoy), note: `季度 · ${wp.as_of}` },
+      { label: '实际补偿 − 生产率', value: `${R.num(wp.gap_pp)}pp`, note: `连续 ${wp.comp_above_productivity_quarters} 季为正` },
+    ]));
+  }
+  if (st.nber?.as_of) {
+    ssec.appendChild(R.kvRows([{
+      label: 'NBER 商业周期背景',
+      value: st.nber.in_recession ? '衰退区间' : '扩张区间',
+      note: `月度区间 · ${st.nber.as_of}`,
+    }]));
+  }
+  const ch = st.challenger || {};
+  if (ch.as_of) {
+    const basis = { reported: '报告披露', ytd_difference: 'YTD 差值', january_ytd: '1 月 YTD', unreported: '未披露' }[ch.ai_monthly_basis] || ch.ai_monthly_basis || '—';
+    ssec.appendChild(R.kvRows([
+      { label: 'Challenger 宣布裁员（当月）', value: ch.job_cuts_monthly == null ? '—' : R.num(ch.job_cuts_monthly), note: ch.as_of },
+      { label: 'AI 归因裁员（当月）', value: ch.ai_job_cuts_monthly == null ? '—' : R.num(ch.ai_job_cuts_monthly), note: basis },
+      { label: 'AI 归因占比（当月）', value: R.fmtPct(ch.ai_share_monthly_pct), note: 'AI 人数 / 当月总裁员' },
+      { label: 'AI 归因占比（YTD）', value: R.fmtPct(ch.ai_share_ytd_pct), note: `${R.num(ch.ai_job_cuts_ytd)} / ${R.num(ch.job_cuts_ytd)}` },
+    ]));
+  }
+  if (!ssec.children.length) ssec.appendChild(R.secNote('结构数据缺失，运行 ./bin/fetch_fred 补齐。'));
+  document.getElementById('structure').appendChild(ssec);
+
   // ── 指标明细 ──
   const tsec = document.createElement('div');
   tsec.className = 're-section';
@@ -99,6 +139,21 @@ async function load() {
     const pick = (name) => d.indicators.find(x => x.name === name) || {};
     const kN = (v) => (v == null ? '—' : R.num(v) + 'K');
     const gaps = d.nfp_history.dates.filter((dt, i) => d.nfp_history.unrate[i] == null).map(dt => dt.slice(0, 7));
+    const structureFacts = (st.employment || []).map(x => [
+      x.name,
+      x.value == null ? '—' : R.num(x.value) + 'K',
+      `连续 ${x.down_periods || 0} 期下降 · ${x.as_of || '—'}`,
+    ]);
+    if (wp.as_of) structureFacts.push([
+      '实际补偿与生产率差值',
+      R.num(wp.gap_pp) + 'pp',
+      `实际补偿 ${R.fmtPct(wp.real_comp_yoy)} · 生产率 ${R.fmtPct(wp.productivity_yoy)} · 连续 ${wp.comp_above_productivity_quarters} 季为正`,
+    ]);
+    if (ch.as_of) structureFacts.push([
+      'Challenger AI 归因裁员',
+      `当月 ${R.num(ch.ai_job_cuts_monthly)} · ${R.fmtPct(ch.ai_share_monthly_pct)}`,
+      `YTD ${R.num(ch.ai_job_cuts_ytd)} · ${R.fmtPct(ch.ai_share_ytd_pct)} · ${ch.ai_monthly_basis || '—'}`,
+    ]);
     AICtx.declare('labor', () => ({
       title: '就业读数',
       src: 'FRED（UNRATE / PAYEMS / ICSA / JOLTS）· ECI 薪资',
@@ -114,6 +169,7 @@ async function load() {
         ['失业人数', kN(pick('失业人数').value), '较上月 ' + R.fmtBp(pick('失业人数').chg) + 'K'],
         ['JOLTS 主动离职', kN(pick('JOLTS 主动离职').value), 'as_of ' + (pick('JOLTS 主动离职').as_of || '—') + ' · 较上月 ' + R.fmtBp(pick('JOLTS 主动离职').chg) + 'K'],
         ['ECI 薪资指数', R.num(pick('ECI 薪资指数').value), 'as_of ' + (pick('ECI 薪资指数').as_of || '—') + ' · 季频，较上季 ' + R.fmtBp(pick('ECI 薪资指数').chg)],
+        ...structureFacts,
         ['失业率空缺月', gaps.join(' · ') || '无', '该月 BLS 未采集 CPS，官方不回溯补采'],
       ],
       note: '单位：非农/初请/失业人数为 K（千人），JOLTS 空缺为 M；NFP = PAYEMS 一阶差分',
@@ -121,10 +177,10 @@ async function load() {
   }
 
   R.foot(d.generator, {
-    src: 'FRED（UNRATE / PAYEMS / ICSA / JOLTS）',
-    note: 'NFP = PAYEMS 一阶差分；V/U = JOLTS 空缺 / 失业人数',
+    src: 'FRED / BLS（就业、工时、生产率）· BEA（实际收入）· NBER · Challenger',
+    note: 'NFP = PAYEMS 一阶差分；V/U = JOLTS 空缺 / 失业人数；工资与生产率为季度同比',
   });
 }
-load().catch(e => R.fail(['cards', 're-signals', 'history', 'indicators'], e));
+load().catch(e => R.fail(['cards', 're-signals', 'history', 'structure', 'indicators'], e));
 </script>
 </TopicLayout>

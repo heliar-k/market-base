@@ -416,6 +416,33 @@ def overview(
     }
 
 
+def household_quality(df: pd.DataFrame) -> list[dict]:
+    """纽约联储/Equifax 家庭债务口径，与商业银行贷款质量分行展示。"""
+    rows = []
+    for name, col in [
+        ("信用卡严重逾期率（90+ 天）", "CREDIT_CARD_90PLUS_DELINQ_PCT"),
+        ("信用卡新增逾期（30+ 天，四季流量）", "CREDIT_CARD_30PLUS_FLOW_4Q_SUM_PCT"),
+    ]:
+        card, series = _latest_card(df, col, 2)
+        if not card:
+            continue
+        obs: dict = {}
+        prev = _chg_prev(series, 1)
+        rows.append(
+            {
+                "name": name,
+                **card,
+                "source": "NY Fed / Equifax",
+                "chg_pp": round(prev[0] - prev[1], 2) if prev else None,
+                "pct_10y": _pct(series, 40, obs),
+                "obs": obs["n"],
+                "full_10y": obs["full"],
+                "released": "",
+            }
+        )
+    return rows
+
+
 def _spread(df: pd.DataFrame, a: str, b: str, name: str) -> dict:
     if a not in df or b not in df:
         return {}
@@ -812,6 +839,8 @@ def generate_credit_overview() -> dict:
     if df_vol.empty or "HY_OAS" not in df_vol:
         return {"error": "fred/volatility.csv 缺 HY_OAS，先运行 ./bin/fetch_fred"}
     out = overview(df_vol, df_cr, df_rates, df_liq, df_sent, df_ofr, df_yf)
+    household = read_csv_or_empty(ROOT / "data" / "nyfed_household" / "household_credit.csv")
+    out["household_quality"] = household_quality(household)
     out["generator"] = "rules"
     out["as_of"] = _latest_date(df_vol)
     return out

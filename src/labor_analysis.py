@@ -37,6 +37,16 @@ INDICATOR_LABELS = {
     "ECI_WAGES": ("ECI 薪资指数", "指数"),
 }
 
+STRUCTURE_LABELS = {
+    "PROF_BUSINESS_EMP": "专业与商业服务就业",
+    "INFO_EMP": "信息业就业",
+    "FINANCIAL_EMP": "金融业就业",
+}
+HOUR_LABELS = {
+    "WEEKLY_HOURS": "平均每周工时",
+    "OVERTIME_HOURS": "制造业加班时长",
+}
+
 
 def _read(name: str) -> pd.DataFrame:
     return read_csv_or_empty(FRED_DIR / name / f"{name}.csv")
@@ -68,6 +78,108 @@ def vu_ratio(lm: pd.DataFrame) -> pd.Series:
         return pd.Series(dtype=float)
     pair = lm[["JOLTS_OPEN", "UNEMPLOY"]].dropna()
     return (pair["JOLTS_OPEN"] / pair["UNEMPLOY"]).dropna()
+
+
+def decline_streak(s: pd.Series) -> int:
+    """最新观测向前连续环比下降的期数。"""
+    changes = s.dropna().diff().dropna()
+    count = 0
+    for value in reversed(changes.tolist()):
+        if value >= 0:
+            break
+        count += 1
+    return count
+
+
+def _structure_row(key: str, name: str, s: pd.Series, unit: str) -> dict:
+    pair = _latest(s.dropna())
+    if pair is None:
+        return {"key": key, "name": name, "value": None, "unit": unit}
+    value, dt = pair
+    prev = _chg_prev(s.dropna(), 1)
+    return {
+        "key": key,
+        "name": name,
+        "value": round(value, 2),
+        "unit": unit,
+        "chg": round(prev[0] - prev[1], 2) if prev else None,
+        "down_periods": decline_streak(s),
+        "as_of": dt.strftime("%Y-%m-%d"),
+    }
+
+
+def employment_structure(
+    labor: pd.DataFrame, labor_market: pd.DataFrame, growth: pd.DataFrame
+) -> dict:
+    """行业就业、工时、实际补偿与生产率，以及 NBER 区间背景。"""
+    employment = [
+        _structure_row(key, name, labor[key], "K")
+        for key, name in STRUCTURE_LABELS.items()
+        if key in labor
+    ]
+    hours = [
+        _structure_row(key, name, labor[key], "小时")
+        for key, name in HOUR_LABELS.items()
+        if key in labor
+    ]
+    wage_productivity: dict = {}
+    if {"PRODUCTIVITY", "REAL_HOURLY_COMP"} <= set(labor_market.columns):
+        pair = labor_market[["PRODUCTIVITY", "REAL_HOURLY_COMP"]].dropna()
+        if len(pair) >= 5:
+            yoy = pair.pct_change(4) * 100
+            yoy["gap"] = yoy["REAL_HOURLY_COMP"] - yoy["PRODUCTIVITY"]
+            valid = yoy.dropna()
+            latest = valid.iloc[-1]
+            wage_productivity = {
+                "productivity_yoy": round(float(latest["PRODUCTIVITY"]), 2),
+                "real_comp_yoy": round(float(latest["REAL_HOURLY_COMP"]), 2),
+                "gap_pp": round(float(latest["gap"]), 2),
+                "comp_above_productivity_quarters": _comp_streak(valid["gap"]),
+                "as_of": valid.index[-1].strftime("%Y-%m-%d"),
+            }
+    nber: dict = {}
+    if "NBER_RECESSION" in growth:
+        recession = growth["NBER_RECESSION"].dropna()
+        if not recession.empty:
+            nber = {
+                "in_recession": bool(recession.iloc[-1]),
+                "as_of": recession.index[-1].strftime("%Y-%m-%d"),
+            }
+    return {
+        "employment": employment,
+        "hours": hours,
+        "wage_productivity": wage_productivity,
+        "nber": nber,
+    }
+
+
+def _comp_streak(gap: pd.Series) -> int:
+    count = 0
+    for value in reversed(gap.dropna().tolist()):
+        if value <= 0:
+            break
+        count += 1
+    return count
+
+
+def challenger_block(frame: pd.DataFrame) -> dict:
+    """Challenger 当月与 YTD 裁员，保留 AI 当月人数的来源口径。"""
+    if frame.empty or "job_cuts_monthly" not in frame:
+        return {}
+    latest = frame.iloc[-1]
+    value = lambda key: (None if pd.isna(latest.get(key)) else latest.get(key))  # noqa: E731
+    return {
+        "as_of": frame.index[-1].strftime("%Y-%m-%d"),
+        "job_cuts_monthly": value("job_cuts_monthly"),
+        "ai_job_cuts_monthly": value("ai_job_cuts_monthly"),
+        "ai_share_monthly_pct": value("ai_share_monthly_pct"),
+        "job_cuts_ytd": value("job_cuts_ytd"),
+        "ai_job_cuts_ytd": value("ai_job_cuts_ytd"),
+        "ai_share_ytd_pct": value("ai_share_ytd_pct"),
+        "ai_monthly_basis": value("ai_monthly_basis"),
+        "published_at": value("published_at"),
+        "source_url": value("source_url"),
+    }
 
 
 def signal_current(cards: dict, sahm: dict) -> str:
@@ -229,6 +341,7 @@ def generate_labor_overview() -> dict:
     if labor.empty or {"UNRATE", "PAYEMS", "ICSA"} - set(labor.columns):
         return {"error": "data/fred/labor/labor.csv 缺失或缺列，先运行 ./bin/fetch_fred"}
     lm = _read("labor_market")
+    growth = _read("growth")
 
     unrate = labor["UNRATE"].dropna()
     nfp = labor["PAYEMS"].dropna().diff().dropna()
@@ -275,6 +388,10 @@ def generate_labor_overview() -> dict:
 
     eci_yoy = round((eci_pair[0] / eci_pair[1] - 1) * 100, 2) if eci_pair else None
     quits_chg = round(quits_pair[0] - quits_pair[1], 0) if quits_pair else None
+    structure = employment_structure(labor, lm, growth)
+    structure["challenger"] = challenger_block(
+        read_csv_or_empty(ROOT / "data" / "challenger" / "challenger.csv")
+    )
 
     return {
         "generator": "rules",
@@ -287,6 +404,7 @@ def generate_labor_overview() -> dict:
             *([{"title": "预测市场", "text": pm}] if (pm := polymarket_signal()) else []),
         ],
         "nfp_history": nfp_history(labor),
+        "structure": structure,
         "indicators": indicators_table(labor, lm),
     }
 

@@ -100,7 +100,12 @@ async function load() {
     R.getOpt('/api/credit/stress'),
     R.getOpt('/api/credit/euro'),   // 欧元区主权利差：CNBC 源，独立时点，缺则只降级本段
   ]);
-  R.setAsOf([['FRED', d.as_of], ['CNBC', euro && euro.as_of]]);
+  const household = d.household_quality || [];
+  R.setAsOf([
+    ['FRED', d.as_of],
+    ['CNBC', euro && euro.as_of],
+    household.length && ['NY Fed 家庭债务', household[0].as_of],
+  ]);
 
   // ── Credit Regime Score 记分卡（对齐持仓页 pos-hero 骨架）──
   const rg = d.regime || { score: null, regime: '—', components: [], missing: [] };
@@ -252,15 +257,16 @@ async function load() {
 
   // ── 贷款质量（值按 10Y 分位着色，分位写进行尾）──
   const qsec = R.secCard();
-  qsec.appendChild(R.kvRows(d.quality.map(q => ({
+  const qualityRows = [...d.quality, ...household];
+  qsec.appendChild(R.kvRows(qualityRows.map(q => ({
     label: q.name,
     value: `${q.value.toFixed(2)}%`,
-    note: `10Y 分位 ${q.pct_10y ?? '—'}%`,
+    note: `${q.source ? q.source + ' · ' : ''}10Y 分位 ${q.pct_10y ?? '—'}%`,
     color: stressInk(q.pct_10y),
   }))));
-  qsec.appendChild(R.secNote(NOTE.quality));
+  qsec.appendChild(R.secNote(NOTE.quality + ' FRED 为商业银行贷款口径；NY Fed / Equifax 为家庭债务口径，90+ 是季度末存量，30+ 是四季移动流量，两者不合并。'));
   document.getElementById('quality').appendChild(qsec);
-  subAppend('quality', [dateStr(d.quality.map(q => q.as_of)), dateStr(d.quality.map(q => q.released), '发布')]);
+  subAppend('quality', [dateStr(qualityRows.map(q => q.as_of)), dateStr(qualityRows.map(q => q.released), '发布')]);
 
   // ── 金融条件与压力指数 ──
   const fc = d.fincond;
@@ -323,7 +329,7 @@ async function load() {
   }
 
   R.foot(d.generator, {
-    src: 'FRED（ICE BofA OAS / HY / IG）· OFR FSI · yfinance · CNBC（欧元区 10Y 主权利率）',
+    src: 'FRED（ICE BofA OAS / HY / IG）· NY Fed / Equifax 家庭债务 · OFR FSI · yfinance · CNBC',
     note: 'ICE BofA 系列经 FRED API 仅提供近 ~3 年，10Y 分位按可用历史计算',
   });
 
@@ -355,6 +361,13 @@ async function load() {
       ['金融条件', `NFCI ${sgn(fc.nfci.value)} · STLFSI ${sgn(fc.stlfsi.value)} · OFR ${sgn(fc.ofr_fsi.value)}`, '正 = 条件收紧 · OFR 为 105 系列加权'],
       ['流动性代理', `HYG ${hyg ? '$' + R.num(hyg.value) : '—'} · LQD ${lqd ? '$' + R.num(lqd.value) : '—'}`, `收盘价 · 量 ${mvol(hyg && hyg.volume)} / ${mvol(lqd && lqd.volume)}`],
     ];
+    if (household.length) {
+      facts.push([
+        '家庭债务信用卡逾期',
+        household.map(q => `${q.name.includes('90+') ? '90+ 存量' : '30+ 四季流量'} ${R.fmtPct(q.value)}`).join(' · '),
+        `NY Fed / Equifax · ${household[0].as_of}`,
+      ]);
+    }
     // CDS / 压力指数走 getOpt（端点可合法 404）：缺源时该条直接不给，不编造
     if (cds) {
       const sov = cds.sovereign ? `10Y 美债 ${bpToPct(cds.sovereign)}` : '—';
@@ -373,7 +386,7 @@ async function load() {
     }
     return {
       title: '信用压力与利差读数',
-      src: 'FRED（ICE BofA OAS / SLOOS / NFCI）· OFR FSI · yfinance',
+      src: 'FRED（ICE BofA OAS / SLOOS / NFCI）· NY Fed / Equifax 家庭债务 · OFR FSI · yfinance',
       asOf: d.as_of,
       priority: 10,
       facts,

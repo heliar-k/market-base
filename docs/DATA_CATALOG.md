@@ -10,22 +10,22 @@
 
 ## 1. 宏观指标 — `data/fred/{category}/` （13 分类）
 
-13 个分类、91 个系列，来源 FRED API。每次 `./bin/fetch_fred` 拉全量历史并 upsert（漏跑自动补）；`--backfill` 全量覆盖。
+14 个分类、100 个系列，来源 FRED API。每次 `./bin/fetch_fred` 拉全量历史并 upsert（漏跑自动补）；`--backfill` 全量覆盖。
 
 | 分类 | 路径 | 系列 | 内容 |
 |------|------|------|------|
 | `volatility` | `data/fred/volatility/volatility.csv` | 3 | VIX / HY_OAS / IG_OAS |
 | `inflation` | `data/fred/inflation/inflation.csv` | 19 | CPI / PCE / 核心 / CPI细分 / Super-core / BEI / 通胀预期 |
-| `labor` | `data/fred/labor/labor.csv` | 3 | 失业率 / 非农 / 首申失业金 |
-| `growth` | `data/fred/growth/growth.csv` | 5 | 实际GDP / 工业产出 / 实际PCE / 产能利用率 / 制造业新订单 |
+| `labor` | `data/fred/labor/labor.csv` | 8 | 失业率 / 非农 / 首申失业金 / 行业就业 / 工时 / 加班 |
+| `growth` | `data/fred/growth/growth.csv` | 6 | 实际GDP / 工业产出 / 实际PCE / 产能利用率 / 制造业新订单 / NBER 区间 |
 | `rates` | `data/fred/rates/rates.csv` | 16 | 联邦基金利率（DFF 日频 + FEDFUNDS 月频） / SOFR/TGCR/BGCR/ONRRP / 国债全期限 + ACMTP10 |
 | `tips` | `data/fred/tips/tips.csv` | 5 | 5Y-30Y TIPS 实际收益率 |
 | `liquidity` | `data/fred/liquidity/liquidity.csv` | 5 | NFCI / 准备金 / RRP / TGA / 联储总资产 |
 | `sentiment` | `data/fred/sentiment/sentiment.csv` | 2 | 消费者信心 / 金融压力指数 |
 | `fx` | `data/fred/fx/fx.csv` | 1 | 贸易加权美元指数 |
 | `producer_prices` | `data/fred/producer_prices/producer_prices.csv` | 4 | PPI Final Demand / 核心PPI / 分项 |
-| `consumption` | `data/fred/consumption/consumption.csv` | 1 | 个人储蓄率 |
-| `labor_market` | `data/fred/labor_market/labor_market.csv` | 4 | JOLTS 职位空缺/离职率 + 失业人数 + ECI 工资 |
+| `consumption` | `data/fred/consumption/consumption.csv` | 2 | 个人储蓄率 / 实际可支配收入 |
+| `labor_market` | `data/fred/labor_market/labor_market.csv` | 6 | JOLTS 职位空缺/离职率 + 失业人数 + ECI 工资 + 生产率 + 实际时薪补偿 |
 | `tic` | `data/fred/tic/tic.csv` | 7 | TIC 美债净买入（总额/官方）+ 官方持仓 + 日本/中国/沙特/阿联酋持仓 |
 
 ### 列名速查
@@ -35,8 +35,8 @@
 > 最新一行可能 VIX 有值而 OAS 为空——不是拉取 bug，下次 fetch 自动补上（upsert）。
 > 此分类的 VIX 与 `data/cboe/volatility.csv` 的 VIX 同源（都是 CBOE 官方收盘），可互验。
 `inflation`: CPI, PCE, CORE_CPI, CORE_PCE, CPI_SHELTER, CPI_FOOD, CPI_ENERGY, CORE_SERVICES, CORE_GOODS, SUPERCORE_PCE, SUPERCORE_PCE_REAL, T5YIE, T10YIE, T5YIFR, MICH, EXPINF_1Y, EXPINF_2Y, EXPINF_5Y, EXPINF_10Y
-`labor`: UNRATE, PAYEMS, ICSA
-`growth`: GDP, INDPRO, REAL_PCE, CAPU, DGORDER
+`labor`: UNRATE, PAYEMS, ICSA, PROF_BUSINESS_EMP, INFO_EMP, FINANCIAL_EMP, WEEKLY_HOURS, OVERTIME_HOURS
+`growth`: GDP, INDPRO, REAL_PCE, CAPU, DGORDER, NBER_RECESSION
 `rates`: DFF, FEDFUNDS, DFEDTARL, DFEDTARU, SOFR, SOFR1/25/75/99, SOFRVOL, OBFR, IORB, TGCR, ONRRP, BGCR*, DGS1MO...DGS30, ACMTP10*
 
 > `ACMTP10`（NY Fed ACM 模型 10Y 期限溢价）不在 FRED，由 `./bin/fetch_acm` 从
@@ -63,7 +63,7 @@
 `sentiment`: UMCSENT, STLFSI4
 `fx`: DXY
 `producer_prices`: PPI_FD, CORE_PPI, PPI_GOODS, PPI_SERVICES
-`consumption`: PSAVERT
+`consumption`: PSAVERT, REAL_DPI
 `tic`: TIC_NET_TOTAL, TIC_NET_OFFICIAL, TIC_HOLD_OFFICIAL, TIC_HOLD_TOTAL, TIC_HOLD_JAPAN, TIC_HOLD_CHINA, TIC_HOLD_SAUDI, TIC_HOLD_UAE
 
 > `tic`（Treasury International Capital，月度，滞后 2 月；FRED 转发 TIC 官方数据）：
@@ -72,7 +72,7 @@
 > 勿用 FORLTTREASPOS*（LT-only——中国持仓将永远低于阈值）。
 > 海外官方占比（<23% 结构性偏空）= TIC_HOLD_OFFICIAL ÷ data/treasury/mspd.csv 的
 > TOTAL_DEBT（总未偿债务；GFDEBTN 在 FRED 侧已停更，勿用）。
-`labor_market`: JOLTS_OPEN, JOLTS_QUITS, UNEMPLOY, ECI_WAGES
+`labor_market`: JOLTS_OPEN, JOLTS_QUITS, UNEMPLOY, ECI_WAGES, PRODUCTIVITY, REAL_HOURLY_COMP
 
 ---
 
@@ -102,6 +102,53 @@
 > 同时也排除了 BDE 官方日频：`srdatosapp/listaSeries`（旧 `srdatos` 已废）能取西班牙
 > 10Y，但 `codFrecuencia=M` —— 只有月频；Eurostat `irt_lt_mcby_d` 已下线（404），
 > ECB `IRS/D.ES...` 同样只到月频。
+
+---
+
+## 1c. 中国需求与 A 股 — `data/china/`
+
+| 文件 | 来源 | 内容与口径 |
+|------|------|------|
+| `nbs_household.csv` | 国家统计局新版数据发布库 | 全国居民人均可支配收入/消费支出累计值与实际累计同比，季度末 upsert |
+| `nbs_monthly.csv` | 国家统计局月度发布稿 | 社零 `nbs_retail_sales_yoy_pct` / `nbs_retail_sales_ytd_yoy_pct`；CPI `nbs_cpi_yoy_pct` / `nbs_cpi_ytd_yoy_pct`；PPI `nbs_ppi_yoy_pct` / `nbs_ppi_ytd_yoy_pct`；房地产 `nbs_real_estate_investment_ytd_yoy_pct` 与 `nbs_new_commercial_floor_space_sold_ytd_yoy_pct`。1—2 月社零只填累计同比 |
+| `399006.SZ_daily.csv` | 国证指数官网 | 创业板指自 2010-06-01 起 OHLCV 与成交额，成交量为股、成交额为元 |
+| `{ticker}_daily.csv` | Yahoo Finance | 中际旭创 `300308.SZ`、新易盛 `300502.SZ` 未复权 OHLCV、复权收盘价与公司行动 |
+| `{ticker}_quarterly.csv` | Yahoo Finance | 单季营收/归母净利润/diluted EPS 与期末存货/股本；缺失保留空值 |
+| `ai_supply_chain_valuation.csv` | Yahoo Finance | 未复权收盘价 / TTM diluted EPS 的 PE-TTM，含价格日、EPS 报告期与计算口径 |
+
+抓取命令：`./bin/fetch_nbs_household`、`./bin/fetch_nbs_monthly`、`./bin/fetch_cn_equity`。
+
+## 1d. 家庭债务与裁员 — `data/nyfed_household/`、`data/challenger/`
+
+- `nyfed_household/household_credit.csv`：纽约联储 Household Debt and Credit 官方 XLSX，季度末 upsert。
+  - `CREDIT_CARD_90PLUS_DELINQ_PCT`：信用卡余额 90+ 天严重逾期占比，季度末存量。
+  - `CREDIT_CARD_30PLUS_FLOW_4Q_SUM_PCT`：新增 30+ 天逾期余额占比的四季移动求和，属于流量。
+  抓取命令：`./bin/fetch_nyfed_household`。
+- `challenger/challenger.csv`：Challenger 官方月度报告，obs 月为首日。
+  `job_cuts_monthly / ai_job_cuts_monthly / ai_share_monthly_pct` 为当月；
+  `job_cuts_ytd / ai_job_cuts_ytd / ai_share_ytd_pct` 为年初至今。
+  未披露精确 AI 人数时保留空值；相邻 YTD 差值补出的当月值在 `ai_monthly_basis` 标记。
+  抓取命令：`./bin/fetch_challenger`。
+
+## 1e. NDX 与 AI 云披露 — `data/indices/NDX.csv`、`data/ai_cycle/`
+
+- `indices/NDX.csv`：Yahoo Finance 全历史未复权日线，首日不得晚于 1990-01-01 且不少于 5000 行，
+  用于 NDX 历史峰值与已完成月线回撤；抓取命令：`./bin/fetch_ndx_history`。
+
+- `cloud_disclosures.csv`：SEC filing + XBRL，字段含公司、云分部、单季/YTD/FY、报告期、
+  本期/上年同期收入、同比、XBRL concept/member、原文链接和缺失原因。
+  Azure 只有披露增速的历史期间保留 `growth_only`，不拿 Intelligent Cloud 总收入替代。
+- `capex_guidance.csv`：经人工核对的资本开支指引事件，保留指引期间、上下限、点估计、
+  公告日、原文与来源链接。
+- `capex_guidance_events.json`：上述人工核对事件的维护源文件。
+
+抓取命令：`./bin/fetch_cloud_disclosure`（每日增量回溯 1 年；手动可用 `--years 2` 补深）。
+
+季度现金流另由 `./bin/fetch_sec_cashflow` 通过 SEC companyfacts 补全：
+CFO 使用 `NetCashProvidedByUsedInOperatingActivities`，AMZN Capex 使用
+`PaymentsToAcquireProductiveAssets`，其余三家使用 `PaymentsToAcquirePropertyPlantAndEquipment`。
+按相同 fiscal year 的 YTD 差分得到单季，保留 accession、form、filing_date、tag 与来源 URL，
+再与 `data/financials/{SYMBOL}/cashflow_quarterly.csv` 按报告期 upsert。
 
 ---
 

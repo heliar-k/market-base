@@ -37,6 +37,7 @@ from src.chat_proxy import (
     validate_tool_choice,
     validate_tools,
 )
+from src.china_analysis import generate_china_overview
 from src.config import (
     FOMC_MEETINGS,
     IBKR_SYMBOLS,
@@ -1004,6 +1005,18 @@ def _vol_home(d: dict) -> tuple[str, str | None, str | None]:
     return text, as_of, trigger
 
 
+def _china_home(d: dict) -> tuple[str, str | None, str | None]:
+    signals = d.get("signals") or []
+    text = signals[0]["text"] if signals else "中国需求数据待更新"
+    household = d.get("household") or {}
+    trigger = (
+        f"收入−消费 {household['gap_pp']}pp"
+        if household.get("triggered") and household.get("gap_pp") is not None
+        else None
+    )
+    return text, d.get("as_of"), trigger
+
+
 def _labor_trigger(d: dict) -> str | None:
     cards = d.get("cards") or {}
     u = cards.get("unrate") or {}
@@ -1127,6 +1140,12 @@ def get_home_lines() -> dict:
                 d["analysis"]["risk_appetite"]["text"].replace("。\n", " —— "),
                 d.get("as_of"),
             ),
+        ),
+        (
+            "china",
+            "中国需求与资产",
+            generate_china_overview,
+            _china_home,
         ),
         (
             "fed",
@@ -1704,6 +1723,12 @@ def get_rates_auctions() -> dict:
     }
 
 
+@app.get("/api/china/overview")
+def get_china_overview() -> dict:
+    """中国需求、居民收支、A 股与 AI 供应链，以及中美同口径对照。"""
+    return generate_china_overview()
+
+
 # ── assets hub（复刻 timsun.net/assets）──────────────────────────────
 
 
@@ -1713,6 +1738,14 @@ def get_assets_overview() -> dict:
     from src.assets_analysis import overview
 
     return overview()
+
+
+@app.get("/api/assets/ai-cycle")
+def get_ai_cycle_overview() -> dict:
+    """AI 产业周期：云厂商财报、供应链、阶段状态与 NDX 确认。"""
+    from src.ai_cycle_analysis import generate_ai_cycle_overview
+
+    return generate_ai_cycle_overview()
 
 
 @app.get("/api/assets/equities")

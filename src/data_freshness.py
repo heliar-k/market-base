@@ -17,8 +17,8 @@
 在收盘确认窗用交叉 ETF 作证单独拦）与 roster_year_msg（票委名册只有 year 列，
 跨年不换 = fetch_roster 停了，页面会把去年的人当现任票委展示）。
 
-不覆盖：逐标的价格文件（单只失败已由步骤级 FAILED_LIST 标红）、财报/SEC 原文
-（季度节奏）、内部人 Form 4（逐标的 irregular）、GEX/options 网格（本地 IBKR）。
+不覆盖：逐标的价格文件（单只失败已由步骤级 FAILED_LIST 标红）、SEC 原文、
+内部人 Form 4（逐标的 irregular）、GEX/options 网格（本地 IBKR）。
 新增 fetcher 时在 CHECKS 补一行。
 """
 
@@ -100,6 +100,40 @@ CHECKS: list[Check] = [
     ),
     _c("data/fred/growth/growth.csv", 90, "月频增长，两个发布周期"),
     _c("data/fred/consumption/consumption.csv", 90, "月频消费"),
+    _c("data/china/nbs_household.csv", 150, "国家统计局居民收支（季度）"),
+    _c("data/china/nbs_monthly.csv", 75, "国家统计局月度发布稿"),
+    _c("data/nyfed_household/household_credit.csv", 180, "NY Fed 家庭债务（季度）"),
+    _c("data/challenger/challenger.csv", 70, "Challenger 月度裁员"),
+    _c(
+        "data/ai_cycle/cloud_disclosures.csv",
+        150,
+        "SEC 云分部披露（季度）",
+        column="period_end",
+    ),
+    _c(
+        "data/financials/MSFT/cashflow_quarterly.csv",
+        150,
+        "MSFT 季度现金流",
+        require="Operating Cash Flow",
+    ),
+    _c(
+        "data/financials/GOOG/cashflow_quarterly.csv",
+        150,
+        "GOOG 季度现金流",
+        require="Operating Cash Flow",
+    ),
+    _c(
+        "data/financials/AMZN/cashflow_quarterly.csv",
+        150,
+        "AMZN 季度现金流",
+        require="Operating Cash Flow",
+    ),
+    _c(
+        "data/financials/META/cashflow_quarterly.csv",
+        150,
+        "META 季度现金流",
+        require="Operating Cash Flow",
+    ),
     _c("data/fred/tic/tic.csv", 150, "TIC 海外持仓，源滞约 3 个月"),
     _c("data/cboe/volatility.csv", D, "CBOE 26 波动率指数"),
     _c("data/ofr/fsi.csv", 10, "OFR 金融压力指数（源约 T+2）"),
@@ -142,7 +176,23 @@ CHECKS: list[Check] = [
     _c("data/rate_expectations/fomc_probabilities.csv", D, "FOMC 概率"),
     _c("data/rate_expectations/zq_futures.csv", D, "ZQ 期货快照"),
     _c("data/breadth/abv.csv", D, "市场广度 ABV"),
+    _c("data/indices/NDX.csv", D, "NDX 全历史日线"),
     _c("data/analyst/ndx_targets.csv", 8, "NDX 分析师目标价"),
+    _c("data/china/399006.SZ_daily.csv", D, "创业板指日线（国证指数）"),
+    _c("data/china/300308.SZ_daily.csv", D, "中际旭创日线"),
+    _c("data/china/300502.SZ_daily.csv", D, "新易盛日线"),
+    _c(
+        "data/china/300308.SZ_quarterly.csv",
+        150,
+        "中际旭创季度财报",
+        require="revenue_cny",
+    ),
+    _c(
+        "data/china/300502.SZ_quarterly.csv",
+        150,
+        "新易盛季度财报",
+        require="revenue_cny",
+    ),
     _c("data/treasury/bill_share_daily.csv", 8, "日频 Bill 占比（派生）"),
     _c("data/consensus/history.csv", 6, "共识状态留痕（派生；工作日票龄 2 + 周末余量）"),
     _c("data/treasury/dts_cashflows.csv", 10, "DTS 现金流"),

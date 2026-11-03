@@ -109,6 +109,14 @@ async function load() {
       ['50 日均线上方占比', R.fmtPct(b.abv50), '标普500 成分 · 较前 ' + pp(b.abv50_chg)],
       ['SPX − RUT 20 日差距', b.gap == null ? '—' : pp(b.gap), 'SPX ' + sgn(b.spx_20d) + ' / RUT ' + sgn(b.rut_20d)],
     ];
+    const dd = D.ndx_drawdown || {};
+    if (dd.current != null) {
+      facts.push([
+        'NDX ' + (dd.scope || '样本期') + '回撤',
+        R.fmtPct(dd.drawdown_pct),
+        '月线 ' + R.fmtPct(dd.monthly_drawdown_pct) + ' · 峰值 ' + (dd.peak_date || '—') + ' · 起点 ' + (dd.history_start || '—'),
+      ]);
+    }
     if (ch.dates && ch.dates.length) {
       facts.push([
         '近一年归一化（' + ch.dates[0] + ' 起）',
@@ -152,11 +160,21 @@ function renderIndices() {
   const idx = D.indices || [];
   if (!idx.length) return;
   R.setAsOf([['资产', idx[0].date]]);
-  document.getElementById('indices').replaceChildren(R.cards(idx.map(i => ({
+  const cards = idx.map(i => ({
     label: i.name,
     value: id(i.last),
     sub: `<span class="${cls1(i.chg_pct)}">${i.chg_pct == null ? '—' : (i.chg_pct >= 0 ? '▲ +' : '▼ ') + Number(i.chg_pct).toFixed(2) + '%'} · ${i.date}</span>`,
-  })), 're-cards-2col'));
+  }));
+  const dd = D.ndx_drawdown || {};
+  if (dd.current != null) {
+    cards.push({
+      label: `NDX ${dd.scope || '样本期'}回撤`,
+      value: `<span class="${dd.monthly_confirmed ? 'down' : ''}">${R.fmtPct(dd.drawdown_pct)}</span>`,
+      sub: `月线 ${R.fmtPct(dd.monthly_drawdown_pct)} · 峰值 ${dd.peak_date || '—'} · 起点 ${dd.history_start || '—'}`,
+      cls: 're-card-wrap',
+    });
+  }
+  document.getElementById('indices').replaceChildren(R.cards(cards, 're-cards-2col'));
 }
 
 function renderIndexChart() {

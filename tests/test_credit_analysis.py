@@ -14,6 +14,7 @@ from src.credit_analysis import (
     _rolling_pct,
     cds,
     euro_sovereign,
+    household_quality,
     overview,
     stress,
 )
@@ -110,6 +111,22 @@ class TestLatestCard:
         df = pd.DataFrame({"A": [0.1234]}, index=pd.to_datetime(["2024-01-01"]))
         card, _ = _latest_card(df, "A", 1, scale=100)
         assert card["value"] == 12.3
+
+
+def test_household_quality_keeps_stock_and_flow_separate() -> None:
+    df = pd.DataFrame(
+        {
+            "CREDIT_CARD_90PLUS_DELINQ_PCT": [10.0, 11.0, 12.92],
+            "CREDIT_CARD_30PLUS_FLOW_4Q_SUM_PCT": [7.0, 8.0, 8.69],
+        },
+        index=pd.to_datetime(["2025-12-31", "2026-03-31", "2026-06-30"]),
+    )
+    rows = household_quality(df)
+    assert rows[0]["value"] == pytest.approx(12.92)
+    assert rows[0]["chg_pp"] == pytest.approx(1.92)
+    assert "90+" in rows[0]["name"]
+    assert "四季流量" in rows[1]["name"]
+    assert rows[0]["source"] == "NY Fed / Equifax"
 
 
 class TestStressComposite:

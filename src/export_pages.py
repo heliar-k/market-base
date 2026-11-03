@@ -29,7 +29,9 @@ from src.server import (  # noqa: PLC2701 复用路由函数
     _RANGE_MONTHS,
     HTTPException,
     _sanitize,
+    get_ai_cycle_overview,
     get_assets_prices,
+    get_china_overview,
     get_consensus,
     get_credit_cds,
     get_credit_euro,
@@ -246,6 +248,7 @@ def export_api() -> None:
     _safe("api/assets/prices", get_assets_prices)
     _safe("api/treasury/overview", get_treasury_overview)
     _safe("api/labor/overview", get_labor_overview)
+    _safe("api/china/overview", get_china_overview)
 
     # 大类资产专题（复刻 timsun.net/assets 主页 + 子页）
     from src.assets_analysis import (
@@ -264,6 +267,7 @@ def export_api() -> None:
     )
 
     _safe("api/assets/overview", overview)
+    _safe("api/assets/ai-cycle", get_ai_cycle_overview)
     _safe("api/assets/equities", equities)
     _safe("api/assets/equities-options", options_board)
     _safe("api/assets/positioning", positioning)

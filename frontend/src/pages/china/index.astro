@@ -1,0 +1,152 @@
+---
+import TopicLayout from '../../layouts/TopicLayout.astro';
+import Section from '../../components/Section.astro';
+---
+<TopicLayout title="中国需求与资产">
+  <div class="page-toc" id="page-toc"></div>
+  <Section id="demand" title="居民收入与消费" sub="国家统计局 · 累计实际同比" />
+  <Section id="monthly" title="社零、通胀与房地产" sub="国家统计局发布稿 · 当月与累计口径" />
+  <Section id="comparison" title="中美同口径对照" sub="实际收入 · 实际消费 · CPI · PPI" />
+  <Section id="ashares" title="创业板指与 AI 供应链" sub="回撤 · PE-TTM · 业绩增速" />
+  <Section id="links" title="中国利率、汇率与外部">
+    <div class="link-grid">
+      <a href="/rates/yield-curve.html">中国国债 10Y / 30Y <span>进入收益率曲线 →</span></a>
+      <a href="/assets/fx.html">在岸与离岸人民币 <span>进入外汇专题 →</span></a>
+      <a href="/liquidity/global-dollar.html">CFETS 掉期点 <span>进入全球美元 →</span></a>
+      <a href="/treasury/">中国持有美债 <span>进入美债专题 →</span></a>
+    </div>
+  </Section>
+  <div class="re-foot-page" slot="foot" id="re-foot"></div>
+
+<script is:inline>
+document.getElementById('page-toc').innerHTML = [
+  ['居民收支', 'demand'], ['社零与房地产', 'monthly'], ['中美对照', 'comparison'],
+  ['创业板指与供应链', 'ashares'], ['利率与汇率', 'links'],
+].map(([t, id]) => `<a href="#${id}">${t}</a>`).join('');
+const pp = v => v == null ? '—' : `${R.num(v)}pp`;
+const money = v => v == null ? '—' : `¥${R.num(v, 2)}B`;
+
+async function load() {
+  const d = await R.get('/api/china/overview');
+  const h = d.household || {};
+  const m = d.monthly || {};
+  const idx = d.a_shares?.index || {};
+  R.setAsOf([
+    ['国家统计局', m.as_of || h.as_of],
+    ['A股', idx.as_of],
+    ['FRED', d.us?.demand_as_of],
+  ]);
+
+  // 居民实际收入与消费
+  const hsec = R.secCard();
+  if (h.as_of) {
+    hsec.appendChild(R.cards([
+      { label: '实际人均可支配收入累计同比', value: R.fmtPct(h.income_real_yoy_pct), sub: `${h.as_of} · 累计 ¥${R.num(h.income_ytd_cny)}` },
+      { label: '实际人均消费支出累计同比', value: R.fmtPct(h.consumption_real_yoy_pct), sub: `${h.as_of} · 累计 ¥${R.num(h.consumption_ytd_cny)}` },
+      { label: '收入 − 消费增速差', value: pp(h.gap_pp), sub: `连续 ${h.gap_above_2pp_quarters} 季超过 2pp`, vcolor: h.triggered ? 'var(--down)' : undefined },
+    ], 're-cards-2col'));
+    const chart = document.createElement('div');
+    chart.id = 'china-household-chart';
+    chart.className = 'chart chart-md';
+    hsec.appendChild(chart);
+    hsec.appendChild(R.secNote('金额是居民人均累计值，增速是扣除价格因素后的累计同比；差值连续两季超过 2pp 才触发需求缺口提示。', { fold: true }));
+    document.getElementById('demand').appendChild(hsec);
+    const hh = h.history || { dates: [] };
+    R.mkChart('china-household-chart', colors => R.lineOption({
+      tooltip: { trigger: 'axis', valueFormatter: v => v == null ? '—' : Number(v).toFixed(2) + '%' },
+      legend: { top: 0 },
+      xAxis: { type: 'time' },
+      yAxis: { type: 'value', axisLabel: { formatter: '{value}%' } },
+      series: [
+        { name: '实际收入', type: 'line', showSymbol: false, data: hh.dates.map((dt, i) => [dt, hh.income[i]]), lineStyle: { width: 2 }, itemStyle: { color: colors.blue } },
+        { name: '实际消费', type: 'line', showSymbol: false, data: hh.dates.map((dt, i) => [dt, hh.consumption[i]]), lineStyle: { width: 2 }, itemStyle: { color: colors.green } },
+        { name: '收入 − 消费差', type: 'line', showSymbol: false, data: hh.dates.map((dt, i) => [dt, hh.gap[i]]), lineStyle: { width: 1.5, type: 'dashed' }, itemStyle: { color: colors.orange } },
+      ],
+    }, colors));
+  } else {
+    hsec.appendChild(R.secNote('居民收支数据缺失，运行 ./bin/fetch_nbs_household 后重新导出。'));
+    document.getElementById('demand').appendChild(hsec);
+  }
+
+  // 月度发布稿：当月社零与价格、累计房地产
+  const msec = R.secCard();
+  if (m.as_of) {
+    msec.appendChild(R.kvRows([
+      { label: '社会消费品零售总额同比', value: R.fmtPct(m.nbs_retail_sales_yoy_pct), note: `当月 · ${m.as_of}` },
+      { label: '社会消费品零售总额累计同比', value: R.fmtPct(m.nbs_retail_sales_ytd_yoy_pct), note: `累计 · ${m.as_of}` },
+      { label: 'CPI 同比', value: R.fmtPct(m.nbs_cpi_yoy_pct), note: `当月 · ${m.as_of}` },
+      { label: 'CPI 累计平均同比', value: R.fmtPct(m.nbs_cpi_ytd_yoy_pct), note: `累计 · ${m.as_of}` },
+      { label: 'PPI 同比', value: R.fmtPct(m.nbs_ppi_yoy_pct), note: `当月 · ${m.as_of}` },
+      { label: 'PPI 累计平均同比', value: R.fmtPct(m.nbs_ppi_ytd_yoy_pct), note: `累计 · ${m.as_of}` },
+      { label: '房地产开发投资累计同比', value: R.fmtPct(m.nbs_real_estate_investment_ytd_yoy_pct), note: `累计 · ${m.as_of}` },
+      { label: '新建商品房销售面积累计同比', value: R.fmtPct(m.nbs_new_commercial_floor_space_sold_ytd_yoy_pct), note: `累计 · ${m.as_of}` },
+    ]));
+  } else {
+    msec.appendChild(R.secNote('月度发布稿数据缺失，运行 ./bin/fetch_nbs_monthly 后重新导出。'));
+  }
+  document.getElementById('monthly').appendChild(msec);
+
+  // 中美对照：不同发布节奏分别保留观测期
+  const us = d.us || {};
+  const comparisonSec = R.secCard();
+  comparisonSec.appendChild(R.table(['指标', '美国', '中国', '美国观测期', '中国观测期'], [
+    { 指标: '实际可支配收入同比', 美国: R.fmtPct(us.real_dpi_yoy_pct), 中国: R.fmtPct(h.income_real_yoy_pct), 美国观测期: us.demand_as_of || '—', 中国观测期: h.as_of || '—' },
+    { 指标: '实际消费支出同比', 美国: R.fmtPct(us.real_pce_yoy_pct), 中国: R.fmtPct(h.consumption_real_yoy_pct), 美国观测期: us.demand_as_of || '—', 中国观测期: h.as_of || '—' },
+    { 指标: 'CPI 同比', 美国: R.fmtPct(us.cpi_yoy_pct), 中国: R.fmtPct(m.nbs_cpi_yoy_pct), 美国观测期: us.cpi_as_of || '—', 中国观测期: m.as_of || '—' },
+    { 指标: 'PPI 同比', 美国: R.fmtPct(us.ppi_yoy_pct), 中国: R.fmtPct(m.nbs_ppi_yoy_pct), 美国观测期: us.ppi_as_of || '—', 中国观测期: m.as_of || '—' },
+  ]));
+  comparisonSec.appendChild(R.secNote('美国实际收支为当月同比，中国为累计同比；表中分别标注观测期。比较方向时使用同一列内部的历史变化，不直接比较两种累计口径的绝对差。'));
+  document.getElementById('comparison').appendChild(comparisonSec);
+
+  // 创业板指与固定 AI 供应链公司
+  const asec = R.secCard();
+  asec.appendChild(R.cards([
+    { label: `创业板指 ${idx.scope || '样本期'}回撤`, value: R.fmtPct(idx.drawdown_pct), sub: `当前 ${R.num(idx.current)} · 峰值 ${R.num(idx.peak)}` },
+    { label: '已完成月线回撤', value: R.fmtPct(idx.monthly_drawdown_pct), sub: idx.monthly_as_of || '—' },
+    { label: '峰值日期', value: idx.peak_date || '—', sub: `行情起点 ${idx.history_start || '—'}` },
+  ], 're-cards-2col'));
+  asec.appendChild(R.table(
+    ['公司', '价格日期', '现价', '距峰值', 'PE-TTM', 'TTM EPS', '营收同比', '归母净利同比', '存货同比', '财报期'],
+    (d.a_shares?.rows || []).map(r => ({
+      公司: `${r.company} ${r.ticker}`,
+      价格日期: r.price_date || '—',
+      现价: r.price_cny == null ? '—' : `¥${R.num(r.price_cny)}`,
+      距峰值: R.fmtPct(r.drawdown_pct),
+      'PE-TTM': r.pe_ttm == null ? '—' : `${R.num(r.pe_ttm)}x`,
+      'TTM EPS': r.eps_ttm_cny == null ? '—' : `¥${R.num(r.eps_ttm_cny)}`,
+      营收同比: R.fmtPct(r.revenue_yoy_pct),
+      归母净利同比: R.fmtPct(r.net_income_yoy_pct),
+      存货同比: R.fmtPct(r.inventory_yoy_pct),
+      财报期: r.financial_as_of || '—',
+    })),
+  ));
+  asec.appendChild(R.secNote('PE-TTM = 未复权收盘价 / TTM diluted EPS；EPS 缺失、为零或为负时留空。同比需要上年同季数据，缺失时留空。创业板指历史来自国证指数官网，公司行情与财报来自 Yahoo Finance。', { fold: true }));
+  document.getElementById('ashares').appendChild(asec);
+
+  R.foot(d.generator, {
+    src: '国家统计局 · 国证指数 · Yahoo Finance · FRED / BEA',
+    note: '累计与当月、名义与实际分别标注；价格与财务报告期分别展示',
+  });
+
+  if (window.AICtx) AICtx.declare('china', () => ({
+    title: '中国需求与 A 股供应链',
+    src: '国家统计局 · 国证指数 · Yahoo Finance · FRED / BEA',
+    asOf: d.as_of,
+    priority: 11,
+    facts: [
+      ['中国实际居民收支', `收入 ${R.fmtPct(h.income_real_yoy_pct)} · 消费 ${R.fmtPct(h.consumption_real_yoy_pct)}`, `差值 ${pp(h.gap_pp)} · 连续 ${h.gap_above_2pp_quarters} 季超过 2pp · ${h.as_of || '—'}`],
+      ['中国月度需求与价格', `社零 ${R.fmtPct(m.nbs_retail_sales_yoy_pct)} · CPI ${R.fmtPct(m.nbs_cpi_yoy_pct)} · PPI ${R.fmtPct(m.nbs_ppi_yoy_pct)}`, m.as_of || '数据缺失'],
+      ['美国实际收支', `收入 ${R.fmtPct(us.real_dpi_yoy_pct)} · 消费 ${R.fmtPct(us.real_pce_yoy_pct)}`, us.demand_as_of || '—'],
+      ['创业板指回撤', R.fmtPct(idx.drawdown_pct), `月线 ${R.fmtPct(idx.monthly_drawdown_pct)} · ${idx.scope || '样本期'} · ${idx.as_of || '—'}`],
+      ...(d.a_shares?.rows || []).map(r => [
+        `${r.company} 估值与业绩`,
+        `PE ${r.pe_ttm == null ? '—' : R.num(r.pe_ttm) + 'x'} · 营收 ${R.fmtPct(r.revenue_yoy_pct)}`,
+        `价格 ${r.price_date || '—'} · 财报 ${r.financial_as_of || '—'} · 归母净利 ${R.fmtPct(r.net_income_yoy_pct)}`,
+      ]),
+    ],
+    note: '中国居民收支为累计实际同比，美国为当月实际同比；PE 使用未复权价格与 TTM diluted EPS',
+  }));
+}
+load().catch(e => R.fail(['demand', 'monthly', 'comparison', 'ashares'], e));
+</script>
+</TopicLayout>

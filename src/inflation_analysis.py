@@ -308,6 +308,43 @@ def shapiro_block(sh: pd.DataFrame) -> dict:
     return out
 
 
+def real_demand_block(consumption: pd.DataFrame, growth: pd.DataFrame) -> dict:
+    """实际收入、实际消费与储蓄率的同月对照。"""
+    if "REAL_DPI" not in consumption or "REAL_PCE" not in growth:
+        return {}
+    dpi_yoy = _yoy_series(consumption["REAL_DPI"])
+    pce_yoy = _yoy_series(growth["REAL_PCE"])
+    frame = pd.concat(
+        [dpi_yoy.rename("dpi_yoy"), pce_yoy.rename("pce_yoy")], axis=1, join="inner"
+    ).dropna()
+    if frame.empty:
+        return {}
+    frame["gap"] = frame["dpi_yoy"] - frame["pce_yoy"]
+    if "PSAVERT" in consumption:
+        frame = frame.join(consumption[["PSAVERT"]], how="left")
+    latest = frame.iloc[-1]
+    saving = consumption["PSAVERT"].dropna() if "PSAVERT" in consumption else pd.Series(dtype=float)
+    history = frame.tail(36)
+    r = lambda v: round(float(v), 2) if pd.notna(v) else None  # noqa: E731
+    return {
+        "as_of": frame.index[-1].strftime("%Y-%m-%d"),
+        "cards": {
+            "real_dpi_yoy": r(latest["dpi_yoy"]),
+            "real_pce_yoy": r(latest["pce_yoy"]),
+            "gap_pp": r(latest["gap"]),
+            "saving_rate": r(saving.iloc[-1]) if not saving.empty else None,
+            "saving_as_of": saving.index[-1].strftime("%Y-%m-%d") if not saving.empty else None,
+        },
+        "history": {
+            "dates": [d.strftime("%Y-%m-%d") for d in history.index],
+            "dpi_yoy": [r(v) for v in history["dpi_yoy"]],
+            "pce_yoy": [r(v) for v in history["pce_yoy"]],
+            "gap": [r(v) for v in history["gap"]],
+            "saving_rate": [r(v) for v in history.get("PSAVERT", pd.Series(index=history.index))],
+        },
+    }
+
+
 def recent_rows(df: pd.DataFrame, ppi: pd.DataFrame, n: int = 12) -> list[dict]:
     """最近 n 个月关键 YoY（倒序，最新在前）。"""
     yoy = {
@@ -353,6 +390,8 @@ def generate_inflation_overview() -> dict:
     ppi = _read("producer_prices")
     sce = read_csv_or_empty(ROOT / "data" / "sce" / "sce.csv")
     shapiro = read_csv_or_empty(ROOT / "data" / "shapiro" / "shapiro.csv")
+    consumption = _read("consumption")
+    growth = _read("growth")
 
     cards = {
         "cpi": _card(df["CPI"]),
@@ -393,6 +432,7 @@ def generate_inflation_overview() -> dict:
         ],
         "expectations": {"market": market, "survey": survey},
         "shapiro": shapiro_out,
+        "real_demand": real_demand_block(consumption, growth),
         "recent": recent_rows(df, ppi),
     }
 

@@ -123,6 +123,12 @@ INDICES: list[SymbolConfig] = [
     SymbolConfig(name="SOX", exchange="PHLX", yf_ticker="^SOX"),
 ]
 
+CN_AI_SUPPLY_CHAIN = {
+    "300308.SZ": "中际旭创",
+    "300502.SZ": "新易盛",
+}
+CHINEXT_CODE = "399006"
+
 
 def _to_legacy_dict(sc: SymbolConfig, kind: str) -> dict:
     """将 SymbolConfig 转为 ibkr_fetcher 兼容的 dict 格式。"""
@@ -176,6 +182,11 @@ FRED_SERIES = {
         "UNRATE": "UNRATE",
         "PAYEMS": "PAYEMS",
         "ICSA": "ICSA",
+        "PROF_BUSINESS_EMP": "USPBS",
+        "INFO_EMP": "USINFO",
+        "FINANCIAL_EMP": "USFIRE",
+        "WEEKLY_HOURS": "AWHAETP",
+        "OVERTIME_HOURS": "AWOTMAN",
     },
     "growth": {
         "GDP": "GDPC1",
@@ -183,6 +194,7 @@ FRED_SERIES = {
         "REAL_PCE": "PCEC96",
         "CAPU": "TCU",
         "DGORDER": "DGORDER",
+        "NBER_RECESSION": "USREC",
     },
     "rates": {
         "FEDFUNDS": "FEDFUNDS",
@@ -268,12 +280,15 @@ FRED_SERIES = {
     },
     "consumption": {
         "PSAVERT": "PSAVERT",
+        "REAL_DPI": "DSPIC96",
     },
     "labor_market": {
         "JOLTS_OPEN": "JTSJOL",
         "JOLTS_QUITS": "JTSQUL",  # 离职人数（千人）；JTSQUR 是离职率（%），勿用
         "UNEMPLOY": "UNEMPLOY",
         "ECI_WAGES": "ECIWAG",
+        "PRODUCTIVITY": "OPHNFB",
+        "REAL_HOURLY_COMP": "COMPRNFB",
     },
     "producer_prices": {
         "PPI_FD": "PPIFIS",

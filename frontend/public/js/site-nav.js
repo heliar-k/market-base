@@ -27,6 +27,7 @@ export const SITE_NAV = {
       page: '/assets/',
       items: [
         { key: 'assets/equities', label: '美股', page: '/assets/equities.html' },
+        { key: 'assets/ai-cycle', label: 'AI 产业周期', page: '/assets/ai-cycle.html', sub: true },
         { key: 'assets/etfs', label: 'ETF', page: '/assets/etfs.html', sub: true },
         { key: 'equities/options', label: '期权市场结构', page: '/assets/equities/options.html', sub: true },
         {
@@ -50,6 +51,7 @@ export const SITE_NAV = {
         { key: 'assets/crypto-options', label: '加密期权 · 预测市场', page: '/assets/crypto-options.html', sub: true },
       ],
     },
+    { key: 'china', label: '中国需求与资产', page: '/china/' },
     {
       key: 'rates',
       label: '利率',

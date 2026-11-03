@@ -40,8 +40,12 @@ import Section from '../../components/Section.astro';
     </div>
   </Section>
 
+  <Section id="sec-ai-cycle" title="AI 产业周期" sub="领先 · 同步 · 确认三层状态">
+    <div id="db-ai-cycle"><div class="re-loading">加载中…</div></div>
+  </Section>
+
   <!-- 第二层：分专题今日研判（原「今日一句话」+ 原「10 专题导航」合体） -->
-  <Section id="sec-topics" title="分专题今日研判" sub="全站 10 个一级专题 · 有信号置顶标热，点击进入对应研判">
+  <Section id="sec-topics" title="分专题今日研判" sub="全站 11 个一级专题 · 有信号置顶标热，点击进入对应研判">
     <div id="db-lines"><div class="re-loading">加载中…</div></div>
   </Section>
 
@@ -57,17 +61,18 @@ import Section from '../../components/Section.astro';
 const LINE_LINKS = {
   rates: '/rates/', credit: '/credit/', inflation: '/inflation/', labor: '/labor/',
   treasury: '/treasury/', vol: '/volatility/', liquidity: '/liquidity/',
-  assets: '/assets/', fed: '/fed/', geo: '/geo/',
+  assets: '/assets/', china: '/china/', fed: '/fed/', geo: '/geo/',
 };
 const TOPIC_LINKS = LINE_LINKS;
 const TOPIC_LABELS = {
   rates: '利率', credit: '信用', inflation: '通胀', labor: '就业',
-  treasury: '美债', vol: '波动率', liquidity: '流动性', assets: '大类资产', fed: '美联储',
+  treasury: '美债', vol: '波动率', liquidity: '流动性', assets: '大类资产', china: '中国需求与资产', fed: '美联储',
   geo: '地缘',
 };
-// 10 个一级专题静态元数据（与动态 home-lines 合体渲染，接口某项缺数据时以此兜底）
+// 11 个一级专题静态元数据（与动态 home-lines 合体渲染，接口某项缺数据时以此兜底）
 const TOPIC_META = [
   { key: 'assets', label: '大类资产', icon: '🌍', desc: '股/债/商品/ETF/外汇/加密六板块与相关性' },
+  { key: 'china', label: '中国需求与资产', icon: '🇨🇳', desc: '居民收支、社零、房地产、A 股与 AI 供应链' },
   { key: 'rates', label: '利率', icon: '🏦', desc: '曲线形态研判、实际利率与联储预期四段文' },
   { key: 'credit', label: '信用周期', icon: '💳', desc: 'OAS 分层、SLOOS 信贷标准与压力指数' },
   { key: 'liquidity', label: '美元流动性', icon: '💧', desc: '净流动性、RRP/TGA 与 LPI 压力指数' },
@@ -249,18 +254,19 @@ function topicCard(meta, line, reasons) {
 
 async function load() {
   document.getElementById('page-toc').innerHTML = [
-    ['今日头条', 'sec-hero'], ['分专题研判', 'sec-topics'], ['市场快照', 'sec-boards'],
+    ['今日头条', 'sec-hero'], ['AI 产业周期', 'sec-ai-cycle'], ['分专题研判', 'sec-topics'], ['市场快照', 'sec-boards'],
   ].map(([t, id]) => `<a href="#${id}">${t}</a>`).join('');
 
   // brief 主端点（驱动全页）挂了 = 整页真没数据，R.get 抛给页级 catch；
   // 其余均为次要端点走 getOpt，缺源段级容错
-  const [d, rex, cons, homeLines, overview, volDash] = await Promise.all([
+  const [d, rex, cons, homeLines, overview, volDash, aiCycle] = await Promise.all([
     R.get('/api/daily-brief'),
     R.getOpt('/api/rate-expectations'),
     R.getOpt('/api/consensus'),
     R.getOpt('/api/home-lines'),
     R.getOpt('/api/assets/overview'),
     R.getOpt('/api/volatility/dashboard'),
+    R.getOpt('/api/assets/ai-cycle'),
   ]);
   const ind = d.indicators || {};
 
@@ -413,6 +419,44 @@ async function load() {
       : '<div class="db-al-scen empty">当前无跨资产相关性断裂报警</div>';
   } catch (e) { R.fail(['db-hero-sub'], e); }
 
+  // ── AI 产业周期摘要 ──
+  try {
+    const box = document.getElementById('db-ai-cycle');
+    if (!aiCycle) {
+      box.innerHTML = '<p class="re-source">AI 产业数据缺失 · 运行 uv run python -m src.export_pages 后重试</p>';
+    } else {
+      const sec = R.secCard();
+      const layers = aiCycle.layers || [];
+      const stateText = { triggered: '已触发', clear: '未确认', data_insufficient: '数据不足' };
+      const stateColor = { triggered: 'var(--down)', clear: 'var(--up)', data_insufficient: 'var(--text-dim)' };
+      sec.appendChild(R.cards([
+        { label: '当前阶段', value: aiCycle.stage?.label || '证据不足', sub: '参与票达到 2/3 才确认', accent: true, cls: 're-card-wrap' },
+        ...layers.map(layer => ({
+          label: layer.name,
+          value: stateText[layer.status] || '数据不足',
+          vcolor: stateColor[layer.status],
+          sub: `${layer.triggered} 项触发 · ${layer.present}/${layer.total} 有数据`,
+        })),
+      ], 're-cards-2col'));
+      const triggered = layers.flatMap(layer => (layer.signals || []).filter(s => s.present && s.triggered));
+      if (triggered.length) {
+        sec.appendChild(R.kvRows(triggered.map(s => ({
+          label: s.name,
+          value: s.value == null ? '已触发' : R.num(s.value),
+          note: `${s.threshold} · ${s.as_of || ''}`,
+        }))));
+      } else {
+        sec.appendChild(R.secNote('当前没有已触发的产业信号；数据不足的层级不参与阶段确认。'));
+      }
+      const link = document.createElement('a');
+      link.className = 're-badge';
+      link.href = '/assets/ai-cycle.html';
+      link.textContent = '查看财报、供应链与阈值依据 →';
+      sec.appendChild(link);
+      box.replaceChildren(sec);
+    }
+  } catch (e) { R.fail(['db-ai-cycle'], e); }
+
   // ── 分专题今日研判（合体网格：10 个专题全展示，有信号的置顶并标注具体触发原因，自带当日一句话）──
   try {
     const box = document.getElementById('db-lines');
@@ -529,6 +573,13 @@ async function load() {
     add(['商品', line([q('commodities', 'Gold'), q('commodities', 'WTI')]), `${bd('commodities')} 日涨跌`]);
     add(['加密与美元', line([q('crypto', 'BTC'), q('fx', 'DXY')]), `BTC ${bd('crypto')} · DXY ${bd('fx')}`]);
 
+    if (aiCycle) {
+      add(['AI 产业阶段', aiCycle.stage?.label || '证据不足',
+        (aiCycle.layers || []).map(layer => `${layer.name} ${layer.triggered}/${layer.present}`).join(' · ')]);
+      const ndx = aiCycle.ndx || {};
+      add(['NDX ' + (ndx.scope || '样本期') + '回撤', R.fmtPct(ndx.drawdown_pct), `已完成月线 ${R.fmtPct(ndx.monthly_drawdown_pct)} · ${ndx.monthly_as_of || '—'}`]);
+    }
+
     // 波动率：核心三指数（OVX 已在市场快照的波动率卡），1D 变动挂注
     const vc = (sym) => (volDash?.hero?.cards || []).find(c => c.symbol === sym);
     const vs = [vc('VIX'), vc('VVIX'), vc('MOVE')];
@@ -537,7 +588,7 @@ async function load() {
 
     return {
       title: '今日研判读数',
-      src: 'daily-brief（FRED / yfinance / Polymarket）· consensus · rate-expectations · assets/overview · volatility',
+      src: 'daily-brief（FRED / yfinance / Polymarket）· consensus · rate-expectations · assets/overview · volatility · ai-cycle',
       asOf: d.indicators?.as_of || d.polymarket?.as_of || '',
       priority: 10,
       facts,
@@ -545,6 +596,6 @@ async function load() {
     };
   });
 }
-load().catch(e => R.fail(['db-sc-market', 'db-sc-macro', 'db-bg-body', 'db-scenarios', 'db-hero-sub', 'db-lines', 'db-boards'], e));
+load().catch(e => R.fail(['db-sc-market', 'db-sc-macro', 'db-bg-body', 'db-scenarios', 'db-hero-sub', 'db-ai-cycle', 'db-lines', 'db-boards'], e));
 </script>
 </TopicLayout>

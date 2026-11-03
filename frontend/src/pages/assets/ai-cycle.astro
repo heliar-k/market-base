@@ -1,0 +1,180 @@
+---
+import TopicLayout from '../../layouts/TopicLayout.astro';
+import Section from '../../components/Section.astro';
+---
+<TopicLayout title="AI 产业周期" chart={false}>
+  <div class="page-toc" id="page-toc"></div>
+  <Section id="stage" title="周期状态" sub="领先 · 同步 · 确认分层计票" />
+  <Section id="cloud" title="云厂商资本开支与现金流" sub="季度财报 · 十亿美元" />
+  <Section id="cloud-disclosure" title="云收入与资本开支增速" sub="SEC 与公司正式披露 · 季度" />
+  <Section id="hardware" title="半导体与服务器供应链" sub="存货与营收同比 · 季度" />
+  <Section id="market" title="市场确认" sub="NDX 距峰值回撤 · 月线确认" />
+  <div class="re-foot-page" slot="foot" id="re-foot"></div>
+
+<script is:inline>
+document.getElementById('page-toc').innerHTML = [
+  ['周期状态', 'stage'], ['资本开支与现金流', 'cloud'], ['云收入增速', 'cloud-disclosure'],
+  ['供应链', 'hardware'], ['市场确认', 'market'],
+].map(([t, id]) => `<a href="#${id}">${t}</a>`).join('');
+
+const STATUS = {
+  triggered: ['已触发', 'var(--down)'],
+  clear: ['未确认', 'var(--up)'],
+  data_insufficient: ['数据不足', 'var(--text-dim)'],
+};
+const money = v => v == null ? '—' : `$${R.num(v, 2)}B`;
+
+async function load() {
+  const d = await R.get('/api/assets/ai-cycle');
+  const ndx = d.ndx || {};
+  R.setAsOf([['财报', d.financial_as_of], ['资产', ndx.as_of]]);
+
+  // 周期状态与逐信号依据
+  const layers = d.layers || [];
+  const stageSec = R.secCard();
+  stageSec.appendChild(R.cards([
+    { label: '当前阶段', value: d.stage?.label || '证据不足', sub: '参与票达到 2/3 才确认对应层级', accent: true, cls: 're-card-wrap' },
+    ...layers.map(layer => ({
+      label: layer.name,
+      value: STATUS[layer.status]?.[0] || '数据不足',
+      vcolor: STATUS[layer.status]?.[1],
+      sub: `${layer.triggered} 项触发 · ${layer.present}/${layer.total} 项有数据`,
+    })),
+  ], 're-cards-2col'));
+  const signalRows = layers.flatMap(layer => (layer.signals || []).map(s => ({
+    层级: layer.name,
+    信号: s.name,
+    当前: s.value == null ? '—' : R.num(s.value),
+    报告阈值: s.threshold,
+    状态: !s.present ? '数据不足' : s.triggered ? '已触发' : '未触发',
+    依据: s.detail,
+    观测期: s.as_of || '—',
+  })));
+  stageSec.appendChild(R.table(['层级', '信号', '当前', '报告阈值', '状态', '依据', '观测期'], signalRows));
+  stageSec.appendChild(R.secNote('各层先按有数据的信号计票；数据覆盖不足时不判断阶段。阶段阈值来自报告规则，不代表普遍适用的经济定律。', { fold: true }));
+  document.getElementById('stage').appendChild(stageSec);
+
+  // 云厂商资本开支与现金流
+  const cloud = d.cloud || { rows: [] };
+  const cloudSec = R.secCard();
+  cloudSec.appendChild(R.table(
+    ['公司', '报告期', 'Capex', '环比', '同比', 'CFO', 'FCF', 'FCF 连负', 'Capex 连降', '年度核对'],
+    (cloud.rows || []).map(r => ({
+      公司: `${r.company} ${r.symbol}`,
+      报告期: r.as_of + (r.stale ? ' · 滞后' : ''),
+      Capex: money(r.capex_b),
+      环比: R.fmtPct(r.capex_qoq_pct),
+      同比: R.fmtPct(r.capex_yoy_pct),
+      CFO: money(r.cfo_b),
+      FCF: money(r.fcf_b),
+      'FCF 连负': r.fcf_negative_quarters == null ? '未核对' : `${r.fcf_negative_quarters} 季`,
+      'Capex 连降': `${r.capex_down_quarters} 季`,
+      年度核对: r.single_quarter_verified ? '通过' : '未通过',
+    })),
+  ));
+  if ((cloud.stale_symbols || []).length) {
+    cloudSec.appendChild(R.secNote(`现金流报告期明显滞后的公司：${cloud.stale_symbols.join('、')}。比较时请先看各行报告期。`));
+  }
+  cloudSec.appendChild(R.secNote('Capex 以正数展示。连续负 FCF 只在季度合计与完整财年核对通过后计算；同比需要五个有效季度。', { fold: true }));
+  document.getElementById('cloud').appendChild(cloudSec);
+
+  // SEC 云分部披露由独立抓取器提供；缺源时保留明确修复入口
+  const disclosureSec = R.secCard();
+  const disclosures = d.cloud_disclosure?.rows || [];
+  if (disclosures.length) {
+    disclosureSec.appendChild(R.table(
+      ['公司', '报告期', '云业务', '收入', '收入同比', 'Capex 同比', 'Capex/收入', '剪刀差', '连续期数'],
+      disclosures.map(r => ({
+        公司: r.company || r.symbol,
+        报告期: r.as_of,
+        云业务: r.segment,
+        收入: money(r.revenue_b),
+        收入同比: R.fmtPct(r.revenue_yoy_pct),
+        'Capex 同比': R.fmtPct(r.capex_yoy_pct),
+        'Capex/收入': R.fmtPct(r.capex_revenue_ratio_pct),
+        剪刀差: r.growth_gap_pp == null ? '—' : `${R.num(r.growth_gap_pp)}pp`,
+        连续期数: r.revenue_below_capex_quarters == null ? '—' : `${r.revenue_below_capex_quarters} 季`,
+      })),
+    ));
+  } else {
+    disclosureSec.appendChild(R.secNote('云分部数据尚未生成，运行 ./bin/fetch_cloud_disclosure。Azure 没有可比绝对收入时保留收入空值，仅展示公司披露的增速。'));
+  }
+  const guidance = d.capex_guidance?.rows || [];
+  if (guidance.length) {
+    const guidanceRows = guidance.map(r => ({
+      公司: `${r.company} ${r.symbol}`,
+      指引期: r.guidance_period,
+      指引金额: r.point_b != null ? money(r.point_b) : (r.minimum_b != null && r.maximum_b != null ? `${money(r.minimum_b)}–${money(r.maximum_b)}` : '定性指引'),
+      '上一财年 Capex': money(r.actual_capex_b),
+      指引增速: R.fmtPct(r.guidance_growth_pct),
+      公告日: r.announced_on,
+      来源: 'SEC 原文',
+      source_url: r.source_url,
+      source_excerpt: r.source_excerpt,
+    }));
+    disclosureSec.appendChild(R.table(
+      ['公司', '指引期', '指引金额', '上一财年 Capex', '指引增速', '公告日', '来源'],
+      guidanceRows,
+      { 来源: (v, r) => `<a href="${R.esc(r.source_url)}" title="${R.esc(r.source_excerpt)}">${v}</a>` },
+      null,
+      true,
+    ));
+  }
+  disclosureSec.appendChild(R.secNote('剪刀差 = 云收入同比 − Capex 同比，连续两季为负才触发。指引增速只比较次年指引与上一完整财年实际 Capex；定性指引不计算数值。', { fold: true }));
+  document.getElementById('cloud-disclosure').appendChild(disclosureSec);
+
+  // 供应链存货与营收
+  const hardwareSec = R.secCard();
+  hardwareSec.appendChild(R.table(
+    ['公司', '报告期', '存货', '营收', '存货同比', '营收同比', '差值', '连续期数'],
+    (d.hardware?.rows || []).map(r => ({
+      公司: `${r.company} ${r.symbol}`,
+      报告期: r.as_of,
+      存货: money(r.inventory_b),
+      营收: money(r.revenue_b),
+      存货同比: R.fmtPct(r.inventory_yoy_pct),
+      营收同比: R.fmtPct(r.revenue_yoy_pct),
+      差值: r.gap_pp == null ? '—' : `${R.num(r.gap_pp)}pp`,
+      连续期数: r.inventory_above_revenue_quarters == null ? '—' : `${r.inventory_above_revenue_quarters} 季`,
+    })),
+  ));
+  hardwareSec.appendChild(R.secNote('存货是季度末时点值，营收是单季值；同比均与上年同季比较。存货同比减营收同比连续两季为正才计入触发。', { fold: true }));
+  document.getElementById('hardware').appendChild(hardwareSec);
+
+  // NDX 日线读数与已完成月线分开
+  const marketSec = R.secCard();
+  marketSec.appendChild(R.cards([
+    { label: `NDX ${ndx.scope || '样本期'}回撤`, value: R.fmtPct(ndx.drawdown_pct), sub: `当前 ${R.num(ndx.current)} · 峰值 ${R.num(ndx.peak)}` },
+    { label: '已完成月线回撤', value: R.fmtPct(ndx.monthly_drawdown_pct), sub: ndx.monthly_as_of || '尚无完整月份', vcolor: ndx.monthly_confirmed ? 'var(--down)' : undefined },
+    { label: '峰值日期', value: ndx.peak_date || '—', sub: `行情起点 ${ndx.history_start || '—'}` },
+    { label: '阶段四阈值', value: '40%', sub: ndx.monthly_confirmed ? '月线已确认' : '月线未确认' },
+  ], 're-cards-2col'));
+  marketSec.appendChild(R.secNote('日线回撤用于盘中观察，阶段确认只看已完成月份。历史尚未补全时，标题与事实集均标为样本期。'));
+  document.getElementById('market').appendChild(marketSec);
+
+  R.foot(d.generator, {
+    src: 'Yahoo Finance 财报与行情 · SEC / 公司正式披露',
+    note: '季度财务数据按公司报告期展示；NDX 月线只使用已完成月份',
+  });
+
+  if (window.AICtx) AICtx.declare('assets-ai-cycle', () => ({
+    title: 'AI 产业周期',
+    src: 'Yahoo Finance 财报与行情 · SEC / 公司正式披露',
+    asOf: d.financial_as_of,
+    priority: 12,
+    facts: [
+      ['当前阶段', d.stage?.label || '证据不足', layers.map(layer => `${layer.name}${STATUS[layer.status]?.[0] || '数据不足'} ${layer.triggered}/${layer.present}`).join(' · ')],
+      ...(cloud.rows || []).map(r => [
+        `${r.symbol} 资本开支与 FCF`,
+        `${money(r.capex_b)} · ${money(r.fcf_b)}`,
+        `${r.as_of} · FCF 连负 ${r.fcf_negative_quarters ?? '未核对'} 季 · 年度核对 ${r.single_quarter_verified ? '通过' : '未通过'}`,
+      ]),
+      ['供应链触发', (d.hardware?.triggered || []).join('、') || '暂无', '存货增速连续两季高于营收增速'],
+      ['NDX 回撤', R.fmtPct(ndx.drawdown_pct), `月线 ${R.fmtPct(ndx.monthly_drawdown_pct)} · ${ndx.scope || '样本期'} · 峰值 ${ndx.peak_date || '—'}`],
+    ],
+    note: '金额单位十亿美元；FCF 连负需通过年度季度核对；NDX 阈值为月线 40%',
+  }));
+}
+load().catch(e => R.fail(['stage', 'cloud', 'cloud-disclosure', 'hardware', 'market'], e));
+</script>
+</TopicLayout>

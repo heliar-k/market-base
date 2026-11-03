@@ -4,6 +4,9 @@ import pandas as pd
 import pytest
 
 from src.labor_analysis import (
+    challenger_block,
+    decline_streak,
+    employment_structure,
     generate_labor_overview,
     sahm_rule,
     signal_current,
@@ -51,6 +54,52 @@ class TestSignalCurrent:
         }
         text = signal_current(cards, {"value": 0.1})
         assert "4.3%" in text and "明显减速" in text
+
+
+def test_decline_streak_counts_only_latest_run() -> None:
+    s = _monthly([100.0, 99.0, 98.0, 98.5, 98.0, 97.0])
+    assert decline_streak(s) == 2
+
+
+def test_employment_structure_computes_wage_productivity_gap() -> None:
+    labor = pd.DataFrame(
+        {"PROF_BUSINESS_EMP": [100.0, 99.0, 98.0, 97.0]},
+        index=pd.date_range("2026-01-01", periods=4, freq="MS"),
+    )
+    lm = pd.DataFrame(
+        {
+            "PRODUCTIVITY": [100.0, 101.0, 102.0, 103.0, 104.0],
+            "REAL_HOURLY_COMP": [100.0, 102.0, 104.0, 106.0, 108.0],
+        },
+        index=pd.date_range("2025-01-01", periods=5, freq="QS"),
+    )
+    growth = pd.DataFrame({"NBER_RECESSION": [0.0]}, index=pd.to_datetime(["2026-09-01"]))
+    out = employment_structure(labor, lm, growth)
+    assert out["employment"][0]["down_periods"] == 3
+    assert out["wage_productivity"]["gap_pp"] == pytest.approx(4.0)
+    assert out["nber"]["in_recession"] is False
+
+
+def test_challenger_block_preserves_monthly_ytd_and_basis() -> None:
+    frame = pd.DataFrame(
+        {
+            "job_cuts_monthly": [43281],
+            "ai_job_cuts_monthly": [3462],
+            "ai_share_monthly_pct": [8.0],
+            "job_cuts_ytd": [529914],
+            "ai_job_cuts_ytd": [116175],
+            "ai_share_ytd_pct": [21.9],
+            "ai_monthly_basis": ["ytd_difference"],
+            "published_at": ["2026-10-01"],
+            "source_url": ["https://www.challengergray.com/report"],
+        },
+        index=pd.to_datetime(["2026-09-01"]),
+    )
+    out = challenger_block(frame)
+    assert out["ai_job_cuts_monthly"] == 3462
+    assert out["ai_share_ytd_pct"] == pytest.approx(21.9)
+    assert out["ai_monthly_basis"] == "ytd_difference"
+    assert out["as_of"] == "2026-09-01"
 
 
 def test_generate_smoke():

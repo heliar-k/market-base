@@ -511,6 +511,8 @@ def fx_series() -> pd.DataFrame:
 
 
 def equities() -> dict:
+    from src.ai_cycle_analysis import ndx_drawdown, ndx_prices
+
     p = asset_prices()
     out: dict = {
         "indices": {},
@@ -519,10 +521,12 @@ def equities() -> dict:
         "chart": {},
         "analyst": {},
         "radar": {},
+        "ndx_drawdown": {},
     }
     if p.empty:
         return out
     out["indices"] = _price_rows(p, EQUITY_ROWS)
+    out["ndx_drawdown"] = ndx_drawdown(ndx_prices())
 
     # 指数归一化走势（近 1 年，窗口首日为 0%）——timsun 同款
     out["chart"] = _index_normalized(p, EQUITY_ROWS)

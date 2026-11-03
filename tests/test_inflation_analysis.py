@@ -8,6 +8,7 @@ from src.inflation_analysis import (
     _dir_label,
     _yoy_series,
     generate_inflation_overview,
+    real_demand_block,
     recent_rows,
     signal_level,
 )
@@ -90,6 +91,21 @@ def test_recent_rows_keeps_ppi_only_month():
     assert rows[0]["cpi_yoy"] is None
     assert rows[0]["ppi_yoy"] == pytest.approx(11.11)  # 130/117-1
     assert len(rows) == 12
+
+
+def test_real_demand_block_aligns_income_consumption_and_saving() -> None:
+    idx = pd.date_range("2024-01-01", periods=14, freq="MS")
+    consumption = pd.DataFrame(
+        {"REAL_DPI": [100.0] * 12 + [104.0, 105.0], "PSAVERT": [5.0] * 14},
+        index=idx,
+    )
+    growth = pd.DataFrame({"REAL_PCE": [100.0] * 12 + [102.0, 103.0]}, index=idx)
+    out = real_demand_block(consumption, growth)
+    assert out["cards"]["real_dpi_yoy"] == pytest.approx(5.0)
+    assert out["cards"]["real_pce_yoy"] == pytest.approx(3.0)
+    assert out["cards"]["gap_pp"] == pytest.approx(2.0)
+    assert out["cards"]["saving_rate"] == pytest.approx(5.0)
+    assert len(out["history"]["dates"]) == 2
 
 
 def test_generate_smoke():

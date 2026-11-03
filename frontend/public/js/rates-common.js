@@ -320,6 +320,13 @@ const R = {
     '期权 OI': 'disc',
     基差: 'est',
     '相关/价格': 'est',
+    实际收入消费: 'est',
+    财报: 'est',
+    SEC: 'disc',
+    国家统计局: 'disc',
+    'NY Fed 家庭债务': 'disc',
+    Challenger: 'disc',
+    A股: 'est',
     快照: 'est',
   },
 
