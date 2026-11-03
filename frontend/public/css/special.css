@@ -1169,7 +1169,12 @@ body.dark .pm-topic-card { box-shadow: inset 0 0 0 1px rgba(255,255,255,.04); }
 .db-hv-member:hover { color: var(--accent-ink); }
 .db-hv-top { display: inline-flex; align-items: baseline; white-space: nowrap; line-height: 1.25; }
 .db-hv-member i { font-style: normal; font-weight: 700; margin-left: 3px; }
-.db-hv-sub { font-size: 10.5px; line-height: 1.2; color: var(--text-dim); font-family: var(--font-mono); font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* 子信号读数：多子信号的成员逐票占一行（成员票是子信号多数决，只印一个数推不出票） */
+.db-hv-sub { font-size: 10.5px; line-height: 1.2; color: var(--text-dim); font-family: var(--font-mono); font-variant-numeric: tabular-nums; white-space: pre-line; }
+.db-hv-sub .db-vt { font-weight: 700; margin-left: 3px; }
+.db-hv-sub .db-vt--on { color: var(--up); }
+.db-hv-sub .db-vt--off { color: var(--down); }
+.db-hv-sub .db-vt--abst { color: var(--text-dim); }
 .db-hv-member--on i { color: var(--up); }
 .db-hv-member--off i { color: var(--down); }
 .db-hv-member--abst i { color: var(--text-dim); }

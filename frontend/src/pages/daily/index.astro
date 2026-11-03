@@ -86,9 +86,10 @@ const CONS_NOTES = {
     '— 子信号平票弃权，数据缺失即缺席',
     '参与票 ≥2/3 同向才确认，否则显示分歧',
     '缺席过半或全票弃权显示数据不足',
-    '成员等权，读数印在名称下方：',
-    '· 趋势：SPX 对 MA60 与 MA20 双确认',
-    '· 波动率：VIX 绝对水平 + 期限斜率',
+    '成员等权；多子信号的成员取多数票，读数逐票标注：',
+    '· 趋势：收盘 vs MA60、MA20 vs MA60 各一票',
+    '· 波动率 VIX：<17 平静 / >22 恐慌，中间弃权',
+    '· 波动率斜率：VIX−VIX3M <0（contango）为平静',
     '· 广度：ABV50',
     '· 信用：HY OAS 近 1 月变化',
     '· 期权结构：SPY 净 GEX 符号',
@@ -146,28 +147,42 @@ function pickVolRows(volDash) {
     .map(c => ({ name: label(c), last: c.value, chg_pct: c.chg1d, date }));
 }
 
-// 共识成员子信号紧凑读数（免 hover 直接印在成员下方）
+// 共识成员子信号读数（免 hover 直接印在成员下方）。返回 HTML 片段：读数只有数字格式化
+// 与固定词（未知子信号走 R.esc 兜底），调用方直接插入不重复转义。
+// 多子信号的成员（趋势 / 波动率）逐票标注：成员票是子信号多数决，只印一个数推不出票。
 function fmtMemberSub(m) {
   if (!m.present) return '缺席';
-  const s = (m.subs || []).find(x => x.value != null);
-  if (!s) return '—';
-  const v = Number(s.value);
+  const subs = (m.subs || []).filter(s => s.value != null);
+  if (!subs.length) return '—';
   const sign = (x, d = 1) => (x > 0 ? '+' : '') + x.toFixed(d).replace(/\.0$/, '');
-  switch (m.name) {
-    case '趋势': return `vsMA60 ${sign(v, 0)}`;
-    case '波动率': return `VIX ${v.toFixed(1)}`;
-    case '广度': return `ABV ${v.toFixed(0)}%`;
-    case '信用': return `1M ${sign(v, 0)}bp`;
-    case '期权结构': return `GEX ${sign(v, 1)}`;
-    case '卖空': return `5D ${sign(v, 1)}pp`;
-    case '政策路径': return `降息 ${v.toFixed(0)}%`;
-    case '净流动性': return `1M ${sign(v, 0)}B`;
-    case '货币市场': return `利差 ${sign(v, 0)}bp`;
-    case '曲线': return `2s10s ${sign(v, 0)}bp`;
-    case '实际利率': return `1M ${sign(v, 0)}bp`;
-    case '财政': return `TGA ${sign(v, 0)}B`;
-    default: return `${s.value}`;
-  }
+  const reading = (s) => {
+    const v = Number(s.value);
+    switch (s.name) {
+      case '收盘 vs MA60': return `vsMA60 ${sign(v, 0)}`;
+      case 'MA20 vs MA60': return `MA20 ${sign(v, 0)}`;
+      case 'VIX 期限斜率': return `斜率 ${sign(v, 2)}`;
+      case 'ABV50': return `ABV ${v.toFixed(0)}%`;
+      case 'HY OAS 1M': return `1M ${sign(v, 0)}bp`;
+      case 'SPY net_gex': return `GEX ${sign(v, 1)}`;
+      case 'SPY short ratio': return `5D ${sign(v, 1)}pp`;
+      case '最近会期 prob_cut': return `降息 ${v.toFixed(0)}%`;
+      case '净流动性 1M': return `1M ${sign(v, 0)}B`;
+      case 'SOFR−IORB': return `利差 ${sign(v, 0)}bp`;
+      case '2s10s': return `2s10s ${sign(v, 0)}bp`;
+      case 'DFII10 1M': return `1M ${sign(v, 0)}bp`;
+      case 'TGA 1M': return `TGA ${sign(v, 0)}B`;
+      default:
+        // VIX 水平那个子信号名以 VIX 开头（“VIX 期限斜率”已在上面单独分支）
+        if (s.name.startsWith('VIX')) return `VIX ${v.toFixed(1)}`;
+        return R.esc(String(s.value));
+    }
+  };
+  if (subs.length === 1) return reading(subs[0]);
+  const VT = { true: ['db-vt--on', '✓'], false: ['db-vt--off', '✗'] };
+  return subs.map(s => {
+    const [cls, ch] = VT[String(s.vote)] || ['db-vt--abst', '—'];
+    return `${reading(s)}<b class="db-vt ${cls}">${ch}</b>`;
+  }).join('\n');
 }
 
 // 正在响的专题 → 具体触发原因映射（专题内生触发 + 报警 + 命中情景 + 共识 off 票成员）
@@ -274,7 +289,7 @@ async function load() {
         const subTxt = fmtMemberSub(m);
         return `<a class="db-hv-member db-hv-member--${mcls}" href="${R.esc(href)}" title="${R.esc(tip)}">
           <span class="db-hv-top">${R.esc(m.name)}${mark ? `<i>${mark}</i>` : ''}</span>
-          <small class="db-hv-sub">${R.esc(subTxt)}</small>
+          <small class="db-hv-sub">${subTxt}</small>
         </a>`;
       };
       const scBody = (card) => `
