@@ -16,11 +16,11 @@ import Section from '../../components/Section.astro';
   <Section id="sec-hero" title="今日头条" sub="结论先看这里：共识、背景、三情景核验与跨资产报警">
     <div class="db-hero-cards">
       <div class="db-sc-card">
-        <div class="db-sc-title">市场共识 <span class="db-sc-axis"><i class="up">✓</i> risk-on · <i class="down">✗</i> risk-off</span> <small id="db-sc-market-meta"></small></div>
+        <div class="db-sc-title">市场共识 <small id="db-sc-market-meta"></small></div>
         <div id="db-sc-market"><span class="re-loading">加载中…</span></div>
       </div>
       <div class="db-sc-card">
-        <div class="db-sc-title">宏观共识 <span class="db-sc-axis"><i class="up">✓</i> 宽松 · <i class="down">✗</i> 紧缩</span> <small id="db-sc-macro-meta"></small></div>
+        <div class="db-sc-title">宏观共识 <small id="db-sc-macro-meta"></small></div>
         <div id="db-sc-macro"><span class="re-loading">加载中…</span></div>
       </div>
       <div class="db-sc-card db-bg-card">
@@ -85,6 +85,35 @@ const TOPIC_META = [
   { key: 'fed', label: '美联储', icon: '🦅', desc: 'FOMC 声明纪要、官员演讲与鹰鸽立场追踪' },
   { key: 'geo', label: '地缘与政治风险', icon: '🧭', desc: 'Polymarket 预测市场焦点、异动与概率走势' },
 ];
+// 共识卡口径（卡底折叠）：符号含义与判定门槛一段，成员判据逐行列出。
+// 文本里的换行由 .re-sec-note > div 的 white-space: pre-line 保留。
+const CONS_NOTES = {
+  market: [
+    '✓ risk-on · ✗ risk-off',
+    '— 子信号平票弃权，数据缺失即缺席',
+    '参与票 ≥2/3 同向才确认，否则显示分歧',
+    '缺席过半或全票弃权显示数据不足',
+    '成员等权，读数印在名称下方：',
+    '· 趋势：SPX 对 MA60 与 MA20 双确认',
+    '· 波动率：VIX 绝对水平 + 期限斜率',
+    '· 广度：ABV50',
+    '· 信用：HY OAS 近 1 月变化',
+    '· 期权结构：SPY 净 GEX 符号',
+    '· 卖空：SPY 卖空比 5 日均值差',
+  ].join('\n'),
+  macro: [
+    '✓ 宽松 · ✗ 紧缩',
+    '— 子信号平票弃权，数据缺失即缺席',
+    '确认与缺席判定同市场共识',
+    '成员等权：',
+    '· 政策路径：ZQ 隐含最近会期降息概率',
+    '· 净流动性：WALCL−RRP−TGA 近 1 月变化',
+    '· 货币市场：SOFR−IORB 利差',
+    '· 曲线：2s10s 水平',
+    '· 实际利率：DFII10 近 1 月变化',
+    '· 财政：TGA 近 1 月变化',
+  ].join('\n'),
+};
 // 共识成员名 → 专题组键（共识投 off 票的成员对应专题同步升入热卡）
 const CONS_MEMBER_TOPIC = {
   趋势: 'assets', 波动率: 'vol', 广度: 'assets', 信用: 'credit', 期权结构: 'assets', 卖空: 'assets',
@@ -242,6 +271,8 @@ async function load() {
         </div>`;
       mkt.innerHTML = scBody(c.market);
       mac.innerHTML = scBody(c.macro);
+      mkt.append(R.secNote(CONS_NOTES.market, { fold: true }));
+      mac.append(R.secNote(CONS_NOTES.macro, { fold: true }));
       const mmeta = document.getElementById('db-sc-market-meta');
       const ameta = document.getElementById('db-sc-macro-meta');
       if (mmeta) mmeta.textContent = `参与 ${c.market.n_present}/${c.market.n_members}${c.finalized === false ? ' · 盘中临时值' : ''}`;

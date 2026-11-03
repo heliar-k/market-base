@@ -189,6 +189,8 @@ body { font-family: system-ui, -apple-system, sans-serif; background: var(--bg);
  * padding 2px 把点击行拉到 24px（WCAG 2.5.8），不动正文节奏。 */
 .re-sec-note > summary { cursor: pointer; user-select: none; padding: 2px 0; }
 .re-sec-note[open] > summary { color: var(--text-secondary); margin-bottom: 4px; }
+/* 折叠正文逐行排版（pre-line）：备注里带换行的条目（成员判据列表）不能挤成一陀 */
+.re-sec-note > div { white-space: pre-line; }
 
 /* ── dashboard ────────────────────────────────────────────── */
 .dashboard-view {

@@ -1155,8 +1155,6 @@ body.dark .pm-topic-card { box-shadow: inset 0 0 0 1px rgba(255,255,255,.04); }
   font-size: 13px; font-weight: 600; color: var(--text-secondary);
   border-bottom: 1px solid var(--border-light); padding-bottom: 8px;
 }
-.db-sc-axis { font-size: 11px; font-weight: 400; color: var(--text-dim); }
-.db-sc-axis i { font-style: normal; font-weight: 700; }
 .db-sc-title > small { margin-left: auto; font-size: 11px; font-weight: 400; color: var(--text-dim); }
 /* 状态字钉左栏（水平+垂直双居中 + min-width 定宽：不同卡的状态字宽窄不一，
    定宽后分割线与成员网格左缘跨卡对齐；居中让窄状态字不漂在左缘，
