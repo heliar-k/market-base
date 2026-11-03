@@ -12,20 +12,9 @@ import Section from '../../components/Section.astro';
 <TopicLayout title="VIX" h1="VIX — 标普500隐含波动率指数">
   <div class="page-toc" id="page-toc"></div>
 
-  <!-- 概览（结论层）：区间定位色条 + 4 张 KPI 卡，首屏一眼可读；数据层留给下面的图与表 -->
+  <!-- 概览（结论层）：5 张 KPI 卡，首屏一眼可读；数据层留给下面的图与表。
+       当前值与百分位/期限结构等同为一张 KPI 卡，日/周涨跌收进卡备注，不再单列大数字块与色条。 -->
   <Section id="overview" title="概览" sub="恐慌指数区间定位与核心读数">
-    <div class="score-card">
-      <div style="min-width:110px">
-        <div class="label">VIX 恐慌指数</div>
-        <div class="value" id="vix-big-value">—</div>
-      </div>
-      <!-- 色条容器窄于 240px 就整行换下来：flex:1 + min-width:0 会把它压到 150px，
-           四段各 ~36px，「17–22 偏高」被裁成无名色块（实测 390/320） -->
-      <div style="flex:1 1 240px;min-width:0">
-        <div class="zone-strip" id="zone-strip"></div>
-        <div class="scale" id="zone-caption"></div>
-      </div>
-    </div>
     <div id="status-cards"></div>
   </Section>
 
@@ -87,22 +76,19 @@ async function load() {
 
   const c = R.colors();
   // 期限结构状态：中文为主 + 英文术语括注（contango = 远月升水，backwardation = 远月贴水）
-  // 卡头徽章与页面事实集共用（KPI 卡的值只写中文档，见 TERM_EN）
+  // 卡头徽章与页面事实集共用；KPI 卡的值只写中文档、备注只留比值
+  // （「贴水 Backwardation」会在 2 列卡里折行，英文术语由期限结构小节的徽章承载）。
   const TERM_STATE = { contango: '升水 Contango', backwardation: '贴水 Backwardation' };
-  // KPI 卡的值只放中文档、英文术语进副行：2 列卡在 390px 宽只有 ~170px，
-  // 「贴水 Backwardation」会在中间折行，读起来像两个字段。
-  const TERM_EN = { contango: 'Contango', backwardation: 'Backwardation' };
   const axis = (name) => ({
     type: 'value', name, nameTextStyle: { color: c.muted },
 
   });
 
-  // ── KPI 卡 ×4（概览）──
+  // ── KPI 卡 ×5（概览）：当前值与四项读数同形，日/周涨跌进备注 ──
   // 区间语义色映射：后端 ZONES 下发的是亮色档字面 hex（#26a69a/#ff9800/#ef5350），
   // 直接进 inline style 会绕过主题（暗色下仍亮色，且 theme-changed 不重刷已写入的内联样式）
   // → 前端按区间名映射到 CSS 变量，由浏览器在样式计算时解析（天然跟随主题）。
-  // 文字走 --color-*-text 档，圆点/色条背景走图形档（special.css .status-dot / .zone-seg 只吃 background）
-  const ZONE_TEXT = { 平静: 'var(--color-up-text)', 偏高: 'var(--color-warn-text)', 警戒: 'var(--color-warn-text)', 恐慌: 'var(--color-down-text)' };
+  // 圆点背景走图形档（special.css .status-dot 只吃 background）
   const ZONE_BG = { 平静: 'var(--color-up)', 偏高: 'var(--color-warn)', 警戒: 'var(--color-warn)', 恐慌: 'var(--color-down)' };
   const v = data.vix, t = data.term_structure;
   const dot = (color) => `<span class="status-dot" style="background:${color}"></span>`;
@@ -119,6 +105,11 @@ async function load() {
   const skewDot = skewVal == null ? 'var(--color-neutral)' : skewVal >= 150 ? 'var(--color-down)' : skewVal >= 140 ? 'var(--color-warn)' : 'var(--color-up)';
   document.getElementById('status-cards').replaceChildren(R.cards([
     {
+      label: 'VIX 恐慌指数',
+      value: `${dot(ZONE_BG[v.zone] || 'var(--color-neutral)')}${v.value.toFixed(2)}`,
+      sub: `日 ${R.fmtPct(v.chg_1d_pct)} / 周 ${R.fmtPct(v.chg_1w_pct)}`,
+    },
+    {
       label: '百分位',
       value: `${dot(ZONE_BG[v.zone] || 'var(--color-neutral)')}${v.zone}`,
       sub: `近一年 ${v.percentile_1y ?? '—'}% 分位`,
@@ -126,9 +117,7 @@ async function load() {
     {
       label: '期限结构',
       value: `${dot(t.state === 'backwardation' ? 'var(--color-down)' : t.state === 'contango' ? 'var(--color-up)' : 'var(--color-neutral)')}${t.state === 'backwardation' ? '贴水' : t.state === 'contango' ? '升水' : '—'}`,
-      sub: ratio
-        ? `${TERM_EN[t.state] ? TERM_EN[t.state] + ' · ' : ''}VIX / VIX3M = ${ratio.toFixed(3)}`
-        : TERM_EN[t.state] || '比值缺失',
+      sub: ratio ? `VIX / VIX3M = ${ratio.toFixed(3)}` : '比值缺失',
     },
     {
       label: '7 日动量',
@@ -152,29 +141,14 @@ async function load() {
   // ── 研判：三格横排（水平 / 期限结构 / 展望），R.judgeRow 单源 ──
   R.setSection('re-signals', R.judgeRow(data.signals.map(sg => [sg.title, sg.text])));
 
-  // ── 区间色条（区间边界/文案来自后端 ZONES，与首页 vix-badge、credit/stress 同源）──
+  // ── 区间档（当前值色点与 AI 事实集的区间阈值共用；边界与首页 vix-badge、credit/stress 同源）──
   const zones = [
     { lo: '<17', hi: 17 },
     { lo: '17–22', hi: 22 },
     { lo: '22–35', hi: 35 },
     { lo: '>35', hi: 1e9 },
   ];
-  zones.forEach((z, i) => { z.color = ZONE_BG[data.zones[i].label] || 'var(--color-neutral)'; z.label = data.zones[i].label; });
-  document.getElementById('vix-big-value').textContent = v.value.toFixed(2);
-  document.getElementById('vix-big-value').style.color = ZONE_TEXT[v.zone] || 'var(--text)';
-  const strip = document.getElementById('zone-strip');
-  zones.forEach(z => {
-    const seg = document.createElement('div');
-    // 只点亮当前所在的那一档区间（按区间名判定，不按阈值比大小）
-    seg.className = 'zone-seg' + (z.label === v.zone ? ' on' : '');
-    // 底色交给 CSS（color-mix 混进卡面）：--zc 只是色相来源，主题切换时由浏览器重算
-    seg.style.setProperty('--zc', z.color);
-    // 区间数值包一层：≤360px 只留档名（320 下四段实宽 44-62px，装不下「17–22 偏高」）
-    seg.innerHTML = `<span class="zone-lo">${R.esc(z.lo)}</span>${R.esc(z.label)}`;
-    strip.appendChild(seg);
-  });
-  document.getElementById('zone-caption').textContent =
-    `当前 ${v.value.toFixed(2)} 处「${v.zone}」区间 · 日 ${R.fmtPct(v.chg_1d_pct)} / 周 ${R.fmtPct(v.chg_1w_pct)} · 截至 ${v.as_of}`;
+  zones.forEach((z, i) => { z.label = data.zones[i].label; });
 
   // ── 长期 VIX（近 2 年 + 恐慌虚线）──
   R.mkChart('vix_long_chart', () => ({
