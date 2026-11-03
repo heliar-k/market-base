@@ -215,6 +215,16 @@ def skew_quadrant(vix: float | None, skew: float | None) -> dict:
         )
         advice = "降低风险敞口，优先买入保护性 put。"
         risk = "VIX 跳升阶段追空风险大，gamma 挤压可能进一步推升波动。"
+    elif vix >= 17 and skew >= 150:
+        state, text = (
+            "波动偏高且尾部对冲高",
+            f"VIX {vix:.1f} 处 17-22 偏高区间，且 SKEW {skew:.0f} ≥ 150，"
+            "隐含波动与尾部保护溢价同步抬升。",
+        )
+        advice = "优先持有跨期或领口保护结构，避免裸卖出看跌期权；关注 VIX 是否突破 22 进入警戒区。"
+        risk = (
+            "尾部保护定价已处极端高位，若突发利空催化 VIX 上破 22，认沽期权隐含波动率将进一步跳升。"
+        )
     elif vix >= 17:
         state, text = (
             "波动偏高",

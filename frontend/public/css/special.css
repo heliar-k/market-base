@@ -171,6 +171,8 @@ body.embedded .re-foot { display: none; } /* 内嵌 iframe 不重复页脚 */
  * 仍是 32px，行距走 row-gap 同值，双/单列节奏一致。 */
 .re-duo { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 340px), 1fr)); gap: var(--re-sec-gap) 16px; }
 .re-duo > .re-sec, .re-duo > .re-section { min-width: 0; } /* 栅格项默认 min-width:auto，图内 dataZoom/表会把轨道撑破 */
+/* 双栏内并排卡面的底部分隔线对齐：左/右卡注脚行数不同时，用 auto 顶距把 .re-sec-note 推齐到卡底 */
+.re-duo > .re-panel > .re-sec-note { margin-top: auto; }
 /* .re-duo 也收静态页 JS 动态造的 .re-section 卡（treasury 间接投标 + Bill 占比）：
  * 下面 :has(> .re-section + .re-section) 会把「直接持有 2+ 张 .re-section」的容器强制改回
  * flex 纵排，特异性压过这里的 grid —— 豁免掉，否则双栏永远不生效 */

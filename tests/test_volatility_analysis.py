@@ -142,6 +142,12 @@ class TestSkewQuadrant:
         q = skew_quadrant(19.0, 135.0)
         assert q["state"] == "波动偏高"
 
+    def test_elevated_vol_high_skew(self):
+        # VIX 17-22 且 SKEW ≥150：不能再说「若 SKEW 同步升破 150」（已经破了）
+        q = skew_quadrant(21.15, 152.8)
+        assert q["state"] == "波动偏高且尾部对冲高"
+        assert "若 SKEW 同步升破 150" not in q["risk"]
+
     def test_calm_high_skew(self):
         q = skew_quadrant(14.0, 155.0)
         assert q["state"] == "平静但尾部对冲高"
