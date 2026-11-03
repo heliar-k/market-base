@@ -457,8 +457,11 @@ const R = {
             ? `${fmt(p.value[0] - w / 2)} ~ ${fmt(p.value[0] + w / 2)} · ${p.value[1]} 个窗口`
             : `${p.seriesName}：${fmt(p.value[0])}`,
       },
-      // 左右 28px：首末档标签（-30.0 / +30.0）占宽超过原来的 12/16，containLabel 兜不住会被画布裁掉
-      grid: { left: 28, right: 28, top: 14, bottom: 4, containLabel: true },
+      // 与同一排的普通折线图共用一套绘图区：上下 30 / 右 20 取主题值，左 28 补上
+      // 「对面那张图有 y 轴刻度」让出的宽度 —— 密度图 y 轴全隐，containLabel 不会自己留出这 28px，
+      // 不显式给则两张图的绘图区差一截（VIX 期限结构 / 历史坐标实测 182 vs 224 高、28 vs 8 左）。
+      // keepLeft：窄画布上不让 _clampGrid 把这 28px 压成 8（压了与并排卡又错开 20px）。
+      grid: { left: 28, right: 20, top: 30, bottom: 30, containLabel: true, keepLeft: true },
       xAxis: {
         type: 'value',
         // 单位不进每档标签：七格里重复七个「点」把标签撑宽，轴下一行更挤；单位已在 tooltip 与卡内注脚
@@ -744,12 +747,19 @@ const R = {
   // （最差的 /liquidity/operations/ 柱图只剩 50px）。实测仅压 left 就回收 ~1900px。
   // 只在画布 <480px 生效（桌面一行像素不动），且跳过 containLabel:false 的图
   // （那类 left 就是轴标签本身的位子，如 rates/yield-curve 的 yc_change）。
+  // 另一个例外：网格声明了 keepLeft: true 的（left 不是给轴标签让位，而是要与并排卡另一张图
+  // 的绘图区同宽，如 VIX 历史坐标的密度图：y 轴全隐，containLabel 不会自己留出那 28px），
+  // 压了它两张图就错开 20px。标记键不论画布宽窄都从 option 里摘掉，不进 setOption。
   // right 不动：它可能是双轴右轴名 / 柱末数值标注（vol-cross-chart）/ 线尾 endLabel
   // 的位子，containLabel 不保护这些，压了会把标注裁出画布。
   _clampGrid(opt, w) {
-    if (!opt || !opt.grid || !w || w >= 480) return opt;
-    (Array.isArray(opt.grid) ? opt.grid : [opt.grid]).forEach((g) => {
-      if (!g || g.containLabel === false) return;
+    if (!opt || !opt.grid) return opt;
+    const grids = Array.isArray(opt.grid) ? opt.grid : [opt.grid];
+    const kept = grids.filter((g) => g && g.keepLeft);
+    kept.forEach((g) => delete g.keepLeft);
+    if (!w || w >= 480) return opt;
+    grids.forEach((g) => {
+      if (!g || g.containLabel === false || kept.includes(g)) return;
       if (typeof g.left === 'number') g.left = Math.min(g.left, 8);
     });
     return opt;

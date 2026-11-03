@@ -41,8 +41,12 @@ out.at479 = g(fn({ grid: { left: 48 } }, 479)).left;
 out.noContain = g(fn({ grid: { left: 56, containLabel: false } }, 390)).left;
 // right 永不动（柱末标注 / 双轴右轴名的位子，containLabel 不保护）
 out.rightKept = g(fn({ grid: { left: 110, right: 55 } }, 390)).right;
-// 百分比 left 不动（非数字，交给 ECharts 自己算）
+// percent left 不动（非数字，交给 ECharts 自己算）
 out.percent = g(fn({ grid: { left: '3%' } }, 390)).left;
+// keepLeft：并排卡里刻意留的 28px 左内距，窄屏不压；该键在压缩器里消费掉
+const keepGrid = g(fn({ grid: { left: 28, keepLeft: true } }, 390));
+out.keepLeft = keepGrid.left;
+out.keepLeftKeyGone = 'keepLeft' in keepGrid;
 // 数组 grid 全压
 const arr = fn({ grid: [{ left: 48 }, { left: 60 }] }, 390).grid;
 out.arrAll = [arr[0].left, arr[1].left];
@@ -99,6 +103,12 @@ def test_right_never_clamped(result):
 
 def test_percent_left_untouched(result):
     assert result["percent"] == "3%"
+
+
+def test_keep_left_skips_clamp(result):
+    # 并排两卡要与另一张图的绘图区同宽（VIX 历史坐标的密度图），压了就错开 20px
+    assert result["keepLeft"] == 28
+    assert result["keepLeftKeyGone"] is False
 
 
 def test_array_grid_all_clamped(result):
