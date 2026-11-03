@@ -16,11 +16,11 @@ import Section from '../../components/Section.astro';
   <Section id="sec-hero" title="今日头条" sub="结论先看这里：共识、背景、三情景核验与跨资产报警">
     <div class="db-hero-cards">
       <div class="db-sc-card">
-        <div class="db-sc-title">市场共识 <small id="db-sc-market-meta"></small></div>
+        <div class="db-sc-title">市场共识 <span class="db-sc-axis"><i class="up">✓</i> risk-on · <i class="down">✗</i> risk-off</span> <small id="db-sc-market-meta"></small></div>
         <div id="db-sc-market"><span class="re-loading">加载中…</span></div>
       </div>
       <div class="db-sc-card">
-        <div class="db-sc-title">宏观共识 <small id="db-sc-macro-meta"></small></div>
+        <div class="db-sc-title">宏观共识 <span class="db-sc-axis"><i class="up">✓</i> 宽松 · <i class="down">✗</i> 紧缩</span> <small id="db-sc-macro-meta"></small></div>
         <div id="db-sc-macro"><span class="re-loading">加载中…</span></div>
       </div>
       <div class="db-sc-card db-bg-card">
@@ -52,7 +52,6 @@ import Section from '../../components/Section.astro';
     </Section>
     <Section id="sec-vol" title="波动率" sub="核心指数 KPI 与信号卡">
       <a slot="head" class="db-vol-more" href="/volatility/">30 指数全景 →</a>
-      <div id="db-vol-verdict"></div>
       <div id="db-vol-kpi"></div>
       <div id="db-vol-signals"></div>
     </Section>
@@ -61,8 +60,6 @@ import Section from '../../components/Section.astro';
   <div class="re-foot-page" slot="foot" id="re-foot"></div>
 
 <script is:inline>
-// 数值格式化走 R.fmtLast / R.fmtChg（已收进 rates-common.js 单源，仪表盘同用）
-
 // 今日一句话 / 专题导航唯一映射（键 = /api/home-lines 的组键，路径同 SITE_NAV.groups[].page）
 const LINE_LINKS = {
   rates: '/rates/', credit: '/credit/', inflation: '/inflation/', labor: '/labor/',
@@ -96,30 +93,91 @@ const CONS_MEMBER_TOPIC = {
 // 六板块 → 板块页（行情视角快照的挂链，同 SITE_NAV 派生）
 const BOARD_LINKS = {
   equities: '/assets/equities.html', bonds: '/assets/bonds.html', commodities: '/assets/commodities.html',
-  etfs: '/assets/etfs.html', crypto: '/assets/crypto.html', fx: '/assets/fx.html',
+  sectors: '/assets/etfs.html', crypto: '/assets/crypto.html', fx: '/assets/fx.html',
 };
 
-// 正在响的专题集合（报警 + 命中情景 + 共识 off 票成员对应专题）
-function hotTopics(d, cons) {
-  const src = [...(d.alerts || []), ...(d.scenarios || []).filter(s => s.matched)];
-  const set = new Set(src.flatMap(x => x.topics || []));
-  for (const grp of [cons?.market, cons?.macro]) {
-    for (const m of grp?.members || []) {
-      if (m.present && m.vote === 'off' && CONS_MEMBER_TOPIC[m.name]) {
-        set.add(CONS_MEMBER_TOPIC[m.name]);
-      }
-    }
-  }
-  return set;
+// 行业快照取领涨前 2 + 领跌后 3（单一降序）
+function pickSectors(rows) {
+  const valid = (rows || []).filter(r => r.chg_pct != null);
+  if (valid.length <= 5) return rows || [];
+  const sorted = [...valid].sort((a, b) => b.chg_pct - a.chg_pct);
+  return [...sorted.slice(0, 2), ...sorted.slice(-3)];
 }
 
-// 专题合体卡：图标 + 专题名 + 状态徽章/日期 + 当日一句话结论（缺失退回静态简介）
-function topicCard(meta, line, hot) {
+// 共识成员子信号紧凑读数（免 hover 直接印在成员下方）
+function fmtMemberSub(m) {
+  if (!m.present) return '缺席';
+  const s = (m.subs || []).find(x => x.value != null);
+  if (!s) return '—';
+  const v = Number(s.value);
+  const sign = (x, d = 1) => (x > 0 ? '+' : '') + x.toFixed(d).replace(/\.0$/, '');
+  switch (m.name) {
+    case '趋势': return `vsMA60 ${sign(v, 0)}`;
+    case '波动率': return `VIX ${v.toFixed(1)}`;
+    case '广度': return `ABV ${v.toFixed(0)}%`;
+    case '信用': return `1M ${sign(v, 0)}bp`;
+    case '期权结构': return `GEX ${sign(v, 1)}`;
+    case '卖空': return `5D ${sign(v, 1)}pp`;
+    case '政策路径': return `降息 ${v.toFixed(0)}%`;
+    case '净流动性': return `1M ${sign(v, 0)}B`;
+    case '货币市场': return `利差 ${sign(v, 0)}bp`;
+    case '曲线': return `2s10s ${sign(v, 0)}bp`;
+    case '实际利率': return `1M ${sign(v, 0)}bp`;
+    case '财政': return `TGA ${sign(v, 0)}B`;
+    default: return `${s.value}`;
+  }
+}
+
+// 正在响的专题 → 具体触发原因映射（专题内生触发 + 报警 + 命中情景 + 共识 off 票成员）
+function hotTopicReasons(d, cons, byKey) {
+  const map = new Map();
+  const push = (k, r) => {
+    if (!k || !r) return;
+    if (!map.has(k)) map.set(k, []);
+    const arr = map.get(k);
+    if (!arr.includes(r)) arr.push(r);
+  };
+  // 专题自己的指标排第一：共享的报警/情景作补充（通胀卡先看核心 PCE）
+  for (const [k, line] of Object.entries(byKey || {})) {
+    if (line?.trigger) push(k, line.trigger);
+  }
+  for (const s of (d.scenarios || []).filter(x => x.matched)) {
+    for (const k of s.topics || []) push(k, `情景·${s.title}`);
+  }
+  const ALERT_SHORT = {
+    '原油-美股强负相关': '油股负相关',
+    '美元-信用负相关': '美元压信用',
+    '债波压制股市': '债波压制',
+    '债波与股市同向': '股债波共振',
+  };
+  for (const a of d.alerts || []) {
+    const raw = String(a.title || '').split(' — ')[0];
+    const short = ALERT_SHORT[raw] || raw;
+    for (const k of a.topics || []) push(k, `报警·${short}`);
+  }
+  for (const grp of [cons?.market, cons?.macro]) {
+    for (const m of grp?.members || []) {
+      const k = CONS_MEMBER_TOPIC[m.name];
+      if (m.present && m.vote === 'off' && k) push(k, `共识·${m.name}✗`);
+    }
+  }
+  if (d.polymarket?.recession?.prob >= 0.30) {
+    push('geo', `衰退概率 ${(d.polymarket.recession.prob * 100).toFixed(0)}%`);
+  }
+  return map;
+}
+
+// 专题合体卡：图标 + 专题名 + 具体触发原因徽章/日期 + 当日一句话结论（缺失退回静态简介）
+function topicCard(meta, line, reasons) {
   const page = LINE_LINKS[meta.key] || '#';
   const text = line?.text || meta.desc;
   const asOf = line?.as_of || '';
+  const hot = Boolean(reasons && reasons.length);
+  const tagText = hot
+    ? (reasons.length > 1 ? `${reasons[0]} +${reasons.length - 1} 项` : reasons[0])
+    : '';
   const badge = hot
-    ? '<span class="db-topic-tag hot">有信号</span>'
+    ? `<span class="db-topic-tag hot" title="${R.esc(reasons.join(' / '))}">${R.esc(tagText)}</span>`
     : (asOf ? `<span class="db-topic-date">${R.esc(asOf.slice(5))}</span>` : '');
   return `<a class="db-line-card${hot ? ' hot' : ''}" href="${page}" title="${R.esc(meta.label)} · ${R.esc(asOf || meta.desc)}">
     <div class="db-line-card-head">
@@ -154,7 +212,7 @@ async function load() {
   R.setAsOf(Object.entries(g).length ? Object.entries(g) : (ind.as_of ? [['快照', ind.as_of]] : '—'));
   R.foot(d.generator, {
     src: 'FRED（rates / volatility / liquidity）· yfinance（asset_prices）· Polymarket',
-    note: '情景为规则匹配结果，不是发生概率；经济机制仍需原始数据与事件验证',
+    note: '情景为规则匹配结果，经济机制仍需原始数据与事件验证',
   });
 
   // ── 头条区三卡：市场/宏观共识 + 市场背景 kv 行 ──
@@ -165,12 +223,17 @@ async function load() {
     const mac = document.getElementById('db-sc-macro');
     if (c && c.market && c.macro) {
       const member = (m) => {
-        const mark = !m.present ? '×' : m.vote === 'on' ? '✓' : m.vote === 'off' ? '✗' : '—';
+        // 缺席直接展示「缺席」文字，不附加符号
+        const mark = !m.present ? '' : m.vote === 'on' ? '✓' : m.vote === 'off' ? '✗' : '—';
         const mcls = !m.present ? 'absent' : m.vote === 'on' ? 'on' : m.vote === 'off' ? 'off' : 'abst';
         const href = (c.page_links || {})[m.name] || '#';
         const subs = (m.subs || []).filter(s => s.value != null).map(s => `${s.name}: ${s.value}`).join(' / ');
         const tip = [m.name, subs, m.as_of].filter(Boolean).join(' · ');
-        return `<a class="db-hv-member db-hv-member--${mcls}" href="${R.esc(href)}" title="${R.esc(tip)}">${R.esc(m.name)}<i>${mark}</i></a>`;
+        const subTxt = fmtMemberSub(m);
+        return `<a class="db-hv-member db-hv-member--${mcls}" href="${R.esc(href)}" title="${R.esc(tip)}">
+          <span class="db-hv-top">${R.esc(m.name)}${mark ? `<i>${mark}</i>` : ''}</span>
+          <small class="db-hv-sub">${R.esc(subTxt)}</small>
+        </a>`;
       };
       const scBody = (card) => `
         <div class="db-sc-row">
@@ -203,13 +266,19 @@ async function load() {
     if (nx) {
       const days = Math.ceil((new Date(nx.year, nx.month - 1, nx.end_day) - new Date()) / 86400000);
       const next = `${nx.year}-${String(nx.month).padStart(2, '0')}-${String(nx.end_day).padStart(2, '0')}`;
-      items.push({ label: 'FOMC 下次', note: days > 0 ? `${days} 天后` : '进行中', value: next });
+      items.push({
+        label: 'FOMC 下次', note: days > 0 ? `${days} 天后` : '进行中',
+        value: `<a class="db-bg-link" href="/rates/pricing.html" title="点击进入利率定价与会期隐含概率专题">${next} ↗</a>`,
+      });
     }
     if (rex?.meetings?.length) {
       const m = rex.meetings[0];
       const p = Math.max(m.prob_cut, m.prob_hold, m.prob_hike);
       const k = p === m.prob_cut ? '降息' : p === m.prob_hike ? '加息' : '按兵不动';
-      items.push({ label: '市场隐含', note: 'ZQ 期货', value: `${k} ${(p * 100).toFixed(0)}%` });
+      items.push({
+        label: '市场隐含', note: 'ZQ 期货',
+        value: `<a class="db-bg-link" href="/rates/pricing.html" title="点击进入利率定价专题查看 ZQ 与 Polymarket 双源对比">${k} ${(p * 100).toFixed(0)}% ↗</a>`,
+      });
     }
     const pm = d.polymarket?.recession;
     if (pm?.prob != null) {
@@ -217,7 +286,7 @@ async function load() {
       const y = (pm.end_date || '').slice(0, 4);
       items.push({
         label: `衰退 ${y}`, note: 'Polymarket',
-        value: `<span title="${R.esc(pm.title)}（Polymarket ${R.esc(d.polymarket.as_of || '')}）">${pct}%</span>`,
+        value: `<a class="db-bg-link" href="/geo/" title="${R.esc(pm.title)}（Polymarket ${R.esc(d.polymarket.as_of || '')}）· 点击进入地缘与政治风险专题">${pct}% ↗</a>`,
       });
     }
     if (items.length) box.replaceChildren(R.kvRows(items));
@@ -269,37 +338,40 @@ async function load() {
     const elx = document.getElementById('db-hero-sub');
     const alMeta = document.getElementById('db-alert-meta');
     const alerts = d.alerts || [];
-    if (alMeta) alMeta.textContent = alerts.length ? `${alerts.length} 项相关性突破阈值` : '30 日相关性均在常态区间';
+    const warnCount = alerts.filter(a => (a.topics || []).length > 0).length;
+    if (alMeta) alMeta.textContent = warnCount ? `${warnCount} 项风险相关性突破阈值` : '30 日相关性均在常态区间';
     elx.innerHTML = alerts.length
       ? alerts.map(a => {
+          // topics 空 = 结构常态（如股债负相关的对冲属性回归），不挂专题、不标橙
+          const isWarn = (a.topics || []).length > 0;
           const links = (a.topics || []).filter(k => TOPIC_LINKS[k])
             .map(k => `<a class="db-al-topic" href="${TOPIC_LINKS[k]}">${R.esc(TOPIC_LABELS[k] || k)} →</a>`).join('');
           return `<div class="db-al-item">
-            <div class="db-al-title">⚠ ${R.esc(a.title)}</div>
+            <div class="db-al-title${isWarn ? '' : ' calm'}">${isWarn ? '⚠ ' : '✓ '}${R.esc(a.title)}</div>
             <div class="db-al-text">${R.esc(a.text)}${links}</div>
           </div>`;
         }).join('')
       : '<div class="db-al-scen empty">当前无跨资产相关性断裂报警</div>';
   } catch (e) { R.fail(['db-hero-sub'], e); }
 
-  // ── 分专题今日研判（合体网格：10 个专题全展示，有信号的置顶高亮，自带当日一句话）──
+  // ── 分专题今日研判（合体网格：10 个专题全展示，有信号的置顶并标注具体触发原因，自带当日一句话）──
   try {
     const box = document.getElementById('db-lines');
     const byKey = Object.fromEntries((homeLines?.lines || []).map(l => [l.key, l]));
-    const hot = hotTopics(d, cons);
+    const reasonsMap = hotTopicReasons(d, cons, byKey);
     const ordered = [
-      ...TOPIC_META.filter(m => hot.has(m.key)),
-      ...TOPIC_META.filter(m => !hot.has(m.key)),
+      ...TOPIC_META.filter(m => reasonsMap.has(m.key)),
+      ...TOPIC_META.filter(m => !reasonsMap.has(m.key)),
     ];
-    const hotCount = TOPIC_META.filter(m => hot.has(m.key)).length;
+    const hotCount = TOPIC_META.filter(m => reasonsMap.has(m.key)).length;
     const sub = document.querySelector('#sec-topics .re-sec-sub');
     if (sub && hotCount) {
-      sub.textContent = `${hotCount} 个专题有跨资产报警或紧缩信号（已置顶标热）· 点击卡片进入对应专题`;
+      sub.textContent = `${hotCount} 个专题触发信号（已置顶并标注触发原因）· 点击卡片进入对应专题`;
     }
-    box.innerHTML = `<div class="db-line-cards">${ordered.map(m => topicCard(m, byKey[m.key], hot.has(m.key))).join('')}</div>`;
+    box.innerHTML = `<div class="db-line-cards">${ordered.map(m => topicCard(m, byKey[m.key], reasonsMap.get(m.key))).join('')}</div>`;
   } catch (e) { R.fail(['db-lines'], e); }
 
-  // ── 六板块快照（当日涨跌，板块卡挂专题链接；缺源给修复命令）──
+  // ── 六板块快照（当日涨跌，板块卡挂专题链接；sectors 取领涨前 2 + 领跌后 3，呼应行业分化）──
   try {
     const grid = document.getElementById('db-boards');
     const tables = overview?.tables;
@@ -308,10 +380,11 @@ async function load() {
     } else {
       const boards = [
         ['equities', '股指'], ['bonds', '债券'], ['commodities', '商品'],
-        ['etfs', 'ETF'], ['crypto', '加密'], ['fx', '外汇'],
+        ['sectors', '行业领涨/领跌'], ['crypto', '加密'], ['fx', '外汇'],
       ];
       grid.innerHTML = boards.map(([key, label]) => {
-        const rows = tables[key] || [];
+        const raw = tables[key] || [];
+        const rows = key === 'sectors' ? pickSectors(raw) : raw;
         if (!rows.length) return '';
         return `<div class="db-board">
           <a class="db-board-t" href="${BOARD_LINKS[key]}">${label}
@@ -329,19 +402,14 @@ async function load() {
     }
   } catch (e) { R.fail(['db-boards'], e); }
 
-  // ── 波动率：定调 + KPI 卡行（R.cards 单源）+ 信号卡 ──
+  // ── 波动率：KPI 卡行（R.cards 单源）+ 紧凑信号列表（定调已由第二层波动率卡承载）──
   try {
-    const vrd = document.getElementById('db-vol-verdict');
     const kpi = document.getElementById('db-vol-kpi');
     const sig = document.getElementById('db-vol-signals');
     if (!volDash?.hero) {
-      if (vrd) vrd.innerHTML = '';
       kpi.innerHTML = '';
       sig.innerHTML = '<p class="re-source">波动率仪表盘数据缺失 · 运行 ./bin/fetch_barchart_vol 后重新导出（uv run python -m src.export_pages）</p>';
     } else {
-      if (vrd && volDash.hero.verdict) {
-        vrd.innerHTML = `<div class="db-vol-verdict">${R.esc(volDash.hero.verdict)}</div>`;
-      }
       kpi.replaceChildren(R.cards((volDash.hero.cards || []).map(c => ({
         label: c.symbol,
         value: R.num(c.value),
@@ -350,8 +418,10 @@ async function load() {
       const signals = volDash.signals || [];
       sig.innerHTML = signals.length ? `<div class="db-sig-cards">${signals.map(s => `
         <div class="db-sig-card">
-          <div class="db-sig-title">${R.esc(s.title)}</div>
-          <div class="db-sig-metric">${R.esc(s.metric)}</div>
+          <div class="db-sig-head">
+            <span class="db-sig-title">${R.esc(s.title)}</span>
+            <span class="db-sig-metric">${R.esc(s.metric)}</span>
+          </div>
           <div class="db-sig-text">${R.esc(s.text)}</div>
           ${s.advice ? `<div class="db-sig-advice">应对：${R.esc(s.advice)}</div>` : ''}
         </div>`).join('')}</div>` : '';
@@ -406,13 +476,19 @@ async function load() {
         '30 日滚动相关性突破阈值']);
     });
 
-    // 六板块：页内是 db-board 列表（不在 DOM 摘要的选择器里），每板取 2-3 个代表标的
+    // 六板块：每板取 2-3 个代表标的；行业板取与页内同口径的首尾两端（领涨最强 / 领跌最深）
     const q = (key, sym) => (overview?.tables?.[key] || []).find(r => r.symbol === sym) || null;
     const line = (rows) => rows.filter(Boolean)
       .map(r => `${r.symbol} ${r.chg_pct == null ? '—' : (r.chg_pct > 0 ? '+' : '') + R.fmtPct(r.chg_pct)}`)
       .join(' · ');
     const bd = (key) => overview?.tables?.[key]?.[0]?.date || '—';
     add(['股指', line([q('equities', 'SPX'), q('equities', 'NDX'), q('equities', 'SOX')]), `${bd('equities')} 日涨跌`]);
+    const secRows = pickSectors(overview?.tables?.sectors);
+    if (secRows.length) {
+      const secCell = (r) => `${r.name} ${r.chg_pct == null ? '—' : (r.chg_pct > 0 ? '+' : '') + R.fmtPct(r.chg_pct)}`;
+      add(['行业领涨/领跌', `${secCell(secRows[0])} · ${secCell(secRows[secRows.length - 1])}`,
+        `${bd('sectors')} 日涨跌`]);
+    }
     add(['债券 ETF', line([q('bonds', 'TLT'), q('bonds', 'IEF'), q('bonds', 'LQD')]), `${bd('bonds')} 日涨跌`]);
     add(['商品', line([q('commodities', 'Gold'), q('commodities', 'WTI')]), `${bd('commodities')} 日涨跌`]);
     add(['加密与美元', line([q('crypto', 'BTC'), q('fx', 'DXY')]), `BTC ${bd('crypto')} · DXY ${bd('fx')}`]);

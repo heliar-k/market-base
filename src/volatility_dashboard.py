@@ -89,10 +89,18 @@ def _series(col: str, src: str, dfs: dict) -> pd.Series:
     return dfs[src].get(col, pd.Series(dtype=float)).dropna()
 
 
-def _chg(s: pd.Series, n: int, fallback: float | None) -> float | None:
-    """本地历史算 n 日变化 %；历史不足回落 Barchart 官方字段。"""
-    v = chg_pct(s, n)
-    return v if v is not None else fallback
+def _chg(
+    s: pd.Series, n: int, official: float | None, official_first: bool = False
+) -> float | None:
+    """n 日变化 %：cboe 序列自算，快照类源（yf / barchart）优先官方字段。
+
+    official_first：yfinance / barchart 快照按「抓取日」一行，
+    Barchart 的 _chg* 列在同一快照行内按上一交易日计算；官方缺列时回退自算。
+    """
+    local = chg_pct(s, n)
+    if official_first:
+        return official if official is not None else local
+    return local if local is not None else official
 
 
 def _round(v: float | None, nd: int = 2) -> float | None:
@@ -114,9 +122,9 @@ def _indices_table(cboe: pd.DataFrame, yf: pd.DataFrame, bc: pd.DataFrame) -> li
         }
         for key, n in _CHG_N.items():
             fb = _round(latest(bc[f"{symbol}_{key}"])) if f"{symbol}_{key}" in bc else None
-            # 变化口径：Barchart 官方字段优先（与 timsun 同源同口径），
-            # 本地历史自算作兜底（快照缺失/过期时）
-            row[key] = fb if fb is not None else _chg(s, n, None)
+            # cboe 序列按交易日一行、与 volatility_analysis 同一算法 → 自算优先（两页同口径）；
+            # 快照类源见 _chg 的 official_first 说明
+            row[key] = _chg(s, n, fb, official_first=src != "cboe")
         rows.append(row)
     return rows
 

@@ -924,8 +924,19 @@ class TestCorrAlertsHysteresis:
             ]
         )
         _patch_alerts(monkeypatch, f)
-        titles = [a["title"] for a in assets_analysis._corr_alerts()]
+        alerts = assets_analysis._corr_alerts()
+        titles = [a["title"] for a in alerts]
         assert any("正相关" in t and "失效" in t for t in titles)
+        assert alerts[0]["topics"] == ["assets", "rates"]
+
+    def test_negative_spx_tlt_has_empty_topics(self, monkeypatch):
+        # 股债负相关是常态对冲结构，不把专题卡染成橙色警告
+        f = _alerts_frame([{"date": "2026-10-15", "SPX_TLT_30d": -0.38}])
+        _patch_alerts(monkeypatch, f)
+        alerts = assets_analysis._corr_alerts()
+        assert len(alerts) == 1
+        assert "对冲属性回归" in alerts[0]["title"]
+        assert alerts[0]["topics"] == []
 
     def test_real_data_runs(self):
         # 真数据烟囱：不抛异常即可（阈值边缘由上面单测覆盖）

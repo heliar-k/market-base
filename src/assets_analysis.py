@@ -320,14 +320,14 @@ def _corr_alerts() -> list[dict]:
         return False
 
     if _hysteresis("SPX_TLT_30d"):
+        pos = float(row["SPX_TLT_30d"]) > 0
         out.append(
             {
-                "title": "股债正相关 — 60/40 组合失效警告"
-                if float(row["SPX_TLT_30d"]) > 0
-                else "股债负相关 — 对冲属性回归",
+                "title": "股债正相关 — 60/40 组合失效警告" if pos else "股债负相关 — 对冲属性回归",
                 "text": f"SPX 与长债 30 日相关性 = {float(row['SPX_TLT_30d']):+.2f}。"
-                + ("对冲属性消失。" if float(row["SPX_TLT_30d"]) > 0 else "组合分散化有效。"),
-                "topics": ["assets", "rates"],
+                + ("对冲属性消失。" if pos else "组合分散化有效。"),
+                # 负相关是常态对冲结构，不把专题卡标为警告
+                "topics": ["assets", "rates"] if pos else [],
             }
         )
     if _hysteresis("WTI_SPX_30d") and float(row["WTI_SPX_30d"]) <= 0:
@@ -488,7 +488,7 @@ def cross_analysis() -> dict:
     )
     if "HY_OAS" in hy.columns and not hy.empty:
         hy_oas = float(hy["HY_OAS"].dropna().iloc[-1])
-        parts.append(f"HY OAS {hy_oas:.2f}")
+        parts.append(f"HY OAS {hy_oas * 100:.0f}bp")
     btc_chg = _chg(p["BTC"], 7) if "BTC" in p.columns else None
     if btc_chg is not None:
         parts.append(f"BTC 近 7 日 {btc_chg:+.2f}%")

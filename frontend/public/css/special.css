@@ -1151,40 +1151,41 @@ body.dark .pm-topic-card { box-shadow: inset 0 0 0 1px rgba(255,255,255,.04); }
   padding: 14px 16px; display: flex; flex-direction: column; gap: 10px; min-width: 0;
 }
 .db-sc-title {
-  display: flex; align-items: baseline; gap: 8px;
+  display: flex; align-items: baseline; flex-wrap: wrap; gap: 6px 8px;
   font-size: 13px; font-weight: 600; color: var(--text-secondary);
   border-bottom: 1px solid var(--border-light); padding-bottom: 8px;
 }
+.db-sc-axis { font-size: 11px; font-weight: 400; color: var(--text-dim); }
+.db-sc-axis i { font-style: normal; font-weight: 700; }
 .db-sc-title > small { margin-left: auto; font-size: 11px; font-weight: 400; color: var(--text-dim); }
 /* 状态字钉左栏（水平+垂直双居中 + min-width 定宽：不同卡的状态字宽窄不一，
    定宽后分割线与成员网格左缘跨卡对齐；居中让窄状态字不漂在左缘，
    两卡大字到分割线的距离一致）+ 分割线 + 成员链右侧 auto-fit 微网格：
-   成员是 label+mark 小键值单元，等分列宽列线对齐比流式折行整齐；窄屏列数自动降。
-   间隔统一 12px 节奏：线两侧 padding 对称（≈14px），外层 gap 归零由线两侧空隙接管 */
+   成员是 label+mark+读数 双行微单元，等分列宽列线对齐；窄屏列数自动降。 */
 .db-sc-row { display: flex; align-items: center; min-width: 0; }
-.db-sc-state { flex-shrink: 0; min-width: 108px; padding-right: 14px; text-align: center; }
+.db-sc-state { flex-shrink: 0; min-width: 96px; padding-right: 12px; text-align: center; }
 .db-sc-state b { font-size: 16px; }
-.db-sc-votes { flex: 1; min-width: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(72px, 1fr)); gap: 2px 12px; border-left: 1px solid var(--border-light); padding-left: 14px; }
-.db-sc-votes .db-hv-member { padding: 5px 0; }
-.db-hv-member { display: inline-block; font-size: 11.5px; color: var(--text-secondary); text-decoration: none; padding: 5px 2px; }
+.db-sc-votes { flex: 1; min-width: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(76px, 1fr)); gap: 6px 10px; border-left: 1px solid var(--border-light); padding-left: 12px; }
+.db-sc-votes .db-hv-member { padding: 3px 0; }
+.db-hv-member { display: flex; flex-direction: column; gap: 1px; font-size: 11.5px; color: var(--text-secondary); text-decoration: none; padding: 3px 2px; min-width: 0; }
 .db-hv-member:hover { color: var(--accent-ink); }
+.db-hv-top { display: inline-flex; align-items: baseline; white-space: nowrap; line-height: 1.25; }
 .db-hv-member i { font-style: normal; font-weight: 700; margin-left: 3px; }
+.db-hv-sub { font-size: 10.5px; line-height: 1.2; color: var(--text-dim); font-family: var(--font-mono); font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .db-hv-member--on i { color: var(--up); }
 .db-hv-member--off i { color: var(--down); }
 .db-hv-member--abst i { color: var(--text-dim); }
 .db-hv-member--absent { opacity: .45; }
-.db-hv-member--absent i { color: var(--text-dim); }
-/* 卡够宽才放大字号：三列铺满时卡 371px，成员链 11.5→13、状态字 16→19，正好填掉
-   「市场背景」卡撑高的那段下缘留白（实测 slack 37→19，与背景卡的 15 齐平）。
-   容器查询而非视口媒体查询：侧栏 240 / .re-root 1200 上限任一改动，视口阈值就静默失效。
-   阈值量的是内容盒（扣卡内 16×2 padding）：371 卡 = 339，故 300 可容 346 卡（1366 本） */
+/* 卡够宽才放大字号：三列铺满时卡 371px，成员链 11.5→12.5、状态字 16→18，
+   容器查询而非视口媒体查询：侧栏 240 / .re-root 1200 上限任一改动，视口阈值就静默失效。 */
 .db-sc-card { container-type: inline-size; }
 @container (min-width: 300px) {
-  .db-sc-title { font-size: 14px; }
-  .db-sc-title > small { font-size: 11.5px; }
-  .db-sc-state b { font-size: 19px; }
-  .db-hv-member { font-size: 13px; }
-  .db-sc-votes .db-hv-member { padding: 7px 0; }
+  .db-sc-title { font-size: 13.5px; }
+  .db-sc-title > small { font-size: 11px; }
+  .db-sc-state b { font-size: 18px; }
+  .db-hv-member { font-size: 12.5px; }
+  .db-hv-sub { font-size: 11px; }
+  .db-sc-votes .db-hv-member { padding: 4px 0; }
 }
 /* 情景核验 + 结构报警双栏（方案 C：三情景收进头条左栏，报警居右，宽桌面并排） */
 .db-hero-subgrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 340px), 1fr)); gap: 12px; margin-bottom: 2px; }
@@ -1225,6 +1226,7 @@ details.db-scen-item[open] > summary.db-scen-head::after { content: '收起 ▴'
 .db-al-item { padding: 8px 0; }
 .db-al-item + .db-al-item { border-top: 1px solid var(--border-light); }
 .db-al-title { font-size: 13px; font-weight: 600; color: var(--warning); }
+.db-al-title.calm { color: var(--up); }
 .db-al-text { font-size: 12px; color: var(--text-secondary); line-height: 1.55; margin-top: 2px; }
 /* 触控目标 ≥24px：padding 撑高命中区，负 margin 抵消，不改变文字行盒与卡片高度 */
 .db-al-topic {
@@ -1253,12 +1255,14 @@ details.db-scen-item[open] > summary.db-scen-head::after { content: '收起 ▴'
 .db-line-card.hot .db-line-card-t { color: var(--warning); }
 .db-line-card:hover { background: var(--surface-hover); border-color: var(--accent-ink); }
 .db-line-card:hover .db-line-card-x { text-decoration: underline; }
-.db-line-card-head { display: flex; align-items: center; gap: 6px; }
-.db-line-card-ic { font-size: 14px; line-height: 1; }
-.db-line-card-t { font-size: 13px; font-weight: 600; color: var(--text); }
+/* 卡头整行：图标 + 专题名 + 触发签。触发签换到第二行右对齐也不截断 */
+.db-line-card-head { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 6px; min-width: 0; }
+.db-line-card-ic { font-size: 14px; line-height: 1; flex-shrink: 0; }
+.db-line-card-t { font-size: 13px; font-weight: 600; color: var(--text); white-space: nowrap; flex-shrink: 0; }
 .db-topic-tag {
   margin-left: auto; font-size: 11px; line-height: 18px; font-weight: 600; padding: 0 6px; border-radius: 4px;
   color: var(--warning); background: color-mix(in srgb, var(--color-warn) 16%, transparent);
+  white-space: nowrap;
 }
 .db-topic-date { margin-left: auto; font-size: 11px; color: var(--text-dim); font-family: var(--font-mono); }
 .db-line-card-x { font-size: 12.5px; line-height: 1.55; color: var(--text-secondary); }
@@ -1289,18 +1293,14 @@ details.db-scen-item[open] > summary.db-scen-head::after { content: '收起 ▴'
 /* 波动率信号卡（自 app.css .dash-sig-* 收编） */
 .db-vol-more { margin-left: auto; font-size: 12px; color: var(--text-secondary); text-decoration: none; white-space: nowrap; padding: 4px 0; }
 .db-vol-more:hover { color: var(--accent-ink); }
-.db-vol-verdict {
-  font-size: 12.5px; color: var(--text-secondary); line-height: 1.5;
-  padding: 8px 12px; margin-bottom: 10px; border-radius: 6px;
-  background: var(--surface); border: 1px solid var(--border); border-left: 3px solid var(--color-brand);
-}
-.db-sig-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr)); gap: 12px; }
+.db-sig-cards { display: flex; flex-direction: column; gap: 10px; }
 .db-sig-card {
-  display: flex; flex-direction: column; gap: 6px;
-  background: var(--surface); border-radius: 8px; border: 1px solid var(--border); padding: 14px 16px;
+  display: flex; flex-direction: column; gap: 4px;
+  background: var(--surface); border-radius: 8px; border: 1px solid var(--border); padding: 12px 14px;
 }
+.db-sig-head { display: flex; align-items: baseline; justify-content: space-between; flex-wrap: wrap; gap: 4px 10px; }
 .db-sig-title { font-size: 13px; font-weight: 600; color: var(--text); }
-.db-sig-metric { font-size: 12px; color: var(--text-secondary); font-family: var(--font-mono); }
+.db-sig-metric { font-size: 11.5px; color: var(--text-dim); font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
 .db-sig-text { font-size: 12px; color: var(--text-secondary); line-height: 1.5; }
 .db-sig-advice { font-size: 11px; font-style: italic; color: var(--text-dim); }
 .db-hit { border-color: var(--color-up); }

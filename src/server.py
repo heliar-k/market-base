@@ -947,19 +947,86 @@ def _iso(d: object) -> str | None:
     return s or None
 
 
-def _fed_home(d: dict) -> tuple[str, str | None]:
+def _fed_home(d: dict) -> tuple[str, str | None, str | None]:
     """美联储引擎无现成叙事句，由指示器拼一句（评分口径单源 stance_label）。"""
     ind = d["indicator"]
     dates = [s["date"] for s in d.get("statements", [])] + [
         s["date"] for s in d.get("speeches", [])
     ]
-    text = f"联储口径「{ind['label']}」——近 {ind['sample']} 条声明与演讲评分 {ind['score']:+.1f}"
-    return text, _iso(max(dates, default=None))
+    score = float(ind["score"])
+    text = f"联储口径「{ind['label']}」——近 {ind['sample']} 条声明与演讲评分 {score:+.1f}"
+    # 档位判定单源 stance_label：中性档（-0.5~0.5）不生成触发签
+    trigger = f"联储 {ind['label']} ({score:+.1f})" if ind["label"] != "中性" else None
+    return text, _iso(max(dates, default=None)), trigger
+
+
+def _inflation_trigger(d: dict) -> str | None:
+    pce = (d.get("cards") or {}).get("core_pce") or {}
+    v = pce.get("value")
+    if isinstance(v, (int, float)) and v >= 2.5:
+        return f"核心 PCE {v:.2f}%"
+    return None
+
+
+def _labor_trigger(d: dict) -> str | None:
+    cards = d.get("cards") or {}
+    u = cards.get("unrate") or {}
+    nfp = cards.get("nfp") or {}
+    sahm = u.get("sahm")
+    if isinstance(sahm, (int, float)) and sahm >= 0.5:
+        return f"Sahm {sahm:.2f}"
+    chg3m = u.get("chg_3m")
+    if isinstance(chg3m, (int, float)) and chg3m >= 0.2:
+        return f"失业率 3M +{chg3m:.1f}pp"
+    nv = nfp.get("value")
+    if isinstance(nv, (int, float)) and nv < 100:
+        return f"非农 {nv:.0f}K"
+    return None
+
+
+# 地缘主题短名（键同 polymarket_analysis.GEO_TOPICS）：首页触发签置于 275px 卡片右上角，
+# 采用短名 + 整数 pp 以适配卡片宽度。
+_GEO_SHORT = {
+    "iran": "霍尔木兹",
+    "israel": "以色列",
+    "taiwan": "台海",
+    "russia_ukraine": "俄乌",
+    "trade": "贸易",
+    "election": "选举",
+    "us_territory": "美国扩张",
+}
+
+
+def _geo_home(d: dict) -> tuple[str, str | None, str | None]:
+    """地缘首页一行与触发签：有 ≥5pp 异动时优先报道异动最大的主题，让标签与正文同源。"""
+    as_of = d.get("as_of")
+    sigs = d.get("signals") or []
+    default_txt = sigs[1] if len(sigs) > 1 else (sigs[0] if sigs else "")
+    best_t, best_h = None, None
+    for t in d.get("topics") or []:
+        head = t.get("headline") or {}
+        c7 = head.get("chg7d")
+        if isinstance(c7, (int, float)) and abs(c7) >= 5.0:
+            if best_h is None or abs(c7) > abs(best_h["chg7d"]):
+                best_t, best_h = t, head
+    if best_t and best_h:
+        c7 = best_h["chg7d"]
+        name = best_t.get("name", "地缘")
+        cname = best_h.get("name", "焦点")
+        prob = (best_h.get("prob") or 0) * 100
+        vol = (best_t.get("volume24hr") or 0) / 1e6
+        txt = (
+            f"{name}：{len(best_t.get('events') or [])} 事件 · 24h ${vol:.2f}M，"
+            f"「{cname}」均概率 {prob:.0f}%（7日 {c7:+.1f}pp）"
+        )
+        short = _GEO_SHORT.get(str(best_t.get("key")), name)
+        return txt, as_of, f"{short} 7d {c7:+.0f}pp"
+    return default_txt, as_of, None
 
 
 @app.get("/api/home-lines")
 def get_home_lines() -> dict:
-    """首屏结论层：9 个专题引擎各出一句话，前端按 SITE_NAV 键定位专题页（issue #21）。
+    """首屏结论层：10 个专题引擎各出一句话，前端按 SITE_NAV 键定位专题页（issue #21）。
 
     单源失败只丢该行（打印 skip），不阻断整体导出；全空时前端给空状态。
     """
@@ -969,7 +1036,7 @@ def get_home_lines() -> dict:
     from src.liquidity_analysis import liquidity_snapshot
     from src.polymarket_analysis import geo_overview
 
-    # (SITE_NAV 组键, 标签, 引擎入口, 从引擎输出取 (一句话原文, 观测日))
+    # (SITE_NAV 组键, 标签, 引擎入口, 从引擎输出取 (一句话原文, 观测日[, 专题内生触发短签]))
     specs = [
         (
             "rates",
@@ -990,13 +1057,13 @@ def get_home_lines() -> dict:
             "inflation",
             "通胀",
             generate_inflation_overview,
-            lambda d: (d["signals"][0]["text"], d.get("as_of")),
+            lambda d: (d["signals"][0]["text"], d.get("as_of"), _inflation_trigger(d)),
         ),
         (
             "labor",
             "就业",
             generate_labor_overview,
-            lambda d: (d["signals"][0]["text"], d.get("as_of")),
+            lambda d: (d["signals"][0]["text"], d.get("as_of"), _labor_trigger(d)),
         ),
         (
             "treasury",
@@ -1035,23 +1102,25 @@ def get_home_lines() -> dict:
             "geo",
             "地缘与政治风险",
             geo_overview,
-            lambda d: (
-                d["signals"][1] if len(d.get("signals") or []) > 1 else d["signals"][0],
-                d.get("as_of"),
-            ),
+            _geo_home,
         ),
     ]
 
     lines: list[dict] = []
     for key, label, fn, extract in specs:
         try:
-            text, as_of = extract(fn())
+            res = extract(fn())
+            text, as_of = res[0], res[1]
+            trigger = res[2] if len(res) > 2 else None
         except Exception as e:  # 单专题数据缺失不影响其余行
             print(f"  home-lines skip {key}: {type(e).__name__}: {e}")
             continue
         line = _sentence(text)
         if line:
-            lines.append({"key": key, "label": label, "text": line, "as_of": as_of})
+            row = {"key": key, "label": label, "text": line, "as_of": as_of}
+            if trigger:
+                row["trigger"] = trigger
+            lines.append(row)
     return {"generator": "rules", "lines": lines}
 
 
@@ -1118,7 +1187,7 @@ def get_consensus() -> dict:
 
 @app.get("/api/daily-brief")
 def get_daily_brief() -> dict:
-    """今日研判：跨资产变化表 + 三种可能解释 + 结构报警 + FOMC 倒计时。"""
+    """今日研判：各分组数据时效 + 三种可能解释 + 结构报警 + FOMC 日历。"""
     from src.daily_brief import generate_daily_brief
 
     out = generate_daily_brief()

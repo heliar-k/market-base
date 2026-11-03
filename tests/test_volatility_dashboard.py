@@ -1,7 +1,7 @@
 """波动率全景仪表盘（timsun 复刻）单元测试。
 
 覆盖：
-- 30 指数统一表（本地历史变化 / Barchart 官方变化兜底 / 别名映射 VXV→VIX3M）
+- 30 指数统一表（cboe 序列自算变化 / 快照类源取 Barchart 官方变化 / 别名映射 VXV→VIX3M）
 - 统计条 / Hero 定调 / 风险矩阵 / Vol Trade Map / 叙事（风险评估评分）
 """
 
@@ -83,13 +83,25 @@ class TestIndicesTable:
         vxmo = next(r for r in rows if r["symbol"] == "VXMO")
         assert vxmo["chg1d"] == -1.5
 
-    def test_barchart_chg_first_for_all_symbols(self):
-        """有快照时全部 30 指数用 Barchart 官方变化（与 timsun 同源同口径）。"""
+    def test_local_chg_first_for_cboe_series(self):
+        """cboe 序列按交易日一行 → 自算变化与 volatility_analysis 同算法（两页同口径）。"""
         cboe = _cboe_frame()
         bc = _barchart_frame()
         rows = _indices_table(cboe, pd.DataFrame(), bc)
         vix = next(r for r in rows if r["symbol"] == "VIX")
-        assert vix["chg1d"] == -1.5
+        assert abs(vix["chg1d"] - 0.56) < 0.01
+
+    def test_snapshot_source_keeps_official_chg(self):
+        """快照类源（yf / barchart）优先取官方 chg。"""
+        yf = pd.DataFrame(
+            {"MOVE": [93.54, 100.2, 100.2, 100.2]},
+            index=pd.date_range("2026-10-29", periods=4, freq="D"),
+        )
+        bc = _barchart_frame()
+        bc["MOVE_chg1d"] = 7.12
+        rows = _indices_table(pd.DataFrame(), yf, bc)
+        move = next(r for r in rows if r["symbol"] == "MOVE")
+        assert move["chg1d"] == 7.12
 
     def test_local_fallback_when_snapshot_missing(self):
         """无快照时 cboe 源按本地序列自算 1D 变化。"""
