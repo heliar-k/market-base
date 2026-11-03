@@ -38,13 +38,13 @@ import Section from '../../components/Section.astro';
     </Section>
   </div>
 
-  <!-- VIX × SKEW 信号：左文右图同处一张卡面（状态胶囊走 Section slot=head） -->
+  <!-- VIX × SKEW 信号：三段结论横排（.sig-row 全站研判形状）+ 整宽散点 ──
+       散点是本段唯一的数据层，占半边只有 487px 绘图区，90 个点挤成一团；
+       结论三段改用横排格后，图拿到整卡宽。 -->
   <Section id="sec-skew-signal" title="VIX × SKEW 信号" sub="看跌偏斜象限 · 近 90 日" card>
     <span slot="head" id="skew-badge"></span>
-    <div class="vix-row" style="align-items:center">
-      <div id="skew-signal"></div>
-      <div id="vix_skew_scatter" class="chart chart-md"></div>
-    </div>
+    <div id="skew-signal"></div>
+    <div id="vix_skew_scatter" class="chart chart-md"></div>
   </Section>
 
   <!-- SKEW 走势 -->
@@ -182,11 +182,13 @@ async function load() {
   const s = data.skew_signal;
   const skewBadgeCls = s.state === '警戒区' ? 'bear' : s.state === '平静区' ? 'bull' : 'warn';
   document.getElementById('skew-badge').innerHTML = `<span class="re-badge ${skewBadgeCls}">${R.esc(s.state || '—')}</span>`;
-  document.getElementById('skew-signal').innerHTML = [
-    ['象限判定 · ' + (s.state || '—'), s.text],
+  // 三格结论（R.sigRow 单源：格行本体由 rates-common 产出，卡面由本节 Section 提供）
+  document.getElementById('skew-signal').innerHTML = R.sigRow([
+    // 状态已由卡头胶囊给出（如「波动偏高且尾部对冲高」），段标题不再重写一遍
+    ['判定依据', s.text],
     ['交易建议', s.advice],
     ['风险提示', s.risk],
-  ].map(([title, body]) => R.sigBlocks(title, body)).join('');
+  ]);
 
   // ── VIX × SKEW 散点（象限虚线 + 最新红点；仅当最新点就是今天才标「今天」）──
   const pts = data.vix_skew_scatter;

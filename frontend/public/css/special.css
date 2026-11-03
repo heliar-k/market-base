@@ -356,7 +356,6 @@ a.re-badge:hover { color: var(--accent-ink); border-color: var(--accent-ink); }
 .re-expectation.cut { background: var(--color-up-bg); color: var(--color-up-text); }
 .re-expectation.hike { background: var(--color-down-bg); color: var(--color-down-text); }
 .re-expectation.hold { background: var(--color-neutral-bg); color: var(--color-neutral-text); }
-/* VIX 卡片 */ .vix-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 /* 状态卡圆点（timsun 风格） */
 .status-dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 8px; vertical-align: 1px; }
 .vix-card { border: 1px solid var(--border); border-radius: 8px; background: var(--surface); padding: 16px 20px; display: flex; flex-direction: column; gap: 10px; }
@@ -378,7 +377,9 @@ a.re-badge:hover { color: var(--accent-ink); border-color: var(--accent-ink); }
 /* h3 标签（语义标题，屏幕阅读器按标题跳转能停到每格）自带 margin / font-size，
    全部显式归零：外观仍由 .sig-title 一处决定，不随标签类型变化。 */
 .sig-block .sig-title { font-size: 12px; font-weight: 700; letter-spacing: .04em; color: var(--accent-ink); margin: 0 0 6px; }
-.sig-block p { margin: 0; }
+/* 正文档：.re-section 卡的段落由 .re-section p 给 13px/1.7，静态 Section 渲染的是 .re-sec，
+   段内没有规则会继承 body 的 16px/normal（VIX × SKEW 信号段曾因此比全站正文大一号） */
+.sig-block p { margin: 0; font-size: 13px; line-height: 1.7; color: var(--text-secondary); }
 /* 同一段里的多行（结论 / 触发）：R.sigBlocks 会往一个 sig-block 里放多个 <p>，
    上一条的 margin:0 会把它们贴成一堆，这里给行间距（.note 的 margin-top 被同权重覆盖） */
 .sig-block p + p { margin-top: 6px; }
@@ -428,7 +429,7 @@ a.re-badge:hover { color: var(--accent-ink); border-color: var(--accent-ink); }
 .rh-bars .dim { color: var(--text-dim); font-weight: 400; }
 @media (max-width: 1024px) { .pos-hero.regime-hero { grid-template-columns: 1fr; } .rh-bars { border-left: none; padding-left: 0; border-top: 1px solid var(--border); padding-top: 14px; } }
 
-@media (max-width: 768px) { .vix-row, .link-grid { grid-template-columns: 1fr; } }
+@media (max-width: 768px) { .link-grid { grid-template-columns: 1fr; } }
 @media (max-width: 768px) { .oas-row { grid-template-columns: 1fr; } }
 
 /* ── 涨跌/中性语义色已由 tokens.css 接管，亮暗双主题无需再写 body.dark 覆写 ── */
