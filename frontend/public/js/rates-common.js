@@ -222,15 +222,9 @@ const R = {
   // 三张全宽卡叠起来 358px，收成一行三格只要 179px。
   // 同形状的 volatility 页 parts 段仍是手拼 re-section + sig-row，但形状本身在 special.css，
   // 改 CSS 一处两边同变（2026-10 那一轮就是这么改的）；只有 DOM 结构要改时才需同改那处。
-  // ── 研判行的格行本体（.sig-row 只有它一个生产者）：自带卡面、卡里还要放别的东西的段用它
-  //（VIX × SKEW 信号：三格结论 + 整宽散点同处一张卡）；单独成段的走 judgeRow ──
-  sigRow(items) {
-    const blocks = (items || []).map(([title, body]) => R.sigBlocks(title, body)).join('');
-    return blocks ? `<div class="sig-row">${blocks}</div>` : '';
-  },
   judgeRow(items) {
-    const row = R.sigRow(items);
-    return row ? `<div class="re-section">${row}</div>` : '';
+    const blocks = (items || []).map(([title, body]) => R.sigBlocks(title, body)).join('');
+    return blocks ? `<div class="re-section"><div class="sig-row">${blocks}</div></div>` : '';
   },
 
   // ── 小节标题单源：中文为主，英文只作弱化注解 ──
