@@ -422,10 +422,11 @@ async function load() {
     if (!tables && !volDash?.indices && !volDash?.hero) {
       grid.innerHTML = '<p class="re-source">资产快照缺失 · 运行 ./bin/fetch_yfinance 后重新导出（uv run python -m src.export_pages）</p>';
     } else {
+      // 顺序按标的行数重排：4 列下第一排全 5 行（齐平）、第二排 6/4/2 抬到 6 行高度，
+      // 3 列下第一排全 5 行、第二排 5/6/4 抬到 6 行高度
       const boards = [
-        ['equities', '股指'], ['bonds', '债券'], ['commodities', '商品'],
-        ['sectors', '行业领涨/领跌'], ['crypto', '加密'], ['fx', '外汇'],
-        ['volatility', '波动率'],
+        ['equities', '股指'], ['commodities', '商品'], ['sectors', '行业领涨/领跌'],
+        ['volatility', '波动率'], ['fx', '外汇'], ['bonds', '债券'], ['crypto', '加密'],
       ];
       grid.innerHTML = boards.map(([key, label]) => {
         const rows = key === 'volatility' ? pickVolRows(volDash)

@@ -1265,8 +1265,9 @@ details.db-scen-item[open] > summary.db-scen-head::after { content: '收起 ▴'
 .db-topic-date { margin-left: auto; font-size: 11px; color: var(--text-dim); font-family: var(--font-mono); }
 .db-line-card-x { font-size: 12.5px; line-height: 1.55; color: var(--text-secondary); }
 .db-line-card-go { font-size: 11px; color: var(--text-dim); margin-top: auto; padding-top: 4px; }
-/* 板块快照（行情视角，自 app.css .dash-card/.dash-snap 收编；板块标题整行可点 ≥24px） */
-.db-boards { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr)); gap: 12px; align-items: start; }
+/* 板块快照（行情视角，自 app.css .dash-card/.dash-snap 收编；板块标题整行可点 ≥24px）
+ * 卡片按标的行数自然长高，同排由网格拉伸到齐平（板块顺序按行数排过，见 daily/index.astro 的 boards）。 */
+.db-boards { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr)); gap: 12px; }
 .db-board {
   background: var(--surface); border-radius: 8px; border: 1px solid var(--border);
   padding: 14px 16px; display: flex; flex-direction: column; gap: 8px; min-width: 0;
