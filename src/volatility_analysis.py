@@ -205,38 +205,27 @@ def skew_quadrant(vix: float | None, skew: float | None) -> dict:
     """VIX×SKEW 象限信号：波动水平 × 尾部对冲需求 → 状态 / 建议 / 风险。
 
     象限分界（对齐 timsun 散点图虚线）：VIX 17 / 22，SKEW 130 / 150。
+    不返回「判定依据」句：象限的读数（VIX 区间、SKEW 阈值）在页面已由研判的水平 / 展望
+    与散点图虚线给出，多一句无人读的话只会与展示内容各自漂移。
     """
     if vix is None or skew is None:
-        return {"state": "—", "text": "数据缺失", "advice": "—", "risk": "—"}
+        return {"state": "—", "advice": "—", "risk": "—"}
     if vix >= 22:
-        state, text = (
-            "警戒区",
-            f"VIX {vix:.1f} 处 22 上方且 SKEW {skew:.0f}，波动与尾部担忧同步升温。",
-        )
+        state = "警戒区"
         advice = "降低风险敞口，优先买入保护性 put。"
         risk = "VIX 跳升阶段追空风险大，gamma 挤压可能进一步推升波动。"
     elif vix >= 17 and skew >= 150:
-        state, text = (
-            "波动偏高且尾部对冲高",
-            f"VIX {vix:.1f} 处 17-22 偏高区间，且 SKEW {skew:.0f} ≥ 150，"
-            "隐含波动与尾部保护溢价同步抬升。",
-        )
+        state = "波动偏高且尾部对冲高"
         advice = "优先持有跨期或领口保护结构，避免裸卖出看跌期权；关注 VIX 是否突破 22 进入警戒区。"
         risk = (
             "尾部保护定价已处极端高位，若突发利空催化 VIX 上破 22，认沽期权隐含波动率将进一步跳升。"
         )
     elif vix >= 17:
-        state, text = (
-            "波动偏高",
-            f"VIX {vix:.1f} 处 17-22 区间，波动率偏高；SKEW {skew:.0f}。",
-        )
+        state = "波动偏高"
         advice = "保持基础对冲，避免新增裸多头；关注 VIX 是否向 22 突破。"
         risk = "若 SKEW 同步升破 150，尾部对冲成本将快速上升。"
     elif skew >= 150:
-        state, text = (
-            "平静但尾部对冲高",
-            f"VIX {vix:.1f} 平静，但 SKEW {skew:.0f} ≥ 150，市场在低价位抢购尾部保护。",
-        )
+        state = "平静但尾部对冲高"
         advice = "波动低 + 尾部对冲贵，是低成本布局保护性结构的窗口；谨慎做空波动。"
         risk = (
             "SKEW 极端高常领先于波动脉冲（1990 年以来 SKEW≥150 时，"
@@ -244,13 +233,10 @@ def skew_quadrant(vix: float | None, skew: float | None) -> dict:
             "中位领先约 8 个交易日）。"
         )
     else:
-        state, text = (
-            "平静区",
-            f"VIX {vix:.1f} 低于 17，SKEW {skew:.0f} 低于 150，波动与尾部担忧均处低位。",
-        )
+        state = "平静区"
         advice = "低波动环境可持有风险敞口，用领口或价差控制回撤。"
         risk = "VIX 从低位跳升往往剧烈，关注 VIX9D 是否先行抬升。"
-    return {"state": state, "text": text, "advice": advice, "risk": risk}
+    return {"state": state, "advice": advice, "risk": risk}
 
 
 def vix_history(df: pd.DataFrame, days: int = 6 * 22) -> dict:
