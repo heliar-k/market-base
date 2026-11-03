@@ -1190,6 +1190,13 @@ body.dark .pm-topic-card { box-shadow: inset 0 0 0 1px rgba(255,255,255,.04); }
   .db-hv-sub { font-size: 11px; }
   .db-sc-votes .db-hv-member { padding: 4px 0; }
 }
+/* 共识两张卡的正文区高度不同（多子信号成员占两行），折叠备注用 margin-top: auto 贴到卡底：
+ * 网格里两卡等高，备注高度相同时分隔线就落在同一条水平线上。
+ * gap 10px 是正文与备注的最小间距（auto 在卡已被内容塔满时算出 0）。 */
+.db-sc-card > #db-sc-market,
+.db-sc-card > #db-sc-macro { flex: 1; display: flex; flex-direction: column; gap: 10px; }
+.db-sc-card > #db-sc-market > details.re-sec-note,
+.db-sc-card > #db-sc-macro > details.re-sec-note { margin-top: auto; }
 /* 情景核验 + 结构报警双栏（方案 C：三情景收进头条左栏，报警居右，宽桌面并排） */
 .db-hero-subgrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 340px), 1fr)); gap: 12px; margin-bottom: 2px; }
 .db-scen-card { border-left: 3px solid var(--color-brand); }
