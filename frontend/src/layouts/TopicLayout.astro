@@ -172,7 +172,7 @@ window.__reTheme = (function () {
     <div class="macro-nav-foot-note">构建 {BUILD_AT} UTC{BUILD_SHA ? ` · ${BUILD_SHA}` : ''}</div>
   </div>
 </nav>
-<div class="re-root" id="re-main">
+<main class="re-root" id="re-main">
   <div class="re-header">
     {parentGroup && (
       <a class="re-back" href={parentGroup.page}>‹ 返回{parentGroup.label}</a>
@@ -195,7 +195,7 @@ window.__reTheme = (function () {
       <a href="/">返回首页</a>
     </div>
   </footer>
-</div>
+</main>
 
 <style>
   /* 布局私有，不进 css/*.css（别人的文件）。两处渲染：品牌可点 + 子页返回上层。 */

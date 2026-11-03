@@ -384,7 +384,9 @@ a.re-badge:hover { color: var(--accent-ink); border-color: var(--accent-ink); }
 .sig-block:last-child { margin-bottom: 0; }
 /* 行内小标题：12px/700 是「14px/700 段标题」与「13px 正文」之间的第三级，
  * 11px 与正文只差 2px 且字重相同，扫起来像正文的第一句而不是标题 */
-.sig-block .sig-title { font-size: 12px; font-weight: 700; letter-spacing: .04em; color: var(--accent-ink); margin-bottom: 6px; }
+/* h3 标签（语义标题，屏幕阅读器按标题跳转能停到每格）自带 margin / font-size，
+   全部显式归零：外观仍由 .sig-title 一处决定，不随标签类型变化。 */
+.sig-block .sig-title { font-size: 12px; font-weight: 700; letter-spacing: .04em; color: var(--accent-ink); margin: 0 0 6px; }
 .sig-block p { margin: 0; }
 /* 同一段里的多行（结论 / 触发）：R.sigBlocks 会往一个 sig-block 里放多个 <p>，
    上一条的 margin:0 会把它们贴成一堆，这里给行间距（.note 的 margin-top 被同权重覆盖） */

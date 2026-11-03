@@ -110,13 +110,13 @@ const R = {
       return lines
         .map(
           (t, j) =>
-            `<div class="sig-block"><div class="sig-title">${R.esc(labels[j] || labels[labels.length - 1])}</div>` +
+            `<div class="sig-block"><h3 class="sig-title">${R.esc(labels[j] || labels[labels.length - 1])}</h3>` +
             `<p${note(j)}>${R.esc(t)}</p></div>`
         )
         .join('');
     }
     return (
-      `<div class="sig-block"><div class="sig-title">${R.esc(title)}</div>` +
+      `<div class="sig-block"><h3 class="sig-title">${R.esc(title)}</h3>` +
       lines.map((t, j) => `<p${note(j)}>${R.esc(t)}</p>`).join('') +
       '</div>'
     );
@@ -708,6 +708,35 @@ const R = {
     const ser = opt && opt.series ? [].concat(opt.series) : [];
     return !ser.some((s) => R._hasPoint(s));
   },
+  // 图表读屏描述单源（配合 echarts-theme.js 的 aria.enabled）。
+  // 必须给 description：ECharts 自动生成的文案会把「前 10 项原始数据」念出来
+  // （实测 vix_long_chart：「其中，前10项是——1731945600000，16.35，1732032000000，17.16…」），
+  // description 是整段替换，不是追加。
+  // 材料：所在小节的 h2 标题（Section 单源）+ series 名称与类型，不逐图手写文案。
+  _ariaText(opt, dom) {
+    if (opt && opt.aria && opt.aria.description) return opt.aria.description;
+    // 标题取最近的小节：静态 Section 是 .re-sec，JS 生成的卡是 .re-section。
+    // 不能只写 .re-section —— Section 的内层 .re-panel（pricing 的 rp-triple-panel）
+    // 会成为最近命中，而 h2 在外层 .re-sec 上，标题就取丢了。
+    const sec = dom.closest('.re-sec, .re-section');
+    const h = sec ? sec.querySelector('h2') : null;
+    const title = h ? h.textContent.trim() : '';
+    const ser = opt && opt.series ? [].concat(opt.series) : [];
+    const TYPES = {
+      line: '折线图',
+      bar: '柱状图',
+      scatter: '散点图',
+      candlestick: 'K 线图',
+      heatmap: '热力图',
+      pie: '饼图',
+      radar: '雷达图',
+      effectScatter: '散点图',
+    };
+    const types = [...new Set(ser.map((s) => TYPES[s.type] || s.type).filter(Boolean))].join('与');
+    const names = [...new Set(ser.map((s) => s.name).filter(Boolean))];
+    const tail = names.length ? `，${ser.length} 个系列：${names.join('、')}` : '';
+    return `${title || '图表'}${types ? `（${types}）` : ''}${tail}。具体数值见本页表格与读数。`;
+  },
   // 窄屏压缩「左侧栅格外边距」（全站图表唯一出口）。
   // 背景：echarts-theme.js 的主题 grid 带 containLabel: true，轴标签宽度由 ECharts
   // 自己算；但 38 处页面声明又传了桌面尺度的数字 left（48–110px），两者相加 =
@@ -910,6 +939,7 @@ const R = {
         R._clampGrid(option(R.colors(), host.clientWidth), host.clientWidth),
         host.clientWidth
       );
+      opt.aria = Object.assign({}, opt.aria, { description: R._ariaText(opt, dom) });
       if (R.isEmptyOption(opt)) {
         // 空态：不 init、不注册主题/resize（无实例可重绘）；只铺一次文案，避免主题循环重复写
         dom.classList.remove('skeleton');

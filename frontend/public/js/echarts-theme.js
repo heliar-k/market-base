@@ -35,6 +35,10 @@ function buildTheme() {
   const splitLine = { lineStyle: { color: borderSubtle } };
   return {
     backgroundColor: 'transparent',
+    // 图表可及性单源：开启后 ECharts 给容器加 aria-label、内部加 role="img"，
+    // 屏幕阅读器至少能读到「这是一个 N 系列图表」；不逐图手写标签（新图会漏）。
+    // 全站图表容器上没有手写 aria-*（现存只在 select / 控件组 / dialog 上），不会被覆盖。
+    aria: { enabled: true },
     textStyle: { color: textSecondary, fontFamily: 'system-ui, -apple-system, sans-serif', fontSize: 12 },
     title: {
       textStyle: { color: text, fontSize: 14, fontWeight: 600 },
