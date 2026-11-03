@@ -2,7 +2,7 @@
 // 今日研判页（SITE_NAV home 落地页）— 工单 #16 自 public/daily/index.html 迁入；ADR-0005 升级今日头版。
 // 方案 C 三层漏斗：
 // 1. 今日头条：三张状态卡（市场/宏观共识 + 市场背景）+ 双栏核验与报警（左：三情景假设检验；右：跨资产结构报警）
-// 2. 市场快照 / 波动率（.re-duo 双栏盘面数据）
+// 2. 市场快照（股指/债券/商品/行业/加密/外汇/波动率七张同构板块卡）
 // 3. 分专题今日研判（原「今日一句话」与底部「10 专题导航」二合一：有信号置顶标热，动态结论直达专题）
 // fetch('/api/daily-brief') 主端点；rate-expectations / consensus / home-lines / assets/overview /
 // volatility/dashboard 均为次要端点走 getOpt（缺源段级容错）。
@@ -45,17 +45,10 @@ import Section from '../../components/Section.astro';
     <div id="db-lines"><div class="re-loading">加载中…</div></div>
   </Section>
 
-  <!-- 第三层：盘面数据双栏组（.re-duo，宽桌面并排，窄屏回落单列） -->
-  <div class="re-duo">
-    <Section id="sec-boards" title="市场快照" sub="六板块标的当日涨跌">
-      <div class="db-boards" id="db-boards"><div class="re-loading">加载中…</div></div>
-    </Section>
-    <Section id="sec-vol" title="波动率" sub="核心指数 KPI 与信号卡">
-      <a slot="head" class="db-vol-more" href="/volatility/">30 指数全景 →</a>
-      <div id="db-vol-kpi"></div>
-      <div id="db-vol-signals"></div>
-    </Section>
-  </div>
+  <!-- 第三层：市场快照（六板块 + 波动率同构卡片网格） -->
+  <Section id="sec-boards" title="市场快照" sub="跨资产六板块与核心波动率指数当日涨跌">
+    <div class="db-boards" id="db-boards"><div class="re-loading">加载中…</div></div>
+  </Section>
 
   <div class="re-foot-page" slot="foot" id="re-foot"></div>
 
@@ -119,10 +112,11 @@ const CONS_MEMBER_TOPIC = {
   趋势: 'assets', 波动率: 'vol', 广度: 'assets', 信用: 'credit', 期权结构: 'assets', 卖空: 'assets',
   政策路径: 'rates', 净流动性: 'liquidity', 货币市场: 'liquidity', 曲线: 'rates', 实际利率: 'rates', 财政: 'treasury',
 };
-// 六板块 → 板块页（行情视角快照的挂链，同 SITE_NAV 派生）
+// 板块 → 板块页（行情视角快照的挂链，同 SITE_NAV 派生）
 const BOARD_LINKS = {
   equities: '/assets/equities.html', bonds: '/assets/bonds.html', commodities: '/assets/commodities.html',
   sectors: '/assets/etfs.html', crypto: '/assets/crypto.html', fx: '/assets/fx.html',
+  volatility: '/volatility/',
 };
 
 // 行业快照取领涨前 2 + 领跌后 3（单一降序）
@@ -131,6 +125,25 @@ function pickSectors(rows) {
   if (valid.length <= 5) return rows || [];
   const sorted = [...valid].sort((a, b) => b.chg_pct - a.chg_pct);
   return [...sorted.slice(0, 2), ...sorted.slice(-3)];
+}
+
+// 波动率卡：从 30 指数全景挑 5 个跨资产代表指数，映射成与 overview.tables 同构的行
+// 短名避免 275px 卡宽下省略截断（长名在 /volatility/ 专题页）
+const VOL_SNAP_NAMES = {
+  VIX: 'VIX 标普波动', VXN: 'VXN 纳指波动', VVIX: 'VVIX 波动之波',
+  MOVE: 'MOVE 美债波动', OVX: 'OVX 原油波动',
+};
+function pickVolRows(volDash) {
+  const date = volDash?.as_of_snapshot || volDash?.as_of || '';
+  const indices = volDash?.indices;
+  const label = (r) => VOL_SNAP_NAMES[r.symbol] || `${r.symbol} ${r.name}`;
+  if (indices?.length) {
+    const by = Object.fromEntries(indices.map(r => [r.symbol, r]));
+    return ['VIX', 'VXN', 'VVIX', 'MOVE', 'OVX'].map(s => by[s]).filter(Boolean)
+      .map(r => ({ name: label(r), last: r.value, chg_pct: r.chg1d, date }));
+  }
+  return (volDash?.hero?.cards || [])
+    .map(c => ({ name: label(c), last: c.value, chg_pct: c.chg1d, date }));
 }
 
 // 共识成员子信号紧凑读数（免 hover 直接印在成员下方）
@@ -221,7 +234,7 @@ function topicCard(meta, line, reasons) {
 
 async function load() {
   document.getElementById('page-toc').innerHTML = [
-    ['今日头条', 'sec-hero'], ['分专题研判', 'sec-topics'], ['市场与波动率', 'sec-boards'],
+    ['今日头条', 'sec-hero'], ['分专题研判', 'sec-topics'], ['市场快照', 'sec-boards'],
   ].map(([t, id]) => `<a href="#${id}">${t}</a>`).join('');
 
   // brief 主端点（驱动全页）挂了 = 整页真没数据，R.get 抛给页级 catch；
@@ -402,20 +415,22 @@ async function load() {
     box.innerHTML = `<div class="db-line-cards">${ordered.map(m => topicCard(m, byKey[m.key], reasonsMap.get(m.key))).join('')}</div>`;
   } catch (e) { R.fail(['db-lines'], e); }
 
-  // ── 六板块快照（当日涨跌，板块卡挂专题链接；sectors 取领涨前 2 + 领跌后 3，呼应行业分化）──
+  // ── 市场快照（当日涨跌，板块卡挂专题链接；sectors 取领涨前 2 + 领跌后 3，波动率取 5 个代表指数）──
   try {
     const grid = document.getElementById('db-boards');
     const tables = overview?.tables;
-    if (!tables) {
+    if (!tables && !volDash?.indices && !volDash?.hero) {
       grid.innerHTML = '<p class="re-source">资产快照缺失 · 运行 ./bin/fetch_yfinance 后重新导出（uv run python -m src.export_pages）</p>';
     } else {
       const boards = [
         ['equities', '股指'], ['bonds', '债券'], ['commodities', '商品'],
         ['sectors', '行业领涨/领跌'], ['crypto', '加密'], ['fx', '外汇'],
+        ['volatility', '波动率'],
       ];
       grid.innerHTML = boards.map(([key, label]) => {
-        const raw = tables[key] || [];
-        const rows = key === 'sectors' ? pickSectors(raw) : raw;
+        const rows = key === 'volatility' ? pickVolRows(volDash)
+          : key === 'sectors' ? pickSectors(tables?.sectors || [])
+          : (tables?.[key] || []);
         if (!rows.length) return '';
         return `<div class="db-board">
           <a class="db-board-t" href="${BOARD_LINKS[key]}">${label}
@@ -424,7 +439,7 @@ async function load() {
             const cls = r.chg_pct == null || r.chg_pct === 0 ? 'neutral' : (r.chg_pct > 0 ? 'up' : 'down');
             const sign = r.chg_pct > 0 ? '+' : '';
             return `<div class="db-snap-row">
-              <span class="db-snap-name">${R.esc(r.name)}</span>
+              <span class="db-snap-name" title="${R.esc(r.name)}">${R.esc(r.name)}</span>
               <span class="db-snap-val">${R.num(r.last)}</span>
               <span class="${cls}">${r.chg_pct == null ? '—' : sign + r.chg_pct.toFixed(2) + '%'}</span>
             </div>`;
@@ -433,34 +448,8 @@ async function load() {
     }
   } catch (e) { R.fail(['db-boards'], e); }
 
-  // ── 波动率：KPI 卡行（R.cards 单源）+ 紧凑信号列表（定调已由第二层波动率卡承载）──
-  try {
-    const kpi = document.getElementById('db-vol-kpi');
-    const sig = document.getElementById('db-vol-signals');
-    if (!volDash?.hero) {
-      kpi.innerHTML = '';
-      sig.innerHTML = '<p class="re-source">波动率仪表盘数据缺失 · 运行 ./bin/fetch_barchart_vol 后重新导出（uv run python -m src.export_pages）</p>';
-    } else {
-      kpi.replaceChildren(R.cards((volDash.hero.cards || []).map(c => ({
-        label: c.symbol,
-        value: R.num(c.value),
-        sub: `${R.esc(c.name)} · ${R.chgSpan(c.chg1d)} 1D`,
-      })), 're-cards-2col'));
-      const signals = volDash.signals || [];
-      sig.innerHTML = signals.length ? `<div class="db-sig-cards">${signals.map(s => `
-        <div class="db-sig-card">
-          <div class="db-sig-head">
-            <span class="db-sig-title">${R.esc(s.title)}</span>
-            <span class="db-sig-metric">${R.esc(s.metric)}</span>
-          </div>
-          <div class="db-sig-text">${R.esc(s.text)}</div>
-          ${s.advice ? `<div class="db-sig-advice">应对：${R.esc(s.advice)}</div>` : ''}
-        </div>`).join('')}</div>` : '';
-    }
-  } catch (e) { R.fail(['db-vol-kpi', 'db-vol-signals'], e); }
-
   // ── 页面事实集（契约见 js/ai-context.js）：本页是结论先行的汇总页，DOM 摘要只抓 .re-cards /
-  // .re-kv-grid；共识状态、命中情景、跨资产报警与六板块涨跌都不在那几个选择器里，这里补成结构化读数。
+  // .re-kv-grid；共识状态、命中情景、跨资产报警与板块涨跌都不在那几个选择器里，这里补成结构化读数。
   // 值有 40 字上限：板块只取代表标的（全表进对应专题页），证据只留前两条方向依据。
   if (window.AICtx) AICtx.declare('daily', () => {
     const facts = [];
@@ -524,7 +513,7 @@ async function load() {
     add(['商品', line([q('commodities', 'Gold'), q('commodities', 'WTI')]), `${bd('commodities')} 日涨跌`]);
     add(['加密与美元', line([q('crypto', 'BTC'), q('fx', 'DXY')]), `BTC ${bd('crypto')} · DXY ${bd('fx')}`]);
 
-    // 波动率：四张 KPI 卡取三张（OVX 已在波动率专题页），1D 变动挂注
+    // 波动率：核心三指数（OVX 已在市场快照的波动率卡），1D 变动挂注
     const vc = (sym) => (volDash?.hero?.cards || []).find(c => c.symbol === sym);
     const vs = [vc('VIX'), vc('VVIX'), vc('MOVE')];
     add(['核心波动率', vs.filter(Boolean).map(c => `${c.symbol} ${R.num(c.value)}`).join(' · '),
@@ -540,6 +529,6 @@ async function load() {
     };
   });
 }
-load().catch(e => R.fail(['db-sc-market', 'db-sc-macro', 'db-bg-body', 'db-scenarios', 'db-hero-sub', 'db-lines', 'db-boards', 'db-vol-kpi', 'db-vol-signals'], e));
+load().catch(e => R.fail(['db-sc-market', 'db-sc-macro', 'db-bg-body', 'db-scenarios', 'db-hero-sub', 'db-lines', 'db-boards'], e));
 </script>
 </TopicLayout>

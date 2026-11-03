@@ -10,7 +10,14 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
-from src.server import _fed_home, _geo_home, _inflation_trigger, _labor_trigger, get_home_lines
+from src.server import (
+    _fed_home,
+    _geo_home,
+    _inflation_trigger,
+    _labor_trigger,
+    _vol_home,
+    get_home_lines,
+)
 
 ROOT = Path(__file__).resolve().parent.parent
 
@@ -102,6 +109,48 @@ class TestIndicatorsTrigger:
         hawk = {"label": "鹰派", "score": 2.0, "sample": 20}
         fed = _fed_home({"indicator": hawk, "statements": [], "speeches": []})
         assert fed[2] == "联储 鹰派 (+2.0)"
+
+
+class TestVolTrigger:
+    """波动率：全景仪表盘的定调 + 信号卡标题，触发签取最靠前的越界指标。"""
+
+    def _d(self, indices: list[dict], signals: list[dict] | None = None) -> dict:
+        return {
+            "as_of": "2026-10-30",
+            "as_of_snapshot": "2026-11-01",
+            "hero": {"verdict": "权益波动处于正常区间，跨资产分化中需关注利率与商品端的溢出。"},
+            "signals": signals if signals is not None else [],
+            "indices": indices,
+        }
+
+    def test_text_joins_verdict_and_signal_titles(self):
+        d = self._d(
+            [{"symbol": "VIX", "value": 17.2}],
+            [{"title": "利率波动中性"}, {"title": "商品波动仍是主线"}, {"title": ""}],
+        )
+        text, as_of, trigger = _vol_home(d)
+        assert text == (
+            "权益波动处于正常区间，跨资产分化中需关注利率与商品端的溢出"
+            " —— 利率波动中性 · 商品波动仍是主线"
+        )
+        assert as_of == "2026-11-01"
+        assert trigger is None
+
+    def test_trigger_vix_alert(self):
+        d = self._d([{"symbol": "VIX", "value": 25.4}, {"symbol": "VVIX", "value": 110.0}])
+        assert _vol_home(d)[2] == "VIX 25.4"
+
+    def test_trigger_vvix_behind_quiet_vix(self):
+        d = self._d([{"symbol": "VIX", "value": 18.0}, {"symbol": "VVIX", "value": 110.4}])
+        assert _vol_home(d)[2] == "VVIX 110"
+
+    def test_trigger_ovx_double_vix(self):
+        d = self._d([{"symbol": "VIX", "value": 17.0}, {"symbol": "OVX", "value": 41.6}])
+        assert _vol_home(d)[2] == "OVX 42"
+
+    def test_quiet_returns_no_trigger(self):
+        d = self._d([{"symbol": "VIX", "value": 14.2}, {"symbol": "VVIX", "value": 82.0}])
+        assert _vol_home(d)[2] is None
 
 
 class TestGeoTopic:

@@ -78,6 +78,7 @@ from src.notes_store import (
 from src.rates_analysis import generate_analysis
 from src.treasury_analysis import generate_treasury_overview
 from src.volatility_analysis import generate_volatility_analysis
+from src.volatility_dashboard import generate_dashboard as generate_volatility_dashboard
 
 # ── helpers ──────────────────────────────────────────────────────────────────
 
@@ -968,6 +969,41 @@ def _inflation_trigger(d: dict) -> str | None:
     return None
 
 
+def _vol_home(d: dict) -> tuple[str, str | None, str | None]:
+    """波动率首页一行：全景仪表盘给跨资产定调 + 信号卡标题，指标越界时挂触发签。
+
+    触发签预算 16 字符（今日头版卡片右上角徽章），只取最靠前的一个越界指标。
+    """
+    if "error" in d or not d.get("hero"):
+        v = generate_volatility_analysis()
+        return v["signals"][0]["text"], v.get("as_of"), None
+    as_of = d.get("as_of_snapshot") or d.get("as_of")
+    verdict = ((d.get("hero") or {}).get("verdict") or "").rstrip("。")
+    sigs = [s["title"] for s in (d.get("signals") or []) if s.get("title")]
+    parts = [verdict] if verdict else []
+    if sigs:
+        parts.append(" · ".join(sigs))
+    text = " —— ".join(parts)
+
+    by = {r["symbol"]: r for r in (d.get("indices") or [])}
+    vix = (by.get("VIX") or {}).get("value")
+    vvix = (by.get("VVIX") or {}).get("value")
+    ovx = (by.get("OVX") or {}).get("value")
+    trigger = None
+    if isinstance(vix, (int, float)) and vix >= 22:
+        trigger = f"VIX {vix:.1f}"
+    elif isinstance(vvix, (int, float)) and vvix >= 100:
+        trigger = f"VVIX {vvix:.0f}"
+    elif (
+        isinstance(ovx, (int, float))
+        and isinstance(vix, (int, float))
+        and vix > 0
+        and ovx > vix * 2
+    ):
+        trigger = f"OVX {ovx:.0f}"
+    return text, as_of, trigger
+
+
 def _labor_trigger(d: dict) -> str | None:
     cards = d.get("cards") or {}
     u = cards.get("unrate") or {}
@@ -1074,8 +1110,8 @@ def get_home_lines() -> dict:
         (
             "vol",
             "波动率",
-            generate_volatility_analysis,
-            lambda d: (d["signals"][0]["text"], d.get("as_of")),
+            generate_volatility_dashboard,
+            _vol_home,
         ),
         (
             "liquidity",
@@ -1269,9 +1305,7 @@ def get_volatility_analysis() -> dict:
 def get_volatility_dashboard() -> dict:
     """波动率全景仪表盘：30 指数 + 风险矩阵 + Trade Map + 统计 + 7 段叙事
     （timsun.net/volatility/dashboard 复刻，规则引擎，LLM 预留）。"""
-    from src.volatility_dashboard import generate_dashboard
-
-    out = generate_dashboard()
+    out = generate_volatility_dashboard()
     if "error" in out:
         raise HTTPException(404, out["error"])
     return out
