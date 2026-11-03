@@ -14,13 +14,14 @@ import Section from '../../components/Section.astro';
 
   <!-- 概览（结论层）：区间定位色条 + 4 张 KPI 卡，首屏一眼可读；数据层留给下面的图与表 -->
   <Section id="overview" title="概览" sub="恐慌指数区间定位与核心读数">
-    <p class="re-source">本页是 <b>VIX 单品种</b>深钻：近 2 年走势 / 期限结构 / VIX×SKEW 象限 / SKEW / 近期数据。30 指数全景、跨资产信号与全量表见 <a href="/volatility/">‹ 波动率全景</a></p>
     <div class="score-card">
       <div style="min-width:110px">
         <div class="label">VIX 恐慌指数</div>
         <div class="value" id="vix-big-value">—</div>
       </div>
-      <div style="flex:1;min-width:0">
+      <!-- 色条容器窄于 240px 就整行换下来：flex:1 + min-width:0 会把它压到 150px，
+           四段各 ~36px，「17–22 偏高」被裁成无名色块（实测 390/320） -->
+      <div style="flex:1 1 240px;min-width:0">
         <div class="zone-strip" id="zone-strip"></div>
         <div class="scale" id="zone-caption"></div>
       </div>
@@ -86,8 +87,11 @@ async function load() {
 
   const c = R.colors();
   // 期限结构状态：中文为主 + 英文术语括注（contango = 远月升水，backwardation = 远月贴水）
-  // 状态卡与期限结构胶囊共用，故在 load() 顶部声明（两档主题下文案一致，不进 CSS）
+  // 卡头徽章与页面事实集共用（KPI 卡的值只写中文档，见 TERM_EN）
   const TERM_STATE = { contango: '升水 Contango', backwardation: '贴水 Backwardation' };
+  // KPI 卡的值只放中文档、英文术语进副行：2 列卡在 390px 宽只有 ~170px，
+  // 「贴水 Backwardation」会在中间折行，读起来像两个字段。
+  const TERM_EN = { contango: 'Contango', backwardation: 'Backwardation' };
   const axis = (name) => ({
     type: 'value', name, nameTextStyle: { color: c.muted },
 
@@ -121,8 +125,10 @@ async function load() {
     },
     {
       label: '期限结构',
-      value: `${dot(t.state === 'backwardation' ? 'var(--color-down)' : t.state === 'contango' ? 'var(--color-up)' : 'var(--color-neutral)')}${TERM_STATE[t.state] ?? '—'}`,
-      sub: ratio ? `VIX / VIX3M = ${ratio.toFixed(3)}` : '比值缺失',
+      value: `${dot(t.state === 'backwardation' ? 'var(--color-down)' : t.state === 'contango' ? 'var(--color-up)' : 'var(--color-neutral)')}${t.state === 'backwardation' ? '贴水' : t.state === 'contango' ? '升水' : '—'}`,
+      sub: ratio
+        ? `${TERM_EN[t.state] ? TERM_EN[t.state] + ' · ' : ''}VIX / VIX3M = ${ratio.toFixed(3)}`
+        : TERM_EN[t.state] || '比值缺失',
     },
     {
       label: '7 日动量',
@@ -135,6 +141,13 @@ async function load() {
       sub: `尾部定价 · ${skewZone}`,
     },
   ], 're-cards-2col'));
+
+  // ── 页面定位（母子页分工）：沉到概览卡底的折叠行 —— 窄屏上这段占首屏 4 行，
+  // 把 21.15 的大字压到第二屏；返回母页的链接页头「‹ 返回波动率」已有，不重复 ──
+  document.getElementById('overview').appendChild(R.secNote(
+    '本页是 VIX 单品种深钻：近 2 年走势 / 期限结构 / VIX×SKEW 象限 / SKEW / 近期数据；30 指数全景、跨资产信号与全量表见 /volatility/。',
+    { fold: true }
+  ));
 
   // ── 研判：三格横排（水平 / 期限结构 / 展望），R.judgeRow 单源 ──
   R.setSection('re-signals', R.judgeRow(data.signals.map(sg => [sg.title, sg.text])));
@@ -154,8 +167,10 @@ async function load() {
     const seg = document.createElement('div');
     // 只点亮当前所在的那一档区间（按区间名判定，不按阈值比大小）
     seg.className = 'zone-seg' + (z.label === v.zone ? ' on' : '');
-    seg.style.background = z.color;
-    seg.textContent = `${z.lo} ${z.label}`;
+    // 底色交给 CSS（color-mix 混进卡面）：--zc 只是色相来源，主题切换时由浏览器重算
+    seg.style.setProperty('--zc', z.color);
+    // 区间数值包一层：≤360px 只留档名（320 下四段实宽 44-62px，装不下「17–22 偏高」）
+    seg.innerHTML = `<span class="zone-lo">${R.esc(z.lo)}</span>${R.esc(z.label)}`;
     strip.appendChild(seg);
   });
   document.getElementById('zone-caption').textContent =

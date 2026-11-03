@@ -9,9 +9,13 @@ const R = {
   fmtBp: (v) => (v === null || v === undefined ? '—' : `${Number(v) > 0 ? '+' : ''}${Number(v).toFixed(1)}`),
   fmtB: (v) => (v === null || v === undefined ? '—' : `$${Number(v).toFixed(0)}B`),
   // 千分位数值：取代各页自写的 fmt（bonds/etfs/crypto 默认 2 位、commodities/fx 要 4 位、
-  // crypto-derivatives 透传 d）。v === 0 ? 0 : v 是 -0 守卫，保留原行为。
-  num: (v, d = 2) =>
-    v == null ? '—' : Number(v === 0 ? 0 : v).toLocaleString(undefined, { maximumFractionDigits: d }),
+  // crypto-derivatives 透传 d）。判零用**四舍五入后**的值：-0.02 保留 1 位是 "-0"，
+  // 用原值判会漏（-0.02 !== 0），读者看到「上一窗口 -0 点」。
+  num: (v, d = 2) => {
+    if (v == null) return '—';
+    const r = Number(Number(v).toFixed(d));
+    return (r === 0 ? 0 : r).toLocaleString(undefined, { maximumFractionDigits: d });
+  },
   // 涨跌文本 span：▲ +x.xx% / ▼ x.xx%，颜色走文字档（亮色过 AA，图形档会跌到 3.6:1）。
   // 以前在 bonds/commodities/crypto 各拄一份，改语义色得同改三处。
   chgSpan: (v) =>
@@ -453,10 +457,12 @@ const R = {
             ? `${fmt(p.value[0] - w / 2)} ~ ${fmt(p.value[0] + w / 2)} · ${p.value[1]} 个窗口`
             : `${p.seriesName}：${fmt(p.value[0])}`,
       },
-      grid: { left: 12, right: 16, top: 14, bottom: 4, containLabel: true },
+      // 左右 28px：首末档标签（-30.0 / +30.0）占宽超过原来的 12/16，containLabel 兜不住会被画布裁掉
+      grid: { left: 28, right: 28, top: 14, bottom: 4, containLabel: true },
       xAxis: {
         type: 'value',
-        axisLabel: { formatter: (v) => fmt(v) },
+        // 单位不进每档标签：七格里重复七个「点」把标签撑宽，轴下一行更挤；单位已在 tooltip 与卡内注脚
+        axisLabel: { formatter: (v) => (v > 0 ? '+' : '') + Number(v).toFixed(1) },
         axisLine: { show: false },
         axisTick: { show: false },
         splitLine: { show: false },
