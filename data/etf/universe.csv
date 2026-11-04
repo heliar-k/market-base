@@ -578,6 +578,7 @@ IND,Xtrackers Nifty 500 India ETF,global
 INDH,WisdomTree India Hedged Equity Fund,global
 INDQ,Pacer ActiveAlpha India Quality ETF,factor_income
 INDY,iShares India 50 ETF,global
+INK,AB Equity Premium Income ETF,factor_income
 INRO,iShares U.S. Industry Rotation Active ETF,broad
 INTW,GraniteShares 2x Long INTC Daily ETF,leveraged_inverse
 IONL,GraniteShares 2x Long IONQ Daily ETF,leveraged_inverse
@@ -1355,7 +1356,6 @@ AFIX,Allspring Broad Market Core Bond ETF,bond
 AFK,VanEck Africa Index ETF,broad
 AFLG,First Trust Active Factor Large Cap ETF,broad
 AFMC,First Trust Active Factor Mid Cap ETF,broad
-AFRU,T-REX 2X Long AFRM Daily Target ETF,leveraged_inverse
 AFSM,First Trust Active Factor Small Cap ETF,broad
 AGG,iShares Core U.S. Aggregate Bond ETF,bond
 AGGB,Corgi FTSE U.S. Aggregate Bond ETF,bond
@@ -1494,7 +1494,6 @@ ASTN,Defiance Daily Target 2X Short ASTS ETF,leveraged_inverse
 ASTT,Corgi ASTS 2x Daily ETF,leveraged_inverse
 ASTX,Tradr 2X Long ASTS Daily ETF,leveraged_inverse
 ASTY,Defiance Daily Target 2X Long ASTS ETF,leveraged_inverse
-ASUP,T-REX 2X Long ASTS Daily Target ETF,leveraged_inverse
 AT,Defiance Robotics Actuators ETF,theme
 ATCL,REX Autocallable Income ETF,factor_income
 ATFV,Alger 35 ETF,broad
@@ -4505,7 +4504,9 @@ RDTE,Roundhill Russell 2000 0DTE Covered Call Strategy ETF,broad
 RDVI,FT Vest Rising Dividend Achievers Target Income ETF,factor_income
 RDWU,T-REX 2X Long RDW Daily Target ETF,leveraged_inverse
 RDYY,YieldMax RDDT Option Income Strategy ETF,factor_income
+RECD,Columbia RECS Laddered Deep Buffer ETF,broad
 RECI,Columbia Research Enhanced Core Premium Income ETF,factor_income
+RECM,Columbia RECS Laddered Moderate Buffer ETF,broad
 RECS,Columbia Research Enhanced Core ETF,broad
 REET,iShares Global REIT ETF,broad
 REFA,Columbia Research Enhanced International Equity ETF,global
@@ -4648,7 +4649,6 @@ SBIL,Simplify Government Money Market ETF,broad
 SBIO,ALPS Medical Breakthroughs ETF,broad
 SBIT,ProShares UltraShort Bitcoin ETF,crypto
 SBND,Columbia Short Duration Bond ETF,bond
-SBTU,T-REX 2X Long SBET Daily Target ETF,leveraged_inverse
 SCAP,Infrastructure Capital Small Cap Income ETF,factor_income
 SCAU,Corgi U.S. Small-Cap 15% Structured Buffer ETF - August Series,broad
 SCC,ProShares UltraShort Consumer Discretionary,leveraged_inverse
@@ -4776,6 +4776,7 @@ SIO,Touchstone Strategic Income ETF,factor_income
 SIOO,VistaShares Target 15 S&P 100 Distribution ETF,broad
 SITX,Tradr 2X Long SITM Daily ETF,leveraged_inverse
 SIVR,abrdn Physical Silver Shares ETF,commodity
+SIX,Global X Magnificent Six ETF,broad
 SIXA,ETC 6 Meridian Mega Cap Equity ETF,broad
 SIXD,AllianzIM U.S. Large Cap 6 Month Buffer10 Jun/Dec ETF,broad
 SIXF,AllianzIM U.S. Large Cap 6 Month Buffer10 Feb/Aug ETF,broad
@@ -5072,7 +5073,6 @@ TERC,Corgi TER 2x Daily ETF,leveraged_inverse
 TESC,Corgi TSLA 2x Daily ETF,leveraged_inverse
 TEST,YieldMax TSLA Performance & Distribution Target 25 ETF,broad
 TETH,21Shares Ethereum ETF,crypto
-TEUP,T-REX 2X Long TE Daily Target ETF,leveraged_inverse
 TEXU,Direxion Daily Energy Top 5 Bull 2X ETF,commodity
 TFFI,Chesapeake Trend-Following Fixed Income ETF,factor_income
 TFI,State Street SPDR Nuveen ICE Municipal Bond ETF,bond
