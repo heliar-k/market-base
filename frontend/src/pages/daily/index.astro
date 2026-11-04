@@ -45,7 +45,7 @@ import Section from '../../components/Section.astro';
   </Section>
 
   <!-- 第二层：分专题今日研判（原「今日一句话」+ 原「10 专题导航」合体） -->
-  <Section id="sec-topics" title="分专题今日研判" sub="全站 11 个一级专题 · 有信号置顶标热，点击进入对应研判">
+  <Section id="sec-topics" title="分专题今日研判" sub="全站 10 个一级专题 · 有信号置顶标热，点击进入对应研判">
     <div id="db-lines"><div class="re-loading">加载中…</div></div>
   </Section>
 
@@ -61,18 +61,17 @@ import Section from '../../components/Section.astro';
 const LINE_LINKS = {
   rates: '/rates/', credit: '/credit/', inflation: '/inflation/', labor: '/labor/',
   treasury: '/treasury/', vol: '/volatility/', liquidity: '/liquidity/',
-  assets: '/assets/', china: '/china/', fed: '/fed/', geo: '/geo/',
+  assets: '/assets/', fed: '/fed/', geo: '/geo/',
 };
 const TOPIC_LINKS = LINE_LINKS;
 const TOPIC_LABELS = {
   rates: '利率', credit: '信用', inflation: '通胀', labor: '就业',
-  treasury: '美债', vol: '波动率', liquidity: '流动性', assets: '大类资产', china: '中国需求与资产', fed: '美联储',
+  treasury: '美债', vol: '波动率', liquidity: '流动性', assets: '大类资产', fed: '美联储',
   geo: '地缘',
 };
-// 11 个一级专题静态元数据（与动态 home-lines 合体渲染，接口某项缺数据时以此兜底）
+// 10 个一级专题静态元数据（与动态 home-lines 合体渲染，接口某项缺数据时以此兜底）
 const TOPIC_META = [
   { key: 'assets', label: '大类资产', icon: '🌍', desc: '股/债/商品/ETF/外汇/加密六板块与相关性' },
-  { key: 'china', label: '中国需求与资产', icon: '🇨🇳', desc: '居民收支、社零、房地产、A 股与 AI 供应链' },
   { key: 'rates', label: '利率', icon: '🏦', desc: '曲线形态研判、实际利率与联储预期四段文' },
   { key: 'credit', label: '信用周期', icon: '💳', desc: 'OAS 分层、SLOOS 信贷标准与压力指数' },
   { key: 'liquidity', label: '美元流动性', icon: '💧', desc: '净流动性、RRP/TGA 与 LPI 压力指数' },
@@ -266,7 +265,7 @@ async function load() {
     R.getOpt('/api/home-lines'),
     R.getOpt('/api/assets/overview'),
     R.getOpt('/api/volatility/dashboard'),
-    R.getOpt('/api/assets/ai-cycle'),
+    R.getOpt('/api/ai-cycle'),
   ]);
   const ind = d.indicators || {};
 
@@ -450,7 +449,7 @@ async function load() {
       }
       const link = document.createElement('a');
       link.className = 're-badge';
-      link.href = '/assets/ai-cycle.html';
+      link.href = '/ai-cycle/';
       link.textContent = '查看财报、供应链与阈值依据 →';
       sec.appendChild(link);
       box.replaceChildren(sec);

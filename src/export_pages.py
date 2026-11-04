@@ -267,7 +267,7 @@ def export_api() -> None:
     )
 
     _safe("api/assets/overview", overview)
-    _safe("api/assets/ai-cycle", get_ai_cycle_overview)
+    _safe("api/ai-cycle", get_ai_cycle_overview)
     _safe("api/assets/equities", equities)
     _safe("api/assets/equities-options", options_board)
     _safe("api/assets/positioning", positioning)

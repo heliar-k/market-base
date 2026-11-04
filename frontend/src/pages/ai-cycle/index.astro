@@ -25,7 +25,7 @@ const STATUS = {
 const money = v => v == null ? '—' : `$${R.num(v, 2)}B`;
 
 async function load() {
-  const d = await R.get('/api/assets/ai-cycle');
+  const d = await R.get('/api/ai-cycle');
   const ndx = d.ndx || {};
   R.setAsOf([['财报', d.financial_as_of], ['资产', ndx.as_of]]);
 
@@ -157,7 +157,7 @@ async function load() {
     note: '季度财务数据按公司报告期展示；NDX 月线只使用已完成月份',
   });
 
-  if (window.AICtx) AICtx.declare('assets-ai-cycle', () => ({
+  if (window.AICtx) AICtx.declare('ai-cycle', () => ({
     title: 'AI 产业周期',
     src: 'Yahoo Finance 财报与行情 · SEC / 公司正式披露',
     asOf: d.financial_as_of,

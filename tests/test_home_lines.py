@@ -11,7 +11,6 @@ import re
 from pathlib import Path
 
 from src.server import (
-    _china_home,
     _fed_home,
     _geo_home,
     _inflation_trigger,
@@ -22,7 +21,7 @@ from src.server import (
 
 ROOT = Path(__file__).resolve().parent.parent
 
-# 11 个专题引擎；少一行就是某个引擎的叙事字段改名/断供了（红的时候看 skip 日志）
+# 10 个专题引擎；少一行就是某个引擎的叙事字段改名/断供了（红的时候看 skip 日志）
 EXPECTED_KEYS = {
     "rates",
     "credit",
@@ -32,7 +31,6 @@ EXPECTED_KEYS = {
     "vol",
     "liquidity",
     "assets",
-    "china",
     "fed",
     "geo",
 }
@@ -71,17 +69,6 @@ def test_home_lines_covers_all_engines() -> None:
         trigger = line.get("trigger")
         if trigger is not None:
             assert 0 < len(trigger) <= TRIGGER_BUDGET, trigger
-
-
-def test_china_home_uses_household_gap_trigger() -> None:
-    payload = {
-        "as_of": "2026-09-30",
-        "household": {"gap_pp": 2.4, "triggered": True},
-        "signals": [{"text": "实际收入与消费差值扩大"}],
-    }
-    assert _china_home(payload) == ("实际收入与消费差值扩大", "2026-09-30", "收入−消费 2.4pp")
-    payload["household"]["triggered"] = False
-    assert _china_home(payload)[2] is None
 
 
 class TestIndicatorsTrigger:
