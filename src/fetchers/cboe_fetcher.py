@@ -27,6 +27,7 @@ import logging
 import re
 from datetime import datetime
 from io import StringIO
+from pathlib import Path
 
 import pandas as pd
 import requests
@@ -155,6 +156,16 @@ def _normalize_date(raw: str) -> str:
     return raw
 
 
+def check_latest_complete(path: Path) -> list[str]:
+    """最新观测日缺值的指标名（派生列 VIX_TERM_SLOPE 跟随 VIX / VIX9D 一起缺）。"""
+    if not path.exists():
+        return ["文件不存在"]
+    df = pd.read_csv(path, index_col="date")
+    if df.empty:
+        return ["空文件"]
+    return list(df.columns[df.iloc[-1].isna()])
+
+
 if __name__ == "__main__":
     import argparse
 
@@ -167,9 +178,22 @@ if __name__ == "__main__":
         action="store_true",
         help="全量覆盖（清旧格式 junk，干净重来）；默认为 upsert",
     )
+    parser.add_argument(
+        "--check-latest",
+        action="store_true",
+        help="只查本地 CSV 最新观测日的值是否齐全（不联网），缺列则非零退出",
+    )
     args = parser.parse_args()
 
     path = ROOT / "data" / "cboe" / "volatility.csv"
+
+    if args.check_latest:
+        missing = check_latest_complete(path)
+        if missing:
+            print("CBOE 最新观测日缺列:" + ",".join(missing))
+            raise SystemExit(1)
+        print("CBOE 最新观测日齐全")
+        raise SystemExit(0)
 
     df = fetch_cboe_volatility()
     if df.empty:

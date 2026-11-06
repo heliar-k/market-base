@@ -1,10 +1,12 @@
-"""CBOE fetcher 测试：CLOSE 格式 / 官方代码值列格式 / 403 跳过。"""
+"""CBOE fetcher 测试：CLOSE 格式 / 官方代码值列格式 / 403 跳过 / 缺列检测。"""
 
 from unittest.mock import MagicMock
 
+import pandas as pd
 import pytest
 
 from src.fetchers import cboe_fetcher
+from src.fetchers.cboe_fetcher import check_latest_complete
 
 
 class _FakeResp:
@@ -88,3 +90,44 @@ def test_missing_code_skipped_without_crash(mock_session):
         assert "GVZ" in df.columns
     finally:
         monkeypatch.undo()
+
+
+# ── check_latest_complete：daily-full 判断是否派发 cboe-retry 的口径 ──
+
+
+def _write_volatility(tmp_path, data: dict[str, list[float | None]], dates: list[str]):
+    path = tmp_path / "volatility.csv"
+    pd.DataFrame(data, index=dates).rename_axis("date").to_csv(path)
+    return path
+
+
+def test_latest_row_complete(tmp_path):
+    path = _write_volatility(
+        tmp_path,
+        {"VIX": [17.2, 28.18], "SKEW": [151.03, 149.37], "VIX_TERM_SLOPE": [1.33, -4.48]},
+        ["2026-10-29", "2026-11-05"],
+    )
+    assert check_latest_complete(path) == []
+
+
+def test_latest_row_missing_columns(tmp_path):
+    path = _write_volatility(
+        tmp_path,
+        {"VIX": [17.2, None], "SKEW": [151.03, None], "VIX_TERM_SLOPE": [1.33, None]},
+        ["2026-10-29", "2026-11-05"],
+    )
+    assert check_latest_complete(path) == ["VIX", "SKEW", "VIX_TERM_SLOPE"]
+
+
+def test_only_latest_row_counts(tmp_path):
+    """历史日期的空洞不触发补抓：只看最新观测日。"""
+    path = _write_volatility(
+        tmp_path,
+        {"VIX": [None, 28.18], "SKEW": [None, 149.37]},
+        ["2026-10-29", "2026-11-05"],
+    )
+    assert check_latest_complete(path) == []
+
+
+def test_missing_file(tmp_path):
+    assert check_latest_complete(tmp_path / "absent.csv") == ["文件不存在"]

@@ -1,0 +1,92 @@
+name: cboe-retry
+
+# 按需补抓：cdn.cboe.com 的 daily_prices 各指数文件分批更新，VIX / SKEW / VXTH 三份
+# 比同批其它 23 份晚 3~4 小时（2026-11-05 实测：其余 22:31 GMT 就位，这三份
+# 02:10~02:20 GMT 才更新），daily-full 的 fetch_cboe 跑在 01:2x GMT，当日行的
+# VIX / SKEW / VXTH / VIX_TERM_SLOPE 只能留空。
+# daily-full 收尾检测到缺列就 dispatch 本 workflow（见该 workflow 的同名 step）。
+# 没缺口的日子本 workflow 完全不跑。
+#
+# 等待策略：等到下一个 UTC 02:30（三份最晚 02:20:47 更新完）再抓一次，仍缺则每 10 分钟
+# 重试、最多 6 轮。距下一个 02:30 超过 5 小时（daily-full 起跑漂到别处）时不等，
+# 就地重试——那种时刻源通常已经就位。
+#
+# 独立 concurrency group：本 job 最长挂约 5 小时，与其余数据 workflow 共享 data-fetch
+# 会把 crypto-hourly 整段堵住；push 撞车由 rebase 兜底（本 job 只写一个文件）。
+
+on:
+  workflow_dispatch: {}
+
+concurrency:
+  group: cboe-retry
+  cancel-in-progress: false
+
+jobs:
+  retry:
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+      actions: write   # 补抓有数据变更时显式 dispatch deploy-pages（PAT push 不触发部署）
+    steps:
+      - uses: actions/checkout@v5
+
+      # 并发组放行时上一班可能已 push 同源数据，先对齐最新 main 再拉
+      - name: Sync to latest main
+        run: git pull --rebase origin main
+
+      - uses: astral-sh/setup-uv@v9.0.0
+        with:
+          python-version: "3.13"
+          enable-cache: true   # uv.lock 已入库，按 lock 哈希缓存依赖
+
+      - name: Install deps
+        run: uv sync
+
+      - name: 等源就位后补抓
+        run: |
+          now=$(date -u +%s)
+          target=$(date -u -d "today 02:30" +%s)
+          [ "$now" -ge "$target" ] && target=$(date -u -d "tomorrow 02:30" +%s)
+          gap=$((target - now))
+          if [ "$gap" -le 18000 ]; then
+            while [ "$(date -u +%s)" -lt "$target" ]; do
+              left=$((target - $(date -u +%s)))
+              echo "距 UTC 02:30 还有 ${left}s"
+              [ "$left" -gt 600 ] && sleep 600 || sleep "$left"
+            done
+          else
+            echo "距 UTC 02:30 还有 ${gap}s，超过 5 小时，改为就地重试"
+          fi
+
+          for i in 1 2 3 4 5 6; do
+            bash bin/fetch_cboe
+            if uv run python -m src.fetchers.cboe_fetcher --check-latest; then
+              echo "第 $i 轮补齐"
+              exit 0
+            fi
+            sleep 600
+          done
+          echo "6 轮仍未补齐：源当日未更新，留给 intraday-refresh 的 fetch_cboe 补"
+          exit 1
+
+      - name: Commit and push updates
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add data/
+          if git diff --cached --quiet; then
+            echo "no data changes, skip commit"
+          else
+            git commit -m "data: 补抓 CBOE 波动率当日行"
+            # 并行的 crypto-hourly 可能已 push：rebase 冲突则干净放弃，
+            # 后续 intraday-refresh 的同源 upsert 会补上
+            git pull --rebase origin main || { git rebase --abort; exit 1; }
+            git push "https://x-access-token:${{ secrets.DATA_PUSH_TOKEN }}@github.com/heliar-k/market-base.git" HEAD:main
+            echo "DATA_PUSHED=1" >> "$GITHUB_ENV"
+          fi
+
+      - name: 触发 Pages 部署
+        if: env.DATA_PUSHED == '1'
+        env:
+          GH_TOKEN: ${{ github.token }}   # Actions 里 gh CLI 必须显式给 token（否则 exit 4）
+        run: gh workflow run deploy-pages.yml --ref main

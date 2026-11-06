@@ -241,6 +241,13 @@ market-base/
 >
 > 重叠是故意的：三个加速班次覆盖的源在 daily-full 里都有同源兜底（upsert 幂等，同日重复拉零风险）。
 >
+> **按需补抓 `cboe-retry`（无 cron，由 daily-full dispatch）**：cdn.cboe.com 的 daily_prices
+> 各指数文件分批更新，VIX / SKEW / VXTH 三份比同批其它 23 份晚 3~4 小时（2026-11-05 实测：
+> 其余 22:31 GMT 就位，这三份 02:10~02:20 GMT 才更新）；daily-full 的 fetch_cboe 跑在
+> 01:2x GMT，当日行的 VIX / SKEW / VXTH / VIX_TERM_SLOPE 会留空。daily-full 收尾用
+> `cboe_fetcher --check-latest` 查最新观测日，缺列就 `gh workflow run cboe-retry.yml`；
+> 该 job 等到 UTC 02:30 抓一次，仍缺则每 10 分钟重试 6 轮，补齐才 commit。没缺口的日不跑。
+>
 > 触发精度：GitHub schedule 实测延迟/丢班严重（daily-full 曾延迟 3-12h；2026-10-18~25 七天实测：
 > intraday 应跑 ~160 班只 schedule 到 14 班、crypto-hourly 应跑 ~168 只到 40），
 > **数据时效性实际靠 Cloudflare Worker cron，不靠 GitHub。**

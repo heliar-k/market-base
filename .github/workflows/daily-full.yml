@@ -157,6 +157,21 @@ jobs:
             echo "DATA_PUSHED=1" >> "$GITHUB_ENV"
           fi
 
+      # CBOE 各指数 CSV 分批更新：VIX / SKEW / VXTH 三份比同批其它 23 份晚 3~4 小时
+      # （2026-11-05 实测：其余 22:31 GMT 就位，这三份 02:10~02:20 GMT 才更新），
+      # 本班次 fetch_cboe 跑在 01:2x GMT，当日行的 VIX / SKEW / VXTH / VIX_TERM_SLOPE 只能留空。
+      # 缺列时派发 cboe-retry.yml 补抓，本班次不等待——起跑时刻随 GitHub 排队漂移，
+      # 干等源就位可能要多挂几小时。
+      - name: CBOE 当日行缺列 → 派发补抓
+        env:
+          GH_TOKEN: ${{ github.token }}   # Actions 里 gh CLI 必须显式给 token（否则 exit 4）
+        run: |
+          if uv run python -m src.fetchers.cboe_fetcher --check-latest; then
+            echo "CBOE 最新观测日齐全"
+          else
+            gh workflow run cboe-retry.yml --ref main
+          fi
+
       # 部署：数据 push 不触发 push 事件（见上），所以有数据变更时显式拉起 deploy-pages。
       # 无新观测 → 不 commit → 不 dispatch，空跑仍归零（当初删 workflow_run 触发的初衷）。
       # 位置在「失败汇总」之前：部分源失败时数据照常 commit、照常部署。
