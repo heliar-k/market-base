@@ -334,27 +334,68 @@ const R = {
   // 纯文本注脚里拼时效仍用 asOf（textContent 场景），别把本函数的 HTML 拼进去。
   // 每段包一层 .re-as-of-seg（分隔点由 CSS ::before 画）：窄屏各段独占一行右对齐，
   // 宽屏同行 —— 否则多段串在窄屏按字符自动断行，日期会被劈成两半（用户实测）。
+  //
+  // 段可选第三项 = 该段对应的数据集路径（src/data_freshness.py 的 CHECKS 的 path，
+  // 字符串或数组）：命中 /api/freshness 的 over 时该段转告警色并追「超预算 N 天」，
+  // 全量细节进 title。时效超预算原本只在 CI 里报，页面看不出。
   setAsOf(src) {
     const el = document.getElementById('re-as-of');
     if (!el) return;
     const list = typeof src === 'string' ? [src] : src || [];
-    const segs = list
-      .map((s) => {
-        if (!Array.isArray(s)) return s ? R.esc(String(s)) : '';
-        if (!s[1]) return '';
-        const tier = R.TIERS[s[0]];
-        const chip = tier
-          ? ` <span class="re-tier re-tier--${tier}" title="${R.TIER_DEF[tier].tip}">${R.TIER_DEF[tier].name}</span>`
-          : '';
-        return `${R.esc(String(s[0]))} ${R.esc(String(s[1]))}${chip}`;
-      })
-      .filter(Boolean);
-    if (!segs.length) {
-      el.innerHTML = '';
-      return;
+    const render = (over) => {
+      const segs = list.map((s) => R._asOfSeg(s, over)).filter((x) => x.html);
+      if (!segs.length) {
+        el.innerHTML = '';
+        return;
+      }
+      segs[0].html = `数据截至 ${segs[0].html}`;
+      el.innerHTML = segs
+        .map((x) => {
+          const cls = x.stale ? 're-as-of-seg re-as-of-seg--stale' : 're-as-of-seg';
+          const tip = x.title ? ` title="${x.title}"` : '';
+          return `<span class="${cls}"${tip}>${x.html}</span>`;
+        })
+        .join('');
+    };
+    render({});
+    // 未声明数据集的页（其余专题页）不发请求，行为与加这个参数之前逐字节一致
+    if (!list.some((s) => Array.isArray(s) && s[2])) return;
+    R._fresh().then((over) => {
+      if (Object.keys(over).length) render(over); // 无超预算项 → 保留首次渲染的 DOM
+    });
+  },
+  // /api/freshness 只取一次（缓存 promise）；任何失败（404 / 网络 / 解析）当空表，页头不动
+  _fresh() {
+    if (!R._freshP) {
+      R._freshP = fetch('/api/freshness')
+        .then((resp) => (resp.ok ? resp.json() : null))
+        .then((j) => (j && j.over) || {})
+        .catch(() => ({}));
     }
-    segs[0] = `数据截至 ${segs[0]}`;
-    el.innerHTML = segs.map((seg) => `<span class="re-as-of-seg">${seg}</span>`).join('');
+    return R._freshP;
+  },
+  _freshP: null,
+  // 单个时效段 → {html, stale, title}；stale/title 只在命中超预算数据集时给出
+  _asOfSeg(s, over) {
+    if (!Array.isArray(s)) return { html: s ? R.esc(String(s)) : '' };
+    if (!s[1]) return { html: '' };
+    const tier = R.TIERS[s[0]];
+    const chip = tier
+      ? ` <span class="re-tier re-tier--${tier}" title="${R.TIER_DEF[tier].tip}">${R.TIER_DEF[tier].name}</span>`
+      : '';
+    const paths = s[2] ? (Array.isArray(s[2]) ? s[2] : [s[2]]) : [];
+    // 多个数据集命中时只报超出最多的那条（同 options_structure 有两条预算不同的检查）
+    let hit = null;
+    paths.forEach((p) => {
+      const o = over[p];
+      if (o && (!hit || o.age - o.budget > hit.age - hit.budget)) hit = o;
+    });
+    const mark = hit ? ` · 超预算 ${hit.age - hit.budget} 天` : '';
+    return {
+      html: `${R.esc(String(s[0]))} ${R.esc(String(s[1]))}${chip}${mark}`,
+      stale: Boolean(hit),
+      title: hit ? R.esc(`${hit.note}：落后 ${hit.age} 天 / 预算 ${hit.budget} 天`) : '',
+    };
   },
   // 月频发布滞后：取一组观测日的最早–最晚，拼成「月频 起–止」时效段（配合 asOf 用）
   asMonth: (dates) => {

@@ -159,6 +159,14 @@ def get_symbols():
     return IBKR_SYMBOLS
 
 
+@app.get("/api/freshness")
+def get_freshness() -> dict:
+    """超出时效预算的数据集（页头时效标红用）；预算表在 src/data_freshness.py。"""
+    from src.data_freshness import over_budget
+
+    return {"checked_at": date.today().isoformat(), "over": over_budget()}
+
+
 @app.get("/api/kline/{symbol}")
 def get_kline(
     symbol: str,

@@ -337,6 +337,36 @@ def audit(
     return rows
 
 
+def over_budget(
+    root: Path | None = None,
+    now_utc: datetime | None = None,
+    et_today: date | None = None,
+) -> dict[str, dict]:
+    """超出预算的数据集 → {路径: {age, budget, note}}（页头时效标红用）。
+
+    只收「状态非 ok **且**落后天数已知」的行：占位行 / 名册 / OI 待回补这几条值维
+    断言没有落后天数，页面无从显示「超预算 N 天」，它们仍只走 main() 的失败列表。
+    同一路径在 CHECKS 里可以出现两次（options_structure 的快照与 raw 链预算不同），
+    取超出更多的那条 —— 页面只需要「这个数据集落后了」这一个事实。
+    """
+    now = now_utc or datetime.now(timezone.utc)
+    rows = audit(
+        root or Path(ROOT),
+        now.date(),
+        et_today=et_today or now.astimezone(ET).date(),
+    )
+    out: dict[str, dict] = {}
+    worst: dict[str, int] = {}
+    for status, path, age, note, budget in rows:
+        if status == "ok" or age is None:
+            continue
+        if path in worst and worst[path] >= age - budget:
+            continue
+        worst[path] = age - budget
+        out[path] = {"age": age, "budget": budget, "note": note}
+    return out
+
+
 # ── 占位行检测（值维断言）──────────────────────────────────────────────
 # 2026-10-13 事故：asset_prices 是全站唯一「拉取日为 key」的快照，盘前班次把
 # 前日收盘写进当日行；收盘后 Yahoo 指数日线迟迟不更新，「同值 → 无 diff → 不

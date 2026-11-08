@@ -408,3 +408,19 @@ def test_roster_malformed_csv_reports(tmp_path):
     (tmp_path / "data" / "fed" / "roster.csv").write_text("not,a,valid\ncsv")
     msg = fr.roster_year_msg(tmp_path, date(2026, 6, 1))
     assert msg and "解析" in msg or "异常" in (msg or "")
+
+
+def test_over_budget_map_only_stale_rows_with_age(tmp_path):
+    """页头标红用：只收「状态非 ok 且落后天数已知」的数据集。
+
+    MISSING（tmp_path 下其余 CHECKS 文件都不存在）与值维断言（无落后天数）都不进表，
+    否则前端无从拼出「超预算 N 天」。预算阈值取 CHECKS 原值（rates/tips 都是 6 天）。
+    """
+    _csv(tmp_path, "data/fred/rates/rates.csv", ["2026-08-01", "2026-08-20"])
+    _csv(tmp_path, "data/fred/tips/tips.csv", ["2026-09-04"])
+    over = fr.over_budget(
+        tmp_path,
+        datetime(2026, 9, 5, 12, tzinfo=timezone.utc),
+        date(2026, 9, 5),
+    )
+    assert over == {"data/fred/rates/rates.csv": {"age": 16, "budget": 6, "note": "FRED 日频利率"}}

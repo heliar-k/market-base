@@ -42,6 +42,7 @@ from src.server import (  # noqa: PLC2701 复用路由函数
     get_diag,
     get_fed_overview,
     get_fomc_calendar,
+    get_freshness,
     get_geo_overview,
     get_home_lines,
     get_inflation_overview,
@@ -158,6 +159,8 @@ def export_api() -> None:
     )
     symbols = get_symbols()
     _dump("api/symbols", symbols)
+    # 页头时效标红（R.setAsOf 的第三段查这张表）：走 _safe，取数出问题时其余端点照常导出
+    _safe("api/freshness", get_freshness)
     _safe("api/tech/overview", get_tech_overview)
 
     # K 线：近 3 年（导出侧按日期过滤，cutoff 之前的老数据不进静态包）；
