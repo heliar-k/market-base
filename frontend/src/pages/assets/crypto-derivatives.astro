@@ -23,7 +23,8 @@ import TopicLayout from '../../layouts/TopicLayout.astro';
 
 <script is:inline>
 const fmt = R.num;
-function stance(ann) { const a = Math.abs((ann || 0) * 100); if (ann < 0) return '偏空'; return a >= 30 ? '偏多（拥挤）' : (a >= 15 ? '偏多' : '中性'); }
+// 资金费率立场：±15% 拥挤带（与雷达反向计分、对照卡通道同一阈值），30% 以上标拥挤
+function stance(ann) { const pct = (ann || 0) * 100; if (pct >= 15) return pct >= 30 ? '偏多（拥挤）' : '偏多'; if (pct <= -15) return '偏空'; return '中性'; }
 
 async function load() {
   // 小节锚点导航（全站统一 JS 填；末尾两项为加密三兄弟的跨页链接，非锚点）
@@ -39,6 +40,8 @@ async function load() {
   // PCR 阈值取自后端 consensus.bands（与加密总览的机构 vs 散户同源），不在页面写死
   const [pcrLo, pcrHi] = d.consensus.bands.pcr;
   const pcrStance = p => (p == null ? '中性' : (p <= pcrLo ? '偏多' : (p >= pcrHi ? '偏空' : '中性')));
+  // 基差死区：与雷达方向票、机构 vs 散户同源（旧 payload 缺该字段时按缺失处理）
+  const basisBand = d.consensus && d.consensus.bands ? d.consensus.bands.basis : null;
 
   const p = d.perp || {};
   const optB = d.options_BTC || {}, optE = d.options_ETH || {};
@@ -200,12 +203,12 @@ async function load() {
       { label: '30 日均值', value: `${bz.ma30}%`, sub: '近 30 个有效观测' },
       { label: '1 年百分位', value: `${bz.pct_rank}%`, sub: '区间内相对位置' },
       { label: 'Spread（基差−SOFR）', value: bz.spread == null ? '—' : bz.spread + '%', sub: `SOFR ${bz.sofr}%`,
-        vcolor: bz.spread != null && bz.spread > 5 ? 'var(--up)' : (bz.spread != null && bz.spread < 0 ? 'var(--down)' : '') },
+        vcolor: basisBand != null && bz.spread != null && bz.spread > basisBand ? 'var(--up)' : (basisBand != null && bz.spread != null && bz.spread < -basisBand ? 'var(--down)' : '') },
     ], 're-cards-2col'));
     bsec.insertAdjacentHTML('beforeend', `<details class="re-fold"><summary>口径 · 读法</summary>
       <div class="re-explain" style="margin-top:8px">
         <b>如何解读</b> — 基差代表机构愿意为远期 BTC 支付的溢价。基差高不等于立刻上涨，但说明 carry/套利资金愿意留在场内。
-        <span style="opacity:.7">Spread = 基差 60d EMA − SOFR（套利价差）；&gt;5% 套利空间充足，&lt;0 为负。</span></div>
+        <span style="opacity:.7">Spread = 基差 60d EMA − SOFR（套利价差）；${basisBand == null ? '死区口径待快照更新' : `死区 ±${basisBand}%，带外为 carry 方向`}。</span></div>
       <p class="re-source" style="margin:8px 0 0">公式：basis = (F−S)/S × 365/dte × 100%；治理：dte&lt;10 天跳过 · |basis|&gt;18% 过滤 · 最新未成熟日线跳过（数据完整性 ~35%，近月连续合约 proxy，非 CME 逐合约结算）。</p></details>`);
     document.getElementById('basis').appendChild(bsec);
   }
@@ -276,7 +279,7 @@ async function load() {
         ['CME BTC 期货 OI', cmeK.fut_oi == null ? '—' : fmt(cmeK.fut_oi, 0) + ' 份',
           cmeK.fut_oi == null ? '—' : '≈ ' + fmt(cmeK.fut_oi * 5, 0) + ' BTC · Micro 另 ' + fmt(cmeK.micro_oi, 0) + ' 份 · ' + (cmeK.as_of || '')],
         ['CME BTC 基差（年化）', R.fmtPct(bz.current), '30 日均值 ' + R.fmtPct(bz.ma30) + ' · 1 年分位 ' + R.fmtPct(bz.pct_rank) + ' · ' + (bz.latest || '—')],
-        ['基差−SOFR 价差', R.fmtPct(bz.spread), 'SOFR ' + R.fmtPct(bz.sofr) + ' · >5% 为套利空间充足'],
+        ['基差−SOFR 价差', R.fmtPct(bz.spread), 'SOFR ' + R.fmtPct(bz.sofr) + (basisBand == null ? '' : ' · 死区 ±' + basisBand + '%')],
         ['BTC 期权 P/C（OI）', R.num(optB.pcr, 2), pcrStance(optB.pcr) + '区间 · Deribit 全到期'],
         ['BTC Max Pain（最近到期）', maxPain == null ? '—' : '$' + fmt(maxPain, 0), (optB.nearest_exp || '—') + ' 到期'],
         ['BTC 期权墙（最近到期）', wallPair, 'OI 最大行权价 · ' + (optB.nearest_exp || '—')],

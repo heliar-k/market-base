@@ -1,7 +1,17 @@
 import json
 from pathlib import Path
 
-from src.assets_analysis import LS_HIGH, LS_LOW, PCR_HIGH, PCR_LOW
+import pandas as pd
+
+from src.analysis_utils import read_csv_or_empty
+from src.assets_analysis import (
+    BASIS_BAND,
+    LS_HIGH,
+    LS_LOW,
+    PCR_HIGH,
+    PCR_LOW,
+    _crypto_basis,
+)
 
 ROOT = Path(__file__).resolve().parents[1]
 WINDOW = 20
@@ -44,6 +54,19 @@ def _pct_rank(values: list[float], value: float) -> float:
     return sum(1 for v in values if v <= value) / len(values) * 100
 
 
+def _basis_spread_series() -> list[float]:
+    """60d EMA 基差 − SOFR（与 assets_analysis._crypto_basis 同口径），升序。"""
+    basis = read_csv_or_empty(ROOT / "data" / "crypto_basis" / "basis.csv")
+    rates = read_csv_or_empty(ROOT / "data" / "fred" / "rates" / "rates.csv")
+    if basis.empty or "basis_pct" not in basis.columns or "SOFR" not in rates.columns:
+        return []
+    ema = basis["basis_pct"].dropna().ewm(span=60, adjust=False).mean()
+    joined = pd.concat(
+        [ema.rename("ema"), rates["SOFR"].dropna().rename("sofr")], axis=1, sort=True
+    ).dropna()
+    return list(joined["ema"] - joined["sofr"])
+
+
 def test_thresholds_sit_inside_distribution():
     for label, values, lo, hi in _cases():
         assert len(values) >= 40, f"{label} 历史只有 {len(values)} 个观测，无法校验分位"
@@ -57,6 +80,26 @@ def test_thresholds_sit_inside_distribution():
             f"{label} 上界 {hi} 落在历史 {hi_pct:.0f} 分位（应落在 60–97），"
             "太低会频繁误触、太高等于永不触发"
         )
+
+
+def test_basis_deadband_keeps_both_sides_reachable():
+    """基差 ±BASIS_BAND 死区两侧都要有足够触发面（各 ≥15%），否则一侧永不出票。
+
+    与 PCR/多空比不同，基差是对称死区（不是分位界），所以不套分位区间断言；
+    也不套「最近 N 个观测不同侧」——carry 单边持续是真实行情。
+    """
+    spread = _basis_spread_series()
+    assert len(spread) >= 100, f"基差 spread 历史只有 {len(spread)} 个观测"
+    # 重建序列要与生产 _crypto_basis 的最新 spread 对齐，否则生产口径改了这里不会红
+    latest = _crypto_basis().get("spread")
+    assert latest is not None, "生产 _crypto_basis 取不到 spread"
+    assert abs(spread[-1] - latest) < 0.05, (
+        f"测试重建的最新 spread {spread[-1]:.2f} 与生产 {latest} 不一致（口径漂移）"
+    )
+    up = sum(1 for v in spread if v > BASIS_BAND) / len(spread)
+    down = sum(1 for v in spread if v < -BASIS_BAND) / len(spread)
+    assert up >= 0.15, f"spread > +{BASIS_BAND} 只占 {up * 100:.0f}%，偏多几乎不出票"
+    assert down >= 0.15, f"spread < -{BASIS_BAND} 只占 {down * 100:.0f}%，偏空几乎不出票"
 
 
 def test_recent_readings_not_all_on_one_side():

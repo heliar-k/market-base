@@ -292,11 +292,22 @@ function renderRadar(d) {
   const spotNow = (d.options_BTC || {}).spot_anchor;
   const etf5 = d.etf && d.etf.available && !d.etf.stale ? d.etf.sum5d_busd : null;
   const spreadV = d.basis && d.basis.available ? d.basis.spread : null;
+  // 基差死区取自后端（与雷达方向票、机构 vs 散户同源）；旧 payload（CDN 缓存）缺该字段时
+  // 反证显示数据缺，不静默判成 ✗
+  const basisBand = d.consensus && d.consensus.bands ? d.consensus.bands.basis : null;
   const annFrRaw = ((d.perp || {}).BTC || {}).funding_annual;
   const annFr = annFrRaw == null ? null : annFrRaw * 100;
   const cf = (ok, label, val) => `<div class="radar-cf">
       <span class="mk" style="color:${ok == null ? 'var(--flat)' : ok ? 'var(--up)' : 'var(--down)'}">${ok == null ? '—' : ok ? '✓' : '✗'}</span>
       <span>${label}</span><span class="v">${val == null ? '—' : val}</span></div>`;
+  const basisRefute =
+    basisBand == null
+      ? cf(null, '基差死区待快照更新', null)
+      : cf(
+          spreadV == null ? null : spreadV > basisBand,
+          `基差 Spread 高于 +${basisBand}%`,
+          spreadV == null ? null : spreadV + '%'
+        );
   // 刻度尺按后端真实量程 ±4（total = Σdir·权重 / Σ权重 × 100/25，见 crypto_radar docstring）
   const pos = radar.total == null ? 50 : Math.max(0, Math.min(100, Math.round(((radar.total + 4) / 8) * 100)));
   const nLive = sigs.filter(s => s.value !== undefined).length;
@@ -319,7 +330,7 @@ function renderRadar(d) {
           ${cf(etf5 == null ? null : etf5 > 0, 'ETF 5d 净流入转正', etf5 == null ? null : (etf5 >= 0 ? '+' : '') + etf5.toFixed(2) + ' B')}
         </div>
         <div><h4>反证 · 任一 ✗ = 降杠杆信号</h4>
-          ${cf(spreadV == null ? null : spreadV > 0, '基差 Spread 保持为正', spreadV == null ? null : spreadV + '%')}
+          ${basisRefute}
           ${cf(annFr == null ? null : Math.abs(annFr) < 15, '费率年化在 ±15% 内', annFr == null ? null : annFr.toFixed(1) + '%')}
         </div>
       </div>

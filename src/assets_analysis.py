@@ -3645,6 +3645,9 @@ PCR_LOW, PCR_HIGH = 0.55, 0.65
 # 多空账户比：Coinglass 24h 多空账户比中心在 0.97（不在 1.0），78 天实测
 # 0.83–1.40（p10 0.93 / p90 1.07），取 p10/p90 为拥挤边界。
 LS_LOW, LS_HIGH = 0.90, 1.10
+# 基差 spread（60d EMA − SOFR）死亡带：ema60 相邻日变化中位 0.17，
+# spread 在 0 附近属噪声。历史 257 个观测范围 -2.30~+5.15，中位 +0.60。
+BASIS_BAND = 0.25
 
 
 def _stance(value: float | None, thr: float) -> str:
@@ -3658,8 +3661,8 @@ def crypto_consensus(snap: dict, radar: dict) -> dict:
     """机构 vs 散户方向对照：机构=CME 头寸信号（直接复用雷达结果，不另算一套）+ETF；
     散户=资金费率 + 多空账户比（Coinglass） + PCR。返回双方立场与对照结论。"""
     cme_sig = next((s for s in (radar or {}).get("signals", []) if s["name"] == "CME 机构头寸"), {})
-    chg = cme_sig.get("value")  # 中性带已应用：要么 None，要么 0 / ±10%（CFTC）/ ±1%（OI）
-    inst_stance = _stance(chg, 0.5)
+    chg = cme_sig.get("value")  # 雷达已吸附中性带：要么 None，要么 0 / ±10%（CFTC）/ ±1%（OI）
+    inst_stance = "偏多" if chg and chg > 0 else ("偏空" if chg and chg < 0 else "中性")
 
     perp = (snap.get("perp") or {}).get("BTC") or {}
     opt = snap.get("options_BTC") or {}
@@ -3682,26 +3685,35 @@ def crypto_consensus(snap: dict, radar: dict) -> dict:
         # 低 PCR = call 拥挤 = 偏多（与雷达口径一致）
         pcr_stance = "偏多" if pcr <= PCR_LOW else ("偏空" if pcr >= PCR_HIGH else "中性")
 
-    # ETF 通道（Farside；stale 不投票）
+    # ETF 通道（Farside；stale 不投票；方向按净流符号，无中性带——
+    # 5 日累计本身已是平滑量，±0.05B 的带在历史上只影响 4.2% 的观测）
     etf = snap.get("etf") or {}
     etf_stance = "中性"
     if etf.get("available") and not etf.get("stale"):
         v5 = etf.get("sum5d_busd")
-        etf_stance = "偏多" if (v5 or 0) > 0.05 else ("偏空" if (v5 or 0) < -0.05 else "中性")
-    # 基差 carry 通道（Spread = 60d EMA − SOFR；>5% 吸引力足 / <0 负）
+        # v5 缺失时不折成中性票（与 has_data 口径一致）
+        etf_stance = (
+            "中性" if v5 is None else ("偏多" if v5 > 0 else ("偏空" if v5 < 0 else "中性"))
+        )
+    # 基差 carry 通道（Spread = 60d EMA − SOFR；与雷达共用 BASIS_BAND 死区）
     bz = snap.get("basis") or {}
     spread = bz.get("spread")
-    bz_stance = "偏多" if (spread or 0) > 5 else ("偏空" if (spread or 0) < 0 else "中性")
+    bz_stance = (
+        ("偏多" if spread > BASIS_BAND else ("偏空" if spread < -BASIS_BAND else "中性"))
+        if spread is not None
+        else "中性"
+    )
 
     # 通道明细单源：读数 + 判定阈值 + 立场 + 是否有数据。缺数据的通道不计票
     # （历史上缺失被当「中性」混进票型，会得出「散户未反向 → 同向」的假结论）。
     etf_live = bool(etf.get("available") and not etf.get("stale"))
+    etf_has = etf_live and etf.get("sum5d_busd") is not None
     inst_channels = [
         {
             "name": "CME 头寸",
             "stance": inst_stance,
             "reading": f"{chg:+.1f}%" if chg is not None else None,
-            "band": "4 周变化 · ±0.5% 中性带",
+            "band": cme_sig.get("band") or "4 周变化 · ±10% 中性带",
             "detail": cme_sig.get("desc") or "CME 头寸数据待积累",
             "has_data": chg is not None,
         },
@@ -3711,15 +3723,15 @@ def crypto_consensus(snap: dict, radar: dict) -> dict:
             "reading": (
                 f"{etf.get('sum5d_busd'):+.2f} B" if etf.get("sum5d_busd") is not None else None
             ),
-            "band": "5 日净流 · ±0.05B 中性带",
+            "band": "5 日净流 · 0 为界",
             "detail": f"Farside 截至 {etf.get('latest')}" if etf_live else "Farside 数据缺失或过期",
-            "has_data": etf_live,
+            "has_data": etf_has,
         },
         {
             "name": "基差 Spread",
             "stance": bz_stance,
             "reading": f"{spread}%" if spread is not None else None,
-            "band": "60d EMA − SOFR · >5% 多 / <0 空",
+            "band": f"EMA − SOFR · ±{BASIS_BAND} 死区",
             "detail": f"EMA {bz.get('ema60')}% − SOFR {bz.get('sofr')}%",
             "has_data": spread is not None,
         },
@@ -3808,7 +3820,7 @@ def crypto_consensus(snap: dict, radar: dict) -> dict:
                 "通道对立时以 ETF 现货通道为锚，Spread 作 carry 参考。"
             )
         elif all(s == inst_lean or s == "中性" for s in retail_stances):
-            verdict = f"机构与散户同向偏{short_inst[:1]} — 趋势延续概率上升"
+            verdict = f"机构与散户同向偏{short_inst[:1]} — 立场一致"
             detail = f"机构（{note_inst}）偏{short_inst}且散户未反向，方向性信号同向。"
         else:
             verdict = f"机构{lean_text(inst_lean)}，散户{lean_text(retail_lean)} — 分歧看定价权"
@@ -3829,7 +3841,11 @@ def crypto_consensus(snap: dict, radar: dict) -> dict:
         },
         "verdict": verdict,
         "detail": detail,
-        "bands": {"pcr": [PCR_LOW, PCR_HIGH], "ls": [LS_LOW, LS_HIGH]},
+        "bands": {
+            "pcr": [PCR_LOW, PCR_HIGH],
+            "ls": [LS_LOW, LS_HIGH],
+            "basis": BASIS_BAND,
+        },
         "generator": "rules",
     }
 
@@ -3855,7 +3871,9 @@ def crypto_radar(snap: dict) -> dict:
     score = 0.0
     weight_total = 0.0
 
-    def add(name: str, weight: int, value: float | None, desc: str) -> None:
+    def add(
+        name: str, weight: int, value: float | None, desc: str, band: str | None = None
+    ) -> None:
         nonlocal score, weight_total
         if value is None:
             signals.append(
@@ -3864,6 +3882,7 @@ def crypto_radar(snap: dict) -> dict:
                     "weight": weight,
                     "dir": 0,
                     "desc": desc + "（数据不可用，不计入评分）",
+                    "band": band,
                 }
             )
             return
@@ -3875,6 +3894,7 @@ def crypto_radar(snap: dict) -> dict:
                 "dir": d,
                 "value": round(value, 3),
                 "desc": desc,
+                "band": band,
             }
         )
         score += d * weight
@@ -3888,6 +3908,7 @@ def crypto_radar(snap: dict) -> dict:
     # 匹配持仓无方向含义，净头寸才有；COT 缺失时回退 Coinglass CME OI 7d 变化
     cme_val: float | None = None
     cme_desc = ""
+    cme_band: str | None = None
     cot = _csv("cot/cot.csv")
     if {"BTC_ASSET_L", "BTC_ASSET_S"} <= set(cot.columns):
         net = (cot["BTC_ASSET_L"] - cot["BTC_ASSET_S"]).dropna()
@@ -3896,12 +3917,14 @@ def crypto_radar(snap: dict) -> dict:
             pct = chg / max(abs(float(net.iloc[-5])), 1.0) * 100
             cme_val = pct if abs(pct) >= 10 else 0.0  # ±10% 中性带
             cme_desc = f"CFTC 大投机净头寸 4 周变化 {chg:+,.0f} 张（{pct:+.0f}%）"
+            cme_band = "4 周变化 · ±10% 中性带"
     if cme_val is None:
         chg = _chg_nd(_coinglass_series(), _cme_oi)
         if chg is not None:
             cme_val = chg if abs(chg) >= 1 else 0.0
             cme_desc = f"CME OI 7d 变化 {chg:+.1f}%（Coinglass，±1% 中性带）"
-    add("CME 机构头寸", 15, cme_val, cme_desc or "CFTC/Coinglass 数据待积累")
+            cme_band = "7d 变化 · ±1% 中性带"
+    add("CME 机构头寸", 15, cme_val, cme_desc or "CFTC/Coinglass 数据待积累", cme_band)
 
     # 杠杆风险（资金费率年化；timsun 口径：>30% 高 / >15% 中 / 其余低）
     fr = perp.get("funding_annual") or 0
@@ -3927,25 +3950,29 @@ def crypto_radar(snap: dict) -> dict:
     )
 
     # 基差 carry（Spread = EMA60 − SOFR 判向：>0 机构 carry 有吸引力 → 正分；
-    # SOFR 缺失则用 EMA60 本身）
+    # ±BASIS_BAND 内视为噪声、不计方向）；SOFR 缺失时不计票（绝对基差不减
+    # 融资成本，方向含义不同，且结构性为正会恒投多头票）
     basis = cme.get("basis_pct")
     bz = snap.get("basis") or {}
     if bz.get("available"):
-        bv = bz.get("spread") if bz.get("spread") is not None else bz.get("ema60")
-        add(
-            "基差 carry",
-            20,
-            bv,
-            f"Spread {bz.get('spread')}% ({bz.get('ema60')}% EMA − SOFR {bz.get('sofr')}%)"
-            if bz.get("spread") is not None
-            else f"基差 60d EMA {bz.get('ema60')}%（SOFR 不可用）",
-        )
+        spread_v = bz.get("spread")
+        if spread_v is None:
+            add("基差 carry", 20, None, f"基差 60d EMA {bz.get('ema60')}%（SOFR 不可用）")
+        else:
+            add(
+                "基差 carry",
+                20,
+                0.0 if abs(spread_v) < BASIS_BAND else spread_v,
+                f"Spread {spread_v:+.2f}% ({bz.get('ema60')}% EMA − SOFR {bz.get('sofr')}%，"
+                f"±{BASIS_BAND} 死区)",
+            )
     else:
         add(
             "基差 carry",
             20,
             basis,
             f"Spread {basis:.2f}%，CME ${cme.get('fut_price')} vs 现货 ${cme.get('spot')}"
+            "（回退口径，0 为界）"
             if basis is not None
             else "CME 基差不可用",
         )
