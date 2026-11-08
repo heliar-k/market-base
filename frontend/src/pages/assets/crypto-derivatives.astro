@@ -25,6 +25,9 @@ import TopicLayout from '../../layouts/TopicLayout.astro';
 const fmt = R.num;
 // 资金费率立场：±15% 拥挤带（与雷达反向计分、对照卡通道同一阈值），30% 以上标拥挤
 function stance(ann) { const pct = (ann || 0) * 100; if (pct >= 15) return pct >= 30 ? '偏多（拥挤）' : '偏多'; if (pct <= -15) return '偏空'; return '中性'; }
+// taker 3 日买卖比阈值：78 个快照实测 0.910–1.102（p10 0.967 / p90 1.071），取 p10/p90；
+// 旧阈 1.2/0.8 在这份分布外，两侧从未触发
+const TAKER_LOW = 0.97, TAKER_HIGH = 1.07;
 
 async function load() {
   // 小节锚点导航（全站统一 JS 填；末尾两项为加密三兄弟的跨页链接，非锚点）
@@ -37,11 +40,18 @@ async function load() {
   const d = await R.get('/api/assets/crypto-derivatives');
   if (!d || !d.ts) { R.fail(['now', 'etf', 'kpi', 'funding', 'retail', 'basis', 'coinglass'], new Error('无加密衍生品快照 · 运行 ./bin/fetch_crypto_derivatives 后刷新')); return; }
   R.setAsOf([['衍生品快照', d.ts.slice(0, 10)], d.cme && ['CME 期货 OI', d.cme.as_of], d.basis && d.basis.available && ['基差', d.basis.latest]]);
-  // PCR 阈值取自后端 consensus.bands（与加密总览的机构 vs 散户同源），不在页面写死
-  const [pcrLo, pcrHi] = d.consensus.bands.pcr;
-  const pcrStance = p => (p == null ? '中性' : (p <= pcrLo ? '偏多' : (p >= pcrHi ? '偏空' : '中性')));
-  // 基差死区：与雷达方向票、机构 vs 散户同源（旧 payload 缺该字段时按缺失处理）
-  const basisBand = d.consensus && d.consensus.bands ? d.consensus.bands.basis : null;
+  // 阈值取自后端 consensus.bands（与加密总览的机构 vs 散户同源）；旧 payload 缺该字段时
+  // 判据返回 null，页面显示数据缺，不静默套用写死的数字
+  const bands = (d.consensus && d.consensus.bands) || {};
+  const [pcrLo, pcrHi] = bands.pcr || [null, null];
+  const [lsLo, lsHi] = bands.ls || [null, null];
+  const pcrStance = p =>
+    p == null || pcrLo == null ? '中性' : (p <= pcrLo ? '偏多' : (p >= pcrHi ? '偏空' : '中性'));
+  // 多空账户比立场：与共识卡 LS_LOW/LS_HIGH 同一判据（少一个「直比 50%」的旧口径）
+  const lsStance = v =>
+    v == null || lsLo == null ? '—' : (v >= lsHi ? '偏多' : (v <= lsLo ? '偏空' : '中性'));
+  // 基差死区：与雷达方向票、机构 vs 散户同源
+  const basisBand = bands.basis ?? null;
 
   const p = d.perp || {};
   const optB = d.options_BTC || {}, optE = d.options_ETH || {};
@@ -124,7 +134,7 @@ async function load() {
     kpi('BTC 永续资金费率', (BTC.funding_rate == null ? '—' : (BTC.funding_rate * 100).toFixed(4) + '%'), `年化 ${ann == null ? '—' : (ann * 100).toFixed(1) + '%'} · ${stance(ann)}`),
     kpi('BTC 散户多空比', ls == null ? '—' : ls.toFixed(2), ls == null ? 'taker 数据不可用' : `${Math.round(ls / (1 + ls) * 100)}% 多 / ${Math.round(1 / (1 + ls) * 100)}% 空 · 3 日 taker 口径`),
     kpi('ETH 期货 OI', ETH.oi_ccy == null ? '—' : fmt(ETH.oi_ccy, 0) + ' ETH', `$${ETH.oi_usd == null ? '—' : (ETH.oi_usd / 1e9).toFixed(2)}B · OKX 永续`),
-    kpi('BTC 期权 P/C (OI)', optB.pcr ?? '—', `${pcrStance(optB.pcr)}区间`),
+    kpi('BTC 期权 P/C (OI)', optB.pcr ?? '—', optB.pcr == null || pcrLo == null ? 'Deribit 全到期' : `${pcrStance(optB.pcr)}区间`),
     kpi('BTC 期权总 OI', fmt(optB.total_oi, 0) + ' 张', 'Deribit 全到期合约汇总'),
     kpi('BTC Max Pain（最近到期）', optB.near_max_pain == null ? '—' : '$' + fmt(optB.near_max_pain, 0), `${optB.nearest_exp || optB.d_exp + ' 个到期月'} · 最近到期口径`),
     kpi('BTC 指数价格', optB.spot_anchor == null ? '—' : '$' + fmt(optB.spot_anchor, 0), 'Deribit btc_usd 合成指数'),
@@ -159,12 +169,12 @@ async function load() {
   const frPct = BTC.funding_rate == null ? null : BTC.funding_rate * 100;
   const stFr = frPct == null ? '—' : `${frPct >= 0 ? '+' : ''}${frPct.toFixed(4)}%`;
   const stLS = ls == null ? '—' : `${ls.toFixed(2)} (${Math.round(ls / (1 + ls) * 100)}% 多)`;
-  const lsWord = ls == null ? '中性' : (ls > 1.2 ? '偏多' : (ls < 0.8 ? '偏空' : '中性'));
+  const lsWord = ls == null ? '中性' : (ls >= TAKER_HIGH ? '偏多' : (ls <= TAKER_LOW ? '偏空' : '中性'));
   const pcrW = pcrStance(optB.pcr);
   const retailRows = [
     ['永续资金费率', `资金费率 ${stFr} → 永续多空成本${stance(ann)}`],
-    ['永续多空比', `散户多空比 ${stLS} → 散户立场${lsWord}`],
-    ['期权 PCR', `期权 PCR ${fmt(optB.pcr, 2)} → 散户期权立场${pcrW}`],
+    ['永续多空比', ls == null ? '散户多空比 — → taker 数据不可用' : `散户多空比 ${stLS} → 散户立场${lsWord}`],
+    ['期权 PCR', optB.pcr == null || pcrLo == null ? '期权 PCR — → 数据缺' : `期权 PCR ${fmt(optB.pcr, 2)} → 散户期权立场${pcrW}`],
     ['永续 OI', `BTC 永续 OI $${((BTC.oi_usd || 0) / 1e9).toFixed(2)} B → 7 日变化需再积累历史`],
   ];
   const rsec2 = document.createElement('div');
@@ -203,7 +213,7 @@ async function load() {
       { label: '30 日均值', value: `${bz.ma30}%`, sub: '近 30 个有效观测' },
       { label: '1 年百分位', value: `${bz.pct_rank}%`, sub: '区间内相对位置' },
       { label: 'Spread（基差−SOFR）', value: bz.spread == null ? '—' : bz.spread + '%', sub: `SOFR ${bz.sofr}%`,
-        vcolor: basisBand != null && bz.spread != null && bz.spread > basisBand ? 'var(--up)' : (basisBand != null && bz.spread != null && bz.spread < -basisBand ? 'var(--down)' : '') },
+        vcolor: basisBand != null && bz.spread != null && bz.spread >= basisBand ? 'var(--up)' : (basisBand != null && bz.spread != null && bz.spread <= -basisBand ? 'var(--down)' : '') },
     ], 're-cards-2col'));
     bsec.insertAdjacentHTML('beforeend', `<details class="re-fold"><summary>口径 · 读法</summary>
       <div class="re-explain" style="margin-top:8px">
@@ -233,7 +243,7 @@ async function load() {
       { label: '24h 清算总额', value: `$${((cg.liq24h_usd || 0) / 1e6).toFixed(1)} M`, vcolor: 'var(--down)',
         sub: `${cg.liq24h_chg_pct >= 0 ? '+' : ''}${cg.liq24h_chg_pct}%` },
       ls.long_pct != null ? { label: '24h 多空比', value: `${ls.long_pct}% / ${ls.short_pct}%`,
-        sub: ls.long_pct > 50 ? '偏多' : (ls.long_pct < 50 ? '偏空' : '中性') } : null,
+        sub: lsStance(ls.short_pct ? ls.long_pct / ls.short_pct : null) } : null,
     ].filter(Boolean), 're-cards-2col'));
     gsec.insertAdjacentHTML('beforeend', `
       ${exchRows ? `<div style="margin-top:10px;font-size:12px;opacity:.9"><div style="opacity:.7;margin-bottom:4px">交易所 OI 分布 · Top ${(cg.exchanges || []).length}（24h 变化）</div>${exchRows}</div>` : ''}
@@ -280,7 +290,8 @@ async function load() {
           cmeK.fut_oi == null ? '—' : '≈ ' + fmt(cmeK.fut_oi * 5, 0) + ' BTC · Micro 另 ' + fmt(cmeK.micro_oi, 0) + ' 份 · ' + (cmeK.as_of || '')],
         ['CME BTC 基差（年化）', R.fmtPct(bz.current), '30 日均值 ' + R.fmtPct(bz.ma30) + ' · 1 年分位 ' + R.fmtPct(bz.pct_rank) + ' · ' + (bz.latest || '—')],
         ['基差−SOFR 价差', R.fmtPct(bz.spread), 'SOFR ' + R.fmtPct(bz.sofr) + (basisBand == null ? '' : ' · 死区 ±' + basisBand + '%')],
-        ['BTC 期权 P/C（OI）', R.num(optB.pcr, 2), pcrStance(optB.pcr) + '区间 · Deribit 全到期'],
+        ['BTC 期权 P/C（OI）', R.num(optB.pcr, 2),
+          (optB.pcr == null || pcrLo == null ? '数据缺' : pcrStance(optB.pcr) + '区间') + ' · Deribit 全到期'],
         ['BTC Max Pain（最近到期）', maxPain == null ? '—' : '$' + fmt(maxPain, 0), (optB.nearest_exp || '—') + ' 到期'],
         ['BTC 期权墙（最近到期）', wallPair, 'OI 最大行权价 · ' + (optB.nearest_exp || '—')],
         ['BTC 现货 ETF 净流入', etfFlow,

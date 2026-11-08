@@ -2,6 +2,7 @@ import json
 from pathlib import Path
 
 import pandas as pd
+import pytest
 
 from src.analysis_utils import read_csv_or_empty
 from src.assets_analysis import (
@@ -11,6 +12,7 @@ from src.assets_analysis import (
     PCR_HIGH,
     PCR_LOW,
     _crypto_basis,
+    crypto_consensus,
 )
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -109,3 +111,94 @@ def test_recent_readings_not_all_on_one_side():
             f"{label} 最近 {WINDOW} 个观测全落在「{next(iter(sides))}」侧，"
             "立场恒定、对照卡没有区分度；复核 src/assets_analysis.py 的阈值常量"
         )
+
+
+def _snap(ls=None, pcr=None, ann_pct=None, spread=None, etf5=None) -> dict:
+    """最小 snap：只看通道判定，其余源全标缺失。"""
+    snap: dict = {
+        "etf": {
+            "available": etf5 is not None,
+            "stale": False,
+            "sum5d_busd": etf5,
+            "latest": "2026-11-06",
+        }
+    }
+    if ls is not None:
+        # 用 50 作分母构造比值：ls * 50 / 50 回算的浮点与字面量一致，边界值不会因
+        # 百分比转换（long/(1+long)*100）的误差跌到阈值内侧
+        snap["coinglass"] = {"ls_ratio": {"long_pct": ls * 50, "short_pct": 50}}
+    if pcr is not None:
+        snap["options_BTC"] = {"pcr": pcr}
+    if ann_pct is not None:
+        snap["perp"] = {"BTC": {"funding_annual": ann_pct / 100}}
+    snap["basis"] = {"available": spread is not None, "spread": spread}
+    return snap
+
+
+def _stance_of(side: str, name: str, **kw) -> str:
+    cons = crypto_consensus(_snap(**kw), {})
+    return next(c["stance"] for c in cons[side]["channels"] if c["name"] == name)
+
+
+# 映射与边界必须逐个锁住：只锁常量落在历史分位里的测试，改回错映射也能全绿。
+# 阈值均为闭区间外判向（|value| >= 阈值才有方向），与雷达 add() 同口径。
+@pytest.mark.parametrize(
+    "ls,expected",
+    [(1.20, "偏多"), (LS_HIGH, "偏多"), (1.0, "中性"), (LS_LOW, "偏空"), (0.85, "偏空")],
+)
+def test_ls_stance_mapping(ls, expected):
+    assert _stance_of("retail", "多空账户比", ls=ls) == expected
+
+
+@pytest.mark.parametrize(
+    "pcr,expected",
+    [(0.54, "偏多"), (PCR_LOW, "偏多"), (0.60, "中性"), (PCR_HIGH, "偏空"), (0.70, "偏空")],
+)
+def test_pcr_stance_mapping(pcr, expected):
+    assert _stance_of("retail", "期权 PCR", pcr=pcr) == expected
+
+
+@pytest.mark.parametrize(
+    "ann_pct,expected",
+    [(15.0, "偏多"), (14.9, "中性"), (0.0, "中性"), (-15.0, "偏空"), (-14.9, "中性")],
+)
+def test_funding_stance_mapping(ann_pct, expected):
+    assert _stance_of("retail", "资金费率", ann_pct=ann_pct) == expected
+
+
+@pytest.mark.parametrize(
+    "spread,expected",
+    [(0.60, "偏多"), (BASIS_BAND, "偏多"), (0.0, "中性"), (-BASIS_BAND, "偏空"), (-0.60, "偏空")],
+)
+def test_basis_stance_mapping(spread, expected):
+    assert _stance_of("inst", "基差 Spread", spread=spread) == expected
+
+
+_CME_SIGNAL = {
+    "signals": [
+        {
+            "name": "CME 机构头寸",
+            "value": -12.0,
+            "desc": "CFTC 大投机净头寸 4 周变化 -12%",
+            "band": "4 周变化 · ±10% 中性带",
+        }
+    ]
+}
+
+
+def test_both_sides_missing_verdict():
+    # 两侧全缺不能写「仅机构单侧可读」
+    c = crypto_consensus(_snap(), {})
+    assert "两侧" in c["verdict"]
+    assert c["inst"]["stance"] == c["retail"]["stance"] == "中性"
+
+
+def test_notes_follow_has_data():
+    # 只有多空比有数据：散户 note 只列它；机构全缺时回退
+    c = crypto_consensus(_snap(ls=1.2), {})
+    assert c["retail"]["note"] == "多空比"
+    assert c["inst"]["note"] == "CME 数据待积累"
+    # 通道齐全：两侧都按短名拼（CME / ETF / 基差、资金费率 / 多空比 / PCR）
+    c = crypto_consensus(_snap(ls=1.2, pcr=0.6, ann_pct=5.0, spread=0.6, etf5=-1.0), _CME_SIGNAL)
+    assert c["inst"]["note"] == "CME / ETF / 基差"
+    assert c["retail"]["note"] == "资金费率 / 多空比 / PCR"

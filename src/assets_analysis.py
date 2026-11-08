@@ -3651,10 +3651,10 @@ BASIS_BAND = 0.25
 
 
 def _stance(value: float | None, thr: float) -> str:
-    """±thr 阈值 → 多/空/中性。"""
+    """阈值含端点：value >= thr 判偏多、<= -thr 判偏空（与雷达 add() 同口径）。"""
     if value is None:
         return "中性"
-    return "偏多" if value > thr else ("偏空" if value < -thr else "中性")
+    return "偏多" if value >= thr else ("偏空" if value <= -thr else "中性")
 
 
 def crypto_consensus(snap: dict, radar: dict) -> dict:
@@ -3699,7 +3699,7 @@ def crypto_consensus(snap: dict, radar: dict) -> dict:
     bz = snap.get("basis") or {}
     spread = bz.get("spread")
     bz_stance = (
-        ("偏多" if spread > BASIS_BAND else ("偏空" if spread < -BASIS_BAND else "中性"))
+        ("偏多" if spread >= BASIS_BAND else ("偏空" if spread <= -BASIS_BAND else "中性"))
         if spread is not None
         else "中性"
     )
@@ -3711,6 +3711,7 @@ def crypto_consensus(snap: dict, radar: dict) -> dict:
     inst_channels = [
         {
             "name": "CME 头寸",
+            "short": "CME",
             "stance": inst_stance,
             "reading": f"{chg:+.1f}%" if chg is not None else None,
             "band": cme_sig.get("band") or "4 周变化 · ±10% 中性带",
@@ -3719,6 +3720,7 @@ def crypto_consensus(snap: dict, radar: dict) -> dict:
         },
         {
             "name": "ETF 资金流",
+            "short": "ETF",
             "stance": etf_stance,
             "reading": (
                 f"{etf.get('sum5d_busd'):+.2f} B" if etf.get("sum5d_busd") is not None else None
@@ -3729,6 +3731,7 @@ def crypto_consensus(snap: dict, radar: dict) -> dict:
         },
         {
             "name": "基差 Spread",
+            "short": "基差",
             "stance": bz_stance,
             "reading": f"{spread}%" if spread is not None else None,
             "band": f"EMA − SOFR · ±{BASIS_BAND} 死区",
@@ -3739,6 +3742,7 @@ def crypto_consensus(snap: dict, radar: dict) -> dict:
     retail_channels = [
         {
             "name": "资金费率",
+            "short": "资金费率",
             "stance": fr_stance,
             "reading": f"{ann * 100:.1f}%" if ann is not None else None,
             "band": "年化 · ±15% 拥挤带",
@@ -3747,27 +3751,26 @@ def crypto_consensus(snap: dict, radar: dict) -> dict:
         },
         {
             "name": "多空账户比",
+            "short": "多空比",
             "stance": ls_stance,
             "reading": f"{ls:.2f}" if ls is not None else None,
-            "band": f"全市场 · >{LS_HIGH:.2f} 多 / <{LS_LOW:.2f} 空",
+            "band": f"全市场 · ≥{LS_HIGH:.2f} 多 / ≤{LS_LOW:.2f} 空",
             "detail": "Coinglass 全局" if ls is not None else "Coinglass 多空比不可用",
             "has_data": ls is not None,
         },
         {
             "name": "期权 PCR",
+            "short": "PCR",
             "stance": pcr_stance,
             "reading": f"{pcr:.2f}" if pcr is not None else None,
-            "band": f"Put/Call · <{PCR_LOW:.2f} 多 / >{PCR_HIGH:.2f} 空",
+            "band": f"Put/Call · ≤{PCR_LOW:.2f} 多 / ≥{PCR_HIGH:.2f} 空",
             "detail": "Deribit BTC 期权" if pcr is not None else "期权链不可用",
             "has_data": pcr is not None,
         },
     ]
     inst_stances = [c["stance"] for c in inst_channels if c["has_data"]]
     retail_stances = [c["stance"] for c in retail_channels if c["has_data"]]
-    note_inst = (
-        " / ".join(c["name"].split(" ")[0] for c in inst_channels if c["has_data"])
-        or "CME 数据待积累"
-    )
+    note_inst = " / ".join(c["short"] for c in inst_channels if c["has_data"]) or "CME 数据待积累"
     short = {"偏多": "多", "偏空": "空", "中性": "中性"}
 
     # 立场口径单源：非中性票同向 → 取之；无方向票 → 中性；对立 → 分化。
@@ -3789,7 +3792,14 @@ def crypto_consensus(snap: dict, radar: dict) -> dict:
         """立场 → 文案短语：「分化」不是方向，不能写成「偏分化」。"""
         return "内部分歧" if lean == "分化" else ("中性" if lean == "中性" else f"偏{short[lean]}")
 
-    if not retail_stances:
+    if not retail_stances and not inst_stances:
+        # 两侧全缺：写「仅机构单侧可读」会与实际上两侧都空对不上
+        verdict = "两侧通道数据均缺失 — 对照不成立"
+        detail = (
+            "机构（CME/ETF/Spread）与散户（资金费率/多空比/PCR）本次都取不到数据。"
+            "手动补 ./bin/fetch_crypto_derivatives 与 ./bin/fetch_coinglass。"
+        )
+    elif not retail_stances:
         # 散户三条通道全缺 → 单侧可读，不能靠「空集未反向」冒充同向
         verdict = "散户侧数据缺失 — 仅机构单侧可读"
         detail = (
@@ -3836,7 +3846,8 @@ def crypto_consensus(snap: dict, radar: dict) -> dict:
         },
         "retail": {
             "stance": retail_lean,
-            "note": "资金费率 / 多空比 / PCR",
+            "note": " / ".join(c["short"] for c in retail_channels if c["has_data"])
+            or "散户数据待积累",
             "channels": retail_channels,
         },
         "verdict": verdict,

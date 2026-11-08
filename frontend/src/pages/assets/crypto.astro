@@ -304,7 +304,7 @@ function renderRadar(d) {
     basisBand == null
       ? cf(null, '基差死区待快照更新', null)
       : cf(
-          spreadV == null ? null : spreadV > basisBand,
+          spreadV == null ? null : spreadV >= basisBand,
           `基差 Spread 高于 +${basisBand}%`,
           spreadV == null ? null : spreadV + '%'
         );
@@ -383,12 +383,17 @@ const SHORT = { 偏多: '偏多', 偏空: '偏空', 中性: '中性', 分化: '�
 
 // 单侧对照轨：名字 + ±1 轴 + 落点 + 立场徽章（两侧共用同一条刻度，同向即两点同侧）
 function consRail(name, stance, channels) {
-  const v = LEAN[stance] ?? 0;
-  // 分化：无单一落点，改用双端对顶标记，不假装落在中点（中点 = 中性，语义会撞）
-  const split = stance === '分化';
-  const marks = split
-    ? '<span class="cons-mk cons-mk--a" style="left:3%"></span><span class="cons-mk cons-mk--b" style="left:97%"></span>'
-    : `<span class="cons-mk mk-${v}" style="left:${(v + 1) / 2 * 100}%"></span>`;
+  const known = Object.hasOwn(LEAN, stance);
+  const v = known ? LEAN[stance] : 0;
+  const split = known && stance === '分化';
+  // 通道全缺或 stance 取到未预期值时画中性点会把「没数据」读成「没立场」：落点留空、徽章走 none
+  const noData = !known || channels.every(ch => !ch.has_data);
+  // 落点位置单源在 special.css（.cons-mk.mk-1 / .mk-0 / .mk--1），对齐刻度首尾标签中心
+  const marks = noData
+    ? ''
+    : split
+      ? '<span class="cons-mk cons-mk--a"></span><span class="cons-mk cons-mk--b"></span>'
+      : `<span class="cons-mk mk-${v}"></span>`;
   const rows = channels.map((ch) => `<div class="cons-ch${ch.has_data ? '' : ' miss'}" title="${R.esc(ch.band)}">
       <span class="cons-ch-n">${R.esc(ch.name)}</span>
       <span class="cons-ch-v">${ch.reading == null ? '—' : R.esc(ch.reading)}</span>
@@ -396,7 +401,7 @@ function consRail(name, stance, channels) {
       <span class="re-badge ${ch.has_data ? BADGE[ch.stance] : 'none'}">${ch.has_data ? SHORT[ch.stance] : '缺数据'}</span>
     </div>`).join('');
   return `<div class="cons-side">
-    <div class="cons-side-h"><span>${name}</span><span class="re-badge ${split ? 'split' : BADGE[stance]}">${SHORT[stance]}</span></div>
+    <div class="cons-side-h"><span>${name}</span><span class="re-badge ${noData ? 'none' : split ? 'split' : BADGE[stance]}">${noData ? '缺数据' : SHORT[stance]}</span></div>
     <div class="cons-rail"><span class="cons-track">${marks}</span>
       <span class="cons-ticks"><span>偏空</span><span>中性</span><span>偏多</span></span></div>
     ${rows}
@@ -414,7 +419,7 @@ function renderConsensus(d) {
   // 同向时主句上色（多=绿/空=红，文字档）；不一致或中性则不上色，避免「同向偏空」也涂绿
   const same = c.inst.stance === c.retail.stance && (c.inst.stance === '偏多' || c.inst.stance === '偏空');
   const dirInk = c.inst.stance === '偏多' ? 'var(--color-up-text)' : 'var(--color-down-text)';
-  csec.innerHTML = `${R.secTitle('机构 vs 散户 · 对照', '', '机构 = CME / ETF / 基差 · 散户 = 费率 / 多空比 / PCR')}
+  csec.innerHTML = `${R.secTitle('机构 vs 散户 · 对照', '', '机构 = CME / ETF / 基差 · 散户 = 资金费率 / 多空比 / PCR')}
     <div class="cons-top${same ? ' aligned' : ''}"${same ? ` style="--ci:${dirInk}"` : ''}>
       <div class="cons-verdict">
         <div class="radar-cap">对照结论</div>

@@ -1479,8 +1479,10 @@ details.db-scen-item[open] > summary.db-scen-head::after { content: '收起 ▴'
 .cons-side-h { display: flex; align-items: baseline; gap: 8px; font-size: 13px; font-weight: 700;
   color: var(--text); margin-bottom: 7px; }
 .cons-side-h .re-badge { margin-left: auto; }
-/* ±1 轴：轨道 = down→neutral→up 三段（图形档透明叠加，只当填充），落点随立场移动 */
-.cons-rail { position: relative; }
+/* ±1 轴：轨道 = down→neutral→up 三段（图形档透明叠加，只当填充），落点随立场移动。
+ * 落点圆心贴刻度首尾标签中心（--rail-edge = 10px，即 10px 字号下两个汉字的半宽），
+ * 不用轨道几何端点 0/100%：后者会让 13px 圆点半个露在轨道外，也与标签中心差 10px */
+.cons-rail { position: relative; --rail-edge: 10px; }
 .cons-track { position: relative; display: block; height: 5px; border-radius: 3px;
   background: linear-gradient(90deg,
     color-mix(in srgb, var(--color-down) 34%, transparent),
@@ -1504,11 +1506,12 @@ details.db-scen-item[open] > summary.db-scen-head::after { content: '收起 ▴'
 .cons-ch.miss { opacity: .65; }
 .cons-ch.miss .cons-ch-v { color: var(--text-dim); font-weight: 400; }
 /* 内部分歧（分化）时两侧对顶标记：轨道两端各一枚，不假装落在中点 */
-.cons-mk--a { border-color: var(--color-down); }
-.cons-mk--b { border-color: var(--color-up); }
-/* 单一落点的圈色跟立场（图形档只当描边，不当文字色）：mk-{1,0,-1} 由 JS 按 LEAN 拼 */
-.cons-mk.mk-1 { border-color: var(--color-up); }
-.cons-mk.mk--1 { border-color: var(--color-down); }
+.cons-mk--a { border-color: var(--color-down); left: var(--rail-edge); }
+.cons-mk--b { border-color: var(--color-up); left: calc(100% - var(--rail-edge)); }
+/* 单一落点的圈色与位置：图形档只当描边（不当文字色），mk-{1,0,-1} 由 JS 按 LEAN 拼 */
+.cons-mk.mk-1 { border-color: var(--color-up); left: calc(100% - var(--rail-edge)); }
+.cons-mk.mk--1 { border-color: var(--color-down); left: var(--rail-edge); }
+.cons-mk.mk-0 { left: 50%; }
 /* 入场：两侧轴点错峰 + 通道行 staggered（只动 transform/opacity） */
 .cons-side + .cons-side .cons-mk { animation-delay: .1s; }
 .cons-ch { animation: radar-row-in .4s cubic-bezier(.16, 1, .3, 1) both; }
