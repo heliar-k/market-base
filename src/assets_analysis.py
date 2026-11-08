@@ -3828,7 +3828,7 @@ def crypto_consensus(snap: dict, radar: dict) -> dict:
                 f"{lean_text(retail_lean)}——散户信号仅作反向拥挤度参考。"
             )
         elif inst_lean == "分化":
-            verdict = f"机构内部分歧 — 以 {note_inst} 通道对立为线索"
+            verdict = f"机构内部分歧 — 以通道对立为线索（{note_inst}）"
             detail = (
                 f"机构通道分歧（{note_inst}），散户{lean_text(retail_lean)}。"
                 "通道对立时以 ETF 现货通道为锚，Spread 作 carry 参考。"
