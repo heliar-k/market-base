@@ -269,9 +269,16 @@ async function load() {
   ]);
   const ind = d.indicators || {};
 
-  // 页头多源时效标签（各分组观测日一段，文案组装见 R.asOf）
+  // 页头多源时效标签（各分组观测日一段，文案组装见 R.asOf）。
+  // 每段带第三项 = 该组在 src/data_freshness.py 里的数据集路径，超预算时段变告警色。
   const g = ind.groups || {};
-  R.setAsOf(Object.entries(g).length ? Object.entries(g) : (ind.as_of ? [['快照', ind.as_of]] : '—'));
+  const FRESH = {
+    '资产': 'data/yfinance/asset_prices.csv',
+    '利率/利差': ['data/fred/rates/rates.csv', 'data/fred/volatility/volatility.csv'],
+    '流动性': 'data/fred/liquidity/liquidity.csv',
+  };
+  const segs = Object.entries(g).map(([label, d]) => [label, d, FRESH[label]]);
+  R.setAsOf(segs.length ? segs : (ind.as_of ? [['快照', ind.as_of]] : '—'));
   R.foot(d.generator, {
     src: 'FRED（rates / volatility / liquidity）· yfinance（asset_prices）· Polymarket',
     note: '情景为规则匹配结果，经济机制仍需原始数据与事件验证',
@@ -427,7 +434,8 @@ async function load() {
       const sec = R.secCard();
       const layers = aiCycle.layers || [];
       const stateText = { triggered: '已触发', clear: '未确认', data_insufficient: '数据不足' };
-      const stateColor = { triggered: 'var(--down)', clear: 'var(--up)', data_insufficient: 'var(--text-dim)' };
+      // 「未确认」= 还没有触发证据，用中性次墨
+      const stateColor = { triggered: 'var(--down)', clear: 'var(--text-secondary)', data_insufficient: 'var(--text-dim)' };
       sec.appendChild(R.cards([
         { label: '当前阶段', value: aiCycle.stage?.label || '证据不足', sub: '参与票达到 2/3 才确认', accent: true, cls: 're-card-wrap' },
         ...layers.map(layer => ({

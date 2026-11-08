@@ -29,6 +29,8 @@ body.embedded .re-header h1 { display: none; } /* 内嵌时左卡已有标题 */
 /* 多段时效串的分段结构（R.setAsOf 输出 .re-as-of-seg）：分隔点画在段首，
  * 窄屏（≤768）段变块级各占一行右对齐、藏分隔点，宽屏同行同旧渲染。 */
 .re-as-of-seg + .re-as-of-seg::before { content: ' · '; }
+/* 超预算段（R.setAsOf 按 /api/freshness 给命中段加）：文字档告警色，预算表见 src/data_freshness.py */
+.re-as-of-seg--stale { color: var(--color-warn-text); }
 /* 口径层级徽章（R.setAsOf 按 TIERS 表渲染）：文字档上色，边框用图形档 color-mix */
 .re-tier { display: inline-block; margin-left: 2px; padding: 0 5px; border: 1px solid; border-radius: 999px; font-size: 10px; line-height: 14px; vertical-align: 1px; cursor: help; }
 .re-tier--disc { color: var(--up); border-color: color-mix(in srgb, var(--color-up) 40%, transparent); }
@@ -509,6 +511,15 @@ body.embedded .back-top { right: 6px; bottom: 6px; width: 24px; height: 24px; fo
   display: flex; align-items: center; justify-content: space-between; gap: 12px;
   padding: 6px 12px; background: var(--surface); border: 1px solid var(--border);
   border-radius: 8px; flex-wrap: wrap;
+}
+/* 窄屏三条子视图按钮禁折行、整组横向滑动（同 .page-toc 在 ≤768 的手法）：390 宽时
+   「结构结论与扫描」被压到 105 宽、汉字断成「结构结论与扫 / 描」，按钮高从 27 涨到 44。
+   只作用于本页这条：#opt-subview-switch 是 .range-controls 的一个实例，别处按钮内容不同。
+   min-width: 0 是前提 —— 否则 flex 项不肯缩到内容宽以下，溢出的是整个顶栏。 */
+@media (max-width: 768px) {
+  #opt-subview-switch { flex-wrap: nowrap; min-width: 0; overflow-x: auto; scrollbar-width: none; }
+  #opt-subview-switch::-webkit-scrollbar { display: none; }
+  #opt-subview-switch > .range-btn { flex: 0 0 auto; white-space: nowrap; }
 }
 .opt-info-bar {
   display: flex; align-items: center; gap: 12px; flex-wrap: wrap;

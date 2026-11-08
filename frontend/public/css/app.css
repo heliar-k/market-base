@@ -178,9 +178,13 @@ body { font-family: system-ui, -apple-system, sans-serif; background: var(--bg);
   width: 1px; background: var(--border-light);
 }
 /* 口径注跟在名称后：11px 弱色，与名称同一条左线（数字那侧永远只有一条右线）。
- * .diag-label 是 flex 两端对齐的左项，长名称 + 注会自动省略号收口。 */
-.re-kv-grid .diag-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.re-kv-grid .diag-label em { font-style: normal; font-size: 11px; font-weight: 400; color: var(--text-dim); }
+ * .diag-label 是 flex 两端对齐的左项，宽度不够时让注换行到第二行 ——
+ * 省略号会吃掉判断依据本身（「10Y 分位 95%」被截成「10…」），而读数永远只占右端一条线，
+ * 左项多占一行不影响读数对齐。min-width: 0 保留：它允许 flex 收缩，否则长名称把读数挤出卡外。
+ * 注用 inline-block 整体换行：允许拆行的话，「NY Fed / Equifax · 10Y」会在中间的「10Y」后
+ * 断开，第二行只剩「分位 95%」，读者无法把分位与它的数归位。 */
+.re-kv-grid .diag-label { min-width: 0; }
+.re-kv-grid .diag-label em { display: inline-block; font-style: normal; font-size: 11px; font-weight: 400; color: var(--text-dim); }
 /* 窄屏一行只有 245px，注会把名称挤成三行 → 收掉，口径由段底注脚兜底。 */
 @media (max-width: 768px) { .re-kv-grid .diag-label em { display: none; } }
 /* 段内注脚（R.secNote）：口径/读法说明一律沉到卡片底部，不作卡片首段正文 ——

@@ -53,7 +53,7 @@ async function load() {
   // EFFR 卡片值/1周变动由 analysis 的 overview.effr 提供，不再拉整个 fed-funds（~84KB）
   const data = await R.get('/api/rates/analysis');
   const d = data.yield_curve;
-  R.setAsOf([['利率/利差', data.overview.as_of || d.as_of]]);
+  R.setAsOf([['利率/利差', data.overview.as_of || d.as_of, 'data/fred/rates/rates.csv']]);
   // 研判生成已由研判区上方 genNote 徽章表达，页脚不再重复
   R.foot(null, {
     src: 'FRED（DGS / EFFR / TIPS / 目标区间）· NY Fed BGCR · chinamoney（中国 10Y）',

@@ -101,10 +101,12 @@ async function load() {
     R.getOpt('/api/credit/euro'),   // 欧元区主权利差：CNBC 源，独立时点，缺则只降级本段
   ]);
   const household = d.household_quality || [];
+  // FRED 段跨信用利差与 VIX/HY_OAS 两份文件：任一超预算即标红（两个都命中取超出最多的）
+  const FRED_DS = ['data/fred/credit/credit.csv', 'data/fred/volatility/volatility.csv'];
   R.setAsOf([
-    ['FRED', d.as_of],
-    ['CNBC', euro && euro.as_of],
-    household.length && ['NY Fed 家庭债务', household[0].as_of],
+    ['FRED', d.as_of, FRED_DS],
+    ['CNBC', euro && euro.as_of, 'data/euro_sovereign/yields.csv'],
+    household.length && ['NY Fed 家庭债务', household[0].as_of, 'data/nyfed_household/household_credit.csv'],
   ]);
 
   // ── Credit Regime Score 记分卡（对齐持仓页 pos-hero 骨架）──

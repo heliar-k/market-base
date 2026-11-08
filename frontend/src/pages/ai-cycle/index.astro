@@ -19,7 +19,8 @@ document.getElementById('page-toc').innerHTML = [
 
 const STATUS = {
   triggered: ['已触发', 'var(--down)'],
-  clear: ['未确认', 'var(--up)'],
+  // 「未确认」= 没有触发证据，用中性次墨
+  clear: ['未确认', 'var(--text-secondary)'],
   data_insufficient: ['数据不足', 'var(--text-dim)'],
 };
 const money = v => v == null ? '—' : `$${R.num(v, 2)}B`;

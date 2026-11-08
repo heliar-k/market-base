@@ -7,10 +7,12 @@ import Section from '../../../components/Section.astro';
 <TopicLayout title="期权市场结构">
   <!-- 顶栏：三子视图切换 + 标的选择器 + 实时状态条（对齐 tech-top-bar） -->
   <div class="opt-top-bar" id="opt-top-bar">
-    <div class="range-controls" id="opt-subview-switch" style="margin-left:0">
-      <button type="button" class="range-btn active" data-subview="overview">结构结论与扫描</button>
-      <button type="button" class="range-btn" data-subview="charts">期权图表</button>
-      <button type="button" class="range-btn" data-subview="wheel" id="opt-subview-wheel">Wheel 雷达</button>
+    <!-- 三个子视图是同一区域的互斥视图，走 ARIA tabs 模式：选中态由 aria-selected 传达，
+         另两个用 roving tabindex 移出 Tab 序列（组内靠方向键到达）。 -->
+    <div class="range-controls" id="opt-subview-switch" role="tablist" aria-label="期权子视图" style="margin-left:0">
+      <button type="button" class="range-btn active" role="tab" id="opt-tab-overview" data-subview="overview" aria-selected="true" aria-controls="opt-pane-overview" tabindex="0">结构结论与扫描</button>
+      <button type="button" class="range-btn" role="tab" id="opt-tab-charts" data-subview="charts" aria-selected="false" aria-controls="opt-pane-charts" tabindex="-1">期权图表</button>
+      <button type="button" class="range-btn" role="tab" id="opt-tab-wheel" data-subview="wheel" aria-selected="false" aria-controls="opt-pane-wheel" tabindex="-1">Wheel 雷达</button>
     </div>
     <div class="opt-info-bar" id="opt-info-bar">
       <span class="tech-quote">
@@ -22,14 +24,14 @@ import Section from '../../../components/Section.astro';
     </div>
   </div>
 
-  <!-- 子视图 1：结构结论与扫描（默认：4 KPI 卡 + 深度结构结论卡 + 30 标的合并扫描表） -->
-  <div id="opt-pane-overview" class="opt-pane">
+  <!-- 子视图 1：结构结论与扫描（默认：5 KPI 卡 + 深度结构结论卡 + 30 标的合并扫描表） -->
+  <div id="opt-pane-overview" class="opt-pane" role="tabpanel" aria-labelledby="opt-tab-overview" tabindex="-1">
     <div id="detail" class="opt-pane"></div>
     <div id="board"></div>
   </div>
 
   <!-- 子视图 2：期权图表（GEX 分布+到期集中度 / ATM IV 期限结构 / OI 集中度 Top 20） -->
-  <div id="opt-pane-charts" class="opt-pane" style="display:none">
+  <div id="opt-pane-charts" class="opt-pane" role="tabpanel" aria-labelledby="opt-tab-charts" tabindex="-1" style="display:none">
     <!-- sub 只留「怎么看这张图」的语义（绿/红/累计线等于什么）；图例本身（Call GEX /
          Put GEX / 累计 GEX）ECharts 右上角已经画了，不在这里重写一遍 —— 原先 68 字全站最长，
          1200px 下把标题压成两行断字。条长口径写在卡底 secNote。 -->
@@ -50,7 +52,7 @@ import Section from '../../../components/Section.astro';
   </div>
 
   <!-- 子视图 3：确定性巨头池 · Wheel 雷达 -->
-  <div id="opt-pane-wheel" class="opt-pane" style="display:none">
+  <div id="opt-pane-wheel" class="opt-pane" role="tabpanel" aria-labelledby="opt-tab-wheel" tabindex="-1" style="display:none">
     <div id="wheel-kpis"></div>
     <Section id="sec-wheel" title="确定性巨头池 · Wheel 雷达" sub="35D IV / VRP · 52周 IVR · 趋势企稳与财报排雷" card>
       <span slot="head" id="wheel-regime-badge"></span>
@@ -121,8 +123,22 @@ function regimeKey(v) {
 
 // ── 顶栏：子视图切换与标的选择器 ──
 function initTopBar() {
-  document.querySelectorAll('#opt-subview-switch [data-subview]').forEach(btn => {
-    btn.addEventListener('click', () => applySubview(btn.dataset.subview));
+  const tabs = [...document.querySelectorAll('#opt-subview-switch [role="tab"]')];
+  // 点页签自身不搬焦点（与键盘路径一致，焦点留在 tablist）；程序化切视图（点行、看图表）才进面板
+  tabs.forEach(btn => btn.addEventListener('click', () => applySubview(btn.dataset.subview, false)));
+  // 方向键自动激活（选中与视图同步切换）、Home / End 跳首末，两端折返。
+  // 这里不让 applySubview 把焦点送进面板：焦点离开 tablist 后连按方向键就不再响应了。
+  document.getElementById('opt-subview-switch')?.addEventListener('keydown', e => {
+    const cur = tabs.findIndex(b => b.dataset.subview === currentSubview);
+    let next = -1;
+    if (e.key === 'ArrowRight') next = (cur + 1) % tabs.length;
+    else if (e.key === 'ArrowLeft') next = (cur - 1 + tabs.length) % tabs.length;
+    else if (e.key === 'Home') next = 0;
+    else if (e.key === 'End') next = tabs.length - 1;
+    if (next < 0 || !tabs[next]) return;
+    e.preventDefault();
+    applySubview(tabs[next].dataset.subview, false);
+    tabs[next].focus();
   });
 }
 
@@ -172,10 +188,14 @@ function updateTopInfoBar() {
     `<span>1Y IVR <b>${v.iv_rank_1y != null ? fmtNum(v.iv_rank_1y, 0) + '%' : '—'}</b></span>`;
 }
 
-function applySubview(subview) {
+function applySubview(subview, focusPanel = true) {
   currentSubview = SUBVIEWS.includes(subview) ? subview : 'overview';
   document.querySelectorAll('#opt-subview-switch [data-subview]').forEach(btn => {
-    btn.classList.toggle('active', btn.dataset.subview === currentSubview);
+    const on = btn.dataset.subview === currentSubview;
+    btn.classList.toggle('active', on);
+    // roving tabindex：选中项留在 Tab 序列里，另两个只由组内方向键到达
+    btn.setAttribute('aria-selected', String(on));
+    btn.tabIndex = on ? 0 : -1;
   });
   SUBVIEWS.forEach(k => {
     const pane = document.getElementById(`opt-pane-${k}`);
@@ -187,6 +207,8 @@ function applySubview(subview) {
   if (currentSubview === 'charts') {
     renderChartsPane();
   }
+  // 面板整块换掉，焦点留在已隐藏的页签上会被丢回 body；移进新面板让读屏读出这块内容
+  if (focusPanel) document.getElementById(`opt-pane-${currentSubview}`)?.focus();
 }
 
 function pick(s, targetSubview = null) {
@@ -205,7 +227,7 @@ function pick(s, targetSubview = null) {
   }
 }
 
-// ── 子视图 1（上）：当前标的 4 KPI 卡 + 深度结构结论卡（对齐 tech-ov-current） ──
+// ── 子视图 1（上）：当前标的 5 KPI 卡 + 深度结构结论卡（对齐 tech-ov-current） ──
 function renderConclusion() {
   const host = document.getElementById('detail');
   const v = D && D.symbols && D.symbols[S];
@@ -220,12 +242,18 @@ function renderConclusion() {
 
   host.innerHTML = '';
 
-  // 1) 4 张核心 KPI 卡（独立卡行，不套进大卡，与技术分析页同构）
+  // 1) 5 张核心 KPI 卡（独立卡行，不套进大卡，与技术分析页同构；Gamma Flip 与期权墙分开，
+  //    没有 Flip 时不能把期权墙区间读成翻转带）
   const gexSign = (v.net_gex ?? 0) >= 0 ? '+' : '';
   const dexSign = (v.net_dex ?? 0) >= 0 ? '+' : '';
   const regimeTone = key === 'pp' ? 'var(--up)' : key === 'nn' ? 'var(--down)' : 'var(--warning)';
-  const pw = v.put_wall ? `$${fmtNum(v.put_wall.strike, 1)} (${fmtNum(v.put_wall.per_point_m, 0)}M/点)` : '—';
-  const cw = v.call_wall ? `$${fmtNum(v.call_wall.strike, 1)} (+${fmtNum(v.call_wall.per_point_m, 0)}M/点)` : '—';
+  // 五卡并排时 sub 只剩 ~188px，读数与单位在「/」处断开，单个墙位整段不换行
+  const pw = v.put_wall
+    ? `<span style="white-space:nowrap">P $${fmtNum(v.put_wall.strike, 1)} (${fmtNum(v.put_wall.per_point_m, 0)}M/点)</span>`
+    : 'P —';
+  const cw = v.call_wall
+    ? `<span style="white-space:nowrap">C $${fmtNum(v.call_wall.strike, 1)} (+${fmtNum(v.call_wall.per_point_m, 0)}M/点)</span>`
+    : 'C —';
   const contango = (v.iv_slope ?? 0) > 0;
   const kpis = R.cards([
     {
@@ -236,9 +264,21 @@ function renderConclusion() {
       cls: 're-card-dense re-card-wrap',
     },
     {
-      label: 'Gamma Flip / 期权墙 (P — C)',
+      label: 'Gamma Flip',
+      value: v.gamma_flip == null
+        ? '无翻转点'
+        : `$${fmtNum(v.gamma_flip, 1)} (${fmtSigned(v.flip_dist, 1, '%')})`,
+      // 与后端 narrative 同一口径：全链恒同号，或穿越点距现价 >30% 被当噪声忽略
+      sub: v.flip_dist == null
+        ? '无穿越点，或穿越点距现价 >30%'
+        : `现价在 Flip ${v.flip_dist >= 0 ? '上方' : '下方'} ${Math.abs(v.flip_dist).toFixed(1)}%`,
+      vcolor: v.gamma_flip == null ? 'var(--text-dim)' : (v.flip_dist >= 0 ? 'var(--up)' : 'var(--down)'),
+      cls: 're-card-dense re-card-wrap',
+    },
+    {
+      label: '期权墙 (P — C)',
       value: `${v.put_wall ? '$' + fmtNum(v.put_wall.strike, 1) : '—'} — ${v.call_wall ? '$' + fmtNum(v.call_wall.strike, 1) : '—'}`,
-      sub: `Flip ${v.gamma_flip == null ? '无翻转点' : '$' + fmtNum(v.gamma_flip, 1) + ' (' + (v.flip_dist >= 0 ? '+' : '') + v.flip_dist.toFixed(1) + '%)'} · P ${pw} / C ${cw}`,
+      sub: `${pw} / ${cw}`,
       cls: 're-card-dense re-card-wrap',
     },
     {
@@ -840,7 +880,7 @@ function renderWheel() {
   const sec = document.getElementById('sec-wheel');
   const el = document.getElementById('wheel-radar');
   const kpiHost = document.getElementById('wheel-kpis');
-  const tabBtn = document.getElementById('opt-subview-wheel');
+  const tabBtn = document.getElementById('opt-tab-wheel');
   if (!sec || !el) return;
   const W = D.wheel;
   const rows = (W && W.rows) || [];
@@ -863,7 +903,7 @@ function renderWheel() {
       + (s.vix_note ? ` <span class="re-badge">${R.esc(s.vix_note)}</span>` : '');
   }
 
-  // 顶部 4 张汇总小卡（与「结构结论与扫描」顶部 4 KPI 卡同构）
+  // 顶部 4 张汇总小卡（与「结构结论与扫描」顶部 5 KPI 卡同构）
   if (kpiHost) {
     const putRows = rows.filter(r => r.actionable && r.put_pick);
     const callRows = rows.filter(r => r.actionable && r.call_pick);
@@ -966,7 +1006,7 @@ async function load() {
     R.fail(['detail', 'board', 'wheel-radar'], new Error('无期权结构快照 · 运行 ./bin/fetch_options_structure 后刷新'));
     return;
   }
-  const optionAsOf = [['期权快照', D.snapshot_date || (D.date && D.date.slice(0, 10))]];
+  const optionAsOf = [['期权快照', D.snapshot_date || (D.date && D.date.slice(0, 10)), 'data/options_structure']];
   if (D.oi_date) {
     optionAsOf.push(['期权 OI', D.oi_date + (D.oi_final === false ? ' 待回补' : '')]);
   }
