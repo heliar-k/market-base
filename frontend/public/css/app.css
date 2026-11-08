@@ -127,11 +127,13 @@ body { font-family: system-ui, -apple-system, sans-serif; background: var(--bg);
 .re-cards-wide > .re-card { flex-basis: 250px; }
 .re-card { padding: 16px 20px; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; container-type: inline-size; }
 /* 流式字号：视口变窄字体同步收缩（斜率标在注释里），≥1100px 恢复满档 */
-.re-corridor-label { font-size: clamp(10px, 9.5px + 0.2vw, 11px); text-transform: uppercase; letter-spacing: .06em; opacity: .7; }
+.re-corridor-label { font-size: clamp(10px, 9.5px + 0.2vw, 11px); text-transform: uppercase; letter-spacing: .06em; color: var(--text-dim); }
 /* 卡片值是卡内字号，随卡片宽度收缩（12cqi = 卡片内容宽的 12%）：269px 卡 22px 满档，
  * 手机上两列 155px 卡 ~15px；个别更长的值（日期区间、路径串）由 R.cards 的 fit 再缩一档。 */
 .re-corridor-value { font-size: clamp(12px, 12cqi, 22px); font-weight: 700; margin-top: 10px; font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.re-card-sub { font-size: clamp(10px, 9.5px + 0.2vw, 11px); opacity: .7; margin-top: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* sub 行可能含语义 chip（R.chgSpan / chgSub）：容器不透明度会把 chip 自身色一起压淡，
+   降一档交给 color token，chip 保持满档 */
+.re-card-sub { font-size: clamp(10px, 9.5px + 0.2vw, 11px); color: var(--text-dim); margin-top: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 /* 长文本卡：value / sub 换行不截断（默认 nowrap + ellipsis 是给纯数字卡的） */
 .re-card-wrap .re-corridor-value, .re-card-wrap .re-card-sub {
   white-space: normal; overflow: visible; text-overflow: clip;

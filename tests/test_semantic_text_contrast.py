@@ -54,6 +54,17 @@ TEXT_TOKENS = {
 }
 AA_NORMAL = 4.5
 
+# 容器 opacity 会把内部所有文字一起合成变淡：缺席成员名 #aab2ba 在白卡上只剩 2.1:1，
+# 成员读数 1.9:1，chip 里的 --color-down-text 也降到 3.4:1。上面那些断言只看变量值，
+# 看不到合成后的观感，所以另列一份「为了显得安静而给整块文字降不透明度」的容器名单，
+# 新增这类组件（整块文字降调）时补一行；要更安静就换更暗的文字档。
+DIMMED_TEXT_CONTAINERS = (
+    ".db-hv-member--absent",
+    ".re-card-sub",
+    ".re-corridor-label",
+)
+OPACITY = re.compile(r"(?<![-\w])opacity\s*:\s*([^;{}]+)")
+
 
 def _rules(text: str):
     """去注释后逐条 (selector, body)。不去注释会把 `/* ... */\n:root` 整块当选择器。"""
@@ -111,6 +122,28 @@ def _tint(fg: str, bg: str, p: float) -> str:
     """
     f, b = _rgb(fg), _rgb(bg)
     return "#%02x%02x%02x" % tuple(round((f[i] * p + b[i] * (1 - p)) * 255) for i in range(3))
+
+
+def test_text_containers_do_not_dim_descendants_via_opacity() -> None:
+    """文字容器不得拿 opacity 降调（合成色跌破 AA，token 级断言看不见）。
+
+    名单里的容器都装着「文案 + 语义色 chip / 读数」，整块降不透明度会连着子元素的
+    自身色一起压淡，于是 chip 不再是 --color-down-text 而是一个合成色。
+    """
+    bad: list[str] = []
+    for path in sorted(CSS_DIR.glob("*.css")):
+        for sel, body in _rules(path.read_text(encoding="utf-8")):
+            hit = [n for n in DIMMED_TEXT_CONTAINERS if n in [s.strip() for s in sel.split(",")]]
+            if not hit:
+                continue
+            for m in OPACITY.finditer(body):
+                raw = m.group(1).strip()
+                val = float(raw[:-1]) / 100 if raw.endswith("%") else float(raw)
+                if val < 1:
+                    bad.append(f"{path.name}: {hit[0]} opacity: {raw}")
+    assert not bad, (
+        "文字容器不要用 opacity 降调（合成色跌破 AA，chip 也失去自身色）：\n" + "\n".join(bad)
+    )
 
 
 def test_text_tokens_clear_aa_on_real_backgrounds() -> None:

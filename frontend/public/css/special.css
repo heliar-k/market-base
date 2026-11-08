@@ -66,6 +66,16 @@ html { scroll-padding-top: 52px; }
   color: var(--text-secondary); text-decoration: none;
 }
 .page-toc a:hover { color: var(--accent-ink); border-color: var(--accent-ink); }
+/* 窄屏（≤768）栏收成单行横向滑动：折行时 /credit 的 12 粒在 390 宽铺成 4 行、高 149px，
+ * 吸顶后长期压住 18% 视口。禁折行 + 胶囊不收缩 + 栏自身横向滚动，栏高固定一行（实测 44px）；
+ * 锚点偏移由 TopicLayout 的 ResizeObserver 按栏实时高度写内联 scroll-padding-top，不随折行失效。
+ * 滚动条隐藏手法同 app.css 的 .status-bar / .sidebar-content（桌面滚动条会额外挤高栏体）。
+ * 不加 touch-action / 手势脚本：栏内滚动是浏览器原生行为。 */
+@media (max-width: 768px) {
+  .page-toc { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; }
+  .page-toc::-webkit-scrollbar { display: none; }
+  .page-toc a { flex: 0 0 auto; }
+}
 /* 卡面单源：.re-section（专题页卡片，带自己的 h2/p 排版）与 .re-panel（纯卡面壳，
  * 给 Section 组件的 card 模式用，不接管段内标题字号）共享同一套边框/圆角/底/内距/阴影。
  * 两者必须同值：卡内表格的出血量按 20px 内距算（见下面 :is() 那组规则）。 */
@@ -1175,7 +1185,9 @@ body.dark .pm-topic-card { box-shadow: inset 0 0 0 1px rgba(255,255,255,.04); }
 .db-hv-member--on i { color: var(--up); }
 .db-hv-member--off i { color: var(--down); }
 .db-hv-member--abst i { color: var(--text-dim); }
-.db-hv-member--absent { opacity: .45; }
+/* 缺席一档：不透明度会把整块文字（名称 + .db-hv-sub）一起压到 AA 以下，
+   改用文字档降一档（在席成员 --text-secondary → 缺席 --text-dim） */
+.db-hv-member--absent { color: var(--text-dim); }
 /* 卡够宽才放大字号：三列铺满时卡 371px，成员链 11.5→12.5、状态字 16→18，
    容器查询而非视口媒体查询：侧栏 240 / .re-root 1200 上限任一改动，视口阈值就静默失效。 */
 .db-sc-card { container-type: inline-size; }
