@@ -1,0 +1,243 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-11-07T14:03:56Z",
+  "title": "Design System: 观澜台",
+  "extensions": {
+    "colorMeta": {
+      "tide-blue": {
+        "role": "primary",
+        "displayName": "澜青",
+        "canonical": "#1a73e8",
+        "tonalRamp": ["#000827", "#001d53", "#003484", "#004bbe", "#0e6be0", "#4c97ff", "#94c6ff", "#d7f1ff"]
+      },
+      "rising-teal": {
+        "role": "secondary",
+        "displayName": "涨潮青",
+        "canonical": "#17937f",
+        "tonalRamp": ["#00100b", "#002a22", "#00473b", "#006755", "#008572", "#4dab98", "#98d2c4", "#d9f6ee"]
+      },
+      "ebbing-coral": {
+        "role": "secondary",
+        "displayName": "退潮彤",
+        "canonical": "#e8494a",
+        "tonalRamp": ["#210000", "#490004", "#75000d", "#a70012", "#cb2a32", "#f16360", "#ffa59e", "#ffe0db"]
+      },
+      "buoy-orange": {
+        "role": "secondary",
+        "displayName": "浮标橙",
+        "canonical": "#ff9800",
+        "tonalRamp": ["#1b0400", "#3f1200", "#662300", "#933300", "#b45300", "#d97f00", "#f4b67b", "#ffe8cb"]
+      },
+      "mist-grey": {
+        "role": "neutral",
+        "displayName": "雾气灰",
+        "canonical": "#9ca3af",
+        "tonalRamp": ["#0a0b0e", "#1f2227", "#363b42", "#4f5660", "#6b727d", "#9299a3", "#c0c4cc", "#eceef2"]
+      },
+      "paper": { "role": "neutral", "displayName": "纸（亮色页面底）", "canonical": "#f6f9fc" },
+      "card": { "role": "neutral", "displayName": "卡面", "canonical": "#ffffff" },
+      "panel": { "role": "neutral", "displayName": "浮层 / 表头色带", "canonical": "#f0f4f9" },
+      "ink": { "role": "neutral", "displayName": "墨（一级文字）", "canonical": "#1a2b42" },
+      "ink-secondary": { "role": "neutral", "displayName": "次墨（正文与数据）", "canonical": "#425466" },
+      "ink-dim": { "role": "neutral", "displayName": "淡墨（注脚与刻度）", "canonical": "#5c6d84" },
+      "night-paper": { "role": "neutral", "displayName": "夜底（暗色页面底）", "canonical": "#111217" },
+      "night-card": { "role": "neutral", "displayName": "夜卡面", "canonical": "#181b1f" },
+      "night-panel": { "role": "neutral", "displayName": "夜浮层", "canonical": "#22252b" }
+    },
+    "typographyMeta": {
+      "display": { "displayName": "页头标题", "purpose": "只用于 .re-header h1，一页一次。" },
+      "headline": { "displayName": "小节标题", "purpose": "带 3px 澜青竖条的段落起点。" },
+      "title": { "displayName": "卡内标题", "purpose": ".re-section h2，比小节标题低一档。" },
+      "body": { "displayName": "正文", "purpose": "叙事段落与表格数据，行高 1.7 为中文长段定。" },
+      "label": { "displayName": "标签", "purpose": "副标、时效、注脚、单位、表头，全站出现最多的字号。" },
+      "numeric": { "displayName": "等宽数字", "purpose": "坐标刻度、tooltip、卡内大读数；只在数字上用。" }
+    },
+    "shadows": [
+      {
+        "name": "card-shadow",
+        "value": "0 1px 2px rgba(16,35,61,.05), 0 1px 6px rgba(16,35,61,.04)",
+        "purpose": "亮色卡片常驻投影；暗色为 none，深度改由明度阶梯表达。"
+      },
+      {
+        "name": "shadow-float",
+        "value": "0 1px 3px rgba(16,35,61,.10), 0 4px 12px rgba(16,35,61,.08)",
+        "purpose": "浮层按钮与伴读浮钮。暗色为 0 2px 10px rgba(0,0,0,.5)。"
+      },
+      {
+        "name": "shadow-pop",
+        "value": "0 4px 16px rgba(16,35,61,.14), 0 1px 3px rgba(16,35,61,.10)",
+        "purpose": "tooltip 与钻取弹层。暗色为 0 4px 16px rgba(0,0,0,.6)。"
+      },
+      {
+        "name": "tooltip-blur",
+        "value": "backdrop-filter: blur(8px)",
+        "purpose": "tooltip 浮于图表之上时的背景模糊，配合半透明浮层底。"
+      }
+    ],
+    "motion": [
+      { "name": "ease-standard", "value": "cubic-bezier(.4,0,.2,1)", "purpose": "按钮与控件状态过渡的统一曲线。" },
+      { "name": "dur-hover", "value": "150ms", "purpose": "悬停换底与换描边。" },
+      { "name": "dur-nav", "value": "120ms", "purpose": "导航条目背景与文字换色。" },
+      { "name": "press", "value": "transform: translateY(1px) scale(.985)", "purpose": "按下的物理反馈，所有主要按钮共用一个动作。" },
+      { "name": "reduced-motion", "value": "transition-duration: .01ms !important; animation-duration: .01ms !important", "purpose": "prefers-reduced-motion 下全站关闭动效与平滑滚动。" }
+    ],
+    "breakpoints": [
+      { "name": "tablet", "value": "1024px", "purpose": "及以下收起左侧树、双栏堆叠。" },
+      { "name": "phone", "value": "768px", "purpose": "及以下多列栅格塌单列、装饰性文字隐藏。" }
+    ]
+  },
+  "components": [
+    {
+      "name": "Range Button",
+      "kind": "button",
+      "refersTo": "range-button",
+      "description": "区间预设与筛选标签的默认态，全站单类 .range-btn。",
+      "html": "<button class=\"ds-range-btn\">3M</button>",
+      "css": ".ds-range-btn { padding: 4px 10px; border: 1px solid var(--btn-border); border-radius: 4px; background: var(--surface); font-size: 12px; font-family: system-ui, -apple-system, sans-serif; color: var(--text-secondary); cursor: pointer; transition: background .15s cubic-bezier(.4,0,.2,1), border-color .15s, box-shadow .15s, color .15s, transform .1s; } .ds-range-btn:hover { background: var(--hover-tint); border-color: var(--border-strong); } .ds-range-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; } .ds-range-btn:active { transform: translateY(1px) scale(.985); }"
+    },
+    {
+      "name": "Range Button (Active)",
+      "kind": "button",
+      "refersTo": "range-button-active",
+      "description": "选中的区间项：澜青实底 + 反色文字，暗色下反色为深墨。",
+      "html": "<button class=\"ds-range-btn ds-range-btn--on\">3M</button>",
+      "css": ".ds-range-btn { padding: 4px 10px; border: 1px solid var(--btn-border); border-radius: 4px; background: var(--surface); font-size: 12px; font-family: system-ui, -apple-system, sans-serif; color: var(--text-secondary); cursor: pointer; transition: background .15s cubic-bezier(.4,0,.2,1), border-color .15s, color .15s, transform .1s; } .ds-range-btn--on { background: var(--accent); color: var(--text-on-accent); border-color: var(--accent); } .ds-range-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; } .ds-range-btn:active { transform: translateY(1px) scale(.985); }"
+    },
+    {
+      "name": "Read-only Badge",
+      "kind": "chip",
+      "refersTo": "badge-readonly",
+      "description": "状态、层级、标签一律用 4px 方胶囊，与可点的圆胶囊区分。",
+      "html": "<span class=\"ds-badge\">估算</span>",
+      "css": ".ds-badge { display: inline-block; padding: 0 6px; border-radius: 4px; font-size: 11px; line-height: 16px; font-weight: 500; letter-spacing: .01em; font-family: system-ui, -apple-system, sans-serif; color: var(--text-secondary); background: var(--color-neutral-bg); border: 1px solid color-mix(in srgb, var(--color-neutral) 25%, transparent); }"
+    },
+    {
+      "name": "Nav Pill",
+      "kind": "chip",
+      "refersTo": "pill-nav",
+      "description": "目录胶囊条与页头时效胶囊：可点或可跳转的圆胶囊，至少 24px 高。",
+      "html": "<a class=\"ds-pill\" href=\"#\">联邦基金</a>",
+      "css": ".ds-pill { display: inline-block; font-size: 12px; font-family: system-ui, -apple-system, sans-serif; padding: 4px 10px; border-radius: 999px; border: 1px solid var(--border); background: var(--surface); color: var(--text-secondary); text-decoration: none; transition: color .15s, border-color .15s; } .ds-pill:hover { color: var(--accent-ink); border-color: var(--accent-ink); } .ds-pill:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }"
+    },
+    {
+      "name": "Section Card",
+      "kind": "card",
+      "refersTo": "section-card",
+      "description": "专题页的卡面单源：1px 界线、8px 圆角、16/20 内距，标题 14px 700。",
+      "html": "<section class=\"ds-section\"><h2>长端分解</h2><p>期限溢价与通胀补偿分开看，十年长端的一半波动来自前者。</p></section>",
+      "css": ".ds-section { border: 1px solid var(--border); border-radius: 8px; background: var(--surface); padding: 16px 20px; box-shadow: var(--card-shadow); font-family: system-ui, -apple-system, sans-serif; } .ds-section h2 { font-size: 14px; font-weight: 700; margin-bottom: 8px; color: var(--text); text-wrap: balance; } .ds-section p { font-size: 13px; line-height: 1.7; color: var(--text-secondary); }"
+    },
+    {
+      "name": "KPI Card",
+      "kind": "card",
+      "refersTo": "kpi-card",
+      "description": "一卡一读数：标签 11px 大写、读数等宽大字号、注脚 11px 弱化。",
+      "html": "<div class=\"ds-kpi\"><div class=\"ds-kpi-label\">净流动性</div><div class=\"ds-kpi-value\">6.12T</div><div class=\"ds-kpi-sub\">+0.8% 周环比</div></div>",
+      "css": ".ds-kpi { max-width: 275px; padding: 16px 20px; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; font-family: system-ui, -apple-system, sans-serif; } .ds-kpi-label { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--text-dim); } .ds-kpi-value { font-size: 22px; font-weight: 700; margin-top: 10px; color: var(--text); font-variant-numeric: tabular-nums; font-family: var(--font-mono); } .ds-kpi-sub { font-size: 11px; margin-top: 12px; color: var(--text-dim); }"
+    },
+    {
+      "name": "Data Table",
+      "kind": "custom",
+      "refersTo": "table-header",
+      "description": "表头皮带式色底、行间弱界线、数值列等宽右对齐。",
+      "html": "<table class=\"ds-table\"><thead><tr><th>指标</th><th class=\"ds-num\">读数</th></tr></thead><tbody><tr><td>HY OAS</td><td class=\"ds-num\">312bp</td></tr><tr><td>IG OAS</td><td class=\"ds-num\">89bp</td></tr></tbody></table>",
+      "css": ".ds-table { width: 100%; border-collapse: collapse; font-family: system-ui, -apple-system, sans-serif; font-size: 13px; } .ds-table th { background: var(--surface-alt); padding: 8px 12px; text-align: left; font-size: 12px; color: var(--text-dim); font-weight: 600; border-bottom: 1px solid var(--border); letter-spacing: .02em; white-space: nowrap; } .ds-table td { padding: 7px 12px; border-bottom: 1px solid var(--border-light); color: var(--text); font-variant-numeric: tabular-nums; } .ds-table .ds-num { text-align: right; }"
+    },
+    {
+      "name": "Nav Item",
+      "kind": "nav",
+      "refersTo": "nav-item",
+      "description": "左侧 240px 专题树条目；当前项叠淡底、换澜青墨、左侧 2px 通栏竖标。",
+      "html": "<nav class=\"ds-nav\"><a class=\"ds-nav-item\" href=\"#\">流动性</a><a class=\"ds-nav-item ds-nav-item--on\" href=\"#\">准备金</a></nav>",
+      "css": ".ds-nav { width: 240px; background: var(--surface); border-right: 1px solid var(--border); font-family: system-ui, -apple-system, sans-serif; padding: 8px 0; } .ds-nav-item { display: block; position: relative; padding: 6px 16px; font-size: 13px; font-weight: 500; color: var(--text-secondary); text-decoration: none; transition: background .12s, color .12s; } .ds-nav-item:hover { background: var(--surface-hover); color: var(--text); } .ds-nav-item--on { background: var(--accent-light); color: var(--accent-ink); } .ds-nav-item--on::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 2px; background: var(--accent); } .ds-nav-item:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }"
+    }
+  ],
+  "narrative": {
+    "northStar": "观澜台",
+    "overview": "高台观潮。整个界面是一处安静的观潮台：读数像台上的刻度，结论像旗语，风浪本身不在画面里表演。潮起潮落交给颜色的语义档去说（涨潮青、退潮彤），水面交给中性纸底，台子交给 1px 的界线与 8px 的圆角。装饰到此为止，剩下的版面全让给数据。\n\n密度按仪表盘走：正文 13px、标签 12px、坐标刻度 10px，一张卡片里常常同时有标题、读数、单位、时效与注脚。窄字号能让「一屏之内能同时看见多少条读数」这个指标尽量高——这是单人研判台最实际的一项能力。\n\n亮色与暗色是等权的两套。亮色取冷蓝白的纸感，暗色取深灰的夜盘感，同样的四级明度阶梯在低明度区间重排。任何新组件必须在两套下各自成立；验收时两套都要看。",
+    "keyCharacteristics": [
+      "结论先行：每页第一屏是状态、评分、报警与一句话，图表与明细在下层。",
+      "语义色两档：同一个语义同时有「图形档」与「文字档」，各管各的对比度门槛。",
+      "方胶囊表示只读状态，圆胶囊表示可点的导航与页头时效，形状本身区分能否操作。",
+      "卡面自带 1px 界线，卡内不再叠第二层框。",
+      "数字用等宽字，正文用系统字，两套字体分工明确。",
+      "断点只有 1024 与 768 两档，不新增中间档。"
+    ],
+    "rules": [
+      {
+        "name": "两档色规则",
+        "body": "每个语义色都有一对令牌：不带后缀的原语只准出现在填充、描边、线条、色带上（门槛 3:1）；带 -text 后缀（或经 --up / --down / --flat / --warning 短名）的那一档才准出现在 color: 上（门槛 4.5:1）。改一个语义色要连着改两档，两档都要过各自的底。",
+        "section": "colors"
+      },
+      {
+        "name": "方与圆规则",
+        "body": "只读的状态、标签、层级徽章一律 4px 方胶囊、18px 高、11px 字；可点的导航与筛选胶囊一律 999px 圆胶囊、至少 24px 高。页头时效区是唯一例外：.re-as-of / .re-tier / .cons-intraday 虽只读，仍保留 999px，因为它们与页头标题同行，视觉上属于「页」。",
+        "section": "colors"
+      },
+      {
+        "name": "等权双主题规则",
+        "body": "亮暗两套令牌成对定义，谁也不从属于谁。新增颜色必须在 :root 与 body.dark 两侧同时给出。",
+        "section": "colors"
+      },
+      {
+        "name": "等宽只顾数字",
+        "body": "JetBrains Mono 只出现在读数、坐标刻度、tooltip 数字与日期上；段落正文、标题、按钮文字一律系统字。",
+        "section": "typography"
+      },
+      {
+        "name": "一级一档",
+        "body": "常用阶梯是 10 / 11 / 12 / 13 / 14 / 15 一组、16 / 18 / 20 / 22 / 24 / 26 一组。半档（11.5 / 12.5 / 13.5 / 14.5）只出现在密集面板与叙事正文里，用来在两档之间挤出一档过渡；新增字号先看整数档够不够，不够再用半档。",
+        "section": "typography"
+      },
+      {
+        "name": "小字下限",
+        "body": "10px 只给侧栏说明（品牌副名、分组标题、构建戳）与页头口径徽章；11px 给徽章、表头、坐标刻度与源行；正文、表格数据、卡片读数不低于 12px。判定标准是「读者需不需要在 10px 里读出数字或做判断」。",
+        "section": "typography"
+      },
+      {
+        "name": "两档断点",
+        "body": "页面骨架只有 1024（左侧树收起、双栏堆叠）与 768（多列塌单列）两档。列表密度与个别面板另有 600 / 480 / 900 三档，只改字号密度、卡片列数旋钮与单块显隐，不承担页面骨架。卡片内部宽度判断走容器查询。",
+        "section": "layout"
+      },
+      {
+        "name": "一项一个数",
+        "body": "一组「名称 → 读数」的短列表走键值行（2–4 列自适应），不写成两张列的表；注脚挂在名称后面，让读数右对齐成一条可竖向扫读的线。",
+        "section": "layout"
+      },
+      {
+        "name": "单框规则",
+        "body": "卡面已经有一道 1px 界线，卡里的图表、表格、内嵌块不再画第二道边框，也不加第二个圆角。",
+        "section": "elevation"
+      },
+      {
+        "name": "亮色有影、暗色无影",
+        "body": "亮色靠明度阶梯加极淡投影；暗色没有投影，深度全靠四级明度与半透明白描边。新增组件不要给暗色补一套投影。",
+        "section": "elevation"
+      }
+    ],
+    "dos": [
+      "Do 语义色成对取令牌：填充用原语，color: 用 -text 档；改色时两档一起改并各测各自的底。",
+      "Do 把只读状态做成 4px 方胶囊、可点控件做成 999px 圆胶囊，触控命中区不小于 24px。",
+      "Do 每页第一屏给结论，图表与明细放下面一层，两层互相联动。",
+      "Do 卡面用 8px 圆角 + 1px 界线 + 16/20 内距；卡内图表去掉自带描边。",
+      "Do 数字用 JetBrains Mono + tabular-nums；「名称 → 读数」短列表走键值行，读数右对齐成一条线。",
+      "Do 页头时效统一写成「数据截至 …」，由 R.setAsOf 写入，并挂上披露 / 估算 / 代理三层徽章之一。",
+      "Do 亮色与暗色两套都实际打开看一遍再交付；图表主题切换后要重新注册。",
+      "Do 深色下靠明度阶梯造纵深，不要补投影。",
+      "Do 需要「更安静」的文字换更暗的 color token（--text-dim），不给容器加 opacity。"
+    ],
+    "donts": [
+      "Don't 用营销页的节奏：大字号渐变标题、插画、夸张的章节间距。",
+      "Don't 用交易终端的炫技：满屏红绿闪烁、超大数字、滚动动画。",
+      "Don't 走极简文献风：一屏只放三个数、大片留白、圆角贴纸式装饰。",
+      "Don't 把满饱和的图形档颜色用在 color: 上。",
+      "Don't 在卡里再套一层带边框与圆角的框。",
+      "Don't 给页面骨架新增 1024 / 768 以外的断点，也不要用 1100 这类中间档。",
+      "Don't 给折线写 1.2 / 1.6 / 2.2 / 2.5 / 3 这类线宽，只有 2 / 1.5 / 1 三档。",
+      "Don't 用 type: 'category' 装 ISO 日期串，日期轴一律走 time 轴。",
+      "Don't 把 10px 用在任何读数、正文或需要判断的文字上（它只给侧栏说明与页头口径徽章）。",
+      "Don't 把颜色写进页面内联样式：所有颜色走 var(--token)。",
+      "Don't 自造并行的组件，复用 Section / R.cards / R.kvRows / R.table / R.num / R.chgSpan。"
+    ]
+  }
+}

@@ -11,7 +11,9 @@ repos:
         # data/ 下 JSON 全部由 fetcher 写盘、程序消费：格式（compact 单行 or indent=1）
         # 归 fetcher 自己定，hook 不插手——pretty 展开会让 git diff 不可读且体积翻倍。
         # （尾部换行仍由 end-of-file-fixer 保证，fetcher 写盘时也已各自补上）
-        exclude: '^data/'
+        # .impeccable/ 同理：design.json 与 DESIGN.md 逐条对应，中文叙述是该文件的全部内容，
+        # pretty-format-json 会把它们转成 \uXXXX 转义，导致每次编辑都成整文件重写。
+        exclude: '^(data/|\.impeccable/)'
       - id: check-added-large-files
         args: [--maxkb=10240]  # 分钟线 CSV 单品种可达数 MB，放宽到 10MB
       - id: check-ast
