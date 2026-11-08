@@ -24,7 +24,6 @@ import TopicLayout from '../../layouts/TopicLayout.astro';
 <script is:inline>
 const fmt = R.num;
 function stance(ann) { const a = Math.abs((ann || 0) * 100); if (ann < 0) return '偏空'; return a >= 30 ? '偏多（拥挤）' : (a >= 15 ? '偏多' : '中性'); }
-function pcrStance(p) { return p == null ? '中性' : (p < 0.4 ? '偏多' : (p > 1.5 ? '偏空' : '中性')); }
 
 async function load() {
   // 小节锚点导航（全站统一 JS 填；末尾两项为加密三兄弟的跨页链接，非锚点）
@@ -37,6 +36,9 @@ async function load() {
   const d = await R.get('/api/assets/crypto-derivatives');
   if (!d || !d.ts) { R.fail(['now', 'etf', 'kpi', 'funding', 'retail', 'basis', 'coinglass'], new Error('无加密衍生品快照 · 运行 ./bin/fetch_crypto_derivatives 后刷新')); return; }
   R.setAsOf([['衍生品快照', d.ts.slice(0, 10)], d.cme && ['CME 期货 OI', d.cme.as_of], d.basis && d.basis.available && ['基差', d.basis.latest]]);
+  // PCR 阈值取自后端 consensus.bands（与加密总览的机构 vs 散户同源），不在页面写死
+  const [pcrLo, pcrHi] = d.consensus.bands.pcr;
+  const pcrStance = p => (p == null ? '中性' : (p <= pcrLo ? '偏多' : (p >= pcrHi ? '偏空' : '中性')));
 
   const p = d.perp || {};
   const optB = d.options_BTC || {}, optE = d.options_ETH || {};

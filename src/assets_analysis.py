@@ -3637,6 +3637,16 @@ def _funding_hist_series(snap: dict) -> list[dict]:
 # ── 机构 vs 散户对照（衍生品页；规则引擎，LLM 预留） ──────────────────────────
 
 
+# 散户通道的双侧阈值。PCR 与多空账户比都不是零中心量，_stance 的 ±thr 对称带
+# 只适合可正可负的差值（CME 变化率、资金费率），这两条必须双侧判定。
+# PCR：Deribit BTC 期权 call OI 结构性大于 put，78 天实测 0.52–0.69（p10 0.54 /
+# p90 0.67），阈值按自身分布取 p10/p90；低 PCR = call 需求强 = 偏多。
+PCR_LOW, PCR_HIGH = 0.55, 0.65
+# 多空账户比：Coinglass 24h 多空账户比中心在 0.97（不在 1.0），78 天实测
+# 0.83–1.40（p10 0.93 / p90 1.07），取 p10/p90 为拥挤边界。
+LS_LOW, LS_HIGH = 0.90, 1.10
+
+
 def _stance(value: float | None, thr: float) -> str:
     """±thr 阈值 → 多/空/中性。"""
     if value is None:
@@ -3656,17 +3666,21 @@ def crypto_consensus(snap: dict, radar: dict) -> dict:
     ann = perp.get("funding_annual")
     # 年化 >15% 视为多头拥挤（decimal → %）
     fr_stance = _stance((ann or 0) * 100 if ann is not None else None, 15)
-    # 多空账户比（Coinglass，与雷达同源）：>1.5 多头拥挤 / <0.67 空头拥挤
+    # 多空账户比（Coinglass，与雷达同源）：双侧阈值，多头账户拥挤 = 散户立场偏多
     lsr = (snap.get("coinglass") or {}).get("ls_ratio") or {}
     ls = (
         lsr["long_pct"] / lsr["short_pct"] if lsr.get("long_pct") and lsr.get("short_pct") else None
     )
-    ls_stance = _stance(ls, 1.5) if ls is not None else "中性"
+    ls_stance = (
+        ("偏多" if ls >= LS_HIGH else ("偏空" if ls <= LS_LOW else "中性"))
+        if ls is not None
+        else "中性"
+    )
     pcr = opt.get("pcr")
     pcr_stance = "中性"
     if pcr is not None:
         # 低 PCR = call 拥挤 = 偏多（与雷达口径一致）
-        pcr_stance = "偏多" if pcr < 0.8 else ("偏空" if pcr > 1.2 else "中性")
+        pcr_stance = "偏多" if pcr <= PCR_LOW else ("偏空" if pcr >= PCR_HIGH else "中性")
 
     # ETF 通道（Farside；stale 不投票）
     etf = snap.get("etf") or {}
@@ -3723,7 +3737,7 @@ def crypto_consensus(snap: dict, radar: dict) -> dict:
             "name": "多空账户比",
             "stance": ls_stance,
             "reading": f"{ls:.2f}" if ls is not None else None,
-            "band": "全市场 · >1.5 多 / <0.67 空",
+            "band": f"全市场 · >{LS_HIGH:.2f} 多 / <{LS_LOW:.2f} 空",
             "detail": "Coinglass 全局" if ls is not None else "Coinglass 多空比不可用",
             "has_data": ls is not None,
         },
@@ -3731,7 +3745,7 @@ def crypto_consensus(snap: dict, radar: dict) -> dict:
             "name": "期权 PCR",
             "stance": pcr_stance,
             "reading": f"{pcr:.2f}" if pcr is not None else None,
-            "band": "Put/Call · <0.8 多 / >1.2 空",
+            "band": f"Put/Call · <{PCR_LOW:.2f} 多 / >{PCR_HIGH:.2f} 空",
             "detail": "Deribit BTC 期权" if pcr is not None else "期权链不可用",
             "has_data": pcr is not None,
         },
@@ -3758,17 +3772,22 @@ def crypto_consensus(snap: dict, radar: dict) -> dict:
     inst_dirs = [s for s in inst_stances if s != "中性"]
     retail_dirs = [s for s in retail_stances if s != "中性"]
     short_inst = short.get(inst_lean, "分化")  # 分化时避免 KeyError
+
+    def lean_text(lean: str) -> str:
+        """立场 → 文案短语：「分化」不是方向，不能写成「偏分化」。"""
+        return "内部分歧" if lean == "分化" else ("中性" if lean == "中性" else f"偏{short[lean]}")
+
     if not retail_stances:
         # 散户三条通道全缺 → 单侧可读，不能靠「空集未反向」冒充同向
         verdict = "散户侧数据缺失 — 仅机构单侧可读"
         detail = (
-            f"机构（{note_inst}）偏{short_inst}；资金费率/多空比/PCR 三条散户通道"
+            f"机构（{note_inst}）{lean_text(inst_lean)}；资金费率/多空比/PCR 三条散户通道"
             "本次都取不到，对照不成立。手动补 ./bin/fetch_crypto_derivatives。"
         )
     elif not inst_stances:
         verdict = "机构侧数据缺失 — 仅散户单侧可读"
         detail = (
-            f"散户（资金费率/多空比/PCR）偏{short.get(retail_lean, '分化')}；"
+            f"散户（资金费率/多空比/PCR）{lean_text(retail_lean)}；"
             "CME/ETF/Spread 三条机构通道本次都取不到。散户信号仅作反向拥挤度参考。"
         )
     else:
@@ -3780,19 +3799,19 @@ def crypto_consensus(snap: dict, radar: dict) -> dict:
             verdict = "机构按兵不动，散户有方向 — 看散户拥挤度"
             detail = (
                 f"机构（{note_inst}）全体中性，散户（资金费率/多空比/PCR）"
-                f"偏{short.get(retail_lean, '分化')}——散户信号仅作反向拥挤度参考。"
+                f"{lean_text(retail_lean)}——散户信号仅作反向拥挤度参考。"
             )
         elif inst_lean == "分化":
             verdict = "机构内部分歧 — 以 CME/ETF/Spread 通道对立为线索"
             detail = (
-                f"机构通道分歧（{note_inst}），散户偏{short.get(retail_lean, '分化')}。"
+                f"机构通道分歧（{note_inst}），散户{lean_text(retail_lean)}。"
                 "通道对立时以 ETF 现货通道为锚，Spread 作 carry 参考。"
             )
         elif all(s == inst_lean or s == "中性" for s in retail_stances):
             verdict = f"机构与散户同向偏{short_inst[:1]} — 趋势延续概率上升"
             detail = f"机构（{note_inst}）偏{short_inst}且散户未反向，方向性信号同向。"
         else:
-            verdict = f"机构偏{short_inst}，散户偏{short.get(retail_lean, '分化')} — 分歧看定价权"
+            verdict = f"机构{lean_text(inst_lean)}，散户{lean_text(retail_lean)} — 分歧看定价权"
             detail = (
                 "机构与散户立场不一致：以机构（CME/ETF/Spread）定价权为锚，"
                 "散户信号仅作反向拥挤度参考。"
@@ -3810,6 +3829,7 @@ def crypto_consensus(snap: dict, radar: dict) -> dict:
         },
         "verdict": verdict,
         "detail": detail,
+        "bands": {"pcr": [PCR_LOW, PCR_HIGH], "ls": [LS_LOW, LS_HIGH]},
         "generator": "rules",
     }
 
@@ -3976,9 +3996,8 @@ def crypto_radar(snap: dict) -> dict:
             f"永续 OI 7d 变化 {perp_oi_chg:+.1f}%（±5% 中性带）",
         )
 
-    # 散户多空比（timsun 口径：Coinglass 全局多空账户比，反向拥挤度：
-    # ≥1.5 多头拥挤 → 负分，≤0.67 空头拥挤 → 正分，中间中性）
-    # ponytail: 固定阈值；快照满 90d 后改滚动分位（分位语境比绝对值可靠）
+    # 散户多空比（Coinglass 全局多空账户比，反向拥挤度：多头账户拥挤 → 负分，
+    # 空头账户拥挤 → 正分，中间中性；阈值与对照卡共用 LS_LOW/LS_HIGH）
     lsr = (snap.get("coinglass") or {}).get("ls_ratio") or {}
     ls_ratio = (
         lsr["long_pct"] / lsr["short_pct"] if lsr.get("long_pct") and lsr.get("short_pct") else None
@@ -3989,13 +4008,13 @@ def crypto_radar(snap: dict) -> dict:
         cg_date = (snap.get("coinglass") or {}).get("_date") or ""
         crowd = (
             "多头拥挤，反向信号"
-            if ls_ratio >= 1.5
-            else ("空头拥挤，反向信号" if ls_ratio <= 0.67 else "中性带内")
+            if ls_ratio >= LS_HIGH
+            else ("空头拥挤，反向信号" if ls_ratio <= LS_LOW else "中性带内")
         )
         add(
             "散户多空比",
             10,
-            -1.0 if ls_ratio >= 1.5 else (1.0 if ls_ratio <= 0.67 else 0.0),
+            -1.0 if ls_ratio >= LS_HIGH else (1.0 if ls_ratio <= LS_LOW else 0.0),
             f"L/S {ls_ratio:.2f}，约 {lsr['long_pct']:.0f}% 多头"
             f"（Coinglass 全局{cg_date[:4]}-{cg_date[4:6]}-{cg_date[6:]}，{crowd}）"
             if cg_date
