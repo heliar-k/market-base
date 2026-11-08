@@ -11,6 +11,8 @@ from src.assets_analysis import (
     LS_LOW,
     PCR_HIGH,
     PCR_LOW,
+    TAKER_HIGH,
+    TAKER_LOW,
     _crypto_basis,
     crypto_consensus,
 )
@@ -18,9 +20,10 @@ from src.assets_analysis import (
 ROOT = Path(__file__).resolve().parents[1]
 WINDOW = 20
 
-# 散户通道阈值（src/assets_analysis.py 的 PCR_LOW/HIGH、LS_LOW/HIGH）按 78 天实测
-# 分布取 p10/p90。市场结构漂移时阈值会落到分布之外，页面症状是「散户立场长期不变」。
-# 这里锁两件事：阈值在历史分布里的分位位置，以及最近一段时间读数没有全落同一侧。
+# 三条散户/基差通道的阈值（src/assets_analysis.py 的 PCR_LOW/HIGH、LS_LOW/HIGH、
+# TAKER_LOW/HIGH、BASIS_BAND）按各自实测分布取 p10/p90 后取整。市场结构漂移时
+# 阈值会落到分布之外，页面症状是「立场长期不变」。这里锁三件事：阈值在历史分布
+# 里的分位位置、最近一段时间读数没有全落同一侧、value→stance 的映射与阈值端点。
 # 变红时人工复核常量，不做自动重算——立场标签要跨时间可比。
 
 
@@ -44,11 +47,25 @@ def _ls_series() -> list[float]:
     return out
 
 
+def _taker_series() -> list[float]:
+    """OKX BTC taker 3 日买卖比（buy 之和 / sell 之和），按日期升序。"""
+    out: list[float] = []
+    for f in sorted((ROOT / "data" / "crypto_derivatives").glob("20*.json")):
+        t = (json.loads(f.read_text(encoding="utf-8")).get("taker") or {}).get("BTC") or []
+        if len(t) < 3:
+            continue
+        sell = sum(r["sell"] for r in t[:3])
+        if sell:
+            out.append(sum(r["buy"] for r in t[:3]) / sell)
+    return out
+
+
 def _cases() -> list[tuple[str, list[float], float, float]]:
     """(通道名, 历史读数, 下界, 上界)。"""
     return [
         ("期权 PCR", _pcr_series(), PCR_LOW, PCR_HIGH),
         ("多空账户比", _ls_series(), LS_LOW, LS_HIGH),
+        ("taker 3 日比", _taker_series(), TAKER_LOW, TAKER_HIGH),
     ]
 
 

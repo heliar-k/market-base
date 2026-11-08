@@ -3642,12 +3642,15 @@ def _funding_hist_series(snap: dict) -> list[dict]:
 # PCR：Deribit BTC 期权 call OI 结构性大于 put，78 天实测 0.52–0.69（p10 0.54 /
 # p90 0.67），阈值按自身分布取 p10/p90；低 PCR = call 需求强 = 偏多。
 PCR_LOW, PCR_HIGH = 0.55, 0.65
-# 多空账户比：Coinglass 24h 多空账户比中心在 0.97（不在 1.0），78 天实测
-# 0.83–1.40（p10 0.93 / p90 1.07），取 p10/p90 为拥挤边界。
+# 多空账户比：Coinglass 24h 多空账户比中心在 0.97（不在 1.0），截至 2026-11 共 71 个
+# 观测实测 0.83–1.29（p10 0.93 / p90 1.06），阈值取整到 0.90/1.10（约 p6 / p93）。
 LS_LOW, LS_HIGH = 0.90, 1.10
 # 基差 spread（60d EMA − SOFR）死亡带：ema60 相邻日变化中位 0.17，
 # spread 在 0 附近属噪声。历史 257 个观测范围 -2.30~+5.15，中位 +0.60。
 BASIS_BAND = 0.25
+# taker 3 日买卖比（OKX 逐笔）：78 个快照实测 0.910–1.102（p10 0.967 / p90 1.071），
+# 取整到 0.97/1.07。只给前端「散户仓位读数」用，后端不参与判定。
+TAKER_LOW, TAKER_HIGH = 0.97, 1.07
 
 
 def _stance(value: float | None, thr: float) -> str:
@@ -3771,6 +3774,7 @@ def crypto_consensus(snap: dict, radar: dict) -> dict:
     inst_stances = [c["stance"] for c in inst_channels if c["has_data"]]
     retail_stances = [c["stance"] for c in retail_channels if c["has_data"]]
     note_inst = " / ".join(c["short"] for c in inst_channels if c["has_data"]) or "CME 数据待积累"
+    note_retail = " / ".join(c["short"] for c in retail_channels if c["has_data"]) or "数据待积累"
     short = {"偏多": "多", "偏空": "空", "中性": "中性"}
 
     # 立场口径单源：非中性票同向 → 取之；无方向票 → 中性；对立 → 分化。
@@ -3820,11 +3824,11 @@ def crypto_consensus(snap: dict, radar: dict) -> dict:
         elif not inst_dirs:
             verdict = "机构按兵不动，散户有方向 — 看散户拥挤度"
             detail = (
-                f"机构（{note_inst}）全体中性，散户（资金费率/多空比/PCR）"
+                f"机构（{note_inst}）全体中性，散户（{note_retail}）"
                 f"{lean_text(retail_lean)}——散户信号仅作反向拥挤度参考。"
             )
         elif inst_lean == "分化":
-            verdict = "机构内部分歧 — 以 CME/ETF/Spread 通道对立为线索"
+            verdict = f"机构内部分歧 — 以 {note_inst} 通道对立为线索"
             detail = (
                 f"机构通道分歧（{note_inst}），散户{lean_text(retail_lean)}。"
                 "通道对立时以 ETF 现货通道为锚，Spread 作 carry 参考。"
@@ -3835,7 +3839,7 @@ def crypto_consensus(snap: dict, radar: dict) -> dict:
         else:
             verdict = f"机构{lean_text(inst_lean)}，散户{lean_text(retail_lean)} — 分歧看定价权"
             detail = (
-                "机构与散户立场不一致：以机构（CME/ETF/Spread）定价权为锚，"
+                f"机构与散户立场不一致：以机构（{note_inst}）定价权为锚，"
                 "散户信号仅作反向拥挤度参考。"
             )
     return {
@@ -3846,8 +3850,7 @@ def crypto_consensus(snap: dict, radar: dict) -> dict:
         },
         "retail": {
             "stance": retail_lean,
-            "note": " / ".join(c["short"] for c in retail_channels if c["has_data"])
-            or "散户数据待积累",
+            "note": note_retail,
             "channels": retail_channels,
         },
         "verdict": verdict,
@@ -3856,6 +3859,7 @@ def crypto_consensus(snap: dict, radar: dict) -> dict:
             "pcr": [PCR_LOW, PCR_HIGH],
             "ls": [LS_LOW, LS_HIGH],
             "basis": BASIS_BAND,
+            "taker": [TAKER_LOW, TAKER_HIGH],
         },
         "generator": "rules",
     }

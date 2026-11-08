@@ -320,7 +320,7 @@ function renderRadar(d) {
         </div>
         <div class="radar-state"><i></i>${R.esc(radar.verdict)}</div>
         <div class="radar-scale">
-          <div class="rail"><span class="zero"></span><span class="dot" style="left:${pos}%"></span></div>
+          <div class="rail"><span class="zero"></span><span class="dot" style="--p:${pos / 100}"></span></div>
           <div class="ticks"><span>偏空 −4</span><span>0</span><span>+4 偏多</span></div>
         </div>
       </div>
@@ -394,12 +394,16 @@ function consRail(name, stance, channels) {
     : split
       ? '<span class="cons-mk cons-mk--a"></span><span class="cons-mk cons-mk--b"></span>'
       : `<span class="cons-mk mk-${v}"></span>`;
-  const rows = channels.map((ch) => `<div class="cons-ch${ch.has_data ? '' : ' miss'}" title="${R.esc(ch.band)}">
+  const rows = channels.map((ch) => {
+    // detail（具体数值/数据截至）不进行内，只当 title 的第二段，不占行宽
+    const tip = ch.detail ? `${ch.band} · ${ch.detail}` : ch.band;
+    return `<div class="cons-ch${ch.has_data ? '' : ' miss'}" title="${R.esc(tip)}">
       <span class="cons-ch-n">${R.esc(ch.name)}</span>
       <span class="cons-ch-v">${ch.reading == null ? '—' : R.esc(ch.reading)}</span>
       <span class="cons-ch-band">${R.esc(ch.band)}</span>
       <span class="re-badge ${ch.has_data ? BADGE[ch.stance] : 'none'}">${ch.has_data ? SHORT[ch.stance] : '缺数据'}</span>
-    </div>`).join('');
+    </div>`;
+  }).join('');
   return `<div class="cons-side">
     <div class="cons-side-h"><span>${name}</span><span class="re-badge ${noData ? 'none' : split ? 'split' : BADGE[stance]}">${noData ? '缺数据' : SHORT[stance]}</span></div>
     <div class="cons-rail"><span class="cons-track">${marks}</span>
@@ -419,7 +423,7 @@ function renderConsensus(d) {
   // 同向时主句上色（多=绿/空=红，文字档）；不一致或中性则不上色，避免「同向偏空」也涂绿
   const same = c.inst.stance === c.retail.stance && (c.inst.stance === '偏多' || c.inst.stance === '偏空');
   const dirInk = c.inst.stance === '偏多' ? 'var(--color-up-text)' : 'var(--color-down-text)';
-  csec.innerHTML = `${R.secTitle('机构 vs 散户 · 对照', '', '机构 = CME / ETF / 基差 · 散户 = 资金费率 / 多空比 / PCR')}
+  csec.innerHTML = `${R.secTitle('机构 vs 散户 · 对照')}
     <div class="cons-top${same ? ' aligned' : ''}"${same ? ` style="--ci:${dirInk}"` : ''}>
       <div class="cons-verdict">
         <div class="radar-cap">对照结论</div>

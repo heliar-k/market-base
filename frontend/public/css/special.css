@@ -1366,7 +1366,7 @@ details.db-scen-item[open] > summary.db-scen-head::after { content: '收起 ▴'
 .radar-state i { width: 7px; height: 7px; border-radius: 2px; background: var(--rc-color, var(--color-neutral)); flex: 0 0 auto; }
 /* 双极刻度尺：轨道 = down→neutral→up 三段（图形档透明叠加，只当填充不当文字色），0 处一条中线，圆点随分数落位 */
 .radar-scale { margin-top: 2px; }
-.radar-scale .rail { position: relative; height: 5px; border-radius: 3px;
+.radar-scale .rail { --rail-edge: 10px; position: relative; height: 5px; border-radius: 3px;
   background: linear-gradient(90deg,
     color-mix(in srgb, var(--color-down) 34%, transparent),
     color-mix(in srgb, var(--color-neutral) 22%, transparent) 50%,
@@ -1374,6 +1374,8 @@ details.db-scen-item[open] > summary.db-scen-head::after { content: '收起 ▴'
 .radar-scale .zero { position: absolute; left: 50%; top: -4px; bottom: -4px; width: 1px; background: var(--text-dim); opacity: .5; }
 .radar-scale .dot { position: absolute; top: 50%; width: 13px; height: 13px; margin: -6.5px 0 0 -6.5px;
   border-radius: 50%; background: var(--surface); border: 3px solid var(--rc-color, var(--color-neutral));
+  /* 页面只传 --p（0 = −4 满量程空侧，1 = +4 满量程多侧）；圆心范围与对照轨同一 --rail-edge */
+  left: calc(var(--rail-edge) + (100% - 2 * var(--rail-edge)) * var(--p, .5));
   animation: radar-dot-pop .5s cubic-bezier(.16, 1, .3, 1) both; }
 .radar-scale .ticks { position: relative; display: flex; justify-content: space-between; font-size: 10px; color: var(--text-dim); margin-top: 5px; font-variant-numeric: tabular-nums; }
 .radar-scale .ticks span:nth-child(2) { position: absolute; left: 50%; transform: translateX(-50%); }
