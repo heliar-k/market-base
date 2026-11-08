@@ -448,6 +448,9 @@ function renderScanTable() {
 
   const pred = SCAN_FILTERS[activeScanFilter] || SCAN_FILTERS.all;
   const filtered = entries.filter(([s, v]) => pred(s, v));
+  // 全池 gamma 符号分布，口径同 regimeKey 的首字符
+  const negGamma = entries.filter(([, v]) => regimeKey(v)[0] === 'n').length;
+  const posGamma = entries.length - negGamma;
 
   host.innerHTML = '';
   const card = document.createElement('div');
@@ -456,7 +459,7 @@ function renderScanTable() {
   const toolbar = document.createElement('div');
   toolbar.className = 'tech-ov-scan-bar';
   toolbar.innerHTML = `
-    <div class="tech-ov-scan-title">全池期权结构扫描 <span class="tech-ov-date">共 ${entries.length} 标的 · 点击行切换结论，双击或点「图表」看 GEX/IV/OI</span></div>
+    <div class="tech-ov-scan-title">全池期权结构扫描 <span class="tech-ov-date">共 ${entries.length} 标的 · 负γ ${negGamma} / 正γ ${posGamma} · 点击行切换结论，双击或点「图表」看 GEX/IV/OI</span></div>
     <div class="tech-ov-filters">
       ${filters.map(f => `<button type="button" class="range-btn${activeScanFilter === f.key ? ' active' : ''}" data-filter="${f.key}">${esc(f.label)}</button>`).join('')}
     </div>
@@ -477,7 +480,6 @@ function renderScanTable() {
         <tr>
           <th scope="col">标的</th>
           <th scope="col" class="num">现价</th>
-          <th scope="col">结构 Regime</th>
           <th scope="col" class="num">Net GEX (B)</th>
           <th scope="col" class="num">Net DEX (B)</th>
           <th scope="col" class="num">Gamma Flip (距现价)</th>
@@ -491,7 +493,6 @@ function renderScanTable() {
       <tbody>
         ${filtered.map(([sym, v]) => {
           const isAct = sym === S;
-          const key = regimeKey(v);
           // 池归属不再行内标：筛选器已给三分（宽基/wheel 池/其他），表里再标一遍是重复的
           const gexCls = (v.net_gex ?? 0) >= 0 ? 'up' : 'down';
           const dexCls = (v.net_dex ?? 0) >= 0 ? 'up' : 'down';
@@ -506,7 +507,6 @@ function renderScanTable() {
             <tr class="tech-ov-row${isAct ? ' active' : ''}" data-symbol="${esc(sym)}">
               <td><strong>${esc(sym)}</strong></td>
               <td class="num">${v.spot != null ? '$' + fmtNum(v.spot) : '—'}</td>
-              <td><span class="opt-chip ${key}">${esc(REGIME_INFO[key].label)}</span></td>
               <td class="num ${gexCls}">${fmtSigned(v.net_gex)}</td>
               <td class="num ${dexCls}">${fmtSigned(v.net_dex, 1)}</td>
               <td class="num">${flipStr}</td>
@@ -517,7 +517,7 @@ function renderScanTable() {
               <td class="num"><button type="button" class="range-btn tech-ov-kbtn" data-go-charts="${esc(sym)}">图表</button></td>
             </tr>
           `;
-        }).join('') || '<tr><td colspan="11" class="sidebar-watch-empty">当前筛选条件下无匹配标的</td></tr>'}
+        }).join('') || '<tr><td colspan="10" class="sidebar-watch-empty">当前筛选条件下无匹配标的</td></tr>'}
       </tbody>
     </table>
   `;
