@@ -52,13 +52,12 @@ import Section from '../../components/Section.astro';
 async function load() {
   // EFFR 卡片值/1周变动由 analysis 的 overview.effr 提供，不再拉整个 fed-funds（~84KB）
   const data = await R.get('/api/rates/analysis');
-  R.setAsOf([['利率/利差', data.overview.as_of]]);
+  const d = data.yield_curve;
+  R.setAsOf([['利率/利差', data.overview.as_of || d.as_of]]);
   // 研判生成已由研判区上方 genNote 徽章表达，页脚不再重复
   R.foot(null, {
     src: 'FRED（DGS / EFFR / TIPS / 目标区间）· NY Fed BGCR · chinamoney（中国 10Y）',
   });
-
-  const d = data.yield_curve;
 
   // ── 统计卡（变动着色：涨绿跌红，与全站一致）──
   const t = Object.fromEntries(d.tenors.map(x => [x.tenor, x]));
@@ -70,14 +69,18 @@ async function load() {
   // 纯文本版变动：卡片的 chgSub 带 HTML 着色，事实集只要数字；数值本身仍走 R.fmtBp，
   // 这里只补单位与空值（不重算 toFixed，避免与 rates-common 的口径分叉）
   const bpText = (v) => (v === null || v === undefined ? '—' : R.fmtBp(v) + 'bp');
-  document.getElementById('re-cards').replaceChildren(R.cards([
-    { label: '联邦基金有效利率', value: R.fmtPct(effr.value), sub: chgSub(effr.chg_1w, '1周'), accent: true },
-    { label: '2Y', value: R.fmtPct(t['2Y'].current), sub: chgSub(t['2Y'].chg_1w, '1周') },
+  // EFFR 缺失时整卡不渲染（不出现只有「—」的强调卡），accent 让给 2Y
+  const hasEffr = effr.value !== null && effr.value !== undefined;
+  const effrCard = { label: '联邦基金有效利率', value: R.fmtPct(effr.value), sub: chgSub(effr.chg_1w, '1周'), accent: true };
+  const cards = [
+    ...(hasEffr ? [effrCard] : []),
+    { label: '2Y', value: R.fmtPct(t['2Y'].current), sub: chgSub(t['2Y'].chg_1w, '1周'), accent: !hasEffr },
     { label: '10Y', value: R.fmtPct(t['10Y'].current), sub: chgSub(t['10Y'].chg_1w, '1周') },
     { label: '30Y', value: R.fmtPct(t['30Y'].current), sub: chgSub(t['30Y'].chg_1w, '1周') },
-    { label: '10Y-2Y', value: R.fmtBp(s['2s10s']), sub: chgSub(s['2s10s_1m_chg'], '1月') },
+    { label: '10Y-2Y', value: bpText(s['2s10s']), sub: chgSub(s['2s10s_1m_chg'], '1月') },
     { label: '10Y 实际利率', value: R.fmtPct(tips10?.real), sub: 'TIPS' },
-  ], 're-cards-2col'));
+  ];
+  document.getElementById('re-cards').replaceChildren(R.cards(cards, 're-cards-2col'));
 
   // ── 曲线四线快照（tenors 自带 1周/1月/3月前，零新请求）──
   R.curveCompare('yc_compare', d.tenors);

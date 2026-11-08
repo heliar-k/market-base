@@ -672,13 +672,16 @@ def _llm_generate() -> dict | None:
     if not llm_enabled():
         return None
     yc = yield_curve_analysis()
+    rule = overview_analysis()
     payload = {
-        "sections": overview_analysis()["sections"],
+        "sections": rule["sections"],
         "yield_curve_facts": yc,
     }
     out = generate_narrative("rates", payload, _RATES_PROMPT_HINT)
-    # 同构 dict：yield_curve 事实段原样带上，调用方拿到的键与规则引擎路径完全一致
-    return None if out is None else {"overview": {"sections": out["sections"]}, "yield_curve": yc}
+    if out is None:
+        return None
+    # 事实字段（as_of / effr）原样保留，LLM 只换叙事段；键与规则引擎路径完全一致
+    return {"overview": {**rule, "sections": out["sections"]}, "yield_curve": yc}
 
 
 _LLM_ENABLED = True
