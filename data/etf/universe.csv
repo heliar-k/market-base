@@ -1142,7 +1142,6 @@ UFO,Procure Space ETF,theme
 UFOX,Defiance Space and Connective Tech ETF,theme
 UITB,VictoryShares Core Intermediate Bond ETF,bond
 UIVM,VictoryShares International Value Momentum ETF,factor_income
-ULTI,REX IncomeMax Option Strategy ETF,factor_income
 ULVM,VictoryShares US Value Momentum ETF,factor_income
 UMMA,Wahed Dow Jones Islamic World ETF,global
 UNHG,Leverage Shares 2X Long UNH Daily ETF,leveraged_inverse
@@ -3099,6 +3098,7 @@ HXA,Mast HedgeIndex Corporate Arbitrage ETF,bond
 HXC,Mast HedgeIndex Strategic Commodities ETF,broad
 HXE,Mast HedgeIndex Adaptive Equities ETF,broad
 HXF,Mast HedgeIndex Managed Futures Strategy ETF,currency
+HYB,Lazard US High Yield ETF,bond
 HYBB,iShares BB Rated Corporate Bond ETF,bond
 HYBL,State Street Blackstone High Income ETF,factor_income
 HYBX,TCW High Yield Bond ETF,bond
@@ -3107,6 +3107,7 @@ HYDB,iShares High Yield Systematic Bond ETF,bond
 HYDW,Xtrackers Low Beta High Yield Bond ETF,bond
 HYEM,VanEck Emerging Markets High Yield Bond ETF,bond
 HYFI,AB High Yield ETF,bond
+HYFY,Lazard Hybrid Financial Income ETF,factor_income
 HYG,iShares iBoxx $ High Yield Corporate Bond ETF,bond
 HYGD,MicroSectors -3x Short High Yield Corporate Bond (HYG) ETNs,bond
 HYGH,iShares Interest Rate Hedged High Yield Bond ETF,bond
@@ -3729,6 +3730,8 @@ LVHI,Franklin International Low Volatility High Dividend Index ETF,factor_income
 LVLN,State Street SPDR S&P Leveraged Loan ETF,broad
 LWLX,Tradr 2X Long LWLG Daily ETF,leveraged_inverse
 LYLD,Cambria Large Cap Shareholder Yield ETF,broad
+LYR,Lyrical U.S. Value Equity ETF,factor_income
+LYRI,Lyrical International Value Equity ETF,factor_income
 LYTE,Roundhill Photonics & Optics ETF,broad
 MADE,iShares U.S. Manufacturing ETF,broad
 MAGA,Truth Social America First ETF,broad
@@ -3795,6 +3798,7 @@ MEXX,Direxion Daily MSCI Mexico Bull 3X ETF,leveraged_inverse
 MFDX,PIMCO RAFI Dynamic Multi-Factor International Equity ETF,global
 MFEB,Pacer Swan SOS Moderate (February) ETF,broad
 MFEM,PIMCO RAFI Dynamic Multi-Factor Emerging Markets Equity ETF,global
+MFIX,Nomura Strategic Income ETF,factor_income
 MFSB,MFS Active Core Plus Bond ETF,bond
 MFSD,MFS Active Short Duration Income ETF,factor_income
 MFSG,MFS Active Growth ETF,high_beta
@@ -4824,6 +4828,7 @@ SMBS,Schwab Mortgage-Backed Securities ETF,broad
 SMCC,Corgi SMCI 2x Daily ETF,leveraged_inverse
 SMCP,SMART Mid Cap ETF,broad
 SMCY,YieldMax SMCI Option Income Strategy ETF,factor_income
+SMDC,Nomura Small and Mid Cap ETF,broad
 SMDD,UltraPro Short MidCap400,leveraged_inverse
 SMDV,ProShares Russell 2000 Dividend Growers ETF,factor_income
 SMDX,Intech S&P Small-Mid Cap Diversified Alpha ETF,broad
@@ -5127,7 +5132,6 @@ TJUN,FT Vest Emerging Markets Buffer ETF - June,global
 TKNQ,Amplify Tokenization Technology Leaders ETF,broad
 TKNZ,T. Rowe Price Active Crypto ETF,crypto
 TLCI,Touchstone International Equity ETF,global
-TLDR,The Laddered T-Bill ETF,broad
 TLH,iShares 10-20 Year Treasury Bond ETF,bond
 TLIE,American Beacon The London Company Income Equity ETF,factor_income
 TLTD,Northern Trust Morningstar Developed Markets ex-US Factor Tilt ETF,global
@@ -5567,6 +5571,7 @@ XCOR,FundX ETF,broad
 XDAT,Franklin Exponential Data ETF,broad
 XDEC,FT Vest U.S. Equity Enhance & Moderate Buffer ETF - December,broad
 XDIV,Roundhill S&P 500 No Dividend Target ETF,factor_income
+XDLR,Lazard Non-Dollar Active Income ETF,currency
 XDQQ,Innovator Growth Accelerated ETF - Quarterly,high_beta
 XDSQ,Innovator U.S. Equity Accelerated ETF - Quarterly,broad
 XDTE,Roundhill S&P 500 0DTE Covered Call Strategy ETF,broad
