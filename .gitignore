@@ -58,3 +58,7 @@ cf-cron-dispatch/.wrangler/
 
 # 临时中间产物
 .scratch/
+
+# impeccable skill 的原生引擎（17MB darwin-arm64 可执行文件）：启动脚本 scripts/impeccable
+# 按 engine-checksums.txt 校验后下载到 ~/.impeccable/bin/，不入库
+.agents/skills/impeccable/scripts/bin/
