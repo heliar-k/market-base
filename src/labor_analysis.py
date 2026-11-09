@@ -167,7 +167,7 @@ def challenger_block(frame: pd.DataFrame) -> dict:
     if frame.empty or "job_cuts_monthly" not in frame:
         return {}
     latest = frame.iloc[-1]
-    value = lambda key: (None if pd.isna(latest.get(key)) else latest.get(key))  # noqa: E731
+    value = lambda key: None if pd.isna(latest.get(key)) else latest.get(key)  # noqa: E731
     return {
         "as_of": frame.index[-1].strftime("%Y-%m-%d"),
         "job_cuts_monthly": value("job_cuts_monthly"),
