@@ -229,7 +229,7 @@ market-base/
 > 部分数据源失败时：成功的数据照常 commit，失败列表写进当日 commit message 的「失败:」段
 > （`git log -1` 即见），job 标红，Pages 照常部署。不用再 grep Actions 日志找 `FAIL`。
 
-> **四个 cron**（2026-10 改为自解释名，旧名对照：daily-fetch→**daily-full**、
+> **五个 cron**（2026-10 改为自解释名，旧名对照：daily-fetch→**daily-full**、
 > fetch-refresh→**evening-late**、fast-refresh→**intraday-refresh**、crypto-refresh→**crypto-hourly**）：
 >
 > | workflow | 频率 | 拉什么 | 定位 |
@@ -237,16 +237,20 @@ market-base/
 > | `daily-full` | 北京 05:00，周末也跑 | **其余全部 37 个 fetcher** + TSM 6-K + 分钟线（yfinance 1d/5m/15m/1h/4h）+ 派生指标（cross_asset / options_structure / bill_share / consensus / **wheel 看板** / LPI 快照）+ 时效断言 | **兜底主跑**：含三个加速班次的所有源，加速班次挂了/漏了，次日 05:00 必补齐 |
 > | `evening-late` | 北京 23:15 | 仅 3 个「下午才发布昨日观测」的源：`fetch_fred` / `fetch_cboe` / `fetch_fsi`（~3min） | 让宏观/信用/通胀/波动率页当晚就看到 T-1，不等次日主跑 |
 > | `intraday-refresh` | 工作日 UTC 13-21 每 15 分钟 | 盘中价量 5 源：`fetch_yfinance` / `fetch_cboe` / `fetch_barchart_vol` / `fetch_rate_expectations` / `fetch_polymarket`；FRED 仅 UTC 13-14 班次；UTC 14:52 后回补上一收盘快照 OI 并重建 Wheel | 盘中新鲜度；尾班（21:52 UTC）确认指数收盘价入库；不拉分钟线与其他派生指标 |
+> | `cboe-retry` | UTC 周二到周六 02:30（北京 10:30） | 仅 `fetch_cboe`（补齐 VIX / SKEW / VXTH 三份慢文件） | 北京白天看到完整收盘数据；daily-full 缺列时仍按需 dispatch 同一 workflow |
 > | `crypto-hourly` | 每小时 7×24 | 加密三源：`fetch_crypto_derivatives` / `fetch_coinglass` / `fetch_etf_flows` | 加密市场全天候；daily-full 仍兜底跑同三源 |
 >
 > 重叠是故意的：三个加速班次覆盖的源在 daily-full 里都有同源兜底（upsert 幂等，同日重复拉零风险）。
 >
-> **按需补抓 `cboe-retry`（无 cron，由 daily-full dispatch）**：cdn.cboe.com 的 daily_prices
-> 各指数文件分批更新，VIX / SKEW / VXTH 三份比同批其它 23 份晚 3~4 小时（2026-11-05 实测：
-> 其余 22:31 GMT 就位，这三份 02:10~02:20 GMT 才更新）；daily-full 的 fetch_cboe 跑在
-> 01:2x GMT，当日行的 VIX / SKEW / VXTH / VIX_TERM_SLOPE 会留空。daily-full 收尾用
-> `cboe_fetcher --check-latest` 查最新观测日，缺列就 `gh workflow run cboe-retry.yml`；
-> 该 job 等到 UTC 02:30 抓一次，仍缺则每 10 分钟重试 6 轮，补齐才 commit。没缺口的日不跑。
+> **`cboe-retry`**：cdn.cboe.com 的 daily_prices 各指数文件分批更新，VIX / SKEW / VXTH
+> 三份比同批其它 23 份晚 3~4 小时（2026-11-05 实测：其余 22:31 GMT 就位，这三份
+> 02:10~02:20 GMT 才更新）；daily-full 的 fetch_cboe 跑在 UTC 21:00，当日行的
+> VIX / SKEW / VXTH / VIX_TERM_SLOPE 会留空。两条路都进同一个 job：schedule 每天
+> UTC 02:30 必跑一次；daily-full 收尾另用 `cboe_fetcher --check-latest` 查最新观测日，
+> 缺列也 `gh workflow run cboe-retry.yml`（覆盖排班漂移）。仍缺则每 10 分钟重试 6 轮，
+> 补齐才 commit。VIX 与 VXTH 在 05:00 那批已由 `barchart_vol` 提供
+> （`data/barchart/volatility_snapshot.csv` 两源逐日数值一致），CBOE 归档实际缺的是
+> SKEW 与随 VIX 派生的 VIX_TERM_SLOPE。
 >
 > 触发精度：GitHub schedule 实测延迟/丢班严重（daily-full 曾延迟 3-12h；2026-10-18~25 七天实测：
 > intraday 应跑 ~160 班只 schedule 到 14 班、crypto-hourly 应跑 ~168 只到 40），

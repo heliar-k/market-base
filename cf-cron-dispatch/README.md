@@ -25,6 +25,7 @@ npx wrangler deploy
 | 含义 | Cloudflare（`wrangler.jsonc`） | GitHub（`*.yml`） |
 |---|---|---|
 | 工作日（周一到周五） | `mon-fri`（≡ `2-6`） | `1-5` |
+| UTC 周二到周六 | `3-7` | `2-6` |
 
 Cloudflare 的 weekday 字段是 1-7 且 **1 = 周日**，照抄 yml 的 `1-5` 会变成周一到周四 + 周日派发、
 周五整天没有班次（2026-10-16、10-23 两次实测各 0 班；`tests/test_cf_cron_dispatch.py` 守卫）。
@@ -51,5 +52,5 @@ gh run list --workflow=intraday-refresh.yml --limit 5
   续 PAT 后 `npx wrangler secret put GH_DISPATCH_TOKEN` 重贴即可（与 `DATA_PUSH_TOKEN` 同一个续期习惯）。
 - **改触发时间**：改 `wrangler.jsonc` triggers.crons + 对应 workflow yml cron，两处一起，然后 `npx wrangler deploy`。
   两边 weekday 编号不同（CF 的 `mon-fri` ≡ `2-6`，GH 的 `1-5`），改完跑 `uv run python -m pytest tests/test_cf_cron_dispatch.py`。
-- **加新 workflow**：`triggers.crons` 加一条 + `src/worker.js` 的 `CRON_WORKFLOWS` 加映射（免费版每 Worker 上限 5 条）。
+- **加新 workflow**：`triggers.crons` 加一条 + `src/worker.js` 的 `CRON_WORKFLOWS` 加映射（免费版每 Worker 上限 5 条，现已用满，再加要先减一条）。
 - 日志排查：Cloudflare Dashboard → Workers → gh-cron-dispatch → Logs（或 `npx wrangler tail`）。

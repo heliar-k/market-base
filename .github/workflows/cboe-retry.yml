@@ -1,20 +1,26 @@
 name: cboe-retry
 
-# 按需补抓：cdn.cboe.com 的 daily_prices 各指数文件分批更新，VIX / SKEW / VXTH 三份
-# 比同批其它 23 份晚 3~4 小时（2026-11-05 实测：其余 22:31 GMT 就位，这三份
-# 02:10~02:20 GMT 才更新），daily-full 的 fetch_cboe 跑在 01:2x GMT，当日行的
+# CBOE 三份慢文件的补抓：cdn.cboe.com 的 daily_prices 各指数文件分批更新，
+# VIX / SKEW / VXTH 三份比同批其它 23 份晚 3~4 小时（2026-11-05 实测：其余 22:31 GMT
+# 就位，这三份 02:10~02:20 GMT 才更新）。daily-full 跑在 UTC 21:00，当日行的
 # VIX / SKEW / VXTH / VIX_TERM_SLOPE 只能留空。
-# daily-full 收尾检测到缺列就 dispatch 本 workflow（见该 workflow 的同名 step）。
-# 没缺口的日子本 workflow 完全不跑。
+#
+# 两个入口：
+# 1. schedule：UTC 周二到周六 02:30（北京 10:30，美东周一至周五收盘后的次日），
+#    三份就位后例行补齐，北京白天看到的是完整收盘数据
+# 2. workflow_dispatch：daily-full 收尾检测到缺列时派发（见该 workflow 的同名 step），
+#    覆盖排班漂移、源晚发的情况
 #
 # 等待策略：等到下一个 UTC 02:30（三份最晚 02:20:47 更新完）再抓一次，仍缺则每 10 分钟
-# 重试、最多 6 轮。距下一个 02:30 超过 5 小时（daily-full 起跑漂到别处）时不等，
-# 就地重试——那种时刻源通常已经就位。
+# 重试、最多 6 轮。距下一个 02:30 超过 5 小时（dispatch 早于这个窗口）时不等，就地重试
+# ——那种时刻源通常已经就位；schedule 触发时已过 02:30，直接走就地重试。
 #
 # 独立 concurrency group：本 job 最长挂约 5 小时，与其余数据 workflow 共享 data-fetch
 # 会把 crypto-hourly 整段堵住；push 撞车由 rebase 兜底（本 job 只写一个文件）。
 
 on:
+  schedule:
+    - cron: "30 2 * * 2-6"   # UTC 周二到周六（北京 10:30）；CF 侧写 3-7，见 cf-cron-dispatch
   workflow_dispatch: {}
 
 concurrency:

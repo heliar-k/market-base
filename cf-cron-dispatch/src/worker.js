@@ -12,6 +12,7 @@ const CRON_WORKFLOWS = {
   "0 21 * * *": "daily-full.yml",
   "15 15 * * *": "evening-late.yml",
   "12 * * * *": "crypto-hourly.yml",
+  "30 2 * * 3-7": "cboe-retry.yml",
 };
 
 export default {
