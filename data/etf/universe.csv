@@ -264,12 +264,15 @@ CSCL,Direxion Daily CSCO Bull 2X ETF,leveraged_inverse
 CSCS,Direxion Daily CSCO Bear 1X ETF,theme
 CSEN,Cohen & Steers Future of Energy Active ETF,commodity
 CTEC,Global X ClimateTech ETF,broad
+CWPD,CWP Premium Dividend ETF,factor_income
+CWPG,CWP Premium Growth ETF,high_beta
 CWY,GraniteShares YieldBOOST CRWV ETF,broad
 CXSE,WisdomTree China ex-State-Owned Enterprises Fund,global
 DADS,Digital Asset Debt Strategy ETF,broad
 DAK,Dakota Active Equity ETF,broad
 DALI,First Trust Dorsey Wright DALI Equity ETF,broad
 DAPP,VanEck Digital Transformation ETF,broad
+DAU,GraniteShares Autocallable AMD ETF,broad
 DAX,Global X DAX Germany ETF,broad
 DDIV,First Trust Dorsey Wright Momentum & Dividend ETF,factor_income
 DECO,State Street Galaxy Digital Asset Ecosystem ETF,broad
@@ -286,6 +289,7 @@ DIVD,Altrius Global Dividend ETF,factor_income
 DLCU,U.S. Large Company Portfolio: ETF Class Shares,broad
 DLLL,GraniteShares 2x Long DELL Daily ETF,leveraged_inverse
 DMXF,iShares ESG Advanced MSCI EAFE ETF,broad
+DRAC,GraniteShares Autocallable DRAM ETF,broad
 DRIV,Global X Autonomous & Electric Vehicles ETF,broad
 DRNZ,REX Drone ETF,broad
 DTCR,Global X Data Center & Digital Infrastructure ETF,broad
@@ -666,6 +670,7 @@ MCDS,JPMorgan Fundamental Data Science Mid Core ETF,broad
 MCHI,iShares MSCI China ETF,global
 MCHS,Matthews China Innovators Active ETF,global
 MDIV,Multi-Asset Diversified Income Index Fund,factor_income
+MEA,GraniteShares Autocallable META ETF,broad
 MEDX,Horizon Kinetics Medical ETF,broad
 MEMA,Man Active Emerging Markets Alternative ETF,global
 MEMS,Matthews Emerging Markets Discovery Active ETF,global
@@ -750,6 +755,7 @@ NPFI,Nuveen Preferred and Income ETF,factor_income
 NRES,Xtrackers RREEF Global Natural Resources ETF,broad
 NSI,National Security Emerging Markets Index ETF,global
 NTAL,GraniteShares 2x Long NTAP Daily ETF,leveraged_inverse
+NTCR,Nuveen Technology & Infrastructure Credit ETF,bond
 NUGY,GraniteShares YieldBOOST Gold Miners ETF,commodity
 NUIB,Nuveen Impact Bond ETF,bond
 NUIF,Nuveen US Infrastructure ETF,broad
@@ -796,6 +802,7 @@ PBQQ,PGIM Laddered Nasdaq-100 Buffer 12 ETF,broad
 PBSC,Pacer Barings Secured Credit Flex ETF,bond
 PBUB,Portfolio Building Block US Banks ETF,broad
 PBWN,Portfolio Building Block World Ex US Industrials ETF,global
+PCHX,State Street SPDR Nasdaq MyPaycheck ETF,broad
 PCMM,BondBloxx Private Credit CLO ETF,bond
 PCPI,PIMCO Inflation PLUS Active Exchange-Traded Fund,broad
 PDBA,Invesco Agriculture Commodity Strategy No K-1 ETF,commodity
@@ -816,6 +823,7 @@ PHO,Invesco Water Resources ETF,theme
 PID,Invesco International Dividend Achievers ETF,factor_income
 PIE,Invesco Dorsey Wright Emerging Markets Momentum ETF,factor_income
 PIO,Invesco Global Water ETF,theme
+PIVT,VanEck Pivotal Trends ETF,broad
 PIZ,Invesco Dorsey Wright Developed Markets Momentum ETF,factor_income
 PKW,Invesco BuyBack Achievers ETF,broad
 PLA,GraniteShares Autocallable PLTR ETF,broad
@@ -940,7 +948,6 @@ RIFR,Russell Investments Global Infrastructure ETF,broad
 RING,iShares MSCI Global Gold Miners ETF,commodity
 RINT,Russell Investments International Developed Equity ETF,global
 RKLX,Defiance Daily Target 2X Long RKLB ETF,leveraged_inverse
-RKLZ,Defiance Daily Target 2x Short RKLB ETF,leveraged_inverse
 RKNG,Defiance Retail Kings ETF,theme
 RNEM,Emerging Markets Equity Select ETF,global
 RNIN,Bushido Capital US SMID Cap Equity ETF,broad
@@ -1487,7 +1494,6 @@ ASMH,ASML Holding NV ADRhedged,broad
 ASMZ,Corgi ASML 2x Daily ETF,leveraged_inverse
 ASSX,T-REX 2X Long ASST Daily Target ETF,leveraged_inverse
 ASTG,Leverage Shares 2X Long ASTS Daily ETF,leveraged_inverse
-ASTN,Defiance Daily Target 2X Short ASTS ETF,leveraged_inverse
 ASTT,Corgi ASTS 2x Daily ETF,leveraged_inverse
 ASTX,Tradr 2X Long ASTS Daily ETF,leveraged_inverse
 ASTY,Defiance Daily Target 2X Long ASTS ETF,leveraged_inverse
@@ -4786,6 +4792,7 @@ SIHY,Harbor Ares Systematic High Yield ETF,bond
 SIJ,ProShares UltraShort Industrials,leveraged_inverse
 SIL,Global X Silver Miners ETF,commodity
 SILJ,Amplify Junior Silver Miners ETF,commodity
+SIMI,American Beacon SiM High Income ETF,factor_income
 SIMS,State Street SPDR S&P Kensho Intelligent Structures ETF,broad
 SIMX,Corgi SIMO 2x Daily ETF,leveraged_inverse
 SIO,Touchstone Strategic Income ETF,factor_income
@@ -4998,7 +5005,6 @@ STOT,State Street DoubleLine Short Duration Total Return Tactical ETF,broad
 STOX,Horizon Core Equity ETF,broad
 STPZ,PIMCO 1-5 Year U.S. TIPS Index Exchange-Traded Fund,broad
 STRN,SMART Trend 25 ETF,broad
-STSM,Defiance Daily Target 2X Short TSM ETF,leveraged_inverse
 STXD,Strive 1000 Dividend Growth ETF,factor_income
 STXE,Strive Emerging Markets Ex-China ETF,global
 STXF,Strive 500 ETF,broad
@@ -5767,6 +5773,7 @@ ZCBE,Global X Zero Coupon Bond 2033 ETF,bond
 ZCBF,Global X Zero Coupon Bond 2034 ETF,bond
 ZCBG,Global X Zero Coupon Bond 2035 ETF,bond
 ZCSH,The Zcash ETF Shares,broad
+ZDAY,Bitwise AI Cyber Defense ETF,theme
 ZDEK,Innovator Equity Defined Protection ETF - 1 Yr December,broad
 ZDIS,Virtus Zevenbergen Discovery Growth ETF,high_beta
 ZECP,Zacks Earnings Consistent Portfolio ETF,broad
