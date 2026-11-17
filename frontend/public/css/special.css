@@ -839,6 +839,11 @@ body.dark .pm-topic-card { box-shadow: inset 0 0 0 1px rgba(255,255,255,.04); }
   .pm-ev-clip { max-width: 100%; white-space: normal; }
   .pm-single th { width: auto; }
   .pm-prob-cell { min-width: 0; }
+  /* 单事件表：首列中文按字换行、其余四列各占一份，标题列会被挤成逐字竖排。
+     改回单行 + 整表横滚（.re-table-wrap 已是 overflow-x:auto），与 .re-scroll-y
+     宽表同一种处理。 */
+  .pm-single { min-width: 520px; }
+  .pm-single .pm-ev-clip { white-space: nowrap; }
 }
 /* 解读/口径长文：默认折叠成一行，保持首屏密度（ crypto 衍生品/期权页） */
 .re-fold { margin: 10px 0 0; }

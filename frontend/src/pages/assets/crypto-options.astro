@@ -140,7 +140,7 @@ function renderPolymarket(pm, spot) {
     // 原始价位阶梯（Polymarket 英文原文，默认折叠，仅作出处引用）
     const det = document.createElement('details');
     det.className = 'pm-raw';
-    det.innerHTML = `<summary>原始价位阶梯 · Polymarket 英文源（${t.events.length} 事件，按价位升序，外链可跳官方页）</summary>
+    det.innerHTML = `<summary>原始价位阶梯 · Polymarket（${t.events.length} 事件，按价位升序，外链可跳官方页）</summary>
       <div class="pm-ladder-grid">${t.events.map(ev => `
         <div class="re-card">
           <div class="re-corridor-label"><a class="pm-ev-link" href="https://polymarket.com/event/${R.esc(ev.slug)}" target="_blank">${R.esc(ev.title)}</a></div>

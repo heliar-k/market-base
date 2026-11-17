@@ -23,6 +23,32 @@ from src.config import ROOT
 
 DATA = ROOT / "data" / "polymarket"
 
+_CJK_RX = re.compile(r"[\u4e00-\u9fff]")
+# PM 机器翻译偶尔把字段名一起译出来（「问题：…」「分组项标题：…」），展示前剪掉
+_FIELD_PREFIX_RX = re.compile(r"^(?:问题|分组项标题|标题)：\s*")
+
+
+def display_text(*candidates: str | None) -> str:
+    """展示文本：优先含中文的那个，其次第一个非空值。"""
+    vals = [_FIELD_PREFIX_RX.sub("", c).strip() for c in candidates if c]
+    for v in vals:
+        if _CJK_RX.search(v):
+            return v
+    return vals[0] if vals else ""
+
+
+def ladder_label(market: dict, fallback: str) -> str:
+    """阶梯行内短标签：中文短标签 → 英文短标签 → fallback。
+
+    PM 自带的 groupItemTitle 中位 7 字，正好是各档区分片段（「11月6日」
+    「降息50个基点以上」）；中文问句逐行改写句式，拿来做残差剪除会留下整句。
+    """
+    for key in ("groupItemTitle_zh", "groupItemTitle"):
+        v = market.get(key)
+        if v:
+            return _FIELD_PREFIX_RX.sub("", v)
+    return fallback
+
 
 def snapshot() -> dict | None:
     """最新可解析快照（坏 JSON 回退前一日）；无文件返回 None。
@@ -142,7 +168,7 @@ def energy_block() -> dict | None:
         mkts = sorted(
             (
                 {
-                    "label": (m.get("question") or "").removesuffix("?"),
+                    "label": display_text(m.get("question_zh"), m.get("question")).rstrip("?？"),
                     "prob": m["prob_yes"],
                     "chg7d": chg7d(hist.get(str(m["id"]))),
                 }
@@ -153,7 +179,7 @@ def energy_block() -> dict | None:
         )
         events_out.append(
             {
-                "title": e["title"],
+                "title": display_text(e.get("title_zh"), e.get("title")),
                 "end_date": e.get("end_date"),
                 "volume24hr": e.get("volume24hr"),
                 "markets": mkts,
@@ -429,8 +455,9 @@ def geo_overview() -> dict | None:
     clusters, headline, events}]}。
     页面主视图是 clusters（主题内中文语义归类）：同归类内市场概率均值 +
     history.csv 逐日均值线（series）；headline = |chg7d| 最大的归类。
-    events 为原始英文明细（前端折叠展示）：同 commodities 能源块形状
+    events 为逐市场明细（前端折叠展示）：同 commodities 能源块形状
     （label/prob/chg7d/cluster）+ slug（外链）+ question（title 提示）。
+    title / question 优先展示中文字段（title_zh / question_zh），英文仍用于归类与解析。
     signals 为规则引擎叙事（LLM 预留：返回 None 时不渲染）；
     unmatched = {count, samples} 收录未命中归类关键词的合约，驱动⚠补词提醒。
     体育盘口（源分类混入的国家队比赛）在入口剔除，不计入主题与 unmatched。
@@ -448,13 +475,22 @@ def geo_overview() -> dict | None:
     for e in evs:  # evs 已按 24h 量降序
         key, name = geo_topic_of(e)
         active = active_markets(e, a)
-        labels = residual_labels([m.get("question") or "" for m in active])
+        residual = residual_labels([m.get("question") or "" for m in active])
+        labels = [ladder_label(m, lb) for m, lb in zip(active, residual)]
+        # 单市场事件没有档位可区分，残差等于整句英文；直接给完整问句（优先中文）
+        if len(active) == 1 and labels == residual:
+            labels = [
+                display_text(m.get("question_zh"), m.get("question")).rstrip("?？") for m in active
+            ]
+        # 事件内短标签撞车（价位阶梯上下方向只靠箭头区分）时，该行改用残差标签
+        dup = {lb for lb in labels if labels.count(lb) > 1}
+        labels = [residual[i] or lb if lb in dup else lb for i, lb in enumerate(labels)]
         mkts = sorted(
             (
                 {
                     "id": str(m["id"]),
                     "label": lb,
-                    "question": m.get("question"),
+                    "question": display_text(m.get("question_zh"), m.get("question")),
                     "prob": m["prob_yes"],
                     "chg7d": chg7d(hist.get(str(m["id"]))),
                     "cluster": geo_cluster_of(key, e, m)[1],
@@ -473,7 +509,7 @@ def geo_overview() -> dict | None:
         t["volume24hr"] += e.get("volume24hr") or 0.0
         t["events"].append(
             {
-                "title": e["title"],
+                "title": display_text(e.get("title_zh"), e.get("title")),
                 "slug": e.get("slug"),
                 "category": e.get("category"),
                 "end_date": e.get("end_date"),
@@ -771,7 +807,8 @@ def crypto_hit_overview() -> dict | None:
     只留价位阶梯系列（hit-price / multi-strikes，一个没有则回退全部 crypto 事件）。
     topics = 标的（BTC/ETH/…）；clusters = 「方向·周期」归类（均值概率 + history.csv
     逐日均值线 series，前端画多线图）；headline = |7日变动| 最大的归类；
-    events = 原始英文明细（前端折叠，带 slug 外链）。只读不写盘。
+    events = 逐市场明细（前端折叠，带 slug 外链）；title / question 优先展示
+    中文字段，strike / cluster 仍读英文 question。只读不写盘。
     """
     for f in sorted(DATA.glob("20*.json"), reverse=True):
         try:
@@ -797,8 +834,8 @@ def crypto_hit_overview() -> dict | None:
                 (
                     {
                         "id": str(m["id"]),
-                        "label": hit_label(m.get("question") or ""),
-                        "question": m.get("question"),
+                        "label": ladder_label(m, hit_label(m.get("question") or "")),
+                        "question": display_text(m.get("question_zh"), m.get("question")),
                         "prob": m["prob_yes"],
                         "strike": hit_strike(m.get("question") or ""),
                         "chg7d": chg7d(hist.get(str(m["id"]))),
@@ -824,7 +861,7 @@ def crypto_hit_overview() -> dict | None:
             t["volume"] += e.get("volume") or 0.0
             t["events"].append(
                 {
-                    "title": e["title"],
+                    "title": display_text(e.get("title_zh"), e.get("title")),
                     "slug": e.get("slug"),
                     "series": e.get("series"),
                     "end_date": e.get("end_date"),

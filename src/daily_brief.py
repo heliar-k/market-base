@@ -177,7 +177,7 @@ def _polymarket() -> dict | None:
     24h 量最大市场（主市场；多档事件不会被任意序带错档）；地缘热点取
     geo 分类前 5。无快照返回 None（前端不渲染）。
     """
-    from src.polymarket_analysis import events_matching, snapshot
+    from src.polymarket_analysis import display_text, events_matching, snapshot
 
     snap = snapshot()
     if snap is None:
@@ -192,13 +192,13 @@ def _polymarket() -> dict | None:
             default=None,
         )
         out["recession"] = {
-            "title": e["title"],
+            "title": display_text(e.get("title_zh"), e.get("title")),
             "end_date": e.get("end_date"),
             "prob": main.get("prob_yes") if main else None,
         }
     out["geo_hot"] = [
         {
-            "title": e["title"],
+            "title": display_text(e.get("title_zh"), e.get("title")),
             "end_date": e.get("end_date"),
             "volume24hr": e.get("volume24hr"),
         }

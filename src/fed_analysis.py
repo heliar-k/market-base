@@ -534,6 +534,8 @@ def polymarket_fomc_odds(
     （调用方以 None 补位）。纯函数，不读盘。
     """
     by_ym: dict[tuple[int, int], dict] = {}
+    from src.polymarket_analysis import display_text
+
     for e in events or []:
         ym = _decision_event_ym(e)
         if ym is None:
@@ -549,7 +551,7 @@ def polymarket_fomc_odds(
             "hold": buckets["hold"],
             "hike": round(buckets["hike25"] + buckets["hike50"], 4),
             "buckets": buckets,
-            "title": e.get("title"),
+            "title": display_text(e.get("title_zh"), e.get("title")),
             "volume24hr": e.get("volume24hr"),
             "liquidity": e.get("liquidity"),
             "open_interest": e.get("open_interest"),

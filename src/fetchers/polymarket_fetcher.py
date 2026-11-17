@@ -47,6 +47,7 @@ CLOB = "https://clob.polymarket.com"
 DATA = ROOT / "data" / "polymarket"
 
 _SLEEP = 0.2  # 秒，礼貌限速（免 key 源，全量 ~100 次调用）
+_ZH_BATCH = 5  # 中文事件按 id 批量取，每批 5 个能全部取回（25 个会丢 18 个事件）
 _MAX_MARKETS_PER_EVENT = 12  # negRisk 事件按 24h 量取前 N 档
 _MAX_HISTORY_MARKETS = 80  # 全局历史拉取上限（按 24h 量排序取前 N）
 
@@ -136,6 +137,33 @@ def daily_history(points: list[dict]) -> dict[str, float]:
     return out
 
 
+def merge_zh(en_events: list[dict], zh_events: list[dict]) -> list[dict]:
+    """把中文事件的中文字段并进英文事件（就地写入 _zh 键）。
+
+    按事件 id / 市场 id 回对：事件级 title_zh，市场级 question_zh、
+    groupItemTitle_zh（PM 自带的档位短标签，中位仅 7 字，正好是各档区分片段）。
+    英文 title / question 一个字都不改——分类与价位解析全靠它们。
+    找不到 zh 事件、或 zh 值缺失/为空串时不写 _zh 键（展示层回退英文）。
+    """
+    zh_by_id = {str(e.get("id")): e for e in zh_events}
+    for e in en_events:
+        zh = zh_by_id.get(str(e.get("id")))
+        if not zh:
+            continue
+        if zh.get("title"):
+            e["title_zh"] = zh["title"]
+        zh_markets = {str(m.get("id")): m for m in zh.get("markets") or []}
+        for m in e.get("markets") or []:
+            zm = zh_markets.get(str(m.get("id"))) or {}
+            for src, dst in (
+                ("question", "question_zh"),
+                ("groupItemTitle", "groupItemTitle_zh"),
+            ):
+                if zm.get(src):
+                    m[dst] = zm[src]
+    return en_events
+
+
 def build_snapshot(events: list[dict]) -> dict:
     """入选事件（gamma 原始 dict）→ 快照 JSON 结构。"""
     out_events = []
@@ -151,17 +179,20 @@ def build_snapshot(events: list[dict]) -> dict:
             probs = parse_prices(m.get("outcomePrices"))
             if not probs:
                 continue
-            markets.append(
-                {
-                    "id": str(m.get("id")),
-                    "question": m.get("question", ""),
-                    "slug": m.get("slug", ""),
-                    "prob_yes": probs[0],  # 二元市场 outcomes[0]=Yes
-                    "volume24hr": round(float(m.get("volume24hr") or 0), 2),
-                    "liquidity": round(float(m.get("liquidityNum") or 0), 2),
-                    "end_date": (m.get("endDate") or "")[:10],
-                }
-            )
+            row = {
+                "id": str(m.get("id")),
+                "question": m.get("question", ""),
+                "slug": m.get("slug", ""),
+                "prob_yes": probs[0],  # 二元市场 outcomes[0]=Yes
+                "volume24hr": round(float(m.get("volume24hr") or 0), 2),
+                "liquidity": round(float(m.get("liquidityNum") or 0), 2),
+                "end_date": (m.get("endDate") or "")[:10],
+            }
+            # 中文字段与英文短标签只在有值时写入，不落空串/None
+            for key in ("groupItemTitle", "question_zh", "groupItemTitle_zh"):
+                if m.get(key):
+                    row[key] = m[key]
+            markets.append(row)
             if len(markets) >= _MAX_MARKETS_PER_EVENT:
                 logger.info(
                     f"事件 {e.get('slug')}: 市场数超 {_MAX_MARKETS_PER_EVENT}，按 24h 量截断"
@@ -170,23 +201,24 @@ def build_snapshot(events: list[dict]) -> dict:
         if not markets:
             continue
         series = (e.get("series") or [{}])[0].get("ticker")
-        out_events.append(
-            {
-                "id": str(e.get("id")),
-                "slug": e.get("slug", ""),
-                "title": e.get("title", ""),
-                "category": cat,
-                "series": series,
-                "neg_risk": bool(e.get("negRisk")),
-                "end_date": (e.get("endDate") or "")[:10],
-                "volume24hr": round(float(e.get("volume24hr") or 0), 2),
-                "volume": round(float(e.get("volume") or 0), 2),
-                "liquidity": round(float(e.get("liquidity") or 0), 2),
-                "open_interest": round(float(e.get("openInterest") or 0), 2),
-                "icon": e.get("icon"),
-                "markets": markets,
-            }
-        )
+        ev = {
+            "id": str(e.get("id")),
+            "slug": e.get("slug", ""),
+            "title": e.get("title", ""),
+            "category": cat,
+            "series": series,
+            "neg_risk": bool(e.get("negRisk")),
+            "end_date": (e.get("endDate") or "")[:10],
+            "volume24hr": round(float(e.get("volume24hr") or 0), 2),
+            "volume": round(float(e.get("volume") or 0), 2),
+            "liquidity": round(float(e.get("liquidity") or 0), 2),
+            "open_interest": round(float(e.get("openInterest") or 0), 2),
+            "icon": e.get("icon"),
+            "markets": markets,
+        }
+        if e.get("title_zh"):
+            ev["title_zh"] = e["title_zh"]
+        out_events.append(ev)
     # 分类序（fed → data → policy → geo → crypto）→ 24h 量 排序，页面直接按序渲染
     cat_order = {c: i for i, c in enumerate(POLYMARKET_KEYWORDS)}
     out_events.sort(key=lambda e: (cat_order.get(e["category"], 99), -e["volume24hr"]))
@@ -268,6 +300,27 @@ def _history_sort_key(item):
     )
 
 
+def fetch_zh_events(ids: list[str]) -> list[dict]:
+    """按事件 id 批量取中文事件（gamma `locale=zh`，每批 _ZH_BATCH 个）。
+
+    发现通道（top100 / series / public-search）一律走英文：分类与 geo 归类都靠
+    title/question 的英文字面词匹配，中文只做展示，所以中文在入选后再补。
+    `/public-search` 忽略 locale，所以这里必须按 id 重新取。
+    单批失败只丢该批中文（英文照常可用），不中断整次抓取。
+    """
+    out: list[dict] = []
+    for i in range(0, len(ids), _ZH_BATCH):
+        batch = ids[i : i + _ZH_BATCH]
+        try:
+            rows = _get(f"{GAMMA}/events", {"id": batch, "locale": "zh"})
+        except Exception as exc:  # noqa: BLE001 中文缺失降级为英文展示
+            logger.warning(f"中文事件批量拉取失败（{len(batch)} 个 id）: {exc}")
+            continue
+        if isinstance(rows, list):
+            out.extend(rows)
+    return out
+
+
 def fetch_polymarket() -> dict:
     """主流程：发现 → 过滤 → 快照 + 概率时序 upsert。返回快照 dict。"""
     candidates = discover_events()
@@ -280,6 +333,9 @@ def fetch_polymarket() -> dict:
         if not passes_volume(e, series_hit):
             continue
         selected.append(e)
+
+    # 中文字段在入选后按 id 补（发现通道仍是英文，见 fetch_zh_events）
+    merge_zh(selected, fetch_zh_events([str(e["id"]) for e in selected]))
 
     snapshot = build_snapshot(selected)
     n_markets = sum(len(e["markets"]) for e in snapshot["events"])

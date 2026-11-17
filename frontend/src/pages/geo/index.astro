@@ -1,7 +1,7 @@
 ---
 // 地缘风险页 — 工单 #16 自 public/geo/index.html 迁入。
 // 结构：结论层主题状态卡（点卡定位）+ 规则引擎叙事 + 7 日归类异动榜 +
-// 每主题归类 chips/概率多线图 + Polymarket 英文源折叠明细 + 未命中告警；island 脚本逐字原样。
+// 每主题归类 chips/概率多线图 + Polymarket 折叠明细 + 未命中告警；island 脚本逐字原样。
 // fetch('/api/geo') 不变。
 import TopicLayout from '../../layouts/TopicLayout.astro';
 import Section from '../../components/Section.astro';
@@ -121,7 +121,7 @@ async function load() {
     // 原始事件明细（Polymarket 英文原文，默认折叠，仅作出处引用）
     const det = document.createElement('details');
     det.className = 'pm-raw';
-    det.innerHTML = `<summary>原始事件明细 · Polymarket 英文源（${t.events.length} 事件，外链可跳官方页）</summary>`;
+    det.innerHTML = `<summary>原始事件明细 · Polymarket（${t.events.length} 事件，外链可跳官方页）</summary>`;
     const multi = t.events.filter(e => (e.markets || []).length >= 2);
     const single = t.events.filter(e => (e.markets || []).length === 1);
     if (multi.length) {
@@ -152,7 +152,7 @@ async function load() {
     if (single.length) {
       single.sort((a, b) => b.markets[0].prob - a.markets[0].prob);
       det.insertAdjacentHTML('beforeend', `<div class="re-table-wrap" style="margin-top:10px"><table class="re-table pm-single">
-        <thead><tr><th>事件（英文源）</th><th>归类</th><th>概率</th><th>7日</th><th>到期</th></tr></thead>
+        <thead><tr><th>事件</th><th>归类</th><th>概率</th><th>7日</th><th>到期</th></tr></thead>
         <tbody>${single.map(e => {
           const m = e.markets[0];
           return `<tr title="${esc(m.question)}">

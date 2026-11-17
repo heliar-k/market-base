@@ -11,6 +11,7 @@ from src.polymarket_analysis import (
     chg7d,
     crossing_series,
     crypto_hit_overview,
+    display_text,
     events_matching,
     geo_cluster_of,
     geo_overview,
@@ -20,6 +21,7 @@ from src.polymarket_analysis import (
     hit_strike,
     hit_underlying,
     is_sports_event,
+    ladder_label,
     prob_ladder,
     residual_labels,
     series_for,
@@ -39,8 +41,8 @@ def _snap(events, as_of="2026-09-16"):
     return {"as_of": as_of, "generated_at": as_of, "events": events}
 
 
-def _event(title, category, vol=1000.0, markets=None, series=None):
-    return {
+def _event(title, category, vol=1000.0, markets=None, series=None, **kw):
+    e = {
         "id": title,
         "slug": title.lower().replace(" ", "-"),
         "title": title,
@@ -54,6 +56,8 @@ def _event(title, category, vol=1000.0, markets=None, series=None):
         "open_interest": vol,
         "markets": markets or [],
     }
+    e.update(kw)
+    return e
 
 
 def test_snapshot_none_when_missing(fake_dir):
@@ -911,3 +915,167 @@ def test_crossing_series():
     # 当日只有两档 → 不足以定跨档位置，留空
     two = {m["id"]: hist[m["id"]] for m in ms[:2]}
     assert crossing_series(ms[:2], two, rising=False) == []
+
+
+def test_display_text():
+    """展示文本：优先含中文的那个，其次第一个非空值，全空给空串。"""
+    assert display_text("Will X win?", "X 会赢吗？") == "X 会赢吗？"
+    assert display_text(None, "Will X win?") == "Will X win?"
+    assert display_text(None, "") == ""
+    # 机器翻译把字段名一起译出来时剪掉前缀
+    assert display_text(None, "问题：X 会赢吗？") == "X 会赢吗？"
+    # 源文本带首尾空白时取完去掉
+    assert (
+        display_text(None, "  伊朗同意在12月31日前结束铀浓缩？")
+        == "伊朗同意在12月31日前结束铀浓缩？"
+    )
+
+
+def test_ladder_label_priority():
+    assert ladder_label(
+        {"groupItemTitle_zh": "降息50个基点以上", "groupItemTitle": "50+ bps"}, "x"
+    ) == ("降息50个基点以上")
+    assert ladder_label({"groupItemTitle_zh": "分组项标题：11月18日"}, "x") == "11月18日"
+    assert ladder_label({"groupItemTitle": "50+ bps"}, "x") == "50+ bps"
+    assert ladder_label({}, "reach $80,000") == "reach $80,000"
+
+
+def _ceasefire_snap(markets, **ev_kw):
+    return _snap(
+        [
+            _event(
+                "Israel x Iran ceasefire continues through...?",
+                "geo",
+                vol=500_000.0,
+                markets=markets,
+                **ev_kw,
+            )
+        ]
+    )
+
+
+def test_geo_overview_prefers_chinese(fake_dir):
+    """事件标题、行内标签、完整问句都优先中文；strike 类解析仍读英文。"""
+    snap = _ceasefire_snap(
+        [
+            {
+                "id": "1",
+                "question": "Israel x Iran ceasefire continues through November 18?",
+                "question_zh": "以色列与伊朗停火持续到11月18日？",
+                "groupItemTitle": "November 18",
+                "groupItemTitle_zh": "11月18日",
+                "prob_yes": 0.62,
+            },
+            {
+                "id": "2",
+                "question": "Israel x Iran ceasefire continues through December 31?",
+                "question_zh": "以色列与伊朗停火持续到12月31日？",
+                "groupItemTitle": "December 31",
+                "groupItemTitle_zh": "12月31日",
+                "prob_yes": 0.95,
+            },
+        ],
+        title_zh="以色列与伊朗停火持续至……？",
+    )
+    (fake_dir / "20260916.json").write_text(json.dumps(snap), encoding="utf-8")
+    ev = geo_overview()["topics"][0]["events"][0]
+    assert ev["title"] == "以色列与伊朗停火持续至……？"
+    assert [m["label"] for m in ev["markets"]] == ["12月31日", "11月18日"]
+    assert ev["markets"][0]["question"] == "以色列与伊朗停火持续到12月31日？"
+
+
+def test_geo_overview_label_falls_back_to_english_then_residual(fake_dir):
+    """无中文短标签用英文短标签；两者都无才回退到残差标签。"""
+    snap = _ceasefire_snap(
+        [
+            {
+                "id": "1",
+                "question": "Israel x Iran ceasefire continues through November 18?",
+                "groupItemTitle": "November 18",
+                "prob_yes": 0.62,
+            },
+            {
+                "id": "2",
+                "question": "Israel x Iran ceasefire continues through December 31?",
+                "prob_yes": 0.95,
+            },
+        ]
+    )
+    (fake_dir / "20260916.json").write_text(json.dumps(snap), encoding="utf-8")
+    ev = geo_overview()["topics"][0]["events"][0]
+    assert [m["label"] for m in ev["markets"]] == ["December 31", "November 18"]
+
+
+def test_geo_overview_label_collision_falls_back_to_residual(fake_dir):
+    """同事件内短标签撞车（价位阶梯上下方向只靠箭头区分）→ 该行改用残差标签。"""
+    snap = _ceasefire_snap(
+        [
+            {
+                "id": "1",
+                "question": "Israel x Iran ceasefire continues through November 18?",
+                "groupItemTitle": "November 18",
+                "prob_yes": 0.62,
+            },
+            {
+                "id": "2",
+                "question": "Israel x Iran ceasefire continues through December 31?",
+                "groupItemTitle": "November 18",
+                "prob_yes": 0.95,
+            },
+        ]
+    )
+    (fake_dir / "20260916.json").write_text(json.dumps(snap), encoding="utf-8")
+    labels = [m["label"] for m in geo_overview()["topics"][0]["events"][0]["markets"]]
+    assert labels == ["December 31", "November 18"]
+    assert len(set(labels)) == 2
+
+
+def test_geo_overview_single_market_label_is_full_chinese_question(fake_dir):
+    """单市场事件没有档位可区分：残差等于整句英文，改用完整中文问句。"""
+    snap = _ceasefire_snap(
+        [
+            {
+                "id": "1",
+                "question": "Iran agrees to end enrichment of uranium by December 31?",
+                "question_zh": " 伊朗同意在12月31日前结束铀浓缩？",
+                "prob_yes": 0.31,
+            }
+        ]
+    )
+    (fake_dir / "20260916.json").write_text(json.dumps(snap), encoding="utf-8")
+    ev = geo_overview()["topics"][0]["events"][0]
+    assert [m["label"] for m in ev["markets"]] == ["伊朗同意在12月31日前结束铀浓缩"]
+    assert ev["markets"][0]["question"] == "伊朗同意在12月31日前结束铀浓缩？"
+
+
+def test_crypto_hit_overview_prefers_chinese_label(fake_dir):
+    """行内标签用中文短标签；strike / cluster 仍从英文问句解析。"""
+    snap = _snap(
+        [
+            _hit_ev(
+                "btc",
+                "bitcoin",
+                [
+                    {
+                        "id": "1",
+                        "question": "Will Bitcoin reach $80,000 in November?",
+                        "question_zh": "比特币会在11月达到80,000美元吗？",
+                        "groupItemTitle": "↑ $80,000",
+                        "groupItemTitle_zh": "↑ 80,000",
+                        "prob_yes": 0.46,
+                    }
+                ],
+                vol24=2000.0,
+            )
+        ],
+        as_of="2026-11-17",
+    )
+    snap["events"][0]["title_zh"] = "比特币价格会达到多少？"
+    (fake_dir / "20261117.json").write_text(json.dumps(snap), encoding="utf-8")
+    ev = crypto_hit_overview()["topics"][0]["events"][0]
+    assert ev["title"] == "比特币价格会达到多少？"
+    m = ev["markets"][0]
+    assert m["label"] == "↑ 80,000"
+    assert m["question"] == "比特币会在11月达到80,000美元吗？"
+    assert m["strike"] == 80000.0
+    assert m["cluster"] == "上行·月度"

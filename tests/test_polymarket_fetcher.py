@@ -3,10 +3,13 @@
 样本字段摘自真实 API 响应（2026-09 gamma / clob 格式）。
 """
 
+import json
+
 from src.fetchers.polymarket_fetcher import (
     build_snapshot,
     categorize,
     daily_history,
+    merge_zh,
     parse_prices,
     passes_volume,
 )
@@ -178,6 +181,78 @@ def test_build_snapshot_shape_and_sort():
         build_snapshot([_event(markets=[dict(_event()["markets"][0], closed=True)])])["events"]
         == []
     )
+
+
+def test_merge_zh_attaches_chinese_fields():
+    """按事件 id / 市场 id 回对中文；英文 title / question 一字不改。"""
+    en = _event(markets=[dict(_event()["markets"][0], groupItemTitle="25 bps")])
+    zh = [
+        {
+            "id": "481717",
+            "title": "9月美联储决议？",
+            "markets": [
+                {
+                    "id": "2252242",
+                    "question": "美联储会降息25个基点吗？",
+                    "groupItemTitle": "降息25个基点",
+                }
+            ],
+        }
+    ]
+    merged = merge_zh([en], zh)[0]
+    assert merged["title_zh"] == "9月美联储决议？"
+    assert merged["title"] == "Fed Decision in September?"
+    m = merged["markets"][0]
+    assert m["groupItemTitle"] == "25 bps"
+    assert m["question_zh"] == "美联储会降息25个基点吗？"
+    assert m["groupItemTitle_zh"] == "降息25个基点"
+    assert m["question"] == "Will the Fed decrease rates by 25 bps?"
+
+
+def test_merge_zh_leaves_english_untouched_without_zh():
+    en = _event()
+    before = json.loads(json.dumps(en))
+    assert merge_zh([en], [])[0] == before
+    # zh 事件存在但市场 id 对不上：只写事件级 title_zh，市场不动
+    zh = [{"id": "481717", "title": "9月美联储决议？", "markets": [{"id": "999"}]}]
+    merged = merge_zh([json.loads(json.dumps(before))], zh)[0]
+    assert merged["title_zh"] == "9月美联储决议？"
+    assert merged["markets"] == before["markets"]
+
+
+def test_merge_zh_skips_empty_values():
+    """zh 字段为空串时不写 _zh 键（展示层回退英文，不落空串）。"""
+    en = _event()
+    zh = [
+        {
+            "id": "481717",
+            "title": "",
+            "markets": [{"id": "2252242", "question": "", "groupItemTitle": ""}],
+        }
+    ]
+    merged = merge_zh([en], zh)[0]
+    assert "title_zh" not in merged
+    m = merged["markets"][0]
+    assert "question_zh" not in m and "groupItemTitle_zh" not in m
+
+
+def test_build_snapshot_carries_short_label_and_chinese():
+    m = dict(
+        _event()["markets"][0],
+        groupItemTitle="25 bps",
+        question_zh="美联储会降息25个基点吗？",
+        groupItemTitle_zh="降息25个基点",
+    )
+    row = build_snapshot([_event(markets=[m], title_zh="9月美联储决议？")])["events"][0]
+    assert row["title_zh"] == "9月美联储决议？"
+    mkt = row["markets"][0]
+    assert mkt["groupItemTitle"] == "25 bps"
+    assert mkt["question_zh"] == "美联储会降息25个基点吗？"
+    assert mkt["groupItemTitle_zh"] == "降息25个基点"
+    # 无中文时快照不出现 _zh 键
+    plain = build_snapshot([_event()])["events"][0]
+    assert "title_zh" not in plain
+    assert "question_zh" not in plain["markets"][0]
 
 
 def test_history_sort_key_decision_markets_first():
