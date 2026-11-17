@@ -401,8 +401,11 @@ def aggregate_clusters(
         ]
         chgs = [m["chg7d"] for m in ms if m["chg7d"] is not None]
         miss = g["name"] == misc_name
-        if miss:
-            unmatched.extend({"topic": topic_name, "label": m["label"]} for m in ms)
+        if miss:  # 全句而非行内残差：这份清单要能照着补关键词
+            unmatched.extend(
+                {"topic": topic_name, "label": (m.get("question") or m["label"]).rstrip("? ")}
+                for m in ms
+            )
         out.append(
             {
                 "name": g["name"],
@@ -444,17 +447,19 @@ def geo_overview() -> dict | None:
     by_topic: dict[str, dict] = {}
     for e in evs:  # evs 已按 24h 量降序
         key, name = geo_topic_of(e)
+        active = active_markets(e, a)
+        labels = residual_labels([m.get("question") or "" for m in active])
         mkts = sorted(
             (
                 {
                     "id": str(m["id"]),
-                    "label": (m.get("question") or "").removesuffix("?"),
+                    "label": lb,
                     "question": m.get("question"),
                     "prob": m["prob_yes"],
                     "chg7d": chg7d(hist.get(str(m["id"]))),
                     "cluster": geo_cluster_of(key, e, m)[1],
                 }
-                for m in active_markets(e, a)
+                for m, lb in zip(active, labels)
             ),
             key=lambda x: x["prob"],
             reverse=True,
@@ -573,6 +578,137 @@ _HIT_MONTH_RX = re.compile(
     r"|December)\b.*$",
     re.I,
 )
+
+
+_WORD_RX = re.compile(r"\s+")
+# 只去句读与括弧，保留 +/%/≤/≥/$ 这类运算符：删掉后「50 bps」与「50+ bps」会比较成同一个词
+_TEXT_RX = re.compile(r"^[.,;:!?\"'“”‘’()\[\]]+|[.,;:!?\"'“”‘’()\[\]]+$")
+_TAIL_RX = re.compile(r"[\s,;:.!?]+$")
+_YEAR_RX = re.compile(r"^(?:19|20)\d\d$")
+_COUNT_RX = re.compile(r"^\d[\d,.]*\+?$")
+# 单字剪除只限功能词与裸年份：共有的实义词（整条阶梯都在同一个月的「November」）
+# 是信息不是冗余，剪掉就只剩一个光秃秃的日子
+_LEAD_WORDS = frozenset("will the a an does do is are would could if".split())
+_MONTHS = frozenset(
+    "january february march april may june july august september october november december".split()
+)
+_TRIM_WORDS = frozenset("be is are the a an in of to by at for on with and or will".split())
+# 残差里只剩这些词就没法独立读（「not」「before」「there be no」），要往后补个实词
+_FUNC_WORDS = _TRIM_WORDS | frozenset(
+    "was were been being would could should does do did if than then there not no as that this "
+    "it its from per vs before after until over under about into off up down".split()
+)
+
+
+def _words(s: str) -> list[str]:
+    return [w for w in _WORD_RX.split((s or "").strip()) if w]
+
+
+def _word_key(w: str) -> str:
+    return _TEXT_RX.sub("", w).casefold()
+
+
+def _find_run(toks: list[str], seq: list[str]) -> int:
+    n = len(seq)
+    for i in range(len(toks) - n + 1):
+        if [_word_key(w) for w in toks[i : i + n]] == seq:
+            return i
+    return -1
+
+
+def _longest_shared_run(toks: list[list[str]]) -> list[str] | None:
+    """所有非空行都含有的最长连续片段（≥2 词，按归一化后的词比较）。"""
+    rows = [t for t in toks if t]
+    if len(rows) < 2:
+        return None
+    shortest = min(rows, key=len)
+    for size in range(len(shortest), 1, -1):
+        for i in range(len(shortest) - size + 1):
+            seq = [_word_key(w) for w in shortest[i : i + size]]
+            if all(_find_run(t, seq) >= 0 for t in rows):
+                return seq
+    return None
+
+
+def residual_labels(questions: list[str]) -> list[str]:
+    """同事件各市场问句 → 去掉共有片段后的区分片段（行内标签用）。
+
+    Polymarket 子市场问句重复整条事件名（「Israel x Iran ceasefire continues through
+    November 7」），窄卡一栏放不下，截断后恰好把区分各档的日期/人名截掉。事件卡
+    标题已给共有上下文，行内只留区分片段（「November 7」「in Egypt」）。
+
+    共有片段按整行都有的连续词串扇除（不限首尾：有一行多插一个 not 时，首尾共有的
+    那串会错位成中段）；单字只在首尾剪且只剪功能词/裸年份（「Will」「be」「2027」），
+    中段与实义词不剪——它们可能正是本行要读的信息。
+
+    扇完可能只剩一个拿不出来单读的片段（纯数字缺单位、只剩功能词），这种行
+    把上下文补回来（见 _with_context）。全句一字不差时不强拆，回退整句；全句
+    另存 question 供 title 提示。
+    """
+    orig = [_words((q or "").rstrip("?. ")) for q in questions]
+    if not orig:
+        return []
+    keep = [list(range(len(t))) for t in orig]
+
+    def view(i: int) -> list[str]:
+        return [orig[i][j] for j in keep[i]]
+
+    while True:
+        toks = [view(i) for i in range(len(orig))]
+        run = _longest_shared_run(toks)
+        if run is not None:
+            for i, t in enumerate(toks):
+                j = _find_run(t, run)
+                del keep[i][j : j + len(run)]
+            continue
+        filled = [i for i, t in enumerate(toks) if t]  # 空行（缺问句）不参与共有片段判定
+        if len(filled) > 1 and all(len(toks[i]) > 1 for i in filled):
+            tail = {_word_key(toks[i][-1]) for i in filled}
+            head = {_word_key(toks[i][0]) for i in filled}
+            if len(tail) == 1:
+                w = next(iter(tail))
+                if w in _TRIM_WORDS or _YEAR_RX.match(w):
+                    for i in filled:
+                        keep[i].pop()
+                    continue
+            if len(head) == 1 and next(iter(head)) in _LEAD_WORDS:
+                for i in filled:
+                    keep[i].pop(0)
+                continue
+        break
+    out: list[str] = []
+    for i, row in enumerate(orig):
+        while len(keep[i]) > 1 and _word_key(row[keep[i][-1]]) in _TRIM_WORDS:
+            keep[i].pop()
+        label = _TAIL_RX.sub("", _with_context(row, keep[i]))
+        out.append(label or " ".join(row))
+    return out
+
+
+def _with_context(row: list[str], keep: list[int]) -> str:
+    """残差缺上下文时补回来：纯数字补单位，只剩功能词补到下一个实词。
+
+    「18」→「November 18」（整条阶梯同月，月名被当共有片段剪了）；「4」→「4 countries」
+    （「How many …」阶梯，数字后面那个名词就是单位）；「not」→「not return」、
+    「before」→「before 2027」（否定档/截止档，剩下那个词自己立不起来）。
+    """
+    if not keep:
+        return " ".join(row)
+    kept = [row[j] for j in keep]
+    # 单个字母当实词看：人名/占位符写成「A」「B」时不能当冠词处理（否则会被补成「A win」）
+    if not any(_word_key(w) not in _FUNC_WORDS or len(w) == 1 for w in kept):
+        j = keep[-1] + 1
+        while j < len(row):
+            keep = [*keep, j]
+            if _word_key(row[j]) not in _FUNC_WORDS:
+                break
+            j += 1
+    elif all(_COUNT_RX.match(p) for p in kept):
+        if keep[0] > 0 and _word_key(row[keep[0] - 1]) in _MONTHS:
+            keep = [keep[0] - 1, *keep]
+        elif keep[-1] + 1 < len(row) and _word_key(row[keep[-1] + 1]) not in _FUNC_WORDS:
+            keep = [*keep, keep[-1] + 1]
+    return " ".join(row[j] for j in keep)
 
 
 def hit_strike(question: str) -> float | None:

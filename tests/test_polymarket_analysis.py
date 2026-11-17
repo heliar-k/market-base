@@ -21,6 +21,7 @@ from src.polymarket_analysis import (
     hit_underlying,
     is_sports_event,
     prob_ladder,
+    residual_labels,
     series_for,
     snapshot,
 )
@@ -457,6 +458,36 @@ def test_geo_overview(fake_dir):
     assert "2 个事件在监测" in out["signals"][0]
 
 
+def test_geo_overview_drops_shared_event_name_from_rows(fake_dir):
+    """行内标签只留区分片段（到期日），全句留给 title 提示。"""
+    snap = _snap(
+        [
+            _event(
+                "Israel x Iran ceasefire continues through...?",
+                "geo",
+                vol=500_000.0,
+                markets=[
+                    {
+                        "id": "1",
+                        "question": "Israel x Iran ceasefire continues through November 18?",
+                        "prob_yes": 0.62,
+                    },
+                    {
+                        "id": "2",
+                        "question": "Israel x Iran ceasefire continues through December 31?",
+                        "prob_yes": 0.95,
+                    },
+                ],
+            )
+        ]
+    )
+    (fake_dir / "20260916.json").write_text(json.dumps(snap), encoding="utf-8")
+    ev = geo_overview()["topics"][0]["events"][0]
+    # 按概率降序：12-31 在前
+    assert [m["label"] for m in ev["markets"]] == ["December 31", "November 18"]
+    assert ev["markets"][0]["question"] == "Israel x Iran ceasefire continues through December 31?"
+
+
 def test_geo_overview_has_no_unclassified_topics(fake_dir):
     """页面级守护：各主题门控样本全部归类，不出现「其它」主题与未命中合约。
 
@@ -570,6 +601,35 @@ def test_geo_overview_unmatched_alert(fake_dir):
     assert not any("GEO_CLUSTERS" in s for s in out2["signals"])
 
 
+def test_unmatched_lists_every_market(fake_dir):
+    """告警清单按**合约**计数：同一主题里多个未命中市场要逐条列出（补关键词要一条一条改）。"""
+    snap = _snap(
+        [
+            _event(
+                "Iran foreign policy watch?",
+                "geo",
+                markets=[
+                    {
+                        "id": "1",
+                        "question": "Will Iran resume missile production?",
+                        "prob_yes": 0.3,
+                    },
+                    {"id": "2", "question": "Will Iran rejoin the talks?", "prob_yes": 0.2},
+                    {"id": "3", "question": "Will Iran free the detainees?", "prob_yes": 0.1},
+                ],
+            )
+        ]
+    )
+    (fake_dir / "20260916.json").write_text(json.dumps(snap), encoding="utf-8")
+    out = geo_overview()
+    assert out["unmatched"]["count"] == 3
+    assert sorted(s["label"] for s in out["unmatched"]["samples"]) == [
+        "Will Iran free the detainees",
+        "Will Iran rejoin the talks",
+        "Will Iran resume missile production",
+    ]
+
+
 # ── 加密价位触及专题（crypto-derivatives 页）────────────────────────────
 
 
@@ -601,6 +661,69 @@ def test_hit_cluster_of():
         hit_label("Will the price of Bitcoin be above $76,000 on September 17?") == "above $76,000"
     )
     assert hit_label("Will Bitcoin dip to $25,000 by December 31, 2026?") == "dip to $25,000"
+
+
+def test_residual_labels():
+    """同事件各市场问句 → 只留区分片段，行内一栏不再被事件名占满。"""
+    # 日期阶梯：共有的事件名去完，只留到期日
+    assert residual_labels(
+        [
+            "Israel x Iran ceasefire continues through November 18?",
+            "Israel x Iran ceasefire continues through December 31?",
+        ]
+    ) == ["November 18", "December 31"]
+    # 人名阶梯：有人名后多插一个 not，共有的后半句从两端剪不下去，仍要清掉
+    assert residual_labels(
+        [
+            "Will Hassan Rouhani be head of state in Iran end of 2026?",
+            "Will Masoud Pezeshkian be head of state in Iran end of 2026?",
+            "Will there be no Head of State in Iran end of 2026?",
+        ]
+    ) == ["Hassan Rouhani", "Masoud Pezeshkian", "there be no Head"]
+    # 有一档多插一个 not 时，首尾共有的“return to normal in”错位在中段，仍按连续词串剪掉；
+    # 否定档剩一个 not 自己立不起来，补到下一个实词
+    assert residual_labels(
+        [
+            "Will Strait of Hormuz traffic not return to normal in 2027?",
+            "Will Strait of Hormuz traffic return to normal in February 2027?",
+            "Will Strait of Hormuz traffic return to normal in August 2027?",
+        ]
+    ) == ["not return", "February", "August"]
+    # 同一个月内的日子阶梯：月名是共有片段但不能剪，剪了只剩「18」看不出是哪个月
+    assert residual_labels(
+        [
+            "Israel military action against Lebanon on November 18?",
+            "Israel military action against Lebanon on November 19?",
+        ]
+    ) == ["November 18", "November 19"]
+    # 数量阶梯：数字后面那个名词就是单位，补上后不再是无口径的裸数字
+    assert residual_labels(
+        [
+            "Will Israel strike 4 countries in 2026?",
+            "Will Israel strike 15 or more countries in 2026?",
+        ]
+    ) == ["4 countries", "15 or more"]
+    # 截止档只剩一个 before：向后补到年份
+    assert residual_labels(
+        [
+            "Will Ukraine agree to cede territory to Russia before 2027?",
+            "Will Ukraine agree to cede territory to Russia by June 30, 2027?",
+        ]
+    ) == ["before 2027", "by June 30"]
+    # 全句一致（单市场事件）不强拆，回退整句
+    assert residual_labels(["Will the U.S. invade Iran before 2027?"]) == [
+        "Will the U.S. invade Iran before 2027"
+    ]
+    # 归一化只去句读：50 bps 与 50+ bps 不能算同一个词，否则共有片段会吃掉区分信息
+    assert residual_labels(
+        ["Will the Fed hike by 50 bps in 2026?", "Will the Fed hike by 50+ bps in 2026?"]
+    ) == ["50 bps", "50+ bps"]
+    # 缺问句的空行不参与共有片段判定，也不报错
+    assert residual_labels(["", "Will X happen in 2027?"]) == ["", "Will X happen in 2027"]
+    assert residual_labels([]) == []
+    # 缺问句（None/空串）不抛，给空标签
+    assert residual_labels(["Will X?"] * 2) == ["Will X", "Will X"]
+    assert residual_labels([None]) == [""]
 
 
 def _hit_ev(eid, series, markets, vol24=1000.0):

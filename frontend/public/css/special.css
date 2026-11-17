@@ -809,7 +809,7 @@ body.dark .pm-topic-card { box-shadow: inset 0 0 0 1px rgba(255,255,255,.04); }
 .pm-alert code { font-family: var(--font-mono); font-size: 12px; color: var(--text); background: var(--surface-alt); padding: 1px 6px; border-radius: 4px; }
 /* 概率条：标签 + 迷你条 + 数字 + 7 日变动（.strong 高共识 / .weak 长尾淡显为页面语义修饰） */
 .pm-odds-row { display: flex; align-items: center; gap: 8px; margin: 3px 0; }
-.pm-odds-lab { flex: 0 0 46%; min-width: 0; font-size: 11px; color: var(--text-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pm-odds-lab { flex: 0 1 46%; min-width: 0; font-size: 11px; color: var(--text-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .pm-odds-track { flex: 1; height: 8px; background: var(--bg); border-radius: 4px; overflow: hidden; }
 .pm-odds-fill { height: 100%; background: var(--accent); border-radius: 4px; }
 .pm-odds-fill.strong { background: var(--color-up); }
@@ -851,8 +851,21 @@ body.dark .pm-topic-card { box-shadow: inset 0 0 0 1px rgba(255,255,255,.04); }
 .pm-raw > summary { cursor: pointer; font-size: 12px; color: var(--text-dim); user-select: none; }
 .pm-raw[open] > summary { margin-bottom: 10px; color: var(--text-secondary); }
 .pm-ladder-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 340px), 1fr)); gap: 12px; }
-/* 阶梯卡窄，价位标签多给宽度（标签里带 reach/dip 动词，不能截掉） */
-.pm-ladder-grid .pm-odds-lab { flex-basis: 52%; }
+/* 阶梯卡窄，价位标签多给宽度（标签里带 reach/dip 动词，不能截掉）；
+   可收缩：窄卡里把宽度让给右侧两个定宽数字列，不溢出卡片 */
+.pm-ladder-grid .pm-odds-lab { flex: 0 1 52%; }
+/* 行宽随卡片变（宽屏三列每卡行宽约 306、手机单列约 170），按视口写断点会错判，
+   改用容器查询按卡片自身行宽收窄（同 .rp-top-grid；容器就是卡片，量的是内宽）。
+   行宽 <300 时条只剩 20px 以内：条收起（百分比数字就在同一行），间隙与变动列
+   回收的宽度给标签；标签允许折两行，否则「December 31, 2027」与「December 31, 2026」
+   会截成同一串左文字分不出两档。 */
+.pm-ladder-grid > .re-card { container-type: inline-size; }
+@container (max-width: 300px) {
+  .pm-odds-row { gap: 6px; }
+  .pm-odds-row .pm-odds-track { display: none; }
+  .pm-odds-row .pm-odds-lab { flex: 1 1 auto; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; white-space: normal; }
+  .pm-odds-chg { flex-basis: 46px; }
+}
 
 /* ── 加密期权价格墙（/assets/crypto-options/ 私有：sw- 前缀）──
  * OI 阶梯：行权价升序一行一档，条宽 = OI 占该卡最大值（原 Top5 纯文字列表读不出哪堵厚）。
