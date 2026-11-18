@@ -210,6 +210,7 @@ CARY,Angel Oak Income ETF,factor_income
 CARZ,First Trust S-Network Future Vehicles & Technology ETF,broad
 CATH,Global X S&P 500 Catholic Values ETF,factor_income
 CCFE,Concourse Capital Focused Equity ETF,broad
+CCHP,Global X China Semiconductor ETF,global
 CCML,Roundhill MLCC & Electronic Components ETF,broad
 CCNR,ALPS/CoreCommodity Natural Resources ETF,commodity
 CCSB,Carbon Collective Short Duration Green Bond ETF,bond
@@ -591,6 +592,7 @@ IOYY,GraniteShares YieldBOOST IONQ ETF,broad
 IPKW,Invesco International BuyBack Achievers ETF,global
 IQGR,Astoria International Quality Growth Kings ETF,factor_income
 IQQ,iShares Nasdaq 100 ETF,broad
+IQQI,IncomeQ Nasdaq-100 Premium Income ETF,factor_income
 IQQQ,ProShares Nasdaq-100 High Income ETF,factor_income
 IREG,Leverage Shares 2X Long IREN Daily ETF,leveraged_inverse
 ISHG,iShares 1-3 Year International Treasury Bond ETF,bond
@@ -968,6 +970,7 @@ SARK,Tradr 1X Short Innovation Daily ETF,high_beta
 SCA,GraniteShares Autocallable SMCI ETF,broad
 SCDS,JPMorgan Fundamental Data Science Small Core ETF,broad
 SCZ,iShares MSCI EAFE Small-Cap ETF,broad
+SDC,KICK Space Data Center & Infrastructure Index ETF,theme
 SDG,iShares MSCI Global Sustainable Development Goals ETF,theme
 SDSI,American Century Short Duration Strategic Income ETF,factor_income
 SDTY,YieldMax S&P 500 0DTE Covered Call Strategy ETF,broad
@@ -1433,6 +1436,7 @@ AOM,iShares Core 40/60 Moderate Allocation ETF,broad
 AOR,iShares Core 60/40 Balanced Allocation ETF,broad
 APCB,ActivePassive Core Bond ETF,bond
 APDB,Aptus April Deep Buffer ETF,broad
+APFS,Artisan Focus Fund: ETF Class Shares,broad
 APHG,Leverage Shares 2X Long APH Daily ETF,leveraged_inverse
 APHU,T-REX 2X Long APH Daily Target ETF,leveraged_inverse
 APIE,ActivePassive International Equity ETF,global
@@ -1442,6 +1446,7 @@ APLY,YieldMax AAPL Option Income Strategy ETF,factor_income
 APLZ,Tradr 2X Short APLD Daily ETF,leveraged_inverse
 APMI,Corgi AMAT 2x Daily ETF,leveraged_inverse
 APMU,ActivePassive Intermediate Municipal Bond ETF,bond
+APNX,Artisan Select Equity Fund: ETF Class Shares,broad
 APOC,Innovator Equity Defined Protection ETF - 6mo Apr/Oct,broad
 APPC,Corgi APP 2x Daily ETF,leveraged_inverse
 APRB,Aptus April Buffer ETF,broad
@@ -2920,6 +2925,7 @@ GMEU,T-REX 2X Long GME Daily Target ETF,leveraged_inverse
 GMEY,YieldMax GME Option Income Strategy ETF,factor_income
 GMF,State Street SPDR S&P Emerging Asia Pacific ETF,global
 GMIE,"GMO International Equity Fund, ETF Class",global
+GMIX,iShares Macro AlphaBeta Active ETF,broad
 GMMA,GammaRoad Market Navigation ETF,broad
 GMMF,iShares Government Money Market ETF,broad
 GMNY,Goldman Sachs Dynamic New York Municipal Income ETF,bond
@@ -4775,6 +4781,7 @@ SHAG,WisdomTree Yield Enhanced U.S. Short-Term Aggregate Bond Fund,bond
 SHDG,Soundwatch Hedged Equity ETF,broad
 SHE,State Street SPDR MSCI USA Gender Diversity ETF,broad
 SHEH,Shell plc ADRhedged,broad
+SHLA,Global X Asia Defense Tech ETF,global
 SHLD,Global X Defense Tech ETF,broad
 SHM,State Street SPDR Nuveen ICE Short Term Municipal Bond ETF,bond
 SHOC,Strive U.S. Semiconductor ETF,theme
@@ -5207,6 +5214,7 @@ TRFK,Pacer Data and Digital Revolution ETF,broad
 TRFM,AAM Transformers ETF,broad
 TRIL,VegaShares Trillions ETF,broad
 TRIO,MC Trio Equity Buffered ETF,broad
+TRLL,Direxion Trillions ETF,broad
 TRND,Pacer Trendpilot Fund of Funds ETF,broad
 TROT,Invesco MSCI Treasury Duration Rotation ETF,bond
 TRPA,Hartford AAA CLO ETF,broad
@@ -5262,7 +5270,6 @@ TYD,Direxion Daily 10-Yr Treasury Bull 3x Shrs,bond
 TYLD,Cambria Tactical Yield ETF,broad
 TYLG,Global X Information Technology Covered Call & Growth ETF,high_beta
 TYO,Direxion Daily 10-Yr Treasury Bear 3x Shrs,bond
-TYYY,xETFs TSLA Daily Income ETF,factor_income
 TZA,Direxion Small Cap Bear 3X ETF,leveraged_inverse
 UAPR,Innovator U.S. Equity Ultra Buffer ETF - April,broad
 UAUG,Innovator U.S. Equity Ultra Buffer ETF - August,broad
@@ -5407,6 +5414,7 @@ VELL,Defiance Daily Target 2X Long VELO ETF,leveraged_inverse
 VEM,Virtus Emerging Markets Dividend ETF,factor_income
 VEMB,Vanguard Emerging Markets Bond Active ETF,bond
 VEMY,Virtus Stone Harbor Emerging Markets High Yield Bond ETF,bond
+VEN,Teucrium Venezuela Future Opportunities ETF,broad
 VETZ,Academy Veteran Bond ETF,bond
 VEU,Vanguard FTSE All World Ex US ETF,global
 VEXC,Vanguard Emerging Markets Ex-China ETF,global
@@ -5485,6 +5493,7 @@ VUSG,Vanguard Wellington U.S. Growth Active ETF,high_beta
 VUSI,Voya Ultra Short Income ETF,factor_income
 VUSV,Vanguard Wellington U.S. Value Active ETF,factor_income
 VV,Vanguard Morningstar Large-Cap ETF,broad
+VVPL,Vulcan Value Partners ETF,factor_income
 VWO,Vanguard FTSE Emerging Markets ETF,global
 VXF,Vanguard Extended Market ETF,broad
 VYLD,"Inverse VIX Short-Term Futures ETNs due March 22, 2045",currency
@@ -5556,7 +5565,6 @@ WWJD,Inspire International ETF,global
 WX,Corgi All World 2x Daily ETF,global
 WXET,Teucrium 2x Daily Wheat ETF,leveraged_inverse
 WYFL,Defiance Daily Target 2X Long WYFI ETF,leveraged_inverse
-WZRD,Opportunistic Trader ETF,broad
 XA,Corgi AI Cybersecurity ETF,theme
 XAGG,Eaton Vance Income Opportunities ETF,factor_income
 XAGI,Corgi AGIX 2x Daily ETF,leveraged_inverse
@@ -5737,6 +5745,7 @@ XYLG,Global X S&P 500 Covered Call & Growth ETF,high_beta
 XYZY,YieldMax XYZ Option Income Strategy ETF,factor_income
 YALL,Truth Social God Bless America ETF,broad
 YANG,Direxion Daily FTSE China Bear 3X ETF,global
+YASX,Yorkville America Space Index ETF,theme
 YBIT,YieldMax Bitcoin Option Income Strategy ETF,crypto
 YBTC,Roundhill Bitcoin Covered Call Strategy ETF,crypto
 YCL,ProShares Ultra Yen,currency
@@ -5756,6 +5765,7 @@ YLDY,Horizon High Income ETF,factor_income
 YMAG,YieldMax Magnificent 7 Fund of Option Income ETFs,factor_income
 YMAR,FT Vest International Equity Moderate Buffer ETF - March,global
 YMAX,YieldMax Universe Fund of Option Income ETFs,factor_income
+YO,Amplify S&P 500 Buffered Autocallable Yield Opportunity ETF,broad
 YOLO,AdvisorShares Pure Cannabis ETF,broad
 YSEP,FT Vest International Equity Buffer ETF - September,global
 YSPC,YieldMax SPCX Option Income Strategy ETF,factor_income
