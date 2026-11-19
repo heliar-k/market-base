@@ -1884,6 +1884,7 @@ CEMB,iShares J.P. Morgan EM Corporate Bond ETF,bond
 CERY,State Street SPDR Bloomberg Enhanced Roll Yield Commodity Strategy No K-1 ETF,commodity
 CEW,WisdomTree Emerging Currency Strategy Fund,currency
 CFIT,Cambria Fixed Income Trend ETF,factor_income
+CGBI,Capital Group Multi-Asset Income Builder ETF,factor_income
 CGBL,Capital Group Core Balanced ETF,broad
 CGCB,Capital Group Core Bond ETF,bond
 CGCP,Capital Group Core Plus Income ETF,factor_income
@@ -1900,6 +1901,7 @@ CGHY,Capital Group High Yield Bond ETF,bond
 CGIB,Capital Group International Bond ETF (USD-Hedged),bond
 CGIC,Capital Group International Core Equity ETF,global
 CGIE,Capital Group International Equity ETF,global
+CGMI,Capital Group Multi-Asset Income ETF,factor_income
 CGMM,Capital Group U.S. Small and Mid Cap ETF,broad
 CGMS,Capital Group U.S. Multi-Sector Income ETF,factor_income
 CGMU,Capital Group Municipal Income ETF,bond
@@ -2926,7 +2928,6 @@ GMEY,YieldMax GME Option Income Strategy ETF,factor_income
 GMF,State Street SPDR S&P Emerging Asia Pacific ETF,global
 GMIE,"GMO International Equity Fund, ETF Class",global
 GMIX,iShares Macro AlphaBeta Active ETF,broad
-GMMA,GammaRoad Market Navigation ETF,broad
 GMMF,iShares Government Money Market ETF,broad
 GMNY,Goldman Sachs Dynamic New York Municipal Income ETF,bond
 GMOC,GMO Ultra-Short Income ETF,factor_income
@@ -2956,6 +2957,7 @@ GOVT,iShares U.S. Treasury Bond ETF,bond
 GOVZ,iShares 25  Year Treasury STRIPS Bond ETF,bond
 GPTY,YieldMax AI & Tech Portfolio Option Income ETF,factor_income
 GPZ,VanEck Alternative Asset Manager ETF,broad
+GQGG,GQG Global Equity ETF,broad
 GQGU,GQG US Equity ETF,broad
 GQI,Natixis Gateway Quality Income ETF,factor_income
 GQRE,Northern Trust Global Quality Real Estate ETF,factor_income
@@ -2968,6 +2970,7 @@ GROZ,Zacks Focus Growth ETF,high_beta
 GRPM,Invesco S&P MidCap 400 GARP ETF,broad
 GRPZ,Invesco S&P SmallCap 600 GARP ETF,broad
 GSC,Goldman Sachs Small Cap Equity ETF,commodity
+GSCZ,Goldman Sachs Securitized Income ETF,commodity
 GSEE,Goldman Sachs MarketBeta Emerging Markets Equity ETF,commodity
 GSEP,FT Vest U.S. Equity Moderate Buffer ETF - September,broad
 GSEU,Goldman Sachs ActiveBeta Europe Equity ETF,commodity
@@ -3427,6 +3430,7 @@ JABS,Janus Henderson Asset-Backed Securities ETF,broad
 JADB,Aptus January Deep Buffer ETF,broad
 JADE,JPMorgan Active Developing Markets Equity ETF,broad
 JAJL,Innovator Equity Defined Protection ETF - 6mo Jan/Jul,broad
+JALL,JPMorgan All Country Research Enhanced Equity ETF,broad
 JANB,Aptus January Buffer ETF,broad
 JANH,Innovator Premium Income 20 Barrier ETF - January,factor_income
 JANI,AllianzIM International Equity Buffer15 Uncapped Jan ETF,global
@@ -5104,6 +5108,7 @@ TETH,21Shares Ethereum ETF,crypto
 TEXU,Direxion Daily Energy Top 5 Bull 2X ETF,commodity
 TFFI,Chesapeake Trend-Following Fixed Income ETF,factor_income
 TFI,State Street SPDR Nuveen ICE Municipal Bond ETF,bond
+TFIX,T. Rowe Price Capital Appreciation Fixed Income ETF,factor_income
 TFJL,Innovator 20  Year Treasury Bond 5 Floor ETF - July,bond
 TFLO,iShares Treasury Floating Rate Bond ETF,bond
 TFLR,T. Rowe Price Floating Rate ETF,bond
@@ -5278,7 +5283,7 @@ UBEW,Roundhill UBER WeeklyPay ETF,broad
 UBIQ,AAM Ubiquitous ETF,broad
 UBOT,"Direxion Daily Robotics, Artificial Intelligence & Automation Index Bull 2X ETF",leveraged_inverse
 UBR,ProShares Ultra MSCI Brazil Capped,broad
-UBT,ProShares Ultra 20+ Year Treasury,bond
+UBT,ProShares Ultra 20 Year Treasury,bond
 UCBG,State Street SPDR UC Investments 90/10 Endowment Strategy Index ETF,broad
 UCC,ProShares Ultra Consumer Discretionary,broad
 UCO,ProShares Ultra Bloomberg Crude Oil,commodity
