@@ -297,6 +297,11 @@ class TestOptionsNarrative:
         n = _options_narrative(self._sym(flip_dist=-5.0))
         assert n["gamma"]["title"] == "负 Gamma：波动更容易放大"
         assert "下方" in n["gamma"]["text"]
+        assert any("正 Delta" in x for x in n["avoid"])
+
+    def test_negative_gamma_and_negative_dex_warns_downside(self):
+        n = _options_narrative(self._sym(flip_dist=-5.0, net_dex=-20.0))
+        assert any("负 Delta 与负 Gamma" in x for x in n["avoid"])
 
     def test_high_pcr_gets_defensive_note(self):
         n = _options_narrative(self._sym(pcr_oi=1.6))

@@ -8,11 +8,59 @@ ROOT = Path(__file__).resolve().parents[1]
 CRYPTO_OPTIONS = ROOT / "frontend/src/pages/assets/crypto-options.astro"
 
 
-def test_gex_chart_uses_full_cumulative_series_and_keeps_flip():
-    text = Path("frontend/src/pages/assets/equities/options.astro").read_text()
-    assert "x.cum_gex_m" in text
-    assert "x.strike === v.gamma_flip" in text
-    assert "const cum = g.map(x => cumByStrike.get(x.strike))" in text
+GEX_CHART_PROBE = r"""
+__BUILD_GEX__
+
+// 1) 新快照：keepFlip 保留两侧 <0.5M 的相邻行权价，axisIdx 精准插值，hasProfile 为 true
+const r1 = buildGexChartData({
+  gamma_flip: 102.5,
+  wall: [
+    { strike: 90, gex_m: -5.0, call_gex_m: 0.0, put_gex_m: -5.0, profile_gex_m: -20.0 },
+    { strike: 100, gex_m: -0.1, call_gex_m: 0.2, put_gex_m: -0.3, profile_gex_m: -2.5 },
+    { strike: 105, gex_m: 0.1, call_gex_m: 0.3, put_gex_m: -0.2, profile_gex_m: 2.5 },
+    { strike: 115, gex_m: 6.0, call_gex_m: 6.0, put_gex_m: 0.0, profile_gex_m: 18.0 },
+  ],
+});
+if (r1.ss.join(',') !== '90,100,105,115') throw new Error('keepFlip 失败: ' + r1.ss.join(','));
+if (!r1.hasProfile) throw new Error('hasProfile 应为 true');
+if (Math.abs(r1.axisIdx(102.5) - 1.5) > 1e-9) throw new Error('axisIdx 错误: ' + r1.axisIdx(102.5));
+
+// 2) 旧快照 cum_gex_m 回退：hasProfile 为 false 且 profile 取 cum_gex_m
+const r2 = buildGexChartData({
+  gamma_flip: 100,
+  wall: [
+    { strike: 95, gex_m: -4.0, call_gex_m: 0, put_gex_m: -4.0, cum_gex_m: -4.0 },
+    { strike: 100, gex_m: 6.0, call_gex_m: 6.0, put_gex_m: 0, cum_gex_m: 2.0 },
+  ],
+});
+if (r2.hasProfile) throw new Error('旧快照 hasProfile 应为 false');
+if (r2.profile.join(',') !== '-4,2') throw new Error('旧快照回退值错误: ' + r2.profile.join(','));
+
+// 3) gex_dist 回退（无 call_gex_m / put_gex_m）：派生柱子不得为空
+const r3 = buildGexChartData({
+  gamma_flip: null,
+  gex_dist: [
+    { strike: 95, gex_m: -3.0 },
+    { strike: 105, gex_m: 4.0 },
+  ],
+});
+if (r3.callBars.join(',') !== '0,4' || r3.putBars.join(',') !== '-3,0') {
+  throw new Error('gex_dist 派生柱子错误: ' + r3.callBars + ' / ' + r3.putBars);
+}
+"""
+
+
+def test_gex_chart_uses_profile_series_and_keeps_flip():
+    text = Path("frontend/src/pages/assets/equities/options.astro").read_text(encoding="utf-8")
+    assert "smooth: false" in text
+    assert "hasProfile ? '净 GEX 曲线' : '累计 GEX'" in text
+    if shutil.which("node") is None:
+        pytest.skip("无 node，跳过 buildGexChartData 行为验证")
+    probe = GEX_CHART_PROBE.replace("__BUILD_GEX__", _fn_src(text, "buildGexChartData"))
+    r = subprocess.run(
+        ["node", "-e", probe], capture_output=True, text=True, encoding="utf-8", cwd=ROOT
+    )
+    assert r.returncode == 0, r.stderr[:600]
 
 
 def test_oi_panel_uses_near_spot_band():

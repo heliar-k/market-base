@@ -22,10 +22,10 @@ from pathlib import Path
 import pandas as pd
 import yfinance as yf
 
-from src.clock import et_today
+from src.clock import et_today, now_et
 from src.fetchers.yfinance_fetcher import ensure_yf_proxy
 from src.indicators import compute_all_indicators, load_data
-from src.pricing import aggregate_wall, fetch_yf_chain
+from src.pricing import aggregate_wall, bs_greeks, fetch_yf_chain, years_to_expiration
 
 ensure_yf_proxy()
 
@@ -123,7 +123,31 @@ def analyze_puts(gex: pd.DataFrame, spot: float, atr: float, symbol: str) -> pd.
     # dte 统一按美东日历日计算，避免时分把整数天数减掉一天
     today = pd.Timestamp(et_today())
     p["dte"] = (pd.to_datetime(p.expiration, format="%Y%m%d") - today).dt.days
-    p = p[p["dte"] > 0]
+    p = p[p["dte"] > 0].copy()
+
+    # 统一取 IV 列（兼容 IBKR 纯路径只有 iv 列、yfinance 路径为 impliedVolatility）
+    if "impliedVolatility" in p.columns:
+        iv_series = pd.to_numeric(p["impliedVolatility"], errors="coerce")
+    elif "iv" in p.columns:
+        iv_series = pd.to_numeric(p["iv"], errors="coerce")
+    else:
+        iv_series = pd.Series(float("nan"), index=p.index)
+
+    # 缺失 delta 时按 BSM 补算 Put Delta（Φ(d1) − 1），剩余期限精确到美东 16:00
+    if "delta" not in p.columns:
+        p["delta"] = None
+    now = now_et()
+    filled = []
+    for idx, row in p.iterrows():
+        val = row.get("delta")
+        iv = iv_series.loc[idx]
+        if pd.isna(val) and pd.notna(iv) and float(iv) > 0.01:
+            t = years_to_expiration(str(row["expiration"]), now)
+            if t > 0:
+                _, dc = bs_greeks(spot, float(row["strike"]), t, float(iv))
+                val = dc - 1.0
+        filled.append(val)
+    p["delta"] = filled
 
     dist = (spot - p.strike) / spot
     yld = p.mid / p.strike
@@ -135,7 +159,7 @@ def analyze_puts(gex: pd.DataFrame, spot: float, atr: float, symbol: str) -> pd.
                 "dte": p.dte,
                 "mid": p.mid,
                 "delta": p.delta,
-                "iv%": p.impliedVolatility * 100,
+                "iv%": iv_series * 100,
                 "OI": p.openInterest.astype(int),
                 "dist%": dist * 100,
                 "ATR_x": (spot - p.strike) / atr if atr else 0,

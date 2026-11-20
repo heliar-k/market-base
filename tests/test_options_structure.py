@@ -35,38 +35,78 @@ def _chain(legs: list[tuple[float, str, int]]) -> pd.DataFrame:
 
 
 def test_flip_nearest_crossing_above_spot():
-    """现价处累计为负、穿越点在现价上方 → flip 取上方穿越（旧逻辑漏检返回 None）。"""
+    """现价处净 GEX 为负、Zero Gamma 穿越点在现价上方 → flip 取上方过零点。"""
     out = compute_structure(
         _chain(
             [
-                (90.0, "P", 50000),
-                (95.0, "P", 50000),
-                (100.0, "P", 20000),
-                (105.0, "C", 90000),
-                (110.0, "C", 10000),
+                (95.0, "P", 60000),
+                (100.0, "P", 40000),
+                (108.0, "C", 120000),
             ]
         ),
         100.0,
     )
-    assert out["gamma_flip"] == 105.0
+    assert out["net_gex"] < 0
+    assert out["gamma_flip"] is not None
+    assert 100.0 < out["gamma_flip"] < 108.0
     assert out["flip_dist"] < 0  # 现价在 Flip 下方 → 局部负 Gamma
 
 
 def test_flip_nearest_of_multiple():
-    """多个穿越点取离现价最近的（旧逻辑取第一个，被深 ITM 噪声带偏）。"""
+    """现价处净 GEX 为正、存在多处穿越时取现价下方最近的 Zero Gamma 点。"""
     out = compute_structure(
         _chain(
             [
-                (80.0, "P", 80000),  # 深负
-                (84.0, "C", 60000),  # 第一次上穿（噪声位，旧逻辑取这里）
-                (92.0, "P", 50000),  # 下穿
-                (96.0, "C", 50000),  # 上穿 —— 离现价最近
+                (80.0, "P", 80000),
+                (84.0, "C", 60000),
+                (92.0, "P", 50000),
+                (96.0, "C", 50000),
             ]
         ),
         100.0,
     )
-    assert out["gamma_flip"] == 96.0
+    assert out["net_gex"] > 0
+    assert out["gamma_flip"] is not None
+    assert 84.0 < out["gamma_flip"] < 100.0
     assert out["flip_dist"] > 0  # 现价在 Flip 上方 → 局部正 Gamma
+
+
+def test_dex_signed_call_positive_put_negative_and_skew():
+    """Call DEX 为正、Put DEX 为负，Put 占优时 Net DEX 为负，且 25Δ Skew 准确命中。"""
+    rows = [
+        {
+            "strike": 95.0,
+            "right": "P",
+            "expiration": EXP,
+            "openInterest": 80000,
+            "volume": 0,
+            "impliedVolatility": 0.28,
+        },
+        {
+            "strike": 100.0,
+            "right": "P",
+            "expiration": EXP,
+            "openInterest": 40000,
+            "volume": 0,
+            "impliedVolatility": 0.24,
+        },
+        {
+            "strike": 104.5,
+            "right": "C",
+            "expiration": EXP,
+            "openInterest": 30000,
+            "volume": 0,
+            "impliedVolatility": 0.20,
+        },
+    ]
+    out = compute_structure(pd.DataFrame(rows), 100.0)
+    assert out["call_dex"] > 0
+    assert out["put_dex"] < 0
+    assert out["net_dex"] < 0
+    assert out["net_dex"] == pytest.approx(out["call_dex"] + out["put_dex"], abs=0.02)
+    assert out["skew_put_iv"] == 28.0
+    assert out["skew_call_iv"] == 20.0
+    assert out["skew"] == 8.0
 
 
 def test_flip_none_when_no_crossing():
@@ -307,7 +347,7 @@ def test_main_merges_partial_full_run_with_existing_snapshot(monkeypatch, tmp_pa
     assert out["oi_final"] is False
 
 
-def test_wall_exports_full_cumulative_gex():
+def test_wall_exports_profile_gex():
     out = compute_structure(
         _chain(
             [
@@ -319,14 +359,11 @@ def test_wall_exports_full_cumulative_gex():
         ),
         100.0,
     )
-    prev = 0.0
-    crossings = []
-    for row in out["wall"]:
-        cum = row["cum_gex_m"]
-        if prev < 0 <= cum:
-            crossings.append(row["strike"])
-        prev = cum
-    assert 96.0 in crossings
+    by_strike = {row["strike"]: row["profile_gex_m"] for row in out["wall"]}
+    assert by_strike[80.0] < 0
+    assert by_strike[96.0] > 0
+    assert out["gamma_flip"] is not None
+    assert 80.0 < out["gamma_flip"] < 96.0
 
 
 def test_oi_top_uses_total_open_interest():

@@ -8,7 +8,13 @@
 import pandas as pd
 import pytest
 
-from src.pricing import aggregate_wall, fetch_yf_chain
+from src.pricing import (
+    aggregate_wall,
+    bs_greeks,
+    fetch_yf_chain,
+    net_gex_profile,
+    zero_gamma_flip,
+)
 
 
 class _FakeChain:
@@ -203,3 +209,94 @@ def test_fetch_yf_chain_all_expiries_fail_returns_empty(monkeypatch):
         "impliedVolatility",
         "volume",
     ]
+
+
+# ============================================================================
+# net_gex_profile & zero_gamma_flip
+# ============================================================================
+def test_net_gex_profile_matches_scalar_bs_greeks():
+    strikes = [95.0, 100.0, 105.0]
+    rights = ["P", "P", "C"]
+    years = [0.1, 0.2, 0.15]
+    ivs = [0.25, 0.22, 0.20]
+    ois = [1000, 500, 1200]
+    spot = 100.0
+
+    expected = 0.0
+    for k, right, t, iv, oi in zip(strikes, rights, years, ivs, ois, strict=True):
+        g, _ = bs_greeks(spot, k, t, iv)
+        expected += (g if right == "C" else -g) * oi * 100.0 * spot
+
+    got = net_gex_profile(strikes, rights, years, ivs, ois, [spot])[0]
+    assert got == pytest.approx(expected, rel=1e-12)
+
+
+def test_zero_gamma_flip_finds_root_above_and_below_spot():
+    strikes = [95.0, 105.0]
+    rights = ["P", "C"]
+    years = [30 / 365, 30 / 365]
+    ivs = [0.2, 0.2]
+    ois = [1000, 1000]
+
+    flip_from_below = zero_gamma_flip(strikes, rights, years, ivs, ois, spot=97.0)
+    flip_from_above = zero_gamma_flip(strikes, rights, years, ivs, ois, spot=103.0)
+    assert flip_from_below is not None and 97.0 < flip_from_below < 105.0
+    assert flip_from_above is not None and 95.0 < flip_from_above < 103.0
+    assert flip_from_below == pytest.approx(flip_from_above, abs=0.02)
+    assert abs(net_gex_profile(strikes, rights, years, ivs, ois, [flip_from_above])[0]) < 1e3
+
+
+def test_zero_gamma_flip_returns_none_without_crossing_or_outside_band():
+    assert (
+        zero_gamma_flip([95.0, 105.0], ["C", "C"], [0.1, 0.1], [0.2, 0.2], [500, 500], 100.0)
+        is None
+    )
+    assert (
+        zero_gamma_flip([40.0, 50.0], ["P", "C"], [0.1, 0.1], [0.2, 0.2], [500, 500], 100.0) is None
+    )
+
+
+def test_zero_gamma_flip_handles_wide_band_and_narrow_zero_dte_spike():
+    # band >= 1.0 时 lo_bound 截断到 1e-6，spot 不再是网格中点，val_spot 仍需精确取 spot
+    flip = zero_gamma_flip(
+        [95.0, 105.0], ["P", "C"], [30 / 365, 30 / 365], [0.2, 0.2], [1000, 1000], 103.0, band=1.5
+    )
+    assert flip is not None and 95.0 < flip < 103.0
+
+    # 极短到期（4 小时）下 0.2% 间距的窄 Call 尖峰被夹在两侧 Put 之间，网格合入行权价后不漏检
+    t_4h = 4.0 / (365 * 24)
+    narrow_flip = zero_gamma_flip(
+        [100.0, 100.2, 100.4],
+        ["P", "C", "P"],
+        [t_4h, t_4h, t_4h],
+        [0.05, 0.05, 0.05],
+        [2000, 2000, 2000],
+        spot=100.0,
+        steps=21,
+    )
+    assert narrow_flip is not None and 100.0 < narrow_flip < 100.2
+
+
+def test_zero_gamma_flip_no_underflow_phantom_root_on_zero_dte():
+    # 0DTE 纯 Put 或全负链在高斯深尾部下溢时绝不产生伪 Flip
+    t_2h = 2.0 / (365 * 24)
+    t_4h = 4.0 / (365 * 24)
+    assert zero_gamma_flip([100.0], ["P"], [t_4h], [0.20], [5000], spot=100.0) is None
+    assert (
+        zero_gamma_flip(
+            [490.0, 500.0, 500.0, 510.0, 510.0],
+            ["P", "P", "C", "P", "C"],
+            [t_2h] * 5,
+            [0.12] * 5,
+            [5000, 8000, 3000, 4000, 1000],
+            spot=500.0,
+            band=0.12,
+        )
+        is None
+    )
+    # 0DTE 空白带（85P / 125C，spot=100 处普通 exp 下溢为 0）：对数空间求得根 sqrt(85*125)≈103.08
+    gap_flip = zero_gamma_flip(
+        [85.0, 125.0], ["P", "C"], [t_4h, t_4h], [0.15, 0.15], [1000, 1000], spot=100.0
+    )
+    assert gap_flip is not None
+    assert gap_flip == pytest.approx(103.08, abs=0.05)

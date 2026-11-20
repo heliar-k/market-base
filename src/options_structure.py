@@ -3,7 +3,7 @@
 
 对 13 个指数/ETF/龙头股拉取 yfinance 期权链（真实 OI + IV），用 BS 模型反推
 Greeks（gamma/delta/vanna/charm），输出每组聚合指标：
-  - Net GEX / Net DEX（按 timsun 口径：call 端正向、put 端卖保护翻号）
+  - Net GEX（Call 正 / Put 负）/ Net DEX（Call 正 / Put 负）
   - Gamma Flip + 现价距离、Call/Put Wall（每点 $M）、25Δ Skew
   - IV 期限结构（Front/Back IV + 斜率）、到期 Gamma 集中度
   - OI Top 20（strike × 到期）
@@ -33,10 +33,11 @@ from src.pricing import (
     R,
     _norm_pdf,
     bs_greeks,
-    cumulative_gamma_flip,
     d1_from,
     fetch_yf_chain,
+    net_gex_profile,
     years_to_expiration,
+    zero_gamma_flip,
 )
 
 logger = logging.getLogger(__name__)
@@ -296,8 +297,8 @@ def compute_structure(df: pd.DataFrame, spot: float, as_of: datetime | None = No
         gamma_p, delta = bs_greeks(spot, r["strike"], t, iv)
         # gamma 符号：call 正 / put 负（timsun 与 compute_gex 统一口径）
         gamma = gamma_p if sig else -gamma_p
-        # delta 卖保护口径：call 正向；put 取短保护（dealer 短 put = 正 delta）
-        delta_d = delta if sig else 1.0 - delta
+        # delta 标准合约方向：call 正向 Φ(d1)；put 负向 Φ(d1) − 1
+        delta_signed = delta if sig else delta - 1.0
         # vanna/charm（标准 BSM）：call 正向、put 翻号
         d1 = d1_from(spot, r["strike"], t, iv)
         # vanna = ∂Vega/∂S = -γ·S·√T·d2（用 d2，d1 会在 ATM 附近引入 ~7% 偏差）
@@ -313,15 +314,16 @@ def compute_structure(df: pd.DataFrame, spot: float, as_of: datetime | None = No
                 "right": r["right"],
                 "expiration": r["expiration"],
                 "days": days,
+                "t": t,
                 "oi": oi,
                 "volume": int(r["volume"]) if pd.notna(r["volume"]) else 0,
                 "iv": iv,
                 "gamma": gamma,
-                "delta": delta_d,
+                "delta": delta_signed,
                 "vanna": vanna,
                 "charm": charm,
                 "gex": gamma * oi * 100 * spot,
-                "dex": delta_d * oi * 100 * spot,
+                "dex": delta_signed * oi * 100 * spot,
                 "vanna_tot": vanna * oi * 100,
                 "charm_tot": charm * oi * 100,
             }
@@ -344,15 +346,14 @@ def compute_structure(df: pd.DataFrame, spot: float, as_of: datetime | None = No
     )
     wall = wall.sort_values("strike").reset_index(drop=True)
 
-    # 行权价带：剔除远端噪声。新高价股的链含 $5 级深 ITM 存量（yfinance 全链返回），
-    # 其累计穿越/idxmin 会把 flip/wall 拉飞（MU 20260911：flip=105 @ spot=977）。
-    # 与 compute_gex.filter_options 同思想，带取 ±100%（timsun 墙位可离现价 ±20%+，
-    # 不能照搬 12%）。仅作用于 walls；flip 保持全链累计曲线口径（基线不能带内重置，
-    # 否则带底第一个大 OI 深 ITM call 直接把累计抬正，穿越结构全部消失）。
+    # 行权价带：仅用于 Call/Put Wall 取位，剔除远端深 ITM 噪声存量。
     cb = c[c["strike"].between(spot * 0.5, spot * 2.0)]
 
-    wall["cum"] = wall["gex"].cumsum()
-    flip = cumulative_gamma_flip(wall.set_index("strike")["gex"], spot)
+    # 净 GEX 曲线（假设标的价格移动到各行权价时的全链净 GEX）与 Zero Gamma Flip
+    wall["profile_gex"] = net_gex_profile(
+        c["strike"], c["right"], c["t"], c["iv"], c["oi"], wall["strike"].to_numpy(float)
+    )
+    flip = zero_gamma_flip(c["strike"], c["right"], c["t"], c["iv"], c["oi"], spot)
 
     # Walls：每点 $M（Σ γ·OI·100 / 1e6）按 call/put 两端（同带内取位）
     call_wall = cb[cb["right"] == "C"].groupby("strike")["gex"].sum()
@@ -385,10 +386,10 @@ def compute_structure(df: pd.DataFrame, spot: float, as_of: datetime | None = No
         if dt < 5:
             continue
         g = c[c["expiration"] == exp]
-        put_strike = g[(g["right"] == "P") & (g["delta"].between(0.20, 0.30))]
+        put_strike = g[(g["right"] == "P") & (g["delta"].between(-0.30, -0.20))]
         call_strike = g[(g["right"] == "C") & (g["delta"].between(0.20, 0.30))]
         if not put_strike.empty and not call_strike.empty:
-            put = put_strike.loc[(put_strike["delta"] - 0.25).abs().idxmin()]
+            put = put_strike.loc[(put_strike["delta"] + 0.25).abs().idxmin()]
             call = call_strike.loc[(call_strike["delta"] - 0.25).abs().idxmin()]
             skew_put_iv = float(put["iv"])
             skew_call_iv = float(call["iv"])
@@ -410,10 +411,7 @@ def compute_structure(df: pd.DataFrame, spot: float, as_of: datetime | None = No
         )
         if c[c["right"] == "C"]["oi"].sum()
         else None,
-        # 近端 P/C（ATM ±10% 行权价带）：全样本被深 OTM 存量大单污染（如 SPY
-        # 11/20 500P OI 30 万），narrative 与页面展示用此口径更贴近市场结构
-        # 近端 P/C（ATM ±10% 行权价带）：全样本被深 OTM 存量大单污染（如 SPY
-        # 11/20 500P OI 30 万），narrative 与页面展示用此口径更贴近市场结构
+        # 近端 P/C（ATM ±10% 行权价带）：全样本易受深 OTM 存量大单干扰
         "pcr_oi_atm": _pcr_oi_atm(c, spot),
         "pcr_vol": round(
             float(c[c["right"] == "P"]["volume"].sum() / c[c["right"] == "C"]["volume"].sum()),
@@ -473,12 +471,12 @@ def compute_structure(df: pd.DataFrame, spot: float, as_of: datetime | None = No
             "contracts": int(g["oi"].sum()),
         }
     final["buckets"] = buckets
-    # GEX 分布（wall 明细，供前端分布图）
+    # GEX 分布（wall 明细，供前端分布图；profile_gex_m 为标的价格位于该行权价时的全链净 GEX）
     final["wall"] = [
         {
             "strike": float(w["strike"]),
             "gex_m": round(float(w["gex"]) / 1e6, 1),
-            "cum_gex_m": round(float(w["cum"]) / 1e6, 1),
+            "profile_gex_m": round(float(w["profile_gex"]) / 1e6, 1),
             "call_gex_m": round(float(w["call_gex"]) / 1e6, 1),
             "put_gex_m": round(float(w["put_gex"]) / 1e6, 1),
             "oi": int(w["oi"]),

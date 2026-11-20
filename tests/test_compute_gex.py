@@ -248,7 +248,32 @@ def test_expired_contracts_are_filtered_for_real_gamma_sources(monkeypatch):
     assert merged["expiration"].tolist() == ["20261030"]
 
 
-def test_print_wall_uses_cumulative_gex_flip(capsys):
+def test_greeks_from_yf_outputs_signed_delta_and_gamma(monkeypatch):
+    monkeypatch.setattr(
+        cg,
+        "_now_et",
+        lambda: datetime(2026, 10, 27, 10, 0, tzinfo=ZoneInfo("America/New_York")),
+    )
+    chain = pd.DataFrame(
+        [
+            {
+                "expiration": "20261127",
+                "strike": 100.0,
+                "right": right,
+                "impliedVolatility": 0.25,
+            }
+            for right in ("C", "P")
+        ]
+    )
+    out = cg.greeks_from_yf(chain, 100.0).set_index("right")
+    assert out.loc["C", "gamma"] > 0
+    assert out.loc["P", "gamma"] < 0
+    assert out.loc["C", "delta"] > 0
+    assert out.loc["P", "delta"] < 0
+    assert isclose(out.loc["P", "delta"], out.loc["C", "delta"] - 1.0, rel_tol=1e-12)
+
+
+def test_print_wall_prints_zero_gamma_flip(capsys):
     wall = pd.DataFrame(
         {
             "strike": [90.0, 100.0, 110.0],
@@ -259,10 +284,40 @@ def test_print_wall_uses_cumulative_gex_flip(capsys):
             "avg_iv": [0.2, 0.2, 0.2],
         }
     )
-    cg.print_wall(wall, 100.0, top_n=1)
+    cg.print_wall(wall, 100.0, top_n=1, flip=98.45)
     out = capsys.readouterr().out
-    assert "Gamma Flip: $100" in out
+    assert "Gamma Flip (BSM 估算): $98.45" in out
     assert "Gamma Flip 区域" not in out
+
+
+def test_flip_from_contracts_supports_both_iv_columns_and_respects_band():
+    now = datetime(2026, 10, 27, 10, 0, tzinfo=ZoneInfo("America/New_York"))
+    base = [
+        {"expiration": "20261127", "strike": 95.0, "right": "P", "openInterest": 1000},
+        {"expiration": "20261127", "strike": 105.0, "right": "C", "openInterest": 1000},
+        # 已到期合约与 NaN IV 合约应被忽略
+        {"expiration": "20261020", "strike": 100.0, "right": "P", "openInterest": 999999},
+    ]
+    df_iv = pd.DataFrame([{**r, "iv": 0.2} for r in base])
+    df_yf = pd.DataFrame([{**r, "impliedVolatility": 0.2} for r in base])
+    df_yf.loc[len(df_yf)] = {
+        "expiration": "20261127",
+        "strike": 100.0,
+        "right": "P",
+        "openInterest": 999999,
+        "impliedVolatility": float("nan"),
+    }
+
+    flip_iv = cg._flip_from_contracts(df_iv, 97.0, now=now, band=0.12)
+    flip_yf = cg._flip_from_contracts(df_yf, 97.0, now=now, band=0.12)
+    assert flip_iv is not None and 97.0 < flip_iv < 105.0
+    assert flip_iv == flip_yf
+    # 双列并存且 IBKR iv 部分缺失时，以 impliedVolatility 补齐而非丢弃整条合约
+    df_mixed = df_yf.iloc[:2].copy()
+    df_mixed["iv"] = [0.2, float("nan")]
+    assert cg._flip_from_contracts(df_mixed, 97.0, now=now, band=0.12) == flip_iv
+    # 收缩 band 到 2%（97*1.02=98.94）排除真实穿越点（约 99.7）→ 返回 None
+    assert cg._flip_from_contracts(df_iv, 97.0, now=now, band=0.02) is None
 
 
 def test_partial_barchart_chain_falls_back_to_complete_yfinance(monkeypatch, tmp_path):

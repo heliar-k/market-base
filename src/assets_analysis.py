@@ -2850,14 +2850,14 @@ def _options_narrative(s: dict) -> dict:
     cw = (s.get("call_wall") or {}).get("strike")
     pw = (s.get("put_wall") or {}).get("strike")
     net_gex = s.get("net_gex")
+    net_dex = s.get("net_dex")
     pcr = s.get("pcr_oi_atm") or s.get("pcr_oi")
     iv_slope = s.get("iv_slope")
     near7 = s.get("charm_near7")
     name = s.get("symbol", "")
 
-    # 现价在 Flip 上方 → 局部正 Gamma；无翻转点（全链累计恒同号）时回退
-    # net_gex 符号——与前端 REGIME 卡的回退口径一致（旧逻辑 None 一律判负
-    # Gamma，会与 REGIME 卡给出相反结论）
+    # 现价在 Flip 上方 → 局部正 Gamma；现价 ±30% 内无负转正穿越点时回退
+    # net_gex 符号，与前端 REGIME 卡口径保持一致
     local_pos = flip_pct >= 0 if flip_pct is not None else (net_gex or 0) >= 0
     flip_txt = f"{flip:.0f}" if flip else "—"
 
@@ -2889,16 +2889,10 @@ def _options_narrative(s: dict) -> dict:
     )
     gex_text = "—" if net_gex is None else f"{net_gex:+.2f}B"
     if flip is None:
-        # 没有可用翻转点。三种来源都会走到这里：①全链累计 GEX 恒同号（真无穿越）；
-        # ②取位落空（穿越点全在现价另一侧）；③距现价 >30% 被距离护栏忽略。
-        # 不能说「现价位于 Flip 下方」——那是把不存在的价位当判据；
-        # 也不能断言「恒同号」——②③ 其实有穿越点，只是不在现价附近。
-        # range_text 在墙位也缺时会退化成「墙位区间」这个词本身，直接接「区间内」
-        # 会读出「墙位区间 区间内」——按是否有具体价位分两种句式。
         has_bounds = range_a is not None and range_b is not None
         anchor = f"{range_text} 区间内以墙位为界观察" if has_bounds else "以现有墙位为界观察"
         gamma_text = (
-            f"{name} 无可用 Gamma Flip（全链恒同号，或穿越点距现价 >30% 已忽略），{anchor}："
+            f"{name} 现价 ±30% 内无可用 Gamma Flip（净 GEX 未发生负转正穿越），{anchor}："
             f"Net GEX（全合约合计）{gex_text}"
             + ("，价格更易围绕墙位震荡" if local_pos else "，价格更易放大波动")
             + "。局部 Gamma 方向由 Net GEX 符号回退推断，仅供参考"
@@ -2955,7 +2949,11 @@ def _options_narrative(s: dict) -> dict:
         avoid = [
             "负 Gamma 贴近墙位处追空风险大，反弹可以很快",
             f"跌破{flip_ph}后的加速下跌不算趋势确认",
-            "别忽略正 Delta 敞口的支撑；负 Gamma 放大的是双向波动",
+            (
+                "负 Delta 与负 Gamma 叠加时下行加速风险上升，警惕流动性缺口"
+                if net_dex is not None and net_dex < 0
+                else "别忽略正 Delta 敞口的支撑；负 Gamma 放大的是双向波动"
+            ),
         ]
         vol_meaning = (
             "负 Gamma 环境中隐含波动率通常被放大；"

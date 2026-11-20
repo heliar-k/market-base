@@ -134,3 +134,34 @@ def test_radar_cftc_net_preferred_and_gex(data_root, tmp_path):
     assert "CFTC" in sig["CME 机构头寸"]["desc"]
     assert sig["期权牵引"]["dir"] == 1  # 现价在 flip 上方 +1.8%
     assert "Gamma Flip" in sig["期权牵引"]["desc"]
+
+
+def test_crypto_gex_summary_uses_utc_08_and_zero_rate_and_zero_gamma(monkeypatch):
+    from datetime import datetime, timezone
+
+    import pandas as pd
+
+    import src.fetchers.crypto_derivatives_fetcher as cdf
+
+    # 固定时间为交割日 04:00 UTC（距 08:00 UTC 交割还有 4 小时）
+    class _FixedDatetime(datetime):
+        @classmethod
+        def now(cls, tz=None):
+            return datetime(2026, 11, 20, 4, 0, tzinfo=timezone.utc)
+
+    monkeypatch.setattr(cdf, "datetime", _FixedDatetime)
+    same_day = pd.DataFrame(
+        [{"expiration": "20NOV26", "strike": 97000.0, "right": "C", "oi": 5000.0, "iv": 60.0}]
+    )
+    assert cdf._gex_summary(same_day, spot=97000.0)["net_gex_musd"] > 0
+
+    df = pd.DataFrame(
+        [
+            {"expiration": "27NOV26", "strike": 95000.0, "right": "P", "oi": 5000.0, "iv": 60.0},
+            {"expiration": "27NOV26", "strike": 105000.0, "right": "C", "oi": 5000.0, "iv": 60.0},
+        ]
+    )
+    out = cdf._gex_summary(df, spot=97000.0)
+    assert out["net_gex_musd"] < 0
+    assert out["gamma_flip"] is not None
+    assert 97000.0 < out["gamma_flip"] < 105000.0

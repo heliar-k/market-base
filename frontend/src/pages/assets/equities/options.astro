@@ -35,7 +35,7 @@ import Section from '../../../components/Section.astro';
     <!-- sub 只留「怎么看这张图」的语义（绿/红/累计线等于什么）；图例本身（Call GEX /
          Put GEX / 累计 GEX）ECharts 右上角已经画了，不在这里重写一遍 —— 原先 68 字全站最长，
          1200px 下把标题压成两行断字。条长口径写在卡底 secNote。 -->
-    <Section id="sec-gex" title="GEX 按行权价分布与到期集中度" sub="绿 = 压制波动 · 红 = 放大波动 · 累计线穿 0 = Flip" card>
+    <Section id="sec-gex" title="GEX 按行权价分布与到期集中度" sub="绿 = 压制波动 · 红 = 放大波动 · 净 GEX 曲线穿 0 = Flip" card>
       <span slot="head" id="gex-head-badge"></span>
       <div class="chart chart-md" id="gex-chart"></div>
       <div id="buckets" style="margin-top:12px"></div>
@@ -416,7 +416,7 @@ function renderConclusion() {
   const kvItems = [
     {
       label: 'Call / Put DEX',
-      note: 'dealer 敞口',
+      note: 'Call 正 / Put 负',
       value: `${fmtSigned(v.call_dex)}B / ${fmtSigned(v.put_dex)}B`,
     },
     {
@@ -448,7 +448,7 @@ function renderConclusion() {
   ];
   card.appendChild(R.kvRows(kvItems));
 
-  card.appendChild(R.secNote('口径：局部 Gamma 由现价相对 Gamma Flip 位置决定（全链无翻转点时回退 Net GEX 符号）；DEX = Σ(Δ×OI×100×S)；25Δ Skew = 25Δ Put IV − 25Δ Call IV（正值代表 Put IV 高于 Call IV，下行保护溢价偏贵；负值代表 Call IV 偏高）。', { fold: true }));
+  card.appendChild(R.secNote('口径：Gamma Flip = 假设现价变动使全链 Net GEX = 0 的负转正穿越位（±30% 内无穿越点时回退 Net GEX 符号）；DEX = Σ(Δ×OI×100×S)（Call 正、Put 负）；25Δ Skew = 25Δ Put IV − 25Δ Call IV（正值代表 Put IV 高于 Call IV，下行保护溢价较高；负值代表 Call IV 较高）。', { fold: true }));
   card.appendChild(R.secNote('点击下方扫描表任意行切换标的，双击或点行末「图表」直达 GEX/IV/OI 视图。'));
 
   host.appendChild(card);
@@ -587,6 +587,43 @@ function renderScanTable() {
 }
 
 // ── 子视图 2：期权图表（GEX 分布 + IV 期限结构 + OI 集中度 Top 20 平铺展示） ──
+const buildGexChartData = (v) => {
+  const g0 = (v.wall && v.wall.length ? v.wall : (v.gex_dist || [])).slice().sort((a, b) => a.strike - b.strike);
+  const keepFlip = new Set();
+  if (v.gamma_flip != null && g0.length) {
+    let loIdx = -1;
+    for (let i = 0; i < g0.length; i += 1) {
+      if (g0[i].strike <= v.gamma_flip) loIdx = i;
+    }
+    if (loIdx >= 0) keepFlip.add(g0[loIdx].strike);
+    if (loIdx + 1 < g0.length) keepFlip.add(g0[loIdx + 1].strike);
+  }
+  const significant = g0.filter(x => Math.abs(x.gex_m || 0) >= 0.5 || x.strike === v.gamma_flip || keepFlip.has(x.strike));
+  const g = (significant.length ? significant : g0).slice();
+  const hasProfile = g0.some(x => x.profile_gex_m != null);
+  // 净 GEX 曲线取 profile_gex_m（标的价格位于该行权价时的全链净 GEX）；历史快照缺该字段时回退 cum_gex_m 并如实标名
+  let fullAcc = 0;
+  const profileByStrike = new Map(g0.map(x => {
+    fullAcc += x.gex_m || 0;
+    return [x.strike, x.profile_gex_m ?? x.cum_gex_m ?? Math.round(fullAcc * 10) / 10];
+  }));
+  const ss = g.map(x => x.strike);
+  const axisIdx = x => {
+    if (!ss.length) return 0;
+    if (x <= ss[0]) return 0;
+    if (x >= ss[ss.length - 1]) return ss.length - 1;
+    let lo = 0, hi = ss.length - 1;
+    while (hi - lo > 1) { const mid = (lo + hi) >> 1; if (ss[mid] < x) lo = mid; else hi = mid; }
+    return lo + (x - ss[lo]) / (ss[hi] - ss[lo]);
+  };
+  const callBars = g.map(x => (x.call_gex_m != null ? x.call_gex_m : Math.max(x.gex_m || 0, 0)));
+  const putBars = g.map(x => (x.put_gex_m != null ? x.put_gex_m : Math.min(x.gex_m || 0, 0)));
+  const vmax = Math.max(...callBars.map(Math.abs), ...putBars.map(Math.abs), 10);
+  const profile = g.map(x => profileByStrike.get(x.strike));
+  const profileMax = Math.max(...profile.map(Math.abs), 10);
+  return { ss, callBars, putBars, vmax, profile, profileMax, hasProfile, axisIdx };
+};
+
 function renderChartsPane() {
   disposeCharts();
   const v = D && D.symbols && D.symbols[S];
@@ -602,50 +639,30 @@ function renderChartsPane() {
   }
 
   mk('gex-chart', colors => {
-    const g0 = (v.wall && v.wall.length ? v.wall : (v.gex_dist || [])).slice().sort((a, b) => a.strike - b.strike);
-    const significant = g0.filter(x => Math.abs(x.gex_m || 0) >= 0.5 || x.strike === v.gamma_flip);
-    const g = (significant.length ? significant : g0).slice();
-    // 累计线始终使用全链；柱子筛选不能改变 Flip 与累计 GEX 的口径
-    let fullAcc = 0;
-    const cumByStrike = new Map(g0.map(x => {
-      fullAcc += x.gex_m || 0;
-      return [x.strike, x.cum_gex_m ?? Math.round(fullAcc * 10) / 10];
-    }));
-    const ss = g.map(x => x.strike);
-    const axisIdx = x => {
-      if (!ss.length) return 0;
-      if (x <= ss[0]) return 0;
-      if (x >= ss[ss.length - 1]) return ss.length - 1;
-      let lo = 0, hi = ss.length - 1;
-      while (hi - lo > 1) { const mid = (lo + hi) >> 1; if (ss[mid] < x) lo = mid; else hi = mid; }
-      return lo + (x - ss[lo]) / (ss[hi] - ss[lo]);
-    };
-    const vmax = Math.max(...g.map(x => Math.abs(x.call_gex_m || 0)), ...g.map(x => Math.abs(x.put_gex_m || 0)), 10);
-    const cum = g.map(x => cumByStrike.get(x.strike));
-    const cumMax = Math.max(...cum.map(Math.abs), 10);
+    const { ss, callBars, putBars, vmax, profile, profileMax, hasProfile, axisIdx } = buildGexChartData(v);
     return R.lineOption({
       tooltip: { trigger: 'axis' },
       grid: { left: 8, right: 8, top: 44, bottom: 52 },
       xAxis: { type: 'category', data: ss, axisLine: { lineStyle: { color: colors.border } }, axisLabel: { color: colors.muted, fontSize: 10, rotate: 0 }, name: '行权价', nameLocation: 'middle', nameGap: 32, nameTextStyle: { color: colors.muted, fontSize: 10 } },
       yAxis: [
         { type: 'value', min: -vmax, max: vmax, splitNumber: 5 },
-        { type: 'value', min: -cumMax, max: cumMax, splitNumber: 5, position: 'right', splitLine: { show: false } },
+        { type: 'value', min: -profileMax, max: profileMax, splitNumber: 5, position: 'right', splitLine: { show: false } },
       ],
       series: [
         {
-          name: 'Call GEX', type: 'bar', data: g.map(x => x.call_gex_m),
+          name: 'Call GEX', type: 'bar', data: callBars,
           itemStyle: { color: colors.green },
           markLine: {
             silent: true, symbol: 'none',
             data: [
               { xAxis: axisIdx(v.spot), lineStyle: { color: colors.blue, width: 2 }, label: { show: true, formatter: '现价', color: colors.muted, fontSize: 10 } },
-              ...(v.gamma_flip ? [{ xAxis: axisIdx(v.gamma_flip), lineStyle: { color: colors.gray, type: 'dashed', width: 1.5 }, label: { show: true, formatter: 'Flip', color: colors.muted, fontSize: 10 } }] : []),
+              ...(v.gamma_flip != null ? [{ xAxis: axisIdx(v.gamma_flip), lineStyle: { color: colors.gray, type: 'dashed', width: 1.5 }, label: { show: true, formatter: 'Flip', color: colors.muted, fontSize: 10 } }] : []),
             ],
           },
         },
-        { name: 'Put GEX', type: 'bar', data: g.map(x => x.put_gex_m), itemStyle: { color: colors.red } },
-        { name: '累计 GEX', type: 'line', yAxisIndex: 1, data: cum,
-          showSymbol: false, smooth: true, lineStyle: { width: 2, color: colors.text },
+        { name: 'Put GEX', type: 'bar', data: putBars, itemStyle: { color: colors.red } },
+        { name: hasProfile ? '净 GEX 曲线' : '累计 GEX', type: 'line', yAxisIndex: 1, data: profile,
+          showSymbol: false, smooth: false, lineStyle: { width: 2, color: colors.text },
           areaStyle: { opacity: 0.08 } },
       ],
     }, colors);
@@ -1049,9 +1066,9 @@ async function load() {
         ['当前选中标的', S + ' · ' + REGIME_INFO[regimeKey(v)].label, '现价 ' + R.num(v.spot)],
         ['结构解读', n && n.gamma ? n.gamma.title : '—', n && n.range && n.vol ? `置信度：区间 ${n.range.confidence} · 波动 ${n.vol.confidence}` : ''],
         ['Net GEX', fmtSignB(v.net_gex), '全合约合计，仅作强度参考'],
-        ['Net DEX', fmtSignB(v.net_dex), 'dealer 净 delta 敞口'],
+        ['Net DEX', fmtSignB(v.net_dex), '净多空 Delta 敞口（Call 正 / Put 负）'],
         ['Gamma Flip', v.gamma_flip == null ? '—' : R.num(v.gamma_flip, 1),
-          v.flip_dist == null ? '全链累计无翻转点' : `现价较 Flip ${v.flip_dist >= 0 ? '高' : '低'} ${R.num(Math.abs(v.flip_dist))}%`],
+          v.flip_dist == null ? '现价 ±30% 内无 Zero Gamma 翻转点' : `现价较 Flip ${v.flip_dist >= 0 ? '高' : '低'} ${R.num(Math.abs(v.flip_dist))}%`],
         wall(v.call_wall, 'Call Wall · 阻力'),
         wall(v.put_wall, 'Put Wall · 支撑'),
         ['25Δ Skew', R.num(v.skew), `${v.skew_dte || '—'}D · P ${R.fmtPct(v.skew_put_iv)} / C ${R.fmtPct(v.skew_call_iv)}`],

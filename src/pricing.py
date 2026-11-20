@@ -12,6 +12,7 @@ from datetime import datetime
 from math import erf, exp, pi, sqrt
 from math import log as _ln
 
+import numpy as np
 import pandas as pd
 
 from src.clock import ET
@@ -58,30 +59,159 @@ def years_to_expiration(expiration: str, now: datetime) -> float:
     return max(seconds, 0.0) / (365 * 24 * 3600)
 
 
-def cumulative_gamma_flip(gex_by_strike: pd.Series, spot: float) -> float | None:
-    """累计 GEX 负到正穿越点；按现价处累计符号选位，并排除过远噪声。"""
-    values = gex_by_strike.sort_index().astype(float)
-    if values.empty:
+def net_gex_profile(
+    strikes,
+    rights,
+    years,
+    ivs,
+    ois,
+    prices,
+    r: float = R,
+    multiplier: float = 100.0,
+) -> np.ndarray:
+    """按假设标的价格序列计算全链净 GEX（美元，Call 正 / Put 负）。
+
+    单合约 GEX(S) = sign · γ(S) · OI · M · S = sign · OI · M · φ(d1(S)) / (σ√T)。
+    """
+    price_arr = np.asarray(prices, dtype=float)
+    if price_arr.size == 0:
+        return np.zeros(0, dtype=float)
+    k_arr = np.asarray(strikes, dtype=float)
+    r_arr = np.asarray(rights)
+    t_arr = np.asarray(years, dtype=float)
+    iv_arr = np.asarray(ivs, dtype=float)
+    oi_arr = np.asarray(ois, dtype=float)
+    valid = (
+        np.isfinite(k_arr)
+        & np.isfinite(t_arr)
+        & np.isfinite(iv_arr)
+        & np.isfinite(oi_arr)
+        & (k_arr > 0)
+        & (t_arr > 0)
+        & (iv_arr > 0)
+        & (oi_arr > 0)
+    )
+    if not np.any(valid):
+        return np.zeros(price_arr.shape, dtype=float)
+    k = k_arr[valid][None, :]
+    t = t_arr[valid][None, :]
+    iv = iv_arr[valid][None, :]
+    oi = oi_arr[valid][None, :]
+    sign = np.where(r_arr[valid] == "C", 1.0, -1.0)[None, :]
+    sig_t = iv * np.sqrt(t)
+    s = np.maximum(price_arr, 1e-12)[:, None]
+    d1 = (np.log(s / k) + (r + 0.5 * iv * iv) * t) / sig_t
+    phi = np.exp(-0.5 * d1 * d1) / sqrt(2.0 * pi)
+    return (sign * oi * multiplier * (phi / sig_t)).sum(axis=1)
+
+
+def _log_gex_diff(
+    k_c: np.ndarray,
+    t_c: np.ndarray,
+    iv_c: np.ndarray,
+    oi_c: np.ndarray,
+    k_p: np.ndarray,
+    t_p: np.ndarray,
+    iv_p: np.ndarray,
+    oi_p: np.ndarray,
+    prices: np.ndarray,
+    r: float,
+) -> np.ndarray:
+    """对数空间求 ln(CallGEX(S)) - ln(|PutGEX(S)|)，严格保号且在高斯深尾部不下溢。"""
+    s = np.maximum(prices, 1e-12)[:, None]
+
+    def _side_lse(k: np.ndarray, t: np.ndarray, iv: np.ndarray, oi: np.ndarray) -> np.ndarray:
+        sig_t = iv[None, :] * np.sqrt(t[None, :])
+        d1 = (np.log(s / k[None, :]) + (r + 0.5 * iv[None, :] * iv[None, :]) * t[None, :]) / sig_t
+        exponent = np.log(oi[None, :] / sig_t) - 0.5 * d1 * d1
+        m = np.max(exponent, axis=1, keepdims=True)
+        return m[:, 0] + np.log(np.sum(np.exp(exponent - m), axis=1))
+
+    return _side_lse(k_c, t_c, iv_c, oi_c) - _side_lse(k_p, t_p, iv_p, oi_p)
+
+
+def zero_gamma_flip(
+    strikes,
+    rights,
+    years,
+    ivs,
+    ois,
+    spot: float,
+    r: float = R,
+    band: float = 0.30,
+    steps: int = 121,
+) -> float | None:
+    """扫描标的价格求 Zero Gamma（Net GEX(S) = 0 负转正穿越点），仅在现价 ±band 内搜索。"""
+    if spot <= 0 or band <= 0:
         return None
-    cum = values.cumsum()
-    spot_values = cum.loc[cum.index <= spot]
-    spot_cum = float(spot_values.iloc[-1]) if not spot_values.empty else 0.0
+    k_arr = np.asarray(strikes, dtype=float)
+    r_arr = np.asarray(rights)
+    t_arr = np.asarray(years, dtype=float)
+    iv_arr = np.asarray(ivs, dtype=float)
+    oi_arr = np.asarray(ois, dtype=float)
+    valid = (
+        np.isfinite(k_arr)
+        & np.isfinite(t_arr)
+        & np.isfinite(iv_arr)
+        & np.isfinite(oi_arr)
+        & (k_arr > 0)
+        & (t_arr > 0)
+        & (iv_arr > 0)
+        & (oi_arr > 0)
+    )
+    if not np.any(valid):
+        return None
+    k_v, r_v, t_v, iv_v, oi_v = (
+        k_arr[valid],
+        r_arr[valid],
+        t_arr[valid],
+        iv_arr[valid],
+        oi_arr[valid],
+    )
+    is_call = r_v == "C"
+    is_put = ~is_call
+    # 缺少任意一侧合约时，全链 Net GEX 严格恒正或恒负，不存在 Zero Gamma
+    if not np.any(is_call) or not np.any(is_put):
+        return None
+    k_c, t_c, iv_c, oi_c = k_v[is_call], t_v[is_call], iv_v[is_call], oi_v[is_call]
+    k_p, t_p, iv_p, oi_p = k_v[is_put], t_v[is_put], iv_v[is_put], oi_v[is_put]
+
+    lo_bound = max(spot * (1.0 - band), 1e-6)
+    hi_bound = spot * (1.0 + band)
+    # 合并等距网格、现价以及带内全部行权价，防止近到期窄间距尖峰被网格步长跳过
+    in_band_strikes = k_v[(k_v >= lo_bound) & (k_v <= hi_bound)]
+    grid = np.unique(
+        np.concatenate([np.linspace(lo_bound, hi_bound, max(steps, 3)), [spot], in_band_strikes])
+    )
+    vals = _log_gex_diff(k_c, t_c, iv_c, oi_c, k_p, t_p, iv_p, oi_p, grid, r)
+
     flips: list[float] = []
-    prev_cum = 0.0
-    for strike, value in cum.items():
-        current = float(value)
-        if prev_cum < 0 <= current:
-            flips.append(float(strike))
-        prev_cum = current
-    if spot_cum >= 0:
-        below = [strike for strike in flips if strike <= spot]
+    for i in range(len(grid) - 1):
+        if vals[i] < 0.0 <= vals[i + 1]:
+            lo, hi = float(grid[i]), float(grid[i + 1])
+            for _ in range(16):
+                mid = 0.5 * (lo + hi)
+                v_mid = float(
+                    _log_gex_diff(k_c, t_c, iv_c, oi_c, k_p, t_p, iv_p, oi_p, np.array([mid]), r)[0]
+                )
+                if v_mid < 0.0:
+                    lo = mid
+                else:
+                    hi = mid
+            flips.append(0.5 * (lo + hi))
+
+    if not flips:
+        return None
+    val_spot = float(
+        _log_gex_diff(k_c, t_c, iv_c, oi_c, k_p, t_p, iv_p, oi_p, np.array([spot]), r)[0]
+    )
+    if val_spot >= 0.0:
+        below = [price for price in flips if price <= spot]
         flip = below[-1] if below else None
     else:
-        above = [strike for strike in flips if strike > spot]
+        above = [price for price in flips if price > spot]
         flip = above[0] if above else None
-    if flip is not None and abs(spot - flip) / spot > 0.30:
-        return None
-    return flip
+    return round(float(flip), 2) if flip is not None else None
 
 
 # 统一列（三调用方各自消费子集）

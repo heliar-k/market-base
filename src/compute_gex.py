@@ -37,9 +37,9 @@ from src.fetchers.ibkr_fetcher import (
 from src.options_structure import chain_health, drop_placeholder_expirations
 from src.pricing import (
     aggregate_wall,
-    cumulative_gamma_flip,
     fetch_yf_chain,
     years_to_expiration,
+    zero_gamma_flip,
 )
 
 logging.basicConfig(
@@ -358,17 +358,18 @@ def greeks_from_yf(oi_df, spot, r=0.04, as_of=None):
         t = years_to_expiration(row["expiration"], now)
         if t <= 0:
             continue
-        gamma_p, _delta = bs_greeks(spot, row["strike"], t, iv, r=r)
+        gamma_p, delta_c = bs_greeks(spot, row["strike"], t, iv, r=r)
         rows.append(
             {
                 "expiration": row["expiration"],
                 "strike": row["strike"],
                 "right": row["right"],
+                "delta": delta_c if row["right"] == "C" else delta_c - 1.0,
                 "gamma": gamma_p if row["right"] == "C" else -gamma_p,
                 "iv": iv,
             }
         )
-    df = pd.DataFrame(rows, columns=["expiration", "strike", "right", "gamma", "iv"])
+    df = pd.DataFrame(rows, columns=["expiration", "strike", "right", "delta", "gamma", "iv"])
     log.info(f"BS gamma 计算完成: {len(df)} 条")
     return df
 
@@ -450,7 +451,38 @@ def compute_gex(greeks_df, oi_df, spot):
     return merged, wall
 
 
-def print_wall(wall, spot, top_n=10):
+def _flip_from_contracts(
+    contracts: pd.DataFrame, spot: float, now=None, band: float = 0.30
+) -> float | None:
+    """用逐合约 IV 与剩余期限计算 Zero Gamma Flip（扫描范围 ±band）。"""
+    if contracts is None or contracts.empty or spot <= 0 or band <= 0:
+        return None
+    has_iv = "iv" in contracts.columns
+    has_yf_iv = "impliedVolatility" in contracts.columns
+    if not has_iv and not has_yf_iv:
+        return None
+    if has_iv and has_yf_iv:
+        ivs = pd.to_numeric(contracts["iv"], errors="coerce").fillna(
+            pd.to_numeric(contracts["impliedVolatility"], errors="coerce")
+        )
+    elif has_iv:
+        ivs = pd.to_numeric(contracts["iv"], errors="coerce")
+    else:
+        ivs = pd.to_numeric(contracts["impliedVolatility"], errors="coerce")
+    ref = now or _now_et()
+    years = contracts["expiration"].astype(str).apply(lambda exp: years_to_expiration(exp, ref))
+    return zero_gamma_flip(
+        contracts["strike"],
+        contracts["right"],
+        years,
+        ivs,
+        contracts["openInterest"],
+        spot,
+        band=band,
+    )
+
+
+def print_wall(wall, spot, top_n=10, flip=None, band: float = 0.30):
     """打印期权墙关键水平"""
     print(f"\n{'=' * 70}")
     print(f"  期权墙 (Options Wall)  —  Spot: ${spot:.2f}")
@@ -495,11 +527,10 @@ def print_wall(wall, spot, top_n=10):
     else:
         print(f"  净 GEX < 0 (${net_gex:,.0f}): dealer 做空 gamma → 市场波动可能放大，注意风险")
 
-    flip = cumulative_gamma_flip(wall.set_index("strike")["total_gex"], spot)
     if flip is not None:
-        print(f"\n  Gamma Flip: ${flip:.0f}")
+        print(f"\n  Gamma Flip (BSM 估算): ${flip:.2f}")
     else:
-        print("\n  Gamma Flip: 无累计 GEX 负到正穿越点")
+        print(f"\n  Gamma Flip (BSM 估算): 现价 ±{band:.0%} 内无 Zero Gamma 穿越点")
 
 
 # ============================================================================
@@ -703,7 +734,9 @@ def main():
     contract_df, wall_df = compute_gex(greeks_df, oi_df, spot)
 
     if wall_df is not None and not wall_df.empty:
-        print_wall(wall_df, spot)
+        flip_band = min(0.30, args.strike_pct) if args.strike_pct and args.strike_pct > 0 else 0.30
+        flip = _flip_from_contracts(contract_df, spot, band=flip_band)
+        print_wall(wall_df, spot, flip=flip, band=flip_band)
 
     # === 输出 ===
     if args.output and wall_df is not None:

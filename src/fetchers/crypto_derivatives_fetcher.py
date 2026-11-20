@@ -144,11 +144,11 @@ def _max_pain(df: pd.DataFrame) -> float | None:
 def _gex_summary(df: pd.DataFrame, spot: float) -> dict:
     """净 GEX + Gamma Flip（FRL 2026：到期效应由 gamma 暴露驱动，max pain 被证伪）。
 
-    gamma 用 Deribit mark_iv 反推 BS（src/pricing.bs_greeks）；
+    Deribit 币本位期权以远期期货为锚（Black-76 口径 r=0），交割时刻为到期日 08:00 UTC；
     GEX_1pct = Σ gamma×OI×spot²×1e-4（call 正 / put 负，Deribit BTC 乘数 1 BTC/张）。
-    Flip = 按行权价累计 GEX 曲线过零点中离现价最近的一个。
+    Flip = Zero Gamma（扫描假设现价使全链 Net GEX = 0 的负转正穿越点）。
     """
-    from src.pricing import bs_greeks
+    from src.pricing import bs_greeks, zero_gamma_flip
 
     now = datetime.now(timezone.utc)
     rows: list[dict] = []
@@ -156,20 +156,29 @@ def _gex_summary(df: pd.DataFrame, spot: float) -> dict:
         exp = _parse_exp(r.expiration)
         if not r.iv or not r.oi or not exp or spot <= 0:
             continue
-        t_yr = (exp.replace(tzinfo=timezone.utc) - now).total_seconds() / (365 * 86400)
+        expiry_utc = exp.replace(hour=8, tzinfo=timezone.utc)
+        t_yr = (expiry_utc - now).total_seconds() / (365 * 86400)
         if t_yr <= 0:
             continue
-        gamma, _ = bs_greeks(spot, r.strike, t_yr, r.iv / 100)
+        iv = r.iv / 100
+        gamma, _ = bs_greeks(spot, r.strike, t_yr, iv, r=0.0)
         signed = gamma * r.oi * spot * spot * 1e-4
-        rows.append({"strike": r.strike, "gex": signed if r.right == "C" else -signed})
+        rows.append(
+            {
+                "strike": r.strike,
+                "right": r.right,
+                "t_yr": t_yr,
+                "iv": iv,
+                "oi": r.oi,
+                "gex": signed if r.right == "C" else -signed,
+            }
+        )
     if not rows:
         return {}
-    g = pd.DataFrame(rows).groupby("strike")["gex"].sum().sort_index()
-    cum_sign = (g.cumsum() > 0).astype(int)
-    cross = g.index[1:][cum_sign.values[1:] != cum_sign.values[:-1]]
-    flip = float(min(cross, key=lambda k: abs(k - spot))) if len(cross) else None
+    g = pd.DataFrame(rows)
+    flip = zero_gamma_flip(g["strike"], g["right"], g["t_yr"], g["iv"], g["oi"], spot, r=0.0)
     return {
-        "net_gex_musd": round(float(g.sum()) / 1e6, 1),
+        "net_gex_musd": round(float(g["gex"].sum()) / 1e6, 1),
         "gamma_flip": flip,
     }
 
