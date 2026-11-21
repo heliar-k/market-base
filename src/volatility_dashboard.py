@@ -1,10 +1,11 @@
 """波动率全景仪表盘 — timsun.net/volatility/dashboard 复刻（规则引擎）。
 
-与 volatility_analysis.py（VIX 详情页）分工：本模块输出跨资产 30 指数全景
-（Hero 卡 / 风险矩阵 / Vol Trade Map / 统计 / 7 段叙事），VIX 深挖留在详情页。
+与 volatility_analysis.py（VIX 详情页）分工：本模块输出跨资产 30 波动率指数全景
+（Hero 卡 / 风险矩阵 / Vol Trade Map / 统计 / 7 段叙事）+ 4 个 CBOE 离散与相关性指数，
+VIX 深挖留在详情页。
 
 数据源（三合一）：
-  - data/cboe/volatility.csv     26 个指数全量历史（CBOE CDN）
+  - data/cboe/volatility.csv     30 个指数全量历史（CBOE CDN，含离散度与隐含相关性）
   - data/yfinance/asset_prices.csv  MOVE / TDEX / VOLI（yfinance 快照+种子）
   - data/barchart/volatility_snapshot.csv  30 指数快照（VXMO/VXEF 唯一源，
     另存 1D/5D/1M/1Y 官方变化字段，作本地历史不足时的兜底）
@@ -25,7 +26,7 @@ from src.analysis_utils import chg_pct, latest, read_csv_or_empty
 from src.config import ROOT
 from src.volatility_analysis import ZONES, term_structure
 
-# ── 30 指数定义：timsun 符号 → (中文名, 分类, 本地列, 本地源) ──
+# ── 34 指数定义：符号 → (中文名, 分类, 本地列, 本地源) ──
 # 本地列与源：cboe = data/cboe/volatility.csv；yf = data/yfinance/asset_prices.csv；
 # barchart = data/barchart/volatility_snapshot.csv（列名同 timsun 符号）
 _CAT = {
@@ -35,6 +36,7 @@ _CAT = {
     "credit": "信用",
     "fxem": "FX/EM",
     "tail": "尾部保护",
+    "dispersion": "离散与相关性",
 }
 INDICES: list[tuple[str, str, str, str, str]] = [
     ("VIX", "标普500波动率", "equity", "VIX", "cboe"),
@@ -73,6 +75,10 @@ INDICES: list[tuple[str, str, str, str, str]] = [
     ("VXAP", "Apple VIX", "equity", "VXAP", "cboe"),
     ("VXAZ", "Amazon VIX", "equity", "VXAZ", "cboe"),
     ("VXIB", "IBM VIX", "equity", "VXIB", "cboe"),
+    ("DSPX", "标普离散度指数", "dispersion", "DSPX", "cboe"),
+    ("VIXEQ", "标普个股隐波", "dispersion", "VIXEQ", "cboe"),
+    ("COR1M", "1月隐含相关性", "dispersion", "COR1M", "cboe"),
+    ("COR3M", "3月隐含相关性", "dispersion", "COR3M", "cboe"),
 ]
 _HERO = ["VIX", "VVIX", "MOVE", "OVX"]
 _CHG_N = {"chg1d": 1, "chg5d": 5, "chg1m": 21, "chg1y": 252}
@@ -108,7 +114,7 @@ def _round(v: float | None, nd: int = 2) -> float | None:
 
 
 def _indices_table(cboe: pd.DataFrame, yf: pd.DataFrame, bc: pd.DataFrame) -> list[dict]:
-    """30 指数统一表：最新值 + 1D/5D/1M/1Y 变化（本地优先，Barchart 兜底）。"""
+    """34 指数统一表：最新值 + 1D/5D/1M/1Y 变化（本地优先，Barchart 兜底）。"""
     dfs = {"cboe": cboe, "yf": yf, "barchart": bc}
     rows = []
     for symbol, name, cat, col, src in INDICES:
@@ -118,6 +124,7 @@ def _indices_table(cboe: pd.DataFrame, yf: pd.DataFrame, bc: pd.DataFrame) -> li
             "name": name,
             "category": cat,
             "category_name": _CAT[cat],
+            "is_vol": cat != "dispersion",
             "value": _round(latest(s)) if not s.empty else None,
         }
         for key, n in _CHG_N.items():
@@ -292,16 +299,19 @@ def _trade_map(rows: list[dict]) -> dict:
 
 
 def _stats(rows: list[dict]) -> dict:
-    n = len(rows)
+    # 离散与隐含相关性指数（如 COR1M/COR3M 低基数剧烈摆动）不纳入波动率等权均值与涨跌家数，
+    # 避免翻转整体波动率通道方向。
+    vol_rows = [r for r in rows if r.get("is_vol", True)]
+    n = len(vol_rows)
 
     def avg(key):  # noqa: E306
-        vals = [r[key] for r in rows if r[key] is not None]
+        vals = [r[key] for r in vol_rows if r[key] is not None]
         return round(sum(vals) / len(vals), 2) if vals else None
 
     return {
         "n": n,
-        "up": sum(1 for r in rows if r["chg1d"] is not None and r["chg1d"] > 0),
-        "down": sum(1 for r in rows if r["chg1d"] is not None and r["chg1d"] < 0),
+        "up": sum(1 for r in vol_rows if r["chg1d"] is not None and r["chg1d"] > 0),
+        "down": sum(1 for r in vol_rows if r["chg1d"] is not None and r["chg1d"] < 0),
         "avg1d": avg("chg1d"),
         "avg5d": avg("chg5d"),
         "avg1m": avg("chg1m"),

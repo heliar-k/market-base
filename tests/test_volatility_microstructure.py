@@ -177,13 +177,10 @@ def test_anchor_day_prevents_cross_date_ratio_mixing_and_holiday_single_point(tm
     assert out["as_of"]["cboe"] == "2026-11-19"
     assert out["live_inputs"]["vix"] == 28.44
     assert out["live_inputs"]["vix3m"] == 27.03
-    assert out["term_structure"]["date"] == "2026-11-19"
-    assert out["term_structure"]["prev_date"] == "2026-11-18"
-    assert all(x is not None for x in out["term_structure"]["current"])
     # metrics 与 live_inputs 推演出的比值必须完全一致
     expected_vr = round(28.44 / 27.03, 3)
     assert out["metrics"]["vix_vix3m"]["value"] == expected_vr
-    assert out["term_structure"]["is_backwardation"] is True
+    assert out["inverted"] is True
 
 
 def test_generate_microstructure_from_isolated_tmp_dir(tmp_path: Path):

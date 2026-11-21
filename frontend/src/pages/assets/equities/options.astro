@@ -1,17 +1,19 @@
 ---
-// 期权市场结构页（三子视图重构：结构结论与扫描 / 期权图表 / Wheel 雷达，对齐技术分析页交互体验）。
-// fetch('/api/assets/equities-options') 单端点驱动，切换标的与子视图零额外请求。
+// 期权市场结构页（四子视图：结构结论与扫描 / 期权图表 / 负反馈监控 / Wheel 雷达，对齐技术分析页交互体验）。
+// 主视图由 /api/assets/equities-options 驱动；负反馈监控子视图按需 R.getOpt('/api/volatility/microstructure') 加载。
 import TopicLayout from '../../../layouts/TopicLayout.astro';
 import Section from '../../../components/Section.astro';
 ---
 <TopicLayout title="期权市场结构">
-  <!-- 顶栏：三子视图切换 + 标的选择器 + 实时状态条（对齐 tech-top-bar） -->
+  <link slot="head" rel="stylesheet" href="/css/options-microstructure.css" />
+  <!-- 顶栏：四子视图切换 + 标的选择器 + 实时状态条（对齐 tech-top-bar） -->
   <div class="opt-top-bar" id="opt-top-bar">
-    <!-- 三个子视图是同一区域的互斥视图，走 ARIA tabs 模式：选中态由 aria-selected 传达，
-         另两个用 roving tabindex 移出 Tab 序列（组内靠方向键到达）。 -->
+    <!-- 四个子视图是同一区域的互斥视图，走 ARIA tabs 模式：选中态由 aria-selected 传达，
+         其余用 roving tabindex 移出 Tab 序列（组内靠方向键到达）。 -->
     <div class="range-controls" id="opt-subview-switch" role="tablist" aria-label="期权子视图" style="margin-left:0">
       <button type="button" class="range-btn active" role="tab" id="opt-tab-overview" data-subview="overview" aria-selected="true" aria-controls="opt-pane-overview" tabindex="0">结构结论与扫描</button>
       <button type="button" class="range-btn" role="tab" id="opt-tab-charts" data-subview="charts" aria-selected="false" aria-controls="opt-pane-charts" tabindex="-1">期权图表</button>
+      <button type="button" class="range-btn" role="tab" id="opt-tab-microstructure" data-subview="microstructure" aria-selected="false" aria-controls="opt-pane-microstructure" tabindex="-1">负反馈监控</button>
       <button type="button" class="range-btn" role="tab" id="opt-tab-wheel" data-subview="wheel" aria-selected="false" aria-controls="opt-pane-wheel" tabindex="-1">Wheel 雷达</button>
     </div>
     <div class="opt-info-bar" id="opt-info-bar">
@@ -51,7 +53,107 @@ import Section from '../../../components/Section.astro';
     </Section>
   </div>
 
-  <!-- 子视图 3：确定性巨头池 · Wheel 雷达 -->
+  <!-- 子视图 3：期权微观结构与负反馈监控（宽基做市商 Gamma + CBOE 离散/相关性 + 分类 P/C + 情景推演） -->
+  <div id="opt-pane-microstructure" class="opt-pane" role="tabpanel" aria-labelledby="opt-tab-microstructure" tabindex="-1" style="display:none">
+    <Section id="sec-ms-score" title="综合微观结构压力" sub="五维加权评分（0–100）与负反馈传导链" card>
+      <button slot="head" type="button" class="ms-toggle-btn ms-head-right" id="btn-jump-sim">打开情景推演</button>
+      <div id="ms-sim-banner" class="ms-sim-banner">
+        <span id="ms-sim-banner-text">当前处于情景推演模式，以下评分、图表与清单均为假设参数计算结果。</span>
+        <button type="button" class="ms-toggle-btn" id="btn-reset-live">恢复实盘快照</button>
+      </div>
+      <div id="ms-load-error" style="display:none"></div>
+      <div id="ms-hero-wrap" class="ms-hero-wrap">
+        <div class="ms-hero-grid">
+          <div class="ms-score-box">
+            <div>
+              <div class="ms-score-eyebrow">MICROSTRUCTURE STRESS INDEX</div>
+              <div class="ms-score-row">
+                <span class="ms-score-val" id="ms-score-val">—</span>
+                <span class="ms-score-denom">/ 100</span>
+                <span class="re-badge" id="ms-regime-badge">—</span>
+              </div>
+            </div>
+            <div class="ms-score-summary" id="ms-score-summary"></div>
+          </div>
+          <div class="ms-dims">
+            <div class="ms-dims-head">
+              <span class="ms-dims-title">五维压力分解</span>
+              <span class="ms-dims-counts" id="ms-counts-summary"></span>
+            </div>
+            <div class="ms-dims-list" id="ms-dims-list"></div>
+            <div>
+              <div class="ms-dims-title" style="margin-bottom:6px">实时负反馈传导链（按当前读数自动点亮）</div>
+              <div class="ms-chain" id="ms-chain"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div id="ms-score-note"></div>
+    </Section>
+
+    <Section id="sec-ms-stages" title="四阶段演化定位" sub="离散稳态 → 尾部预警 → 负反馈与 Vanna 踩踏 → OPEX 重置">
+      <div class="ms-stages" id="ms-stages"></div>
+    </Section>
+
+    <Section id="sec-ms-kpis" title="核心微观结构读数" sub="CBOE 官方指数 + 每日 P/C + 本地宽基期权快照（附 1 年分位）">
+      <p class="re-source" style="margin:0 0 8px">VIX 完整期限结构曲线（1D–1Y）与 VIX×SKEW 象限深钻见 <a href="/volatility/vix.html">VIX 专题页 →</a></p>
+      <div id="ms-kpi-cards" class="ms-kpi-stack"></div>
+    </Section>
+
+    <div class="re-duo" id="sec-ms-gauges">
+      <Section title="做市商敞口水位" sub="SPY / QQQ / IWM 净 GEX 零轴定位与历史底线" card>
+        <div class="ms-card-flex" id="ms-dealer-card">
+          <div class="ms-gauge-list" id="ms-dealer-gauges"></div>
+        </div>
+      </Section>
+      <Section title="离散度与隐含相关性水位" sub="VIXEQ/VIX · COR1M · COR3M · DSPX" card>
+        <div class="ms-card-flex" id="ms-disp-card">
+          <div class="ms-gauge-list" id="ms-disp-gauges"></div>
+        </div>
+      </Section>
+    </div>
+
+    <div class="re-duo" id="sec-ms-charts">
+      <Section title="CBOE 分类 Put/Call 成交量比值" sub="官方每日统计" card>
+        <span slot="head" id="ms-pc-badge"></span>
+        <div class="ms-card-flex" id="ms-pc-card">
+          <div class="re-chart re-plain re-chart-sm" id="ms-pc-chart"></div>
+        </div>
+      </Section>
+      <Section title="离散比与隐含相关性走势" sub="近 1 年日频 · VIXEQ/VIX（左轴）与 COR1M（右轴）" card>
+        <div class="ms-card-flex" id="ms-hist-card">
+          <div class="re-chart re-plain re-chart-sm" id="ms-hist-chart"></div>
+        </div>
+      </Section>
+    </div>
+
+    <div class="re-duo" id="sec-ms-checklist">
+      <Section title="风险升级确认项" sub="由实时读数自动判定，支持人工勾选覆盖" card>
+        <span slot="head" id="ms-risk-count-badge"></span>
+        <div class="ms-cl-list" id="ms-cl-risk"></div>
+      </Section>
+      <Section title="止跌与 OPEX 重置确认项" sub="监测负反馈解除与反向 Vanna 拐点" card>
+        <span slot="head" id="ms-relief-count-badge"></span>
+        <div class="ms-cl-list" id="ms-cl-relief"></div>
+      </Section>
+    </div>
+
+    <Section id="sec-ms-sim" title="情景推演沙盘" sub="默认收起 · 拖动任意因子实时测试规则评分与触发门槛" card>
+      <button slot="head" type="button" class="ms-toggle-btn ms-head-right" id="btn-toggle-sim" aria-expanded="false">展开推演面板</button>
+      <div id="ms-sim-collapsed" class="ms-sim-collapsed">
+        当前展示最新交易日真实收盘读数。展开面板后，可一键切换四个典型市场阶段或手动调整 VIX、VVIX、SKEW、VIX9D、VIX3M、VIXEQ、COR1M、Put/Call 与宽基合计 Net GEX，即时联动重算整页评分、传导链、水位条与复盘清单。
+      </div>
+      <div id="ms-sim-body" style="display:none">
+        <div class="ms-sim-controls">
+          <div class="ms-preset-row" id="ms-presets"></div>
+          <button type="button" class="ms-toggle-btn" id="btn-reset-sim">重置为实盘快照</button>
+        </div>
+        <div class="ms-slider-grid" id="ms-sliders"></div>
+      </div>
+    </Section>
+  </div>
+
+  <!-- 子视图 4：确定性巨头池 · Wheel 雷达 -->
   <div id="opt-pane-wheel" class="opt-pane" role="tabpanel" aria-labelledby="opt-tab-wheel" tabindex="-1" style="display:none">
     <div id="wheel-kpis"></div>
     <Section id="sec-wheel" title="确定性巨头池 · Wheel 雷达" sub="35D IV / VRP · 52周 IVR · 趋势企稳与财报排雷" card>
@@ -62,15 +164,17 @@ import Section from '../../../components/Section.astro';
 
   <div class="re-foot-page" slot="foot" id="re-foot"></div>
 
+<script is:inline src="/js/options-microstructure.js"></script>
 <script is:inline>
 const esc = R.esc;
 let D = null;
 let S = 'SPY';
-let currentSubview = 'overview'; // overview | charts | wheel
+let currentSubview = 'overview'; // overview | charts | microstructure | wheel
 let activeScanFilter = 'all';
 let charts = [];
+let optionAsOf = [];
 
-const SUBVIEWS = ['overview', 'charts', 'wheel'];
+const SUBVIEWS = ['overview', 'charts', 'microstructure', 'wheel'];
 
 // 池归属三分法（宽基指数 / Wheel 池 / 其他）：全池扫描的筛选胶囊与标的下拉的 optgroup
 // 共用这一处定义，改分组只改这里。Wheel 池成员从 D.wheel.rows 推导（见 load()）。
@@ -188,12 +292,28 @@ function updateTopInfoBar() {
     `<span>1Y IVR <b>${v.iv_rank_1y != null ? fmtNum(v.iv_rank_1y, 0) + '%' : '—'}</b></span>`;
 }
 
-function applySubview(subview, focusPanel = true) {
+function syncHeaderAsOf() {
+  if (currentSubview === 'microstructure') {
+    const msAsOf = window.OptionsMicrostructure ? window.OptionsMicrostructure.getAsOf() : null;
+    // 负反馈监控未就绪或加载失败时不回退到 optionAsOf，避免主体报错而页头错显期权快照日期
+    R.setAsOf(msAsOf || []);
+    return;
+  }
+  if (optionAsOf.length) R.setAsOf(optionAsOf);
+}
+
+function subviewFromHash() {
+  const h = (window.location.hash || '').replace(/^#/, '').trim();
+  if (!h) return 'overview';
+  return SUBVIEWS.includes(h) ? h : null;
+}
+
+function applySubview(subview, focusPanel = true, updateHash = true) {
   currentSubview = SUBVIEWS.includes(subview) ? subview : 'overview';
   document.querySelectorAll('#opt-subview-switch [data-subview]').forEach(btn => {
     const on = btn.dataset.subview === currentSubview;
     btn.classList.toggle('active', on);
-    // roving tabindex：选中项留在 Tab 序列里，另两个只由组内方向键到达
+    // roving tabindex：选中项留在 Tab 序列里，其余由组内方向键到达
     btn.setAttribute('aria-selected', String(on));
     btn.tabIndex = on ? 0 : -1;
   });
@@ -201,12 +321,25 @@ function applySubview(subview, focusPanel = true) {
     const pane = document.getElementById(`opt-pane-${k}`);
     if (pane) pane.style.display = k === currentSubview ? 'flex' : 'none';
   });
-  // Wheel 视图看整池，「标的下拉 / 现价 / regime / GEX-DEX-Wall」都是单标的读数，切过去时整条收起
+  // Wheel 与负反馈监控视图均面向市场/池级汇总，切过去时收起单标的信息条
   const infoBar = document.getElementById('opt-info-bar');
-  if (infoBar) infoBar.style.display = currentSubview === 'wheel' ? 'none' : '';
+  if (infoBar) infoBar.style.display = (currentSubview === 'wheel' || currentSubview === 'microstructure') ? 'none' : '';
+  if (updateHash && window.history && window.history.replaceState) {
+    const targetHash = currentSubview === 'overview' ? '' : `#${currentSubview}`;
+    if (window.location.hash !== targetHash) {
+      window.history.replaceState(null, '', window.location.pathname + window.location.search + targetHash);
+    }
+  }
   if (currentSubview === 'charts') {
     renderChartsPane();
+  } else if (currentSubview === 'microstructure' && window.OptionsMicrostructure) {
+    window.OptionsMicrostructure.mount({
+      onLoaded: () => {
+        if (currentSubview === 'microstructure') syncHeaderAsOf();
+      },
+    });
   }
+  syncHeaderAsOf();
   // 面板整块换掉，焦点留在已隐藏的页签上会被丢回 body；移进新面板让读屏读出这块内容
   if (focusPanel) document.getElementById(`opt-pane-${currentSubview}`)?.focus();
 }
@@ -1018,40 +1151,33 @@ function renderWheel() {
 
 async function load() {
   initTopBar();
-  D = await R.get('/api/assets/equities-options');
-  if (!D || !D.symbols) {
-    R.fail(['detail', 'board', 'wheel-radar'], new Error('无期权结构快照 · 运行 ./bin/fetch_options_structure 后刷新'));
-    return;
-  }
-  const optionAsOf = [['期权快照', D.snapshot_date || (D.date && D.date.slice(0, 10)), 'data/options_structure']];
-  if (D.oi_date) {
-    optionAsOf.push(['期权 OI', D.oi_date + (D.oi_final === false ? ' 待回补' : '')]);
-  }
-  R.setAsOf(optionAsOf);
+  const initialHashView = subviewFromHash();
+  if (initialHashView && initialHashView !== 'overview') applySubview(initialHashView, false, false);
+  window.addEventListener('hashchange', () => {
+    const hv = subviewFromHash();
+    if (hv && hv !== currentSubview) applySubview(hv, false, false);
+  });
 
-  // Wheel 池梯队表：来自后端 wheel_pool（= WHEEL_POOL 静态配置），不从 wheel 看板派生。
-  // 看板可能因 `wheel_scanner --dump` 失败而缺失（那步不阻断流程），从它派生会让
-  // 「Wheel 池」这一档在看板缺失时静默变成 0，17 个池内标的全落进「其他」。
-  // 兜底：后端旧版本没有 wheel_pool 时才退回看板（保持向后兼容）。
-  const poolSrc = D.wheel_pool
-    || ((D.wheel && D.wheel.rows) || []).map(r => ({ symbol: r.opt_symbol || r.symbol, tier: r.tier }));
-  WHEEL_TIER = new Map(poolSrc.map(p => [p.symbol, p.tier]));
-  populateSymbolSelect();
-  updateTopInfoBar();
-  renderConclusion();
-  renderScanTable();
-  renderWheel();
-  if (currentSubview === 'charts') renderChartsPane();
   R.foot('rules', {
-    src: 'yfinance 期权链（真实 OI + IV）',
+    src: 'yfinance 期权链（真实 OI + IV）、CBOE 波动率指数与每日 Put/Call 统计',
     note: 'GEX/DEX/Vanna/Charm 为 BSM 模型估算，非交易所官方持仓方向；'
       + 'IV35 = ATM IV 曲线在 35 DTE 处线性插值，VRP = IV35 − HV20；'
       + '1Y IVR/IVP 取自 Barchart 52 周统计（缺失时回退本地近一年 IV35 分位）；'
-      + '排雷用的财报日/除息日来自期权链 overview 真实字段',
+      + '负反馈监控阈值经近 1 年历史分布校准，情景推演不改实盘快照',
   });
 
+  try {
+    D = await R.get('/api/assets/equities-options');
+  } catch (e) {
+    D = null;
+    R.fail(['detail', 'board', 'wheel-radar'], e);
+  }
+
   if (window.AICtx) AICtx.declare('assets-equities-options', () => {
-    const v = D.symbols[S];
+    if (currentSubview === 'microstructure') {
+      return window.OptionsMicrostructure ? window.OptionsMicrostructure.getAICtxBlock() : null;
+    }
+    const v = D && D.symbols ? D.symbols[S] : null;
     if (!v) return null;
     const n = v.narrative;
     const wall = (w, label) => [label, w ? R.num(w.strike, 1) : '—', w ? R.num(w.per_point_m, 1) + ' M/点' : '—'];
@@ -1087,6 +1213,32 @@ async function load() {
       note: 'GEX/DEX/Vanna/Charm 单位为十亿美元（B），IV 为 %，Skew 为 pt',
     };
   });
+
+  if (!D || !D.symbols) {
+    if (D !== null) {
+      R.fail(['detail', 'board', 'wheel-radar'], new Error('无期权结构快照 · 运行 ./bin/fetch_options_structure 后刷新'));
+    }
+    return;
+  }
+  optionAsOf = [['期权快照', D.snapshot_date || (D.date && D.date.slice(0, 10)), 'data/options_structure']];
+  if (D.oi_date) {
+    optionAsOf.push(['期权 OI', D.oi_date + (D.oi_final === false ? ' 待回补' : '')]);
+  }
+  syncHeaderAsOf();
+
+  // Wheel 池梯队表：来自后端 wheel_pool（= WHEEL_POOL 静态配置），不从 wheel 看板派生。
+  // 看板可能因 `wheel_scanner --dump` 失败而缺失（那步不阻断流程），从它派生会让
+  // 「Wheel 池」这一档在看板缺失时静默变成 0，17 个池内标的全落进「其他」。
+  // 兜底：后端旧版本没有 wheel_pool 时才退回看板（保持向后兼容）。
+  const poolSrc = D.wheel_pool
+    || ((D.wheel && D.wheel.rows) || []).map(r => ({ symbol: r.opt_symbol || r.symbol, tier: r.tier }));
+  WHEEL_TIER = new Map(poolSrc.map(p => [p.symbol, p.tier]));
+  populateSymbolSelect();
+  updateTopInfoBar();
+  renderConclusion();
+  renderScanTable();
+  renderWheel();
+  if (currentSubview === 'charts') renderChartsPane();
 }
 
 load().catch(e => R.fail(['detail', 'board', 'wheel-radar'], e));

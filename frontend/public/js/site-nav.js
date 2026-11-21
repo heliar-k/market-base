@@ -83,14 +83,7 @@ export const SITE_NAV = {
       key: 'vol',
       label: '波动率',
       page: '/volatility/',
-      items: [
-        { key: 'volatility/vix', label: 'VIX', page: '/volatility/vix.html' },
-        {
-          key: 'volatility/microstructure',
-          label: '期权微观结构与负反馈监控',
-          page: '/volatility/microstructure.html',
-        },
-      ],
+      items: [{ key: 'volatility/vix', label: 'VIX', page: '/volatility/vix.html' }],
     },
     { key: 'geo', label: '地缘与政治风险', page: '/geo/' },
     { key: 'ai-cycle', label: 'AI 产业周期', page: '/ai-cycle/' },

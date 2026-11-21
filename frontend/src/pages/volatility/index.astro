@@ -42,21 +42,21 @@ import Section from '../../components/Section.astro';
   <div class="vol-stats" id="vol-stats"></div>
 
   <!-- 全部指数热力图 -->
-  <Section id="vol-heat-sec" title="全部波动率指数热力图" sub="30 个 · 1D 变化着色">
+  <Section id="vol-heat-sec" title="全部波动率指数热力图" sub="30 波动率 + 4 离散/相关性 · 1D 变化着色">
     <div class="vol-heat" id="vol-heat"></div>
   </Section>
 
   <!-- VIX 期限结构（状态胶囊走 Section slot=head）。
        同名小节在 VIX 子页也有（./vix.astro 的 sec-term）：本页给的是跨期限形状（1D→1Y 同框对比
-        + 30 指数里的一条），子页是 VIX 单品种深钻 → 正文首行写清分工并互链，不靠标题区分 -->
+        + 全景指数列表），子页是 VIX 单品种深钻 → 正文首行写清分工并互链，不靠标题区分 -->
   <Section id="vol-term-sec" title="VIX 期限结构" sub="Term Structure">
     <span slot="head" id="term-badge"></span>
-    <p class="re-source">本页看跨期限形状（VIX1D→VIX1Y 同框对比，配下方 30 指数全景）；VIX 单品种深钻（走势 / VIX×SKEW / SKEW / 近期数据）见 <a href="/volatility/vix.html">VIX 专题页 →</a></p>
+    <p class="re-source">本页看跨期限形状（VIX1D→VIX1Y 同框对比，配下方 30 波动率 + 4 离散/相关性全景）；VIX 单品种深钻（走势 / VIX×SKEW / SKEW / 近期数据）见 <a href="/volatility/vix.html">VIX 专题页 →</a></p>
     <div id="vol-term-chart" class="chart chart-lg"></div>
   </Section>
 
   <!-- 跨资产 1D 变化 -->
-  <Section id="vol-cross-sec" title="跨资产波动率 1D 变化" sub="按 1D 升序">
+  <Section id="vol-cross-sec" title="跨资产波动率 1D 变化" sub="30 个波动率指数按 1D 升序">
     <div id="vol-cross-chart" class="chart" style="height:clamp(420px, 65vh, 680px)"></div>
   </Section>
 
@@ -66,12 +66,12 @@ import Section from '../../components/Section.astro';
   </Section>
 
   <!-- 升温 / 降温 前 8 -->
-  <Section id="vol-top-sec" title="波动升降温榜" sub="Top 8 · 1D 变化">
+  <Section id="vol-top-sec" title="波动升降温榜" sub="Top 8 · 30 波动率指数 1D 变化">
     <div class="vol-top-row" id="vol-top"></div>
   </Section>
 
-  <!-- 全量 30 指数表 -->
-  <Section id="vol-table-sec" title="全部波动率指数" sub="30 个 · 1D / 5D / 1M / 1Y" card>
+  <!-- 全量 34 指数表 -->
+  <Section id="vol-table-sec" title="全部波动率指数" sub="34 个（含 4 离散/相关性）· 1D / 5D / 1M / 1Y" card>
     <div id="vol-table"></div>
   </Section>
 
@@ -83,10 +83,10 @@ import Section from '../../components/Section.astro';
         <div class="d">标普 500 隐含波动率细看：SKEW 象限、分位、近 2 年走势</div>
       </div>
     </a>
-    <a class="link-card" href="/volatility/microstructure.html">
+    <a class="link-card" href="/assets/equities/options.html#microstructure">
       <span class="icon">🧭</span>
       <div>
-        <div class="t">期权微观结构与负反馈监控</div>
+        <div class="t">期权市场结构 · 负反馈监控</div>
         <div class="d">离散度、隐含相关性、CBOE 分类 P/C 与宽基做市商 Gamma 传导链</div>
       </div>
     </a>
@@ -228,8 +228,9 @@ async function load() {
     }],
   }));
 
-  // ── 跨资产 1D 变化（横向条形图，按 1D 升序） ──
-  const sorted = [...data.indices].filter(r => r.chg1d !== null).sort((a, b) => a.chg1d - b.chg1d);
+  // ── 跨资产 1D 变化（横向条形图，仅取 30 个波动率指数，剔除相关性指数防拉宽坐标轴） ──
+  const volOnly = data.indices.filter(r => r.is_vol !== false);
+  const sorted = [...volOnly].filter(r => r.chg1d !== null).sort((a, b) => a.chg1d - b.chg1d);
   R.mkChart('vol-cross-chart', () => ({
     tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' },
       formatter: (ps) => { const r = sorted[ps[0].dataIndex]; return `$${r.symbol} ${r.name}<br/>1D ${pct(r.chg1d)} · 最新 ${r.value?.toFixed(2) ?? '—'}`; } },
@@ -258,8 +259,8 @@ async function load() {
     narr.appendChild(sec);
   });
 
-  // ── Top 8 升温 / 降温 ──
-  const rankable = data.indices.filter(r => r.chg1d !== null);
+  // ── Top 8 升温 / 降温（仅统计波动率指数，避免隐含相关性低基数剧烈跳变霸榜） ──
+  const rankable = volOnly.filter(r => r.chg1d !== null);
   const hot = [...rankable].sort((a, b) => b.chg1d - a.chg1d).slice(0, 8);
   const cool = [...rankable].sort((a, b) => a.chg1d - b.chg1d).slice(0, 8);
   const fmtTop = (rows) => rows.map(r => ({
@@ -285,20 +286,20 @@ async function load() {
   topBox.appendChild(hotBox);
   topBox.appendChild(coolBox);
 
-  // ── 全量 30 指数表 ──
+  // ── 全量 34 指数表（30 波动率 + 4 离散与相关性） ──
   document.getElementById('vol-table').appendChild(R.table(
-    ['代码', '名称', '最新价', '1D%', '5D%', '1M%', '1Y%'],
+    ['代码', '名称', '分类', '最新价', '1D%', '5D%', '1M%', '1Y%'],
     data.indices.map(r => ({
-      symbol: `$${r.symbol}`, name: r.name, value: r.value,
+      symbol: `$${r.symbol}`, name: r.name, category: r.category_name || '', value: r.value,
       chg1d: r.chg1d, chg5d: r.chg5d, chg1m: r.chg1m, chg1y: r.chg1y,
     })), { value: valCell, ...CHG_FMTS }, null, true));
 
   R.foot(data.generator, {
-    src: 'Barchart（30 指数快照）· CBOE（VIX 期限结构 / SKEW / OVX）',
+    src: 'Barchart（30 波动率快照）· CBOE（VIX 期限结构 / SKEW / OVX / DSPX / VIXEQ / COR1M / COR3M）',
   });
 
   // ── 页面事实集（契约见 js/ai-context.js）：本页被追问的就三件事 —— 四个头条指数现在多少、
-  //    期限结构是升水还是贴水、30 个指数里谁在升温谁在降温；再补统计条与交易地图的档位读数。
+  //    期限结构是升水还是贴水、30 个波动率指数里谁在升温谁在降温；再补统计条与交易地图的档位读数。
   //    hero 卡片只渲染了 VIX 值，其余读数（1M 变化、六组矩阵）在 DOM 里是散落文字，故按条上交。
   if (window.AICtx) AICtx.declare('volatility', () => {
     // hero 卡只带 value / chg1d，1M 变化要从同一 payload 的 indices 行取（页面全量表已在渲染它）
@@ -314,7 +315,7 @@ async function load() {
     const termVals = term.values || [];
     return {
       title: '波动率全景读数',
-      src: 'Barchart（30 指数快照）· CBOE（VIX 期限结构）',
+      src: 'Barchart（30 波动率快照）· CBOE（VIX 期限结构与离散/相关性指数）',
       asOf: data.as_of_snapshot && data.as_of_snapshot > data.as_of ? data.as_of_snapshot : data.as_of,
       priority: 10,
       facts: [
@@ -325,10 +326,11 @@ async function load() {
         ['期限结构', (TERM_STATE[term.state] ?? '—') + ' · 斜率 ' + R.num(term.slope), '斜率 = VIX − VIX9D'],
         ['VIX 1D/9D/30D', termVals.slice(0, 3).map(v => R.num(v)).join(' / '), '期限 ' + term.labels.slice(0, 3).join('/')],
         ['VIX 3M/6M/1Y', termVals.slice(3).map(v => R.num(v)).join(' / '), '期限 ' + term.labels.slice(3).join('/')],
-        ['30 指数涨跌', st.up + ' 涨 / ' + st.down + ' 跌', '样本 ' + st.n + ' 个'],
-        ['平均变化 1D/5D/1M', chg(st.avg1d) + ' / ' + chg(st.avg5d) + ' / ' + chg(st.avg1m), '30 指数等权'],
+        ['波动率指数涨跌', st.up + ' 涨 / ' + st.down + ' 跌', '纯波动率样本 ' + st.n + ' 个'],
+        ['平均变化 1D/5D/1M', chg(st.avg1d) + ' / ' + chg(st.avg5d) + ' / ' + chg(st.avg1m), st.n + ' 个波动率指数等权'],
         ['1D 升温前二', lead(hot.slice(0, 2)), '按 1D 降序'],
         ['1D 降温前二', lead(cool.slice(0, 2)), '按 1D 升序'],
+        ['离散与相关性', `DSPX ${px('DSPX')} · VIXEQ ${px('VIXEQ')} · COR1M ${px('COR1M')}`, '不计入上方波动率等权均值'],
         ['交易地图', tm.title, '置信度 ' + tm.confidence],
         ['触发条件', tm.trigger, '失效：' + tm.invalidate],
         ['风险评分', sc == null ? '—' : sc + ' / 10', '规则引擎综合评分'],

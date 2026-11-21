@@ -1,7 +1,7 @@
 """波动率全景仪表盘（timsun 复刻）单元测试。
 
 覆盖：
-- 30 指数统一表（cboe 序列自算变化 / 快照类源取 Barchart 官方变化 / 别名映射 VXV→VIX3M）
+- 34 指数统一表（30 波动率 + 4 离散相关性；cboe 自算变化 / 快照源取官方变化 / VXV→VIX3M）
 - 统计条 / Hero 定调 / 风险矩阵 / Vol Trade Map / 叙事（风险评估评分）
 """
 
@@ -61,11 +61,14 @@ def _barchart_frame() -> pd.DataFrame:
 
 
 class TestIndicesTable:
-    def test_30_symbols_covered(self):
-        """INDICES 定义 30 个 timsun 面板符号。"""
-        assert len(INDICES) == 30
+    def test_34_symbols_covered(self):
+        """INDICES 定义 30 个波动率指数 + 4 个离散与相关性指数。"""
+        assert len(INDICES) == 34
         symbols = [s for s, *_ in INDICES]
         assert "VIX" in symbols and "VXMO" in symbols and "VXEF" in symbols
+        by = {s: cat for s, _, cat, *_ in INDICES}
+        for sym in ("DSPX", "VIXEQ", "COR1M", "COR3M"):
+            assert by[sym] == "dispersion"
 
     def test_vxv_maps_to_vix3m(self):
         """VXV 行取 VIX3M 列（别名映射，VXV 官方列 2017 年停更）。"""
@@ -135,6 +138,19 @@ class TestStats:
     def test_stats_empty(self):
         st = _stats([])
         assert st["n"] == 0 and st["avg1d"] is None
+
+    def test_stats_excludes_dispersion_and_correlation(self):
+        """is_vol=False 的相关性极端变动不得污染波动率均值与涨跌家数。"""
+        rows = [
+            {"chg1d": -1.0, "chg5d": -2.0, "chg1m": -3.0, "is_vol": True},
+            {"chg1d": -2.0, "chg5d": -4.0, "chg1m": -5.0, "is_vol": True},
+            {"chg1d": 140.0, "chg5d": 205.0, "chg1m": 230.0, "is_vol": False},
+        ]
+        st = _stats(rows)
+        assert st["n"] == 2
+        assert st["up"] == 0 and st["down"] == 2
+        assert st["avg1d"] == -1.5
+        assert st["avg1m"] == -4.0
 
 
 class TestHero:

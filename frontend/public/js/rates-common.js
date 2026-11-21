@@ -339,9 +339,11 @@ const R = {
   // 段可选第三项 = 该段对应的数据集路径（src/data_freshness.py 的 CHECKS 的 path，
   // 字符串或数组）：命中 /api/freshness 的 over 时该段转告警色并追「超预算 N 天」，
   // 全量细节进 title。时效超预算原本只在 CI 里报，页面看不出。
+  _asOfSeq: 0,
   setAsOf(src) {
     const el = document.getElementById('re-as-of');
     if (!el) return;
+    const seq = ++R._asOfSeq;
     const list = typeof src === 'string' ? [src] : src || [];
     const render = (over) => {
       const segs = list.map((s) => R._asOfSeg(s, over)).filter((x) => x.html);
@@ -362,6 +364,7 @@ const R = {
     // 未声明数据集的页（其余专题页）不发请求，行为与加这个参数之前逐字节一致
     if (!list.some((s) => Array.isArray(s) && s[2])) return;
     R._fresh().then((over) => {
+      if (seq !== R._asOfSeq) return; // 已有更新的 Tab/视图写入页头，丢弃过期回调
       if (Object.keys(over).length) render(over); // 无超预算项 → 保留首次渲染的 DOM
     });
   },
@@ -1019,7 +1022,14 @@ const R = {
     };
     let chart = render();
     if (!chart) return null;
+    let dirtyTheme = false;
     window.addEventListener('theme-changed', () => {
+      if (host.clientWidth === 0) {
+        // 隐藏 Tab 下不向 0×0 容器重建，待恢复可见时由 ResizeObserver 统一重建
+        dirtyTheme = true;
+        return;
+      }
+      dirtyTheme = false;
       try {
         chart.dispose();
       } catch (e) {
@@ -1031,12 +1041,14 @@ const R = {
     // 只在布尔翻转时重建（一个图最多重建几次），resize 中间帧仍只走 chart.resize()
     let narrow = dom.clientWidth < 480;
     new ResizeObserver(() => {
+      if (host.clientWidth === 0) return;
       const n = host.clientWidth < 480;
-      if (n === narrow) {
+      if (!dirtyTheme && n === narrow) {
         chart.resize();
         R._fitLater(chart, host, 0);
         return;
       }
+      dirtyTheme = false;
       narrow = n;
       try {
         chart.dispose();

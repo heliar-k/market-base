@@ -13,7 +13,6 @@ from .config import ROOT
 
 _SNAPSHOT_RE = re.compile(r"^(\d{4})(\d{2})(\d{2})\.json$")
 WIDE_INDICES = ("SPY", "QQQ", "IWM")
-TERM_TENORS = ("VIX1D", "VIX9D", "VIX", "VIX3M", "VIX6M", "VIX1Y")
 CORE_TERM_COLS = ("VIX9D", "VIX", "VIX3M")
 CORE_ANCHOR_COLS = ("VIX9D", "VIX", "VIX3M", "VVIX", "VIXEQ", "COR1M")
 
@@ -657,34 +656,6 @@ def generate_volatility_microstructure(data_dir: Path | None = None) -> dict[str
         "vixeq_vix": _metric_summary(vixeq_vix_s, digits=2),
     }
 
-    # 期限结构：只取核心期限（VIX9D / VIX / VIX3M）均齐全的交易日，避免节假日单点断线
-    term_current: list[float | None] = []
-    term_prev: list[float | None] = []
-    term_date: str | None = None
-    term_prev_date: str | None = None
-    if not vol_df.empty:
-        req_core = [t for t in CORE_TERM_COLS if t in vol_df.columns]
-        avail_tenors = [t for t in TERM_TENORS if t in vol_df.columns]
-        sub_term = vol_df[avail_tenors].dropna(subset=req_core) if req_core else pd.DataFrame()
-        if not sub_term.empty:
-            last_row = sub_term.iloc[-1]
-            term_date = sub_term.index[-1].strftime("%Y-%m-%d")
-            term_current = [
-                round(v, 2)
-                if (t in last_row and (v := _clean_num(last_row[t])) is not None)
-                else None
-                for t in TERM_TENORS
-            ]
-            if len(sub_term) >= 2:
-                prev_row = sub_term.iloc[-2]
-                term_prev_date = sub_term.index[-2].strftime("%Y-%m-%d")
-                term_prev = [
-                    round(v, 2)
-                    if (t in prev_row and (v := _clean_num(prev_row[t])) is not None)
-                    else None
-                    for t in TERM_TENORS
-                ]
-
     # Put/Call 分类结构（含 1 年分位）
     pc_specs = [
         ("SPX_PC", "SPX 期权", THRESHOLDS["pc_spx_risk"]),
@@ -721,12 +692,9 @@ def generate_volatility_microstructure(data_dir: Path | None = None) -> dict[str
         return round(v, digits) if v is not None else None
 
     live_inputs: dict[str, float | None] = {
-        "vix1d": term_current[0] if len(term_current) == 6 else None,
         "vix9d": _row_val("VIX9D", 2),
         "vix": _row_val("VIX", 2),
         "vix3m": _row_val("VIX3M", 2),
-        "vix6m": term_current[4] if len(term_current) == 6 else None,
-        "vix1y": term_current[5] if len(term_current) == 6 else None,
         "vvix": _row_val("VVIX", 1),
         "skew": _row_val("SKEW", 2),
         "dspx": _row_val("DSPX", 2),
@@ -775,14 +743,7 @@ def generate_volatility_microstructure(data_dir: Path | None = None) -> dict[str
         "thresholds": THRESHOLDS,
         "metrics": metrics,
         "live_inputs": live_inputs,
-        "term_structure": {
-            "tenors": list(TERM_TENORS),
-            "date": term_date,
-            "current": term_current,
-            "prev_date": term_prev_date,
-            "prev": term_prev,
-            "is_backwardation": state["inverted"],
-        },
+        "inverted": state["inverted"],
         "put_call": {
             "date": pc_date,
             "items": pc_items,
@@ -793,5 +754,4 @@ def generate_volatility_microstructure(data_dir: Path | None = None) -> dict[str
             "cor1m": history_cor1m,
         },
         "checklists": state["checklists"],
-        "generator": "rules",
     }
