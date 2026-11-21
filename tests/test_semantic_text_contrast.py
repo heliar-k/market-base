@@ -35,8 +35,14 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 CSS_DIR = ROOT / "frontend/public/css"
 FRONTEND = ROOT / "frontend"
-# island / 共享 JS 的扫描范围（CSS 由上面那个测试负责，不重复扫）
-SCAN_TARGETS = ("src/pages/**/*.astro", "public/js/*.js")
+# island / 组件 / 布局 / 共享 JS / SPA 壳的扫描范围（CSS 由上面那个测试负责，不重复扫）
+SCAN_TARGETS = (
+    "src/pages/**/*.astro",
+    "src/components/*.astro",
+    "src/layouts/*.astro",
+    "public/js/*.js",
+    "public/app/index.html",
+)
 RULE = re.compile(r"(?P<sel>[^{}]+)\{(?P<body>[^{}]*)\}")
 DECL = re.compile(r"(--[\w-]+)\s*:\s*([^;{}]+)")
 VARREF = re.compile(r"var\((--[\w-]+)\)")
@@ -52,7 +58,15 @@ TEXT_TOKENS = {
     "hawk": ("--color-hawk-text", "--color-hawk", 0.18),
     "dove": ("--color-dove-text", "--color-dove", 0.18),
 }
+CHART_TEXT_TOKENS = (
+    ("--chart-purple-text", "--chart-purple"),
+    ("--chart-cyan-text", "--chart-cyan"),
+    ("--chart-violet-text", "--chart-violet"),
+    ("--chart-slate-text", "--chart-slate"),
+    ("--chart-pink-text", "--chart-pink"),
+)
 AA_NORMAL = 4.5
+GRAPHIC_MIN = 3.0
 
 # 容器 opacity 会把内部所有文字一起合成变淡：缺席成员名 #aab2ba 在白卡上只剩 2.1:1，
 # 成员读数 1.9:1，chip 里的 --color-down-text 也降到 3.4:1。上面那些断言只看变量值，
@@ -167,14 +181,41 @@ def test_text_tokens_clear_aa_on_real_backgrounds() -> None:
     assert not bad, "-text 档跌破 AA 4.5:1：\n" + "\n".join(bad)
 
 
+def test_chart_tokens_clear_aa_and_dark_contrast() -> None:
+    """图表分类色：-text 档在亮暗全表面 ≥ 4.5:1；图形原语在暗色表面 ≥ 3.0:1。"""
+    themes = _themes()
+    bad: list[str] = []
+    for theme in (":root", "body.dark"):
+        surfs = (
+            ("卡片", themes[theme]["--surface"]),
+            ("页面底", themes[theme]["--bg"]),
+            ("次级底", themes[theme]["--surface-alt"]),
+            ("悬停底", themes[theme]["--surface-hover"]),
+        )
+        for text_tok, graph_tok in CHART_TEXT_TOKENS:
+            text, graphic = themes[theme][text_tok], themes[theme][graph_tok]
+            for label, bg in surfs:
+                if not text.startswith("#"):
+                    bad.append(f"{theme} {text_tok} 未解析到字面色（{text!r}）")
+                elif (got := _cr(text, bg)) < AA_NORMAL:
+                    bad.append(f"{theme} {text_tok} {text} on {label} {bg} = {got:.2f}")
+                if theme == "body.dark":
+                    if not graphic.startswith("#"):
+                        bad.append(f"{theme} {graph_tok} 未解析到字面色（{graphic!r}）")
+                    elif (got := _cr(graphic, bg)) < GRAPHIC_MIN:
+                        bad.append(f"{theme} {graph_tok} {graphic} on {label} {bg} = {got:.2f}")
+    assert not bad, "图表分类色对比度不达标：\n" + "\n".join(bad)
+
+
 def test_css_does_not_use_graphic_primitives_as_text_color() -> None:
-    r"""`color: var(--color-up)` 这类写法必须已迁到 -text 档。
+    r"""`color: var(--color-up)` / `color: var(--chart-pink)` 这类写法必须已迁到 -text 档。
 
     border-/background-/accent-color 不算。`[,)]` 是为了连带兜底的写法一起抓：
     `color: var(--color-warn, var(--accent))` 在只认 `\)` 时是漏的。
     """
     pat = re.compile(
-        r"(?<![-\w])color:\s*var\(--color-(?:up|down|neutral|warn|hawk|dove|brand)[,)]"
+        r"(?<![-\w])color:\s*var\(--(?:color-(?:up|down|neutral|warn|hawk|dove|brand)"
+        r"|chart-(?:purple|cyan|violet|slate|pink))[,)]"
     )
     bad = [
         f"{p.name}:{i}:{ln.strip()}"
@@ -182,7 +223,7 @@ def test_css_does_not_use_graphic_primitives_as_text_color() -> None:
         for i, ln in enumerate(p.read_text(encoding="utf-8").splitlines(), 1)
         if pat.search(ln)
     ]
-    assert not bad, "文字色请走 --color-*-text（图形档对比度不足）：\n" + "\n".join(bad)
+    assert not bad, "文字色请走 *-text（图形档对比度不足）：\n" + "\n".join(bad)
 
 
 # ── island 内联样式 / 共享 JS ──────────────────────────────────────────────
@@ -200,6 +241,11 @@ GRAPHIC_TOKENS = (
     "--color-up",
     "--color-down",
     "--color-warn",
+    "--chart-purple",
+    "--chart-cyan",
+    "--chart-violet",
+    "--chart-slate",
+    "--chart-pink",
     "--accent",
 )
 # `color:` 属性位。(?<![-\w]) 挡掉 background-color / border-color / accent-color /
@@ -307,18 +353,21 @@ def _graphic_text_hits(text: str, origin: str, pat: re.Pattern[str]) -> list[str
 
 
 def _under_aa_graphic_tokens() -> list[str]:
-    """亮色主题下做文字色跌破 AA 的图形档 token（暗色原语本就过 AA，不用管）。
+    """亮/暗任一主题下做文字色跌破 AA 的图形档 token。
 
     卡片与页面底任一不达即算不达；解析不到字面色时保守计入。
     """
-    light = _themes()[":root"]
+    themes = _themes()
     out: list[str] = []
     for tok in GRAPHIC_TOKENS:
-        val = light.get(tok, "")
-        if not val.startswith("#"):
-            out.append(tok)
-        elif any(_cr(val, light[k]) < AA_NORMAL for k in ("--surface", "--bg")):
-            out.append(tok)
+        for theme in (":root", "body.dark"):
+            t = themes[theme]
+            val = t.get(tok, "")
+            if not val.startswith("#") or any(
+                _cr(val, t[k]) < AA_NORMAL for k in ("--surface", "--bg")
+            ):
+                out.append(tok)
+                break
     return out
 
 
@@ -373,9 +422,8 @@ def test_islands_and_shared_js_do_not_use_graphic_tokens_as_text_color() -> None
     所以写字要换同色相的文字档 `--accent-ink`；它已在 GRAPHIC_TOKENS 里，是否入扫
     由实测对比度决定（_under_aa_graphic_tokens）。
     """
-    allowed = _under_aa_graphic_tokens()
-    assert allowed, "tokens.css 里没解析出任何图形档 token，先修 _themes()"
-    pat = _graphic_pat(allowed)
+    pat = GRAPHIC
+    assert _under_aa_graphic_tokens(), "tokens.css 里未检出需要限制的图形档 token，先修 _themes()"
     bad = [
         hit
         for glob in SCAN_TARGETS
