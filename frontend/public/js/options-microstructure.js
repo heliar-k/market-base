@@ -284,15 +284,15 @@
     };
   }
 
-  // 图形档（进度条填充）与文字档（数字/标签）严格分开，保证亮暗双主题 AA 对比度
+  // 图形档（进度条填充）与文字档（数字/标签）严格分开，切点对齐 /liquidity/transmission-chain/ 四档（30 / 50 / 70）
   const scoreGraphic = (v) =>
     !isNum(v)
       ? 'var(--color-neutral)'
       : v >= 70
         ? 'var(--color-down)'
-        : v >= 45
+        : v >= 50
           ? 'var(--color-warn)'
-          : v >= 25
+          : v >= 30
             ? 'var(--color-brand)'
             : 'var(--color-up)';
   const scoreText = (v) =>
@@ -300,11 +300,12 @@
       ? 'var(--text-dim)'
       : v >= 70
         ? 'var(--down)'
-        : v >= 45
+        : v >= 50
           ? 'var(--warning)'
-          : v >= 25
+          : v >= 30
             ? 'var(--accent-ink)'
             : 'var(--up)';
+  const statusDot = (color) => `<span class="status-dot" style="background:${color}"></span>`;
 
   function renderGaugeZero(name, sub, value, maxAbs, leftLbl, rightLbl, footMid, pinValue = null) {
     if (!isNum(value)) {
@@ -751,50 +752,67 @@
     const kpiHost = document.getElementById('ms-kpi-cards');
     if (kpiHost) {
       kpiHost.innerHTML = '';
+      const vixDot =
+        vixV === null ? 'var(--color-neutral)' : vixV >= T.vix_risk ? 'var(--color-down)' : 'var(--color-up)';
+      const vvixDot =
+        vvixV === null
+          ? 'var(--color-neutral)'
+          : vvixV >= T.vvix_stress
+            ? 'var(--color-down)'
+            : vvixV >= T.vvix_warn
+              ? 'var(--color-warn)'
+              : 'var(--color-up)';
+      const vrDot =
+        ev.vr === null ? 'var(--color-neutral)' : ev.vr > T.term_invert ? 'var(--color-down)' : 'var(--color-up)';
+      const srDot =
+        ev.sr === null ? 'var(--color-neutral)' : ev.sr > T.term_invert ? 'var(--color-down)' : 'var(--color-up)';
+      const drDot =
+        ev.dr === null ? 'var(--color-neutral)' : ev.dr < T.disp_risk ? 'var(--color-down)' : 'var(--color-up)';
+      const corDot =
+        cor1mV === null
+          ? 'var(--color-neutral)'
+          : cor1mV >= T.cor1m_risk
+            ? 'var(--color-down)'
+            : cor1mV >= T.cor1m_warn
+              ? 'var(--color-warn)'
+              : 'var(--color-up)';
+      const pcDot =
+        pcIdxV === null && pcEqV === null
+          ? 'var(--color-neutral)'
+          : (pcIdxV !== null && pcIdxV >= T.pc_index_risk) || (pcEqV !== null && pcEqV >= T.pc_equity_risk)
+            ? 'var(--color-warn)'
+            : 'var(--color-up)';
+      const gexDot = aggGexV === null ? 'var(--color-neutral)' : aggGexV < 0 ? 'var(--color-down)' : 'var(--color-up)';
+
       kpiHost.appendChild(
         R.cards([
           {
             label: 'VIX 恐慌指数',
-            value: R.num(vixV, 2),
+            value: `${statusDot(vixDot)}${R.num(vixV, 2)}`,
             sub: pctTag(m.vix, vixV !== null && vixV >= T.vix_risk ? `高于 ${T.vix_risk} 警戒` : '常态波动', isSim),
-            vcolor: vixV !== null && vixV >= T.vix_risk ? 'var(--down)' : 'var(--text)',
+            vcolor: vixV === null ? 'var(--text-dim)' : undefined,
           },
           {
             label: 'VVIX 波动率之波动',
-            value: R.num(vvixV, 1),
+            value: `${statusDot(vvixDot)}${R.num(vvixV, 1)}`,
             sub: pctTag(
               m.vvix,
               vvixV !== null && vvixV >= T.vvix_warn ? `高于 ${T.vvix_warn} 预警` : '预期平稳',
               isSim
             ),
-            vcolor:
-              vvixV !== null && vvixV >= T.vvix_stress
-                ? 'var(--down)'
-                : vvixV !== null && vvixV >= T.vvix_warn
-                  ? 'var(--warning)'
-                  : 'var(--text)',
+            vcolor: vvixV === null ? 'var(--text-dim)' : undefined,
           },
           {
             label: 'VIX / VIX3M 期限比',
-            value: ev.vr !== null ? ev.vr.toFixed(3) : '—',
+            value: `${statusDot(vrDot)}${ev.vr !== null ? ev.vr.toFixed(3) : '—'}`,
             sub: pctTag(m.vix_vix3m, ev.vr !== null && ev.vr > T.term_invert ? '主期限贴水' : '主期限升水', isSim),
-            vcolor:
-              ev.vr !== null && ev.vr > T.term_invert
-                ? 'var(--down)'
-                : ev.vr !== null
-                  ? 'var(--up)'
-                  : 'var(--text-dim)',
+            vcolor: ev.vr === null ? 'var(--text-dim)' : undefined,
           },
           {
             label: 'VIX9D / VIX 短端比',
-            value: ev.sr !== null ? ev.sr.toFixed(3) : '—',
+            value: `${statusDot(srDot)}${ev.sr !== null ? ev.sr.toFixed(3) : '—'}`,
             sub: pctTag(m.vix9d_vix, ev.sr !== null && ev.sr > T.term_invert ? '短端倒挂' : '短端升水', isSim),
-            vcolor:
-              ev.sr !== null && ev.sr > T.term_invert
-                ? 'var(--down)'
-                : ev.sr !== null
-                  ? 'var(--up)'
-                  : 'var(--text-dim)',
+            vcolor: ev.sr === null ? 'var(--text-dim)' : undefined,
           },
         ])
       );
@@ -802,33 +820,29 @@
         R.cards([
           {
             label: 'VIXEQ / VIX 离散比',
-            value: ev.dr !== null ? ev.dr.toFixed(2) : '—',
+            value: `${statusDot(drDot)}${ev.dr !== null ? ev.dr.toFixed(2) : '—'}`,
             sub: pctTag(
               m.vixeq_vix,
               ev.dr !== null && ev.dr < T.disp_risk ? `跌破 ${T.disp_risk.toFixed(2)} 红线` : '离散充裕',
               isSim
             ),
-            vcolor:
-              ev.dr !== null && ev.dr < T.disp_risk ? 'var(--down)' : ev.dr !== null ? 'var(--up)' : 'var(--text-dim)',
+            vcolor: ev.dr === null ? 'var(--text-dim)' : undefined,
           },
           {
             label: 'COR1M / DSPX',
-            value: `${R.num(cor1mV, 1)} / ${R.num(dspxV, 1)}`,
+            value: `${statusDot(corDot)}${R.num(cor1mV, 1)} / ${R.num(dspxV, 1)}`,
             sub: pctTag(m.cor1m, cor1mV !== null && cor1mV >= T.cor1m_risk ? '相关性急升' : '相关性受控', isSim),
-            vcolor: cor1mV !== null && cor1mV >= T.cor1m_risk ? 'var(--down)' : 'var(--text)',
+            vcolor: cor1mV === null && dspxV === null ? 'var(--text-dim)' : undefined,
           },
           {
             label: 'CBOE 指数 / 个股 P/C',
-            value: `${R.num(pcIdxV, 2)} / ${R.num(pcEqV, 2)}`,
+            value: `${statusDot(pcDot)}${R.num(pcIdxV, 2)} / ${R.num(pcEqV, 2)}`,
             sub: pcTotV !== null ? `全市场 Total P/C ${pcTotV.toFixed(2)}` : '全市场 P/C 缺失',
-            vcolor:
-              (pcIdxV !== null && pcIdxV >= T.pc_index_risk) || (pcEqV !== null && pcEqV >= T.pc_equity_risk)
-                ? 'var(--warning)'
-                : 'var(--text)',
+            vcolor: pcIdxV === null && pcEqV === null ? 'var(--text-dim)' : undefined,
           },
           {
             label: '宽基汇总 Net GEX',
-            value: aggGexV !== null ? `${aggGexV >= 0 ? '+' : ''}$${aggGexV.toFixed(2)}B` : '—',
+            value: `${statusDot(gexDot)}${aggGexV !== null ? `${aggGexV >= 0 ? '+' : ''}$${aggGexV.toFixed(2)}B` : '—'}`,
             sub:
               !isSim && isNum(payload.dealer?.pctile)
                 ? `${aggGexV < 0 ? '净负 Gamma' : '净正 Gamma'} · 历史分位 ${payload.dealer.pctile}%`
@@ -837,7 +851,7 @@
                     ? '净负 Gamma 放大波动'
                     : '正 Gamma 缓冲'
                   : '宽基快照缺失',
-            vcolor: aggGexV === null ? 'var(--text-dim)' : aggGexV < 0 ? 'var(--down)' : 'var(--up)',
+            vcolor: aggGexV === null ? 'var(--text-dim)' : undefined,
           },
         ])
       );

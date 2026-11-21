@@ -79,9 +79,10 @@
   flex-wrap: wrap;
   padding: 8px 12px;
   margin-bottom: 12px;
-  border-radius: 6px;
-  border: 1px solid color-mix(in srgb, var(--color-warn) 40%, transparent);
-  background: var(--color-warn-bg);
+  border-radius: 4px;
+  border: 1px solid var(--border);
+  border-left: 2px solid var(--color-warn);
+  background: var(--surface-alt);
   color: var(--warning);
   font-size: 12px;
 }
@@ -197,12 +198,10 @@
   overflow: hidden;
 }
 .ms-chain-step.lit {
-  border-color: color-mix(in srgb, var(--color-down) 45%, transparent);
-  background: color-mix(in srgb, var(--color-down) 7%, var(--surface));
+  border-left: 2px solid var(--color-down);
 }
 .ms-chain-step.warn {
-  border-color: color-mix(in srgb, var(--color-warn) 45%, transparent);
-  background: color-mix(in srgb, var(--color-warn) 7%, var(--surface));
+  border-left: 2px solid var(--color-warn);
 }
 .ms-chain-k {
   font-size: 11.5px;
@@ -260,24 +259,16 @@
   border-top: 2px solid var(--border);
 }
 .ms-stage-card.active-up {
-  border-color: color-mix(in srgb, var(--color-up) 45%, transparent);
   border-top: 2px solid var(--color-up);
-  background: color-mix(in srgb, var(--color-up) 5%, var(--surface));
 }
 .ms-stage-card.active-warn {
-  border-color: color-mix(in srgb, var(--color-warn) 45%, transparent);
   border-top: 2px solid var(--color-warn);
-  background: color-mix(in srgb, var(--color-warn) 5%, var(--surface));
 }
 .ms-stage-card.active-down {
-  border-color: color-mix(in srgb, var(--color-down) 45%, transparent);
   border-top: 2px solid var(--color-down);
-  background: color-mix(in srgb, var(--color-down) 5%, var(--surface));
 }
 .ms-stage-card.active-brand {
-  border-color: color-mix(in srgb, var(--color-brand) 45%, transparent);
   border-top: 2px solid var(--color-brand);
-  background: color-mix(in srgb, var(--color-brand) 5%, var(--surface));
 }
 .ms-stage-head {
   display: flex;
@@ -436,18 +427,21 @@
   border-color: var(--border-strong);
 }
 .ms-cl-item.hit-risk {
-  border-color: color-mix(in srgb, var(--color-down) 40%, transparent);
-  background: color-mix(in srgb, var(--color-down) 6%, var(--surface));
+  border-left: 2px solid var(--color-down);
 }
 .ms-cl-item.hit-relief {
-  border-color: color-mix(in srgb, var(--color-up) 40%, transparent);
-  background: color-mix(in srgb, var(--color-up) 6%, var(--surface));
+  border-left: 2px solid var(--color-up);
 }
 .ms-cl-item input[type='checkbox'] {
   margin-top: 2px;
-  accent-color: var(--accent);
   cursor: pointer;
   flex: 0 0 auto;
+}
+#ms-cl-risk input[type='checkbox'] {
+  accent-color: var(--color-down);
+}
+#ms-cl-relief input[type='checkbox'] {
+  accent-color: var(--color-up);
 }
 .ms-cl-body {
   flex: 1;
@@ -549,26 +543,7 @@
   color: var(--text-dim);
   font-family: var(--font-mono);
 }
-.ms-toggle-btn {
-  font-size: 12px;
-  padding: 4px 10px;
-  border-radius: 6px;
-  border: 1px solid var(--border-strong);
-  background: var(--surface);
-  color: var(--text-secondary);
-  cursor: pointer;
-  font-weight: 500;
-}
-.ms-toggle-btn:hover {
-  color: var(--accent-ink);
-  border-color: var(--accent-ink);
-}
-.ms-toggle-btn:disabled {
+#opt-pane-microstructure .range-btn:disabled {
+  opacity: 0.5;
   cursor: not-allowed;
-  color: var(--text-dim);
-}
-.ms-toggle-btn.active {
-  background: var(--accent-light);
-  color: var(--accent-ink);
-  border-color: var(--accent);
 }

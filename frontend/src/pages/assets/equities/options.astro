@@ -56,10 +56,10 @@ import Section from '../../../components/Section.astro';
   <!-- 子视图 3：期权微观结构与负反馈监控（宽基做市商 Gamma + CBOE 离散/相关性 + 分类 P/C + 情景推演） -->
   <div id="opt-pane-microstructure" class="opt-pane" role="tabpanel" aria-labelledby="opt-tab-microstructure" tabindex="-1" style="display:none">
     <Section id="sec-ms-score" title="综合微观结构压力" sub="五维加权评分（0–100）与负反馈传导链" card>
-      <button slot="head" type="button" class="ms-toggle-btn ms-head-right" id="btn-jump-sim">打开情景推演</button>
+      <button slot="head" type="button" class="range-btn ms-head-right" id="btn-jump-sim">打开情景推演</button>
       <div id="ms-sim-banner" class="ms-sim-banner">
         <span id="ms-sim-banner-text">当前处于情景推演模式，以下评分、图表与清单均为假设参数计算结果。</span>
-        <button type="button" class="ms-toggle-btn" id="btn-reset-live">恢复实盘快照</button>
+        <button type="button" class="range-btn" id="btn-reset-live">恢复实盘快照</button>
       </div>
       <div id="ms-load-error" style="display:none"></div>
       <div id="ms-hero-wrap" class="ms-hero-wrap">
@@ -139,14 +139,14 @@ import Section from '../../../components/Section.astro';
     </div>
 
     <Section id="sec-ms-sim" title="情景推演沙盘" sub="默认收起 · 拖动任意因子实时测试规则评分与触发门槛" card>
-      <button slot="head" type="button" class="ms-toggle-btn ms-head-right" id="btn-toggle-sim" aria-expanded="false">展开推演面板</button>
+      <button slot="head" type="button" class="range-btn ms-head-right" id="btn-toggle-sim" aria-expanded="false">展开推演面板</button>
       <div id="ms-sim-collapsed" class="ms-sim-collapsed">
         当前展示最新交易日真实收盘读数。展开面板后，可一键切换四个典型市场阶段或手动调整 VIX、VVIX、SKEW、VIX9D、VIX3M、VIXEQ、COR1M、Put/Call 与宽基合计 Net GEX，即时联动重算整页评分、传导链、水位条与复盘清单。
       </div>
       <div id="ms-sim-body" style="display:none">
         <div class="ms-sim-controls">
           <div class="ms-preset-row" id="ms-presets"></div>
-          <button type="button" class="ms-toggle-btn" id="btn-reset-sim">重置为实盘快照</button>
+          <button type="button" class="range-btn" id="btn-reset-sim">重置为实盘快照</button>
         </div>
         <div class="ms-slider-grid" id="ms-sliders"></div>
       </div>
