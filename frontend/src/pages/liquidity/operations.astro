@@ -63,7 +63,7 @@ async function load() {
       ],
     }));
   } else {
-    document.getElementById('rmp_chart').innerHTML = '<div class="re-error">暂无 RMP 数据 · 运行 ./bin/fetch_tsy 后刷新</div>';
+    document.getElementById('rmp_chart').innerHTML = '<div class="re-empty">暂无 RMP 数据 · 运行 ./bin/fetch_tsy 后刷新</div>';
   }
 
   const fmtB = v => (v == null ? '—' : '$' + Number(v).toFixed(1) + 'B');

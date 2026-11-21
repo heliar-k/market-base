@@ -192,7 +192,7 @@ async function load() {
   const today = pts[pts.length - 1];
   const isToday = today[2] === R.todayISO();  // 散点数据是纯数组 [vix, skew, date]（#19:原代码误用 today.value[2]）
   const gridLine = (c) => ({ lineStyle: { color: c.muted, type: 'dashed', width: 1 } });
-  R.mkChart('vix_skew_scatter', () => ({
+  R.mkChart('vix_skew_scatter', (c) => ({
     tooltip: { formatter: (p) => `VIX ${p.value[0]} · SKEW ${p.value[1]}<br/>${p.value[2]}` },
     // right 留 46px 防 x 轴标题（SKEW）右端被裁；markLine 标签位置 end 避免与轴刻度重叠
     grid: { left: 8, right: 46, top: 28, bottom: 35, containLabel: true },
@@ -214,7 +214,7 @@ async function load() {
       },
       {
         name: isToday ? '今日' : '最新', type: 'scatter', symbolSize: 14, data: [today],
-        itemStyle: { color: c.red, borderColor: '#fff', borderWidth: 1 },
+        itemStyle: { color: c.red, borderColor: c.bg, borderWidth: 1 },
         label: { show: true, formatter: isToday ? '今天' : today[2].slice(5), position: 'top', color: c.redText, fontSize: 11 },
       },
     ],

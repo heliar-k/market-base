@@ -53,7 +53,7 @@ async function load() {
       ],
     }, colors));
   } else {
-    document.getElementById('bs_chart').innerHTML = '<div class="re-error">暂无资产负债表序列</div>';
+    document.getElementById('bs_chart').innerHTML = '<div class="re-empty">暂无资产负债表序列</div>';
   }
 
   const rows = (d.rows || []).map(r => ({ ...r }));

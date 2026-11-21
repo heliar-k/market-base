@@ -317,7 +317,7 @@ async function load() {
 // ── hero 决策卡：选举夜对垒（PM vs ZQ 两栏平权 + Δ 徽章）+ 五档双条 ──
 function renderHero(m) {
   const el = document.getElementById('rp-hero');
-  if (!m) { el.innerHTML = '<div class="re-loading">暂无会议数据</div>'; return; }
+  if (!m) { el.innerHTML = '<div class="re-empty">暂无会议数据</div>'; return; }
   const agg = pmAgg(m);
   const pmB = m.polymarket?.buckets || {};
   const zqB = m.zq_buckets || {};
@@ -439,7 +439,7 @@ function renderConvChart(meetings, hist) {
     .map((m) => ({ ym: m.meeting_date.slice(0, 7), label: (+m.meeting_date.slice(5, 7)) + '月', series: hist[m.meeting_date.slice(0, 7)] }))
     .filter((x) => x.series && x.series.length);
   if (!withHist.length) {
-    document.getElementById('conv-chart').innerHTML = '<div class="re-loading" style="height:100%">暂无 Polymarket 日频历史（运行 ./bin/fetch_polymarket）</div>';
+    document.getElementById('conv-chart').innerHTML = '<div class="re-empty">暂无 Polymarket 日频历史（运行 ./bin/fetch_polymarket）</div>';
     return;
   }
   const dates = [...new Set(withHist.flatMap((x) => x.series.map((p) => p.date)))].sort();
@@ -478,7 +478,7 @@ function renderZqPath(h) {
     // 空态下没有窗口可切，按钮一并藏掉
     document.getElementById('zq-path-range').style.display = 'none';
     document.getElementById('zq-path-chart').innerHTML =
-      '<div class="re-loading" style="height:100%">暂无 ZQ 概率历史（运行 ./bin/fetch_rate_expectations 后逐日累积）</div>';
+      '<div class="re-empty">暂无 ZQ 概率历史（运行 ./bin/fetch_rate_expectations 后逐日累积）</div>';
     return;
   }
   // 默认下一场未结束会议（会议当天仍算未结束）；全部已结束时退回最后一场，不留空白图

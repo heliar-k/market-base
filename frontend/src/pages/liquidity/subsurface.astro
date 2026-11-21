@@ -102,7 +102,7 @@ async function load() {
         markLine: { data: [{ yAxis: vol.mean_60d_b ?? 0 }], lineStyle: { color: c.muted, type: 'dashed' }, symbol: 'none', label: { formatter: '60日均值', color: c.muted, position: 'insideEndTop' } } }],
     }));
   } else {
-    document.getElementById('vol_chart').innerHTML = '<div class="re-error">暂无成交量数据</div>';
+    document.getElementById('vol_chart').innerHTML = '<div class="re-empty">暂无成交量数据</div>';
   }
   const zHtml = vol.z60 == null ? '' : `<span style="color:${vol.z60 > 1 ? 'var(--warning)' : 'var(--text-dim)'}">60 日 z-score <b>${vol.z60 >= 0 ? '+' : ''}${vol.z60.toFixed(2)}</b>（最新 ${vol.latest_b == null ? '—' : '$' + vol.latest_b.toLocaleString() + 'B'} / 均值 ${vol.mean_60d_b == null ? '—' : '$' + vol.mean_60d_b.toLocaleString() + 'B'}）</span>`;
   const raw30 = d.srf?.raw_30d != null ? `（已剔除 <$${d.srf?.threshold_m ?? 50}M 的日常通道测试，含微额共 ${d.srf.raw_30d} 天）` : '';

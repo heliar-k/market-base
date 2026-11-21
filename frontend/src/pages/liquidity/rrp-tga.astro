@@ -117,7 +117,7 @@ async function load() {
       series: [{ type: 'line', data: tga60.map(p => [p.date, p.value]), lineStyle: { color: c.orange, width: 2 }, areaStyle: { color: c.orange + '14' }, showSymbol: false }],
     }));
   } else {
-    document.getElementById('tga_chart').innerHTML = '<div class="re-error">暂无 TGA 余额序列</div>';
+    document.getElementById('tga_chart').innerHTML = '<div class="re-empty">暂无 TGA 余额序列</div>';
   }
 
   // ── TGA 日度现金流 ──
