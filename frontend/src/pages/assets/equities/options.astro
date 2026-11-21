@@ -1158,6 +1158,15 @@ async function load() {
     if (hv && hv !== currentSubview) applySubview(hv, false, false);
   });
 
+  try {
+    D = await R.get('/api/assets/equities-options');
+  } catch (e) {
+    D = null;
+    R.fail(['detail', 'board', 'wheel-radar'], e);
+  }
+
+  // 放在首个 await 之后：TopicLayout 的 <footer slot="foot"> 位于主 <slot /> 之后，
+  // 同步阶段 DOM 尚未解析到 #re-foot；放在 catch 之后既确保 #re-foot 已就位，又不依赖主端点成功。
   R.foot('rules', {
     src: 'yfinance 期权链（真实 OI + IV）、CBOE 波动率指数与每日 Put/Call 统计',
     note: 'GEX/DEX/Vanna/Charm 为 BSM 模型估算，非交易所官方持仓方向；'
@@ -1165,13 +1174,6 @@ async function load() {
       + '1Y IVR/IVP 取自 Barchart 52 周统计（缺失时回退本地近一年 IV35 分位）；'
       + '负反馈监控阈值经近 1 年历史分布校准，情景推演不改实盘快照',
   });
-
-  try {
-    D = await R.get('/api/assets/equities-options');
-  } catch (e) {
-    D = null;
-    R.fail(['detail', 'board', 'wheel-radar'], e);
-  }
 
   if (window.AICtx) AICtx.declare('assets-equities-options', () => {
     if (currentSubview === 'microstructure') {
