@@ -101,7 +101,7 @@ async function load() {
     const fst = v => v == null ? '暂停判读' : `${v >= 0 ? '+' : ''}${v.toFixed(2)} B`;
     const fcol = v => v == null ? '' : (v >= 0 ? 'var(--up)' : 'var(--down)');
     esec.innerHTML = R.secTitle('机构资金流入对照', 'ETF FLOWS · BTC Spot ETF') +
-      `${etf.stale ? '<div style="padding:8px 12px;border:1px solid var(--warning);border-radius:6px;font-size:12px;color:var(--warning);margin-bottom:10px">⚠ ETF 资金流超过时效阈值（最新 ' + etf.latest + '），本区保留最近有效值，不参与方向判断。</div>' : ''}`;
+      `${etf.stale ? '<div class="re-warn-banner">⚠ ETF 资金流超过时效阈值（最新 ' + etf.latest + '），本区保留最近有效值，不参与方向判断。</div>' : ''}`;
     esec.appendChild(R.cards([
       { label: '最近有效净流入', value: fst(etf.last_flow_musd == null ? null : etf.last_flow_musd / 1000), sub: etf.latest + ' · Farside 更新', vcolor: fcol(etf.last_flow_musd) },
       { label: '5 天累计', value: fst(v5), sub: etf.stale ? '暂停判读' : '参与方向评分', vcolor: fcol(v5) },
@@ -212,7 +212,7 @@ async function load() {
     const bzStaleDays = bz.latest ? Math.round((new Date(R.todayISO()) - new Date(bz.latest)) / 864e5) : null;
     const bzStale = bzStaleDays != null && bzStaleDays > 5;
     bsec.innerHTML = R.secTitle('机构基差专题', 'CME BTC 期货年化基差', 'Yahoo BTC=F 近月连续合约 proxy · 已按 dte<10 天、|basis|>18%、未成熟日线过滤') +
-      `${bzStale ? `<div style="padding:8px 12px;border:1px solid var(--warning);border-radius:6px;font-size:12px;color:var(--warning);margin-bottom:10px">⚠ 基差数据停在 ${bz.latest}（${bzStaleDays} 天前）——Yahoo BTC=F 最新日线多为临时价格触发治理跳过，下方读数非最新，不参与方向判断。</div>` : ''}`;
+      `${bzStale ? `<div class="re-warn-banner">⚠ 基差数据停在 ${bz.latest}（${bzStaleDays} 天前）——Yahoo BTC=F 最新日线多为临时价格触发治理跳过，下方读数非最新，不参与方向判断。</div>` : ''}`;
     bsec.appendChild(R.cards([
       { label: '当前基差年化', value: `${bz.current}%`, sub: `${bz.latest} · 最新有效` },
       { label: '30 日均值', value: `${bz.ma30}%`, sub: '近 30 个有效观测' },

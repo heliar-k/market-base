@@ -88,7 +88,7 @@ html { scroll-padding-top: 52px; }
 .re-root :not(.re-duo):has(> .re-section + .re-section),
 .re-sec > *:not(.re-duo):has(> .re-section + .re-section) { display: flex; flex-direction: column; gap: var(--re-inner-gap); }
 /* Linear 内高光:暗色卡片边缘受光(专题页卡片 = .re-section,与 SPA .chart-card 同待遇) */
-body.dark :is(.re-section, .re-panel) { box-shadow: inset 0 0 0 1px rgba(255,255,255,.04); }
+body.dark :is(.re-section, .re-panel, .hero-card) { box-shadow: inset 0 0 0 1px rgba(255,255,255,.04); }
 .re-section h2 { font-size: 14px; font-weight: 700; margin-bottom: 8px; color: var(--text); text-wrap: balance; }
 /* 标题内的弱化注解（R.secTitle 的英文/口径）：不继承 h2 的 700 字重与 14px，
  * 与 Section 组件 sub prop 同一套 .re-sec-sub 视觉；窄屏标题换行后注解跟到第二行
@@ -121,6 +121,12 @@ body.embedded .re-foot { display: none; } /* 内嵌 iframe 不重复页脚 */
   height: 100%; min-height: 120px; padding: 24px 20px; text-align: center;
   font-size: 12.5px; line-height: 1.7; color: var(--text-secondary);
   background: var(--surface-alt); border: 1px dashed var(--border-strong); border-radius: 8px;
+}
+/* 内嵌时效/风控警示条：中性底与中性描边，语义仅走左侧 2px 竖标 */
+.re-warn-banner {
+  margin: 0 0 10px; padding: 8px 12px;
+  background: var(--surface-alt); border: 1px solid var(--border); border-left: 2px solid var(--color-warn);
+  border-radius: 6px; font-size: 12px; line-height: 1.6; color: var(--color-warn-text);
 }
 /* 图表高度统一 clamp()（#20 配套项）：上限 = 原固定值，斜率取 ~40vh，
  * 视口高 ≥ ~750px（几乎全部桌面）与原来逐像素一致，仅矮屏/手机变矮，下限兜住可读性。 */
@@ -972,7 +978,7 @@ body.dark .pm-topic-card { box-shadow: inset 0 0 0 1px rgba(255,255,255,.04); }
 }
 /* #27：≤ 768 取单列已由全局规则接手（见上方 .re-cards > .re-card）——两列时卡片
  * min-content 172px 会把轨道顶到 214px，两列 + gap = 464 > 375 → 文档横向溢出。 */
-.hero-card { border: 1px solid var(--accent); border-radius: 10px; background: var(--surface); padding: 16px; display: flex; flex-direction: column; gap: 12px; box-shadow: 0 0 0 1px var(--accent); }
+.hero-card { border: 1px solid var(--border); border-left: 2px solid var(--accent); border-radius: 8px; background: var(--surface); padding: 16px; display: flex; flex-direction: column; gap: 12px; box-shadow: var(--card-shadow); }
 .hc-head { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
 /* 研判胶囊贴右用 margin-left:auto，不用 position:absolute：绝对定位不占位，
  * flex-wrap 不会为它换行，窄屏会直接压住日期/标签（实测 320px 重叠 6px、421–440px 重叠 16px）。

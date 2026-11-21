@@ -1105,9 +1105,7 @@ function renderWheel() {
 
   el.innerHTML = '';
   if (s.warnings && s.warnings.length) {
-    el.insertAdjacentHTML('beforeend', `<div style="margin:0 0 8px;padding:6px 8px;font-size:12px;line-height:1.6;`
-      + `color:var(--warning);background:color-mix(in srgb, var(--color-warn) 10%, transparent);`
-      + `border:1px solid color-mix(in srgb, var(--color-warn) 35%, transparent);border-radius:4px">`
+    el.insertAdjacentHTML('beforeend', `<div class="re-warn-banner" style="margin-bottom:8px">`
       + s.warnings.map(t => R.esc(t)).join('<br>') + '</div>');
   }
   const bar = document.createElement('div');
