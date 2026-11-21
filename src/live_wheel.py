@@ -278,7 +278,8 @@ def _build_opt_map(
     notes: dict[str, str] = {}
     chain_map: dict[str, tuple[pd.DataFrame, str]] = {}
     ibkr_cache = _load_ibkr_chains() if greeks == "auto" else {}
-    today = _now_et().strftime("%Y-%m-%d")
+    now = _now_et()
+    today = now.strftime("%Y-%m-%d")
 
     from rich.progress import BarColumn, MofNCompleteColumn, Progress, TextColumn, TimeElapsedColumn
 
@@ -359,7 +360,7 @@ def _build_opt_map(
                     chain["quote_ts"] = _utc_now_iso()
                 elif quote_ts:
                     chain["quote_ts"] = quote_ts
-                detail = compute_structure(chain, spot)
+                detail = compute_structure(chain, spot, as_of=now)
                 if detail.get("spot") is None:
                     notes[sym] = "结构计算为空"
                     progress.advance(task)

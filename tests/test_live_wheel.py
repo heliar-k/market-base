@@ -340,9 +340,14 @@ def test_chain_from_ibkr_needs_oi_merged(monkeypatch) -> None:
     assert "openInterest" in out.columns
     assert float(out["openInterest"].iloc[0]) == 15000.0
     # 合并后必须能直接喂给 compute_structure（原崩溃点）
+    from datetime import datetime
+    from zoneinfo import ZoneInfo
+
     from src.options_structure import compute_structure
 
-    detail = compute_structure(out, 211.0)
+    detail = compute_structure(
+        out, 211.0, as_of=datetime(2026, 10, 28, 10, 0, tzinfo=ZoneInfo("America/New_York"))
+    )
     assert detail.get("spot") is not None
 
     # 部分 IBKR OI 缺失时也要补齐，不能把缺失合约直接置零。

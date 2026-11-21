@@ -3637,9 +3637,9 @@ def _funding_hist_series(snap: dict) -> list[dict]:
 
 # 散户通道的双侧阈值。PCR 与多空账户比都不是零中心量，_stance 的 ±thr 对称带
 # 只适合可正可负的差值（CME 变化率、资金费率），这两条必须双侧判定。
-# PCR：Deribit BTC 期权 call OI 结构性大于 put，78 天实测 0.52–0.69（p10 0.54 /
-# p90 0.67），阈值按自身分布取 p10/p90；低 PCR = call 需求强 = 偏多。
-PCR_LOW, PCR_HIGH = 0.55, 0.65
+# PCR：Deribit BTC 期权 call OI 结构性大于 put，91 天实测 0.52–0.83（p10 0.55 /
+# p90 0.74），阈值按自身分布取 p10/p90；低 PCR = call 需求强 = 看多。
+PCR_LOW, PCR_HIGH = 0.55, 0.74
 # 多空账户比：Coinglass 24h 多空账户比中心在 0.97（不在 1.0），截至 2026-11 共 71 个
 # 观测实测 0.83–1.29（p10 0.93 / p90 1.06），阈值取整到 0.90/1.10（约 p6 / p93）。
 LS_LOW, LS_HIGH = 0.90, 1.10

@@ -169,7 +169,7 @@ def test_ls_stance_mapping(ls, expected):
 
 @pytest.mark.parametrize(
     "pcr,expected",
-    [(0.54, "偏多"), (PCR_LOW, "偏多"), (0.60, "中性"), (PCR_HIGH, "偏空"), (0.70, "偏空")],
+    [(0.54, "偏多"), (PCR_LOW, "偏多"), (0.60, "中性"), (PCR_HIGH, "偏空"), (0.80, "偏空")],
 )
 def test_pcr_stance_mapping(pcr, expected):
     assert _stance_of("retail", "期权 PCR", pcr=pcr) == expected
