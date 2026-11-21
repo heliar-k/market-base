@@ -687,7 +687,7 @@ button.opt-sig-reason:hover .osr-brief { color: var(--text-secondary); }
 }
 .vol-heat-cell { border-radius: 8px; padding: 8px 10px; display: flex; flex-direction: column; gap: 2px; }
 .vol-heat-cell .ht-sym { font-size: 11px; font-weight: 700; color: var(--text); }
-.vol-heat-cell .ht-name { font-size: 10px; color: var(--text-secondary); opacity: .85; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.vol-heat-cell .ht-name { font-size: 10px; color: var(--text-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .vol-heat-cell .ht-value { font-size: 15px; font-weight: 700; font-variant-numeric: tabular-nums; color: var(--text); }
 .vol-heat-cell .ht-chg { font-size: 11px; font-weight: 600; font-variant-numeric: tabular-nums; }
 .vol-heat-cell.up { border: 1px solid color-mix(in srgb, var(--color-up) 33%, transparent); }
@@ -1346,7 +1346,7 @@ details.db-scen-item[open] > summary.db-scen-head::after { content: '收起 ▴'
 .db-snap-val { font-weight: 600; color: var(--text); text-align: right; font-variant-numeric: tabular-nums; font-family: var(--font-mono); }
 .db-snap-row > span:last-child { text-align: right; font-variant-numeric: tabular-nums; }
 .db-hit { border-color: var(--color-up); }
-.db-flat { opacity: .75; }
+.db-flat { color: var(--text-dim); }
 /* 三情景卡：文本型内容卡（描述+证据+证伪）不是数字 KPI，放开 .re-cards 的 275px 封顶，
  * 宽屏三卡平分整行（页面级覆盖先例同 #re-cards 档位） */
 #db-scenarios > .re-card { max-width: none; }
@@ -1528,8 +1528,8 @@ details.db-scen-item[open] > summary.db-scen-head::after { content: '收起 ▴'
 .cons-ch-v { margin-left: auto; padding-left: 10px; font-weight: 600; color: var(--text-secondary);
   font-variant-numeric: tabular-nums; white-space: nowrap; }
 .cons-ch .re-badge { flex: 0 0 auto; }
-/* 缺数据通道：整行降透明度，读数位置留空杠，避免「— 中性」把缺失冒充方向 */
-.cons-ch.miss { opacity: .65; }
+/* 缺数据通道：整行文字改走次弱化色，读数位置留空杠，避免「— 中性」把缺失冒充方向 */
+.cons-ch.miss .cons-ch-n,
 .cons-ch.miss .cons-ch-v { color: var(--text-dim); font-weight: 400; }
 /* 内部分歧（分化）时两侧对顶标记：轨道两端各一枚，不假装落在中点 */
 .cons-mk--a { border-color: var(--color-down); left: var(--rail-edge); }

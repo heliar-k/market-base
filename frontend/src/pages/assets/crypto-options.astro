@@ -157,7 +157,7 @@ function renderPolymarket(pm, spot) {
       <b>如何解读</b> — 图上每条线是那个归类里「概率过 50% 的价位」逐日记到哪（档间线性插值），
       灰虚线是现价日线收盘：线在现价上方 = 市场觉得这个方向还得往上走才能摸到，线与现价的缺口就是预期差。
       折叠明细里每档是市场对「触及该价位」的隐含概率（≥60% 接近共识，&lt;20% 淡显为长尾），价位后括注距现价偏离。
-      <span style="opacity:.7">月度/年度阶梯跨月切换时档位重置，曲线会有结构性跳档。</span></div>
+      <span style="color:var(--text-dim)">月度/年度阶梯跨月切换时档位重置，曲线会有结构性跳档。</span></div>
     <p class="re-source" style="margin:8px 0 0">口径：category=crypto · series 含 hit-price / multi-strikes（日/周/月/年度价位阶梯）；prob 为 0-1 隐含概率。过 50% 档按相邻两档线性插值，整条阶梯都在 0.5 同侧时该日留空（没有对赌档，不外推端点）；现价线取 yfinance 日线收盘，与 Deribit 现货锚可差几十美元。history.csv 只收录达量门槛的合约，新市场无历史则留空。</p></details>`);
 
   // 归类规则未命中告警（新 series/问题命名击穿规则时的 actionable 清单）
