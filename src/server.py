@@ -80,6 +80,7 @@ from src.rates_analysis import generate_analysis
 from src.treasury_analysis import generate_treasury_overview
 from src.volatility_analysis import generate_volatility_analysis
 from src.volatility_dashboard import generate_dashboard as generate_volatility_dashboard
+from src.volatility_microstructure import generate_volatility_microstructure
 
 # ── helpers ──────────────────────────────────────────────────────────────────
 
@@ -1315,6 +1316,15 @@ def get_volatility_dashboard() -> dict:
     """波动率全景仪表盘：30 指数 + 风险矩阵 + Trade Map + 统计 + 7 段叙事
     （timsun.net/volatility/dashboard 复刻，规则引擎，LLM 预留）。"""
     out = generate_volatility_dashboard()
+    if "error" in out:
+        raise HTTPException(404, out["error"])
+    return out
+
+
+@app.get("/api/volatility/microstructure")
+def get_volatility_microstructure() -> dict:
+    """期权微观结构与负反馈监控：五维评分 + 阶段定位 + 离散相关性 + CBOE P/C + 宽基 GEX。"""
+    out = generate_volatility_microstructure()
     if "error" in out:
         raise HTTPException(404, out["error"])
     return out

@@ -65,7 +65,7 @@ jobs:
           fi
 
           for i in 1 2 3 4 5 6; do
-            bash bin/fetch_cboe
+            bash bin/fetch_cboe --vol-only
             if uv run python -m src.fetchers.cboe_fetcher --check-latest; then
               echo "第 $i 轮补齐"
               exit 0

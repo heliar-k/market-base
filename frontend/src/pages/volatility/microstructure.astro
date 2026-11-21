@@ -1,0 +1,1904 @@
+---
+// 期权微观结构与负反馈监控（生产页）
+// 端点：/api/volatility/microstructure（src/volatility_microstructure.py 生成，export_pages 静态导出）
+// 串联 CBOE 波动率期限结构、DSPX/VIXEQ/COR1M/COR3M、CBOE 每日分类 Put/Call 与宽基做市商 Gamma，
+// 默认展示最新完整交易日真实快照与历史分位，并内置默认收起的情景推演沙盘。
+import TopicLayout from '../../layouts/TopicLayout.astro';
+import Section from '../../components/Section.astro';
+---
+<TopicLayout
+  title="期权微观结构与负反馈监控"
+  desc="美股期权微观结构与流动性负反馈监控：整合 VIX 期限结构、DSPX/VIXEQ 离散度、隐含相关性、CBOE 分类 Put/Call 与宽基做市商 Gamma 敞口。"
+>
+  <style is:inline>
+    /* 页面私有布局类（前缀 ms-），颜色严格走 tokens.css 亮暗双主题变量 */
+    .ms-hero-wrap {
+      container-type: inline-size;
+    }
+    .ms-hero-grid {
+      display: grid;
+      grid-template-columns: minmax(min(100%, 240px), 280px) minmax(0, 1fr);
+      gap: 20px;
+      align-items: stretch;
+    }
+    @container (max-width: 920px) {
+      .ms-hero-grid { grid-template-columns: 1fr; }
+      .ms-score-box {
+        padding-right: 0;
+        padding-bottom: 16px;
+        border-right: 0;
+        border-bottom: 1px solid var(--border);
+      }
+    }
+    @media (max-width: 1024px) {
+      .ms-hero-grid { grid-template-columns: 1fr; }
+    }
+    .ms-score-box {
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      padding-right: 20px;
+      border-right: 1px solid var(--border);
+    }
+    @media (max-width: 1024px) {
+      .ms-score-box {
+        padding-right: 0;
+        padding-bottom: 16px;
+        border-right: 0;
+        border-bottom: 1px solid var(--border);
+      }
+    }
+    .ms-score-row {
+      display: flex;
+      align-items: baseline;
+      gap: 10px;
+      margin: 6px 0 8px;
+      flex-wrap: wrap;
+    }
+    .ms-score-val {
+      font-family: var(--font-mono);
+      font-size: clamp(34px, 32px + 0.8vw, 44px);
+      font-weight: 700;
+      font-variant-numeric: tabular-nums;
+      line-height: 1;
+    }
+    .ms-score-denom {
+      font-family: var(--font-mono);
+      font-size: 16px;
+      font-weight: 500;
+      color: var(--text-dim);
+    }
+    .ms-score-summary {
+      font-size: 12.5px;
+      line-height: 1.65;
+      color: var(--text-secondary);
+      margin-top: 6px;
+    }
+    .ms-sim-banner {
+      display: none;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      flex-wrap: wrap;
+      padding: 8px 12px;
+      border-radius: 6px;
+      border: 1px solid color-mix(in srgb, var(--color-warn) 40%, transparent);
+      background: var(--color-warn-bg);
+      color: var(--warning);
+      font-size: 12px;
+    }
+    .ms-sim-banner.on { display: flex; }
+
+    /* 五维权重分解（容器查询：1200px 桌面或开启伴读分栏时自动回落，绝不挤爆） */
+    .ms-dims {
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      gap: 10px;
+      min-width: 0;
+      container-type: inline-size;
+    }
+    .ms-dims-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    .ms-dims-title {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text-secondary);
+    }
+    .ms-dims-list {
+      display: grid;
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+      gap: 10px 14px;
+    }
+    @container (max-width: 680px) {
+      .ms-dims-list { grid-template-columns: repeat(auto-fit, minmax(min(100%, 150px), 1fr)); }
+    }
+    @media (max-width: 1024px) {
+      .ms-dims-list { grid-template-columns: repeat(auto-fit, minmax(min(100%, 150px), 1fr)); }
+    }
+    .ms-dim-item {
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+      min-width: 0;
+    }
+    .ms-dim-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      font-size: 12px;
+      gap: 6px;
+    }
+    .ms-dim-name {
+      color: var(--text-secondary);
+      font-weight: 500;
+    }
+    .ms-dim-w {
+      color: var(--text-dim);
+      font-size: 11px;
+    }
+    .ms-dim-score {
+      font-family: var(--font-mono);
+      font-size: 12px;
+      font-weight: 700;
+      font-variant-numeric: tabular-nums;
+    }
+    .ms-bar-track {
+      height: 5px;
+      border-radius: 3px;
+      background: var(--border);
+      overflow: hidden;
+    }
+    .ms-bar-fill {
+      height: 100%;
+      border-radius: 3px;
+      transition: width 0.2s ease;
+    }
+
+    /* 因果传导链 */
+    .ms-chain {
+      display: grid;
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+      gap: 8px;
+      margin-top: 2px;
+    }
+    @container (max-width: 720px) {
+      .ms-chain { grid-template-columns: repeat(auto-fit, minmax(min(100%, 150px), 1fr)); }
+    }
+    @media (max-width: 1024px) {
+      .ms-chain { grid-template-columns: repeat(auto-fit, minmax(min(100%, 150px), 1fr)); }
+    }
+    .ms-chain-step {
+      padding: 8px 10px;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+      background: var(--surface-alt);
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+      min-width: 0;
+      overflow: hidden;
+    }
+    .ms-chain-step.lit {
+      border-color: color-mix(in srgb, var(--color-down) 45%, transparent);
+      background: color-mix(in srgb, var(--color-down) 7%, var(--surface));
+    }
+    .ms-chain-step.warn {
+      border-color: color-mix(in srgb, var(--color-warn) 45%, transparent);
+      background: color-mix(in srgb, var(--color-warn) 7%, var(--surface));
+    }
+    .ms-chain-k {
+      font-size: 11.5px;
+      font-weight: 600;
+      color: var(--text);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 4px;
+      min-width: 0;
+    }
+    .ms-chain-k > span:first-child {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .ms-chain-k .re-badge {
+      white-space: nowrap;
+      flex: 0 0 auto;
+    }
+    .ms-chain-v {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--text-secondary);
+      font-variant-numeric: tabular-nums;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    /* 四阶段演化步进卡 */
+    .ms-stages {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 12px;
+    }
+    @media (max-width: 1024px) {
+      .ms-stages { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    }
+    @media (max-width: 768px) {
+      .ms-stages { grid-template-columns: 1fr; }
+    }
+    .ms-stage-card {
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: var(--surface);
+      padding: 14px 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      border-top: 2px solid var(--border);
+    }
+    .ms-stage-card.active-up {
+      border-color: color-mix(in srgb, var(--color-up) 45%, transparent);
+      border-top: 2px solid var(--color-up);
+      background: color-mix(in srgb, var(--color-up) 5%, var(--surface));
+    }
+    .ms-stage-card.active-warn {
+      border-color: color-mix(in srgb, var(--color-warn) 45%, transparent);
+      border-top: 2px solid var(--color-warn);
+      background: color-mix(in srgb, var(--color-warn) 5%, var(--surface));
+    }
+    .ms-stage-card.active-down {
+      border-color: color-mix(in srgb, var(--color-down) 45%, transparent);
+      border-top: 2px solid var(--color-down);
+      background: color-mix(in srgb, var(--color-down) 5%, var(--surface));
+    }
+    .ms-stage-card.active-brand {
+      border-color: color-mix(in srgb, var(--color-brand) 45%, transparent);
+      border-top: 2px solid var(--color-brand);
+      background: color-mix(in srgb, var(--color-brand) 5%, var(--surface));
+    }
+    .ms-stage-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 6px;
+    }
+    .ms-stage-num {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--text-dim);
+      font-weight: 600;
+    }
+    .ms-stage-name {
+      font-size: 13.5px;
+      font-weight: 700;
+      color: var(--text);
+    }
+    .ms-stage-desc {
+      font-size: 12px;
+      line-height: 1.6;
+      color: var(--text-secondary);
+    }
+    .ms-stage-rule {
+      margin-top: auto;
+      padding-top: 6px;
+      border-top: 1px dashed var(--border);
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--text-dim);
+    }
+
+    /* 零轴居中双向水位条 */
+    .ms-gauge-list {
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+    .ms-gauge-row {
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+    }
+    .ms-gauge-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      gap: 8px;
+      font-size: 12.5px;
+    }
+    .ms-gauge-name {
+      font-weight: 600;
+      color: var(--text);
+    }
+    .ms-gauge-sub {
+      font-size: 11.5px;
+      color: var(--text-dim);
+      margin-left: 6px;
+      font-weight: 400;
+    }
+    .ms-gauge-val {
+      font-family: var(--font-mono);
+      font-weight: 700;
+      font-variant-numeric: tabular-nums;
+      white-space: nowrap;
+    }
+    .ms-zero-track {
+      position: relative;
+      height: 8px;
+      border-radius: 4px;
+      background: var(--surface-alt);
+      border: 1px solid var(--border);
+      overflow: hidden;
+    }
+    .ms-zero-axis {
+      position: absolute;
+      left: 50%;
+      top: 0;
+      bottom: 0;
+      width: 1px;
+      background: var(--text-dim);
+      z-index: 2;
+    }
+    .ms-zero-fill {
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      transition: left 0.2s ease, width 0.2s ease;
+    }
+    .ms-linear-track {
+      position: relative;
+      height: 8px;
+      border-radius: 4px;
+      background: var(--surface-alt);
+      border: 1px solid var(--border);
+      overflow: hidden;
+    }
+    .ms-linear-fill {
+      position: absolute;
+      left: 0;
+      top: 0;
+      bottom: 0;
+      transition: width 0.2s ease;
+    }
+    .ms-threshold-pin {
+      position: absolute;
+      top: -1px;
+      bottom: -1px;
+      width: 2px;
+      background: var(--text);
+      z-index: 2;
+    }
+    .ms-gauge-foot {
+      display: flex;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      font-size: 11px;
+      color: var(--text-dim);
+      font-family: var(--font-mono);
+      gap: 4px 8px;
+    }
+
+    /* 双向复盘清单与双栏等高对齐 */
+    .ms-card-flex {
+      display: flex;
+      flex-direction: column;
+      flex: 1;
+    }
+    .ms-card-flex .re-sec-note {
+      margin-top: auto;
+    }
+    .ms-kpi-stack {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    .ms-head-right {
+      margin-left: auto;
+    }
+    .ms-cl-list {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .ms-cl-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      padding: 10px 12px;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+      background: var(--surface-alt);
+      cursor: pointer;
+    }
+    .ms-cl-item:hover {
+      border-color: var(--border-strong);
+    }
+    .ms-cl-item.hit-risk {
+      border-color: color-mix(in srgb, var(--color-down) 40%, transparent);
+      background: color-mix(in srgb, var(--color-down) 6%, var(--surface));
+    }
+    .ms-cl-item.hit-relief {
+      border-color: color-mix(in srgb, var(--color-up) 40%, transparent);
+      background: color-mix(in srgb, var(--color-up) 6%, var(--surface));
+    }
+    .ms-cl-item input[type="checkbox"] {
+      margin-top: 2px;
+      accent-color: var(--accent);
+      cursor: pointer;
+      flex: 0 0 auto;
+    }
+    .ms-cl-body {
+      flex: 1;
+      min-width: 0;
+    }
+    .ms-cl-title-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    .ms-cl-title {
+      font-size: 12.5px;
+      font-weight: 600;
+      color: var(--text);
+    }
+    .ms-cl-cond {
+      font-size: 11.5px;
+      line-height: 1.55;
+      color: var(--text-secondary);
+      margin-top: 2px;
+    }
+    .ms-cl-read {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--text-dim);
+      margin-top: 3px;
+    }
+
+    /* 可折叠情景推演沙盘（10 因子：宽屏 5×2 或 2×5，自适应 3/2/1 列） */
+    .ms-sim-controls {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      padding-bottom: 12px;
+      border-bottom: 1px solid var(--border);
+      margin-bottom: 14px;
+    }
+    .ms-preset-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+    .ms-slider-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(min(100%, 210px), 1fr));
+      gap: 12px 14px;
+    }
+    .ms-slider-item {
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+      padding: 10px 12px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      background: var(--surface-alt);
+    }
+    .ms-slider-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 8px;
+    }
+    .ms-slider-label {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text);
+    }
+    .ms-slider-num {
+      width: 72px;
+      padding: 2px 6px;
+      border: 1px solid var(--border-strong);
+      border-radius: 4px;
+      background: var(--surface);
+      color: var(--text);
+      font-family: var(--font-mono);
+      font-size: 12px;
+      font-weight: 600;
+      text-align: right;
+      font-variant-numeric: tabular-nums;
+    }
+    .ms-slider-range {
+      width: 100%;
+      accent-color: var(--accent);
+      cursor: pointer;
+    }
+    .ms-slider-hint {
+      display: flex;
+      justify-content: space-between;
+      font-size: 11px;
+      color: var(--text-dim);
+      font-family: var(--font-mono);
+    }
+    .ms-toggle-btn {
+      font-size: 12px;
+      padding: 4px 10px;
+      border-radius: 6px;
+      border: 1px solid var(--border-strong);
+      background: var(--surface);
+      color: var(--text-secondary);
+      cursor: pointer;
+      font-weight: 500;
+    }
+    .ms-toggle-btn:hover {
+      color: var(--accent-ink);
+      border-color: var(--accent-ink);
+    }
+    .ms-toggle-btn:disabled {
+      cursor: not-allowed;
+      color: var(--text-dim);
+    }
+    .ms-toggle-btn.active {
+      background: var(--accent-light);
+      color: var(--accent-ink);
+      border-color: var(--accent);
+    }
+  </style>
+
+  <div class="page-toc" id="page-toc"></div>
+
+  <!-- 1. 结论层：综合压力评分 + 五维权重 + 实时因果传导链 -->
+  <Section id="sec-score" title="综合微观结构压力" sub="五维加权评分（0–100）与负反馈传导链" card>
+    <button slot="head" type="button" class="ms-toggle-btn ms-head-right" id="btn-jump-sim">打开情景推演</button>
+    <div id="ms-sim-banner" class="ms-sim-banner">
+      <span id="ms-sim-banner-text">当前处于情景推演模式，以下评分、图表与清单均为假设参数计算结果。</span>
+      <button type="button" class="ms-toggle-btn" id="btn-reset-live">恢复实盘快照</button>
+    </div>
+    <div id="ms-hero-wrap" class="ms-hero-wrap">
+      <div class="ms-hero-grid">
+        <div class="ms-score-box">
+          <div>
+            <div style="font-size:11px;letter-spacing:.05em;color:var(--text-dim);font-weight:600">MICROSTRUCTURE STRESS INDEX</div>
+            <div class="ms-score-row">
+              <span class="ms-score-val" id="ms-score-val">—</span>
+              <span class="ms-score-denom">/ 100</span>
+              <span class="re-badge" id="ms-regime-badge">—</span>
+            </div>
+          </div>
+          <div class="ms-score-summary" id="ms-score-summary"></div>
+        </div>
+        <div class="ms-dims">
+          <div class="ms-dims-head">
+            <span class="ms-dims-title">五维压力分解</span>
+            <span style="font-size:11.5px;color:var(--text-dim)" id="ms-counts-summary"></span>
+          </div>
+          <div class="ms-dims-list" id="ms-dims-list"></div>
+          <div>
+            <div class="ms-dims-title" style="margin-bottom:6px">实时负反馈传导链（按当前读数自动点亮）</div>
+            <div class="ms-chain" id="ms-chain"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div id="ms-score-note"></div>
+  </Section>
+
+  <!-- 2. 四阶段演化定位 -->
+  <Section id="sec-stages" title="四阶段演化定位" sub="离散稳态 → 尾部预警 → 负反馈与 Vanna 踩踏 → OPEX 重置">
+    <div class="ms-stages" id="ms-stages"></div>
+  </Section>
+
+  <!-- 3. 核心读数 KPI 行（两行各 4 张，附真实 1Y 历史分位） -->
+  <Section id="sec-kpis" title="核心微观结构读数" sub="CBOE 官方指数 + 每日 P/C + 本地宽基期权快照（附 1 年分位）">
+    <div id="ms-kpi-cards" class="ms-kpi-stack"></div>
+  </Section>
+
+  <!-- 4. 零轴居中双向水位条（双栏并排） -->
+  <div class="re-duo" id="sec-gauges">
+    <Section title="做市商敞口水位" sub="SPY / QQQ / IWM 净 GEX 零轴定位与历史底线" card>
+      <div class="ms-card-flex" id="ms-dealer-card">
+        <div class="ms-gauge-list" id="ms-dealer-gauges"></div>
+      </div>
+    </Section>
+    <Section title="离散度与隐含相关性水位" sub="VIXEQ/VIX · COR1M · COR3M · DSPX" card>
+      <div class="ms-card-flex" id="ms-disp-card">
+        <div class="ms-gauge-list" id="ms-disp-gauges"></div>
+      </div>
+    </Section>
+  </div>
+
+  <!-- 5. 期限结构与分类 Put/Call 流量（双栏并排 ECharts） -->
+  <div class="re-duo" id="sec-charts">
+    <Section title="VIX 期限结构" sub="1D–1Y 现期结构对比前一交易日" card>
+      <span slot="head" id="ms-term-badge"></span>
+      <div class="re-chart re-plain re-chart-sm" id="ms-term-chart"></div>
+      <div id="ms-term-note"></div>
+    </Section>
+    <Section title="CBOE 分类 Put/Call 成交量比值" sub="官方每日统计" card>
+      <span slot="head" id="ms-pc-badge"></span>
+      <div class="re-chart re-plain re-chart-sm" id="ms-pc-chart"></div>
+      <div id="ms-pc-note"></div>
+    </Section>
+  </div>
+
+  <!-- 6. 离散度与隐含相关性近 1 年走势（时间轴双轴图） -->
+  <Section id="sec-history" title="离散比与隐含相关性走势" sub="近 1 年日频 · VIXEQ/VIX（左轴）与 COR1M（右轴）" card>
+    <div class="re-chart re-plain re-chart-md" id="ms-hist-chart"></div>
+    <div id="ms-hist-note"></div>
+  </Section>
+
+  <!-- 7. 双向复盘清单（对称双栏） -->
+  <div class="re-duo" id="sec-checklist">
+    <Section title="风险升级确认项" sub="由实时读数自动判定，支持人工勾选覆盖" card>
+      <span slot="head" id="ms-risk-count-badge"></span>
+      <div class="ms-cl-list" id="ms-cl-risk"></div>
+    </Section>
+    <Section title="止跌与 OPEX 重置确认项" sub="监测负反馈解除与反向 Vanna 拐点" card>
+      <span slot="head" id="ms-relief-count-badge"></span>
+      <div class="ms-cl-list" id="ms-cl-relief"></div>
+    </Section>
+  </div>
+
+  <!-- 8. 可折叠情景推演沙盘 -->
+  <Section id="sec-sim" title="情景推演沙盘" sub="默认收起 · 拖动任意因子实时测试规则评分与触发门槛" card>
+    <button slot="head" type="button" class="ms-toggle-btn ms-head-right" id="btn-toggle-sim" aria-expanded="false">展开推演面板</button>
+    <div id="ms-sim-collapsed" style="font-size:12.5px;color:var(--text-secondary);line-height:1.65">
+      当前展示最新交易日真实收盘读数。展开面板后，可一键切换四个典型市场阶段或手动调整 VIX、VVIX、SKEW、VIX9D、VIX3M、VIXEQ、COR1M、Put/Call 与宽基合计 Net GEX，即时联动重算整页评分、传导链、水位条与复盘清单。
+    </div>
+    <div id="ms-sim-body" style="display:none">
+      <div class="ms-sim-controls">
+        <div class="ms-preset-row" id="ms-presets"></div>
+        <button type="button" class="ms-toggle-btn" id="btn-reset-sim">重置为实盘快照</button>
+      </div>
+      <div class="ms-slider-grid" id="ms-sliders"></div>
+    </div>
+  </Section>
+
+  <div class="re-foot-page" slot="foot" id="re-foot"></div>
+
+<script is:inline>
+(function () {
+  // 10 个核心滑块覆盖全部影响五维评分与四阶段判定的因子，无隐藏因子锁死状态
+  const SLIDER_SPECS = [
+    { key: 'vix', label: 'VIX 恐慌指数', min: 10, max: 60, step: 0.1, unit: '' },
+    { key: 'vvix', label: 'VVIX 波动率之波动', min: 70, max: 170, step: 0.5, unit: '' },
+    { key: 'skew', label: 'CBOE SKEW 偏度', min: 115, max: 175, step: 0.5, unit: '' },
+    { key: 'vix9d', label: 'VIX9D 9日隐波', min: 10, max: 65, step: 0.1, unit: '' },
+    { key: 'vix3m', label: 'VIX3M 3月隐波', min: 12, max: 50, step: 0.1, unit: '' },
+    { key: 'vixeq', label: 'VIXEQ 个股隐波', min: 25, max: 80, step: 0.1, unit: '' },
+    { key: 'cor1m', label: 'COR1M 1月隐含相关性', min: 4, max: 55, step: 0.2, unit: '' },
+    { key: 'pc_equity', label: 'CBOE 个股 P/C', min: 0.35, max: 1.15, step: 0.01, unit: '' },
+    { key: 'pc_index', label: 'CBOE 指数 P/C', min: 0.70, max: 1.75, step: 0.01, unit: '' },
+    { key: 'agg_gex', label: '宽基合计 Net GEX ($B)', min: -10, max: 6, step: 0.1, unit: 'B' },
+  ];
+
+  const TONE_MAP = {
+    up: { card: 'active-up', badge: 'bull' },
+    warn: { card: 'active-warn', badge: 'warn' },
+    down: { card: 'active-down', badge: 'bear' },
+    brand: { card: 'active-brand', badge: 'flat' },
+  };
+
+  let payload = null;
+  let simInputs = null;
+  let simBase = null;
+  let activePreset = 'live';
+  let simOpen = false;
+  let presets = [];
+  let currentEval = null;
+  const manualOverrides = {};
+  const mountedCharts = new Set();
+
+  const clamp01 = (x) => Math.max(0, Math.min(1, x));
+  const isNum = (v) => {
+    if (v === null || v === undefined || typeof v === 'boolean') return false;
+    if (typeof v === 'string' && v.trim() === '') return false;
+    return Number.isFinite(Number(v));
+  };
+  const toNum = (v) => (isNum(v) ? Number(v) : null);
+
+  function triOr(...conds) {
+    if (conds.some((c) => c === true)) return true;
+    if (conds.some((c) => c === null)) return null;
+    return false;
+  }
+  function triAnd(...conds) {
+    if (conds.some((c) => c === false)) return false;
+    if (conds.some((c) => c === null)) return null;
+    return true;
+  }
+
+  function weightedAvg(parts) {
+    const valid = parts.filter(([v]) => isNum(v));
+    if (!valid.length) return null;
+    const wSum = valid.reduce((a, [, w]) => a + w, 0);
+    return wSum > 0 ? valid.reduce((a, [v, w]) => a + Number(v) * w, 0) / wSum : null;
+  }
+
+  function fmtPart(label, val, digits = 2) {
+    return val !== null ? `${label} = ${val.toFixed(digits)}` : `${label} 缺失`;
+  }
+
+  // 与后端 src/volatility_microstructure.py::compute_microstructure_state 完全同公式、同舍入
+  function evaluateLocal(inp, T) {
+    const vix = toNum(inp.vix);
+    const vvix = toNum(inp.vvix);
+    const vix9d = toNum(inp.vix9d);
+    const vix3m = toNum(inp.vix3m);
+    const skew = toNum(inp.skew);
+    const vixeq = toNum(inp.vixeq);
+    const cor1m = toNum(inp.cor1m);
+    const pcEq = toNum(inp.pc_equity);
+    const pcIdx = toNum(inp.pc_index);
+    const aggGex = toNum(inp.agg_gex);
+
+    const vr = vix !== null && vix3m !== null && vix3m > 0 ? vix / vix3m : null;
+    const sr = vix9d !== null && vix !== null && vix > 0 ? vix9d / vix : null;
+    const dr = vixeq !== null && vix !== null && vix > 0 ? vixeq / vix : null;
+
+    const volRaw = weightedAvg([
+      [vix !== null ? clamp01((vix - 14.0) / 22.0) * 100 : null, 0.65],
+      [vvix !== null ? clamp01((vvix - 85.0) / 50.0) * 100 : null, 0.35],
+    ]);
+    const termRaw = weightedAvg([
+      [vr !== null ? clamp01((vr - 0.85) / 0.25) * 100 : null, 0.45],
+      [sr !== null ? clamp01((sr - 0.88) / 0.24) * 100 : null, 0.35],
+      [skew !== null ? clamp01((skew - 135.0) / 25.0) * 100 : null, 0.20],
+    ]);
+    const dealerRaw = aggGex !== null ? clamp01((3.5 - aggGex) / 10.0) * 100 : null;
+    const dispRaw = weightedAvg([
+      [dr !== null ? clamp01((2.50 - dr) / 0.95) * 100 : null, 0.50],
+      [cor1m !== null ? clamp01((cor1m - 10.0) / 26.0) * 100 : null, 0.50],
+    ]);
+    const flowRaw = weightedAvg([
+      [pcEq !== null ? clamp01((pcEq - 0.50) / 0.32) * 100 : null, 0.50],
+      [pcIdx !== null ? clamp01((pcIdx - 0.95) / 0.35) * 100 : null, 0.50],
+    ]);
+
+    const dimScores = {
+      vol: volRaw !== null ? Math.floor(volRaw + 0.5) : null,
+      term: termRaw !== null ? Math.floor(termRaw + 0.5) : null,
+      dealer: dealerRaw !== null ? Math.floor(dealerRaw + 0.5) : null,
+      disp: dispRaw !== null ? Math.floor(dispRaw + 0.5) : null,
+      flow: flowRaw !== null ? Math.floor(flowRaw + 0.5) : null,
+    };
+    const totalRaw = weightedAvg([
+      [dimScores.vol, 0.25],
+      [dimScores.term, 0.15],
+      [dimScores.dealer, 0.30],
+      [dimScores.disp, 0.15],
+      [dimScores.flow, 0.15],
+    ]);
+    const score = totalRaw !== null ? Math.floor(totalRaw + 0.5) : null;
+
+    const invMain = vr !== null ? vr > T.term_invert : null;
+    const invShort = sr !== null ? sr > T.term_invert : null;
+    const invertedTri = triOr(invMain, invShort);
+    const inverted = invertedTri === true;
+
+    let stageId = null;
+    if (score !== null) {
+      if ((inverted && aggGex !== null && aggGex < 0 && vix !== null && vix >= 22.0) || score >= 65) {
+        stageId = 3;
+      } else if (
+        inverted ||
+        (skew !== null && skew >= T.skew_warn) ||
+        (vvix !== null && vvix >= T.vvix_warn) ||
+        (dr !== null && dr < 2.05) ||
+        (aggGex !== null && aggGex < 0) ||
+        (vix !== null && vix >= 20.0) ||
+        score >= 35
+      ) {
+        stageId = 2;
+      } else if (
+        invertedTri === false &&
+        vr !== null &&
+        vr < 0.96 &&
+        vix !== null &&
+        vix >= 17.0 &&
+        vvix !== null &&
+        vvix < T.vvix_relief &&
+        (aggGex === null || aggGex >= 0)
+      ) {
+        stageId = 4;
+      } else {
+        stageId = 1;
+      }
+    }
+
+    const chainSt = (lit, warn) => (lit === null && warn === null ? 'missing' : lit ? 'lit' : warn ? 'warn' : 'normal');
+    const chain = [
+      {
+        step: '1. 相关性抬升',
+        val: cor1m !== null ? `COR1M ${cor1m.toFixed(1)}` : 'COR1M 缺失',
+        state: chainSt(cor1m !== null ? cor1m >= T.cor1m_risk : null, cor1m !== null ? cor1m >= T.cor1m_warn : null),
+      },
+      {
+        step: '2. 离散度压缩',
+        val: dr !== null ? `VIXEQ/VIX ${dr.toFixed(2)}` : 'VIXEQ/VIX 缺失',
+        state: chainSt(dr !== null ? dr < T.disp_risk : null, dr !== null ? dr < T.disp_relief : null),
+      },
+      {
+        step: '3. 负 Gamma',
+        val: aggGex !== null ? `宽基 ${aggGex >= 0 ? '+' : ''}$${aggGex.toFixed(2)}B` : '宽基 GEX 缺失',
+        state: chainSt(aggGex !== null ? aggGex < -2.0 : null, aggGex !== null ? aggGex < 0 : null),
+      },
+      {
+        step: '4. 期限倒挂',
+        val: vr !== null ? `VIX/3M ${vr.toFixed(2)}` : 'VIX/3M 缺失',
+        state: chainSt(vr !== null ? vr > T.term_invert : null, vr !== null ? vr > 0.96 : null),
+      },
+      {
+        step: '5. Vanna 加速',
+        val: vvix !== null ? `VVIX ${vvix.toFixed(1)}` : 'VVIX 缺失',
+        state: chainSt(
+          vvix !== null ? vvix >= T.vvix_stress && (aggGex === null || aggGex < 0) : null,
+          vvix !== null ? vvix >= T.vvix_warn : null
+        ),
+      },
+    ];
+
+    const risk = [
+      {
+        id: 'r1',
+        title: '相关性突破与离散度压缩',
+        cond: `VIXEQ/VIX < ${T.disp_risk.toFixed(2)} 或 COR1M ≥ ${T.cor1m_risk.toFixed(0)}，离散头寸面临平仓压力`,
+        read: `${fmtPart('VIXEQ/VIX', dr, 2)} · ${fmtPart('COR1M', cor1m, 2)}`,
+        met: triOr(dr !== null ? dr < T.disp_risk : null, cor1m !== null ? cor1m >= T.cor1m_risk : null),
+      },
+      {
+        id: 'r2',
+        title: '波动率期限结构倒挂',
+        cond: `VIX ≥ ${T.vix_risk.toFixed(0)} 且 VIX/VIX3M > 1.00 或 VIX9D/VIX > 1.00（贴水确认）`,
+        read: `${fmtPart('VIX', vix, 2)} · ${fmtPart('VIX/VIX3M', vr, 3)} · ${fmtPart('VIX9D/VIX', sr, 3)}`,
+        met: triAnd(vix !== null ? vix >= T.vix_risk : null, invertedTri),
+      },
+      {
+        id: 'r3',
+        title: '宽基做市商翻入净负 Gamma',
+        cond: 'SPY + QQQ + IWM 汇总 Net GEX < 0，对冲流由缓冲转为顺势放大',
+        read: aggGex !== null ? `当前汇总 = ${aggGex >= 0 ? '+' : ''}$${aggGex.toFixed(2)}B` : '宽基期权快照缺失',
+        met: aggGex === null ? null : aggGex < 0,
+      },
+      {
+        id: 'r4',
+        title: '期权流量防卫溢价扩散',
+        cond: `CBOE 指数 P/C ≥ ${T.pc_index_risk.toFixed(2)} 或个股 P/C ≥ ${T.pc_equity_risk.toFixed(2)}，保护买盘放量`,
+        read: `${fmtPart('Index P/C', pcIdx, 2)} · ${fmtPart('Equity P/C', pcEq, 2)}`,
+        met: triOr(pcIdx !== null ? pcIdx >= T.pc_index_risk : null, pcEq !== null ? pcEq >= T.pc_equity_risk : null),
+      },
+    ];
+
+    const relief = [
+      {
+        id: 'f1',
+        title: '期限结构恢复健康升水',
+        cond: 'VIX9D/VIX < 1.00 且 VIX/VIX3M < 1.00，短端恐慌溢价消退',
+        read: `${fmtPart('VIX9D/VIX', sr, 3)} · ${fmtPart('VIX/VIX3M', vr, 3)}`,
+        met: triAnd(sr !== null ? sr < T.term_invert : null, vr !== null ? vr < T.term_invert : null),
+      },
+      {
+        id: 'f2',
+        title: 'VVIX 先行见顶回落',
+        cond: `VVIX < ${T.vvix_relief.toFixed(0)} 且 VIX < ${T.vix_relief.toFixed(0)}，波动率期权买盘降温`,
+        read: `${fmtPart('VVIX', vvix, 1)} · ${fmtPart('VIX', vix, 2)}`,
+        met: triAnd(vvix !== null ? vvix < T.vvix_relief : null, vix !== null ? vix < T.vix_relief : null),
+      },
+      {
+        id: 'f3',
+        title: '个股与指数波动比回升',
+        cond: `VIXEQ/VIX ≥ ${T.disp_relief.toFixed(2)} 且 COR1M < ${T.cor1m_relief.toFixed(0)}，相关性回落至常态区间`,
+        read: `${fmtPart('VIXEQ/VIX', dr, 2)} · ${fmtPart('COR1M', cor1m, 2)}`,
+        met: triAnd(dr !== null ? dr >= T.disp_relief : null, cor1m !== null ? cor1m < T.cor1m_relief : null),
+      },
+      {
+        id: 'f4',
+        title: '宽基净 GEX 企稳翻正',
+        cond: 'SPY + QQQ + IWM 汇总 Net GEX ≥ 0，做市商恢复低买高卖缓冲',
+        read: aggGex !== null ? `当前汇总 = ${aggGex >= 0 ? '+' : ''}$${aggGex.toFixed(2)}B` : '宽基期权快照缺失',
+        met: aggGex === null ? null : aggGex >= 0,
+      },
+    ];
+
+    const stageObj = (payload.stages || []).find((s) => s.id === stageId) || null;
+    return {
+      score,
+      stage_id: stageId,
+      stage_name: stageObj ? stageObj.name : null,
+      stage_desc: stageObj ? stageObj.desc : '核心数据源缺失，无法完成阶段判定。',
+      dims: [
+        { key: 'vol', name: '波动率挤兑', weight: 0.25, score: dimScores.vol },
+        { key: 'term', name: '期限与偏度', weight: 0.15, score: dimScores.term },
+        { key: 'dealer', name: '做市商敞口', weight: 0.30, score: dimScores.dealer },
+        { key: 'disp', name: '离散相关性', weight: 0.15, score: dimScores.disp },
+        { key: 'flow', name: '期权流量', weight: 0.15, score: dimScores.flow },
+      ],
+      chain,
+      inverted,
+      vr,
+      sr,
+      dr,
+      checklists: { risk, relief },
+    };
+  }
+
+  // 图形档（进度条填充）与文字档（数字/标签）严格分开，保证亮暗双主题 AA 对比度
+  const scoreGraphic = (v) =>
+    !isNum(v)
+      ? 'var(--color-neutral)'
+      : v >= 70
+        ? 'var(--color-down)'
+        : v >= 45
+          ? 'var(--color-warn)'
+          : v >= 25
+            ? 'var(--color-brand)'
+            : 'var(--color-up)';
+  const scoreText = (v) =>
+    !isNum(v)
+      ? 'var(--text-dim)'
+      : v >= 70
+        ? 'var(--down)'
+        : v >= 45
+          ? 'var(--warning)'
+          : v >= 25
+            ? 'var(--accent-ink)'
+            : 'var(--up)';
+
+  function renderGaugeZero(name, sub, value, maxAbs, leftLbl, rightLbl, footMid, pinValue = null) {
+    if (!isNum(value)) {
+      return `
+        <div class="ms-gauge-row">
+          <div class="ms-gauge-top">
+            <div><span class="ms-gauge-name">${R.esc(name)}</span><span class="ms-gauge-sub">${R.esc(sub)}</span></div>
+            <span class="ms-gauge-val" style="color:var(--text-dim)">—</span>
+          </div>
+          <div class="ms-zero-track"><div class="ms-zero-axis"></div></div>
+          <div class="ms-gauge-foot"><span>${R.esc(leftLbl)}</span><span>缺数据</span><span>${R.esc(rightLbl)}</span></div>
+        </div>`;
+    }
+    const v = Number(value);
+    const pct = Math.min(50, (Math.abs(v) / maxAbs) * 50);
+    const left = v < 0 ? 50 - pct : 50;
+    const fill = v < 0 ? 'var(--color-down)' : 'var(--color-up)';
+    const valColor = v < 0 ? 'var(--down)' : 'var(--up)';
+    const sign = v > 0 ? '+' : '';
+    let pinHtml = '';
+    if (isNum(pinValue)) {
+      const pinPct = clamp01((Number(pinValue) + maxAbs) / (2 * maxAbs)) * 100;
+      pinHtml = `<div class="ms-threshold-pin" style="left:${pinPct.toFixed(1)}%" title="历史底线 $${Number(pinValue).toFixed(2)}B"></div>`;
+    }
+    return `
+      <div class="ms-gauge-row">
+        <div class="ms-gauge-top">
+          <div><span class="ms-gauge-name">${R.esc(name)}</span><span class="ms-gauge-sub">${R.esc(sub)}</span></div>
+          <span class="ms-gauge-val" style="color:${valColor}">${sign}$${v.toFixed(2)}B</span>
+        </div>
+        <div class="ms-zero-track">
+          <div class="ms-zero-axis"></div>
+          <div class="ms-zero-fill" style="left:${left.toFixed(1)}%;width:${pct.toFixed(1)}%;background:${fill}"></div>
+          ${pinHtml}
+        </div>
+        <div class="ms-gauge-foot">
+          <span>${R.esc(leftLbl)}</span>
+          <span>${R.esc(footMid)}</span>
+          <span>${R.esc(rightLbl)}</span>
+        </div>
+      </div>`;
+  }
+
+  function renderGaugeLinear(name, sub, value, min, max, threshold, invert, unit, footMid) {
+    if (!isNum(value)) {
+      return `
+        <div class="ms-gauge-row">
+          <div class="ms-gauge-top">
+            <div><span class="ms-gauge-name">${R.esc(name)}</span><span class="ms-gauge-sub">${R.esc(sub)}</span></div>
+            <span class="ms-gauge-val" style="color:var(--text-dim)">—</span>
+          </div>
+          <div class="ms-linear-track"></div>
+          <div class="ms-gauge-foot"><span>${min}</span><span>缺数据</span><span>${max}</span></div>
+        </div>`;
+    }
+    const v = Number(value);
+    const pct = clamp01((v - min) / (max - min)) * 100;
+    const pinPct = clamp01((threshold - min) / (max - min)) * 100;
+    const bad = invert ? v < threshold : v >= threshold;
+    const fill = bad ? 'var(--color-down)' : 'var(--color-brand)';
+    const valColor = bad ? 'var(--down)' : 'var(--text)';
+    return `
+      <div class="ms-gauge-row">
+        <div class="ms-gauge-top">
+          <div><span class="ms-gauge-name">${R.esc(name)}</span><span class="ms-gauge-sub">${R.esc(sub)}</span></div>
+          <span class="ms-gauge-val" style="color:${valColor}">${v.toFixed(2)}${R.esc(unit)}</span>
+        </div>
+        <div class="ms-linear-track">
+          <div class="ms-linear-fill" style="width:${pct.toFixed(1)}%;background:${fill}"></div>
+          <div class="ms-threshold-pin" style="left:${pinPct.toFixed(1)}%" title="警戒线 ${threshold}"></div>
+        </div>
+        <div class="ms-gauge-foot">
+          <span>${min}</span>
+          <span>${R.esc(footMid)}</span>
+          <span>${max}</span>
+        </div>
+      </div>`;
+  }
+
+  function renderChecklist(targetId, items, kind) {
+    const el = document.getElementById(targetId);
+    let activeCount = 0;
+    el.innerHTML = items
+      .map((it) => {
+        const hasOverride = it.id in manualOverrides;
+        const checked = hasOverride ? manualOverrides[it.id] : Boolean(it.met);
+        if (checked) activeCount += 1;
+        const hitCls = checked ? (kind === 'risk' ? 'hit-risk' : 'hit-relief') : '';
+
+        let badgeCls = 'flat';
+        let badgeTxt = kind === 'risk' ? '未触发' : '待确认';
+        if (hasOverride) {
+          if (checked) {
+            badgeCls = kind === 'risk' ? 'bear' : 'bull';
+            badgeTxt = '人工确认';
+          } else {
+            badgeCls = it.met === true ? 'warn' : 'flat';
+            badgeTxt = it.met === true ? '人工排除（原已触发）' : it.met === null ? '人工排除（原缺失）' : '人工排除';
+          }
+        } else if (it.met === null) {
+          badgeCls = 'flat';
+          badgeTxt = '缺数据';
+        } else if (it.met === true) {
+          badgeCls = kind === 'risk' ? 'bear' : 'bull';
+          badgeTxt = kind === 'risk' ? '指标已触发' : '条件已满足';
+        }
+
+        return `
+          <label class="ms-cl-item ${hitCls}" data-cid="${R.esc(it.id)}">
+            <input type="checkbox" ${checked ? 'checked' : ''} data-cid="${R.esc(it.id)}" />
+            <div class="ms-cl-body">
+              <div class="ms-cl-title-row">
+                <span class="ms-cl-title">${R.esc(it.title)}</span>
+                <span class="re-badge ${badgeCls}">${badgeTxt}</span>
+              </div>
+              <div class="ms-cl-cond">${R.esc(it.cond)}</div>
+              <div class="ms-cl-read">${R.esc(it.read)}</div>
+            </div>
+          </label>`;
+      })
+      .join('');
+
+    el.querySelectorAll('input[type="checkbox"]').forEach((box) => {
+      box.addEventListener('change', (e) => {
+        manualOverrides[e.target.dataset.cid] = e.target.checked;
+        renderAll();
+      });
+    });
+    return activeCount;
+  }
+
+  // ── ECharts 零泄漏刷新：仅在首次走 R.mkChart 挂载监听，后续推演原地 setOption ──
+  function upsertChart(id, buildFn) {
+    const inst = R.getChart(id);
+    const dom = document.getElementById(id);
+    if (inst && dom) {
+      const host = dom.querySelector(':scope > .re-chart-pad') || dom;
+      const opt = R._clampStroke(R._clampGrid(buildFn(R.colors(), host.clientWidth), host.clientWidth), host.clientWidth);
+      opt.aria = Object.assign({}, opt.aria, { description: R._ariaText(opt, dom) });
+      inst.setOption(opt, { notMerge: true });
+      R._fitLater(inst, host, 0);
+      return;
+    }
+    if (!mountedCharts.has(id)) {
+      const created = R.mkChart(id, buildFn);
+      if (created || (R._pendingCharts && R._pendingCharts.has(id))) {
+        mountedCharts.add(id);
+      }
+    }
+  }
+
+  function buildTermOption(colors) {
+    const isSim = activePreset !== 'live';
+    const ts = payload.term_structure || {};
+    const base = simBase || payload.live_inputs || {};
+    let curTerm = ts.current || [];
+    if (isSim) {
+      // 自定义拖动 VIX9D/VIX/VIX3M 时，相对当前推演基线 simBase 平滑联动两端点，避免跳回实盘端差
+      const dShort = isNum(simInputs.vix9d) && isNum(base.vix9d) ? simInputs.vix9d - base.vix9d : 0;
+      const dLong = isNum(simInputs.vix3m) && isNum(base.vix3m) ? simInputs.vix3m - base.vix3m : 0;
+      const v1d =
+        activePreset === 'custom' && isNum(base.vix1d) ? Math.max(5, Number((base.vix1d + dShort).toFixed(2))) : simInputs.vix1d;
+      const v6m =
+        activePreset === 'custom' && isNum(base.vix6m)
+          ? Math.max(8, Number((base.vix6m + dLong * 0.7).toFixed(2)))
+          : simInputs.vix6m;
+      const v1y =
+        activePreset === 'custom' && isNum(base.vix1y)
+          ? Math.max(10, Number((base.vix1y + dLong * 0.4).toFixed(2)))
+          : simInputs.vix1y;
+      curTerm = [v1d, simInputs.vix9d, simInputs.vix, simInputs.vix3m, v6m, v1y];
+    }
+    const isBack = Boolean(currentEval && currentEval.inverted);
+    const prevTerm = ts.prev || [];
+    const prevLbl = ts.prev_date ? `前一交易日（${ts.prev_date.slice(5)}）` : '前一交易日';
+    const CURVE_W = 2;
+    const REF_W = 1.5;
+
+    return R.lineOption(
+      {
+        legend: { data: ['当前曲线', prevLbl] },
+        tooltip: { trigger: 'axis', valueFormatter: (v) => (isNum(v) ? Number(v).toFixed(2) : '—') },
+        xAxis: { type: 'category', data: ts.tenors || ['VIX1D', 'VIX9D', 'VIX', 'VIX3M', 'VIX6M', 'VIX1Y'] },
+        yAxis: { type: 'value', scale: true },
+        series: [
+          {
+            name: '当前曲线',
+            type: 'line',
+            data: curTerm,
+            symbol: 'circle',
+            symbolSize: 6,
+            lineStyle: { color: isBack ? colors.red : colors.blue, width: CURVE_W },
+            itemStyle: { color: isBack ? colors.red : colors.blue },
+          },
+          {
+            name: prevLbl,
+            type: 'line',
+            data: prevTerm,
+            symbol: 'none',
+            lineStyle: { color: colors.gray, type: 'dashed', width: REF_W },
+            itemStyle: { color: colors.gray },
+          },
+        ],
+      },
+      colors
+    );
+  }
+
+  function buildPcOption(colors) {
+    const isSim = activePreset !== 'live';
+    const base = simBase || payload.live_inputs || {};
+    const pcKeyMap = {
+      SPX_PC: 'pc_spx',
+      INDEX_PC: 'pc_index',
+      VIX_PC: 'pc_vix',
+      ETP_PC: 'pc_etp',
+      TOTAL_PC: 'pc_total',
+      EQUITY_PC: 'pc_equity',
+    };
+    const dIdx = isNum(simInputs.pc_index) && isNum(base.pc_index) ? simInputs.pc_index - base.pc_index : 0;
+    const dEq = isNum(simInputs.pc_equity) && isNum(base.pc_equity) ? simInputs.pc_equity - base.pc_equity : 0;
+
+    const pcItems = (payload.put_call?.items || []).map((it) => {
+      const k = pcKeyMap[it.key];
+      let v = isSim && k ? simInputs[k] : it.value;
+      if (activePreset === 'custom') {
+        if (it.key === 'SPX_PC' && isNum(base.pc_spx)) v = Math.max(0.4, base.pc_spx + dIdx);
+        if (it.key === 'TOTAL_PC' && isNum(base.pc_total)) v = Math.max(0.4, base.pc_total + 0.5 * (dIdx + dEq));
+      }
+      return { name: it.label, v: toNum(v), warn: it.warn, pctile: it.pctile_1y };
+    });
+
+    const pcVals = pcItems.map((x) => x.v).filter(isNum);
+    const maxAxis = Math.max(1.6, Math.ceil((Math.max(1.2, ...pcVals) + 0.25) * 5) / 5);
+
+    return reSyncLegend({
+      grid: { left: 8, right: 36, top: 22, bottom: 24, containLabel: true },
+      tooltip: {
+        trigger: 'axis',
+        axisPointer: { type: 'shadow' },
+        formatter: (params) => {
+          const p = params[0];
+          if (!p) return '';
+          const row = pcItems[p.dataIndex];
+          const pctStr = !isSim && isNum(row?.pctile) ? ` · 1Y 分位 ${row.pctile}%` : '';
+          return `${R.esc(p.name)}：<b>${isNum(p.value) ? Number(p.value).toFixed(2) : '—'}</b>${pctStr}`;
+        },
+      },
+      xAxis: { type: 'value', min: 0, max: maxAxis },
+      yAxis: { type: 'category', data: pcItems.map((x) => x.name), inverse: true },
+      series: [
+        {
+          name: 'Put/Call Ratio',
+          type: 'bar',
+          barMaxWidth: 16,
+          data: pcItems.map((x) => ({
+            value: isNum(x.v) ? Number(Number(x.v).toFixed(2)) : null,
+            itemStyle: {
+              color: !isNum(x.v)
+                ? colors.gray
+                : x.v >= x.warn
+                  ? colors.red
+                  : x.v >= x.warn * 0.9
+                    ? colors.orange
+                    : colors.blue,
+              borderRadius: [0, 3, 3, 0],
+            },
+          })),
+          label: {
+            show: true,
+            position: 'right',
+            formatter: (p) => (isNum(p.value) ? Number(p.value).toFixed(2) : '—'),
+            color: colors.muted,
+            fontFamily: 'JetBrains Mono, monospace',
+            fontSize: 11,
+          },
+          markLine: {
+            silent: true,
+            symbol: 'none',
+            lineStyle: { color: colors.orange, type: 'dashed', width: 1 },
+            label: { position: 'start', distance: 4, formatter: '1.00', color: colors.orangeText, fontSize: 10 },
+            data: [{ xAxis: 1.0 }],
+          },
+        },
+      ],
+    });
+  }
+
+  function renderCharts(ev) {
+    const T = payload.thresholds;
+    const termBadge = document.getElementById('ms-term-badge');
+    const isBack = Boolean(ev.inverted);
+    const hasTerm = ev.vr !== null || ev.sr !== null;
+    termBadge.innerHTML = hasTerm
+      ? `<span class="re-badge ${isBack ? 'bear' : 'bull'}">${isBack ? '贴水 Backwardation' : '升水 Contango'}</span>`
+      : '<span class="re-badge flat">缺数据</span>';
+
+    const pcBadge = document.getElementById('ms-pc-badge');
+    const pcIdx = toNum(simInputs.pc_index);
+    const pcEq = toNum(simInputs.pc_equity);
+    const pcHot = (pcIdx !== null && pcIdx >= T.pc_index_risk) || (pcEq !== null && pcEq >= T.pc_equity_risk);
+    pcBadge.innerHTML =
+      pcIdx === null && pcEq === null
+        ? '<span class="re-badge flat">缺数据</span>'
+        : `<span class="re-badge ${pcHot ? 'warn' : 'flat'}">${pcHot ? '防卫溢价偏高' : '流量中性'}</span>`;
+
+    upsertChart('ms-term-chart', buildTermOption);
+    upsertChart('ms-pc-chart', buildPcOption);
+  }
+
+  function renderHistoryChart() {
+    const h = payload.history || {};
+    const disp = h.vixeq_vix || [];
+    const cor1m = h.cor1m || [];
+    const dispThr = payload.thresholds.disp_risk;
+    const LINE_MAIN = 2;
+    const LINE_SUB = 1.5;
+
+    R.mkChart('ms-hist-chart', (colors) =>
+      R.lineOption(
+        {
+          legend: { top: 0, left: 'center', data: ['VIXEQ / VIX 离散比', 'COR1M 隐含相关性'] },
+          grid: { top: 44, bottom: 26 },
+          tooltip: { trigger: 'axis' },
+          xAxis: { type: 'time', boundaryGap: false },
+          yAxis: [
+            { type: 'value', scale: true, name: 'VIXEQ/VIX' },
+            { type: 'value', scale: true, name: 'COR1M', splitLine: { show: false } },
+          ],
+          series: [
+            {
+              name: 'VIXEQ / VIX 离散比',
+              type: 'line',
+              yAxisIndex: 0,
+              data: disp,
+              symbol: 'none',
+              lineStyle: { color: colors.blue, width: LINE_MAIN },
+              itemStyle: { color: colors.blue },
+              markLine: {
+                silent: true,
+                symbol: 'none',
+                lineStyle: { color: colors.red, type: 'dashed', width: 1 },
+                label: {
+                  formatter: dispThr.toFixed(2),
+                  color: colors.redText,
+                  fontSize: 10,
+                  position: 'insideEndTop',
+                },
+                data: [{ yAxis: dispThr }],
+              },
+            },
+            {
+              name: 'COR1M 隐含相关性',
+              type: 'line',
+              yAxisIndex: 1,
+              data: cor1m,
+              symbol: 'none',
+              lineStyle: { color: colors.orange, width: LINE_SUB },
+              itemStyle: { color: colors.orange },
+            },
+          ],
+        },
+        colors
+      )
+    );
+  }
+
+  function pctTag(metricObj, fallbackText, isSim) {
+    if (isSim) return fallbackText;
+    return isNum(metricObj?.pctile_1y) ? `${fallbackText} · 1Y分位 ${metricObj.pctile_1y}%` : fallbackText;
+  }
+
+  function renderAll(skipNumberInputKey = null) {
+    const isSim = activePreset !== 'live';
+    const T = payload.thresholds;
+    const ev = isSim
+      ? evaluateLocal(simInputs, T)
+      : {
+          score: payload.score,
+          stage_id: payload.stage_id,
+          stage_name: payload.stage_name,
+          stage_desc: payload.stage_desc,
+          dims: payload.dims,
+          chain: payload.chain,
+          inverted: Boolean(payload.term_structure?.is_backwardation),
+          vr: payload.metrics?.vix_vix3m?.value ?? null,
+          sr: payload.metrics?.vix9d_vix?.value ?? null,
+          dr: payload.metrics?.vixeq_vix?.value ?? null,
+          checklists: payload.checklists,
+        };
+    currentEval = ev;
+
+    const stages = payload.stages || [];
+    const curStage = stages.find((x) => x.id === ev.stage_id) || null;
+    const curTone = curStage ? TONE_MAP[curStage.tone] || TONE_MAP.brand : TONE_MAP.brand;
+
+    // 推演提示条
+    const banner = document.getElementById('ms-sim-banner');
+    banner.classList.toggle('on', isSim);
+    if (isSim) {
+      const p = presets.find((x) => x.key === activePreset);
+      document.getElementById('ms-sim-banner-text').textContent = p
+        ? `当前处于情景推演模式（${p.label}），所有评分、图表与确认清单均按推演参数即时重算。`
+        : '当前处于自定义参数推演模式，所有评分、图表与确认清单均按推演参数即时重算。';
+    }
+
+    // 主评分卡
+    const scoreEl = document.getElementById('ms-score-val');
+    scoreEl.textContent = isNum(ev.score) ? String(ev.score) : '—';
+    scoreEl.style.color = scoreText(ev.score);
+
+    const regBadge = document.getElementById('ms-regime-badge');
+    regBadge.className = `re-badge ${curStage ? curTone.badge : 'flat'}`;
+    regBadge.textContent = curStage ? `阶段 ${curStage.id} · ${curStage.name}` : '缺数据';
+    document.getElementById('ms-score-summary').textContent = ev.stage_desc || '';
+
+    // 五维进度条
+    document.getElementById('ms-dims-list').innerHTML = (ev.dims || [])
+      .map((d) => {
+        const hasVal = isNum(d.score);
+        const wPct = Math.round((d.weight || 0) * 100);
+        return `
+          <div class="ms-dim-item">
+            <div class="ms-dim-top">
+              <span class="ms-dim-name">${R.esc(d.name)} <span class="ms-dim-w">${wPct}%</span></span>
+              <span class="ms-dim-score" style="color:${scoreText(d.score)}">${hasVal ? d.score : '—'}</span>
+            </div>
+            <div class="ms-bar-track">
+              <div class="ms-bar-fill" style="width:${hasVal ? d.score : 0}%;background:${scoreGraphic(d.score)}"></div>
+            </div>
+          </div>`;
+      })
+      .join('');
+
+    // 传导链
+    document.getElementById('ms-chain').innerHTML = (ev.chain || [])
+      .map((c) => {
+        const cls = c.state === 'lit' ? 'lit' : c.state === 'warn' ? 'warn' : '';
+        const tag =
+          c.state === 'lit'
+            ? '<span class="re-badge bear">激活</span>'
+            : c.state === 'warn'
+              ? '<span class="re-badge warn">预警</span>'
+              : c.state === 'missing'
+                ? '<span class="re-badge flat">缺失</span>'
+                : '<span class="re-badge flat">常态</span>';
+        return `
+          <div class="ms-chain-step ${cls}">
+            <div class="ms-chain-k"><span>${R.esc(c.step)}</span>${tag}</div>
+            <div class="ms-chain-v">${R.esc(c.val)}</div>
+          </div>`;
+      })
+      .join('');
+
+    // 四阶段演化卡
+    document.getElementById('ms-stages').innerHTML = stages
+      .map((st) => {
+        const isCur = st.id === ev.stage_id;
+        const tone = TONE_MAP[st.tone] || TONE_MAP.brand;
+        return `
+          <div class="ms-stage-card ${isCur ? tone.card : ''}">
+            <div class="ms-stage-head">
+              <span class="ms-stage-num">${R.esc(st.code)}</span>
+              ${isCur ? `<span class="re-badge ${tone.badge}">当前所处</span>` : ''}
+            </div>
+            <div class="ms-stage-name">${R.esc(st.name)}</div>
+            <div class="ms-stage-desc">${R.esc(st.desc)}</div>
+            <div class="ms-stage-rule">${R.esc(st.rule)}</div>
+          </div>`;
+      })
+      .join('');
+
+    // KPI 两排 4 列（全部阈值文案取 payload.thresholds 单源）
+    const m = payload.metrics || {};
+    const vixV = toNum(simInputs.vix);
+    const vvixV = toNum(simInputs.vvix);
+    const cor1mV = toNum(simInputs.cor1m);
+    const dspxV = toNum(simInputs.dspx);
+    const pcIdxV = toNum(simInputs.pc_index);
+    const pcEqV = toNum(simInputs.pc_equity);
+    const pcTotV = toNum(simInputs.pc_total);
+    const aggGexV = toNum(simInputs.agg_gex);
+
+    const kpiHost = document.getElementById('ms-kpi-cards');
+    kpiHost.innerHTML = '';
+    kpiHost.appendChild(
+      R.cards([
+        {
+          label: 'VIX 恐慌指数',
+          value: R.num(vixV, 2),
+          sub: pctTag(m.vix, vixV !== null && vixV >= T.vix_risk ? `高于 ${T.vix_risk} 警戒` : '常态波动', isSim),
+          vcolor: vixV !== null && vixV >= T.vix_risk ? 'var(--down)' : 'var(--text)',
+        },
+        {
+          label: 'VVIX 波动率之波动',
+          value: R.num(vvixV, 1),
+          sub: pctTag(m.vvix, vvixV !== null && vvixV >= T.vvix_warn ? `高于 ${T.vvix_warn} 预警` : '预期平稳', isSim),
+          vcolor: vvixV !== null && vvixV >= T.vvix_stress ? 'var(--down)' : vvixV !== null && vvixV >= T.vvix_warn ? 'var(--warning)' : 'var(--text)',
+        },
+        {
+          label: 'VIX / VIX3M 期限比',
+          value: ev.vr !== null ? ev.vr.toFixed(3) : '—',
+          sub: pctTag(m.vix_vix3m, ev.vr !== null && ev.vr > T.term_invert ? '主期限贴水' : '主期限升水', isSim),
+          vcolor: ev.vr !== null && ev.vr > T.term_invert ? 'var(--down)' : ev.vr !== null ? 'var(--up)' : 'var(--text-dim)',
+        },
+        {
+          label: 'VIX9D / VIX 短端比',
+          value: ev.sr !== null ? ev.sr.toFixed(3) : '—',
+          sub: pctTag(m.vix9d_vix, ev.sr !== null && ev.sr > T.term_invert ? '短端倒挂' : '短端升水', isSim),
+          vcolor: ev.sr !== null && ev.sr > T.term_invert ? 'var(--down)' : ev.sr !== null ? 'var(--up)' : 'var(--text-dim)',
+        },
+      ])
+    );
+    kpiHost.appendChild(
+      R.cards([
+        {
+          label: 'VIXEQ / VIX 离散比',
+          value: ev.dr !== null ? ev.dr.toFixed(2) : '—',
+          sub: pctTag(m.vixeq_vix, ev.dr !== null && ev.dr < T.disp_risk ? `跌破 ${T.disp_risk.toFixed(2)} 红线` : '离散充裕', isSim),
+          vcolor: ev.dr !== null && ev.dr < T.disp_risk ? 'var(--down)' : ev.dr !== null ? 'var(--up)' : 'var(--text-dim)',
+        },
+        {
+          label: 'COR1M / DSPX',
+          value: `${R.num(cor1mV, 1)} / ${R.num(dspxV, 1)}`,
+          sub: pctTag(m.cor1m, cor1mV !== null && cor1mV >= T.cor1m_risk ? '相关性急升' : '相关性受控', isSim),
+          vcolor: cor1mV !== null && cor1mV >= T.cor1m_risk ? 'var(--down)' : 'var(--text)',
+        },
+        {
+          label: 'CBOE 指数 / 个股 P/C',
+          value: `${R.num(pcIdxV, 2)} / ${R.num(pcEqV, 2)}`,
+          sub: pcTotV !== null ? `全市场 Total P/C ${pcTotV.toFixed(2)}` : '全市场 P/C 缺失',
+          vcolor:
+            (pcIdxV !== null && pcIdxV >= T.pc_index_risk) || (pcEqV !== null && pcEqV >= T.pc_equity_risk)
+              ? 'var(--warning)'
+              : 'var(--text)',
+        },
+        {
+          label: '宽基汇总 Net GEX',
+          value: aggGexV !== null ? `${aggGexV >= 0 ? '+' : ''}$${aggGexV.toFixed(2)}B` : '—',
+          sub:
+            !isSim && isNum(payload.dealer?.pctile)
+              ? `${aggGexV < 0 ? '净负 Gamma' : '净正 Gamma'} · 历史分位 ${payload.dealer.pctile}%`
+              : aggGexV !== null
+                ? aggGexV < 0
+                  ? '净负 Gamma 放大波动'
+                  : '正 Gamma 缓冲'
+                : '宽基快照缺失',
+          vcolor: aggGexV === null ? 'var(--text-dim)' : aggGexV < 0 ? 'var(--down)' : 'var(--up)',
+        },
+      ])
+    );
+
+    // 双向水位条（带历史底线锚点与动态标尺防截断）
+    const dlr = payload.dealer || {};
+    const maxAbs = Math.max(dlr.max_abs || 7, aggGexV !== null ? Math.ceil(Math.abs(aggGexV) * 1.15) : 7);
+    const bufText =
+      aggGexV !== null && isNum(dlr.hist_min)
+        ? `历史底线 $${dlr.hist_min.toFixed(2)}B（缓冲 ${(aggGexV - dlr.hist_min).toFixed(2)}B）`
+        : '0 轴翻转';
+
+    const liveAgg = toNum(payload.live_inputs?.agg_gex);
+    const symShares = { SPY: 0.5, QQQ: 0.2, IWM: 0.3 };
+    const baseSyms =
+      (dlr.symbols || []).length > 0
+        ? dlr.symbols
+        : ['SPY', 'QQQ', 'IWM'].map((symbol) => ({ symbol, net_gex: null }));
+
+    const symRows = baseSyms
+      .map((s) => {
+        const share = symShares[s.symbol] || 0.33;
+        let gex = toNum(s.net_gex);
+        if (isSim && aggGexV !== null) {
+          gex = gex !== null && liveAgg !== null ? gex + (aggGexV - liveAgg) * share : aggGexV * share;
+        }
+        let subText = '';
+        if (isSim) {
+          subText = `推演按权重分摊（${Math.round(share * 100)}%）`;
+        } else {
+          const subParts = [];
+          if (isNum(s.spot)) subParts.push(`现价 $${Number(s.spot).toFixed(2)}`);
+          if (isNum(s.put_wall) && isNum(s.call_wall)) subParts.push(`Put墙 $${s.put_wall} / Call墙 $${s.call_wall}`);
+          subText = subParts.join(' · ');
+        }
+        const baseScale = s.symbol === 'SPY' ? Math.max(5, Math.ceil(maxAbs * 0.65)) : Math.max(4, Math.ceil(maxAbs * 0.5));
+        const scale = gex !== null ? Math.max(baseScale, Math.ceil(Math.abs(gex) * 1.15)) : baseScale;
+        return renderGaugeZero(`${s.symbol} Net GEX`, subText, gex, scale, `-$${scale}B`, `+$${scale}B`, '0');
+      })
+      .join('');
+
+    document.getElementById('ms-dealer-gauges').innerHTML =
+      renderGaugeZero(
+        '宽基合计 Net GEX',
+        `SPY + QQQ + IWM${dlr.hist_count ? ` · 近 ${dlr.hist_count} 日快照` : ''}`,
+        aggGexV,
+        maxAbs,
+        `-$${maxAbs}B`,
+        `+$${maxAbs}B`,
+        bufText,
+        dlr.hist_min
+      ) + symRows;
+
+    document.getElementById('ms-disp-gauges').innerHTML =
+      renderGaugeLinear('VIXEQ / VIX 离散比', '个股隐波 ÷ 指数隐波（越低越危险）', ev.dr, 1.2, 3.2, T.disp_risk, true, 'x', `压缩警戒 ${T.disp_risk.toFixed(2)}x`) +
+      renderGaugeLinear('COR1M 1月隐含相关性', 'CBOE 标普 500 1月隐含相关性', cor1mV, 4, 48, T.cor1m_risk, false, '', `飙升警戒 ${T.cor1m_risk.toFixed(0)}`) +
+      renderGaugeLinear('COR3M 3月隐含相关性', 'CBOE 标普 500 3月隐含相关性', toNum(simInputs.cor3m), 6, 42, T.cor3m_warn, false, '', `趋势警戒 ${T.cor3m_warn.toFixed(0)}`) +
+      renderGaugeLinear('DSPX 标普离散度指数', 'CBOE 30日隐含离散度', dspxV, 20, 52, T.dspx_warn, false, '', `高位参考 ${T.dspx_warn.toFixed(0)}`);
+
+    // 双向复盘清单
+    const riskHits = renderChecklist('ms-cl-risk', ev.checklists.risk, 'risk');
+    const reliefHits = renderChecklist('ms-cl-relief', ev.checklists.relief, 'relief');
+    document.getElementById('ms-risk-count-badge').innerHTML = `<span class="re-badge ${riskHits >= 2 ? 'bear' : 'flat'}">已触发 ${riskHits} / 4</span>`;
+    document.getElementById('ms-relief-count-badge').innerHTML = `<span class="re-badge ${reliefHits >= 2 ? 'bull' : 'flat'}">已满足 ${reliefHits} / 4</span>`;
+    document.getElementById('ms-counts-summary').textContent = `风险升级 ${riskHits}/4 · 止跌修复 ${reliefHits}/4`;
+
+    renderCharts(ev);
+    syncSliders(skipNumberInputKey);
+    syncPresetButtons();
+  }
+
+  function syncSliders(skipNumberInputKey = null) {
+    SLIDER_SPECS.forEach((sp) => {
+      const r = document.getElementById(`ms-r-${sp.key}`);
+      const n = document.getElementById(`ms-n-${sp.key}`);
+      const v = toNum(simInputs[sp.key]);
+      if (v === null) {
+        if (n && sp.key !== skipNumberInputKey) {
+          n.value = '';
+          n.placeholder = '缺失';
+        }
+        if (r) r.value = String((sp.min + sp.max) / 2);
+        return;
+      }
+      const clampedRange = Math.max(sp.min, Math.min(sp.max, v));
+      if (r && Number(r.value) !== clampedRange) r.value = String(clampedRange);
+      if (n && sp.key !== skipNumberInputKey && (n.value === '' || Number(n.value) !== v)) {
+        n.placeholder = '';
+        n.value = String(v);
+      }
+    });
+  }
+
+  function syncPresetButtons() {
+    document.querySelectorAll('#ms-presets .range-btn').forEach((btn) => {
+      btn.classList.toggle('active', btn.dataset.preset === activePreset);
+    });
+  }
+
+  function buildPresets(live) {
+    const liveDate = payload.as_of?.cboe || '最新';
+    presets = [
+      { key: 'live', label: `${liveDate} 实盘快照`, data: { ...live } },
+      {
+        key: 'stage1',
+        label: '阶段一：离散稳态',
+        data: {
+          ...live,
+          vix1d: 12.1, vix9d: 13.0, vix: 14.2, vix3m: 16.5, vix6m: 18.1, vix1y: 19.4,
+          vvix: 86.0, skew: 136.0, dspx: 34.5, vixeq: 35.2, cor1m: 10.5, cor3m: 12.2,
+          pc_equity: 0.52, pc_total: 0.84, pc_etp: 0.96, pc_vix: 0.72, pc_index: 0.98, pc_spx: 1.05,
+          agg_gex: 3.2,
+        },
+      },
+      {
+        key: 'stage2',
+        label: '阶段二：拥挤预警',
+        data: {
+          ...live,
+          vix1d: 17.8, vix9d: 18.4, vix: 19.1, vix3m: 20.0, vix6m: 21.1, vix1y: 21.9,
+          vvix: 112.5, skew: 155.0, dspx: 38.8, vixeq: 39.0, cor1m: 20.5, cor3m: 19.2,
+          pc_equity: 0.65, pc_total: 0.96, pc_etp: 1.12, pc_vix: 0.88, pc_index: 1.12, pc_spx: 1.22,
+          agg_gex: 0.4,
+        },
+      },
+      {
+        key: 'stage3',
+        label: '阶段三：极端 Vanna 踩踏',
+        data: {
+          ...live,
+          vix1d: 48.0, vix9d: 42.0, vix: 38.5, vix3m: 32.0, vix6m: 29.4, vix1y: 27.6,
+          vvix: 142.0, skew: 138.0, dspx: 45.0, vixeq: 61.5, cor1m: 41.0, cor3m: 34.0,
+          pc_equity: 0.86, pc_total: 1.16, pc_etp: 1.38, pc_vix: 1.25, pc_index: 1.34, pc_spx: 1.46,
+          agg_gex: -6.5,
+        },
+      },
+      {
+        key: 'stage4',
+        label: '阶段四：OPEX 重置修复',
+        data: {
+          ...live,
+          vix1d: 16.5, vix9d: 17.4, vix: 19.2, vix3m: 21.4, vix6m: 22.3, vix1y: 22.8,
+          vvix: 96.5, skew: 140.0, dspx: 33.5, vixeq: 44.0, cor1m: 14.5, cor3m: 16.0,
+          pc_equity: 0.57, pc_total: 0.88, pc_etp: 1.02, pc_vix: 0.82, pc_index: 1.01, pc_spx: 1.12,
+          agg_gex: 2.1,
+        },
+      },
+    ];
+  }
+
+  function buildSimControls() {
+    const presetHost = document.getElementById('ms-presets');
+    presetHost.innerHTML = presets
+      .map((p) => `<button type="button" class="range-btn" data-preset="${R.esc(p.key)}">${R.esc(p.label)}</button>`)
+      .join('');
+    presetHost.querySelectorAll('.range-btn').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const hit = presets.find((x) => x.key === btn.dataset.preset);
+        if (!hit) return;
+        simInputs = { ...hit.data };
+        simBase = { ...hit.data };
+        activePreset = hit.key;
+        Object.keys(manualOverrides).forEach((k) => delete manualOverrides[k]);
+        renderAll();
+      });
+    });
+
+    const sliderHost = document.getElementById('ms-sliders');
+    sliderHost.innerHTML = SLIDER_SPECS.map((sp) => {
+      const v = toNum(simInputs[sp.key]);
+      const rangeVal = v !== null ? Math.max(sp.min, Math.min(sp.max, v)) : (sp.min + sp.max) / 2;
+      const numVal = v !== null ? String(v) : '';
+      const ph = v === null ? ' placeholder="缺失"' : '';
+      return `
+        <div class="ms-slider-item">
+          <div class="ms-slider-top">
+            <label class="ms-slider-label" for="ms-n-${sp.key}">${R.esc(sp.label)}</label>
+            <input class="ms-slider-num" id="ms-n-${sp.key}" type="number" min="${sp.min}" max="${sp.max}" step="${sp.step}" value="${numVal}"${ph} />
+          </div>
+          <input class="ms-slider-range" id="ms-r-${sp.key}" type="range" min="${sp.min}" max="${sp.max}" step="${sp.step}" value="${rangeVal}" />
+          <div class="ms-slider-hint"><span>${sp.min}${sp.unit}</span><span>${sp.max}${sp.unit}</span></div>
+        </div>`;
+    }).join('');
+
+    SLIDER_SPECS.forEach((sp) => {
+      const rEl = document.getElementById(`ms-r-${sp.key}`);
+      const nEl = document.getElementById(`ms-n-${sp.key}`);
+      let edited = false;
+
+      rEl.addEventListener('input', (e) => {
+        const num = toNum(e.target.value);
+        if (num === null) return;
+        simInputs[sp.key] = num;
+        activePreset = 'custom';
+        Object.keys(manualOverrides).forEach((k) => delete manualOverrides[k]);
+        renderAll();
+      });
+
+      nEl.addEventListener('focus', () => {
+        edited = false;
+      });
+
+      nEl.addEventListener('input', (e) => {
+        edited = true;
+        const raw = e.target.value.trim();
+        // 允许用户清空或输入负号中间态，不强制填回 0
+        if (raw === '' || raw === '-' || raw === '.' || raw === '-.') return;
+        const num = toNum(raw);
+        if (num === null) return;
+        const clamped = Math.max(sp.min, Math.min(sp.max, num));
+        simInputs[sp.key] = clamped;
+        activePreset = 'custom';
+        Object.keys(manualOverrides).forEach((k) => delete manualOverrides[k]);
+        renderAll(sp.key);
+      });
+
+      nEl.addEventListener('blur', () => {
+        if (!edited) {
+          syncSliders();
+          return;
+        }
+        edited = false;
+        const raw = nEl.value.trim();
+        if (raw === '') {
+          syncSliders();
+          return;
+        }
+        const num = toNum(raw);
+        if (num === null) {
+          syncSliders();
+          return;
+        }
+        const clamped = Math.max(sp.min, Math.min(sp.max, num));
+        simInputs[sp.key] = clamped;
+        nEl.value = String(clamped);
+        renderAll();
+      });
+    });
+  }
+
+  function setSimOpen(open) {
+    simOpen = open;
+    document.getElementById('ms-sim-body').style.display = open ? 'block' : 'none';
+    document.getElementById('ms-sim-collapsed').style.display = open ? 'none' : 'block';
+    const btn = document.getElementById('btn-toggle-sim');
+    btn.textContent = open ? '收起推演面板' : '展开推演面板';
+    btn.setAttribute('aria-expanded', String(open));
+    btn.classList.toggle('active', open);
+  }
+
+  function resetToLive() {
+    simInputs = { ...payload.live_inputs };
+    simBase = { ...payload.live_inputs };
+    activePreset = 'live';
+    Object.keys(manualOverrides).forEach((k) => delete manualOverrides[k]);
+    renderAll();
+  }
+
+  async function init() {
+    document.getElementById('page-toc').innerHTML = [
+      ['压力评分', 'sec-score'],
+      ['演化阶段', 'sec-stages'],
+      ['核心读数', 'sec-kpis'],
+      ['敞口水位', 'sec-gauges'],
+      ['期限与流量', 'sec-charts'],
+      ['历史走势', 'sec-history'],
+      ['复盘清单', 'sec-checklist'],
+      ['情景推演', 'sec-sim'],
+    ]
+      .map(([t, id]) => `<a href="#${id}">${t}</a>`)
+      .join('');
+
+    try {
+      payload = await R.get('/api/volatility/microstructure');
+      if (!payload || payload.error || !payload.thresholds) {
+        throw new Error(payload?.error || '返回数据结构不完整');
+      }
+    } catch (e) {
+      R.fail(
+        [
+          'ms-hero-wrap',
+          'ms-stages',
+          'ms-kpi-cards',
+          'ms-dealer-gauges',
+          'ms-disp-gauges',
+          'ms-term-chart',
+          'ms-pc-chart',
+          'ms-hist-chart',
+          'ms-cl-risk',
+          'ms-cl-relief',
+        ],
+        e
+      );
+      document.getElementById('btn-jump-sim').disabled = true;
+      document.getElementById('btn-toggle-sim').disabled = true;
+      document.getElementById('ms-sim-collapsed').textContent = '底层数据暂不可用，情景推演已禁用。';
+      return;
+    }
+
+    const asOf = payload.as_of || {};
+    R.setAsOf([
+      ['CBOE', asOf.cboe, 'data/cboe/volatility.csv'],
+      ['CBOE P/C', asOf.put_call, 'data/cboe/put_call.csv'],
+      ['期权快照', asOf.options, 'data/options_structure'],
+    ]);
+
+    simInputs = { ...payload.live_inputs };
+    simBase = { ...payload.live_inputs };
+    buildPresets(payload.live_inputs);
+    buildSimControls();
+
+    const T = payload.thresholds;
+    document.getElementById('ms-score-note').appendChild(
+      R.secNote(
+        '综合微观结构压力分 = 波动率挤兑 25% + 期限与偏度 15% + 做市商敞口 30% + 离散相关性 15% + 期权流量 15%；某数据源缺失时按其余可用维度权重比例归一化。宽基 Net GEX 采用本站 SPY/QQQ/IWM 期权链 Black-Scholes 估算，重点跟踪正负翻转与历史分位。',
+        { fold: true }
+      )
+    );
+    document.getElementById('ms-dealer-card').appendChild(
+      R.secNote(
+        '零轴居中水位条：左侧红色代表做市商净负 Gamma（跌时顺势卖出、涨时追买，放大波动），右侧绿色代表净正 Gamma（高抛低吸缓冲波动）；深色竖标标注宽基历史极值底线。',
+        { fold: true }
+      )
+    );
+    document.getElementById('ms-disp-card').appendChild(
+      R.secNote(
+        `VIXEQ/VIX 衡量标普 500 个股平均隐含波动率相对指数隐含波动率的比值。相关性飙升时指数波动率跳升快于个股，比值跌破 ${T.disp_risk.toFixed(2)} 通常对应离散交易平仓与宽基联动下跌。`,
+        { fold: true }
+      )
+    );
+    document.getElementById('ms-term-note').appendChild(
+      R.secNote(
+        '正常市场呈近低远高的升水结构（Contango）；当 VIX9D > VIX 或 VIX > VIX3M 形成贴水（Backwardation），说明短期保护需求急剧升温。',
+        { fold: true }
+      )
+    );
+    document.getElementById('ms-pc-note').appendChild(
+      R.secNote(
+        `来自 CBOE 每日市场统计接口（daily_options JSON，2019-10-07 起连续更新）。指数 P/C 常态高于个股 P/C，机构对冲先推升 SPX/Index，个股 P/C 突破 ${T.pc_equity_risk.toFixed(2)} 才往往对应全面恐慌。`,
+        { fold: true }
+      )
+    );
+    document.getElementById('ms-hist-note').appendChild(
+      R.secNote(
+        `左轴 VIXEQ/VIX 与右轴 COR1M 呈强负相关：每当隐含相关性急升并伴随离散比下穿 ${T.disp_risk.toFixed(2)} 红线，市场往往从结构分化切换为普跌联动。`,
+        { fold: true }
+      )
+    );
+
+    R.foot(payload.generator || 'rules', {
+      src: 'CBOE 波动率指数与每日市场统计（DSPX / VIXEQ / COR1M / COR3M / Put-Call）、本地期权结构快照（SPY / QQQ / IWM）',
+      note: '规则阈值经近 1 年历史分布校准；情景推演仅作假设测算，不改变实盘快照数据',
+    });
+
+    if (window.AICtx && window.AICtx.declare) {
+      window.AICtx.declare('volatility-microstructure', () => {
+        const ev = currentEval || payload;
+        const m = payload.metrics || {};
+        const dlr = payload.dealer || {};
+        const isLive = activePreset === 'live';
+        const termStatus = !isNum(ev.vr) && !isNum(ev.sr) ? '缺数据' : ev.inverted ? '贴水倒挂' : '升水常态';
+        return {
+          title: '期权微观结构与负反馈监控',
+          src: 'CBOE 波动率/Put-Call + 宽基期权快照',
+          asOf: asOf.cboe || asOf.put_call || asOf.options || '',
+          facts: [
+            ['综合微观结构压力分', ev.score != null ? `${ev.score}/100` : '缺失', ev.stage_name || ''],
+            [
+              'VIX / VVIX',
+              `${R.num(simInputs?.vix, 2)} / ${R.num(simInputs?.vvix, 1)}`,
+              isLive && m.vix?.pctile_1y != null ? `VIX 1Y分位 ${m.vix.pctile_1y}%` : '',
+            ],
+            [
+              'VIX/VIX3M 与 VIX9D/VIX',
+              `${isNum(ev.vr) ? ev.vr.toFixed(3) : '—'} / ${isNum(ev.sr) ? ev.sr.toFixed(3) : '—'}`,
+              termStatus,
+            ],
+            ['VIXEQ/VIX 离散比', isNum(ev.dr) ? ev.dr.toFixed(2) : '—', `COR1M ${R.num(simInputs?.cor1m, 1)}`],
+            ['CBOE 指数 / 个股 P/C', `${R.num(simInputs?.pc_index, 2)} / ${R.num(simInputs?.pc_equity, 2)}`, `全市场 ${R.num(simInputs?.pc_total, 2)}`],
+            ['宽基汇总 Net GEX', isNum(simInputs?.agg_gex) ? `$${Number(simInputs.agg_gex).toFixed(2)}B` : '—', dlr.hist_min != null ? `历史底线 $${dlr.hist_min.toFixed(2)}B` : ''],
+          ],
+          note: isLive ? '当前为最新实盘快照' : '当前页面处于情景推演模式',
+          priority: 20,
+        };
+      });
+    }
+
+    document.getElementById('btn-toggle-sim').addEventListener('click', () => setSimOpen(!simOpen));
+    document.getElementById('btn-jump-sim').addEventListener('click', () => {
+      setSimOpen(true);
+      document.getElementById('sec-sim').scrollIntoView({ behavior: 'smooth' });
+    });
+    document.getElementById('btn-reset-sim').addEventListener('click', resetToLive);
+    document.getElementById('btn-reset-live').addEventListener('click', resetToLive);
+
+    renderHistoryChart();
+    renderAll();
+  }
+
+  init();
+})();
+</script>
+</TopicLayout>

@@ -296,6 +296,7 @@ const R = {
     ENSO: 'disc',
     // 交易所 / 平台官方（披露）
     CBOE: 'disc',
+    'CBOE P/C': 'disc',
     'CME 期货 OI': 'disc',
     'CME 期货仓位': 'disc',
     衍生品快照: 'disc',

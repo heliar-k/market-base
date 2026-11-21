@@ -25,16 +25,33 @@ Fetch CBOE volatility data: OVX, VIX1D/9D, VIX, VIX3M/6M/1Y, SKEW, term structur
 
 import logging
 import re
-from datetime import datetime
+from concurrent.futures import ThreadPoolExecutor
+from datetime import date, datetime, timedelta
 from io import StringIO
 from pathlib import Path
 
 import pandas as pd
 import requests
+from requests.adapters import HTTPAdapter
+
+from ..clock import et_today
 
 logger = logging.getLogger(__name__)
 
 _CSV = "https://cdn.cboe.com/api/global/us_indices/daily_prices/"
+_PC_JSON = "https://cdn.cboe.com/data/us/options/market_statistics/daily/{date}_daily_options"
+_PC_START_DATE = date(2019, 10, 7)
+
+PUT_CALL_MAP = {
+    "TOTAL PUT/CALL RATIO": "TOTAL_PC",
+    "INDEX PUT/CALL RATIO": "INDEX_PC",
+    "EXCHANGE TRADED PRODUCTS PUT/CALL RATIO": "ETP_PC",
+    "EQUITY PUT/CALL RATIO": "EQUITY_PC",
+    "CBOE VOLATILITY INDEX (VIX) PUT/CALL RATIO": "VIX_PC",
+    "SPX + SPXW + SPXO PUT/CALL RATIO": "SPX_PC",
+    "SPX + SPXW PUT/CALL RATIO": "SPX_PC",
+}
+PUT_CALL_COLS = list(dict.fromkeys(PUT_CALL_MAP.values()))
 
 CBOE_URLS = {
     "VIX1D": _CSV + "VIX1D_History.csv",
@@ -71,6 +88,11 @@ CBOE_URLS = {
     "VXHY": _CSV + "VXHYG_History.csv",  # 高收益债 VIX（官方 VXHYG=HYG 版，2015-04 起；
     #   timsun 名 VXHY；原 VXHY 指数 2019 年停发）
     "VEWZ": _CSV + "VXEWZ_History.csv",  # 巴西 ETF VIX（官方 VXEWZ，2011-03 起）
+    # ── 期权微观结构扩展（离散度与隐含相关性，官方全量历史 CSV）──
+    "DSPX": _CSV + "DSPX_History.csv",  # 标普 500 30日隐含离散度
+    "VIXEQ": _CSV + "VIXEQ_History.csv",  # 标普 500 个股平均隐含波动率
+    "COR1M": _CSV + "COR1M_History.csv",  # 标普 500 1月隐含相关性
+    "COR3M": _CSV + "COR3M_History.csv",  # 标普 500 3月隐含相关性
 }
 
 
@@ -82,13 +104,16 @@ def fetch_cboe_volatility() -> pd.DataFrame:
     session = requests.Session()
     session.trust_env = False  # 直连 CDN，绕过 .env socks5 代理（代理反而 SSL 断）
     series: dict[str, pd.Series] = {}
-    for name, url in CBOE_URLS.items():
-        try:
-            series[name] = _fetch_cboe_series(name, url, session)
-            s = series[name]
-            logger.info(f"  CBOE {name}: {len(s)} 条 ({s.index[0]} → {s.index[-1]})")
-        except Exception as e:
-            logger.warning(f"CBOE {name} 拉取失败: {e}")
+    try:
+        for name, url in CBOE_URLS.items():
+            try:
+                series[name] = _fetch_cboe_series(name, url, session)
+                s = series[name]
+                logger.info(f"  CBOE {name}: {len(s)} 条 ({s.index[0]} → {s.index[-1]})")
+            except Exception as e:
+                logger.warning(f"CBOE {name} 拉取失败: {e}")
+    finally:
+        session.close()
     if not series:
         return pd.DataFrame()
 
@@ -156,6 +181,109 @@ def _normalize_date(raw: str) -> str:
     return raw
 
 
+def _parse_put_call_payload(payload: dict) -> dict[str, float]:
+    """解析 CBOE daily_options JSON 的 ratios 数组为标准列字典。"""
+    row: dict[str, float] = {}
+    for item in payload.get("ratios") or []:
+        name = str(item.get("name", "")).strip().upper()
+        col = PUT_CALL_MAP.get(name)
+        if not col:
+            continue
+        raw_val = item.get("value")
+        if raw_val in (None, "", "N/A"):
+            continue
+        try:
+            row[col] = float(raw_val)
+        except (TypeError, ValueError):
+            continue
+    return row
+
+
+def _fetch_put_call_one(
+    day_iso: str, session: requests.Session
+) -> tuple[str, dict[str, float] | None, bool]:
+    """拉取单个交易日的 CBOE Put/Call JSON。
+
+    返回 (日期, 数据字典或 None, 是否发生真实网络/解析异常)；
+    HTTP 403/404 视为休市或当日尚未发布，不计入异常。
+    """
+    url = _PC_JSON.format(date=day_iso)
+    try:
+        resp = session.get(url, timeout=15)
+        if resp.status_code in (403, 404):
+            return day_iso, None, False
+        resp.raise_for_status()
+        parsed = _parse_put_call_payload(resp.json())
+        return day_iso, parsed if parsed else None, False
+    except Exception as e:
+        logger.warning(f"CBOE Put/Call {day_iso} 拉取失败: {e}")
+        return day_iso, None, True
+
+
+def fetch_cboe_put_call(
+    existing_path: Path | None = None,
+    lookback_days: int | None = None,
+    end_date: date | None = None,
+    force: bool = False,
+) -> pd.DataFrame:
+    """增量拉取 CBOE 每日分类 Put/Call 成交量比值。
+
+    首次文件不存在默认回溯 400 个自然日（约 1 年多交易日）；
+    增量更新默认回溯 14 个自然日并跳过已有且完整的旧日期。
+    全量目标出现真实网络/解析异常且无数据成功写入时抛 RuntimeError，避免静默绿灯。
+    """
+    end = end_date or et_today()
+    existing_complete: set[str] = set()
+    if existing_path and existing_path.exists() and not force:
+        old = pd.read_csv(existing_path, index_col="date")
+        if not old.empty and set(PUT_CALL_COLS).issubset(old.columns):
+            complete_mask = old[PUT_CALL_COLS].notna().all(axis=1)
+            existing_complete = set(old.index[complete_mask].astype(str))
+
+    days = lookback_days if lookback_days is not None else (400 if not existing_complete else 14)
+    start = max(_PC_START_DATE, end - timedelta(days=max(1, days)))
+    # 最近 2 个工作日允许刷新，兼容盘后修订
+    refresh_cutoff = (end - timedelta(days=3)).isoformat()
+
+    targets: list[str] = []
+    cur = start
+    while cur <= end:
+        if cur.weekday() < 5:
+            iso = cur.isoformat()
+            if force or iso >= refresh_cutoff or iso not in existing_complete:
+                targets.append(iso)
+        cur += timedelta(days=1)
+
+    if not targets:
+        return pd.DataFrame(columns=PUT_CALL_COLS)
+
+    rows: dict[str, dict[str, float]] = {}
+    errors = 0
+    workers = min(8, len(targets))
+    with requests.Session() as session:
+        session.trust_env = False
+        adapter = HTTPAdapter(pool_connections=workers, pool_maxsize=workers)
+        session.mount("https://", adapter)
+        session.mount("http://", adapter)
+        with ThreadPoolExecutor(max_workers=workers) as pool:
+            for iso, parsed, failed in pool.map(lambda d: _fetch_put_call_one(d, session), targets):
+                if failed:
+                    errors += 1
+                elif parsed:
+                    rows[iso] = parsed
+
+    if not rows:
+        if errors > 0:
+            raise RuntimeError(f"CBOE Put/Call 拉取异常（{errors}/{len(targets)} 日失败）")
+        return pd.DataFrame(columns=PUT_CALL_COLS)
+
+    df = pd.DataFrame.from_dict(rows, orient="index")
+    for col in PUT_CALL_COLS:
+        if col not in df.columns:
+            df[col] = float("nan")
+    return df[PUT_CALL_COLS].sort_index()
+
+
 def check_latest_complete(path: Path) -> list[str]:
     """最新观测日缺值的指标名（派生列 VIX_TERM_SLOPE 跟随 VIX / VIX9D 一起缺）。"""
     if not path.exists():
@@ -183,9 +311,21 @@ if __name__ == "__main__":
         action="store_true",
         help="只查本地 CSV 最新观测日的值是否齐全（不联网），缺列则非零退出",
     )
+    parser.add_argument(
+        "--pc-days",
+        type=int,
+        default=None,
+        help="Put/Call 增量回溯自然日数（首次自动 400 天，日常默认 14 天）",
+    )
+    parser.add_argument(
+        "--vol-only",
+        action="store_true",
+        help="仅更新 volatility.csv，跳过 Put/Call（供 cboe-retry 慢文件重试使用）",
+    )
     args = parser.parse_args()
 
     path = ROOT / "data" / "cboe" / "volatility.csv"
+    pc_path = ROOT / "data" / "cboe" / "put_call.csv"
 
     if args.check_latest:
         missing = check_latest_complete(path)
@@ -203,3 +343,19 @@ if __name__ == "__main__":
     upsert_timeseries(path, df, backfill=args.backfill)
     mode = "backfill 覆盖" if args.backfill else "upsert"
     print(f"CBOE {mode}: → {path} ({len(df.columns)} 指标 × {len(df)} 行)")
+
+    if args.vol_only:
+        raise SystemExit(0)
+
+    pc_df = fetch_cboe_put_call(
+        existing_path=pc_path,
+        lookback_days=args.pc_days,
+        force=args.backfill,
+    )
+    if not pc_df.empty:
+        # Put/Call 按日增量抓窗口，始终 upsert 合并，避免 --backfill 截断更早历史
+        upsert_timeseries(pc_path, pc_df, backfill=False)
+        print(f"CBOE Put/Call upsert: → {pc_path} ({len(pc_df.columns)} 指标 × {len(pc_df)} 新行)")
+    elif not pc_path.exists():
+        print("CBOE Put/Call: 首次拉取无数据写入")
+        raise SystemExit(1)
