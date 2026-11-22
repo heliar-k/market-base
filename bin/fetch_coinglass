@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Coinglass 全市场衍生品聚合快照（Jina Reader）
+# Coinglass 全市场衍生品聚合快照（Cloudflare Browser Run 渲染，Firecrawl 兜底）
 set -euo pipefail
 cd "$(dirname "$0")/.."
 uv run python -m src.fetchers.coinglass_fetcher "$@"
