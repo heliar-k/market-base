@@ -589,7 +589,7 @@ button.opt-sig-reason:hover .osr-brief { color: var(--text-secondary); }
 
 /* ── 持仓追踪（CFTC COT，timsun 复刻）── */
 .pos-hero { display: grid; grid-template-columns: 1fr 260px; gap: 16px; }
-.pos-hero .ph-title { font-size: 22px; font-weight: 700; color: var(--color-warn-text); display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.pos-hero .ph-title { font-size: 22px; font-weight: 700; color: var(--text); display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
 .pos-hero .ph-sub { font-size: 12px; color: var(--text-secondary); font-weight: 400; }
 .pos-hero .ph-desc { font-size: 13px; line-height: 1.8; color: var(--text-secondary); margin-top: 14px; }
 .pos-hero .ph-side { font-size: 12px; line-height: 1.75; color: var(--text-secondary); border-left: 1px solid var(--border); padding-left: 16px; display: flex; flex-direction: column; gap: 8px; justify-content: center; }
@@ -610,8 +610,10 @@ button.opt-sig-reason:hover .osr-brief { color: var(--text-secondary); }
 .pos-contract .pc-code { font-size: 11px; color: var(--text-secondary); margin-top: 2px; }
 .pos-contract .pc-pct { font-size: 11px; color: var(--text-secondary); margin-top: 3px; }
 .pc-badge { display: inline-block; padding: 0 6px; border-radius: 4px; font-size: 11px; line-height: 18px; font-weight: 600; }
-.pc-badge.extreme { background: var(--color-down-bg); color: var(--color-down-text); }
+.pc-badge.extreme-bull { background: var(--color-up-bg); color: var(--color-up-text); border: 1px solid color-mix(in srgb, var(--color-up) 45%, transparent); line-height: 16px; }
 .pc-badge.bullish { background: var(--color-up-bg); color: var(--color-up-text); }
+.pc-badge.bearish { background: var(--color-down-bg); color: var(--color-down-text); }
+.pc-badge.extreme-bear { background: var(--color-down-bg); color: var(--color-down-text); border: 1px solid color-mix(in srgb, var(--color-down) 45%, transparent); line-height: 16px; }
 .pc-badge.neutral { background: var(--color-neutral-bg); color: var(--color-neutral-text); }
 /* 三列数值都带 nowrap：卡窄到装不下时（1025–1150 两列卡仅 300–350px）第三列会顶出卡内距，
    交给 flex 换行，比压字号或省略号安全 */

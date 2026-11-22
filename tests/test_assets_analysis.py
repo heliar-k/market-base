@@ -11,9 +11,14 @@ import src.assets_analysis as assets_analysis
 from src.assets_analysis import (
     _btcd_block,
     _chg,
+    _cot_net_stats,
+    _cot_reading,
+    _cot_week_text,
     _etf_flow_ratio,
     _fx_verdict,
+    _group_verdict,
     _ls_cols,
+    _metals_cot,
     _options_narrative,
     _pm_implied,
     _price_rows,
@@ -24,6 +29,7 @@ from src.assets_analysis import (
     crypto,
     equity_analysis,
     ndx_radar,
+    positioning,
 )
 from src.options_structure import bucket_dte, compute_structure
 from src.pricing import bs_greeks, d1_from
@@ -105,6 +111,141 @@ class TestPositioningLs:
         lcol, scol = _ls_cols("BTC")
         net = cot[lcol] - cot[scol]
         assert list(net) == [100.0, 400.0]
+
+
+class TestPositioningLogic:
+    def test_cot_net_stats_midpoint_ties(self):
+        """常数序列与含相等值序列按标准中点秩计算，不被压到极度看空。"""
+        const = pd.Series([1000.0] * 104)
+        _, pct_const, wk_const = _cot_net_stats(const)
+        assert pct_const == pytest.approx(50.0)
+        assert wk_const == 0.0
+        # 50 个小于、4 个等于、50 个大于 → (50 + 0.5*4)/104 * 100 = 50.0
+        tied = pd.Series(list(range(50)) + list(range(54, 104)) + [52] * 4, dtype=float)
+        _, pct_tied, _ = _cot_net_stats(tied)
+        assert pct_tied == pytest.approx(50.0)
+
+    def test_cot_reading_matches_extreme_labels_and_net_sign(self):
+        """极度看多/极度看空标签应命中对应文案，且区分分位与绝对净仓方向与 VX 语义。"""
+        assert "极度看多" in _cot_reading("极度看多", "增仓", 10000.0)
+        assert "绝对仓位仍为净空" in _cot_reading("极度看多", "增仓", -200000.0)
+        assert "极度看空" in _cot_reading("极度看空", "减仓", -10000.0)
+        assert "多头仓位偏轻" in _cot_reading("极度看空", "减仓", 9000.0)
+        assert "偏风险偏好" in _cot_reading("偏空", "减仓", -70000.0, symbol="VX")
+        assert "空头回补" in _cot_reading("极度看空", "减仓", -90000.0, symbol="VX")
+        assert "本周净仓持平" in _cot_week_text("持平")
+
+    def test_group_verdict_all_branches(self):
+        """覆盖无极端 / 部分极端 / 多数极端以及 ag_softs 纯空/纯多/分化路径。"""
+        c_neu = {"name": "玉米", "pct_2y": 50.0, "label": "中性", "net": 0.0}
+        c_bull_mild = {"name": "原糖", "pct_2y": 80.0, "label": "偏多", "net": 1000.0}
+        c_ext_bull = {"name": "30年美债", "pct_2y": 95.0, "label": "极度看多", "net": -1000.0}
+        c_ext_bear = {"name": "可可", "pct_2y": 2.0, "label": "极度看空", "net": -5000.0}
+        c_ext_bear_netlong = {"name": "咖啡", "pct_2y": 1.0, "label": "极度看空", "net": 5000.0}
+
+        assert "不极端" in _group_verdict("index_vol", [c_neu, c_bull_mild])
+        v_partial = _group_verdict("index_vol", [c_ext_bull, c_neu, c_bull_mild])
+        assert "尚未全面拥挤" in v_partial and "30年美债" in v_partial
+        v_maj = _group_verdict("rates", [c_ext_bull, c_ext_bull, c_neu])
+        assert "利率仓位较极端" in v_maj
+
+        # ag_softs 部分/多数极端分场景
+        assert "买盘回补" in _group_verdict("ag_softs", [c_ext_bear_netlong, c_neu, c_neu])
+        assert "空头回补" in _group_verdict("ag_softs", [c_ext_bear, c_neu, c_neu])
+        assert "踩踏式回吐" in _group_verdict("ag_softs", [c_ext_bull, c_neu, c_neu])
+        assert "冷热分化" in _group_verdict("ag_softs", [c_ext_bull, c_ext_bear, c_neu])
+        assert "双向波动" in _group_verdict("ag_softs", [c_ext_bull, c_ext_bear])
+        assert "天气升水已被投机资金买满" in _group_verdict("ag_softs", [c_ext_bull, c_ext_bull])
+
+    def test_positioning_verdict_week_flat_missing_row_and_counts(self, monkeypatch):
+        """验证 week_chg==0 判持平、部分极端不报不极端、缺行不透传 NaN、counts 不重算。"""
+        dates = pd.date_range("2024-01-02", periods=110, freq="W-TUE")
+        data = {}
+        n = len(dates)
+        # 基准序列：前 109 周横跨 0..108，末值 54 居中（pct ≈ 50 中性），末周与前周不同或相等可控
+        mid_series = np.linspace(0.0, 10800.0, n)
+        mid_series[-1] = 5400.0
+        for sym in ("NQ", "ES", "VX", "GC", "SB", "KC", "CC", "ZC"):
+            is_fin = sym in ("NQ", "ES", "VX")
+            lcol, scol = (
+                (f"{sym}_HEDGE_L", f"{sym}_HEDGE_S") if is_fin else (f"{sym}_MM_L", f"{sym}_MM_S")
+            )
+            longs = 100000.0 + mid_series
+            shorts = np.full(n, 100000.0)
+            if sym == "ES":
+                # 长期净空但最后一周分位最高（极度看多且 net < 0）
+                longs = np.full(n, 100000.0)
+                shorts = np.linspace(400000.0, 200000.0, n)
+            elif sym == "NQ":
+                # week_chg == 0 且偏多（80 分位）
+                longs = np.concatenate(
+                    [np.linspace(100000.0, 125000.0, n - 2), [120000.0, 120000.0]]
+                )
+            elif sym == "SB":
+                # 偏多（80 分位，非极端）
+                longs = np.concatenate([np.linspace(100000.0, 125000.0, n - 1), [120000.0]])
+            elif sym == "VX":
+                # 偏空（20 分位，非极端）
+                longs = np.concatenate([np.linspace(100000.0, 125000.0, n - 1), [105000.0]])
+            elif sym in ("KC", "CC"):
+                # 极度看空（KC 仍净多，CC 净空），2/4 = 50% 非多数
+                longs = np.linspace(80000.0, 20000.0, n) if sym == "KC" else np.full(n, 10000.0)
+                shorts = np.full(n, 10000.0) if sym == "KC" else np.linspace(10000.0, 50000.0, n)
+            elif sym == "GC":
+                # 最后一周缺行
+                longs[-1] = np.nan
+                shorts[-1] = np.nan
+            data[lcol] = longs
+            data[scol] = shorts
+            data[f"{sym}_OI"] = np.full(n, 500000.0)
+            if sym == "GC":
+                data[f"{sym}_OI"][-1] = np.nan
+            if is_fin:
+                data[f"{sym}_ASSET_L"] = np.full(n, 300000.0)
+                data[f"{sym}_ASSET_S"] = np.full(n, 50000.0)
+
+        df = pd.DataFrame(data, index=dates)
+        monkeypatch.setattr(
+            assets_analysis, "_csv", lambda rel: df if rel == "cot/cot.csv" else pd.DataFrame()
+        )
+        res = positioning()
+        by_sym = {c["symbol"]: c for g in res["groups"] for c in g["contracts"]}
+        by_grp = {g["name"]: g for g in res["groups"]}
+
+        assert by_sym["NQ"]["week_dir"] == "持平"
+        assert by_sym["NQ"]["week_chg"] == 0.0
+        assert "绝对仓位仍为净空" in by_sym["ES"]["reading"]
+        assert "多头仓位偏轻" in by_sym["KC"]["reading"]
+        # GC 最后一周缺失：对齐到上一有效周，无 NaN
+        assert by_sym["GC"]["report_date"] == str(dates[-2].date())
+        assert by_sym["GC"]["oi"] == 500000.0
+        # index_vol 确实只有 1/3 极端，走「尚未全面拥挤」分支
+        assert "尚未全面拥挤" in by_grp["index_vol"]["verdict"]
+        # ag_softs 2/4 极端（非多数），走「尚未全面拥挤」且不出现「买满」
+        assert "尚未全面拥挤" in by_grp["ag_softs"]["verdict"]
+        assert "买满" not in by_grp["ag_softs"]["verdict"]
+        # counts 覆盖 neutral > 0、非极端 bull/bear、互斥相加等于 total
+        c = res["overview"]["counts"]
+        assert c["neutral"] > 0
+        assert c["bull"] > c["extreme_bull"]
+        assert c["bear"] > c["extreme_bear"]
+        assert c["bull"] + c["bear"] + c["neutral"] == c["total"]
+        assert c["extreme_bull"] + c["extreme_bear"] == c["extreme"]
+
+    def test_metals_cot_matches_positioning_percentile(self, monkeypatch):
+        """_metals_cot 与 positioning 共用 _cot_net_stats 2 年百分位口径。"""
+        dates = pd.date_range("2023-01-03", periods=150, freq="W-TUE")
+        # 前 46 周极高、近 104 周较低，验证窗口确为近 104 周
+        longs = np.concatenate([np.full(46, 300000.0), np.linspace(100000.0, 150000.0, 104)])
+        shorts = np.full(150, 50000.0)
+        df = pd.DataFrame({"GC_MM_L": longs, "GC_MM_S": shorts}, index=dates)
+        monkeypatch.setattr(
+            assets_analysis, "_csv", lambda rel: df if rel == "cot/cot.csv" else pd.DataFrame()
+        )
+        mc = _metals_cot()
+        assert mc is not None
+        _, expected_pct, _ = _cot_net_stats(df["GC_MM_L"] - df["GC_MM_S"])
+        assert mc["pct"] == round(expected_pct, 1)
 
 
 class TestBucketDte:

@@ -13,7 +13,6 @@ import Section from '../../../components/Section.astro';
   </Section>
   <Section id="groups" title="分组合约" />
   <div class="re-foot-page" slot="foot" id="re-foot"></div>
-</div>
 
 <script is:inline>
 // 小节锚点导航（#29：与其余专题页同一写法；#overview 是 Section 内层容器，本就有 id）
@@ -22,25 +21,26 @@ document.getElementById('page-toc').innerHTML = [
 ].map(([t, id]) => `<a href="#${id}">${t}</a>`).join('');
 
 const GNAMES = { index_vol: '股指 / 波动率', rates: '利率 / 美债', fx: '外汇', commodities: '商品', ag_softs: '农产品 / 软商品（气候敏感）' };
-const charts = [];
 
 function badgeClass(label) {
-  if (label.startsWith('极度')) return 'extreme';
+  if (label === '极度看多') return 'extreme-bull';
   if (label === '偏多') return 'bullish';
+  if (label === '偏空') return 'bearish';
+  if (label === '极度看空') return 'extreme-bear';
   return 'neutral';
 }
-function num(v) { return v == null ? '—' : Number(v).toLocaleString(); }
 // 拥挤度标签与极端合约串在渲染和事实集两处都要用，抽成函数避免两套口径
 function crowdLabelOf(c) { return c == null ? '数据不足' : c >= 50 ? '仓位偏拥挤' : c >= 30 ? '仓位中性' : '仓位分散'; }
+function crowdColorOf(c) { return c == null ? 'var(--text-secondary)' : c >= 50 ? 'var(--color-warn-text)' : c >= 30 ? 'var(--text)' : 'var(--color-up-text)'; }
 function extremesText(o) { return (o.extremes || []).map(x => `${x.name}(${x.pct_2y.toFixed(1)})`).join('、'); }
 
 async function load() {
   const d = await R.get('/api/assets/positioning');
-  if (!d.latest_report) { R.fail(['overview', 'groups'], new Error('COT 数据不足 · 运行 ./bin/fetch_cot 后刷新')); return; }
-  R.setAsOf([['COT 报告', d.latest_report]]);
+  if (!d.latest_report || !d.groups || !d.groups.length) { R.fail(['overview', 'groups'], new Error('COT 数据不足 · 运行 ./bin/fetch_cot 后刷新')); return; }
+  R.setAsOf([['COT 报告', d.latest_report, 'data/cot/cot.csv']]);
 
   renderOverview(d);
-  d.groups.forEach(g => renderGroup(g));
+  d.groups.forEach(g => renderGroup(g, d.latest_report));
   R.foot(null, {
     src: 'CFTC COT 周报',
     note: '持仓统计截至周二收盘、周五 15:30 ET 公布（比盘面晚约一周）· 投机方：股指/利率/外汇 = 对冲基金（Leveraged Money），商品 = 管理资金（Managed Money）· 判读规则见页首卡片底部',
@@ -55,9 +55,9 @@ async function load() {
     const bySymbol = {};
     (d.groups || []).forEach(g => (g.contracts || []).forEach(c => { bySymbol[c.symbol] = c; }));
     // 净持仓带符号（与卡片同口径），数字本身仍走 R.num
-    const netText = c => (c.net == null ? '—' : (c.net >= 0 ? '+' : '') + R.num(c.net));
+    const netText = c => (c.net == null ? '—' : (c.net > 0 ? '+' : '') + R.num(c.net, 0));
     const wkNote = c => '本周' + (c.week_dir || '—') + ' ' +
-      (c.week_chg == null ? '—' : (c.week_chg > 0 ? '+' : '') + R.num(c.week_chg));
+      (c.week_chg == null ? '—' : (c.week_chg > 0 ? '+' : '') + R.num(c.week_chg, 0));
     const groupFacts = (d.groups || []).map(g => {
       const f = g.focus || {};
       const c = bySymbol[f.symbol] || {};
@@ -81,7 +81,7 @@ async function load() {
       priority: 10,
       facts: [
         ['投机仓位拥挤度', (d.crowding == null ? '—' : Number(d.crowding).toFixed(1)) + '/100', crowdLabelOf(d.crowding)],
-        ['方向分布', `偏多 ${counts.bull ?? '—'} · 偏空 ${counts.bear ?? '—'} · 极端 ${counts.extreme ?? '—'}`, o.bias ? '整体 ' + o.bias : ''],
+        ['分位分布', `偏多 ${counts.bull ?? '—'}（含极度 ${counts.extreme_bull ?? '—'}）· 中性 ${counts.neutral ?? '—'} · 偏空 ${counts.bear ?? '—'}（含极度 ${counts.extreme_bear ?? '—'}）`, o.bias ? '整体分位 ' + o.bias : ''],
         ['最极端合约', extremesText(o) || '—', '括号内为 2 年净多百分位'],
         ...groupFacts,
         ...anchors,
@@ -94,40 +94,49 @@ async function load() {
 // ── Positioning Readthrough（timsun 复刻）──
 function renderOverview(d) {
   const o = d.overview || {};
+  const counts = o.counts || {};
   const c = d.crowding;
   const crowdLabel = crowdLabelOf(c);
+  const crowdColor = crowdColorOf(c);
   const extremes = extremesText(o);
+  const extSentence = extremes ? `最极端的合约是 ${extremes}。` : '';
   const desc = c == null ? ''
-    : `当前 CFTC 投机仓位整体为「${crowdLabel}」，方向上${o.bias || '中性'}。最极端的合约是 ${extremes}。仓位已包含一部分市场共识，接下来看价格是否继续确认，不只看净多净空绝对值。`;
+    : `当前 CFTC 投机仓位整体为「${crowdLabel}」，按 2 年分位桶统计整体${o.bias || '中性'}（含 VIX、美债、美元与非美等方向各异的合约，分位计数不代表单一市场方向）。${extSentence}仓位已包含一部分市场共识，接下来看价格是否继续确认，不只看净多净空绝对值。`;
   const el = document.getElementById('overview');
   const hero = document.createElement('div');
   hero.className = 're-section pos-hero';
   hero.innerHTML = `
     <div>
-      <div class="ph-title">${crowdLabel}<span class="ph-sub">拥挤度 ${c == null ? '—' : c.toFixed(1)}/100</span></div>
-      <div class="ph-desc">${desc}</div>
+      <div class="ph-title" style="color:${crowdColor}">${crowdLabel}<span class="ph-sub">拥挤度 ${c == null ? '—' : c.toFixed(1)}/100</span></div>
+      <div class="ph-desc">${R.esc(desc)}</div>
     </div>
     <div class="ph-side">
-      <div>偏多 ${o.counts?.bull ?? '—'} · 偏空 ${o.counts?.bear ?? '—'} · 极端 ${o.counts?.extreme ?? '—'} 个</div>
+      <div>偏多 ${counts.bull ?? '—'}（含极度 ${counts.extreme_bull ?? '—'}）· 中性 ${counts.neutral ?? '—'} · 偏空 ${counts.bear ?? '—'}（含极度 ${counts.extreme_bear ?? '—'}）</div>
       <div>百分位越靠近 0 或 100，仓位越拥挤；拥挤不是反转信号，但会放大反向时的波动。</div>
       <div><b>读法：</b>价格涨且净仓增是趋势确认；价格涨但净仓降是早期背离。</div>
     </div>`;
-  hero.appendChild(R.secNote('判读规则 · 净多头百分位（2 年）：≥90 极度看多 · ≥75 偏多 · ≤25 偏空 · ≤10 极度看空 · 其余中性'));
+  hero.appendChild(R.secNote(
+    '判读规则 · 2 年百分位（标准中点秩 (小于当前周数 + 0.5×等于当前周数)/窗口周数×100，窗口上限 104 周、不足按全部可用周数）：≥90 极度看多 · ≥75 偏多 · ≤25 偏空 · ≤10 极度看空 · 其余中性。' +
+    '拥挤度 = 各合约 |2 年百分位−50|×2 的等权均值（≥50 偏拥挤 · 30–50 中性 · <30 分散）。' +
+    '百分位衡量相对自身近两年历史的位置，不等同于绝对净多或净空（例如对冲基金在股指与美债期货长期净空，净空大幅回补时分位仍可达极度看多）。' +
+    '图表「资管净持仓」对应 TFF 报告 Asset Manager 类别（仅金融期货提供）。',
+    { fold: true }
+  ));
   el.replaceChildren(hero);
 }
 
 // ── 分组合约卡 ──
-function renderGroup(g) {
+function renderGroup(g, latestReport) {
   const wrap = document.getElementById('groups');
   const sec = R.secCard();
   sec.innerHTML = R.secTitle(GNAMES[g.name] || g.name, '', `${g.contracts.length} 合约`);
   const note = document.createElement('div');
   note.className = 'pos-group-note';
-  note.innerHTML = `${TIPS[g.name] || ''}<br>${g.verdict || ''}<br><b>本组最需要关注：</b>${g.focus?.name || g.focus?.symbol || '—'}，2 年百分位 ${g.focus?.pct_2y ?? '—'}。`;
+  note.innerHTML = `${R.esc(g.tip || TIPS[g.name] || '')}<br>${R.esc(g.verdict || '')}<br><b>本组最需要关注：</b>${R.esc(g.focus?.name || g.focus?.symbol || '—')}，2 年百分位 ${g.focus?.pct_2y ?? '—'}。`;
   sec.appendChild(note);
   const grid = document.createElement('div');
   grid.className = 'pos-contract-grid';
-  const cards = g.contracts.map(c => contractCard(c));
+  const cards = g.contracts.map(c => contractCard(c, latestReport));
   cards.forEach(x => grid.appendChild(x.el));
   sec.appendChild(grid);
   wrap.appendChild(sec);
@@ -136,38 +145,48 @@ function renderGroup(g) {
 }
 
 const TIPS = {
-  index_vol: '股指仓位主要看风险偏好是否拥挤。',
-  rates: '美债仓位看市场在押注收益率下行，还是继续押注收益率上行。',
-  fx: '外汇仓位看美元与非美货币哪边更挤。',
+  index_vol: '股指仓位看风险偏好是否拥挤（注：VIX 期货多空对应波动率本身，净空通常对应偏风险偏好）。',
+  rates: '美债期货仓位指期货价格方向（做多押注收益率下行，做空押注收益率上行）。',
+  fx: '外汇仓位看美元与非美货币的拥挤方向（EUR/JPY 为非美兑美元，与 DXY 方向相反）。',
   commodities: '商品仓位看再通胀交易是否拥挤，以及趋势资金有没有追随。',
   ag_softs: '农产品与软商品仓位看天气升水（Weather Premium）是否已被投机资金买满；极端多头下若产区降雨改善，极易引发踩踏式回吐。',
 };
 
-function contractCard(c) {
+function contractCard(c, latestReport) {
   const card = document.createElement('div');
   card.className = 're-card pos-contract';
   // 两个取色变量只进 color:（卡片无填充用法），故直接取文字档
-  const netColor = c.net >= 0 ? 'var(--up)' : 'var(--down)';
+  const netColor = c.net > 0 ? 'var(--up)' : (c.net < 0 ? 'var(--down)' : 'var(--text-secondary)');
   const wkColor = c.week_dir == '增仓' ? 'var(--up)' : (c.week_dir == '减仓' ? 'var(--down)' : 'var(--text-secondary)');
+  const wkHtml = c.week_chg == null
+    ? '—'
+    : c.week_dir == '增仓'
+      ? `▲ +${R.num(c.week_chg, 0)}`
+      : c.week_dir == '减仓'
+        ? `▼ ${R.num(Math.abs(c.week_chg), 0)}`
+        : '持平 0';
+  const footLeft = c.report_date && c.report_date !== latestReport
+    ? `${c.kind || ''} · 截至 ${c.report_date}`
+    : (c.kind || '');
   card.innerHTML = `
     <div class="pc-head">
       <div>
-        <div class="pc-title">${c.name || c.symbol}</div>
-        <div class="pc-code">${c.cme || ''}${c.code ? ' · ' + c.code : ''}</div>
+        <div class="pc-title">${R.esc(c.name || c.symbol)}</div>
+        <div class="pc-code">${R.esc(c.cme || '')}${c.code ? ' · ' + R.esc(c.code) : ''}</div>
       </div>
       <div style="text-align:right;flex-shrink:0;white-space:nowrap">
-        <span class="pc-badge ${badgeClass(c.label)}">${c.label}</span>
+        <span class="pc-badge ${badgeClass(c.label)}">${R.esc(c.label)}</span>
         <div class="pc-pct">2y 百分位 ${c.pct_2y.toFixed(1)}</div>
       </div>
     </div>
     <div class="pos-cols">
-      <div><div class="k">净持仓</div><div class="v" style="color:${netColor}">${c.net >= 0 ? '+' : ''}${num(c.net)}</div></div>
-      <div><div class="k">多 / 空</div><div class="v"><span style="color:var(--color-up-text)">${num(c.long)}</span> / <span style="color:var(--color-down-text)">${num(c.short)}</span></div></div>
-      <div><div class="k">周环比</div><div class="v" style="color:${wkColor}">${c.week_dir == '增仓' ? '▲ ' : (c.week_dir == '减仓' ? '▼ ' : '—')}${c.week_chg == null ? '' : (c.week_chg > 0 ? '+' : '') + Number(c.week_chg).toLocaleString()}</div></div>
+      <div><div class="k">净持仓</div><div class="v" style="color:${netColor}">${c.net > 0 ? '+' : ''}${R.num(c.net, 0)}</div></div>
+      <div><div class="k">多 / 空</div><div class="v"><span style="color:var(--color-up-text)">${R.num(c.long, 0)}</span> / <span style="color:var(--color-down-text)">${R.num(c.short, 0)}</span></div></div>
+      <div><div class="k">周环比</div><div class="v" style="color:${wkColor}">${wkHtml}</div></div>
     </div>
     <div class="pos-chart"></div>
-    <div class="pos-reading">${c.reading || ''}</div>
-    <div class="pos-foot"><span>${c.kind || ''}</span><span>OI ${c.oi == null ? '—' : num(c.oi)}</span></div>`;
+    <div class="pos-reading">${R.esc(c.reading || '')}</div>
+    <div class="pos-foot"><span>${R.esc(footLeft)}</span><span>OI ${c.oi == null ? '—' : R.num(c.oi, 0)}</span></div>`;
   return { el: card, spark: c.spark || { dates: [], spec: [], asset: [] } };
 }
 
@@ -182,6 +201,8 @@ function axisNum(v) {
 
 function sparkChart(dom, s) {
   const hasAsset = (s.asset || []).some(v => v != null);
+  const allVals = [...(s.spec || []), ...(s.asset || [])].filter(v => v != null);
+  const crossZero = allVals.some(v => v < 0) && allVals.some(v => v > 0);
   R.mkChart(dom.id || (dom.id = 'spark-' + Math.random().toString(36).slice(2)), (colors, w) => R.lineOption({
     tooltip: { trigger: 'axis', valueFormatter: v => Number(v).toLocaleString('en-US') },
     legend: { data: hasAsset ? ['投机方净持仓', '资管净持仓'] : ['投机方净持仓'], top: 0, itemGap: 14, textStyle: { fontSize: 10 } },
@@ -194,8 +215,9 @@ function sparkChart(dom, s) {
       {
         name: '投机方净持仓', type: 'line', data: s.dates.map((dt, i) => [dt, s.spec[i]]), showSymbol: false,
         color: colors.blue, lineStyle: { width: 2, color: colors.blue },
-        // 面积渐变：主题蓝 + 8 位十六进制透明度（canvas 支持 #RRGGBBAA）
-        areaStyle: { color: { type: 'linear', x: 0, y: 0, x2: 0, y2: 1, colorStops: [{ offset: 0, color: colors.blue + '47' }, { offset: 1, color: colors.blue + '05' }] } },
+        // 面积渐变：origin:'start' 从曲线填到底部，避免净空序列向上倒挂填到 y=0
+        areaStyle: { origin: 'start', color: { type: 'linear', x: 0, y: 0, x2: 0, y2: 1, colorStops: [{ offset: 0, color: colors.blue + '47' }, { offset: 1, color: colors.blue + '05' }] } },
+        ...(crossZero ? { markLine: { silent: true, symbol: 'none', label: { show: false }, lineStyle: { width: 1, type: 'dashed', color: colors.border }, data: [{ yAxis: 0 }] } } : {}),
       },
       ...(hasAsset ? [{ name: '资管净持仓', type: 'line', data: s.dates.map((dt, i) => [dt, s.asset[i]]), showSymbol: false, color: colors.gray, lineStyle: { width: 1.5, color: colors.gray } }] : []),
     ],

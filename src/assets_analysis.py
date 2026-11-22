@@ -967,12 +967,12 @@ def _ls_cols(sym: str) -> tuple[str, str]:
 def _cot_net_stats(net: pd.Series) -> tuple[float, float, float | None]:
     """投机净仓序列 → (最新净值, 2 年百分位, 周变动)。
 
-    百分位用 timsun 同款 rank 中点法 (count_less + 0.5)/n × 100（窗口 104 周），
-    positioning 与 enso_block 共用此口径，改定义只改这里。
+    百分位用标准中点秩 (count_less + 0.5 × count_equal)/n × 100（窗口 104 周），
+    positioning / enso_block / _metals_cot 共用此口径，改定义只改这里。
     """
     val = float(net.iloc[-1])
     s2y = net.tail(104)
-    pct = float(((s2y < val).sum() + 0.5) / len(s2y) * 100)
+    pct = float(((s2y < val).sum() + 0.5 * (s2y == val).sum()) / len(s2y) * 100)
     wk = float(net.iloc[-1] - net.iloc[-2]) if len(net) >= 2 else None
     return val, pct, wk
 
@@ -1004,25 +1004,73 @@ COT_META = {
     "BTC": ("比特币", "BITCOIN", "133741", "金融类 TFF"),
 }
 COT_TIPS = {
-    "index_vol": "股指仓位主要看风险偏好是否拥挤。",
-    "rates": "美债仓位主要看市场是在押注利率下行，还是继续押注收益率上行。",
-    "fx": "外汇仓位看美元与非美货币的拥挤方向。",
+    "index_vol": (
+        "股指仓位看风险偏好是否拥挤（注：VIX 期货多空对应波动率本身，净空通常对应偏风险偏好）。"
+    ),
+    "rates": "美债期货仓位指期货价格方向（做多押注收益率下行，做空押注收益率上行）。",
+    "fx": "外汇仓位看美元与非美货币的拥挤方向（EUR/JPY 为非美兑美元，与 DXY 方向相反）。",
     "commodities": "商品仓位看再通胀交易是否拥挤，以及趋势资金有没有追随。",
     # ag_softs：天气升水拥挤度（ENSO 专题联动，与 agriculture 页 #enso 段同口径）
     "ag_softs": "农产品与软商品仓位看天气升水（Weather Premium）是否已被投机资金买满；"
     "极端多头下若产区降雨改善，极易引发踩踏式回吐。",
 }
 
+_GROUP_ZH = {
+    "index_vol": "股指",
+    "rates": "利率",
+    "fx": "外汇",
+    "commodities": "商品",
+    "ag_softs": "农产品",
+}
 
-def _cot_reading(label: str, week_dir: str | None) -> str:
-    """合约解读第一句：按判读桶给出方向含义（timsun 口径）。"""
-    if label.startswith("极度偏多"):
-        return "仓位处在极度偏多区间，趋势资金已经明显站队；继续上涨需要新增买盘确认。"
-    if label.startswith("极度偏空"):
-        return "仓位处在极度偏空区间，市场共识悲观；若价格抗跌，容易出现空头回补。"
+
+def _cot_reading(
+    label: str,
+    week_dir: str | None = None,
+    net_val: float | None = None,
+    symbol: str | None = None,
+) -> str:
+    """合约解读第一句：按 2 年百分位桶、绝对净仓符号与合约标的语义给出一致方向含义。"""
+    if symbol == "VX":
+        if label == "极度看多":
+            return (
+                "VIX 期货处在极度偏多区间，做多波动率拥挤（对冲情绪高）；"
+                "若市场企稳，波动率多头易回吐。"
+            )
+        if label == "偏多":
+            return "VIX 期货仓位偏多，避险与波动率对冲需求升温，但尚未到最拥挤状态。"
+        if label == "极度看空":
+            return (
+                "VIX 期货处在极度偏空区间，做空波动率拥挤（偏风险偏好）；"
+                "一旦波动率回升，易引发空头回补。"
+            )
+        if label == "偏空":
+            return (
+                "VIX 期货仓位偏空（净空做空波动率），反映市场偏风险偏好；"
+                "若波动率抬头，需留意空头回补。"
+            )
+        return "VIX 期货仓位处在中性区间，单独看 CFTC 还不能给出强方向结论。"
+    if label == "极度看多":
+        if net_val is not None and net_val < 0:
+            return (
+                "2 年分位处在极高区间（相对近两年净空已大幅回补），"
+                "但绝对仓位仍为净空，继续上行需观察新增买盘。"
+            )
+        return "仓位处在极度看多区间，趋势资金已经明显站队；继续上涨需要新增买盘确认。"
+    if label == "极度看空":
+        if net_val is not None and net_val > 0:
+            return (
+                "2 年分位处在极低区间（相对近两年净多已大幅回落），"
+                "多头仓位偏轻；若价格企稳，具备回补空间。"
+            )
+        return "仓位处在极度看空区间，市场共识悲观；若价格抗跌，容易出现空头回补。"
     if label == "偏多":
+        if net_val is not None and net_val < 0:
+            return "2 年分位偏高（净空相对近两年偏轻），但绝对仓位仍为净空，资金尚未彻底翻多。"
         return "仓位偏多，趋势资金倾向支持上行，但并未到最拥挤状态。"
     if label == "偏空":
+        if net_val is not None and net_val > 0:
+            return "2 年分位偏低（净多相对近两年偏轻），趋势资金态度趋于谨慎，但尚未转为净空。"
         return "仓位偏空，资金仍偏防御；若价格转强，需要观察净空是否开始回补。"
     return "仓位处在中性区间，单独看 CFTC 还不能给出强方向结论。"
 
@@ -1032,6 +1080,8 @@ def _cot_week_text(week_dir: str | None) -> str:
         return "本周净仓增加，资金边际上在加多或减空。"
     if week_dir == "减仓":
         return "本周净仓下降，资金边际上在减多或加空。"
+    if week_dir == "持平":
+        return "本周净仓持平，多空力量边际变化均衡。"
     return ""
 
 
@@ -1051,12 +1101,71 @@ COT_VERDICT_EXTREME = {
     "ag_softs": "农产品仓位较极端——天气升水已被投机资金买满，"
     "产区降雨改善或丰产报告会引发踩踏式回吐，关注 " + "{f}" + "。",
 }
+_AG_EXTREME_BEAR = (
+    "农产品仓位偏向极度看空——资金对产区天气风险与供给紧缩定价极低，"
+    "异常天气或减产预期容易触发空头回补，关注 {f}。"
+)
+_AG_EXTREME_MIXED = "农产品仓位冷热分化明显，极端仓位下产区气象催化易放大双向波动，关注 {f}。"
+
+
+def _group_verdict(g: str, contracts: list[dict]) -> str:
+    """组判断：无极端合约走常态；部分极端明确点出；半数以上极端走拥挤警示。"""
+    ext = sorted(
+        (c for c in contracts if c["label"].startswith("极度")),
+        key=lambda c: abs(c["pct_2y"] - 50),
+        reverse=True,
+    )
+    if not ext:
+        return COT_VERDICT[g]
+    ext_desc = "、".join(f"{c['name']}（{c['pct_2y']:.1f}）" for c in ext)
+    majority = len(ext) / len(contracts) > 0.5
+    if g == "ag_softs":
+        has_bull = any(c["label"] == "极度看多" for c in ext)
+        has_bear = any(c["label"] == "极度看空" for c in ext)
+        if has_bull and has_bear:
+            return (
+                _AG_EXTREME_MIXED.format(f=ext_desc)
+                if majority
+                else f"农产品组内冷热分化，{ext_desc}已进入极端区间，双向催化出现时波动会放大。"
+            )
+        if has_bear:
+            all_net_long = all(c.get("net", 0) > 0 for c in ext)
+            if majority:
+                if all_net_long:
+                    return (
+                        f"农产品仓位偏向低分位——天气风险溢价大幅回落、多头仓位偏轻，"
+                        f"异常天气或减产预期容易触发买盘回补，关注 {ext_desc}。"
+                    )
+                return _AG_EXTREME_BEAR.format(f=ext_desc)
+            if all_net_long:
+                return (
+                    f"农产品仓位整体尚未全面拥挤，但{ext_desc}已处极度看空区间——"
+                    "天气风险溢价大幅回落、多头仓位偏轻，异常天气易触发买盘回补。"
+                )
+            return (
+                f"农产品仓位整体尚未全面拥挤，但{ext_desc}已处极度看空区间——"
+                "天气风险定价极低，异常天气易触发空头回补。"
+            )
+        return (
+            COT_VERDICT_EXTREME[g].format(f=ext_desc)
+            if majority
+            else (
+                f"农产品仓位整体尚未全面拥挤，但{ext_desc}已处极度看多区间——"
+                "天气升水买满后若产区降雨改善，易引发踩踏式回吐。"
+            )
+        )
+    if majority:
+        return COT_VERDICT_EXTREME[g].format(f=ext_desc)
+    return (
+        f"{_GROUP_ZH.get(g, g)}仓位整体尚未全面拥挤，但{ext_desc}已进入极端区间，反向波动会放大。"
+    )
 
 
 def positioning() -> dict:
     cot = _csv("cot/cot.csv")
     if cot.empty or len(cot) < 52:
         return {"crowding": None, "groups": [], "note": "COT 样本不足（<52 周）"}
+    cot = cot[~cot.index.duplicated(keep="last")].sort_index()
     # 投机净仓 = L − S：金融=对冲基金(HEDGE_L−HEDGE_S)，商品=管理资金(MM_L−MM_S)
     longs: dict[str, pd.Series] = {}
     shorts: dict[str, pd.Series] = {}
@@ -1089,6 +1198,7 @@ def positioning() -> dict:
             if len(s) < 52:
                 continue
             net_val, pct, wk = _cot_net_stats(s)
+            last_dt = s.index[-1]
             label = (
                 "极度看多"
                 if pct >= 90
@@ -1098,7 +1208,11 @@ def positioning() -> dict:
                     else ("极度看空" if pct <= 10 else ("偏空" if pct <= 25 else "中性"))
                 )
             )
-            week_dir = "增仓" if wk is not None and wk > 0 else ("减仓" if wk is not None else None)
+            week_dir = (
+                "增仓"
+                if wk is not None and wk > 0
+                else ("减仓" if wk is not None and wk < 0 else ("持平" if wk is not None else None))
+            )
             name, cme, code, kind = COT_META.get(sym, (sym, sym, "", ""))
             # 2 年迷你图：投机方（金融=HEDGE，商品=MM）vs 资管（金融=ASSET，商品无）
             if sym in FIN_SYMBOLS:
@@ -1113,6 +1227,8 @@ def positioning() -> dict:
                 "spec": [None if pd.isna(v) else round(float(v), 0) for v in spec.reindex(tail)],
                 "asset": [None if pd.isna(v) else round(float(v), 0) for v in asset.reindex(tail)],
             }
+            oi_col = f"{sym}_OI"
+            oi_raw = cot.loc[last_dt, oi_col] if oi_col in cot.columns else None
             contracts.append(
                 {
                     "symbol": sym,
@@ -1120,17 +1236,19 @@ def positioning() -> dict:
                     "cme": cme,
                     "code": code,
                     "kind": kind,
+                    "report_date": str(last_dt.date()),
+                    "sample_weeks": int(min(len(s), 104)),
                     "net": round(net_val, 0),
                     "pct_2y": round(pct, 1),
                     "label": label,
-                    "week_chg": wk,
+                    "week_chg": round(wk, 0) if wk is not None else None,
                     "week_dir": week_dir,
-                    "reading": _cot_reading(label, week_dir) + " " + _cot_week_text(week_dir),
-                    "long": round(float(longs[sym].iloc[-1]), 0),
-                    "short": round(float(shorts[sym].iloc[-1]), 0),
-                    "oi": round(float(cot[f"{sym}_OI"].iloc[-1]), 0)
-                    if f"{sym}_OI" in cot.columns
-                    else None,
+                    "reading": _cot_reading(label, week_dir, net_val, symbol=sym)
+                    + " "
+                    + _cot_week_text(week_dir),
+                    "long": round(float(longs[sym].loc[last_dt]), 0),
+                    "short": round(float(shorts[sym].loc[last_dt]), 0),
+                    "oi": round(float(oi_raw), 0) if pd.notna(oi_raw) else None,
                     "spark": spark,
                 }
             )
@@ -1139,18 +1257,11 @@ def positioning() -> dict:
             worst = max(contracts, key=lambda c: abs(c["pct_2y"] - 50))
             bulls = sum(1 for c in contracts if c["label"].endswith("看多") or c["label"] == "偏多")
             bears = sum(1 for c in contracts if c["label"].endswith("看空") or c["label"] == "偏空")
-            # 组判断：组内极端合约 ≤ 半数 → 非极端（方向留给宏观确认）；
-            # 多数极端 → 拥挤警示
-            ext_n = sum(1 for c in contracts if c["label"].startswith("极度"))
-            if ext_n and ext_n / len(contracts) > 0.5:
-                verdict = COT_VERDICT_EXTREME[g].format(
-                    f=f"{worst['name']}（{worst['pct_2y']:.1f}）"
-                )
-            else:
-                verdict = COT_VERDICT[g]
+            verdict = _group_verdict(g, contracts)
             out["groups"].append(
                 {
                     "name": g,
+                    "tip": COT_TIPS.get(g, ""),
                     "contracts": contracts,
                     "summary": (
                         f"最极端：{worst['symbol']}（2 年百分位 "
@@ -1171,11 +1282,22 @@ def positioning() -> dict:
         all = [c for g in out["groups"] for c in g["contracts"]]
         bulls = sum(1 for c in all if c["label"].endswith("看多") or c["label"] == "偏多")
         bears = sum(1 for c in all if c["label"].endswith("看空") or c["label"] == "偏空")
+        ext_bull = sum(1 for c in all if c["label"] == "极度看多")
+        ext_bear = sum(1 for c in all if c["label"] == "极度看空")
         ext = [c for c in all if c["label"].startswith("极度")]
+        neutral_n = len(all) - bulls - bears
         extremes = sorted(all, key=lambda c: abs(c["pct_2y"] - 50), reverse=True)[:3]
         out["overview"] = {
             "bias": "偏多" if bulls > bears else ("偏空" if bears > bulls else "中性"),
-            "counts": {"bull": bulls, "bear": bears, "extreme": len(ext)},
+            "counts": {
+                "bull": bulls,
+                "bear": bears,
+                "neutral": neutral_n,
+                "extreme": len(ext),
+                "extreme_bull": ext_bull,
+                "extreme_bear": ext_bear,
+                "total": len(all),
+            },
             "extremes": [
                 {"symbol": c["symbol"], "name": c["name"], "pct_2y": c["pct_2y"]} for c in extremes
             ],
@@ -1904,19 +2026,19 @@ def _metals_gold_silver(p: pd.DataFrame) -> dict | None:
 
 
 def _metals_cot() -> dict | None:
-    """CFTC COT：GC 管理基金净多（GC_MM_L−GC_MM_S）周序列 + 分位。"""
+    """CFTC COT：GC 管理基金净多（GC_MM_L−GC_MM_S）周序列 + 近 2 年分位（同源 _cot_net_stats）。"""
     df = _csv("cot/cot.csv")
     if df.empty or not {"GC_MM_L", "GC_MM_S"}.issubset(df.columns):
         return None
     s = (df["GC_MM_L"] - df["GC_MM_S"]).dropna()
     if len(s) < 30:
         return None
-    cur = float(s.iloc[-1])
+    cur, pct, _wk = _cot_net_stats(s)
     return {
         "dates": [str(d.date()) for d in s.index],
         "series": [round(float(v), 0) for v in s],
         "latest": round(cur, 0),
-        "pct": round(float((s <= cur).mean() * 100), 1),
+        "pct": round(pct, 1),
     }
 
 
