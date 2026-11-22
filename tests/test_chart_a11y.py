@@ -39,7 +39,7 @@ const theme = buildTheme();
 
 // 描述：标题取最近小节；series 名称与类型入文案
 const secH2 = { textContent: 'VIX 波动率指数' };
-const section = { querySelector: (s) => (s === 'h2' ? secH2 : null) };
+const section = { querySelector: (s) => (s.includes('h2') ? secH2 : null) };
 const dom = { closest: (sel) => (sel.includes('.re-sec') ? section : null) };
 const lineOnly = R._ariaText({ series: [{ name: 'VIX', type: 'line' }] }, dom);
 const mixed = R._ariaText({
