@@ -59,6 +59,38 @@ def test_proxy_from_env(monkeypatch):
     assert seen.get("https") == "socks5h://127.0.0.1:7890"
 
 
+def test_api_key_header(monkeypatch):
+    """有 JINA_API_KEY → 带 Authorization（匿名会被按出口 IP 拒）。"""
+    import requests
+
+    seen = {}
+
+    def fake_get(url, **kw):
+        seen.update(kw["headers"])
+        return _Resp({"content-type": "text/plain"}, "ok")
+
+    monkeypatch.setenv("JINA_API_KEY", "jina_test_key_abc123")
+    monkeypatch.setattr(requests, "get", fake_get)
+    jina_fetch("https://example.com")
+    assert seen["Authorization"] == "Bearer jina_test_key_abc123"
+
+
+def test_no_api_key_omits_authorization(monkeypatch):
+    """没配 key（或空串）→ 不带 Authorization，退回匿名。"""
+    import requests
+
+    seen = {}
+
+    def fake_get(url, **kw):
+        seen.update(kw["headers"])
+        return _Resp({"content-type": "text/plain"}, "ok")
+
+    monkeypatch.setenv("JINA_API_KEY", "  ")
+    monkeypatch.setattr(requests, "get", fake_get)
+    jina_fetch("https://example.com")
+    assert "Authorization" not in seen
+
+
 def _status_resp(status: int, text: str = ""):
     class _S(_Resp):
         status_code = status

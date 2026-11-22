@@ -4,7 +4,9 @@
 两行式（CME）/ 一行式（Binance/OKX）交易所行 + All 合计行 + 导航栏。
 """
 
-from src.fetchers.coinglass_fetcher import _pct, _qty, parse_oi_table, parse_top
+import pytest
+
+from src.fetchers.coinglass_fetcher import _pct, _qty, parse_oi_table, parse_snapshot, parse_top
 
 # 真实格式摘录（含菜单噪声，验证正则锚定）；长行字符串拼接，内容与真实页面一致
 _SAMPLE = (
@@ -145,3 +147,33 @@ def test_column_drift_rows_skipped(caplog):
     assert out["exchanges"][0]["chg_1d_pct"] == 2.01
     assert "变化列缺失/异常" in caplog.text
     assert "2 行" in caplog.text
+
+
+def _full_sample(n: int = 8) -> str:
+    """导航 + All 行 + n 家交易所行（parse_snapshot 要求 8 家齐才算渲染完整）。"""
+    rows = [
+        f"{i}[![Image {i + 3}: Ex{i}](https://u/x.png) Ex{i}](https://u/Ex{i})"
+        f"10.0K BTC$1.00B 2.50%+0.10%+0.20%+0.30%0.5"
+        for i in range(1, n + 1)
+    ]
+    return _SAMPLE + "\n".join(rows)
+
+
+def test_parse_snapshot_complete():
+    """导航、All 行、8 家交易所都在 → 快照字段齐。"""
+    snap = parse_snapshot(_full_sample())
+    assert snap["all_open_interest_usd"] == 137_149_294_671
+    assert snap["btc_oi_usd"] == 55_450_000_000.0
+    assert len(snap["exchanges"]) == 8
+
+
+def test_parse_snapshot_degenerate_raises():
+    """Jina 只回占位页（cookie 提示）时直接报错，不写 75 字节空快照。"""
+    with pytest.raises(RuntimeError, match="渲染不全"):
+        parse_snapshot("We use essential cookies to make our site work.")
+
+
+def test_parse_snapshot_few_exchanges_raises():
+    """交易所行不足 8 家 → 报错（页面改版或半渲染）。"""
+    with pytest.raises(RuntimeError, match="仅 3 家"):
+        parse_snapshot(_SAMPLE)

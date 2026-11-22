@@ -1,7 +1,9 @@
 name: crypto-hourly
 
 # 加密数据独立刷新（每小时全天候 7×24，UTC 每小时 12 分错峰）：
-# OKX/Deribit/CME 衍生品、Coinglass 聚合快照、BTC 现货 ETF 资金流（Farside 日更，幂等空跑无害）。
+# OKX/Deribit/CME 衍生品、BTC 现货 ETF 资金流（Farside 直连，幂等空跑无害）每小时。
+# Coinglass 聚合快照每 6 小时一次：它只能经 Jina Reader 渲染，而 Jina 按输出 token
+# 计费（单次约 37k），每小时跑会把手头的额度在十几天内烧完；daily-full 另兜底一次。
 # 加密源原属 intraday-refresh 前身 fast-refresh，2026-09-29 拆出：加密市场 7×24 交易，不该绑在「工作日盘中」的 cron 上——
 # 之前周末/夜间只有 daily-full 一天一次，现在每小时均匀覆盖。
 # daily-full 仍会兜底跑同三源（幂等）。
@@ -15,7 +17,12 @@ name: crypto-hourly
 on:
   schedule:
     - cron: "12 * * * *"
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      force_coinglass:
+        description: 无视 6 小时间隔，本次也跑 fetch_coinglass
+        type: boolean
+        default: false
 
 # 与其余数据 workflow 共享 group：串行化 push 防 rebase 冲突（见 daily-full.yml 注释）
 concurrency:
@@ -50,12 +57,25 @@ jobs:
       - name: Fetch crypto sources
         env:
           YF_NO_PROXY: "1"        # Actions 无 socks5 代理，yfinance 直连
+          # coinglass 走 r.jina.ai；空 = 匿名（20 RPM，且会被按出口 IP 拒），匿名 401 是常态
+          JINA_API_KEY: ${{ secrets.JINA_API_KEY }}
         run: |
           set +e  # 单个失败不阻断，末尾统一判红
-          for f in fetch_crypto_derivatives fetch_coinglass fetch_etf_flows; do
+          for f in fetch_crypto_derivatives fetch_etf_flows; do
             echo "===== START $f ====="
             bash "bin/$f" || FAILED="$FAILED $f"
           done
+          # coinglass：配了 key 时 Jina 按输出 token 计费（单次约 37k），每小时跑会把额度在十几天内
+          # 烧完 → 每 6 小时一次；没 key 时匿名请求不计费，保持每小时重试（匿名约一半班次 401，靠次数自愈）。
+          # cf-cron-dispatch 也是走 workflow_dispatch，所以只认显式 input 放行。
+          if [ "${{ inputs.force_coinglass }}" = "true" ] \
+            || [ -z "${JINA_API_KEY:-}" ] \
+            || [ $((10#$(date -u +%H) % 6)) -eq 0 ]; then
+            echo "===== START fetch_coinglass ====="
+            bash bin/fetch_coinglass || FAILED="$FAILED fetch_coinglass"
+          else
+            echo "skipped fetch_coinglass（有 key 时每 6 小时一次，本班小时 $(date -u +%H)）"
+          fi
           [ -n "$FAILED" ] && echo "失败:$FAILED" && echo "FAILED_LIST=$FAILED" >> "$GITHUB_ENV"
           exit 0
 

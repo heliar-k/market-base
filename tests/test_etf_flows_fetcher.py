@@ -1,82 +1,35 @@
 """Farside ETF 资金流 fetcher 单元测试。"""
 
 import pandas as pd
+import pytest
 
 from src.assets_analysis import crypto_consensus, crypto_radar
 from src.fetchers.etf_flows_fetcher import COLUMNS, parse_farside
 
-# 与真实页面一致的列序（Date + 13 值列）；构造最小 3 列样本时下标需对齐 COLUMNS
-_SAMPLE = """Bitcoin ETF Flow – All Data (US$m)
-Date
-IBIT
-FBTC
-BITB
-ARKB
-BTCO
-EZBC
-BRRR
-HODL
-BTCW
-MSBT
-GBTC
-BTC
-Total
-
-11 Jan 2024
-111.7
-227.0
-237.9
-65.3
-17.4
-50.1
-29.4
-10.6
-1.0
--
-(95.1)
--
-655.3
-
-12 Jan 2024
-386.0
-195.3
-17.4
-39.8
-28.4
-0.0
-20.2
-0.0
-0.0
--
-(484.1)
--
-203.0
-
-15 Jan 2024
--
-0.0
-0.0
-0.0
-0.0
-0.0
-0.0
-0.0
-0.0
--
-0.0
--
--1.0
-"""
+# 与真实页面一致的表结构：表头行 + 每日一行 + 页尾 Total 累计行；列序即 COLUMNS
+_HEAD = "<tr><th>Date</th>" + "".join(f"<th>{c}</th>" for c in COLUMNS) + "</tr>"
+_TOTAL = "<tr><td>Total</td>" + "".join("<td>63,370</td>" for _ in COLUMNS) + "</tr>"
 
 
-def _row(tokens: list[str]) -> list[str]:
-    """单行 token 列表 → 按 COLUMNS 位置对齐（Total 在末位）。"""
-    out = [None] * len(COLUMNS)
-    assert len(tokens) == 4  # date 行 + 3 个值：IBIT/FBTC/Total
-    out[COLUMNS.index("IBIT")] = tokens[1]
-    out[COLUMNS.index("FBTC")] = tokens[2]
-    out[COLUMNS.index("Total")] = tokens[3]
-    return out
+def _row(date: str, **vals: str) -> str:
+    """一行；未给的列填 '-'（真实页面里缺失值就是 '-'）。"""
+    cells = ["<td>-</td>" if c not in vals else f"<td>{vals[c]}</td>" for c in COLUMNS]
+    return f"<tr><td>{date}</td>{''.join(cells)}</tr>"
+
+
+_SAMPLE = (
+    "<html><body><table>\n"
+    + _HEAD
+    + "\n"
+    + _row("11 Jan 2024", IBIT="111.7", FBTC="227.0", GBTC="(95.1)", Total="655.3")
+    + "\n"
+    + _row("12 Jan 2024", IBIT="386.0", FBTC="195.3", GBTC="(484.1)", Total="203.0")
+    + "\n"
+    + _row("15 Jan 2024", FBTC="0.0", Total="-1.0")
+    + "\n"
+    + _TOTAL
+    + "\n</table></body></html>"
+)
 
 
 def test_parse_farside_basic():
@@ -89,16 +42,83 @@ def test_parse_farside_basic():
 
 
 def test_parse_farside_paren_negative():
-    df = parse_farside("Date	\nGBTC\n\n11 Jan 2024	\n(95.1)	\n")
+    html = "<table>" + _HEAD + _row("11 Jan 2024", GBTC="(95.1)", Total="(1.0)") + "</table>"
+    df = parse_farside(html)
     assert df.loc["2024-01-11", "GBTC"] == -95.1
+    assert df.loc["2024-01-11", "Total"] == -1.0
 
 
-def test_parse_farside_last_row_has_footer():
-    """最后一行混入页脚 token：只取前 13 值，不崩。"""
-    footer = _SAMPLE + "\nSource: Farside Investors\ninfo@farside.co.uk"
-    df = parse_farside(footer)
+def test_parse_farside_skips_total_row():
+    """页尾 Total 累计行首列不是日期（63,370 是累计持仓，不是当日净流入）→ 不进结果。"""
+    df = parse_farside(_SAMPLE)
     assert len(df) == 3
-    assert df.loc["2024-01-15", "Total"] == -1.0
+
+
+def test_parse_farside_header_mismatch_raises():
+    """表头与内置列序不一致 → 报错（按位置取值会把邻居列写进 Total）。"""
+    html = (
+        "<table><tr><td>Date</td><td>IBIT</td><td>NEWFUND</td><td>Total</td></tr>"
+        "<tr><td>11 Jan 2024</td><td>1.0</td><td>2.0</td><td>3.0</td></tr></table>"
+    )
+    with pytest.raises(RuntimeError, match="表头与预期不一致"):
+        parse_farside(html)
+
+
+def test_parse_farside_duplicate_dates_keep_last():
+    html = "<table>" + _HEAD + _row("11 Jan 2024", IBIT="1.0") + _row("11 Jan 2024", IBIT="2.0")
+    df = parse_farside(html + "</table>")
+    assert len(df) == 1
+    assert df.loc["2024-01-11", "IBIT"] == 2.0
+
+
+def test_fetch_flows_raises_when_page_has_no_table(monkeypatch):
+    """拿到的是拦截页（无表）→ 抛错，不静默写空。"""
+    import src.fetchers.etf_flows_fetcher as mod
+
+    class _Resp:
+        text = "<html>blocked</html>"
+
+        def raise_for_status(self):
+            pass
+
+    class _Session:
+        def __init__(self, **kw):
+            pass
+
+        def get(self, url):
+            return _Resp()
+
+    monkeypatch.setattr(mod.cffi_requests, "Session", _Session)
+    with pytest.raises(RuntimeError, match="解析为空"):
+        mod.fetch_flows()
+
+
+def test_fetch_flows_propagates_http_error(monkeypatch):
+    """403 等非 2xx → HTTPError 直接上抛，不进解析。"""
+    import requests
+
+    import src.fetchers.etf_flows_fetcher as mod
+
+    class _Resp:
+        text = "<html>blocked</html>"
+
+        def raise_for_status(self):
+            raise requests.HTTPError("403")
+
+    class _Session:
+        def __init__(self, **kw):
+            pass
+
+        def get(self, url):
+            return _Resp()
+
+    monkeypatch.setattr(mod.cffi_requests, "Session", _Session)
+    with pytest.raises(requests.HTTPError):
+        mod.fetch_flows()
+
+
+def test_parse_farside_no_table_returns_empty():
+    assert parse_farside("<html>blocked</html>").empty
 
 
 def test_etf_signal_scored_when_fresh(monkeypatch, tmp_path):

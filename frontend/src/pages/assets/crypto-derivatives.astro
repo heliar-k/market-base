@@ -91,7 +91,7 @@ async function load() {
     document.getElementById('now').appendChild(lsec);
   }
 
-  // ── ETF FLOWS（Farside via Jina；stale 时只展示最近值不参与方向）──
+  // ── ETF FLOWS（Farside 直连；stale 时只展示最近值不参与方向）──
   const etf = d.etf || {};
   if (etf.available) {
     const esec = document.createElement('div');

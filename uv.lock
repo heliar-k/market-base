@@ -416,6 +416,7 @@ name = "market-base"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [
+    { name = "curl-cffi" },
     { name = "exchange-calendars" },
     { name = "fastapi" },
     { name = "fredapi" },
@@ -445,6 +446,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
+    { name = "curl-cffi", specifier = ">=0.15.0" },
     { name = "exchange-calendars", specifier = ">=4.13.2" },
     { name = "fastapi", specifier = ">=0.115.0" },
     { name = "fredapi", specifier = ">=0.5.1" },

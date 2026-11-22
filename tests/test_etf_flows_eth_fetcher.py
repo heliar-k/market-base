@@ -5,61 +5,55 @@ import pandas as pd
 from src.fetchers.etf_flows_eth_fetcher import COLUMNS
 from src.fetchers.etf_flows_fetcher import parse_farside
 
-# 与真实页面一致的管道表（12 值列：11 ETF + Total）；列表拼行防 E501
+# 与真实页面一致：表头（首格空）+ Fee / Seed 行 + 每日一行；12 值列 = 11 ETF + Total
+_HEAD = "<tr><td></td>" + "".join(f"<th>{c}</th>" for c in COLUMNS) + "</tr>"
+_FEE = "<tr><td>Fee</td>" + "".join(f"<td>0.{i}5%</td>" for i in range(len(COLUMNS))) + "</tr>"
+_SEED = "<tr><td>Seed</td><td>9,199.3*</td>" + "<td></td>" * (len(COLUMNS) - 1) + "</tr>"
 
 
-def _row(*cells: str) -> str:
-    return "| " + " | ".join(cells) + " |"
+def _row(date: str, **vals: str) -> str:
+    """一行；未给的列填 '-'（真实页面里缺失值就是 '-'）。"""
+    cells = ["<td>-</td>" if c not in vals else f"<td>{vals[c]}</td>" for c in COLUMNS]
+    return f"<tr><td>{date}</td>{''.join(cells)}</tr>"
 
 
-_HEAD = _row("", *COLUMNS)
-_SEP = "|" + " --- |" * (len(COLUMNS) + 1)
-_FEE = _row(
-    "Fee",
-    "0.25%",
-    "0.25%",
-    "0.25%",
-    "0.20%",
-    "0.21%",
-    "0.20%",
-    "0.25%",
-    "0.19%",
-    "0.14%",
-    "2.50%",
-    "0.15%",
-    "",
+_SAMPLE = (
+    "<html><body><table>\n"
+    + _HEAD
+    + "\n"
+    + _FEE
+    + "\n"
+    + _SEED
+    + "\n"
+    + _row(
+        "23 Jul 2024",
+        ETHA="266.5",
+        FETH="71.3",
+        ETHW="204.0",
+        TETH="7.5",
+        ETHV="7.6",
+        QETH="5.5",
+        EZET="13.2",
+        ETHE="(484.1)",
+        ETH="15.1",
+        Total="106.6",
+    )
+    + "\n"
+    + _row(
+        "24 Jul 2024",
+        ETHA="17.4",
+        FETH="74.5",
+        ETHW="29.6",
+        TETH="0.0",
+        ETHV="19.8",
+        QETH="2.5",
+        EZET="3.9",
+        ETHE="(326.9)",
+        ETH="45.9",
+        Total="(133.3)",
+    )
+    + "\n</table></body></html>"
 )
-_D1 = _row(
-    "23 Jul 2024",
-    "266.5",
-    "-",
-    "71.3",
-    "204.0",
-    "7.5",
-    "7.6",
-    "5.5",
-    "13.2",
-    "-",
-    "(484.1)",
-    "15.1",
-    "106.6",
-)
-_D2 = _row(
-    "24 Jul 2024",
-    "17.4",
-    "-",
-    "74.5",
-    "29.6",
-    "0.0",
-    "19.8",
-    "2.5",
-    "3.9",
-    "-",
-    "(326.9)",
-    "45.9",
-    "(133.3)",
-)
-_SAMPLE = "\n".join([_HEAD, _SEP, _FEE, _D1, _D2]) + "\n"
 
 
 def test_parse_eth_columns():
@@ -79,7 +73,7 @@ def test_parse_eth_table():
     assert pd.isna(df.loc["2024-07-23", "MSSE"])
 
 
-def test_parse_skips_fee_seed_rows():
-    """Fee/Seed 等非日期管道行不进入结果。"""
+def test_parse_skips_fee_and_seed_rows():
+    """Fee / Seed 等非日期行不进入结果（Seed 的 '9,199.3*' 带星号）。"""
     df = parse_farside(_SAMPLE, COLUMNS)
     assert len(df) == 2

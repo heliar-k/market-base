@@ -1,6 +1,6 @@
 """Farside ETH 现货 ETF 资金流。
 
-与 etf_flows_fetcher（BTC 版）同模式：Farside 官网直连 403 → 经 Jina Reader。
+与 etf_flows_fetcher（BTC 版）同模式：curl_cffi 以 chrome 指纹直连 Farside 的静态 HTML 表。
 ETH 页 11 ETF + Total（2024-07-23 起，单位 M USD，负值 = 净流出），
 解析函数直接复用 BTC 版，仅列清单 / URL / 输出路径不同。
 

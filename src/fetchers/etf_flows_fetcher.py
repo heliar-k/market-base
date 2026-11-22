@@ -1,10 +1,11 @@
 """Farside BTC 现货 ETF 资金流（timsun 衍生品页 ETF FLOWS 数据源）。
 
-Farside 官网直连 403（Cloudflare 反爬），经 Jina Reader (r.jina.ai) 抓取
-Markdown 渲染文本（timsun 同款做法；免费版 ~20 RPM，每日一次足够）。
+Farside 页面是服务端渲染的静态 HTML 表，Cloudflare 只查 TLS 指纹 —— curl_cffi 以 chrome
+指纹直连就拿到 200 与整张表（2026-11 实测 866KB）。经 Jina Reader 时会被 r.jina.ai 对
+Actions 出口 IP 的 401 掐断（11-14 起约一半班次失败）且多烧一份 token，故直接取。
 
 数据：12 ETF + Total，2024-01-11 起，单位 M USD（负值 = 净流出）；
-Farside 每日 ~21:00 UTC 更新。另含累计持仓量（Holdings）列，本期不解析。
+Farside 每日 ~21:00 UTC 更新。
 
 写入 data/etf_flows/etf_flows.csv（观测日 upsert 宽表）。
 列序: date + IBIT FBTC BITB ARKB BTCO EZBC BRRR HODL BTCW MSBT GBTC BTC Total。
@@ -19,12 +20,13 @@ from __future__ import annotations
 import argparse
 import logging
 import re
+from html import unescape
 
 import pandas as pd
+from curl_cffi import requests as cffi_requests
 
 from ..config import ROOT
 from ._io import upsert_timeseries
-from .jina_reader import jina_fetch
 
 logger = logging.getLogger(__name__)
 
@@ -50,7 +52,11 @@ COLUMNS = [
 OUT = ROOT / "data" / "etf_flows" / "etf_flows.csv"
 
 _DATE_RE = re.compile(r"^\d{1,2} [A-Z][a-z]{2} \d{4}$")
-_NUM_RE = re.compile(r"^([\-\(]?)([\d,]+\.?\d*)(\)?)$")
+_NUM_RE = re.compile(r"^([\-\(]?)(\d[\d,]*\.?\d*)(\)?)$")
+_TABLE_RE = re.compile(r"<table.*?</table>", re.S)
+_ROW_RE = re.compile(r"<tr.*?</tr>", re.S)
+_CELL_RE = re.compile(r"<t[dh][^>]*>(.*?)</t[dh]>", re.S)
+_TAG_RE = re.compile(r"<[^>]+>")
 
 
 def _to_float(tok: str) -> float | None:
@@ -65,25 +71,34 @@ def _to_float(tok: str) -> float | None:
     return sign * float(m.group(2).replace(",", ""))
 
 
-def _parse_table(content: str, columns: list[str]) -> pd.DataFrame:
-    """解析 Jina Markdown 管道表（2026-08 起 Jina 把 Farside 表渲染成 | a | b | 形式）：
-    每行 | 日期 | N 值 |，列序即 columns（与 Farside 表头一致）。
-    表头行（首个含 "Total" 的管道行）与 columns 不一致 → 告警后仍按 columns 解析。"""
+def _cells(tr_html: str) -> list[str]:
+    """一个 <tr> 的单元格纯文本（与 _wiki.py 同一套正则，不引 HTML 解析依赖）。"""
+    return [unescape(_TAG_RE.sub("", c)).strip() for c in _CELL_RE.findall(tr_html)]
+
+
+def parse_farside(html: str, columns: list[str] | None = None) -> pd.DataFrame:
+    """解析 Farside 页面第一张 <table>（M USD）。
+
+    columns 缺省用 BTC 页 COLUMNS；ETH 页传自己的列清单。
+    只认首列是日期的行：页头的 Fee/Seed 行、页尾的 Total（累计）行自然跳过。
+    """
+    columns = columns or COLUMNS
+    table = _TABLE_RE.search(html)
+    if table is None:
+        return pd.DataFrame()
     records = []
     header_checked = False
-    for ln in content.splitlines():
-        if "|" not in ln:
+    for tr in _ROW_RE.findall(table.group(0)):
+        cells = _cells(tr)
+        if len(cells) < 2:
             continue
-        cells = [c.strip() for c in ln.strip().strip("|").split("|")]
-        if len(cells) < 3:
-            continue
-        if not header_checked and "Total" in cells:
+        if not header_checked:
             header_checked = True
             page_cols = [c for c in cells[1:] if c]
+            # 表头（表的第一行）与内置列序不一致 → 后续按位置取值会把邻居列写进 Total，就地报错
             if page_cols != columns:
-                logger.warning(
-                    "Farside 表头与预期不一致: %s…（按内置列序解析）",
-                    str(page_cols[:5]),
+                raise RuntimeError(
+                    f"Farside 表头与预期不一致: {page_cols[:5]}…（页面可能加了/改了标的）"
                 )
             continue
         if not _DATE_RE.match(cells[0]):
@@ -98,64 +113,13 @@ def _parse_table(content: str, columns: list[str]) -> pd.DataFrame:
     return df[~df.index.duplicated(keep="last")].sort_index()
 
 
-def parse_farside(content: str, columns: list[str] | None = None) -> pd.DataFrame:
-    """解析 Jina 渲染的 Farside 全表（M USD）。
-
-    columns 缺省用 BTC 页 COLUMNS；ETH 页等变体传自己的列清单。
-    新格式：Markdown 管道表（每行 | 日期 | N 值 |）；
-    旧格式（历史/测试）：每 token 一行（日期行 + N 值行）。
-    """
-    columns = columns or COLUMNS
-    df = _parse_table(content, columns)
-    if not df.empty:
-        return df
-    tokens = [ln.strip() for ln in content.splitlines() if ln.strip()]
-    # 表头锚定：最后一个 "Date" token 之后、首个日期行之前为列名
-    # （菜单/页脚无关 token 不计）
-    idx = next((i for i, t in enumerate(tokens) if _DATE_RE.match(t)), len(tokens))
-    header: list[str] = []
-    last_date = max((i for i, t in enumerate(tokens[:idx]) if t == "Date"), default=-1)
-    if last_date >= 0:
-        header = [t for t in tokens[last_date + 1 : idx] if _DATE_RE.match(t) is None]
-    # 表头与 columns 数量一致但内容不同（Jina 列序变化/噪声）→ 回退并告警；
-    # 数量不同的小样本/变体页仍按页面自身 header 解析
-    if header and len(header) == len(columns) and header != columns:
-        logger.warning("Farside 表头与预期不一致: %s…（回退默认列序）", str(header[:5]))
-        header = []
-    cols = header if header else columns
-    rows: list[dict] = []
-    cur_date, cur_vals = None, []
-    for tok in tokens[idx:]:
-        if _DATE_RE.match(tok):
-            if cur_date is not None:
-                rows.append((cur_date, cur_vals))
-            cur_date, cur_vals = tok, []
-        elif cur_date is not None:
-            cur_vals.append(tok)
-    if cur_date is not None:
-        rows.append((cur_date, cur_vals))
-
-    records = []
-    for d, vals in rows:
-        # 日期行后的 token 至下一日期行；取前 len(cols) 个有效值（列序对齐表头）
-        nums = [_to_float(v) for v in vals[: len(cols)]]
-        if len(nums) < len(cols):
-            nums += [None] * (len(cols) - len(nums))
-        rec = {"date": pd.to_datetime(d, format="%d %b %Y").strftime("%Y-%m-%d")}
-        rec.update(dict(zip(cols, nums)))
-        records.append(rec)
-    if not records:
-        return pd.DataFrame()
-    df = pd.DataFrame(records).set_index("date")
-    return df
-
-
 def fetch_flows(url: str = PAGE_URL, columns: list[str] | None = None) -> pd.DataFrame:
-    """经 Jina Reader 拉取 Farside 全表并解析。"""
-    content = jina_fetch(url)
-    df = parse_farside(content, columns)
+    """直连 Farside 拉全表并解析（HTTPS_PROXY 由 curl_cffi 自己读，本地不用另配）。"""
+    resp = cffi_requests.Session(impersonate="chrome", timeout=60).get(url)
+    resp.raise_for_status()
+    df = parse_farside(resp.text, columns)
     if df.empty:
-        raise RuntimeError(f"Farside 解析为空（响应 {len(content)} 字符）")
+        raise RuntimeError(f"Farside 解析为空（响应 {len(resp.text)} 字符）")
     return df
 
 

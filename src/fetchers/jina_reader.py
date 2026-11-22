@@ -2,10 +2,11 @@
 
 用法：
     from src.fetchers.jina_reader import jina_fetch
-    text = jina_fetch("https://farside.co.uk/bitcoin-etf-flow-all-data/")
+    text = jina_fetch("https://www.coinglass.com/open-interest/BTC")
 
-返回 Markdown 文本（Jina 把 HTML 表渲染成"每 token 一行"，解析层各自处理）。
-免费额度 ~20 RPM；每日 cron 一次足够，勿用于高频轮询。
+返回 Markdown 文本，解析层各自处理。
+环境变量 JINA_API_KEY（可选）：带上 `Authorization: Bearer` 后按 key 计限额与 token；
+不配就匿名（匿名请求被 r.jina.ai 按出口 IP 限，2026-11 起 Actions 上约一半返回 401）。
 """
 
 from __future__ import annotations
@@ -33,15 +34,20 @@ def jina_fetch(url: str, timeout: int = _TIMEOUT) -> str:
         RuntimeError: JSON 响应但缺 data.content（Jina 改版时）
     """
     proxies = {"https": os.environ["HTTPS_PROXY"]} if os.environ.get("HTTPS_PROXY") else None
+    api_key = os.environ.get("JINA_API_KEY", "").strip()
     for attempt in range(len(_RETRY_BACKOFF) + 1):
+        headers = {"User-Agent": _UA, "Accept": "application/json"}
+        if api_key:
+            headers["Authorization"] = f"Bearer {api_key}"
         resp = requests.get(
             f"https://r.jina.ai/{url}",
             timeout=timeout,
-            headers={"User-Agent": _UA, "Accept": "application/json"},
+            headers=headers,
             proxies=proxies,
         )
         status = getattr(resp, "status_code", 200)
-        # shortcut: 退避只治间歇限流；Jina 若改成无 key 一律 403，得配 JINA_API_KEY
+        # shortcut: 退避只治间歇限流；401 是 r.jina.ai 对匿名请求按出口 IP 的拒绝，同 IP 重试无用
+        # （Actions 上实测约一半班次如此），配 JINA_API_KEY 后走 key 限额
         if status in _RETRY_STATUS and attempt < len(_RETRY_BACKOFF):
             wait = _RETRY_BACKOFF[attempt]
             logger.warning("Jina %s（第 %d 次），%ds 后重试：%s", status, attempt + 1, wait, url)

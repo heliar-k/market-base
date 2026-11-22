@@ -8,8 +8,9 @@ https://www.coinglass.com/open-interest/BTC 的 Markdown 渲染文本并解析�
   - 24h 多空比（Long/Short 百分比）
   - 交易所 OI 分布（页面顺序前 8 家：OI BTC / OI USD / 份额 / 24h 变化）
 
-写入 data/coinglass/{date}.json（覆盖写，每日 Actions 跑）。
-单个字段抓不到就跳过该字段，不放弃整个快照。
+写入 data/coinglass/{date}.json（覆盖写，crypto-hourly 每 6 小时一次 + daily-full 兜底）。
+页面渲染不全（缺任一必需字段或交易所行不足 8 家）就抛错不写文件：过一小时的下一班还会重试，
+留一个只有 ts/title 的空快照反而把当日模块静默置空。
 
 用法:
     uv run python -m src.fetchers.coinglass_fetcher
@@ -49,6 +50,17 @@ _ROW_RE = re.compile(
 )
 # 合计行: All 717.29K BTC$55.45B 100%+0.19%-0.37%-1.61%0.9345
 _ALL_RE = re.compile(r"(?m)^All\s+([\d.]+[KM]?)\s+BTC\$([\d.]+[KMB]?)\s+([\d.]+)%")
+
+
+# 快照必备字段（缺任一即视为页面未渲染完，parse_snapshot 抛错）
+_REQUIRED = (
+    "all_open_interest_usd",
+    "liq24h_usd",
+    "ls_ratio",
+    "btc_oi_btc",
+    "btc_oi_usd",
+    "exchanges",
+)
 
 
 def _qty(tok: str) -> float:
@@ -134,16 +146,22 @@ def parse_oi_table(content: str) -> dict:
 
 
 def parse_snapshot(content: str) -> dict:
-    """解析 Jina 渲染的 Coinglass Markdown → 快照 dict（字段可缺）。"""
+    """解析 Jina 渲染的 Coinglass Markdown → 快照 dict。
+
+    页面渲染不全（匿名请求被 r.jina.ai 退成只有 cookie 提示的占位页）时就地抛错：
+    只写 ts/title 的空快照会让当日模块静默无数据，而过一小时的下一班还会重试。
+    """
     snap: dict = {
         "ts": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "title": "Coinglass 全市场衍生品聚合",
     }
-    for parser in (parse_top, parse_oi_table):
-        try:
-            snap.update(parser(content))
-        except Exception as e:
-            logger.warning("解析失败 %s: %s", parser.__name__, e)
+    snap.update(parse_top(content))
+    snap.update(parse_oi_table(content))
+    missing = [k for k in _REQUIRED if k not in snap]
+    if missing:
+        raise RuntimeError(f"Coinglass 页面渲染不全，缺 {missing}（响应 {len(content)} 字符）")
+    if len(snap["exchanges"]) < 8:
+        raise RuntimeError(f"Coinglass 交易所行仅 {len(snap['exchanges'])} 家（<8，页面可能改版）")
     return snap
 
 

@@ -29,6 +29,7 @@ dependencies = [
     "xlrd>=2.0.2",
     "playwright>=1.62.0",
     "exchange-calendars>=4.13.2",
+    "curl_cffi>=0.15.0",  # TLS 指纹直连（Farside 表格 / Yahoo NCP 新闻）
 ]
 
 [dependency-groups]

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# ETH 现货 ETF 资金流（Farside via Jina Reader）
+# ETH 现货 ETF 资金流（Farside 直连 HTML 表）
 set -euo pipefail
 cd "$(dirname "$0")/.."
 uv run python -m src.fetchers.etf_flows_eth_fetcher "$@"
