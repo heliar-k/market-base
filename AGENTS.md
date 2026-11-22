@@ -51,7 +51,6 @@ market-base/
 │   │   ├── _io.py                ← CSV 保存工具（save_daily_csv 快照 + upsert_timeseries 全量）
 │   │   ├── _symbol_fetch.py      ← 股票/指数日线拉取统一编排（IBKR 优先，yfinance 回退）
 │   │   ├── _wiki.py              ← Wikipedia 成分股表解析（NDX / S&P 500 共用）
-│   │   ├── jina_reader.py        ← Jina Reader 通用抓取（r.jina.ai 网页→Markdown，绕 Cloudflare）
 │   │   ├── ibkr_fetcher.py       ← IBKR 日线 OHLCV（股票 + 指数）
 │   │   ├── fred_fetcher.py       ← FRED API 宏观指标（91 个系列，13 分类）
 │   │   ├── yfinance_fetcher.py   ← yfinance 资产价格（需 SOCKS5 代理）
@@ -130,7 +129,7 @@ market-base/
 │   ├── fetch_crypto_derivatives        ← 加密衍生品快照（OKX + Deribit + CME 基差）
 │   ├── fetch_crypto_basis               ← CME BTC 基差日序列（Yahoo BTC=F，timsun V1 治理）
 │   ├── fetch_coinglass                  ← Coinglass 全市场聚合快照（Browser Run 渲染，每 6 小时）
-│   ├── fetch_cme_futures               ← CME BTC 期货仓位快照（Settlements API，curl_cffi/Jina）
+│   ├── fetch_cme_futures               ← CME BTC 期货仓位快照（Settlements API，curl_cffi/Firecrawl）
 │   ├── fetch_polymarket                 ← Polymarket 预测市场监测（gamma-api 直连免 key）
 │   ├── fetch_etf_flows                 ← BTC 现货 ETF 资金流（Farside 直连 HTML 表）
 │   ├── fetch_breadth                   ← 市场广度 ABV（SPX 成分股在均线上方占比）
@@ -497,7 +496,7 @@ uv run python src/sell_put.py --symbol TSM
 | 工具 | 适用场景 | 参考实现 |
 |------|---------|---------|
 | `coinglass_fetcher.render_markdown(url)` | 必须真浏览器渲染的 JS 页（→ Markdown）；Cloudflare Browser Run 主、Firecrawl 兜底 | `coinglass_fetcher` |
-| `jina_reader.jina_fetch(url)` | Cloudflare 拦截 / JS 渲染页（页面→Markdown） | `cme_futures_fetcher`（降级通道） |
+| `cme_futures_fetcher._firecrawl_json(url)` | 拿原始响应体（JSON/二进制）绕过导出 IP 封锁；`formats: ["rawHtml"]` 给原文、`["rawBase64"]` 给二进制本体的 base64 | `cme_futures_fetcher` |
 | `barchart_client.core_get(params, referer, auth)` | Barchart core-api（期货曲线/波动率快照/远期点/期权链）；直连失败**自动降级** playwright 无头浏览器（进程单例） | `barchart_futures_fetcher` / `barchart_vol_fetcher` / `cfets_fetcher` |
 | `curl_cffi requests.Session(impersonate="chrome")` | TLS 指纹检测的直连 JSON API | `news_fetcher`（Yahoo NCP） |
 
@@ -505,9 +504,10 @@ uv run python src/sell_put.py --symbol TSM
   token 需 `Browser Run - Edit` 权限（secret `CLOUDFLARE_BROWSER_TOKEN`）；免费档每天 10 分钟浏览器时间，按次渲染十几秒量级完全够
 - Firecrawl 兜底走 `POST /v2/scrape`（secret `FIRECRAWL_API_KEY`，免费档 1000 credits/月，1 credit/次）：
   `onlyMainContent` 默认 true 会砍掉页头（全市场 OI / 清算 / 多空比就在页头一行），必须传 false；
-  `maxAge` 默认 2 天会回缓存，必须传 0 现抓。两家的排版差异（反斜杠硬换行、`\<br>`）由 `_normalize` 抹平
-- Jina 免费额度 ~20 RPM 日频 cron 量够；但匿名请求会被按出口 IP 拒（Actions 上实测约一半班次 401），
-  所以经 Jina 的 fetcher 要能带 `JINA_API_KEY`（`jina_reader` 已支持，没配则匿名）；慢加载页加 `x-timeout` / `x-no-cache` / `x-wait-for-time` 头
+  `maxAge` 默认 2 天会回缓存，必须传 0 现抓。两家的排版差异（反斜杠硬换行、`\<br>`）由 `_normalize` 抹平。
+  JSON / 二进制端点用 `formats: ["rawHtml"]` 拿原始响应体（markdown 会给 JSON 套代码围栏，解析不了）
+- 仓库里唯一还在直连 r.jina.ai 的是 `cot_fetcher._fetch_zip_via_jina`（CFTC 封 Azure 导出 IP 时拿 zip 的 base64）；
+  它不带 `JINA_API_KEY`，匿名请求在 Actions 上会间歇 401。换 Firecrawl 的 `rawBase64` 即可去掉最后一个 Jina 依赖
 - AWS WAF（JS challenge + aws-waf-token）只有真浏览器能过；Jina 能过 WAF 但拿不到 cookie，所以 Barchart 用 playwright 页内 fetch 而非 Jina
 - 测试环境：`tests/conftest.py` autouse 禁用浏览器通道（真起 chromium 会污染 TUI 测试的 event loop）
 - Actions 已预装 chromium（daily-full workflow 的 "Install playwright chromium" step）

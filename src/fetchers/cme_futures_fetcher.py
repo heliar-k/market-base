@@ -7,7 +7,7 @@
 背景：原 cme_options_fetcher（volume/options 页面经 Jina）因页面产品选择器需
 JS 交互、Jina 无点击能力而长期回落到默认产品表（小麦/ES 量级），已于 2026-09
 废弃。本 fetcher 改走 Settlements JSON——过 TLS 指纹检测（curl_cffi）即可直连，
-Jina Reader 作降级通道，两头都不依赖页面交互。
+Firecrawl rawHtml 作降级通道，两头都不依赖页面交互。
 
 内容：全部挂牌月份的 settle/volume/openInterest → 总 OI、主力/次主力、
 期限结构（contango/backwardation 判定 + 主力→次主力年化基差）。
@@ -61,8 +61,35 @@ _MONTHS = {
 }
 
 
+def _firecrawl_json(url: str) -> dict:
+    """兜底：Firecrawl 的 rawHtml 拿原始响应体（markdown 会给 JSON 套代码围栏，解析不了）。"""
+    import requests
+
+    key = os.environ.get("FIRECRAWL_API_KEY", "").strip()
+    if not key:
+        raise RuntimeError("缺 FIRECRAWL_API_KEY，CME Settlements 兜底通道不可用")
+    resp = requests.post(
+        "https://api.firecrawl.dev/v2/scrape",
+        json={
+            "url": url,
+            "formats": ["rawHtml"],
+            "onlyMainContent": False,
+            "maxAge": 0,
+            "timeout": 60000,
+            "proxy": "auto",
+        },
+        headers={"Authorization": f"Bearer {key}"},
+        timeout=120,
+    )
+    resp.raise_for_status()
+    data = resp.json()
+    if not data.get("success"):
+        raise RuntimeError(f"Firecrawl 抓取失败: {data.get('error') or data}")
+    return json.loads(data["data"]["rawHtml"])
+
+
 def _get(url: str) -> dict:
-    """curl_cffi（TLS 指纹）直连，失败降级 Jina Reader。"""
+    """curl_cffi（TLS 指纹）直连，失败降级 Firecrawl rawHtml。"""
     proxies = {"https": os.environ["HTTPS_PROXY"]} if os.environ.get("HTTPS_PROXY") else None
     try:
         from curl_cffi import requests as cr
@@ -71,10 +98,8 @@ def _get(url: str) -> dict:
         r.raise_for_status()
         return r.json()
     except Exception as e:
-        logger.warning("curl_cffi 直连失败（%s），降级 Jina", str(e)[:80])
-        from src.fetchers.jina_reader import jina_fetch
-
-        return json.loads(jina_fetch(url, timeout=60))
+        logger.warning("curl_cffi 直连失败（%s），降级 Firecrawl", str(e)[:80])
+        return _firecrawl_json(url)
 
 
 def _to_float(v: str | None) -> float | None:

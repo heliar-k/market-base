@@ -67,6 +67,60 @@ def test_expiry_last_friday():
     assert _expiry("bad") is None
 
 
+def test_firecrawl_json_needs_key(monkeypatch):
+    monkeypatch.delenv("FIRECRAWL_API_KEY", raising=False)
+    with pytest.raises(RuntimeError, match="缺 FIRECRAWL_API_KEY"):
+        mod._firecrawl_json("https://example.com/api")
+
+
+def test_firecrawl_json_uses_raw_html(monkeypatch):
+    """rawHtml 才是原始 JSON；markdown 会被套上 ```json 围栏，json.loads 解析不了。"""
+    import requests
+
+    seen = {}
+
+    class _Resp:
+        def json(self):
+            return {"success": True, "data": {"rawHtml": '{"settlements": [{"month": "NOV 26"}]}'}}
+
+        def raise_for_status(self):
+            pass
+
+    def fake_post(url, **kw):
+        seen["url"] = url
+        seen.update(kw)
+        return _Resp()
+
+    monkeypatch.setenv("FIRECRAWL_API_KEY", "fc-key")
+    monkeypatch.setattr(requests, "post", fake_post)
+    assert mod._firecrawl_json("https://example.com/api")["settlements"][0]["month"] == "NOV 26"
+    assert seen["url"] == "https://api.firecrawl.dev/v2/scrape"
+    assert seen["json"]["formats"] == ["rawHtml"]
+    assert seen["json"]["maxAge"] == 0
+    assert seen["headers"]["Authorization"] == "Bearer fc-key"
+
+
+def test_get_falls_back_to_firecrawl(monkeypatch, caplog):
+    """curl_cffi 撞上导出 IP 封锁 → 自动走 Firecrawl。"""
+    import logging
+
+    caplog.set_level(logging.WARNING, logger="src.fetchers.cme_futures_fetcher")
+    monkeypatch.setattr(mod, "_firecrawl_json", lambda url: {"settlements": [], "via": "firecrawl"})
+
+    class _Boom:
+        def __init__(self, **kw):
+            pass
+
+        def get(self, url, **kw):
+            raise RuntimeError("403 blocked")
+
+    import curl_cffi.requests as cr
+
+    monkeypatch.setattr(cr, "Session", _Boom)
+    assert mod._get("https://example.com/api")["via"] == "firecrawl"
+    assert "降级 Firecrawl" in caplog.text
+
+
 def test_fetch_trade_date_parses_and_sorts(monkeypatch):
     monkeypatch.setattr(mod, "_get", lambda url: SAMPLE)
     from datetime import datetime
