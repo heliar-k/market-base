@@ -32,6 +32,8 @@ function badgeClass(label) {
 // 拥挤度标签与极端合约串在渲染和事实集两处都要用，抽成函数避免两套口径
 function crowdLabelOf(c) { return c == null ? '数据不足' : c >= 50 ? '仓位偏拥挤' : c >= 30 ? '仓位中性' : '仓位分散'; }
 function crowdColorOf(c) { return c == null ? 'var(--text-secondary)' : c >= 50 ? 'var(--color-warn-text)' : c >= 30 ? 'var(--text)' : 'var(--color-up-text)'; }
+function crowdBadgeOf(c) { return c == null ? 'flat' : c >= 50 ? 'warn' : c >= 30 ? 'flat' : 'bull'; }
+function crowdBandOf(c) { return c == null ? '样本不足' : c >= 50 ? '≥50 偏拥挤' : c >= 30 ? '30–50 中性' : '<30 分散'; }
 function extremesText(o) { return (o.extremes || []).map(x => `${x.name}(${x.pct_2y.toFixed(1)})`).join('、'); }
 
 async function load() {
@@ -91,7 +93,7 @@ async function load() {
   });
 }
 
-// ── Positioning Readthrough（timsun 复刻）──
+// ── Positioning Readthrough（顶部 KPI 四卡 + 双栏结构化研判卡）──
 function renderOverview(d) {
   const o = d.overview || {};
   const counts = o.counts || {};
@@ -99,30 +101,66 @@ function renderOverview(d) {
   const crowdLabel = crowdLabelOf(c);
   const crowdColor = crowdColorOf(c);
   const extremes = extremesText(o);
+  const extList = o.extremes || [];
+  const topExt = extList[0] || null;
+  const restExt = extList.slice(1).map(x => `${x.name}(${x.pct_2y.toFixed(1)})`).join(' · ');
+  const biasColor = o.bias === '偏多' ? 'var(--up)' : (o.bias === '偏空' ? 'var(--down)' : 'var(--text)');
+  const topExtColor = !topExt ? 'var(--text-dim)' : topExt.pct_2y >= 90 ? 'var(--up)' : 'var(--down)';
+
+  const kpis = R.cards([
+    {
+      label: '投机仓位拥挤度',
+      value: c == null ? '—' : `${c.toFixed(1)} / 100`,
+      vcolor: crowdColor,
+      sub: `<span class="re-badge ${crowdBadgeOf(c)}">${R.esc(crowdLabel)}</span> · ${crowdBandOf(c)}`,
+      cls: 're-card-wrap',
+    },
+    {
+      label: '2 年分位分布',
+      value: `<span class="up">${counts.bull ?? '—'} 多</span> · <span>${counts.neutral ?? '—'} 中</span> · <span class="down">${counts.bear ?? '—'} 空</span>`,
+      sub: `含极度看多 ${counts.extreme_bull ?? '—'} · 极度看空 ${counts.extreme_bear ?? '—'}（共 ${counts.total ?? 17} 合约）`,
+      cls: 're-card-wrap',
+    },
+    {
+      label: '整体分位倾向',
+      value: R.esc(o.bias || '中性'),
+      vcolor: biasColor,
+      sub: '按 2y 分位桶统计 · 含反向合约',
+      cls: 're-card-wrap',
+    },
+    {
+      label: '最极端合约',
+      value: topExt ? `${R.esc(topExt.name)} ${topExt.pct_2y.toFixed(1)}` : '暂无极端',
+      vcolor: topExtColor,
+      sub: restExt ? `其余关注：${R.esc(restExt)}` : '2 年分位 ≥90 或 ≤10 为极端',
+      cls: 're-card-wrap',
+    },
+  ], 're-cards-2col');
+
   const extSentence = extremes ? `最极端的合约是 ${extremes}。` : '';
-  const desc = c == null ? ''
-    : `当前 CFTC 投机仓位整体为「${crowdLabel}」，按 2 年分位桶统计整体${o.bias || '中性'}（含 VIX、美债、美元与非美等方向各异的合约，分位计数不代表单一市场方向）。${extSentence}仓位已包含一部分市场共识，接下来看价格是否继续确认，不只看净多净空绝对值。`;
-  const el = document.getElementById('overview');
-  const hero = document.createElement('div');
-  hero.className = 're-section pos-hero';
-  hero.innerHTML = `
-    <div>
-      <div class="ph-title" style="color:${crowdColor}">${crowdLabel}<span class="ph-sub">拥挤度 ${c == null ? '—' : c.toFixed(1)}/100</span></div>
-      <div class="ph-desc">${R.esc(desc)}</div>
-    </div>
-    <div class="ph-side">
-      <div>偏多 ${counts.bull ?? '—'}（含极度 ${counts.extreme_bull ?? '—'}）· 中性 ${counts.neutral ?? '—'} · 偏空 ${counts.bear ?? '—'}（含极度 ${counts.extreme_bear ?? '—'}）</div>
-      <div>百分位越靠近 0 或 100，仓位越拥挤；拥挤不是反转信号，但会放大反向时的波动。</div>
-      <div><b>读法：</b>价格涨且净仓增是趋势确认；价格涨但净仓降是早期背离。</div>
-    </div>`;
-  hero.appendChild(R.secNote(
+  const desc = c == null ? '当前样本不足，暂无法计算投机仓位拥挤度。'
+    : `当前 CFTC 投机仓位整体为「${crowdLabel}」，按 2 年分位桶统计整体${o.bias || '中性'}（分位计数不代表单一市场方向）。${extSentence}仓位已包含一部分市场共识，接下来看价格是否继续确认，不只看净多净空绝对值。`;
+
+  const judgeWrap = document.createElement('div');
+  judgeWrap.innerHTML = R.judgeRow([
+    ['当前结论', desc],
+    [
+      '读法 · 风险提示',
+      '价格涨且净仓增是趋势确认；价格涨但净仓降是早期背离。\n百分位越靠近 0 或 100 仓位越拥挤；拥挤不是反转信号，但会放大反向时的波动。',
+    ],
+  ]);
+  const judgeCard = judgeWrap.firstElementChild;
+  judgeCard.appendChild(R.secNote(
     '判读规则 · 2 年百分位（标准中点秩 (小于当前周数 + 0.5×等于当前周数)/窗口周数×100，窗口上限 104 周、不足按全部可用周数）：≥90 极度看多 · ≥75 偏多 · ≤25 偏空 · ≤10 极度看空 · 其余中性。' +
     '拥挤度 = 各合约 |2 年百分位−50|×2 的等权均值（≥50 偏拥挤 · 30–50 中性 · <30 分散）。' +
     '百分位衡量相对自身近两年历史的位置，不等同于绝对净多或净空（例如对冲基金在股指与美债期货长期净空，净空大幅回补时分位仍可达极度看多）。' +
     '图表「资管净持仓」对应 TFF 报告 Asset Manager 类别（仅金融期货提供）。',
     { fold: true }
   ));
-  el.replaceChildren(hero);
+
+  const el = document.getElementById('overview');
+  el.className = 'pos-overview';
+  el.replaceChildren(kpis, judgeCard);
 }
 
 // ── 分组合约卡 ──
