@@ -1,7 +1,7 @@
 """Coinglass 全市场衍生品聚合快照（timsun 衍生品页 Coinglass 模块数据源）。
 
-Coinglass 官网 JS 渲染 + 反爬，直连抓不到；经 Jina Reader (r.jina.ai) 抓取
-https://www.coinglass.com/open-interest/BTC 的 Markdown 渲染文本并解析：
+Coinglass 官网 JS 渲染 + 反爬，直连只拿到空壳 HTML；经 Cloudflare Browser Run 渲染
+https://www.coinglass.com/open-interest/BTC → Markdown 再解析：
   - BTC 全市场期货 OI（OI 分布表 "All" 行：BTC 等价 + USD）
   - 全加密市场 OI（导航栏 Open Interest 全局值，注意与 BTC OI 区分）
   - 24h 清算总额 + 变化
@@ -12,6 +12,8 @@ https://www.coinglass.com/open-interest/BTC 的 Markdown 渲染文本并解析�
 页面渲染不全（缺任一必需字段或交易所行不足 8 家）就抛错不写文件：过一小时的下一班还会重试，
 留一个只有 ts/title 的空快照反而把当日模块静默置空。
 
+环境变量：CLOUDFLARE_ACCOUNT_ID / CLOUDFLARE_BROWSER_TOKEN（需 Browser Run - Edit 权限）。
+
 用法:
     uv run python -m src.fetchers.coinglass_fetcher
 """
@@ -20,16 +22,21 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import re
 from datetime import datetime, timezone
 
+import requests
+
 from src.config import ROOT
-from src.fetchers.jina_reader import jina_fetch
 
 logger = logging.getLogger(__name__)
 
 PAGE_URL = "https://www.coinglass.com/open-interest/BTC"
 DATA = ROOT / "data" / "coinglass"
+
+# Browser Run 的 markdown 快扢動作（与 Jina 同样返回 markdown，不用自己起浏览器）
+_CF_RENDER_URL = "https://api.cloudflare.com/client/v4/accounts/{acct}/browser-run/markdown"
 
 _UNIT = {"K": 1e3, "M": 1e6, "B": 1e9}
 
@@ -38,18 +45,21 @@ _NAV_OI_RE = re.compile(r"\[Open Interest \$([\d,]+) ([+-][\d.]+)%\]")
 _NAV_LIQ_RE = re.compile(r"\[24h Liquidation \$([\d,]+) ([+-][\d.]+)%\]")
 _NAV_LS_RE = re.compile(r"\[24h Long/Short ([\d.]+)%/([\d.]+)%\]")
 
-# 交易所行（页面 OI 表）：
-#   两行式: 1![Image 4: CME](url)\nCME 125.95K BTC$9.74B 17.56%+0.31%+0.05%+2.01%0.8277
-#   一行式: 2[![Image 5: Binance](url) Binance](url)141.88K BTC$10.96B
-#           19.77%+0.22%-0.19%-0.08%0.845[Binance](url)
-# 组: 序号, 名称(alt), OI(BTC), OI(USD), 份额%, 1h/4h/24h 变化%
-_ROW_RE = re.compile(
-    r"(?m)^(\d+)\[?!\[Image \d+: ([^\]]+)\]\([^)]*\)[^\n]*?\]?(?:\([^)]*\))?"
-    r"\s*(?:[A-Za-z][A-Za-z0-9.]*\s+)?([\d.]+[KM]?) BTC\$([\d.]+[KMB]?) "
-    r"([\d.]+)%((?:[+-][\d.]+%)+)"
-)
-# 合计行: All 717.29K BTC$55.45B 100%+0.19%-0.37%-1.61%0.9345
-_ALL_RE = re.compile(r"(?m)^All\s+([\d.]+[KM]?)\s+BTC\$([\d.]+[KMB]?)\s+([\d.]+)%")
+# 交易所行（Browser Run 渲染出的 markdown 管道表，一格一个字段）：
+#   | 1 | ![CME](url) CME | 92.56K BTC | $5.47B | 14.09% | -0.07% | -0.47% | +1.42% | 0.8124 | |
+#   |  | ![All](url) All | 656.28K BTC | $38.78B | 100% | +0.04% | +0.72% | +1.48% | 0.6039 | |
+# 列序：序号 / 交易所 / OI(BTC) / OI(USD) / 份额% / 1h / 4h / 24h / OI 比 / Trade
+_IMG_RE = re.compile(r"!\[[^\]]*\]\([^)]*\)")
+_LINK_RE = re.compile(r"\[([^\]]*)\]\([^)]*\)")
+_PCT_CELL_RE = re.compile(r"^[+-][\d.]+%$")
+# 表头名称 → 快照字段；按名称定位列，不靠下标
+_HEADER_KEYS = {
+    "name": "Exchanges",
+    "oi_btc": "OI(BTC)",
+    "oi_usd": "OI",
+    "share": "Rate",
+    "chg": "OI Change (24h)",
+}
 
 
 # 快照必备字段（缺任一即视为页面未渲染完，parse_snapshot 抛错）
@@ -93,42 +103,82 @@ def parse_top(content: str) -> dict:
     return out
 
 
+def _qty_cell_btc(tok: str) -> str:
+    """OI(BTC) 格 `92.56K BTC` → `92.56K`。"""
+    return tok.strip().split(" ")[0]
+
+
+def _qty_cell_usd(tok: str) -> str:
+    """OI(USD) 格 `$5.47B` → `5.47B`。"""
+    return tok.strip().lstrip("$")
+
+
+def _name(cell: str) -> str:
+    """交易所格去掉图片与链接壳：`[![Binance](img) Binance](url)` → `Binance`。"""
+    return _LINK_RE.sub(r"\1", _IMG_RE.sub("", cell)).strip()
+
+
 def parse_oi_table(content: str) -> dict:
     """OI 分布表：BTC 合计（All 行）+ 交易所明细（前 8 家，页面顺序）。
 
-    逐行解析：坏行智能跳过，不影响好行：
-    整行不匹配（如 OI/份额字段 N/A）不计数，靠“<8 家告警”兜底；
-    匹配但 token 异常（如多小数点）计入 skipped；
-    变化列数 ≠3（页面加列/删列 → 列漂移）弃行并告警，防止 24h 值错标；
-    匹配数 < 8 时 log warning（Jina 布局变化时静默丢数据的防线）。
+    按表头名称定位列，不写死下标：加/删列后仍能取对 24h 那一列；
+    必需列（Exchanges / OI(BTC) / OI / Rate / OI Change (24h)）任一缺失就不出表并告警；
+    行宽与表头不一致、或 24h 格不是百分比 → 弃行计 drifted；
+    取值异常（N/A、脏 token）计 skipped；
+    行数 < 8 时 log warning（表布局变化时静默丢数据的防线）。
     """
     out: dict = {}
-    m = _ALL_RE.search(content)
-    if m:
-        out["btc_oi_btc"] = round(_qty(m.group(1)), 2)
-        out["btc_oi_usd"] = round(_qty(m.group(2)), 2)
     rows = []
     skipped = 0
     drifted = 0
-    for m in _ROW_RE.finditer(content):
-        chg_tokens = re.findall(r"[+-][\d.]+%", m.group(6))
-        if len(chg_tokens) != 3:  # 1h/4h/24h 恰 3 列；加列/删列 → 列漂移，弃行防错标
+    header: dict[str, int] | None = None
+    width = 0
+    for line in content.splitlines():
+        if not line.lstrip().startswith("|"):
+            continue
+        cells = [c.strip() for c in line.strip().strip("|").split("|")]
+        if header is None:
+            if "Exchanges" in cells and "OI(BTC)" in cells:
+                header = {k: cells.index(v) for k, v in _HEADER_KEYS.items() if v in cells}
+                width = len(cells)
+                missing_col = [v for k, v in _HEADER_KEYS.items() if k not in header]
+                if missing_col:
+                    logger.warning("Coinglass OI 表缺列 %s（页面可能改版）", missing_col)
+                    return out
+            continue
+        if "Exchanges" in cells:  # 页面第二张表（空表头）重复出现列名
+            continue
+        if len(cells) != width:
             drifted += 1
             continue
-        name, oi, usd, share = m.group(2), m.group(3), m.group(4), m.group(5)
+        name = _name(cells[header["name"]])
+        if not name:
+            continue
         try:
+            if name == "All":
+                out["btc_oi_btc"] = round(_qty(_qty_cell_btc(cells[header["oi_btc"]])), 2)
+                out["btc_oi_usd"] = round(_qty(_qty_cell_usd(cells[header["oi_usd"]])), 2)
+                continue
+            if not cells[0].isdigit():  # 分隔行
+                continue
+            chg_cell = cells[header["chg"]]
+            if not _PCT_CELL_RE.match(chg_cell):
+                drifted += 1
+                continue
             rows.append(
                 {
                     "name": name,
-                    "oi_btc": round(_qty(oi), 2),
-                    "oi_usd": round(_qty(usd), 2),
-                    "share_pct": _pct(share),
-                    "chg_1d_pct": _pct(chg_tokens[-1]),  # 第 3 列 = 24h
+                    "oi_btc": round(_qty(_qty_cell_btc(cells[header["oi_btc"]])), 2),
+                    "oi_usd": round(_qty(_qty_cell_usd(cells[header["oi_usd"]])), 2),
+                    "share_pct": _pct(cells[header["share"]]),
+                    "chg_1d_pct": _pct(chg_cell),
                 }
             )
         except ValueError:
             # 多小数点等非法 token（regex 字符类较宽）→ 跳该行不丢整表
             skipped += 1
+    if header is None:
+        logger.warning("Coinglass 未找到 OI 分布表（表头缺失）")
     if skipped:
         logger.warning("Coinglass 交易所行跳过 %d 行（坏 token）", skipped)
     if drifted:
@@ -165,9 +215,32 @@ def parse_snapshot(content: str) -> dict:
     return snap
 
 
+def render_markdown(url: str = PAGE_URL, timeout: int = 180) -> str:
+    """经 Cloudflare Browser Run 渲染页面，返回 markdown。
+
+    与 Jina 的区别：按账号配额（免费档每天 10 分钟浏览器时间）而不按输出 token 计费，
+    也不存在匿名请求被按出口 IP 拒的问题。
+    """
+    token = os.environ.get("CLOUDFLARE_BROWSER_TOKEN", "").strip()
+    account = os.environ.get("CLOUDFLARE_ACCOUNT_ID", "").strip()
+    if not token or not account:
+        raise RuntimeError("缺 CLOUDFLARE_BROWSER_TOKEN / CLOUDFLARE_ACCOUNT_ID，取不到渲染通道")
+    resp = requests.post(
+        _CF_RENDER_URL.format(acct=account),
+        json={"url": url, "gotoOptions": {"waitUntil": "networkidle0"}},
+        headers={"Authorization": f"Bearer {token}"},
+        timeout=timeout,
+    )
+    resp.raise_for_status()
+    data = resp.json()
+    if not data.get("success"):
+        raise RuntimeError(f"Browser Run 渲染失败: {data.get('errors') or data}")
+    return data["result"]
+
+
 def fetch_snapshot() -> dict:
-    """经 Jina Reader 抓取 Coinglass BTC OI 页并解析。"""
-    return parse_snapshot(jina_fetch(PAGE_URL))
+    """渲染 Coinglass BTC OI 页并解析。"""
+    return parse_snapshot(render_markdown())
 
 
 def main() -> None:

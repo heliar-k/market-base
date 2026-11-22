@@ -81,7 +81,7 @@ market-base/
 │   │   ├── bgcr_fetcher.py       ← BGCR 利率（NY Fed Markets API）
 │   │   ├── cgb_fetcher.py        ← 中国国债 10Y/30Y（chinamoney）
 │   │   ├── cme_futures_fetcher.py  ← CME BTC 期货仓位快照（官方 Settlements API）
-│   │   ├── coinglass_fetcher.py  ← Coinglass 全市场聚合快照（经 Jina）
+│   │   ├── coinglass_fetcher.py  ← Coinglass 全市场聚合快照（Cloudflare Browser Run 渲染）
 │   │   ├── crypto_basis_fetcher.py ← CME BTC 基差日序列（Yahoo BTC=F）
 │   │   ├── crypto_derivatives_fetcher.py ← 加密衍生品快照（OKX + Deribit + CME）
 │   │   ├── etf_flows_fetcher.py  ← BTC 现货 ETF 资金流（Farside 直连 HTML 表）
@@ -129,7 +129,7 @@ market-base/
 │   ├── fetch_options_structure         ← 30 标的期权结构快照（GEX/DEX/Vanna/Charm，次日回补 OI）
 │   ├── fetch_crypto_derivatives        ← 加密衍生品快照（OKX + Deribit + CME 基差）
 │   ├── fetch_crypto_basis               ← CME BTC 基差日序列（Yahoo BTC=F，timsun V1 治理）
-│   ├── fetch_coinglass                  ← Coinglass 全市场聚合快照（经 Jina Reader，每 6 小时）
+│   ├── fetch_coinglass                  ← Coinglass 全市场聚合快照（Browser Run 渲染，每 6 小时）
 │   ├── fetch_cme_futures               ← CME BTC 期货仓位快照（Settlements API，curl_cffi/Jina）
 │   ├── fetch_polymarket                 ← Polymarket 预测市场监测（gamma-api 直连免 key）
 │   ├── fetch_etf_flows                 ← BTC 现货 ETF 资金流（Farside 直连 HTML 表）
@@ -238,7 +238,7 @@ market-base/
 > | `evening-late` | 北京 23:15 | 仅 3 个「下午才发布昨日观测」的源：`fetch_fred` / `fetch_cboe` / `fetch_fsi`（~3min） | 让宏观/信用/通胀/波动率页当晚就看到 T-1，不等次日主跑 |
 > | `intraday-refresh` | 工作日 UTC 13-21 每 15 分钟 | 盘中价量 5 源：`fetch_yfinance` / `fetch_cboe` / `fetch_barchart_vol` / `fetch_rate_expectations` / `fetch_polymarket`；FRED 仅 UTC 13-14 班次；UTC 14:52 后回补上一收盘快照 OI 并重建 Wheel | 盘中新鲜度；尾班（21:52 UTC）确认指数收盘价入库；不拉分钟线与其他派生指标 |
 > | `cboe-retry` | UTC 周二到周六 02:30（北京 10:30） | 仅 `fetch_cboe`（补齐 VIX / SKEW / VXTH 三份慢文件） | 北京白天看到完整收盘数据；daily-full 缺列时仍按需 dispatch 同一 workflow |
-> | `crypto-hourly` | 每小时 7×24 | 加密两源每小时：`fetch_crypto_derivatives` / `fetch_etf_flows`；`fetch_coinglass` 每 6 小时（UTC 小时 % 6 = 0） | 加密市场全天候；Jina 按输出 token 计费，coinglass 单次约 37k，不能每小时跑；daily-full 仍兜底跑同三源 |
+> | `crypto-hourly` | 每小时 7×24 | 加密两源每小时：`fetch_crypto_derivatives` / `fetch_etf_flows`；`fetch_coinglass` 每 6 小时（UTC 小时 % 6 = 0） | 加密市场全天候；coinglass 要渲染整页（Browser Run 免费档每天 10 分钟浏览器时间），每班都跑没意义；daily-full 仍兜底跑同三源 |
 >
 > 重叠是故意的：三个加速班次覆盖的源在 daily-full 里都有同源兜底（upsert 幂等，同日重复拉零风险）。
 >
@@ -344,7 +344,7 @@ uv run python -m src.wheel_scanner           # 盘后定稿：读数据班次落
 ./bin/live_wheel --greeks ibkr                # 同步等交易所真实盘口（需本地 TWS，~20s/标的有缓存）
 ./bin/fetch_crypto_derivatives     # 加密衍生品快照（OKX + Deribit + CME）
 ./bin/fetch_crypto_basis             # CME BTC 基差日序列（Yahoo BTC=F proxy）
-./bin/fetch_coinglass                 # Coinglass 全市场聚合（Jina Reader，OI/清算/交易所分布）
+./bin/fetch_coinglass                 # Coinglass 全市场聚合（Browser Run 渲染，OI/清算/交易所分布）
 ./bin/fetch_cme_futures                # CME BTC 期货仓位（官方 Settlements API）
 ./bin/fetch_polymarket                 # Polymarket 预测市场监测（免 key 直连）
 ./bin/fetch_etf_flows                 # BTC 现货 ETF 资金流（Farside 直连 HTML 表）
@@ -496,10 +496,13 @@ uv run python src/sell_put.py --symbol TSM
 
 | 工具 | 适用场景 | 参考实现 |
 |------|---------|---------|
-| `jina_reader.jina_fetch(url)` | Cloudflare 拦截 / JS 渲染页（页面→Markdown） | `coinglass_fetcher` / `cme_futures_fetcher`（降级通道） |
+| `coinglass_fetcher.render_markdown(url)` | 必须真浏览器渲染的 JS 页（→ Markdown） | `coinglass_fetcher`（Cloudflare Browser Run） |
+| `jina_reader.jina_fetch(url)` | Cloudflare 拦截 / JS 渲染页（页面→Markdown） | `cme_futures_fetcher`（降级通道） |
 | `barchart_client.core_get(params, referer, auth)` | Barchart core-api（期货曲线/波动率快照/远期点/期权链）；直连失败**自动降级** playwright 无头浏览器（进程单例） | `barchart_futures_fetcher` / `barchart_vol_fetcher` / `cfets_fetcher` |
 | `curl_cffi requests.Session(impersonate="chrome")` | TLS 指纹检测的直连 JSON API | `news_fetcher`（Yahoo NCP） |
 
+- Browser Run 走 REST：`POST /client/v4/accounts/{id}/browser-run/markdown`，body `{"url", "gotoOptions": {"waitUntil": "networkidle0"}}`，
+  token 需 `Browser Run - Edit` 权限（secret `CLOUDFLARE_BROWSER_TOKEN`）；免费档每天 10 分钟浏览器时间，按次渲染十几秒量级完全够
 - Jina 免费额度 ~20 RPM 日频 cron 量够；但匿名请求会被按出口 IP 拒（Actions 上实测约一半班次 401），
   所以经 Jina 的 fetcher 要能带 `JINA_API_KEY`（`jina_reader` 已支持，没配则匿名）；慢加载页加 `x-timeout` / `x-no-cache` / `x-wait-for-time` 头
 - AWS WAF（JS challenge + aws-waf-token）只有真浏览器能过；Jina 能过 WAF 但拿不到 cookie，所以 Barchart 用 playwright 页内 fetch 而非 Jina

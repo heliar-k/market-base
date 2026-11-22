@@ -57,24 +57,23 @@ jobs:
       - name: Fetch crypto sources
         env:
           YF_NO_PROXY: "1"        # Actions 无 socks5 代理，yfinance 直连
-          # coinglass 走 r.jina.ai；空 = 匿名（20 RPM，且会被按出口 IP 拒），匿名 401 是常态
-          JINA_API_KEY: ${{ secrets.JINA_API_KEY }}
+          # coinglass 经 Cloudflare Browser Run 渲染（免费档每天 10 分钟浏览器时间）
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_BROWSER_TOKEN: ${{ secrets.CLOUDFLARE_BROWSER_TOKEN }}
         run: |
           set +e  # 单个失败不阻断，末尾统一判红
           for f in fetch_crypto_derivatives fetch_etf_flows; do
             echo "===== START $f ====="
             bash "bin/$f" || FAILED="$FAILED $f"
           done
-          # coinglass：配了 key 时 Jina 按输出 token 计费（单次约 37k），每小时跑会把额度在十几天内
-          # 烧完 → 每 6 小时一次；没 key 时匿名请求不计费，保持每小时重试（匿名约一半班次 401，靠次数自愈）。
+          # coinglass 每 6 小时一次：一次渲染十几秒，4 次/天在免费额度里裁得很紧。
           # cf-cron-dispatch 也是走 workflow_dispatch，所以只认显式 input 放行。
           if [ "${{ inputs.force_coinglass }}" = "true" ] \
-            || [ -z "${JINA_API_KEY:-}" ] \
             || [ $((10#$(date -u +%H) % 6)) -eq 0 ]; then
             echo "===== START fetch_coinglass ====="
             bash bin/fetch_coinglass || FAILED="$FAILED fetch_coinglass"
           else
-            echo "skipped fetch_coinglass（有 key 时每 6 小时一次，本班小时 $(date -u +%H)）"
+            echo "skipped fetch_coinglass（每 6 小时一次，本班小时 $(date -u +%H)）"
           fi
           [ -n "$FAILED" ] && echo "失败:$FAILED" && echo "FAILED_LIST=$FAILED" >> "$GITHUB_ENV"
           exit 0
