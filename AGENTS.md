@@ -506,8 +506,8 @@ uv run python src/sell_put.py --symbol TSM
   `onlyMainContent` 默认 true 会砍掉页头（全市场 OI / 清算 / 多空比就在页头一行），必须传 false；
   `maxAge` 默认 2 天会回缓存，必须传 0 现抓。两家的排版差异（反斜杠硬换行、`\<br>`）由 `_normalize` 抹平。
   JSON / 二进制端点用 `formats: ["rawHtml"]` 拿原始响应体（markdown 会给 JSON 套代码围栏，解析不了）
-- 仓库里唯一还在直连 r.jina.ai 的是 `cot_fetcher._fetch_zip_via_jina`（CFTC 封 Azure 导出 IP 时拿 zip 的 base64）；
-  它不带 `JINA_API_KEY`，匿名请求在 Actions 上会间歇 401。换 Firecrawl 的 `rawBase64` 即可去掉最后一个 Jina 依赖
+- 仓库已不依赖 Jina：CFTC 封 Azure 出口 IP（`cot_fetcher` 403）走 Firecrawl 的 `formats: ["rawBase64"]` 拿 zip 本体；
+  CME 结算表（`cme_futures_fetcher`）走 `formats: ["rawHtml"]` 拿原始 JSON
 - AWS WAF（JS challenge + aws-waf-token）只有真浏览器能过；Jina 能过 WAF 但拿不到 cookie，所以 Barchart 用 playwright 页内 fetch 而非 Jina
 - 测试环境：`tests/conftest.py` autouse 禁用浏览器通道（真起 chromium 会污染 TUI 测试的 event loop）
 - Actions 已预装 chromium（daily-full workflow 的 "Install playwright chromium" step）

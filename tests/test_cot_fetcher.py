@@ -33,6 +33,78 @@ def _fake_year_csv(markets: list[str]) -> str:
     return "\n".join(rows)
 
 
+def test_fetch_zip_via_firecrawl_needs_key(monkeypatch):
+    import pytest
+
+    from src.fetchers import cot_fetcher as mod
+
+    monkeypatch.delenv("FIRECRAWL_API_KEY", raising=False)
+    with pytest.raises(RuntimeError, match="缺 FIRECRAWL_API_KEY"):
+        mod._fetch_zip_via_firecrawl("https://example.com/a.zip")
+
+
+def test_fetch_zip_via_firecrawl_unwraps_base64(monkeypatch):
+    """rawBase64 解出来必须是 zip（PK 头），且关键参数固定。"""
+    import base64
+    import io
+    import zipfile
+
+    import requests
+
+    from src.fetchers import cot_fetcher as mod
+
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w") as zf:
+        zf.writestr("f.txt", "x")
+    payload = base64.b64encode(buf.getvalue()).decode()
+    seen = {}
+
+    class _Resp:
+        def json(self):
+            return {"success": True, "data": {"rawBase64": payload}}
+
+        def raise_for_status(self):
+            pass
+
+    def fake_post(url, **kw):
+        seen["url"] = url
+        seen.update(kw)
+        return _Resp()
+
+    monkeypatch.setenv("FIRECRAWL_API_KEY", "fc-key")
+    monkeypatch.setattr(requests, "post", fake_post)
+    raw = mod._fetch_zip_via_firecrawl("https://example.com/a.zip")
+    assert raw[:2] == b"PK"
+    assert zipfile.ZipFile(io.BytesIO(raw)).namelist() == ["f.txt"]
+    assert seen["url"] == "https://api.firecrawl.dev/v2/scrape"
+    assert seen["json"]["formats"] == ["rawBase64"]
+    assert seen["json"]["maxAge"] == 0
+
+
+def test_fetch_zip_via_firecrawl_rejects_non_zip(monkeypatch):
+    """拿到 HTML 错误页（base64 后不是 PK）→ 报错，不能当 zip 硬解。"""
+    import base64
+
+    import pytest
+    import requests
+
+    from src.fetchers import cot_fetcher as mod
+
+    blob = base64.b64encode(b"<html>403</html>").decode()
+
+    class _Resp:
+        def json(self):
+            return {"success": True, "data": {"rawBase64": blob}}
+
+        def raise_for_status(self):
+            pass
+
+    monkeypatch.setenv("FIRECRAWL_API_KEY", "fc-key")
+    monkeypatch.setattr(requests, "post", lambda url, **kw: _Resp())
+    with pytest.raises(RuntimeError, match="不是 zip"):
+        mod._fetch_zip_via_firecrawl("https://example.com/a.zip")
+
+
 def test_fetch_cot_merges_by_symbol(monkeypatch):
     """多品种按报告日横向对齐；disagg 与 fin 的指标映射各自正确。"""
     import io

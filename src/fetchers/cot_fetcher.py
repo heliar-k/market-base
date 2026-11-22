@@ -21,7 +21,6 @@ L/S=多/空持仓。
 import argparse
 import io
 import logging
-import time
 import zipfile
 from datetime import date
 
@@ -98,9 +97,7 @@ def _download_year(year: int, report_type: str) -> pd.DataFrame:
     """下载某年某类型 COT zip 并解析为 DataFrame（全部市场）。
 
     CFTC 会封锁数据中心 IP 段（GitHub Actions 的 Azure IP 403，本地宽带 200）：
-    直连 403 时经 Jina Reader 中转拿 zip 基64 内容（zip 二进制进不了 Markdown，
-    走 r.jina.ai 对二进制 URL 返回 base64 包裹的错误体，故用 base64 后缀语法），
-    仍失败则拺异常进当日失败列表。
+    直连 403 时经 Firecrawl 中转（rawBase64 拿 zip 本体），仍失败则拺异常进当日失败列表。
     """
     url = URL.format(type=report_type, year=year)
     try:
@@ -110,8 +107,8 @@ def _download_year(year: int, report_type: str) -> pd.DataFrame:
     except requests.HTTPError as e:
         if e.response.status_code != 403:
             raise
-        logger.warning(f"CFTC 直连 403（数据中心 IP 封锁），降级 Jina 中转: {url}")
-        content = _fetch_zip_via_jina(url)
+        logger.warning(f"CFTC 直连 403（数据中心 IP 封锁），降级 Firecrawl: {url}")
+        content = _fetch_zip_via_firecrawl(url)
     zf = zipfile.ZipFile(io.BytesIO(content))
     name = zf.namelist()[0]
     df = pd.read_csv(zf.open(name))
@@ -121,41 +118,38 @@ def _download_year(year: int, report_type: str) -> pd.DataFrame:
     return df
 
 
-def _fetch_zip_via_jina(url: str, retries: int = 2) -> bytes:
-    """经 r.jina.ai 页面语法取二进制：Markdown 图片语法「![alt](url)」会内嵌 base64。
+def _fetch_zip_via_firecrawl(url: str) -> bytes:
+    """经 Firecrawl 取二进制：`rawBase64` 直接给响应体的 base64（zip 原样解）。
 
-    Jina 免费额度限速时 429，重试退避；两次仍失败拺 RuntimeError（不静默）。
+    CFTC 封 Azure 出口 IP 段（Actions 上 403）时走这条；失败拺 RuntimeError（不静默）。
     """
-    last = None
-    for i in range(retries + 1):
-        try:
-            resp = requests.get(
-                f"https://r.jina.ai/![zip]({url})",
-                timeout=120,
-                headers={
-                    "User-Agent": "Mozilla/5.0",
-                    "Accept": "application/json",
-                    "X-Return-Format": "markdown",
-                },
-            )
-            resp.raise_for_status()
-            text = resp.json()["data"]["content"]
-            # 抽取第一个 base64 段（可能带 data URI 前缀）
-            import re
+    import base64
+    import os
 
-            m = re.search(
-                r"data:application/zip;base64,([A-Za-z0-9+/=]+)|([A-Za-z0-9+/=]{200,})", text
-            )
-            if not m:
-                raise RuntimeError("Jina 响应中未见 base64 zip 内容")
-            import base64
-
-            return base64.b64decode(m.group(1) or m.group(2))
-        except Exception as e:
-            last = e
-            if i < retries:
-                time.sleep(10 * (i + 1))
-    raise RuntimeError(f"Jina 中转 CFTC zip 失败: {last}")
+    key = os.environ.get("FIRECRAWL_API_KEY", "").strip()
+    if not key:
+        raise RuntimeError("缺 FIRECRAWL_API_KEY，CFTC zip 中转通道不可用")
+    resp = requests.post(
+        "https://api.firecrawl.dev/v2/scrape",
+        json={
+            "url": url,
+            "formats": ["rawBase64"],
+            "onlyMainContent": False,
+            "maxAge": 0,
+            "timeout": 120000,
+            "proxy": "auto",
+        },
+        headers={"Authorization": f"Bearer {key}"},
+        timeout=300,
+    )
+    resp.raise_for_status()
+    data = resp.json()
+    if not data.get("success"):
+        raise RuntimeError(f"Firecrawl 抓取 CFTC zip 失败: {data.get('error') or data}")
+    raw = base64.b64decode(data["data"]["rawBase64"])
+    if raw[:2] != b"PK":
+        raise RuntimeError(f"Firecrawl 返回的内容不是 zip（前 2 字节 {raw[:2]!r}）")
+    return raw
 
 
 def fetch_cot(years: list[int] | None = None) -> pd.DataFrame:
