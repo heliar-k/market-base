@@ -1286,7 +1286,7 @@ def positioning() -> dict:
         ext_bear = sum(1 for c in all if c["label"] == "极度看空")
         ext = [c for c in all if c["label"].startswith("极度")]
         neutral_n = len(all) - bulls - bears
-        extremes = sorted(all, key=lambda c: abs(c["pct_2y"] - 50), reverse=True)[:3]
+        extremes = sorted(ext, key=lambda c: abs(c["pct_2y"] - 50), reverse=True)
         out["overview"] = {
             "bias": "偏多" if bulls > bears else ("偏空" if bears > bulls else "中性"),
             "counts": {

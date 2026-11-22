@@ -231,6 +231,44 @@ class TestPositioningLogic:
         assert c["bear"] > c["extreme_bear"]
         assert c["bull"] + c["bear"] + c["neutral"] == c["total"]
         assert c["extreme_bull"] + c["extreme_bear"] == c["extreme"]
+        # 仅命中极端区间的合约进入 overview.extremes（此处 ES/GC/KC/CC 共 4 个）
+        assert {x["symbol"] for x in res["overview"]["extremes"]} == {"ES", "GC", "KC", "CC"}
+
+    def test_overview_extremes_keeps_all_and_empty_when_none(self, monkeypatch):
+        """overview.extremes 保留全部 ≥90/≤10 极值合约（不截断前 3），无极值时为空。"""
+        dates = pd.date_range("2024-01-02", periods=110, freq="W-TUE")
+        n = len(dates)
+        mid = np.linspace(0.0, 10800.0, n)
+        mid[-1] = 5400.0
+
+        def _make_df(ext_syms):
+            data = {}
+            for sym in ("NQ", "ES", "VX", "ZF", "ZN"):
+                lcol, scol = f"{sym}_HEDGE_L", f"{sym}_HEDGE_S"
+                if sym in ext_syms:
+                    longs = np.linspace(10000.0, 90000.0, n)
+                else:
+                    longs = 100000.0 + mid
+                data[lcol] = longs
+                data[scol] = np.full(n, 50000.0)
+                data[f"{sym}_ASSET_L"] = np.full(n, 200000.0)
+                data[f"{sym}_ASSET_S"] = np.full(n, 50000.0)
+                data[f"{sym}_OI"] = np.full(n, 300000.0)
+            return pd.DataFrame(data, index=dates)
+
+        df_4 = _make_df({"NQ", "ES", "VX", "ZF"})
+        monkeypatch.setattr(
+            assets_analysis, "_csv", lambda rel: df_4 if rel == "cot/cot.csv" else pd.DataFrame()
+        )
+        res_4 = positioning()
+        assert {x["symbol"] for x in res_4["overview"]["extremes"]} == {"NQ", "ES", "VX", "ZF"}
+
+        df_0 = _make_df(set())
+        monkeypatch.setattr(
+            assets_analysis, "_csv", lambda rel: df_0 if rel == "cot/cot.csv" else pd.DataFrame()
+        )
+        res_0 = positioning()
+        assert res_0["overview"]["extremes"] == []
 
     def test_metals_cot_matches_positioning_percentile(self, monkeypatch):
         """_metals_cot 与 positioning 共用 _cot_net_stats 2 年百分位口径。"""

@@ -21,6 +21,7 @@ document.getElementById('page-toc').innerHTML = [
 ].map(([t, id]) => `<a href="#${id}">${t}</a>`).join('');
 
 const GNAMES = { index_vol: '股指 / 波动率', rates: '利率 / 美债', fx: '外汇', commodities: '商品', ag_softs: '农产品 / 软商品（气候敏感）' };
+const GGROUP = { index_vol: '股指 / 波动率', rates: '利率 / 美债', fx: '外汇', commodities: '商品', ag_softs: '农产品 / 软商品' };
 
 function badgeClass(label) {
   if (label === '极度看多') return 'extreme-bull';
@@ -45,7 +46,7 @@ async function load() {
   d.groups.forEach(g => renderGroup(g, d.latest_report));
   R.foot(null, {
     src: 'CFTC COT 周报',
-    note: '持仓统计截至周二收盘、周五 15:30 ET 公布（比盘面晚约一周）· 投机方：股指/利率/外汇 = 对冲基金（Leveraged Money），商品 = 管理资金（Managed Money）· 判读规则见页首卡片底部',
+    note: '持仓统计截至周二收盘、周五 15:30 ET 公布（比盘面晚约一周）· 投机方：股指/利率/外汇 = 对冲基金（Leveraged Money），商品 = 管理资金（Managed Money）· 判读规则见「仓位总览」底部',
   });
 
   // ── 页面事实集（契约见 js/ai-context.js）：总览三读数 + 五组「最需要关注」合约
@@ -102,17 +103,12 @@ function renderOverview(d) {
   const crowdColor = crowdColorOf(c);
   const extremes = extremesText(o);
   const extList = o.extremes || [];
-  const topExt = extList[0] || null;
-  const restExt = extList.slice(1).map(x => `${x.name}(${x.pct_2y.toFixed(1)})`).join(' · ');
-  const biasColor = o.bias === '偏多' ? 'var(--up)' : (o.bias === '偏空' ? 'var(--down)' : 'var(--text)');
-  const topExtColor = !topExt ? 'var(--text-dim)' : topExt.pct_2y >= 90 ? 'var(--up)' : 'var(--down)';
-
   const kpis = R.cards([
     {
       label: '投机仓位拥挤度',
       value: c == null ? '—' : `${c.toFixed(1)} / 100`,
       vcolor: crowdColor,
-      sub: `<span class="re-badge ${crowdBadgeOf(c)}">${R.esc(crowdLabel)}</span> · ${crowdBandOf(c)}`,
+      sub: `<span class="re-badge ${crowdBadgeOf(c)}">${R.esc(crowdLabel)}</span> <span style="white-space:nowrap">· ${crowdBandOf(c)}</span>`,
       cls: 're-card-wrap',
     },
     {
@@ -121,30 +117,91 @@ function renderOverview(d) {
       sub: `含极度看多 ${counts.extreme_bull ?? '—'} · 极度看空 ${counts.extreme_bear ?? '—'}（共 ${counts.total ?? 17} 合约）`,
       cls: 're-card-wrap',
     },
-    {
-      label: '整体分位倾向',
-      value: R.esc(o.bias || '中性'),
-      vcolor: biasColor,
-      sub: '按 2y 分位桶统计 · 含反向合约',
-      cls: 're-card-wrap',
-    },
-    {
-      label: '最极端合约',
-      value: topExt ? `${R.esc(topExt.name)} ${topExt.pct_2y.toFixed(1)}` : '暂无极端',
-      vcolor: topExtColor,
-      sub: restExt ? `其余关注：${R.esc(restExt)}` : '2 年分位 ≥90 或 ≤10 为极端',
-      cls: 're-card-wrap',
-    },
   ], 're-cards-2col');
 
-  const extSentence = extremes ? `最极端的合约是 ${extremes}。` : '';
+  const extSentence = extremes ? `极值区合约共 ${extList.length} 个：${extremes}。` : '';
   const desc = c == null ? '当前样本不足，暂无法计算投机仓位拥挤度。'
     : `当前 CFTC 投机仓位整体为「${crowdLabel}」，按 2 年分位桶统计整体${o.bias || '中性'}（分位计数不代表单一市场方向）。${extSentence}仓位已包含一部分市场共识，接下来看价格是否继续确认，不只看净多净空绝对值。`;
 
   const judgeWrap = document.createElement('div');
   judgeWrap.innerHTML = R.judgeRow([['当前结论', desc]]);
   const judgeCard = judgeWrap.firstElementChild;
-  judgeCard.appendChild(R.secNote(
+
+  const topRow = document.createElement('div');
+  topRow.className = 'pos-top-row';
+  topRow.append(kpis, judgeCard);
+
+  // 按资产大类分组展示，组内按拥挤度 |pct_2y - 50| * 2 降序；常规小组按均值降序两两并排，大容量组通栏双列
+  const tierCls = v => (v >= 50 ? 'is-crowded' : v >= 30 ? 'is-mid' : 'is-loose');
+  const groups = (d.groups || []).map(g => {
+    const items = (g.contracts || [])
+      .filter(ct => ct.pct_2y != null)
+      .map(ct => ({ ...ct, crowd: Math.abs(ct.pct_2y - 50) * 2 }))
+      .sort((a, b) => b.crowd - a.crowd);
+    const mean = items.length ? items.reduce((s, x) => s + x.crowd, 0) / items.length : null;
+    return { key: g.name, title: GGROUP[g.name] || g.name, items, mean };
+  }).filter(g => g.items.length);
+  const compactGrps = groups.filter(g => g.items.length <= 4).sort((a, b) => (b.mean ?? -1) - (a.mean ?? -1));
+  const wideGrps = groups.filter(g => g.items.length > 4).sort((a, b) => (b.mean ?? -1) - (a.mean ?? -1));
+  const orderedGrps = [...compactGrps, ...wideGrps];
+  const renderRow = (ct, gTitle) => {
+    const tc = tierCls(ct.crowd);
+    const w = Math.max(0, Math.min(100, ct.crowd)).toFixed(1);
+    const tip = `${ct.name}（${gTitle}）· 拥挤度 ${ct.crowd.toFixed(1)} · 2y 分位 ${ct.pct_2y.toFixed(1)}（${ct.label}）`;
+    return `<button type="button" class="pos-rank-row" data-sym="${R.esc(ct.symbol)}" title="${R.esc(tip)}" aria-label="${R.esc(tip)}">
+      <span class="pr-sym">${R.esc(ct.name || ct.symbol)}</span>
+      <span class="pr-track" aria-hidden="true"><span class="pr-fill ${tc}" style="display:block;width:${w}%"></span><span class="pr-tick" style="left:30%"></span><span class="pr-tick" style="left:50%"></span></span>
+      <span class="pr-crowd ${tc}">${ct.crowd.toFixed(1)}</span>
+      <span class="pr-pct">2y ${ct.pct_2y.toFixed(1)}</span>
+      <span class="pc-badge ${badgeClass(ct.label)}">${R.esc(ct.label)}</span>
+    </button>`;
+  };
+  const rankCard = R.secCard();
+  rankCard.classList.add('pos-rank-card');
+  rankCard.innerHTML = `
+    <div class="pos-rank-head">
+      ${R.secTitle('各资产拥挤度概览', '', '组内降序 · 点击定位')}
+      <div class="pos-rank-legend">
+        <span class="pr-leg"><i class="is-crowded"></i>≥50 偏拥挤</span>
+        <span class="pr-leg"><i class="is-mid"></i>30–50 中性</span>
+        <span class="pr-leg"><i class="is-loose"></i>&lt;30 分散</span>
+      </div>
+    </div>
+    <div class="pos-rank-grid">
+      ${orderedGrps.map(g => {
+        const isWide = g.items.length > 4;
+        const rowsPerCol = Math.ceil(g.items.length / 2);
+        const meanCls = g.mean == null ? 'is-mid' : tierCls(g.mean);
+        const meanStr = g.mean == null ? '—' : g.mean.toFixed(1);
+        return `<div class="pos-grp-block${isWide ? ' pos-grp-wide' : ''}">
+          <div class="pos-grp-head">
+            <span class="pg-title">${R.esc(g.title)}</span>
+            <span class="pg-meta">均值 <span class="pg-mean ${meanCls}">${meanStr}</span> · ${g.items.length} 合约</span>
+          </div>
+          <div class="pos-grp-rows"${isWide ? ` style="--rows:${rowsPerCol}"` : ''}>
+            ${g.items.map(ct => renderRow(ct, g.title)).join('')}
+          </div>
+        </div>`;
+      }).join('')}
+    </div>`;
+  let hitTimer = null;
+  let hitEl = null;
+  rankCard.addEventListener('click', e => {
+    const btn = e.target.closest('.pos-rank-row');
+    if (!btn) return;
+    const target = document.getElementById(`pos-contract-${btn.dataset.sym}`);
+    if (!target) return;
+    if (hitTimer) clearTimeout(hitTimer);
+    if (hitEl && hitEl !== target) hitEl.classList.remove('pos-contract-hit');
+    target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    target.classList.remove('pos-contract-hit');
+    void target.offsetWidth;
+    target.classList.add('pos-contract-hit');
+    hitEl = target;
+    hitTimer = setTimeout(() => { target.classList.remove('pos-contract-hit'); hitTimer = null; }, 1400);
+  });
+
+  const secNote = R.secNote(
     [
       '· 2 年百分位 = (小于当前周数 + 0.5×等于当前周数) / 窗口周数 × 100（上限 104 周，不足取全量）：≥90 极度看多 · ≥75 偏多 · ≤25 偏空 · ≤10 极度看空 · 其余中性',
       '· 拥挤度 = 各合约 |2 年百分位 − 50| × 2 的均值（≥50 偏拥挤 · 30–50 中性 · <30 分散）；拥挤非反转信号，但放大反向波动',
@@ -153,11 +210,11 @@ function renderOverview(d) {
       '· 资管净持仓：对应 TFF 报告 Asset Manager 类别（仅金融期货提供）',
     ].join('\n'),
     { fold: true }
-  ));
+  );
 
   const el = document.getElementById('overview');
   el.className = 'pos-overview';
-  el.replaceChildren(kpis, judgeCard);
+  el.replaceChildren(topRow, rankCard, secNote);
 }
 
 // ── 分组合约卡 ──
@@ -190,6 +247,7 @@ const TIPS = {
 function contractCard(c, latestReport) {
   const card = document.createElement('div');
   card.className = 're-card pos-contract';
+  card.id = `pos-contract-${c.symbol}`;
   // 两个取色变量只进 color:（卡片无填充用法），故直接取文字档
   const netColor = c.net > 0 ? 'var(--up)' : (c.net < 0 ? 'var(--down)' : 'var(--text-secondary)');
   const wkColor = c.week_dir == '增仓' ? 'var(--up)' : (c.week_dir == '减仓' ? 'var(--down)' : 'var(--text-secondary)');
