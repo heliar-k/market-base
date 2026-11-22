@@ -103,25 +103,31 @@ function renderOverview(d) {
   const crowdColor = crowdColorOf(c);
   const extremes = extremesText(o);
   const extList = o.extremes || [];
+  const tierCls = v => (v >= 50 ? 'is-crowded' : v >= 30 ? 'is-mid' : 'is-loose');
+  const cWidth = c == null ? 0 : Math.max(0, Math.min(100, c)).toFixed(1);
+  const kpiBar = `<div class="pos-kpi-bar" aria-hidden="true"><span class="${c == null ? 'is-mid' : tierCls(c)}" style="width:${cWidth}%"></span><i style="left:30%"></i><i style="left:50%"></i></div>`;
+  const tot = counts.total || ((counts.bull || 0) + (counts.neutral || 0) + (counts.bear || 0)) || 1;
+  const distBar = `<div class="pos-dist-bar" aria-hidden="true"><span class="pdb-bull" style="width:${((counts.bull || 0) / tot * 100).toFixed(1)}%"></span><span class="pdb-mid" style="width:${((counts.neutral || 0) / tot * 100).toFixed(1)}%"></span><span class="pdb-bear" style="width:${((counts.bear || 0) / tot * 100).toFixed(1)}%"></span></div>`;
+
   const kpis = R.cards([
     {
       label: '投机仓位拥挤度',
       value: c == null ? '—' : `${c.toFixed(1)} / 100`,
       vcolor: crowdColor,
-      sub: `<span class="re-badge ${crowdBadgeOf(c)}">${R.esc(crowdLabel)}</span> <span style="white-space:nowrap">· ${crowdBandOf(c)}</span>`,
+      sub: `<span class="re-badge ${crowdBadgeOf(c)}">${R.esc(crowdLabel)}</span> <span style="white-space:nowrap">· ${crowdBandOf(c)}</span>${kpiBar}`,
       cls: 're-card-wrap',
     },
     {
       label: '2 年分位分布',
       value: `<span class="up">${counts.bull ?? '—'} 多</span> · <span>${counts.neutral ?? '—'} 中</span> · <span class="down">${counts.bear ?? '—'} 空</span>`,
-      sub: `含极度看多 ${counts.extreme_bull ?? '—'} · 极度看空 ${counts.extreme_bear ?? '—'}（共 ${counts.total ?? 17} 合约）`,
+      sub: `极度多 ${counts.extreme_bull ?? '—'} · 极度空 ${counts.extreme_bear ?? '—'}（${counts.total ?? 17} 合约）${distBar}`,
       cls: 're-card-wrap',
     },
   ], 're-cards-2col');
 
-  const extSentence = extremes ? `极值区合约共 ${extList.length} 个：${extremes}。` : '';
+  const extSentence = extremes ? `极值区（${extList.length} 个）：${extremes}。` : '';
   const desc = c == null ? '当前样本不足，暂无法计算投机仓位拥挤度。'
-    : `当前 CFTC 投机仓位整体为「${crowdLabel}」，按 2 年分位桶统计整体${o.bias || '中性'}（分位计数不代表单一市场方向）。${extSentence}仓位已包含一部分市场共识，接下来看价格是否继续确认，不只看净多净空绝对值。`;
+    : `当前 CFTC 投机仓位「${crowdLabel}」，分位桶整体${o.bias || '中性'}（不代表单一市场方向）。${extSentence}仓位已计入部分共识，需结合价格确认而非单看净仓绝对值。`;
 
   const judgeWrap = document.createElement('div');
   judgeWrap.innerHTML = R.judgeRow([['当前结论', desc]]);
@@ -132,7 +138,6 @@ function renderOverview(d) {
   topRow.append(kpis, judgeCard);
 
   // 按资产大类分组展示，组内按拥挤度 |pct_2y - 50| * 2 降序；常规小组按均值降序两两并排，大容量组通栏双列
-  const tierCls = v => (v >= 50 ? 'is-crowded' : v >= 30 ? 'is-mid' : 'is-loose');
   const groups = (d.groups || []).map(g => {
     const items = (g.contracts || [])
       .filter(ct => ct.pct_2y != null)

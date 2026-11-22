@@ -589,8 +589,19 @@ button.opt-sig-reason:hover .osr-brief { color: var(--text-secondary); }
 
 /* ── 持仓追踪（CFTC COT，timsun 复刻）── */
 .pos-overview { display: flex; flex-direction: column; gap: var(--re-inner-gap); min-width: 0; }
-.pos-top-row { display: grid; grid-template-columns: minmax(360px, 44%) minmax(0, 1fr); gap: var(--re-inner-gap); align-items: stretch; }
+.pos-top-row { display: grid; grid-template-columns: minmax(340px, 38%) minmax(0, 1fr); gap: var(--re-inner-gap); align-items: stretch; }
 .pos-top-row > .re-section { min-width: 0; }
+.pos-kpi-bar { position: relative; height: 4px; border-radius: 2px; background: var(--border); overflow: hidden; margin-top: 10px; }
+.pos-kpi-bar > span { display: block; height: 100%; border-radius: 2px; }
+.pos-kpi-bar > span.is-crowded { background: var(--color-warn); }
+.pos-kpi-bar > span.is-mid { background: var(--color-neutral); }
+.pos-kpi-bar > span.is-loose { background: var(--color-up); }
+.pos-kpi-bar > i { position: absolute; top: 0; bottom: 0; width: 1px; background: color-mix(in srgb, var(--surface) 75%, var(--text-dim)); }
+.pos-dist-bar { display: flex; height: 4px; border-radius: 2px; overflow: hidden; gap: 1px; margin-top: 10px; background: var(--border); }
+.pos-dist-bar > span { display: block; height: 100%; }
+.pos-dist-bar .pdb-bull { background: var(--color-up); }
+.pos-dist-bar .pdb-mid { background: var(--color-neutral); }
+.pos-dist-bar .pdb-bear { background: var(--color-down); }
 .pos-rank-card { container-type: inline-size; }
 .pos-rank-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px 16px; flex-wrap: wrap; margin-bottom: 10px; }
 .pos-rank-head h2 { margin-bottom: 0; }
