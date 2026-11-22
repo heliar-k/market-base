@@ -57,9 +57,10 @@ jobs:
       - name: Fetch crypto sources
         env:
           YF_NO_PROXY: "1"        # Actions 无 socks5 代理，yfinance 直连
-          # coinglass 经 Cloudflare Browser Run 渲染（免费档每天 10 分钟浏览器时间）
+          # coinglass 经 Cloudflare Browser Run 渲染（主）/ Firecrawl（兜底）
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           CLOUDFLARE_BROWSER_TOKEN: ${{ secrets.CLOUDFLARE_BROWSER_TOKEN }}
+          FIRECRAWL_API_KEY: ${{ secrets.FIRECRAWL_API_KEY }}
         run: |
           set +e  # 单个失败不阻断，末尾统一判红
           for f in fetch_crypto_derivatives fetch_etf_flows; do

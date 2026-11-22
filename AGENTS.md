@@ -496,13 +496,16 @@ uv run python src/sell_put.py --symbol TSM
 
 | 工具 | 适用场景 | 参考实现 |
 |------|---------|---------|
-| `coinglass_fetcher.render_markdown(url)` | 必须真浏览器渲染的 JS 页（→ Markdown） | `coinglass_fetcher`（Cloudflare Browser Run） |
+| `coinglass_fetcher.render_markdown(url)` | 必须真浏览器渲染的 JS 页（→ Markdown）；Cloudflare Browser Run 主、Firecrawl 兜底 | `coinglass_fetcher` |
 | `jina_reader.jina_fetch(url)` | Cloudflare 拦截 / JS 渲染页（页面→Markdown） | `cme_futures_fetcher`（降级通道） |
 | `barchart_client.core_get(params, referer, auth)` | Barchart core-api（期货曲线/波动率快照/远期点/期权链）；直连失败**自动降级** playwright 无头浏览器（进程单例） | `barchart_futures_fetcher` / `barchart_vol_fetcher` / `cfets_fetcher` |
 | `curl_cffi requests.Session(impersonate="chrome")` | TLS 指纹检测的直连 JSON API | `news_fetcher`（Yahoo NCP） |
 
 - Browser Run 走 REST：`POST /client/v4/accounts/{id}/browser-run/markdown`，body `{"url", "gotoOptions": {"waitUntil": "networkidle0"}}`，
   token 需 `Browser Run - Edit` 权限（secret `CLOUDFLARE_BROWSER_TOKEN`）；免费档每天 10 分钟浏览器时间，按次渲染十几秒量级完全够
+- Firecrawl 兜底走 `POST /v2/scrape`（secret `FIRECRAWL_API_KEY`，免费档 1000 credits/月，1 credit/次）：
+  `onlyMainContent` 默认 true 会砍掉页头（全市场 OI / 清算 / 多空比就在页头一行），必须传 false；
+  `maxAge` 默认 2 天会回缓存，必须传 0 现抓。两家的排版差异（反斜杠硬换行、`\<br>`）由 `_normalize` 抹平
 - Jina 免费额度 ~20 RPM 日频 cron 量够；但匿名请求会被按出口 IP 拒（Actions 上实测约一半班次 401），
   所以经 Jina 的 fetcher 要能带 `JINA_API_KEY`（`jina_reader` 已支持，没配则匿名）；慢加载页加 `x-timeout` / `x-no-cache` / `x-wait-for-time` 头
 - AWS WAF（JS challenge + aws-waf-token）只有真浏览器能过；Jina 能过 WAF 但拿不到 cookie，所以 Barchart 用 playwright 页内 fetch 而非 Jina

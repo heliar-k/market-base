@@ -10,6 +10,7 @@ import requests
 from src.fetchers.coinglass_fetcher import (
     _pct,
     _qty,
+    _render_cf,
     parse_oi_table,
     parse_snapshot,
     parse_top,
@@ -198,11 +199,11 @@ def test_parse_snapshot_few_exchanges_raises():
         parse_snapshot(_SAMPLE)
 
 
-def test_render_markdown_needs_credentials(monkeypatch):
+def test_render_cf_needs_credentials(monkeypatch):
     monkeypatch.delenv("CLOUDFLARE_BROWSER_TOKEN", raising=False)
     monkeypatch.setenv("CLOUDFLARE_ACCOUNT_ID", "acct")
     with pytest.raises(RuntimeError, match="缺 CLOUDFLARE_BROWSER_TOKEN"):
-        render_markdown()
+        _render_cf("https://example.com", 60)
 
 
 def test_render_markdown_unwraps_result(monkeypatch):
@@ -229,7 +230,7 @@ def test_render_markdown_unwraps_result(monkeypatch):
     assert seen["headers"]["Authorization"] == "Bearer tok"
 
 
-def test_render_markdown_raises_on_api_error(monkeypatch):
+def test_render_markdown_raises_on_cf_api_error(monkeypatch):
     class _Resp:
         def json(self):
             return {"success": False, "errors": [{"message": "quota exceeded"}]}
@@ -241,4 +242,77 @@ def test_render_markdown_raises_on_api_error(monkeypatch):
     monkeypatch.setenv("CLOUDFLARE_ACCOUNT_ID", "acct-1")
     monkeypatch.setattr(requests, "post", lambda url, **kw: _Resp())
     with pytest.raises(RuntimeError, match="渲染失败"):
-        render_markdown()
+        _render_cf("https://example.com", 60)
+
+
+def test_render_markdown_falls_back_to_firecrawl(monkeypatch, caplog):
+    """CF 挂（没凭据）→ 切 Firecrawl，并留下日志说明走了哪条。"""
+    import logging
+
+    caplog.set_level(logging.WARNING, logger="src.fetchers.coinglass_fetcher")
+
+    class _Resp:
+        def json(self):
+            return {"success": True, "data": {"markdown": "# fc markdown"}}
+
+        def raise_for_status(self):
+            pass
+
+    seen = {}
+
+    def fake_post(url, **kw):
+        seen["url"] = url
+        seen.update(kw)
+        return _Resp()
+
+    monkeypatch.delenv("CLOUDFLARE_BROWSER_TOKEN", raising=False)
+    monkeypatch.setenv("FIRECRAWL_API_KEY", "fc-key")
+    monkeypatch.setattr(requests, "post", fake_post)
+    assert render_markdown("https://example.com") == "# fc markdown"
+    assert seen["url"] == "https://api.firecrawl.dev/v2/scrape"
+    assert seen["headers"]["Authorization"] == "Bearer fc-key"
+    # 页头三个全局值在导航栏，不能被 onlyMainContent 砍掉；也不能吃 2 天缓存
+    assert seen["json"]["onlyMainContent"] is False
+    assert seen["json"]["maxAge"] == 0
+    assert "Firecrawl 兜底" in caplog.text
+
+
+def test_render_markdown_raises_when_both_fail(monkeypatch):
+    """两家都没配 → 报 Firecrawl 的错误（最后一道）。"""
+    monkeypatch.delenv("CLOUDFLARE_BROWSER_TOKEN", raising=False)
+    monkeypatch.delenv("FIRECRAWL_API_KEY", raising=False)
+    with pytest.raises(RuntimeError, match="缺 FIRECRAWL_API_KEY"):
+        render_markdown("https://example.com")
+
+
+def test_normalize_firecrawl_layout():
+    """Firecrawl 的 `\\` 硬换行与 `\\<br>` 分隔不能影响取值。"""
+    md = (
+        "[24h Volume\\\n\\\n$135,203,236,834\\\n\\\n-59.39%](https://u) "
+        "[Open Interest\\\n\\\n$102,447,937,628\\\n\\\n+1.12%](https://u) "
+        "[24h Liquidation\\\n\\\n$394,896,766\\\n\\\n-84.67%](https://u) "
+        "[24h Long/Short \\\n\\\n49.46%/50.54%](https://u)\n"
+    )
+    top = parse_top(md)
+    assert top["all_open_interest_usd"] == 102_447_937_628
+    assert top["liq24h_usd"] == 394_896_766
+    assert top["ls_ratio"] == {"long_pct": 49.46, "short_pct": 50.54}
+    row = (
+        "| 1 | [![Binance](u.png)\\<br>\\<br>Binance](https://u) | 92.56K BTC | $5.47B | "
+        "14.09% | -0.07% | -0.47% | +1.42% | 0.8 | |\n"
+    )
+    out = parse_oi_table(_HEADER + row)
+    assert [e["name"] for e in out["exchanges"]] == ["Binance"]
+
+
+def test_normalize_real_firecrawl_double_backslash():
+    """Firecrawl 实际输出是每行两个反斜杠（硬换行），行内是 `\\<br>`。"""
+    bs = chr(92)
+    md = f"[Open Interest{bs * 2}\n{bs * 2}\n$102,447,937,628{bs * 2}\n{bs * 2}\n+1.12%](https://u)"
+    assert parse_top(md)["all_open_interest_usd"] == 102_447_937_628
+    row = (
+        f"| 1 | [![Binance](u.png){bs}<br>{bs}<br>Binance](https://u) | 92.56K BTC | $5.47B | "
+        "14.09% | -0.07% | -0.47% | +1.42% | 0.8 | |\n"
+    )
+    out = parse_oi_table(_HEADER + row)
+    assert [e["name"] for e in out["exchanges"]] == ["Binance"]
