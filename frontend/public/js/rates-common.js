@@ -773,8 +773,10 @@ const R = {
     // 标题取最近的小节：静态 Section 是 .re-sec，JS 生成的卡是 .re-section。
     // 不能只写 .re-section —— Section 的内层 .re-panel（pricing 的 rp-triple-panel）
     // 会成为最近命中，而 h2 在外层 .re-sec 上，标题就取丢了。
-    const sec = dom.closest('.re-sec, .re-section');
-    const h = sec ? sec.querySelector('h2') : null;
+    const sec = dom.closest(
+      '.re-sec, .re-section, .tech-ov-card, .corr-matrix-pane, .corr-drill-panel, .corr-insight-card'
+    );
+    const h = sec ? sec.querySelector('h2, .tech-ov-hist-title, .corr-pane-title, .corr-insight-head b') : null;
     const title = h ? h.textContent.trim() : '';
     const ser = opt && opt.series ? [].concat(opt.series) : [];
     const TYPES = {
@@ -786,6 +788,7 @@ const R = {
       pie: '饼图',
       radar: '雷达图',
       effectScatter: '散点图',
+      custom: '区间带',
     };
     const types = [...new Set(ser.map((s) => TYPES[s.type] || s.type).filter(Boolean))].join('与');
     const names = [...new Set(ser.map((s) => s.name).filter(Boolean))];
@@ -966,8 +969,8 @@ const R = {
   _fitLater(chart, host, pass) {
     if (window.requestAnimationFrame) requestAnimationFrame(() => R._fitAfterRender(chart, host, pass));
   },
-  mkChart(id, option) {
-    const dom = document.getElementById(id);
+  mkChart(id, option, opts) {
+    const dom = typeof id === 'string' ? document.getElementById(id) : id;
     if (!dom) return null;
     dom.classList.add('skeleton'); // 骨架屏占位（app.css .skeleton）：首次 setOption 后摘除，主题重建不重复挂
     // echarts 是 defer 脚本（不阻塞 HTML 解析），页面在数据 fetch 回来后可能早于它执行完。
@@ -977,12 +980,14 @@ const R = {
       // DCL 已触发还缺 echarts = defer 脚本加载失败，不会再有第二次补画机会，就地报错。
       // 不能用 readyState 判：它解析完就变 interactive，而 defer 脚本在那之后才执行。
       if (R._dclFired) {
-        R._failChart(id);
+        if (typeof id === 'string') R._failChart(id);
         throw new Error('echarts 未就绪：/vendor/echarts.min.js 未能加载');
       }
-      R._pendingCharts.set(id, option);
+      if (typeof id === 'string') R._pendingCharts.set(id, option);
       return null;
     }
+    // 同一容器重绘前先释放旧实例、主题监听器与 ResizeObserver（SPA 切标/重渲染不泄漏）
+    R.disposeChart(dom);
     // 独立当卡面的 .re-chart（11 个 Section 页）：自身有边框但 padding 为 0，画布直接贴边，
     // y 轴标签离卡边只剩 grid.left；垫一层卡面同款内距（special.css .re-section 的 16px 20px），
     // 与 .re-section 卡里的图（equities 等）对齐。嵌在卡内的 .re-chart（fx/treasury）不垫（避免卡中卡）。
@@ -1017,13 +1022,15 @@ const R = {
       chart.setOption(opt);
       R._fitLater(chart, host, 0);
       dom.classList.remove('skeleton');
-      R._charts.set(id, chart);
+      if (typeof id === 'string') R._charts.set(id, chart);
+      if (opts && typeof opts.onRender === 'function') opts.onRender(chart);
       return chart;
     };
     let chart = render();
     if (!chart) return null;
     let dirtyTheme = false;
-    window.addEventListener('theme-changed', () => {
+    const entry = { chart, ro: null, onTheme: null, id: typeof id === 'string' ? id : null };
+    entry.onTheme = () => {
       if (host.clientWidth === 0) {
         // 隐藏 Tab 下不向 0×0 容器重建，待恢复可见时由 ResizeObserver 统一重建
         dirtyTheme = true;
@@ -1036,11 +1043,13 @@ const R = {
         /* 已被外部 dispose */
       }
       chart = render();
-    });
+      entry.chart = chart;
+    };
+    window.addEventListener('theme-changed', entry.onTheme);
     // 栅格边距在 render 时按当时宽度算（_clampGrid），所以跨过窄屏/宽屏分界得重建；
     // 只在布尔翻转时重建（一个图最多重建几次），resize 中间帧仍只走 chart.resize()
     let narrow = dom.clientWidth < 480;
-    new ResizeObserver(() => {
+    entry.ro = new ResizeObserver(() => {
       if (host.clientWidth === 0) return;
       const n = host.clientWidth < 480;
       if (!dirtyTheme && n === narrow) {
@@ -1056,12 +1065,35 @@ const R = {
         /* 已被外部 dispose */
       }
       chart = render();
-    }).observe(dom);
+      entry.chart = chart;
+    });
+    entry.ro.observe(dom);
+    R._chartCleanups.set(dom, entry);
     return chart;
   },
 
   // id → 当前实例（主题重建后仍有效）；外部 dispose 过的返回 null
   _charts: new Map(),
+  _chartCleanups: new Map(),
+  disposeChart(id) {
+    const dom = typeof id === 'string' ? document.getElementById(id) : id;
+    if (!dom) return;
+    const prev = R._chartCleanups.get(dom);
+    if (prev) {
+      R._chartCleanups.delete(dom);
+      try {
+        prev.ro.disconnect();
+      } catch (e) {}
+      if (typeof window !== 'undefined' && window.removeEventListener && prev.onTheme) {
+        window.removeEventListener('theme-changed', prev.onTheme);
+      }
+      try {
+        if (prev.chart && !prev.chart.isDisposed()) prev.chart.dispose();
+      } catch (e) {}
+      if (prev.id) R._charts.delete(prev.id);
+    }
+    if (typeof id === 'string') R._charts.delete(id);
+  },
   getChart(id) {
     const c = R._charts.get(id);
     return c && !c.isDisposed() ? c : null;

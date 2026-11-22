@@ -129,20 +129,20 @@ async function load() {
 
   card(R.secTitle('付息券 Bid-to-Cover 趋势', '', '2 / 5 / 10 / 30Y，近 1 年，含重开拍卖')
     + '<div class="note" style="margin-bottom:4px">点 = 单场拍卖 · 空心 = 重开 · 点线 = 本格均值 · 绿虚线 = 良好 2.5x · 红虚线 = 警戒 2.0x · 悬停看发行规模</div>'
-    + '<div class="re-chart re-chart-lg re-plain" id="trend_chart"></div>');
+    + '<div class="chart chart-tall" id="trend_chart"></div>');
   card(R.secTitle('拍卖 Tail 趋势', '', '2 / 5 / 10 / 30Y，bp，正 = 弱于预期')
     + '<div class="note" style="margin-bottom:4px">Tail = 中标利率 − 中位投标利率 · 点 = 单场拍卖 · 空心 = 重开 · 点线 = 本格均值 · 悬停看发行规模</div>'
-    + '<div class="re-chart re-chart-lg re-plain" id="tail_chart"></div>');
+    + '<div class="chart chart-tall" id="tail_chart"></div>');
   card(R.secTitle('间接投标占比趋势', '', '2 / 10 / 30Y，%，外国官方 + 国际机构需求')
     + '<div class="note" style="margin-bottom:4px">点 = 单场拍卖 · 空心 = 重开 · 点线（无数据点）= 均值 · 悬停看单场明细</div>'
-    + '<div class="re-chart re-plain" id="indirect_chart"></div>');
+    + '<div class="chart" id="indirect_chart"></div>');
   card(R.secTitle('最近拍卖结果', '', '近 90 天')
     + '<div class="note" style="margin-bottom:4px">着色：Bid/Cover ≥2.5 绿 / &lt;2.0 红 · Tail ≥+1.5 红 / ≤−1.5 绿</div>'
     + '<div id="re-recent"></div>');
   // sub 只放单位（与间接投标卡的「10 / 30Y，%」同式），口径沉到图注 —— 图注贴着数据走
   card(R.secTitle('供给前瞻：Bill 占比', '', '占未偿可交易债务，%')
     + '<div class="note" style="margin-bottom:4px">MSPD 月频（历史段）+ 日频派生（近端）· 近 6 年 · 悬停看日期</div>'
-    + '<div class="re-chart re-plain" id="bill_chart"></div>');
+    + '<div class="chart" id="bill_chart"></div>');
   card(R.secTitle('未来拍卖日历', '', '未来 21 天')
     + '<div id="re-upcoming"></div>');
 
@@ -158,7 +158,7 @@ async function load() {
   // 窄屏 1×4 整宽四行，宽屏 2×2。原先 5%/43% 全百分比边距在宽屏把 y 轴标签推离卡边 50px+。
   const facetChart = (id, data, unit, extraMarks) => (colors, w) => {
     const narrow = (w || 0) < 480;
-    // 窄屏 1×4 每行需要「标题 + 绘图」~115px，.re-chart-lg 的 clamp(260,52vh,380) 在手机上
+    // 窄屏 1×4 每行需要「标题 + 绘图」~115px，.chart-tall 的 clamp(260,52vh,380) 在手机上
     // （vh 小）只剩 ~300px，四行挤成一团。行内样式把容器加高到按屏宽算（不依赖 vh），
     // 宽屏清空回落到类高度。改高度的时机安全：mkChart 的 render 在 optionFn 返回后才
     // echarts.init(host)，首帧即按新高度取画布；高度变化本身走 RO 的 chart.resize()。

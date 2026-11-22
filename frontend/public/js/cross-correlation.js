@@ -23,7 +23,7 @@ const GROUP_LABELS = {
   vol: '波动率',
 };
 // 分组分类色单源：存 token 名。DOM 图例直接 var() 引用（样式计算期解析，切主题即时跟随）；
-// canvas 侧（ECharts rich 标签）不认 var()/color-mix，由 GROUP_COLORS() 在渲染期解析成实际色值
+// canvas 侧（ECharts rich 标签）不认 var()/color-mix，由 GROUP_TEXT_COLORS() 在渲染期解析成文字档色值
 const GROUP_TOKENS = {
   equity: '--color-brand',
   bond: '--chart-purple',
@@ -33,7 +33,16 @@ const GROUP_TOKENS = {
   fx: '--chart-cyan',
   vol: '--color-down',
 };
-const GROUP_COLORS = () => Object.fromEntries(Object.entries(GROUP_TOKENS).map(([k, t]) => [k, reCssVar(t)]));
+const GROUP_TEXT_TOKENS = {
+  equity: '--accent-ink',
+  bond: '--chart-purple-text',
+  credit: '--chart-violet-text',
+  commodity: '--color-warn-text',
+  crypto: '--color-up-text',
+  fx: '--chart-cyan-text',
+  vol: '--color-down-text',
+};
+const GROUP_TEXT_COLORS = () => Object.fromEntries(Object.entries(GROUP_TEXT_TOKENS).map(([k, t]) => [k, reCssVar(t)]));
 // drill-down 滚动相关参数（与 cross_asset.py 同口径；前端重算避免每对导一个静态文件）
 const ROLLING_WINDOW = 30;
 const MIN_OBS = 10;
@@ -150,8 +159,7 @@ let drillChart = null; // 弹层上图：滚动相关
 let drillPriceChart = null; // 弹层下图：归一化价格
 let drillPair = null; // 当前弹层的标的对（主题切换时原对重绘）
 let corrChart = null;
-let corrObserver = null;
-let sparkObservers = []; // 结构洞察卡里的迷你趋势图（每卡一个，随 innerHTML 重建整体换新）
+let sparkNodes = []; // 结构洞察卡里的迷你趋势图容器（随 innerHTML 重建逐个 dispose）
 let seriesMapCache = null; // 宏观模式最近一次渲染的 seriesMap（状态栏数据截至用）
 
 // ── init ───────────────────────────────────────────────────────────────────
@@ -172,19 +180,8 @@ export async function initCorrelationView() {
 }
 
 function onThemeChanged() {
-  // 直接按当前模式重渲染（比逐图 re-init 简单，insight spark 一并重建）
-  if (mode !== 'asset') {
-    if (corrChart) loadAndRender();
-    return;
-  }
-  if (!crossData) return;
-  renderStatusRow(crossData);
-  renderMatrix();
-  renderInsights(crossData);
-  // 弹层开着时按同一对标的重绘（否则图仍是旧主题色）；矩阵照常重建，互不干扰
-  if (drillPair && pricesCache && document.getElementById('corr-drill-corr')) {
-    renderDrillCharts(drillPair.a, drillPair.b, pricesCache.prices);
-  }
+  // 图表由 R.mkChart 自动随 theme-changed 重绘；仅需刷新宏观指示圆点的内联色
+  if (mode !== 'asset' && activePreset) renderCustomControls();
 }
 
 // ── UI scaffold ────────────────────────────────────────────────────────────
@@ -229,10 +226,8 @@ function switchMode(next) {
   mode = next;
   // 释放不活跃模式的图实例
   if (mode === 'asset') {
-    if (corrChart) {
-      corrChart.dispose();
-      corrChart = null;
-    }
+    R.disposeChart('correlation-chart');
+    corrChart = null;
   } else {
     disposeMatrixCharts();
   }
@@ -378,13 +373,7 @@ function renderMatrix() {
   const labels = d.assets.map((a) => a.label);
 
   const dom = document.getElementById('corr-heatmap');
-  if (matrixChart) {
-    matrixChart.dispose();
-    matrixChart = null;
-  }
-  matrixChart = echarts.init(dom, document.body.classList.contains('dark') ? 'macroDark' : 'macro', {
-    renderer: 'canvas',
-  });
+  if (!dom) return;
 
   const data = [];
   d.matrix.forEach((row, i) => row.forEach((v, j) => data.push([j, i, v])));
@@ -397,84 +386,12 @@ function renderMatrix() {
     if (last && last.group === g) last.end = i;
     else groups.push({ group: g, start: i, end: i });
   });
-  const rich = {};
-  const GC = GROUP_COLORS();
-  groups.forEach((g) => {
-    rich[g.group] = { color: GC[g.group], fontSize: 10 };
-  });
   const labelFmt = (v, i) => `{${assetGroup[i]}|${v}}`;
 
-  matrixChart.setOption({
-    tooltip: {
-      position: 'top',
-      formatter: (p) => {
-        const v = p.value && p.value[2];
-        return `${labels[p.value[1]]} × ${labels[p.value[0]]}<br>${v == null ? '—' : Number(v).toFixed(2)}`;
-      },
-    },
-    grid: { left: 16, right: 16, top: 8, bottom: 44, containLabel: true },
-    xAxis: {
-      type: 'category',
-      data: assets,
-      position: 'top',
-      axisLabel: { fontSize: 10, rotate: 50, interval: 0, rich, formatter: labelFmt },
-      axisLine: { show: false },
-      axisTick: { show: false },
-    },
-    yAxis: {
-      type: 'category',
-      data: assets,
-      axisLabel: { fontSize: 10, rich, formatter: labelFmt },
-      axisLine: { show: false },
-      axisTick: { show: false },
-    },
-    visualMap: {
-      min: -1,
-      max: 1,
-      calculable: true,
-      orient: 'horizontal',
-      left: 'center',
-      bottom: 4,
-      itemWidth: 14,
-      inRange: { color: reCorrRamp() },
-      text: ['强正相关', '强负相关'],
-      formatter: () => '',
-      textStyle: { color: reCssVar('--text-dim'), fontSize: 11 },
-    },
-    series: [
-      {
-        type: 'heatmap',
-        data,
-        itemStyle: { borderColor: 'transparent', borderWidth: 1 },
-        emphasis: { itemStyle: { borderColor: reCssVar('--color-brand'), borderWidth: 2 } },
-        label: {
-          show: true,
-          fontSize: 9,
-          // s/n = 饱和格/中性格上的文字对比色：s 走 token（亮白暗深灰），n 走主题弱文字色
-          rich: {
-            s: { color: reCssVar('--text-on-saturated'), fontSize: 9 },
-            n: { color: reCssVar('--text-dim'), fontSize: 9 },
-          },
-          formatter: (p) => {
-            const v = p.value && p.value[2];
-            if (v == null) return '';
-            return `{${Math.abs(v) >= 0.75 ? 's' : 'n'}|${v.toFixed(2)}}`;
-          },
-        },
-      },
-    ],
-  });
-  hookMatrixEvents(matrixChart);
-
-  // 容器高度变化（窗口缩放/布局稳定）时重绘，否则 canvas 停在 init 尺寸、底部图例被 overflow:hidden 裁掉
-  if (matrixObserver) matrixObserver.disconnect();
   // 矩阵小则隐藏格子里的相关系数数字：canvas 不吃媒体查询，convertToPixel 反推真实格宽，
   // ≥26px 才显示（口径同大类资产页矩阵：数字在窄格里横向挤成一团；本图字号 9px 同阈）。
-  // 数字走 tooltip / 点击 drill-down，不靠 label 也能读到；主题切换走 renderMatrix 重建，
-  // 新 observer 在 observe() 时自动同步一次，无需另挂 theme-changed。
   const syncMatrixLabels = () => {
-    if (!matrixChart) return;
-    matrixChart.resize();
+    if (!matrixChart || matrixChart.isDisposed()) return;
     try {
       const a = matrixChart.convertToPixel({ gridIndex: 0 }, [0, 0]);
       const b = matrixChart.convertToPixel({ gridIndex: 0 }, [1, 0]);
@@ -483,6 +400,86 @@ function renderMatrix() {
       /* init 未完成时 convertToPixel 抛错，下轮 observer 回调再同步 */
     }
   };
+
+  R.mkChart(
+    'corr-heatmap',
+    () => {
+      const rich = {};
+      const GC = GROUP_TEXT_COLORS();
+      groups.forEach((g) => {
+        rich[g.group] = { color: GC[g.group], fontSize: 10 };
+      });
+      return {
+        tooltip: {
+          position: 'top',
+          formatter: (p) => {
+            const v = p.value && p.value[2];
+            return `${labels[p.value[1]]} × ${labels[p.value[0]]}<br>${v == null ? '—' : Number(v).toFixed(2)}`;
+          },
+        },
+        grid: { left: 16, right: 16, top: 8, bottom: 44, containLabel: true },
+        xAxis: {
+          type: 'category',
+          data: assets,
+          position: 'top',
+          axisLabel: { fontSize: 10, rotate: 50, interval: 0, rich, formatter: labelFmt },
+          axisLine: { show: false },
+          axisTick: { show: false },
+        },
+        yAxis: {
+          type: 'category',
+          data: assets,
+          axisLabel: { fontSize: 10, rich, formatter: labelFmt },
+          axisLine: { show: false },
+          axisTick: { show: false },
+        },
+        visualMap: {
+          min: -1,
+          max: 1,
+          calculable: true,
+          orient: 'horizontal',
+          left: 'center',
+          bottom: 4,
+          itemWidth: 14,
+          inRange: { color: reCorrRamp() },
+          text: ['强正相关', '强负相关'],
+          formatter: () => '',
+          textStyle: { color: reCssVar('--text-dim'), fontSize: 11 },
+        },
+        series: [
+          {
+            type: 'heatmap',
+            data,
+            itemStyle: { borderColor: 'transparent', borderWidth: 1 },
+            emphasis: { itemStyle: { borderColor: reCssVar('--color-brand'), borderWidth: 2 } },
+            label: {
+              show: true,
+              fontSize: 9,
+              // s/n = 饱和格/中性格上的文字对比色：s 走 token（亮白暗深灰），n 走主题弱文字色
+              rich: {
+                s: { color: reCssVar('--text-on-saturated'), fontSize: 9 },
+                n: { color: reCssVar('--text-dim'), fontSize: 9 },
+              },
+              formatter: (p) => {
+                const v = p.value && p.value[2];
+                if (v == null) return '';
+                return `{${Math.abs(v) >= 0.75 ? 's' : 'n'}|${v.toFixed(2)}}`;
+              },
+            },
+          },
+        ],
+      };
+    },
+    {
+      onRender(chart) {
+        matrixChart = chart;
+        hookMatrixEvents(chart);
+        syncMatrixLabels();
+      },
+    }
+  );
+
+  if (matrixObserver) matrixObserver.disconnect();
   matrixObserver = new ResizeObserver(syncMatrixLabels);
   matrixObserver.observe(dom);
 
@@ -568,8 +565,6 @@ function labelOf(name) {
 function renderDrillCharts(a, b, rows) {
   disposeDrillCharts(); // 主题切换原对重绘：同一 DOM 上不能叠加第二个实例
   drillPair = { a, b };
-  const dark = document.body.classList.contains('dark');
-  const theme = dark ? 'macroDark' : 'macro';
   const dates = rows.map((r) => r.date);
   const norm = (name) => {
     let base = null;
@@ -606,9 +601,7 @@ function renderDrillCharts(a, b, rows) {
   // 价格图共用同一 time 轴：归一化序列转 [date, value] 点对（两图 x 轴写法必须一致）
   const toDatePairs = (vals) => vals.map((v, i) => [dates[i], v]);
 
-  const cDom = document.getElementById('corr-drill-corr');
-  drillChart = echarts.init(cDom, theme, { renderer: 'canvas' });
-  drillChart.setOption({
+  drillChart = R.mkChart('corr-drill-corr', () => ({
     grid: { left: 8, right: 16, top: 12, bottom: 24, containLabel: true },
     xAxis: { type: 'time' },
     yAxis: { type: 'value', min: -1, max: 1 },
@@ -620,6 +613,7 @@ function renderDrillCharts(a, b, rows) {
     },
     series: [
       {
+        name: `${ROLLING_WINDOW}日滚动相关`,
         type: 'line',
         data: corrSeries,
         showSymbol: false,
@@ -629,14 +623,11 @@ function renderDrillCharts(a, b, rows) {
       },
     ],
     tooltip: { trigger: 'axis' },
-  });
+  }));
 
-  const pDom = document.getElementById('corr-drill-price');
-  const pChart = echarts.init(pDom, theme, { renderer: 'canvas' });
-  drillPriceChart = pChart;
-  const pal = MACRO_COLORS(); // 惰性取色板：主题切换后重渲染拿到的是新主题色
-  pChart.setOption(
-    reSyncLegend({
+  drillPriceChart = R.mkChart('corr-drill-price', () => {
+    const pal = MACRO_COLORS(); // 惰性取色板：主题切换后重渲染拿到的是新主题色
+    return reSyncLegend({
       grid: { left: 8, right: 16, top: 12, bottom: 24, containLabel: true },
       xAxis: { type: 'time' },
       yAxis: { type: 'value', scale: true },
@@ -660,8 +651,8 @@ function renderDrillCharts(a, b, rows) {
       ],
       legend: { top: 0, right: 8 },
       tooltip: { trigger: 'axis' },
-    })
-  );
+    });
+  });
 }
 
 function pearson(xs, ys) {
@@ -715,12 +706,6 @@ function renderInsights(d) {
     spark.className = 'corr-spark';
     spark.style.height = '60px';
     el.appendChild(spark);
-    const dark = document.body.classList.contains('dark');
-    const chart = echarts.init(spark, dark ? 'macroDark' : 'macro', { renderer: 'canvas' });
-    // canvas 不吃媒体查询：只按 init 时的宽度绘制，卡片变窄后不 resize 就向右溢出卡片
-    const ro = new ResizeObserver(() => chart.resize());
-    ro.observe(spark);
-    sparkObservers.push(ro);
     const vals = a.series.map((s) => s.value);
     const dates = a.series.map((s) => s.date);
     const lastIdx = vals.length - 1;
@@ -728,72 +713,81 @@ function renderInsights(d) {
       hi = Math.max(...vals);
     const pad = Math.max((hi - lo) * 0.25, 0.05);
     const showZero = lo < 0 && hi > 0; // 0 轴仅在落入数据区间时才有意义
-    const accent = reCssVar('--color-brand');
-    const dim = reCssVar('--text-dim');
-    chart.setOption({
-      grid: { left: 30, right: 38, top: 6, bottom: 16 },
-      tooltip: {
-        trigger: 'axis',
-        formatter: (p) => `${p[0].axisValue}<br>30日相关 ${p[0].value == null ? '—' : Number(p[0].value).toFixed(2)}`,
-      },
-      xAxis: {
-        type: 'category',
-        data: dates,
-        axisLine: { show: false },
-        axisTick: { show: false },
-        // 只显首尾日期（MM-DD，年份在页头 as-of 里）
-        axisLabel: { fontSize: 9, color: dim, interval: (i) => i === 0 || i === lastIdx, formatter: (v) => v.slice(5) },
-      },
-      // y 轴按数据缩放（不再固定 -1~1 把窄区间压成直线），留刻度供读数
-      yAxis: {
-        type: 'value',
-        min: +(lo - pad).toFixed(2),
-        max: +(hi + pad).toFixed(2),
-        splitNumber: 2,
-        splitLine: { lineStyle: { color: reCssVar('--border-light') } },
-        axisLabel: { fontSize: 9, color: dim, formatter: (v) => v.toFixed(1) },
-      },
-      series: [
-        {
-          type: 'line',
-          data: vals,
-          showSymbol: false,
-          lineStyle: { width: 2, color: accent },
-          areaStyle: { opacity: 0.1, color: accent },
-          markLine: showZero
-            ? {
-                silent: true,
-                symbol: 'none',
-                lineStyle: { type: 'dashed', width: 1, color: dim },
-                label: { show: false },
-                data: [{ yAxis: 0 }],
-              }
-            : undefined,
-          // 当前值端点 + 右侧标值
-          markPoint: {
-            symbol: 'circle',
-            symbolSize: 7,
-            itemStyle: { color: accent },
-            label: {
-              show: true,
-              position: 'right',
-              formatter: () => a.latest.toFixed(2),
-              fontSize: 10,
-              color: accent,
-              fontWeight: 600,
-            },
-            data: [{ coord: [lastIdx, vals[lastIdx]] }],
+    R.mkChart(spark, () => {
+      const accent = reCssVar('--color-brand');
+      const accentInk = reCssVar('--accent-ink');
+      const dim = reCssVar('--text-dim');
+      return {
+        grid: { left: 30, right: 38, top: 6, bottom: 16 },
+        tooltip: {
+          trigger: 'axis',
+          formatter: (p) => `${p[0].axisValue}<br>30日相关 ${p[0].value == null ? '—' : Number(p[0].value).toFixed(2)}`,
+        },
+        xAxis: {
+          type: 'category',
+          data: dates,
+          axisLine: { show: false },
+          axisTick: { show: false },
+          // 只显首尾日期（MM-DD，年份在页头 as-of 里）
+          axisLabel: {
+            fontSize: 9,
+            color: dim,
+            interval: (i) => i === 0 || i === lastIdx,
+            formatter: (v) => v.slice(5),
           },
         },
-      ],
+        // y 轴按数据缩放（不再固定 -1~1 把窄区间压成直线），留刻度供读数
+        yAxis: {
+          type: 'value',
+          min: +(lo - pad).toFixed(2),
+          max: +(hi + pad).toFixed(2),
+          splitNumber: 2,
+          splitLine: { lineStyle: { color: reCssVar('--border-light') } },
+          axisLabel: { fontSize: 9, color: dim, formatter: (v) => v.toFixed(1) },
+        },
+        series: [
+          {
+            name: '30日滚动相关',
+            type: 'line',
+            data: vals,
+            showSymbol: false,
+            lineStyle: { width: 2, color: accent },
+            areaStyle: { opacity: 0.1, color: accent },
+            markLine: showZero
+              ? {
+                  silent: true,
+                  symbol: 'none',
+                  lineStyle: { type: 'dashed', width: 1, color: dim },
+                  label: { show: false },
+                  data: [{ yAxis: 0 }],
+                }
+              : undefined,
+            // 当前值端点 + 右侧标值
+            markPoint: {
+              symbol: 'circle',
+              symbolSize: 7,
+              itemStyle: { color: accent },
+              label: {
+                show: true,
+                position: 'right',
+                formatter: () => a.latest.toFixed(2),
+                fontSize: 10,
+                color: accentInk,
+                fontWeight: 600,
+              },
+              data: [{ coord: [lastIdx, vals[lastIdx]] }],
+            },
+          },
+        ],
+      };
     });
+    sparkNodes.push(spark);
     // 分位 + 区间文字：补上自适应缩放丢掉的“绝对位置”信息
     const rank = Math.round((vals.filter((v) => v <= a.latest).length / vals.length) * 100);
     const cap = document.createElement('div');
     cap.className = 'corr-spark-cap';
     cap.textContent = `近${vals.length}期 ${rank}% 分位 · 区间 ${lo.toFixed(2)}~${hi.toFixed(2)}`;
     el.appendChild(cap);
-    // 面板销毁随 innerHTML 重建，无需单独管理实例
   });
 }
 
@@ -1157,16 +1151,11 @@ function renderNarrative(seriesMap) {
 }
 
 function renderChart(seriesMap) {
-  if (corrChart) {
-    corrChart.dispose();
-    corrChart = null;
-  }
-  if (corrObserver) {
-    corrObserver.disconnect();
-    corrObserver = null;
-  }
+  R.disposeChart('correlation-chart');
+  corrChart = null;
 
   const chartEl = document.getElementById('correlation-chart');
+  if (!chartEl) return;
   chartEl.innerHTML = '';
   if (!activePreset) return;
 
@@ -1190,7 +1179,6 @@ function renderChart(seriesMap) {
       (normRight ? ' · 右轴多序列已归一化（期初=100）' : '');
 
   // 序列整理（undefined 归 null —— echarts sampling processor 对 undefined 值崩溃）
-  const pal = MACRO_COLORS(); // 惰性取色板（主题切换后重渲染自动跟随）
   const items = activePreset.indicators
     .map((name) => {
       let info = seriesMap[name];
@@ -1206,21 +1194,10 @@ function renderChart(seriesMap) {
       return {
         name,
         info,
-        color: pal[activePreset.indicators.indexOf(name) % pal.length],
         isLeft: activePreset.left_axis.includes(name),
       };
     })
     .filter(Boolean);
-  const series = items.map((x) => ({
-    name: x.info.label || x.name,
-    type: 'line',
-    data: x.info.data,
-    lineStyle: { color: x.color, width: 2 },
-    itemStyle: { color: x.color },
-    showSymbol: false,
-    yAxisIndex: needDual && !x.isLeft ? 1 : 0,
-    emphasis: { focus: 'series' },
-  }));
 
   // ── 三带（联动全景）：上=overlay｜中=滚动相关｜下=5年分位；dataZoom/十字线三带联动 ──
   // 中/下带只画第一对（自由添加多序列时避免轴爆炸）；单序列时退化为普通 overlay
@@ -1235,40 +1212,6 @@ function renderChart(seriesMap) {
       curCorr != null
         ? `${activePreset.name} · ${indicatorLabel(left0.name)}×${indicatorLabel(right0.name)} 滚动相关 ${curCorr >= 0 ? '+' : ''}${curCorr.toFixed(2)}`
         : activePreset.name;
-
-  if (corrValid.length) {
-    series.push({
-      name: '滚动相关',
-      type: 'line',
-      xAxisIndex: 1,
-      yAxisIndex: 2,
-      data: corr,
-      showSymbol: false,
-      connectNulls: true,
-      lineStyle: { width: 1.5, color: reCssVar('--chart-purple') },
-      itemStyle: { color: reCssVar('--chart-purple') },
-      areaStyle: { opacity: 0.12, color: reCssVar('--chart-purple') },
-      markLine: {
-        silent: true,
-        symbol: 'none',
-        lineStyle: { opacity: 0.4, type: 'dashed' },
-        label: { show: false },
-        data: [{ yAxis: 0 }],
-      },
-    });
-    for (const x of [left0, right0].filter(Boolean)) {
-      series.push({
-        name: `${x.info.label || x.name} 分位`,
-        type: 'line',
-        xAxisIndex: 2,
-        yAxisIndex: 3,
-        data: pctRank(x.info.data),
-        showSymbol: false,
-        lineStyle: { width: 1.5, color: x.color },
-        itemStyle: { color: x.color },
-      });
-    }
-  }
 
   const hasBands = corrValid.length > 0;
   // 滑块已删（缩放留 inside）：三带版省出 bottom 带给第三带，单图版 bottom 回单源默认
@@ -1297,12 +1240,58 @@ function renderChart(seriesMap) {
   if (!hasBands && needDual) yAxis.push({ type: 'value', scale: true, splitNumber: 4, position: 'right' });
   const dataZoom = hasBands ? [{ type: 'inside', xAxisIndex: [0, 1, 2] }] : [{ type: 'inside' }];
 
-  const chart = echarts.init(chartEl, document.body.classList.contains('dark') ? 'macroDark' : 'macro', {
-    renderer: 'canvas',
-  });
-  corrChart = chart;
-  chart.setOption(
-    reSyncLegend({
+  corrChart = R.mkChart('correlation-chart', () => {
+    const pal = MACRO_COLORS(); // 惰性取色板（主题切换后重渲染自动跟随）
+    const colorOf = (name) => pal[activePreset.indicators.indexOf(name) % pal.length];
+    const series = items.map((x) => {
+      const col = colorOf(x.name);
+      return {
+        name: x.info.label || x.name,
+        type: 'line',
+        data: x.info.data,
+        lineStyle: { color: col, width: 2 },
+        itemStyle: { color: col },
+        showSymbol: false,
+        yAxisIndex: needDual && !x.isLeft ? 1 : 0,
+        emphasis: { focus: 'series' },
+      };
+    });
+    if (hasBands) {
+      const corrPurple = reCssVar('--chart-purple');
+      series.push({
+        name: '滚动相关',
+        type: 'line',
+        xAxisIndex: 1,
+        yAxisIndex: 2,
+        data: corr,
+        showSymbol: false,
+        connectNulls: true,
+        lineStyle: { width: 1.5, color: corrPurple },
+        itemStyle: { color: corrPurple },
+        areaStyle: { opacity: 0.12, color: corrPurple },
+        markLine: {
+          silent: true,
+          symbol: 'none',
+          lineStyle: { opacity: 0.4, type: 'dashed' },
+          label: { show: false },
+          data: [{ yAxis: 0 }],
+        },
+      });
+      for (const x of [left0, right0].filter(Boolean)) {
+        const col = colorOf(x.name);
+        series.push({
+          name: `${x.info.label || x.name} 分位`,
+          type: 'line',
+          xAxisIndex: 2,
+          yAxisIndex: 3,
+          data: pctRank(x.info.data),
+          showSymbol: false,
+          lineStyle: { width: 1.5, color: col },
+          itemStyle: { color: col },
+        });
+      }
+    }
+    return reSyncLegend({
       legend: { show: series.length > 1, top: 4, left: 8, type: 'scroll', textStyle: { fontSize: 11 } },
       grid,
       xAxis,
@@ -1310,10 +1299,8 @@ function renderChart(seriesMap) {
       tooltip: { trigger: 'axis', axisPointer: { type: 'cross', link: hasBands ? [{ xAxisIndex: 'all' }] : [] } },
       dataZoom,
       series,
-    })
-  );
-  corrObserver = new ResizeObserver(() => chart.resize());
-  corrObserver.observe(chartEl);
+    });
+  });
 }
 
 // [date,value] 对的 5 年（1260 观测点）滚动百分位
@@ -1355,14 +1342,10 @@ function removeIndicator(name) {
 }
 
 function disposeDrillCharts() {
-  if (drillChart) {
-    drillChart.dispose();
-    drillChart = null;
-  }
-  if (drillPriceChart) {
-    drillPriceChart.dispose();
-    drillPriceChart = null;
-  }
+  R.disposeChart('corr-drill-corr');
+  R.disposeChart('corr-drill-price');
+  drillChart = null;
+  drillPriceChart = null;
   drillPair = null;
 }
 
@@ -1371,18 +1354,16 @@ function disposeMatrixCharts() {
     matrixObserver.disconnect();
     matrixObserver = null;
   }
-  if (matrixChart) {
-    matrixChart.dispose();
-    matrixChart = null;
-  }
+  R.disposeChart('corr-heatmap');
+  matrixChart = null;
   disposeSparkCharts();
   disposeDrillCharts();
 }
 
-// 洞察卡的 chart 实例随 innerHTML 重建一并丢弃，只需断开 observer（否则它继续持有已脱离的节点）
+// 洞察卡的 chart 实例随 innerHTML 重建逐个释放，避免残留 ResizeObserver 与主题监听
 function disposeSparkCharts() {
-  sparkObservers.forEach((o) => o.disconnect());
-  sparkObservers = [];
+  sparkNodes.forEach((el) => R.disposeChart(el));
+  sparkNodes = [];
 }
 
 // ── status ─────────────────────────────────────────────────────────────────

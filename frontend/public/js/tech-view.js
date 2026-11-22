@@ -111,12 +111,6 @@ export function initTechView() {
   initCharts();
   initControls();
   initKeyboard();
-  // 亮暗切换：结论变化卡按当前主题 token 重画（ECharts 主题只在 init 生效）
-  window.addEventListener('theme-changed', () => {
-    if (!histBox || !histWindow.length) return;
-    disposeHistChart();
-    drawHistChart(histBox, histWindow);
-  });
   applySubview(currentSubview, false);
   loadSymbols();
   loadTechOverview();
@@ -552,8 +546,6 @@ let histPicked = null; // 图例勾选：重绘（切窗口 / 切标的 / 切主
 let histPoints = []; // 当前标的的完整历史
 let histWindow = []; // 当前窗口切片
 let histBox = null; // 图表容器（随卡片重建而换）
-let histChart = null;
-let histObserver = null;
 
 function histInk(v) {
   return v > 0 ? 'var(--color-up-text)' : v < 0 ? 'var(--color-down-text)' : 'var(--text-secondary)';
@@ -567,14 +559,7 @@ function histRegimeFill(regime, c) {
 }
 
 function disposeHistChart() {
-  if (histObserver) {
-    histObserver.disconnect();
-    histObserver = null;
-  }
-  if (histChart) {
-    histChart.dispose();
-    histChart = null;
-  }
+  if (histBox) R.disposeChart(histBox);
 }
 
 // 扫描表综合分下的小字：14 交易日窗口变化 = 最新 - 窗口首日（不加列）
@@ -714,29 +699,13 @@ function histOption(rows, c, width) {
 
 function drawHistChart(box, rows) {
   if (!window.echarts || !box || rows.length < 2) return;
-  const render = () => {
-    if (window.registerMacroTheme) registerMacroTheme();
-    histChart = echarts.init(box, R.isDark() ? 'macroDark' : 'macro');
-    histChart.setOption(reSyncLegend(histOption(rows, R.colors(), box.clientWidth)));
-    histChart.on('legendselectchanged', (e) => {
-      histPicked = e.selected;
-    });
-    return histChart;
-  };
-  let chart = render();
-  // 日期标签密度按画布宽算，跟 R.mkChart 一样只在跨 480 分界时重画，中间帧只 resize
-  const isNarrow = () => box.clientWidth < 480;
-  let narrow = isNarrow();
-  histObserver = new ResizeObserver(() => {
-    if (isNarrow() === narrow) {
-      if (!chart.isDisposed()) chart.resize();
-      return;
-    }
-    narrow = isNarrow();
-    chart.dispose();
-    chart = render();
+  R.mkChart(box, (c, w) => reSyncLegend(histOption(rows, c, w)), {
+    onRender(chart) {
+      chart.on('legendselectchanged', (e) => {
+        histPicked = e.selected;
+      });
+    },
   });
-  histObserver.observe(box);
 }
 
 function appendHistCard(host, d) {

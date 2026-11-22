@@ -180,7 +180,7 @@ body.embedded .re-foot { display: none; } /* 内嵌 iframe 不重复页脚 */
 @media (max-width: 768px) {
   .re-sec-head { row-gap: 2px; }
 }
-/* 图表面板高度档位(ChartPanel):数字对齐 special.css 既有高度,逐步归一 */
+/* 独立卡面图表面板高度档位（.re-chart 家族） */
 .re-chart-sm { height: clamp(200px, 36vh, 260px); } .re-chart-md { height: clamp(220px, 40vh, 300px); } .re-chart-lg { height: clamp(260px, 52vh, 380px); } .re-chart-xl { height: clamp(300px, 62vh, 460px); }
 
 /* 图表双栏（fed-funds 等内容稀疏段）：宽桌面把相邻两小节并排成两列。
@@ -295,13 +295,15 @@ body.embedded .re-foot { display: none; } /* 内嵌 iframe 不重复页脚 */
 .chart.chart-sm { height: clamp(200px, 36vh, 260px); }
 .chart.chart-lg { height: clamp(210px, 38vh, 280px); }
 .chart.chart-md { height: clamp(250px, 46vh, 340px); }
+.chart.chart-tall { height: clamp(260px, 52vh, 380px); }
 .chart.chart-hero { height: clamp(300px, 62vh, 520px); }
+#vol-cross-chart.chart { height: clamp(420px, 65vh, 680px); }
 /* 窄屏 .chart 家族高度随视口宽走（~1.5:1）：上方桌面档（300/340）按桌面宽度调的，
  * 308px 画布配 300-340px 高在手机上成了竖图（credit/inflation/treasury/metals/crypto
- * 共 15 张时间序列全中，同 ABV 图先例）。corr-matrix-chart 有三类 aspect-ratio 规则
- * 且 :not 排除双保险；geo/crypto-options 的 inline height 优先级更高不受影响。 */
+ * 共 15 张时间序列全中，同 ABV 图先例）。corr-matrix-chart 与 #vol-cross-chart（30 根横条）
+ * 各有独立高度且 :not 排除双保险；geo/crypto-options 的 inline height 优先级更高不受影响。 */
 @media (max-width: 768px) {
-  .chart:not(.corr-matrix-chart) { height: clamp(170px, 51vw, 300px); }
+  .chart:not(.corr-matrix-chart, #vol-cross-chart) { height: clamp(170px, 51vw, 300px); }
 }
 /* .re-chart 家族同款窄屏档（独立卡面图，rates 11 页 / bonds / fx）：同 1.5:1 逻辑，
  * 否则同一屏上 .chart 图 205 高、.re-chart 图 300 高两种观感；treasury 小倍图的
@@ -1159,7 +1161,7 @@ body.dark .pm-topic-card { box-shadow: inset 0 0 0 1px rgba(255,255,255,.04); }
 /* FX Dashboard 头栏：左小标 + h2，右 11px meta */
 .fx-dash-head { display: flex; justify-content: space-between; align-items: flex-end; gap: 12px; flex-wrap: wrap; }
 .fx-dash-meta { font-size: 11px; color: var(--text-dim); padding-bottom: 6px; }
-.fx-chart { height: clamp(280px, 56vh, 420px); }
+.fx-chart { height: clamp(280px, 56vh, 420px); margin-top: 10px; }
 /* 品种列两行：粗体名 + 中文名（原始 ticker 收进 title 属性，不再占第三行） */
 .fx-sym { line-height: 1.4; }
 .fx-sym b { font-weight: 600; }
