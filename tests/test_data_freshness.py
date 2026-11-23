@@ -169,6 +169,30 @@ def test_csv_dir_globs_reads_raw_chain_filename_date(tmp_path, monkeypatch):
     assert rows[0][0] == "MISSING"
 
 
+def test_options_raw_budget_counts_trading_days(tmp_path, monkeypatch):
+    """期权链 raw 的预算按交易日计：周五的数据在周一仍只算 1 个交易日。
+
+    回归：预算原按日历日算，周五 11-20 的数据到周一 11-23 就是 3 天，
+    每逢周一（以及假日后第一天）daily-full 都会假红。
+    """
+    chk = next(c for c in fr.CHECKS if c["note"] == "期权链 raw（选点明细）")
+    assert chk["calendar"] == "XNYS"
+    monkeypatch.setattr("src.options_structure.SYMBOLS", ["NVDA"])
+    d = tmp_path / "data/options_structure"
+    d.mkdir(parents=True)
+    (d / "raw_NVDA_20261120.csv").write_text("strike,right\n200,P\n")
+
+    assert audit(tmp_path, date(2026, 11, 20), [chk])[0][:3] == ("ok", "data/options_structure", 0)
+    # 周一 1 个交易日、周二 2 个 → 仍在预算内
+    assert audit(tmp_path, date(2026, 11, 23), [chk])[0][2] == 1
+    assert audit(tmp_path, date(2026, 11, 24), [chk])[0][0] == "ok"
+    # 周三 3 个交易日 → 超预算
+    stale = audit(tmp_path, date(2026, 11, 25), [chk])[0]
+    assert stale[0] == "STALE" and stale[2] == 3
+    # 感恩节（2026-11-26）不是 XNYS 场次，不计入落后
+    assert audit(tmp_path, date(2026, 11, 27), [chk])[0][2] == 4
+
+
 def test_options_oi_pending_flagged_only_after_finalization_window(tmp_path):
     d = tmp_path / "data/options_structure"
     d.mkdir(parents=True)

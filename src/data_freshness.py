@@ -27,7 +27,7 @@ from __future__ import annotations
 import json
 import os
 import sys
-from datetime import date, datetime, time, timezone
+from datetime import date, datetime, time, timedelta, timezone
 from pathlib import Path
 from typing import TypedDict
 
@@ -52,6 +52,7 @@ class Check(TypedDict):
     note: str
     column: str | None
     require: str | None
+    calendar: str | None
 
 
 def _c(
@@ -61,8 +62,12 @@ def _c(
     kind: str = "csv",
     column: str | None = None,
     require: str | None = None,
+    calendar: str | None = None,
 ) -> Check:
-    """require=只统计该列非空的行（文件里混着未完成行时用）。"""
+    """require=只统计该列非空的行（文件里混着未完成行时用）。
+
+    calendar="XNYS" 时预算按交易日计（周末与假日不计），否则按日历日。
+    """
     return {
         "path": path,
         "kind": kind,
@@ -70,6 +75,7 @@ def _c(
         "note": note,
         "column": column,
         "require": require,
+        "calendar": calendar,
     }
 
 
@@ -216,9 +222,16 @@ CHECKS: list[Check] = [
     # raw 链是选点的逐合约明细（JSON 快照里没有），单独查：
     # 两者节奏可以不一致——2026-10 就出现过「JSON 每天更新、raw 却停在 3 天前」，
     # 因为 raw 当时被 .gitignore 排除，Actions 产出的 raw 从没入库。
-    # 预算只给 2 天（不是日频那 6）：stale_days 一旦超 2，选出的到期日/行权价
-    # 已不是市场当前的盘口，拿它算年化收益会偏。
-    _c("data/options_structure", 2, "期权链 raw（选点明细）", kind="csv_dir_globs"),
+    # 预算只给 2 个交易日（不是日频那 6）：缺一个交易日就是选点的到期日/行权价
+    # 已经不是市场当前盘口，拿它算年化收益会偏。按交易日计——否则每逢周一
+    # （周五数据距周一 3 个日历日）都会假红。
+    _c(
+        "data/options_structure",
+        2,
+        "期权链 raw（选点明细）",
+        kind="csv_dir_globs",
+        calendar="XNYS",
+    ),
     # Wheel 看板由 daily-full 在 options_structure + 日线之后落盘（导出端只读它，
     # 因为真实期权链 raw_*.csv 不入库）；缺它 = 线上选点会退化成 BSM 估算
     _c("data/wheel", D, "Wheel 看板快照", kind="json_dir"),
@@ -297,6 +310,21 @@ def _last_csv_date(path: Path, column: str | None, require: str | None = None) -
     return None if dts.empty else dts.max().date()
 
 
+_XNYS = None
+
+
+def _trading_days(last: date, today: date) -> int:
+    """落后交易日数：只数 XNYS 场次，周末与假日不计（预算按交易日计的数据集用）。"""
+    global _XNYS
+    if today <= last:
+        return 0
+    if _XNYS is None:
+        import exchange_calendars as xcals
+
+        _XNYS = xcals.get_calendar("XNYS")
+    return len(_XNYS.sessions_in_range(last + timedelta(days=1), today))
+
+
 def latest(path: Path, chk: Check, today: date | None = None) -> date | None:
     """该数据集当前可用的最新观测日；文件缺失/为空/解析失败 → None。"""
     if chk["kind"] == "json_dir":
@@ -322,6 +350,7 @@ def audit(
     文件名快照只采用审计日当日或更早的文件，避免未来文件掩盖停更。
     et_today=日历类（ahead）的基准日：CSV 里的日期是美东场次日，拿 UTC 日期比会在
     daily-full 被延迟跨过 UTC 零点时整差一天（2026-10-29 就这样误报过）。
+    带 calendar 的检查里「落后天数」是交易日数，不是日历日数。
     """
     rows = []
     for chk in CHECKS if checks is None else checks:
@@ -330,7 +359,10 @@ def audit(
             rows.append(("MISSING", chk["path"], None, chk["note"], chk["budget"]))
             continue
         base = (et_today or today) if chk["kind"] == "ahead" else today
-        age = (base - last).days
+        if chk.get("calendar"):
+            age = _trading_days(last, base)
+        else:
+            age = (base - last).days
         budget = chk["budget"]
         ok = age <= -budget if chk["kind"] == "ahead" else age <= budget
         status = "ok" if ok else "STALE"
