@@ -42,6 +42,7 @@ AIA,iShares Asia 50 ETF,global
 AICH,China AI ETF,global
 AIFD,TCW Artificial Intelligence ETF,broad
 AIFR,Defiance Global Foundries ETF,broad
+AIL,GraniteShares 2x Long Anthropic Daily ETF,leveraged_inverse
 AIMG,Defiance AI Magnificent 10 ETF,theme
 AIMS,Acuitas Small Cap Active ETF,broad
 AINF,Defiance Inference AI Chip ETF,theme
@@ -70,6 +71,13 @@ AMZZ,GraniteShares 2x Long AMZN Daily ETF,leveraged_inverse
 ANEL,Defiance Daily Target 2x Long ANET ETF,leveraged_inverse
 ANGL,VanEck Fallen Angel High Yield Bond ETF,bond
 ANGU,SEI Ang Research Enhanced U.S. Large Cap ETF,broad
+ANS,GraniteShares 2x Short Anthropic Daily ETF,leveraged_inverse
+ANTC,Defiance 2X ANT Long Daily ETF,leveraged_inverse
+ANTD,Direxion Daily Anthropic Bear 2X ETF,leveraged_inverse
+ANTO,Direxion Daily Anthropic Bull 2X ETF,leveraged_inverse
+ANTQ,Defiance 2X ANT Short Daily ETF,leveraged_inverse
+ANTU,ProShares Ultra Anthropic,broad
+ANTY,ProShares UltraShort Anthropic,leveraged_inverse
 ANV,GraniteShares Autocallable NVDA ETF,broad
 AOHY,Angel Oak High Yield Opportunities ETF,bond
 AOTG,AOT Growth and Innovation ETF,high_beta
@@ -339,6 +347,7 @@ ENDW,Cambria Endowment Style ETF,broad
 ENHE,iShares Enhanced Emerging Markets Active ETF,global
 ENHI,iShares Enhanced International Active ETF,global
 ENHU,iShares Enhanced Large Cap Core Active ETF,broad
+ENHV,iShares Enhanced Large Cap Value Active ETF,factor_income
 ENZL,iShares MSCI New Zealand ETF,broad
 EQQQ,ProShares Ultra QQQ Equal Weight,factor_income
 EQRR,ProShares Equities for Rising Rates ETF,broad
@@ -952,7 +961,6 @@ RIFR,Russell Investments Global Infrastructure ETF,broad
 RING,iShares MSCI Global Gold Miners ETF,commodity
 RINT,Russell Investments International Developed Equity ETF,global
 RKLX,Defiance Daily Target 2X Long RKLB ETF,leveraged_inverse
-RKNG,Defiance Retail Kings ETF,theme
 RNEM,Emerging Markets Equity Select ETF,global
 RNIN,Bushido Capital US SMID Cap Equity ETF,broad
 RNRG,Global X Renewable Energy Producers ETF,commodity
@@ -1408,6 +1416,7 @@ AKRE,Akre Focus ETF,broad
 ALA,Corgi ALAB 2x Daily ETF,leveraged_inverse
 ALAI,Alger AI Enablers & Adopters ETF,theme
 ALDB,Aptus Laddered Deep Buffer ETF,broad
+ALLZ,Zacks All-Cap Core ETF,broad
 ALRG,Allspring LT Large Core ETF,broad
 ALTL,Pacer Lunt Large Cap Alternator ETF,broad
 AMAA,Corgi AMZN 2x Daily ETF,leveraged_inverse
@@ -1429,8 +1438,13 @@ AMZO,Tradr 2X Short AMZN Daily ETF,leveraged_inverse
 AMZP,Kurv Yield Premium Strategy Amazon (AMZN) ETF,broad
 AMZW,Roundhill AMZN WeeklyPay ETF,broad
 AMZY,YieldMax AMZN Option Income Strategy ETF,factor_income
+ANDD,Leverage Shares 2X Short Anthropic Daily ETF,leveraged_inverse
 ANG,Corgi FTSE Fallen Angels Bond ETF,bond
+ANSS,Leverage Shares 1X Short Anthropic Daily ETF,theme
+ANTT,Tradr 2X Long Anthropic Daily ETF,leveraged_inverse
 ANTW,Anthropic AI Lab Ecosystem ETF,theme
+ANTZ,Tradr 2X Short Anthropic Daily ETF,leveraged_inverse
+ANUU,Leverage Shares 2X Long Anthropic Daily ETF,leveraged_inverse
 AOA,iShares Core 80/20 Aggressive Allocation ETF,bond
 AOCT,Innovator Equity Defined Protection ETF - 2 Yr to October 2028,broad
 AOK,iShares Core 30/70 Conservative Allocation ETF,broad
@@ -1507,6 +1521,7 @@ ASTY,Defiance Daily Target 2X Long ASTS ETF,leveraged_inverse
 AT,Defiance Robotics Actuators ETF,theme
 ATCL,REX Autocallable Income ETF,factor_income
 ATFV,Alger 35 ETF,broad
+ATHX,2x Anthropic ETF,leveraged_inverse
 ATTR,Arin Tactical Tail Risk ETF,theme
 AUAU,Global X Gold Miners ETF,commodity
 AUGC,Corgi U.S. Equities 10% Structured Buffer ETF - August Series,broad
@@ -1935,6 +1950,7 @@ CIR,Corgi CRCL 2x Daily ETF,leveraged_inverse
 CIVG,Corgi 1-5 Year Investment Grade Corporate Bond ETF,bond
 CJUL,Corgi U.S. Equities 15% Structured Buffer ETF - July Series,broad
 CJUN,Corgi U.S. Equities 15% Structured Buffer ETF - June Series,broad
+CLAU,T-REX 2X Long Anthropic Daily Target ETF,leveraged_inverse
 CLCG,Crossmark Large Cap Growth ETF,high_beta
 CLCV,Crossmark Large Cap Value ETF,factor_income
 CLIM,Climate Global - Climate Resilient REIT Index ETF,broad
@@ -2225,6 +2241,7 @@ DIPS,YieldMax Short NVDA Option Income Strategy ETF,factor_income
 DISK,Tema Memory ETF,broad
 DISV,Dimensional International Small Cap Value ETF,factor_income
 DIV,Global X Super Dividend ETF,factor_income
+DIVA,AB Equity Income ETF,factor_income
 DIVB,iShares Core Dividend ETF,factor_income
 DIVE,Dana Concentrated Dividend ETF,factor_income
 DIVG,Invesco S&P 500 High Dividend Growers ETF,factor_income
@@ -4989,7 +5006,6 @@ SQMX,FT Vest U.S. Equity Quarterly Max Buffer ETF,broad
 SRHQ,SRH U.S. Quality GARP ETF,factor_income
 SRHR,SRH REIT Covered Call ETF,broad
 SRLN,State Street Blackstone Senior Loan ETF,broad
-SROI,Calamos Antetokounmpo Global Sustainable Equities ETF,theme
 SRS,ProShares UltraShort Real Estate,leveraged_inverse
 SRTY,ProShares UltraPro Short Russell2000,leveraged_inverse
 SRVR,Pacer Data & Infrastructure Real Estate ETF,broad
@@ -5784,6 +5800,7 @@ YYYM,Amplify Municipal CEF High Income ETF,bond
 ZALT,Innovator U.S. Equity 10 Buffer ETF - Quarterly,broad
 ZAPR,Innovator Equity Defined Protection ETF - 1 Yr April,broad
 ZAUG,Innovator Equity Defined Protection ETF - 1 Yr August,broad
+ZCAP,Zacks Small-Cap Core ETF,broad
 ZCBA,Global X Zero Coupon Bond 2030 ETF,bond
 ZCBB,Global X Zero Coupon Bond 2031 ETF,bond
 ZCBC,Global X Zero Coupon Bond 2032 ETF,bond
@@ -5795,6 +5812,7 @@ ZDAY,Bitwise AI Cyber Defense ETF,theme
 ZDEK,Innovator Equity Defined Protection ETF - 1 Yr December,broad
 ZDIS,Virtus Zevenbergen Discovery Growth ETF,high_beta
 ZECP,Zacks Earnings Consistent Portfolio ETF,broad
+ZECX,2x ZCSH ETF,leveraged_inverse
 ZFEB,Innovator Equity Defined Protection ETF - 1 Yr February,broad
 ZHDG,ZEGA Buy and Hedge ETF,broad
 ZIG,The Acquirers Fund,broad
