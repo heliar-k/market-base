@@ -1222,7 +1222,9 @@ async function load() {
   }
   optionAsOf = [['期权快照', D.snapshot_date || (D.date && D.date.slice(0, 10)), 'data/options_structure']];
   if (D.oi_date) {
-    optionAsOf.push(['期权 OI', D.oi_date + (D.oi_final === false ? ' 待回补' : '')]);
+    // oi_final 三态：true=已定稿、false=待次日回补、"missed"=错过窗口（源只提供后续交易日 OI）
+    const oiState = D.oi_final === false ? ' 待回补' : D.oi_final === 'missed' ? ' 已过期未回补' : '';
+    optionAsOf.push(['期权 OI', D.oi_date + oiState]);
   }
   syncHeaderAsOf();
 

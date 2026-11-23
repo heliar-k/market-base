@@ -579,7 +579,8 @@ def test_finalize_oi_rejects_expiration_with_zero_oi(monkeypatch, tmp_path):
     assert json.loads(path.read_text(encoding="utf-8")) == snapshot
 
 
-def test_finalize_oi_rejects_later_session_oi(monkeypatch, tmp_path):
+def test_finalize_oi_marks_missed_on_explicit_key(monkeypatch, tmp_path):
+    """生产入口 finalize_pending_oi() 对每份快照显式传 key，错过窗口时要就地标 missed。"""
     import json
 
     import src.options_structure as os
@@ -591,20 +592,79 @@ def test_finalize_oi_rejects_later_session_oi(monkeypatch, tmp_path):
         lambda: datetime(2026, 10, 28, 11, 0, tzinfo=ZoneInfo("America/New_York")),
     )
     path = tmp_path / "20261026.json"
-    original = {
-        "snapshot_date": "2026-10-26",
-        "oi_final": False,
-        "symbols": {"NVDA": {"spot": 100.0}},
-    }
-    path.write_text(json.dumps(original), encoding="utf-8")
+    path.write_text(
+        json.dumps(
+            {
+                "snapshot_date": "2026-10-26",
+                "oi_final": False,
+                "symbols": {"NVDA": {"spot": 100.0}},
+            }
+        ),
+        encoding="utf-8",
+    )
 
     def _no_fetch(symbol, expirations):
         raise AssertionError("错过下一交易日后不得读取后续 OI")
 
     monkeypatch.setattr(os, "fetch_yf_chain", _no_fetch)
-    with pytest.raises(RuntimeError, match="错过"):
-        os.finalize_oi_snapshot("20261026")
-    assert json.loads(path.read_text(encoding="utf-8")) == original
+    assert os.finalize_oi_snapshot("20261026") is None
+    after = json.loads(path.read_text(encoding="utf-8"))
+    assert after["oi_final"] == "missed"
+    assert after["oi_missed_at"].endswith("Z")
+    # 幂等：再调一次直接返回
+    assert os.finalize_oi_snapshot("20261026") is None
+
+
+def test_finalize_oi_mixed_raw_rows_mark_missed(monkeypatch, tmp_path):
+    """raw 里混着未回补的行（只看首行会误判成已齐）→ 必须判死，不能去取后续交易日 OI。"""
+    import json
+
+    import src.options_structure as os
+
+    monkeypatch.setattr(os, "DATA", tmp_path)
+    monkeypatch.setattr(
+        os,
+        "_now_et",
+        lambda: datetime(2026, 10, 28, 11, 0, tzinfo=ZoneInfo("America/New_York")),
+    )
+    path = tmp_path / "20261026.json"
+    path.write_text(
+        json.dumps(
+            {
+                "snapshot_date": "2026-10-26",
+                "oi_final": False,
+                "symbols": {"NVDA": {"spot": 100.0}},
+            }
+        ),
+        encoding="utf-8",
+    )
+    pd.DataFrame(
+        [
+            {
+                "expiration": "20261120",
+                "strike": 100.0,
+                "right": "C",
+                "openInterest": 10,
+                "oi_final": True,
+                "oi_date": "2026-10-26",
+            },
+            {
+                "expiration": "20261120",
+                "strike": 110.0,
+                "right": "C",
+                "openInterest": 10,
+                "oi_final": False,
+                "oi_date": "2026-10-23",
+            },
+        ]
+    ).to_csv(tmp_path / "raw_NVDA_20261026.csv", index=False)
+
+    def _no_fetch(symbol, expirations):
+        raise AssertionError("已过窗口且 raw 未齐时不得读取后续 OI")
+
+    monkeypatch.setattr(os, "fetch_yf_chain", _no_fetch)
+    assert os.finalize_oi_snapshot("20261026") is None
+    assert json.loads(path.read_text(encoding="utf-8"))["oi_final"] == "missed"
 
 
 def test_finalize_oi_waits_for_publication_time(monkeypatch, tmp_path):
@@ -668,7 +728,12 @@ def test_barchart_health_does_not_require_yahoo_iv_column():
     assert os.chain_health(chain, require_iv=False)[0] is True
 
 
-def test_finalize_oi_selects_oldest_pending_snapshot(monkeypatch, tmp_path):
+def test_finalize_oi_marks_past_window_snapshot_and_moves_on(monkeypatch, tmp_path):
+    """已错过回补窗口的旧快照标成 missed 后跳过，不再抛错把队列堵死。
+
+    回归：2026-10-29 那份 oi_final=False 的快照一直卡在队首，每次 --finalize-oi
+    都抛「已错过 … 回补窗口」，后面的快照永远轮不到回补。
+    """
     import json
 
     import src.options_structure as os
@@ -679,19 +744,95 @@ def test_finalize_oi_selects_oldest_pending_snapshot(monkeypatch, tmp_path):
         "_now_et",
         lambda: datetime(2026, 10, 28, 11, 0, tzinfo=ZoneInfo("America/New_York")),
     )
-    for day in ("20261026", "20261027"):
-        (tmp_path / f"{day}.json").write_text(
-            json.dumps(
-                {
-                    "snapshot_date": f"{day[:4]}-{day[4:6]}-{day[6:]}",
-                    "oi_final": False,
-                    "symbols": {"NVDA": {"spot": 100.0}},
-                }
-            ),
-            encoding="utf-8",
-        )
-    with pytest.raises(RuntimeError, match="20261026"):
+    (tmp_path / "20261026.json").write_text(
+        json.dumps(
+            {
+                "snapshot_date": "2026-10-26",
+                "oi_final": False,
+                "symbols": {"NVDA": {"spot": 100.0}},
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    # 10-26 的次日场次是 10-27，已过 → 标 missed 后返回 None（不抛错）
+    assert os.finalize_oi_snapshot() is None
+    missed = json.loads((tmp_path / "20261026.json").read_text(encoding="utf-8"))
+    assert missed["oi_final"] == "missed"
+    assert missed["oi_missed_at"].endswith("Z")
+    assert "错过 2026-10-27" in missed["oi_missed_note"]
+    # 再跑一次不会重复处理（已经不是 False）
+    assert os.finalize_oi_snapshot() is None
+    # 队首之后接上了一份仍在窗口内的快照：10-26 被跳过后确实轮到 10-27
+    (tmp_path / "20261027.json").write_text(
+        json.dumps(
+            {
+                "snapshot_date": "2026-10-27",
+                "oi_final": False,
+                "symbols": {"NVDA": {"spot": 100.0}},
+            }
+        ),
+        encoding="utf-8",
+    )
+    # 10-27 仍在窗口内：选择已越过 10-26，直接走到它的 raw 校验（raw 不存在 → 报缺链）
+    with pytest.raises(RuntimeError, match="raw_NVDA_20261027.csv"):
         os.finalize_oi_snapshot()
+
+
+def test_finalize_oi_keeps_recoverable_raw_after_window(monkeypatch, tmp_path):
+    """已过窗口但 raw 已带次日 OI（上次写 raw 后中断）→ 继续定稿，不判死。
+
+    回归：只按日期判死会把这批已回补的 raw 当废数据，三天后随保留窗口被清掉，
+    正确的 OI 就永久丢了。
+    """
+    import json
+
+    import src.options_structure as os
+
+    monkeypatch.setattr(os, "DATA", tmp_path)
+    # 已过 10-27 的次日窗口
+    monkeypatch.setattr(
+        os,
+        "_now_et",
+        lambda: datetime(2026, 11, 3, 11, 0, tzinfo=ZoneInfo("America/New_York")),
+    )
+    quote_ts = "2026-10-27T21:19:00Z"
+    (tmp_path / "20261027.json").write_text(
+        json.dumps(
+            {
+                "date": quote_ts,
+                "snapshot_date": "2026-10-27",
+                "oi_final": False,
+                "symbols": {"NVDA": {"symbol": "NVDA", "spot": 100.0, "quote_ts": quote_ts}},
+            }
+        ),
+        encoding="utf-8",
+    )
+    pd.DataFrame(
+        [
+            {
+                "expiration": "20261120",
+                "strike": 100.0,
+                "right": "C",
+                "bid": 3.0,
+                "ask": 3.2,
+                "openInterest": 10,
+                "volume": 5,
+                "impliedVolatility": 0.2,
+                "quote_ts": quote_ts,
+                "oi_final": True,
+                "oi_date": "2026-10-27",
+            }
+        ]
+    ).to_csv(tmp_path / "raw_NVDA_20261027.csv", index=False)
+
+    def _no_fetch(symbol, expirations):
+        raise AssertionError("raw 已带次日 OI 时不应再取数")
+
+    monkeypatch.setattr(os, "fetch_yf_chain", _no_fetch)
+    result = os.finalize_oi_snapshot("20261027")
+    assert result is not None and result["oi_final"] is True
+    assert result["oi_date"] == "2026-10-27"
 
 
 def test_write_snapshot_replace_failure_preserves_previous_file(monkeypatch, tmp_path):

@@ -479,7 +479,11 @@ uv run python src/sell_put.py --symbol TSM
   单日 ~1MB。它不是个人数据，是 yfinance 公开期权链的当日快照；而 JSON 快照里没有逐合约
   明细，选点必须用它。不入库时本机 `live_wheel` 只能回溯旧链、标出 `stale_days`。
 - D 日收盘快照保留 D 日现货与 IV，下一 XNYS 交易日 UTC 14:52 后只回补 D 日 OI 并重算；
-  错过该交易日时保留待回补状态并标红，不把后续交易日 OI 写成 D 日 OI。
+  错过回补窗口的快照就地标成 `oi_final="missed"`（带 `oi_missed_at` / `oi_missed_note`）
+  并退出队列——不标成 true（那会让下游以为 OI 已定稿），也不会再堵住后面日期的回补。
+  例外：raw 链已带次日 OI（`oi_final=true` 且 `oi_date` 对齐）的快照不算错过——
+  上次是在写 raw 之后、写快照之前中断的，直接续跑定稿，不能把能救的 OI 判死。
+  不把后续交易日 OI 写成 D 日 OI。
   `oi_date / oi_final / oi_quote_ts / oi_coverage` 记录回补口径，已到期无法回补的合约
   明确排除。全量生成或回补有任何标的失败都保留旧 JSON 并让任务标红。
 - 快照与 raw 文件日期、DTE、`ref_dt` 统一按美东时间计算，交易日历使用 XNYS；`quote_ts` 记录实际取数完成的

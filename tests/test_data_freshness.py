@@ -208,6 +208,18 @@ def test_options_oi_pending_flagged_only_after_finalization_window(tmp_path):
     assert "2026-10-26" in fr.options_oi_pending_msg(tmp_path, after)
 
 
+def test_options_oi_pending_ignores_missed_snapshot(tmp_path):
+    """错过回补窗口的旧快照标成 missed 后不再天天报警（它已经补不上了）。"""
+    d = tmp_path / "data/options_structure"
+    d.mkdir(parents=True)
+    (d / "20261029.json").write_text('{"snapshot_date":"2026-10-29","oi_final":"missed"}')
+    (d / "20261119.json").write_text('{"snapshot_date":"2026-11-19","oi_final":false}')
+    now = datetime(2026, 11, 20, 21, 0, tzinfo=timezone.utc)
+    msg = fr.options_oi_pending_msg(tmp_path, now)
+    assert msg is not None and "2026-11-19" in msg
+    assert "2026-10-29" not in msg
+
+
 def test_options_oi_pending_skips_weekday_holiday(tmp_path, monkeypatch):
     monkeypatch.setattr("src.options_structure._is_session", lambda day: False)
     d = tmp_path / "data/options_structure"

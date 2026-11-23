@@ -774,8 +774,61 @@ def build_snapshot(symbols: list[str] | None = None, use_cache: bool = True) -> 
     return out
 
 
+def _raw_is_final(raw: pd.DataFrame, snapshot_date: str) -> bool:
+    """raw 链是否整份都带次日 OI（oi_final=true 且 oi_date 对齐）。
+
+    必须逐行校验，不能只看首行：两步写入之间中断时文件里可能混着旧值，
+    两份判定一致才能保证「判死」与「续跑定稿」不会对同一份快照得出不同结论。
+    """
+    return (
+        "oi_final" in raw.columns
+        and "oi_date" in raw.columns
+        and bool(raw["oi_final"].astype(str).str.lower().eq("true").all())
+        and bool(raw["oi_date"].eq(snapshot_date).all())
+    )
+
+
+def _raw_already_final(snapshot: dict, day: date, snapshot_date: str) -> bool:
+    """该快照所有标的的 raw 链是否已带次日 OI。
+
+    上一次回补可能在写 raw 之后、写快照之前中断；这种快照的 OI 是能救回来的，
+    不能因为已过窗口就判死（raw 三天后会被清掉，正确 OI 就永久丢了）。
+    """
+    symbols = snapshot.get("symbols", {})
+    if not symbols:
+        return False
+    for sym in symbols:
+        raw_path = DATA / f"raw_{sym}_{day:%Y%m%d}.csv"
+        if not raw_path.exists():
+            return False
+        if not _raw_is_final(pd.read_csv(raw_path, dtype={"expiration": str}), snapshot_date):
+            return False
+    return True
+
+
+def _mark_oi_missed(path: Path, snapshot: dict, next_session: date, now: datetime) -> None:
+    """把错过回补窗口的快照标成终态（源只提供后续交易日 OI，永远补不上了）。
+
+    不标成 True：那会让下游以为 OI 已定稿。标成 "missed" 后 freshness 的报警与
+    raw 保留规则（只认 `is False`）会自动放过它，被它钉住的 raw 文件也会被清掉。
+    """
+    snapshot["oi_final"] = "missed"
+    snapshot["oi_missed_at"] = now.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    snapshot["oi_missed_note"] = f"错过 {next_session} 的 OI 回补窗口（源只提供后续交易日 OI）"
+    _write_snapshot(path, snapshot)
+    logger.warning(
+        "%s 已错过 %s 的 OI 回补窗口，标记为不可回补（oi_final=missed）", path.stem, next_session
+    )
+
+
 def finalize_oi_snapshot(snapshot_key: str | None = None) -> dict | None:
-    """次日只回补收盘快照的 OI；默认选择最早一份待回补快照。"""
+    """次日只回补收盘快照的 OI；默认选择最早一份待回补快照。
+
+    已错过回补窗口的旧快照不再抛错：它们会一直堵在队首，让后面的快照永远轮不到回补
+    （2026-10-29 那份就这样卡了 20 多天，并把 11-20 的回补堵死）。这类快照就地标成
+    oi_final="missed" 后返回 None——生产入口 finalize_pending_oi() 对每份快照显式传 key，
+    所以标记必须落在函数体内，不能只写在无 key 的选择分支里。
+    """
     now = _now_et()
     if snapshot_key is not None:
         path = DATA / f"{snapshot_key}.json"
@@ -796,7 +849,7 @@ def finalize_oi_snapshot(snapshot_key: str | None = None) -> dict | None:
         if path is None:
             return None
     snapshot = json.loads(path.read_text(encoding="utf-8"))
-    if snapshot.get("oi_final") is None:
+    if snapshot.get("oi_final") in (None, "missed"):
         return None
     snapshot_date = (
         snapshot.get("snapshot_date") or datetime.strptime(path.stem, "%Y%m%d").date().isoformat()
@@ -829,10 +882,11 @@ def finalize_oi_snapshot(snapshot_key: str | None = None) -> dict | None:
             return None
         if now.date() > next_session:
             raise RuntimeError(f"{path.stem} 的 final raw 与快照不一致，且已错过回补窗口")
-    elif now.date() > next_session:
-        raise RuntimeError(
-            f"{path.stem} 已错过 {next_session} 的 OI 回补窗口；当前源只提供后续交易日 OI"
-        )
+    elif now.date() > next_session and not _raw_already_final(snapshot, day, snapshot_date):
+        # 已过窗口且 raw 里没有次日 OI：源只提供后续交易日 OI，这份快照永远补不上了。
+        # raw 已经齐的（上次写 raw 后、写快照前中断）不在此列，继续走下面的定稿流程。
+        _mark_oi_missed(path, snapshot, next_session, now)
+        return None
 
     finalized_at = _utc_now_iso()
     as_of = _eod_anchor(day)
@@ -845,12 +899,7 @@ def finalize_oi_snapshot(snapshot_key: str | None = None) -> dict | None:
         raw = pd.read_csv(raw_path, dtype={"expiration": str})
         if raw.empty:
             raise RuntimeError(f"OI 回补不完整：{sym} raw 链为空")
-        already_final = (
-            "oi_final" in raw.columns
-            and bool(raw["oi_final"].astype(str).str.lower().eq("true").all())
-            and "oi_date" in raw.columns
-            and bool(raw["oi_date"].eq(snapshot_date).all())
-        )
+        already_final = _raw_is_final(raw, snapshot_date)
         previous_excluded = int(old_detail.get("oi_excluded_expired") or 0)
         if already_final:
             final_raw = raw.copy()
